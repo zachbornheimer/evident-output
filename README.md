@@ -36,8 +36,9 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 | Conclusion + exit codes | Production TTY driver polish |
 | Plain, JSON (§25.1), JSONL (§25.2) | Complete agent review analyzers |
 | Interactive live region (`testkit.Screen`) | Agent effectiveness harness |
-| `SlogHandler`, `DebugWriter`, `Suspend`, `Snapshots()` | Deep redaction policies |
-| Appendix H.1–H.22 | Remaining §31 PORT rows |
+| `SlogHandler`, `DebugWriter`, `Suspend`, `Snapshots()`, `MaxEntities`, `ItemWith` | Deep redaction policies |
+| Appendix H.1–H.22 + agent harness | Remaining PORT manual matrix |
+| ANSI driver + width/CJK | Full PTY on every CI image |
 | `cmd/evident-output`, `cmd/evident-output-mcp` (stdio init/tools list) | Full tool handlers |
 
 ## Vocabulary

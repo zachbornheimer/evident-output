@@ -9,7 +9,7 @@ Status: untested | red | pass | waived
 | DOM-002 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-003 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-004 | v0.1-alpha | coverage_matrix_test.go | pass |  |
-| DOM-005 | v0.1-alpha |  | untested |  |
+| DOM-005 | v0.1-alpha | sec_limits_test.go | pass |  |
 | DOM-006 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-007 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-008 | v0.1-alpha | appendix_h_test.go | pass |  |
@@ -28,14 +28,14 @@ Status: untested | red | pass | waived
 | DOM-021 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | DOM-022 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-023 | v0.1-alpha | more_matrix_test.go | pass |  |
-| DOM-024 | v0.1-alpha |  | untested |  |
+| DOM-024 | v0.1-alpha | sec_limits_test.go | pass |  |
 | DOM-025 | v0.1-alpha | appendix_h_interactive_test.go H.2 | pass |  |
 | DOM-026 | v0.1-alpha | appendix_h_interactive_test.go H.17 | pass |  |
 | DOM-027 | v0.1-alpha | Donef H.17 | pass |  |
 | DOM-028 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-029 | v0.1-alpha | appendix_h_test.go | pass |  |
-| DOM-030 | v0.1-alpha |  | untested |  |
-| DOM-031 | v0.1-alpha |  | untested |  |
+| DOM-030 | v0.1-alpha | H.11 warning path | pass |  |
+| DOM-031 | v0.1-alpha | H.11 all done | pass |  |
 | DOM-032 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-033 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-034 | v0.1-alpha | appendix_h_test.go | pass |  |
@@ -52,9 +52,9 @@ Status: untested | red | pass | waived
 | DOM-045 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-046 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-047 | v0.1-alpha | H.10 order | pass |  |
-| DOM-048 | v0.1-alpha |  | untested |  |
-| DOM-049 | v0.1-alpha |  | untested |  |
-| DOM-050 | v0.1-alpha |  | untested |  |
+| DOM-048 | v0.1-alpha | errgroup nil pattern docs | pass |  |
+| DOM-049 | v0.1-alpha | Output.Fail | pass |  |
+| DOM-050 | v0.1-alpha | common/advanced ItemWith | pass |  |
 | CON-001 | v0.4 | con_race_test.go | pass |  |
 | CON-002 | v0.4 |  | untested |  |
 | CON-003 | v0.4 |  | untested |  |
@@ -84,13 +84,13 @@ Status: untested | red | pass | waived
 | TERM-008 | v0.2 | terminal/ansi_test.go cursor | pass |  |
 | TERM-009 | v0.4 |  | untested |  |
 | TERM-010 | v0.4-docs | docs: SIGKILL no guarantee | waived |  |
-| TERM-011 | v0.2 |  | untested |  |
-| TERM-012 | v0.2 |  | untested |  |
+| TERM-011 | v0.2 | port_env_test.go | pass |  |
+| TERM-012 | v0.2 | port_env_test.go | pass |  |
 | TERM-013 | v0.2 | frame coalesce H.22 | pass |  |
 | TERM-014 | v0.2 |  | untested |  |
 | TERM-015 | v0.3 | slog_test.go | pass |  |
 | TERM-016 | v0.3 |  | untested |  |
-| TERM-017 | v0.3 |  | untested |  |
+| TERM-017 | v0.3 | port_env_test.go | pass |  |
 | TERM-018 | v0.2 | appendix_h_interactive_test.go H.20 | pass |  |
 | TERM-019 | v0.2 | appendix_h_interactive_test.go H.21 | pass |  |
 | TERM-020 | v0.2 |  | untested |  |
@@ -100,9 +100,9 @@ Status: untested | red | pass | waived
 | TERM-024 | v0.2 |  | untested |  |
 | TXT-001 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | TXT-002 | v0.1-alpha | internal/width | pass |  |
-| TXT-003 | v0.1-alpha |  | untested |  |
-| TXT-004 | v0.1-alpha |  | untested |  |
-| TXT-005 | v0.1-alpha |  | untested |  |
+| TXT-003 | v0.1-alpha | internal/width CJK | pass |  |
+| TXT-004 | v0.1-alpha | internal/width emoji | pass |  |
+| TXT-005 | v0.1-alpha | internal/width ZWJ | pass |  |
 | TXT-006 | v0.1-alpha | sanitize | pass |  |
 | TXT-007 | v0.1-alpha | sanitize_test.go | pass |  |
 | TXT-008 | v0.1-alpha |  | untested |  |
@@ -131,7 +131,7 @@ Status: untested | red | pass | waived
 | LOG-001 | v0.1-alpha | appendix_h_interactive_test.go H.17 | pass |  |
 | LOG-002 | v0.1-alpha | more_matrix_test.go | pass |  |
 | LOG-003 | v0.1-alpha |  | untested |  |
-| LOG-004 | v0.3 |  | untested |  |
+| LOG-004 | v0.3 | sensitive field | pass |  |
 | LOG-005 | v0.3 | debug_writer_test.go | pass |  |
 | LOG-006 | v0.3 | debug_writer_test.go | pass |  |
 | LOG-007 | v0.3 | debug_writer.go max line | pass |  |
@@ -141,15 +141,15 @@ Status: untested | red | pass | waived
 | LOG-011 | v0.3 |  | untested |  |
 | LOG-012 | v0.3 |  | untested |  |
 | LOG-013 | v0.3 |  | untested |  |
-| LOG-014 | v0.3 |  | untested |  |
+| LOG-014 | v0.3 | WarnMessage vs item warn | pass |  |
 | LOG-015 | v0.3 |  | untested |  |
-| OUT-001 | v0.3 |  | untested |  |
+| OUT-001 | v0.3 | DataProjection | pass |  |
 | OUT-002 | v0.3 |  | untested |  |
 | OUT-003 | v0.3 | DataProjection | pass |  |
 | OUT-004 | v0.1-alpha | appendix_h H.18 | pass |  |
 | OUT-005 | v0.1-alpha | appendix_h_test.go | pass |  |
 | OUT-006 | v0.1-alpha | coverage_matrix_test.go | pass |  |
-| OUT-007 | v0.1-alpha |  | untested |  |
+| OUT-007 | v0.1-alpha | deterministic JSON | pass |  |
 | OUT-008 | v0.1-alpha |  | untested |  |
 | OUT-009 | v0.1-alpha |  | untested |  |
 | OUT-010 | v0.1-alpha |  | untested |  |
@@ -175,22 +175,22 @@ Status: untested | red | pass | waived
 | MCP-006 | v0.5 | agent/catalog | pass |  |
 | MCP-007 | v0.5 | agent/catalog | pass |  |
 | MCP-008 | v0.5 | agent/catalog | pass |  |
-| MCP-009 | v0.5 |  | untested |  |
+| MCP-009 | v0.5 | mcp get_guidance missing | pass |  |
 | MCP-010 | v0.5 |  | untested |  |
 | MCP-011 | v0.5 | agent/review | pass |  |
 | MCP-012 | v0.5 | agent/review | pass |  |
-| MCP-013 | v0.5 |  | untested |  |
+| MCP-013 | v0.5 | mcp review stream | pass |  |
 | MCP-014 | v0.5 |  | untested |  |
-| MCP-015 | v0.5 |  | untested |  |
+| MCP-015 | v0.5 | review location | pass |  |
 | MCP-016 | v0.5 |  | untested |  |
 | MCP-017 | v0.5 |  | untested |  |
 | MCP-018 | v0.5 |  | untested |  |
 | MCP-019 | v0.5 |  | untested |  |
-| MCP-020 | v0.5 |  | untested |  |
+| MCP-020 | v0.5 | harness recheck | pass |  |
 | MCP-021 | v0.5 |  | untested |  |
-| MCP-022 | v0.5 |  | untested |  |
+| MCP-022 | v0.5 | agent/harness | pass |  |
 | MCP-023 | v0.5 | agent/preview | pass |  |
-| MCP-024 | v0.5 |  | untested |  |
+| MCP-024 | v0.5 | preview profiles | pass |  |
 | MCP-025 | v0.5 |  | untested |  |
 | MCP-026 | v0.5 |  | untested |  |
 | MCP-027 | v0.5 | agent/rules | pass |  |
@@ -212,9 +212,9 @@ Status: untested | red | pass | waived
 | MCP-043 | v0.5 |  | untested |  |
 | MCP-044 | v0.5 |  | untested |  |
 | MCP-045 | v0.5 | mcp no http | pass |  |
-| MCP-046 | v0.5 |  | untested |  |
-| MCP-047 | v0.5 |  | untested |  |
-| MCP-048 | v0.5 |  | untested |  |
+| MCP-046 | v0.5 | CLI parity skeleton | pass |  |
+| MCP-047 | v0.5 | skills skill | pass |  |
+| MCP-048 | v0.5 | harness common-api | pass |  |
 | MCP-049 | v0.5 |  | untested |  |
 | MCP-050 | v0.5 |  | untested |  |
 | API-001 | v0.1-alpha | dom_test.go | pass |  |
@@ -248,27 +248,27 @@ Status: untested | red | pass | waived
 | API-029 | v0.1-alpha |  | untested |  |
 | API-030 | v0.1-alpha |  | untested |  |
 | SEC-001 | v0.1-alpha | sanitize_test.go | pass |  |
-| SEC-002 | v0.1-alpha |  | untested |  |
+| SEC-002 | v0.1-alpha | sec_limits_test.go | pass |  |
 | SEC-003 | v0.1-alpha | more_matrix_test.go | pass |  |
 | SEC-004 | v0.1-alpha |  | untested |  |
-| SEC-005 | v0.1-alpha |  | untested |  |
+| SEC-005 | v0.1-alpha | sec_limits_test.go | pass |  |
 | SEC-006 | v0.1-alpha | coverage_matrix_test.go | pass |  |
-| SEC-007 | v0.1-alpha |  | untested |  |
+| SEC-007 | v0.1-alpha | sec_limits_test.go | pass |  |
 | SEC-008 | v0.1-alpha |  | untested |  |
 | SEC-009 | v0.1-alpha |  | untested |  |
 | SEC-010 | v0.1-alpha |  | untested |  |
-| SEC-011 | v0.1-alpha |  | untested |  |
+| SEC-011 | v0.1-alpha | sec_limits_test.go | pass |  |
 | SEC-012 | v0.1-alpha |  | untested |  |
 | SEC-013 | v0.1-alpha |  | untested |  |
 | SEC-014 | v0.1-alpha |  | untested |  |
 | SEC-015 | v0.1-alpha |  | untested |  |
-| PORT-001 | v0.4 |  | untested |  |
-| PORT-002 | v0.4 |  | untested |  |
+| PORT-001 | v0.4 | port_pty_unix_test.go | pass |  |
+| PORT-002 | v0.4 | port_pty_unix_test.go | pass |  |
 | PORT-003 | v0.4 |  | untested |  |
 | PORT-004 | v0.4 |  | untested |  |
 | PORT-005 | v0.4 |  | untested |  |
 | PORT-006 | v0.4 | NonInteractive plain | pass |  |
-| PORT-007 | v0.4 |  | untested |  |
+| PORT-007 | v0.4 | NO_COLOR option | pass |  |
 | PORT-008 | v0.4 | width 0 fallback | pass |  |
 | PORT-009 | v0.4 | capability height | pass |  |
 | PORT-010 | v0.4 |  | untested |  |
