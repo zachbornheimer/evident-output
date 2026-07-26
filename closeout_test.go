@@ -175,7 +175,7 @@ func TestCON019_HighFrequencyChildProgress(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	t1 := g.Task("a")
-	for i := int64(0); i < 200; i++ {
+	for i := int64(0); i <= 200; i++ {
 		t1.Progress(i, 200)
 	}
 	t1.Done()
