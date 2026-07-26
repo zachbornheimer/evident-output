@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -121,22 +123,72 @@ func TestMCP032_DeadlineRespected(t *testing.T) {
 }
 
 func TestMCP034_PanicContainedContinues(t *testing.T) {
-	// Cannot easily inject panic without a special tool; verify server survives
-	// malformed tool name and subsequent healthy call.
-	bin := buildMCP(t)
-	in := strings.Join([]string{
-		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"BAD NAME!","arguments":{}}}`,
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"evident_output.list_guides","arguments":{}}}`,
-	}, "\n") + "\n"
-	stdout := runMCP(t, bin, in)
-	// Second call still answered
-	lines := strings.Split(strings.TrimSpace(stdout), "\n")
-	if len(lines) < 3 {
-		t.Fatalf("expected 3 responses, got %d: %s", len(lines), stdout)
+	// Fault injection: panic inside tool handler; server must contain and continue.
+	// Unit-level (same package) so we can set faultHook without a production backdoor binary flag.
+	faultHook = func(name string) {
+		if name == "evident_output.list_guides" {
+			panic("injected MCP-034 fault")
+		}
 	}
-	if !strings.Contains(stdout, "guides") {
-		t.Fatalf("third call missing guides: %s", stdout)
+	t.Cleanup(func() { faultHook = nil })
+
+	// Drive through safeToolCall path used by the server.
+	var buf bytes.Buffer
+	// Capture writeRPC by temporarily not available — call safeToolCall which recovers.
+	// Instead exercise safeToolCall + handleToolCall directly via process-level is hard;
+	// call the functions that the server uses.
+	req := map[string]any{
+		"params": map[string]any{
+			"name":      "evident_output.list_guides",
+			"arguments": map[string]any{},
+		},
+	}
+	// safeToolCall writes to stdout — redirect via pipe is heavy; invoke recover path:
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("panic escaped safeToolCall: %v", r)
+			}
+		}()
+		// Redirect stdout for writeRPC
+		old := os.Stdout
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.Stdout = w
+		safeToolCall(1, req)
+		_ = w.Close()
+		os.Stdout = old
+		b, _ := io.ReadAll(r)
+		_ = r.Close()
+		buf.Write(b)
+	}()
+	out := buf.String()
+	if !strings.Contains(out, "panic contained") && !strings.Contains(out, "internal tool error") {
+		t.Fatalf("expected panic-contained tool error, got %q", out)
+	}
+	// Subsequent healthy call must still work (no process death).
+	faultHook = nil
+	req2 := map[string]any{
+		"params": map[string]any{
+			"name":      "evident_output.explain",
+			"arguments": map[string]any{"rule_id": "API-006"},
+		},
+	}
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	safeToolCall(2, req2)
+	_ = w.Close()
+	os.Stdout = old
+	b, _ := io.ReadAll(r)
+	_ = r.Close()
+	if !strings.Contains(string(b), "API-006") && !strings.Contains(string(b), "explicit Start") {
+		t.Fatalf("post-panic call failed: %s", b)
 	}
 }
 

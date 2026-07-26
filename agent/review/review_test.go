@@ -56,6 +56,84 @@ func TestStructuredDocument_RequiresSchema(t *testing.T) {
 	}
 }
 
+func TestMCP014_BlockedItemAsApplicationError(t *testing.T) {
+	bad := `package p
+import (
+  "errors"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func check() error {
+  out := evo.For("repo")
+  defer out.Close()
+  out.Item("working tree").Block("dirty")
+  return errors.New("dirty")
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-011" {
+			found = true
+			if f.Line == 0 {
+				t.Error("DOM-011 missing line")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected DOM-011 on blocked-as-error: %+v", res.Findings)
+	}
+	if !res.RecheckRequired {
+		t.Fatal("expected recheck_required")
+	}
+}
+
+func TestMCP014_NoFalsePositiveOnRealAppError(t *testing.T) {
+	// Real evaluation failure uses Fail, not Block — must not flag DOM-011.
+	good := `package p
+import (
+  "errors"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func check() error {
+  out := evo.For("repo")
+  defer out.Close()
+  if err := load(); err != nil {
+    out.Item("data").Fail("load failed")
+    _ = out.Finish()
+    return err
+  }
+  out.Item("data").OK()
+  return out.Finish()
+}
+func load() error { return errors.New("io") }
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-011" {
+			t.Fatalf("false positive DOM-011 on Fail path: %+v", res.Findings)
+		}
+	}
+}
+
+func TestMCP014_BlockThenFinishOK(t *testing.T) {
+	// Correct blocked path: Block + Finish, no application error return.
+	ok := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func check() error {
+  out := evo.For("repo")
+  defer out.Close()
+  out.Item("working tree").Block("dirty")
+  return out.Finish()
+}
+`
+	res := review.GoSource("ok.go", ok)
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-011" {
+			t.Fatalf("false positive on Finish after Block: %+v", res.Findings)
+		}
+	}
+}
+
 func TestGoPackage_CrossFileTypes(t *testing.T) {
 	// MCP-017: two files, shared package — review resolves across files.
 	files := map[string]string{

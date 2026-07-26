@@ -22,6 +22,10 @@ import (
 // Version is injected at build time.
 var Version = "dev"
 
+// faultHook is an optional test-only injector for MCP-034 panic containment.
+// Production always leaves this nil.
+var faultHook func(toolName string)
+
 // Supported protocol versions (MCP-041).
 var supportedProtocols = map[string]bool{
 	"2024-11-05": true,
@@ -212,6 +216,10 @@ func handleToolCall(id any, req map[string]any) {
 	if !validToolName(name) && name != "" {
 		writeRPC(id, toolError("invalid tool name"))
 		return
+	}
+	// MCP-034: fault injection point for tests (never set in production).
+	if faultHook != nil {
+		faultHook(name)
 	}
 
 	deadline := deadlineFromArgs(args)

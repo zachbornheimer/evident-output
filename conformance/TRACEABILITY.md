@@ -180,7 +180,7 @@ Status: untested | red | pass | waived
 | MCP-011 | v0.5 | agent/review | pass |  |
 | MCP-012 | v0.5 | agent/review | pass |  |
 | MCP-013 | v0.5 | mcp review stream | pass |  |
-| MCP-014 | v0.5 | mcp_more_test.go | pass |  |
+| MCP-014 | v0.5 | agent/review TestMCP014_* + harness blocked-as-error | pass |  |
 | MCP-015 | v0.5 | review location | pass |  |
 | MCP-016 | v0.5 | waived_closeout_test.go TestMCP016_PartialTypeinfoMarked | pass |  |
 | MCP-017 | v0.5 | agent/review.GoPackage + review_test.go TestGoPackage_CrossFileTypes | pass |  |
@@ -188,19 +188,19 @@ Status: untested | red | pass | waived
 | MCP-019 | v0.5 | agent/review.StructuredDocument + review_test.go | pass |  |
 | MCP-020 | v0.5 | harness recheck | pass |  |
 | MCP-021 | v0.5 | harness recheck | pass |  |
-| MCP-022 | v0.5 | agent/harness | pass |  |
+| MCP-022 | v0.5 | agent/harness TestMCP022_RepairLoopReachesClean + RunAllRepairable | pass |  |
 | MCP-023 | v0.5 | agent/preview | pass |  |
 | MCP-024 | v0.5 | preview profiles | pass |  |
 | MCP-025 | v0.5 | waived_closeout_test.go TestMCP025_PreviewDebugInterleave | pass |  |
 | MCP-026 | v0.5 | preview no exec | pass |  |
-| MCP-027 | v0.5 | agent/rules | pass |  |
-| MCP-028 | v0.5 | agent/rules | pass |  |
+| MCP-027 | v0.5 | agent/rules TestMCP027_ExplainFullPayload | pass |  |
+| MCP-028 | v0.5 | agent/rules TestMCP028_RuleStabilityVersionPolicy | pass |  |
 | MCP-029 | v0.5 | mcp_hardening_test.go TestMCP029_030_StructuredAndText | pass |  |
 | MCP-030 | v0.5 | mcp_hardening_test.go TestMCP029_030_StructuredAndText | pass |  |
 | MCP-031 | v0.5 | oversized not crashed | pass |  |
 | MCP-032 | v0.5 | mcp_hardening_test.go TestMCP032_DeadlineRespected | pass |  |
 | MCP-033 | v0.5 | mcp_sec_test.go | pass |  |
-| MCP-034 | v0.5 | mcp_hardening_test.go TestMCP034_PanicContainedContinues | pass |  |
+| MCP-034 | v0.5 | mcp_hardening_test.go TestMCP034_PanicContainedContinues (faultHook panic injection) | pass |  |
 | MCP-035 | v0.5 | mcp_sec_test.go | pass |  |
 | MCP-036 | v0.5 | cmd/evident-output-mcp isRemotePath + mcp_hardening_test.go TestMCP036 | pass |  |
 | MCP-037 | v0.5 | waived_closeout_test.go TestMCP037_ReviewDoesNotMutateSource | pass |  |
@@ -215,7 +215,7 @@ Status: untested | red | pass | waived
 | MCP-046 | v0.5 | cmd/evident-output/cli_test.go | pass |  |
 | MCP-047 | v0.5 | skills skill | pass |  |
 | MCP-048 | v0.5 | harness common-api | pass |  |
-| MCP-049 | v0.5 | harness stop condition | pass |  |
+| MCP-049 | v0.5 | agent/harness TestMCP049_StopOnlyWhenRecheckFalse | pass |  |
 | MCP-050 | v0.5 | catalog.ApplyTokenBudget + mcp_hardening_test.go | pass |  |
 | API-001 | v0.1-alpha | dom_test.go | pass |  |
 | API-002 | v0.1-alpha | appendix_h_test.go | pass |  |
