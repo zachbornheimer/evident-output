@@ -26,6 +26,7 @@ type Output struct {
 	conclusion *Conclusion
 	finalPlain string
 	live       *liveEngine
+	snapCh     chan Snapshot
 
 	items       []*itemState
 	tasks       []*taskState
@@ -616,6 +617,7 @@ func (o *Output) collectActionsLocked() []Action {
 
 func (o *Output) bumpLocked() {
 	o.version++
+	o.publishSnapshotLocked()
 }
 
 func (o *Output) appendEventLocked(e Event) {
@@ -669,6 +671,11 @@ func (o *Output) Finish() error {
 	misuse := o.misuse
 	o.finished = true
 	o.finishing = false
+	interactiveFinal := renderInteractiveFinal(snap)
+	if live := o.liveLocked(); live != nil && live.IsInteractive() {
+		o.finishLiveLocked(interactiveFinal)
+	}
+	o.closeSnapshotsLocked()
 	o.mu.Unlock()
 
 	// Projection outside lock.
@@ -677,11 +684,6 @@ func (o *Output) Finish() error {
 	})
 	o.mu.Lock()
 	o.finalPlain = string(plain)
-	// Interactive final: compact task/item lines for H.17-style final ops.
-	interactiveFinal := renderInteractiveFinal(snap)
-	if live := o.liveLocked(); live != nil && live.IsInteractive() {
-		o.finishLiveLocked(interactiveFinal)
-	}
 	o.mu.Unlock()
 	if writer != nil {
 		_, _ = writer.Write(plain)
