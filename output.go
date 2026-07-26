@@ -2,6 +2,7 @@ package evo
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -24,6 +25,7 @@ type Output struct {
 	misuse     error
 	conclusion *Conclusion
 	finalPlain string
+	live       *liveEngine
 
 	items       []*itemState
 	tasks       []*taskState
@@ -390,7 +392,7 @@ func (o *Output) NextCommand(executable string, args ...string) {
 	o.Next(Command(executable, args...))
 }
 
-// Debug records a diagnostic line (durable; live insert is v0.3).
+// Debug records a diagnostic line; during live UI it is inserted above the region.
 func (o *Output) Debug(message string, fields ...Field) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -405,6 +407,9 @@ func (o *Output) Debug(message string, fields ...Field) {
 	o.lines = append(o.lines, line)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "log.emitted"})
+	if o.liveLocked() != nil {
+		o.debugLiveLocked(line)
+	}
 }
 
 func formatDebug(message string, fields []Field) string {
@@ -672,11 +677,37 @@ func (o *Output) Finish() error {
 	})
 	o.mu.Lock()
 	o.finalPlain = string(plain)
+	// Interactive final: compact task/item lines for H.17-style final ops.
+	interactiveFinal := renderInteractiveFinal(snap)
+	if live := o.liveLocked(); live != nil && live.IsInteractive() {
+		o.finishLiveLocked(interactiveFinal)
+	}
 	o.mu.Unlock()
 	if writer != nil {
 		_, _ = writer.Write(plain)
 	}
 	return misuse
+}
+
+func renderInteractiveFinal(s Snapshot) string {
+	var b strings.Builder
+	for _, t := range s.Tasks {
+		writeTask(&b, t)
+	}
+	for _, col := range s.Collections {
+		writeCollection(&b, col)
+	}
+	for _, it := range s.Items {
+		writeItem(&b, it)
+	}
+	if b.Len() == 0 {
+		// fall back to full plain without conclusion
+		cfg := config{width: defaultWidth, plain: true, nonInteractive: true}
+		text := renderPlain(s, cfg)
+		// strip trailing conclusion block if present
+		return strings.TrimRight(text, "\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // Close is idempotent cleanup; best-effort Finish when needed.

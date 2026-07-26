@@ -37,6 +37,7 @@ func (t *Task) Phase(text string) *Task {
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task.phase_changed", EntityID: t.id})
+	t.out.signalLiveLocked(true)
 	return t
 }
 
@@ -130,6 +131,8 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind P
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task.progress_changed", EntityID: t.id})
+	// Progress is high-frequency: coalesce unless first frame.
+	t.out.signalLiveLocked(false)
 }
 
 // Done resolves the task successfully.
@@ -222,5 +225,10 @@ func (t *Task) finish(state EntityState, summary string, problems []Problem) *Ta
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task." + string(state), EntityID: t.id})
+	// Terminal outcomes: update live ledger for collections (H.20/H.21), but do not
+	// draw a live "done" frame for a standalone task right before Finish (H.17).
+	if st.collection != nil {
+		t.out.signalLiveLocked(true)
+	}
 	return t
 }
