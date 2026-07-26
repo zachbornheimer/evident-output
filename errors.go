@@ -15,4 +15,5 @@ var (
 	ErrInvalidConfig      = errors.New("evo: invalid configuration")
 	ErrRenderer           = errors.New("evo: renderer failure")
 	ErrFinishing          = errors.New("evo: output is finishing")
+	ErrLimitExceeded      = errors.New("evo: resource limit exceeded")
 )

@@ -110,11 +110,15 @@ func newOutput(subject string, options ...Option) *Output {
 		width:           defaultWidth,
 		debugLevel:      LevelInfo,
 		redactor:        NoopRedactor{},
+		maxEntities:     defaultMaxEntities,
 	}
 	for _, opt := range options {
 		if opt != nil {
 			opt.apply(&cfg)
 		}
+	}
+	if cfg.maxEntities <= 0 {
+		cfg.maxEntities = defaultMaxEntities
 	}
 	if cfg.plain || cfg.nonInteractive {
 		// interactive terminal ignored for plain path in v0.1
@@ -177,6 +181,10 @@ func (o *Output) Item(name string) *Item {
 		o.recordMisuse(err)
 		return &Item{out: o, id: o.nextID("item")}
 	}
+	if err := o.ensureEntityRoomLocked(); err != nil {
+		o.recordMisuse(err)
+		return &Item{out: o, id: o.nextID("item")}
+	}
 	st := &itemState{
 		id:          o.nextID("item"),
 		name:        sanitize.Text(name),
@@ -192,6 +200,54 @@ func (o *Output) Item(name string) *Item {
 	return h
 }
 
+func (o *Output) ensureEntityRoomLocked() error {
+	n := len(o.items) + len(o.tasks)
+	if n >= o.cfg.maxEntities {
+		return ErrLimitExceeded
+	}
+	return nil
+}
+
+// ItemWith declares an item using advanced specification (keys/order).
+func (o *Output) ItemWith(spec ItemSpec) (*Item, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if err := o.ensureOpen(); err != nil {
+		return nil, err
+	}
+	if spec.Key != "" {
+		if _, ok := o.keys[spec.Key]; ok {
+			o.recordMisuse(ErrDuplicateKey)
+			return nil, ErrDuplicateKey
+		}
+		o.keys[spec.Key] = struct{}{}
+	}
+	if err := o.ensureEntityRoomLocked(); err != nil {
+		o.recordMisuse(err)
+		return nil, err
+	}
+	name := spec.Name
+	if name == "" {
+		name = spec.Key
+	}
+	st := &itemState{
+		id:          o.nextID("item"),
+		name:        sanitize.Text(name),
+		state:       Pending,
+		declaration: o.nextDecl(),
+	}
+	if spec.Order != 0 {
+		st.declaration = spec.Order
+	}
+	h := &Item{out: o, id: st.id}
+	st.handle = h
+	o.items = append(o.items, st)
+	o.itemByRef[st.id] = st
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: "item.declared", EntityID: st.id})
+	return h, nil
+}
+
 // Task declares a single operation.
 func (o *Output) Task(name string) *Task {
 	o.mu.Lock()
@@ -201,6 +257,10 @@ func (o *Output) Task(name string) *Task {
 
 func (o *Output) addTaskLocked(name string, col *tasksState) *Task {
 	if err := o.ensureOpen(); err != nil {
+		o.recordMisuse(err)
+		return &Task{out: o, id: o.nextID("task")}
+	}
+	if err := o.ensureEntityRoomLocked(); err != nil {
 		o.recordMisuse(err)
 		return &Task{out: o, id: o.nextID("task")}
 	}

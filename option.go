@@ -26,6 +26,7 @@ type config struct {
 	debugLevel      LogLevel
 	redactor        Redactor
 	projection      ProjectionPolicy
+	maxEntities     int
 }
 
 type optionFunc func(*config)
@@ -117,4 +118,11 @@ const (
 	defaultVisibilityDelay = 150 * time.Millisecond
 	defaultMaxFrameRate    = 20
 	defaultWidth           = 80
+	// defaultMaxEntities bounds items+tasks to prevent unbounded allocation (SEC-003).
+	defaultMaxEntities = 100_000
 )
+
+// MaxEntities caps total items and tasks for one Output (0 uses default).
+func MaxEntities(n int) Option {
+	return optionFunc(func(c *config) { c.maxEntities = n })
+}
