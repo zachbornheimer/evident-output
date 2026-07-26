@@ -28,14 +28,15 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 ## Status
 
-**v0.1-alpha** — semantic core, plain + JSON/JSONL projections, sanitize, roast suite.
+**v0.2-alpha** — semantic core + interactive live region (testkit VT), plain/JSON/JSONL, roast suite.
 
 | Ready now | Later (see architecture spec) |
 |-----------|--------------------------------|
-| Items, Task, Tasks, Changes, Plan, Line | Interactive live region / spinner (v0.2) |
-| Conclusion + exit codes | slog bridge, Suspend (v0.3) |
+| Items, Task, Tasks, Changes, Plan, Line | slog bridge, Suspend (v0.3) |
+| Conclusion + exit codes | Full PTY / Windows matrix (v0.4) |
 | Plain, JSON (§25.1), JSONL (§25.2) | MCP + agent review (v0.5–0.6) |
-| `testkit` clock/screen stubs | Full PTY / Windows matrix (v0.4) |
+| Interactive live region via `evo.Terminal(testkit.Screen)` | Hosted MCP / production TTY polish |
+| Appendix H.1–H.22 (interactive + semantic) | Remaining §31 PORT/MCP rows |
 
 ## Vocabulary
 
@@ -89,6 +90,21 @@ jsonl, _ := evo.EncodeJSONL(out.Events())
 ```
 
 Schemas: `schema/output.v1.json`, `schema/event.v1.json`.
+
+### Interactive (testkit / virtual terminal)
+
+```go
+screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+clock := testkit.NewClock()
+out := evo.New(
+    evo.Terminal(screen),
+    evo.Clock(clock),
+    evo.VisibilityDelay(150*time.Millisecond),
+    evo.MaxFrameRate(20),
+)
+// Phase/Progress draw a live region; instant Done before the threshold does not flash.
+// out.Debug(...) inserts above the live region (clear → durable → redraw).
+```
 
 ## Contributing
 
