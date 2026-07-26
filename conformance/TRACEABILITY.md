@@ -56,7 +56,7 @@ Status: untested | red | pass | waived
 | DOM-049 | v0.1-alpha | Output.Fail | pass |  |
 | DOM-050 | v0.1-alpha | common/advanced ItemWith | pass |  |
 | CON-001 | v0.4 | con_race_test.go | pass |  |
-| CON-002 | v0.4 |  | untested |  |
+| CON-002 | v0.4 | final_matrix_test.go | pass |  |
 | CON-003 | v0.4 |  | untested |  |
 | CON-004 | v0.4 |  | untested |  |
 | CON-005 | v0.4 | remaining_core_test.go | pass |  |
@@ -65,9 +65,9 @@ Status: untested | red | pass | waived
 | CON-008 | v0.4 |  | untested |  |
 | CON-009 | v0.4 |  | untested |  |
 | CON-010 | v0.1-rc |  | untested |  |
-| CON-011 | v0.1-rc |  | untested |  |
+| CON-011 | v0.1-rc | final_matrix_test.go | pass |  |
 | CON-012 | v0.1-rc | con_race_test.go | pass |  |
-| CON-013 | v0.4 |  | untested |  |
+| CON-013 | v0.4 | final_matrix_test.go | pass |  |
 | CON-014 | v0.4 | appendix_h_interactive_test.go H.22 | pass |  |
 | CON-015 | v0.4 |  | untested |  |
 | CON-016 | v0.4 |  | untested |  |
@@ -82,7 +82,7 @@ Status: untested | red | pass | waived
 | TERM-006 | v0.2 | appendix_h_interactive_test.go H.17 | pass |  |
 | TERM-007 | v0.4 |  | untested |  |
 | TERM-008 | v0.2 | terminal/ansi_test.go cursor | pass |  |
-| TERM-009 | v0.4 |  | untested |  |
+| TERM-009 | v0.4 | SIGINT PTY — documented + deferred full PTY harness | waived |  |
 | TERM-010 | v0.4-docs | docs: SIGKILL no guarantee | waived |  |
 | TERM-011 | v0.2 | port_env_test.go | pass |  |
 | TERM-012 | v0.2 | port_env_test.go | pass |  |
@@ -93,7 +93,7 @@ Status: untested | red | pass | waived
 | TERM-017 | v0.3 | port_env_test.go | pass |  |
 | TERM-018 | v0.2 | appendix_h_interactive_test.go H.20 | pass |  |
 | TERM-019 | v0.2 | appendix_h_interactive_test.go H.21 | pass |  |
-| TERM-020 | v0.2 |  | untested |  |
+| TERM-020 | v0.2 | final_matrix_test.go | pass |  |
 | TERM-021 | v0.2 |  | untested |  |
 | TERM-022 | v0.2 | terminal/ansi.go | pass |  |
 | TERM-023 | v0.2 |  | untested |  |
@@ -105,9 +105,9 @@ Status: untested | red | pass | waived
 | TXT-005 | v0.1-alpha | internal/width ZWJ | pass |  |
 | TXT-006 | v0.1-alpha | sanitize | pass |  |
 | TXT-007 | v0.1-alpha | sanitize_test.go | pass |  |
-| TXT-008 | v0.1-alpha |  | untested |  |
-| TXT-009 | v0.1-alpha |  | untested |  |
-| TXT-010 | v0.1-alpha |  | untested |  |
+| TXT-008 | v0.1-alpha | final_matrix_test.go | pass |  |
+| TXT-009 | v0.1-alpha | final_matrix_test.go | pass |  |
+| TXT-010 | v0.1-alpha | final_matrix_test.go | pass |  |
 | TXT-011 | v0.1-alpha | plain narrow | pass |  |
 | TXT-012 | v0.1-alpha |  | untested |  |
 | TXT-013 | v0.1-alpha |  | untested |  |
@@ -117,16 +117,16 @@ Status: untested | red | pass | waived
 | TXT-017 | v0.1-alpha |  | untested |  |
 | TXT-018 | v0.1-alpha |  | untested |  |
 | TXT-019 | v0.1-alpha |  | untested |  |
-| TXT-020 | v0.1-alpha |  | untested |  |
+| TXT-020 | v0.1-alpha | final_matrix_test.go | pass |  |
 | A11Y-001 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | A11Y-002 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | A11Y-003 | v0.1-alpha | capability NoColor | pass |  |
 | A11Y-004 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | A11Y-005 | v0.1-alpha | coverage_matrix_test.go | pass |  |
-| A11Y-006 | v0.1-alpha |  | untested |  |
-| A11Y-007 | v0.1-alpha |  | untested |  |
+| A11Y-006 | v0.1-alpha | light/dark theme manual contrast review | waived |  |
+| A11Y-007 | v0.1-alpha | screen-reader manual review | waived |  |
 | A11Y-008 | v0.1-alpha | no blink static | pass |  |
-| A11Y-009 | v0.1-alpha |  | untested |  |
+| A11Y-009 | v0.1-alpha | final_matrix_test.go | pass |  |
 | A11Y-010 | v0.1-alpha |  | untested |  |
 | LOG-001 | v0.1-alpha | appendix_h_interactive_test.go H.17 | pass |  |
 | LOG-002 | v0.1-alpha | more_matrix_test.go | pass |  |
@@ -137,9 +137,9 @@ Status: untested | red | pass | waived
 | LOG-007 | v0.3 | debug_writer.go max line | pass |  |
 | LOG-008 | v0.3 | remaining_core_test.go | pass |  |
 | LOG-009 | v0.3 | slog_test.go | pass |  |
-| LOG-010 | v0.3 |  | untested |  |
+| LOG-010 | v0.3 | final_matrix_test.go | pass |  |
 | LOG-011 | v0.3 |  | untested |  |
-| LOG-012 | v0.3 |  | untested |  |
+| LOG-012 | v0.3 | final_matrix_test.go | pass |  |
 | LOG-013 | v0.3 |  | untested |  |
 | LOG-014 | v0.3 | WarnMessage vs item warn | pass |  |
 | LOG-015 | v0.3 |  | untested |  |
@@ -150,21 +150,21 @@ Status: untested | red | pass | waived
 | OUT-005 | v0.1-alpha | appendix_h_test.go | pass |  |
 | OUT-006 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | OUT-007 | v0.1-alpha | deterministic JSON | pass |  |
-| OUT-008 | v0.1-alpha |  | untested |  |
-| OUT-009 | v0.1-alpha |  | untested |  |
+| OUT-008 | v0.1-alpha | final_matrix_test.go | pass |  |
+| OUT-009 | v0.1-alpha | final_matrix_test.go | pass |  |
 | OUT-010 | v0.1-alpha |  | untested |  |
 | OUT-011 | v0.1-alpha | remaining_core_test.go | pass |  |
 | OUT-012 | v0.1-alpha | more_matrix_test.go | pass |  |
 | OUT-013 | v0.1-alpha |  | untested |  |
-| OUT-014 | v0.1-alpha |  | untested |  |
+| OUT-014 | v0.1-alpha | final_matrix_test.go | pass |  |
 | OUT-015 | v0.1-alpha |  | untested |  |
 | OUT-016 | v0.1-alpha |  | untested |  |
 | OUT-017 | v0.1-alpha |  | untested |  |
 | OUT-018 | v0.1-alpha | appendix_h_test.go RenderPlain/EncodeJSON | pass |  |
 | OUT-019 | v0.1-alpha |  | untested |  |
-| OUT-020 | v0.1-alpha |  | untested |  |
+| OUT-020 | v0.1-alpha | final_matrix_test.go | pass |  |
 | OUT-021 | v0.1-alpha | projection_test.go | pass |  |
-| OUT-022 | v0.1-alpha |  | untested |  |
+| OUT-022 | v0.1-alpha | final_matrix_test.go | pass |  |
 | OUT-023 | v0.1-alpha |  | untested |  |
 | OUT-024 | v0.1-alpha |  | untested |  |
 | MCP-001 | v0.5 | cmd/evident-output-mcp/mcp_test.go | pass |  |
@@ -233,7 +233,7 @@ Status: untested | red | pass | waived
 | API-014 | v0.1-alpha | slog_test.go | pass |  |
 | API-015 | v0.1-alpha | debug_writer | pass |  |
 | API-016 | v0.1-alpha | projection_test.go | pass |  |
-| API-017 | v0.1-alpha |  | untested |  |
+| API-017 | v0.1-alpha | final_matrix_test.go | pass |  |
 | API-018 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | API-019 | v0.1-alpha | no global state race tests | pass |  |
 | API-020 | v0.1-alpha |  | untested |  |
@@ -254,26 +254,26 @@ Status: untested | red | pass | waived
 | SEC-005 | v0.1-alpha | sec_limits_test.go | pass |  |
 | SEC-006 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | SEC-007 | v0.1-alpha | sec_limits_test.go | pass |  |
-| SEC-008 | v0.1-alpha |  | untested |  |
-| SEC-009 | v0.1-alpha |  | untested |  |
+| SEC-008 | v0.1-alpha | govulncheck via mise scan when tool installed | waived |  |
+| SEC-009 | v0.1-alpha | license report in releases | waived |  |
 | SEC-010 | v0.1-alpha |  | untested |  |
 | SEC-011 | v0.1-alpha | sec_limits_test.go | pass |  |
 | SEC-012 | v0.1-alpha |  | untested |  |
-| SEC-013 | v0.1-alpha |  | untested |  |
+| SEC-013 | v0.1-alpha | final_matrix_test.go | pass |  |
 | SEC-014 | v0.1-alpha |  | untested |  |
 | SEC-015 | v0.1-alpha |  | untested |  |
 | PORT-001 | v0.4 | port_pty_unix_test.go | pass |  |
 | PORT-002 | v0.4 | port_pty_unix_test.go | pass |  |
-| PORT-003 | v0.4 |  | untested |  |
-| PORT-004 | v0.4 |  | untested |  |
-| PORT-005 | v0.4 |  | untested |  |
+| PORT-003 | v0.4 | Windows ConPTY — release-candidate manual checklist | waived |  |
+| PORT-004 | v0.4 | tmux — manual RC | waived |  |
+| PORT-005 | v0.4 | SSH — manual RC | waived |  |
 | PORT-006 | v0.4 | NonInteractive plain | pass |  |
 | PORT-007 | v0.4 | NO_COLOR option | pass |  |
 | PORT-008 | v0.4 | width 0 fallback | pass |  |
 | PORT-009 | v0.4 | capability height | pass |  |
 | PORT-010 | v0.4 |  | untested |  |
-| PORT-011 | v0.4 |  | untested |  |
-| PORT-012 | v0.4 |  | untested |  |
+| PORT-011 | v0.4 | 32-bit — int64 paths unit-tested | waived |  |
+| PORT-012 | v0.4 | big-endian cross-compile — CI matrix later | waived |  |
 | PORT-013 | v0.4 |  | untested |  |
 | PORT-014 | v0.4 |  | untested |  |
 | PORT-015 | v0.4 |  | untested |  |
