@@ -51,11 +51,11 @@ Status: untested | red | pass | waived
 | DOM-044 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-045 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-046 | v0.1-alpha | dom_test.go | pass |  |
-| DOM-047 | v0.1-alpha |  | untested |  |
+| DOM-047 | v0.1-alpha | H.10 order | pass |  |
 | DOM-048 | v0.1-alpha |  | untested |  |
 | DOM-049 | v0.1-alpha |  | untested |  |
 | DOM-050 | v0.1-alpha |  | untested |  |
-| CON-001 | v0.4 |  | untested |  |
+| CON-001 | v0.4 | con_race_test.go | pass |  |
 | CON-002 | v0.4 |  | untested |  |
 | CON-003 | v0.4 |  | untested |  |
 | CON-004 | v0.4 |  | untested |  |
@@ -66,7 +66,7 @@ Status: untested | red | pass | waived
 | CON-009 | v0.4 |  | untested |  |
 | CON-010 | v0.1-rc |  | untested |  |
 | CON-011 | v0.1-rc |  | untested |  |
-| CON-012 | v0.1-rc |  | untested |  |
+| CON-012 | v0.1-rc | con_race_test.go | pass |  |
 | CON-013 | v0.4 |  | untested |  |
 | CON-014 | v0.4 | appendix_h_interactive_test.go H.22 | pass |  |
 | CON-015 | v0.4 |  | untested |  |
@@ -86,7 +86,7 @@ Status: untested | red | pass | waived
 | TERM-010 | v0.4-docs |  | untested |  |
 | TERM-011 | v0.2 |  | untested |  |
 | TERM-012 | v0.2 |  | untested |  |
-| TERM-013 | v0.2 |  | untested |  |
+| TERM-013 | v0.2 | frame coalesce H.22 | pass |  |
 | TERM-014 | v0.2 |  | untested |  |
 | TERM-015 | v0.3 | slog_test.go | pass |  |
 | TERM-016 | v0.3 |  | untested |  |
@@ -99,11 +99,11 @@ Status: untested | red | pass | waived
 | TERM-023 | v0.2 |  | untested |  |
 | TERM-024 | v0.2 |  | untested |  |
 | TXT-001 | v0.1-alpha | coverage_matrix_test.go | pass |  |
-| TXT-002 | v0.1-alpha |  | untested |  |
+| TXT-002 | v0.1-alpha | internal/width | pass |  |
 | TXT-003 | v0.1-alpha |  | untested |  |
 | TXT-004 | v0.1-alpha |  | untested |  |
 | TXT-005 | v0.1-alpha |  | untested |  |
-| TXT-006 | v0.1-alpha |  | untested |  |
+| TXT-006 | v0.1-alpha | sanitize | pass |  |
 | TXT-007 | v0.1-alpha | sanitize_test.go | pass |  |
 | TXT-008 | v0.1-alpha |  | untested |  |
 | TXT-009 | v0.1-alpha |  | untested |  |
@@ -120,7 +120,7 @@ Status: untested | red | pass | waived
 | TXT-020 | v0.1-alpha |  | untested |  |
 | A11Y-001 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | A11Y-002 | v0.1-alpha | coverage_matrix_test.go | pass |  |
-| A11Y-003 | v0.1-alpha |  | untested |  |
+| A11Y-003 | v0.1-alpha | capability NoColor | pass |  |
 | A11Y-004 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | A11Y-005 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | A11Y-006 | v0.1-alpha |  | untested |  |
@@ -235,7 +235,7 @@ Status: untested | red | pass | waived
 | API-016 | v0.1-alpha |  | untested |  |
 | API-017 | v0.1-alpha |  | untested |  |
 | API-018 | v0.1-alpha | coverage_matrix_test.go | pass |  |
-| API-019 | v0.1-alpha |  | untested |  |
+| API-019 | v0.1-alpha | no global state race tests | pass |  |
 | API-020 | v0.1-alpha |  | untested |  |
 | API-021 | v0.1-alpha |  | untested |  |
 | API-022 | v0.1-alpha |  | untested |  |
@@ -270,7 +270,7 @@ Status: untested | red | pass | waived
 | PORT-006 | v0.4 | NonInteractive plain | pass |  |
 | PORT-007 | v0.4 |  | untested |  |
 | PORT-008 | v0.4 | width 0 fallback | pass |  |
-| PORT-009 | v0.4 |  | untested |  |
+| PORT-009 | v0.4 | capability height | pass |  |
 | PORT-010 | v0.4 |  | untested |  |
 | PORT-011 | v0.4 |  | untested |  |
 | PORT-012 | v0.4 |  | untested |  |
