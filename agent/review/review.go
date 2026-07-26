@@ -3,9 +3,11 @@ package review
 
 import (
 	"encoding/json"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"strings"
 )
 
@@ -146,6 +148,133 @@ func GoSource(filename, src string) Result {
 		RecheckRequired: hasRequired(findings),
 		Partial:         hasEvo,
 	}
+}
+
+// GoPackage reviews multiple Go files in one package with go/types for
+// cross-file API resolution without executing package code (MCP-017).
+// files maps filename → source. External imports are stubbed so type-check
+// stays local to the provided sources.
+func GoPackage(files map[string]string) Result {
+	if len(files) == 0 {
+		return Result{RecheckRequired: true, Findings: []Finding{{
+			RuleID: "API-000", Severity: "error", Message: "no files provided",
+		}}}
+	}
+	// Package-level evo import (cross-file): STREAM rules apply if any file imports evo.
+	pkgHasEvo := false
+	for _, src := range files {
+		if strings.Contains(src, "evident-output") || strings.Contains(src, `"evo"`) {
+			pkgHasEvo = true
+			break
+		}
+	}
+	// Per-file textual/AST findings first.
+	var all []Finding
+	for name, src := range files {
+		r := GoSource(name, src)
+		all = append(all, r.Findings...)
+		// Cross-file STREAM-003: flag fmt.Print* in non-importing files when package uses evo.
+		if pkgHasEvo && !strings.Contains(src, "evident-output") {
+			if strings.Contains(src, "fmt.Print") || strings.Contains(src, "fmt.Fprint") {
+				all = append(all, Finding{
+					RuleID:   "STREAM-003",
+					Severity: "error",
+					Message:  "fmt.Print* in package that imports evo may contaminate managed streams (cross-file)",
+					File:     name,
+				})
+			}
+		}
+	}
+	hasEvo := pkgHasEvo
+
+	fset := token.NewFileSet()
+	var parsed []*ast.File
+	pkgName := "main"
+	for name, src := range files {
+		f, err := parser.ParseFile(fset, name, src, parser.SkipObjectResolution)
+		if err != nil {
+			all = append(all, Finding{
+				RuleID: "API-000", Severity: "error",
+				Message: "parse error in " + name + ": " + err.Error(),
+				File:    name,
+			})
+			continue
+		}
+		pkgName = f.Name.Name
+		parsed = append(parsed, f)
+	}
+	if len(parsed) == 0 {
+		return Result{Findings: dedupe(all), RecheckRequired: true, Partial: true}
+	}
+
+	conf := types.Config{
+		// Local-only: missing imports do not abort the whole check.
+		Importer: stubImporter{},
+		Error:    func(error) {}, // collect via Check return
+	}
+	info := &types.Info{
+		Types: make(map[ast.Expr]types.TypeAndValue),
+		Uses:  make(map[*ast.Ident]types.Object),
+		Defs:  make(map[*ast.Ident]types.Object),
+	}
+	_, err := conf.Check(pkgName, fset, parsed, info)
+	typed := err == nil || info != nil
+	// Cross-file: detect Tasks collection leaf misuse with type info when available.
+	for _, f := range parsed {
+		ast.Inspect(f, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			// If receiver type name ends with Tasks (package-local), leaf Done/Fail is misuse.
+			if tv, ok := info.Types[sel.X]; ok && tv.Type != nil {
+				tn := tv.Type.String()
+				if strings.Contains(tn, "Tasks") && (sel.Sel.Name == "Done" || sel.Sel.Name == "Fail" || sel.Sel.Name == "Progress") {
+					pos := fset.Position(n.Pos())
+					all = append(all, Finding{
+						RuleID:   "API-027",
+						Severity: "error",
+						Message:  fmt.Sprintf("typed: %s.%s on collection type %s is forbidden", tn, sel.Sel.Name, tn),
+						File:     pos.Filename,
+						Line:     pos.Line,
+						Column:   pos.Column,
+					})
+				}
+			}
+			return true
+		})
+	}
+	// Partial only when type check fully failed and we lack multi-file coverage.
+	partial := !typed || hasEvo && err != nil
+	if len(files) >= 2 && err == nil {
+		partial = false // MCP-017: multi-file types resolved
+	}
+	if err != nil && len(files) >= 2 {
+		// Still mark that cross-file parse ran; type errors may be from stubs.
+		partial = true
+		all = append(all, Finding{
+			RuleID:   "MCP-017",
+			Severity: "warning",
+			Message:  "cross-file typecheck incomplete: " + err.Error(),
+		})
+	}
+	return Result{
+		Findings:        dedupe(all),
+		RecheckRequired: hasRequired(all),
+		Partial:         partial,
+	}
+}
+
+// stubImporter satisfies go/types for external imports without loading code.
+type stubImporter struct{}
+
+func (stubImporter) Import(path string) (*types.Package, error) {
+	// Return an empty package so Check can continue for local symbols.
+	return types.NewPackage(path, path[strings.LastIndex(path, "/")+1:]), nil
 }
 
 // Transcript reviews a terminal transcript for corruption signals (MCP-018).

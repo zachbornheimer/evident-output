@@ -152,6 +152,18 @@ func TestMCP_ResourceChecksum(t *testing.T) {
 	}
 }
 
+func TestMCP036_RemoteFileRejected(t *testing.T) {
+	bin := buildMCP(t)
+	in := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output.review","arguments":{"file":"https://evil.example/x.go","source":"package p"}}}`,
+	}, "\n") + "\n"
+	stdout := runMCP(t, bin, in)
+	if !strings.Contains(stdout, "remote path unsupported") {
+		t.Fatalf("got %s", stdout)
+	}
+}
+
 func runMCP(t *testing.T, bin, in string) string {
 	t.Helper()
 	cmd := exec.Command(bin)

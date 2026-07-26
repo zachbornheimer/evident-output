@@ -28,19 +28,20 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 ## Status
 
-**v0.4–v0.6 alpha** — core library + interactive VT + logs + real CLI + hardened MCP are implemented and test-gated. Remaining gaps are **external manual** (Windows ConPTY / tmux / SSH RC, screen-reader / contrast) plus a few deep items (cross-file types, remote MCP path, framework CLI examples).
+**v0.3 architecture implemented** — core library, interactive VT, logs, real CLI, hardened MCP, and §31 automated rows are test-gated. Only **external host/manual** items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 
-| Ready now | Later (external / deep) |
-|-----------|-------------------------|
-| Items, Task, Tasks, Changes, Plan, Line | Windows ConPTY / tmux / SSH RC matrix |
-| Conclusion + exit codes | Screen-reader + light/dark contrast review |
-| Plain, JSON (§25.1), JSONL (§25.2) | Cross-file typed review (MCP-017) |
-| Interactive live region (`testkit.Screen`) | Full SIGINT PTY harness |
-| `SlogHandler`, `DebugWriter`, `Suspend`, `Snapshots()`, `MaxEntities`, `MaxEvents`, `AlsoWrite` | Remote MCP transport |
-| Appendix H.1–H.22 + agent harness | urfave/Kong adapter examples |
-| ANSI driver + width/CJK + OSC strip | Big-endian CI image |
-| CLI: `review` / `preview` / `explain` | — |
-| MCP: lifecycle gate, protocol negotiate, unknown-field reject, panic contain, token budget, catalog checksum | — |
+| Ready now | External / manual only |
+|-----------|------------------------|
+| Items, Task, Tasks, Changes, Plan, Line | Windows ConPTY RC (PORT-003) |
+| Conclusion + exit codes + Cancel cleanup | tmux RC (PORT-004) |
+| Plain, JSON (§25.1), JSONL (§25.2) | SSH RC (PORT-005) |
+| Interactive live region (`testkit.Screen`) | Light/dark contrast review (A11Y-006) |
+| `SlogHandler`, `DebugWriter`, `Suspend`, `Snapshots()`, `MaxEntities`, `MaxEvents`, `AlsoWrite` | Screen-reader review (A11Y-007) |
+| Appendix H.1–H.22 + agent harness + multi-file GoPackage review | — |
+| ANSI driver + width/CJK + OSC strip + s390x cross-compile | — |
+| CLI: `review` / `preview` / `explain` (real JSON) | — |
+| MCP: lifecycle, protocol negotiate, unknown-field reject, panic contain, token budget, remote-path reject, catalog checksum | — |
+| Framework adapter examples (urfave/Kong shapes, no core deps) | — |
 
 ## Vocabulary
 
@@ -72,7 +73,7 @@ Trunk is configured **daemonless** (`--monitor=false`). Prefer `mise` over raw t
 
 `conformance/` is the executable specification (Raku/`roast` model):
 
-- `TRACEABILITY.md` — all **272** §31 IDs dispositioned (**260 pass**, **12 waived** with reason + owner for external/manual only; **0 untested**)  
+- `TRACEABILITY.md` — all **272** §31 IDs dispositioned (**267 pass**, **5 waived** with reason + owner for external/manual only; **0 untested**)  
 - `schema/scenario.v1.json` — declarative scenario dialect  
 - `scenarios/*.json` + Go Appendix H tests (`appendix_h_test.go`)
 

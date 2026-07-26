@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/zachbornheimer/evident-output"
@@ -137,12 +138,13 @@ func toolList() []map[string]any {
 			},
 			"additionalProperties": false,
 		}},
-		{"name": "evident_output.review", "description": "Review Go source, transcript, or structured JSON for evo misuse", "inputSchema": map[string]any{
+		{"name": "evident_output.review", "description": "Review Go source, multi-file package, transcript, or structured JSON for evo misuse", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"source":      map[string]any{"type": "string"},
 				"file":        map[string]any{"type": "string"},
 				"kind":        map[string]any{"type": "string"},
+				"files":       map[string]any{"type": "object"},
 				"deadline_ms": map[string]any{"type": "integer"},
 			},
 			"additionalProperties": false,
@@ -305,12 +307,29 @@ func handleToolCall(id any, req map[string]any) {
 		if file == "" {
 			file = "input.go"
 		}
+		// MCP-036: remote paths unsupported — accept inlined content only.
+		if isRemotePath(file) {
+			writeRPC(id, toolError("remote path unsupported; pass source content only (MCP-036)"))
+			return
+		}
 		var res review.Result
 		switch kind {
 		case "transcript":
 			res = review.Transcript(file, src)
 		case "json", "structured":
 			res = review.StructuredDocument(file, []byte(src))
+		case "package":
+			// MCP-017: multi-file map via JSON object in source or single pair.
+			files := map[string]string{file: src}
+			if raw, ok := args["files"].(map[string]any); ok {
+				files = map[string]string{}
+				for k, v := range raw {
+					if s, ok := v.(string); ok {
+						files[k] = s
+					}
+				}
+			}
+			res = review.GoPackage(files)
 		default:
 			res = review.GoSource(file, src)
 		}
@@ -391,7 +410,7 @@ func validateArgs(name string, args map[string]any) string {
 			"ids": true, "max_tokens": true, "deadline_ms": true,
 		},
 		"evident_output.review": {
-			"source": true, "file": true, "kind": true, "deadline_ms": true,
+			"source": true, "file": true, "kind": true, "files": true, "deadline_ms": true,
 		},
 		"evident_output.preview": {
 			"subject": true, "item": true, "state": true, "debug": true, "deadline_ms": true,
@@ -488,6 +507,16 @@ func handleResourceRead(id any, req map[string]any) {
 
 func containsTraversal(s string) bool {
 	return bytes.Contains([]byte(s), []byte("..")) || bytes.Contains([]byte(s), []byte("\\"))
+}
+
+// isRemotePath reports unsupported remote fetch schemes (MCP-036).
+func isRemotePath(p string) bool {
+	lower := strings.ToLower(p)
+	return strings.HasPrefix(lower, "http://") ||
+		strings.HasPrefix(lower, "https://") ||
+		strings.HasPrefix(lower, "git+") ||
+		strings.HasPrefix(lower, "ssh://") ||
+		(strings.Contains(lower, "://") && !strings.HasPrefix(lower, "file://"))
 }
 
 func writeRPC(id any, result any) {

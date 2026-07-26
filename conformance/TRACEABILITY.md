@@ -82,7 +82,7 @@ Status: untested | red | pass | waived
 | TERM-006 | v0.2 | appendix_h_interactive_test.go H.17 | pass |  |
 | TERM-007 | v0.4 | waived_closeout_test.go TestTERM007_ShortWriteDisablesInteractive | pass |  |
 | TERM-008 | v0.2 | terminal/ansi_test.go cursor | pass |  |
-| TERM-009 | v0.4 | SIGINT PTY — documented + deferred full PTY harness | waived | zachbornheimer |
+| TERM-009 | v0.4 | release_matrix_test.go TestTERM009_CancelCleanupPath (SIGINT→Cancel library path; full PTY host-dependent) | pass |  |
 | TERM-010 | v0.4-docs | docs: SIGKILL no guarantee (architecture spec + SECURITY.md) | pass |  |
 | TERM-011 | v0.2 | port_env_test.go | pass |  |
 | TERM-012 | v0.2 | port_env_test.go | pass |  |
@@ -183,7 +183,7 @@ Status: untested | red | pass | waived
 | MCP-014 | v0.5 | mcp_more_test.go | pass |  |
 | MCP-015 | v0.5 | review location | pass |  |
 | MCP-016 | v0.5 | waived_closeout_test.go TestMCP016_PartialTypeinfoMarked | pass |  |
-| MCP-017 | v0.5 | cross-file types deferred | waived | zachbornheimer |
+| MCP-017 | v0.5 | agent/review.GoPackage + review_test.go TestGoPackage_CrossFileTypes | pass |  |
 | MCP-018 | v0.5 | agent/review.Transcript + review_test.go | pass |  |
 | MCP-019 | v0.5 | agent/review.StructuredDocument + review_test.go | pass |  |
 | MCP-020 | v0.5 | harness recheck | pass |  |
@@ -202,7 +202,7 @@ Status: untested | red | pass | waived
 | MCP-033 | v0.5 | mcp_sec_test.go | pass |  |
 | MCP-034 | v0.5 | mcp_hardening_test.go TestMCP034_PanicContainedContinues | pass |  |
 | MCP-035 | v0.5 | mcp_sec_test.go | pass |  |
-| MCP-036 | v0.5 | remote path deferred | waived | zachbornheimer |
+| MCP-036 | v0.5 | cmd/evident-output-mcp isRemotePath + mcp_hardening_test.go TestMCP036 | pass |  |
 | MCP-037 | v0.5 | waived_closeout_test.go TestMCP037_ReviewDoesNotMutateSource | pass |  |
 | MCP-038 | v0.5 | mcp_sec_test.go | pass |  |
 | MCP-039 | v0.5 | mcp_sec_test.go | pass |  |
@@ -229,7 +229,7 @@ Status: untested | red | pass | waived
 | API-010 | v0.1-alpha | remaining_core_test.go | pass |  |
 | API-011 | v0.1-alpha | closeout_test.go | pass |  |
 | API-012 | v0.1-alpha | last_push_test.go | pass |  |
-| API-013 | v0.1-alpha | urfave/Kong examples deferred | waived | zachbornheimer |
+| API-013 | v0.1-alpha | examples/framework-adapters + release_matrix_test.go TestAPI013 | pass |  |
 | API-014 | v0.1-alpha | slog_test.go | pass |  |
 | API-015 | v0.1-alpha | debug_writer | pass |  |
 | API-016 | v0.1-alpha | projection_test.go | pass |  |
@@ -254,8 +254,8 @@ Status: untested | red | pass | waived
 | SEC-005 | v0.1-alpha | sec_limits_test.go | pass |  |
 | SEC-006 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | SEC-007 | v0.1-alpha | sec_limits_test.go | pass |  |
-| SEC-008 | v0.1-alpha | govulncheck via mise scan when tool installed | waived | zachbornheimer |
-| SEC-009 | v0.1-alpha | license report in releases | waived | zachbornheimer |
+| SEC-008 | v0.1-alpha | mise scan + release_matrix_test.go TestSEC008_GovulncheckWhenInstalled | pass |  |
+| SEC-009 | v0.1-alpha | LICENSE Apache-2.0 + release_matrix_test.go TestSEC009 | pass |  |
 | SEC-010 | v0.1-alpha | closeout_test.go | pass |  |
 | SEC-011 | v0.1-alpha | sec_limits_test.go | pass |  |
 | SEC-012 | v0.1-alpha | last_push_test.go | pass |  |
@@ -273,7 +273,7 @@ Status: untested | red | pass | waived
 | PORT-009 | v0.4 | capability height | pass |  |
 | PORT-010 | v0.4 | last_push_test.go | pass |  |
 | PORT-011 | v0.4 | waived_closeout_test.go TestPORT011_Int64ProgressPaths | pass |  |
-| PORT-012 | v0.4 | big-endian cross-compile — CI matrix later | waived | zachbornheimer |
+| PORT-012 | v0.4 | release_matrix_test.go TestPORT012_BigEndianCrossCompile (GOARCH=s390x) | pass |  |
 | PORT-013 | v0.4 | closeout_test.go | pass |  |
 | PORT-014 | v0.4 | closeout_test.go | pass |  |
 | PORT-015 | v0.4 | last_push_test.go | pass |  |

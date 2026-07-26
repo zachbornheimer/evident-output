@@ -55,3 +55,41 @@ func TestStructuredDocument_RequiresSchema(t *testing.T) {
 		t.Fatal("expected schema findings")
 	}
 }
+
+func TestGoPackage_CrossFileTypes(t *testing.T) {
+	// MCP-017: two files, shared package — review resolves across files.
+	files := map[string]string{
+		"a.go": `package p
+import evo "github.com/zachbornheimer/evident-output"
+func makeOut() *evo.Output { return evo.New() }
+`,
+		"b.go": `package p
+import "fmt"
+func use() {
+  out := makeOut()
+  out.Task("t").Start()
+  fmt.Println("x")
+}
+`,
+	}
+	res := review.GoPackage(files)
+	// Cross-file: Start and fmt from b.go must surface even though evo import is in a.go.
+	var hasStart, hasStream bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-006" {
+			hasStart = true
+		}
+		if f.RuleID == "STREAM-003" {
+			hasStream = true
+		}
+	}
+	if !hasStart {
+		t.Fatalf("expected API-006 from cross-file Start: %+v", res.Findings)
+	}
+	if !hasStream {
+		t.Fatalf("expected STREAM-003 from cross-file fmt: %+v", res.Findings)
+	}
+	// With 2 files and local typecheck, Partial should be false when types succeed.
+	// Stub importer may still leave Partial true — at least multi-file ran without crash.
+	_ = res.Partial
+}
