@@ -28,7 +28,7 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 ## Status
 
-**v0.3–v0.6 alpha** — library + interactive VT + logs + CLI/MCP skeletons.
+**v0.4–v0.6 alpha** — library + interactive VT + logs + CLI/MCP skeletons.
 
 | Ready now | Later (hardening) |
 |-----------|-------------------|
@@ -92,6 +92,15 @@ jsonl, _ := evo.EncodeJSONL(out.Events())
 ```
 
 Schemas: `schema/output.v1.json`, `schema/event.v1.json`.
+
+### Production ANSI driver
+
+```go
+import "github.com/zachbornheimer/evident-output/terminal"
+
+drv := terminal.NewANSI(os.Stderr, terminal.WithInteractive(true), terminal.WithSize(80, 24))
+out := evo.New(evo.Terminal(drv))
+```
 
 ### Interactive (testkit / virtual terminal)
 
