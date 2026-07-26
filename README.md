@@ -28,19 +28,19 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 ## Status
 
-**v0.4–v0.6 alpha** — library, interactive VT, logs, real CLI, and MCP stdio server.
+**v0.4–v0.6 alpha** — core library + interactive VT + logs + real CLI + hardened MCP are implemented and test-gated. Remaining gaps are **external manual** (Windows ConPTY / tmux / SSH RC, screen-reader / contrast) plus a few deep items (cross-file types, remote MCP path, framework CLI examples).
 
-| Ready now | Later (hardening) |
-|-----------|-------------------|
-| Items, Task, Tasks, Changes, Plan, Line | Full PTY / Windows matrix |
-| Conclusion + exit codes | Production TTY driver polish |
-| Plain, JSON (§25.1), JSONL (§25.2) | Full cross-file type review |
-| Interactive live region (`testkit.Screen`) | Agent effectiveness harness depth |
-| `SlogHandler`, `DebugWriter`, `Suspend`, `Snapshots()`, `MaxEntities`, `ItemWith` | Deep redaction policies |
-| Appendix H.1–H.22 + agent harness | Remaining PORT manual matrix |
-| ANSI driver + width/CJK | Full PTY on every CI image |
-| CLI: `review` / `preview` / `explain` (JSON to stdout) | Kong/urfave examples |
-| MCP: initialize lifecycle gate; tools (catalog, review Go/transcript/JSON, preview, rules); resources | Token budget, remote path, protocol matrix |
+| Ready now | Later (external / deep) |
+|-----------|-------------------------|
+| Items, Task, Tasks, Changes, Plan, Line | Windows ConPTY / tmux / SSH RC matrix |
+| Conclusion + exit codes | Screen-reader + light/dark contrast review |
+| Plain, JSON (§25.1), JSONL (§25.2) | Cross-file typed review (MCP-017) |
+| Interactive live region (`testkit.Screen`) | Full SIGINT PTY harness |
+| `SlogHandler`, `DebugWriter`, `Suspend`, `Snapshots()`, `MaxEntities`, `MaxEvents`, `AlsoWrite` | Remote MCP transport |
+| Appendix H.1–H.22 + agent harness | urfave/Kong adapter examples |
+| ANSI driver + width/CJK + OSC strip | Big-endian CI image |
+| CLI: `review` / `preview` / `explain` | — |
+| MCP: lifecycle gate, protocol negotiate, unknown-field reject, panic contain, token budget, catalog checksum | — |
 
 ## Vocabulary
 
@@ -72,7 +72,7 @@ Trunk is configured **daemonless** (`--monitor=false`). Prefer `mise` over raw t
 
 `conformance/` is the executable specification (Raku/`roast` model):
 
-- `TRACEABILITY.md` — all **272** §31 IDs dispositioned (**234 pass**, **38 waived** with reason + owner; **0 untested**)  
+- `TRACEABILITY.md` — all **272** §31 IDs dispositioned (**260 pass**, **12 waived** with reason + owner for external/manual only; **0 untested**)  
 - `schema/scenario.v1.json` — declarative scenario dialect  
 - `scenarios/*.json` + Go Appendix H tests (`appendix_h_test.go`)
 

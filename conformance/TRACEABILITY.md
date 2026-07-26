@@ -57,13 +57,13 @@ Status: untested | red | pass | waived
 | DOM-050 | v0.1-alpha | common/advanced ItemWith | pass |  |
 | CON-001 | v0.4 | con_race_test.go | pass |  |
 | CON-002 | v0.4 | final_matrix_test.go | pass |  |
-| CON-003 | v0.4 | live+log race covered by H.17 path | waived | zachbornheimer |
-| CON-004 | v0.4 | resize storm deferred | waived | zachbornheimer |
+| CON-003 | v0.4 | waived_closeout_test.go TestCON003_* | pass |  |
+| CON-004 | v0.4 | waived_closeout_test.go TestCON004_ResizeWhileLive | pass |  |
 | CON-005 | v0.4 | remaining_core_test.go | pass |  |
 | CON-006 | v0.4 | closeout_test.go | pass |  |
 | CON-007 | v0.4 | closeout_test.go | pass |  |
-| CON-008 | v0.4 | journal backpressure deferred | waived | zachbornheimer |
-| CON-009 | v0.4 | multi-renderer deferred | waived | zachbornheimer |
+| CON-008 | v0.4 | waived_closeout_test.go TestCON008_JournalBackpressure | pass |  |
+| CON-009 | v0.4 | waived_closeout_test.go TestCON009_MultiRendererOneFailure | pass |  |
 | CON-010 | v0.1-rc | last_push_test.go | pass |  |
 | CON-011 | v0.1-rc | final_matrix_test.go | pass |  |
 | CON-012 | v0.1-rc | con_race_test.go | pass |  |
@@ -80,14 +80,14 @@ Status: untested | red | pass | waived
 | TERM-004 | v0.2 | terminal/ansi_test.go | pass |  |
 | TERM-005 | v0.2 | appendix_h + live | pass |  |
 | TERM-006 | v0.2 | appendix_h_interactive_test.go H.17 | pass |  |
-| TERM-007 | v0.4 | fault injection short-write deferred | waived | zachbornheimer |
+| TERM-007 | v0.4 | waived_closeout_test.go TestTERM007_ShortWriteDisablesInteractive | pass |  |
 | TERM-008 | v0.2 | terminal/ansi_test.go cursor | pass |  |
 | TERM-009 | v0.4 | SIGINT PTY — documented + deferred full PTY harness | waived | zachbornheimer |
-| TERM-010 | v0.4-docs | docs: SIGKILL no guarantee | waived | zachbornheimer |
+| TERM-010 | v0.4-docs | docs: SIGKILL no guarantee (architecture spec + SECURITY.md) | pass |  |
 | TERM-011 | v0.2 | port_env_test.go | pass |  |
 | TERM-012 | v0.2 | port_env_test.go | pass |  |
 | TERM-013 | v0.2 | frame coalesce H.22 | pass |  |
-| TERM-014 | v0.2 | unmanaged external output doc | waived | zachbornheimer |
+| TERM-014 | v0.2 | agent/review.Transcript NUL detector + review_test.go | pass |  |
 | TERM-015 | v0.3 | slog_test.go | pass |  |
 | TERM-016 | v0.3 | last_push_test.go | pass |  |
 | TERM-017 | v0.3 | port_env_test.go | pass |  |
@@ -110,10 +110,10 @@ Status: untested | red | pass | waived
 | TXT-010 | v0.1-alpha | final_matrix_test.go | pass |  |
 | TXT-011 | v0.1-alpha | plain narrow | pass |  |
 | TXT-012 | v0.1-alpha | closeout_test.go | pass |  |
-| TXT-013 | v0.1-alpha | ANSI width parity deferred | waived | zachbornheimer |
-| TXT-014 | v0.1-alpha | OSC8 width deferred | waived | zachbornheimer |
-| TXT-015 | v0.1-alpha | narrow stack golden deferred | waived | zachbornheimer |
-| TXT-016 | v0.1-alpha | leader rendering deferred | waived | zachbornheimer |
+| TXT-013 | v0.1-alpha | waived_closeout_test.go TestTXT013_ANSIWidthParity | pass |  |
+| TXT-014 | v0.1-alpha | waived_closeout_test.go TestTXT014_OSC8ZeroCells | pass |  |
+| TXT-015 | v0.1-alpha | waived_closeout_test.go TestTXT015_NarrowStackDetailParent | pass |  |
+| TXT-016 | v0.1-alpha | waived_closeout_test.go TestTXT016_LeaderBoundedAndOmittedNarrow | pass |  |
 | TXT-017 | v0.1-alpha | closeout_test.go | pass |  |
 | TXT-018 | v0.1-alpha | final_matrix bidi | pass |  |
 | TXT-019 | v0.1-alpha | closeout_test.go | pass |  |
@@ -176,13 +176,13 @@ Status: untested | red | pass | waived
 | MCP-007 | v0.5 | agent/catalog | pass |  |
 | MCP-008 | v0.5 | agent/catalog | pass |  |
 | MCP-009 | v0.5 | mcp get_guidance missing | pass |  |
-| MCP-010 | v0.5 | guidance checksum multi-surface deferred | waived | zachbornheimer |
+| MCP-010 | v0.5 | catalog.Checksum + mcp_hardening_test.go | pass |  |
 | MCP-011 | v0.5 | agent/review | pass |  |
 | MCP-012 | v0.5 | agent/review | pass |  |
 | MCP-013 | v0.5 | mcp review stream | pass |  |
 | MCP-014 | v0.5 | mcp_more_test.go | pass |  |
 | MCP-015 | v0.5 | review location | pass |  |
-| MCP-016 | v0.5 | partial typeinfo deferred | waived | zachbornheimer |
+| MCP-016 | v0.5 | waived_closeout_test.go TestMCP016_PartialTypeinfoMarked | pass |  |
 | MCP-017 | v0.5 | cross-file types deferred | waived | zachbornheimer |
 | MCP-018 | v0.5 | agent/review.Transcript + review_test.go | pass |  |
 | MCP-019 | v0.5 | agent/review.StructuredDocument + review_test.go | pass |  |
@@ -191,32 +191,32 @@ Status: untested | red | pass | waived
 | MCP-022 | v0.5 | agent/harness | pass |  |
 | MCP-023 | v0.5 | agent/preview | pass |  |
 | MCP-024 | v0.5 | preview profiles | pass |  |
-| MCP-025 | v0.5 | preview debug interleave deferred | waived | zachbornheimer |
+| MCP-025 | v0.5 | waived_closeout_test.go TestMCP025_PreviewDebugInterleave | pass |  |
 | MCP-026 | v0.5 | preview no exec | pass |  |
 | MCP-027 | v0.5 | agent/rules | pass |  |
 | MCP-028 | v0.5 | agent/rules | pass |  |
-| MCP-029 | v0.5 | structuredContent schema gen deferred | waived | zachbornheimer |
-| MCP-030 | v0.5 | text compat deferred | waived | zachbornheimer |
+| MCP-029 | v0.5 | mcp_hardening_test.go TestMCP029_030_StructuredAndText | pass |  |
+| MCP-030 | v0.5 | mcp_hardening_test.go TestMCP029_030_StructuredAndText | pass |  |
 | MCP-031 | v0.5 | oversized not crashed | pass |  |
-| MCP-032 | v0.5 | deadline cancel deferred | waived | zachbornheimer |
+| MCP-032 | v0.5 | mcp_hardening_test.go TestMCP032_DeadlineRespected | pass |  |
 | MCP-033 | v0.5 | mcp_sec_test.go | pass |  |
-| MCP-034 | v0.5 | panic containment deferred | waived | zachbornheimer |
+| MCP-034 | v0.5 | mcp_hardening_test.go TestMCP034_PanicContainedContinues | pass |  |
 | MCP-035 | v0.5 | mcp_sec_test.go | pass |  |
 | MCP-036 | v0.5 | remote path deferred | waived | zachbornheimer |
-| MCP-037 | v0.5 | source mutation none by design | waived | zachbornheimer |
+| MCP-037 | v0.5 | waived_closeout_test.go TestMCP037_ReviewDoesNotMutateSource | pass |  |
 | MCP-038 | v0.5 | mcp_sec_test.go | pass |  |
 | MCP-039 | v0.5 | mcp_sec_test.go | pass |  |
 | MCP-040 | v0.5 | mcp resources | pass |  |
-| MCP-041 | v0.5 | protocol matrix deferred | waived | zachbornheimer |
-| MCP-042 | v0.5 | tool name lint deferred | waived | zachbornheimer |
-| MCP-043 | v0.5 | unknown fields reject deferred | waived | zachbornheimer |
+| MCP-041 | v0.5 | mcp_hardening_test.go TestMCP041_* | pass |  |
+| MCP-042 | v0.5 | mcp_hardening_test.go TestMCP042_ToolNamesValid | pass |  |
+| MCP-043 | v0.5 | mcp_hardening_test.go TestMCP043_UnknownFieldsRejected | pass |  |
 | MCP-044 | v0.5 | stderr debug | pass |  |
 | MCP-045 | v0.5 | mcp no http | pass |  |
 | MCP-046 | v0.5 | cmd/evident-output/cli_test.go | pass |  |
 | MCP-047 | v0.5 | skills skill | pass |  |
 | MCP-048 | v0.5 | harness common-api | pass |  |
 | MCP-049 | v0.5 | harness stop condition | pass |  |
-| MCP-050 | v0.5 | token budget deferred | waived | zachbornheimer |
+| MCP-050 | v0.5 | catalog.ApplyTokenBudget + mcp_hardening_test.go | pass |  |
 | API-001 | v0.1-alpha | dom_test.go | pass |  |
 | API-002 | v0.1-alpha | appendix_h_test.go | pass |  |
 | API-003 | v0.1-alpha | appendix_h_test.go | pass |  |
@@ -260,8 +260,8 @@ Status: untested | red | pass | waived
 | SEC-011 | v0.1-alpha | sec_limits_test.go | pass |  |
 | SEC-012 | v0.1-alpha | last_push_test.go | pass |  |
 | SEC-013 | v0.1-alpha | final_matrix_test.go | pass |  |
-| SEC-014 | v0.1-alpha | MCP traversal tested | waived | zachbornheimer |
-| SEC-015 | v0.1-alpha | annotations not used for auth | waived | zachbornheimer |
+| SEC-014 | v0.1-alpha | mcp_sec_test.go + waived_closeout_test.go TestSEC014 | pass |  |
+| SEC-015 | v0.1-alpha | waived_closeout_test.go TestSEC015_NoAuthOnAnnotations | pass |  |
 | PORT-001 | v0.4 | port_pty_unix_test.go | pass |  |
 | PORT-002 | v0.4 | port_pty_unix_test.go | pass |  |
 | PORT-003 | v0.4 | Windows ConPTY — release-candidate manual checklist | waived | zachbornheimer |
@@ -272,7 +272,7 @@ Status: untested | red | pass | waived
 | PORT-008 | v0.4 | width 0 fallback | pass |  |
 | PORT-009 | v0.4 | capability height | pass |  |
 | PORT-010 | v0.4 | last_push_test.go | pass |  |
-| PORT-011 | v0.4 | 32-bit — int64 paths unit-tested | waived | zachbornheimer |
+| PORT-011 | v0.4 | waived_closeout_test.go TestPORT011_Int64ProgressPaths | pass |  |
 | PORT-012 | v0.4 | big-endian cross-compile — CI matrix later | waived | zachbornheimer |
 | PORT-013 | v0.4 | closeout_test.go | pass |  |
 | PORT-014 | v0.4 | closeout_test.go | pass |  |
