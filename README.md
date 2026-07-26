@@ -28,15 +28,16 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 ## Status
 
-**v0.2-alpha** — semantic core + interactive live region (testkit VT), plain/JSON/JSONL, roast suite.
+**v0.3-alpha** — semantic core, interactive live region, slog bridge, Suspend, snapshot stream.
 
 | Ready now | Later (see architecture spec) |
 |-----------|--------------------------------|
-| Items, Task, Tasks, Changes, Plan, Line | slog bridge, Suspend (v0.3) |
-| Conclusion + exit codes | Full PTY / Windows matrix (v0.4) |
-| Plain, JSON (§25.1), JSONL (§25.2) | MCP + agent review (v0.5–0.6) |
-| Interactive live region via `evo.Terminal(testkit.Screen)` | Hosted MCP / production TTY polish |
-| Appendix H.1–H.22 (interactive + semantic) | Remaining §31 PORT/MCP rows |
+| Items, Task, Tasks, Changes, Plan, Line | Full PTY / Windows matrix (v0.4) |
+| Conclusion + exit codes | MCP + agent review (v0.5–0.6) |
+| Plain, JSON (§25.1), JSONL (§25.2) | Hosted MCP / production TTY polish |
+| Interactive live region via `evo.Terminal(testkit.Screen)` | Remaining §31 PORT/MCP/security corpus |
+| `SlogHandler`, `Suspend`, `Snapshots()` | Advanced redactor policies |
+| Appendix H.1–H.22 (interactive + semantic) | Agent effectiveness harness |
 
 ## Vocabulary
 
