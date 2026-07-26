@@ -1,3 +1,3 @@
 module github.com/zachbornheimer/evident-output
 
-go 1.24.0
+go 1.25.0
