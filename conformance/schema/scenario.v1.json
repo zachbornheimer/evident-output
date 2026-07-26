@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evident-output.dev/schema/conformance/scenario.v1.json",
+  "title": "Evident Output Conformance Scenario v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "mutations", "expect"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Requirement or scenario ID (e.g. DOM-006, H.1)",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject": {
+      "type": "string",
+      "description": "Optional Output subject (For)"
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plain": { "type": "boolean" },
+        "no_color": { "type": "boolean" },
+        "non_interactive": { "type": "boolean" },
+        "width": { "type": "integer", "minimum": 0 },
+        "strict": { "type": "boolean" }
+      }
+    },
+    "mutations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["op"],
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "item",
+              "task",
+              "tasks",
+              "tasks.task",
+              "item.ok",
+              "item.block",
+              "item.blocked_by",
+              "item.warn",
+              "item.fail",
+              "item.skip",
+              "item.because",
+              "task.phase",
+              "task.progress",
+              "task.bytes",
+              "task.advance",
+              "task.done",
+              "task.donef",
+              "task.fail",
+              "task.warn",
+              "task.cancel",
+              "task.skip",
+              "tasks.summary",
+              "tasks.summaryf",
+              "changes",
+              "changes.record",
+              "plan",
+              "plan.record",
+              "line",
+              "finish"
+            ]
+          },
+          "name": { "type": "string" },
+          "ref": { "type": "string" },
+          "parent": { "type": "string" },
+          "summary": { "type": "string" },
+          "detail": { "type": "string" },
+          "text": { "type": "string" },
+          "format": { "type": "string" },
+          "args": {
+            "type": "array",
+            "items": {}
+          },
+          "completed": { "type": "integer" },
+          "total": { "type": "integer" },
+          "delta": { "type": "integer" },
+          "verb": { "type": "string" },
+          "quantity": { "type": "integer" },
+          "object": { "type": "string" },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "subject": { "type": "string" },
+                "summary": { "type": "string" },
+                "detail": { "type": "string" },
+                "count": { "type": "integer" },
+                "unit": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "finish_error": {
+          "type": "string",
+          "description": "Sentinel name, e.g. ErrUnresolvedTask"
+        },
+        "output_error": {
+          "type": "string",
+          "description": "Sentinel name on out.Err()"
+        },
+        "conclusion_state": { "type": "string" },
+        "changed": { "type": "boolean" },
+        "entity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref"],
+          "properties": {
+            "ref": { "type": "string" },
+            "state": { "type": "string" },
+            "phase": { "type": "string" },
+            "progress_completed": { "type": "integer" },
+            "progress_total": { "type": "integer" },
+            "progress_kind": { "type": "string" },
+            "problem_count": { "type": "integer" },
+            "problem_summary": { "type": "string" }
+          }
+        },
+        "plain_contains": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "plain_not_contains": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "plain_equals": { "type": "string" }
+      }
+    }
+  }
+}

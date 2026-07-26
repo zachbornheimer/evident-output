@@ -1,0 +1,21 @@
+{
+  "id": "H.1",
+  "title": "Phase starts a pending task",
+  "options": {
+    "plain": true,
+    "no_color": true,
+    "non_interactive": true
+  },
+  "mutations": [
+    { "op": "task", "ref": "deps", "name": "dependencies" },
+    { "op": "task.phase", "ref": "deps", "text": "reading lockfile" }
+  ],
+  "expect": {
+    "entity": {
+      "ref": "deps",
+      "state": "running",
+      "phase": "reading lockfile",
+      "progress_kind": "indeterminate"
+    }
+  }
+}

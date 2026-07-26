@@ -1,0 +1,18 @@
+version: 0.1
+cli:
+  version: 1.22.2
+  options:
+    - commands: [ALL]
+      args: --monitor=false
+actions:
+  disabled:
+    - trunk-upgrade-available
+    - trunk-announce
+    - trunk-single-player-auto-upgrade
+    - trunk-whoami
+lint:
+  enabled:
+    - gofmt@1.20.4
+    - golangci-lint@1.64.5
+    - git-diff-check
+    - gitleaks@8.21.2

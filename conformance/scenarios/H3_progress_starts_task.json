@@ -1,0 +1,22 @@
+{
+  "id": "H.3",
+  "title": "Absolute progress starts a determinate task",
+  "options": {
+    "plain": true,
+    "no_color": true,
+    "non_interactive": true
+  },
+  "mutations": [
+    { "op": "task", "ref": "deps", "name": "dependencies" },
+    { "op": "task.progress", "ref": "deps", "completed": 12, "total": 18 }
+  ],
+  "expect": {
+    "entity": {
+      "ref": "deps",
+      "state": "running",
+      "progress_completed": 12,
+      "progress_total": 18,
+      "progress_kind": "determinate"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+[tasks.setup]
+description = "Bootstrap dev environment"
+run = [
+  "go mod download",
+  "echo setup complete",
+]
+
+[tasks.build]
+description = "Verify packages compile"
+run = "go build ./..."
+
+[tasks.lint]
+description = "Format check, vet, trunk (daemonless)"
+run = [
+  "test -z \"$(gofmt -l .)\" || { gofmt -l .; echo 'gofmt: files need formatting'; exit 1; }",
+  "go vet ./...",
+  "if command -v trunk >/dev/null 2>&1 && [ -f .trunk/trunk.yaml ]; then trunk check --monitor=false --ci; fi",
+]
+
+[tasks.test]
+description = "Run all tests"
+run = "go test ./..."
+
+[tasks.test-race]
+description = "Run tests with race detector"
+run = "go test -race ./..."
+
+[tasks.conformance]
+description = "Run roast/conformance suite"
+run = "go test ./conformance/..."
+
+[tasks.fuzz]
+description = "Short fuzz smoke (local)"
+run = "go test ./internal/sanitize/ -run=Fuzz -fuzz=Fuzz -fuzztime=5s || true"
+
+[tasks.scan]
+description = "Security scan (govulncheck when available)"
+run = [
+  "if command -v govulncheck >/dev/null 2>&1; then govulncheck ./...; else echo 'govulncheck not installed; skip'; fi",
+]
+
+[tasks.traceability]
+description = "Verify every §31 ID is listed in TRACEABILITY"
+run = "go run ./scripts/traceability-check"
+
+[tasks.doctor]
+description = "Verify repo contract"
+run = [
+  "test -f mise.toml",
+  "test -f go.mod",
+  "test -f conformance/TRACEABILITY.md",
+  "test -f conformance/schema/scenario.v1.json",
+  "echo doctor ok",
+]
+
+[tasks.ci]
+description = "Full gate: lint + test + scan + conformance + traceability"
+depends = ["lint", "test", "scan", "conformance", "traceability"]
