@@ -1,0 +1,106 @@
+package evo
+
+import "github.com/zachbornheimer/evident-output/internal/sanitize"
+
+// Plan is a handle for effects that would occur but have not.
+type Plan struct {
+	out *Output
+	id  string
+}
+
+// Add records a planned addition.
+func (p *Plan) Add(quantity int64, object string) *Plan {
+	return p.Record("add", quantity, object)
+}
+
+// Create records a planned create.
+func (p *Plan) Create(object string) *Plan {
+	return p.recordNoQty("create", object)
+}
+
+// Update records a planned update.
+func (p *Plan) Update(quantity int64, object string) *Plan {
+	return p.Record("update", quantity, object)
+}
+
+// Move records a planned move.
+func (p *Plan) Move(source, destination string) *Plan {
+	return p.recordNoQty("move", sanitize.Text(source)+" → "+sanitize.Text(destination))
+}
+
+// Remove records a planned removal.
+func (p *Plan) Remove(quantity int64, object string) *Plan {
+	return p.Record("remove", quantity, object)
+}
+
+// Delete records a planned deletion.
+func (p *Plan) Delete(quantity int64, object string) *Plan {
+	return p.Record("delete", quantity, object)
+}
+
+// Revoke records a planned revocation.
+func (p *Plan) Revoke(quantity int64, object string) *Plan {
+	return p.Record("revoke", quantity, object)
+}
+
+// Write records a planned write.
+func (p *Plan) Write(object string) *Plan {
+	return p.recordNoQty("write", object)
+}
+
+// Retain records a planned retention note.
+func (p *Plan) Retain(description string) *Plan {
+	return p.recordNoQty("retain", description)
+}
+
+// Record records a planned verb/quantity/object.
+func (p *Plan) Record(verb string, quantity int64, object string) *Plan {
+	p.out.mu.Lock()
+	defer p.out.mu.Unlock()
+	st := p.find()
+	if st == nil {
+		return p
+	}
+	if err := p.out.ensureOpen(); err != nil {
+		p.out.recordMisuse(err)
+		return p
+	}
+	st.records = append(st.records, EffectRecord{
+		Verb:     sanitize.Text(verb),
+		Quantity: quantity,
+		HasQty:   true,
+		Object:   sanitize.Text(object),
+	})
+	p.out.bumpLocked()
+	p.out.appendEventLocked(Event{Type: "plan.recorded", EntityID: p.id})
+	return p
+}
+
+func (p *Plan) recordNoQty(verb, object string) *Plan {
+	p.out.mu.Lock()
+	defer p.out.mu.Unlock()
+	st := p.find()
+	if st == nil {
+		return p
+	}
+	if err := p.out.ensureOpen(); err != nil {
+		p.out.recordMisuse(err)
+		return p
+	}
+	st.records = append(st.records, EffectRecord{
+		Verb:   sanitize.Text(verb),
+		Object: sanitize.Text(object),
+	})
+	p.out.bumpLocked()
+	p.out.appendEventLocked(Event{Type: "plan.recorded", EntityID: p.id})
+	return p
+}
+
+func (p *Plan) find() *planState {
+	for _, st := range p.out.plans {
+		if st.id == p.id {
+			return st
+		}
+	}
+	return nil
+}
