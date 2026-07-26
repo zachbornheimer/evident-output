@@ -28,16 +28,17 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 ## Status
 
-**v0.3-alpha** — semantic core, interactive live region, slog bridge, Suspend, snapshot stream.
+**v0.3–v0.6 alpha** — library + interactive VT + logs + CLI/MCP skeletons.
 
-| Ready now | Later (see architecture spec) |
-|-----------|--------------------------------|
-| Items, Task, Tasks, Changes, Plan, Line | Full PTY / Windows matrix (v0.4) |
-| Conclusion + exit codes | MCP + agent review (v0.5–0.6) |
-| Plain, JSON (§25.1), JSONL (§25.2) | Hosted MCP / production TTY polish |
-| Interactive live region via `evo.Terminal(testkit.Screen)` | Remaining §31 PORT/MCP/security corpus |
-| `SlogHandler`, `Suspend`, `Snapshots()` | Advanced redactor policies |
-| Appendix H.1–H.22 (interactive + semantic) | Agent effectiveness harness |
+| Ready now | Later (hardening) |
+|-----------|-------------------|
+| Items, Task, Tasks, Changes, Plan, Line | Full PTY / Windows matrix |
+| Conclusion + exit codes | Production TTY driver polish |
+| Plain, JSON (§25.1), JSONL (§25.2) | Complete agent review analyzers |
+| Interactive live region (`testkit.Screen`) | Agent effectiveness harness |
+| `SlogHandler`, `DebugWriter`, `Suspend`, `Snapshots()` | Deep redaction policies |
+| Appendix H.1–H.22 | Remaining §31 PORT rows |
+| `cmd/evident-output`, `cmd/evident-output-mcp` (stdio init/tools list) | Full tool handlers |
 
 ## Vocabulary
 
