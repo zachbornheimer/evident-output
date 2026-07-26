@@ -39,7 +39,7 @@ Status: untested | red | pass | waived
 | DOM-032 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-033 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-034 | v0.1-alpha | appendix_h_test.go | pass |  |
-| DOM-035 | v0.1-alpha |  | untested |  |
+| DOM-035 | v0.1-alpha | remaining_core_test.go | pass |  |
 | DOM-036 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-037 | v0.1-alpha | more_matrix_test.go | pass |  |
 | DOM-038 | v0.1-alpha | more_matrix_test.go | pass |  |
@@ -59,7 +59,7 @@ Status: untested | red | pass | waived
 | CON-002 | v0.4 |  | untested |  |
 | CON-003 | v0.4 |  | untested |  |
 | CON-004 | v0.4 |  | untested |  |
-| CON-005 | v0.4 |  | untested |  |
+| CON-005 | v0.4 | remaining_core_test.go | pass |  |
 | CON-006 | v0.4 |  | untested |  |
 | CON-007 | v0.4 |  | untested |  |
 | CON-008 | v0.4 |  | untested |  |
@@ -135,7 +135,7 @@ Status: untested | red | pass | waived
 | LOG-005 | v0.3 | debug_writer_test.go | pass |  |
 | LOG-006 | v0.3 | debug_writer_test.go | pass |  |
 | LOG-007 | v0.3 | debug_writer.go max line | pass |  |
-| LOG-008 | v0.3 |  | untested |  |
+| LOG-008 | v0.3 | remaining_core_test.go | pass |  |
 | LOG-009 | v0.3 | slog_test.go | pass |  |
 | LOG-010 | v0.3 |  | untested |  |
 | LOG-011 | v0.3 |  | untested |  |
@@ -153,7 +153,7 @@ Status: untested | red | pass | waived
 | OUT-008 | v0.1-alpha |  | untested |  |
 | OUT-009 | v0.1-alpha |  | untested |  |
 | OUT-010 | v0.1-alpha |  | untested |  |
-| OUT-011 | v0.1-alpha |  | untested |  |
+| OUT-011 | v0.1-alpha | remaining_core_test.go | pass |  |
 | OUT-012 | v0.1-alpha | more_matrix_test.go | pass |  |
 | OUT-013 | v0.1-alpha |  | untested |  |
 | OUT-014 | v0.1-alpha |  | untested |  |
@@ -225,8 +225,8 @@ Status: untested | red | pass | waived
 | API-006 | v0.1-alpha | agent/review | pass |  |
 | API-007 | v0.1-alpha | config.go NewWithConfig | pass |  |
 | API-008 | v0.1-alpha |  | untested |  |
-| API-009 | v0.1-alpha |  | untested |  |
-| API-010 | v0.1-alpha |  | untested |  |
+| API-009 | v0.1-alpha | remaining_core_test.go | pass |  |
+| API-010 | v0.1-alpha | remaining_core_test.go | pass |  |
 | API-011 | v0.1-alpha |  | untested |  |
 | API-012 | v0.1-alpha |  | untested |  |
 | API-013 | v0.1-alpha |  | untested |  |
