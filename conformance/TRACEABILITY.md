@@ -177,8 +177,8 @@ Status: untested | red | pass | waived
 | MCP-008 | v0.5 | agent/catalog | pass |  |
 | MCP-009 | v0.5 | mcp get_guidance missing | pass |  |
 | MCP-010 | v0.5 | catalog.Checksum + mcp_hardening_test.go | pass |  |
-| MCP-011 | v0.5 | agent/review | pass |  |
-| MCP-012 | v0.5 | agent/review | pass |  |
+| MCP-011 | v0.5 | agent/review GoSource + review_test.go | pass |  |
+| MCP-012 | v0.5 | agent/review TestGoSource_DetectsStartPrintfExitAndDetailMisuse (API-006) | pass |  |
 | MCP-013 | v0.5 | mcp review stream | pass |  |
 | MCP-014 | v0.5 | agent/review TestMCP014_* + harness blocked-as-error | pass |  |
 | MCP-015 | v0.5 | review location | pass |  |
@@ -222,7 +222,7 @@ Status: untested | red | pass | waived
 | API-003 | v0.1-alpha | appendix_h_test.go | pass |  |
 | API-004 | v0.1-alpha | last_push_test.go | pass |  |
 | API-005 | v0.1-alpha | last_push_test.go | pass |  |
-| API-006 | v0.1-alpha | agent/review | pass |  |
+| API-006 | v0.1-alpha | agent/review TestGoSource_DetectsStartPrintfExitAndDetailMisuse | pass |  |
 | API-007 | v0.1-alpha | config.go NewWithConfig | pass |  |
 | API-008 | v0.1-alpha | last_push_test.go | pass |  |
 | API-009 | v0.1-alpha | remaining_core_test.go | pass |  |

@@ -79,6 +79,8 @@ Trunk is configured **daemonless** (`--monitor=false`). Prefer `mise` over raw t
 
 Architecture source: [`docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.3.md`](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.3.md).
 
+Completeness vs §31: [`docs/architecture/COMPLETENESS_MATRIX.md`](docs/architecture/COMPLETENESS_MATRIX.md) (**267 pass / 5 waived**).
+
 ### CLI
 
 ```bash
