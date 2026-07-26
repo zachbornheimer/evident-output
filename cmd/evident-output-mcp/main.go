@@ -24,6 +24,7 @@ func main() {
 		os.Exit(0)
 	}
 	fmt.Fprintf(os.Stderr, "evident-output-mcp %s starting (stdio)\n", Version)
+	initialized := false
 	sc := bufio.NewScanner(os.Stdin)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for sc.Scan() {
@@ -38,8 +39,16 @@ func main() {
 		}
 		method, _ := req["method"].(string)
 		id := req["id"]
+		// MCP-001: reject out-of-lifecycle tool/resource calls before initialize.
+		if !initialized && method != "initialize" && method != "ping" {
+			if id != nil {
+				writeRPCError(id, -32002, "server not initialized; call initialize first")
+			}
+			continue
+		}
 		switch method {
 		case "initialize":
+			initialized = true
 			writeRPC(id, map[string]any{
 				"protocolVersion": "2024-11-05",
 				"capabilities": map[string]any{
@@ -156,14 +165,24 @@ func handleToolCall(id any, req map[string]any) {
 	case "evident_output.review":
 		src, _ := args["source"].(string)
 		file, _ := args["file"].(string)
+		kind, _ := args["kind"].(string)
 		if file == "" {
 			file = "input.go"
 		}
-		res := review.GoSource(file, src)
+		var res review.Result
+		switch kind {
+		case "transcript":
+			res = review.Transcript(file, src)
+		case "json", "structured":
+			res = review.StructuredDocument(file, []byte(src))
+		default:
+			res = review.GoSource(file, src)
+		}
 		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("findings=%d recheck=%v", len(res.Findings), res.RecheckRequired)}},
+			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("findings=%d recheck=%v partial=%v", len(res.Findings), res.RecheckRequired, res.Partial)}},
 			"structuredContent": map[string]any{
 				"recheck_required": res.RecheckRequired,
+				"partial":          res.Partial,
 				"findings":         res.Findings,
 			},
 		})

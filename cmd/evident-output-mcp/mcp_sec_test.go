@@ -35,7 +35,10 @@ func TestMCP_NoNetworkNoShell(t *testing.T) {
 
 func TestMCP_PathTraversalResourceRejected(t *testing.T) {
 	bin := buildMCP(t)
-	in := `{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"evident-output://guides/../../etc/passwd"}}` + "\n"
+	in := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"evident-output://guides/../../etc/passwd"}}`,
+	}, "\n") + "\n"
 	cmd := exec.Command(bin)
 	cmd.Stdin = strings.NewReader(in)
 	var stdout bytes.Buffer
@@ -46,6 +49,6 @@ func TestMCP_PathTraversalResourceRejected(t *testing.T) {
 		t.Fatal("path traversal leak")
 	}
 	if !strings.Contains(stdout.String(), "not found") && !strings.Contains(stdout.String(), "error") {
-		t.Log(stdout.String())
+		t.Fatalf("expected rejection: %s", stdout.String())
 	}
 }

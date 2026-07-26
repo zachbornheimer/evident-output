@@ -55,7 +55,10 @@ func f() {
 
 func TestMCP_ResourceRead(t *testing.T) {
 	bin := buildMCP(t)
-	in := `{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"evident-output://guides/common-api"}}` + "\n"
+	in := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"evident-output://guides/common-api"}}`,
+	}, "\n") + "\n"
 	cmd := exec.Command(bin)
 	cmd.Stdin = strings.NewReader(in)
 	var stdout bytes.Buffer
