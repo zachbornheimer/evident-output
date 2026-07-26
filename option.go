@@ -25,6 +25,7 @@ type config struct {
 	terminal        TerminalDriver
 	debugLevel      LogLevel
 	redactor        Redactor
+	projection      ProjectionPolicy
 }
 
 type optionFunc func(*config)

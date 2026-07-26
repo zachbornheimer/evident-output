@@ -83,7 +83,7 @@ Status: untested | red | pass | waived
 | TERM-007 | v0.4 |  | untested |  |
 | TERM-008 | v0.2 | terminal/ansi_test.go cursor | pass |  |
 | TERM-009 | v0.4 |  | untested |  |
-| TERM-010 | v0.4-docs |  | untested |  |
+| TERM-010 | v0.4-docs | docs: SIGKILL no guarantee | waived |  |
 | TERM-011 | v0.2 |  | untested |  |
 | TERM-012 | v0.2 |  | untested |  |
 | TERM-013 | v0.2 | frame coalesce H.22 | pass |  |
@@ -145,7 +145,7 @@ Status: untested | red | pass | waived
 | LOG-015 | v0.3 |  | untested |  |
 | OUT-001 | v0.3 |  | untested |  |
 | OUT-002 | v0.3 |  | untested |  |
-| OUT-003 | v0.3 |  | untested |  |
+| OUT-003 | v0.3 | DataProjection | pass |  |
 | OUT-004 | v0.1-alpha | appendix_h H.18 | pass |  |
 | OUT-005 | v0.1-alpha | appendix_h_test.go | pass |  |
 | OUT-006 | v0.1-alpha | coverage_matrix_test.go | pass |  |
@@ -163,7 +163,7 @@ Status: untested | red | pass | waived
 | OUT-018 | v0.1-alpha | appendix_h_test.go RenderPlain/EncodeJSON | pass |  |
 | OUT-019 | v0.1-alpha |  | untested |  |
 | OUT-020 | v0.1-alpha |  | untested |  |
-| OUT-021 | v0.1-alpha |  | untested |  |
+| OUT-021 | v0.1-alpha | projection_test.go | pass |  |
 | OUT-022 | v0.1-alpha |  | untested |  |
 | OUT-023 | v0.1-alpha |  | untested |  |
 | OUT-024 | v0.1-alpha |  | untested |  |
@@ -223,7 +223,7 @@ Status: untested | red | pass | waived
 | API-004 | v0.1-alpha |  | untested |  |
 | API-005 | v0.1-alpha |  | untested |  |
 | API-006 | v0.1-alpha | agent/review | pass |  |
-| API-007 | v0.1-alpha |  | untested |  |
+| API-007 | v0.1-alpha | config.go NewWithConfig | pass |  |
 | API-008 | v0.1-alpha |  | untested |  |
 | API-009 | v0.1-alpha |  | untested |  |
 | API-010 | v0.1-alpha |  | untested |  |
@@ -232,7 +232,7 @@ Status: untested | red | pass | waived
 | API-013 | v0.1-alpha |  | untested |  |
 | API-014 | v0.1-alpha | slog_test.go | pass |  |
 | API-015 | v0.1-alpha | debug_writer | pass |  |
-| API-016 | v0.1-alpha |  | untested |  |
+| API-016 | v0.1-alpha | projection_test.go | pass |  |
 | API-017 | v0.1-alpha |  | untested |  |
 | API-018 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | API-019 | v0.1-alpha | no global state race tests | pass |  |
