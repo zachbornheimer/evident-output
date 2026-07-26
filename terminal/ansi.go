@@ -29,6 +29,7 @@ type ANSI struct {
 	liveLines    int
 	cursorHidden bool
 	id           string
+	writeErr     error // first write failure (TERM-007)
 }
 
 // Option configures ANSI.
@@ -98,9 +99,9 @@ func (a *ANSI) WriteLive(text string) {
 		return
 	}
 	// Non-interactive: treat as plain multi-line write without cursor control.
-	_, _ = io.WriteString(a.w, text)
+	a.writeStringLocked(text)
 	if !strings.HasSuffix(text, "\n") {
-		_, _ = io.WriteString(a.w, "\n")
+		a.writeStringLocked("\n")
 	}
 	a.liveLines = 0
 }
@@ -127,9 +128,9 @@ func (a *ANSI) WriteDurable(line string) {
 		a.eraseLiveLocked()
 		a.liveLines = 0
 	}
-	_, _ = io.WriteString(a.w, line)
+	a.writeStringLocked(line)
 	if !strings.HasSuffix(line, "\n") {
-		_, _ = io.WriteString(a.w, "\n")
+		a.writeStringLocked("\n")
 	}
 }
 
@@ -144,23 +145,59 @@ func (a *ANSI) WriteFinal(text string) {
 	if a.interactive {
 		a.showCursorLocked()
 	}
-	_, _ = io.WriteString(a.w, text)
+	a.writeStringLocked(text)
 	if text != "" && !strings.HasSuffix(text, "\n") {
-		_, _ = io.WriteString(a.w, "\n")
+		a.writeStringLocked("\n")
+	}
+}
+
+// WriteErr returns the first write failure observed (TERM-007 short-write path).
+func (a *ANSI) WriteErr() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.writeErr
+}
+
+func (a *ANSI) noteWriteErrLocked(err error) {
+	if err == nil {
+		return
+	}
+	if a.writeErr == nil {
+		a.writeErr = err
+	}
+	// Disable interactivity safely so further frames skip cursor control.
+	if a.interactive {
+		a.interactive = false
+		a.cursorHidden = false
+	}
+}
+
+func (a *ANSI) writeStringLocked(s string) {
+	n, err := io.WriteString(a.w, s)
+	if err != nil {
+		a.noteWriteErrLocked(err)
+		return
+	}
+	if n < len(s) {
+		a.noteWriteErrLocked(io.ErrShortWrite)
 	}
 }
 
 func (a *ANSI) hideCursorLocked() {
 	if !a.cursorHidden {
-		_, _ = io.WriteString(a.w, seqHideCursor)
-		a.cursorHidden = true
+		a.writeStringLocked(seqHideCursor)
+		if a.writeErr == nil {
+			a.cursorHidden = true
+		}
 	}
 }
 
 func (a *ANSI) showCursorLocked() {
 	if a.cursorHidden {
-		_, _ = io.WriteString(a.w, seqShowCursor)
-		a.cursorHidden = false
+		a.writeStringLocked(seqShowCursor)
+		if a.writeErr == nil {
+			a.cursorHidden = false
+		}
 	}
 }
 
@@ -172,30 +209,30 @@ func (a *ANSI) eraseLiveLocked() {
 	// then erase each line downward.
 	n := a.liveLines
 	if n > 1 {
-		_, _ = fmt.Fprintf(a.w, "\x1b[%dA", n-1)
+		a.writeStringLocked(fmt.Sprintf("\x1b[%dA", n-1))
 	}
 	for i := 0; i < n; i++ {
-		_, _ = io.WriteString(a.w, seqCR+seqEraseLine)
+		a.writeStringLocked(seqCR + seqEraseLine)
 		if i < n-1 {
-			_, _ = io.WriteString(a.w, "\n")
+			a.writeStringLocked("\n")
 		}
 	}
 	// Return to origin of erased block.
 	if n > 1 {
-		_, _ = fmt.Fprintf(a.w, "\x1b[%dA", n-1)
+		a.writeStringLocked(fmt.Sprintf("\x1b[%dA", n-1))
 	}
-	_, _ = io.WriteString(a.w, seqCR)
+	a.writeStringLocked(seqCR)
 }
 
 func (a *ANSI) writeFrameLocked(lines []string) {
 	for i, line := range lines {
-		_, _ = io.WriteString(a.w, seqCR+seqEraseLine+line)
+		a.writeStringLocked(seqCR + seqEraseLine + line)
 		if i < len(lines)-1 {
-			_, _ = io.WriteString(a.w, "\n")
+			a.writeStringLocked("\n")
 		}
 	}
 	if len(lines) > 0 {
-		_, _ = io.WriteString(a.w, "\n")
+		a.writeStringLocked("\n")
 	}
 }
 

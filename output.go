@@ -1,7 +1,9 @@
 package evo
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -119,6 +121,9 @@ func newOutput(subject string, options ...Option) *Output {
 	}
 	if cfg.maxEntities <= 0 {
 		cfg.maxEntities = defaultMaxEntities
+	}
+	if cfg.maxEvents <= 0 {
+		cfg.maxEvents = defaultMaxEvents
 	}
 	if cfg.plain || cfg.nonInteractive {
 		// interactive terminal ignored for plain path in v0.1
@@ -686,13 +691,50 @@ func (o *Output) bumpLocked() {
 }
 
 func (o *Output) appendEventLocked(e Event) {
-	e.Sequence = uint64(len(o.events) + 1)
 	e.Timestamp = o.cfg.clock.Now()
 	e.SchemaVersion = EventSchemaVersion
 	if e.OutputID == "" {
 		e.OutputID = o.outputID
 	}
+	// Sequence is monotonic assignment order, not index after compaction.
+	e.Sequence = uint64(len(o.events) + 1)
+	if len(o.events) > 0 {
+		e.Sequence = o.events[len(o.events)-1].Sequence + 1
+	}
 	o.events = append(o.events, e)
+	o.compactJournalLocked()
+}
+
+// criticalEventTypes are never dropped under journal backpressure (CON-008).
+func criticalEventType(t string) bool {
+	switch t {
+	case "output.failed", "output.finished", "output.cancelled",
+		"item.blocked", "item.failed", "task.failed", "output.started":
+		return true
+	default:
+		return false
+	}
+}
+
+func (o *Output) compactJournalLocked() {
+	max := o.cfg.maxEvents
+	if max <= 0 || len(o.events) <= max {
+		return
+	}
+	// Drop oldest non-critical until under cap; if still over, drop oldest critical last.
+	for len(o.events) > max {
+		drop := -1
+		for i, ev := range o.events {
+			if !criticalEventType(ev.Type) {
+				drop = i
+				break
+			}
+		}
+		if drop < 0 {
+			drop = 0
+		}
+		o.events = append(o.events[:drop], o.events[drop+1:]...)
+	}
 }
 
 // Finish validates, computes conclusion, emits final projections.
@@ -750,8 +792,23 @@ func (o *Output) Finish() error {
 	o.mu.Lock()
 	o.finalPlain = string(plain)
 	o.mu.Unlock()
+	// CON-009: fan-out to primary + AlsoWrite; one failure must not skip healthy writers.
+	var writeErr error
+	writers := make([]io.Writer, 0, 1+len(cfg.extraWriters))
 	if writer != nil {
-		_, _ = writer.Write(plain)
+		writers = append(writers, writer)
+	}
+	writers = append(writers, cfg.extraWriters...)
+	for _, w := range writers {
+		if _, err := w.Write(plain); err != nil && writeErr == nil {
+			writeErr = fmt.Errorf("%w: %v", ErrRenderer, err)
+		}
+	}
+	if writeErr != nil {
+		if misuse == nil {
+			return writeErr
+		}
+		return errors.Join(misuse, writeErr)
 	}
 	return misuse
 }

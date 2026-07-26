@@ -2,9 +2,79 @@
 package width
 
 import (
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
+
+// VisibleCells returns cell width after stripping ANSI CSI/OSC sequences so
+// styled and unstyled visible widths match (TXT-013) and OSC 8 links count as
+// zero cells (TXT-014).
+func VisibleCells(s string) int {
+	return Cells(StripANSI(s))
+}
+
+// StripANSI removes CSI, OSC, and other common terminal control sequences.
+func StripANSI(s string) string {
+	if s == "" || !stringsContainsByte(s, 0x1b) {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); {
+		if s[i] != 0x1b {
+			b.WriteByte(s[i])
+			i++
+			continue
+		}
+		// ESC
+		if i+1 >= len(s) {
+			break
+		}
+		switch s[i+1] {
+		case '[': // CSI: ESC [ ... final byte @-~
+			i += 2
+			for i < len(s) {
+				c := s[i]
+				i++
+				if c >= 0x40 && c <= 0x7e {
+					break
+				}
+			}
+		case ']': // OSC: ESC ] ... BEL or ST (ESC \)
+			i += 2
+			for i < len(s) {
+				if s[i] == 0x07 {
+					i++
+					break
+				}
+				if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' {
+					i += 2
+					break
+				}
+				i++
+			}
+		case '(':
+			// charset designate — skip ESC ( X
+			i += 3
+			if i > len(s) {
+				i = len(s)
+			}
+		default:
+			i += 2 // skip ESC + next
+		}
+	}
+	return b.String()
+}
+
+func stringsContainsByte(s string, c byte) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] == c {
+			return true
+		}
+	}
+	return false
+}
 
 // Cells returns terminal cell width for s using a conservative East-Asian /
 // emoji heuristic suitable for CLI layout (TXT-001…006).

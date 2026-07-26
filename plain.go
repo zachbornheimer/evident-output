@@ -154,6 +154,7 @@ func writeCollection(b *strings.Builder, col TasksSnapshot) {
 
 func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, width int) {
 	fmt.Fprintf(b, "[%s]  %s\n", kind, subject)
+	// TXT-016: leaders omitted when unnecessary (single short column / narrow).
 	if width > 0 && width < compactLayoutMaxWidth {
 		for _, r := range records {
 			if r.HasQty {
@@ -177,11 +178,23 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 			}
 		}
 	}
+	// Bound leader fill so wide verbs do not create unbounded gaps (TXT-016).
+	const maxLeader = 12
 	for _, r := range records {
 		verb := padRight(r.Verb, maxVerb)
 		if r.HasQty {
 			qty := padLeft(strconv.FormatInt(r.Quantity, 10), maxQty)
 			fmt.Fprintf(b, "  %s  %s %s\n", verb, qty, r.Object)
+			continue
+		}
+		// Leader between verb and object when aligned columns leave room.
+		gap := maxVerb - len(r.Verb)
+		if gap > maxLeader {
+			gap = maxLeader
+		}
+		if gap > 2 {
+			leader := strings.Repeat("·", gap)
+			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, leader, r.Object)
 		} else {
 			qtyPad := padLeft("", maxQty)
 			fmt.Fprintf(b, "  %s  %s %s\n", verb, qtyPad, r.Object)

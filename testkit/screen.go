@@ -106,6 +106,17 @@ func (s *Screen) Operations() []Operation { return append([]Operation(nil), s.op
 // LatestLiveText returns the last live frame text.
 func (s *Screen) LatestLiveText() string { return s.latestLive }
 
+// SetSize updates columns/rows mid-session (CON-004 resize storm).
+func (s *Screen) SetSize(width, height int) {
+	if width > 0 {
+		s.width = width
+	}
+	if height > 0 {
+		s.height = height
+	}
+	s.ops = append(s.ops, Operation{Kind: "resize", Text: ""})
+}
+
 // DrawLive records a live frame expectation helper.
 func DrawLive(text string) Operation { return Operation{Kind: "live", Text: text} }
 

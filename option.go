@@ -27,6 +27,8 @@ type config struct {
 	redactor        Redactor
 	projection      ProjectionPolicy
 	maxEntities     int
+	maxEvents       int
+	extraWriters    []io.Writer
 }
 
 type optionFunc func(*config)
@@ -120,9 +122,27 @@ const (
 	defaultWidth           = 80
 	// defaultMaxEntities bounds items+tasks to prevent unbounded allocation (SEC-003).
 	defaultMaxEntities = 100_000
+	// defaultMaxEvents bounds the durable journal (CON-008 backpressure).
+	defaultMaxEvents = 50_000
 )
 
 // MaxEntities caps total items and tasks for one Output (0 uses default).
 func MaxEntities(n int) Option {
 	return optionFunc(func(c *config) { c.maxEntities = n })
+}
+
+// MaxEvents caps durable journal events; when exceeded, oldest non-critical
+// events are dropped so critical terminal events are retained (CON-008).
+func MaxEvents(n int) Option {
+	return optionFunc(func(c *config) { c.maxEvents = n })
+}
+
+// AlsoWrite adds an additional human projection writer. On Finish, each writer
+// receives the plain projection; failures on one do not skip the others (CON-009).
+func AlsoWrite(w io.Writer) Option {
+	return optionFunc(func(c *config) {
+		if w != nil {
+			c.extraWriters = append(c.extraWriters, w)
+		}
+	})
 }
