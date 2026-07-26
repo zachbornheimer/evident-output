@@ -1,5 +1,9 @@
 package evo
 
+import "github.com/zachbornheimer/evident-output/internal/sanitize"
+
+func sanitizeDisplay(s string) string { return sanitize.Text(s) }
+
 // Action is a recommended next step for the user.
 type Action struct {
 	Label                string
@@ -19,11 +23,15 @@ type CommandSpec struct {
 }
 
 // Command builds an action with an executable and arguments.
+// Display-bound strings are sanitized at construction.
 func Command(executable string, args ...string) Action {
-	copied := append([]string(nil), args...)
+	copied := make([]string, len(args))
+	for i, a := range args {
+		copied[i] = sanitizeDisplay(a)
+	}
 	return Action{
 		Command: &CommandSpec{
-			Executable: executable,
+			Executable: sanitizeDisplay(executable),
 			Args:       copied,
 		},
 	}

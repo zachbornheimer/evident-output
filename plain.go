@@ -9,6 +9,24 @@ import (
 // compactLayoutMaxWidth switches changes/plans to compact rows.
 const compactLayoutMaxWidth = 40
 
+// PlainOptions configures pure plain projection (§25.4).
+type PlainOptions struct {
+	Width          int
+	NoColor        bool
+	NonInteractive bool
+}
+
+// RenderPlain projects a snapshot to plain text without terminal ownership.
+func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
+	cfg := config{
+		width:          opts.Width,
+		noColor:        opts.NoColor,
+		nonInteractive: opts.NonInteractive,
+		plain:          true,
+	}
+	return []byte(renderPlain(s, cfg)), nil
+}
+
 func renderPlain(s Snapshot, cfg config) string {
 	var b strings.Builder
 	width := cfg.width

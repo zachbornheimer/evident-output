@@ -33,6 +33,14 @@ func FuzzText(f *testing.F) {
 	f.Add("\x1b[31m")
 	f.Add("\r\n\t")
 	f.Fuzz(func(t *testing.T, s string) {
-		_ = sanitize.Text(s)
+		got := sanitize.Text(s)
+		if strings.ContainsRune(got, '\x1b') {
+			t.Fatalf("ESC remained in %q", got)
+		}
+		for _, r := range got {
+			if r < 0x20 && r != '\t' {
+				t.Fatalf("control %U remained in %q", r, got)
+			}
+		}
 	})
 }

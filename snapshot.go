@@ -5,6 +5,7 @@ import "time"
 // Snapshot is an immutable complete presentation state at a version.
 type Snapshot struct {
 	Version     uint64
+	OutputID    string
 	Subject     string
 	Items       []ItemSnapshot
 	Tasks       []TaskSnapshot

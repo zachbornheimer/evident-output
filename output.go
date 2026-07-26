@@ -2,7 +2,6 @@ package evo
 
 import (
 	"fmt"
-	"io"
 	"sync"
 	"sync/atomic"
 
@@ -15,6 +14,7 @@ type Output struct {
 
 	cfg config
 
+	outputID   string
 	idSeq      uint64
 	declSeq    int
 	version    uint64
@@ -117,11 +117,15 @@ func newOutput(subject string, options ...Option) *Output {
 	}
 	o := &Output{
 		cfg:        cfg,
+		outputID:   "out_1",
 		itemByRef:  make(map[string]*itemState),
 		taskByRef:  make(map[string]*taskState),
 		tasksByRef: make(map[string]*tasksState),
 		keys:       make(map[string]struct{}),
 	}
+	// Stable-enough id for a process-local output instance.
+	o.outputID = o.nextID("out")
+	o.appendEventLocked(Event{Type: "output.started", OutputID: o.outputID})
 	return o
 }
 
@@ -425,6 +429,7 @@ func (o *Output) Snapshot() Snapshot {
 func (o *Output) snapshotLocked() Snapshot {
 	s := Snapshot{
 		Version:   o.version,
+		OutputID:  o.outputID,
 		Subject:   o.cfg.subject,
 		Lines:     append([]string(nil), o.lines...),
 		Actions:   cloneActions(o.collectActionsLocked()),
@@ -612,21 +617,20 @@ func (o *Output) appendEventLocked(e Event) {
 	e.Sequence = uint64(len(o.events) + 1)
 	e.Timestamp = o.cfg.clock.Now()
 	e.SchemaVersion = EventSchemaVersion
+	if e.OutputID == "" {
+		e.OutputID = o.outputID
+	}
 	o.events = append(o.events, e)
 }
 
 // Finish validates, computes conclusion, emits final projections.
+// Projection I/O runs outside the domain lock (§17.1).
 func (o *Output) Finish() error {
 	o.mu.Lock()
-	defer o.mu.Unlock()
 	if o.finished {
-		if o.misuse != nil {
-			return o.misuse
-		}
-		return nil
-	}
-	if o.closed && o.finished {
-		return o.misuse
+		err := o.misuse
+		o.mu.Unlock()
+		return err
 	}
 	o.finishing = true
 
@@ -649,24 +653,30 @@ func (o *Output) Finish() error {
 	if o.conclusion != nil && o.conclusion.Explanation != "" {
 		conc.Explanation = o.conclusion.Explanation
 	}
-	// Promote collection summaries into conclusion view already via snapshot
 	o.conclusion = &conc
 	snap.Conclusion = &conc
-
-	// Render plain
-	plain := renderPlain(snap, o.cfg)
-	o.finalPlain = plain
-	if o.cfg.primary != nil {
-		_, _ = io.WriteString(o.cfg.primary, plain)
-	}
-
+	o.appendEventLocked(Event{
+		Type:  "output.finished",
+		State: string(conc.State),
+	})
+	writer := o.cfg.primary
+	cfg := o.cfg
+	misuse := o.misuse
 	o.finished = true
 	o.finishing = false
-	o.appendEventLocked(Event{Type: "output.finished"})
-	if o.misuse != nil {
-		return o.misuse
+	o.mu.Unlock()
+
+	// Projection outside lock.
+	plain, _ := RenderPlain(snap, PlainOptions{
+		Width: cfg.width, NoColor: cfg.noColor, NonInteractive: cfg.nonInteractive,
+	})
+	o.mu.Lock()
+	o.finalPlain = string(plain)
+	o.mu.Unlock()
+	if writer != nil {
+		_, _ = writer.Write(plain)
 	}
-	return nil
+	return misuse
 }
 
 // Close is idempotent cleanup; best-effort Finish when needed.

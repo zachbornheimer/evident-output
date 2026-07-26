@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evident-output.dev/schema/v1/output.json",
+  "title": "Evident Output final JSON v1",
+  "type": "object",
+  "required": ["schema_version", "output", "conclusion", "items", "task_collections", "tasks", "changes", "plans", "actions"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "output": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" }
+      }
+    },
+    "conclusion": {
+      "type": "object",
+      "required": ["state", "changed", "partial", "cancelled", "exit_code"],
+      "properties": {
+        "state": { "type": "string" },
+        "changed": { "type": "boolean" },
+        "partial": { "type": "boolean" },
+        "cancelled": { "type": "boolean" },
+        "exit_code": { "type": "integer" },
+        "explanation": { "type": "string" }
+      }
+    },
+    "items": { "type": "array" },
+    "task_collections": { "type": "array" },
+    "tasks": { "type": "array" },
+    "changes": { "type": "array" },
+    "plans": { "type": "array" },
+    "actions": { "type": "array" }
+  }
+}

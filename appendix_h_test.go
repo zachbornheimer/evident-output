@@ -257,19 +257,18 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Full Finish output includes aligned changes plus conclusion footer.
 	want := `[changed]  dependencies
   added    14 packages
   updated   4 packages
   reused   63 cached packages
   wrote       app.lock
+
+[changed]  dependencies
 `
-	// Conclusion footer is also written — check contains aligned section.
 	got := output.String()
-	if !strings.Contains(got, want) {
-		// exact body without conclusion may be prefix
-		if !strings.HasPrefix(got, want) && !strings.Contains(got, strings.TrimRight(want, "\n")) {
-			t.Fatalf("output mismatch\ngot:\n%swant prefix:\n%s", got, want)
-		}
+	if got != want {
+		t.Fatalf("output mismatch\ngot:\n%q\nwant:\n%q", got, want)
 	}
 }
 
@@ -293,16 +292,16 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	want := `[changed]  dependencies
+  added 14 packages
+  updated 4 packages
+  wrote app.lock
+
+[changed]  dependencies
+`
 	got := output.String()
-	for _, line := range []string{
-		"[changed]  dependencies",
-		"  added 14 packages",
-		"  updated 4 packages",
-		"  wrote app.lock",
-	} {
-		if !strings.Contains(got, line) {
-			t.Fatalf("missing %q in:\n%s", line, got)
-		}
+	if got != want {
+		t.Fatalf("output mismatch\ngot:\n%q\nwant:\n%q", got, want)
 	}
 }
 
@@ -376,11 +375,35 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	if human.ExitCode != machineSnap.Conclusion.ExitCode {
 		t.Fatalf("human exit = %d, machine exit = %d", human.ExitCode, machineSnap.Conclusion.ExitCode)
 	}
-	raw, err := evo.EncodeJSON(snap, out.Events())
+	raw, err := evo.EncodeJSON(snap)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), `"state": "blocked"`) && !strings.Contains(string(raw), `"state":"blocked"`) {
+	if !strings.Contains(string(raw), `"schema_version": "1.0"`) {
+		t.Fatalf("json missing schema_version:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), `"state": "blocked"`) {
 		t.Fatalf("json missing blocked state:\n%s", raw)
+	}
+	// JSONL: one object per line, increasing sequence
+	lines, err := evo.EncodeJSONL(out.Events())
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(lines)), "\n") {
+		if line == "" {
+			continue
+		}
+		n++
+		if !strings.Contains(line, `"schema_version":"1.0"`) && !strings.Contains(line, `"schema_version": "1.0"`) {
+			// compact marshal has no space
+			if !strings.Contains(line, "schema_version") {
+				t.Fatalf("jsonl line missing schema_version: %s", line)
+			}
+		}
+	}
+	if n < 2 {
+		t.Fatalf("expected multiple jsonl events, got %d", n)
 	}
 }

@@ -139,7 +139,7 @@ func (t *Task) Done() *Task {
 
 // Donef resolves the task with a formatted summary.
 func (t *Task) Donef(format string, args ...any) *Task {
-	return t.finish(Done, fmt.Sprintf(format, args...), nil)
+	return t.finish(Done, sanitize.Text(fmt.Sprintf(format, args...)), nil)
 }
 
 // Warn resolves the task with a warning.
@@ -215,7 +215,7 @@ func (t *Task) finish(state EntityState, summary string, problems []Problem) *Ta
 	st.state = state
 	st.phase = "" // Done clears active phase
 	if summary != "" {
-		st.summary = summary
+		st.summary = sanitize.Text(summary)
 	}
 	if len(problems) > 0 {
 		st.problems = cloneProblems(problems)
