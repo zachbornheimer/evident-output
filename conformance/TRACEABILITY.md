@@ -18,8 +18,8 @@ Status: untested | red | pass | waived
 | DOM-011 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-012 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-013 | v0.1-alpha | coverage_matrix_test.go | pass |  |
-| DOM-014 | v0.1-alpha |  | untested |  |
-| DOM-015 | v0.1-alpha |  | untested |  |
+| DOM-014 | v0.1-alpha | more_matrix_test.go | pass |  |
+| DOM-015 | v0.1-alpha | more_matrix_test.go | pass |  |
 | DOM-016 | v0.1-alpha | appendix_h_test.go + live | pass |  |
 | DOM-017 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-018 | v0.1-alpha | appendix_h_test.go | pass |  |
@@ -27,11 +27,11 @@ Status: untested | red | pass | waived
 | DOM-020 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-021 | v0.1-alpha | coverage_matrix_test.go | pass |  |
 | DOM-022 | v0.1-alpha | appendix_h_test.go | pass |  |
-| DOM-023 | v0.1-alpha |  | untested |  |
+| DOM-023 | v0.1-alpha | more_matrix_test.go | pass |  |
 | DOM-024 | v0.1-alpha |  | untested |  |
 | DOM-025 | v0.1-alpha | appendix_h_interactive_test.go H.2 | pass |  |
 | DOM-026 | v0.1-alpha | appendix_h_interactive_test.go H.17 | pass |  |
-| DOM-027 | v0.1-alpha |  | untested |  |
+| DOM-027 | v0.1-alpha | Donef H.17 | pass |  |
 | DOM-028 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-029 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-030 | v0.1-alpha |  | untested |  |
@@ -41,12 +41,12 @@ Status: untested | red | pass | waived
 | DOM-034 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-035 | v0.1-alpha |  | untested |  |
 | DOM-036 | v0.1-alpha | dom_test.go | pass |  |
-| DOM-037 | v0.1-alpha |  | untested |  |
-| DOM-038 | v0.1-alpha |  | untested |  |
+| DOM-037 | v0.1-alpha | more_matrix_test.go | pass |  |
+| DOM-038 | v0.1-alpha | more_matrix_test.go | pass |  |
 | DOM-039 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-040 | v0.1-alpha | appendix_h_test.go | pass |  |
-| DOM-041 | v0.1-alpha |  | untested |  |
-| DOM-042 | v0.1-alpha |  | untested |  |
+| DOM-041 | v0.1-alpha | more_matrix_test.go | pass |  |
+| DOM-042 | v0.1-alpha | more_matrix_test.go | pass |  |
 | DOM-043 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-044 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-045 | v0.1-alpha | dom_test.go | pass |  |
@@ -129,7 +129,7 @@ Status: untested | red | pass | waived
 | A11Y-009 | v0.1-alpha |  | untested |  |
 | A11Y-010 | v0.1-alpha |  | untested |  |
 | LOG-001 | v0.1-alpha | appendix_h_interactive_test.go H.17 | pass |  |
-| LOG-002 | v0.1-alpha |  | untested |  |
+| LOG-002 | v0.1-alpha | more_matrix_test.go | pass |  |
 | LOG-003 | v0.1-alpha |  | untested |  |
 | LOG-004 | v0.3 |  | untested |  |
 | LOG-005 | v0.3 | debug_writer_test.go | pass |  |
@@ -154,7 +154,7 @@ Status: untested | red | pass | waived
 | OUT-009 | v0.1-alpha |  | untested |  |
 | OUT-010 | v0.1-alpha |  | untested |  |
 | OUT-011 | v0.1-alpha |  | untested |  |
-| OUT-012 | v0.1-alpha | dom_test.go | pass |  |
+| OUT-012 | v0.1-alpha | more_matrix_test.go | pass |  |
 | OUT-013 | v0.1-alpha |  | untested |  |
 | OUT-014 | v0.1-alpha |  | untested |  |
 | OUT-015 | v0.1-alpha |  | untested |  |
@@ -242,14 +242,14 @@ Status: untested | red | pass | waived
 | API-023 | v0.1-alpha |  | untested |  |
 | API-024 | v0.1-alpha |  | untested |  |
 | API-025 | v0.1-alpha |  | untested |  |
-| API-026 | v0.1-alpha |  | untested |  |
+| API-026 | v0.1-alpha | more_matrix_test.go | pass |  |
 | API-027 | v0.1-alpha | appendix_h_test.go | pass |  |
 | API-028 | v0.1-alpha |  | untested |  |
 | API-029 | v0.1-alpha |  | untested |  |
 | API-030 | v0.1-alpha |  | untested |  |
 | SEC-001 | v0.1-alpha | sanitize_test.go | pass |  |
 | SEC-002 | v0.1-alpha |  | untested |  |
-| SEC-003 | v0.1-alpha |  | untested |  |
+| SEC-003 | v0.1-alpha | more_matrix_test.go | pass |  |
 | SEC-004 | v0.1-alpha |  | untested |  |
 | SEC-005 | v0.1-alpha |  | untested |  |
 | SEC-006 | v0.1-alpha | coverage_matrix_test.go | pass |  |
