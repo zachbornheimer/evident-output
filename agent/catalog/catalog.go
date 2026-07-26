@@ -1,6 +1,14 @@
 // Package catalog is the task-oriented guidance catalog for agent assistance.
 package catalog
 
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"sort"
+	"strings"
+)
+
 // Guide is one catalog entry.
 type Guide struct {
 	ID            string   `json:"id"`
@@ -110,30 +118,78 @@ func Get(ids []string) (found []Guide, missing []string) {
 	return found, missing
 }
 
-func stringsToLower(s string) string {
-	b := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		b[i] = c
+// Checksum returns a stable SHA-256 of the catalog body used by MCP, CLI,
+// embedded resources, and website mirrors (MCP-010).
+func Checksum() string {
+	guides := All()
+	ids := make([]string, len(guides))
+	for i, g := range guides {
+		ids[i] = g.ID
 	}
-	return string(b)
+	sort.Strings(ids)
+	h := sha256.New()
+	for _, id := range ids {
+		for _, g := range guides {
+			if g.ID != id {
+				continue
+			}
+			_, _ = fmt.Fprintf(h, "%s\n%s\n%s\n", g.ID, g.Title, g.Body)
+			break
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// ApplyTokenBudget truncates guide bodies so estimated tokens stay within budget.
+// Truncation is deterministic and marked explicitly (MCP-050).
+func ApplyTokenBudget(guides []Guide, maxTokens int) (out []Guide, truncated bool) {
+	if maxTokens <= 0 {
+		return guides, false
+	}
+	remaining := maxTokens
+	out = make([]Guide, 0, len(guides))
+	for _, g := range guides {
+		est := g.TokenEstimate
+		if est <= 0 {
+			est = len(g.Body)/4 + 1
+		}
+		if est <= remaining {
+			out = append(out, g)
+			remaining -= est
+			continue
+		}
+		// Keep a stub with explicit truncation marker.
+		budget := remaining
+		if budget < 20 {
+			truncated = true
+			break
+		}
+		// Rough: 4 runes ≈ 1 token
+		maxRunes := budget * 4
+		body := g.Body
+		if len([]rune(body)) > maxRunes {
+			r := []rune(body)
+			if maxRunes > 3 {
+				body = string(r[:maxRunes-3]) + "…"
+			} else {
+				body = "…"
+			}
+			body += fmt.Sprintf("\n[truncated, token_budget=%d]", maxTokens)
+			truncated = true
+		}
+		g.Body = body
+		g.TokenEstimate = budget
+		out = append(out, g)
+		remaining = 0
+		truncated = true
+	}
+	return out, truncated
+}
+
+func stringsToLower(s string) string {
+	return strings.ToLower(s)
 }
 
 func containsFold(hay, needle string) bool {
-	return stringsContains(stringsToLower(hay), stringsToLower(needle))
-}
-
-func stringsContains(s, sub string) bool {
-	if sub == "" {
-		return true
-	}
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(strings.ToLower(hay), strings.ToLower(needle))
 }
