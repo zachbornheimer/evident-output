@@ -57,7 +57,7 @@ func TestOUT008_InferenceInEvents(t *testing.T) {
 }
 
 func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
-	// Encode then decode into map — extra fields OK for forward compat consumers
+	// Older reader: unmarshal known fields; ignore extras if present.
 	out := evo.New(evo.To(io.Discard))
 	out.Item("a").OK()
 	_ = out.Finish()
@@ -65,12 +65,24 @@ func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Inject an unknown field as a consumer would see from a newer encoder.
 	var m map[string]any
 	if err := json.Unmarshal(b, &m); err != nil {
 		t.Fatal(err)
 	}
-	if m["schema_version"] != "1.0" {
-		t.Fatal(m["schema_version"])
+	m["future_field"] = "x"
+	raw, _ := json.Marshal(m)
+	var slim struct {
+		SchemaVersion string `json:"schema_version"`
+		Conclusion    struct {
+			State string `json:"state"`
+		} `json:"conclusion"`
+	}
+	if err := json.Unmarshal(raw, &slim); err != nil {
+		t.Fatal(err)
+	}
+	if slim.SchemaVersion != "1.0" || slim.Conclusion.State == "" {
+		t.Fatalf("%+v", slim)
 	}
 }
 

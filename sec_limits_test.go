@@ -27,14 +27,17 @@ func TestSEC005_ProgressOverflowRejected(t *testing.T) {
 	out := evo.New(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
-	// huge but valid
+	// Valid absolute max equal values.
 	task.Progress(math.MaxInt64, math.MaxInt64)
-	// negative already covered; advance that would wrap is rejected via invalid
+	// Advance would wrap past total / overflow completed — must record misuse.
 	task.Advance(1)
-	// completed would overflow past total — invalid
-	if out.Err() == nil {
-		// may be ErrInvalidProgress if total was max and advance exceeds
-		t.Log("err", out.Err())
+	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
+		t.Fatalf("expected ErrInvalidProgress after Advance past MaxInt64 total, got %v", out.Err())
+	}
+	// Last valid progress preserved.
+	got := task.Snapshot().Progress
+	if got.Completed != math.MaxInt64 || got.Total != math.MaxInt64 {
+		t.Fatalf("last valid progress corrupted: %+v", got)
 	}
 }
 

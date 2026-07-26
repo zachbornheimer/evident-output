@@ -231,21 +231,40 @@ func TestAPI020_SuspendExternal(t *testing.T) {
 }
 
 func TestAPI022_DiscoverabilityNames(t *testing.T) {
-	// Public API exposes Item, Task, Tasks — compile proof
-	out := evo.New(evo.To(io.Discard))
-	_ = out.Item
-	_ = out.Task
-	_ = out.Tasks
+	// User discovers Item/Task/Tasks and can implement three parallel facts without config.
+	var buf bytes.Buffer
+	out := evo.For("repo", evo.To(&buf), evo.Plain(), evo.NoColor())
+	out.Item("working tree").OK()
+	out.Task("scan").Phase("walk").Donef("done")
+	g := out.Tasks("deps")
+	g.Task("a").Done()
+	g.Task("b").Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	s := buf.String()
+	for _, need := range []string{"working tree", "scan", "deps"} {
+		if !strings.Contains(s, need) {
+			t.Fatalf("missing %q in %q", need, s)
+		}
+	}
 	_ = out.Close()
 }
 
 func TestAPI024_ComplexSmallerThanAdHoc(t *testing.T) {
-	// Smoke: multi-progress is a few lines
-	out := evo.New(evo.To(io.Discard))
+	// Multi-progress + debug is a short common-path program (not ad-hoc ANSI).
+	var buf bytes.Buffer
+	out := evo.New(evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.Debug))
 	g := out.Tasks("deps")
-	g.Task("a").Done()
-	g.Task("b").Done()
-	_ = out.Finish()
+	g.Task("a").Bytes(10, 10).Done()
+	g.Task("b").Phase("verifying").Done()
+	out.Debug("index ok")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "deps") {
+		t.Fatal(buf.String())
+	}
 	_ = out.Close()
 }
 
@@ -305,10 +324,21 @@ func TestOUT019_HostWritesWhileActiveDocumented(t *testing.T) {
 }
 
 func TestPORT013_PublicAPIStableShape(t *testing.T) {
-	// New, For, Item, Task, Finish exist
-	out := evo.For("s")
+	// Stable public surface: New/For/Item/Task/Tasks/Finish/Snapshot/EncodeJSON.
+	out := evo.For("s", evo.To(io.Discard), evo.Plain())
 	out.Item("i").OK()
-	_ = out.Finish()
+	out.Task("t").Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	snap := out.Snapshot()
+	if snap.Subject != "s" || len(snap.Items) != 1 || len(snap.Tasks) != 1 {
+		t.Fatalf("%+v", snap)
+	}
+	b, err := evo.EncodeJSON(snap)
+	if err != nil || !strings.Contains(string(b), `"schema_version": "1.0"`) {
+		t.Fatal(err, string(b))
+	}
 	_ = out.Close()
 }
 
