@@ -18,7 +18,7 @@ import (
 
 // statusAction is the urfave/cli-shaped entry: (*cli.Context) error without
 // importing urfave — signature is what adapters call.
-func statusAction(/* ctx *cli.Context */) error {
+func statusAction( /* ctx *cli.Context */ ) error {
 	return runStatus()
 }
 
