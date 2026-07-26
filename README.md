@@ -28,18 +28,19 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 ## Status
 
-**v0.4–v0.6 alpha** — library + interactive VT + logs + CLI/MCP skeletons.
+**v0.4–v0.6 alpha** — library, interactive VT, logs, real CLI, and MCP stdio server.
 
 | Ready now | Later (hardening) |
 |-----------|-------------------|
 | Items, Task, Tasks, Changes, Plan, Line | Full PTY / Windows matrix |
 | Conclusion + exit codes | Production TTY driver polish |
-| Plain, JSON (§25.1), JSONL (§25.2) | Complete agent review analyzers |
-| Interactive live region (`testkit.Screen`) | Agent effectiveness harness |
+| Plain, JSON (§25.1), JSONL (§25.2) | Full cross-file type review |
+| Interactive live region (`testkit.Screen`) | Agent effectiveness harness depth |
 | `SlogHandler`, `DebugWriter`, `Suspend`, `Snapshots()`, `MaxEntities`, `ItemWith` | Deep redaction policies |
 | Appendix H.1–H.22 + agent harness | Remaining PORT manual matrix |
 | ANSI driver + width/CJK | Full PTY on every CI image |
-| `cmd/evident-output`, `cmd/evident-output-mcp` (stdio init/tools list) | Full tool handlers |
+| CLI: `review` / `preview` / `explain` (JSON to stdout) | Kong/urfave examples |
+| MCP: initialize lifecycle gate; tools (catalog, review Go/transcript/JSON, preview, rules); resources | Token budget, remote path, protocol matrix |
 
 ## Vocabulary
 
@@ -71,11 +72,28 @@ Trunk is configured **daemonless** (`--monitor=false`). Prefer `mise` over raw t
 
 `conformance/` is the executable specification (Raku/`roast` model):
 
-- `TRACEABILITY.md` — all **272** §31 IDs dispositioned (**232 pass**, **40 waived** with reason; **0 untested**)  
+- `TRACEABILITY.md` — all **272** §31 IDs dispositioned (**234 pass**, **38 waived** with reason + owner; **0 untested**)  
 - `schema/scenario.v1.json` — declarative scenario dialect  
 - `scenarios/*.json` + Go Appendix H tests (`appendix_h_test.go`)
 
 Architecture source: [`docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.3.md`](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.3.md).
+
+### CLI
+
+```bash
+go run ./cmd/evident-output review path/to/file.go   # JSON findings (exit 1 if recheck_required)
+go run ./cmd/evident-output preview --item=status --state=ok
+go run ./cmd/evident-output explain API-006
+go run ./cmd/evident-output version
+```
+
+### MCP (stdio)
+
+```bash
+go run ./cmd/evident-output-mcp
+# initialize first, then tools/list / tools/call (evident_output.*)
+# review kinds: go (default), transcript, json|structured
+```
 
 ### Example
 
