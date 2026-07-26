@@ -20,7 +20,7 @@ Status: untested | red | pass | waived
 | DOM-013 | v0.1-alpha |  | untested |  |
 | DOM-014 | v0.1-alpha |  | untested |  |
 | DOM-015 | v0.1-alpha |  | untested |  |
-| DOM-016 | v0.1-alpha |  | untested |  |
+| DOM-016 | v0.1-alpha | appendix_h_test.go + live | pass |  |
 | DOM-017 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-018 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-019 | v0.1-alpha |  | untested |  |
@@ -29,8 +29,8 @@ Status: untested | red | pass | waived
 | DOM-022 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-023 | v0.1-alpha |  | untested |  |
 | DOM-024 | v0.1-alpha |  | untested |  |
-| DOM-025 | v0.1-alpha |  | untested |  |
-| DOM-026 | v0.1-alpha |  | untested |  |
+| DOM-025 | v0.1-alpha | appendix_h_interactive_test.go H.2 | pass |  |
+| DOM-026 | v0.1-alpha | appendix_h_interactive_test.go H.17 | pass |  |
 | DOM-027 | v0.1-alpha |  | untested |  |
 | DOM-028 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-029 | v0.1-alpha | appendix_h_test.go | pass |  |
@@ -68,18 +68,18 @@ Status: untested | red | pass | waived
 | CON-011 | v0.1-rc |  | untested |  |
 | CON-012 | v0.1-rc |  | untested |  |
 | CON-013 | v0.4 |  | untested |  |
-| CON-014 | v0.4 |  | untested |  |
+| CON-014 | v0.4 | appendix_h_interactive_test.go H.22 | pass |  |
 | CON-015 | v0.4 |  | untested |  |
 | CON-016 | v0.4 |  | untested |  |
 | CON-017 | v0.4 |  | untested |  |
 | CON-018 | v0.4 |  | untested |  |
 | CON-019 | v0.4 |  | untested |  |
-| TERM-001 | v0.2 |  | untested |  |
-| TERM-002 | v0.2 |  | untested |  |
-| TERM-003 | v0.2 |  | untested |  |
+| TERM-001 | v0.2 | appendix_h_interactive_test.go H.2 | pass |  |
+| TERM-002 | v0.2 | appendix_h_interactive_test.go H.2/H.17 | pass |  |
+| TERM-003 | v0.2 | appendix_h_interactive_test.go H.17 | pass |  |
 | TERM-004 | v0.2 |  | untested |  |
 | TERM-005 | v0.2 |  | untested |  |
-| TERM-006 | v0.2 |  | untested |  |
+| TERM-006 | v0.2 | appendix_h_interactive_test.go H.17 | pass |  |
 | TERM-007 | v0.4 |  | untested |  |
 | TERM-008 | v0.2 |  | untested |  |
 | TERM-009 | v0.4 |  | untested |  |
@@ -91,8 +91,8 @@ Status: untested | red | pass | waived
 | TERM-015 | v0.3 |  | untested |  |
 | TERM-016 | v0.3 |  | untested |  |
 | TERM-017 | v0.3 |  | untested |  |
-| TERM-018 | v0.2 |  | untested |  |
-| TERM-019 | v0.2 |  | untested |  |
+| TERM-018 | v0.2 | appendix_h_interactive_test.go H.20 | pass |  |
+| TERM-019 | v0.2 | appendix_h_interactive_test.go H.21 | pass |  |
 | TERM-020 | v0.2 |  | untested |  |
 | TERM-021 | v0.2 |  | untested |  |
 | TERM-022 | v0.2 |  | untested |  |
@@ -128,7 +128,7 @@ Status: untested | red | pass | waived
 | A11Y-008 | v0.1-alpha |  | untested |  |
 | A11Y-009 | v0.1-alpha |  | untested |  |
 | A11Y-010 | v0.1-alpha |  | untested |  |
-| LOG-001 | v0.1-alpha |  | untested |  |
+| LOG-001 | v0.1-alpha | appendix_h_interactive_test.go H.17 | pass |  |
 | LOG-002 | v0.1-alpha |  | untested |  |
 | LOG-003 | v0.1-alpha |  | untested |  |
 | LOG-004 | v0.3 |  | untested |  |
