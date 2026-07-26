@@ -335,7 +335,7 @@ func (o *Output) Fail(summary string, options ...ProblemOption) {
 	o.appendEventLocked(Event{Type: "output.failed"})
 }
 
-// Cancel records output-level cancellation.
+// Cancel records output-level cancellation via a synthetic cancelled task.
 func (o *Output) Cancel(reason string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -343,16 +343,6 @@ func (o *Output) Cancel(reason string) {
 		o.recordMisuse(err)
 		return
 	}
-	st := &itemState{
-		id:          o.nextID("item"),
-		name:        "command",
-		state:       Cancelled,
-		because:     sanitize.Text(reason),
-		declaration: o.nextDecl(),
-	}
-	// Items don't have Cancelled in item SM — map via task-like for conclusion.
-	// Use a cancelled synthetic task instead.
-	o.items = o.items[:len(o.items)] // no-op keep items
 	t := &taskState{
 		id:          o.nextID("task"),
 		name:        "command",
@@ -360,7 +350,6 @@ func (o *Output) Cancel(reason string) {
 		summary:     sanitize.Text(reason),
 		declaration: o.nextDecl(),
 	}
-	_ = st
 	o.tasks = append(o.tasks, t)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "output.cancelled"})
