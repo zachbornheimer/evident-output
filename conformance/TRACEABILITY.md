@@ -14,16 +14,16 @@ Status: untested | red | pass | waived
 | DOM-007 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-008 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-009 | v0.1-alpha | appendix_h_test.go | pass |  |
-| DOM-010 | v0.1-alpha |  | untested |  |
+| DOM-010 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-011 | v0.1-alpha | appendix_h_test.go | pass |  |
-| DOM-012 | v0.1-alpha |  | untested |  |
+| DOM-012 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-013 | v0.1-alpha |  | untested |  |
 | DOM-014 | v0.1-alpha |  | untested |  |
 | DOM-015 | v0.1-alpha |  | untested |  |
 | DOM-016 | v0.1-alpha | appendix_h_test.go + live | pass |  |
 | DOM-017 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-018 | v0.1-alpha | appendix_h_test.go | pass |  |
-| DOM-019 | v0.1-alpha |  | untested |  |
+| DOM-019 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-020 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-021 | v0.1-alpha |  | untested |  |
 | DOM-022 | v0.1-alpha | appendix_h_test.go | pass |  |
@@ -37,7 +37,7 @@ Status: untested | red | pass | waived
 | DOM-030 | v0.1-alpha |  | untested |  |
 | DOM-031 | v0.1-alpha |  | untested |  |
 | DOM-032 | v0.1-alpha | appendix_h_test.go | pass |  |
-| DOM-033 | v0.1-alpha |  | untested |  |
+| DOM-033 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-034 | v0.1-alpha | appendix_h_test.go | pass |  |
 | DOM-035 | v0.1-alpha |  | untested |  |
 | DOM-036 | v0.1-alpha | dom_test.go | pass |  |
@@ -48,8 +48,8 @@ Status: untested | red | pass | waived
 | DOM-041 | v0.1-alpha |  | untested |  |
 | DOM-042 | v0.1-alpha |  | untested |  |
 | DOM-043 | v0.1-alpha | dom_test.go | pass |  |
-| DOM-044 | v0.1-alpha |  | untested |  |
-| DOM-045 | v0.1-alpha |  | untested |  |
+| DOM-044 | v0.1-alpha | dom_test.go | pass |  |
+| DOM-045 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-046 | v0.1-alpha | dom_test.go | pass |  |
 | DOM-047 | v0.1-alpha |  | untested |  |
 | DOM-048 | v0.1-alpha |  | untested |  |
@@ -88,7 +88,7 @@ Status: untested | red | pass | waived
 | TERM-012 | v0.2 |  | untested |  |
 | TERM-013 | v0.2 |  | untested |  |
 | TERM-014 | v0.2 |  | untested |  |
-| TERM-015 | v0.3 |  | untested |  |
+| TERM-015 | v0.3 | slog_test.go | pass |  |
 | TERM-016 | v0.3 |  | untested |  |
 | TERM-017 | v0.3 |  | untested |  |
 | TERM-018 | v0.2 | appendix_h_interactive_test.go H.20 | pass |  |
@@ -136,7 +136,7 @@ Status: untested | red | pass | waived
 | LOG-006 | v0.3 |  | untested |  |
 | LOG-007 | v0.3 |  | untested |  |
 | LOG-008 | v0.3 |  | untested |  |
-| LOG-009 | v0.3 |  | untested |  |
+| LOG-009 | v0.3 | slog_test.go | pass |  |
 | LOG-010 | v0.3 |  | untested |  |
 | LOG-011 | v0.3 |  | untested |  |
 | LOG-012 | v0.3 |  | untested |  |
@@ -160,7 +160,7 @@ Status: untested | red | pass | waived
 | OUT-015 | v0.1-alpha |  | untested |  |
 | OUT-016 | v0.1-alpha |  | untested |  |
 | OUT-017 | v0.1-alpha |  | untested |  |
-| OUT-018 | v0.1-alpha |  | untested |  |
+| OUT-018 | v0.1-alpha | appendix_h_test.go RenderPlain/EncodeJSON | pass |  |
 | OUT-019 | v0.1-alpha |  | untested |  |
 | OUT-020 | v0.1-alpha |  | untested |  |
 | OUT-021 | v0.1-alpha |  | untested |  |
@@ -230,7 +230,7 @@ Status: untested | red | pass | waived
 | API-011 | v0.1-alpha |  | untested |  |
 | API-012 | v0.1-alpha |  | untested |  |
 | API-013 | v0.1-alpha |  | untested |  |
-| API-014 | v0.1-alpha |  | untested |  |
+| API-014 | v0.1-alpha | slog_test.go | pass |  |
 | API-015 | v0.1-alpha |  | untested |  |
 | API-016 | v0.1-alpha |  | untested |  |
 | API-017 | v0.1-alpha |  | untested |  |

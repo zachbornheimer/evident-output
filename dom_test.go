@@ -78,3 +78,76 @@ func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
 	testkit.RequireConclusion(t, out, evo.StatePlanned)
 	testkit.RequireClean(t, out)
 }
+
+func TestDOM010_WarnedByAndFailedBy(t *testing.T) {
+	out := evo.New(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+	w := out.Item("w")
+	w.WarnedBy(evo.Problem{Summary: "soft"})
+	if w.Snapshot().State != evo.Warning {
+		t.Fatal(w.Snapshot().State)
+	}
+	f := out.Item("f")
+	f.FailedBy(evo.Problem{Summary: "hard"})
+	if f.Snapshot().State != evo.Failed {
+		t.Fatal(f.Snapshot().State)
+	}
+}
+
+func TestDOM012_AnnotationAfterResolve(t *testing.T) {
+	out := evo.New(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+	it := out.Item("x")
+	it.Block("b").Because("why").NextCommand("fix", "it")
+	if it.Snapshot().Because != "why" {
+		t.Fatal(it.Snapshot().Because)
+	}
+	if len(it.Snapshot().Actions) != 1 {
+		t.Fatal("expected action")
+	}
+}
+
+func TestDOM019_Advance(t *testing.T) {
+	out := evo.New(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+	task := out.Task("files")
+	task.Progress(0, 3)
+	task.Advance(1)
+	task.Advance(1)
+	if task.Snapshot().Progress.Completed != 2 {
+		t.Fatalf("got %d", task.Snapshot().Progress.Completed)
+	}
+}
+
+func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
+	out := evo.New(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+	out.Item("hanging")
+	err := out.Finish()
+	if err == nil {
+		t.Fatal("expected unresolved item error")
+	}
+}
+
+func TestDOM044_CloseTwice(t *testing.T) {
+	out := evo.New(evo.To(io.Discard))
+	out.Item("x").OK()
+	if err := out.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := out.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDOM045_EmptyOutput(t *testing.T) {
+	out := evo.New(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	c := out.Conclusion()
+	if c.State != evo.StateUnchanged {
+		t.Fatalf("state=%q", c.State)
+	}
+}
