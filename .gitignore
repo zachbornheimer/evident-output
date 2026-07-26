@@ -15,7 +15,7 @@
 !/go.mod
 !/go.sum
 !/.trunk/
-!/.trunk/**
+!/.trunk/trunk.yaml
 !/.github/
 !/.github/**
 !/docs/
