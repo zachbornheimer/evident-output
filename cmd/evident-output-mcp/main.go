@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/zachbornheimer/evident-output/agent/review"
 )
 
 // Version is injected at build time.
@@ -51,10 +53,8 @@ func main() {
 				},
 			})
 		case "tools/call":
-			writeRPC(id, map[string]any{
-				"content": []map[string]any{{"type": "text", "text": "tool handlers not fully implemented in this build"}},
-				"isError": true,
-			})
+			handleToolCall(id, req)
+
 		case "notifications/initialized", "initialized":
 			// no response for notifications
 		default:
@@ -82,4 +82,52 @@ func writeRPCError(id any, code int, message string) {
 		"error":   map[string]any{"code": code, "message": message},
 	}
 	_ = json.NewEncoder(os.Stdout).Encode(msg)
+}
+
+func handleToolCall(id any, req map[string]any) {
+	params, _ := req["params"].(map[string]any)
+	name, _ := params["name"].(string)
+	args, _ := params["arguments"].(map[string]any)
+	switch name {
+	case "evident_output.list_guides":
+		writeRPC(id, map[string]any{
+			"content": []map[string]any{{"type": "text", "text": "guides: common-api, tasks, streams, security"}},
+			"structuredContent": map[string]any{
+				"guides": []map[string]any{
+					{"id": "common-api", "use_cases": []string{"items", "finish"}},
+					{"id": "tasks", "use_cases": []string{"progress", "collections"}},
+				},
+			},
+		})
+	case "evident_output.explain":
+		rule, _ := args["rule_id"].(string)
+		writeRPC(id, map[string]any{
+			"content":           []map[string]any{{"type": "text", "text": "rule " + rule}},
+			"structuredContent": map[string]any{"rule_id": rule, "rationale": "see architecture §31 and Appendix C"},
+		})
+	case "evident_output.review":
+		src, _ := args["source"].(string)
+		file, _ := args["file"].(string)
+		if file == "" {
+			file = "input.go"
+		}
+		res := review.GoSource(file, src)
+		writeRPC(id, map[string]any{
+			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("findings=%d recheck=%v", len(res.Findings), res.RecheckRequired)}},
+			"structuredContent": map[string]any{
+				"recheck_required": res.RecheckRequired,
+				"findings":         res.Findings,
+			},
+		})
+	case "evident_output.preview", "evident_output.get_guidance":
+		writeRPC(id, map[string]any{
+			"content": []map[string]any{{"type": "text", "text": name + " partial"}},
+			"isError": false,
+		})
+	default:
+		writeRPC(id, map[string]any{
+			"content": []map[string]any{{"type": "text", "text": "unknown tool"}},
+			"isError": true,
+		})
+	}
 }
