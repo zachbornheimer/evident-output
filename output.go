@@ -109,6 +109,7 @@ func newOutput(subject string, options ...Option) *Output {
 		maxFrameRate:    defaultMaxFrameRate,
 		width:           defaultWidth,
 		debugLevel:      LevelInfo,
+		redactor:        NoopRedactor{},
 	}
 	for _, opt := range options {
 		if opt != nil {
@@ -420,7 +421,11 @@ func formatDebug(message string, fields []Field) string {
 	}
 	parts := make([]string, 0, len(fields))
 	for _, f := range fields {
-		parts = append(parts, fmt.Sprintf("%s=%v", sanitize.Text(f.Key), f.Value))
+		val := fmt.Sprint(f.Value)
+		if f.Sensitive {
+			val = "***"
+		}
+		parts = append(parts, fmt.Sprintf("%s=%s", sanitize.Text(f.Key), sanitize.Text(val)))
 	}
 	return "[DEBUG] " + msg + "  " + joinArgs(parts)
 }

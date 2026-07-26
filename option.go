@@ -24,6 +24,7 @@ type config struct {
 	strict          bool
 	terminal        TerminalDriver
 	debugLevel      LogLevel
+	redactor        Redactor
 }
 
 type optionFunc func(*config)
