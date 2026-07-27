@@ -3,8 +3,15 @@ package evo
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
+
+// Braille spinner sequence (common CLI convention).
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+// spinnerPeriod is the wall-clock duration between spinner frame advances.
+const spinnerPeriod = 80 * time.Millisecond
 
 // LiveSurface is an interactive terminal sink for live-region rendering.
 // testkit.Screen implements this; production drivers can as well.
@@ -37,6 +44,12 @@ type liveEngine struct {
 	lastLiveText  string
 	liveActive    bool
 	pendingRedraw bool
+
+	// anim drives independent spinner ticks while any task is Running,
+	// so indeterminate rows animate even when determinate bars are idle.
+	animMu      sync.Mutex
+	animRunning bool
+	animStop    chan struct{}
 }
 
 func (o *Output) liveLocked() LiveSurface {
@@ -73,6 +86,7 @@ func (o *Output) signalLiveLocked(force bool) {
 		}
 	}
 	o.renderLiveLocked(force)
+	o.ensureSpinnerAnimatorLocked()
 }
 
 func (o *Output) hasLiveActivityLocked() bool {
@@ -99,15 +113,108 @@ func (o *Output) renderLiveLocked(force bool) {
 	if live == nil || o.live == nil || !o.live.visible {
 		return
 	}
-	text := renderLiveRegion(o.snapshotLocked(), live.Columns(), live.Rows())
+	now := o.cfg.clock.Now()
+	text := renderLiveRegion(o.snapshotLocked(), live.Columns(), live.Rows(), now)
 	if !force && text == o.live.lastLiveText {
 		return
 	}
 	live.WriteLive(text)
 	o.live.lastLiveText = text
-	o.live.lastRender = o.cfg.clock.Now()
+	o.live.lastRender = now
 	o.live.liveActive = true
 	o.live.pendingRedraw = false
+}
+
+// needsSpinnerAnimLocked reports whether any live row should keep ticking.
+func (o *Output) needsSpinnerAnimLocked() bool {
+	for _, t := range o.tasks {
+		if t.state == Running {
+			return true
+		}
+	}
+	for _, it := range o.items {
+		if it.state == Running {
+			return true
+		}
+	}
+	return false
+}
+
+// ensureSpinnerAnimatorLocked starts a background tick that re-renders the live
+// region so indeterminate spinners advance without waiting for Progress calls.
+func (o *Output) ensureSpinnerAnimatorLocked() {
+	if o.live == nil || !o.live.visible || o.finished || o.closed {
+		return
+	}
+	if !o.needsSpinnerAnimLocked() {
+		o.stopSpinnerAnimatorLocked()
+		return
+	}
+	o.live.animMu.Lock()
+	if o.live.animRunning {
+		o.live.animMu.Unlock()
+		return
+	}
+	stop := make(chan struct{})
+	o.live.animStop = stop
+	o.live.animRunning = true
+	o.live.animMu.Unlock()
+	go o.spinnerAnimateLoop(stop)
+}
+
+func (o *Output) stopSpinnerAnimatorLocked() {
+	if o.live == nil {
+		return
+	}
+	o.live.animMu.Lock()
+	if o.live.animRunning && o.live.animStop != nil {
+		close(o.live.animStop)
+		o.live.animStop = nil
+		o.live.animRunning = false
+	}
+	o.live.animMu.Unlock()
+}
+
+func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
+	// Real wall ticker: spinner cadence is independent of the domain clock and
+	// of Progress/Phase call rate. Domain clock still selects the glyph frame
+	// (FixedClock freezes animation for golden tests).
+	t := time.NewTicker(spinnerPeriod)
+	defer t.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-t.C:
+			o.mu.Lock()
+			if o.closed || o.finished || o.live == nil || !o.live.visible {
+				o.stopSpinnerAnimatorLocked()
+				o.mu.Unlock()
+				return
+			}
+			if !o.needsSpinnerAnimLocked() {
+				o.stopSpinnerAnimatorLocked()
+				o.mu.Unlock()
+				return
+			}
+			// Force redraw so time-based spinner glyphs advance.
+			o.renderLiveLocked(true)
+			o.mu.Unlock()
+		}
+	}
+}
+
+// spinnerGlyph picks a braille frame from the clock so FixedClock freezes it.
+func spinnerGlyph(now time.Time) string {
+	if len(spinnerFrames) == 0 {
+		return "⠋"
+	}
+	ns := now.UnixNano()
+	if ns < 0 {
+		ns = -ns
+	}
+	i := int(ns/int64(spinnerPeriod)) % len(spinnerFrames)
+	return spinnerFrames[i]
 }
 
 func (o *Output) debugLiveLocked(line string) {
@@ -133,16 +240,19 @@ func (o *Output) finishLiveLocked(final string) {
 	if live == nil || !live.IsInteractive() {
 		return
 	}
+	o.stopSpinnerAnimatorLocked()
 	if o.live != nil && o.live.liveActive {
 		live.ClearLive()
 		o.live.liveActive = false
+		o.live.visible = false
 	}
 	// H.17 expects a compact final task line, not the full multi-section report.
 	live.WriteFinal(strings.TrimRight(final, "\n"))
 }
 
 // renderLiveRegion builds the interactive ledger text for the current snapshot.
-func renderLiveRegion(s Snapshot, width, height int) string {
+// now selects spinner frames (inject FixedClock in tests for stable glyphs).
+func renderLiveRegion(s Snapshot, width, height int, now time.Time) string {
 	if width <= 0 {
 		width = defaultWidth
 	}
@@ -150,23 +260,28 @@ func renderLiveRegion(s Snapshot, width, height int) string {
 		height = 24
 	}
 	var b strings.Builder
+	spin := spinnerGlyph(now)
 
 	// Prefer collections for multi-task progress display.
 	for _, col := range s.Collections {
-		writeLiveCollection(&b, col, height)
+		writeLiveCollection(&b, col, height, spin)
 	}
 	for _, t := range s.Tasks {
-		writeLiveTaskLine(&b, t, 0)
+		writeLiveTaskLine(&b, t, 0, spin)
 	}
 	for _, it := range s.Items {
 		if it.State == Running || it.State == Pending {
-			fmt.Fprintf(&b, "%s  %s\n", itemGlyph(it.State), it.Name)
+			g := itemGlyph(it.State)
+			if it.State == Running {
+				g = spin
+			}
+			fmt.Fprintf(&b, "%s  %s\n", g, it.Name)
 		}
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int) {
+func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin string) {
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == Done || t.State == Skipped {
@@ -175,18 +290,14 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int) {
 	}
 	// Header
 	glyph := taskGlyph(col.State)
-	if col.State == Running || anyChildRunning(col) {
-		glyph = "⠋"
-	}
 	if col.State == Failed || anyChildFailed(col) {
-		// keep failed glyph on collection if failed
 		if col.State == Failed {
 			glyph = "✗"
 		}
 	}
-	// When any running, show spinner on header even if derived failed? Spec H.20 shows spinner with 1/3 complete.
+	// When any running, animate header spinner (H.20 uses FixedClock → stable ⠋).
 	if anyChildRunning(col) || anyChildPendingActive(col) {
-		glyph = "⠋"
+		glyph = spin
 	}
 	fmt.Fprintf(b, "%s  %s  %d/%d complete\n", glyph, col.Name, done, total)
 
@@ -198,7 +309,7 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int) {
 	}
 	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
 	for _, t := range selected {
-		writeLiveTaskLine(b, t, 1)
+		writeLiveTaskLine(b, t, 1, spin)
 	}
 	if omitted > 0 {
 		fmt.Fprintf(b, "   …  %d not shown\n", omitted)
@@ -270,14 +381,14 @@ func selectLiveChildren(tasks []TaskSnapshot, max int) (selected []TaskSnapshot,
 	return selected, len(tasks) - len(selected)
 }
 
-func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int) {
+func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin string) {
 	pad := ""
 	if indent > 0 {
 		pad = "   "
 	}
 	glyph := taskGlyph(t.State)
 	if t.State == Running {
-		glyph = "⠋"
+		glyph = spin
 	}
 	// Child rows: indent + glyph + two spaces + name padded to 9 + two spaces + detail.
 	// Produces stable columns: "react" and "sharp" share alignment; "esbuild" fills the field.

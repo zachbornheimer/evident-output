@@ -56,10 +56,13 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 		testkit.NoColor(),
 	)
 
+	// FixedClock freezes spinner glyphs for stable operation expectations.
+	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := evo.New(
 		evo.Terminal(screen),
 		evo.DebugLevel(evo.Debug),
 		evo.NoColor(), // assert exact final text without SGR
+		evo.Clock(fixed),
 	)
 	t.Cleanup(func() { _ = out.Close() })
 
@@ -90,7 +93,8 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 		testkit.NoColor(),
 	)
 
-	out := evo.New(evo.Terminal(screen))
+	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	out := evo.New(evo.Terminal(screen), evo.Clock(fixed), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")

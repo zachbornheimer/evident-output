@@ -847,6 +847,7 @@ func (o *Output) Close() error {
 		_ = o.Finish()
 	}
 	o.mu.Lock()
+	o.stopSpinnerAnimatorLocked()
 	o.closed = true
 	o.mu.Unlock()
 	return nil
