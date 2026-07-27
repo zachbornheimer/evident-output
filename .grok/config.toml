@@ -1,0 +1,6 @@
+# Project-scoped MCP for Grok (only [mcp_servers] is read from project configs).
+# Prefer an on-PATH binary so machines without a fixed install path still work.
+[mcp_servers.evident-output]
+command = "evident-output-mcp"
+enabled = true
+startup_timeout_sec = 30

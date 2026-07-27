@@ -18,6 +18,8 @@
 !/.trunk/trunk.yaml
 !/.github/
 !/.github/**
+!/.grok/
+!/.grok/**
 !/docs/
 !/docs/**
 !/conformance/

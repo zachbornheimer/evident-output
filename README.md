@@ -94,11 +94,102 @@ go run ./cmd/evident-output version
 
 ### MCP (stdio)
 
+The companion server `evident-output-mcp` is a **local stdio** MCP process (no hosted URL).
+Stdin/stdout are JSON-RPC only; logs go to stderr.
+
+**Tools** (namespace `evident_output.*`):
+
+| Tool | Purpose |
+|------|---------|
+| `evident_output.list_guides` | Guidance catalog (token-budget aware) |
+| `evident_output.get_guidance` | Fetch guide sections by id |
+| `evident_output.review` | Review Go / package / transcript / structured JSON |
+| `evident_output.preview` | Preview plain profiles for a declarative scene |
+| `evident_output.explain` | Explain a stable rule id (e.g. `API-006`) |
+
+#### Install the binary
+
 ```bash
-go run ./cmd/evident-output-mcp
-# initialize first, then tools/list / tools/call (evident_output.*)
-# review kinds: go (default), transcript, json|structured
+# From a clone (recommended while developing):
+go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
+
+# Or install the latest public module:
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+# → $(go env GOPATH)/bin/evident-output-mcp  (ensure GOPATH/bin is on PATH)
+
+evident-output-mcp --version
 ```
+
+Smoke the protocol (each line is one JSON-RPC message on stdin):
+
+```bash
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"manual","version":"0"}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+  | evident-output-mcp 2>/dev/null | head
+```
+
+#### Grok (xAI TUI / Build)
+
+User scope (`~/.grok/config.toml`) — works in every session:
+
+```bash
+grok mcp add evident-output -- evident-output-mcp
+# or with an absolute path if the binary is not on PATH:
+# grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
+
+grok mcp list
+grok mcp doctor evident-output
+```
+
+Equivalent TOML:
+
+```toml
+[mcp_servers.evident-output]
+command = "evident-output-mcp"   # or absolute path
+enabled = true
+startup_timeout_sec = 30
+```
+
+Project scope (optional, commit with the repo so teammates get it when the folder is trusted):
+
+```bash
+# from the evident-output repo root
+mkdir -p .grok
+# writes only [mcp_servers] into ./.grok/config.toml
+grok mcp add --scope project evident-output -- evident-output-mcp
+```
+
+Restart the Grok session (or rely on hot-reload) so tools appear as `evident-output__…` / `search_tool` matches.
+
+#### Claude Code
+
+Add to `~/.claude.json` (or project `.mcp.json`) under `mcpServers`:
+
+```json
+{
+  "mcpServers": {
+    "evident-output": {
+      "command": "evident-output-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+#### Cursor
+
+Settings → MCP → Add server (stdio), command `evident-output-mcp`, no args.
+Or project `.cursor/mcp.json` with the same `command` shape as Claude.
+
+#### Manual / any MCP host
+
+```bash
+go run github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+# host must speak MCP over stdio; call initialize before tools/*
+```
+
+Review kinds for `evident_output.review`: `go` (default), `transcript`, `json` / `structured`.
 
 ### Examples
 

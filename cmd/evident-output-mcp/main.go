@@ -27,9 +27,11 @@ var Version = "dev"
 var faultHook func(toolName string)
 
 // Supported protocol versions (MCP-041).
+// Include the revision Grok and other recent hosts negotiate (2025-06-18).
 var supportedProtocols = map[string]bool{
 	"2024-11-05": true,
 	"2025-03-26": true,
+	"2025-06-18": true,
 }
 
 const (
@@ -74,7 +76,7 @@ func main() {
 			negotiated := "2024-11-05"
 			if clientProto != "" {
 				if !supportedProtocols[clientProto] {
-					writeRPCError(id, -32602, "unsupported protocolVersion "+clientProto+"; supported: 2024-11-05, 2025-03-26")
+					writeRPCError(id, -32602, "unsupported protocolVersion "+clientProto+"; supported: 2024-11-05, 2025-03-26, 2025-06-18")
 					continue
 				}
 				negotiated = clientProto
