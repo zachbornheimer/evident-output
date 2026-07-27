@@ -41,15 +41,25 @@ startup_timeout_sec = 30
 
 ```bash
 grok mcp list
+# User-scope binary (recommended) — healthy from any cwd:
 grok mcp doctor evident-output
+
+# Project-scoped entries may report "folder untrusted" until Grok trusts the repo.
+# Prefer user scope for always-on tools:
+#   grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 ```
 
-Expect: server starts, `initialize` negotiates a supported protocol
-(`2024-11-05` / `2025-03-26` / `2025-06-18`), tools include
-`evident_output.list_guides`, `get_guidance`, `review`, `preview`, `explain`.
+Expect (example, verified 2026-07-27):
 
-**Note:** An already-running Grok session may not pick up new MCP servers
-until you start a new session.
+- `command found`
+- `server started`
+- `handshake OK (protocol 2025-06-18)`
+- `5 tools discovered`
+
+**Notes:**
+
+- An already-running Grok session may not load new MCP tools until you start a **new** session.
+- This chat session may still lack `evident_output.*` until restart even when `grok mcp doctor` is green.
 
 ## 4. Skill
 
