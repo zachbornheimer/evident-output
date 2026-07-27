@@ -98,10 +98,15 @@ go run ./cmd/evident-output-mcp
 # review kinds: go (default), transcript, json|structured
 ```
 
-### Example
+### Examples
 
 ```bash
+mise run examples                 # all demos, back-to-back with headers
 go run ./examples/repository-item/
+go run ./examples/tasks-progress/
+go run ./examples/plan-changes/
+go run ./examples/doctor-items/
+go run ./examples/json-snapshot/  # human on stderr, JSON on stdout
 ```
 
 ### Machine output

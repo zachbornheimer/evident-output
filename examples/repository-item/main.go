@@ -1,4 +1,4 @@
-// Example: repository inspection with items (architecture Appendix A.1 shape).
+// Example: repository inspection with parallel Items (architecture Appendix A.1).
 package main
 
 import (
@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	out := evo.For("bpp-csharp")
+	out := evo.For("bpp-csharp", evo.To(os.Stdout), evo.Plain(), evo.NoColor())
 	defer out.Close()
 
 	workingTree := out.Item("working tree")

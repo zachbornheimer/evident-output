@@ -55,6 +55,10 @@ run = [
   "echo doctor ok",
 ]
 
+[tasks.examples]
+description = "Run example CLIs back-to-back with headers"
+run = "bash scripts/run-examples.sh"
+
 [tasks.ci]
 description = "Full gate: lint + test + scan + conformance + traceability"
 depends = ["lint", "test", "scan", "conformance", "traceability"]
