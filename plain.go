@@ -79,17 +79,26 @@ func renderPlain(s Snapshot, cfg config) string {
 }
 
 func writeItem(b *strings.Builder, it ItemSnapshot, color bool) {
+	writeItemCore(b, it, color)
+	if it.Because != "" {
+		writeItemBecause(b, it.Because, color)
+	}
+	for _, a := range it.Actions {
+		writeAction(b, a, color)
+	}
+}
+
+// writeItemCore emits glyph, name, and problems (terminal outcome body).
+func writeItemCore(b *strings.Builder, it ItemSnapshot, color bool) {
 	glyph := styleGlyph(itemGlyph(it.State), stateColor(it.State), color)
 	fmt.Fprintf(b, "%s  %s\n", glyph, it.Name)
 	for _, p := range it.Problems {
 		writeProblem(b, p, color)
 	}
-	if it.Because != "" {
-		fmt.Fprintf(b, "  %s\n", dim(it.Because, color))
-	}
-	for _, a := range it.Actions {
-		writeAction(b, a, color)
-	}
+}
+
+func writeItemBecause(b *strings.Builder, because string, color bool) {
+	fmt.Fprintf(b, "  %s\n", dim(because, color))
 }
 
 func writeProblem(b *strings.Builder, p Problem, color bool) {

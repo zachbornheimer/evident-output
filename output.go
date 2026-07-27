@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -43,6 +42,10 @@ type Output struct {
 	taskByRef  map[string]*taskState
 	tasksByRef map[string]*tasksState
 	keys       map[string]struct{}
+
+	// Progressive durable emission (§17.5: terminal outcomes render immediately).
+	// Finish only appends residual (unemitted entities + conclusion).
+	linesEmitted int
 }
 
 type itemState struct {
@@ -54,6 +57,11 @@ type itemState struct {
 	actions     []Action
 	declaration int
 	handle      *Item
+
+	// Emission bookkeeping so resolved items are not buffered until Finish.
+	coreEmitted    bool
+	becauseEmitted bool
+	actionsEmitted int
 }
 
 type taskState struct {
@@ -351,7 +359,7 @@ func (o *Output) Plan(subject string) *Plan {
 	return h
 }
 
-// Line emits a durable user-facing line.
+// Line emits a durable user-facing line immediately (not buffered until Finish).
 func (o *Output) Line(message string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -362,6 +370,7 @@ func (o *Output) Line(message string) {
 	o.lines = append(o.lines, sanitize.Text(message))
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "output.line_emitted"})
+	o.emitLineProgressiveLocked()
 }
 
 // Linef formats and emits a durable user-facing line.
@@ -778,29 +787,49 @@ func (o *Output) Finish() error {
 	misuse := o.misuse
 	o.finished = true
 	o.finishing = false
-	interactiveFinal := renderInteractiveFinal(snap, !cfg.noColor)
-	if live := o.liveLocked(); live != nil && live.IsInteractive() {
-		o.finishLiveLocked(interactiveFinal)
+
+	// Full plain for FinalPlain / JSON agreement (may include already-streamed items).
+	fullPlain, _ := RenderPlain(snap, PlainOptions{
+		Width: cfg.width, NoColor: cfg.noColor, NonInteractive: cfg.nonInteractive,
+	})
+	o.finalPlain = string(fullPlain)
+
+	// Human stream: only residual (terminal outcomes already streamed).
+	residual := o.residualPlainLocked(snap)
+	interactive := false
+	if live := o.liveLocked(); live != nil && live.IsInteractive() && !cfg.plain {
+		interactive = true
+		// Interactive final: conclusion + any unemitted entities (not a second full dump).
+		o.finishLiveLocked(o.residualInteractiveFinalLocked(snap))
 	}
 	o.closeSnapshotsLocked()
 	o.mu.Unlock()
 
-	// Projection outside lock.
-	plain, _ := RenderPlain(snap, PlainOptions{
-		Width: cfg.width, NoColor: cfg.noColor, NonInteractive: cfg.nonInteractive,
-	})
-	o.mu.Lock()
-	o.finalPlain = string(plain)
-	o.mu.Unlock()
-	// CON-009: fan-out to primary + AlsoWrite; one failure must not skip healthy writers.
+	// CON-009: fan-out residual to primary + AlsoWrite when not already on the live driver.
+	// Interactive path already wrote durable items + WriteFinal; skip full dump to primary
+	// unless a primary writer is configured for a second stream (stdout purity dual-write).
 	var writeErr error
-	writers := make([]io.Writer, 0, 1+len(cfg.extraWriters))
-	if writer != nil {
-		writers = append(writers, writer)
-	}
-	writers = append(writers, cfg.extraWriters...)
-	for _, w := range writers {
-		if _, err := w.Write(plain); err != nil && writeErr == nil {
+	if !interactive {
+		writers := make([]io.Writer, 0, 1+len(cfg.extraWriters))
+		if writer != nil {
+			writers = append(writers, writer)
+		}
+		writers = append(writers, cfg.extraWriters...)
+		payload := residual
+		if payload == "" {
+			payload = string(fullPlain)
+		}
+		for _, w := range writers {
+			if _, err := io.WriteString(w, payload); err != nil && writeErr == nil {
+				writeErr = fmt.Errorf("%w: %v", ErrRenderer, err)
+			}
+			if f, ok := w.(flusher); ok {
+				_ = f.Flush()
+			}
+		}
+	} else if writer != nil {
+		// Dual stream: residual conclusion on primary (items already durable on terminal).
+		if _, err := io.WriteString(writer, residual); err != nil {
 			writeErr = fmt.Errorf("%w: %v", ErrRenderer, err)
 		}
 	}
@@ -811,27 +840,6 @@ func (o *Output) Finish() error {
 		return errors.Join(misuse, writeErr)
 	}
 	return misuse
-}
-
-func renderInteractiveFinal(s Snapshot, color bool) string {
-	var b strings.Builder
-	for _, t := range s.Tasks {
-		writeTask(&b, t, color)
-	}
-	for _, col := range s.Collections {
-		writeCollection(&b, col, color)
-	}
-	for _, it := range s.Items {
-		writeItem(&b, it, color)
-	}
-	if b.Len() == 0 {
-		// fall back to full plain without conclusion
-		cfg := config{width: defaultWidth, plain: true, nonInteractive: true, noColor: !color}
-		text := renderPlain(s, cfg)
-		// strip trailing conclusion block if present
-		return strings.TrimRight(text, "\n")
-	}
-	return strings.TrimRight(b.String(), "\n")
 }
 
 // Close is idempotent cleanup; best-effort Finish when needed.

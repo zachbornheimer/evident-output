@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/terminal"
 )
 
 // ColorMode selects whether the example emits SGR color.
@@ -33,11 +34,41 @@ func ParseColorFlag(s string) ColorMode {
 	}
 }
 
+// IsCharDevice reports whether w is a character device (typical TTY).
+func IsCharDevice(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	st, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return st.Mode()&os.ModeCharDevice != 0
+}
+
 // Options returns presentation options for example programs.
+//
+// On a TTY, attaches an ANSI live-region driver so Item.Start / Task.Phase show
+// indeterminate spinners and resolved rows stream as durable evidence (spec §1).
+// Off-TTY (pipes, mise batch), uses plain progressive writes — still not
+// buffered until Finish.
 func Options(human io.Writer, color ColorMode, extra ...evo.Option) []evo.Option {
 	opts := []evo.Option{
 		evo.To(human),
-		evo.Plain(), // final report (not live region); color still allowed
+	}
+	if IsCharDevice(human) {
+		opts = append(opts,
+			evo.Terminal(terminal.NewANSI(human,
+				terminal.WithInteractive(true),
+				terminal.WithSize(80, 24),
+			)),
+			// Demo: show spinners immediately (real apps use default ~150ms).
+			evo.VisibilityDelay(0),
+		)
+	} else {
+		// Progressive durable lines still stream; no CSI live region.
+		opts = append(opts, evo.Plain())
 	}
 	switch color {
 	case ColorNever:

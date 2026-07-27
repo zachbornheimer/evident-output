@@ -8,6 +8,35 @@ type Item struct {
 	id  string
 }
 
+// Start marks the item running so it becomes visible in the live region
+// (indeterminate) while the application evaluates it. Optional: OK/Block/…
+// may resolve pending items directly without Start (no transient frame when
+// resolution is instant — §7.4 rule 5).
+func (i *Item) Start() *Item {
+	i.out.mu.Lock()
+	defer i.out.mu.Unlock()
+	st := i.out.itemByRef[i.id]
+	if st == nil {
+		return i
+	}
+	if err := i.out.ensureOpen(); err != nil {
+		i.out.recordMisuse(err)
+		return i
+	}
+	if isTerminalItem(st.state) {
+		i.out.recordMisuse(ErrAlreadyResolved)
+		return i
+	}
+	if st.state == Running {
+		return i
+	}
+	st.state = Running
+	i.out.bumpLocked()
+	i.out.appendEventLocked(Event{Type: "item.started", EntityID: i.id})
+	i.out.signalLiveLocked(true)
+	return i
+}
+
 // OK marks the item satisfactory.
 func (i *Item) OK() *Item {
 	i.resolve(OK, nil)
@@ -80,6 +109,7 @@ func (i *Item) Skip(reason string) *Item {
 	st.because = sanitize.Text(reason)
 	i.out.bumpLocked()
 	i.out.appendEventLocked(Event{Type: "item.skipped", EntityID: i.id})
+	i.out.emitItemProgressiveLocked(st)
 	return i
 }
 
@@ -98,6 +128,8 @@ func (i *Item) Because(text string) *Item {
 	st.because = sanitize.Text(text)
 	i.out.bumpLocked()
 	i.out.appendEventLocked(Event{Type: "item.annotated", EntityID: i.id})
+	// Stream the explanation as soon as it is known (fluent Block…Because chain).
+	i.out.emitItemProgressiveLocked(st)
 	return i
 }
 
@@ -115,6 +147,7 @@ func (i *Item) Next(actions ...Action) *Item {
 	}
 	st.actions = append(st.actions, cloneActions(actions)...)
 	i.out.bumpLocked()
+	i.out.emitItemProgressiveLocked(st)
 	return i
 }
 
@@ -160,6 +193,8 @@ func (i *Item) resolve(state EntityState, problems []Problem) {
 	}
 	i.out.bumpLocked()
 	i.out.appendEventLocked(Event{Type: "item." + string(state), EntityID: i.id})
+	// §17.5: terminal outcomes render immediately — durable evidence, not Finish buffer.
+	i.out.emitItemProgressiveLocked(st)
 }
 
 func (i *Item) resolveBy(state EntityState, problems []Problem) {

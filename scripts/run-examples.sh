@@ -29,6 +29,10 @@ example_args() {
         echo "--color=always"
       fi
       ;;
+    # Progressive item demos: short sleeps so the batch still feels real-time.
+    repo-status|doctor)
+      echo "--fast --color=always"
+      ;;
     *) echo "--color=always" ;;
   esac
 }
