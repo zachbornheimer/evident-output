@@ -1,6 +1,7 @@
-# Project-scoped MCP for Grok (only [mcp_servers] is read from project configs).
-# Prefer an on-PATH binary so machines without a fixed install path still work.
+# Project MCP (optional). Prefer user ~/.grok absolute path.
+# Grok only starts project-local servers when the folder is trusted.
 [mcp_servers.evident-output]
-command = "evident-output-mcp"
+command = "/Users/zbornheimer/.local/bin/evident-output-mcp"
+args = []
 enabled = true
-startup_timeout_sec = 30
+startup_timeout_sec = 60

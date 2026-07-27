@@ -6,10 +6,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"runtime/debug"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zachbornheimer/evident-output"
@@ -51,17 +54,56 @@ func main() {
 			os.Exit(code)
 		}
 	}
+	// Log only to stderr (MCP stdio: stdout is protocol-only).
 	fmt.Fprintf(os.Stderr, "evident-output-mcp %s starting (stdio)\n", Version)
+	runStdioServer(os.Stdin, os.Stdout)
+}
+
+// framingMode tracks how the current client frames messages on stdio.
+// Spec stdio is newline-delimited JSON (2025-06-18 transports). Some hosts
+// (and older SDK builds) still send LSP-style Content-Length frames; we accept
+// both and reply in the mode of the last request.
+type framingMode int
+
+const (
+	frameNDJSON framingMode = iota
+	frameContentLength
+)
+
+// outMu serializes framed writes to stdout.
+var (
+	outMu   sync.Mutex
+	outMode = frameNDJSON
+	// outW is the protocol writer (defaults to os.Stdout; tests may replace).
+	outW io.Writer = os.Stdout
+)
+
+func runStdioServer(in io.Reader, out io.Writer) {
+	outMu.Lock()
+	outW = out
+	outMode = frameNDJSON
+	outMu.Unlock()
 	initialized := false
-	sc := bufio.NewScanner(os.Stdin)
-	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for sc.Scan() {
-		line := sc.Bytes()
-		if len(line) == 0 {
+	r := bufio.NewReaderSize(in, 1024*1024)
+	for {
+		msg, mode, err := readMCPMessage(r)
+		if err != nil {
+			if err != io.EOF {
+				fmt.Fprintf(os.Stderr, "stdin: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+		if len(msg) == 0 {
 			continue
 		}
+		outMu.Lock()
+		outMode = mode
+		outMu.Unlock()
+
 		var req map[string]any
-		if err := json.Unmarshal(line, &req); err != nil {
+		if err := json.Unmarshal(msg, &req); err != nil {
+			fmt.Fprintf(os.Stderr, "parse error (%v): %q\n", mode, truncateForLog(msg, 120))
 			writeRPCError(nil, -32700, "parse error")
 			continue
 		}
@@ -87,17 +129,21 @@ func main() {
 				negotiated = clientProto
 			}
 			initialized = true
+			// serverInfo: only name/version/title per lifecycle schema — no custom fields
+			// (strict hosts reject unknown InitializeResult properties).
 			writeRPC(id, map[string]any{
 				"protocolVersion": negotiated,
 				"capabilities": map[string]any{
+					// Empty objects advertise the capability groups we implement.
 					"tools":     map[string]any{},
 					"resources": map[string]any{},
 				},
 				"serverInfo": map[string]any{
-					"name":            "evident-output-mcp",
-					"version":         Version,
-					"catalogChecksum": catalog.Checksum(),
+					"name":    "evident-output-mcp",
+					"version": Version,
 				},
+				// Optional human hint (allowed on InitializeResult).
+				"instructions": "Evident Output: local CLI presentation guidance, review, preview, and explain. Catalog checksum available via resource evident-output://meta/catalog-checksum.",
 			})
 		case "tools/list":
 			writeRPC(id, map[string]any{"tools": toolList()})
@@ -114,6 +160,8 @@ func main() {
 		case "resources/read":
 			handleResourceRead(id, req)
 		case "notifications/initialized", "initialized", "ping":
+			// notifications/initialized has no id and no response.
+			// ping may carry an id (utilities/ping).
 			if id != nil {
 				writeRPC(id, map[string]any{})
 			}
@@ -123,10 +171,82 @@ func main() {
 			}
 		}
 	}
-	if err := sc.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "stdin: %v\n", err)
-		os.Exit(1)
+}
+
+// readMCPMessage reads one JSON-RPC message from r.
+// Supports NDJSON (spec) and LSP-style Content-Length frames (some clients).
+func readMCPMessage(r *bufio.Reader) ([]byte, framingMode, error) {
+	// Peek for Content-Length without consuming a bare JSON line.
+	for {
+		// Skip leading CR/LF.
+		b, err := r.ReadByte()
+		if err != nil {
+			return nil, frameNDJSON, err
+		}
+		if b == '\n' || b == '\r' {
+			continue
+		}
+		if err := r.UnreadByte(); err != nil {
+			return nil, frameNDJSON, err
+		}
+		break
 	}
+
+	peek, err := r.Peek(1)
+	if err != nil {
+		return nil, frameNDJSON, err
+	}
+	// Content-Length header (case-insensitive) — used by some MCP client SDKs.
+	if peek[0] == 'C' || peek[0] == 'c' {
+		headerLine, err := r.ReadString('\n')
+		if err != nil {
+			return nil, frameContentLength, err
+		}
+		headerLine = strings.TrimRight(headerLine, "\r\n")
+		if !strings.HasPrefix(strings.ToLower(headerLine), "content-length:") {
+			// Not a content-length header; treat as broken NDJSON starting with C.
+			return []byte(headerLine), frameNDJSON, nil
+		}
+		nStr := strings.TrimSpace(headerLine[len("Content-Length:"):])
+		// header may be "content-length:" with different case
+		if i := strings.Index(strings.ToLower(headerLine), ":"); i >= 0 {
+			nStr = strings.TrimSpace(headerLine[i+1:])
+		}
+		n, err := strconv.Atoi(nStr)
+		if err != nil || n < 0 || n > 8<<20 {
+			return nil, frameContentLength, fmt.Errorf("invalid Content-Length %q", nStr)
+		}
+		// Consume optional additional headers until blank line.
+		for {
+			line, err := r.ReadString('\n')
+			if err != nil {
+				return nil, frameContentLength, err
+			}
+			if line == "\n" || line == "\r\n" {
+				break
+			}
+		}
+		body := make([]byte, n)
+		if _, err := io.ReadFull(r, body); err != nil {
+			return nil, frameContentLength, err
+		}
+		return body, frameContentLength, nil
+	}
+
+	// NDJSON: one JSON object per line.
+	line, err := r.ReadBytes('\n')
+	if err != nil && len(line) == 0 {
+		return nil, frameNDJSON, err
+	}
+	line = bytes.TrimRight(line, "\r\n")
+	return line, frameNDJSON, nil
+}
+
+func truncateForLog(b []byte, n int) string {
+	if len(b) <= n {
+		return string(b)
+	}
+	return string(b[:n]) + "…"
 }
 
 func toolList() []map[string]any {
@@ -535,15 +655,40 @@ func isRemotePath(p string) bool {
 }
 
 func writeRPC(id any, result any) {
-	msg := map[string]any{"jsonrpc": "2.0", "id": id, "result": result}
-	_ = json.NewEncoder(os.Stdout).Encode(msg)
+	// Preserve field order clients often expect: jsonrpc, id, result.
+	writeFramed(struct {
+		JSONRPC string `json:"jsonrpc"`
+		ID      any    `json:"id"`
+		Result  any    `json:"result"`
+	}{JSONRPC: "2.0", ID: id, Result: result})
 }
 
 func writeRPCError(id any, code int, message string) {
-	msg := map[string]any{
-		"jsonrpc": "2.0",
-		"id":      id,
-		"error":   map[string]any{"code": code, "message": message},
+	writeFramed(struct {
+		JSONRPC string `json:"jsonrpc"`
+		ID      any    `json:"id"`
+		Error   any    `json:"error"`
+	}{
+		JSONRPC: "2.0",
+		ID:      id,
+		Error:   map[string]any{"code": code, "message": message},
+	})
+}
+
+func writeFramed(v any) {
+	outMu.Lock()
+	defer outMu.Unlock()
+	data, err := json.Marshal(v)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "marshal: %v\n", err)
+		return
 	}
-	_ = json.NewEncoder(os.Stdout).Encode(msg)
+	// Messages MUST NOT contain embedded newlines (stdio transport).
+	switch outMode {
+	case frameContentLength:
+		_, _ = fmt.Fprintf(outW, "Content-Length: %d\r\n\r\n%s", len(data), data)
+	default:
+		_, _ = outW.Write(data)
+		_, _ = outW.Write([]byte{'\n'})
+	}
 }

@@ -44,8 +44,12 @@ func TestMCP041_SupportedProtocolNegotiated(t *testing.T) {
 	if !strings.Contains(stdout, "2025-03-26") {
 		t.Fatalf("got %s", stdout)
 	}
-	if !strings.Contains(stdout, "catalogChecksum") {
-		t.Fatalf("missing catalog checksum: %s", stdout)
+	// Catalog integrity is exposed as a resource, not serverInfo (strict InitializeResult).
+	if !strings.Contains(stdout, "evident-output-mcp") {
+		t.Fatalf("missing server name: %s", stdout)
+	}
+	if strings.Contains(stdout, `"catalogChecksum"`) {
+		t.Fatalf("serverInfo must not embed catalogChecksum: %s", stdout)
 	}
 }
 
@@ -150,16 +154,21 @@ func TestMCP034_PanicContainedContinues(t *testing.T) {
 				t.Fatalf("panic escaped safeToolCall: %v", r)
 			}
 		}()
-		// Redirect stdout for writeRPC
-		old := os.Stdout
+		// Redirect protocol writer for writeRPC/writeFramed
 		r, w, err := os.Pipe()
 		if err != nil {
 			t.Fatal(err)
 		}
-		os.Stdout = w
+		outMu.Lock()
+		prevW := outW
+		outW = w
+		outMode = frameNDJSON
+		outMu.Unlock()
 		safeToolCall(1, req)
 		_ = w.Close()
-		os.Stdout = old
+		outMu.Lock()
+		outW = prevW
+		outMu.Unlock()
 		b, _ := io.ReadAll(r)
 		_ = r.Close()
 		buf.Write(b)
@@ -176,17 +185,22 @@ func TestMCP034_PanicContainedContinues(t *testing.T) {
 			"arguments": map[string]any{"rule_id": "API-006"},
 		},
 	}
-	old := os.Stdout
-	r, w, err := os.Pipe()
+	r2, w2, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.Stdout = w
+	outMu.Lock()
+	prevW2 := outW
+	outW = w2
+	outMode = frameNDJSON
+	outMu.Unlock()
 	safeToolCall(2, req2)
-	_ = w.Close()
-	os.Stdout = old
-	b, _ := io.ReadAll(r)
-	_ = r.Close()
+	_ = w2.Close()
+	outMu.Lock()
+	outW = prevW2
+	outMu.Unlock()
+	b, _ := io.ReadAll(r2)
+	_ = r2.Close()
 	if !strings.Contains(string(b), "API-006") && !strings.Contains(string(b), "explicit Start") {
 		t.Fatalf("post-panic call failed: %s", b)
 	}
