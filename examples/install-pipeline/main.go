@@ -1,9 +1,11 @@
 // Command install-pipeline demos Tasks, Progress, Capture, and Main.
 //
 //	go run ./examples/install-pipeline/ --fast
+//	go run ./examples/install-pipeline/ --fast --fail-tests
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -26,7 +28,7 @@ func main() {
 	os.Exit(evo.Main(out, func(o *evo.Output) error {
 		pipeline := o.Tasks("pipeline")
 
-		modules := pipeline.Task("go mod download")
+		modules := pipeline.Task("go mod download", evo.ID("pipeline.mod-download"))
 		modules.Phase("resolving modules")
 		for completed := 1; completed <= 4; completed++ {
 			time.Sleep(step)
@@ -34,19 +36,22 @@ func main() {
 		}
 		modules.Done("modules cached")
 
-		generate := pipeline.Task("go generate")
+		generate := pipeline.Task("go generate", evo.ID("pipeline.generate"))
 		generate.Phase("running generators")
 		time.Sleep(step)
 		generate.Bytes(256*1024, 256*1024)
 		generate.Done()
 
-		tests := pipeline.Task("go test ./...")
+		tests := pipeline.Task("go test ./...", evo.ID("pipeline.test"))
 		output := tests.Capture()
 		time.Sleep(step)
 		if *failTests {
-			fmt.Fprintln(output, "--- FAIL: TestFoo (0.01s)")
-			fmt.Fprintln(output, "    foo_test.go:12: want 1, got 0")
-			tests.Fail("tests failed", output.DetailTail())
+			// Command-runner shape: Capture gets streams; Fail separates Cause (structured)
+			// from DetailTail (user-visible evidence). No Close required for partial lines.
+			fmt.Fprintln(output.Stdout(), "=== RUN   TestFoo")
+			fmt.Fprint(output.Stderr(), "--- FAIL: TestFoo (0.01s)\n    foo_test.go:12: want 1, got 0")
+			runErr := errors.New("exit status 1")
+			tests.Fail("tests failed", evo.Cause(runErr), output.DetailTail())
 			return nil
 		}
 		tests.Progress(12, 12)

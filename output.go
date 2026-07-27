@@ -519,9 +519,31 @@ func (o *Output) emitDebugLocked(message string, fields []Field, force bool) {
 	if !force && o.cfg.debugLevel > LevelDebug {
 		return
 	}
+	rec := o.newDebugRecordLocked("DEBUG", message, fields, time.Time{})
+	o.projectDebugRecordLocked(rec)
+}
+
+// emitDebugRecordLocked journals a fully-formed debug record (slog bridge).
+// force bypasses DebugLevel filtering after slog already applied its min level.
+func (o *Output) emitDebugRecordLocked(levelName, message string, fields []Field, at time.Time, force bool) {
+	if err := o.ensureOpen(); err != nil {
+		o.recordMisuse(err)
+		return
+	}
+	if !force && o.cfg.debugLevel > LevelDebug {
+		return
+	}
+	rec := o.newDebugRecordLocked(levelName, message, fields, at)
+	o.projectDebugRecordLocked(rec)
+}
+
+func (o *Output) newDebugRecordLocked(levelName, message string, fields []Field, at time.Time) debugRecord {
+	if at.IsZero() {
+		at = o.cfg.clock.Now()
+	}
 	rec := debugRecord{
-		Time:    o.cfg.clock.Now(),
-		Level:   "DEBUG",
+		Time:    at,
+		Level:   levelName,
 		Message: sanitize.Text(message),
 		Fields:  cloneFields(fields),
 	}
@@ -532,6 +554,10 @@ func (o *Output) emitDebugLocked(message string, fields []Field, force bool) {
 			rec.Fields[i].Value = o.cfg.redactor.RedactString(fmt.Sprint(rec.Fields[i].Value))
 		}
 	}
+	return rec
+}
+
+func (o *Output) projectDebugRecordLocked(rec debugRecord) {
 	o.debugRecords = append(o.debugRecords, rec)
 	history := formatHistoryLine(rec, !o.cfg.noColor)
 	plainHistory := formatHistoryLine(rec, false)

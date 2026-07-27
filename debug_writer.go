@@ -60,8 +60,6 @@ func (w *debugWriter) flushLine() {
 		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
 	}
 	line = sanitize.Text(line)
-	if len(line) > maxDebugLine {
-		line = line[:maxDebugLine] + "…"
-	}
+	line = truncateUTF8(line, maxDebugLine, "…")
 	w.out.Debug(line)
 }

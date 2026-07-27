@@ -33,15 +33,15 @@ func run(out *evo.Output) error {
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.3
+go get github.com/zachbornheimer/evident-output@v0.2.4
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
 
-**Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included.  
+**Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included. `Debug.Level: LevelTrace` is selectable (zero is `LevelUnset` → Info).  
 **Lifecycle:** `os.Exit(evo.Main(out, run))` seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail before Finish (cannot render `[ready]`).  
 **Messages:** managed `Print` / `Printf` / `Println` + `Verbose()` (not a byte-for-byte `fmt` drop-in); promote to `Item` / `Task` when semantics matter. Prefer plain labels over `Itemf`/`Taskf` when identity must stay stable.  
-**Capture:** silent retention by default; redacts via `Config.Redactor`; use `MirrorToDiagnostics()` / `MirrorToDebug()` to display; attach with `output.DetailTail()` on Fail.  
+**Capture:** silent retention by default; **pending fragments** (no trailing newline) appear in `DetailTail`/`Text`/`Empty`; root `Close` flushes every stream; redacts via `Config.Redactor`.  
 **Platform:** optional `evo.ID("stable.key")` on Item/Task; `out.Scope("plugin")` for namespaced keys; `out.ResultWriter()` for domain payload under `FormatData` (presentation never writes there).
 
 ## Pick the entity
@@ -104,7 +104,7 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 
 ## Status
 
-**Release:** **v0.2.3** — Capture redaction, ResultWriter stream purity, stable `evo.ID` / Scope, platform docs.  
+**Release:** **v0.2.4** — Capture pending evidence, UTF-8-safe truncation, Config LevelTrace, richer slog records.  
 **Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).  
 **Implemented surface:** v0.3–v0.4 core (library, interactive VT, debug history/pane, real CLI, hardened MCP, §31 automated rows test-gated). External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 
@@ -170,7 +170,8 @@ examples/repo-status/        Items, Problems, actions
 examples/install-pipeline/   Tasks + Capture
 examples/migrate/            Plan versus Changes
 examples/doctor/             severity dialect + WriteJSON
-examples/data-command/       machine stdout / human stderr
+examples/data-command/       machine stdout / human stderr (ResultWriter)
+examples/scope-plugin/       Scope + ID for plugin namespaces
 examples/live-progress/      ordinary multi-progress
 examples/debug-history/      slog durable debug
 examples/debug-pane/         rolling slog viewport

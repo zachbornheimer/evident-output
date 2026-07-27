@@ -60,7 +60,7 @@ func printConfigHelp() {
 func clientConfig(client string) (string, error) {
 	pin := Version
 	if pin == "" || pin == "dev" {
-		pin = "v0.2.3"
+		pin = "v0.2.4"
 	}
 	switch strings.ToLower(strings.TrimSpace(client)) {
 	case "grok":

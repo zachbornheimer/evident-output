@@ -39,6 +39,34 @@ func TestNew_PartialConfig_InheritsDefaults(t *testing.T) {
 	}
 }
 
+func TestConfig_DebugLevelTraceSelectable(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.New(evo.Config{
+		Title:  "trace",
+		Stdout: &buf,
+		Stderr: &buf,
+		Debug:  evo.DebugConfig{Level: evo.LevelTrace},
+	})
+	out.Debug("trace-visible")
+	_ = out.Finish()
+	// LevelTrace is below LevelDebug filter (threshold allows Debug lines).
+	// Default LevelInfo would drop this; Trace must keep it.
+	if !strings.Contains(buf.String(), "trace-visible") {
+		t.Fatalf("LevelTrace via Config must surface Debug journal:\n%s", buf.String())
+	}
+}
+
+func TestConfig_DebugLevelUnsetDefaultsToInfo(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.New(evo.Config{Title: "info", Stdout: &buf, Stderr: &buf})
+	out.Debug("should-drop")
+	out.Item("ok").OK()
+	_ = out.Finish()
+	if strings.Contains(buf.String(), "should-drop") {
+		t.Fatalf("default LevelInfo must suppress Debug:\n%s", buf.String())
+	}
+}
+
 func TestDefaultConfig_Independent(t *testing.T) {
 	a := evo.DefaultConfig()
 	b := evo.DefaultConfig()

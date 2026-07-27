@@ -46,8 +46,8 @@ const (
 
 // DebugConfig configures the debug journal presentation.
 type DebugConfig struct {
-	// Level is the minimum debug journal level (default LevelInfo).
-	// Use LevelDebug to surface Debug/Capture debug mirrors.
+	// Level is the minimum debug journal level. Zero (LevelUnset) resolves to
+	// LevelInfo. Use LevelTrace or LevelDebug to surface Debug/Capture mirrors.
 	Level LogLevel
 	// View selects history vs pane presentation (default History).
 	View DebugPresentation
@@ -152,9 +152,8 @@ func resolveConfig(c Config) Config {
 	if c.Stderr == nil {
 		c.Stderr = os.Stderr
 	}
-	// Config.Debug.Level zero means "unset" → LevelInfo. LevelTrace cannot be
-	// selected via Config zero-value; use NewWithOptions(DebugLevel(LevelTrace)).
-	if c.Debug.Level == 0 {
+	// LevelUnset (zero) → LevelInfo. LevelTrace is non-zero and selectable via Config.
+	if c.Debug.Level == LevelUnset {
 		c.Debug.Level = LevelInfo
 	}
 	if c.Width <= 0 {

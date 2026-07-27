@@ -162,9 +162,7 @@ func (p *Printer) enqueue(s string) {
 			if p.out.pendingPrint.Len() > maxPendingPrintBytes {
 				line := p.out.pendingPrint.String()
 				p.out.pendingPrint.Reset()
-				if len(line) > maxPendingPrintBytes {
-					line = line[:maxPendingPrintBytes] + pendingTruncMarker
-				}
+				line = truncateUTF8(line, maxPendingPrintBytes, pendingTruncMarker)
 				p.out.emitMessageLocked(line, p.visibility)
 			}
 			return
@@ -177,9 +175,7 @@ func (p *Printer) enqueue(s string) {
 		} else {
 			line = s[:i]
 		}
-		if len(line) > maxPendingPrintBytes {
-			line = line[:maxPendingPrintBytes] + pendingTruncMarker
-		}
+		line = truncateUTF8(line, maxPendingPrintBytes, pendingTruncMarker)
 		p.out.emitMessageLocked(line, p.visibility)
 		s = s[i+1:]
 	}

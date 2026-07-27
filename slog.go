@@ -3,10 +3,23 @@ package evo
 import (
 	"context"
 	"log/slog"
+	"time"
 )
 
+// LogRecord is a complete internal log entry preserved from slog (or peer bridges).
+// History and pane projectors read Time/Level/Message/Attrs without lossy remapping
+// beyond the usual Field redaction path.
+type LogRecord struct {
+	Time    time.Time
+	Level   slog.Level
+	Message string
+	Attrs   []slog.Attr
+	PC      uintptr
+}
+
 // SlogHandler returns a slog.Handler that routes records through Output without
-// mutating Output configuration.
+// mutating Output configuration. Record time, level, PC, and attributes are
+// preserved on the internal journal.
 func (o *Output) SlogHandler(min slog.Leveler) slog.Handler {
 	level := slog.LevelInfo
 	if min != nil {
@@ -27,31 +40,25 @@ func (h *slogBridge) Enabled(_ context.Context, level slog.Level) bool {
 }
 
 func (h *slogBridge) Handle(_ context.Context, r slog.Record) error {
-	fields := make([]Field, 0, r.NumAttrs()+len(h.attrs))
+	attrs := make([]slog.Attr, 0, r.NumAttrs()+len(h.attrs))
 	// WithAttrs already carry any group prefix applied at WithAttrs time.
-	for _, a := range h.attrs {
-		fields = append(fields, Field{Key: a.Key, Value: a.Value.Any()})
-	}
+	attrs = append(attrs, h.attrs...)
 	r.Attrs(func(a slog.Attr) bool {
 		key := a.Key
 		if h.group != "" {
 			key = h.group + "." + key
 		}
-		fields = append(fields, Field{Key: key, Value: a.Value.Any()})
+		a.Key = key
+		attrs = append(attrs, a)
 		return true
 	})
-	msg := r.Message
-	switch {
-	case r.Level >= slog.LevelError:
-		h.out.ErrorMessage(msg, fields...)
-	case r.Level >= slog.LevelWarn:
-		h.out.WarnMessage(msg, fields...)
-	case r.Level >= slog.LevelInfo:
-		h.out.Info(msg, fields...)
-	default:
-		// Debug/Trace: journal without temporarily mutating cfg.debugLevel.
-		h.out.debugForced(msg, fields...)
-	}
+	h.out.emitLogRecord(LogRecord{
+		Time:    r.Time,
+		Level:   r.Level,
+		Message: r.Message,
+		Attrs:   attrs,
+		PC:      r.PC,
+	})
 	return nil
 }
 
@@ -76,4 +83,50 @@ func (h *slogBridge) WithGroup(name string) slog.Handler {
 		cp.group = h.group + "." + name
 	}
 	return &cp
+}
+
+// emitLogRecord projects a complete LogRecord into the human/diagnostic streams.
+func (o *Output) emitLogRecord(rec LogRecord) {
+	if o == nil {
+		return
+	}
+	fields := make([]Field, 0, len(rec.Attrs)+1)
+	for _, a := range rec.Attrs {
+		fields = append(fields, Field{Key: a.Key, Value: a.Value.Any()})
+	}
+	// Preserve source PC when present (slog AddSource).
+	if rec.PC != 0 {
+		fields = append(fields, Field{Key: "pc", Value: rec.PC})
+	}
+	msg := rec.Message
+	switch {
+	case rec.Level >= slog.LevelError:
+		o.ErrorMessage(msg, fields...)
+	case rec.Level >= slog.LevelWarn:
+		o.WarnMessage(msg, fields...)
+	case rec.Level >= slog.LevelInfo:
+		o.Info(msg, fields...)
+	default:
+		// Debug/Trace and custom levels below Info → structured debug journal.
+		// Force: slog already applied its min level; do not re-filter by debugLevel.
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		o.emitDebugRecordLocked(slogLevelName(rec.Level), msg, fields, rec.Time, true)
+	}
+}
+
+func slogLevelName(level slog.Level) string {
+	switch {
+	case level >= slog.LevelError:
+		return "ERROR"
+	case level >= slog.LevelWarn:
+		return "WARN"
+	case level >= slog.LevelInfo:
+		return "INFO"
+	case level >= slog.LevelDebug:
+		return "DEBUG"
+	default:
+		// Custom / Trace-ish levels below Debug keep slog's string form.
+		return level.String()
+	}
 }

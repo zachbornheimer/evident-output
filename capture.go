@@ -223,7 +223,11 @@ func (c *Capture) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// Close flushes trailing partial lines on this writer’s stream.
+// Close flushes trailing partial lines.
+//
+// On the root Capture (task.Capture()), every stream pending buffer is flushed
+// so Stdout/Stderr partial lines are retained. On a side writer (Stdout/Stderr),
+// only that stream is flushed.
 func (c *Capture) Close() error {
 	root := c.root()
 	if root == nil {
@@ -231,14 +235,20 @@ func (c *Capture) Close() error {
 	}
 	root.mu.Lock()
 	defer root.mu.Unlock()
-	stream := CaptureStreamCombined
 	if c.parent != nil {
-		stream = c.stream
+		root.flushIfPresentLocked(c.stream)
+		return nil
 	}
-	if root.pendingFor(stream).Len() > 0 {
-		root.flushPendingLocked(stream)
-	}
+	root.flushIfPresentLocked(CaptureStreamCombined)
+	root.flushIfPresentLocked(CaptureStreamStdout)
+	root.flushIfPresentLocked(CaptureStreamStderr)
 	return nil
+}
+
+func (c *Capture) flushIfPresentLocked(stream CaptureStream) {
+	if c.pendingFor(stream).Len() > 0 {
+		c.flushPendingLocked(stream)
+	}
 }
 
 func (c *Capture) root() *Capture {
@@ -284,7 +294,7 @@ func (c *Capture) Tail(n ...int) string {
 	return joinCaptureLines(lines, truncated)
 }
 
-// Empty reports whether no lines have been retained.
+// Empty reports whether no completed lines and no pending fragments exist.
 func (c *Capture) Empty() bool {
 	root := c.root()
 	if root == nil {
@@ -292,7 +302,12 @@ func (c *Capture) Empty() bool {
 	}
 	root.mu.Lock()
 	defer root.mu.Unlock()
-	return len(root.lines) == 0
+	if len(root.lines) > 0 {
+		return false
+	}
+	return root.pendingFor(CaptureStreamCombined).Len() == 0 &&
+		root.pendingFor(CaptureStreamStdout).Len() == 0 &&
+		root.pendingFor(CaptureStreamStderr).Len() == 0
 }
 
 // TaskName returns the owning task name when created via Task.Capture.
@@ -334,16 +349,9 @@ func (c *Capture) detailText() string {
 	if c.parent != nil {
 		prefer = c.stream
 	} else {
-		// Prefer stderr when both streams have content.
-		var hasOut, hasErr bool
-		for _, ln := range root.lines {
-			if ln.Stream == CaptureStreamStdout {
-				hasOut = true
-			}
-			if ln.Stream == CaptureStreamStderr {
-				hasErr = true
-			}
-		}
+		// Prefer stderr when both streams have content (including pending).
+		hasOut := root.streamHasContentLocked(CaptureStreamStdout)
+		hasErr := root.streamHasContentLocked(CaptureStreamStderr)
 		if hasErr && hasOut {
 			prefer = CaptureStreamStderr
 		} else if hasErr {
@@ -351,26 +359,10 @@ func (c *Capture) detailText() string {
 		}
 	}
 
-	var texts []string
-	for _, ln := range root.lines {
-		switch prefer {
-		case CaptureStreamStderr:
-			if ln.Stream == CaptureStreamStderr {
-				texts = append(texts, ln.Text)
-			}
-		case CaptureStreamStdout:
-			if ln.Stream == CaptureStreamStdout {
-				texts = append(texts, ln.Text)
-			}
-		default:
-			texts = append(texts, ln.Text)
-		}
-	}
-	// If filter emptied, fall back to all combined lines.
+	texts := root.textsForStreamLocked(prefer)
+	// If filter emptied, fall back to all combined lines + all pendings.
 	if len(texts) == 0 {
-		for _, ln := range root.lines {
-			texts = append(texts, ln.Text)
-		}
+		texts = root.textsForStreamLocked(CaptureStreamCombined)
 	}
 	if len(texts) == 0 {
 		return ""
@@ -387,6 +379,40 @@ func (c *Capture) detailText() string {
 	return b.String()
 }
 
+func (c *Capture) streamHasContentLocked(stream CaptureStream) bool {
+	if c.pendingFor(stream).Len() > 0 {
+		return true
+	}
+	for _, ln := range c.lines {
+		if ln.Stream == stream {
+			return true
+		}
+	}
+	return false
+}
+
+// textsForStreamLocked returns completed lines plus pending fragments for stream.
+// CaptureStreamCombined includes every stream's completed lines and all pendings.
+// Pending fragments are snapshotted (not flushed) so concurrent Write stays safe.
+func (c *Capture) textsForStreamLocked(stream CaptureStream) []string {
+	var texts []string
+	for _, ln := range c.lines {
+		if stream == CaptureStreamCombined || ln.Stream == stream {
+			texts = append(texts, ln.Text)
+		}
+	}
+	if stream == CaptureStreamCombined {
+		for _, s := range []CaptureStream{CaptureStreamCombined, CaptureStreamStdout, CaptureStreamStderr} {
+			if p := c.pendingNormalizedLocked(s); p != "" {
+				texts = append(texts, p)
+			}
+		}
+	} else if p := c.pendingNormalizedLocked(stream); p != "" {
+		texts = append(texts, p)
+	}
+	return texts
+}
+
 func (c *Capture) snapshotTexts(stream CaptureStream, limit int) ([]string, bool) {
 	root := c.root()
 	if root == nil {
@@ -394,16 +420,32 @@ func (c *Capture) snapshotTexts(stream CaptureStream, limit int) ([]string, bool
 	}
 	root.mu.Lock()
 	defer root.mu.Unlock()
-	var texts []string
-	for _, ln := range root.lines {
-		if stream == CaptureStreamCombined || ln.Stream == stream {
-			texts = append(texts, ln.Text)
-		}
-	}
+	texts := root.textsForStreamLocked(stream)
 	if limit > 0 && len(texts) > limit {
 		texts = texts[len(texts)-limit:]
 	}
 	return append([]string(nil), texts...), root.truncated
+}
+
+// pendingNormalizedLocked returns a sanitized/redacted view of a pending buffer
+// without flushing it into the ring.
+func (c *Capture) pendingNormalizedLocked(stream CaptureStream) string {
+	raw := c.pendingFor(stream).String()
+	if raw == "" {
+		return ""
+	}
+	return c.normalizeCaptureLine(raw)
+}
+
+func (c *Capture) normalizeCaptureLine(line string) string {
+	if !utf8.ValidString(line) {
+		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
+	}
+	line = sanitize.Text(line)
+	if c.out != nil {
+		line = c.out.redactString(line)
+	}
+	return truncateUTF8(line, maxCaptureLineLen, "…")
 }
 
 func joinCaptureLines(lines []string, truncated bool) string {
@@ -420,17 +462,7 @@ func (c *Capture) flushPendingLocked(stream CaptureStream) {
 	buf := c.pendingFor(stream)
 	line := buf.String()
 	buf.Reset()
-	if !utf8.ValidString(line) {
-		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
-	}
-	line = sanitize.Text(line)
-	// Redact before ring retention so DetailTail and mirrors never expose secrets.
-	if c.out != nil {
-		line = c.out.redactString(line)
-	}
-	if len(line) > maxCaptureLineLen {
-		line = line[:maxCaptureLineLen] + "…"
-	}
+	line = c.normalizeCaptureLine(line)
 	if line == "" {
 		return
 	}

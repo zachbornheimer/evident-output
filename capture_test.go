@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -189,5 +190,95 @@ func TestDiagnostics_DualStream_DebugNotOnPrimary(t *testing.T) {
 	}
 	if !strings.Contains(diag.String(), "internal only") {
 		t.Fatalf("Debug must hit Diagnostics:\n%q", diag.String())
+	}
+}
+
+func TestDetailTailIncludesUnterminatedStderr(t *testing.T) {
+	var primary bytes.Buffer
+	out := evo.New(evo.Config{Title: "git", Stdout: &primary, Stderr: &primary})
+	task := out.Task("fetch")
+	output := task.Capture()
+	// No trailing newline — the usual subprocess final message shape.
+	_, _ = io.WriteString(output.Stderr(), "fatal: authentication failed")
+
+	task.Fail("git fetch failed", output.DetailTail())
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(primary.String(), "authentication failed") {
+		t.Fatalf("DetailTail must include unterminated stderr:\n%s", primary.String())
+	}
+	// Observation must not require Close for evidence.
+	if output.Empty() {
+		t.Fatal("Empty must see pending stderr content")
+	}
+	if !strings.Contains(output.Text(), "authentication failed") {
+		t.Fatalf("Text must include pending: %q", output.Text())
+	}
+}
+
+func TestRootCloseFlushesEveryCaptureStream(t *testing.T) {
+	var primary bytes.Buffer
+	out := evo.New(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
+	task := out.Task("cmd")
+	output := task.Capture()
+	_, _ = io.WriteString(output.Stdout(), "stdout-partial")
+	_, _ = io.WriteString(output.Stderr(), "stderr-partial")
+	_, _ = io.WriteString(output, "combined-partial")
+
+	if err := output.Close(); err != nil {
+		t.Fatal(err)
+	}
+	text := output.Text()
+	for _, want := range []string{"stdout-partial", "stderr-partial", "combined-partial"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("root Close must flush %q; got %q", want, text)
+		}
+	}
+	// After flush, buffers empty — Empty only if nothing retained (lines exist).
+	if output.Empty() {
+		t.Fatal("flushed lines must remain retained")
+	}
+}
+
+func TestEmptySeesPendingCaptureContent(t *testing.T) {
+	var primary bytes.Buffer
+	out := evo.New(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
+	task := out.Task("cmd")
+	output := task.Capture()
+	if !output.Empty() {
+		t.Fatal("expected empty initially")
+	}
+	_, _ = io.WriteString(output.Stderr(), "still writing")
+	if output.Empty() {
+		t.Fatal("pending stderr must make Empty false")
+	}
+}
+
+func TestCaptureTruncateUTF8Safe(t *testing.T) {
+	// Build a line longer than maxCaptureLineLen ending mid multi-byte rune path.
+	// Japanese "あ" is 3 bytes; force truncation inside a rune boundary.
+	var b strings.Builder
+	for b.Len() < 4100 {
+		b.WriteString("あ")
+	}
+	line := b.String()
+
+	var primary bytes.Buffer
+	out := evo.New(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
+	task := out.Task("x")
+	output := task.Capture()
+	_, _ = io.WriteString(output, line+"\n")
+	_ = output.Close()
+	got := output.Text()
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncated produced invalid UTF-8: %q", got)
+	}
+	if !strings.HasSuffix(strings.TrimPrefix(got, "[earlier output truncated]\n"), "…") &&
+		!strings.HasSuffix(got, "…") {
+		// truncated line should end with ellipsis
+		if !strings.Contains(got, "…") {
+			t.Fatalf("expected ellipsis after truncate: %q", got[:min(80, len(got))])
+		}
 	}
 }

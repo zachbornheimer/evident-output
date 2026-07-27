@@ -109,22 +109,40 @@ func Terminal(driver TerminalDriver) Option {
 }
 
 // LogLevel is a diagnostic severity.
+//
+// The zero value is LevelUnset (Config resolves it to LevelInfo). Named levels
+// start at LevelTrace so ordinary Config{Debug: DebugConfig{Level: LevelTrace}}
+// is expressible without falling through the default path.
 type LogLevel int
 
 const (
-	LevelTrace LogLevel = iota
+	// LevelUnset is the zero value. Config resolve maps it to LevelInfo.
+	LevelUnset LogLevel = iota
+	// LevelTrace is the most verbose journal level selectable via Config.
+	LevelTrace
+	// LevelDebug enables Debug journal lines (and Capture MirrorToDebug).
 	LevelDebug
+	// LevelInfo is the ordinary default (Debug journal suppressed).
 	LevelInfo
+	// LevelWarn is reserved for future warn-threshold filtering.
 	LevelWarn
+	// LevelError is reserved for future error-threshold filtering.
 	LevelError
 )
 
-// Debug is the debug log level (Appendix H).
+// Debug is the debug log level (Appendix H). Alias of LevelDebug.
 const Debug = LevelDebug
 
 // DebugLevel sets the minimum debug emission level.
+// Pass LevelTrace or LevelDebug to surface Debug journal lines.
 func DebugLevel(level LogLevel) Option {
-	return optionFunc(func(c *config) { c.debugLevel = level })
+	return optionFunc(func(c *config) {
+		if level == LevelUnset {
+			c.debugLevel = LevelInfo
+			return
+		}
+		c.debugLevel = level
+	})
 }
 
 // TerminalDriver is the exclusive owner of terminal control sequences.

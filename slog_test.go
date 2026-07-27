@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"strings"
 	"testing"
@@ -31,6 +32,43 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	}
 	if !sawDurable {
 		t.Fatalf("expected slog debug as durable line, ops=%#v", ops)
+	}
+}
+
+func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.New(evo.Config{
+		Title:  "slog",
+		Stdout: &buf,
+		Stderr: &buf,
+		Debug:  evo.DebugConfig{Level: evo.LevelDebug},
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	logger := slog.New(out.SlogHandler(slog.LevelDebug))
+	logger.LogAttrs(context.Background(), slog.LevelDebug, "package index loaded",
+		slog.Int("packages", 18),
+		slog.String("cache", "warm"),
+	)
+	logger.Debug("second", "k", "v")
+	_ = out.Finish()
+
+	s := buf.String()
+	if !strings.Contains(s, "package index loaded") {
+		t.Fatalf("message missing:\n%s", s)
+	}
+	if !strings.Contains(s, "packages=18") {
+		t.Fatalf("attr missing:\n%s", s)
+	}
+	if !strings.Contains(s, "cache=warm") {
+		t.Fatalf("attr cache missing:\n%s", s)
+	}
+	if !strings.Contains(s, "[DEBUG]") {
+		t.Fatalf("level token missing:\n%s", s)
+	}
+	// History grammar includes HH:MM:SS.mmm from slog.Record.Time.
+	if !strings.Contains(s, ":") {
+		t.Fatalf("expected timestamp in history line:\n%s", s)
 	}
 }
 
