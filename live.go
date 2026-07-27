@@ -114,8 +114,7 @@ func (o *Output) renderLiveLocked(force bool) {
 		return
 	}
 	now := o.cfg.clock.Now()
-	color := !o.cfg.noColor
-	text := renderLiveRegion(o.snapshotLocked(), live.Columns(), live.Rows(), now, color)
+	text := o.renderLiveRegionWithDebugLocked(live.Columns(), live.Rows(), now)
 	if !force && text == o.live.lastLiveText {
 		return
 	}
@@ -280,6 +279,20 @@ func renderLiveRegion(s Snapshot, width, height int, now time.Time, color bool) 
 			fmt.Fprintf(&b, "%s  %s\n", styleGlyph(g, stateColor(it.State), color), it.Name)
 		}
 	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// renderLiveRegionWithDebug builds the live ledger plus optional rolling debug pane (§21.3.2).
+func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Time) string {
+	color := !o.cfg.noColor
+	body := renderLiveRegion(o.snapshotLocked(), width, height, now, color)
+	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {
+		return body
+	}
+	var b strings.Builder
+	b.WriteString(body)
+	// Budget: leave room for pane; parent already applied height to tasks.
+	writeDebugPane(&b, o.debugRecords, o.cfg.debugPane, color)
 	return strings.TrimRight(b.String(), "\n")
 }
 

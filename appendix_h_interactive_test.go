@@ -72,10 +72,11 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	task.Donef("installed %d packages", 18)
 	_ = out.Finish()
 
+	// History mode: timestamp (FixedClock) + bracketed level above live region.
 	want := []testkit.Operation{
 		testkit.DrawLive("⠋  dependencies  resolving packages"),
 		testkit.ClearLive(),
-		testkit.WriteDurable("[DEBUG] package index loaded  packages=18"),
+		testkit.WriteDurable("00:00:00.000 [DEBUG] package index loaded  packages=18"),
 		testkit.DrawLive("⠋  dependencies  resolving packages"),
 		testkit.ClearLive(),
 		testkit.WriteFinal("✓  dependencies  installed 18 packages"),

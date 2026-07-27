@@ -13,6 +13,8 @@ EXAMPLES=(
   doctor
   data-command
   live-progress
+  debug-history
+  debug-pane
 )
 
 # Extra args per example.
@@ -30,7 +32,11 @@ example_args() {
       fi
       ;;
     # Progressive item demos: short sleeps so the batch still feels real-time.
-    repo-status|doctor)
+    repo-status|doctor|debug-history)
+      echo "--fast --color=always"
+      ;;
+    # Pane demo twice: success (pane removed) then failure (diagnostics tail).
+    debug-pane)
       echo "--fast --color=always"
       ;;
     *) echo "--color=always" ;;
@@ -57,32 +63,42 @@ hr() {
   printf '\n'
 }
 
-for name in "${EXAMPLES[@]}"; do
-  dir="${ROOT}/examples/${name}"
+run_one() {
+  local name="$1"
+  local args="$2"
+  local dir="${ROOT}/examples/${name}"
   if [[ ! -d "${dir}" ]]; then
     echo "missing example dir: ${dir}" >&2
     exit 1
   fi
-  args="$(example_args "${name}")"
   hr "${name}" "${args}"
-  # Build then exec so Conclusion exit codes are preserved (go run collapses them).
-  bin="${BIN_DIR}/${name}"
+  local bin="${BIN_DIR}/${name}"
   go build -o "${bin}" "./examples/${name}/"
   set +e
   # shellcheck disable=SC2086
   "${bin}" ${args}
-  code=$?
+  local code=$?
   set -e
   if [[ "${code}" -ne 0 ]]; then
     printf '\n(exit %s — conclusion exit code from the demo)\n' "${code}"
+  fi
+}
+
+for name in "${EXAMPLES[@]}"; do
+  args="$(example_args "${name}")"
+  run_one "${name}" "${args}"
+  # Second pass for pane: show failure diagnostic tail (§21.3.2).
+  if [[ "${name}" == "debug-pane" ]]; then
+    run_one "debug-pane" "--fast --fail --color=always"
   fi
 done
 
 printf '\n'
 printf '════════════════════════════════════════════════════════════\n'
-printf '  examples complete (%d)\n' "${#EXAMPLES[@]}"
+printf '  examples complete (%d + debug-pane --fail)\n' "${#EXAMPLES[@]}"
 printf '  tip: go run ./examples/live-progress/           # live in-place (TTY)\n'
-printf '       go run ./examples/live-progress/ --frames  # scrubable log\n'
-printf '       go run ./examples/live-progress/ --step    # Enter between frames\n'
+printf '       go run ./examples/debug-history/           # debug above live\n'
+printf '       go run ./examples/debug-pane/              # rolling pane\n'
+printf '       go run ./examples/debug-pane/ --fail       # diagnostics tail\n'
 printf '       go run ./examples/doctor/ --json | jq .conclusion\n'
 printf '════════════════════════════════════════════════════════════\n'

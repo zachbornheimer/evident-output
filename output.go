@@ -6,6 +6,7 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/sanitize"
 )
@@ -46,6 +47,13 @@ type Output struct {
 	// Progressive durable emission (§17.5: terminal outcomes render immediately).
 	// Finish only appends residual (unemitted entities + conclusion).
 	linesEmitted int
+
+	// Structured debug journal (§21.3). lines[] still holds history-format strings
+	// for FinalPlain / residual compatibility.
+	debugRecords []debugRecord
+	// debugPaneActive is true once Debug was projected via the live rolling pane
+	// (not history fallback). Controls failure diagnostic-tail eligibility.
+	debugPaneActive bool
 }
 
 type itemState struct {
@@ -468,9 +476,11 @@ func (o *Output) NextCommand(executable string, args ...string) {
 	o.Next(Command(executable, args...))
 }
 
-// Debug records a diagnostic line. Emitted immediately (not held until Finish):
-// live UI inserts it above the region; plain streams it like other durable lines.
-// Dim SGR when color is enabled so it does not compete with check evidence.
+// Debug records a structured diagnostic (§4.6 / §21.3).
+//
+// History mode (default): durable scrollback above the live region (or plain stream).
+// Pane mode: record is journaled and shown in the rolling live pane; not durable
+// scrollback unless a diagnostic tail is preserved at Finish.
 func (o *Output) Debug(message string, fields ...Field) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -481,37 +491,61 @@ func (o *Output) Debug(message string, fields ...Field) {
 	if o.cfg.debugLevel > LevelDebug {
 		return
 	}
-	line := formatDebug(message, fields)
-	o.lines = append(o.lines, line)
+	rec := debugRecord{
+		Time:    o.cfg.clock.Now(),
+		Level:   "DEBUG",
+		Message: sanitize.Text(message),
+		Fields:  cloneFields(fields),
+	}
+	// Apply redaction before any human projection.
+	for i := range rec.Fields {
+		if rec.Fields[i].Sensitive {
+			rec.Fields[i].Value = "***"
+		} else if o.cfg.redactor != nil {
+			rec.Fields[i].Value = o.cfg.redactor.RedactString(fmt.Sprint(rec.Fields[i].Value))
+		}
+	}
+	o.debugRecords = append(o.debugRecords, rec)
+	history := formatHistoryLine(rec, !o.cfg.noColor)
+	// Keep plain history text (no SGR) in lines for FinalPlain / machines.
+	o.lines = append(o.lines, formatHistoryLine(rec, false))
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "log.emitted"})
-	// Stream once now; mark emitted so Finish residual does not reprint.
-	display := line
-	if !o.cfg.noColor {
-		display = dim(line, true)
+
+	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	if interactive && o.cfg.debugPresentation == DebugPresentationPane {
+		// Pane: keep in live region only; mark line emitted so residual does not reprint history.
+		o.debugPaneActive = true
+		o.linesEmitted = len(o.lines)
+		o.signalLiveLocked(true)
+		return
 	}
-	if o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain {
-		o.debugLiveLocked(display)
+	// History mode, or pane fallback when not interactive: stream durable once.
+	if interactive {
+		o.debugLiveLocked(history)
 	} else {
-		o.writeDurableTextLocked(display + "\n")
+		o.writeDurableTextLocked(history + "\n")
 	}
 	o.linesEmitted = len(o.lines)
 }
 
+// formatDebug is retained for call sites that only need a message/fields pair without a clock.
 func formatDebug(message string, fields []Field) string {
-	msg := sanitize.Text(message)
-	if len(fields) == 0 {
-		return "[DEBUG] " + msg
+	return formatHistoryLine(debugRecord{
+		Time:    time.Time{},
+		Level:   "DEBUG",
+		Message: sanitize.Text(message),
+		Fields:  fields,
+	}, false)
+}
+
+func cloneFields(in []Field) []Field {
+	if len(in) == 0 {
+		return nil
 	}
-	parts := make([]string, 0, len(fields))
-	for _, f := range fields {
-		val := fmt.Sprint(f.Value)
-		if f.Sensitive {
-			val = "***"
-		}
-		parts = append(parts, fmt.Sprintf("%s=%s", sanitize.Text(f.Key), sanitize.Text(val)))
-	}
-	return "[DEBUG] " + msg + "  " + joinArgs(parts)
+	out := make([]Field, len(in))
+	copy(out, in)
+	return out
 }
 
 // Snapshot returns an immutable copy of current state.

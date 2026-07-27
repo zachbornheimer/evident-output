@@ -158,6 +158,14 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	if snap.Conclusion != nil {
 		writeConclusion(&b, *snap.Conclusion, color)
 	}
+	// Pane mode: optional diagnostic tail under final result (§21.3.2).
+	if snap.Conclusion != nil && o.shouldPreserveDebugTailLocked(*snap.Conclusion) {
+		max := o.cfg.debugPane.height
+		if max <= 0 {
+			max = defaultDebugPaneHeight
+		}
+		writeDebugTail(&b, o.debugRecords, max, color)
+	}
 	return b.String()
 }
 
@@ -186,9 +194,9 @@ func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// writeDebugOrLine formats a stored line; dim [DEBUG] prefix when color is on.
+// writeDebugOrLine formats a stored line; dim history/pane debug grammar when color is on.
 func writeDebugOrLine(b *strings.Builder, line string, color bool) {
-	if strings.HasPrefix(line, "[DEBUG]") {
+	if strings.Contains(line, "[DEBUG]") || strings.Contains(line, " level=DEBUG ") {
 		b.WriteString(dim(line, color))
 		b.WriteByte('\n')
 		return

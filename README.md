@@ -110,6 +110,8 @@ Small real programs (flags, help, exit codes) — not snippets. Copy a whole fol
 | `doctor` | Mixed doctor items; `--json` snapshot on stdout |
 | `data-command` | Data command: JSON **stdout**, human report **stderr** |
 | `live-progress` | **Live multi-progress**: bars + indeterminate phases (ANSI on stderr) |
+| `debug-history` | **DebugHistory**: durable `HH:MM:SS [DEBUG] …` above live/items |
+| `debug-pane` | **DebugPane**: rolling slog pane; `--fail` keeps diagnostics tail |
 
 ```bash
 mise run examples                          # all, back-to-back with headers
@@ -121,8 +123,9 @@ go run ./examples/doctor/ --json | jq .conclusion
 go run ./examples/data-command/ 2>/dev/null | jq .
 go run ./examples/live-progress/              # in-place ANSI live region (real TTY)
 go run ./examples/live-progress/ --frames     # numbered frames you can scroll
-go run ./examples/live-progress/ --step       # press Enter between frames
-go run ./examples/live-progress/ --fast
+go run ./examples/debug-history/              # history-mode debug interleave
+go run ./examples/debug-pane/                 # pane removed on success
+go run ./examples/debug-pane/ --fail          # failure preserves diagnostics tail
 
 # mise run examples: uses live ANSI when stderr is a TTY; --frames otherwise.
 # EVO_EXAMPLES_FRAMES=1 mise run examples   # force scrubable frames in the batch
@@ -160,7 +163,8 @@ out := evo.New(
     evo.MaxFrameRate(20),
 )
 // Phase/Progress draw a live region; instant Done before the threshold does not flash.
-// out.Debug(...) inserts above the live region (clear → durable → redraw).
+// DebugHistory (default): out.Debug → durable above live (timestamp + [DEBUG]).
+// DebugPane(...): rolling slog viewport in the live region; optional failure tail.
 ```
 
 ## Contributing
