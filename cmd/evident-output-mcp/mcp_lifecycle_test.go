@@ -46,7 +46,7 @@ func TestMCP_001_ToolsOKAfterInitialize(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stdout.String(), "evident_output.list_guides") {
+	if !strings.Contains(stdout.String(), "evident_output_list_guides") {
 		t.Fatal(stdout.String())
 	}
 }

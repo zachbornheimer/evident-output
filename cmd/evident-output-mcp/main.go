@@ -251,25 +251,23 @@ func truncateForLog(b []byte, n int) string {
 
 func toolList() []map[string]any {
 	tools := []map[string]any{
-		{"name": "evident_output.list_guides", "description": "List guidance catalog entries", "inputSchema": map[string]any{
+		{"name": "evident_output_list_guides", "description": "List guidance catalog entries", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"use_case":    map[string]any{"type": "string"},
 				"max_tokens":  map[string]any{"type": "integer"},
 				"deadline_ms": map[string]any{"type": "integer"},
 			},
-			"additionalProperties": false,
 		}},
-		{"name": "evident_output.get_guidance", "description": "Retrieve guidance sections by id", "inputSchema": map[string]any{
+		{"name": "evident_output_get_guidance", "description": "Retrieve guidance sections by id", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"ids":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 				"max_tokens":  map[string]any{"type": "integer"},
 				"deadline_ms": map[string]any{"type": "integer"},
 			},
-			"additionalProperties": false,
 		}},
-		{"name": "evident_output.review", "description": "Review Go source, multi-file package, transcript, or structured JSON for evo misuse", "inputSchema": map[string]any{
+		{"name": "evident_output_review", "description": "Review Go source, multi-file package, transcript, or structured JSON for evo misuse", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"source":      map[string]any{"type": "string"},
@@ -278,9 +276,8 @@ func toolList() []map[string]any {
 				"files":       map[string]any{"type": "object"},
 				"deadline_ms": map[string]any{"type": "integer"},
 			},
-			"additionalProperties": false,
 		}},
-		{"name": "evident_output.preview", "description": "Preview plain profiles for a declarative scene", "inputSchema": map[string]any{
+		{"name": "evident_output_preview", "description": "Preview plain profiles for a declarative scene", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"subject":     map[string]any{"type": "string"},
@@ -289,15 +286,13 @@ func toolList() []map[string]any {
 				"debug":       map[string]any{"type": "string"},
 				"deadline_ms": map[string]any{"type": "integer"},
 			},
-			"additionalProperties": false,
 		}},
-		{"name": "evident_output.explain", "description": "Explain a stable rule ID", "inputSchema": map[string]any{
+		{"name": "evident_output_explain", "description": "Explain a stable rule ID", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"rule_id":     map[string]any{"type": "string"},
 				"deadline_ms": map[string]any{"type": "integer"},
 			},
-			"additionalProperties": false,
 		}},
 	}
 	// MCP-042: enforce tool name rules at definition time.
@@ -333,9 +328,19 @@ func safeToolCall(id any, req map[string]any) {
 	handleToolCall(id, req)
 }
 
+// normalizeToolName maps legacy dotted names (evident_output_list_guides) to
+// the advertised underscore form Grok and other hosts register cleanly.
+func normalizeToolName(name string) string {
+	if strings.HasPrefix(name, "evident_output.") {
+		return "evident_output_" + strings.TrimPrefix(name, "evident_output.")
+	}
+	return name
+}
+
 func handleToolCall(id any, req map[string]any) {
 	params, _ := req["params"].(map[string]any)
 	name, _ := params["name"].(string)
+	name = normalizeToolName(name)
 	args, _ := params["arguments"].(map[string]any)
 	if args == nil {
 		args = map[string]any{}
@@ -365,7 +370,7 @@ func handleToolCall(id any, req map[string]any) {
 	}
 
 	switch name {
-	case "evident_output.list_guides":
+	case "evident_output_list_guides":
 		useCase, _ := args["use_case"].(string)
 		guides := catalog.Filter(useCase)
 		maxTok := intFromArgs(args, "max_tokens")
@@ -390,7 +395,7 @@ func handleToolCall(id any, req map[string]any) {
 				"checksum":  catalog.Checksum(),
 			},
 		})
-	case "evident_output.get_guidance":
+	case "evident_output_get_guidance":
 		var ids []string
 		if raw, ok := args["ids"].([]any); ok {
 			for _, v := range raw {
@@ -422,7 +427,7 @@ func handleToolCall(id any, req map[string]any) {
 				"truncated": truncated,
 			},
 		})
-	case "evident_output.explain":
+	case "evident_output_explain":
 		ruleID, _ := args["rule_id"].(string)
 		if r, ok := rules.Explain(ruleID); ok {
 			writeRPC(id, map[string]any{
@@ -435,7 +440,7 @@ func handleToolCall(id any, req map[string]any) {
 			return
 		}
 		writeRPC(id, toolError("unknown rule"))
-	case "evident_output.review":
+	case "evident_output_review":
 		src, _ := args["source"].(string)
 		file, _ := args["file"].(string)
 		kind, _ := args["kind"].(string)
@@ -476,13 +481,13 @@ func handleToolCall(id any, req map[string]any) {
 		writeRPC(id, map[string]any{
 			"content": []map[string]any{{"type": "text", "text": text}},
 			"structuredContent": map[string]any{
-				"schema":           "evident_output.review.v1",
+				"schema":           "evident_output_review.v1",
 				"recheck_required": res.RecheckRequired,
 				"partial":          res.Partial,
 				"findings":         res.Findings,
 			},
 		})
-	case "evident_output.preview":
+	case "evident_output_preview":
 		subject, _ := args["subject"].(string)
 		item, _ := args["item"].(string)
 		state, _ := args["state"].(string)
@@ -517,7 +522,7 @@ func handleToolCall(id any, req map[string]any) {
 		writeRPC(id, map[string]any{
 			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d profiles", len(profiles))}},
 			"structuredContent": map[string]any{
-				"schema":   "evident_output.preview.v1",
+				"schema":   "evident_output_preview.v1",
 				"profiles": profiles,
 				"plain":    buf.String(),
 			},
@@ -540,17 +545,17 @@ func toolError(msg string) map[string]any {
 
 func validateArgs(name string, args map[string]any) string {
 	allowed := map[string]map[string]bool{
-		"evident_output.list_guides": {"use_case": true, "max_tokens": true, "deadline_ms": true},
-		"evident_output.get_guidance": {
+		"evident_output_list_guides": {"use_case": true, "max_tokens": true, "deadline_ms": true},
+		"evident_output_get_guidance": {
 			"ids": true, "max_tokens": true, "deadline_ms": true,
 		},
-		"evident_output.review": {
+		"evident_output_review": {
 			"source": true, "file": true, "kind": true, "files": true, "deadline_ms": true,
 		},
-		"evident_output.preview": {
+		"evident_output_preview": {
 			"subject": true, "item": true, "state": true, "debug": true, "deadline_ms": true,
 		},
-		"evident_output.explain": {"rule_id": true, "deadline_ms": true},
+		"evident_output_explain": {"rule_id": true, "deadline_ms": true},
 	}
 	keys, ok := allowed[name]
 	if !ok {

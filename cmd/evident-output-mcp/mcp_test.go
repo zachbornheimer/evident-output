@@ -15,8 +15,8 @@ func TestMCP_InitializeAndToolsListStdoutPurity(t *testing.T) {
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`,
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"evident_output.list_guides","arguments":{}}}`,
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"evident_output.explain","arguments":{"rule_id":"API-006"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"evident_output_list_guides","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"evident_output_explain","arguments":{"rule_id":"API-006"}}}`,
 	}, "\n") + "\n"
 
 	cmd := exec.Command(bin)
@@ -47,7 +47,7 @@ func TestMCP_InitializeAndToolsListStdoutPurity(t *testing.T) {
 	if strings.Contains(stdout.String(), "starting (stdio)") {
 		t.Fatal("server log leaked to stdout")
 	}
-	if !strings.Contains(stdout.String(), "evident_output.list_guides") {
+	if !strings.Contains(stdout.String(), "evident_output_list_guides") {
 		t.Fatal("tools/list missing guide tool")
 	}
 	if !strings.Contains(stdout.String(), "API-006") && !strings.Contains(stdout.String(), "explicit Start") {

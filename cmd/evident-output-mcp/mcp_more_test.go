@@ -28,9 +28,9 @@ func f() {
 	b, _ := json.Marshal(src)
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output.review","arguments":{"source":` + string(b) + `,"file":"x.go"}}}`,
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"evident_output.preview","arguments":{"subject":"demo","item":"status","state":"blocked"}}}`,
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"evident_output.get_guidance","arguments":{"ids":["common-api","nope"]}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"source":` + string(b) + `,"file":"x.go"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"evident_output_preview","arguments":{"subject":"demo","item":"status","state":"blocked"}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"evident_output_get_guidance","arguments":{"ids":["common-api","nope"]}}}`,
 	}, "\n") + "\n"
 
 	cmd := exec.Command(bin)

@@ -14,7 +14,7 @@ func TestMCP043_UnknownFieldsRejected(t *testing.T) {
 	bin := buildMCP(t)
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output.explain","arguments":{"rule_id":"API-006","evil":true}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_explain","arguments":{"rule_id":"API-006","evil":true}}}`,
 	}, "\n") + "\n"
 	stdout := runMCP(t, bin, in)
 	if !strings.Contains(stdout, "unknown argument field") {
@@ -83,7 +83,7 @@ func TestMCP029_030_StructuredAndText(t *testing.T) {
 	bin := buildMCP(t)
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output.list_guides","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_list_guides","arguments":{}}}`,
 	}, "\n") + "\n"
 	stdout := runMCP(t, bin, in)
 	if !strings.Contains(stdout, "structuredContent") {
@@ -103,7 +103,7 @@ func TestMCP050_TokenBudgetViaTool(t *testing.T) {
 	bin := buildMCP(t)
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output.list_guides","arguments":{"max_tokens":25}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_list_guides","arguments":{"max_tokens":25}}}`,
 	}, "\n") + "\n"
 	stdout := runMCP(t, bin, in)
 	if !strings.Contains(stdout, "truncated") {
@@ -117,7 +117,7 @@ func TestMCP032_DeadlineRespected(t *testing.T) {
 	// the field is accepted and does not crash; cancellation is best-effort.
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output.review","arguments":{"source":"package p\n","deadline_ms":1}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"source":"package p\n","deadline_ms":1}}}`,
 	}, "\n") + "\n"
 	stdout := runMCP(t, bin, in)
 	// Either findings or deadline exceeded — both valid.
@@ -130,7 +130,7 @@ func TestMCP034_PanicContainedContinues(t *testing.T) {
 	// Fault injection: panic inside tool handler; server must contain and continue.
 	// Unit-level (same package) so we can set faultHook without a production backdoor binary flag.
 	faultHook = func(name string) {
-		if name == "evident_output.list_guides" {
+		if name == "evident_output_list_guides" {
 			panic("injected MCP-034 fault")
 		}
 	}
@@ -143,7 +143,7 @@ func TestMCP034_PanicContainedContinues(t *testing.T) {
 	// call the functions that the server uses.
 	req := map[string]any{
 		"params": map[string]any{
-			"name":      "evident_output.list_guides",
+			"name":      "evident_output_list_guides",
 			"arguments": map[string]any{},
 		},
 	}
@@ -181,7 +181,7 @@ func TestMCP034_PanicContainedContinues(t *testing.T) {
 	faultHook = nil
 	req2 := map[string]any{
 		"params": map[string]any{
-			"name":      "evident_output.explain",
+			"name":      "evident_output_explain",
 			"arguments": map[string]any{"rule_id": "API-006"},
 		},
 	}
@@ -222,7 +222,7 @@ func TestMCP036_RemoteFileRejected(t *testing.T) {
 	bin := buildMCP(t)
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output.review","arguments":{"file":"https://evil.example/x.go","source":"package p"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"file":"https://evil.example/x.go","source":"package p"}}}`,
 	}, "\n") + "\n"
 	stdout := runMCP(t, bin, in)
 	if !strings.Contains(stdout, "remote path unsupported") {

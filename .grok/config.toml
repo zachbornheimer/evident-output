@@ -2,6 +2,5 @@
 # Grok only starts project-local servers when the folder is trusted.
 [mcp_servers.evident-output]
 command = "/Users/zbornheimer/.local/bin/evident-output-mcp"
-args = []
 enabled = true
 startup_timeout_sec = 60
