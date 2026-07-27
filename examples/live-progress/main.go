@@ -143,6 +143,7 @@ func main() {
 	}
 	verify.Done()
 
+	// Diagnostic above residual items (streamed once; dim when color is on).
 	out.Debug("cache warm", evo.String("dir", dir))
 	out.Item("lockfile").OK()
 	out.Item("registry").OK()
@@ -151,14 +152,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "presentation error:", err)
 		os.Exit(1)
 	}
-
-	// Colored final summary on stdout (in addition to WriteFinal on stderr).
-	snap := out.Snapshot()
-	noColor := demo.ParseColorFlag(*colorFlag) == demo.ColorNever ||
-		(demo.ParseColorFlag(*colorFlag) == demo.ColorAuto && os.Getenv("NO_COLOR") != "")
-	plain, _ := evo.RenderPlain(snap, evo.PlainOptions{Width: 80, NoColor: noColor})
-	fmt.Fprintln(os.Stdout)
-	_, _ = os.Stdout.Write(plain)
+	// Human stream already owns stderr (live + durable + conclusion).
+	// Do not re-dump RenderPlain — that was a second full report.
 	os.Exit(out.Conclusion().ExitCode)
 }
 

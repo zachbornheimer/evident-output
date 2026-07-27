@@ -106,8 +106,11 @@ func (o *Output) writeDurableTextLocked(text string) {
 	}
 }
 
-// residualPlainLocked builds the Finish tail: entities not yet streamed + conclusion.
-// FinalPlain still uses the full snapshot; residual is only for the human stream.
+// residualPlainLocked builds the Finish tail for the human stream: only what has
+// not already been progressive-emitted. FinalPlain still uses the full snapshot.
+//
+// Interactive mode: tasks/collections are owned by WriteFinal (H.17 compact line);
+// residual dual-write must not reprint them onto primary (same stream as Terminal).
 func (o *Output) residualPlainLocked(snap Snapshot) string {
 	cfg := o.cfg
 	color := !cfg.noColor
@@ -115,17 +118,17 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	if width <= 0 {
 		width = defaultWidth
 	}
+	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !cfg.plain && !cfg.nonInteractive
 	var b strings.Builder
 
-	// Lines already progressive-emitted.
 	for i := o.linesEmitted; i < len(snap.Lines); i++ {
-		b.WriteString(snap.Lines[i])
-		b.WriteByte('\n')
+		writeDebugOrLine(&b, snap.Lines[i], color)
 	}
+	o.linesEmitted = len(snap.Lines)
 
 	for _, it := range o.items {
 		if it.coreEmitted {
-			// Annotations should already have streamed; emit any late pieces.
+			// Late Because/Next that never flushed (should be rare).
 			o.emitItemProgressiveLocked(it)
 			continue
 		}
@@ -135,14 +138,16 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 		it.actionsEmitted = len(it.actions)
 	}
 
-	for _, t := range o.tasks {
-		if t.collection != nil {
-			continue
+	if !interactive {
+		for _, t := range o.tasks {
+			if t.collection != nil {
+				continue
+			}
+			writeTask(&b, t.snapshot(), color)
 		}
-		writeTask(&b, t.snapshot(), color)
-	}
-	for _, col := range o.collections {
-		writeCollection(&b, col.snapshot(), color)
+		for _, col := range o.collections {
+			writeCollection(&b, col.snapshot(), color)
+		}
 	}
 	for _, ch := range o.changes {
 		writeEffects(&b, "changed", ch.subject, ch.records, width, color)
@@ -157,9 +162,9 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 }
 
 // residualInteractiveFinalLocked is the WriteFinal body for interactive mode:
-// unemitted standalone tasks/collections/items. Conclusion is written via the
-// residual plain stream (or FinalPlain); H.2/H.17 expect task lines without a
-// second full report dump.
+// standalone tasks + collections + any items that never progressive-emitted.
+// Never re-dumps already-streamed durable evidence (that was the double-print bug).
+// Conclusion is written via residualPlain on the primary stream.
 func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 	color := !o.cfg.noColor
 	var b strings.Builder
@@ -169,27 +174,25 @@ func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 	for _, col := range snap.Collections {
 		writeCollection(&b, col, color)
 	}
-	// Items already streamed as durable; only unemitted remain (instant path).
 	for _, it := range o.items {
-		if !it.coreEmitted {
-			writeItem(&b, it.snapshot(), color)
-			it.coreEmitted = true
-			it.becauseEmitted = it.because != ""
-			it.actionsEmitted = len(it.actions)
+		if it.coreEmitted {
+			continue
 		}
-	}
-	if b.Len() == 0 {
-		// Match prior renderInteractiveFinal fallback: compact plain without conclusion.
-		cfg := config{width: defaultWidth, plain: true, nonInteractive: true, noColor: !color}
-		text := renderPlain(snap, cfg)
-		// Drop trailing conclusion block if present.
-		if snap.Conclusion != nil {
-			var full strings.Builder
-			writeConclusion(&full, *snap.Conclusion, color)
-			text = strings.TrimSuffix(strings.TrimRight(text, "\n"), strings.TrimRight(full.String(), "\n"))
-			text = strings.TrimRight(text, "\n")
-		}
-		return text
+		writeItem(&b, it.snapshot(), color)
+		it.coreEmitted = true
+		it.becauseEmitted = it.because != ""
+		it.actionsEmitted = len(it.actions)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// writeDebugOrLine formats a stored line; dim [DEBUG] prefix when color is on.
+func writeDebugOrLine(b *strings.Builder, line string, color bool) {
+	if strings.HasPrefix(line, "[DEBUG]") {
+		b.WriteString(dim(line, color))
+		b.WriteByte('\n')
+		return
+	}
+	b.WriteString(line)
+	b.WriteByte('\n')
 }

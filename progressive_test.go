@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 // Terminal outcomes must stream as they resolve — not sit in a buffer until Finish.
@@ -105,6 +106,82 @@ func TestProgressive_NoDoublePrintOnFinish(t *testing.T) {
 	if n := strings.Count(buf.String(), "once"); n != 1 {
 		t.Fatalf("item printed %d times, want 1:\n%s", n, buf.String())
 	}
+}
+
+// Interactive + progressive items: Finish must not re-dump the full report
+// (empty WriteFinal residual used to fall back to renderPlain → double print).
+func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	var primary bytes.Buffer
+	out := evo.New(
+		evo.To(&primary),
+		evo.Terminal(screen),
+		evo.NoColor(),
+		evo.VisibilityDelay(0),
+	)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Item("working tree").OK()
+	out.Item("branches").Block("local-only")
+	_ = out.Finish()
+
+	// Durable evidence once on the terminal driver.
+	var durable strings.Builder
+	for _, op := range screen.Operations() {
+		if op.Kind == "durable" {
+			durable.WriteString(op.Text)
+		}
+	}
+	d := durable.String()
+	if n := strings.Count(d, "working tree"); n != 1 {
+		t.Fatalf("working tree durable count=%d want 1:\n%s", n, d)
+	}
+	if n := strings.Count(d, "branches"); n != 1 {
+		t.Fatalf("branches durable count=%d want 1:\n%s", n, d)
+	}
+	// WriteFinal must not re-print progressive items.
+	final := screen.FinalText()
+	if strings.Contains(final, "working tree") || strings.Contains(final, "branches") {
+		t.Fatalf("WriteFinal re-dumped items:\n%s", final)
+	}
+	// Primary residual: conclusion only (no second item dump).
+	got := primary.String()
+	if strings.Count(got, "working tree") != 0 {
+		t.Fatalf("primary residual re-printed items:\n%s", got)
+	}
+	if !strings.Contains(got, "[blocked]") {
+		t.Fatalf("primary residual missing conclusion:\n%s", got)
+	}
+}
+
+func TestProgressive_DebugStreamsOnce(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.New(evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.Debug))
+	t.Cleanup(func() { _ = out.Close() })
+	out.Debug("cache warm", evo.String("dir", "/tmp/x"))
+	before := buf.String()
+	if !strings.Contains(before, "[DEBUG] cache warm") {
+		t.Fatalf("debug not streamed immediately: %q", before)
+	}
+	_ = out.Finish()
+	if n := strings.Count(buf.String(), "[DEBUG] cache warm"); n != 1 {
+		t.Fatalf("debug printed %d times, want 1:\n%s", n, buf.String())
+	}
+}
+
+func TestProgressive_ColorOnImmediateResolve(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.New(evo.To(&buf), evo.Plain()) // color on
+	t.Cleanup(func() { _ = out.Close() })
+	out.Item("working tree").OK()
+	if !strings.Contains(buf.String(), "\x1b[32m") {
+		t.Fatalf("progressive OK must be green immediately:\n%q", buf.String())
+	}
+	out.Item("bad").Fail("nope")
+	if !strings.Contains(buf.String(), "\x1b[31m") {
+		t.Fatalf("progressive Fail must be red immediately:\n%q", buf.String())
+	}
+	_ = out.Finish()
 }
 
 // Flushing: progressive writes should not sit in a *bufio.Writer until Finish.

@@ -48,8 +48,7 @@ func renderPlain(s Snapshot, cfg config) string {
 	color := !cfg.noColor
 
 	for _, line := range s.Lines {
-		b.WriteString(line)
-		b.WriteByte('\n')
+		writeDebugOrLine(&b, line, color)
 	}
 
 	for _, it := range s.Items {

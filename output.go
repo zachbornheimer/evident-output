@@ -468,7 +468,9 @@ func (o *Output) NextCommand(executable string, args ...string) {
 	o.Next(Command(executable, args...))
 }
 
-// Debug records a diagnostic line; during live UI it is inserted above the region.
+// Debug records a diagnostic line. Emitted immediately (not held until Finish):
+// live UI inserts it above the region; plain streams it like other durable lines.
+// Dim SGR when color is enabled so it does not compete with check evidence.
 func (o *Output) Debug(message string, fields ...Field) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -483,9 +485,17 @@ func (o *Output) Debug(message string, fields ...Field) {
 	o.lines = append(o.lines, line)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "log.emitted"})
-	if o.liveLocked() != nil {
-		o.debugLiveLocked(line)
+	// Stream once now; mark emitted so Finish residual does not reprint.
+	display := line
+	if !o.cfg.noColor {
+		display = dim(line, true)
 	}
+	if o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain {
+		o.debugLiveLocked(display)
+	} else {
+		o.writeDurableTextLocked(display + "\n")
+	}
+	o.linesEmitted = len(o.lines)
 }
 
 func formatDebug(message string, fields []Field) string {

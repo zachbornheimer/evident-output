@@ -114,7 +114,8 @@ func (o *Output) renderLiveLocked(force bool) {
 		return
 	}
 	now := o.cfg.clock.Now()
-	text := renderLiveRegion(o.snapshotLocked(), live.Columns(), live.Rows(), now)
+	color := !o.cfg.noColor
+	text := renderLiveRegion(o.snapshotLocked(), live.Columns(), live.Rows(), now, color)
 	if !force && text == o.live.lastLiveText {
 		return
 	}
@@ -252,7 +253,8 @@ func (o *Output) finishLiveLocked(final string) {
 
 // renderLiveRegion builds the interactive ledger text for the current snapshot.
 // now selects spinner frames (inject FixedClock in tests for stable glyphs).
-func renderLiveRegion(s Snapshot, width, height int, now time.Time) string {
+// color applies SGR to glyphs as rows resolve (✓ green, ✗ red, spinner cyan).
+func renderLiveRegion(s Snapshot, width, height int, now time.Time, color bool) string {
 	if width <= 0 {
 		width = defaultWidth
 	}
@@ -264,10 +266,10 @@ func renderLiveRegion(s Snapshot, width, height int, now time.Time) string {
 
 	// Prefer collections for multi-task progress display.
 	for _, col := range s.Collections {
-		writeLiveCollection(&b, col, height, spin)
+		writeLiveCollection(&b, col, height, spin, color)
 	}
 	for _, t := range s.Tasks {
-		writeLiveTaskLine(&b, t, 0, spin)
+		writeLiveTaskLine(&b, t, 0, spin, color)
 	}
 	for _, it := range s.Items {
 		if it.State == Running || it.State == Pending {
@@ -275,13 +277,13 @@ func renderLiveRegion(s Snapshot, width, height int, now time.Time) string {
 			if it.State == Running {
 				g = spin
 			}
-			fmt.Fprintf(&b, "%s  %s\n", g, it.Name)
+			fmt.Fprintf(&b, "%s  %s\n", styleGlyph(g, stateColor(it.State), color), it.Name)
 		}
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin string) {
+func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin string, color bool) {
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == Done || t.State == Skipped {
@@ -299,7 +301,12 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin
 	if anyChildRunning(col) || anyChildPendingActive(col) {
 		glyph = spin
 	}
-	fmt.Fprintf(b, "%s  %s  %d/%d complete\n", glyph, col.Name, done, total)
+	headerState := col.State
+	if anyChildRunning(col) || anyChildPendingActive(col) {
+		headerState = Running
+	}
+	fmt.Fprintf(b, "%s  %s  %d/%d complete\n",
+		styleGlyph(glyph, stateColor(headerState), color), col.Name, done, total)
 
 	// Select children by severity under height budget.
 	// Budget: height includes header; leave room for omission line.
@@ -309,10 +316,10 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin
 	}
 	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
 	for _, t := range selected {
-		writeLiveTaskLine(b, t, 1, spin)
+		writeLiveTaskLine(b, t, 1, spin, color)
 	}
 	if omitted > 0 {
-		fmt.Fprintf(b, "   …  %d not shown\n", omitted)
+		fmt.Fprintf(b, "   %s  %d not shown\n", dim("…", color), omitted)
 	}
 }
 
@@ -381,7 +388,7 @@ func selectLiveChildren(tasks []TaskSnapshot, max int) (selected []TaskSnapshot,
 	return selected, len(tasks) - len(selected)
 }
 
-func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin string) {
+func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin string, color bool) {
 	pad := ""
 	if indent > 0 {
 		pad = "   "
@@ -390,6 +397,7 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin stri
 	if t.State == Running {
 		glyph = spin
 	}
+	g := styleGlyph(glyph, stateColor(t.State), color)
 	// Child rows: indent + glyph + two spaces + name padded to 9 + two spaces + detail.
 	// Produces stable columns: "react" and "sharp" share alignment; "esbuild" fills the field.
 	nameField := t.Name
@@ -398,47 +406,47 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin stri
 	}
 	switch {
 	case t.State == Done && t.Progress.Kind == BytesKind:
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, formatBytes(t.Progress.Completed))
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, formatBytes(t.Progress.Completed))
 	case t.State == Done && t.Summary != "":
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, t.Summary)
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, dim(t.Summary, color))
 	case t.State == Running && t.Progress.Kind == BytesKind && t.Progress.Total > 0:
 		detail := formatByteProgressFixed(t.Progress.Completed, t.Progress.Total)
 		detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + detail
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, detail)
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
 	case t.State == Running && t.Progress.Kind == Determinate && t.Progress.Total > 0:
 		detail := progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " +
 			fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
 		if t.Phase != "" {
 			detail = detail + "  " + t.Phase
 		}
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, detail)
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
 	case t.State == Running && (t.Progress.Kind == Indeterminate || t.Phase != ""):
 		// Indeterminate: spinner glyph + phase (or generic working).
 		phase := t.Phase
 		if phase == "" {
 			phase = "working…"
 		}
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, phase)
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, dim(phase, color))
 	case t.State == Running && t.Phase != "":
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, t.Phase)
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, dim(t.Phase, color))
 	case t.State == Failed:
 		msg := t.Summary
 		if msg == "" && len(t.Problems) > 0 {
 			msg = t.Problems[0].Summary
 		}
 		if msg != "" {
-			fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, msg)
+			fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, msg)
 		} else {
-			fmt.Fprintf(b, "%s%s  %s\n", pad, glyph, strings.TrimRight(nameField, " "))
+			fmt.Fprintf(b, "%s%s  %s\n", pad, g, strings.TrimRight(nameField, " "))
 		}
 	case t.State == Warning:
 		msg := t.Summary
 		if msg == "" && len(t.Problems) > 0 {
 			msg = t.Problems[0].Summary
 		}
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, msg)
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, msg)
 	default:
-		fmt.Fprintf(b, "%s%s  %s\n", pad, glyph, strings.TrimRight(nameField, " "))
+		fmt.Fprintf(b, "%s%s  %s\n", pad, g, strings.TrimRight(nameField, " "))
 	}
 }
 
