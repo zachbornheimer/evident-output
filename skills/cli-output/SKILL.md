@@ -167,13 +167,14 @@ Do **not** call `Start` on the happy path (API-006). Review until `recheck_requi
 ## Child processes
 
 ```go
-cap := out.Capture()
-err := run.Run(ctx, "brew", args, cap)
+upgrade := out.Task("brew packages")
+output := upgrade.Capture()
+err := run.Run(ctx, "brew", args, output)
 // on error:
-task.Fail("…", evo.Cause(err), evo.DetailTail(cap))
+upgrade.Fail("brew upgrade failed", evo.Cause(err), output.DetailTail())
 ```
 
-Do **not** hand-thread `DebugWriter` for child tools (default `DebugLevel` drops lines). Do **not** put writers in `context.Context`. Only domain `Line`/`Item`/`Task` belong in the live region.
+Capture is **task-owned** (`Task.Capture`), not session-owned and not `context`. Ring always retains evidence; debug level only controls display. Prefer `output.DetailTail()` over a free function. Do **not** use `DebugWriter` for child tools.
 
 ## Workflow
 

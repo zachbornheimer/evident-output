@@ -61,20 +61,24 @@ When both Item and Task fit: prefer **Item** for pass/fail gates, **Task** for p
 
 ## Child processes
 
-Keep external tool chatter off the live region. Prefer **`out.Capture()`** (Output-owned sink), not a hand-threaded `DebugWriter` and not `context`:
+Capture belongs to the **operation** (`Task`), not the whole session — and not `context`:
 
 ```go
-cap := out.Capture() // ring buffer + optional Diagnostics mirror
-if err := run.Run(ctx, "brew", []string{"upgrade", "--formula"}, cap); err != nil {
-    task.Fail("brew upgrade failed", evo.Cause(err), evo.DetailTail(cap))
+upgrade := out.Task("brew packages")
+output := upgrade.Capture() // always retains a bounded ring; debug only controls display
+
+if err := run.Run(ctx, "brew", []string{"upgrade", "--formula"}, output); err != nil {
+    upgrade.Fail("brew upgrade failed", evo.Cause(err), output.DetailTail())
     return nil
 }
-task.Done()
+upgrade.Done()
 ```
 
-- `Capture` never paints the live region; `Tail` is for Fail/Block Detail.
-- With `Diagnostics(os.Stderr)`, capture lines also land on the diagnostic stream (LaunchAgent logs).
-- `DebugWriter` is only for intentional DEBUG journal lines (`DebugLevel(Debug)`); default level drops them.
+- **Ownership:** `upgrade.Capture()` associates evidence with that task (debug can label `task=…`).
+- **Evidence vs display:** ring is always kept; `DebugLevel` only controls Debug/Diagnostics projection.
+- **Detail:** `output.DetailTail()` is a `ProblemOption` (compose with Fail); prefer stderr when streams are split (`output.Stdout()` / `output.Stderr()`).
+- **Defaults:** last 200 lines / 256KiB, sanitized, truncation marked; never auto-surfaces on success.
+- **`DebugWriter`:** intentional DEBUG journal only — not for child tools.
 
 ## Status
 

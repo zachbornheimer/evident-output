@@ -9,9 +9,9 @@
 //	}
 //
 //	func run(out *evo.Output) error {
-//	    out.Item("working tree").OK()
-//	    cap := out.Capture()
-//	    // run.Run(ctx, "git", args, cap); Fail with evo.DetailTail(cap) on error
+//	    t := out.Task("fetch")
+//	    output := t.Capture()
+//	    // run.Run(ctx, "git", args, output); t.Fail(..., output.DetailTail()) on error
 //	    return nil
 //	}
 package evo

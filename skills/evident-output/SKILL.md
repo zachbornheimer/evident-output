@@ -48,5 +48,5 @@ grok mcp doctor evident-output --json
 - `Block` = condition found; `Fail` = evaluation failed; `Warn` = optional/soft
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
 - Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
-- Child process chatter → `out.Capture()` + `DetailTail` (not DebugWriter)
+- Child process chatter → `task.Capture()` + `output.DetailTail()` (not DebugWriter, not context)
 - Sanitize is automatic; keep secrets in `Cause`, not `Detail`
