@@ -45,6 +45,29 @@ t.Phase("walking")`,
 			Certainty:       "deterministic",
 		},
 		{
+			ID:        "API-026",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "evo has no execution helpers (RunAll/Map/Retry/Parallel/Timeout)",
+			Why:       "Presentation library must not grow schedulers. Substring detection false-positives on strings.Map; review uses AST on evo receivers only.",
+			BadCode: `out.Tasks("jobs").Map(func() {})
+out.Task("x").Retry(3)`,
+			GoodCode: `// application owns execution
+for _, j := range jobs {
+  t := out.Task(j.Name)
+  if err := j.Run(); err != nil {
+    t.Fail(err.Error())
+    continue
+  }
+  t.Done()
+}`,
+			Remediation:     "Keep loops/retries/timeouts in application code; resolve Task/Item outcomes only",
+			RelatedGuidance: []string{"common-api", "tasks"},
+			VerificationIDs: []string{"API-026"},
+			Since:           "0.1.0",
+			Certainty:       "deterministic",
+		},
+		{
 			ID:        "API-027",
 			Category:  "API",
 			Severity:  "error",

@@ -1,7 +1,7 @@
 // Command doctor is an environment/health check CLI.
 //
-// Checks run one at a time: Start → work → resolve. Each result prints as soon
-// as it is known (progressive durable evidence), then Finish writes the conclusion.
+// Checks resolve one at a time (progressive durable evidence). Prefer direct
+// OK/Warn/Block/Fail — no explicit Start (API-006). Finish + exit via evo.Main.
 //
 //	go run ./examples/doctor/
 //	go run ./examples/doctor/ --json | jq .conclusion
@@ -42,51 +42,48 @@ func main() {
 	}
 
 	out := evo.For("env-doctor", demo.Options(human, demo.ParseColorFlag(*colorFlag))...)
-	defer out.Close()
-
-	check := func(name string, resolve func(*evo.Item)) {
-		it := out.Item(name)
-		it.Start()
-		time.Sleep(step) // stand-in for real probe latency
-		resolve(it)
-	}
-
-	check("go toolchain", func(it *evo.Item) { it.OK() })
-	check("mise tasks", func(it *evo.Item) { it.OK() })
-
-	check("git commit signing", func(it *evo.Item) {
-		if *strict {
-			it.Block(
-				"commit.gpgsign is not enabled",
-				evo.Detail("required in strict mode for this org"),
-			).NextCommand("git", "config", "--global", "commit.gpgsign", "true")
-		} else {
-			it.Warn(
-				"commit signing not verified",
-				evo.Detail("optional for local work; enable for mainline PRs"),
-			)
+	code := evo.Main(out, func(o *evo.Output) error {
+		check := func(name string, resolve func(*evo.Item)) {
+			it := o.Item(name)
+			time.Sleep(step) // stand-in for real probe latency
+			resolve(it)
 		}
-	})
 
-	check("disk free space", func(it *evo.Item) {
-		it.Block(
-			"less than 2 GiB free on /",
-			evo.Detail("large builds and Docker layers need headroom"),
-		).Because("CI and local builds fail unpredictably when the volume fills.")
-	})
+		check("go toolchain", func(it *evo.Item) { it.OK() })
+		check("mise tasks", func(it *evo.Item) { it.OK() })
 
-	check("docker daemon", func(it *evo.Item) {
-		it.Fail(
-			"cannot connect to docker socket",
-			evo.Detail("start Colima (`colima start`) or Docker Desktop"),
-		)
-	})
+		check("git commit signing", func(it *evo.Item) {
+			if *strict {
+				it.Block(
+					"commit.gpgsign is not enabled",
+					evo.Detail("required in strict mode for this org"),
+				).NextCommand("git", "config", "--global", "commit.gpgsign", "true")
+			} else {
+				it.Warn(
+					"commit signing not verified",
+					evo.Detail("optional for local work; enable for mainline PRs"),
+				)
+			}
+		})
 
-	if err := out.Finish(); err != nil {
-		fmt.Fprintln(os.Stderr, "presentation error:", err)
-	}
+		check("disk free space", func(it *evo.Item) {
+			it.Block(
+				"less than 2 GiB free on /",
+				evo.Detail("large builds and Docker layers need headroom"),
+			).Because("CI and local builds fail unpredictably when the volume fills.")
+		})
+
+		check("docker daemon", func(it *evo.Item) {
+			it.Fail(
+				"cannot connect to docker socket",
+				evo.Detail("start Colima (`colima start`) or Docker Desktop"),
+			)
+		})
+		return nil
+	})
 
 	if *asJSON {
+		// Main already Finished; snapshot is sealed.
 		b, err := evo.EncodeJSON(out.Snapshot())
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -98,5 +95,5 @@ func main() {
 		}
 	}
 
-	os.Exit(out.Conclusion().ExitCode)
+	os.Exit(code)
 }

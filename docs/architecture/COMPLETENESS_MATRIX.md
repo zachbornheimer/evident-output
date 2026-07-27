@@ -189,7 +189,7 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | MCP-013 | pass | mcp review stream |
 | MCP-014 | pass | agent/review TestMCP014_* + harness blocked-as-error |
 | MCP-015 | pass | review location |
-| MCP-016 | pass | waived_closeout_test.go TestMCP016_PartialTypeinfoMarked |
+| MCP-016 | pass | waived_closeout_test.go TestMCP016_PartialOnlyWhenAnalysisIncomplete |
 | MCP-017 | pass | agent/review.GoPackage + review_test.go TestGoPackage_CrossFileTypes |
 | MCP-018 | pass | agent/review.Transcript + review_test.go |
 | MCP-019 | pass | agent/review.StructuredDocument + review_test.go |

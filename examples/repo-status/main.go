@@ -1,8 +1,7 @@
 // Command repo-status is a realistic "is this repo safe to retire?" check.
 //
-// Pattern: parallel Items. Start each check so it appears indeterminate while
-// work runs; terminal outcomes stream immediately (not buffered until Finish).
-// Blocked means "stop and fix" (not a Go error). Exit code from Conclusion.
+// Pattern: sequential Items as gate/verdict units. Resolve with OK/Block/Warn
+// directly (no Start — API-006). Exit via evo.Main.
 //
 //	go run ./examples/repo-status/ --name bpp-csharp
 //	go run ./examples/repo-status/ --name my-service --clean
@@ -27,8 +26,8 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: repo-status [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "Report whether a local git repository is safe to archive or delete.\n\n")
-		fmt.Fprintf(os.Stderr, "Each check starts indeterminate, then prints as soon as it resolves —\n")
-		fmt.Fprintf(os.Stderr, "like progressive fmt lines, not a buffer dump at the end.\n\n")
+		fmt.Fprintf(os.Stderr, "Each check prints as soon as it resolves — progressive durable lines,\n")
+		fmt.Fprintf(os.Stderr, "not a buffer dump at Finish.\n\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -39,52 +38,36 @@ func main() {
 	}
 
 	out := evo.For(*name, demo.Options(os.Stdout, demo.ParseColorFlag(*colorFlag))...)
-	defer out.Close()
+	os.Exit(evo.Main(out, func(o *evo.Output) error {
+		// --- simulated git work (real apps call git / libgit2 here) ---
+		time.Sleep(step)
+		o.Item("working tree").OK()
 
-	tree := out.Item("working tree")
-	branches := out.Item("branches")
-	remotes := out.Item("remotes")
-	stashes := out.Item("stashes")
+		time.Sleep(step)
+		branches := o.Item("branches")
+		if *clean {
+			branches.OK()
+		} else {
+			branches.BlockedBy(
+				evo.Problem{Subject: "feat/sdk-full-consolidation", Summary: "local-only branch", Count: 1},
+				evo.Problem{Subject: "fix/login-flow", Summary: "ahead of origin", Count: 2},
+			).Because("Push, merge, or delete local-only work before retiring this repository.").
+				NextCommand("git", "push", "-u", "origin", "feat/sdk-full-consolidation")
+		}
 
-	// Start all checks so the live region (TTY) shows spinners immediately.
-	// Off-TTY, Start is a no-op for display; lines still stream on resolve.
-	tree.Start()
-	branches.Start()
-	remotes.Start()
-	stashes.Start()
+		time.Sleep(step)
+		remotes := o.Item("remotes")
+		if *clean {
+			remotes.OK()
+		} else {
+			remotes.Warn(
+				"origin was not reachable",
+				evo.Detail("last fetch failed; remote state is unverified"),
+			)
+		}
 
-	// --- simulated git work (real apps call git / libgit2 here) ---
-	time.Sleep(step)
-	tree.OK()
-
-	time.Sleep(step)
-	if *clean {
-		branches.OK()
-	} else {
-		branches.BlockedBy(
-			evo.Problem{Subject: "feat/sdk-full-consolidation", Summary: "local-only branch", Count: 1},
-			evo.Problem{Subject: "fix/login-flow", Summary: "ahead of origin", Count: 2},
-		).Because("Push, merge, or delete local-only work before retiring this repository.").
-			NextCommand("git", "push", "-u", "origin", "feat/sdk-full-consolidation")
-	}
-
-	time.Sleep(step)
-	if *clean {
-		remotes.OK()
-	} else {
-		remotes.Warn(
-			"origin was not reachable",
-			evo.Detail("last fetch failed; remote state is unverified"),
-		)
-	}
-
-	time.Sleep(step)
-	stashes.OK()
-
-	// Finish only seals the conclusion — items already streamed as they resolved.
-	if err := out.Finish(); err != nil {
-		fmt.Fprintln(os.Stderr, "presentation error:", err)
-		os.Exit(1)
-	}
-	os.Exit(out.Conclusion().ExitCode)
+		time.Sleep(step)
+		o.Item("stashes").OK()
+		return nil
+	}))
 }

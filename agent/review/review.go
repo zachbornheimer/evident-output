@@ -25,7 +25,11 @@ type Finding struct {
 type Result struct {
 	Findings        []Finding `json:"findings"`
 	RecheckRequired bool      `json:"recheck_required"`
-	Partial         bool      `json:"partial,omitempty"` // true when analysis lacks type info
+	// Partial is true only when analysis could not complete (parse failure,
+	// empty package, typecheck incomplete). Complete GoSource AST review is
+	// never partial merely because evo is imported — partial+recheck=false
+	// confuses agents into ignoring a shippable result.
+	Partial bool `json:"partial,omitempty"`
 }
 
 // GoSource reviews Go source for evo misuse patterns (AST + textual).
@@ -65,8 +69,8 @@ func GoSource(filename, src string) Result {
 		pos := fset.Position(n.Pos())
 		name := sel.Sel.Name
 
-		// API-006: redundant Start
-		if name == "Start" {
+		// API-006: redundant Start on presentation handles
+		if name == "Start" && isLikelyEvoReceiver(sel.X) {
 			findings = append(findings, Finding{
 				RuleID:   "API-006",
 				Severity: "warning",
@@ -77,8 +81,18 @@ func GoSource(filename, src string) Result {
 			})
 		}
 
-		// API-027 signal: Tasks.Done/Fail/Progress/Phase misuse (method on plural collection via name)
-		// Textual AST cannot resolve types fully — flag X.Tasks(...).Done patterns below in text.
+		// API-026: forbidden execution helpers on evo receivers only (AST, not substring).
+		// Must not false-positive on strings.Map, comments, or user methods on other types.
+		if hasEvo && isForbiddenExecutionHelper(name) && isEvoExecutionReceiver(sel.X) {
+			findings = append(findings, Finding{
+				RuleID:   "API-026",
+				Severity: "error",
+				Message:  "forbidden execution helper ." + name + "( — evo is presentation-only; keep schedulers/retries in application code",
+				File:     filename,
+				Line:     pos.Line,
+				Column:   pos.Column,
+			})
+		}
 
 		// STREAM-003: fmt.Print* calls when evo is imported
 		if hasEvo {
@@ -97,39 +111,26 @@ func GoSource(filename, src string) Result {
 			}
 		}
 
-		// Flag os.Exit in library-style packages using evo
-		if id, ok := sel.X.(*ast.Ident); ok && id.Name == "os" && name == "Exit" && hasEvo {
-			findings = append(findings, Finding{
-				RuleID:   "API-018",
-				Severity: "warning",
-				Message:  "os.Exit in evo-using code; prefer returning Finish error / conclusion ExitCode",
-				File:     filename,
-				Line:     pos.Line,
-				Column:   pos.Column,
-			})
+		// API-018: os.Exit without presentation exit-code (Main / Conclusion.ExitCode is OK)
+		if hasEvo {
+			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "os" && name == "Exit" {
+				if !isPresentationExitArg(call) {
+					findings = append(findings, Finding{
+						RuleID:   "API-018",
+						Severity: "warning",
+						Message:  "os.Exit in evo-using code; prefer os.Exit(evo.Main(out, run)) or Conclusion().ExitCode",
+						File:     filename,
+						Line:     pos.Line,
+						Column:   pos.Column,
+					})
+				}
+			}
 		}
 		return true
 	})
 
-	// Textual patterns AST may miss
+	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
-		if strings.Contains(src, "Tasks(") && (strings.Contains(src, ").Done(") || strings.Contains(src, ").Fail(") || strings.Contains(src, ").Progress(")) {
-			// crude: only if same line-ish pattern Tasks(...).Done — check for anti-pattern string
-			if strings.Contains(src, "Tasks(") {
-				// look for variable that is only Tasks collection getting leaf methods is type-level
-			}
-		}
-		// RunAll/Map/Retry forbidden API usage
-		for _, bad := range []string{".RunAll(", ".Map(", ".Retry(", ".Parallel(", ".Timeout("} {
-			if strings.Contains(src, bad) {
-				findings = append(findings, Finding{
-					RuleID:   "API-026",
-					Severity: "error",
-					Message:  "forbidden execution helper " + bad + " must not appear in evo core usage",
-					File:     filename,
-				})
-			}
-		}
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
 		if strings.Contains(src, "Detail(err)") || strings.Contains(src, "evo.Detail(err)") {
 			findings = append(findings, Finding{
@@ -143,11 +144,12 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectBlockedAsError(filename, src)...)
 	}
 
-	// MCP-016: single-file AST without package type info is partial analysis.
+	// GoSource implements its rules fully via AST. Partial is reserved for incomplete
+	// typecheck / multi-file analysis — not "evo is imported".
 	return Result{
 		Findings:        dedupe(findings),
 		RecheckRequired: hasRequired(findings),
-		Partial:         hasEvo,
+		Partial:         false,
 	}
 }
 
@@ -333,6 +335,111 @@ func StructuredDocument(filename string, raw []byte) Result {
 		})
 	}
 	return Result{Findings: findings, RecheckRequired: hasRequired(findings)}
+}
+
+// isForbiddenExecutionHelper names APIs evo deliberately does not provide.
+func isForbiddenExecutionHelper(name string) bool {
+	switch name {
+	case "RunAll", "Map", "Retry", "Parallel", "Timeout":
+		return true
+	default:
+		return false
+	}
+}
+
+// knownNonEvoPackages are import idents that must never trigger API-026.
+var knownNonEvoPackages = map[string]bool{
+	"strings": true, "bytes": true, "regexp": true, "time": true,
+	"context": true, "sync": true, "fmt": true, "os": true, "io": true,
+	"path": true, "filepath": true, "unicode": true, "utf8": true,
+	"sort": true, "slices": true, "maps": true, "http": true, "json": true,
+	"errors": true, "log": true, "slog": true, "testing": true,
+	"reflect": true, "runtime": true, "unsafe": true, "math": true,
+	"strconv": true, "bufio": true, "compress": true, "crypto": true,
+	"hash": true, "net": true, "url": true, "html": true, "flag": true,
+	"exec": true, "signal": true, "atomic": true, "rand": true,
+}
+
+// isEvoExecutionReceiver reports whether a method call's receiver is an evo
+// presentation value (or package), not an unrelated package helper.
+func isEvoExecutionReceiver(x ast.Expr) bool {
+	switch v := x.(type) {
+	case *ast.Ident:
+		if knownNonEvoPackages[v.Name] {
+			return false
+		}
+		// Package or handle commonly named for evo.
+		switch v.Name {
+		case "evo", "out", "o", "output":
+			return true
+		}
+		// Bare unknown.Map(...) — prefer miss over false positive (trust in review).
+		return false
+	case *ast.CallExpr:
+		// out.Tasks("x").Map / out.Task("x").Retry
+		if s, ok := v.Fun.(*ast.SelectorExpr); ok {
+			switch s.Sel.Name {
+			case "Tasks", "Task", "Item", "Changes", "Plan", "For", "New", "Main":
+				return true
+			}
+			return isEvoExecutionReceiver(s.X)
+		}
+		return false
+	case *ast.SelectorExpr:
+		// evo.Something or chained handle
+		if id, ok := v.X.(*ast.Ident); ok && (id.Name == "evo" || id.Name == "out") {
+			return true
+		}
+		return isEvoExecutionReceiver(v.X)
+	case *ast.ParenExpr:
+		return isEvoExecutionReceiver(v.X)
+	default:
+		return false
+	}
+}
+
+// isLikelyEvoReceiver is a softer check for Start (API-006): flag method calls
+// that look like presentation handles, skip known stdlib packages.
+func isLikelyEvoReceiver(x ast.Expr) bool {
+	switch v := x.(type) {
+	case *ast.Ident:
+		if knownNonEvoPackages[v.Name] {
+			return false
+		}
+		// Flag bare Start on any non-package ident (t.Start, it.Start, item.Start).
+		// Package.Start is rare; if package is evo, flag.
+		return true
+	case *ast.CallExpr:
+		return true // out.Item("x").Start()
+	case *ast.SelectorExpr:
+		return isLikelyEvoReceiver(v.X)
+	case *ast.ParenExpr:
+		return isLikelyEvoReceiver(v.X)
+	default:
+		return true
+	}
+}
+
+// isPresentationExitArg is true for os.Exit(evo.Main(...)) and os.Exit(...ExitCode).
+func isPresentationExitArg(call *ast.CallExpr) bool {
+	if len(call.Args) != 1 {
+		return false
+	}
+	switch arg := call.Args[0].(type) {
+	case *ast.CallExpr:
+		if sel, ok := arg.Fun.(*ast.SelectorExpr); ok {
+			switch sel.Sel.Name {
+			case "Main", "ExitCode":
+				return true
+			}
+		}
+	case *ast.SelectorExpr:
+		// out.Conclusion().ExitCode or conc.ExitCode
+		if arg.Sel.Name == "ExitCode" {
+			return true
+		}
+	}
+	return false
 }
 
 // detectBlockedAsError flags control-flow that converts an expected Block/BlockedBy

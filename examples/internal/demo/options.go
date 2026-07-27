@@ -49,15 +49,16 @@ func IsCharDevice(w io.Writer) bool {
 
 // Options returns presentation options for example programs.
 //
-// On a TTY, attaches an ANSI live-region driver so Item.Start / Task.Phase show
+// On a TTY, attaches an ANSI live-region driver so Task.Phase / Progress show
 // indeterminate spinners and resolved rows stream as durable evidence (spec §1).
-// Off-TTY (pipes, mise batch), uses plain progressive writes — still not
-// buffered until Finish.
+// Off-TTY (pipes, mise batch): Plain + NoColor by default so captured logs have
+// no CSI (ColorAlways still forces color when requested).
 func Options(human io.Writer, color ColorMode, extra ...evo.Option) []evo.Option {
 	opts := []evo.Option{
 		evo.To(human),
 	}
-	if IsCharDevice(human) {
+	tty := IsCharDevice(human)
+	if tty {
 		opts = append(opts,
 			evo.Terminal(terminal.NewANSI(human,
 				terminal.WithInteractive(true),
@@ -74,9 +75,9 @@ func Options(human io.Writer, color ColorMode, extra ...evo.Option) []evo.Option
 	case ColorNever:
 		opts = append(opts, evo.NoColor())
 	case ColorAlways:
-		// emit color even when NO_COLOR is set (explicit demo request)
+		// emit color even when NO_COLOR is set or off-TTY (explicit demo request)
 	case ColorAuto:
-		if os.Getenv("NO_COLOR") != "" {
+		if os.Getenv("NO_COLOR") != "" || !tty {
 			opts = append(opts, evo.NoColor())
 		}
 	}

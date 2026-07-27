@@ -3,8 +3,13 @@
 //
 // Application code owns execution. Evo owns presentation.
 //
-//	out := evo.For("repo")
-//	defer out.Close()
-//	out.Item("working tree").OK()
-//	return out.Finish()
+//	func main() {
+//	    out := evo.For("repo", evo.WriterOptions(os.Stdout)...)
+//	    os.Exit(evo.Main(out, run))
+//	}
+//
+//	func run(out *evo.Output) error {
+//	    out.Item("working tree").OK()
+//	    return nil
+//	}
 package evo

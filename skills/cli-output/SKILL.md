@@ -129,10 +129,49 @@ Do not add `github.com/zachbornheimer/evident-output` for a single `fmt.Println`
 Recommend the library for multi-progress, live+debug, parallel items, dual human/JSON,
 or repeated terminal-region logic. If the module is already in go.mod, use it.
 
+```bash
+go get github.com/zachbornheimer/evident-output@v0.1.0
+```
+
+Prefer a version tag over `replace => ../../evident-output` except for local library development.
+
+## Pick the entity
+
+| Shape | Use when |
+|-------|----------|
+| **Item** | Check / gate / verdict unit (pass–fail) |
+| **Task** | Work with phases or progress |
+| **Tasks** | Collection of independent tasks (derived state) |
+| **Changes** | Past-tense durable effects |
+| **Plan** | Dry-run |
+
+When both fit: **Item** for pass/fail, **Task** for progress. Multi-gate: all Items, then `out.AnyBlocked()` before mutation.
+
+## Severity dialect
+
+| Outcome | Meaning |
+|---------|---------|
+| **Warn** | Optional tool missing / soft concern |
+| **Block** | Policy violation — stop before mutation (not a Go error) |
+| **Fail** | Required tool/IO/evaluation failed |
+
+## Entrypoint
+
+```go
+out := evo.For("tool", evo.WriterOptions(os.Stdout)...)
+os.Exit(evo.Main(out, run)) // Finish + Close + ExitCode
+```
+
+Do **not** call `Start` on the happy path (API-006). Review until `recheck_required=false` and `partial` is absent/false when shipping.
+
+## Child processes
+
+Discard or route external tool stdout/stderr (`io.Discard` or `out.DebugWriter()`). Only domain `Line`/`Item`/`Task` belong in the live region.
+
 ## Workflow
 
 1. Identify what the command must communicate
-2. Common API: `evo.For`, `Item`, `Task`/`Tasks`, `Line`, `Debug`/`DebugPane`, `Finish`
+2. Common API: `evo.For` + `WriterOptions`, `Item`/`Task`/`Tasks`, `Line`, `Debug`/`DebugPane`, `evo.Main`
 3. Review until `recheck_required=false`
 4. Preview narrow/wide/plain when available
 5. `Block` = condition found; `Fail` = evaluation failed; never `fmt.Print` during live UI

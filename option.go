@@ -11,26 +11,26 @@ type Option interface {
 }
 
 type config struct {
-	subject            string
-	primary            io.Writer
-	diagnostic         io.Writer
-	plain              bool
-	nonInteractive     bool
-	noColor            bool
-	width              int
-	clock              TimeSource
-	visibilityDelay    time.Duration
-	maxFrameRate       int
-	strict             bool
-	terminal           TerminalDriver
-	debugLevel         LogLevel
-	debugPresentation  DebugPresentation
-	debugPane          debugPaneConfig
-	redactor           Redactor
-	projection         ProjectionPolicy
-	maxEntities        int
-	maxEvents          int
-	extraWriters       []io.Writer
+	subject           string
+	primary           io.Writer
+	diagnostic        io.Writer
+	plain             bool
+	nonInteractive    bool
+	noColor           bool
+	width             int
+	clock             TimeSource
+	visibilityDelay   time.Duration
+	maxFrameRate      int
+	strict            bool
+	terminal          TerminalDriver
+	debugLevel        LogLevel
+	debugPresentation DebugPresentation
+	debugPane         debugPaneConfig
+	redactor          Redactor
+	projection        ProjectionPolicy
+	maxEntities       int
+	maxEvents         int
+	extraWriters      []io.Writer
 }
 
 type optionFunc func(*config)

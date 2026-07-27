@@ -182,7 +182,7 @@ Status: untested | red | pass | waived
 | MCP-013 | v0.5 | mcp review stream | pass |  |
 | MCP-014 | v0.5 | agent/review TestMCP014_* + harness blocked-as-error | pass |  |
 | MCP-015 | v0.5 | review location | pass |  |
-| MCP-016 | v0.5 | waived_closeout_test.go TestMCP016_PartialTypeinfoMarked | pass |  |
+| MCP-016 | v0.5 | waived_closeout_test.go TestMCP016_PartialOnlyWhenAnalysisIncomplete | pass | Partial only when analysis incomplete; not merely because evo is imported |
 | MCP-017 | v0.5 | agent/review.GoPackage + review_test.go TestGoPackage_CrossFileTypes | pass |  |
 | MCP-018 | v0.5 | agent/review.Transcript + review_test.go | pass |  |
 | MCP-019 | v0.5 | agent/review.StructuredDocument + review_test.go | pass |  |

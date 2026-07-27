@@ -26,13 +26,30 @@ func All() []Guide {
 		{
 			ID:       "common-api",
 			Title:    "Common API path",
-			UseCases: []string{"items", "finish", "block", "ok"},
-			Concepts: []string{"Output", "Item", "Conclusion"},
-			Rules:    []string{"API-001", "DOM-006", "DOM-007"},
-			Body: `Use evo.For(subject), declare Items, resolve with OK/Block/Fail, then Finish.
-Do not configure advanced specs for ordinary report commands.
-Blocked means evaluation succeeded and found a blocker; Fail means evaluation failed.`,
-			TokenEstimate: 120,
+			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
+			Concepts: []string{"Output", "Item", "Conclusion", "Main"},
+			Rules:    []string{"API-001", "API-006", "API-026", "DOM-006", "DOM-007", "DOM-011"},
+			Body: `Use evo.For(subject), resolve Items with OK/Block/Warn/Fail, then seal with evo.Main:
+
+  os.Exit(evo.Main(out, run))  // Finish + Close + ExitCode; presentation err → 2
+
+Pick the entity:
+  Item     — check / gate / verdict unit (pass-fail)
+  Task     — work with phases or progress
+  Tasks    — collection of independent tasks (state derived)
+  Changes  — past-tense durable effects that happened
+  Plan     — dry-run would-happen effects
+
+Severity dialect:
+  Warn  — optional tool missing or soft concern; command can continue
+  Block — policy / precondition failed; stop before mutation (not a Go error)
+  Fail  — evaluation or required tool failed; command cannot complete honestly
+
+Blocked means evaluation succeeded and found a blocker; Fail means evaluation failed.
+Do not call explicit Start (API-006). No RunAll/Map/Retry on evo (API-026).
+Multi-gate: run all Items, then if out.AnyBlocked() skip mutation; Main maps ExitCode.
+Child processes: discard or route tool stderr to Diagnostics/Debug — only domain Line/Item belong in the live region.`,
+			TokenEstimate: 280,
 		},
 		{
 			ID:       "tasks",
@@ -40,21 +57,23 @@ Blocked means evaluation succeeded and found a blocker; Fail means evaluation fa
 			UseCases: []string{"progress", "collections", "phase", "bytes"},
 			Concepts: []string{"Task", "Tasks", "Progress"},
 			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017"},
-			Body: `Task is one operation. Tasks is a collection whose state is derived from children.
+			Body: `Task is one operation with optional Phase/Progress. Tasks is a collection whose state is derived from children.
+Prefer Item for sequential pass/fail gates; Task when the user should see progress/phase.
 Prefer Progress(completed,total) and Bytes(completed,total). Use Advance for deltas only.
-Never call Done/Fail on a Tasks collection.`,
-			TokenEstimate: 140,
+Never call Done/Fail on a Tasks collection. Long-running work: call Phase periodically (no automatic heartbeat yet).`,
+			TokenEstimate: 160,
 		},
 		{
 			ID:       "streams",
 			Title:    "Stdout and stderr contracts",
-			UseCases: []string{"json", "data-command", "progress-stderr"},
-			Concepts: []string{"Projection", "Plain", "JSON"},
+			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child"},
+			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "WriterOptions"},
 			Rules:    []string{"STREAM-003", "OUT-001", "OUT-003", "OUT-004"},
 			Body: `Human UI and logs must not contaminate structured stdout.
-Use Plain/NonInteractive for CI. EncodeJSON/EncodeJSONL for machines.
-Avoid fmt.Print during live UI; use out.Line, Debug, or SlogHandler.`,
-			TokenEstimate: 130,
+Use Plain/NonInteractive for CI. evo.WriterOptions(w) applies Plain+NoColor for non-TTY *os.File (pipes).
+EncodeJSON/EncodeJSONL for machines. Avoid fmt.Print during live UI; use out.Line, Debug, or SlogHandler.
+Child process Output: set cmd.Stdout/Stderr to io.Discard or wrap with DebugWriter — default Run litter pollutes the session.`,
+			TokenEstimate: 160,
 		},
 		{
 			ID:       "security",

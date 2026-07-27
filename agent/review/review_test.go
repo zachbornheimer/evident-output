@@ -134,6 +134,80 @@ func check() error {
 	}
 }
 
+func TestAPI026_NoFalsePositiveOnStringsMap(t *testing.T) {
+	// Consumer feedback: substring ".Map(" fired on strings.Map and comments.
+	src := `package p
+import (
+  "strings"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  // example: tasks.Map() is not real — do not flag this comment either
+  slug := strings.Map(func(r rune) rune { return r }, "ABC")
+  out := evo.For("x")
+  out.Item(slug).OK()
+  _ = out.Finish()
+}
+`
+	res := review.GoSource("slug.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-026" {
+			t.Fatalf("false positive API-026 on strings.Map: %+v", res.Findings)
+		}
+	}
+	if res.Partial {
+		t.Fatal("clean single-file review must not set partial=true")
+	}
+	if res.RecheckRequired {
+		t.Fatalf("unexpected recheck: %+v", res.Findings)
+	}
+}
+
+func TestAPI026_DetectsEvoExecutionHelper(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  out := evo.New()
+  out.Tasks("jobs").Map(func() {})
+}
+`
+	res := review.GoSource("bad.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-026" {
+			found = true
+			if f.Line == 0 {
+				t.Error("API-026 missing line")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-026 on Tasks.Map: %+v", res.Findings)
+	}
+}
+
+func TestAPI018_AllowsMainAndExitCode(t *testing.T) {
+	src := `package main
+import (
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func main() {
+  out := evo.For("t")
+  os.Exit(evo.Main(out, func(o *evo.Output) error {
+    o.Item("x").OK()
+    return nil
+  }))
+}
+`
+	res := review.GoSource("main.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-018" {
+			t.Fatalf("false positive API-018 on evo.Main: %+v", res.Findings)
+		}
+	}
+}
+
 func TestGoPackage_CrossFileTypes(t *testing.T) {
 	// MCP-017: two files, shared package — review resolves across files.
 	files := map[string]string{

@@ -37,25 +37,16 @@ func main() {
 			evo.DebugHistory(),
 		)...,
 	)
-	defer out.Close()
+	os.Exit(evo.Main(out, func(o *evo.Output) error {
+		time.Sleep(step)
+		o.Debug("opened repository", evo.String("path", "/work/bpp-csharp"))
+		o.Item("working tree").OK()
 
-	wt := out.Item("working tree")
-	br := out.Item("branches")
-	wt.Start()
-	time.Sleep(step)
-	out.Debug("opened repository", evo.String("path", "/work/bpp-csharp"))
-	wt.OK()
-
-	br.Start()
-	time.Sleep(step)
-	out.Debug("enumerated local branches", evo.Int("count", 7))
-	time.Sleep(step)
-	out.Debug("branch comparison completed", evo.Int("blockers", 0), evo.String("duration", "11ms"))
-	br.OK()
-
-	if err := out.Finish(); err != nil {
-		fmt.Fprintln(os.Stderr, "presentation error:", err)
-		os.Exit(1)
-	}
-	os.Exit(out.Conclusion().ExitCode)
+		time.Sleep(step)
+		o.Debug("enumerated local branches", evo.Int("count", 7))
+		time.Sleep(step)
+		o.Debug("branch comparison completed", evo.Int("blockers", 0), evo.String("duration", "11ms"))
+		o.Item("branches").OK()
+		return nil
+	}))
 }

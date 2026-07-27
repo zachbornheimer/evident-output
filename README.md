@@ -7,27 +7,65 @@ Application code owns execution. Package `evo` owns presentation only.
 ## Quick start
 
 ```go
-import evo "github.com/zachbornheimer/evident-output"
-
-out := evo.For("bpp-csharp")
-defer out.Close()
-
-out.Item("working tree").OK()
-out.Item("branches").Block(
-    "local-only branch",
-    evo.Detail("commit or stash before continuing"),
+import (
+    "os"
+    evo "github.com/zachbornheimer/evident-output"
 )
-return out.Finish() // also try: out.Task / out.Tasks / out.Changes / out.Plan
+
+func main() {
+    out := evo.For("bpp-csharp", evo.WriterOptions(os.Stdout)...)
+    os.Exit(evo.Main(out, run))
+}
+
+func run(out *evo.Output) error {
+    out.Item("working tree").OK()
+    out.Item("branches").Block(
+        "local-only branch",
+        evo.Detail("commit or stash before continuing"),
+    )
+    return nil // Block is a presentation outcome, not a Go error
+}
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@latest
+go get github.com/zachbornheimer/evident-output@v0.1.0
+# or @latest once tagged
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
 
+`evo.Main` owns Finish + Close + exit-code mapping so every binary is not six lines of teardown.  
+`evo.WriterOptions(w)` turns on **Plain + NoColor** for non-TTY `*os.File` (pipes/files) so agent log capture stays free of CSI.
+
+## Pick the entity
+
+| Shape | Use when |
+|-------|----------|
+| **Item** | Check / gate / verdict unit (pass–fail) |
+| **Task** | Work with phases or progress |
+| **Tasks** | Collection of independent tasks (state is **derived**) |
+| **Changes** | Past-tense durable effects that happened |
+| **Plan** | Dry-run would-happen effects |
+
+When both Item and Task fit: prefer **Item** for pass/fail gates, **Task** for progress. Multi-gate: resolve every Item, then `if out.AnyBlocked() { return nil }` before mutation; `Main` maps `ExitCode`.
+
+## Severity dialect
+
+| Outcome | Meaning |
+|---------|---------|
+| **Warn** | Soft concern or **optional** tool missing; command may continue |
+| **Block** | Policy / precondition failed; **stop before mutation** (evaluation succeeded) |
+| **Fail** | Evaluation failed or **required** tool/IO failed |
+
+`Block` ≠ Go `error`. After Block, return nil from `run` and let `Main` exit `1`.
+
+## Child processes
+
+Keep external tool chatter off the live region: set `cmd.Stdout` / `cmd.Stderr` to `io.Discard`, or wrap with `out.DebugWriter()`. Only domain `Line` / `Item` / `Task` belong in the human UI.
+
 ## Status
 
+**Release:** **v0.1.0** (module path above; no `replace` required for consumers).  
 **Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).  
 **Implemented surface:** v0.3–v0.4 core (library, interactive VT, debug history/pane, real CLI, hardened MCP, §31 automated rows test-gated). External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 
@@ -54,8 +92,9 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 | `Problem` | Structured evidence for warn / block / fail |
 | `Changes` / `Plan` | Effects that happened vs would happen |
 | `Conclusion` | Headline + `Changed` / `Partial` / `Cancelled` + exit code |
+| `Main` | Finish + Close + process exit code for CLI entrypoints |
 
-Do **not** put schedulers, `RunAll`, retries, or shell execution in this library.
+Do **not** put schedulers, `RunAll`, retries, or shell execution in this library. Review rule **API-026** flags those helpers only on evo receivers (AST), not `strings.Map`.
 
 ## Develop
 

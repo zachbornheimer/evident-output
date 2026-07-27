@@ -42,8 +42,11 @@ grok mcp doctor evident-output --json
 
 ## Rules of thumb
 
-- Presentation only — no schedulers or `RunAll`
-- `Block` = condition found; `Fail` = evaluation failed
+- Presentation only — no schedulers or `RunAll` / `Map` / `Retry` (API-026, AST-only)
+- `os.Exit(evo.Main(out, run))` for teardown; `WriterOptions` for pipe-safe NoColor
+- Entity: Item = gate, Task = progress, Changes = did, Plan = would
+- `Block` = condition found; `Fail` = evaluation failed; `Warn` = optional/soft
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
-- Never `fmt.Print` during live UI
+- Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
+- Child process chatter → discard or DebugWriter
 - Sanitize is automatic; keep secrets in `Cause`, not `Detail`

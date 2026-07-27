@@ -179,14 +179,25 @@ func TestTERM007_ShortWriteDisablesInteractive(t *testing.T) {
 	}
 }
 
-func TestMCP016_PartialTypeinfoMarked(t *testing.T) {
+func TestMCP016_PartialOnlyWhenAnalysisIncomplete(t *testing.T) {
+	// Consumer feedback: partial=true + recheck_required=false trained people to ignore review.
+	// GoSource fully implements its AST rules — Partial is false when analysis completes.
+	// Partial remains for GoPackage typecheck failure / empty input.
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f() { evo.New() }
 `
 	res := review.GoSource("p.go", src)
-	if !res.Partial {
-		t.Fatal("single-file AST without types must set Partial")
+	if res.Partial {
+		t.Fatal("complete single-file GoSource must not set Partial merely because evo is imported")
+	}
+	if res.RecheckRequired {
+		t.Fatalf("clean source: %+v", res.Findings)
+	}
+	// Incomplete package analysis still marks Partial.
+	pkg := review.GoPackage(map[string]string{})
+	if !pkg.Partial && !pkg.RecheckRequired {
+		t.Fatal("empty GoPackage should signal incomplete analysis")
 	}
 }
 
