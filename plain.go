@@ -130,15 +130,16 @@ func writeAction(b *strings.Builder, a Action, color bool) {
 func writeTask(b *strings.Builder, t TaskSnapshot, color bool) {
 	glyph := styleGlyph(taskGlyph(t.State), stateColor(t.State), color)
 	label := t.Name
-	if t.Summary != "" {
+	switch {
+	case t.Summary != "":
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, dim(t.Summary, color))
-		return
-	}
-	if t.Phase != "" && t.State == Running {
+	case t.Phase != "" && t.State == Running:
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, dim(t.Phase, color))
-		return
+	default:
+		fmt.Fprintf(b, "%s  %s\n", glyph, label)
 	}
-	fmt.Fprintf(b, "%s  %s\n", glyph, label)
+	// Problems (including Detail from Capture tails) always follow the row.
+	// Early-return on Summary used to drop Fail Detail — a silent dialect hole.
 	for _, p := range t.Problems {
 		writeProblem(b, p, color)
 	}

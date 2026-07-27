@@ -166,7 +166,14 @@ Do **not** call `Start` on the happy path (API-006). Review until `recheck_requi
 
 ## Child processes
 
-Discard or route external tool stdout/stderr (`io.Discard` or `out.DebugWriter()`). Only domain `Line`/`Item`/`Task` belong in the live region.
+```go
+cap := out.Capture()
+err := run.Run(ctx, "brew", args, cap)
+// on error:
+task.Fail("…", evo.Cause(err), evo.DetailTail(cap))
+```
+
+Do **not** hand-thread `DebugWriter` for child tools (default `DebugLevel` drops lines). Do **not** put writers in `context.Context`. Only domain `Line`/`Item`/`Task` belong in the live region.
 
 ## Workflow
 

@@ -70,10 +70,12 @@ Never call Done/Fail on a Tasks collection. Long-running work: call Phase period
 			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "WriterOptions"},
 			Rules:    []string{"STREAM-003", "OUT-001", "OUT-003", "OUT-004"},
 			Body: `Human UI and logs must not contaminate structured stdout.
-Use Plain/NonInteractive for CI. evo.WriterOptions(w) applies Plain+NoColor for non-TTY *os.File (pipes).
-EncodeJSON/EncodeJSONL for machines. Avoid fmt.Print during live UI; use out.Line, Debug, or SlogHandler.
-Child process Output: set cmd.Stdout/Stderr to io.Discard or wrap with DebugWriter — default Run litter pollutes the session.`,
-			TokenEstimate: 160,
+Use evo.WriterOptions(os.Stdout, evo.Diagnostics(os.Stderr)) for dual-stream CLIs.
+WriterOptions applies Plain+NoColor for non-TTY *os.File (pipes). Diagnostics receives Debug and Capture mirrors.
+Child processes: cap := out.Capture(); run.Run(ctx, name, args, cap); on error Fail(..., evo.Cause(err), evo.DetailTail(cap)).
+Do not hand-thread DebugWriter for brew/git — default DebugLevel drops it and it is the wrong dialect.
+EncodeJSON/EncodeJSONL for machines. Avoid fmt.Print during live UI.`,
+			TokenEstimate: 180,
 		},
 		{
 			ID:       "security",

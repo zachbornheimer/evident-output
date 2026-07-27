@@ -61,7 +61,20 @@ When both Item and Task fit: prefer **Item** for pass/fail gates, **Task** for p
 
 ## Child processes
 
-Keep external tool chatter off the live region: set `cmd.Stdout` / `cmd.Stderr` to `io.Discard`, or wrap with `out.DebugWriter()`. Only domain `Line` / `Item` / `Task` belong in the human UI.
+Keep external tool chatter off the live region. Prefer **`out.Capture()`** (Output-owned sink), not a hand-threaded `DebugWriter` and not `context`:
+
+```go
+cap := out.Capture() // ring buffer + optional Diagnostics mirror
+if err := run.Run(ctx, "brew", []string{"upgrade", "--formula"}, cap); err != nil {
+    task.Fail("brew upgrade failed", evo.Cause(err), evo.DetailTail(cap))
+    return nil
+}
+task.Done()
+```
+
+- `Capture` never paints the live region; `Tail` is for Fail/Block Detail.
+- With `Diagnostics(os.Stderr)`, capture lines also land on the diagnostic stream (LaunchAgent logs).
+- `DebugWriter` is only for intentional DEBUG journal lines (`DebugLevel(Debug)`); default level drops them.
 
 ## Status
 

@@ -42,7 +42,10 @@ func To(w io.Writer) Option {
 	return optionFunc(func(c *config) { c.primary = w })
 }
 
-// Diagnostics sets the diagnostic writer.
+// Diagnostics sets the diagnostic writer for Debug history and Capture mirrors.
+// When set and distinct from the primary writer (To), Debug lines are not also
+// written to the human primary stream — use dual-stream for LaunchAgent /
+// data-command layouts (human on stdout, diagnostics on stderr).
 func Diagnostics(w io.Writer) Option {
 	return optionFunc(func(c *config) { c.diagnostic = w })
 }

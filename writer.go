@@ -24,15 +24,17 @@ func IsCharDevice(w io.Writer) bool {
 
 // WriterOptions returns presentation options appropriate for human writer w.
 //
-// On a TTY: color allowed (unless NO_COLOR is set by the process environment —
-// callers that want env policy should pass NoColor themselves or use examples/demo).
-// Off-TTY (pipe, file, bytes.Buffer is NOT auto-detected here): when w is an
-// *os.File that is not a char device, returns Plain + NoColor so piped logs stay
-// free of CSI. Non-file writers (buffers, multi-writers) are left unchanged so
-// tests can still assert color rendering.
+// On a TTY: color allowed (callers that honor NO_COLOR should pass NoColor
+// themselves when the env is set). Off-TTY (*os.File that is not a char device):
+// Plain + NoColor so piped/agent logs stay free of CSI. Non-file writers (buffers)
+// are left unchanged so tests can still assert color rendering.
 //
-// Always includes To(w). Extra options are appended and win over defaults when
-// they conflict (last Option applied in New/For order — pass extra after).
+// Always includes To(w). Pass Diagnostics(os.Stderr) in extra for dual-stream
+// CLIs — Debug and Capture mirrors go to Diagnostics; Items/Tasks stay on w.
+// Extra options are applied after defaults (they win on conflicts when options
+// overwrite the same field).
+//
+//	out := evo.For("tool", evo.WriterOptions(os.Stdout, evo.Diagnostics(os.Stderr))...)
 func WriterOptions(w io.Writer, extra ...Option) []Option {
 	opts := []Option{To(w)}
 	if f, ok := w.(*os.File); ok {

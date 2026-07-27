@@ -481,6 +481,10 @@ func (o *Output) NextCommand(executable string, args ...string) {
 // History mode (default): durable scrollback above the live region (or plain stream).
 // Pane mode: record is journaled and shown in the rolling live pane; not durable
 // scrollback unless a diagnostic tail is preserved at Finish.
+//
+// When Diagnostics is configured and is a different writer than the primary stream,
+// debug lines go to Diagnostics only (not the human Items/Tasks stream). Use
+// Capture for child-process evidence instead of DebugWriter when you need Fail Detail.
 func (o *Output) Debug(message string, fields ...Field) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -507,10 +511,22 @@ func (o *Output) Debug(message string, fields ...Field) {
 	}
 	o.debugRecords = append(o.debugRecords, rec)
 	history := formatHistoryLine(rec, !o.cfg.noColor)
+	plainHistory := formatHistoryLine(rec, false)
 	// Keep plain history text (no SGR) in lines for FinalPlain / machines.
-	o.lines = append(o.lines, formatHistoryLine(rec, false))
+	o.lines = append(o.lines, plainHistory)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "log.emitted"})
+
+	// Dual-stream: Diagnostics gets debug; primary stays human-only.
+	dual := o.cfg.diagnostic != nil && o.cfg.primary != nil && o.cfg.diagnostic != o.cfg.primary
+	if o.cfg.diagnostic != nil {
+		o.writeDiagnosticTextLocked(plainHistory + "\n")
+	}
+	if dual {
+		// Journal retained; do not also paint debug onto the human primary stream.
+		o.linesEmitted = len(o.lines)
+		return
+	}
 
 	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
 	if interactive && o.cfg.debugPresentation == DebugPresentationPane {
@@ -527,6 +543,26 @@ func (o *Output) Debug(message string, fields ...Field) {
 		o.writeDurableTextLocked(history + "\n")
 	}
 	o.linesEmitted = len(o.lines)
+}
+
+// writeDiagnosticText emits text on the Diagnostics writer (thread-safe).
+func (o *Output) writeDiagnosticText(text string) {
+	if o == nil || text == "" {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.writeDiagnosticTextLocked(text)
+}
+
+func (o *Output) writeDiagnosticTextLocked(text string) {
+	if o.cfg.diagnostic == nil || text == "" {
+		return
+	}
+	_, _ = io.WriteString(o.cfg.diagnostic, text)
+	if f, ok := o.cfg.diagnostic.(flusher); ok {
+		_ = f.Flush()
+	}
 }
 
 // formatDebug is retained for call sites that only need a message/fields pair without a clock.
