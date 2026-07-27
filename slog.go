@@ -5,7 +5,8 @@ import (
 	"log/slog"
 )
 
-// SlogHandler returns a slog.Handler that routes records through Output.Debug/Info lines.
+// SlogHandler returns a slog.Handler that routes records through Output without
+// mutating Output configuration.
 func (o *Output) SlogHandler(min slog.Leveler) slog.Handler {
 	level := slog.LevelInfo
 	if min != nil {
@@ -15,9 +16,8 @@ func (o *Output) SlogHandler(min slog.Leveler) slog.Handler {
 }
 
 type slogBridge struct {
-	out *Output
-	min slog.Level
-	// group prefix for WithGroup
+	out   *Output
+	min   slog.Level
 	group string
 	attrs []slog.Attr
 }
@@ -28,6 +28,7 @@ func (h *slogBridge) Enabled(_ context.Context, level slog.Level) bool {
 
 func (h *slogBridge) Handle(_ context.Context, r slog.Record) error {
 	fields := make([]Field, 0, r.NumAttrs()+len(h.attrs))
+	// WithAttrs already carry any group prefix applied at WithAttrs time.
 	for _, a := range h.attrs {
 		fields = append(fields, Field{Key: a.Key, Value: a.Value.Any()})
 	}
@@ -48,24 +49,22 @@ func (h *slogBridge) Handle(_ context.Context, r slog.Record) error {
 	case r.Level >= slog.LevelInfo:
 		h.out.Info(msg, fields...)
 	default:
-		// Ensure debug is not filtered by Output.debugLevel when handler accepted it.
-		h.out.mu.Lock()
-		prev := h.out.cfg.debugLevel
-		if prev > LevelDebug {
-			h.out.cfg.debugLevel = LevelDebug
-		}
-		h.out.mu.Unlock()
-		h.out.Debug(msg, fields...)
-		h.out.mu.Lock()
-		h.out.cfg.debugLevel = prev
-		h.out.mu.Unlock()
+		// Debug/Trace: journal without temporarily mutating cfg.debugLevel.
+		h.out.debugForced(msg, fields...)
 	}
 	return nil
 }
 
 func (h *slogBridge) WithAttrs(attrs []slog.Attr) slog.Handler {
 	cp := *h
-	cp.attrs = append(append([]slog.Attr{}, h.attrs...), attrs...)
+	prefixed := make([]slog.Attr, 0, len(attrs))
+	for _, a := range attrs {
+		if h.group != "" {
+			a.Key = h.group + "." + a.Key
+		}
+		prefixed = append(prefixed, a)
+	}
+	cp.attrs = append(append([]slog.Attr{}, h.attrs...), prefixed...)
 	return &cp
 }
 

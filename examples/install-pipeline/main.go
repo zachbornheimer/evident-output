@@ -46,7 +46,7 @@ func main() {
 		if *failTests {
 			fmt.Fprintln(output, "--- FAIL: TestFoo (0.01s)")
 			fmt.Fprintln(output, "    foo_test.go:12: want 1, got 0")
-			tests.Fail("2 packages failed", output.DetailTail())
+			tests.Fail("tests failed", output.DetailTail())
 			return nil
 		}
 		tests.Progress(12, 12)

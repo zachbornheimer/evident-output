@@ -99,7 +99,7 @@ func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			w := out.DebugWriter()
-			_, _ = w.Write([]byte("line\n"))
+			w.Write([]byte("line\n"))
 			_ = w.Close()
 		}(i)
 	}

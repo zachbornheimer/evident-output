@@ -49,36 +49,34 @@ func (o *Output) Verbose() *Printer {
 }
 
 // Print formats like fmt.Sprint and enqueues human-facing text (line-buffered).
-func (o *Output) Print(args ...any) (int, error) {
-	return o.At(Normal).Print(args...)
+// Errors are recorded on the Output and returned by Finish/Main — not ignored mid-stream.
+func (o *Output) Print(args ...any) {
+	o.At(Normal).Print(args...)
 }
 
 // Printf formats like fmt.Sprintf and enqueues human-facing text (line-buffered).
-func (o *Output) Printf(format string, args ...any) (int, error) {
-	return o.At(Normal).Printf(format, args...)
+func (o *Output) Printf(format string, args ...any) {
+	o.At(Normal).Printf(format, args...)
 }
 
 // Println formats like fmt.Sprintln and enqueues a complete human-facing line.
-func (o *Output) Println(args ...any) (int, error) {
-	return o.At(Normal).Println(args...)
+func (o *Output) Println(args ...any) {
+	o.At(Normal).Println(args...)
 }
 
 // Print implements Printer.
-func (p *Printer) Print(args ...any) (int, error) {
-	s := fmt.Sprint(args...)
-	return p.enqueue(s)
+func (p *Printer) Print(args ...any) {
+	p.enqueue(fmt.Sprint(args...))
 }
 
 // Printf implements Printer.
-func (p *Printer) Printf(format string, args ...any) (int, error) {
-	s := fmt.Sprintf(format, args...)
-	return p.enqueue(s)
+func (p *Printer) Printf(format string, args ...any) {
+	p.enqueue(fmt.Sprintf(format, args...))
 }
 
 // Println implements Printer.
-func (p *Printer) Println(args ...any) (int, error) {
-	s := fmt.Sprintln(args...)
-	return p.enqueue(s)
+func (p *Printer) Println(args ...any) {
+	p.enqueue(fmt.Sprintln(args...))
 }
 
 // Writer returns an io.Writer that feeds this printer's line buffer.
@@ -96,55 +94,74 @@ type printWriter struct {
 }
 
 func (w *printWriter) Write(b []byte) (int, error) {
-	n, err := w.p.enqueue(string(b))
-	if err != nil {
-		return n, err
+	if w.p == nil {
+		return 0, fmt.Errorf("evo: nil printer")
 	}
+	w.p.enqueue(string(b))
 	return len(b), nil
 }
 
-func (p *Printer) enqueue(s string) (int, error) {
+func (p *Printer) enqueue(s string) {
 	if p == nil || p.out == nil {
-		return 0, fmt.Errorf("evo: nil printer")
+		return
 	}
-	n := len(s)
 	p.out.mu.Lock()
 	defer p.out.mu.Unlock()
 	if err := p.out.ensureOpen(); err != nil {
 		p.out.recordMisuse(err)
-		return n, err
+		return
 	}
 	// Normalize CRLF → LF for line splitting.
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
 
-	buf := &p.out.pendingPrint
-	if p.visibility == Verbose {
-		buf = &p.out.pendingVerbose
+	// Single ordered pending stream so Normal/Verbose interleaving preserves call order.
+	// Visibility is attached when each complete line is emitted.
+	type frag struct {
+		vis  Visibility
+		text string
 	}
-	buf.WriteString(s)
-	if buf.Len() > maxPendingPrintBytes {
-		// Force-complete with truncation marker.
-		line := buf.String()
-		buf.Reset()
+	// Flush any pending from the other visibility before switching (ordering).
+	if p.out.pendingVis != p.visibility && (p.out.pendingPrint.Len() > 0) {
+		// pendingPrint holds the current fragment for pendingVis.
+	}
+	if p.out.pendingVis != p.visibility && p.out.pendingPrint.Len() > 0 {
+		// Keep one buffer; visibility switch flushes incomplete fragment as a line.
+		line := p.out.pendingPrint.String()
+		p.out.pendingPrint.Reset()
+		p.out.emitMessageLocked(line, p.out.pendingVis)
+	}
+	p.out.pendingVis = p.visibility
+
+	// Split complete lines first; only then bound the unfinished fragment.
+	for len(s) > 0 {
+		i := strings.IndexByte(s, '\n')
+		if i < 0 {
+			p.out.pendingPrint.WriteString(s)
+			if p.out.pendingPrint.Len() > maxPendingPrintBytes {
+				line := p.out.pendingPrint.String()
+				p.out.pendingPrint.Reset()
+				if len(line) > maxPendingPrintBytes {
+					line = line[:maxPendingPrintBytes] + pendingTruncMarker
+				}
+				p.out.emitMessageLocked(line, p.visibility)
+			}
+			return
+		}
+		// Complete line = pending fragment + s[:i]
+		var line string
+		if p.out.pendingPrint.Len() > 0 {
+			line = p.out.pendingPrint.String() + s[:i]
+			p.out.pendingPrint.Reset()
+		} else {
+			line = s[:i]
+		}
 		if len(line) > maxPendingPrintBytes {
 			line = line[:maxPendingPrintBytes] + pendingTruncMarker
 		}
 		p.out.emitMessageLocked(line, p.visibility)
-		return n, nil
+		s = s[i+1:]
 	}
-	for {
-		raw := buf.String()
-		i := strings.IndexByte(raw, '\n')
-		if i < 0 {
-			break
-		}
-		line := raw[:i]
-		buf.Reset()
-		buf.WriteString(raw[i+1:])
-		p.out.emitMessageLocked(line, p.visibility)
-	}
-	return n, nil
 }
 
 func (o *Output) emitMessageLocked(line string, vis Visibility) {
@@ -198,12 +215,8 @@ func (o *Output) flushPendingPrintLocked() {
 	if o.pendingPrint.Len() > 0 {
 		line := o.pendingPrint.String()
 		o.pendingPrint.Reset()
-		o.emitMessageLocked(line, Normal)
-	}
-	if o.pendingVerbose.Len() > 0 {
-		line := o.pendingVerbose.String()
-		o.pendingVerbose.Reset()
-		o.emitMessageLocked(line, Verbose)
+		vis := o.pendingVis
+		o.emitMessageLocked(line, vis)
 	}
 }
 

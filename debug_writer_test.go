@@ -14,7 +14,7 @@ func TestDebugWriter_SplitsLinesAndSanitizes(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	w := out.DebugWriter()
-	_, _ = w.Write([]byte("hello\x1b[31m\npartial"))
+	w.Write([]byte("hello\x1b[31m\npartial"))
 	_ = w.Close()
 	_ = out.Finish()
 

@@ -11,8 +11,8 @@ import (
 func TestPrint_MatchesFmtConstruction(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
-	_, _ = out.Printf("Found %d packages\n", 18)
-	_, _ = out.Println("done")
+	out.Printf("Found %d packages\n", 18)
+	out.Println("done")
 	_ = out.Finish()
 	s := buf.String()
 	if !strings.Contains(s, "Found 18 packages") || !strings.Contains(s, "done") {
@@ -27,9 +27,9 @@ func TestPrint_MatchesFmtConstruction(t *testing.T) {
 func TestPrint_FragmentsCombine(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
-	_, _ = out.Print("down")
-	_, _ = out.Print("loading")
-	_, _ = out.Print("...\n")
+	out.Print("down")
+	out.Print("loading")
+	out.Print("...\n")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "downloading...") {
 		t.Fatalf("%s", buf.String())
@@ -42,7 +42,7 @@ func TestPrint_FragmentsCombine(t *testing.T) {
 func TestPrint_TrailingFragmentFlushedAtFinish(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
-	_, _ = out.Print("partial-no-nl")
+	out.Print("partial-no-nl")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "partial-no-nl") {
 		t.Fatalf("%s", buf.String())
@@ -52,8 +52,8 @@ func TestPrint_TrailingFragmentFlushedAtFinish(t *testing.T) {
 func TestVerbose_HiddenAtNormal(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
-	_, _ = out.Println("visible")
-	_, _ = out.Verbose().Println("hidden detail")
+	out.Println("visible")
+	out.Verbose().Println("hidden detail")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "visible") {
 		t.Fatal("normal missing")
@@ -80,7 +80,7 @@ func TestVerbose_ShownWhenConfigured(t *testing.T) {
 		Stderr:    &buf,
 		Verbosity: evo.VerbosityVerbose,
 	})
-	_, _ = out.Verbose().Printf("Cache: %s\n", "/tmp/x")
+	out.Verbose().Printf("Cache: %s\n", "/tmp/x")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "Cache: /tmp/x") {
 		t.Fatalf("%s", buf.String())
@@ -90,7 +90,7 @@ func TestVerbose_ShownWhenConfigured(t *testing.T) {
 func TestPrint_CRLFAndSanitize(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
-	_, _ = out.Print("a\r\nb\x1b[31mx\n")
+	out.Print("a\r\nb\x1b[31mx\n")
 	_ = out.Finish()
 	s := buf.String()
 	if strings.Contains(s, "\r") {
@@ -105,7 +105,7 @@ func TestPrint_WriterAdapter(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
 	w := out.Writer()
-	_, _ = w.Write([]byte("from-writer\n"))
+	w.Write([]byte("from-writer\n"))
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "from-writer") {
 		t.Fatal(buf.String())

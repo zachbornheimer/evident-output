@@ -147,9 +147,9 @@ func resolveConfig(c Config) Config {
 	if c.Stderr == nil {
 		c.Stderr = os.Stderr
 	}
-	if c.Debug.Level == 0 && base.Debug.Level != 0 {
-		// LevelTrace is 0; treat unset as LevelInfo unless caller set LevelTrace
-		// explicitly via NewWithOptions. For Config, 0 means LevelInfo.
+	// Config.Debug.Level zero means "unset" → LevelInfo. LevelTrace cannot be
+	// selected via Config zero-value; use NewWithOptions(DebugLevel(LevelTrace)).
+	if c.Debug.Level == 0 {
 		c.Debug.Level = LevelInfo
 	}
 	if c.Width <= 0 {
@@ -230,10 +230,32 @@ func configToOptions(c Config) []Option {
 	if c.Terminal != nil {
 		opts = append(opts, Terminal(c.Terminal))
 	} else if wantLive {
-		opts = append(opts, Terminal(terminal.NewANSI(liveWriter,
-			terminal.WithInteractive(true),
-			terminal.WithSize(c.Width, 24),
-		)))
+		width, height := c.Width, 24
+		if width <= 0 {
+			width = defaultWidth
+		}
+		// Prefer real terminal dimensions when liveWriter is a TTY *os.File.
+		if f, ok := liveWriter.(*os.File); ok {
+			if tw, th, ok := terminal.Size(f); ok {
+				// Caller Width>0 is a deterministic override; otherwise use real cols.
+				if c.Width <= 0 || c.Width == defaultWidth {
+					width = tw
+				}
+				height = th
+			} else {
+				// Cannot establish size safely — fall back to plain progressive.
+				wantLive = false
+			}
+		}
+		if wantLive {
+			opts = append(opts, Terminal(terminal.NewANSI(liveWriter,
+				terminal.WithInteractive(true),
+				terminal.WithSize(width, height),
+			)))
+			opts = append(opts, Width(width))
+		} else {
+			opts = append(opts, Plain())
+		}
 	} else {
 		opts = append(opts, Plain())
 	}

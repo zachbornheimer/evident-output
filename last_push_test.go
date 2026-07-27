@@ -116,7 +116,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	out.Item("a").OK()
 	out.Debug("d")
 	_ = out.Finish()
-	_, _ = evo.EncodeJSON(out.Snapshot())
+	evo.EncodeJSON(out.Snapshot())
 }
 
 func TestCON016_ChildOrderPreserved(t *testing.T) {

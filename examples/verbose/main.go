@@ -22,11 +22,11 @@ func main() {
 	}
 	out := evo.New(cfg)
 	os.Exit(evo.Main(out, func(o *evo.Output) error {
-		_, _ = o.Println("Reading configuration")
-		_, _ = o.Printf("Found %d packages\n", 18)
+		o.Println("Reading configuration")
+		o.Printf("Found %d packages\n", 18)
 		// Hidden unless --verbose (still present in Snapshot.Messages).
-		_, _ = o.Verbose().Printf("Cache: %s\n", "/var/cache/packages")
-		_, _ = o.Verbose().Println("Using registry mirror us-east-1")
+		o.Verbose().Printf("Cache: %s\n", "/var/cache/packages")
+		o.Verbose().Println("Using registry mirror us-east-1")
 
 		o.Item("lockfile").OK()
 		return nil

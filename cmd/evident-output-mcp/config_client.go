@@ -39,58 +39,47 @@ func runConfig(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
-	// Configuration snippets are user-facing paste targets on stdout.
 	fmt.Print(body)
 	return 0
 }
 
 func printConfigHelp() {
-	fmt.Fprintf(os.Stderr, `evident-output-mcp config --client <host>
-
-Print deterministic MCP configuration for a coding-agent host (does not write files).
-
-Hosts:
-  claude-code   Claude Code .mcp.json / settings snippet
-  codex         Codex config.toml snippet
-  gemini        Gemini CLI settings snippet
-  grok          Grok ~/.grok/config.toml or project .grok/config.toml
-  opencode      OpenCode MCP config snippet
-
-Preferred install (developer path):
-  go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
-
-Then ensure the binary is on PATH as "evident-output-mcp".
-`)
+	fmt.Fprint(os.Stderr, "evident-output-mcp config --client <host>\n\n")
+	fmt.Fprint(os.Stderr, "Print deterministic MCP configuration for a coding-agent host (does not write files).\n\n")
+	fmt.Fprint(os.Stderr, "Hosts:\n")
+	fmt.Fprint(os.Stderr, "  claude-code   Claude Code .mcp.json / settings snippet\n")
+	fmt.Fprint(os.Stderr, "  codex         Codex config.toml snippet\n")
+	fmt.Fprint(os.Stderr, "  gemini        Gemini CLI settings snippet\n")
+	fmt.Fprint(os.Stderr, "  grok          Grok ~/.grok/config.toml or project .grok/config.toml\n")
+	fmt.Fprint(os.Stderr, "  opencode      OpenCode MCP config snippet\n\n")
+	fmt.Fprint(os.Stderr, "Preferred install (pin a release tag — not @latest):\n")
+	fmt.Fprintf(os.Stderr, "  GOBIN=\"$HOME/.local/bin\" go install \\\n    github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@%s\n\n", Version)
+	fmt.Fprint(os.Stderr, "Then ensure the binary is on PATH as \"evident-output-mcp\".\n")
 }
 
 func clientConfig(client string) (string, error) {
+	pin := Version
+	if pin == "" || pin == "dev" {
+		pin = "v0.2.2"
+	}
 	switch strings.ToLower(strings.TrimSpace(client)) {
 	case "grok":
-		return `# Grok Build — prefer user scope ($HOME/.grok/config.toml).
+		return fmt.Sprintf(`# Grok Build — prefer user scope ($HOME/.grok/config.toml).
 # Absolute path required: Grok's process PATH often omits $HOME/.local/bin.
-# Grok expands ${HOME} in command/args/env/headers.
 #
-# Install (clone at $HOME/Developer/Personal/evident-output):
-#   go build -o "$HOME/.local/bin/evident-output-mcp" \
-#     "$HOME/Developer/Personal/evident-output/cmd/evident-output-mcp"
-# Or: GOBIN="$HOME/.local/bin" go install \
-#       github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+# Install (pin release — not @latest):
+#   GOBIN="$HOME/.local/bin" go install \
+#     github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@%s
 # Register: grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 #
-# Verify (no TUI restart):
-#   grok mcp doctor evident-output --json
-#   grok -p 'Call use_tool on evident-output__evident_output_list_guides with {}. Reply CONNECTED or FAILED.' \
-#     --output-format plain --max-turns 5 --always-approve \
-#     --cwd "$HOME/Developer/Personal/evident-output"
-#
-# Tools (underscores only): evident_output_list_guides, _get_guidance, _review, _preview, _explain
-# Grok ids: evident-output__evident_output_*
+# Verify: grok mcp doctor evident-output --json
+# Tools: evident_output_* (underscores); Grok ids: evident-output__evident_output_*
 
 [mcp_servers.evident-output]
 command = "${HOME}/.local/bin/evident-output-mcp"
 enabled = true
 startup_timeout_sec = 30
-`, nil
+`, pin), nil
 	case "claude-code", "claude", "claude_code":
 		return `{
   "mcpServers": {
@@ -102,14 +91,12 @@ startup_timeout_sec = 30
 }
 `, nil
 	case "codex":
-		return `# Codex MCP (stdio)
-# Install: GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
-# Or: go build -o "$HOME/.local/bin/evident-output-mcp" \
-#       "$HOME/Developer/Personal/evident-output/cmd/evident-output-mcp"
+		return fmt.Sprintf(`# Codex MCP (stdio)
+# Install: GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@%s
 
 [mcp_servers.evident-output]
 command = "${HOME}/.local/bin/evident-output-mcp"
-`, nil
+`, pin), nil
 	case "gemini":
 		return `{
   "mcpServers": {

@@ -57,9 +57,9 @@ type Output struct {
 	debugPaneActive bool
 
 	// Print/Printf/Println line buffers and canonical messages.
-	pendingPrint   strings.Builder
-	pendingVerbose strings.Builder
-	messages       []messageState
+	pendingPrint strings.Builder
+	pendingVis   Visibility // visibility of the current pending fragment
+	messages     []messageState
 }
 
 type itemState struct {
@@ -368,14 +368,14 @@ func (o *Output) Plan(subject string) *Plan {
 //
 // Deprecated: prefer Println / Printf. Line remains as a complete-line alias.
 func (o *Output) Line(message string) {
-	_, _ = o.Println(message)
+	o.Println(message)
 }
 
 // Linef formats and emits a durable user-facing line.
 //
 // Deprecated: prefer Printf with an explicit newline, or Println.
 func (o *Output) Linef(format string, args ...any) {
-	_, _ = o.Printf(format+"\n", args...)
+	o.Printf(format+"\n", args...)
 }
 
 // Info emits an informational durable line.
@@ -480,11 +480,23 @@ func (o *Output) NextCommand(executable string, args ...string) {
 func (o *Output) Debug(message string, fields ...Field) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	o.emitDebugLocked(message, fields, false)
+}
+
+// debugForced journals a debug record even when DebugLevel would filter it.
+// Used by SlogHandler so accepted slog levels are not dropped by Output filters.
+func (o *Output) debugForced(message string, fields ...Field) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitDebugLocked(message, fields, true)
+}
+
+func (o *Output) emitDebugLocked(message string, fields []Field, force bool) {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return
 	}
-	if o.cfg.debugLevel > LevelDebug {
+	if !force && o.cfg.debugLevel > LevelDebug {
 		return
 	}
 	rec := debugRecord{
@@ -493,7 +505,6 @@ func (o *Output) Debug(message string, fields ...Field) {
 		Message: sanitize.Text(message),
 		Fields:  cloneFields(fields),
 	}
-	// Apply redaction before any human projection.
 	for i := range rec.Fields {
 		if rec.Fields[i].Sensitive {
 			rec.Fields[i].Value = "***"
@@ -504,31 +515,26 @@ func (o *Output) Debug(message string, fields ...Field) {
 	o.debugRecords = append(o.debugRecords, rec)
 	history := formatHistoryLine(rec, !o.cfg.noColor)
 	plainHistory := formatHistoryLine(rec, false)
-	// Keep plain history text (no SGR) in lines for FinalPlain / machines.
 	o.lines = append(o.lines, plainHistory)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "log.emitted"})
 
-	// Dual-stream: Diagnostics gets debug; primary stays human-only.
 	dual := o.cfg.diagnostic != nil && o.cfg.primary != nil && o.cfg.diagnostic != o.cfg.primary
 	if o.cfg.diagnostic != nil {
 		o.writeDiagnosticTextLocked(plainHistory + "\n")
 	}
 	if dual {
-		// Journal retained; do not also paint debug onto the human primary stream.
 		o.linesEmitted = len(o.lines)
 		return
 	}
 
 	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
 	if interactive && o.cfg.debugPresentation == DebugPresentationPane {
-		// Pane: keep in live region only; mark line emitted so residual does not reprint history.
 		o.debugPaneActive = true
 		o.linesEmitted = len(o.lines)
 		o.signalLiveLocked(true)
 		return
 	}
-	// History mode, or pane fallback when not interactive: stream durable once.
 	if interactive {
 		o.debugLiveLocked(history)
 	} else {
@@ -551,7 +557,7 @@ func (o *Output) writeDiagnosticTextLocked(text string) {
 	if o.cfg.diagnostic == nil || text == "" {
 		return
 	}
-	_, _ = io.WriteString(o.cfg.diagnostic, text)
+	io.WriteString(o.cfg.diagnostic, text)
 	if f, ok := o.cfg.diagnostic.(flusher); ok {
 		_ = f.Flush()
 	}

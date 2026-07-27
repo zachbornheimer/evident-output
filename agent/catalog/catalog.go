@@ -153,7 +153,7 @@ func Checksum() string {
 			if g.ID != id {
 				continue
 			}
-			_, _ = fmt.Fprintf(h, "%s\n%s\n%s\n", g.ID, g.Title, g.Body)
+			fmt.Fprintf(h, "%s\n%s\n%s\n", g.ID, g.Title, g.Body)
 			break
 		}
 	}

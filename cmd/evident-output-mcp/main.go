@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/zachbornheimer/evident-output"
@@ -40,6 +41,8 @@ var supportedProtocols = map[string]bool{
 const (
 	defaultToolDeadline = 30 * time.Second
 	toolNameMaxLen      = 64
+	// maxNDJSONFrameBytes bounds a single newline-delimited JSON-RPC message.
+	maxNDJSONFrameBytes = 8 << 20 // 8 MiB, same as Content-Length path
 )
 
 var toolNameRE = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
@@ -233,20 +236,39 @@ func readMCPMessage(r *bufio.Reader) ([]byte, framingMode, error) {
 		return body, frameContentLength, nil
 	}
 
-	// NDJSON: one JSON object per line.
-	line, err := r.ReadBytes('\n')
-	if err != nil && len(line) == 0 {
-		return nil, frameNDJSON, err
+	// NDJSON: one JSON object per line, hard-capped.
+	var buf bytes.Buffer
+	for {
+		b, err := r.ReadByte()
+		if err != nil {
+			if buf.Len() == 0 {
+				return nil, frameNDJSON, err
+			}
+			// Incomplete final frame without newline.
+			break
+		}
+		if b == '\n' {
+			break
+		}
+		if buf.Len() >= maxNDJSONFrameBytes {
+			// Drain until newline or EOF so the next message can resync.
+			for {
+				bb, e2 := r.ReadByte()
+				if e2 != nil || bb == '\n' {
+					break
+				}
+			}
+			return nil, frameNDJSON, fmt.Errorf("ndjson frame exceeds %d bytes", maxNDJSONFrameBytes)
+		}
+		buf.WriteByte(b)
 	}
-	line = bytes.TrimRight(line, "\r\n")
+	line := bytes.TrimRight(buf.Bytes(), "\r")
 	return line, frameNDJSON, nil
 }
 
+// truncateForLog reports only length metadata — never payload bytes (may hold secrets/source).
 func truncateForLog(b []byte, n int) string {
-	if len(b) <= n {
-		return string(b)
-	}
-	return string(b[:n]) + "…"
+	return fmt.Sprintf("<%d bytes>", len(b))
 }
 
 func toolList() []map[string]any {
@@ -355,13 +377,14 @@ func handleToolCall(id any, req map[string]any) {
 	}
 
 	deadline := deadlineFromArgs(args)
-	done := make(chan struct{})
-	var cancelled bool
+	var cancelled atomic.Bool
 	timer := time.AfterFunc(deadline, func() {
-		cancelled = true
+		cancelled.Store(true)
 	})
 	defer timer.Stop()
-	defer close(done)
+	// Soft deadline: tools are still synchronous (review is fast); we refuse to
+	// return results after the deadline to avoid late-success races. Full
+	// context-propagated cancellation is a follow-up for long reviews.
 
 	// MCP-043: reject unknown argument fields per tool.
 	if errMsg := validateArgs(name, args); errMsg != "" {
@@ -378,7 +401,7 @@ func handleToolCall(id any, req map[string]any) {
 		if maxTok > 0 {
 			guides, truncated = catalog.ApplyTokenBudget(guides, maxTok)
 		}
-		if cancelled {
+		if cancelled.Load() {
 			writeRPC(id, toolError("deadline exceeded"))
 			return
 		}
@@ -410,7 +433,7 @@ func handleToolCall(id any, req map[string]any) {
 		if maxTok > 0 {
 			found, truncated = catalog.ApplyTokenBudget(found, maxTok)
 		}
-		if cancelled {
+		if cancelled.Load() {
 			writeRPC(id, toolError("deadline exceeded"))
 			return
 		}
@@ -473,7 +496,7 @@ func handleToolCall(id any, req map[string]any) {
 		default:
 			res = review.GoSource(file, src)
 		}
-		if cancelled {
+		if cancelled.Load() {
 			writeRPC(id, toolError("deadline exceeded"))
 			return
 		}
@@ -515,7 +538,7 @@ func handleToolCall(id any, req map[string]any) {
 		_ = out.Finish()
 		snap := out.Snapshot()
 		profiles := preview.DefaultProfiles(snap)
-		if cancelled {
+		if cancelled.Load() {
 			writeRPC(id, toolError("deadline exceeded"))
 			return
 		}
@@ -691,9 +714,9 @@ func writeFramed(v any) {
 	// Messages MUST NOT contain embedded newlines (stdio transport).
 	switch outMode {
 	case frameContentLength:
-		_, _ = fmt.Fprintf(outW, "Content-Length: %d\r\n\r\n%s", len(data), data)
+		fmt.Fprintf(outW, "Content-Length: %d\r\n\r\n%s", len(data), data)
 	default:
-		_, _ = outW.Write(data)
-		_, _ = outW.Write([]byte{'\n'})
+		outW.Write(data)
+		outW.Write([]byte{'\n'})
 	}
 }

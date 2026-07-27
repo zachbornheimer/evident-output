@@ -12,7 +12,6 @@ import (
 )
 
 // Default ring bounds for Capture (child process evidence, not a live UI).
-// Tail of output usually holds the actionable failure.
 const (
 	defaultCaptureLines = 200
 	defaultCaptureBytes = 256 << 10 // 256 KiB
@@ -20,20 +19,28 @@ const (
 	truncationMarker    = "[earlier output truncated]"
 )
 
-type captureStreamKind int
+// CaptureStream identifies which process stream a line came from.
+type CaptureStream uint8
 
 const (
-	streamCombined captureStreamKind = iota
-	streamStdout
-	streamStderr
+	// CaptureStreamCombined is Write() on the Capture itself (merged by the runner).
+	CaptureStreamCombined CaptureStream = iota
+	// CaptureStreamStdout is output.Stdout().
+	CaptureStreamStdout
+	// CaptureStreamStderr is output.Stderr().
+	CaptureStreamStderr
 )
+
+type capturedLine struct {
+	Sequence uint64
+	Stream   CaptureStream
+	Text     string
+}
 
 // Capture is a process-output sink owned by a Task (preferred) or Output.
 //
-// Recommended:
-//
 //	upgrade := out.Task("brew packages")
-//	output := upgrade.Capture()
+//	output := upgrade.Capture() // silent retention by default
 //	if err := run.Run(ctx, "brew", args, output); err != nil {
 //	    upgrade.Fail("brew upgrade failed", evo.Cause(err), output.DetailTail())
 //	    return nil
@@ -43,31 +50,37 @@ const (
 // Semantics:
 //   - Always retains a bounded ring of sanitized lines (evidence exists even when
 //     debug presentation is disabled).
-//   - Implements io.Writer; concurrency-safe.
-//   - Never paints the live Items/Tasks region; never auto-surfaces on success.
-//   - Mirrors to Diagnostics when configured; mirrors to Debug journal when
-//     DebugLevel allows (task-labeled).
+//   - Default is silent: no Diagnostics/Debug mirror on success.
+//   - Opt in with MirrorToDiagnostics / MirrorToDebug.
+//   - Stdout/Stderr have independent pending buffers (no partial-line merge).
 //   - DetailTail is user-visible failure evidence; Cause is structured diagnostic.
-//
-// Application code still owns process execution. Capture only owns presentation evidence.
 type Capture struct {
 	out      *Output
 	taskID   string
 	taskName string
 
-	mu         sync.Mutex
-	buf        bytes.Buffer
-	lines      []string // combined (Write, or stdout+stderr merge order)
-	stdout     []string
-	stderr     []string
-	maxLines   int
-	maxBytes   int
-	nbytes     int
-	truncated  bool
-	mirrorDiag bool
+	mu sync.Mutex
+
+	// Independent pending line assembly per stream.
+	pendingCombined bytes.Buffer
+	pendingStdout   bytes.Buffer
+	pendingStderr   bytes.Buffer
+
+	// Sequenced combined ring (newest at end).
+	lines     []capturedLine
+	seq       uint64
+	maxLines  int
+	maxBytes  int
+	nbytes    int
+	truncated bool
+
+	// Mirror policy (default: all false — silent retention).
+	mirrorDiag  bool
+	mirrorDebug bool
+
 	// stream is set only on side writers returned by Stdout/Stderr.
-	stream captureStreamKind
-	parent *Capture // non-nil for Stdout()/Stderr() side writers
+	stream CaptureStream
+	parent *Capture
 }
 
 // CaptureOption configures Capture.
@@ -80,7 +93,6 @@ type captureOptionFunc func(*Capture)
 func (f captureOptionFunc) applyCapture(c *Capture) { f(c) }
 
 // KeepLastLines sets how many trailing lines are retained (default 200).
-// Alias of CaptureLines for the designer-facing name.
 func KeepLastLines(n int) CaptureOption { return CaptureLines(n) }
 
 // CaptureLines sets how many trailing lines are retained (default 200).
@@ -93,7 +105,6 @@ func CaptureLines(n int) CaptureOption {
 }
 
 // MaxCaptureBytes sets an approximate byte budget for retained lines (default 256KiB).
-// Alias of CaptureBytes.
 func MaxCaptureBytes(n int) CaptureOption { return CaptureBytes(n) }
 
 // CaptureBytes sets an approximate byte budget for retained lines (default 256KiB).
@@ -105,13 +116,28 @@ func CaptureBytes(n int) CaptureOption {
 	})
 }
 
-// CaptureQuiet disables Diagnostics and Debug mirrors (buffer/Tail only).
+// MirrorToDiagnostics copies each completed line to the Diagnostics writer.
+// Default is off — Capture retains evidence without displaying on success.
+func MirrorToDiagnostics() CaptureOption {
+	return captureOptionFunc(func(c *Capture) { c.mirrorDiag = true })
+}
+
+// MirrorToDebug journals each completed line via Debug when DebugLevel allows.
+// Default is off.
+func MirrorToDebug() CaptureOption {
+	return captureOptionFunc(func(c *Capture) { c.mirrorDebug = true })
+}
+
+// CaptureQuiet is retained for compatibility; default is already silent.
+// Prefer omitting mirror options instead.
 func CaptureQuiet() CaptureOption {
-	return captureOptionFunc(func(c *Capture) { c.mirrorDiag = false })
+	return captureOptionFunc(func(c *Capture) {
+		c.mirrorDiag = false
+		c.mirrorDebug = false
+	})
 }
 
 // Capture returns a process-output sink bound to this Task.
-// The capture is associated with the task for debug labeling and failure detail.
 func (t *Task) Capture(opts ...CaptureOption) *Capture {
 	if t == nil || t.out == nil {
 		return newCapture(nil, "", "", opts...)
@@ -133,13 +159,14 @@ func (o *Output) Capture(opts ...CaptureOption) *Capture {
 
 func newCapture(out *Output, taskID, taskName string, opts ...CaptureOption) *Capture {
 	c := &Capture{
-		out:        out,
-		taskID:     taskID,
-		taskName:   taskName,
-		maxLines:   defaultCaptureLines,
-		maxBytes:   defaultCaptureBytes,
-		mirrorDiag: true,
-		stream:     streamCombined,
+		out:         out,
+		taskID:      taskID,
+		taskName:    taskName,
+		maxLines:    defaultCaptureLines,
+		maxBytes:    defaultCaptureBytes,
+		mirrorDiag:  false, // silent by default — release invariant
+		mirrorDebug: false,
+		stream:      CaptureStreamCombined,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -149,24 +176,20 @@ func newCapture(out *Output, taskID, taskName string, opts ...CaptureOption) *Ca
 	return c
 }
 
-// Stdout returns a writer that records lines as stdout (and into the combined ring).
-// Use when the runner supports separate streams:
-//
-//	cmd.Stdout = output.Stdout()
-//	cmd.Stderr = output.Stderr()
+// Stdout returns a writer that records lines as stdout with its own pending buffer.
 func (c *Capture) Stdout() io.Writer {
 	if c == nil {
 		return io.Discard
 	}
-	return &Capture{out: c.out, parent: c, stream: streamStdout}
+	return &Capture{out: c.out, parent: c, stream: CaptureStreamStdout}
 }
 
-// Stderr returns a writer that records lines as stderr (and into the combined ring).
+// Stderr returns a writer that records lines as stderr with its own pending buffer.
 func (c *Capture) Stderr() io.Writer {
 	if c == nil {
 		return io.Discard
 	}
-	return &Capture{out: c.out, parent: c, stream: streamStderr}
+	return &Capture{out: c.out, parent: c, stream: CaptureStreamStderr}
 }
 
 // Write implements io.Writer. Safe for concurrent use with Tail/DetailTail.
@@ -176,31 +199,31 @@ func (c *Capture) Write(p []byte) (int, error) {
 		return len(p), nil
 	}
 	n := len(p)
-	root.mu.Lock()
-	defer root.mu.Unlock()
-	stream := streamCombined
+	stream := CaptureStreamCombined
 	if c.parent != nil {
 		stream = c.stream
-	} else {
-		stream = c.stream
 	}
+
+	root.mu.Lock()
+	defer root.mu.Unlock()
+	buf := root.pendingFor(stream)
 	for len(p) > 0 {
 		i := bytes.IndexByte(p, '\n')
 		if i < 0 {
-			root.buf.Write(p)
+			buf.Write(p)
 			break
 		}
-		root.buf.Write(p[:i])
-		root.flushLineLocked(stream)
+		buf.Write(p[:i])
+		root.flushPendingLocked(stream)
 		p = p[i+1:]
 	}
-	if root.buf.Len() > maxCaptureLineLen*2 {
-		root.flushLineLocked(stream)
+	if buf.Len() > maxCaptureLineLen*2 {
+		root.flushPendingLocked(stream)
 	}
 	return n, nil
 }
 
-// Close flushes a trailing partial line. Idempotent for use with defer.
+// Close flushes trailing partial lines on this writer’s stream.
 func (c *Capture) Close() error {
 	root := c.root()
 	if root == nil {
@@ -208,12 +231,12 @@ func (c *Capture) Close() error {
 	}
 	root.mu.Lock()
 	defer root.mu.Unlock()
-	if root.buf.Len() > 0 {
-		stream := streamCombined
-		if c.parent != nil {
-			stream = c.stream
-		}
-		root.flushLineLocked(stream)
+	stream := CaptureStreamCombined
+	if c.parent != nil {
+		stream = c.stream
+	}
+	if root.pendingFor(stream).Len() > 0 {
+		root.flushPendingLocked(stream)
 	}
 	return nil
 }
@@ -228,30 +251,40 @@ func (c *Capture) root() *Capture {
 	return c
 }
 
-// Text returns all retained combined lines joined by newlines.
-func (c *Capture) Text() string {
-	lines, truncated := c.snapshotLines(streamCombined, 0)
-	return c.joinLines(lines, truncated)
+func (c *Capture) pendingFor(stream CaptureStream) *bytes.Buffer {
+	switch stream {
+	case CaptureStreamStdout:
+		return &c.pendingStdout
+	case CaptureStreamStderr:
+		return &c.pendingStderr
+	default:
+		return &c.pendingCombined
+	}
 }
 
-// Lines returns a copy of retained combined lines (oldest first).
+// Text returns all retained combined lines joined by newlines.
+func (c *Capture) Text() string {
+	lines, truncated := c.snapshotTexts(CaptureStreamCombined, 0)
+	return joinCaptureLines(lines, truncated)
+}
+
+// Lines returns retained combined line texts (oldest first).
 func (c *Capture) Lines() []string {
-	lines, _ := c.snapshotLines(streamCombined, 0)
+	lines, _ := c.snapshotTexts(CaptureStreamCombined, 0)
 	return lines
 }
 
-// Tail returns the last n retained combined lines joined by newlines.
-// If n <= 0, returns the full retained ring (same as Text).
+// Tail returns the last n retained combined lines.
 func (c *Capture) Tail(n ...int) string {
 	limit := 0
 	if len(n) > 0 {
 		limit = n[0]
 	}
-	lines, truncated := c.snapshotLines(streamCombined, limit)
-	return c.joinLines(lines, truncated)
+	lines, truncated := c.snapshotTexts(CaptureStreamCombined, limit)
+	return joinCaptureLines(lines, truncated)
 }
 
-// Empty reports whether no combined lines have been retained.
+// Empty reports whether no lines have been retained.
 func (c *Capture) Empty() bool {
 	root := c.root()
 	if root == nil {
@@ -271,11 +304,8 @@ func (c *Capture) TaskName() string {
 	return root.taskName
 }
 
-// DetailTail returns a ProblemOption that attaches a user-visible presentation of
-// the capture tail. Prefer stderr content when separate streams were used.
-// Does not mutate the task; compose with Fail/Block/Warn:
-//
-//	upgrade.Fail("brew upgrade failed", evo.Cause(err), output.DetailTail())
+// DetailTail returns a ProblemOption attaching a user-visible presentation of
+// the capture tail. Prefers stderr when separate streams were used.
 func (c *Capture) DetailTail() ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
 		if text := c.detailText(); text != "" {
@@ -284,8 +314,7 @@ func (c *Capture) DetailTail() ProblemOption {
 	})
 }
 
-// DetailTail is a free-function form of Capture.DetailTail for older call sites.
-// Prefer output.DetailTail() on the capture value.
+// DetailTail free-function form (prefer method on Capture).
 func DetailTail(c *Capture) ProblemOption {
 	if c == nil {
 		return problemOptionFunc(func(*Problem) {})
@@ -301,59 +330,83 @@ func (c *Capture) detailText() string {
 	root.mu.Lock()
 	defer root.mu.Unlock()
 
-	// Prefer stderr when the caller used Stderr() and it has content.
-	var lines []string
-	truncated := root.truncated
-	switch {
-	case c.parent != nil && c.stream == streamStderr && len(root.stderr) > 0:
-		lines = append([]string(nil), root.stderr...)
-	case c.parent != nil && c.stream == streamStdout && len(root.stdout) > 0:
-		lines = append([]string(nil), root.stdout...)
-	case len(root.stderr) > 0 && len(root.stdout) > 0:
-		// Combined capture path used both streams separately: prefer stderr for failure.
-		lines = append([]string(nil), root.stderr...)
-	default:
-		lines = append([]string(nil), root.lines...)
+	prefer := CaptureStreamCombined
+	if c.parent != nil {
+		prefer = c.stream
+	} else {
+		// Prefer stderr when both streams have content.
+		var hasOut, hasErr bool
+		for _, ln := range root.lines {
+			if ln.Stream == CaptureStreamStdout {
+				hasOut = true
+			}
+			if ln.Stream == CaptureStreamStderr {
+				hasErr = true
+			}
+		}
+		if hasErr && hasOut {
+			prefer = CaptureStreamStderr
+		} else if hasErr {
+			prefer = CaptureStreamStderr
+		}
 	}
-	if len(lines) == 0 {
+
+	var texts []string
+	for _, ln := range root.lines {
+		switch prefer {
+		case CaptureStreamStderr:
+			if ln.Stream == CaptureStreamStderr {
+				texts = append(texts, ln.Text)
+			}
+		case CaptureStreamStdout:
+			if ln.Stream == CaptureStreamStdout {
+				texts = append(texts, ln.Text)
+			}
+		default:
+			texts = append(texts, ln.Text)
+		}
+	}
+	// If filter emptied, fall back to all combined lines.
+	if len(texts) == 0 {
+		for _, ln := range root.lines {
+			texts = append(texts, ln.Text)
+		}
+	}
+	if len(texts) == 0 {
 		return ""
 	}
 	var b strings.Builder
-	if truncated {
+	if root.truncated {
 		b.WriteString(truncationMarker)
 		b.WriteByte('\n')
 	}
-	if len(lines) > 1 {
-		fmt.Fprintf(&b, "Last %d lines:\n", len(lines))
+	if len(texts) > 1 {
+		fmt.Fprintf(&b, "Last %d lines:\n", len(texts))
 	}
-	b.WriteString(strings.Join(lines, "\n"))
+	b.WriteString(strings.Join(texts, "\n"))
 	return b.String()
 }
 
-func (c *Capture) snapshotLines(stream captureStreamKind, limit int) ([]string, bool) {
+func (c *Capture) snapshotTexts(stream CaptureStream, limit int) ([]string, bool) {
 	root := c.root()
 	if root == nil {
 		return nil, false
 	}
 	root.mu.Lock()
 	defer root.mu.Unlock()
-	var src []string
-	switch stream {
-	case streamStdout:
-		src = root.stdout
-	case streamStderr:
-		src = root.stderr
-	default:
-		src = root.lines
+	var texts []string
+	for _, ln := range root.lines {
+		if stream == CaptureStreamCombined || ln.Stream == stream {
+			texts = append(texts, ln.Text)
+		}
 	}
-	if limit > 0 && len(src) > limit {
-		src = src[len(src)-limit:]
+	if limit > 0 && len(texts) > limit {
+		texts = texts[len(texts)-limit:]
 	}
-	out := append([]string(nil), src...)
-	return out, root.truncated
+	return append([]string(nil), texts...), root.truncated
 }
 
-func (c *Capture) joinLines(lines []string, truncated bool) string {
+func joinCaptureLines(lines []string, truncated bool) string {
 	if len(lines) == 0 {
 		return ""
 	}
@@ -363,9 +416,10 @@ func (c *Capture) joinLines(lines []string, truncated bool) string {
 	return strings.Join(lines, "\n")
 }
 
-func (c *Capture) flushLineLocked(stream captureStreamKind) {
-	line := c.buf.String()
-	c.buf.Reset()
+func (c *Capture) flushPendingLocked(stream CaptureStream) {
+	buf := c.pendingFor(stream)
+	line := buf.String()
+	buf.Reset()
 	if !utf8.ValidString(line) {
 		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
 	}
@@ -377,45 +431,35 @@ func (c *Capture) flushLineLocked(stream captureStreamKind) {
 		return
 	}
 
-	c.lines = append(c.lines, line)
-	switch stream {
-	case streamStdout:
-		c.stdout = append(c.stdout, line)
-	case streamStderr:
-		c.stderr = append(c.stderr, line)
-	}
-
+	c.seq++
+	c.lines = append(c.lines, capturedLine{Sequence: c.seq, Stream: stream, Text: line})
 	c.nbytes += len(line) + 1
 	for len(c.lines) > c.maxLines || c.nbytes > c.maxBytes {
 		if len(c.lines) == 0 {
 			break
 		}
 		c.truncated = true
-		c.nbytes -= len(c.lines[0]) + 1
+		c.nbytes -= len(c.lines[0].Text) + 1
 		c.lines = c.lines[1:]
 	}
-	// Bound per-stream rings to the same maxLines (keep newest).
-	for len(c.stdout) > c.maxLines {
-		c.stdout = c.stdout[1:]
-		c.truncated = true
-	}
-	for len(c.stderr) > c.maxLines {
-		c.stderr = c.stderr[1:]
-		c.truncated = true
-	}
 
-	// Presentation mirrors (evidence already retained in the ring).
-	// Lock order: Capture.mu → Output.mu (Debug / Diagnostics); never reverse.
 	if c.out == nil {
 		return
 	}
-	c.out.mirrorCaptureLine(c.mirrorDiag, c.taskName, line)
+	if c.mirrorDiag || c.mirrorDebug {
+		c.out.mirrorCaptureLine(c.mirrorDiag, c.mirrorDebug, c.taskName, line)
+	}
 }
 
-// mirrorCaptureLine projects one capture line without losing ring evidence.
-// DebugLevel controls presentation only; the ring is independent.
-func (o *Output) mirrorCaptureLine(mirrorDiag bool, taskName, line string) {
+// mirrorCaptureLine projects one capture line only when explicitly requested.
+func (o *Output) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line string) {
 	if o == nil {
+		return
+	}
+	if mirrorDiag {
+		o.writeDiagnosticText(line + "\n")
+	}
+	if !mirrorDebug {
 		return
 	}
 	o.mu.Lock()
@@ -426,22 +470,18 @@ func (o *Output) mirrorCaptureLine(mirrorDiag bool, taskName, line string) {
 		interactive = live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
 	}
 	o.mu.Unlock()
-
-	// Prefer Debug (task-labeled) when enabled and there is a safe projection target
-	// (Diagnostics dual-stream or interactive debug UI). Never dump child chatter onto
-	// a solo human primary stream.
-	if allowDebug && (hasDiag || interactive) {
-		if taskName != "" {
-			o.Debug(line, String("task", taskName))
-		} else {
-			o.Debug(line)
-		}
+	if !allowDebug {
 		return
 	}
-	if mirrorDiag && hasDiag {
-		o.writeDiagnosticText(line + "\n")
+	// Only project when dual-stream diagnostics or interactive debug UI exist.
+	if !hasDiag && !interactive {
+		return
+	}
+	if taskName != "" {
+		o.Debug(line, String("task", taskName))
+	} else {
+		o.Debug(line)
 	}
 }
 
-// Ensure Capture is usable as cmd.Stdout/Stderr and with defer Close.
 var _ io.WriteCloser = (*Capture)(nil)

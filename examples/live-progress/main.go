@@ -57,6 +57,9 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 		scan.Progress(completed, packageCount)
 		done := totalBytes * int64(completed) / int64(packageCount)
 		download.Bytes(done, totalBytes)
+		if completed == packageCount/2 {
+			log.Debug("download midpoint", "bytes", done, "of", totalBytes)
+		}
 		time.Sleep(step)
 	}
 	scan.Done()

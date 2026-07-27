@@ -171,6 +171,24 @@ func strconvQuote(s string) string {
 	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
 }
 
+// debugPaneReservedRows is the number of terminal rows the debug pane needs
+// (heading + up to height records), used to budget the live task body.
+func debugPaneReservedRows(pane debugPaneConfig, recordCount int) int {
+	if recordCount <= 0 {
+		return 0
+	}
+	height := pane.height
+	if height <= 0 {
+		height = defaultDebugPaneHeight
+	}
+	if recordCount < height {
+		height = recordCount
+	}
+	// blank separator line before heading is written by writeDebugPane's leading \n
+	// on body that may already end without newline — count heading + records + 1.
+	return height + 2
+}
+
 // writeDebugPane appends the rolling pane section to a live-region builder.
 func writeDebugPane(b *strings.Builder, records []debugRecord, pane debugPaneConfig, color bool) {
 	if len(records) == 0 {

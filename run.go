@@ -5,47 +5,48 @@ package evo
 // Typical entrypoint:
 //
 //	func main() {
-//	    out := evo.For("tool", evo.To(os.Stdout))
+//	    out := evo.New(evo.Config{Title: "tool"})
 //	    os.Exit(evo.Main(out, run))
 //	}
 //
-//	func run(out *evo.Output) error {
-//	    out.Item("working tree").OK()
-//	    return nil
-//	}
-//
-// Lifecycle: run → Finish → Close (via defer).
+// Lifecycle: run → (reconcile run error into model) → Finish → Close.
 //
 // Exit codes:
 //   - nil out → ExitFailed (2)
-//   - Finish error (presentation misuse / render) → ExitFailed (2)
-//   - run error while conclusion is still OK → ExitFailed (2)
-//   - otherwise Conclusion.ExitCode (OK=0, Blocked=1, Failed=2, Cancelled=130)
+//   - Finish or Close error → ExitFailed (2)
+//   - otherwise Conclusion.ExitCode after reconciling run errors into Fail
 //
-// Application code still owns execution; Main only seals presentation and maps
-// conclusion state to an exit code so every binary does not reimplement teardown.
+// A non-nil application error is recorded as an output-level Fail before Finish
+// so the human conclusion cannot show [ready] while the process fails.
 func Main(out *Output, run func(*Output) error) int {
 	if out == nil {
 		return ExitFailed
 	}
-	defer func() { _ = out.Close() }()
 
 	var runErr error
 	if run != nil {
 		runErr = run(out)
 	}
-	if err := out.Finish(); err != nil {
-		return ExitFailed
+	if runErr != nil {
+		// Synchronize the presentation model with the application error.
+		// Fail is skipped if already terminal-failed/cancelled via prior entities;
+		// Output.Fail still records an output-level failure item when needed.
+		out.Fail("command failed", Cause(runErr))
 	}
+
+	finishErr := out.Finish()
+	closeErr := out.Close()
+
 	code := out.Conclusion().ExitCode
-	if runErr != nil && code == ExitOK {
-		return ExitFailed
+	if finishErr != nil || closeErr != nil {
+		if code == ExitOK || code == ExitBlocked {
+			return ExitFailed
+		}
 	}
 	return code
 }
 
 // AnyBlocked reports whether any Item is currently in the Blocked state.
-// Use before mutation: if out.AnyBlocked() { return nil } then Finish via Main.
 func (o *Output) AnyBlocked() bool {
 	if o == nil {
 		return false

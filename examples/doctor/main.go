@@ -31,7 +31,7 @@ func main() {
 	}
 	out := evo.New(cfg)
 	code := evo.Main(out, func(o *evo.Output) error {
-		_, _ = o.Verbose().Printf("Strict policy: %t\n", *strict)
+		o.Verbose().Printf("Strict policy: %t\n", *strict)
 
 		probe := func(name string, resolve func(*evo.Item)) {
 			it := o.Item(name)

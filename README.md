@@ -33,14 +33,15 @@ func run(out *evo.Output) error {
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.0
+go get github.com/zachbornheimer/evident-output@v0.2.2
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
 
 **Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included.  
-**Lifecycle:** `os.Exit(evo.Main(out, run))` seals Finish + Close + exit code.  
-**Messages:** `Print` / `Printf` / `Println` + `Verbose()`; promote to `Item` / `Task` when semantics matter.
+**Lifecycle:** `os.Exit(evo.Main(out, run))` seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail before Finish (cannot render `[ready]`).  
+**Messages:** managed `Print` / `Printf` / `Println` + `Verbose()` (not a byte-for-byte `fmt` drop-in); promote to `Item` / `Task` when semantics matter.  
+**Capture:** silent retention by default; use `MirrorToDiagnostics()` / `MirrorToDebug()` to display; attach with `output.DetailTail()` on Fail.
 
 ## Pick the entity
 
@@ -79,15 +80,15 @@ if err := run.Run(ctx, "brew", []string{"upgrade", "--formula"}, output); err !=
 upgrade.Done()
 ```
 
-- **Ownership:** `upgrade.Capture()` associates evidence with that task (debug can label `task=…`).
-- **Evidence vs display:** ring is always kept; `DebugLevel` only controls Debug/Diagnostics projection.
-- **Detail:** `output.DetailTail()` is a `ProblemOption` (compose with Fail); prefer stderr when streams are split (`output.Stdout()` / `output.Stderr()`).
-- **Defaults:** last 200 lines / 256KiB, sanitized, truncation marked; never auto-surfaces on success.
+- **Ownership:** `upgrade.Capture()` associates evidence with that task.
+- **Silent by default:** ring always retains; no Diagnostics/Debug mirror unless `MirrorToDiagnostics()` / `MirrorToDebug()`.
+- **Detail:** `output.DetailTail()` is a `ProblemOption` (compose with Fail); separate `Stdout()`/`Stderr()` buffers.
+- **Defaults:** last 200 lines / 256KiB, sanitized, truncation marked.
 - **`DebugWriter`:** intentional DEBUG journal only — not for child tools.
 
 ## Status
 
-**Release:** **v0.2.0** — Config/`New` construction, fmt-style Print API, task-owned Capture.  
+**Release:** **v0.2.2** — silent Capture, Main/run error sync, real terminal size, pane row budget, CI.  
 **Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).  
 **Implemented surface:** v0.3–v0.4 core (library, interactive VT, debug history/pane, real CLI, hardened MCP, §31 automated rows test-gated). External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 

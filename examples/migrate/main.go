@@ -20,7 +20,7 @@ func main() {
 	out := evo.New(evo.Config{Title: "schema migration"})
 	os.Exit(evo.Main(out, func(o *evo.Output) error {
 		if !*apply {
-			_, _ = o.Println("Dry-run: no database changes will be made.")
+			o.Println("Dry-run: no database changes will be made.")
 			plan := o.Plan("database")
 			plan.Add(1, "column users.email_verified")
 			plan.Create("index idx_users_email")

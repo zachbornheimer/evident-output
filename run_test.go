@@ -91,7 +91,7 @@ func TestWriterOptions_PipeFileIsNoColor(t *testing.T) {
 	}
 	_ = w.Close()
 	var got bytes.Buffer
-	_, _ = got.ReadFrom(r)
+	got.ReadFrom(r)
 	s := got.String()
 	if strings.Contains(s, "\x1b[") {
 		t.Fatalf("piped output must not contain CSI:\n%q", s)

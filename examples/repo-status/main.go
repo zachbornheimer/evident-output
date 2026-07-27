@@ -17,6 +17,7 @@ func main() {
 	name := flag.String("name", "bpp-csharp", "repository subject")
 	clean := flag.Bool("clean", false, "simulate a clean repo")
 	fast := flag.Bool("fast", false, "short sleeps")
+	verbose := flag.Bool("verbose", false, "show Verbose() messages")
 	colorFlag := flag.String("color", "auto", "auto|always|never")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: repo-status [flags]\n\nReport whether a local git repository is safe to archive.\n\n")
@@ -34,12 +35,15 @@ func main() {
 		os.Exit(2)
 	}
 
-	out := evo.New(evo.Config{
-		Title: *name,
-		Color: color,
-	})
+	cfg := evo.DefaultConfig()
+	cfg.Title = *name
+	cfg.Color = color
+	if *verbose {
+		cfg.Verbosity = evo.VerbosityVerbose
+	}
+	out := evo.New(cfg)
 	os.Exit(evo.Main(out, func(o *evo.Output) error {
-		_, _ = o.Verbose().Printf("Checking repository %s\n", *name)
+		o.Verbose().Printf("Checking repository %s\n", *name)
 
 		time.Sleep(step)
 		o.Item("working tree").OK()

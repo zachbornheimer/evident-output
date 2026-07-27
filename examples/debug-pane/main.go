@@ -50,7 +50,11 @@ func main() {
 		scan.Donef("%d branches", 7)
 
 		compare.Phase("diffing")
-		log.Debug("branch comparison completed", "blockers", 1)
+		blockers := 0
+		if *fail {
+			blockers = 1
+		}
+		log.Debug("branch comparison completed", "blockers", blockers)
 		time.Sleep(step)
 		log.Debug("policy check", "rule", "no-local-only")
 		time.Sleep(step)

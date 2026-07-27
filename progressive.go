@@ -99,7 +99,7 @@ func (o *Output) writeDurableTextLocked(text string) {
 		if w == nil {
 			continue
 		}
-		_, _ = io.WriteString(w, text)
+		io.WriteString(w, text)
 		if f, ok := w.(flusher); ok {
 			_ = f.Flush()
 		}

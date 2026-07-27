@@ -36,7 +36,7 @@ func main() {
 		*frames = true
 	}
 	if !*frames && !evo.IsCharDevice(os.Stderr) {
-		_, _ = fmt.Fprintln(os.Stderr, "terminal-driver: stderr is not a TTY; using --frames")
+		fmt.Fprintln(os.Stderr, "terminal-driver: stderr is not a TTY; using --frames")
 		*frames = true
 	}
 
@@ -55,14 +55,17 @@ func main() {
 		)
 	}
 
-	out := evo.For("install-deps-advanced",
-		evo.To(os.Stderr),
-		evo.Diagnostics(os.Stderr),
-		evo.Terminal(term),
-		evo.DebugLevel(evo.Debug),
-		evo.VisibilityDelay(0),
-		evo.MaxFrameRate(60),
-	)
+	// Same New(Config) dialect as ordinary examples; advanced = Terminal field.
+	out := evo.New(evo.Config{
+		Title:    "install-deps-advanced",
+		Stdout:   os.Stderr,
+		Stderr:   os.Stderr,
+		Terminal: term,
+		Debug:    evo.DebugConfig{Level: evo.Debug},
+		// Demo tuning: show spinners immediately.
+		VisibilityDelay: 0,
+		MaxFrameRate:    60,
+	})
 
 	os.Exit(evo.Main(out, func(o *evo.Output) error {
 		jobs := o.Tasks("dependencies")
