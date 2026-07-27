@@ -66,15 +66,22 @@ Then ensure the binary is on PATH as "evident-output-mcp".
 func clientConfig(client string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(client)) {
 	case "grok":
-		return `# Grok Build — user (~/.grok/config.toml) or project (.grok/config.toml)
-# Only [mcp_servers.*] is read from project configs.
-# Prefer PATH lookup so machines without a fixed install path still work.
-# Install: go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
-# Or:      grok mcp add evident-output -- evident-output-mcp
+		return `# Grok Build — prefer user scope (~/.grok/config.toml).
+# Use an absolute path: Grok's process PATH often omits ~/.local/bin.
+# Install (dev): go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
+# Or:            go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+# Register:      grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
+#
+# Verify without restarting the TUI:
+#   grok mcp doctor evident-output --json
+#   grok -p 'Call use_tool on evident-output__evident_output_list_guides. Reply CONNECTED or FAILED.' \
+#     --output-format plain --max-turns 5 --always-approve
+#
+# Tools (underscores; Grok: evident-output__evident_output_*):
+#   list_guides, get_guidance, review, preview, explain
 
 [mcp_servers.evident-output]
-command = "evident-output-mcp"
-args = []
+command = "/Users/YOU/.local/bin/evident-output-mcp"
 enabled = true
 startup_timeout_sec = 30
 `, nil
@@ -90,11 +97,11 @@ startup_timeout_sec = 30
 `, nil
 	case "codex":
 		return `# Codex MCP (stdio) — place under the host's MCP servers map.
+# Prefer absolute path if the host PATH is thin.
 # Install: go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
 
 [mcp_servers.evident-output]
-command = "evident-output-mcp"
-args = []
+command = "/Users/YOU/.local/bin/evident-output-mcp"
 `, nil
 	case "gemini":
 		return `{

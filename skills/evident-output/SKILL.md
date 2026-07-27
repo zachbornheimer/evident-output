@@ -13,11 +13,13 @@ Canonical portable skill: [`../cli-output/SKILL.md`](../cli-output/SKILL.md).
 
 ## Workflow when MCP is connected
 
-1. `evident_output.list_guides` / `get_guidance`
+1. `evident_output_list_guides` / `evident_output_get_guidance`
 2. Implement with common API (`For`, `Item`, `Task`, `Tasks`, `Finish`) when justified
-3. `evident_output.review` until `recheck_required=false`
-4. `evident_output.preview` for profiles
-5. `evident_output.explain` with `rule_id` for findings
+3. `evident_output_review` until `recheck_required=false`
+4. `evident_output_preview` for profiles
+5. `evident_output_explain` with `rule_id` for findings
+
+On Grok, tools appear as `evident-output__evident_output_*`.
 
 ## Rules of thumb
 

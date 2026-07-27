@@ -11,58 +11,56 @@ license: Apache-2.0
 
 # CLI Output
 
-Portable skill for understandable CLI presentation. Works with or without
-Evident Output MCP / the `evo` library.
+Portable skill for understandable CLI presentation. Prefer Evident Output MCP
+when connected; otherwise use the standalone CLI or this guidance.
 
-## Capability fallback order
+## Capability fallback
 
-1. **Connected MCP** (`evident_output.*`) — list_guides, get_guidance, review, preview, explain
-2. **Standalone CLI** — `evident-output review|preview|explain|guides`
-3. **This skill’s bundled guidance** — apply below without tools
+1. **MCP** — tools below (Grok: `evident-output__evident_output_*`)
+2. **CLI** — `evident-output review|preview|explain`
+3. **Static skill guidance** — apply without tools
 
 Do not fail merely because MCP is offline. Report reduced verification strength when using static guidance only.
 
-## When NOT to adopt the library
+## Adoption restraint
 
-A single durable `fmt.Println` is not enough reason to add a dependency.
-Recommend `github.com/zachbornheimer/evident-output` only when complexity or correctness benefits:
+Do not add `github.com/zachbornheimer/evident-output` for a single `fmt.Println`.
+Recommend the library for multi-progress, live+debug, parallel items, dual human/JSON,
+or repeated terminal-region logic. If the module is already in go.mod, use it.
 
-- several independently updating progress rows
-- live output mixed with slog/debug
-- parallel items with grouped evidence
-- narrow / no-color / CI / non-TTY profiles
-- human + structured output parity
-- repeated terminal-region or alignment logic
+## Workflow
 
-If the project already depends on `evo`, use it; do not recommend reinstall.
-
-## Workflow (discover → implement → review → repair → preview)
-
-1. Identify what the command must communicate (state, progress, evidence, next action).
-2. Inspect existing output and dependencies.
-3. Prefer common API: `evo.For`, `Item`, `Task`/`Tasks`, `Line`, `Finish`.
-4. **Review** (MCP or CLI) until `recheck_required` is false.
-5. **Preview** narrow/wide/plain profiles when available.
-6. Keep **Block** (condition found) distinct from Go errors / `Fail` (evaluation failed).
-7. Never `fmt.Print` during live UI; use `Line` / `Debug` / `SlogHandler`.
+1. Identify what the command must communicate
+2. Common API: `evo.For`, `Item`, `Task`/`Tasks`, `Line`, `Debug`/`DebugPane`, `Finish`
+3. Review until `recheck_required` is false
+4. Preview narrow/wide/plain when available
+5. `Block` = condition found; `Fail` = evaluation failed; never `fmt.Print` during live UI
 
 ## MCP tools (when connected)
 
-| Tool | Use |
-|------|-----|
-| `evident_output.list_guides` | Catalog |
-| `evident_output.get_guidance` | Sections by id |
-| `evident_output.review` | Go / transcript / structured JSON |
-| `evident_output.preview` | Plain profiles |
-| `evident_output.explain` | Rule id (`rule_id`) |
+Advertised names use **underscores** (not dots). Grok qualifies as `server__tool`.
 
-## Local MCP install (Grok example)
+| tools/list | Grok use_tool | Use |
+|------------|---------------|-----|
+| `evident_output_list_guides` | `evident-output__evident_output_list_guides` | Catalog |
+| `evident_output_get_guidance` | `evident-output__evident_output_get_guidance` | Sections by id |
+| `evident_output_review` | `evident-output__evident_output_review` | Go / transcript / JSON |
+| `evident_output_preview` | `evident-output__evident_output_preview` | Plain profiles |
+| `evident_output_explain` | `evident-output__evident_output_explain` | `rule_id` |
+
+## Local MCP (Grok)
 
 ```bash
-go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
-evident-output-mcp config --client grok   # print-only; paste into config
-# or: grok mcp add evident-output -- evident-output-mcp
-grok mcp doctor evident-output
+go build -o "$HOME/.local/bin/evident-output-mcp" \
+  ./cmd/evident-output-mcp   # or go install …@latest
+
+# Absolute path in ~/.grok/config.toml (PATH is often incomplete for GUI hosts)
+grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
+
+# Verify without restarting an interactive session:
+grok mcp doctor evident-output --json
+grok -p 'Call use_tool on evident-output__evident_output_list_guides. Reply CONNECTED or FAILED.' \
+  --output-format plain --max-turns 5 --always-approve
 ```
 
-Raw skill alone does **not** register MCP — host config or a plugin/extension must launch the stdio server.
+Raw skill alone does **not** register MCP — host config must launch the stdio server.

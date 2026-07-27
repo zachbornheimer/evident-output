@@ -1,67 +1,114 @@
 # Grok integration — Evident Output
 
-Local stdio MCP only (no hosted URL). Print-only setup; nothing writes your
-config without an explicit host command.
+Local **stdio** MCP only (no hosted URL). Config generation is print-only unless
+you run `grok mcp add` yourself.
 
 ## 1. Install the server binary
 
 ```bash
+# From a clone (dev machines):
+go build -o "$HOME/.local/bin/evident-output-mcp" \
+  ./cmd/evident-output-mcp
+
+# Or:
 go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
-# ensure $(go env GOPATH)/bin is on PATH
+
 evident-output-mcp --version
 ```
 
 ## 2. Register with Grok
 
-**Print snippet (deterministic):**
+**Prefer absolute path** — Grok’s process `PATH` often omits `~/.local/bin`, which
+makes bare `command = "evident-output-mcp"` fail at session attach.
 
 ```bash
-evident-output-mcp config --client grok
+evident-output-mcp config --client grok   # print TOML (review, then paste)
+
+grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 ```
 
-**Or use Grok’s CLI:**
-
-```bash
-grok mcp add evident-output -- evident-output-mcp
-# project-scoped (commit .grok/config.toml):
-# grok mcp add --scope project evident-output -- evident-output-mcp
-```
-
-**Or paste into `~/.grok/config.toml` / project `.grok/config.toml`:**
+User-scope TOML (`~/.grok/config.toml`):
 
 ```toml
 [mcp_servers.evident-output]
-command = "evident-output-mcp"
-args = []
+command = "/Users/YOU/.local/bin/evident-output-mcp"
 enabled = true
 startup_timeout_sec = 30
 ```
 
-## 3. Verify
+Do **not** rely on empty `args = []` (omit `args` instead).
+
+### Project scope
+
+`.grok/config.toml` in a repo is only used when the folder is **trusted**.
+Untrusted project MCP → session reports failure even if user-scope doctor is green.
+Trust once (`/hooks-trust` or Grok’s trusted-folders store) or stick to user scope.
+
+## 3. Verify (no TUI restart required)
+
+### Process handshake
 
 ```bash
 grok mcp list
-# User-scope binary (recommended) — healthy from any cwd:
-grok mcp doctor evident-output
-
-# Project-scoped entries may report "folder untrusted" until Grok trusts the repo.
-# Prefer user scope for always-on tools:
-#   grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
+grok mcp doctor evident-output --json
 ```
 
-Expect (example, verified 2026-07-27):
+Expect:
 
-- `command found`
+- `command found` (absolute path)
 - `server started`
-- `handshake OK (protocol 2025-06-18)`
+- `handshake OK (protocol 2025-06-18)` (also accepts `2024-11-05`, `2025-03-26`)
 - `5 tools discovered`
+- `healthy: true`
 
-**Notes:**
+### Agent session (what the TUI uses)
 
-- An already-running Grok session may not load new MCP tools until you start a **new** session.
-- This chat session may still lack `evident_output.*` until restart even when `grok mcp doctor` is green.
+`grok mcp doctor` can be green while an **agent** session still shows
+`connection failed` or `tool_count: 0`. Probe with a **fresh headless process**:
 
-## 4. Skill
+```bash
+grok -p 'Call use_tool on evident-output__evident_output_list_guides with {}. Reply CONNECTED and the text field, or FAILED.' \
+  --output-format plain \
+  --max-turns 5 \
+  --always-approve \
+  --cwd /path/to/evident-output
+```
 
-Copy or symlink [`../../skills/cli-output/SKILL.md`](../../skills/cli-output/SKILL.md)
-into the host skill path if not already discovered via the repo.
+Expect: `CONNECTED` and `5 guides`.
+
+### Debugging `tool_count: 0`
+
+In the headless session directory under `~/.grok/sessions/…/events.jsonl`:
+
+| Event | Meaning |
+|-------|---------|
+| `mcp_server_connected` + `"tool_count":5` | Good |
+| `mcp_server_connected` + `"tool_count":0` | Handshake OK but tools rejected (names/schemas) |
+| `mcp_server_failed` | Spawn/handshake/auth error |
+
+**Known Grok gotcha:** tool names with **dots** (e.g. `evident_output.list_guides`)
+register as **zero tools**. This server advertises **underscores**
+(`evident_output_list_guides`, …). Dotted names remain accepted as call aliases.
+
+### Transport notes
+
+- Spec stdio: newline-delimited JSON-RPC (NDJSON).
+- This server also accepts **Content-Length** frames (some SDKs).
+- `serverInfo` is only `name` + `version` (strict hosts reject extra fields).
+- Catalog checksum: resource `evident-output://meta/catalog-checksum`.
+
+## 4. Tool ids in Grok
+
+| tools/list name | use_tool name |
+|-----------------|---------------|
+| `evident_output_list_guides` | `evident-output__evident_output_list_guides` |
+| `evident_output_get_guidance` | `evident-output__evident_output_get_guidance` |
+| `evident_output_review` | `evident-output__evident_output_review` |
+| `evident_output_preview` | `evident-output__evident_output_preview` |
+| `evident_output_explain` | `evident-output__evident_output_explain` |
+
+`explain` body: `{ "rule_id": "DOM-011" }`.
+
+## 5. Skill
+
+Portable skill: [`../../skills/cli-output/SKILL.md`](../../skills/cli-output/SKILL.md).

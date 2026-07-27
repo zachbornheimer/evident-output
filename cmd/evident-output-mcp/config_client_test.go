@@ -12,7 +12,7 @@ func TestConfigClient_GrokPrintsTOML(t *testing.T) {
 	}
 	for _, want := range []string{
 		"[mcp_servers.evident-output]",
-		`command = "evident-output-mcp"`,
+		"evident-output-mcp",
 		"enabled = true",
 	} {
 		if !strings.Contains(body, want) {
