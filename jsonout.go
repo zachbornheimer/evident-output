@@ -49,6 +49,7 @@ type ConclusionJSON struct {
 // JSONItem is a wire-format item.
 type JSONItem struct {
 	ID       string        `json:"id"`
+	Key      string        `json:"key,omitempty"`
 	Name     string        `json:"name"`
 	State    EntityState   `json:"state"`
 	Problems []JSONProblem `json:"problems"`
@@ -68,6 +69,7 @@ type JSONProblem struct {
 // JSONTask is a wire-format task.
 type JSONTask struct {
 	ID       string        `json:"id"`
+	Key      string        `json:"key,omitempty"`
 	Name     string        `json:"name"`
 	State    EntityState   `json:"state"`
 	Phase    string        `json:"phase,omitempty"`
@@ -198,6 +200,7 @@ func toJSONDocument(s Snapshot) JSONDocument {
 	for _, it := range s.Items {
 		doc.Items = append(doc.Items, JSONItem{
 			ID:       it.ID,
+			Key:      it.Key,
 			Name:     it.Name,
 			State:    it.State,
 			Problems: toJSONProblems(it.Problems),
@@ -269,7 +272,7 @@ func WriteJSONL(w io.Writer, events []Event) error {
 
 func toJSONTask(t TaskSnapshot) JSONTask {
 	jt := JSONTask{
-		ID: t.ID, Name: t.Name, State: t.State, Phase: t.Phase, Summary: t.Summary,
+		ID: t.ID, Key: t.Key, Name: t.Name, State: t.State, Phase: t.Phase, Summary: t.Summary,
 		Problems: toJSONProblems(t.Problems),
 	}
 	if t.Progress.Kind != "" && t.Progress.Kind != Indeterminate {

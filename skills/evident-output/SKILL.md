@@ -49,4 +49,7 @@ grok mcp doctor evident-output --json
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
 - Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
 - Child process chatter → `task.Capture()` + `output.DetailTail()` (not DebugWriter, not context)
-- Sanitize is automatic; keep secrets in `Cause`, not `Detail`
+- Sanitize is automatic; `Config.Redactor` scrubs Capture ring + Debug fields
+- Stable machine keys: `evo.ID(...)`; plugins: `out.Scope("name")`
+- Data commands: `FormatData` + write domain payload to `out.ResultWriter()`
+- Prefer plain labels over `*f` constructors when identity must stay stable

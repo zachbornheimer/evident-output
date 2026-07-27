@@ -71,10 +71,15 @@ type Config struct {
 	// Title is the subject shown in the conclusion (formerly For's argument).
 	Title string
 
-	// Stdout is the ordinary human/result stream (default os.Stdout).
+	// Stdout is the ordinary human stream (default os.Stdout).
+	// In FormatData mode, Stdout is reserved for domain payload via ResultWriter;
+	// human presentation moves to Stderr.
 	Stdout io.Writer
 	// Stderr owns diagnostics by default (default os.Stderr).
 	Stderr io.Writer
+	// Result is an optional domain-payload writer. When nil and Format is
+	// FormatData, ResultWriter returns Stdout. Presentation never writes here.
+	Result io.Writer
 
 	// Verbosity gates Verbose() print messages (default VerbosityNormal).
 	Verbosity Verbosity
@@ -187,12 +192,23 @@ func configToOptions(c Config) []Option {
 	// Stream routing
 	switch c.Format {
 	case FormatData:
-		// Human presentation on stderr; domain payload remains on stdout (app-owned).
+		// Human presentation on stderr; domain payload on Result (default Stdout).
 		opts = append(opts, To(c.Stderr), Diagnostics(c.Stderr), DataProjection())
+		resultW := c.Result
+		if resultW == nil {
+			resultW = c.Stdout
+		}
+		opts = append(opts, ResultStream(resultW))
 	case FormatExternal:
 		opts = append(opts, To(c.Stdout), Diagnostics(c.Stderr), ExternalProjection())
+		if c.Result != nil {
+			opts = append(opts, ResultStream(c.Result))
+		}
 	default:
 		opts = append(opts, To(c.Stdout), Diagnostics(c.Stderr))
+		if c.Result != nil {
+			opts = append(opts, ResultStream(c.Result))
+		}
 	}
 
 	// Color / TTY

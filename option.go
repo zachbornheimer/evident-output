@@ -14,6 +14,7 @@ type config struct {
 	subject           string
 	primary           io.Writer
 	diagnostic        io.Writer
+	result            io.Writer // domain payload (FormatData); never used for presentation
 	plain             bool
 	nonInteractive    bool
 	noColor           bool
@@ -49,6 +50,16 @@ func To(w io.Writer) Option {
 // data-command layouts (human on stdout, diagnostics on stderr).
 func Diagnostics(w io.Writer) Option {
 	return optionFunc(func(c *config) { c.diagnostic = w })
+}
+
+// ResultStream sets the domain-payload writer (see Output.ResultWriter).
+// Presentation never writes here. FormatData defaults this to Config.Stdout.
+func ResultStream(w io.Writer) Option {
+	return optionFunc(func(c *config) {
+		if w != nil {
+			c.result = w
+		}
+	})
 }
 
 // Plain forces final-report projection (no live spinner region).

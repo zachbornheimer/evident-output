@@ -13,15 +13,16 @@ type Tasks struct {
 	id  string
 }
 
-// Task declares a child task in declaration order.
-func (g *Tasks) Task(name string) *Task {
+// Task declares a child task in declaration order. Optional evo.ID sets a stable machine key.
+func (g *Tasks) Task(name string, opts ...EntityOption) *Task {
 	g.out.mu.Lock()
 	defer g.out.mu.Unlock()
 	col := g.out.tasksByRef[g.id]
 	if col == nil {
 		return &Task{out: g.out, id: g.out.nextID("task")}
 	}
-	return g.out.addTaskLocked(sanitize.Text(name), col)
+	eo := applyEntityOptions(opts)
+	return g.out.addTaskLocked(sanitize.Text(name), col, eo.key)
 }
 
 // Summary sets a success-oriented collection summary.

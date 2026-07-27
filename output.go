@@ -64,6 +64,7 @@ type Output struct {
 
 type itemState struct {
 	id          string
+	key         string // optional stable machine key (platform ID)
 	name        string
 	state       EntityState
 	problems    []Problem
@@ -80,6 +81,7 @@ type itemState struct {
 
 type taskState struct {
 	id          string
+	key         string // optional stable machine key (platform ID)
 	name        string
 	state       EntityState
 	phase       string
@@ -191,13 +193,30 @@ func (o *Output) Err() error {
 	return o.misuse
 }
 
-// Item declares a named final-report condition.
-func (o *Output) Item(name string) *Item {
+// Item declares a named final-report condition. Optional evo.ID sets a stable machine key.
+func (o *Output) Item(name string, opts ...EntityOption) *Item {
+	return o.itemScoped(name, "", opts...)
+}
+
+func (o *Output) itemScoped(name, scope string, opts ...EntityOption) *Item {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	eo := applyEntityOptions(opts)
+	key := qualifyKey(scope, eo.key)
+	return o.addItemLocked(sanitize.Text(name), key, 0)
+}
+
+func (o *Output) addItemLocked(name, key string, order int) *Item {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return &Item{out: o, id: o.nextID("item")}
+	}
+	if key != "" {
+		if _, ok := o.keys[key]; ok {
+			o.recordMisuse(ErrDuplicateKey)
+			return &Item{out: o, id: o.nextID("item")}
+		}
+		o.keys[key] = struct{}{}
 	}
 	if err := o.ensureEntityRoomLocked(); err != nil {
 		o.recordMisuse(err)
@@ -205,9 +224,13 @@ func (o *Output) Item(name string) *Item {
 	}
 	st := &itemState{
 		id:          o.nextID("item"),
-		name:        sanitize.Text(name),
+		key:         key,
+		name:        name,
 		state:       Pending,
 		declaration: o.nextDecl(),
+	}
+	if order != 0 {
+		st.declaration = order
 	}
 	h := &Item{out: o, id: st.id}
 	st.handle = h
@@ -227,56 +250,52 @@ func (o *Output) ensureEntityRoomLocked() error {
 }
 
 // ItemWith declares an item using advanced specification (keys/order).
+// Prefer Item(name, evo.ID(key)) for the common stable-key case.
 func (o *Output) ItemWith(spec ItemSpec) (*Item, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
 		return nil, err
 	}
-	if spec.Key != "" {
-		if _, ok := o.keys[spec.Key]; ok {
-			o.recordMisuse(ErrDuplicateKey)
-			return nil, ErrDuplicateKey
-		}
-		o.keys[spec.Key] = struct{}{}
-	}
-	if err := o.ensureEntityRoomLocked(); err != nil {
-		o.recordMisuse(err)
-		return nil, err
-	}
 	name := spec.Name
 	if name == "" {
 		name = spec.Key
 	}
-	st := &itemState{
-		id:          o.nextID("item"),
-		name:        sanitize.Text(name),
-		state:       Pending,
-		declaration: o.nextDecl(),
+	before := o.misuse
+	h := o.addItemLocked(sanitize.Text(name), spec.Key, spec.Order)
+	if errors.Is(o.misuse, ErrDuplicateKey) && !errors.Is(before, ErrDuplicateKey) {
+		return nil, ErrDuplicateKey
 	}
-	if spec.Order != 0 {
-		st.declaration = spec.Order
+	if errors.Is(o.misuse, ErrLimitExceeded) && !errors.Is(before, ErrLimitExceeded) {
+		return nil, ErrLimitExceeded
 	}
-	h := &Item{out: o, id: st.id}
-	st.handle = h
-	o.items = append(o.items, st)
-	o.itemByRef[st.id] = st
-	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "item.declared", EntityID: st.id})
 	return h, nil
 }
 
-// Task declares a single operation.
-func (o *Output) Task(name string) *Task {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.addTaskLocked(sanitize.Text(name), nil)
+// Task declares a single operation. Optional evo.ID sets a stable machine key.
+func (o *Output) Task(name string, opts ...EntityOption) *Task {
+	return o.taskScoped(name, "", opts...)
 }
 
-func (o *Output) addTaskLocked(name string, col *tasksState) *Task {
+func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *Task {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	eo := applyEntityOptions(opts)
+	key := qualifyKey(scope, eo.key)
+	return o.addTaskLocked(sanitize.Text(name), nil, key)
+}
+
+func (o *Output) addTaskLocked(name string, col *tasksState, key string) *Task {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return &Task{out: o, id: o.nextID("task")}
+	}
+	if key != "" {
+		if _, ok := o.keys[key]; ok {
+			o.recordMisuse(ErrDuplicateKey)
+			return &Task{out: o, id: o.nextID("task")}
+		}
+		o.keys[key] = struct{}{}
 	}
 	if err := o.ensureEntityRoomLocked(); err != nil {
 		o.recordMisuse(err)
@@ -284,6 +303,7 @@ func (o *Output) addTaskLocked(name string, col *tasksState) *Task {
 	}
 	st := &taskState{
 		id:          o.nextID("task"),
+		key:         key,
 		name:        name,
 		state:       Pending,
 		progress:    Progress{Kind: Indeterminate},
@@ -633,6 +653,7 @@ func (o *Output) snapshotLocked() Snapshot {
 func (it *itemState) snapshot() ItemSnapshot {
 	return ItemSnapshot{
 		ID:          it.id,
+		Key:         it.key,
 		Name:        it.name,
 		State:       it.state,
 		Problems:    cloneProblems(it.problems),
@@ -649,6 +670,7 @@ func (t *taskState) snapshot() TaskSnapshot {
 	}
 	return TaskSnapshot{
 		ID:          t.id,
+		Key:         t.key,
 		Name:        t.name,
 		State:       t.state,
 		Phase:       t.phase,

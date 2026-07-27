@@ -79,9 +79,30 @@ func (p *Printer) Println(args ...any) {
 	p.enqueue(fmt.Sprintln(args...))
 }
 
-// Writer returns an io.Writer that feeds this printer's line buffer.
+// Writer returns an io.Writer that feeds this printer's line buffer (human stream).
 func (o *Output) Writer() io.Writer {
 	return o.At(Normal).Writer()
+}
+
+// ResultWriter returns the domain-payload stream. Presentation never writes here.
+//
+// In FormatData mode this is Config.Result if set, otherwise Config.Stdout —
+// so machine JSON stays pure while Items/Tasks render on stderr.
+// When no result stream is configured, returns io.Discard.
+//
+//	out := evo.New(evo.Config{Title: "build", Format: evo.FormatData})
+//	// after work succeeds:
+//	_ = json.NewEncoder(out.ResultWriter()).Encode(payload)
+func (o *Output) ResultWriter() io.Writer {
+	if o == nil {
+		return io.Discard
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.cfg.result != nil {
+		return o.cfg.result
+	}
+	return io.Discard
 }
 
 // Writer returns an io.Writer that feeds this printer's line buffer.

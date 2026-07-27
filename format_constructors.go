@@ -7,11 +7,14 @@ import (
 )
 
 // Itemf formats a name and declares an Item.
+// Prefer Item + plain labels for stable presentation; use Itemf only when the
+// label must embed a value and evo.ID is set for machine identity when needed.
 func (o *Output) Itemf(format string, args ...any) *Item {
 	return o.Item(sanitize.Text(fmt.Sprintf(format, args...)))
 }
 
 // Taskf formats a name and declares a root Task.
+// Prefer Task(name, evo.ID(...)) when identity must outlive label wording.
 func (o *Output) Taskf(format string, args ...any) *Task {
 	return o.Task(sanitize.Text(fmt.Sprintf(format, args...)))
 }

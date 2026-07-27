@@ -424,6 +424,10 @@ func (c *Capture) flushPendingLocked(stream CaptureStream) {
 		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
 	}
 	line = sanitize.Text(line)
+	// Redact before ring retention so DetailTail and mirrors never expose secrets.
+	if c.out != nil {
+		line = c.out.redactString(line)
+	}
 	if len(line) > maxCaptureLineLen {
 		line = line[:maxCaptureLineLen] + "…"
 	}

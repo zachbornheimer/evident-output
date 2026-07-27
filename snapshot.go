@@ -24,6 +24,7 @@ type Snapshot struct {
 // ItemSnapshot is an immutable item view.
 type ItemSnapshot struct {
 	ID          string
+	Key         string // optional stable machine key (evo.ID); empty when unset
 	Name        string
 	State       EntityState
 	Problems    []Problem
@@ -35,6 +36,7 @@ type ItemSnapshot struct {
 // TaskSnapshot is an immutable task view.
 type TaskSnapshot struct {
 	ID          string
+	Key         string // optional stable machine key (evo.ID); empty when unset
 	Name        string
 	State       EntityState
 	Phase       string

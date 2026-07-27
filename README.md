@@ -33,15 +33,16 @@ func run(out *evo.Output) error {
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.2
+go get github.com/zachbornheimer/evident-output@v0.2.3
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
 
 **Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included.  
 **Lifecycle:** `os.Exit(evo.Main(out, run))` seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail before Finish (cannot render `[ready]`).  
-**Messages:** managed `Print` / `Printf` / `Println` + `Verbose()` (not a byte-for-byte `fmt` drop-in); promote to `Item` / `Task` when semantics matter.  
-**Capture:** silent retention by default; use `MirrorToDiagnostics()` / `MirrorToDebug()` to display; attach with `output.DetailTail()` on Fail.
+**Messages:** managed `Print` / `Printf` / `Println` + `Verbose()` (not a byte-for-byte `fmt` drop-in); promote to `Item` / `Task` when semantics matter. Prefer plain labels over `Itemf`/`Taskf` when identity must stay stable.  
+**Capture:** silent retention by default; redacts via `Config.Redactor`; use `MirrorToDiagnostics()` / `MirrorToDebug()` to display; attach with `output.DetailTail()` on Fail.  
+**Platform:** optional `evo.ID("stable.key")` on Item/Task; `out.Scope("plugin")` for namespaced keys; `out.ResultWriter()` for domain payload under `FormatData` (presentation never writes there).
 
 ## Pick the entity
 
@@ -82,13 +83,28 @@ upgrade.Done()
 
 - **Ownership:** `upgrade.Capture()` associates evidence with that task.
 - **Silent by default:** ring always retains; no Diagnostics/Debug mirror unless `MirrorToDiagnostics()` / `MirrorToDebug()`.
+- **Redaction:** `Config.Redactor` (or `evo.Redact`) applies before ring retention — secrets never land in DetailTail.
 - **Detail:** `output.DetailTail()` is a `ProblemOption` (compose with Fail); separate `Stdout()`/`Stderr()` buffers.
 - **Defaults:** last 200 lines / 256KiB, sanitized, truncation marked.
 - **`DebugWriter`:** intentional DEBUG journal only — not for child tools.
 
+## Platform adapters (contracts, not sugar)
+
+Keep the core vocabulary small. Scale via **Config**, **schema keys**, and **stream contracts**:
+
+| Need | Contract |
+|------|----------|
+| Stable machine identity | `out.Item("label", evo.ID("gate.tree"))` — keys appear in Snapshot/JSON |
+| Plugin / subsystem namespace | `out.Scope("registry").Task("pull", evo.ID("image"))` → key `registry.image` |
+| Domain payload purity | `Format: FormatData` + `json.NewEncoder(out.ResultWriter())` (stdout); human on stderr |
+| Secret scrubbing | `Config.Redactor` or `evo.Redact(r)` — Debug fields + Capture ring |
+| Host-owned rendering | `FormatExternal` + snapshots (no inline stream) |
+
+Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Prefer one `Config` field or `EntityOption` over a new top-level type.
+
 ## Status
 
-**Release:** **v0.2.2** — silent Capture, Main/run error sync, real terminal size, pane row budget, CI.  
+**Release:** **v0.2.3** — Capture redaction, ResultWriter stream purity, stable `evo.ID` / Scope, platform docs.  
 **Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).  
 **Implemented surface:** v0.3–v0.4 core (library, interactive VT, debug history/pane, real CLI, hardened MCP, §31 automated rows test-gated). External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 

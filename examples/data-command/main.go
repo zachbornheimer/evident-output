@@ -7,7 +7,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -28,7 +27,6 @@ func main() {
 		Title:  "build",
 		Format: evo.FormatData,
 	})
-	var result BuildResult
 	code := evo.Main(out, func(o *evo.Output) error {
 		o.Item("compile").OK()
 		o.Item("tests").OK()
@@ -38,18 +36,16 @@ func main() {
 			return nil
 		}
 		link.Done("bin/app")
-		result = BuildResult{Artifact: "bin/app", Packages: 14, Duration: "3.2s"}
-		return nil
-	})
-	if code == evo.ExitOK {
-		enc := json.NewEncoder(os.Stdout)
+		// Domain payload stays on ResultWriter (stdout); presentation is stderr.
+		result := BuildResult{Artifact: "bin/app", Packages: 14, Duration: "3.2s"}
+		enc := json.NewEncoder(o.ResultWriter())
 		if *pretty {
 			enc.SetIndent("", "  ")
 		}
 		if err := enc.Encode(result); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(evo.ExitFailed)
+			return err
 		}
-	}
+		return nil
+	})
 	os.Exit(code)
 }
