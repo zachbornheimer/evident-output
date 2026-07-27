@@ -19,6 +19,7 @@ import (
 
 func main() {
 	failTests := flag.Bool("fail-tests", false, "simulate unit tests failing")
+	colorFlag := flag.String("color", "auto", "color output: auto|always|never")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: install-pipeline [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "Bootstrap dependencies, generate code, and run unit tests.\n\n")
@@ -27,7 +28,7 @@ func main() {
 	flag.Parse()
 
 	clock := evo.FixedClock{T: time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)}
-	out := evo.For("install", demo.Options(os.Stdout, evo.Clock(clock))...)
+	out := evo.For("install", demo.Options(os.Stdout, demo.ParseColorFlag(*colorFlag), evo.Clock(clock))...)
 	defer out.Close()
 
 	pipe := out.Tasks("pipeline")

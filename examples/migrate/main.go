@@ -17,22 +17,24 @@ import (
 func main() {
 	apply := flag.Bool("apply", false, "apply migration (default: dry-run plan only)")
 	fail := flag.Bool("fail", false, "with --apply, simulate backup failure")
+	colorFlag := flag.String("color", "auto", "color output: auto|always|never")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: migrate [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "Plan or apply a schema migration, with clear presentation of effects.\n\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+	color := demo.ParseColorFlag(*colorFlag)
 
 	if !*apply {
-		runPlan()
+		runPlan(color)
 		return
 	}
-	runApply(*fail)
+	runApply(*fail, color)
 }
 
-func runPlan() {
-	out := evo.For("migrate-schema", demo.Options(os.Stdout)...)
+func runPlan(color demo.ColorMode) {
+	out := evo.For("migrate-schema", demo.Options(os.Stdout, color)...)
 	defer out.Close()
 
 	out.Line("Dry-run: no database changes will be made.")
@@ -52,8 +54,8 @@ func runPlan() {
 	os.Exit(out.Conclusion().ExitCode)
 }
 
-func runApply(failBackup bool) {
-	out := evo.For("migrate-schema", demo.Options(os.Stdout)...)
+func runApply(failBackup bool, color demo.ColorMode) {
+	out := evo.For("migrate-schema", demo.Options(os.Stdout, color)...)
 	defer out.Close()
 
 	backup := out.Item("backup")

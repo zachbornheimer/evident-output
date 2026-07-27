@@ -19,6 +19,7 @@ import (
 func main() {
 	name := flag.String("name", "bpp-csharp", "repository subject shown in the conclusion")
 	clean := flag.Bool("clean", false, "simulate a clean repo (all items OK)")
+	colorFlag := flag.String("color", "auto", "color output: auto|always|never")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: repo-status [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "Report whether a local git repository is safe to archive or delete.\n\n")
@@ -26,7 +27,7 @@ func main() {
 	}
 	flag.Parse()
 
-	out := evo.For(*name, demo.Options(os.Stdout)...)
+	out := evo.For(*name, demo.Options(os.Stdout, demo.ParseColorFlag(*colorFlag))...)
 	defer out.Close()
 
 	tree := out.Item("working tree")

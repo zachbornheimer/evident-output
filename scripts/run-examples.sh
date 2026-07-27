@@ -35,10 +35,11 @@ for name in "${EXAMPLES[@]}"; do
   fi
   hr "${name}"
   # Build then exec so Conclusion exit codes are preserved (go run collapses them).
+  # --color=always so demos show SGR even when the agent/CI shell exports NO_COLOR.
   bin="${BIN_DIR}/${name}"
   go build -o "${bin}" "./examples/${name}/"
   set +e
-  "${bin}"
+  "${bin}" --color=always
   code=$?
   set -e
   if [[ "${code}" -ne 0 ]]; then

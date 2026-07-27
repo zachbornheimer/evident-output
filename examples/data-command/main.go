@@ -25,6 +25,7 @@ type BuildResult struct {
 func main() {
 	pretty := flag.Bool("pretty", false, "indent JSON on stdout")
 	failLink := flag.Bool("fail-link", false, "simulate linker failure")
+	colorFlag := flag.String("color", "auto", "color output: auto|always|never")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: data-command [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "Run a build and emit a machine JSON result on stdout.\n")
@@ -34,7 +35,7 @@ func main() {
 	flag.Parse()
 
 	// Human UI → stderr (with color). JSON → stdout.
-	out := evo.For("build", demo.Options(os.Stderr, evo.DataProjection())...)
+	out := evo.For("build", demo.Options(os.Stderr, demo.ParseColorFlag(*colorFlag), evo.DataProjection())...)
 	defer out.Close()
 
 	out.Item("compile").OK()

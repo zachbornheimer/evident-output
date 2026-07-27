@@ -17,6 +17,7 @@ import (
 func main() {
 	asJSON := flag.Bool("json", false, "emit JSON snapshot on stdout; human report on stderr")
 	strict := flag.Bool("strict", false, "demo: escalate the signing warn to a block")
+	colorFlag := flag.String("color", "auto", "color output: auto|always|never")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: doctor [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "Check local developer environment readiness.\n\n")
@@ -29,7 +30,7 @@ func main() {
 		human = os.Stderr
 	}
 
-	out := evo.For("env-doctor", demo.Options(human)...)
+	out := evo.For("env-doctor", demo.Options(human, demo.ParseColorFlag(*colorFlag))...)
 	defer out.Close()
 
 	out.Item("go toolchain").OK()
