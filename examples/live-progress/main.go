@@ -45,6 +45,12 @@ func main() {
 	if *step {
 		*frames = true
 	}
+	// Non-TTY stderr cannot show in-place CSI redraws; auto-switch to frame log
+	// unless the user already asked for --frames/--step.
+	if !*frames && !isTerminal(os.Stderr) {
+		fmt.Fprintln(os.Stderr, "live-progress: stderr is not a TTY; using --frames (pass a real terminal for in-place live UI)")
+		*frames = true
+	}
 
 	stepDur := 100 * time.Millisecond
 	if *fast {
@@ -191,4 +197,12 @@ func (f *frameLog) WriteLive(text string) {
 			f.step = false
 		}
 	}
+}
+
+func isTerminal(f *os.File) bool {
+	st, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return st.Mode()&os.ModeCharDevice != 0
 }

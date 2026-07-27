@@ -123,6 +123,9 @@ go run ./examples/live-progress/              # in-place ANSI live region (real 
 go run ./examples/live-progress/ --frames     # numbered frames you can scroll
 go run ./examples/live-progress/ --step       # press Enter between frames
 go run ./examples/live-progress/ --fast
+
+# mise run examples: uses live ANSI when stderr is a TTY; --frames otherwise.
+# EVO_EXAMPLES_FRAMES=1 mise run examples   # force scrubable frames in the batch
 ```
 
 ### Machine output
