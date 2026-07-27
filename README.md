@@ -129,6 +129,14 @@ printf '%s\n' \
   | evident-output-mcp 2>/dev/null | head
 ```
 
+#### Host config snippets (print-only)
+
+```bash
+evident-output-mcp config --client grok         # also: claude-code|codex|gemini|opencode
+```
+
+Integrations: [`integrations/`](integrations/) · portable skill: [`skills/cli-output/`](skills/cli-output/)
+
 #### Grok (xAI TUI / Build)
 
 User scope (`~/.grok/config.toml`) — works in every session:
@@ -138,9 +146,15 @@ grok mcp add evident-output -- evident-output-mcp
 # or with an absolute path if the binary is not on PATH:
 # grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 
+# Project scope (this repo already has .grok/config.toml):
+# grok mcp add --scope project evident-output -- evident-output-mcp
+
 grok mcp list
 grok mcp doctor evident-output
 ```
+
+Start a **new** Grok session after adding the server so tools are discovered.
+See [`integrations/grok/README.md`](integrations/grok/README.md).
 
 Equivalent TOML:
 

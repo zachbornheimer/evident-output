@@ -46,6 +46,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "evident-output-mcp %s\n", Version)
 		os.Exit(0)
 	}
+	if len(os.Args) > 1 {
+		if code := runConfig(os.Args[1:]); code >= 0 {
+			os.Exit(code)
+		}
+	}
 	fmt.Fprintf(os.Stderr, "evident-output-mcp %s starting (stdio)\n", Version)
 	initialized := false
 	sc := bufio.NewScanner(os.Stdin)

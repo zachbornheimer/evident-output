@@ -1,21 +1,23 @@
 ---
 name: evident-output
-description: Use Evident Output (evo) for CLI presentation — items, tasks, progress, plain/JSON, live regions.
+description: >
+  Use when creating, modifying, reviewing, testing, or debugging command-line
+  output (items, tasks, progress, plans, changes, debug logs, TTY/CI streams).
+  Prefer the portable skill name cli-output; this alias targets Evident Output (evo).
+license: Apache-2.0
 ---
 
-# Evident Output skill
+# Evident Output skill (alias)
 
-## When to use
+Canonical portable skill: [`../cli-output/SKILL.md`](../cli-output/SKILL.md).
 
-Building or reviewing Go CLI presentation with `github.com/zachbornheimer/evident-output`.
+## Workflow when MCP is connected
 
-## Workflow
-
-1. `evident_output.list_guides` / `get_guidance` for the task
-2. Implement with common API (`For`, `Item`, `Task`, `Tasks`, `Finish`)
-3. `evident_output.review` on the Go source
-4. Repair findings; re-run review until `recheck_required=false`
-5. `evident_output.preview` for narrow/wide plain profiles
+1. `evident_output.list_guides` / `get_guidance`
+2. Implement with common API (`For`, `Item`, `Task`, `Tasks`, `Finish`) when justified
+3. `evident_output.review` until `recheck_required=false`
+4. `evident_output.preview` for profiles
+5. `evident_output.explain` with `rule_id` for findings
 
 ## Rules of thumb
 
