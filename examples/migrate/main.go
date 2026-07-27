@@ -1,8 +1,5 @@
 // Command migrate shows dry-run Plan vs applied Changes.
 //
-// Pattern: Plan = would happen; Changes = did happen. Same verbs/objects so
-// operators can compare intent vs result. Default is dry-run (safe).
-//
 //	go run ./examples/migrate/                 # plan only
 //	go run ./examples/migrate/ --apply         # record applied changes
 //	go run ./examples/migrate/ --apply --fail  # apply path with a failure item
@@ -14,6 +11,7 @@ import (
 	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/examples/internal/demo"
 )
 
 func main() {
@@ -34,7 +32,7 @@ func main() {
 }
 
 func runPlan() {
-	out := evo.For("migrate-schema", evo.To(os.Stdout), evo.Plain(), evo.NoColor())
+	out := evo.For("migrate-schema", demo.Options(os.Stdout)...)
 	defer out.Close()
 
 	out.Line("Dry-run: no database changes will be made.")
@@ -55,7 +53,7 @@ func runPlan() {
 }
 
 func runApply(failBackup bool) {
-	out := evo.For("migrate-schema", evo.To(os.Stdout), evo.Plain(), evo.NoColor())
+	out := evo.For("migrate-schema", demo.Options(os.Stdout)...)
 	defer out.Close()
 
 	backup := out.Item("backup")
@@ -64,7 +62,6 @@ func runApply(failBackup bool) {
 			"could not snapshot production",
 			evo.Detail("S3 PutObject returned 403"),
 		).Because("Refusing to migrate without a restorable backup.")
-		// Still Finish: presentation records the failure; exit code comes from conclusion.
 		if err := out.Finish(); err != nil {
 			fmt.Fprintln(os.Stderr, "presentation error:", err)
 		}

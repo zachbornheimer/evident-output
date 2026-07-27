@@ -57,13 +57,15 @@ func TestPORT012_BigEndianCrossCompile(t *testing.T) {
 	}
 }
 
-func TestAPI013_FrameworkAdapterExampleBuilds(t *testing.T) {
-	// API-013: urfave/Kong-shaped examples compile without core dep changes.
+func TestAPI013_ExampleCLIsBuild(t *testing.T) {
+	// API-013: example programs compile without core dep changes.
 	root := repoRoot(t)
-	cmd := exec.Command("go", "build", "-o", os.DevNull, "./examples/framework-adapters/")
-	cmd.Dir = root
-	if b, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("build framework-adapters: %v\n%s", err, b)
+	for _, ex := range []string{"repo-status", "install-pipeline", "migrate", "doctor", "data-command"} {
+		cmd := exec.Command("go", "build", "-o", os.DevNull, "./examples/"+ex+"/")
+		cmd.Dir = root
+		if b, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("build examples/%s: %v\n%s", ex, err, b)
+		}
 	}
 }
 

@@ -778,7 +778,7 @@ func (o *Output) Finish() error {
 	misuse := o.misuse
 	o.finished = true
 	o.finishing = false
-	interactiveFinal := renderInteractiveFinal(snap)
+	interactiveFinal := renderInteractiveFinal(snap, !cfg.noColor)
 	if live := o.liveLocked(); live != nil && live.IsInteractive() {
 		o.finishLiveLocked(interactiveFinal)
 	}
@@ -813,20 +813,20 @@ func (o *Output) Finish() error {
 	return misuse
 }
 
-func renderInteractiveFinal(s Snapshot) string {
+func renderInteractiveFinal(s Snapshot, color bool) string {
 	var b strings.Builder
 	for _, t := range s.Tasks {
-		writeTask(&b, t)
+		writeTask(&b, t, color)
 	}
 	for _, col := range s.Collections {
-		writeCollection(&b, col)
+		writeCollection(&b, col, color)
 	}
 	for _, it := range s.Items {
-		writeItem(&b, it)
+		writeItem(&b, it, color)
 	}
 	if b.Len() == 0 {
 		// fall back to full plain without conclusion
-		cfg := config{width: defaultWidth, plain: true, nonInteractive: true}
+		cfg := config{width: defaultWidth, plain: true, nonInteractive: true, noColor: !color}
 		text := renderPlain(s, cfg)
 		// strip trailing conclusion block if present
 		return strings.TrimRight(text, "\n")

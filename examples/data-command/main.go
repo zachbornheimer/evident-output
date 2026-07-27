@@ -1,11 +1,8 @@
 // Command data-command shows the data-command stream split.
 //
-// Pattern: machine payload on stdout, human presentation on stderr. Agents and
-// pipes get clean JSON; operators still see a readable report.
-//
 //	go run ./examples/data-command/ | jq .
 //	go run ./examples/data-command/ --pretty
-//	go run ./examples/data-command/ 2>/dev/null | jq .conclusion.state
+//	go run ./examples/data-command/ 2>/dev/null | jq .artifact
 package main
 
 import (
@@ -15,6 +12,7 @@ import (
 	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/examples/internal/demo"
 )
 
 // BuildResult is the domain payload a real tool would emit (not evo-specific).
@@ -35,13 +33,8 @@ func main() {
 	}
 	flag.Parse()
 
-	// Human UI → stderr. Primary stream reserved for the JSON document.
-	out := evo.For("build",
-		evo.To(os.Stderr),
-		evo.Plain(),
-		evo.NoColor(),
-		evo.DataProjection(),
-	)
+	// Human UI → stderr (with color). JSON → stdout.
+	out := evo.For("build", demo.Options(os.Stderr, evo.DataProjection())...)
 	defer out.Close()
 
 	out.Item("compile").OK()
@@ -58,7 +51,6 @@ func main() {
 		fmt.Fprintln(os.Stderr, "presentation error:", err)
 	}
 
-	// Domain result only on success-ish paths; still include snapshot metadata via side channel if needed.
 	if out.Conclusion().ExitCode == 0 {
 		result := BuildResult{
 			Artifact: "bin/app",

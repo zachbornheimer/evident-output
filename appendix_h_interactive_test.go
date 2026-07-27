@@ -59,6 +59,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	out := evo.New(
 		evo.Terminal(screen),
 		evo.DebugLevel(evo.Debug),
+		evo.NoColor(), // assert exact final text without SGR
 	)
 	t.Cleanup(func() { _ = out.Close() })
 

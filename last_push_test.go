@@ -217,7 +217,8 @@ func TestSEC012_PathCanBeInDetailButCauseHidden(t *testing.T) {
 
 func TestTERM023_SplitStreamsNoCrossCursor(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := evo.New(evo.To(&primary), evo.Diagnostics(&diag), evo.Plain())
+	// NoColor: this test forbids cursor CSI, not semantic SGR color.
+	out := evo.New(evo.To(&primary), evo.Diagnostics(&diag), evo.Plain(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("a").OK()
 	_ = out.Finish()

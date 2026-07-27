@@ -1,7 +1,7 @@
 // Command install-pipeline simulates a multi-step install/bootstrap.
 //
 // Pattern: Tasks collection — state is derived from children. Prefer Progress/
-// Bytes on leaf Tasks, not on the collection. Useful for setup, generate, test.
+// Bytes on leaf Tasks, not on the collection.
 //
 //	go run ./examples/install-pipeline/
 //	go run ./examples/install-pipeline/ --fail-tests
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/examples/internal/demo"
 )
 
 func main() {
@@ -25,21 +26,14 @@ func main() {
 	}
 	flag.Parse()
 
-	// Fixed clock keeps timestamps stable if you dump events later.
 	clock := evo.FixedClock{T: time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)}
-	out := evo.For("install",
-		evo.To(os.Stdout),
-		evo.Plain(),
-		evo.NoColor(),
-		evo.Clock(clock),
-	)
+	out := evo.For("install", demo.Options(os.Stdout, evo.Clock(clock))...)
 	defer out.Close()
 
 	pipe := out.Tasks("pipeline")
 
 	mod := pipe.Task("go mod download")
 	mod.Phase("resolving modules")
-	// Absolute progress: completed/total (not a spinning percent invent).
 	for i := int64(1); i <= 4; i++ {
 		mod.Progress(i, 4)
 	}

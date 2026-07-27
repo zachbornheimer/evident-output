@@ -10,7 +10,7 @@ import (
 
 func TestDebugWriter_SplitsLinesAndSanitizes(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.New(evo.Terminal(screen), evo.DebugLevel(evo.Debug))
+	out := evo.New(evo.Terminal(screen), evo.DebugLevel(evo.Debug), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	w := out.DebugWriter()
@@ -20,13 +20,16 @@ func TestDebugWriter_SplitsLinesAndSanitizes(t *testing.T) {
 
 	var durable []string
 	for _, op := range screen.Operations() {
-		if op.Kind == "durable" || strings.Contains(op.Text, "hello") {
+		if op.Kind == "durable" {
 			durable = append(durable, op.Text)
 		}
 	}
-	// At least one debug line without ESC.
+	// Debug lines must neutralize user ESC; do not inspect colored finals.
 	joined := strings.Join(durable, "\n")
 	if strings.Contains(joined, "\x1b") {
-		t.Fatalf("ESC leaked: %q", joined)
+		t.Fatalf("ESC leaked into debug lines: %q", joined)
+	}
+	if !strings.Contains(joined, "hello") {
+		t.Fatalf("missing debug content: %q", joined)
 	}
 }

@@ -1,12 +1,8 @@
 // Command doctor is an environment/health check CLI.
 //
-// Pattern: many independent Items with mixed outcomes (OK / warn / block / fail).
-// Optional --json writes a machine snapshot to stdout and keeps the human report
-// on stderr (data-command shape).
-//
 //	go run ./examples/doctor/
 //	go run ./examples/doctor/ --json | jq .conclusion
-//	go run ./examples/doctor/ --strict   # treat warnings as blocks (demo flag)
+//	go run ./examples/doctor/ --strict
 package main
 
 import (
@@ -15,6 +11,7 @@ import (
 	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/examples/internal/demo"
 )
 
 func main() {
@@ -32,7 +29,7 @@ func main() {
 		human = os.Stderr
 	}
 
-	out := evo.For("env-doctor", evo.To(human), evo.Plain(), evo.NoColor())
+	out := evo.For("env-doctor", demo.Options(human)...)
 	defer out.Close()
 
 	out.Item("go toolchain").OK()
@@ -63,7 +60,6 @@ func main() {
 
 	if err := out.Finish(); err != nil {
 		fmt.Fprintln(os.Stderr, "presentation error:", err)
-		// Still emit JSON if requested so machines can inspect partial state.
 	}
 
 	if *asJSON {
@@ -72,7 +68,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		os.Stdout.Write(b)
+		_, _ = os.Stdout.Write(b)
 		if len(b) == 0 || b[len(b)-1] != '\n' {
 			fmt.Fprintln(os.Stdout)
 		}

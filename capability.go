@@ -41,7 +41,8 @@ func DetectCapabilities(opts ...Option) CapabilityProfile {
 		NoColor:     cfg.noColor,
 		Color:       ColorBasic,
 	}
-	if cfg.noColor || cfg.plain || cfg.nonInteractive {
+	// Plain/non-interactive still allow semantic color on final reports unless NoColor.
+	if cfg.noColor {
 		p.Color = ColorNone
 	}
 	if cfg.terminal != nil {

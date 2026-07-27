@@ -45,7 +45,8 @@ func Diagnostics(w io.Writer) Option {
 	return optionFunc(func(c *config) { c.diagnostic = w })
 }
 
-// Plain forces plain human output (no ANSI).
+// Plain forces final-report projection (no live spinner region).
+// Semantic color is still emitted unless NoColor is set.
 func Plain() Option {
 	return optionFunc(func(c *config) { c.plain = true })
 }

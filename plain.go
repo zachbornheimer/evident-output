@@ -9,6 +9,18 @@ import (
 // compactLayoutMaxWidth switches changes/plans to compact rows.
 const compactLayoutMaxWidth = 40
 
+// SGR styles for final-report projection (library-owned sequences only).
+const (
+	sgrReset  = "\x1b[0m"
+	sgrBold   = "\x1b[1m"
+	sgrDim    = "\x1b[2m"
+	sgrRed    = "\x1b[31m"
+	sgrGreen  = "\x1b[32m"
+	sgrYellow = "\x1b[33m"
+	sgrCyan   = "\x1b[36m"
+	sgrBlue   = "\x1b[34m"
+)
+
 // PlainOptions configures pure plain projection (§25.4).
 type PlainOptions struct {
 	Width          int
@@ -33,6 +45,7 @@ func renderPlain(s Snapshot, cfg config) string {
 	if width <= 0 {
 		width = defaultWidth
 	}
+	color := !cfg.noColor
 
 	for _, line := range s.Lines {
 		b.WriteString(line)
@@ -40,73 +53,65 @@ func renderPlain(s Snapshot, cfg config) string {
 	}
 
 	for _, it := range s.Items {
-		writeItem(&b, it)
+		writeItem(&b, it, color)
 	}
 
 	for _, t := range s.Tasks {
-		writeTask(&b, t)
+		writeTask(&b, t, color)
 	}
 
 	for _, col := range s.Collections {
-		writeCollection(&b, col)
+		writeCollection(&b, col, color)
 	}
 
 	for _, ch := range s.Changes {
-		writeEffects(&b, "changed", ch.Subject, ch.Records, width)
+		writeEffects(&b, "changed", ch.Subject, ch.Records, width, color)
 	}
 	for _, p := range s.Plans {
-		writeEffects(&b, "planned", p.Subject, p.Records, width)
+		writeEffects(&b, "planned", p.Subject, p.Records, width, color)
 	}
 
 	if s.Conclusion != nil {
-		writeConclusion(&b, *s.Conclusion)
+		writeConclusion(&b, *s.Conclusion, color)
 	}
 
 	return b.String()
 }
 
-func writeItem(b *strings.Builder, it ItemSnapshot) {
-	glyph := itemGlyph(it.State)
+func writeItem(b *strings.Builder, it ItemSnapshot, color bool) {
+	glyph := styleGlyph(itemGlyph(it.State), stateColor(it.State), color)
 	fmt.Fprintf(b, "%s  %s\n", glyph, it.Name)
 	for _, p := range it.Problems {
-		writeProblem(b, p)
+		writeProblem(b, p, color)
 	}
 	if it.Because != "" {
-		fmt.Fprintf(b, "  %s\n", it.Because)
+		fmt.Fprintf(b, "  %s\n", dim(it.Because, color))
 	}
 	for _, a := range it.Actions {
-		writeAction(b, a)
+		writeAction(b, a, color)
 	}
 }
 
-func writeProblem(b *strings.Builder, p Problem) {
+func writeProblem(b *strings.Builder, p Problem, color bool) {
 	if p.Subject != "" {
 		extra := p.Summary
 		if p.Count != 0 {
-			unit := p.Unit
-			if unit == "" {
-				unit = "item"
-			}
-			// plural-ish: keep unit as provided
 			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
-			if p.Unit != "" {
-				extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count) // unit shown if needed
-				_ = unit
-			}
 		}
-		fmt.Fprintf(b, "   ├─ %s  %s\n", p.Subject, extra)
+		fmt.Fprintf(b, "   %s %s  %s\n", dim("├─", color), p.Subject, extra)
 		return
 	}
 	line := p.Summary
 	if p.Detail != "" {
-		line = p.Summary + "     " + p.Detail
+		line = p.Summary + "     " + dim(p.Detail, color)
 	}
-	fmt.Fprintf(b, "   └─ %s\n", line)
+	fmt.Fprintf(b, "   %s %s\n", dim("└─", color), line)
 }
 
-func writeAction(b *strings.Builder, a Action) {
+func writeAction(b *strings.Builder, a Action, color bool) {
 	if a.Command != nil {
-		fmt.Fprintf(b, "  %s %s\n", a.Command.Executable, strings.Join(a.Command.Args, " "))
+		cmd := a.Command.Executable + " " + strings.Join(a.Command.Args, " ")
+		fmt.Fprintf(b, "  %s\n", style(cmd, sgrCyan, color))
 		return
 	}
 	if a.Label != "" {
@@ -114,34 +119,34 @@ func writeAction(b *strings.Builder, a Action) {
 	}
 }
 
-func writeTask(b *strings.Builder, t TaskSnapshot) {
-	glyph := taskGlyph(t.State)
+func writeTask(b *strings.Builder, t TaskSnapshot, color bool) {
+	glyph := styleGlyph(taskGlyph(t.State), stateColor(t.State), color)
 	label := t.Name
 	if t.Summary != "" {
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Summary)
+		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, dim(t.Summary, color))
 		return
 	}
 	if t.Phase != "" && t.State == Running {
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Phase)
+		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, dim(t.Phase, color))
 		return
 	}
 	fmt.Fprintf(b, "%s  %s\n", glyph, label)
 	for _, p := range t.Problems {
-		writeProblem(b, p)
+		writeProblem(b, p, color)
 	}
 }
 
-func writeCollection(b *strings.Builder, col TasksSnapshot) {
-	glyph := taskGlyph(col.State)
+func writeCollection(b *strings.Builder, col TasksSnapshot, color bool) {
+	glyph := styleGlyph(taskGlyph(col.State), stateColor(col.State), color)
 	if col.Summary != "" && col.State == Done {
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, col.Name, col.Summary)
+		fmt.Fprintf(b, "%s  %s  %s\n", glyph, col.Name, dim(col.Summary, color))
 		return
 	}
-	// On failure, do not render success summary (handled by displaySummary).
 	fmt.Fprintf(b, "%s  %s\n", glyph, col.Name)
 	for _, t := range col.Tasks {
 		if t.State == Failed {
-			fmt.Fprintf(b, "   ✗  %s", t.Name)
+			fg := styleGlyph("✗", sgrRed, color)
+			fmt.Fprintf(b, "   %s  %s", fg, t.Name)
 			if len(t.Problems) > 0 {
 				fmt.Fprintf(b, "  %s", t.Problems[0].Summary)
 			} else if t.Summary != "" {
@@ -152,8 +157,9 @@ func writeCollection(b *strings.Builder, col TasksSnapshot) {
 	}
 }
 
-func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, width int) {
-	fmt.Fprintf(b, "[%s]  %s\n", kind, subject)
+func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, width int, color bool) {
+	tag := style(fmt.Sprintf("[%s]", kind), effectColor(kind), color)
+	fmt.Fprintf(b, "%s  %s\n", tag, subject)
 	// TXT-016: leaders omitted when unnecessary (single short column / narrow).
 	if width > 0 && width < compactLayoutMaxWidth {
 		for _, r := range records {
@@ -187,14 +193,13 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 			fmt.Fprintf(b, "  %s  %s %s\n", verb, qty, r.Object)
 			continue
 		}
-		// Leader between verb and object when aligned columns leave room.
 		gap := maxVerb - len(r.Verb)
 		if gap > maxLeader {
 			gap = maxLeader
 		}
 		if gap > 2 {
 			leader := strings.Repeat("·", gap)
-			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, leader, r.Object)
+			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, dim(leader, color), r.Object)
 		} else {
 			qtyPad := padLeft("", maxQty)
 			fmt.Fprintf(b, "  %s  %s %s\n", verb, qtyPad, r.Object)
@@ -202,17 +207,18 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 	}
 }
 
-func writeConclusion(b *strings.Builder, c Conclusion) {
+func writeConclusion(b *strings.Builder, c Conclusion, color bool) {
 	subject := c.Subject
 	if subject == "" {
 		subject = string(c.State)
 	}
-	fmt.Fprintf(b, "\n[%s]  %s\n", c.State, subject)
+	tag := style(fmt.Sprintf("[%s]", c.State), conclusionColor(c.State), color)
+	fmt.Fprintf(b, "\n%s  %s\n", tag, style(subject, sgrBold, color))
 	if c.Explanation != "" {
 		fmt.Fprintf(b, "  %s\n", c.Explanation)
 	}
 	for _, a := range c.Actions {
-		writeAction(b, a)
+		writeAction(b, a, color)
 	}
 }
 
@@ -252,6 +258,68 @@ func taskGlyph(s EntityState) string {
 	default:
 		return "·"
 	}
+}
+
+func stateColor(s EntityState) string {
+	switch s {
+	case OK, Done:
+		return sgrGreen
+	case Failed:
+		return sgrRed
+	case Blocked:
+		return sgrRed
+	case Warning:
+		return sgrYellow
+	case Running:
+		return sgrCyan
+	case Pending, Skipped, Cancelled, Unknown, Incomplete:
+		return sgrDim
+	default:
+		return ""
+	}
+}
+
+func conclusionColor(s ConclusionState) string {
+	switch s {
+	case StateReady, StateUnchanged, StateChanged:
+		return sgrGreen
+	case StateFailed:
+		return sgrRed
+	case StateBlocked:
+		return sgrRed
+	case StatePartial:
+		return sgrYellow
+	case StateCancelled:
+		return sgrDim
+	default:
+		return sgrCyan
+	}
+}
+
+func effectColor(kind string) string {
+	switch kind {
+	case "changed":
+		return sgrGreen
+	case "planned":
+		return sgrBlue
+	default:
+		return sgrCyan
+	}
+}
+
+func style(s, code string, color bool) string {
+	if !color || code == "" || s == "" {
+		return s
+	}
+	return code + s + sgrReset
+}
+
+func styleGlyph(glyph, code string, color bool) string {
+	return style(glyph, code, color)
+}
+
+func dim(s string, color bool) string {
+	return style(s, sgrDim, color)
 }
 
 func padRight(s string, n int) string {

@@ -13,6 +13,7 @@ import (
 	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/examples/internal/demo"
 )
 
 func main() {
@@ -25,8 +26,7 @@ func main() {
 	}
 	flag.Parse()
 
-	// Human report on stdout. Plain+NoColor keeps demos readable in logs/CI.
-	out := evo.For(*name, evo.To(os.Stdout), evo.Plain(), evo.NoColor())
+	out := evo.For(*name, demo.Options(os.Stdout)...)
 	defer out.Close()
 
 	tree := out.Item("working tree")
@@ -40,7 +40,6 @@ func main() {
 		remotes.OK()
 		stashes.OK()
 	} else {
-		// Real commands would shell out to git; here we show the presentation shape.
 		tree.OK()
 		branches.BlockedBy(
 			evo.Problem{Subject: "feat/sdk-full-consolidation", Summary: "local-only branch", Count: 1},
@@ -58,6 +57,5 @@ func main() {
 		fmt.Fprintln(os.Stderr, "presentation error:", err)
 		os.Exit(1)
 	}
-	// Blocked/failed conclusions → non-zero exit without treating Block as a Go error.
 	os.Exit(out.Conclusion().ExitCode)
 }
