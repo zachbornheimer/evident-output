@@ -15,10 +15,12 @@ EXAMPLES=(
   live-progress
 )
 
-# Extra args per example (live-progress uses --fast in the batch runner).
+# Extra args per example.
+# live-progress: --frames so each redraw is a numbered scrubable snapshot
+# (in-place ANSI is for an interactive TTY: go run ./examples/live-progress/).
 example_args() {
   case "$1" in
-    live-progress) echo "--fast --color=always" ;;
+    live-progress) echo "--fast --frames --color=always" ;;
     *) echo "--color=always" ;;
   esac
 }

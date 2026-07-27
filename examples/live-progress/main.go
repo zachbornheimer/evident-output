@@ -1,25 +1,23 @@
 // Command live-progress demos multi-task live progress (determinate bars +
 // indeterminate spinner phases) with real wall-clock sleeps.
 //
-// Uses the production ANSI driver on stderr so you see the live region redraw.
-// Do not pass Plain() — that disables the interactive live surface.
+// Modes:
+//
+//	default (TTY)  — ANSI live region on stderr (in-place redraw)
+//	--frames       — print each live snapshot with a header (scrubable log)
+//	--step         — like --frames, but wait for Enter between frames
 //
 //	go run ./examples/live-progress/
-//	go run ./examples/live-progress/ --fast          # shorter sleeps
-//	go run ./examples/live-progress/ --work-dir /tmp/foo
-//
-// What you'll see:
-//   - several concurrent-looking tasks under a Tasks collection
-//   - determinate unit progress bars (scan files)
-//   - determinate byte progress bars (download)
-//   - indeterminate phase spinner (verify signatures)
-//   - debug lines inserted above the live region
-//   - a final static report after Finish
+//	go run ./examples/live-progress/ --frames
+//	go run ./examples/live-progress/ --step
+//	go run ./examples/live-progress/ --fast
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -30,19 +28,27 @@ import (
 )
 
 func main() {
-	fast := flag.Bool("fast", false, "use 20ms steps instead of 100ms (CI-friendly)")
-	workDir := flag.String("work-dir", "", "directory to write demo temp files (default: os.TempDir()/evo-live-progress-*)")
+	fast := flag.Bool("fast", false, "use 20ms steps instead of 100ms")
+	frames := flag.Bool("frames", false, "dump every live frame with a numbered header (no in-place ANSI)")
+	step := flag.Bool("step", false, "frame dump + wait for Enter between frames")
+	workDir := flag.String("work-dir", "", "directory for demo temp files (default: TempDir)")
 	colorFlag := flag.String("color", "auto", "color final report: auto|always|never")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: live-progress [flags]\n\n")
-		fmt.Fprintf(os.Stderr, "Interactive multi-progress demo (live region on stderr).\n\n")
+		fmt.Fprintf(os.Stderr, "Interactive multi-progress demo.\n\n")
+		fmt.Fprintf(os.Stderr, "  Default: live ANSI region on stderr (in-place).\n")
+		fmt.Fprintf(os.Stderr, "  --frames: print each redraw so you can scroll/scrub.\n")
+		fmt.Fprintf(os.Stderr, "  --step:   --frames + press Enter between redraws.\n\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+	if *step {
+		*frames = true
+	}
 
-	step := 100 * time.Millisecond
+	stepDur := 100 * time.Millisecond
 	if *fast {
-		step = 20 * time.Millisecond
+		stepDur = 20 * time.Millisecond
 	}
 
 	dir := *workDir
@@ -59,19 +65,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Live UI owns stderr (ANSI live region). Final plain report also goes there.
-	// SystemClock + real Sleep so frames advance over wall time.
-	drv := terminal.NewANSI(os.Stderr,
-		terminal.WithInteractive(true),
-		terminal.WithSize(80, 24),
-	)
-	opts := []evo.Option{
-		evo.Terminal(drv),
-		evo.DebugLevel(evo.Debug),
-		evo.VisibilityDelay(0), // show progress immediately
-		evo.MaxFrameRate(30),
+	var term evo.TerminalDriver
+	if *frames {
+		term = newFrameLog(os.Stderr, *step)
+	} else {
+		term = terminal.NewANSI(os.Stderr,
+			terminal.WithInteractive(true),
+			terminal.WithSize(80, 24),
+		)
 	}
-	// Final report color policy (live glyphs stay monochrome in the driver today).
+
+	opts := []evo.Option{
+		evo.Terminal(term),
+		evo.DebugLevel(evo.Debug),
+		evo.VisibilityDelay(0),
+		evo.MaxFrameRate(60),
+	}
 	switch demo.ParseColorFlag(*colorFlag) {
 	case demo.ColorNever:
 		opts = append(opts, evo.NoColor())
@@ -80,10 +89,10 @@ func main() {
 			opts = append(opts, evo.NoColor())
 		}
 	}
+
 	out := evo.For("install-deps", opts...)
 	defer out.Close()
 
-	// Seed a few files to "scan".
 	const nFiles = 24
 	for i := 0; i < nFiles; i++ {
 		path := filepath.Join(dir, fmt.Sprintf("pkg-%02d.tgz", i))
@@ -95,49 +104,40 @@ func main() {
 
 	jobs := out.Tasks("dependencies")
 
-	// 1) Indeterminate while discovering packages.
+	// Indeterminate discovery
 	discover := jobs.Task("discover")
 	for _, phase := range []string{"reading lockfile", "resolving graph", "planning fetch"} {
 		discover.Phase(phase)
-		time.Sleep(step * 3)
+		time.Sleep(stepDur * 3)
 	}
 	discover.Donef("%d packages", nFiles)
 
-	// 2) Determinate unit progress — multi-bar feel with siblings running later.
 	scan := jobs.Task("scan")
 	download := jobs.Task("download")
-	verify := jobs.Task("verify") // indeterminate until later
+	verify := jobs.Task("verify")
 
-	// Start download early so bars appear together.
 	const totalBytes int64 = 18_000_000
 	download.Bytes(0, totalBytes)
 	verify.Phase("waiting for download")
 
-	// Interleave scan (unit bar) and download (byte bar).
 	entries, _ := os.ReadDir(dir)
-	for i, e := range entries {
+	for i := range entries {
 		scan.Progress(int64(i+1), int64(len(entries)))
-		// Download advances in chunks each step.
 		done := int64(float64(totalBytes) * float64(i+1) / float64(len(entries)))
 		download.Bytes(done, totalBytes)
-		_ = e
-		time.Sleep(step)
+		time.Sleep(stepDur)
 	}
 	scan.Done()
 	download.Bytes(totalBytes, totalBytes)
-	download.Donef("%s", formatMB(totalBytes))
+	download.Donef("%.1f MB", float64(totalBytes)/(1000*1000))
 
-	// 3) Indeterminate verify phases after determinate work.
 	for _, phase := range []string{"checking signatures", "checksums", "quarantine scan"} {
 		verify.Phase(phase)
-		time.Sleep(step * 4)
+		time.Sleep(stepDur * 4)
 	}
 	verify.Done()
 
-	// Durable log above live region (clears → writes → redraws while live was active;
-	// after children complete this still journals).
 	out.Debug("cache warm", evo.String("dir", dir))
-
 	out.Item("lockfile").OK()
 	out.Item("registry").OK()
 
@@ -145,18 +145,50 @@ func main() {
 		fmt.Fprintln(os.Stderr, "presentation error:", err)
 		os.Exit(1)
 	}
-	// WriteFinal already painted the interactive final; also print a colored
-	// plain summary to stdout for copy/paste in logs.
+
+	// Colored final summary on stdout (in addition to WriteFinal on stderr).
 	snap := out.Snapshot()
 	noColor := demo.ParseColorFlag(*colorFlag) == demo.ColorNever ||
 		(demo.ParseColorFlag(*colorFlag) == demo.ColorAuto && os.Getenv("NO_COLOR") != "")
 	plain, _ := evo.RenderPlain(snap, evo.PlainOptions{Width: 80, NoColor: noColor})
 	fmt.Fprintln(os.Stdout)
 	_, _ = os.Stdout.Write(plain)
-
 	os.Exit(out.Conclusion().ExitCode)
 }
 
-func formatMB(n int64) string {
-	return fmt.Sprintf("%.1f MB", float64(n)/(1000*1000))
+// frameLog is a LiveSurface that prints each redraw as a numbered scrubable frame
+// instead of using in-place ANSI (so mise run / pipes / logs are watchable).
+type frameLog struct {
+	w     io.Writer
+	step  bool
+	n     int
+	width int
+	in    *bufio.Reader
+}
+
+func newFrameLog(w io.Writer, step bool) *frameLog {
+	return &frameLog{w: w, step: step, width: 80, in: bufio.NewReader(os.Stdin)}
+}
+
+func (f *frameLog) ID() string          { return "frame-log" }
+func (f *frameLog) Columns() int        { return f.width }
+func (f *frameLog) Rows() int           { return 24 }
+func (f *frameLog) IsInteractive() bool { return true }
+func (f *frameLog) ClearLive()          {}
+func (f *frameLog) WriteDurable(line string) {
+	fmt.Fprintf(f.w, "  · durable: %s\n", line)
+}
+func (f *frameLog) WriteFinal(text string) {
+	fmt.Fprintf(f.w, "\n── final ──\n%s\n", text)
+}
+func (f *frameLog) WriteLive(text string) {
+	f.n++
+	fmt.Fprintf(f.w, "\n── frame %d ──\n%s\n", f.n, text)
+	if f.step {
+		fmt.Fprint(f.w, "\n[Enter] next frame, or q+Enter to skip stepping… ")
+		line, _ := f.in.ReadString('\n')
+		if len(line) > 0 && (line[0] == 'q' || line[0] == 'Q') {
+			f.step = false
+		}
+	}
 }

@@ -205,8 +205,9 @@ func (a *ANSI) eraseLiveLocked() {
 	if a.liveLines <= 0 {
 		return
 	}
-	// Move to start of live region: cursor is after last line; go up (n-1),
-	// then erase each line downward.
+	// Cursor rests on the last line of the live region (writeFrame does not
+	// leave a trailing blank line). Move to first line with CUU (n-1), erase
+	// each line downward, then return to origin.
 	n := a.liveLines
 	if n > 1 {
 		a.writeStringLocked(fmt.Sprintf("\x1b[%dA", n-1))
@@ -217,7 +218,6 @@ func (a *ANSI) eraseLiveLocked() {
 			a.writeStringLocked("\n")
 		}
 	}
-	// Return to origin of erased block.
 	if n > 1 {
 		a.writeStringLocked(fmt.Sprintf("\x1b[%dA", n-1))
 	}
@@ -225,14 +225,13 @@ func (a *ANSI) eraseLiveLocked() {
 }
 
 func (a *ANSI) writeFrameLocked(lines []string) {
+	// Write lines without a trailing blank newline so the cursor stays on the
+	// last live line — required for eraseLiveLocked's CUU arithmetic.
 	for i, line := range lines {
 		a.writeStringLocked(seqCR + seqEraseLine + line)
 		if i < len(lines)-1 {
 			a.writeStringLocked("\n")
 		}
-	}
-	if len(lines) > 0 {
-		a.writeStringLocked("\n")
 	}
 }
 

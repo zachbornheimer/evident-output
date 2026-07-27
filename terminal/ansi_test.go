@@ -65,3 +65,64 @@ func TestANSI_NonInteractiveWritesPlain(t *testing.T) {
 		t.Fatal(buf.String())
 	}
 }
+
+func TestANSI_WriteLiveRedrawsInPlace(t *testing.T) {
+	// Regression: trailing newline after a frame left the cursor one row below
+	// the live region, so the next erase missed prior content and frames scrolled.
+	var buf bytes.Buffer
+	drv := terminal.NewANSI(&buf, terminal.WithInteractive(true), terminal.WithSize(40, 10))
+	drv.WriteLive("frame-a")
+	if drv.LiveLines() != 1 {
+		t.Fatalf("liveLines=%d", drv.LiveLines())
+	}
+	drv.WriteLive("frame-b")
+	s := buf.String()
+	// Second paint must erase (CSI erase line) before writing frame-b.
+	if !strings.Contains(s, "\x1b[2K") {
+		t.Fatalf("expected erase between frames: %q", s)
+	}
+	// Visible text after stripping CSI: last occurrence should be frame-b alone
+	// as the terminal would show after erase+rewrite.
+	stripped := stripCSI(s)
+	// frame-a is painted once then erased from the cell (erase is CSI, so
+	// frame-a remains in the byte stream once; frame-b once after).
+	if strings.Count(stripped, "frame-a") != 1 || strings.Count(stripped, "frame-b") != 1 {
+		t.Fatalf("unexpected frame dumps: %q", stripped)
+	}
+	// Multi-line: 3-line frame then smaller frame must CUU.
+	buf.Reset()
+	drv2 := terminal.NewANSI(&buf, terminal.WithInteractive(true), terminal.WithSize(40, 10))
+	drv2.WriteLive("l1\nl2\nl3")
+	if drv2.LiveLines() != 3 {
+		t.Fatalf("liveLines=%d", drv2.LiveLines())
+	}
+	drv2.WriteLive("only")
+	if !strings.Contains(buf.String(), "\x1b[2A") { // up 2 from last line to first
+		t.Fatalf("expected CUU for 3-line erase: %q", buf.String())
+	}
+}
+
+func stripCSI(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if s[i] == 0x1b && i+1 < len(s) {
+			// skip CSI
+			if s[i+1] == '[' {
+				i += 2
+				for i < len(s) {
+					c := s[i]
+					i++
+					if c >= 0x40 && c <= 0x7e {
+						break
+					}
+				}
+				continue
+			}
+			i += 2
+			continue
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
+}

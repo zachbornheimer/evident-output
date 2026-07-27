@@ -119,8 +119,10 @@ go run ./examples/migrate/                 # dry-run plan
 go run ./examples/migrate/ --apply
 go run ./examples/doctor/ --json | jq .conclusion
 go run ./examples/data-command/ 2>/dev/null | jq .
-go run ./examples/live-progress/           # watch live bars (use a real TTY)
-go run ./examples/live-progress/ --fast    # quicker steps
+go run ./examples/live-progress/              # in-place ANSI live region (real TTY)
+go run ./examples/live-progress/ --frames     # numbered frames you can scroll
+go run ./examples/live-progress/ --step       # press Enter between frames
+go run ./examples/live-progress/ --fast
 ```
 
 ### Machine output
