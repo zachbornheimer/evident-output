@@ -66,22 +66,28 @@ Then ensure the binary is on PATH as "evident-output-mcp".
 func clientConfig(client string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(client)) {
 	case "grok":
-		return `# Grok Build — prefer user scope (~/.grok/config.toml).
-# Use an absolute path: Grok's process PATH often omits ~/.local/bin.
-# Install (dev): go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
-# Or:            go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
-# Register:      grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
+		return `# Grok Build — prefer user scope ($HOME/.grok/config.toml).
+# Absolute path required: Grok's process PATH often omits $HOME/.local/bin.
+# Grok expands ${HOME} in command/args/env/headers.
 #
-# Verify without restarting the TUI:
+# Install (clone at $HOME/Developer/Personal/evident-output):
+#   go build -o "$HOME/.local/bin/evident-output-mcp" \
+#     "$HOME/Developer/Personal/evident-output/cmd/evident-output-mcp"
+# Or: GOBIN="$HOME/.local/bin" go install \
+#       github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+# Register: grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
+#
+# Verify (no TUI restart):
 #   grok mcp doctor evident-output --json
-#   grok -p 'Call use_tool on evident-output__evident_output_list_guides. Reply CONNECTED or FAILED.' \
-#     --output-format plain --max-turns 5 --always-approve
+#   grok -p 'Call use_tool on evident-output__evident_output_list_guides with {}. Reply CONNECTED or FAILED.' \
+#     --output-format plain --max-turns 5 --always-approve \
+#     --cwd "$HOME/Developer/Personal/evident-output"
 #
-# Tools (underscores; Grok: evident-output__evident_output_*):
-#   list_guides, get_guidance, review, preview, explain
+# Tools (underscores only): evident_output_list_guides, _get_guidance, _review, _preview, _explain
+# Grok ids: evident-output__evident_output_*
 
 [mcp_servers.evident-output]
-command = "/Users/YOU/.local/bin/evident-output-mcp"
+command = "${HOME}/.local/bin/evident-output-mcp"
 enabled = true
 startup_timeout_sec = 30
 `, nil
@@ -89,25 +95,26 @@ startup_timeout_sec = 30
 		return `{
   "mcpServers": {
     "evident-output": {
-      "command": "evident-output-mcp",
+      "command": "${HOME}/.local/bin/evident-output-mcp",
       "args": []
     }
   }
 }
 `, nil
 	case "codex":
-		return `# Codex MCP (stdio) — place under the host's MCP servers map.
-# Prefer absolute path if the host PATH is thin.
-# Install: go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+		return `# Codex MCP (stdio)
+# Install: GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+# Or: go build -o "$HOME/.local/bin/evident-output-mcp" \
+#       "$HOME/Developer/Personal/evident-output/cmd/evident-output-mcp"
 
 [mcp_servers.evident-output]
-command = "/Users/YOU/.local/bin/evident-output-mcp"
+command = "${HOME}/.local/bin/evident-output-mcp"
 `, nil
 	case "gemini":
 		return `{
   "mcpServers": {
     "evident-output": {
-      "command": "evident-output-mcp",
+      "command": "${HOME}/.local/bin/evident-output-mcp",
       "args": []
     }
   }
@@ -118,7 +125,7 @@ command = "/Users/YOU/.local/bin/evident-output-mcp"
   "mcp": {
     "evident-output": {
       "type": "local",
-      "command": ["evident-output-mcp"],
+      "command": ["${HOME}/.local/bin/evident-output-mcp"],
       "enabled": true
     }
   }

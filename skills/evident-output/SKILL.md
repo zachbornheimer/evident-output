@@ -9,7 +9,15 @@ license: Apache-2.0
 
 # Evident Output skill (alias)
 
-Canonical portable skill: [`../cli-output/SKILL.md`](../cli-output/SKILL.md).
+**Canonical skill (full install + path table):**  
+[`skills/cli-output/SKILL.md`](../cli-output/SKILL.md) in  
+`https://github.com/zachbornheimer/evident-output`
+
+| What | Path |
+|------|------|
+| Module | `github.com/zachbornheimer/evident-output` |
+| MCP binary target | `$HOME/.local/bin/evident-output-mcp` |
+| Local clone (this Mac) | `$HOME/Developer/Personal/evident-output` |
 
 ## Workflow when MCP is connected
 
@@ -17,9 +25,20 @@ Canonical portable skill: [`../cli-output/SKILL.md`](../cli-output/SKILL.md).
 2. Implement with common API (`For`, `Item`, `Task`, `Tasks`, `Finish`) when justified
 3. `evident_output_review` until `recheck_required=false`
 4. `evident_output_preview` for profiles
-5. `evident_output_explain` with `rule_id` for findings
+5. `evident_output_explain` with `rule_id` (not `id`)
 
-On Grok, tools appear as `evident-output__evident_output_*`.
+On Grok: `evident-output__evident_output_*` (underscores, not dots).
+
+## Quick MCP wire-up
+
+```bash
+go build -o "$HOME/.local/bin/evident-output-mcp" \
+  "$HOME/Developer/Personal/evident-output/cmd/evident-output-mcp"
+# or: GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+
+grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
+grok mcp doctor evident-output --json
+```
 
 ## Rules of thumb
 

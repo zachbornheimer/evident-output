@@ -111,36 +111,42 @@ registers `tool_count: 0`). Dotted aliases still work on `tools/call`.
 
 `explain` arguments: `{ "rule_id": "DOM-011" }` (not `id`).
 
-#### Install the binary
+#### Install the binary (full paths)
 
 ```bash
-# From a clone (recommended while developing):
-go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
+mkdir -p "$HOME/.local/bin"
 
-# Or module install (requires network + sumdb):
-go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+# Preferred when cloned on this Mac:
+go build -o "$HOME/.local/bin/evident-output-mcp" \
+  "$HOME/Developer/Personal/evident-output/cmd/evident-output-mcp"
 
-evident-output-mcp --version
+# From any clone (relative only after cd into the repo root):
+#   git clone https://github.com/zachbornheimer/evident-output.git
+#   cd evident-output && go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
+
+# Module install (network + sumdb):
+#   GOBIN="$HOME/.local/bin" go install \
+#     github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+
+"$HOME/.local/bin/evident-output-mcp" --version
 ```
 
-Prefer an **absolute** `command` in host configs: GUI / agent hosts often omit
-`~/.local/bin` from `PATH`.
+Host configs must use an **absolute** command (or `${HOME}/…` where the host expands
+it). Bare `evident-output-mcp` fails when the agent process PATH omits `~/.local/bin`.
 
 #### Verify without restarting an existing TUI session
 
-Use a **fresh headless Grok process** (does not require restarting the interactive agent):
-
 ```bash
-# Process-level handshake (always check this first)
+# Process-level handshake
 grok mcp doctor evident-output --json
 # expect: healthy=true, "5 tools discovered", protocol 2025-06-18
 
-# Full agent session (same path the TUI uses)
+# Fresh agent process (same attach path as the TUI)
 grok -p 'Call use_tool on evident-output__evident_output_list_guides with {}. Reply CONNECTED and the text field, or FAILED.' \
   --output-format plain \
   --max-turns 5 \
   --always-approve \
-  --cwd /path/to/evident-output
+  --cwd "$HOME/Developer/Personal/evident-output"
 # expect: CONNECTED / "5 guides"
 ```
 
@@ -155,52 +161,45 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"manual","version":"0"}}}' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-  | evident-output-mcp 2>/dev/null
+  | "$HOME/.local/bin/evident-output-mcp" 2>/dev/null
 ```
 
 #### Host config snippets (print-only)
 
 ```bash
-evident-output-mcp config --client grok         # also: claude-code|codex|gemini|opencode
+"$HOME/.local/bin/evident-output-mcp" config --client grok
+# also: claude-code|codex|gemini|opencode  — uses ${HOME}/.local/bin/…
 ```
 
-Integrations: [`integrations/`](integrations/) · portable skill: [`skills/cli-output/`](skills/cli-output/)
+Integrations: [`integrations/`](integrations/) · skill: [`skills/cli-output/SKILL.md`](skills/cli-output/SKILL.md)
 
 #### Grok (xAI TUI / Build)
 
-**Recommended user scope** with absolute path (`~/.grok/config.toml`):
-
 ```toml
+# $HOME/.grok/config.toml  (${HOME} expanded by Grok)
 [mcp_servers.evident-output]
-command = "/Users/YOU/.local/bin/evident-output-mcp"
+command = "${HOME}/.local/bin/evident-output-mcp"
 enabled = true
 startup_timeout_sec = 30
 ```
 
 ```bash
-# or:
 grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 grok mcp list
-grok mcp doctor evident-output
+grok mcp doctor evident-output --json
 ```
 
-**Project scope** (optional): only starts when the folder is **trusted**
-(`/hooks-trust` or Grok folder-trust store). Prefer user scope for always-on tools.
-If both scopes define `evident-output`, project can override and fail on untrusted folders.
-
-**Session attach:** tools load at **session start**. After changing the binary or
-config, either start a new TUI session **or** use the headless probe above.
+**Project scope** only starts when the folder is **trusted**. Prefer user scope for
+always-on tools.
 
 See [`integrations/grok/README.md`](integrations/grok/README.md).
 
 #### Claude Code / Cursor / Codex
 
 ```bash
-evident-output-mcp config --client claude-code   # JSON for .mcp.json / settings
-evident-output-mcp config --client codex
+"$HOME/.local/bin/evident-output-mcp" config --client claude-code
+"$HOME/.local/bin/evident-output-mcp" config --client codex
 ```
-
-Use the same absolute binary path when the host’s `PATH` is thin.
 
 Review kinds for `evident_output_review`: `go` (default), `transcript`, `json` / `structured`.
 
