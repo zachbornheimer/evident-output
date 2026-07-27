@@ -144,6 +144,28 @@ Prior implemented baseline: [`docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC
 
 Completeness vs §31 (v0.3 matrix): [`docs/architecture/COMPLETENESS_MATRIX.md`](docs/architecture/COMPLETENESS_MATRIX.md) (**267 pass / 5 waived**).
 
+### Examples (adoption ladder)
+
+```text
+examples/print/              Print, Printf, Println
+examples/verbose/            visibility gating (--verbose)
+examples/repo-status/        Items, Problems, actions
+examples/install-pipeline/   Tasks + Capture
+examples/migrate/            Plan versus Changes
+examples/doctor/             severity dialect + WriteJSON
+examples/data-command/       machine stdout / human stderr
+examples/live-progress/      ordinary multi-progress
+examples/debug-history/      slog durable debug
+examples/debug-pane/         rolling slog viewport
+examples/terminal-driver/    advanced custom TerminalDriver
+```
+
+```bash
+mise run examples          # non-interactive batch
+go run ./examples/print/
+go run ./examples/verbose/ --verbose
+```
+
 ### CLI
 
 ```bash

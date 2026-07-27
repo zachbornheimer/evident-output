@@ -22,7 +22,7 @@ license: Apache-2.0
 ## Workflow when MCP is connected
 
 1. `evident_output_list_guides` / `evident_output_get_guidance`
-2. Implement with common API (`For`, `Item`, `Task`, `Tasks`, `Finish`) when justified
+2. Implement with `New(Config)`, `Print*`, `Item`/`Task`, `Capture`, `Main`
 3. `evident_output_review` until `recheck_required=false`
 4. `evident_output_preview` for profiles
 5. `evident_output_explain` with `rule_id` (not `id`)

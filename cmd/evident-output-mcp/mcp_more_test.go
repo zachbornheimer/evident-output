@@ -67,8 +67,9 @@ func TestMCP_ResourceRead(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stdout.String(), "evo.For") && !strings.Contains(stdout.String(), "Items") {
-		t.Fatalf("resource body: %s", stdout.String())
+	body := stdout.String()
+	if !strings.Contains(body, "Adoption ladder") && !strings.Contains(body, "evo.New") && !strings.Contains(body, "Item") {
+		t.Fatalf("resource body: %s", body)
 	}
 }
 

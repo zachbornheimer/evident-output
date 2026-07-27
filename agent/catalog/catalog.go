@@ -28,11 +28,15 @@ func All() []Guide {
 			Title:    "Common API path",
 			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
 			Concepts: []string{"Output", "Item", "Conclusion", "Main"},
-			Rules:    []string{"API-001", "API-006", "API-026", "DOM-006", "DOM-007", "DOM-011"},
-			Body: `Start with evo.New(Config{Title: …}) or evo.New(). Print/Printf/Println replace fmt for human text; Verbose() for optional detail.
-Resolve Items with OK/Block/Warn/Fail, Tasks with Phase/Progress/Done, then seal with evo.Main:
-
-  os.Exit(evo.Main(out, run))  // Finish + Close + ExitCode; presentation err → 2
+			Rules:    []string{"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011"},
+			Body: `Adoption ladder:
+  1) evo.New() / New(Config{Title})
+  2) Print/Printf/Println — replace human-facing fmt
+  3) Verbose() — optional domain detail (not slog debug)
+  4) Item / Task / Tasks / Changes / Plan
+  5) task.Capture() + DetailTail for subprocess evidence
+  6) slog.New(out.SlogHandler(...)) for implementation diagnostics
+  7) os.Exit(evo.Main(out, run))
 
 Pick the entity:
   Item     — check / gate / verdict unit (pass-fail)
@@ -41,16 +45,9 @@ Pick the entity:
   Changes  — past-tense durable effects that happened
   Plan     — dry-run would-happen effects
 
-Severity dialect:
-  Warn  — optional tool missing or soft concern; command can continue
-  Block — policy / precondition failed; stop before mutation (not a Go error)
-  Fail  — evaluation or required tool failed; command cannot complete honestly
-
-Blocked means evaluation succeeded and found a blocker; Fail means evaluation failed.
-Do not call explicit Start (API-006). No RunAll/Map/Retry on evo (API-026).
-Multi-gate: run all Items, then if out.AnyBlocked() skip mutation; Main maps ExitCode.
-Child processes: discard or route tool stderr to Diagnostics/Debug — only domain Line/Item belong in the live region.`,
-			TokenEstimate: 280,
+Severity: Warn = soft/optional; Block = stop before mutate; Fail = evaluation failed.
+Do not Start (API-006); no RunAll/Map (API-026); Donef needs % (API-028); Capture not DebugWriter (API-029).`,
+			TokenEstimate: 260,
 		},
 		{
 			ID:       "tasks",

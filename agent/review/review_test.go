@@ -134,6 +134,47 @@ func check() error {
 	}
 }
 
+func TestAPI028_DonefWithoutFormat(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  out := evo.New()
+  out.Task("t").Donef("modules cached")
+  out.Task("u").Donef("%d ok", 1)
+}
+`
+	res := review.GoSource("x.go", src)
+	var n int
+	for _, f := range res.Findings {
+		if f.RuleID == "API-028" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("want one API-028, got %d: %+v", n, res.Findings)
+	}
+}
+
+func TestAPI029_DebugWriterWarning(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  out := evo.New()
+  _ = out.DebugWriter()
+}
+`
+	res := review.GoSource("x.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-029" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-029: %+v", res.Findings)
+	}
+}
+
 func TestAPI026_NoFalsePositiveOnStringsMap(t *testing.T) {
 	// Consumer feedback: substring ".Map(" fired on strings.Map and comments.
 	src := `package p

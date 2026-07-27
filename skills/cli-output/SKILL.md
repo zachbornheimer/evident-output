@@ -181,10 +181,10 @@ Capture is **task-owned** (`Task.Capture`), not session-owned and not `context`.
 ## Workflow
 
 1. Identify what the command must communicate
-2. Common API: `evo.For` + `WriterOptions`, `Item`/`Task`/`Tasks`, `Line`, `Debug`/`DebugPane`, `evo.Main`
-3. Review until `recheck_required=false`
+2. Ladder: `New(Config)` → `Print*` → `Verbose` → `Item`/`Task` → `Capture` → `slog` → `Main`
+3. Review until `recheck_required=false` (rules include API-028 Donef-without-%, API-029 Capture)
 4. Preview narrow/wide/plain when available
-5. `Block` = condition found; `Fail` = evaluation failed; never `fmt.Print` during live UI
+5. `Block` = condition found; `Fail` = evaluation failed; never raw `fmt.Print` for human UI
 
 ## Standalone CLI (module paths)
 

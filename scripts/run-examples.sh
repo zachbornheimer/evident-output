@@ -5,8 +5,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
 
-# Each entry is a real small program under examples/<name>/ — useful as copy-paste shape.
+# Learning ladder (also documented in README).
 EXAMPLES=(
+  print
+  verbose
   repo-status
   install-pipeline
   migrate
@@ -15,27 +17,23 @@ EXAMPLES=(
   live-progress
   debug-history
   debug-pane
+  terminal-driver
 )
 
-# Extra args per example.
-# live-progress on a TTY: real in-place ANSI live region (kitty / Terminal.app).
-# When stderr is not a TTY (CI/logs) or EVO_EXAMPLES_FRAMES=1: numbered --frames dump.
-# Force scrubable frames: EVO_EXAMPLES_FRAMES=1 mise run examples
 example_args() {
   case "$1" in
-    live-progress)
-      # Still uses demo.Options color flag until terminal-driver split.
-      if [[ "${EVO_EXAMPLES_FRAMES:-}" == "1" ]] || [[ ! -t 2 ]]; then
-        echo "--fast --frames --color=always"
-      else
-        echo "--color=always"
-      fi
-      ;;
-    repo-status)
-      echo "--fast --color=auto"
-      ;;
-    doctor|debug-history|debug-pane|install-pipeline|migrate|data-command)
+    print) echo "" ;;
+    verbose) echo "" ;; # second pass with --verbose below
+    repo-status) echo "--fast --color=auto" ;;
+    doctor|debug-history|debug-pane|install-pipeline|migrate|data-command|live-progress)
       echo "--fast"
+      ;;
+    terminal-driver)
+      if [[ ! -t 2 ]]; then
+        echo "--fast --frames"
+      else
+        echo "--fast --frames"
+      fi
       ;;
     *) echo "" ;;
   esac
@@ -52,11 +50,6 @@ hr() {
   printf '════════════════════════════════════════════════════════════\n'
   printf '  example: %s\n' "${name}"
   printf '  go run ./examples/%s/ %s\n' "${name}" "${args}"
-  if [[ "${name}" == "live-progress" && -t 2 ]]; then
-    printf '  mode: live ANSI region on stderr (in-place redraw)\n'
-  elif [[ "${name}" == "live-progress" ]]; then
-    printf '  mode: --frames (stderr is not a TTY)\n'
-  fi
   printf '════════════════════════════════════════════════════════════\n'
   printf '\n'
 }
@@ -85,7 +78,9 @@ run_one() {
 for name in "${EXAMPLES[@]}"; do
   args="$(example_args "${name}")"
   run_one "${name}" "${args}"
-  # Second pass for pane: show failure diagnostic tail (§21.3.2).
+  if [[ "${name}" == "verbose" ]]; then
+    run_one "verbose" "--verbose"
+  fi
   if [[ "${name}" == "debug-pane" ]]; then
     run_one "debug-pane" "--fast --fail"
   fi
@@ -93,10 +88,5 @@ done
 
 printf '\n'
 printf '════════════════════════════════════════════════════════════\n'
-printf '  examples complete (%d + debug-pane --fail)\n' "${#EXAMPLES[@]}"
-printf '  tip: go run ./examples/live-progress/           # live in-place (TTY)\n'
-printf '       go run ./examples/debug-history/           # debug above live\n'
-printf '       go run ./examples/debug-pane/              # rolling pane\n'
-printf '       go run ./examples/debug-pane/ --fail       # diagnostics tail\n'
-printf '       go run ./examples/doctor/ --json | jq .conclusion\n'
+printf '  examples complete (ladder: print → verbose → … → terminal-driver)\n'
 printf '════════════════════════════════════════════════════════════\n'

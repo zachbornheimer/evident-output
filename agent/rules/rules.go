@@ -90,17 +90,50 @@ g.Task("b").Done()`,
 			Severity:  "error",
 			Invariant: "progress must not contaminate structured stdout",
 			Why:       "fmt.Print during live UI corrupts managed streams and breaks machine consumers.",
-			BadCode: `out := evo.NewWithOptions()
+			BadCode: `out := evo.New()
 fmt.Printf("progress %d\n", n)`,
-			GoodCode: `out := evo.NewWithOptions()
-out.Line("progress note")
-// or out.Debug(...) / SlogHandler`,
+			GoodCode: `out := evo.New()
+out.Printf("progress %d\n", n)
+// or out.Verbose().Println(...) for optional domain detail
+// or slog via out.SlogHandler for implementation diagnostics`,
 			BadOutput:       "interleaved ANSI + printf on stdout",
-			GoodOutput:      "managed Line/Debug only on diagnostic stream",
-			Remediation:     "Route UI to diagnostic stream via Line/Debug/SlogHandler",
-			RelatedGuidance: []string{"streams"},
+			GoodOutput:      "managed Print / Verbose / slog only",
+			Remediation:     "Use out.Print/Printf/Println (or Verbose) for human text; slog for diagnostics; Task.Capture for subprocesses",
+			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"STREAM-003", "MCP-013"},
 			Since:           "0.1.0",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "API-028",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "formatting *f methods require a format directive",
+			Why:       "Donef(\"ok\") is ceremony; Done(\"ok\") is the intent. *f without % confuses readers and agents.",
+			BadCode:   `task.Donef("modules cached")`,
+			GoodCode: `task.Done("modules cached")
+task.Donef("%d packages", n)`,
+			Remediation:     "Use Done/Line/Item without f when there is no format verb",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-028"},
+			Since:           "0.2.0",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "API-029",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "subprocess evidence uses Task.Capture, not DebugWriter",
+			Why:       "DebugWriter is filtered by DebugLevel and is the wrong dialect for failure Detail tails.",
+			BadCode: `dbg := out.DebugWriter()
+run.Run(ctx, "brew", args, dbg)`,
+			GoodCode: `output := task.Capture()
+run.Run(ctx, "brew", args, output)
+task.Fail("brew failed", evo.Cause(err), output.DetailTail())`,
+			Remediation:     "Use task.Capture() + DetailTail on Fail",
+			RelatedGuidance: []string{"streams", "tasks"},
+			VerificationIDs: []string{"API-029"},
+			Since:           "0.2.0",
 			Certainty:       "deterministic",
 		},
 		{

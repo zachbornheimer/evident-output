@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"strconv"
 	"strings"
 )
 
@@ -99,16 +100,51 @@ func GoSource(filename, src string) Result {
 			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "fmt" {
 				switch name {
 				case "Print", "Printf", "Println", "Fprint", "Fprintf", "Fprintln":
+					// Allow fmt on os.Stderr for flag.Usage / pre-session errors.
+					skip := false
+					if (name == "Fprint" || name == "Fprintf" || name == "Fprintln") && len(call.Args) > 0 {
+						skip = isOSStderrArg(call.Args[0])
+					}
+					if !skip {
+						findings = append(findings, Finding{
+							RuleID:   "STREAM-003",
+							Severity: "error",
+							Message:  "fmt." + name + " alongside evo may contaminate managed streams; use out.Print/Printf/Println (or Verbose) for human text",
+							File:     filename,
+							Line:     pos.Line,
+							Column:   pos.Column,
+						})
+					}
+				}
+			}
+		}
+
+		// API-028: *f methods with no format directives
+		if hasEvo && isFormatMethod(name) && len(call.Args) >= 1 {
+			if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+				if s, err := strconvUnquote(lit.Value); err == nil && !strings.Contains(s, "%") {
 					findings = append(findings, Finding{
-						RuleID:   "STREAM-003",
-						Severity: "error",
-						Message:  "fmt." + name + " alongside evo may contaminate managed streams during live UI; use out.Line/Debug/SlogHandler",
+						RuleID:   "API-028",
+						Severity: "warning",
+						Message:  name + " has no format directive; prefer non-formatting method (e.g. Done(\"text\") not Donef(\"text\"))",
 						File:     filename,
 						Line:     pos.Line,
 						Column:   pos.Column,
 					})
 				}
 			}
+		}
+
+		// API-029: DebugWriter for child-process evidence (prefer Task.Capture)
+		if hasEvo && name == "DebugWriter" && isLikelyEvoReceiver(sel.X) {
+			findings = append(findings, Finding{
+				RuleID:   "API-029",
+				Severity: "warning",
+				Message:  "DebugWriter is for intentional DEBUG journal lines; use task.Capture() for subprocess stdout/stderr evidence",
+				File:     filename,
+				Line:     pos.Line,
+				Column:   pos.Column,
+			})
 		}
 
 		// API-018: os.Exit without presentation exit-code (Main / Conclusion.ExitCode is OK)
@@ -335,6 +371,28 @@ func StructuredDocument(filename string, raw []byte) Result {
 		})
 	}
 	return Result{Findings: findings, RecheckRequired: hasRequired(findings)}
+}
+
+func isFormatMethod(name string) bool {
+	switch name {
+	case "Donef", "Linef", "Itemf", "Taskf", "Tasksf", "Changesf", "Planf":
+		return true
+	default:
+		return false
+	}
+}
+
+func strconvUnquote(s string) (string, error) {
+	return strconv.Unquote(s)
+}
+
+func isOSStderrArg(expr ast.Expr) bool {
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	return ok && id.Name == "os" && sel.Sel.Name == "Stderr"
 }
 
 // isForbiddenExecutionHelper names APIs evo deliberately does not provide.
