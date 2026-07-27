@@ -12,7 +12,16 @@ EXAMPLES=(
   migrate
   doctor
   data-command
+  live-progress
 )
+
+# Extra args per example (live-progress uses --fast in the batch runner).
+example_args() {
+  case "$1" in
+    live-progress) echo "--fast --color=always" ;;
+    *) echo "--color=always" ;;
+  esac
+}
 
 BIN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-examples.XXXXXX")"
 cleanup() { rm -rf "${BIN_DIR}"; }
@@ -39,7 +48,8 @@ for name in "${EXAMPLES[@]}"; do
   bin="${BIN_DIR}/${name}"
   go build -o "${bin}" "./examples/${name}/"
   set +e
-  "${bin}" --color=always
+  # shellcheck disable=SC2046
+  "${bin}" $(example_args "${name}")
   code=$?
   set -e
   if [[ "${code}" -ne 0 ]]; then

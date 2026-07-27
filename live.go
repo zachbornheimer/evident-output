@@ -290,8 +290,24 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int) {
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, formatBytes(t.Progress.Completed))
 	case t.State == Done && t.Summary != "":
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, t.Summary)
-	case t.State == Running && t.Progress.Kind == BytesKind:
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, formatByteProgressFixed(t.Progress.Completed, t.Progress.Total))
+	case t.State == Running && t.Progress.Kind == BytesKind && t.Progress.Total > 0:
+		detail := formatByteProgressFixed(t.Progress.Completed, t.Progress.Total)
+		detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + detail
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, detail)
+	case t.State == Running && t.Progress.Kind == Determinate && t.Progress.Total > 0:
+		detail := progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " +
+			fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
+		if t.Phase != "" {
+			detail = detail + "  " + t.Phase
+		}
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, detail)
+	case t.State == Running && (t.Progress.Kind == Indeterminate || t.Phase != ""):
+		// Indeterminate: spinner glyph + phase (or generic working).
+		phase := t.Phase
+		if phase == "" {
+			phase = "working…"
+		}
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, phase)
 	case t.State == Running && t.Phase != "":
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, glyph, nameField, t.Phase)
 	case t.State == Failed:
@@ -313,6 +329,24 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int) {
 	default:
 		fmt.Fprintf(b, "%s%s  %s\n", pad, glyph, strings.TrimRight(nameField, " "))
 	}
+}
+
+// progressBar returns a fixed-width ASCII bar for completed/total.
+func progressBar(completed, total int64, width int) string {
+	if width < 4 {
+		width = 4
+	}
+	if total <= 0 {
+		return "[" + strings.Repeat("?", width) + "]"
+	}
+	filled := int(float64(width) * float64(completed) / float64(total))
+	if completed > 0 && filled == 0 {
+		filled = 1
+	}
+	if filled > width {
+		filled = width
+	}
+	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", width-filled) + "]"
 }
 
 func formatBytes(n int64) string {

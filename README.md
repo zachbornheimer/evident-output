@@ -105,10 +105,11 @@ Small real programs (flags, help, exit codes) — not snippets. Copy a whole fol
 | Example | Pattern |
 |---------|---------|
 | `repo-status` | Parallel **Items** (OK / blocked / warn), conclusion exit code |
-| `install-pipeline` | **Tasks** collection with Progress/Bytes/Fail |
+| `install-pipeline` | **Tasks** collection with Progress/Bytes/Fail (final report) |
 | `migrate` | **Plan** dry-run vs **Changes** apply (`--apply`) |
 | `doctor` | Mixed doctor items; `--json` snapshot on stdout |
 | `data-command` | Data command: JSON **stdout**, human report **stderr** |
+| `live-progress` | **Live multi-progress**: bars + indeterminate phases (ANSI on stderr) |
 
 ```bash
 mise run examples                          # all, back-to-back with headers
@@ -118,6 +119,8 @@ go run ./examples/migrate/                 # dry-run plan
 go run ./examples/migrate/ --apply
 go run ./examples/doctor/ --json | jq .conclusion
 go run ./examples/data-command/ 2>/dev/null | jq .
+go run ./examples/live-progress/           # watch live bars (use a real TTY)
+go run ./examples/live-progress/ --fast    # quicker steps
 ```
 
 ### Machine output

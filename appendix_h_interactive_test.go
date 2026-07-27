@@ -107,9 +107,10 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	got := screen.LatestLiveText()
 	// Column layout: child names pad to width 9 (spec H.20 semantics: declaration
 	// order + absolute bytes + phases). Spacing normalized to a single rule.
+	// Bytes rows include an ASCII bar plus fixed MB fraction (live progress UX).
 	want := `⠋  dependencies  1/3 complete
    ✓  react      8.1 MB
-   ⠋  esbuild    12.4/18.0 MB
+   ⠋  esbuild    [████████░░░░]  12.4/18.0 MB
    ⠋  sharp      verifying`
 
 	if got != want {
