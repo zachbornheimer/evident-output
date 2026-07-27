@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -54,6 +55,11 @@ type Output struct {
 	// debugPaneActive is true once Debug was projected via the live rolling pane
 	// (not history fallback). Controls failure diagnostic-tail eligibility.
 	debugPaneActive bool
+
+	// Print/Printf/Println line buffers and canonical messages.
+	pendingPrint   strings.Builder
+	pendingVerbose strings.Builder
+	messages       []messageState
 }
 
 type itemState struct {
@@ -109,16 +115,6 @@ type planState struct {
 	handle  *Plan
 }
 
-// New creates an Output without a primary subject.
-func New(options ...Option) *Output {
-	return newOutput("", options...)
-}
-
-// For creates an Output for a subject.
-func For(subject string, options ...Option) *Output {
-	return newOutput(subject, options...)
-}
-
 func newOutput(subject string, options ...Option) *Output {
 	cfg := config{
 		subject:         subject,
@@ -129,6 +125,7 @@ func newOutput(subject string, options ...Option) *Output {
 		debugLevel:      LevelInfo,
 		redactor:        NoopRedactor{},
 		maxEntities:     defaultMaxEntities,
+		verbosity:       VerbosityNormal,
 	}
 	for _, opt := range options {
 		if opt != nil {
@@ -368,22 +365,17 @@ func (o *Output) Plan(subject string) *Plan {
 }
 
 // Line emits a durable user-facing line immediately (not buffered until Finish).
+//
+// Deprecated: prefer Println / Printf. Line remains as a complete-line alias.
 func (o *Output) Line(message string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
-	}
-	o.lines = append(o.lines, sanitize.Text(message))
-	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "output.line_emitted"})
-	o.emitLineProgressiveLocked()
+	_, _ = o.Println(message)
 }
 
 // Linef formats and emits a durable user-facing line.
+//
+// Deprecated: prefer Printf with an explicit newline, or Println.
 func (o *Output) Linef(format string, args ...any) {
-	o.Line(fmt.Sprintf(format, args...))
+	_, _ = o.Printf(format+"\n", args...)
 }
 
 // Info emits an informational durable line.
@@ -618,6 +610,13 @@ func (o *Output) snapshotLocked() Snapshot {
 	for _, p := range o.plans {
 		s.Plans = append(s.Plans, p.snapshot())
 	}
+	for _, m := range o.messages {
+		s.Messages = append(s.Messages, MessageSnapshot{
+			ID:         m.id,
+			Text:       m.text,
+			Visibility: m.visibility,
+		})
+	}
 	if o.conclusion != nil {
 		c := *o.conclusion
 		s.Conclusion = &c
@@ -836,6 +835,9 @@ func (o *Output) Finish() error {
 		return err
 	}
 	o.finishing = true
+
+	// Flush unterminated Print fragments into messages.
+	o.flushPendingPrintLocked()
 
 	// Unresolved entities
 	for _, it := range o.items {

@@ -24,22 +24,20 @@ EXAMPLES=(
 example_args() {
   case "$1" in
     live-progress)
+      # Still uses demo.Options color flag until terminal-driver split.
       if [[ "${EVO_EXAMPLES_FRAMES:-}" == "1" ]] || [[ ! -t 2 ]]; then
         echo "--fast --frames --color=always"
       else
-        # In-place live region; no --frames. Default 100ms steps (not --fast).
         echo "--color=always"
       fi
       ;;
-    # Progressive item demos: short sleeps so the batch still feels real-time.
-    repo-status|doctor|debug-history)
-      echo "--fast --color=always"
+    repo-status)
+      echo "--fast --color=auto"
       ;;
-    # Pane demo twice: success (pane removed) then failure (diagnostics tail).
-    debug-pane)
-      echo "--fast --color=always"
+    doctor|debug-history|debug-pane|install-pipeline|migrate|data-command)
+      echo "--fast"
       ;;
-    *) echo "--color=always" ;;
+    *) echo "" ;;
   esac
 }
 
@@ -89,7 +87,7 @@ for name in "${EXAMPLES[@]}"; do
   run_one "${name}" "${args}"
   # Second pass for pane: show failure diagnostic tail (§21.3.2).
   if [[ "${name}" == "debug-pane" ]]; then
-    run_one "debug-pane" "--fast --fail --color=always"
+    run_one "debug-pane" "--fast --fail"
   fi
 done
 

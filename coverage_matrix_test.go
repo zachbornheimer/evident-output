@@ -14,7 +14,7 @@ import (
 
 func TestA11Y001_NoColorOption(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.To(&buf), evo.NoColor(), evo.Plain())
+	out := evo.NewWithOptions(evo.To(&buf), evo.NoColor(), evo.Plain())
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("x").OK()
 	_ = out.Finish()
@@ -26,7 +26,7 @@ func TestA11Y001_NoColorOption(t *testing.T) {
 func TestA11Y005_PlainHasNoUnicodeRequirement(t *testing.T) {
 	// Plain mode may use unicode glyphs; meaning must remain without color (A11Y-004).
 	var buf bytes.Buffer
-	out := evo.New(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("a").OK()
 	out.Item("b").Block("no")
@@ -56,7 +56,7 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 }
 
 func TestDOM004_DuplicateDisplayNamesAllowed(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	a := out.Item("same")
 	b := out.Item("same")
@@ -68,7 +68,7 @@ func TestDOM004_DuplicateDisplayNamesAllowed(t *testing.T) {
 }
 
 func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	out.Item("x").OK()
 	_ = out.Finish()
 	out.Item("y").OK()
@@ -82,7 +82,7 @@ func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
 }
 
 func TestDOM021_NegativeProgressRejected(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(-1, 10)
@@ -92,7 +92,7 @@ func TestDOM021_NegativeProgressRejected(t *testing.T) {
 }
 
 func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("a").OK()
 	_ = out.Finish()
@@ -115,7 +115,7 @@ func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
 }
 
 func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("x").Block("b").NextCommand("tool", "--flag", "value")
 	acts := out.Item("x").Snapshot().Actions
@@ -146,7 +146,7 @@ func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
 func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 	// Static guarantee: no os.Exit in evo package files is checked by this
 	// behavioral test — Finish returns errors instead of exiting.
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	out.Item("x")
 	err := out.Finish()
 	if err == nil {

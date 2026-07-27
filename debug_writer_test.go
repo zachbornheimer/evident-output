@@ -10,7 +10,7 @@ import (
 
 func TestDebugWriter_SplitsLinesAndSanitizes(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.New(evo.Terminal(screen), evo.DebugLevel(evo.Debug), evo.NoColor())
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.DebugLevel(evo.Debug), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	w := out.DebugWriter()

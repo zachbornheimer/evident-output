@@ -1,12 +1,7 @@
 // Command doctor is an environment/health check CLI.
 //
-// Checks resolve one at a time (progressive durable evidence). Prefer direct
-// OK/Warn/Block/Fail — no explicit Start (API-006). Finish + exit via evo.Main.
-//
 //	go run ./examples/doctor/
 //	go run ./examples/doctor/ --json | jq .conclusion
-//	go run ./examples/doctor/ --strict
-//	go run ./examples/doctor/ --fast
 package main
 
 import (
@@ -16,19 +11,12 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/examples/internal/demo"
 )
 
 func main() {
 	asJSON := flag.Bool("json", false, "emit JSON snapshot on stdout; human report on stderr")
-	strict := flag.Bool("strict", false, "demo: escalate the signing warn to a block")
-	fast := flag.Bool("fast", false, "use short sleeps (for mise run examples)")
-	colorFlag := flag.String("color", "auto", "color output: auto|always|never")
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: doctor [flags]\n\n")
-		fmt.Fprintf(os.Stderr, "Check local developer environment readiness.\n\n")
-		flag.PrintDefaults()
-	}
+	strict := flag.Bool("strict", false, "escalate signing warn to block")
+	fast := flag.Bool("fast", false, "short sleeps")
 	flag.Parse()
 
 	step := 100 * time.Millisecond
@@ -36,64 +24,46 @@ func main() {
 		step = 35 * time.Millisecond
 	}
 
-	human := os.Stdout
+	cfg := evo.DefaultConfig()
+	cfg.Title = "env-doctor"
 	if *asJSON {
-		human = os.Stderr
+		cfg.Format = evo.FormatData
 	}
-
-	out := evo.For("env-doctor", demo.Options(human, demo.ParseColorFlag(*colorFlag))...)
+	out := evo.New(cfg)
 	code := evo.Main(out, func(o *evo.Output) error {
-		check := func(name string, resolve func(*evo.Item)) {
+		_, _ = o.Verbose().Printf("Strict policy: %t\n", *strict)
+
+		probe := func(name string, resolve func(*evo.Item)) {
 			it := o.Item(name)
-			time.Sleep(step) // stand-in for real probe latency
+			time.Sleep(step)
 			resolve(it)
 		}
 
-		check("go toolchain", func(it *evo.Item) { it.OK() })
-		check("mise tasks", func(it *evo.Item) { it.OK() })
-
-		check("git commit signing", func(it *evo.Item) {
+		probe("go toolchain", func(it *evo.Item) { it.OK() })
+		probe("mise tasks", func(it *evo.Item) { it.OK() })
+		probe("git commit signing", func(it *evo.Item) {
 			if *strict {
-				it.Block(
-					"commit.gpgsign is not enabled",
-					evo.Detail("required in strict mode for this org"),
-				).NextCommand("git", "config", "--global", "commit.gpgsign", "true")
+				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode")).
+					NextCommand("git", "config", "--global", "commit.gpgsign", "true")
 			} else {
-				it.Warn(
-					"commit signing not verified",
-					evo.Detail("optional for local work; enable for mainline PRs"),
-				)
+				it.Warn("commit signing not verified", evo.Detail("optional for local work"))
 			}
 		})
-
-		check("disk free space", func(it *evo.Item) {
-			it.Block(
-				"less than 2 GiB free on /",
-				evo.Detail("large builds and Docker layers need headroom"),
-			).Because("CI and local builds fail unpredictably when the volume fills.")
+		probe("disk free space", func(it *evo.Item) {
+			it.Block("less than 2 GiB free on /", evo.Detail("large builds need headroom")).
+				Because("CI and local builds fail unpredictably when the volume fills.")
 		})
-
-		check("docker daemon", func(it *evo.Item) {
-			it.Fail(
-				"cannot connect to docker socket",
-				evo.Detail("start Colima (`colima start`) or Docker Desktop"),
-			)
+		probe("docker daemon", func(it *evo.Item) {
+			it.Fail("cannot connect to docker socket", evo.Detail("start Colima or Docker Desktop"))
 		})
 		return nil
 	})
 
 	if *asJSON {
-		// Main already Finished; snapshot is sealed.
-		b, err := evo.EncodeJSON(out.Snapshot())
-		if err != nil {
+		if err := evo.WriteJSON(os.Stdout, out.Snapshot()); err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		_, _ = os.Stdout.Write(b)
-		if len(b) == 0 || b[len(b)-1] != '\n' {
-			fmt.Fprintln(os.Stdout)
+			os.Exit(evo.ExitFailed)
 		}
 	}
-
 	os.Exit(code)
 }

@@ -29,7 +29,8 @@ func All() []Guide {
 			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
 			Concepts: []string{"Output", "Item", "Conclusion", "Main"},
 			Rules:    []string{"API-001", "API-006", "API-026", "DOM-006", "DOM-007", "DOM-011"},
-			Body: `Use evo.For(subject), resolve Items with OK/Block/Warn/Fail, then seal with evo.Main:
+			Body: `Start with evo.New(Config{Title: …}) or evo.New(). Print/Printf/Println replace fmt for human text; Verbose() for optional detail.
+Resolve Items with OK/Block/Warn/Fail, Tasks with Phase/Progress/Done, then seal with evo.Main:
 
   os.Exit(evo.Main(out, run))  // Finish + Close + ExitCode; presentation err → 2
 

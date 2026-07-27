@@ -10,7 +10,7 @@ import (
 
 func TestOUT021_DataProjectionOption(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.To(&primary),
 		evo.Diagnostics(&diag),
 		evo.DataProjection(),
@@ -29,8 +29,9 @@ func TestOUT021_DataProjectionOption(t *testing.T) {
 
 func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
 	out, err := evo.NewWithConfig(evo.Config{
-		Projection: evo.ProjectionExternal,
-		Primary:    io.Discard,
+		Format: evo.FormatExternal,
+		Stdout: io.Discard,
+		Stderr: io.Discard,
 	})
 	if err != nil {
 		t.Fatal(err)

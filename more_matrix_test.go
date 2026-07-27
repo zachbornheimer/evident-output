@@ -13,7 +13,7 @@ import (
 )
 
 func TestDOM014_DetailOnBlock(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	it := out.Item("i")
 	it.Block("b", evo.Detail("user visible"))
@@ -24,7 +24,7 @@ func TestDOM014_DetailOnBlock(t *testing.T) {
 
 func TestDOM015_CauseHiddenFromPlain(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 	secret := errors.New("secret-token-xyz")
 	out.Item("i").Fail("boom", evo.Cause(secret))
@@ -35,7 +35,7 @@ func TestDOM015_CauseHiddenFromPlain(t *testing.T) {
 }
 
 func TestDOM023_TotalIncreases(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(1, 2)
@@ -46,7 +46,7 @@ func TestDOM023_TotalIncreases(t *testing.T) {
 }
 
 func TestDOM037_FailedConclusion(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("i").Fail("no")
 	_ = out.Finish()
@@ -59,7 +59,7 @@ func TestDOM037_FailedConclusion(t *testing.T) {
 }
 
 func TestDOM038_WarningOnly(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("i").Warn("careful")
 	_ = out.Finish()
@@ -69,7 +69,7 @@ func TestDOM038_WarningOnly(t *testing.T) {
 }
 
 func TestDOM041_ActionsPromoted(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("i").Block("b").NextCommand("fix", "it")
 	_ = out.Finish()
@@ -80,7 +80,7 @@ func TestDOM041_ActionsPromoted(t *testing.T) {
 }
 
 func TestDOM042_Explain(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("i").OK()
 	out.Explain("custom")
@@ -92,7 +92,7 @@ func TestDOM042_Explain(t *testing.T) {
 
 func TestLOG002_DebugUsesClock(t *testing.T) {
 	clock := testkit.NewClock()
-	out := evo.New(evo.To(io.Discard), evo.Clock(clock), evo.DebugLevel(evo.Debug))
+	out := evo.NewWithOptions(evo.To(io.Discard), evo.Clock(clock), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Debug("x")
 	ev := out.Events()
@@ -118,7 +118,7 @@ func TestOUT012_ExitCodes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := evo.New(evo.To(io.Discard))
+			out := evo.NewWithOptions(evo.To(io.Discard))
 			tc.fn(out)
 			_ = out.Finish()
 			if out.Conclusion().ExitCode != tc.code {
@@ -131,7 +131,7 @@ func TestOUT012_ExitCodes(t *testing.T) {
 
 func TestAPI026_NoRunAllSymbol(t *testing.T) {
 	// Behavioral: core package has no execution helpers — we can only call presentation APIs.
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	// If RunAll existed tests might call it; absence is compile-time.
 	out.Item("x").OK()
@@ -139,7 +139,7 @@ func TestAPI026_NoRunAllSymbol(t *testing.T) {
 }
 
 func TestSEC003_ManyEntitiesBounded(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	for i := 0; i < 500; i++ {
 		out.Item("n").OK()

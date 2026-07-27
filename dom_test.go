@@ -9,7 +9,7 @@ import (
 )
 
 func TestDOM006_ItemOKWithoutStart(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	item := out.Item("working tree")
 	item.OK()
@@ -36,7 +36,7 @@ func TestDOM039_ChangesPlusFailure(t *testing.T) {
 }
 
 func TestDOM046_CallerMutatesProblemSlice(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	problems := []evo.Problem{{Subject: "a", Summary: "s", Count: 1}}
 	item := out.Item("branches")
@@ -48,7 +48,7 @@ func TestDOM046_CallerMutatesProblemSlice(t *testing.T) {
 }
 
 func TestDOM043_FinishTwice(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("x").OK()
 	if err := out.Finish(); err != nil {
@@ -80,7 +80,7 @@ func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
 }
 
 func TestDOM010_WarnedByAndFailedBy(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	w := out.Item("w")
 	w.WarnedBy(evo.Problem{Summary: "soft"})
@@ -95,7 +95,7 @@ func TestDOM010_WarnedByAndFailedBy(t *testing.T) {
 }
 
 func TestDOM012_AnnotationAfterResolve(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	it := out.Item("x")
 	it.Block("b").Because("why").NextCommand("fix", "it")
@@ -108,7 +108,7 @@ func TestDOM012_AnnotationAfterResolve(t *testing.T) {
 }
 
 func TestDOM019_Advance(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("files")
 	task.Progress(0, 3)
@@ -120,7 +120,7 @@ func TestDOM019_Advance(t *testing.T) {
 }
 
 func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("hanging")
 	err := out.Finish()
@@ -130,7 +130,7 @@ func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
 }
 
 func TestDOM044_CloseTwice(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	out.Item("x").OK()
 	if err := out.Close(); err != nil {
 		t.Fatal(err)
@@ -141,7 +141,7 @@ func TestDOM044_CloseTwice(t *testing.T) {
 }
 
 func TestDOM045_EmptyOutput(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

@@ -13,11 +13,16 @@ import (
 )
 
 func main() {
-    out := evo.For("bpp-csharp", evo.WriterOptions(os.Stdout)...)
+    out := evo.New(evo.Config{Title: "bpp-csharp"})
     os.Exit(evo.Main(out, run))
 }
 
 func run(out *evo.Output) error {
+    // Start as casually as fmt — then promote to structure when useful.
+    out.Println("Reading configuration")
+    out.Printf("Found %d packages\n", 18)
+    out.Verbose().Printf("Cache: %s\n", "/var/cache")
+
     out.Item("working tree").OK()
     out.Item("branches").Block(
         "local-only branch",
@@ -28,14 +33,14 @@ func run(out *evo.Output) error {
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.1.0
-# or @latest once tagged
+go get github.com/zachbornheimer/evident-output@v0.2.0
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
 
-`evo.Main` owns Finish + Close + exit-code mapping so every binary is not six lines of teardown.  
-`evo.WriterOptions(w)` turns on **Plain + NoColor** for non-TTY `*os.File` (pipes/files) so agent log capture stays free of CSI.
+**Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included.  
+**Lifecycle:** `os.Exit(evo.Main(out, run))` seals Finish + Close + exit code.  
+**Messages:** `Print` / `Printf` / `Println` + `Verbose()`; promote to `Item` / `Task` when semantics matter.
 
 ## Pick the entity
 
@@ -82,7 +87,7 @@ upgrade.Done()
 
 ## Status
 
-**Release:** **v0.1.0** (module path above; no `replace` required for consumers).  
+**Release:** **v0.2.0** — Config/`New` construction, fmt-style Print API, task-owned Capture.  
 **Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).  
 **Implemented surface:** v0.3–v0.4 core (library, interactive VT, debug history/pane, real CLI, hardened MCP, §31 automated rows test-gated). External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 

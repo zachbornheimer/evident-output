@@ -12,10 +12,13 @@ type Snapshot struct {
 	Collections []TasksSnapshot
 	Changes     []ChangesSnapshot
 	Plans       []PlanSnapshot
-	Lines       []string
-	Actions     []Action
-	Conclusion  *Conclusion
-	Timestamp   time.Time
+	Messages    []MessageSnapshot
+	// Lines is a derived compatibility projection of projected message texts
+	// (and legacy debug history lines). Prefer Messages for structured consumers.
+	Lines      []string
+	Actions    []Action
+	Conclusion *Conclusion
+	Timestamp  time.Time
 }
 
 // ItemSnapshot is an immutable item view.

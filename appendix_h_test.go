@@ -16,7 +16,7 @@ import (
 // Interactive H.2/H.17/H.20–H.22 require testkit terminal (v0.2).
 
 func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
@@ -35,7 +35,7 @@ func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
 }
 
 func TestH3_Task_ProgressStartsDeterminateTask(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
@@ -51,7 +51,7 @@ func TestH3_Task_ProgressStartsDeterminateTask(t *testing.T) {
 }
 
 func TestH4_Task_InvalidProgressIsRecordedWithoutCorruption(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("download")
@@ -68,7 +68,7 @@ func TestH4_Task_InvalidProgressIsRecordedWithoutCorruption(t *testing.T) {
 }
 
 func TestH5_Task_BackwardProgressIsRejected(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("download")
@@ -81,7 +81,7 @@ func TestH5_Task_BackwardProgressIsRejected(t *testing.T) {
 }
 
 func TestH6_Item_BlockCreatesSingleProblem(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	workingTree := out.Item("working tree")
@@ -103,7 +103,7 @@ func TestH6_Item_BlockCreatesSingleProblem(t *testing.T) {
 }
 
 func TestH7_Item_BlockedByPreservesProblems(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Item("branches")
@@ -126,7 +126,7 @@ func TestH7_Item_BlockedByPreservesProblems(t *testing.T) {
 }
 
 func TestH8_Item_BlockedByWithoutProblemsRecordsMisuse(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Item("branches")
@@ -141,7 +141,7 @@ func TestH8_Item_BlockedByWithoutProblemsRecordsMisuse(t *testing.T) {
 }
 
 func TestH9_Item_FirstTerminalStateWins(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	item := out.Item("working tree")
@@ -157,7 +157,7 @@ func TestH9_Item_FirstTerminalStateWins(t *testing.T) {
 }
 
 func TestH10_Item_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	workingTree := out.Item("working tree")
@@ -189,7 +189,7 @@ func TestH10_Item_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
 }
 
 func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -223,7 +223,7 @@ func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 }
 
 func TestH13_Output_FinishReportsUnresolvedTask(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -325,7 +325,7 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 
 func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.To(&output),
 		evo.NonInteractive(),
 		evo.NoColor(),

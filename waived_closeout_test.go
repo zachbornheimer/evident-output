@@ -19,7 +19,7 @@ import (
 )
 
 func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
-	out := evo.New(evo.To(io.Discard), evo.MaxEvents(8))
+	out := evo.NewWithOptions(evo.To(io.Discard), evo.MaxEvents(8))
 	t.Cleanup(func() { _ = out.Close() })
 	// Flood with line events (non-critical).
 	for i := 0; i < 40; i++ {
@@ -78,7 +78,7 @@ func TestCON009_MultiRendererOneFailure(t *testing.T) {
 func TestCON004_ResizeWhileLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.Terminal(screen),
 		evo.Clock(clock),
 		evo.VisibilityDelay(0),
@@ -99,7 +99,7 @@ func TestCON004_ResizeWhileLive(t *testing.T) {
 
 func TestCON003_LogWhileLiveNoSplit(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.New(evo.Terminal(screen), evo.DebugLevel(evo.Debug), evo.VisibilityDelay(0))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.DebugLevel(evo.Debug), evo.VisibilityDelay(0))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Phase("running")
@@ -185,7 +185,7 @@ func TestMCP016_PartialOnlyWhenAnalysisIncomplete(t *testing.T) {
 	// Partial remains for GoPackage typecheck failure / empty input.
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f() { evo.New() }
+func f() { evo.NewWithOptions() }
 `
 	res := review.GoSource("p.go", src)
 	if res.Partial {
@@ -281,12 +281,12 @@ func TestSEC015_NoAuthOnAnnotations(t *testing.T) {
 }
 
 func TestPORT011_Int64ProgressPaths(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("big")
 	// Use values that would truncate on 32-bit int if progress were int.
 	const big int64 = 1 << 40
-	task.Progress(big/2, big)
+	task.Progress64(big/2, big)
 	got := task.Snapshot().Progress
 	if got.Completed != big/2 || got.Total != big {
 		t.Fatalf("%+v", got)
@@ -297,7 +297,7 @@ func TestPORT011_Int64ProgressPaths(t *testing.T) {
 
 func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.New(evo.Terminal(screen), evo.DebugLevel(evo.Debug), evo.VisibilityDelay(0))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.DebugLevel(evo.Debug), evo.VisibilityDelay(0))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	var wg sync.WaitGroup
@@ -305,7 +305,7 @@ func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			task.Progress(int64(i), 50)
+			task.Progress(i, 50)
 		}
 	}()
 	go func() {

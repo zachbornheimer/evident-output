@@ -12,7 +12,7 @@ import (
 )
 
 func TestSEC003_MaxEntitiesEnforced(t *testing.T) {
-	out := evo.New(evo.To(io.Discard), evo.MaxEntities(3))
+	out := evo.NewWithOptions(evo.To(io.Discard), evo.MaxEntities(3))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("a").OK()
 	out.Item("b").OK()
@@ -24,11 +24,11 @@ func TestSEC003_MaxEntitiesEnforced(t *testing.T) {
 }
 
 func TestSEC005_ProgressOverflowRejected(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	// Valid absolute max equal values.
-	task.Progress(math.MaxInt64, math.MaxInt64)
+	task.Progress64(math.MaxInt64, math.MaxInt64)
 	// Advance would wrap past total / overflow completed — must record misuse.
 	task.Advance(1)
 	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
@@ -42,7 +42,7 @@ func TestSEC005_ProgressOverflowRejected(t *testing.T) {
 }
 
 func TestSEC007_DestructiveActionFlag(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	a := evo.Action{
 		Label:       "delete everything",
@@ -73,7 +73,7 @@ func TestSEC007_DestructiveActionFlag(t *testing.T) {
 
 func TestSEC002_SensitiveFieldRedactedInDebug(t *testing.T) {
 	var buf strings.Builder
-	out := evo.New(evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.Debug))
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Debug("auth", evo.Field{Key: "token", Value: "super-secret", Sensitive: true})
 	_ = out.Finish()
@@ -94,7 +94,7 @@ func TestSEC011_BidiControlsStripped(t *testing.T) {
 }
 
 func TestDOM005_DuplicateKeyRejected(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	_, err := out.ItemWith(evo.ItemSpec{Key: "k", Name: "one"})
 	if err != nil {
@@ -107,7 +107,7 @@ func TestDOM005_DuplicateKeyRejected(t *testing.T) {
 }
 
 func TestDOM024_TotalDecreaseBelowCompletedRejected(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(5, 10)

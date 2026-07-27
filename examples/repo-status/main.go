@@ -1,11 +1,7 @@
 // Command repo-status is a realistic "is this repo safe to retire?" check.
 //
-// Pattern: sequential Items as gate/verdict units. Resolve with OK/Block/Warn
-// directly (no Start — API-006). Exit via evo.Main.
-//
-//	go run ./examples/repo-status/ --name bpp-csharp
-//	go run ./examples/repo-status/ --name my-service --clean
-//	go run ./examples/repo-status/ --fast
+//	go run ./examples/repo-status/
+//	go run ./examples/repo-status/ --clean --fast
 package main
 
 import (
@@ -15,19 +11,15 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/examples/internal/demo"
 )
 
 func main() {
-	name := flag.String("name", "bpp-csharp", "repository subject shown in the conclusion")
-	clean := flag.Bool("clean", false, "simulate a clean repo (all items OK)")
-	fast := flag.Bool("fast", false, "use short sleeps (for mise run examples)")
-	colorFlag := flag.String("color", "auto", "color output: auto|always|never")
+	name := flag.String("name", "bpp-csharp", "repository subject")
+	clean := flag.Bool("clean", false, "simulate a clean repo")
+	fast := flag.Bool("fast", false, "short sleeps")
+	colorFlag := flag.String("color", "auto", "auto|always|never")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: repo-status [flags]\n\n")
-		fmt.Fprintf(os.Stderr, "Report whether a local git repository is safe to archive or delete.\n\n")
-		fmt.Fprintf(os.Stderr, "Each check prints as soon as it resolves — progressive durable lines,\n")
-		fmt.Fprintf(os.Stderr, "not a buffer dump at Finish.\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: repo-status [flags]\n\nReport whether a local git repository is safe to archive.\n\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -36,10 +28,19 @@ func main() {
 	if *fast {
 		step = 40 * time.Millisecond
 	}
+	color, err := evo.ParseColorMode(*colorFlag)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 
-	out := evo.For(*name, demo.Options(os.Stdout, demo.ParseColorFlag(*colorFlag))...)
+	out := evo.New(evo.Config{
+		Title: *name,
+		Color: color,
+	})
 	os.Exit(evo.Main(out, func(o *evo.Output) error {
-		// --- simulated git work (real apps call git / libgit2 here) ---
+		_, _ = o.Verbose().Printf("Checking repository %s\n", *name)
+
 		time.Sleep(step)
 		o.Item("working tree").OK()
 
@@ -60,10 +61,7 @@ func main() {
 		if *clean {
 			remotes.OK()
 		} else {
-			remotes.Warn(
-				"origin was not reachable",
-				evo.Detail("last fetch failed; remote state is unverified"),
-			)
+			remotes.Warn("origin was not reachable", evo.Detail("last fetch failed; remote state is unverified"))
 		}
 
 		time.Sleep(step)

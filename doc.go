@@ -4,14 +4,18 @@
 // Application code owns execution. Evo owns presentation.
 //
 //	func main() {
-//	    out := evo.For("repo", evo.WriterOptions(os.Stdout, evo.Diagnostics(os.Stderr))...)
+//	    out := evo.New(evo.Config{Title: "repo"})
 //	    os.Exit(evo.Main(out, run))
 //	}
 //
 //	func run(out *evo.Output) error {
+//	    out.Println("Reading configuration")
+//	    out.Item("working tree").OK()
 //	    t := out.Task("fetch")
 //	    output := t.Capture()
 //	    // run.Run(ctx, "git", args, output); t.Fail(..., output.DetailTail()) on error
 //	    return nil
 //	}
+//
+// Adoption ladder: Print → Verbose → Item/Task → Capture → slog diagnostics.
 package evo

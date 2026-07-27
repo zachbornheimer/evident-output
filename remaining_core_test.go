@@ -12,7 +12,7 @@ import (
 )
 
 func TestDOM030_CollectionWarning(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	g.Task("a").Done()
@@ -23,7 +23,7 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 }
 
 func TestDOM031_CollectionAllDone(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	g.Summary("all good")
@@ -38,7 +38,7 @@ func TestDOM031_CollectionAllDone(t *testing.T) {
 }
 
 func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	g.Task("a").Done()
@@ -50,7 +50,7 @@ func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
 }
 
 func TestDOM049_OutputFail(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Fail("stopped", evo.Cause(errors.New("disk")))
 	_ = out.Finish()
@@ -61,7 +61,7 @@ func TestDOM049_OutputFail(t *testing.T) {
 
 func TestDOM048_BlockedWithNilErrorReturn(t *testing.T) {
 	// Pattern from spec: presentation negative, callback returns nil
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	var ret error
 	func() {
@@ -79,7 +79,7 @@ func TestDOM048_BlockedWithNilErrorReturn(t *testing.T) {
 
 func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 	out.WarnMessage("log warning")
 	out.Item("i").Warn("item warning")
@@ -91,7 +91,7 @@ func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 }
 
 func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
-	out := evo.New(evo.To(io.Discard), evo.DebugLevel(evo.Debug))
+	out := evo.NewWithOptions(evo.To(io.Discard), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
@@ -110,7 +110,7 @@ func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
 func TestOUT007_DeterministicJSONWithFixedClock(t *testing.T) {
 	// same semantic state → same conclusion fields (IDs differ by construction)
 	mk := func() evo.Conclusion {
-		out := evo.New(evo.To(io.Discard))
+		out := evo.NewWithOptions(evo.To(io.Discard))
 		out.Item("a").OK()
 		out.Item("b").Block("x")
 		_ = out.Finish()
@@ -125,7 +125,7 @@ func TestOUT007_DeterministicJSONWithFixedClock(t *testing.T) {
 }
 
 func TestOUT011_EventTimestampsPresent(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("a").OK()
 	_ = out.Finish()
@@ -140,7 +140,7 @@ func TestOUT011_EventTimestampsPresent(t *testing.T) {
 }
 
 func TestCON005_CloseDuringUpdates(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	var wg sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
@@ -155,7 +155,7 @@ func TestCON005_CloseDuringUpdates(t *testing.T) {
 }
 
 func TestAPI009_BlockVsBlockedBy(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("a").Block("one")
 	out.Item("b").BlockedBy(evo.Problem{Summary: "two"})
@@ -164,7 +164,7 @@ func TestAPI009_BlockVsBlockedBy(t *testing.T) {
 }
 
 func TestAPI010_DonefFormatting(t *testing.T) {
-	out := evo.New(evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("t").Donef("n=%d", 3)
 	if out.Task("t").Snapshot().Summary != "" {

@@ -31,6 +31,7 @@ type config struct {
 	maxEntities       int
 	maxEvents         int
 	extraWriters      []io.Writer
+	verbosity         Verbosity
 }
 
 type optionFunc func(*config)

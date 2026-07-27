@@ -14,7 +14,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func f() {
-  out := evo.New()
+  out := evo.NewWithOptions()
   t := out.Task("x")
   t.Start()
   fmt.Printf("hi")
@@ -167,7 +167,7 @@ func TestAPI026_DetectsEvoExecutionHelper(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f() {
-  out := evo.New()
+  out := evo.NewWithOptions()
   out.Tasks("jobs").Map(func() {})
 }
 `
@@ -213,7 +213,7 @@ func TestGoPackage_CrossFileTypes(t *testing.T) {
 	files := map[string]string{
 		"a.go": `package p
 import evo "github.com/zachbornheimer/evident-output"
-func makeOut() *evo.Output { return evo.New() }
+func makeOut() *evo.Output { return evo.NewWithOptions() }
 `,
 		"b.go": `package p
 import "fmt"

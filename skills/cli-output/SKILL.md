@@ -158,9 +158,11 @@ When both fit: **Item** for pass/fail, **Task** for progress. Multi-gate: all It
 ## Entrypoint
 
 ```go
-out := evo.For("tool", evo.WriterOptions(os.Stdout)...)
-os.Exit(evo.Main(out, run)) // Finish + Close + ExitCode
+out := evo.New(evo.Config{Title: "tool"}) // TTY/NO_COLOR/stdout defaults included
+os.Exit(evo.Main(out, run))               // Finish + Close + ExitCode
 ```
+
+Adoption ladder: `Print`/`Printf`/`Println` → `Verbose()` → `Item`/`Task` → `Task.Capture()` → `slog` for implementation diagnostics.
 
 Do **not** call `Start` on the happy path (API-006). Review until `recheck_required=false` and `partial` is absent/false when shipping.
 

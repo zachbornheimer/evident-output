@@ -2,6 +2,7 @@ package evo
 
 import (
 	"encoding/json"
+	"io"
 	"time"
 )
 
@@ -18,7 +19,15 @@ type JSONDocument struct {
 	Tasks           []JSONTask       `json:"tasks"`
 	Changes         []JSONChanges    `json:"changes"`
 	Plans           []JSONPlan       `json:"plans"`
+	Messages        []JSONMessage    `json:"messages,omitempty"`
 	Actions         []JSONAction     `json:"actions"`
+}
+
+// JSONMessage is a wire-format user-facing message.
+type JSONMessage struct {
+	ID         string `json:"id"`
+	Visibility string `json:"visibility"`
+	Text       string `json:"text"`
 }
 
 // JSONOutputMeta identifies the output instance.
@@ -222,10 +231,40 @@ func toJSONDocument(s Snapshot) JSONDocument {
 			ID: p.ID, Subject: p.Subject, Records: toJSONEffects(p.Records),
 		})
 	}
+	for _, m := range s.Messages {
+		doc.Messages = append(doc.Messages, JSONMessage{
+			ID:         m.ID,
+			Visibility: visibilityName(m.Visibility),
+			Text:       m.Text,
+		})
+	}
 	for _, a := range s.Actions {
 		doc.Actions = append(doc.Actions, toJSONAction(a))
 	}
 	return doc
+}
+
+// WriteJSON encodes the snapshot as indented JSON with a trailing newline.
+func WriteJSON(w io.Writer, snapshot Snapshot) error {
+	b, err := EncodeJSON(snapshot)
+	if err != nil {
+		return err
+	}
+	if len(b) == 0 || b[len(b)-1] != '\n' {
+		b = append(b, '\n')
+	}
+	_, err = w.Write(b)
+	return err
+}
+
+// WriteJSONL encodes events as JSON Lines with a trailing newline per event.
+func WriteJSONL(w io.Writer, events []Event) error {
+	b, err := EncodeJSONL(events)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(b)
+	return err
 }
 
 func toJSONTask(t TaskSnapshot) JSONTask {

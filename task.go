@@ -41,8 +41,15 @@ func (t *Task) Phase(text string) *Task {
 	return t
 }
 
-// Progress sets absolute completed/total progress.
-func (t *Task) Progress(completed, total int64) *Task {
+// Progress sets absolute completed/total count progress.
+// Counts use int (collection lengths, indices). For byte quantities use Bytes.
+// For values outside int range (tests / huge counters) use Progress64.
+func (t *Task) Progress(completed, total int) *Task {
+	return t.setProgress(int64(completed), int64(total), Determinate)
+}
+
+// Progress64 sets absolute completed/total progress using int64 quantities.
+func (t *Task) Progress64(completed, total int64) *Task {
 	return t.setProgress(completed, total, Determinate)
 }
 
@@ -136,11 +143,20 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind P
 }
 
 // Done resolves the task successfully.
-func (t *Task) Done() *Task {
-	return t.finish(Done, "", nil)
+// Optional one summary: Done("modules cached"). More than one summary panics.
+func (t *Task) Done(summary ...string) *Task {
+	switch len(summary) {
+	case 0:
+		return t.finish(Done, "", nil)
+	case 1:
+		return t.finish(Done, sanitize.Text(summary[0]), nil)
+	default:
+		panic("evo: Task.Done accepts at most one summary string")
+	}
 }
 
 // Donef resolves the task with a formatted summary.
+// Prefer Done("text") when there are no format directives.
 func (t *Task) Donef(format string, args ...any) *Task {
 	return t.finish(Done, sanitize.Text(fmt.Sprintf(format, args...)), nil)
 }

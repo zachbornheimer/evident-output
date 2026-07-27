@@ -12,7 +12,7 @@ import (
 
 func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.New(evo.Terminal(screen), evo.DebugLevel(evo.Debug))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
 
 	logger := slog.New(out.SlogHandler(slog.LevelDebug))
@@ -36,7 +36,7 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 
 func TestSuspend_RunsCallbackWithoutLiveCorruption(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Item("pre").OK()
@@ -54,7 +54,7 @@ func TestSuspend_RunsCallbackWithoutLiveCorruption(t *testing.T) {
 }
 
 func TestSnapshots_ChannelReceivesUpdates(t *testing.T) {
-	out := evo.New(evo.To(ioDiscard{}))
+	out := evo.NewWithOptions(evo.To(ioDiscard{}))
 	t.Cleanup(func() { _ = out.Close() })
 
 	ch := out.Snapshots()

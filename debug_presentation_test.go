@@ -17,7 +17,7 @@ func fixedDebugClock() evo.FixedClock {
 // History mode (default): durable append-above, compact grammar with timestamp (§21.3.1).
 func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.Terminal(screen),
 		evo.DebugLevel(evo.Debug),
 		evo.DebugHistory(),
@@ -53,7 +53,7 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
 	// Advance so successive Debug calls get distinct times if clock ticks.
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.Terminal(screen),
 		evo.DebugLevel(evo.Debug),
 		evo.DebugPane(evo.PaneHeight(2), evo.NewestFirst()),
@@ -115,7 +115,7 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var primary bytes.Buffer
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.To(&primary),
 		evo.Terminal(screen),
 		evo.DebugLevel(evo.Debug),
@@ -153,7 +153,7 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 // PreserveDebugTail forces a tail even on success (explicit opt-in).
 func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
@@ -180,7 +180,7 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 // Plain + history: still one stream, no double print (regression).
 func TestDebugHistory_PlainStreamsOnce(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),

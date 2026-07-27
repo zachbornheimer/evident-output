@@ -90,9 +90,9 @@ g.Task("b").Done()`,
 			Severity:  "error",
 			Invariant: "progress must not contaminate structured stdout",
 			Why:       "fmt.Print during live UI corrupts managed streams and breaks machine consumers.",
-			BadCode: `out := evo.New()
+			BadCode: `out := evo.NewWithOptions()
 fmt.Printf("progress %d\n", n)`,
-			GoodCode: `out := evo.New()
+			GoodCode: `out := evo.NewWithOptions()
 out.Line("progress note")
 // or out.Debug(...) / SlogHandler`,
 			BadOutput:       "interleaved ANSI + printf on stdout",

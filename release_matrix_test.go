@@ -72,7 +72,7 @@ func TestAPI013_ExampleCLIsBuild(t *testing.T) {
 func TestTERM009_CancelCleanupPath(t *testing.T) {
 	// TERM-009: SIGINT handling documents Cancel → cancelled conclusion cleanup.
 	// Full PTY signal injection remains host-dependent; library path is Cancel.
-	out := evo.New(evo.To(os.Stderr), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.To(os.Stderr), evo.Plain(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("long")
 	task.Phase("working")

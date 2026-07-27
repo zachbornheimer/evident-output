@@ -1,34 +1,22 @@
-// Command debug-pane demos v0.4 DebugPane: rolling slog-text viewport in the
-// live region (newest first). On success the pane is removed; on failure a
-// labeled diagnostic tail is preserved under the final report.
+// Command debug-pane demos rolling slog-text viewport.
 //
-//	go run ./examples/debug-pane/              # success — pane gone after Finish
-//	go run ./examples/debug-pane/ --fail       # failed — diagnostics tail kept
-//	go run ./examples/debug-pane/ --preserve   # always keep tail (opt-in)
+//	go run ./examples/debug-pane/
+//	go run ./examples/debug-pane/ --fail
 package main
 
 import (
 	"flag"
-	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/examples/internal/demo"
 )
 
 func main() {
 	fast := flag.Bool("fast", false, "shorter sleeps")
-	fail := flag.Bool("fail", false, "fail an item so the diagnostic tail is preserved")
-	preserve := flag.Bool("preserve", false, "PreserveDebugTail even on success")
-	colorFlag := flag.String("color", "auto", "auto|always|never")
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: debug-pane [flags]\n\n")
-		fmt.Fprintf(os.Stderr, "Pane-mode debug: a bounded viewport under tasks/items shows\n")
-		fmt.Fprintf(os.Stderr, "newest-first slog text (time= level= msg= …). Not durable\n")
-		fmt.Fprintf(os.Stderr, "scrollback unless Finish preserves a diagnostics tail.\n\n")
-		flag.PrintDefaults()
-	}
+	fail := flag.Bool("fail", false, "find a blocker (task Done + item Block)")
+	preserve := flag.Bool("preserve", false, "always keep diagnostic tail")
 	flag.Parse()
 
 	step := 100 * time.Millisecond
@@ -36,49 +24,44 @@ func main() {
 		step = 20 * time.Millisecond
 	}
 
-	paneOpts := []evo.DebugPaneOption{
-		evo.PaneHeight(4),
-		evo.NewestFirst(),
+	newest := true
+	cfg := evo.DefaultConfig()
+	cfg.Title = "branch audit"
+	cfg.Debug = evo.DebugConfig{
+		Level:          evo.Debug,
+		View:           evo.DebugPresentationPane,
+		PaneHeight:     4,
+		NewestFirst:    &newest,
+		PreserveAlways: *preserve,
 	}
-	if *preserve {
-		paneOpts = append(paneOpts, evo.PreserveDebugTail())
-	}
+	out := evo.New(cfg)
+	log := slog.New(out.SlogHandler(slog.LevelDebug))
 
-	out := evo.For("branch-audit",
-		demo.Options(os.Stderr, demo.ParseColorFlag(*colorFlag),
-			evo.DebugLevel(evo.Debug),
-			evo.DebugPane(paneOpts...),
-		)...,
-	)
-	defer out.Close()
+	os.Exit(evo.Main(out, func(o *evo.Output) error {
+		jobs := o.Tasks("audit")
+		scan := jobs.Task("scan")
+		compare := jobs.Task("compare")
 
-	jobs := out.Tasks("audit")
-	scan := jobs.Task("scan")
-	compare := jobs.Task("compare")
+		scan.Phase("enumerating")
+		log.Debug("enumerated local branches", "count", 7)
+		time.Sleep(step)
+		log.Debug("fetched remote metadata", "remote", "origin")
+		time.Sleep(step)
+		scan.Donef("%d branches", 7)
 
-	scan.Phase("enumerating")
-	out.Debug("enumerated local branches", evo.Int("count", 7))
-	time.Sleep(step)
-	out.Debug("fetched remote metadata", evo.String("remote", "origin"))
-	time.Sleep(step)
-	scan.Donef("%d branches", 7)
-
-	compare.Phase("diffing")
-	out.Debug("branch comparison completed", evo.Int("blockers", 1))
-	time.Sleep(step)
-	out.Debug("policy check", evo.String("rule", "no-local-only"))
-	time.Sleep(step)
-	if *fail {
-		compare.Fail("local-only branches remain")
-		out.Item("branches").Block("feat/sdk-full-consolidation local-only")
-	} else {
-		compare.Done()
-		out.Item("branches").OK()
-	}
-
-	if err := out.Finish(); err != nil {
-		fmt.Fprintln(os.Stderr, "presentation error:", err)
-		os.Exit(1)
-	}
-	os.Exit(out.Conclusion().ExitCode)
+		compare.Phase("diffing")
+		log.Debug("branch comparison completed", "blockers", 1)
+		time.Sleep(step)
+		log.Debug("policy check", "rule", "no-local-only")
+		time.Sleep(step)
+		if *fail {
+			// Comparison succeeded and found a domain blocker — not an operation failure.
+			compare.Done("1 blocker found")
+			o.Item("branches").Block("feat/sdk-full-consolidation is local-only")
+		} else {
+			compare.Done()
+			o.Item("branches").OK()
+		}
+		return nil
+	}))
 }

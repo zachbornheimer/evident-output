@@ -128,7 +128,7 @@ func main() {
 
 	entries, _ := os.ReadDir(dir)
 	for i := range entries {
-		scan.Progress(int64(i+1), int64(len(entries)))
+		scan.Progress(i+1, len(entries))
 		done := int64(float64(totalBytes) * float64(i+1) / float64(len(entries)))
 		download.Bytes(done, totalBytes)
 		time.Sleep(stepDur)

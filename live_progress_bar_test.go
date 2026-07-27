@@ -10,7 +10,7 @@ import (
 
 func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	out := evo.New(evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor())
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	g := out.Tasks("work")

@@ -20,7 +20,7 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.Terminal(screen),
 		evo.Clock(clock),
 		evo.VisibilityDelay(150*time.Millisecond),
@@ -58,7 +58,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 
 	// FixedClock freezes spinner glyphs for stable operation expectations.
 	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.Terminal(screen),
 		evo.DebugLevel(evo.Debug),
 		evo.NoColor(), // assert exact final text without SGR
@@ -95,7 +95,7 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	)
 
 	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := evo.New(evo.Terminal(screen), evo.Clock(fixed), evo.NoColor())
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.Clock(fixed), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -138,7 +138,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		testkit.NoColor(),
 	)
 
-	out := evo.New(evo.Terminal(screen))
+	out := evo.NewWithOptions(evo.Terminal(screen))
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -178,7 +178,7 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := evo.New(
+	out := evo.NewWithOptions(
 		evo.Terminal(screen),
 		evo.Clock(clock),
 		evo.MaxFrameRate(30),
@@ -187,7 +187,7 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 
 	download := out.Task("download")
 	for completed := int64(0); completed <= 10_000; completed++ {
-		download.Progress(completed, 10_000)
+		download.Progress64(completed, 10_000)
 		// Keep wall-clock zero; coalescing uses frame budget, not only time.
 	}
 	download.Done()

@@ -60,7 +60,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func f() {
-  out := evo.New()
+  out := evo.NewWithOptions()
   fmt.Printf("hi")
   _ = out
 }
@@ -75,7 +75,7 @@ func f() {
 			BadSource: `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f() {
-  out := evo.New()
+  out := evo.NewWithOptions()
   t := out.Task("x")
   t.Start()
 }
