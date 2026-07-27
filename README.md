@@ -100,13 +100,24 @@ go run ./cmd/evident-output-mcp
 
 ### Examples
 
+Small real programs (flags, help, exit codes) — not snippets. Copy a whole folder as a starting shape.
+
+| Example | Pattern |
+|---------|---------|
+| `repo-status` | Parallel **Items** (OK / blocked / warn), conclusion exit code |
+| `install-pipeline` | **Tasks** collection with Progress/Bytes/Fail |
+| `migrate` | **Plan** dry-run vs **Changes** apply (`--apply`) |
+| `doctor` | Mixed doctor items; `--json` snapshot on stdout |
+| `data-command` | Data command: JSON **stdout**, human report **stderr** |
+
 ```bash
-mise run examples                 # all demos, back-to-back with headers
-go run ./examples/repository-item/
-go run ./examples/tasks-progress/
-go run ./examples/plan-changes/
-go run ./examples/doctor-items/
-go run ./examples/json-snapshot/  # human on stderr, JSON on stdout
+mise run examples                          # all, back-to-back with headers
+go run ./examples/repo-status/ --name my-app
+go run ./examples/install-pipeline/
+go run ./examples/migrate/                 # dry-run plan
+go run ./examples/migrate/ --apply
+go run ./examples/doctor/ --json | jq .conclusion
+go run ./examples/data-command/ 2>/dev/null | jq .
 ```
 
 ### Machine output
