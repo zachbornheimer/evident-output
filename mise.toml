@@ -52,8 +52,14 @@ run = [
   "test -f go.mod",
   "test -f conformance/TRACEABILITY.md",
   "test -f conformance/schema/scenario.v1.json",
+  "test -f release.go",
+  "go test . -run 'PublishedRelease|VersionDrift' -count=1",
   "echo doctor ok",
 ]
+
+[tasks.sync-release-pins]
+description = "Rewrite portable install pins to match evo.PublishedRelease"
+run = "go run ./scripts/sync-release-pins"
 
 [tasks.examples]
 description = "Run example CLIs back-to-back with headers"

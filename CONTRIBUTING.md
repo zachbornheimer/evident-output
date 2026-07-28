@@ -27,3 +27,15 @@ Do not silently drop requirement IDs.
 
 Evident Output is a presentation library. Do not add command frameworks,
 schedulers, `RunAll`/`Map`/`Retry`, or shell execution to the core package.
+
+## Release pins (maintenance class)
+
+Install version strings in README, skills, and integrations are **one class of
+defect**. Do not edit them ad hoc.
+
+1. Change `PublishedRelease` in `release.go`.
+2. `mise run sync-release-pins` (or `go run ./scripts/sync-release-pins`).
+3. `go test . -run VersionDrift` (also part of `mise run doctor`).
+
+Full procedure: [`docs/guides/cutting-a-release.md`](docs/guides/cutting-a-release.md).
+Never move a previously published git tag to fix a stale README — ship a patch.

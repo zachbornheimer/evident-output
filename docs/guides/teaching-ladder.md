@@ -48,7 +48,8 @@ return out.Finish()
 | RULE-006 | Capability ≠ obligation |
 | PHIL-001 | One ordinary spelling per intent |
 
-See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.
+See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.  
+Release pin procedure: `docs/guides/cutting-a-release.md`.
 
 ## Capture
 
