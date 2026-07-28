@@ -33,10 +33,12 @@ func run(out *evo.Output) error {
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.8
+go get github.com/zachbornheimer/evident-output@v0.2.9
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
+
+Design philosophy and polish-phase basis: [`docs/roadmap/implementation-basis.md`](docs/roadmap/implementation-basis.md), [`docs/philosophy/`](docs/philosophy/).
 
 **Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `NewWithOptions(Title(...), …)`.  
 **Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 150ms). `Debug.Level: LevelTrace` selectable (`LevelUnset` → Info).  
