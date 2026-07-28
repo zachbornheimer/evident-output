@@ -6,8 +6,9 @@ import (
 	"time"
 )
 
-// JSONSchemaVersion is the final JSON document schema version (§25.1).
-const JSONSchemaVersion = "1.0"
+// JSONSchemaVersion is the final JSON document schema version.
+// Tracks the 0.2 contract series (pre-1.0 wire format may still evolve).
+const JSONSchemaVersion = "0.2"
 
 // JSONDocument is the final machine projection (§25.1).
 type JSONDocument struct {

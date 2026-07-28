@@ -123,7 +123,7 @@ func TestOUT016_BrokenPipePolicy(t *testing.T) {
 
 func TestCON006_NoDeadlockOnRecursiveLog(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.DebugLevel(evo.Debug))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("t").Phase("p")
 	// Debug during live (recursive-ish path)
@@ -136,7 +136,7 @@ func TestCON007_DirtyCoalesce(t *testing.T) {
 	// H.22 already covers; assert pending doesn't grow unbounded
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.Clock(clock), evo.MaxFrameRate(10))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.MaxFrameRate(10))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	for i := 0; i < 100; i++ {
@@ -171,7 +171,7 @@ func TestCON017_ConcurrentDeclareSafe(t *testing.T) {
 
 func TestCON019_HighFrequencyChildProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0))
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	t1 := g.Task("a")
@@ -336,14 +336,14 @@ func TestPORT013_PublicAPIStableShape(t *testing.T) {
 		t.Fatalf("%+v", snap)
 	}
 	b, err := evo.EncodeJSON(snap)
-	if err != nil || !strings.Contains(string(b), `"schema_version": "1.0"`) {
+	if err != nil || !strings.Contains(string(b), `"schema_version": "0.2"`) {
 		t.Fatal(err, string(b))
 	}
 	_ = out.Close()
 }
 
 func TestPORT014_OldFixturesDecode(t *testing.T) {
-	// JSON with schema 1.0 still has required fields
+	// JSON with schema 0.2 still has required fields
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	out.Item("a").OK()
 	_ = out.Finish()

@@ -45,8 +45,15 @@ type liveEngine struct {
 	liveActive    bool
 	pendingRedraw bool
 
+	// activitySince is set when live activity first appears; VisibilityDelay
+	// withholds the first paint until the domain clock advances past the delay
+	// (force terminal outcomes bypass the delay).
+	activitySince time.Time
+	waitingDelay  bool
+
 	// anim drives independent spinner ticks while any task is Running,
 	// so indeterminate rows animate even when determinate bars are idle.
+	// Also used to promote visibility once VisibilityDelay elapses.
 	animMu      sync.Mutex
 	animRunning bool
 	animStop    chan struct{}
@@ -60,7 +67,10 @@ func (o *Output) liveLocked() LiveSurface {
 }
 
 // signalLiveLocked marks that interactive presentation may need a redraw.
-// force=true bypasses frame-rate coalescing (terminal outcomes, debug, finish).
+// force=true bypasses frame-rate coalescing only (not VisibilityDelay).
+// VisibilityDelay withholds the first live paint after activity starts so
+// Phase→fast Done does not flash a spinner; Instant Done without Phase never
+// sets activity, so no live frames (H.2).
 func (o *Output) signalLiveLocked(force bool) {
 	live := o.liveLocked()
 	if live == nil || !live.IsInteractive() {
@@ -69,16 +79,27 @@ func (o *Output) signalLiveLocked(force bool) {
 	if o.live == nil {
 		o.live = &liveEngine{surface: live}
 	}
-	// Activity (phase/progress) forces visibility immediately.
-	// Instant Done without prior running keeps invisible until final.
+	now := o.cfg.clock.Now()
 	if o.hasLiveActivityLocked() {
-		o.live.visible = true
+		if o.live.activitySince.IsZero() {
+			o.live.activitySince = now
+		}
+		delay := o.cfg.visibilityDelay
+		// delay <= 0 means immediate (tests use VisibilityDelay(0)).
+		if delay <= 0 || now.Sub(o.live.activitySince) >= delay {
+			o.live.visible = true
+			o.live.waitingDelay = false
+		} else {
+			o.live.waitingDelay = true
+			// Wall ticker re-checks delay; FixedClock tests re-enter after Advance.
+			o.ensureSpinnerAnimatorLocked()
+			return
+		}
 	}
 	if !o.live.visible {
 		return
 	}
-	now := o.cfg.clock.Now()
-	if !force && o.live.lastRender.IsZero() == false {
+	if !force && !o.live.lastRender.IsZero() {
 		minGap := time.Second / time.Duration(max(1, o.cfg.maxFrameRate))
 		if now.Sub(o.live.lastRender) < minGap {
 			o.live.pendingRedraw = true
@@ -113,8 +134,17 @@ func (o *Output) renderLiveLocked(force bool) {
 	if live == nil || o.live == nil || !o.live.visible {
 		return
 	}
+	// Refresh geometry before layout when the driver supports it (ANSI + real TTY).
+	if r, ok := live.(interface{ RefreshSize() }); ok {
+		r.RefreshSize()
+	}
 	now := o.cfg.clock.Now()
-	text := o.renderLiveRegionWithDebugLocked(live.Columns(), live.Rows(), now)
+	cols, rows := live.Columns(), live.Rows()
+	// Keep config width in sync for plain residual paths that still use cfg.width.
+	if cols > 0 {
+		o.cfg.width = cols
+	}
+	text := o.renderLiveRegionWithDebugLocked(cols, rows, now)
 	if !force && text == o.live.lastLiveText {
 		return
 	}
@@ -141,12 +171,18 @@ func (o *Output) needsSpinnerAnimLocked() bool {
 }
 
 // ensureSpinnerAnimatorLocked starts a background tick that re-renders the live
-// region so indeterminate spinners advance without waiting for Progress calls.
+// region so indeterminate spinners advance without waiting for Progress calls,
+// and that promotes visibility once VisibilityDelay elapses.
 func (o *Output) ensureSpinnerAnimatorLocked() {
-	if o.live == nil || !o.live.visible || o.finished || o.closed {
+	if o.live == nil || o.finished || o.closed {
 		return
 	}
-	if !o.needsSpinnerAnimLocked() {
+	// Waiting for delay: keep a ticker so we can paint when the threshold elapses.
+	if o.live.waitingDelay {
+		// fall through to start animator
+	} else if !o.live.visible {
+		return
+	} else if !o.needsSpinnerAnimLocked() {
 		o.stopSpinnerAnimatorLocked()
 		return
 	}
@@ -187,7 +223,24 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 			return
 		case <-t.C:
 			o.mu.Lock()
-			if o.closed || o.finished || o.live == nil || !o.live.visible {
+			if o.closed || o.finished || o.live == nil {
+				o.stopSpinnerAnimatorLocked()
+				o.mu.Unlock()
+				return
+			}
+			// Promote visibility after VisibilityDelay using domain clock.
+			if o.live.waitingDelay && o.hasLiveActivityLocked() {
+				delay := o.cfg.visibilityDelay
+				now := o.cfg.clock.Now()
+				if delay <= 0 || now.Sub(o.live.activitySince) >= delay {
+					o.live.visible = true
+					o.live.waitingDelay = false
+					o.renderLiveLocked(true)
+				}
+				o.mu.Unlock()
+				continue
+			}
+			if !o.live.visible {
 				o.stopSpinnerAnimatorLocked()
 				o.mu.Unlock()
 				return

@@ -14,7 +14,7 @@ import (
 
 func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.DebugLevel(evo.Debug))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
 
 	logger := slog.New(out.SlogHandler(slog.LevelDebug))
@@ -113,7 +113,7 @@ func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := evo.NewWithOptions(
-		evo.Terminal(screen),
+		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugPane(evo.PaneHeight(5), evo.NewestFirst()),
 		evo.NoColor(),

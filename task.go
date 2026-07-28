@@ -237,7 +237,8 @@ func (t *Task) finish(state EntityState, summary string, problems []Problem) *Ta
 		st.summary = sanitize.Text(summary)
 	}
 	if len(problems) > 0 {
-		st.problems = cloneProblems(problems)
+		// storeProblems: shared CSI-safe path (identical to Item).
+		st.problems = storeProblems(problems)
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task." + string(state), EntityID: t.id})

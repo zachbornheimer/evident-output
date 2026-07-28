@@ -49,6 +49,25 @@ func TestMain_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	}
 }
 
+func TestMain_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.New(evo.Config{Title: "demo", Stdout: &buf, Stderr: &buf})
+	code := evo.Main(out, func(o *evo.Output) error {
+		o.Task("fetch").Fail("network down", evo.Detail("connection refused"))
+		return errors.New("network down")
+	})
+	if code != evo.ExitFailed {
+		t.Fatalf("exit %d, want %d", code, evo.ExitFailed)
+	}
+	// Synthetic "command failed" row only when no prior Fail.
+	if strings.Count(buf.String(), "command failed") > 0 {
+		t.Fatalf("should not add synthetic Fail when task already Failed:\n%s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "network down") {
+		t.Fatalf("task fail missing:\n%s", buf.String())
+	}
+}
+
 func TestMain_NilOutput(t *testing.T) {
 	if code := evo.Main(nil, nil); code != evo.ExitFailed {
 		t.Fatalf("exit %d", code)

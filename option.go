@@ -88,7 +88,9 @@ func Clock(ts TimeSource) Option {
 	return optionFunc(func(c *config) { c.clock = ts })
 }
 
-// VisibilityDelay sets the spinner visibility threshold.
+// VisibilityDelay sets how long live activity must persist before the first
+// interactive paint (default 150ms). Zero paints immediately. Prevents Phase→fast
+// Done spinner flash (H.2). Domain TimeSource is used for the threshold.
 func VisibilityDelay(delay time.Duration) Option {
 	return optionFunc(func(c *config) { c.visibilityDelay = delay })
 }

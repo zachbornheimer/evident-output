@@ -79,7 +79,7 @@ func TestCON004_ResizeWhileLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
 	clock := testkit.NewClock()
 	out := evo.NewWithOptions(
-		evo.Terminal(screen),
+		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.Clock(clock),
 		evo.VisibilityDelay(0),
 		evo.MaxFrameRate(100),
@@ -99,7 +99,7 @@ func TestCON004_ResizeWhileLive(t *testing.T) {
 
 func TestCON003_LogWhileLiveNoSplit(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.DebugLevel(evo.Debug), evo.VisibilityDelay(0))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug), evo.VisibilityDelay(0))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Phase("running")
@@ -297,7 +297,7 @@ func TestPORT011_Int64ProgressPaths(t *testing.T) {
 
 func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.DebugLevel(evo.Debug), evo.VisibilityDelay(0))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug), evo.VisibilityDelay(0))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	var wg sync.WaitGroup

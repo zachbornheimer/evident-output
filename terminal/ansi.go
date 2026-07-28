@@ -4,6 +4,7 @@ package terminal
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 )
@@ -30,6 +31,9 @@ type ANSI struct {
 	cursorHidden bool
 	id           string
 	writeErr     error // first write failure (TERM-007)
+
+	// sizeFile, when set, is re-queried on RefreshSize (resize / SIGWINCH path).
+	sizeFile *os.File
 }
 
 // Option configures ANSI.
@@ -43,6 +47,17 @@ func WithSize(width, height int) Option {
 		}
 		if height > 0 {
 			a.height = height
+		}
+	}
+}
+
+// WithSizeFile enables RefreshSize to re-query geometry from a TTY file
+// (typically the same *os.File used as the live writer). Call RefreshSize on
+// each live redraw; hosts may also invoke it on SIGWINCH.
+func WithSizeFile(f *os.File) Option {
+	return func(a *ANSI) {
+		if f != nil {
+			a.sizeFile = f
 		}
 	}
 }
@@ -71,10 +86,46 @@ func NewANSI(w io.Writer, opts ...Option) *ANSI {
 func (a *ANSI) ID() string { return a.id }
 
 // Columns implements LiveSurface.
-func (a *ANSI) Columns() int { return a.width }
+func (a *ANSI) Columns() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.width
+}
 
 // Rows implements LiveSurface.
-func (a *ANSI) Rows() int { return a.height }
+func (a *ANSI) Rows() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.height
+}
+
+// SetSize updates stored geometry (tests and external SIGWINCH handlers).
+func (a *ANSI) SetSize(width, height int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if width > 0 {
+		a.width = width
+	}
+	if height > 0 {
+		a.height = height
+	}
+}
+
+// RefreshSize re-queries the TTY when WithSizeFile was configured.
+// Safe to call on every redraw; no-op when sizeFile is unset.
+func (a *ANSI) RefreshSize() {
+	a.mu.Lock()
+	f := a.sizeFile
+	a.mu.Unlock()
+	if f == nil {
+		return
+	}
+	w, h, ok := Size(f)
+	if !ok {
+		return
+	}
+	a.SetSize(w, h)
+}
 
 // IsInteractive implements LiveSurface.
 func (a *ANSI) IsInteractive() bool { return a.interactive }

@@ -18,7 +18,7 @@ func fixedDebugClock() evo.FixedClock {
 func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := evo.NewWithOptions(
-		evo.Terminal(screen),
+		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.DebugLevel(evo.Debug),
 		evo.DebugHistory(),
 		evo.NoColor(),
@@ -54,7 +54,7 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	clock := testkit.NewClock()
 	// Advance so successive Debug calls get distinct times if clock ticks.
 	out := evo.NewWithOptions(
-		evo.Terminal(screen),
+		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.DebugLevel(evo.Debug),
 		evo.DebugPane(evo.PaneHeight(2), evo.NewestFirst()),
 		evo.NoColor(),
@@ -117,7 +117,7 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.NewWithOptions(
 		evo.To(&primary),
-		evo.Terminal(screen),
+		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.DebugLevel(evo.Debug),
 		evo.DebugPane(evo.PaneHeight(5), evo.NewestFirst()),
 		evo.NoColor(),

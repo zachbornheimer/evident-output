@@ -115,7 +115,7 @@ func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.NewWithOptions(
 		evo.To(&primary),
-		evo.Terminal(screen),
+		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.NoColor(),
 		evo.VisibilityDelay(0),
 	)

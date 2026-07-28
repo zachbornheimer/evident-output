@@ -263,10 +263,15 @@ func configToOptions(c Config) []Option {
 			}
 		}
 		if wantLive {
-			opts = append(opts, Terminal(terminal.NewANSI(liveWriter,
+			ansiOpts := []terminal.Option{
 				terminal.WithInteractive(true),
 				terminal.WithSize(width, height),
-			)))
+			}
+			// Re-query geometry on each live redraw (resize-aware path).
+			if f, ok := liveWriter.(*os.File); ok {
+				ansiOpts = append(ansiOpts, terminal.WithSizeFile(f))
+			}
+			opts = append(opts, Terminal(terminal.NewANSI(liveWriter, ansiOpts...)))
 			opts = append(opts, Width(width))
 		} else {
 			opts = append(opts, Plain())

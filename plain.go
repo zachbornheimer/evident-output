@@ -107,6 +107,9 @@ func writeProblem(b *strings.Builder, p Problem, color bool) {
 			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
 		}
 		fmt.Fprintf(b, "   %s %s  %s\n", dim("├─", color), p.Subject, extra)
+		if p.Detail != "" {
+			fmt.Fprintf(b, "   %s %s\n", dim("│", color), dim(p.Detail, color))
+		}
 		return
 	}
 	line := p.Summary

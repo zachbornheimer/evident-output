@@ -49,7 +49,7 @@ func TestTERM011_WidthZeroFallsBackSafely(t *testing.T) {
 
 func TestTERM012_SmallHeightBudget(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(4), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0))
 	t.Cleanup(func() { _ = out.Close() })
 	col := out.Tasks("g")
 	for i := 0; i < 20; i++ {

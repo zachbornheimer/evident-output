@@ -2,8 +2,9 @@ package evo
 
 import "time"
 
-// EventSchemaVersion is the durable event schema version (§25.2).
-const EventSchemaVersion = "1.0"
+// EventSchemaVersion is the durable event schema version.
+// Tracks the 0.2 contract series (pre-1.0 wire format may still evolve).
+const EventSchemaVersion = "0.2"
 
 // Event is an immutable journal record.
 type Event struct {

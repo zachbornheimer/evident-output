@@ -59,7 +59,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	// FixedClock freezes spinner glyphs for stable operation expectations.
 	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := evo.NewWithOptions(
-		evo.Terminal(screen),
+		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.DebugLevel(evo.Debug),
 		evo.NoColor(), // assert exact final text without SGR
 		evo.Clock(fixed),
@@ -95,7 +95,7 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	)
 
 	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.Clock(fixed), evo.NoColor())
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(fixed), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -138,7 +138,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		testkit.NoColor(),
 	)
 
-	out := evo.NewWithOptions(evo.Terminal(screen))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0))
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -179,7 +179,7 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	clock := testkit.NewClock()
 
 	out := evo.NewWithOptions(
-		evo.Terminal(screen),
+		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.Clock(clock),
 		evo.MaxFrameRate(30),
 	)

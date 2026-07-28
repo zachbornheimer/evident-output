@@ -184,12 +184,8 @@ func (i *Item) resolve(state EntityState, problems []Problem) {
 	}
 	st.state = state
 	if len(problems) > 0 {
-		st.problems = cloneProblems(problems)
-		for j := range st.problems {
-			st.problems[j].Summary = sanitize.Text(st.problems[j].Summary)
-			st.problems[j].Detail = sanitize.Text(st.problems[j].Detail)
-			st.problems[j].Subject = sanitize.Text(st.problems[j].Subject)
-		}
+		// storeProblems: shared CSI-safe path (identical to Task).
+		st.problems = storeProblems(problems)
 	}
 	i.out.bumpLocked()
 	i.out.appendEventLocked(Event{Type: "item." + string(state), EntityID: i.id})

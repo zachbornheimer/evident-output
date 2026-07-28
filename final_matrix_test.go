@@ -81,7 +81,7 @@ func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 	if err := json.Unmarshal(raw, &slim); err != nil {
 		t.Fatal(err)
 	}
-	if slim.SchemaVersion != "1.0" || slim.Conclusion.State == "" {
+	if slim.SchemaVersion != "0.2" || slim.Conclusion.State == "" {
 		t.Fatalf("%+v", slim)
 	}
 }
@@ -230,7 +230,7 @@ func TestSEC014_ResourceURINoTraversal(t *testing.T) {
 
 func TestTERM020_CompletedCollapseUnderPressure(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Height(5), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0))
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	for i := 0; i < 30; i++ {

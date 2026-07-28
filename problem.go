@@ -1,5 +1,7 @@
 package evo
 
+import "github.com/zachbornheimer/evident-output/internal/sanitize"
+
 // Problem is structured evidence explaining a negative item or task outcome.
 type Problem struct {
 	Code      string
@@ -102,7 +104,60 @@ func applyProblemOptions(summary string, opts []ProblemOption) Problem {
 			opt.applyProblem(&p)
 		}
 	}
+	// Single CSI/control neutralization boundary for every construction path.
+	return sanitizeProblem(p)
+}
+
+// sanitizeProblem neutralizes CSI/control sequences in all human-visible fields.
+// Item, Task, and any future entity store problems only through this helper so
+// presentation paths cannot diverge on terminal safety (SEC-001).
+func sanitizeProblem(p Problem) Problem {
+	p.Summary = sanitize.Text(p.Summary)
+	p.Detail = sanitize.Text(p.Detail)
+	p.Subject = sanitize.Text(p.Subject)
+	p.Code = sanitize.Text(p.Code)
+	p.Unit = sanitize.Text(p.Unit)
+	p.Severity = sanitize.Text(p.Severity)
+	if p.Location != nil {
+		loc := *p.Location
+		loc.Path = sanitize.Text(loc.Path)
+		p.Location = &loc
+	}
+	if len(p.Evidence) > 0 {
+		ev := make([]Evidence, len(p.Evidence))
+		for i, e := range p.Evidence {
+			ev[i] = Evidence{
+				Label: sanitize.Text(e.Label),
+				Value: sanitize.Text(e.Value),
+			}
+		}
+		p.Evidence = ev
+	}
+	if len(p.Fields) > 0 {
+		fs := make([]Field, len(p.Fields))
+		copy(fs, p.Fields)
+		for i := range fs {
+			fs[i].Key = sanitize.Text(fs[i].Key)
+			if s, ok := fs[i].Value.(string); ok {
+				fs[i].Value = sanitize.Text(s)
+			}
+		}
+		p.Fields = fs
+	}
 	return p
+}
+
+// storeProblems clones and sanitizes problems for durable entity state.
+// Prefer this over cloneProblems alone when assigning to Item/Task state.
+func storeProblems(in []Problem) []Problem {
+	if len(in) == 0 {
+		return nil
+	}
+	out := cloneProblems(in)
+	for i := range out {
+		out[i] = sanitizeProblem(out[i])
+	}
+	return out
 }
 
 func cloneProblems(in []Problem) []Problem {

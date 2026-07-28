@@ -27,10 +27,10 @@ func Main(out *Output, run func(*Output) error) int {
 	if run != nil {
 		runErr = run(out)
 	}
-	if runErr != nil {
-		// Synchronize the presentation model with the application error.
-		// Fail is skipped if already terminal-failed/cancelled via prior entities;
-		// Output.Fail still records an output-level failure item when needed.
+	if runErr != nil && !out.AnyFailed() {
+		// Synchronize the presentation model with the application error only when
+		// no entity already recorded Failed — avoids a duplicate synthetic Fail row
+		// on top of an existing task/item Fail. Exit code still comes from conclusion.
 		out.Fail("command failed", Cause(runErr))
 	}
 

@@ -19,7 +19,7 @@ func TestCapability_NoColorForcesNone(t *testing.T) {
 
 func TestCapability_FromScreen(t *testing.T) {
 	s := testkit.NewScreen(testkit.Interactive(), testkit.Width(100), testkit.Height(40))
-	p := evo.DetectCapabilities(evo.Terminal(s))
+	p := evo.DetectCapabilities(evo.Terminal(s), evo.VisibilityDelay(0))
 	if p.Width != 100 || p.Height != 40 {
 		t.Fatalf("%+v", p)
 	}

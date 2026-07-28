@@ -38,8 +38,13 @@ func applyEntityOptions(opts []EntityOption) entityOpts {
 	return o
 }
 
-// Scope is a namespaced view of Output for plugins and subsystems.
-// Human labels stay plain; when ID is set it is stored as "scope.key".
+// Scope is a namespaced declaration handle for plugins and subsystems.
+//
+// Contract (honest limits):
+//   - Qualifies evo.ID keys as "scope.key" for stable machine identity.
+//   - Exposes Item, Task, Capture, Writer, and SlogHandler on the shared Output.
+//   - Is NOT a security sandbox: plugins holding *Output bypass Scope entirely;
+//     there is no separate stream, Fail isolation, or nested authority boundary.
 //
 //	registry := out.Scope("registry")
 //	registry.Item("credentials", evo.ID("auth")).OK()
@@ -95,6 +100,15 @@ func (s *Scope) SlogHandler(min slog.Leveler) slog.Handler {
 		return slog.NewTextHandler(io.Discard, nil)
 	}
 	return s.out.SlogHandler(min)
+}
+
+// Capture returns a process-output sink on the shared session (not stream-isolated).
+// Prefer Task.Capture when evidence belongs to one operation.
+func (s *Scope) Capture(opts ...CaptureOption) *Capture {
+	if s == nil || s.out == nil {
+		return newCapture(nil, "", "", opts...)
+	}
+	return s.out.Capture(opts...)
 }
 
 func qualifyKey(scope, key string) string {

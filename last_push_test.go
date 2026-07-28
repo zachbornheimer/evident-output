@@ -13,7 +13,7 @@ import (
 
 func TestOUT023_LineWhileLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor(), testkit.Width(80))
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.DebugLevel(evo.Debug))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("t").Phase("p")
 	out.Line("durable hello")
@@ -111,7 +111,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	// pipe + plain + json + slog-ish debug + terminal surface
 	var buf bytes.Buffer
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.NewWithOptions(evo.To(&buf), evo.Terminal(screen), evo.Plain(), evo.DebugLevel(evo.Debug))
+	out := evo.NewWithOptions(evo.To(&buf), evo.Terminal(screen), evo.VisibilityDelay(0), evo.Plain(), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("a").OK()
 	out.Debug("d")
@@ -250,7 +250,7 @@ func TestPORT015_ReproducibleSchemaVersion(t *testing.T) {
 	out.Item("a").OK()
 	_ = out.Finish()
 	b, _ := evo.EncodeJSON(out.Snapshot())
-	if !strings.Contains(string(b), `"schema_version": "1.0"`) {
+	if !strings.Contains(string(b), `"schema_version": "0.2"`) {
 		t.Fatal(string(b))
 	}
 	_ = out.Close()
