@@ -17,9 +17,13 @@ type LogRecord struct {
 	PC      uintptr
 }
 
-// SlogHandler returns a slog.Handler that routes records through Output without
-// mutating Output configuration. Record time, level, PC, and attributes are
-// preserved on the internal journal.
+// SlogHandler returns a slog.Handler that journals every accepted record as
+// structured diagnostics (history or pane), without mutating Output configuration.
+// Time, level name, attributes, and PC are preserved for Info/Warn/Error as well
+// as Debug — not demoted to unstructured Line() messages.
+//
+// Prefer Info / WarnMessage / ErrorMessage for plain human-facing application
+// lines that are not log infrastructure.
 func (o *Output) SlogHandler(min slog.Leveler) slog.Handler {
 	level := slog.LevelInfo
 	if min != nil {
@@ -85,7 +89,10 @@ func (h *slogBridge) WithGroup(name string) slog.Handler {
 	return &cp
 }
 
-// emitLogRecord projects a complete LogRecord into the human/diagnostic streams.
+// emitLogRecord journals every accepted slog record as structured diagnostics.
+// Info/Warn/Error are not demoted to unstructured Line() messages — that would
+// drop time, level, attrs, and PC. Application code wanting plain human lines
+// should call Info / WarnMessage / ErrorMessage directly.
 func (o *Output) emitLogRecord(rec LogRecord) {
 	if o == nil {
 		return
@@ -98,21 +105,10 @@ func (o *Output) emitLogRecord(rec LogRecord) {
 	if rec.PC != 0 {
 		fields = append(fields, Field{Key: "pc", Value: rec.PC})
 	}
-	msg := rec.Message
-	switch {
-	case rec.Level >= slog.LevelError:
-		o.ErrorMessage(msg, fields...)
-	case rec.Level >= slog.LevelWarn:
-		o.WarnMessage(msg, fields...)
-	case rec.Level >= slog.LevelInfo:
-		o.Info(msg, fields...)
-	default:
-		// Debug/Trace and custom levels below Info → structured debug journal.
-		// Force: slog already applied its min level; do not re-filter by debugLevel.
-		o.mu.Lock()
-		defer o.mu.Unlock()
-		o.emitDebugRecordLocked(slogLevelName(rec.Level), msg, fields, rec.Time, true)
-	}
+	// Force: slog already applied its min level; do not re-filter by debugLevel.
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitDebugRecordLocked(slogLevelName(rec.Level), rec.Message, fields, rec.Time, true)
 }
 
 func slogLevelName(level slog.Level) string {
