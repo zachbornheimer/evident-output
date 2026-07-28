@@ -13,11 +13,13 @@ license: Apache-2.0
 [`skills/cli-output/SKILL.md`](../cli-output/SKILL.md) in  
 `https://github.com/zachbornheimer/evident-output`
 
+**Pinned release:** `v0.2.10` (never install `@latest` for persistent tooling).
+
 | What | Path |
 |------|------|
 | Module | `github.com/zachbornheimer/evident-output` |
 | MCP binary target | `$HOME/.local/bin/evident-output-mcp` |
-| Local clone (this Mac) | `$HOME/Developer/Personal/evident-output` |
+| MCP install (pinned) | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.10` |
 
 ## Workflow when MCP is connected
 
@@ -32,9 +34,10 @@ On Grok: `evident-output__evident_output_*` (underscores, not dots).
 ## Quick MCP wire-up
 
 ```bash
-go build -o "$HOME/.local/bin/evident-output-mcp" \
-  "$HOME/Developer/Personal/evident-output/cmd/evident-output-mcp"
-# or: GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+GOBIN="$HOME/.local/bin" go install \
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.10
+# Or from a local clone of the repo:
+#   go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
 
 grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 grok mcp doctor evident-output --json

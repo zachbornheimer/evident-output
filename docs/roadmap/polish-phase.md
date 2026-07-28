@@ -1,7 +1,7 @@
 # Polish phase status
 
 **Authority:** [implementation-basis.md](./implementation-basis.md)  
-**Library tip (this phase):** post-v0.2.8 coalescing + docs (see git tags)
+**Library tip (this phase):** v0.2.9 polish + **v0.2.10** release-hygiene pins
 
 | Workstream | Status |
 |------------|--------|

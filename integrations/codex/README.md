@@ -1,4 +1,6 @@
-# codex integration — Evident Output
+# Codex integration — Evident Output
+
+**Pin:** `v0.2.10` (never `@latest` for persistent install).
 
 ## Paths
 
@@ -7,20 +9,18 @@
 | GitHub | `https://github.com/zachbornheimer/evident-output` |
 | MCP module | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp` |
 | Binary | `$HOME/.local/bin/evident-output-mcp` |
-| Local clone | `$HOME/Developer/Personal/evident-output` |
 
 ## Install + register
 
 ```bash
 mkdir -p "$HOME/.local/bin"
-go build -o "$HOME/.local/bin/evident-output-mcp" \
-  "$HOME/Developer/Personal/evident-output/cmd/evident-output-mcp"
-# or: GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+GOBIN="$HOME/.local/bin" go install \
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.10
 
 "$HOME/.local/bin/evident-output-mcp" config --client codex
 ```
 
-Paste the printed snippet. Prefer `/Users/zbornheimer/.local/bin/evident-output-mcp` (or an absolute path).
+Paste the printed snippet. Use an absolute command path.
 
 ## Tools
 

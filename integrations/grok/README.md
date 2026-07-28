@@ -2,13 +2,14 @@
 
 Local **stdio** MCP only (no hosted URL).
 
+**Pin:** `v0.2.10` (never `@latest` for persistent install).
+
 ## Canonical paths
 
 | What | Path |
 |------|------|
 | GitHub | `https://github.com/zachbornheimer/evident-output` |
 | Module / MCP cmd | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp` |
-| Local clone (this Mac) | `$HOME/Developer/Personal/evident-output` |
 | Binary install target | `$HOME/.local/bin/evident-output-mcp` |
 | Grok user config | `$HOME/.grok/config.toml` |
 | Skill | `skills/cli-output/SKILL.md` in the repo |
@@ -18,17 +19,12 @@ Local **stdio** MCP only (no hosted URL).
 ```bash
 mkdir -p "$HOME/.local/bin"
 
-# Preferred when the repo is cloned at the path above:
-go build -o "$HOME/.local/bin/evident-output-mcp" \
-  "$HOME/Developer/Personal/evident-output/cmd/evident-output-mcp"
+# Module install — pin a release (never @latest):
+GOBIN="$HOME/.local/bin" go install \
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.10
 
-# From an arbitrary clone:
-#   git clone https://github.com/zachbornheimer/evident-output.git
-#   cd evident-output && go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
-
-# Module install (network + sumdb):
-#   GOBIN="$HOME/.local/bin" go install \
-#     github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
+# Or from a local clone of this repo:
+#   go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
 
 "$HOME/.local/bin/evident-output-mcp" --version
 ```
@@ -40,7 +36,7 @@ Grok’s process `PATH` often omits `$HOME/.local/bin`. **Do not** use a bare
 
 ```bash
 grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
-# print-only TOML (replace YOU only if the generator still shows a placeholder):
+# print-only TOML:
 "$HOME/.local/bin/evident-output-mcp" config --client grok
 ```
 
@@ -72,8 +68,7 @@ grok mcp doctor evident-output --json
 grok -p 'Call use_tool on evident-output__evident_output_list_guides with {}. Reply CONNECTED and the text field, or FAILED.' \
   --output-format plain \
   --max-turns 5 \
-  --always-approve \
-  --cwd "$HOME/Developer/Personal/evident-output"
+  --always-approve
 # expect: CONNECTED / "5 guides"
 ```
 
@@ -88,20 +83,3 @@ In `~/.grok/sessions/…/events.jsonl`:
 | `mcp_server_failed` | Spawn/handshake error (path/PATH) |
 
 **Grok gotcha:** dotted tool names (`evident_output.list_guides`) → `tool_count: 0`.
-This server advertises **underscores** (`evident_output_list_guides`, …).
-
-## 4. Tool ids in Grok
-
-| tools/list | use_tool |
-|------------|----------|
-| `evident_output_list_guides` | `evident-output__evident_output_list_guides` |
-| `evident_output_get_guidance` | `evident-output__evident_output_get_guidance` |
-| `evident_output_review` | `evident-output__evident_output_review` |
-| `evident_output_preview` | `evident-output__evident_output_preview` |
-| `evident_output_explain` | `evident-output__evident_output_explain` |
-
-`explain` body: `{ "rule_id": "DOM-011" }`.
-
-## 5. Skill
-
-[`../../skills/cli-output/SKILL.md`](../../skills/cli-output/SKILL.md) — path table and install steps are the source of truth for agents.

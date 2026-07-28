@@ -1,6 +1,6 @@
 # Adoption case study: librarian
 
-**Evo pin:** v0.2.8+ (presentation polish `e03e6d4` on librarian)  
+**Evo pin:** v0.2.9+ (presentation polish; library pin hygiene at v0.2.10)  
 **Validated mode:** batch-summary only  
 **Not validated:** live per-file Tasks under load
 

@@ -33,7 +33,7 @@ func run(out *evo.Output) error {
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.9
+go get github.com/zachbornheimer/evident-output@v0.2.10
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
@@ -119,9 +119,9 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 
 ## Status
 
-**Release:** **v0.2.8** — doctor/migrate pedagogy, SIGWINCH resize watch (unix), Actions Node 24 (`checkout@v6` / `setup-go@v6`).  
+**Release:** **v0.2.10** — release-hygiene: synchronized pins, portable MCP/skill install (no `@latest` / no personal clone paths). Follows **v0.2.9** polish (conclusion coalescing, Problem bounds, philosophy docs, librarian case study).  
 **Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).  
-**Implemented surface:** v0.3–v0.4 core (library, interactive VT, debug history/pane, real CLI, hardened MCP, §31 automated rows test-gated). External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
+**Implemented surface:** ordinary ladder through Plan/Changes/Capture/slog/ResultWriter; interactive VT; hardened MCP; polish-phase docs under `docs/`. External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 
 | Ready now | External / manual only |
 |-----------|------------------------|
@@ -227,22 +227,18 @@ registers `tool_count: 0`). Dotted aliases still work on `tools/call`.
 
 `explain` arguments: `{ "rule_id": "DOM-011" }` (not `id`).
 
-#### Install the binary (full paths)
+#### Install the binary (pinned)
 
 ```bash
 mkdir -p "$HOME/.local/bin"
 
-# Preferred when cloned on this Mac:
-go build -o "$HOME/.local/bin/evident-output-mcp" \
-  "$HOME/Developer/Personal/evident-output/cmd/evident-output-mcp"
+# Module install (network + sumdb) — pin a release tag, never @latest:
+GOBIN="$HOME/.local/bin" go install \
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.10
 
-# From any clone (relative only after cd into the repo root):
+# Or from a local clone of this repo:
 #   git clone https://github.com/zachbornheimer/evident-output.git
 #   cd evident-output && go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
-
-# Module install (network + sumdb):
-#   GOBIN="$HOME/.local/bin" go install \
-#     github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@latest
 
 "$HOME/.local/bin/evident-output-mcp" --version
 ```
@@ -257,12 +253,11 @@ it). Bare `evident-output-mcp` fails when the agent process PATH omits `~/.local
 grok mcp doctor evident-output --json
 # expect: healthy=true, "5 tools discovered", protocol 2025-06-18
 
-# Fresh agent process (same attach path as the TUI)
+# Fresh agent process (same attach path as the TUI); use any trusted cwd:
 grok -p 'Call use_tool on evident-output__evident_output_list_guides with {}. Reply CONNECTED and the text field, or FAILED.' \
   --output-format plain \
   --max-turns 5 \
-  --always-approve \
-  --cwd "$HOME/Developer/Personal/evident-output"
+  --always-approve
 # expect: CONNECTED / "5 guides"
 ```
 
