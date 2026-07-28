@@ -34,6 +34,8 @@ type ANSI struct {
 
 	// sizeFile, when set, is re-queried on RefreshSize (resize / SIGWINCH path).
 	sizeFile *os.File
+	// resize holds the optional SIGWINCH subscription (unix only).
+	resize *resizeWatch
 }
 
 // Option configures ANSI.
@@ -53,7 +55,8 @@ func WithSize(width, height int) Option {
 
 // WithSizeFile enables RefreshSize to re-query geometry from a TTY file
 // (typically the same *os.File used as the live writer). Call RefreshSize on
-// each live redraw; hosts may also invoke it on SIGWINCH.
+// each live redraw. On unix, evo also starts StartResizeWatch so SIGWINCH
+// updates size and can force an immediate live redraw.
 func WithSizeFile(f *os.File) Option {
 	return func(a *ANSI) {
 		if f != nil {

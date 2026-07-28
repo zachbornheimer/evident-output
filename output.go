@@ -940,6 +940,7 @@ func (o *Output) Close() error {
 	}
 	o.mu.Lock()
 	o.stopSpinnerAnimatorLocked()
+	o.stopResizeWatchLocked()
 	o.closed = true
 	o.mu.Unlock()
 	return nil

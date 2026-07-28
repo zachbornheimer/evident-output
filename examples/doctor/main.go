@@ -1,6 +1,7 @@
 // Command doctor is an environment/health check CLI.
 //
 //	go run ./examples/doctor/
+//	go run ./examples/doctor/ --verbose
 //	go run ./examples/doctor/ --json | jq .conclusion
 package main
 
@@ -17,6 +18,7 @@ func main() {
 	asJSON := flag.Bool("json", false, "emit JSON snapshot on stdout; human report on stderr")
 	strict := flag.Bool("strict", false, "escalate signing warn to block")
 	fast := flag.Bool("fast", false, "short sleeps")
+	verbose := flag.Bool("verbose", false, "show Verbose() messages")
 	flag.Parse()
 
 	step := 100 * time.Millisecond
@@ -29,9 +31,14 @@ func main() {
 	if *asJSON {
 		cfg.Format = evo.FormatData
 	}
+	if *verbose {
+		cfg.Verbosity = evo.VerbosityVerbose
+	}
 	out := evo.New(cfg)
 	code := evo.Main(out, func(o *evo.Output) error {
+		// Only audible when --verbose (or VerbosityVerbose config).
 		o.Verbose().Printf("Strict policy: %t\n", *strict)
+		o.Verbose().Printf("Probe interval: %s\n", step)
 
 		probe := func(name string, resolve func(*evo.Item)) {
 			it := o.Item(name)
@@ -54,7 +61,14 @@ func main() {
 				Because("CI and local builds fail unpredictably when the volume fills.")
 		})
 		probe("docker daemon", func(it *evo.Item) {
-			it.Fail("cannot connect to docker socket", evo.Detail("start Colima or Docker Desktop"))
+			// Tool-backed gate: Item.Capture holds process evidence (not session Capture).
+			cap := it.Start().Capture()
+			_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"))
+			it.Fail(
+				"cannot connect to docker socket",
+				evo.Cause(fmt.Errorf("dial unix /var/run/docker.sock: connection refused")),
+				cap.DetailTail(), // user-visible tool tail
+			).Because("start Colima or Docker Desktop")
 		})
 		return nil
 	})

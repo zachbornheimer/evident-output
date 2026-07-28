@@ -33,7 +33,7 @@ func run(out *evo.Output) error {
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.7
+go get github.com/zachbornheimer/evident-output@v0.2.8
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
@@ -117,7 +117,7 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 
 ## Status
 
-**Release:** **v0.2.7** — Config honesty (`Delay(0)`), one human-message instrument, narrow Scope, `Item.Capture`, unified slog level from Config, removed false/legacy surface (`For`, `ItemSpec`, `Line`, discarded fields).  
+**Release:** **v0.2.8** — doctor/migrate pedagogy, SIGWINCH resize watch (unix), Actions Node 24 (`checkout@v6` / `setup-go@v6`).  
 **Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).  
 **Implemented surface:** v0.3–v0.4 core (library, interactive VT, debug history/pane, real CLI, hardened MCP, §31 automated rows test-gated). External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 

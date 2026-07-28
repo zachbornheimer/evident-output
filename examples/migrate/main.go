@@ -6,6 +6,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"os"
 
@@ -33,9 +34,13 @@ func main() {
 		backup := o.Task("backup")
 		backup.Phase("snapshotting production")
 		if *fail {
+			// Cause = raw SDK/infrastructure error (diagnostic).
+			// Detail = stable user guidance (presentation).
+			err := errors.New("S3 PutObject: AccessDenied: User is not authorized to perform: s3:PutObject on resource arn:aws:s3:::backups/prod (status 403)")
 			backup.Fail(
-				"could not snapshot production",
-				evo.Detail("S3 PutObject returned 403 — refusing to migrate without a restorable backup"),
+				"backup failed",
+				evo.Cause(err),
+				evo.Detail("check the backup destination and credentials"),
 			)
 			return nil
 		}

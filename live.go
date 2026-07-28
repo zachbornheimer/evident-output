@@ -57,6 +57,9 @@ type liveEngine struct {
 	animMu      sync.Mutex
 	animRunning bool
 	animStop    chan struct{}
+
+	// resizeArmed is true when SIGWINCH watch is registered on the surface.
+	resizeArmed bool
 }
 
 func (o *Output) liveLocked() LiveSurface {
@@ -78,6 +81,7 @@ func (o *Output) signalLiveLocked(force bool) {
 	}
 	if o.live == nil {
 		o.live = &liveEngine{surface: live}
+		o.startResizeWatchLocked(live)
 	}
 	now := o.cfg.clock.Now()
 	if o.hasLiveActivityLocked() {
@@ -209,6 +213,39 @@ func (o *Output) stopSpinnerAnimatorLocked() {
 		o.live.animRunning = false
 	}
 	o.live.animMu.Unlock()
+}
+
+// resizeWatcher is implemented by terminal.ANSI (SIGWINCH) and no-ops elsewhere.
+type resizeWatcher interface {
+	StartResizeWatch(onResize func())
+	StopResizeWatch()
+}
+
+// startResizeWatchLocked arms SIGWINCH → RefreshSize + forced live redraw.
+func (o *Output) startResizeWatchLocked(live LiveSurface) {
+	w, ok := live.(resizeWatcher)
+	if !ok || o.live == nil || o.live.resizeArmed {
+		return
+	}
+	o.live.resizeArmed = true
+	w.StartResizeWatch(func() {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		if o.closed || o.finished || o.live == nil || !o.live.visible {
+			return
+		}
+		o.signalLiveLocked(true)
+	})
+}
+
+func (o *Output) stopResizeWatchLocked() {
+	if o.live == nil || !o.live.resizeArmed {
+		return
+	}
+	if w, ok := o.live.surface.(resizeWatcher); ok {
+		w.StopResizeWatch()
+	}
+	o.live.resizeArmed = false
 }
 
 func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
