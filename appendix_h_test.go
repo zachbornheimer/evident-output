@@ -256,14 +256,12 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Full Finish output includes aligned changes plus conclusion footer.
+	// Full Finish output: single Changes band; trailing conclusion coalesced (DEC-COAL).
 	want := `[changed]  dependencies
   added    14 packages
   updated   4 packages
   reused   63 cached packages
   wrote       app.lock
-
-[changed]  dependencies
 `
 	got := output.String()
 	if got != want {
@@ -294,8 +292,6 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
   added 14 packages
   updated 4 packages
   wrote app.lock
-
-[changed]  dependencies
 `
 	got := output.String()
 	if got != want {

@@ -70,7 +70,7 @@ func renderPlain(s Snapshot, cfg config) string {
 		writeEffects(&b, "planned", p.Subject, p.Records, width, color)
 	}
 
-	if s.Conclusion != nil {
+	if s.Conclusion != nil && !shouldSuppressStandaloneConclusion(s) {
 		writeConclusion(&b, *s.Conclusion, color)
 	}
 
@@ -87,12 +87,29 @@ func writeItem(b *strings.Builder, it ItemSnapshot, color bool) {
 	}
 }
 
+// maxVisibleProblems is the human default bound (OPEN-003). Structured snapshots
+// retain full Problem lists separately (DEC-FAIL-001/003).
+const maxVisibleProblems = 5
+
 // writeItemCore emits glyph, name, and problems (terminal outcome body).
 func writeItemCore(b *strings.Builder, it ItemSnapshot, color bool) {
 	glyph := styleGlyph(itemGlyph(it.State), stateColor(it.State), color)
 	fmt.Fprintf(b, "%s  %s\n", glyph, it.Name)
-	for _, p := range it.Problems {
+	problems := it.Problems
+	omitted := 0
+	if len(problems) > maxVisibleProblems {
+		omitted = len(problems) - maxVisibleProblems
+		problems = problems[:maxVisibleProblems]
+	}
+	for _, p := range problems {
 		writeProblem(b, p, color)
+	}
+	if omitted > 0 {
+		writeProblem(b, Problem{
+			Summary: fmt.Sprintf("and %d more failures", omitted),
+			Count:   int64(omitted),
+			Unit:    "failures",
+		}, color)
 	}
 }
 
@@ -143,8 +160,21 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color bool) {
 	}
 	// Problems (including Detail from Capture tails) always follow the row.
 	// Early-return on Summary used to drop Fail Detail — a silent dialect hole.
-	for _, p := range t.Problems {
+	problems := t.Problems
+	omitted := 0
+	if len(problems) > maxVisibleProblems {
+		omitted = len(problems) - maxVisibleProblems
+		problems = problems[:maxVisibleProblems]
+	}
+	for _, p := range problems {
 		writeProblem(b, p, color)
+	}
+	if omitted > 0 {
+		writeProblem(b, Problem{
+			Summary: fmt.Sprintf("and %d more failures", omitted),
+			Count:   int64(omitted),
+			Unit:    "failures",
+		}, color)
 	}
 }
 

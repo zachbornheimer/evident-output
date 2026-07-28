@@ -51,11 +51,20 @@ On Grok, tools are `evident-output__evident_output_*`.
 go get github.com/zachbornheimer/evident-output@v0.2.8
 ```
 
+## Philosophy (in-repo)
+
+- `docs/philosophy/jazz-syntax.md` — one spelling per intent
+- `docs/philosophy/presentation-boundary.md` — presentation ≠ execution
+- `docs/philosophy/domain-vocabulary.md` — Item/Task/Plan/Changes/Cause/Detail
+- `docs/guides/teaching-ladder.md` — ordinary learning order
+- `docs/roadmap/implementation-basis.md` — polish-phase authority
+
 ## Adoption ladder
 
 ```text
 evo.New(Config) → Print/Printf/Println → Verbose()
-→ Item / Task / Tasks → Task.Capture() + DetailTail
+→ Item / Task / Tasks → Task|Item.Capture() + DetailTail
+→ Plan / Changes (domain verbs via Record when needed)
 → slog via SlogHandler → os.Exit(evo.Main(out, run))
 ```
 

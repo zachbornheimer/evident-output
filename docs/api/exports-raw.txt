@@ -1,0 +1,120 @@
+const (
+const Debug = LevelDebug
+const EventSchemaVersion = "0.2"
+const JSONSchemaVersion = "0.2"
+var (
+func Delay(d time.Duration) *time.Duration
+func EncodeJSON(s Snapshot, _ ...JSONOptions) ([]byte, error)
+func EncodeJSONL(events []Event, _ ...JSONLOptions) ([]byte, error)
+func IsCharDevice(w io.Writer) bool
+func Main(out *Output, run func(*Output) error) int
+func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error)
+func WriteJSON(w io.Writer, snapshot Snapshot) error
+func WriteJSONL(w io.Writer, events []Event) error
+type Action struct {
+func Command(executable string, args ...string) Action
+type CapabilityProfile struct {
+func DetectCapabilities(opts ...Option) CapabilityProfile
+type Capture struct {
+func (c *Capture) Close() error
+func (c *Capture) DetailTail() ProblemOption
+func (c *Capture) Empty() bool
+func (c *Capture) Lines() []string
+func (c *Capture) Stderr() io.Writer
+func (c *Capture) Stdout() io.Writer
+func (c *Capture) Tail(n ...int) string
+func (c *Capture) TaskName() string
+func (c *Capture) Text() string
+func (c *Capture) Write(p []byte) (int, error)
+type CaptureOption interface {
+func KeepLastLines(n int) CaptureOption
+func MaxCaptureBytes(n int) CaptureOption
+func MirrorToDebug() CaptureOption
+func MirrorToDiagnostics() CaptureOption
+type CaptureStream uint8
+const (
+type Changes struct {
+func (c *Changes) Added(quantity int64, object string) *Changes
+func (c *Changes) Created(object string) *Changes
+func (c *Changes) Moved(source, destination string) *Changes
+func (c *Changes) Record(verb string, quantity int64, object string) *Changes
+func (c *Changes) Removed(quantity int64, object string) *Changes
+func (c *Changes) Reused(quantity int64, object string) *Changes
+func (c *Changes) Updated(quantity int64, object string) *Changes
+func (c *Changes) Wrote(object string) *Changes
+type ChangesSnapshot struct {
+type ColorLevel int
+const (
+type ColorMode int
+const (
+func ParseColorMode(s string) (ColorMode, error)
+type CommandSpec struct {
+type Conclusion struct {
+func (c Conclusion) AnyBlocked() bool
+type ConclusionJSON struct {
+type ConclusionState string
+const (
+type Config struct {
+func DefaultConfig() Config
+type DebugConfig struct {
+type DebugPaneOption interface {
+func NewestFirst() DebugPaneOption
+func OldestFirst() DebugPaneOption
+func PaneHeight(lines int) DebugPaneOption
+func PreserveDebugTail() DebugPaneOption
+type DebugPresentation int
+const (
+type EffectRecord struct {
+type EntityOption interface {
+func ID(id string) EntityOption
+type EntityState string
+const (
+type Event struct {
+type EventJSON struct {
+type Evidence struct {
+type Field struct {
+func Duration(key string, value interface{ String() string }) Field
+func Int(key string, value int) Field
+func String(key, value string) Field
+type FixedClock struct {
+func (c FixedClock) Now() time.Time
+type Format int
+const (
+type Item struct {
+func (i *Item) Because(text string) *Item
+func (i *Item) Block(summary string, options ...ProblemOption) *Item
+func (i *Item) BlockedBy(problems ...Problem) *Item
+func (i *Item) Capture(opts ...CaptureOption) *Capture
+func (i *Item) Fail(summary string, options ...ProblemOption) *Item
+func (i *Item) FailedBy(problems ...Problem) *Item
+func (i *Item) Next(actions ...Action) *Item
+func (i *Item) NextCommand(executable string, args ...string) *Item
+func (i *Item) OK() *Item
+func (i *Item) Skip(reason string) *Item
+func (i *Item) Snapshot() ItemSnapshot
+func (i *Item) Start() *Item
+func (i *Item) Unknown(summary string, options ...ProblemOption) *Item
+func (i *Item) Warn(summary string, options ...ProblemOption) *Item
+func (i *Item) WarnedBy(problems ...Problem) *Item
+type ItemSnapshot struct {
+type JSONAction struct {
+type JSONChanges struct {
+type JSONCollection struct {
+type JSONCommand struct {
+type JSONDocument struct {
+type JSONEffectRecord struct {
+type JSONItem struct {
+type JSONLOptions struct{}
+type JSONMessage struct {
+type JSONOptions struct{}
+type JSONOutputMeta struct {
+type JSONPlan struct {
+type JSONProblem struct {
+type JSONProgress struct {
+type JSONTask struct {
+type LiveSurface interface {
+type Location struct {
+type LogLevel int
+const (
+type LogRecord struct {
+type MessageSnapshot struct {

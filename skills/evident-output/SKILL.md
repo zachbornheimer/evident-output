@@ -40,16 +40,26 @@ grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 grok mcp doctor evident-output --json
 ```
 
+## Philosophy (binding)
+
+- [`docs/philosophy/jazz-syntax.md`](../../docs/philosophy/jazz-syntax.md)
+- [`docs/philosophy/presentation-boundary.md`](../../docs/philosophy/presentation-boundary.md)
+- [`docs/philosophy/domain-vocabulary.md`](../../docs/philosophy/domain-vocabulary.md)
+- Teaching ladder: [`docs/guides/teaching-ladder.md`](../../docs/guides/teaching-ladder.md)
+- Implementation basis: [`docs/roadmap/implementation-basis.md`](../../docs/roadmap/implementation-basis.md)
+
 ## Rules of thumb
 
 - Presentation only — no schedulers or `RunAll` / `Map` / `Retry` (API-026, AST-only)
-- `os.Exit(evo.Main(out, run))` for teardown; `WriterOptions` for pipe-safe NoColor
+- Standalone: `os.Exit(evo.Main(out, run))`; hosted: Finish+Close (host owns `os.Exit`)
 - Entity: Item = gate, Task = progress, Changes = did, Plan = would
+- Domain effect verbs: use `Record` when stock verbs lie (RULE-001)
 - `Block` = condition found; `Fail` = evaluation failed; `Warn` = optional/soft
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
 - Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
-- Child process chatter → `task.Capture()` + `output.DetailTail()` (not DebugWriter, not context)
+- Child process chatter → `task.Capture()` / `item.Capture()` + `DetailTail()`
 - Sanitize is automatic; `Config.Redactor` scrubs Capture ring + Debug fields
-- Stable machine keys: `evo.ID(...)`; plugins: `out.Scope("name")`
+- Stable machine keys: `evo.ID(...)`; plugins: `out.Scope("name")` (entities only)
 - Data commands: `FormatData` + write domain payload to `out.ResultWriter()`
 - Prefer plain labels over `*f` constructors when identity must stay stable
+- Predeclare concurrent Tasks; scale cardinality to product need

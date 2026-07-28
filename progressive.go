@@ -155,7 +155,7 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	for _, p := range o.plans {
 		writeEffects(&b, "planned", p.subject, p.records, width, color)
 	}
-	if snap.Conclusion != nil {
+	if snap.Conclusion != nil && !shouldSuppressStandaloneConclusion(snap) {
 		writeConclusion(&b, *snap.Conclusion, color)
 	}
 	// Pane mode: optional diagnostic tail under final result (§21.3.2).
