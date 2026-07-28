@@ -35,7 +35,7 @@ func main() {
 		PreserveAlways: *preserve,
 	}
 	out := evo.New(cfg)
-	log := slog.New(out.SlogHandler(slog.LevelDebug))
+	log := slog.New(out.SlogHandler())
 
 	os.Exit(evo.Main(out, func(o *evo.Output) error {
 		jobs := o.Tasks("audit")

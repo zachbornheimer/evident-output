@@ -1,9 +1,13 @@
 // Command scope-plugin demos evo.Scope + evo.ID for plugin-owned presentation.
 //
 //	go run ./examples/scope-plugin/
+//
+// Scope qualifies machine keys only — it is not a security sandbox.
+// Session Capture / Writer / slog stay on *Output.
 package main
 
 import (
+	"fmt"
 	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -22,8 +26,18 @@ func main() {
 		pull.Phase("fetching")
 		pull.Done("sha256:abc")
 
-		// Domain keys appear in Snapshot/JSON for automation; labels stay human.
-		_ = o.Snapshot()
+		// Visible proof of namespaced identity for automation consumers.
+		snap := o.Snapshot()
+		for _, it := range snap.Items {
+			if it.Key != "" {
+				fmt.Fprintf(os.Stderr, "key %s → %q\n", it.Name, it.Key)
+			}
+		}
+		for _, tk := range snap.Tasks {
+			if tk.Key != "" {
+				fmt.Fprintf(os.Stderr, "key %s → %q\n", tk.Name, tk.Key)
+			}
+		}
 		return nil
 	}))
 }

@@ -23,14 +23,14 @@ when available; stay useful when it is not.
 | **MCP package** | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp` |
 | **CLI package** | `github.com/zachbornheimer/evident-output/cmd/evident-output` |
 | **This skill in-repo** | `skills/cli-output/SKILL.md` |
-| **MCP install (module)** | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.6` |
+| **MCP install (module)** | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.7` |
 
 Host-specific wiring (Grok, Claude Code, Codex, …) lives under `integrations/<host>/` in the repo — not in this skill.
 
 ## Capability fallback
 
 1. **Connected MCP** — tools below  
-2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.2.6 …`  
+2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.2.7 …`  
 3. **This skill’s static guidance**
 
 ## MCP tool names (underscores only)
@@ -48,7 +48,7 @@ On Grok, tools are `evident-output__evident_output_*`.
 ## Install library
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.6
+go get github.com/zachbornheimer/evident-output@v0.2.7
 ```
 
 ## Adoption ladder
@@ -105,7 +105,7 @@ Secrets: set `Config.Redactor` — Capture ring and DetailTail are redacted on r
 ## Review
 
 ```bash
-go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.2.6 review ./path.go
+go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.2.7 review ./path.go
 ```
 
 Until `recheck_required=false`. Rules include API-006 (Start), API-026 (RunAll/Map), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).

@@ -17,7 +17,7 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
 
-	logger := slog.New(out.SlogHandler(slog.LevelDebug))
+	logger := slog.New(out.SlogHandler())
 	task := out.Task("index")
 	task.Phase("reading documents")
 	logger.Debug("batch loaded", "documents", 200)
@@ -46,7 +46,7 @@ func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
-	logger := slog.New(out.SlogHandler(slog.LevelDebug))
+	logger := slog.New(out.SlogHandler())
 	logger.LogAttrs(context.Background(), slog.LevelDebug, "package index loaded",
 		slog.Int("packages", 18),
 		slog.String("cache", "warm"),
@@ -85,7 +85,7 @@ func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 	)
 	t.Cleanup(func() { _ = out.Close() })
 
-	logger := slog.New(out.SlogHandler(slog.LevelInfo))
+	logger := slog.New(out.SlogHandler())
 	logger.Info("registry request complete", "registry", "ghcr.io", "packages", 3)
 	_ = out.Finish()
 
@@ -121,7 +121,7 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	)
 	t.Cleanup(func() { _ = out.Close() })
 
-	logger := slog.New(out.SlogHandler(slog.LevelWarn))
+	logger := slog.New(out.SlogHandler())
 	task := out.Task("pull")
 	task.Phase("fetching")
 	logger.Warn("registry request slow", "duration", "4s", "registry", "ghcr.io")
@@ -159,7 +159,7 @@ func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	// Craft a Record with a non-zero PC (as AddSource would provide).
 	rec := slog.NewRecord(time.Date(2026, 7, 27, 22, 15, 0, 0, time.UTC), slog.LevelError, "pull failed", 42)
 	rec.AddAttrs(slog.String("ref", "main"), slog.Int("attempt", 2))
-	if err := out.SlogHandler(slog.LevelError).Handle(context.Background(), rec); err != nil {
+	if err := out.SlogHandler().Handle(context.Background(), rec); err != nil {
 		t.Fatal(err)
 	}
 	_ = out.Finish()

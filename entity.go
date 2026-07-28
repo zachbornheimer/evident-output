@@ -1,10 +1,5 @@
 package evo
 
-import (
-	"io"
-	"log/slog"
-)
-
 // EntityOption configures Item or Task declaration (stable keys).
 // The common path remains Item("label") / Task("label"); options are platform-scale.
 type EntityOption interface {
@@ -42,9 +37,9 @@ func applyEntityOptions(opts []EntityOption) entityOpts {
 //
 // Contract (honest limits):
 //   - Qualifies evo.ID keys as "scope.key" for stable machine identity.
-//   - Exposes Item, Task, Capture, Writer, and SlogHandler on the shared Output.
-//   - Is NOT a security sandbox: plugins holding *Output bypass Scope entirely;
-//     there is no separate stream, Fail isolation, or nested authority boundary.
+//   - Exposes only Item, Task, and Tasks — operations that actually take the namespace.
+//   - Is NOT a security sandbox: plugins holding *Output bypass Scope entirely.
+//   - Session Capture, Writer, and SlogHandler stay on *Output (shared session).
 //
 //	registry := out.Scope("registry")
 //	registry.Item("credentials", evo.ID("auth")).OK()
@@ -86,29 +81,13 @@ func (s *Scope) Task(name string, opts ...EntityOption) *Task {
 	return s.out.taskScoped(name, s.name, opts...)
 }
 
-// Writer returns a human message writer (plugins must not open their own TTY).
-func (s *Scope) Writer() io.Writer {
+// Tasks declares a task collection under this scope's naming (human name only;
+// child tasks still take evo.ID with scope qualification via Scope.Task).
+func (s *Scope) Tasks(name string) *Tasks {
 	if s == nil || s.out == nil {
-		return io.Discard
+		return &Tasks{}
 	}
-	return s.out.Writer()
-}
-
-// SlogHandler returns a slog bridge for this output session.
-func (s *Scope) SlogHandler(min slog.Leveler) slog.Handler {
-	if s == nil || s.out == nil {
-		return slog.NewTextHandler(io.Discard, nil)
-	}
-	return s.out.SlogHandler(min)
-}
-
-// Capture returns a process-output sink on the shared session (not stream-isolated).
-// Prefer Task.Capture when evidence belongs to one operation.
-func (s *Scope) Capture(opts ...CaptureOption) *Capture {
-	if s == nil || s.out == nil {
-		return newCapture(nil, "", "", opts...)
-	}
-	return s.out.Capture(opts...)
+	return s.out.Tasks(name)
 }
 
 func qualifyKey(scope, key string) string {

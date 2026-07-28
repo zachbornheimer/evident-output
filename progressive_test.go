@@ -73,7 +73,7 @@ func TestProgressive_LineStreamsImmediately(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Line("Dry-run: no changes will be made.")
+	out.Println("Dry-run: no changes will be made.")
 	if got := buf.String(); !strings.Contains(got, "Dry-run") {
 		t.Fatalf("Line buffered until Finish: %q", got)
 	}

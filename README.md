@@ -33,16 +33,17 @@ func run(out *evo.Output) error {
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.6
+go get github.com/zachbornheimer/evident-output@v0.2.7
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
 
-**Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included. `Debug.Level: LevelTrace` is selectable (zero is `LevelUnset` → Info).  
-**Lifecycle:** `os.Exit(evo.Main(out, run))` seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail before Finish (cannot render `[ready]`).  
-**Messages:** managed `Print` / `Printf` / `Println` + `Verbose()` (not a byte-for-byte `fmt` drop-in); promote to `Item` / `Task` when semantics matter. Prefer plain labels over `Itemf`/`Taskf` when identity must stay stable.  
-**Capture:** silent retention by default; **pending fragments** (no trailing newline) appear in `DetailTail`/`Text`/`Empty`; root `Close` flushes every stream; redacts via `Config.Redactor`.  
-**Platform:** optional `evo.ID("stable.key")` on Item/Task; `out.Scope("plugin")` for namespaced keys; `out.ResultWriter()` for domain payload under `FormatData` (presentation never writes there).
+**Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `NewWithOptions(Title(...), …)`.  
+**Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 150ms). `Debug.Level: LevelTrace` selectable (`LevelUnset` → Info).  
+**Lifecycle:** `os.Exit(evo.Main(out, run))` seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.  
+**Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only). Semantic state: Item/Task.  
+**Capture:** `Task.Capture` (work) or `Item.Capture` (tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention.  
+**Platform:** `evo.ID` + narrow `Scope` (Item/Task/Tasks only — not a sandbox); `ResultWriter()` under `FormatData`.
 
 ## Pick the entity
 
@@ -66,9 +67,9 @@ When both Item and Task fit: prefer **Item** for pass/fail gates, **Task** for p
 
 `Block` ≠ Go `error`. After Block, return nil from `run` and let `Main` exit `1`.
 
-## Child processes
+## Child processes / tool-backed gates
 
-Capture belongs to the **operation** (`Task`), not the whole session — and not `context`:
+Capture belongs to the **entity** (Task or Item), not the whole session — and not `context`:
 
 ```go
 upgrade := out.Task("brew packages")
@@ -81,12 +82,24 @@ if err := run.Run(ctx, "brew", []string{"upgrade", "--formula"}, output); err !=
 upgrade.Done()
 ```
 
-- **Ownership:** `upgrade.Capture()` associates evidence with that task.
+Tool-backed **condition** (still an Item):
+
+```go
+docker := out.Item("docker daemon").Start()
+cap := docker.Capture()
+if err := runDockerInfo(cap); err != nil {
+    docker.Fail("could not inspect the daemon", evo.Cause(err), cap.DetailTail())
+} else {
+    docker.OK()
+}
+```
+
+- **Ownership:** `Task.Capture` / `Item.Capture` associate evidence with that entity.
 - **Silent by default:** ring always retains; no Diagnostics/Debug mirror unless `MirrorToDiagnostics()` / `MirrorToDebug()`.
-- **Redaction:** `Config.Redactor` (or `evo.Redact`) applies before ring retention — secrets never land in DetailTail.
-- **Detail:** `output.DetailTail()` is a `ProblemOption` (compose with Fail); separate `Stdout()`/`Stderr()` buffers.
-- **Defaults:** last 200 lines / 256KiB, sanitized, truncation marked.
-- **`DebugWriter`:** intentional DEBUG journal only — not for child tools.
+- **Redaction:** `Config.Redactor` (or `evo.Redact`) applies before ring retention.
+- **Detail:** `DetailTail()` is a `ProblemOption`; separate `Stdout()`/`Stderr()` buffers.
+- **Defaults:** last 200 lines / 256KiB via `KeepLastLines` / `MaxCaptureBytes`.
+- **Session `out.Capture`:** advanced only — prefer entity-owned capture.
 
 ## Platform adapters (contracts, not sugar)
 
@@ -95,7 +108,7 @@ Keep the core vocabulary small. Scale via **Config**, **schema keys**, and **str
 | Need | Contract |
 |------|----------|
 | Stable machine identity | `out.Item("label", evo.ID("gate.tree"))` — keys appear in Snapshot/JSON |
-| Plugin / subsystem namespace | `out.Scope("registry").Task("pull", evo.ID("image"))` → key `registry.image` |
+| Plugin / subsystem namespace | `out.Scope("registry").Task("pull", evo.ID("image"))` → key `registry.image` (IDs only; not isolation) |
 | Domain payload purity | `Format: FormatData` + `json.NewEncoder(out.ResultWriter())` (stdout); human on stderr |
 | Secret scrubbing | `Config.Redactor` or `evo.Redact(r)` — Debug fields + Capture ring |
 | Host-owned rendering | `FormatExternal` + snapshots (no inline stream) |
@@ -104,13 +117,13 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 
 ## Status
 
-**Release:** **v0.2.6** — shared Problem CSI sanitize, live VisibilityDelay, resize-aware ANSI, schema 0.2, Main no double-Fail.  
+**Release:** **v0.2.7** — Config honesty (`Delay(0)`), one human-message instrument, narrow Scope, `Item.Capture`, unified slog level from Config, removed false/legacy surface (`For`, `ItemSpec`, `Line`, discarded fields).  
 **Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).  
 **Implemented surface:** v0.3–v0.4 core (library, interactive VT, debug history/pane, real CLI, hardened MCP, §31 automated rows test-gated). External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 
 | Ready now | External / manual only |
 |-----------|------------------------|
-| Items, Task, Tasks, Changes, Plan, Line | Windows ConPTY RC (PORT-003) |
+| Items, Task, Tasks, Changes, Plan, Print | Windows ConPTY RC (PORT-003) |
 | Conclusion + exit codes + Cancel cleanup | tmux RC (PORT-004) |
 | Plain, JSON (§25.1), JSONL (§25.2) | SSH RC (PORT-005) |
 | Interactive live region (`testkit.Screen`) | Light/dark contrast review (A11Y-006) |

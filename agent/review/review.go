@@ -375,7 +375,7 @@ func StructuredDocument(filename string, raw []byte) Result {
 
 func isFormatMethod(name string) bool {
 	switch name {
-	case "Donef", "Linef", "Itemf", "Taskf", "Tasksf", "Changesf", "Planf":
+	case "Donef", "Summaryf", "Itemf", "Taskf", "Tasksf", "Changesf", "Planf":
 		return true
 	default:
 		return false

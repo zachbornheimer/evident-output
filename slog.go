@@ -19,17 +19,41 @@ type LogRecord struct {
 
 // SlogHandler returns a slog.Handler that journals every accepted record as
 // structured diagnostics (history or pane), without mutating Output configuration.
-// Time, level name, attributes, and PC are preserved for Info/Warn/Error as well
-// as Debug — not demoted to unstructured Line() messages.
 //
-// Prefer Info / WarnMessage / ErrorMessage for plain human-facing application
-// lines that are not log infrastructure.
-func (o *Output) SlogHandler(min slog.Leveler) slog.Handler {
+// Level policy is Config.Debug.Level (one conductor):
+//
+//	out := evo.New(evo.Config{
+//	    Debug: evo.DebugConfig{Level: evo.LevelDebug},
+//	})
+//	logger := slog.New(out.SlogHandler())
+//
+// Application human prose uses Print/Printf/Println or Item/Task outcomes — not slog.
+// Infrastructure diagnostics use slog through this handler.
+func (o *Output) SlogHandler() slog.Handler {
 	level := slog.LevelInfo
-	if min != nil {
-		level = min.Level()
+	if o != nil {
+		o.mu.Lock()
+		level = logLevelToSlog(o.cfg.debugLevel)
+		o.mu.Unlock()
 	}
 	return &slogBridge{out: o, min: level}
+}
+
+func logLevelToSlog(l LogLevel) slog.Level {
+	switch l {
+	case LevelTrace:
+		return slog.LevelDebug - 4
+	case LevelDebug:
+		return slog.LevelDebug
+	case LevelInfo:
+		return slog.LevelInfo
+	case LevelWarn:
+		return slog.LevelWarn
+	case LevelError:
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
 
 type slogBridge struct {
@@ -45,7 +69,6 @@ func (h *slogBridge) Enabled(_ context.Context, level slog.Level) bool {
 
 func (h *slogBridge) Handle(_ context.Context, r slog.Record) error {
 	attrs := make([]slog.Attr, 0, r.NumAttrs()+len(h.attrs))
-	// WithAttrs already carry any group prefix applied at WithAttrs time.
 	attrs = append(attrs, h.attrs...)
 	r.Attrs(func(a slog.Attr) bool {
 		key := a.Key
@@ -90,9 +113,7 @@ func (h *slogBridge) WithGroup(name string) slog.Handler {
 }
 
 // emitLogRecord journals every accepted slog record as structured diagnostics.
-// Info/Warn/Error are not demoted to unstructured Line() messages — that would
-// drop time, level, attrs, and PC. Application code wanting plain human lines
-// should call Info / WarnMessage / ErrorMessage directly.
+// Info/Warn/Error keep time, level, attrs, and PC — not demoted to bare Print lines.
 func (o *Output) emitLogRecord(rec LogRecord) {
 	if o == nil {
 		return
@@ -101,11 +122,10 @@ func (o *Output) emitLogRecord(rec LogRecord) {
 	for _, a := range rec.Attrs {
 		fields = append(fields, Field{Key: a.Key, Value: a.Value.Any()})
 	}
-	// Preserve source PC when present (slog AddSource).
 	if rec.PC != 0 {
 		fields = append(fields, Field{Key: "pc", Value: rec.PC})
 	}
-	// Force: slog already applied its min level; do not re-filter by debugLevel.
+	// Force: Handler.Enabled already applied Config.Debug.Level via min.
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.emitDebugRecordLocked(slogLevelName(rec.Level), rec.Message, fields, rec.Time, true)
@@ -122,7 +142,6 @@ func slogLevelName(level slog.Level) string {
 	case level >= slog.LevelDebug:
 		return "DEBUG"
 	default:
-		// Custom / Trace-ish levels below Debug keep slog's string form.
 		return level.String()
 	}
 }

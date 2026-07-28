@@ -93,10 +93,7 @@ type captureOptionFunc func(*Capture)
 func (f captureOptionFunc) applyCapture(c *Capture) { f(c) }
 
 // KeepLastLines sets how many trailing lines are retained (default 200).
-func KeepLastLines(n int) CaptureOption { return CaptureLines(n) }
-
-// CaptureLines sets how many trailing lines are retained (default 200).
-func CaptureLines(n int) CaptureOption {
+func KeepLastLines(n int) CaptureOption {
 	return captureOptionFunc(func(c *Capture) {
 		if n > 0 {
 			c.maxLines = n
@@ -105,10 +102,7 @@ func CaptureLines(n int) CaptureOption {
 }
 
 // MaxCaptureBytes sets an approximate byte budget for retained lines (default 256KiB).
-func MaxCaptureBytes(n int) CaptureOption { return CaptureBytes(n) }
-
-// CaptureBytes sets an approximate byte budget for retained lines (default 256KiB).
-func CaptureBytes(n int) CaptureOption {
+func MaxCaptureBytes(n int) CaptureOption {
 	return captureOptionFunc(func(c *Capture) {
 		if n > 0 {
 			c.maxBytes = n
@@ -128,15 +122,6 @@ func MirrorToDebug() CaptureOption {
 	return captureOptionFunc(func(c *Capture) { c.mirrorDebug = true })
 }
 
-// CaptureQuiet is retained for compatibility; default is already silent.
-// Prefer omitting mirror options instead.
-func CaptureQuiet() CaptureOption {
-	return captureOptionFunc(func(c *Capture) {
-		c.mirrorDiag = false
-		c.mirrorDebug = false
-	})
-}
-
 // Capture returns a process-output sink bound to this Task.
 func (t *Task) Capture(opts ...CaptureOption) *Capture {
 	if t == nil || t.out == nil {
@@ -151,8 +136,33 @@ func (t *Task) Capture(opts ...CaptureOption) *Capture {
 	return newCapture(t.out, t.id, name, opts...)
 }
 
-// Capture returns an unscoped process sink (no owning task).
-// Prefer Task.Capture so failure evidence is associated with the operation.
+// Capture returns a process-output sink bound to this Item (tool-backed gate).
+// Presentation only — does not run the tool. Use when a condition is evaluated
+// by an external command (git status, docker info, brew doctor, …).
+//
+//	docker := out.Item("docker daemon").Start()
+//	cap := docker.Capture()
+//	if err := runDockerInfo(cap); err != nil {
+//	    docker.Fail("could not inspect the daemon", evo.Cause(err), cap.DetailTail())
+//	} else {
+//	    docker.OK()
+//	}
+func (i *Item) Capture(opts ...CaptureOption) *Capture {
+	if i == nil || i.out == nil {
+		return newCapture(nil, "", "", opts...)
+	}
+	name := ""
+	i.out.mu.Lock()
+	if st := i.out.itemByRef[i.id]; st != nil {
+		name = st.name
+	}
+	i.out.mu.Unlock()
+	return newCapture(i.out, i.id, name, opts...)
+}
+
+// Capture returns a session-level process sink with no owning Item/Task.
+// Prefer Task.Capture or Item.Capture so failure evidence attaches to an entity.
+// Session capture is advanced; ordinary call sites should not use it.
 func (o *Output) Capture(opts ...CaptureOption) *Capture {
 	return newCapture(o, "", "", opts...)
 }

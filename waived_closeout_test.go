@@ -23,7 +23,7 @@ func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	// Flood with line events (non-critical).
 	for i := 0; i < 40; i++ {
-		out.Line("noise")
+		out.Println("noise")
 	}
 	out.Item("done").OK()
 	if err := out.Finish(); err != nil {
@@ -57,7 +57,7 @@ func (f *failWriter) Write(p []byte) (int, error) {
 func TestCON009_MultiRendererOneFailure(t *testing.T) {
 	var good bytes.Buffer
 	bad := &failWriter{}
-	out := evo.For("s", evo.To(bad), evo.AlsoWrite(&good), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.Title("s"), evo.To(bad), evo.AlsoWrite(&good), evo.Plain(), evo.NoColor())
 	out.Item("a").OK()
 	err := out.Finish()
 	if err == nil {
@@ -130,7 +130,7 @@ func TestTXT014_OSC8ZeroCells(t *testing.T) {
 
 func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.For("repo", evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(28))
+	out := evo.NewWithOptions(evo.Title("repo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(28))
 	out.Item("working tree").Block("dirty", evo.Detail("commit or stash"))
 	out.Item("remote").OK()
 	if err := out.Finish(); err != nil {
@@ -149,7 +149,7 @@ func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 func TestTXT016_LeaderBoundedAndOmittedNarrow(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, cols int) {
-		out := evo.For("x", evo.To(w), evo.Plain(), evo.NoColor(), evo.Width(cols))
+		out := evo.NewWithOptions(evo.Title("x"), evo.To(w), evo.Plain(), evo.NoColor(), evo.Width(cols))
 		ch := out.Changes("files")
 		ch.Added(1, "a.go")
 		ch.Removed(2, "b.go")
@@ -235,7 +235,7 @@ func TestMCP050_TokenBudgetExplicit(t *testing.T) {
 
 func TestMCP025_PreviewDebugInterleave(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.For("demo", evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.Debug))
+	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.Debug))
 	out.Item("status").OK()
 	out.Debug("index ok")
 	_ = out.Finish()

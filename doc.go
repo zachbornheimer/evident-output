@@ -18,4 +18,8 @@
 //	}
 //
 // Adoption ladder: Print → Verbose → Item/Task → Capture → slog diagnostics.
+//
+// Ordinary surface: New(Config), Print*, Item/Task (+ ID), Task.Capture / Item.Capture,
+// Changes/Plan, slog via SlogHandler (level from Config.Debug.Level). Advanced:
+// NewWithOptions, Terminal, session Capture, Progress64, Advance.
 package evo

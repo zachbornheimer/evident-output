@@ -19,7 +19,7 @@ func TestDOM006_ItemOKWithoutStart(t *testing.T) {
 }
 
 func TestDOM039_ChangesPlusFailure(t *testing.T) {
-	out := evo.For("deps", evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.Title("deps"), evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Changes("deps").Added(1, "package")
 	out.Item("install").Fail("disk full")
@@ -60,7 +60,7 @@ func TestDOM043_FinishTwice(t *testing.T) {
 }
 
 func TestAPI001_MinimalItemExample(t *testing.T) {
-	out := evo.For("repo")
+	out := evo.NewWithOptions(evo.Title("repo"))
 	defer out.Close()
 	out.Item("working tree").OK()
 	out.Item("branches").Block("local-only")
@@ -71,7 +71,7 @@ func TestAPI001_MinimalItemExample(t *testing.T) {
 }
 
 func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
-	out := evo.For("acct", evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.Title("acct"), evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Plan("delete").Delete(1, "thing")
 	_ = out.Finish()

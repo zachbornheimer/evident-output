@@ -24,7 +24,7 @@ func main() {
 		Title: "repo-probe",
 		Debug: evo.DebugConfig{Level: evo.Debug},
 	})
-	log := slog.New(out.SlogHandler(slog.LevelDebug))
+	log := slog.New(out.SlogHandler())
 
 	os.Exit(evo.Main(out, func(o *evo.Output) error {
 		time.Sleep(step)

@@ -43,22 +43,24 @@ func (t *Task) Phase(text string) *Task {
 
 // Progress sets absolute completed/total count progress.
 // Counts use int (collection lengths, indices). For byte quantities use Bytes.
-// For values outside int range (tests / huge counters) use Progress64.
+// Prefer absolute Progress over Advance so retries cannot double-count.
 func (t *Task) Progress(completed, total int) *Task {
 	return t.setProgress(int64(completed), int64(total), Determinate)
 }
 
-// Progress64 sets absolute completed/total progress using int64 quantities.
+// Progress64 is an advanced absolute count API for quantities outside the int range.
+// Ordinary call sites should use Progress(int, int) or Bytes for byte totals.
 func (t *Task) Progress64(completed, total int64) *Task {
 	return t.setProgress(completed, total, Determinate)
 }
 
-// Bytes sets absolute byte progress.
+// Bytes sets absolute byte progress (units and rate formatting).
 func (t *Task) Bytes(completed, total int64) *Task {
 	return t.setProgress(completed, total, BytesKind)
 }
 
 // Advance increments completed progress by delta.
+// Advanced relative helper — prefer absolute Progress in ordinary code.
 func (t *Task) Advance(delta int64) *Task {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()

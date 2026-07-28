@@ -249,29 +249,6 @@ func (o *Output) ensureEntityRoomLocked() error {
 	return nil
 }
 
-// ItemWith declares an item using advanced specification (keys/order).
-// Prefer Item(name, evo.ID(key)) for the common stable-key case.
-func (o *Output) ItemWith(spec ItemSpec) (*Item, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		return nil, err
-	}
-	name := spec.Name
-	if name == "" {
-		name = spec.Key
-	}
-	before := o.misuse
-	h := o.addItemLocked(sanitize.Text(name), spec.Key, spec.Order)
-	if errors.Is(o.misuse, ErrDuplicateKey) && !errors.Is(before, ErrDuplicateKey) {
-		return nil, ErrDuplicateKey
-	}
-	if errors.Is(o.misuse, ErrLimitExceeded) && !errors.Is(before, ErrLimitExceeded) {
-		return nil, ErrLimitExceeded
-	}
-	return h, nil
-}
-
 // Task declares a single operation. Optional evo.ID sets a stable machine key.
 func (o *Output) Task(name string, opts ...EntityOption) *Task {
 	return o.taskScoped(name, "", opts...)
@@ -382,35 +359,6 @@ func (o *Output) Plan(subject string) *Plan {
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "plan.declared", EntityID: st.id})
 	return h
-}
-
-// Line emits a durable user-facing line immediately (not buffered until Finish).
-//
-// Deprecated: prefer Println / Printf. Line remains as a complete-line alias.
-func (o *Output) Line(message string) {
-	o.Println(message)
-}
-
-// Linef formats and emits a durable user-facing line.
-//
-// Deprecated: prefer Printf with an explicit newline, or Println.
-func (o *Output) Linef(format string, args ...any) {
-	o.Printf(format+"\n", args...)
-}
-
-// Info emits an informational durable line.
-func (o *Output) Info(message string, _ ...Field) {
-	o.Line(message)
-}
-
-// WarnMessage emits a warning durable line (not an item warning).
-func (o *Output) WarnMessage(message string, _ ...Field) {
-	o.Line(message)
-}
-
-// ErrorMessage emits an error durable line (not an item failure).
-func (o *Output) ErrorMessage(message string, _ ...Field) {
-	o.Line(message)
 }
 
 // Fail records an output-level failure.

@@ -157,17 +157,36 @@ func TestResultWriter_UnsetIsDiscard(t *testing.T) {
 	}
 }
 
-func TestScope_WriterAndSlogHandlerNonNil(t *testing.T) {
+func TestScope_NamespacedItemAndSessionTools(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Title: "s", Stdout: &buf, Stderr: &buf})
 	sc := out.Scope("plugin")
-	if sc.Writer() == nil {
-		t.Fatal("Writer nil")
-	}
-	if sc.SlogHandler(nil) == nil {
-		t.Fatal("SlogHandler nil")
-	}
 	if sc.Name() != "plugin" {
 		t.Fatalf("name %q", sc.Name())
+	}
+	// Scope only declares entities; session tools remain on Output.
+	sc.Item("credentials", evo.ID("auth")).OK()
+	if out.Writer() == nil {
+		t.Fatal("Writer nil")
+	}
+	if out.SlogHandler() == nil {
+		t.Fatal("SlogHandler nil")
+	}
+	_ = out.Finish()
+	if out.Snapshot().Items[0].Key != "plugin.auth" {
+		t.Fatalf("key %q", out.Snapshot().Items[0].Key)
+	}
+}
+
+func TestItem_CaptureBindsEvidence(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.New(evo.Config{Title: "gate", Stdout: &buf, Stderr: &buf})
+	docker := out.Item("docker daemon").Start()
+	cap := docker.Capture()
+	_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon"))
+	docker.Fail("could not inspect the daemon", cap.DetailTail())
+	_ = out.Finish()
+	if !strings.Contains(buf.String(), "Cannot connect") {
+		t.Fatalf("item capture detail missing:\n%s", buf.String())
 	}
 }

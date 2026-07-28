@@ -93,7 +93,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func check() error {
-  out := evo.For("repo")
+  out := evo.NewWithOptions(evo.Title("repo"))
   defer out.Close()
   out.Item("working tree").Block("dirty")
   return errors.New("dirty")

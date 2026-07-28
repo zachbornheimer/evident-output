@@ -96,13 +96,10 @@ func TestSEC011_BidiControlsStripped(t *testing.T) {
 func TestDOM005_DuplicateKeyRejected(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
-	_, err := out.ItemWith(evo.ItemSpec{Key: "k", Name: "one"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = out.ItemWith(evo.ItemSpec{Key: "k", Name: "two"})
-	if !errors.Is(err, evo.ErrDuplicateKey) {
-		t.Fatalf("err=%v", err)
+	out.Item("one", evo.ID("k"))
+	out.Item("two", evo.ID("k"))
+	if !errors.Is(out.Err(), evo.ErrDuplicateKey) {
+		t.Fatalf("err=%v", out.Err())
 	}
 }
 

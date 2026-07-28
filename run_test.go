@@ -12,7 +12,7 @@ import (
 
 func TestMain_SuccessExitZero(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.For("demo", evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
 	code := evo.Main(out, func(o *evo.Output) error {
 		o.Item("working tree").OK()
 		return nil
@@ -27,7 +27,7 @@ func TestMain_SuccessExitZero(t *testing.T) {
 
 func TestMain_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.For("demo", evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
 	code := evo.Main(out, func(o *evo.Output) error {
 		o.Item("working tree").Block("dirty")
 		return nil
@@ -39,7 +39,7 @@ func TestMain_BlockedExitOne(t *testing.T) {
 
 func TestMain_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.For("demo", evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
 	code := evo.Main(out, func(o *evo.Output) error {
 		o.Item("x").OK()
 		return errors.New("app boom")
@@ -76,7 +76,7 @@ func TestMain_NilOutput(t *testing.T) {
 
 func TestAnyBlocked_BeforeMutate(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.For("gates", evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.Title("gates"), evo.To(&buf), evo.Plain(), evo.NoColor())
 	out.Item("a").OK()
 	out.Item("b").Block("policy")
 	if !out.AnyBlocked() {
@@ -91,8 +91,8 @@ func TestAnyBlocked_BeforeMutate(t *testing.T) {
 	}
 }
 
-func TestWriterOptions_PipeFileIsNoColor(t *testing.T) {
-	// Real pipe: not a char device → Plain + NoColor so capture has no CSI.
+func TestConfig_PipeWriterIsNoColor(t *testing.T) {
+	// Real pipe: not a char device → Config Auto resolves NoColor so capture has no CSI.
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestWriterOptions_PipeFileIsNoColor(t *testing.T) {
 	if evo.IsCharDevice(w) {
 		t.Fatal("pipe write end must not be a char device")
 	}
-	out := evo.For("pipe", evo.WriterOptions(w)...)
+	out := evo.New(evo.Config{Title: "pipe", Stdout: w, Stderr: w})
 	out.Item("x").Fail("boom")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

@@ -148,7 +148,7 @@ func TestMainRunErrorOutranksBlockedConclusion(t *testing.T) {
 	}
 }
 
-func TestWriterOptions_PipeAndDiagnosticsWired(t *testing.T) {
+func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -157,7 +157,14 @@ func TestWriterOptions_PipeAndDiagnosticsWired(t *testing.T) {
 	defer w.Close()
 
 	var diag bytes.Buffer
-	out := evo.For("tool", evo.WriterOptions(w, evo.Diagnostics(&diag), evo.DebugLevel(evo.Debug))...)
+	out := evo.NewWithOptions(
+		evo.Title("tool"),
+		evo.To(w),
+		evo.Plain(),
+		evo.NoColor(),
+		evo.Diagnostics(&diag),
+		evo.DebugLevel(evo.Debug),
+	)
 	out.Debug("diag-line")
 	out.Item("gate").Block("dirty")
 	if err := out.Finish(); err != nil {

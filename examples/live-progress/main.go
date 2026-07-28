@@ -28,7 +28,7 @@ func main() {
 		Title: "install dependencies",
 		Debug: evo.DebugConfig{Level: evo.Debug},
 	})
-	log := slog.New(out.SlogHandler(slog.LevelDebug))
+	log := slog.New(out.SlogHandler())
 
 	os.Exit(evo.Main(out, func(o *evo.Output) error {
 		return runLive(o, log, step)

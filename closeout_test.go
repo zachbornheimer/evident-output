@@ -216,7 +216,7 @@ func TestSEC010_FinishAfterPanicPath(t *testing.T) {
 
 func TestAPI011_CobraNotRequired(t *testing.T) {
 	// Library embeds without Cobra base class
-	out := evo.For("cmd", evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.Title("cmd"), evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("a").OK()
 	_ = out.Finish()
@@ -233,7 +233,7 @@ func TestAPI020_SuspendExternal(t *testing.T) {
 func TestAPI022_DiscoverabilityNames(t *testing.T) {
 	// User discovers Item/Task/Tasks and can implement three parallel facts without config.
 	var buf bytes.Buffer
-	out := evo.For("repo", evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.Title("repo"), evo.To(&buf), evo.Plain(), evo.NoColor())
 	out.Item("working tree").OK()
 	out.Task("scan").Phase("walk").Donef("done")
 	g := out.Tasks("deps")
@@ -325,7 +325,7 @@ func TestOUT019_HostWritesWhileActiveDocumented(t *testing.T) {
 
 func TestPORT013_PublicAPIStableShape(t *testing.T) {
 	// Stable public surface: New/For/Item/Task/Tasks/Finish/Snapshot/EncodeJSON.
-	out := evo.For("s", evo.To(io.Discard), evo.Plain())
+	out := evo.NewWithOptions(evo.Title("s"), evo.To(io.Discard), evo.Plain())
 	out.Item("i").OK()
 	out.Task("t").Done()
 	if err := out.Finish(); err != nil {

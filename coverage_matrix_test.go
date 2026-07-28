@@ -40,7 +40,7 @@ func TestA11Y005_PlainHasNoUnicodeRequirement(t *testing.T) {
 func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, width int) {
-		out := evo.For("s", evo.To(w), evo.Plain(), evo.NoColor(), evo.Width(width))
+		out := evo.NewWithOptions(evo.Title("s"), evo.To(w), evo.Plain(), evo.NoColor(), evo.Width(width))
 		out.Changes("c").Added(1, "x").Wrote("f")
 		_ = out.Finish()
 		_ = out.Close()

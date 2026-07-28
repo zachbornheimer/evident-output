@@ -120,12 +120,10 @@ func runScenarioFile(t *testing.T, path string) {
 		opts = append(opts, evo.Strict())
 	}
 
-	var out *evo.Output
 	if sc.Subject != "" {
-		out = evo.For(sc.Subject, opts...)
-	} else {
-		out = evo.NewWithOptions(opts...)
+		opts = append([]evo.Option{evo.Title(sc.Subject)}, opts...)
 	}
+	out := evo.NewWithOptions(opts...)
 	t.Cleanup(func() { _ = out.Close() })
 
 	items := map[string]*evo.Item{}

@@ -28,14 +28,11 @@ func TestOUT021_DataProjectionOption(t *testing.T) {
 }
 
 func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
-	out, err := evo.NewWithConfig(evo.Config{
+	out := evo.New(evo.Config{
 		Format: evo.FormatExternal,
 		Stdout: io.Discard,
 		Stderr: io.Discard,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
 	t.Cleanup(func() { _ = out.Close() })
 	ch := out.Snapshots()
 	out.Item("x").OK()

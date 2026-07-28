@@ -35,7 +35,7 @@ func All() []Guide {
   3) Verbose() — optional domain detail (not slog debug)
   4) Item / Task / Tasks / Changes / Plan
   5) task.Capture() + DetailTail for subprocess evidence
-  6) slog.New(out.SlogHandler(...)) for implementation diagnostics
+  6) slog.New(out.SlogHandler()) for implementation diagnostics
   7) os.Exit(evo.Main(out, run))
 
 Pick the entity:
@@ -65,13 +65,14 @@ Never call Done/Fail on a Tasks collection. Long-running work: call Phase period
 			ID:       "streams",
 			Title:    "Stdout and stderr contracts",
 			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child"},
-			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "WriterOptions"},
+			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData"},
 			Rules:    []string{"STREAM-003", "OUT-001", "OUT-003", "OUT-004"},
 			Body: `Human UI and logs must not contaminate structured stdout.
-Use evo.WriterOptions(os.Stdout, evo.Diagnostics(os.Stderr)) for dual-stream CLIs.
-WriterOptions applies Plain+NoColor for non-TTY *os.File (pipes). Diagnostics receives Debug and Capture mirrors.
+Ordinary dual-stream: evo.New(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr}) — Config auto-applies Plain/NoColor off-TTY.
+FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr.
 Child processes: output := task.Capture(); run.Run(ctx, name, args, output); on error task.Fail(..., evo.Cause(err), output.DetailTail()).
-Capture is task-owned (not session, not context). Ring always retains evidence; DebugLevel only controls display.
+Tool-backed gates: item.Capture() on the Item evaluating the condition.
+Capture is entity-owned (Task or Item). Ring always retains evidence; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
 EncodeJSON/EncodeJSONL for machines. Avoid fmt.Print during live UI.`,
 			TokenEstimate: 180,

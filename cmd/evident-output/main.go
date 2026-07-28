@@ -82,7 +82,7 @@ func cmdPreview(args []string) error {
 		}
 	}
 	var buf bytes.Buffer
-	out := evo.For(subject, evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.Title(subject), evo.To(&buf), evo.Plain(), evo.NoColor())
 	it := out.Item(item)
 	switch state {
 	case "blocked":

@@ -207,7 +207,7 @@ func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
 
 func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.For("dependencies", evo.To(&output), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.Title("dependencies"), evo.To(&output), evo.Plain(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -238,9 +238,8 @@ func TestH13_Output_FinishReportsUnresolvedTask(t *testing.T) {
 
 func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.For(
-		"dependencies",
-		evo.To(&output),
+	out := evo.NewWithOptions(evo.Title(
+		"dependencies"), evo.To(&output),
 		evo.Plain(),
 		evo.NoColor(),
 		evo.Width(80),
@@ -274,9 +273,8 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 
 func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.For(
-		"dependencies",
-		evo.To(&output),
+	out := evo.NewWithOptions(evo.Title(
+		"dependencies"), evo.To(&output),
 		evo.Plain(),
 		evo.NoColor(),
 		evo.Width(30),
@@ -306,7 +304,7 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 }
 
 func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
-	out := evo.For("account acme", evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.Title("account acme"), evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Plan("delete account acme").
@@ -348,7 +346,7 @@ func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 
 func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.For("bpp-csharp", evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.NewWithOptions(evo.Title("bpp-csharp"), evo.To(&buf), evo.Plain(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Item("working tree").OK()

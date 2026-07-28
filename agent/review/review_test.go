@@ -63,7 +63,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func check() error {
-  out := evo.For("repo")
+  out := evo.NewWithOptions(evo.Title("repo"))
   defer out.Close()
   out.Item("working tree").Block("dirty")
   return errors.New("dirty")
@@ -95,7 +95,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func check() error {
-  out := evo.For("repo")
+  out := evo.NewWithOptions(evo.Title("repo"))
   defer out.Close()
   if err := load(); err != nil {
     out.Item("data").Fail("load failed")
@@ -120,7 +120,7 @@ func TestMCP014_BlockThenFinishOK(t *testing.T) {
 	ok := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func check() error {
-  out := evo.For("repo")
+  out := evo.NewWithOptions(evo.Title("repo"))
   defer out.Close()
   out.Item("working tree").Block("dirty")
   return out.Finish()
@@ -185,7 +185,7 @@ import (
 func f() {
   // example: tasks.Map() is not real — do not flag this comment either
   slug := strings.Map(func(r rune) rune { return r }, "ABC")
-  out := evo.For("x")
+  out := evo.NewWithOptions(evo.Title("x"))
   out.Item(slug).OK()
   _ = out.Finish()
 }
@@ -234,7 +234,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func main() {
-  out := evo.For("t")
+  out := evo.NewWithOptions(evo.Title("t"))
   os.Exit(evo.Main(out, func(o *evo.Output) error {
     o.Item("x").OK()
     return nil

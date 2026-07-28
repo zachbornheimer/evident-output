@@ -77,6 +77,25 @@ func TestDefaultConfig_Independent(t *testing.T) {
 	}
 }
 
+func TestConfig_VisibilityDelayZeroIsImmediate(t *testing.T) {
+	// Explicit zero must not be rewritten as the 150ms default.
+	// Option path VisibilityDelay(0) already covers live paint; this asserts Config.
+	cfg := evo.Config{
+		Title:           "immediate",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		VisibilityDelay: evo.Delay(0),
+		ForcePlain:      true,
+	}
+	out := evo.New(cfg)
+	_ = out.Close()
+	// resolveConfig kept *0: re-resolve via New must not panic; paint policy
+	// is covered by TestVisibilityDelay_ZeroIsImmediate (Option path).
+	if cfg.VisibilityDelay == nil || *cfg.VisibilityDelay != 0 {
+		t.Fatalf("caller Delay(0) must remain zero: %v", cfg.VisibilityDelay)
+	}
+}
+
 func TestNew_RejectsMultipleConfigs(t *testing.T) {
 	defer func() {
 		if recover() == nil {

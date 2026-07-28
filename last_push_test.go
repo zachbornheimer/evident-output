@@ -16,7 +16,7 @@ func TestOUT023_LineWhileLive(t *testing.T) {
 	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("t").Phase("p")
-	out.Line("durable hello")
+	out.Println("durable hello")
 	// Line currently doesn't trigger debugLive path — call Debug for insert-above
 	// Spec OUT-023: Line while live — ensure no panic and finish works
 	_ = out.Finish()
@@ -26,7 +26,7 @@ func TestOUT024_Linef(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.To(&buf), evo.Plain())
 	t.Cleanup(func() { _ = out.Close() })
-	out.Linef("count=%d", 3)
+	out.Printf("count=%d", 3)
 	out.Item("a").OK()
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "count=3") {
@@ -66,14 +66,14 @@ func TestAPI025_PackageNameEvo(t *testing.T) {
 
 func TestAPI005_NoPublicIntentEnum(t *testing.T) {
 	// Construction uses For(subject) without IntentReport ceremony.
-	out := evo.For("s", evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.Title("s"), evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("a").OK()
 	_ = out.Finish()
 }
 
 func TestAPI004_CommonPathReadsAsFacts(t *testing.T) {
-	out := evo.For("repo", evo.To(io.Discard))
+	out := evo.NewWithOptions(evo.Title("repo"), evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Item("working tree").OK()
 	out.Item("branches").Block("local-only")
@@ -81,16 +81,12 @@ func TestAPI004_CommonPathReadsAsFacts(t *testing.T) {
 }
 
 func TestAPI008_CommonAdvancedParity(t *testing.T) {
-	// Item vs ItemWith with same name → both OK with same conclusion shape
+	// Item with and without stable ID → same conclusion shape for simple OK.
 	a := evo.NewWithOptions(evo.To(io.Discard))
 	a.Item("x").OK()
 	_ = a.Finish()
 	b := evo.NewWithOptions(evo.To(io.Discard))
-	it, err := b.ItemWith(evo.ItemSpec{Name: "x"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	it.OK()
+	b.Item("x", evo.ID("x")).OK()
 	_ = b.Finish()
 	if a.Conclusion().State != b.Conclusion().State {
 		t.Fatal(a.Conclusion().State, b.Conclusion().State)

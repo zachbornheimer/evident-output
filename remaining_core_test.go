@@ -81,7 +81,7 @@ func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
-	out.WarnMessage("log warning")
+	out.Println("log warning")
 	out.Item("i").Warn("item warning")
 	_ = out.Finish()
 	s := buf.String()

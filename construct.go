@@ -92,12 +92,15 @@ type Config struct {
 	Debug DebugConfig
 
 	// Advanced (optional) — zero values inherit safe defaults.
-	Clock           TimeSource
-	Redactor        Redactor
-	Terminal        TerminalDriver
-	Strict          bool
-	Width           int
-	VisibilityDelay time.Duration
+	Clock    TimeSource
+	Redactor Redactor
+	Terminal TerminalDriver
+	Strict   bool
+	Width    int
+	// VisibilityDelay is the wait before the first live paint.
+	// nil means default (150ms). Non-nil is exact, including 0 for immediate.
+	// Use evo.Delay(d) to set a value from a duration literal.
+	VisibilityDelay *time.Duration
 	MaxFrameRate    int
 	MaxEntities     int
 	MaxEvents       int
@@ -105,6 +108,14 @@ type Config struct {
 	ForcePlain bool
 	// NonInteractive disables live frames.
 	NonInteractive bool
+}
+
+// Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
+//
+//	cfg.VisibilityDelay = evo.Delay(0)                      // immediate
+//	cfg.VisibilityDelay = evo.Delay(150 * time.Millisecond) // explicit default
+func Delay(d time.Duration) *time.Duration {
+	return &d
 }
 
 // DefaultConfig returns a fresh ordinary CLI configuration.
@@ -118,7 +129,7 @@ func DefaultConfig() Config {
 			View:  DebugPresentationHistory,
 		},
 		Width:           defaultWidth,
-		VisibilityDelay: defaultVisibilityDelay,
+		VisibilityDelay: Delay(defaultVisibilityDelay),
 		MaxFrameRate:    defaultMaxFrameRate,
 		MaxEntities:     defaultMaxEntities,
 		MaxEvents:       defaultMaxEvents,
@@ -159,8 +170,9 @@ func resolveConfig(c Config) Config {
 	if c.Width <= 0 {
 		c.Width = base.Width
 	}
-	if c.VisibilityDelay == 0 {
-		c.VisibilityDelay = base.VisibilityDelay
+	// nil = unspecified → default; non-nil (including 0) is intentional.
+	if c.VisibilityDelay == nil {
+		c.VisibilityDelay = Delay(defaultVisibilityDelay)
 	}
 	if c.MaxFrameRate <= 0 {
 		c.MaxFrameRate = base.MaxFrameRate
@@ -287,7 +299,11 @@ func configToOptions(c Config) []Option {
 	}
 
 	opts = append(opts, Clock(c.Clock), Redact(c.Redactor), Width(c.Width))
-	opts = append(opts, VisibilityDelay(c.VisibilityDelay), MaxFrameRate(c.MaxFrameRate))
+	visDelay := defaultVisibilityDelay
+	if c.VisibilityDelay != nil {
+		visDelay = *c.VisibilityDelay
+	}
+	opts = append(opts, VisibilityDelay(visDelay), MaxFrameRate(c.MaxFrameRate))
 	opts = append(opts, MaxEntities(c.MaxEntities), MaxEvents(c.MaxEvents))
 	opts = append(opts, DebugLevel(c.Debug.Level))
 	if c.Debug.View == DebugPresentationPane {
@@ -321,25 +337,20 @@ func withVerbosity(v Verbosity) Option {
 	return optionFunc(func(c *config) { c.verbosity = v })
 }
 
-// NewWithOptions is the advanced Option-based constructor (compatibility path
-// for tests and specialized embedding). Prefer New / New(Config) in application code.
+// NewWithOptions is the advanced Option-based constructor for tests and
+// specialized embedding (custom Terminal, Clock, etc.). Prefer New(Config) in
+// application code.
+//
+// Set the conclusion title with Title(...):
+//
+//	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain())
 func NewWithOptions(options ...Option) *Output {
 	return newOutput("", options...)
 }
 
-// For creates an Output with a title/subject.
-//
-// Deprecated: use New(Config{Title: subject}) or New(Config{Title: subject}) with options
-// via fields. For remains as a thin compatibility wrapper.
-func For(subject string, options ...Option) *Output {
-	return newOutput(subject, options...)
-}
-
-// NewWithConfig builds an Output from Config.
-//
-// Deprecated: use New(cfg) which never returns an error for ordinary configs.
-func NewWithConfig(cfg Config) (*Output, error) {
-	return New(cfg), nil
+// Title sets the conclusion subject for NewWithOptions.
+func Title(subject string) Option {
+	return optionFunc(func(c *config) { c.subject = subject })
 }
 
 // ParseColorMode maps always|never|auto (and common synonyms) to ColorMode.
