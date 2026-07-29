@@ -5,6 +5,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/width"
 )
 
 // Braille spinner sequence (common CLI convention).
@@ -343,10 +345,7 @@ func (o *Output) finishLiveLocked(final string) {
 // renderLiveRegion builds the interactive ledger text for the current snapshot.
 // now selects spinner frames (inject FixedClock in tests for stable glyphs).
 // color applies SGR to glyphs as rows resolve (✓ green, ✗ red, spinner cyan).
-func renderLiveRegion(s Snapshot, width, height int, now time.Time, color bool) string {
-	if width <= 0 {
-		width = defaultWidth
-	}
+func renderLiveRegion(s Snapshot, height int, now time.Time, color bool) string {
 	if height <= 0 {
 		height = 24
 	}
@@ -390,14 +389,25 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 			bodyHeight = 1
 		}
 	}
-	body := renderLiveRegion(o.snapshotLocked(), width, bodyHeight, now, color)
+	body := renderLiveRegion(o.snapshotLocked(), bodyHeight, now, color)
 	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {
-		return body
+		return fitLiveRegion(body, width)
 	}
 	var b strings.Builder
 	b.WriteString(body)
-	writeDebugPane(&b, o.debugRecords, o.cfg.debugPane, color)
-	return strings.TrimRight(b.String(), "\n")
+	writeDebugPane(&b, o.debugRecords, o.cfg.debugPane, width, color)
+	return fitLiveRegion(strings.TrimRight(b.String(), "\n"), width)
+}
+
+func fitLiveRegion(text string, columns int) string {
+	if columns <= 0 {
+		columns = defaultWidth
+	}
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = width.TruncateVisible(line, columns)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin string, color bool) {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/width"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -204,5 +205,40 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	}
 	if frames := screen.LiveFrameCount(); frames < 1 {
 		t.Fatal("expected at least one live frame during progress")
+	}
+}
+
+func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
+	const columns = 40
+	screen := testkit.NewScreen(
+		testkit.Interactive(),
+		testkit.Width(columns),
+	)
+	out := evo.NewWithOptions(
+		evo.Terminal(screen),
+		evo.VisibilityDelay(0),
+		evo.Clock(evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}),
+	)
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("goimports check")
+	task.Phase("goimports -d " + strings.Repeat("file.go ", 20))
+	task.Phase("goimports -d " + strings.Repeat("1️⃣ ", 20))
+
+	for _, operation := range screen.Operations() {
+		if operation.Kind != "live" {
+			continue
+		}
+		for _, line := range strings.Split(operation.Text, "\n") {
+			if cells := width.VisibleCells(line); cells > columns {
+				t.Fatalf("live line uses %d cells, terminal has %d:\n%s", cells, columns, operation.Text)
+			}
+		}
+	}
+	if frames := screen.LiveFrameCount(); frames != 2 {
+		t.Fatalf("live frames=%d, want 2", frames)
+	}
+	if got := width.StripANSI(screen.LatestLiveText()); !strings.HasSuffix(got, "…") {
+		t.Fatalf("truncated live line must signal omitted text:\n%s", got)
 	}
 }

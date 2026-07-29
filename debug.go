@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	"github.com/zachbornheimer/evident-output/internal/width"
 )
 
 // DebugPresentation selects how structured debug records project to a TTY (§4.6 / §21.3).
@@ -140,17 +141,30 @@ func formatHistoryAttrs(fields []Field) string {
 // formatPaneLine is slog-style text for the rolling pane / diagnostic tail.
 // Example: time=2026-07-27T12:04:18.219Z level=DEBUG msg="package index loaded" packages=18
 func formatPaneLine(rec debugRecord) string {
+	return "time=" + rec.Time.UTC().Format(time.RFC3339Nano) + " " + formatPaneBody(rec)
+}
+
+func formatLivePaneLine(rec debugRecord, columns int) string {
+	body := formatPaneBody(rec)
+	full := formatPaneLine(rec)
+	if width.VisibleCells(full) <= columns {
+		return full
+	}
+	compact := "time=" + rec.Time.UTC().Format("15:04:05.000") + " " + body
+	if width.VisibleCells(compact) <= columns {
+		return compact
+	}
+	return body
+}
+
+func formatPaneBody(rec debugRecord) string {
 	msg := sanitize.Text(rec.Message)
 	// Quote msg when it contains spaces (slog text convention).
 	if strings.ContainsAny(msg, " \t\"") {
 		msg = strconvQuote(msg)
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "time=%s level=%s msg=%s",
-		rec.Time.UTC().Format(time.RFC3339Nano),
-		rec.Level,
-		msg,
-	)
+	fmt.Fprintf(&b, "level=%s msg=%s", rec.Level, msg)
 	for _, f := range rec.Fields {
 		val := fmt.Sprint(f.Value)
 		if f.Sensitive {
@@ -190,7 +204,7 @@ func debugPaneReservedRows(pane debugPaneConfig, recordCount int) int {
 }
 
 // writeDebugPane appends the rolling pane section to a live-region builder.
-func writeDebugPane(b *strings.Builder, records []debugRecord, pane debugPaneConfig, color bool) {
+func writeDebugPane(b *strings.Builder, records []debugRecord, pane debugPaneConfig, columns int, color bool) {
 	if len(records) == 0 {
 		return
 	}
@@ -211,7 +225,7 @@ func writeDebugPane(b *strings.Builder, records []debugRecord, pane debugPaneCon
 
 	view := paneView(records, height, pane.newestFirst)
 	for _, rec := range view {
-		line := formatPaneLine(rec)
+		line := formatLivePaneLine(rec, columns)
 		if color {
 			line = dim(line, true)
 		}

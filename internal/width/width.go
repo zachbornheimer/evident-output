@@ -7,6 +7,12 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	escapeByte        = 0x1b
+	sgrReset          = "\x1b[0m"
+	oscHyperlinkClose = "\x1b]8;;\x1b\\"
+)
+
 // VisibleCells returns cell width after stripping ANSI CSI/OSC sequences so
 // styled and unstyled visible widths match (TXT-013) and OSC 8 links count as
 // zero cells (TXT-014).
@@ -22,49 +28,42 @@ func StripANSI(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	for i := 0; i < len(s); {
-		if s[i] != 0x1b {
+		if s[i] != escapeByte {
 			b.WriteByte(s[i])
 			i++
 			continue
 		}
-		// ESC
-		if i+1 >= len(s) {
-			break
-		}
-		switch s[i+1] {
-		case '[': // CSI: ESC [ ... final byte @-~
-			i += 2
-			for i < len(s) {
-				c := s[i]
-				i++
-				if c >= 0x40 && c <= 0x7e {
-					break
-				}
-			}
-		case ']': // OSC: ESC ] ... BEL or ST (ESC \)
-			i += 2
-			for i < len(s) {
-				if s[i] == 0x07 {
-					i++
-					break
-				}
-				if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' {
-					i += 2
-					break
-				}
-				i++
-			}
-		case '(':
-			// charset designate — skip ESC ( X
-			i += 3
-			if i > len(s) {
-				i = len(s)
-			}
-		default:
-			i += 2 // skip ESC + next
-		}
+		i = escapeSequenceEnd(s, i)
 	}
 	return b.String()
+}
+
+func escapeSequenceEnd(s string, start int) int {
+	if start+1 >= len(s) {
+		return len(s)
+	}
+	switch s[start+1] {
+	case '[': // CSI: ESC [ ... final byte @-~
+		for i := start + 2; i < len(s); i++ {
+			if s[i] >= 0x40 && s[i] <= 0x7e {
+				return i + 1
+			}
+		}
+	case ']': // OSC: ESC ] ... BEL or ST (ESC \)
+		for i := start + 2; i < len(s); i++ {
+			if s[i] == 0x07 {
+				return i + 1
+			}
+			if s[i] == escapeByte && i+1 < len(s) && s[i+1] == '\\' {
+				return i + 2
+			}
+		}
+	case '(':
+		return min(start+3, len(s))
+	default:
+		return min(start+2, len(s))
+	}
+	return len(s)
 }
 
 func stringsContainsByte(s string, c byte) bool {
@@ -83,16 +82,35 @@ func Cells(s string) int {
 		return 0
 	}
 	n := 0
+	var sequence cellCounter
 	for len(s) > 0 {
 		r, size := utf8.DecodeRuneInString(s)
 		s = s[size:]
-		if r == utf8.RuneError && size == 1 {
-			n++
-			continue
-		}
-		n += RuneCells(r)
+		n += sequence.Add(r)
 	}
 	return n
+}
+
+type cellCounter struct {
+	previousWidth     int
+	emojiPresentation bool
+}
+
+func (c *cellCounter) Add(r rune) int {
+	switch r {
+	case 0xfe0f, 0x20e3:
+		if c.previousWidth == 1 && !c.emojiPresentation {
+			c.emojiPresentation = true
+			return 1
+		}
+		return 0
+	}
+	add := RuneCells(r)
+	if add > 0 {
+		c.previousWidth = add
+		c.emojiPresentation = false
+	}
+	return add
 }
 
 // RuneCells returns the display width of a single rune.
@@ -185,9 +203,10 @@ func Truncate(s string, maxCells int) string {
 	}
 	var b []byte
 	n := 0
+	var sequence cellCounter
 	for len(s) > 0 {
 		r, size := utf8.DecodeRuneInString(s)
-		add := RuneCells(r)
+		add := sequence.Add(r)
 		// Keep combining marks with the base even near the edge.
 		if add == 0 && n > 0 {
 			b = append(b, s[:size]...)
@@ -202,4 +221,62 @@ func Truncate(s string, maxCells int) string {
 		s = s[size:]
 	}
 	return string(b) + "…"
+}
+
+// TruncateVisible trims styled terminal text to maxCells while retaining
+// complete control sequences and closing any active presentation state.
+func TruncateVisible(s string, maxCells int) string {
+	if maxCells <= 0 {
+		return ""
+	}
+	if VisibleCells(s) <= maxCells {
+		return s
+	}
+	if maxCells == 1 {
+		return "…"
+	}
+
+	var b strings.Builder
+	b.Grow(len(s))
+	cells := 0
+	hasSGR := false
+	hasHyperlink := false
+	var visibleSequence cellCounter
+	for i := 0; i < len(s); {
+		if s[i] == escapeByte {
+			end := escapeSequenceEnd(s, i)
+			sequence := s[i:end]
+			b.WriteString(sequence)
+			hasSGR = hasSGR || isSGR(sequence)
+			hasHyperlink = hasHyperlink || strings.HasPrefix(sequence, "\x1b]8;")
+			i = end
+			continue
+		}
+
+		r, size := utf8.DecodeRuneInString(s[i:])
+		add := visibleSequence.Add(r)
+		if add == 0 && cells > 0 {
+			b.WriteString(s[i : i+size])
+			i += size
+			continue
+		}
+		if cells+add > maxCells-1 {
+			break
+		}
+		b.WriteString(s[i : i+size])
+		cells += add
+		i += size
+	}
+	b.WriteString("…")
+	if hasHyperlink {
+		b.WriteString(oscHyperlinkClose)
+	}
+	if hasSGR {
+		b.WriteString(sgrReset)
+	}
+	return b.String()
+}
+
+func isSGR(sequence string) bool {
+	return strings.HasPrefix(sequence, "\x1b[") && strings.HasSuffix(sequence, "m")
 }

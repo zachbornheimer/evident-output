@@ -1,6 +1,7 @@
 package width_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/width"
@@ -33,6 +34,14 @@ func TestCellsEmojiConservative(t *testing.T) {
 	}
 }
 
+func TestCellsEmojiPresentationSequences(t *testing.T) {
+	for _, text := range []string{"1️⃣", "©️"} {
+		if got := width.Cells(text); got != 2 {
+			t.Fatalf("Cells(%q)=%d, want 2", text, got)
+		}
+	}
+}
+
 func TestCellsZWJSequence(t *testing.T) {
 	// Family emoji often ZWJ-joined; ZWJ itself is zero-width.
 	// Base + ZWJ + base: 2+0+2 = 4
@@ -56,6 +65,31 @@ func TestTruncate(t *testing.T) {
 	got := width.Truncate("hello world", 6)
 	if got != "hello…" {
 		t.Fatal(got)
+	}
+}
+
+func TestTruncateVisiblePreservesPresentationSequences(t *testing.T) {
+	styled := "\x1b[2mhello world\x1b[0m"
+	got := width.TruncateVisible(styled, 6)
+	if width.VisibleCells(got) != 6 {
+		t.Fatalf("visible cells=%d, text=%q", width.VisibleCells(got), got)
+	}
+	if width.StripANSI(got) != "hello…" {
+		t.Fatalf("visible text=%q", width.StripANSI(got))
+	}
+	if !strings.HasSuffix(got, "\x1b[0m") {
+		t.Fatalf("style must be reset after truncation: %q", got)
+	}
+}
+
+func TestTruncateVisibleClosesHyperlink(t *testing.T) {
+	link := "\x1b]8;;https://example.com\x07hello world\x1b]8;;\x07"
+	got := width.TruncateVisible(link, 6)
+	if width.VisibleCells(got) != 6 {
+		t.Fatalf("visible cells=%d, text=%q", width.VisibleCells(got), got)
+	}
+	if !strings.Contains(got, "\x1b]8;;\x1b\\") {
+		t.Fatalf("hyperlink must be closed after truncation: %q", got)
 	}
 }
 
