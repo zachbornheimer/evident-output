@@ -1,6 +1,6 @@
 # Claude Code integration — Evident Output
 
-**Pin:** `v0.2.11` (never `@latest` for persistent install).
+**Pin:** `v0.2.12` (never `@latest` for persistent install).
 
 ## Paths
 
@@ -15,7 +15,7 @@
 ```bash
 mkdir -p "$HOME/.local/bin"
 GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.11
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.12
 
 "$HOME/.local/bin/evident-output-mcp" config --client claude-code
 ```
