@@ -13,27 +13,34 @@ Everything portable (README, skills, integrations, MCP config-generator fallback
 must recommend that tag. Historical design docs under `docs/roadmap/` and
 `docs/architecture/` may narrate older versions; they are not install surfaces.
 
-## Procedure
+## Procedure (automated)
 
-1. **Implement** (or skip if hygiene-only).
+After implementation is committed on `main` and tests are green:
+
+```bash
+mise run test && mise run cut-release
+# or: mise run release
+# or pin explicitly: VERSION=v0.2.12 mise run cut-release
+```
+
+`scripts/cut-release.sh` will:
+
+1. Auto patch-bump `PublishedRelease` (or use `VERSION=vX.Y.Z`)
+2. Run `sync-release-pins`
+3. Run VersionDrift tests
+4. Commit pin files if needed
+5. Create annotated tag (refuses if tag already exists — **never moves tags**)
+6. Push `HEAD` and the new tag (`CUT_RELEASE_PUSH=0` to skip push)
+
+### Manual procedure (same steps)
+
+1. **Implement** and commit.
 2. **Bump** `PublishedRelease` in `release.go`.
-3. **Sync** portable pins:
+3. **Sync** portable pins: `mise run sync-release-pins`
+4. **Gate**: `go test . -run VersionDrift` and `go test ./...`
+5. **Commit** pin updates; **tag** `vX.Y.Z`; **push** main + tag.
 
-   ```bash
-   go run ./scripts/sync-release-pins
-   ```
-
-4. **Gate**:
-
-   ```bash
-   go test . -run VersionDrift
-   go test ./...
-   ```
-
-5. **Commit** with the release notes in the message.
-6. **Tag** the commit (`git tag -a v0.2.N`). **Never** move a prior signed tag
-   (if a tag shipped with a stale README, fix in the next patch — v0.2.9 → v0.2.10).
-7. **Push** `main` and the new tag.
+Never move a prior tag (v0.2.9 → fix in v0.2.10 style).
 
 ## What the drift gate forbids (class)
 

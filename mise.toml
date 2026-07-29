@@ -61,6 +61,14 @@ run = [
 description = "Rewrite portable install pins to match evo.PublishedRelease"
 run = "go run ./scripts/sync-release-pins"
 
+[tasks.cut-release]
+description = "Bump PublishedRelease (patch or VERSION=vX.Y.Z), sync pins, tag, push"
+run = "bash scripts/cut-release.sh"
+
+[tasks.release]
+description = "Full test gate then cut-release (mise run test && mise run cut-release)"
+run = "mise run test && mise run cut-release"
+
 [tasks.examples]
 description = "Run example CLIs back-to-back with headers"
 run = "bash scripts/run-examples.sh"
