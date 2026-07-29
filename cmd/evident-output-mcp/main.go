@@ -38,6 +38,13 @@ var supportedProtocols = map[string]bool{
 	"2025-06-18": true,
 }
 
+// latestProtocol is the highest revision in supportedProtocols. Per the MCP
+// lifecycle spec, a server that does not recognize the client's requested
+// protocolVersion MUST still respond successfully, offering a version it
+// does support (never an error) — the client then decides whether to
+// proceed. This is the version offered in that case.
+const latestProtocol = "2025-06-18"
+
 const (
 	defaultToolDeadline = 30 * time.Second
 	toolNameMaxLen      = 64
@@ -125,11 +132,14 @@ func runStdioServer(in io.Reader, out io.Writer) {
 			clientProto, _ := params["protocolVersion"].(string)
 			negotiated := "2024-11-05"
 			if clientProto != "" {
-				if !supportedProtocols[clientProto] {
-					writeRPCError(id, -32602, "unsupported protocolVersion "+clientProto+"; supported: 2024-11-05, 2025-03-26, 2025-06-18")
-					continue
+				if supportedProtocols[clientProto] {
+					negotiated = clientProto
+				} else {
+					// Unknown/newer client version: per spec, negotiate down to
+					// our latest supported version rather than erroring — the
+					// client decides whether our version works for it.
+					negotiated = latestProtocol
 				}
-				negotiated = clientProto
 			}
 			initialized = true
 			// serverInfo: only name/version/title per lifecycle schema — no custom fields

@@ -28,12 +28,36 @@ func TestMCP043_UnknownFieldsRejected(t *testing.T) {
 	}
 }
 
-func TestMCP041_UnsupportedProtocolRejected(t *testing.T) {
+func TestMCP041_UnknownProtocolNegotiatesLatest(t *testing.T) {
 	bin := buildMCP(t)
-	in := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1999-01-01"}}` + "\n"
-	stdout := runMCP(t, bin, in)
-	if !strings.Contains(stdout, "unsupported protocolVersion") {
-		t.Fatalf("got %s", stdout)
+	// Neither an ancient nor a future client version is in supportedProtocols;
+	// per the MCP lifecycle spec the server must still succeed, offering its
+	// own latest supported version rather than erroring.
+	for _, clientProto := range []string{"1999-01-01", "2025-11-05"} {
+		in := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"` + clientProto + `"}}` + "\n"
+		stdout := runMCP(t, bin, in)
+		if strings.Contains(stdout, "unsupported protocolVersion") || strings.Contains(stdout, "-32602") {
+			t.Fatalf("expected successful negotiation for %s, got error: %s", clientProto, stdout)
+		}
+		if !strings.Contains(stdout, `"protocolVersion":"`+latestProtocol+`"`) {
+			t.Fatalf("expected negotiated result to carry latest supported version %s for client %s: %s", latestProtocol, clientProto, stdout)
+		}
+	}
+}
+
+func TestMCP041_SupportedVersionsUnchanged(t *testing.T) {
+	want := map[string]bool{
+		"2024-11-05": true,
+		"2025-03-26": true,
+		"2025-06-18": true,
+	}
+	if len(supportedProtocols) != len(want) {
+		t.Fatalf("supportedProtocols size changed: got %v, want %v", supportedProtocols, want)
+	}
+	for version := range want {
+		if !supportedProtocols[version] {
+			t.Fatalf("supportedProtocols missing previously-supported version %s: %v", version, supportedProtocols)
+		}
 	}
 }
 
