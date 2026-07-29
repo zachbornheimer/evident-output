@@ -106,11 +106,43 @@ func (o *Output) writeDurableTextLocked(text string) {
 	}
 }
 
+// emitTaskProgressiveLocked streams a terminal standalone Task in plain/non-TTY
+// mode as soon as it resolves. Interactive mode keeps H.17 (WriteFinal owns
+// standalone tasks). Collection children stay with the collection renderer.
+//
+// Contract (P2): in plain mode, a Task that reaches a terminal state before a
+// later Printf appears above that Printf in the primary stream. residualPlain
+// skips already-emitted tasks so Finish does not reprint them.
+func (o *Output) emitTaskProgressiveLocked(st *taskState) {
+	if st == nil || st.coreEmitted || st.collection != nil {
+		return
+	}
+	if !isTerminalTask(st.state) {
+		return
+	}
+	live := o.liveLocked()
+	interactive := live != nil && live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	if interactive {
+		return
+	}
+	var b strings.Builder
+	writeTask(&b, st.snapshot(), !o.cfg.noColor)
+	st.coreEmitted = true
+	if b.Len() == 0 {
+		return
+	}
+	o.writeDurableTextLocked(b.String())
+}
+
 // residualPlainLocked builds the Finish tail for the human stream: only what has
 // not already been progressive-emitted. FinalPlain still uses the full snapshot.
 //
 // Interactive mode: tasks/collections are owned by WriteFinal (H.17 compact line);
 // residual dual-write must not reprint them onto primary (same stream as Terminal).
+//
+// Plain order contract (P2): progressive Item/Task rows and Printf lines interleave
+// by completion/call time. Residual only appends entities that never streamed
+// (still-pending-until-Finish, collections, effects, conclusion).
 func (o *Output) residualPlainLocked(snap Snapshot) string {
 	cfg := o.cfg
 	color := !cfg.noColor
@@ -143,7 +175,11 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 			if t.collection != nil {
 				continue
 			}
+			if t.coreEmitted {
+				continue
+			}
 			writeTask(&b, t.snapshot(), color)
+			t.coreEmitted = true
 		}
 		for _, col := range o.collections {
 			writeCollection(&b, col.snapshot(), color)

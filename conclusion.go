@@ -38,6 +38,15 @@ func exitCodeFor(state ConclusionState) int {
 	}
 }
 
+// applyFailedExitCode overrides ExitFailed when Config.FailedExitCode is set.
+// code == 0 means keep the library default (ExitFailed = 2).
+func applyFailedExitCode(c *Conclusion, code int) {
+	if c == nil || code == 0 || c.State != StateFailed {
+		return
+	}
+	c.ExitCode = code
+}
+
 func inferConclusion(s Snapshot) Conclusion {
 	c := Conclusion{
 		Subject:     s.Subject,

@@ -13,8 +13,11 @@ package evo
 //
 // Exit codes:
 //   - nil out → ExitFailed (2)
-//   - Finish or Close error → ExitFailed (2)
+//   - Finish or Close error → ExitFailed (2) when conclusion was OK/blocked
 //   - otherwise Conclusion.ExitCode after reconciling run errors into Fail
+//
+// Config.FailedExitCode (when non-zero) overrides ExitFailed for a failed
+// conclusion so CLIs that contract on exit 1 can set FailedExitCode: 1.
 //
 // A non-nil application error is recorded as an output-level Fail before Finish
 // so the human conclusion cannot show [ready] while the process fails.

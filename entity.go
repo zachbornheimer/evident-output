@@ -36,14 +36,18 @@ func applyEntityOptions(opts []EntityOption) entityOpts {
 // Scope is a namespaced declaration handle for plugins and subsystems.
 //
 // Contract (honest limits):
+//
 //   - Qualifies evo.ID keys as "scope.key" for stable machine identity.
+//
 //   - Exposes only Item, Task, and Tasks — operations that actually take the namespace.
+//
 //   - Is NOT a security sandbox: plugins holding *Output bypass Scope entirely.
+//
 //   - Session Capture, Writer, and SlogHandler stay on *Output (shared session).
 //
-//	registry := out.Scope("registry")
-//	registry.Item("credentials", evo.ID("auth")).OK()
-//	// key → "registry.auth"
+//     registry := out.Scope("registry")
+//     registry.Item("credentials", evo.ID("auth")).OK()
+//     // key → "registry.auth"
 type Scope struct {
 	out  *Output
 	name string

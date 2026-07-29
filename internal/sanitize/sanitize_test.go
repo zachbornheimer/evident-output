@@ -28,6 +28,30 @@ func TestTextNewlinesBecomeSpaces(t *testing.T) {
 	}
 }
 
+func TestBlockPreservesNewlines(t *testing.T) {
+	got := sanitize.Block("a\nb\nc")
+	if got != "a\nb\nc" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestBlockNormalizesCRLF(t *testing.T) {
+	got := sanitize.Block("a\r\nb\rc")
+	if got != "a\nb\nc" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestBlockStillStripsESC(t *testing.T) {
+	got := sanitize.Block("hi\x1b[31mx\nline2")
+	if strings.Contains(got, "\x1b") {
+		t.Fatalf("ESC retained: %q", got)
+	}
+	if !strings.Contains(got, "\n") {
+		t.Fatalf("newline lost: %q", got)
+	}
+}
+
 func FuzzText(f *testing.F) {
 	f.Add("hello")
 	f.Add("\x1b[31m")

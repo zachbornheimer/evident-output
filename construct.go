@@ -108,6 +108,11 @@ type Config struct {
 	ForcePlain bool
 	// NonInteractive disables live frames.
 	NonInteractive bool
+
+	// FailedExitCode is the process exit code when the conclusion is failed.
+	// Zero means use ExitFailed (2). Set to 1 for conventional CLI tools that
+	// treat any non-zero failure as exit 1 (e.g. quality gates / git hooks).
+	FailedExitCode int
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
@@ -329,12 +334,20 @@ func configToOptions(c Config) []Option {
 		opts = append(opts, Strict())
 	}
 	opts = append(opts, withVerbosity(c.Verbosity))
+	if c.FailedExitCode != 0 {
+		opts = append(opts, withFailedExitCode(c.FailedExitCode))
+	}
 	return opts
 }
 
 // withVerbosity stores verbosity on the internal config.
 func withVerbosity(v Verbosity) Option {
 	return optionFunc(func(c *config) { c.verbosity = v })
+}
+
+// withFailedExitCode stores a non-default failed conclusion exit code.
+func withFailedExitCode(code int) Option {
+	return optionFunc(func(c *config) { c.failedExitCode = code })
 }
 
 // NewWithOptions is the advanced Option-based constructor for tests and

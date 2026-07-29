@@ -33,6 +33,9 @@ type config struct {
 	maxEvents         int
 	extraWriters      []io.Writer
 	verbosity         Verbosity
+	// failedExitCode overrides ExitFailed when conclusion is StateFailed.
+	// Zero means use ExitFailed (2).
+	failedExitCode int
 }
 
 type optionFunc func(*config)

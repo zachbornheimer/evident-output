@@ -117,23 +117,77 @@ func writeItemBecause(b *strings.Builder, because string, color bool) {
 	fmt.Fprintf(b, "  %s\n", dim(because, color))
 }
 
+// Plain problem indent widths (fixed presentation dialect, not operational knobs).
+const (
+	// problemTreeIndent prefixes ├─ / └─ / │ problem rows.
+	problemTreeIndent = "   "
+	// problemDetailIndent continues multi-line Detail under a └─ / │ opener.
+	problemDetailIndent = "      "
+)
+
 func writeProblem(b *strings.Builder, p Problem, color bool) {
 	if p.Subject != "" {
 		extra := p.Summary
 		if p.Count != 0 {
 			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
 		}
-		fmt.Fprintf(b, "   %s %s  %s\n", dim("├─", color), p.Subject, extra)
+		fmt.Fprintf(b, "%s%s %s  %s\n", problemTreeIndent, dim("├─", color), p.Subject, extra)
 		if p.Detail != "" {
-			fmt.Fprintf(b, "   %s %s\n", dim("│", color), dim(p.Detail, color))
+			writeProblemDetailLines(b, p.Detail, dim("│", color), color)
 		}
 		return
 	}
-	line := p.Summary
+	// Detail present: preserve multi-line body (P3). Summary heads the block only
+	// when the caller left it set — writeTask clears Summary when it already
+	// appears on the ✗ row so Detail alone is the └─ body (P4).
 	if p.Detail != "" {
-		line = p.Summary + "     " + dim(p.Detail, color)
+		writeProblemDetailBlock(b, p.Summary, p.Detail, color)
+		return
 	}
-	fmt.Fprintf(b, "   %s %s\n", dim("└─", color), line)
+	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, dim("└─", color), p.Summary)
+}
+
+// writeProblemDetailBlock renders Detail as an indented multi-line block under └─.
+// When summary is non-empty it opens the block; continuations (and all detail
+// lines when summary is empty) are indented under it.
+func writeProblemDetailBlock(b *strings.Builder, summary, detail string, color bool) {
+	lines := splitPresentationLines(detail)
+	if summary != "" {
+		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, dim("└─", color), summary)
+		for _, line := range lines {
+			fmt.Fprintf(b, "%s%s\n", problemDetailIndent, dim(line, color))
+		}
+		return
+	}
+	if len(lines) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, dim("└─", color), dim(lines[0], color))
+	for _, line := range lines[1:] {
+		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, dim(line, color))
+	}
+}
+
+// writeProblemDetailLines continues Detail under a subject (├─) row with │ prefixes.
+func writeProblemDetailLines(b *strings.Builder, detail, pipe string, color bool) {
+	for _, line := range splitPresentationLines(detail) {
+		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, pipe, dim(line, color))
+	}
+}
+
+// splitPresentationLines splits on \n and drops a single trailing empty segment
+// so a trailing newline does not produce a blank residual row.
+func splitPresentationLines(s string) []string {
+	if s == "" {
+		return nil
+	}
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	lines := strings.Split(s, "\n")
+	if n := len(lines); n > 0 && lines[n-1] == "" {
+		lines = lines[:n-1]
+	}
+	return lines
 }
 
 func writeAction(b *strings.Builder, a Action, color bool) {
@@ -167,6 +221,11 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color bool) {
 		problems = problems[:maxVisibleProblems]
 	}
 	for _, p := range problems {
+		// P4: task glyph row already shows t.Summary; do not re-echo it as the
+		// └─ header when Detail carries the real evidence (capture tail / diff).
+		if p.Detail != "" && p.Summary != "" && p.Summary == t.Summary {
+			p.Summary = ""
+		}
 		writeProblem(b, p, color)
 	}
 	if omitted > 0 {

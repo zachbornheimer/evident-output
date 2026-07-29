@@ -248,6 +248,10 @@ func (t *Task) finish(state EntityState, summary string, problems []Problem) *Ta
 	// draw a live "done" frame for a standalone task right before Finish (H.17).
 	if st.collection != nil {
 		t.out.signalLiveLocked(true)
+	} else {
+		// Plain/non-TTY: stream the durable task row now so later Printf cannot
+		// race above completed work (P2 / residual order contract).
+		t.out.emitTaskProgressiveLocked(st)
 	}
 	return t
 }

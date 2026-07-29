@@ -47,6 +47,12 @@ type capturedLine struct {
 //	}
 //	upgrade.Done()
 //
+// Combined streams by default (P1): Write (merged), Stdout(), and Stderr() all
+// feed the same bounded ring used by Text/Tail/DetailTail. Linters and most
+// subprocess tools write diagnostics on stderr — route both streams into the
+// Capture (or write the combined pipe into Capture itself) so failure evidence
+// cannot escape the owning Task.
+//
 // Semantics:
 //   - Always retains a bounded ring of sanitized lines (evidence exists even when
 //     debug presentation is disabled).
@@ -54,6 +60,7 @@ type capturedLine struct {
 //   - Opt in with MirrorToDiagnostics / MirrorToDebug.
 //   - Stdout/Stderr have independent pending buffers (no partial-line merge).
 //   - DetailTail is user-visible failure evidence; Cause is structured diagnostic.
+//   - DetailTail prefers stderr when separate streams were used, else combined.
 type Capture struct {
 	out      *Output
 	taskID   string

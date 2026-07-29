@@ -111,9 +111,13 @@ func applyProblemOptions(summary string, opts []ProblemOption) Problem {
 // sanitizeProblem neutralizes CSI/control sequences in all human-visible fields.
 // Item, Task, and any future entity store problems only through this helper so
 // presentation paths cannot diverge on terminal safety (SEC-001).
+//
+// Detail uses sanitize.Block so multi-line evidence (diffs, capture tails) keeps
+// newlines for the flat renderer (P3); other single-line fields still collapse
+// newlines to spaces via sanitize.Text.
 func sanitizeProblem(p Problem) Problem {
 	p.Summary = sanitize.Text(p.Summary)
-	p.Detail = sanitize.Text(p.Detail)
+	p.Detail = sanitize.Block(p.Detail)
 	p.Subject = sanitize.Text(p.Subject)
 	p.Code = sanitize.Text(p.Code)
 	p.Unit = sanitize.Text(p.Unit)

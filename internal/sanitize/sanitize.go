@@ -6,10 +6,21 @@ import (
 	"unicode/utf8"
 )
 
-// Text neutralizes control characters and invalid UTF-8 for display fields.
-// Newlines in ordinary fields become spaces. ESC/CSI/OSC and C0 controls
-// other than TAB are stripped or replaced.
+// Text neutralizes control characters and invalid UTF-8 for single-line fields.
+// Newlines become spaces. ESC/CSI/OSC and C0 controls other than TAB are
+// stripped or replaced. Prefer Block for multi-line evidence (diffs, capture tails).
 func Text(s string) string {
+	return neutralize(s, false)
+}
+
+// Block neutralizes control characters while preserving newlines for multi-line
+// presentation fields (Problem.Detail, capture tails). CRLF/CR normalize to LF.
+// ESC/CSI and other C0 controls (except TAB and LF) are still stripped.
+func Block(s string) string {
+	return neutralize(s, true)
+}
+
+func neutralize(s string, preserveNewlines bool) string {
 	if s == "" {
 		return s
 	}
@@ -18,10 +29,26 @@ func Text(s string) string {
 	}
 	var b strings.Builder
 	b.Grow(len(s))
-	for _, r := range s {
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		i += size
 		switch {
-		case r == '\n' || r == '\r':
-			b.WriteByte(' ')
+		case r == '\r':
+			// Normalize CRLF / bare CR.
+			if preserveNewlines {
+				if i < len(s) && s[i] == '\n' {
+					continue // skip CR; LF handled next
+				}
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte(' ')
+			}
+		case r == '\n':
+			if preserveNewlines {
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte(' ')
+			}
 		case r == '\t':
 			b.WriteByte('\t')
 		case r == 0x1b: // ESC

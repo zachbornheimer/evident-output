@@ -92,6 +92,10 @@ type taskState struct {
 	collection  *tasksState
 	declaration int
 	handle      *Task
+
+	// Emission bookkeeping so terminal standalone tasks stream in plain mode
+	// on resolve (P2) — same spirit as itemState.coreEmitted.
+	coreEmitted bool
 }
 
 type tasksState struct {
@@ -857,6 +861,7 @@ func (o *Output) Finish() error {
 
 	snap := o.snapshotLocked()
 	conc := inferConclusion(snap)
+	applyFailedExitCode(&conc, o.cfg.failedExitCode)
 	if o.conclusion != nil && o.conclusion.Explanation != "" {
 		conc.Explanation = o.conclusion.Explanation
 	}
@@ -954,7 +959,9 @@ func (o *Output) Conclusion() Conclusion {
 		return *o.conclusion
 	}
 	snap := o.snapshotLocked()
-	return inferConclusion(snap)
+	c := inferConclusion(snap)
+	applyFailedExitCode(&c, o.cfg.failedExitCode)
+	return c
 }
 
 // Events returns a copy of durable events (v0.1 journal).
