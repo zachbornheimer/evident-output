@@ -22,6 +22,29 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 	}
 }
 
+// TestDOM030b_CollectionWarningDetailIsRendered guards against a regression
+// where writeCollection only special-cased Failed children: a group glyph
+// like "!" rendered with no explanation of which child warned or why,
+// because the Warn() message was recorded but never printed under the
+// group summary line.
+func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	g := out.Tasks("capture")
+	g.Task("Brewfile").Done()
+	g.Task("Zen").Warn("skipped — zen-bootstrap not available")
+	_ = out.Finish()
+	_ = out.Close()
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "Zen") {
+		t.Fatalf("rendered output missing warned child name %q: %s", "Zen", rendered)
+	}
+	if !strings.Contains(rendered, "skipped — zen-bootstrap not available") {
+		t.Fatalf("rendered output missing warned child's reason: %s", rendered)
+	}
+}
+
 func TestDOM031_CollectionAllDone(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
@@ -99,7 +122,7 @@ func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			w := out.DebugWriter()
-			w.Write([]byte("line\n"))
+			_, _ = w.Write([]byte("line\n"))
 			_ = w.Close()
 		}(i)
 	}

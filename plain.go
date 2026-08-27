@@ -245,16 +245,30 @@ func writeCollection(b *strings.Builder, col TasksSnapshot, color bool) {
 	}
 	fmt.Fprintf(b, "%s  %s\n", glyph, col.Name)
 	for _, t := range col.Tasks {
-		if t.State == Failed {
-			fg := styleGlyph("✗", sgrRed, color)
-			fmt.Fprintf(b, "   %s  %s", fg, t.Name)
-			if len(t.Problems) > 0 {
-				fmt.Fprintf(b, "  %s", t.Problems[0].Summary)
-			} else if t.Summary != "" {
-				fmt.Fprintf(b, "  %s", t.Summary)
-			}
-			b.WriteByte('\n')
+		if !needsCollectionDetailLine(t.State) {
+			continue
 		}
+		tg := styleGlyph(taskGlyph(t.State), stateColor(t.State), color)
+		fmt.Fprintf(b, "   %s  %s", tg, t.Name)
+		if len(t.Problems) > 0 {
+			fmt.Fprintf(b, "  %s", t.Problems[0].Summary)
+		} else if t.Summary != "" {
+			fmt.Fprintf(b, "  %s", t.Summary)
+		}
+		b.WriteByte('\n')
+	}
+}
+
+// needsCollectionDetailLine reports whether a child task's outcome is
+// notable enough to explain under its parent Tasks group summary line.
+// Every non-Done terminal state qualifies — a group glyph like "!" or "✗"
+// is meaningless without the child detail line that says why.
+func needsCollectionDetailLine(s EntityState) bool {
+	switch s {
+	case Failed, Warning, Blocked, Cancelled, Skipped:
+		return true
+	default:
+		return false
 	}
 }
 
