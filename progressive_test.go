@@ -26,9 +26,6 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	if !strings.Contains(buf.String(), "working tree") {
 		t.Fatalf("expected working tree line before Finish; buf=%q", buf.String())
 	}
-	if strings.Contains(buf.String(), "branches") && strings.Contains(buf.String(), "✗") {
-		// branches not yet resolved — may appear only if we printed running (we don't on plain)
-	}
 	beforeBranches := buf.String()
 
 	b.BlockedBy(evo.Problem{Subject: "feat/x", Summary: "local-only", Count: 1}).

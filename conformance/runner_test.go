@@ -70,7 +70,7 @@ type EntityExpect struct {
 }
 
 func TestConformanceScenarios(t *testing.T) {
-	dir := filepath.Join("scenarios")
+	dir := "scenarios"
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("read scenarios: %v", err)
@@ -178,11 +178,6 @@ func runScenarioFile(t *testing.T, path string) {
 		default:
 			t.Fatalf("unknown op %q", m.Op)
 		}
-	}
-
-	// Auto-finish if not requested and expect needs conclusion
-	if finishErr == nil && sc.Expect.FinishError == "" {
-		// leave unfished for entity snapshot checks
 	}
 
 	if sc.Expect.OutputError != "" {

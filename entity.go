@@ -7,8 +7,7 @@ type EntityOption interface {
 }
 
 type entityOpts struct {
-	key   string
-	scope string
+	key string
 }
 
 type entityOptionFunc func(*entityOpts)

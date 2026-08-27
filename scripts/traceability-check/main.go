@@ -10,16 +10,22 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	path := "conformance/TRACEABILITY.md"
 	if len(os.Args) > 1 {
 		path = os.Args[1]
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "open %s: %v\n", path, err)
-		os.Exit(1)
+		return fmt.Errorf("open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Prefixes may include digits (A11Y-001).
 	re := regexp.MustCompile(`^\| ([A-Z0-9]+-[0-9]{3}) \|`)
@@ -32,8 +38,7 @@ func main() {
 		}
 	}
 	if err := sc.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "scan: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("scan: %w", err)
 	}
 
 	var missing []string
@@ -54,8 +59,8 @@ func main() {
 		}
 	}
 	if len(missing) > 0 {
-		fmt.Fprintf(os.Stderr, "missing %d requirement IDs:\n%s\n", len(missing), strings.Join(missing, "\n"))
-		os.Exit(1)
+		return fmt.Errorf("missing %d requirement IDs:\n%s", len(missing), strings.Join(missing, "\n"))
 	}
 	fmt.Printf("traceability ok: %d IDs present\n", len(found))
+	return nil
 }

@@ -144,9 +144,6 @@ func newOutput(subject string, options ...Option) *Output {
 	if cfg.maxEvents <= 0 {
 		cfg.maxEvents = defaultMaxEvents
 	}
-	if cfg.plain || cfg.nonInteractive {
-		// interactive terminal ignored for plain path in v0.1
-	}
 	o := &Output{
 		cfg:        cfg,
 		outputID:   "out_1",
@@ -455,14 +452,6 @@ func (o *Output) Debug(message string, fields ...Field) {
 	o.emitDebugLocked(message, fields, false)
 }
 
-// debugForced journals a debug record even when DebugLevel would filter it.
-// Used by SlogHandler so accepted slog levels are not dropped by Output filters.
-func (o *Output) debugForced(message string, fields ...Field) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitDebugLocked(message, fields, true)
-}
-
 func (o *Output) emitDebugLocked(message string, fields []Field, force bool) {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
@@ -555,20 +544,10 @@ func (o *Output) writeDiagnosticTextLocked(text string) {
 	if o.cfg.diagnostic == nil || text == "" {
 		return
 	}
-	io.WriteString(o.cfg.diagnostic, text)
+	_, _ = io.WriteString(o.cfg.diagnostic, text)
 	if f, ok := o.cfg.diagnostic.(flusher); ok {
 		_ = f.Flush()
 	}
-}
-
-// formatDebug is retained for call sites that only need a message/fields pair without a clock.
-func formatDebug(message string, fields []Field) string {
-	return formatHistoryLine(debugRecord{
-		Time:    time.Time{},
-		Level:   "DEBUG",
-		Message: sanitize.Text(message),
-		Fields:  fields,
-	}, false)
 }
 
 func cloneFields(in []Field) []Field {
@@ -904,12 +883,8 @@ func (o *Output) Finish() error {
 			writers = append(writers, writer)
 		}
 		writers = append(writers, cfg.extraWriters...)
-		payload := residual
-		if payload == "" {
-			payload = string(fullPlain)
-		}
 		for _, w := range writers {
-			if _, err := io.WriteString(w, payload); err != nil && writeErr == nil {
+			if _, err := io.WriteString(w, residual); err != nil && writeErr == nil {
 				writeErr = fmt.Errorf("%w: %v", ErrRenderer, err)
 			}
 			if f, ok := w.(flusher); ok {

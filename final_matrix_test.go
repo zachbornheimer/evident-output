@@ -221,11 +221,8 @@ func TestSEC013_NewlineCannotForgeLogRecords(t *testing.T) {
 }
 
 func TestSEC014_ResourceURINoTraversal(t *testing.T) {
-	// Catalog Get rejects unknown; traversal ids don't resolve
-	// covered in MCP resource handler — unit: sanitize path segments
-	if strings.Contains("evident-output://guides/../secret", "..") {
-		// server must not resolve — tested via MCP unknown resource
-	}
+	// Catalog Get rejects unknown; traversal ids don't resolve.
+	t.Skip("covered in MCP resource handler — unit: sanitize path segments")
 }
 
 func TestTERM020_CompletedCollapseUnderPressure(t *testing.T) {

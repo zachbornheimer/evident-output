@@ -190,9 +190,6 @@ func TestAPI010_DonefFormatting(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("t").Donef("n=%d", 3)
-	if out.Task("t").Snapshot().Summary != "" {
-		// second Task creates new — check first via snapshot
-	}
 	s := out.Snapshot()
 	found := false
 	for _, tsk := range s.Tasks {
@@ -201,7 +198,7 @@ func TestAPI010_DonefFormatting(t *testing.T) {
 		}
 	}
 	if !found {
-		// may already be finished collection — finish first
+		t.Fatalf("expected a task with Summary %q, got %+v", "n=3", s.Tasks)
 	}
 	// before finish
 	if len(s.Tasks) == 0 {

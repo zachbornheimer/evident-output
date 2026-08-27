@@ -154,7 +154,7 @@ func Checksum() string {
 			if g.ID != id {
 				continue
 			}
-			fmt.Fprintf(h, "%s\n%s\n%s\n", g.ID, g.Title, g.Body)
+			_, _ = fmt.Fprintf(h, "%s\n%s\n%s\n", g.ID, g.Title, g.Body)
 			break
 		}
 	}
@@ -196,7 +196,6 @@ func ApplyTokenBudget(guides []Guide, maxTokens int) (out []Guide, truncated boo
 				body = "…"
 			}
 			body += fmt.Sprintf("\n[truncated, token_budget=%d]", maxTokens)
-			truncated = true
 		}
 		g.Body = body
 		g.TokenEstimate = budget

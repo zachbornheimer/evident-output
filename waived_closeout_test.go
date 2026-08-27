@@ -141,7 +141,7 @@ func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 	iTree := strings.Index(s, "working tree")
 	iDetail := strings.Index(s, "commit or stash")
 	iRemote := strings.Index(s, "remote")
-	if iTree < 0 || iDetail < 0 || iRemote < 0 || !(iTree < iDetail && iDetail < iRemote) {
+	if iTree < 0 || iDetail < 0 || iRemote < 0 || (iTree >= iDetail || iDetail >= iRemote) {
 		t.Fatalf("detail not associated with parent:\n%s", s)
 	}
 }

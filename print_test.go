@@ -105,7 +105,7 @@ func TestPrint_WriterAdapter(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
 	w := out.Writer()
-	w.Write([]byte("from-writer\n"))
+	_, _ = w.Write([]byte("from-writer\n"))
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "from-writer") {
 		t.Fatal(buf.String())

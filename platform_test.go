@@ -27,7 +27,7 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 	})
 	task := out.Task("fetch")
 	cap := task.Capture()
-	fmt.Fprintln(cap, "Authorization: Bearer SECRET_TOKEN")
+	_, _ = fmt.Fprintln(cap, "Authorization: Bearer SECRET_TOKEN")
 	_ = cap.Close()
 
 	if strings.Contains(cap.Text(), "SECRET_TOKEN") {

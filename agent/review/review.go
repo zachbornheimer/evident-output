@@ -319,9 +319,6 @@ func (stubImporter) Import(path string) (*types.Package, error) {
 // Transcript reviews a terminal transcript for corruption signals (MCP-018).
 func Transcript(filename, text string) Result {
 	var findings []Finding
-	if strings.Contains(text, "\x1b[") && strings.Contains(text, "\r") {
-		// mixed cursor and content without clear final — soft signal
-	}
 	// Split live/final corruption: ESC without matching reset often ok in our driver
 	if strings.Count(text, "\x1b[?25l") > strings.Count(text, "\x1b[?25h") {
 		findings = append(findings, Finding{

@@ -16,7 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/agent/catalog"
 	"github.com/zachbornheimer/evident-output/agent/preview"
 	"github.com/zachbornheimer/evident-output/agent/review"
@@ -724,9 +724,17 @@ func writeFramed(v any) {
 	// Messages MUST NOT contain embedded newlines (stdio transport).
 	switch outMode {
 	case frameContentLength:
-		fmt.Fprintf(outW, "Content-Length: %d\r\n\r\n%s", len(data), data)
+		if _, err := fmt.Fprintf(outW, "Content-Length: %d\r\n\r\n%s", len(data), data); err != nil {
+			fmt.Fprintf(os.Stderr, "write: %v\n", err)
+			return
+		}
 	default:
-		outW.Write(data)
-		outW.Write([]byte{'\n'})
+		if _, err := outW.Write(data); err != nil {
+			fmt.Fprintf(os.Stderr, "write: %v\n", err)
+			return
+		}
+		if _, err := outW.Write([]byte{'\n'}); err != nil {
+			fmt.Fprintf(os.Stderr, "write: %v\n", err)
+		}
 	}
 }

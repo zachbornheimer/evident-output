@@ -97,8 +97,8 @@ func TestConfig_PipeWriterIsNoColor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
-	defer w.Close()
+	defer func() { _ = r.Close() }()
+	defer func() { _ = w.Close() }()
 
 	if evo.IsCharDevice(w) {
 		t.Fatal("pipe write end must not be a char device")
@@ -110,7 +110,7 @@ func TestConfig_PipeWriterIsNoColor(t *testing.T) {
 	}
 	_ = w.Close()
 	var got bytes.Buffer
-	got.ReadFrom(r)
+	_, _ = got.ReadFrom(r)
 	s := got.String()
 	if strings.Contains(s, "\x1b[") {
 		t.Fatalf("piped output must not contain CSI:\n%q", s)

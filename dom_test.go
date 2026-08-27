@@ -61,7 +61,7 @@ func TestDOM043_FinishTwice(t *testing.T) {
 
 func TestAPI001_MinimalItemExample(t *testing.T) {
 	out := evo.NewWithOptions(evo.Title("repo"))
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	out.Item("working tree").OK()
 	out.Item("branches").Block("local-only")
 	if err := out.Finish(); err != nil {

@@ -17,7 +17,7 @@ func TestCaptureSuccessIsSilentByDefault(t *testing.T) {
 	out := evo.New(evo.Config{Title: "brew", Stdout: &primary, Stderr: &diag})
 	task := out.Task("brew")
 	output := task.Capture()
-	fmt.Fprintln(output, "Downloading bottle...")
+	_, _ = fmt.Fprintln(output, "Downloading bottle...")
 	task.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -41,8 +41,8 @@ func TestTaskCapture_DetailTail_OnFail(t *testing.T) {
 	out := evo.New(evo.Config{Title: "brew", Stdout: &primary, Stderr: &diag})
 	upgrade := out.Task("brew packages")
 	output := upgrade.Capture()
-	fmt.Fprintln(output, "Error: bottle not found")
-	fmt.Fprintln(output, "Error: formula foo conflict")
+	_, _ = fmt.Fprintln(output, "Error: bottle not found")
+	_, _ = fmt.Fprintln(output, "Error: formula foo conflict")
 	_ = output.Close()
 
 	upgrade.Fail("brew upgrade failed", output.DetailTail())
@@ -65,7 +65,7 @@ func TestCapture_MirrorToDiagnostics_OptIn(t *testing.T) {
 	out := evo.New(evo.Config{Title: "t", Stdout: &primary, Stderr: &diag})
 	task := out.Task("x")
 	output := task.Capture(evo.MirrorToDiagnostics())
-	fmt.Fprintln(output, "chatter")
+	_, _ = fmt.Fprintln(output, "chatter")
 	_ = output.Close()
 	task.Done()
 	_ = out.Finish()
@@ -79,9 +79,9 @@ func TestCaptureSeparateStreamsDoNotMergePartialLines(t *testing.T) {
 	out := evo.New(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("cmd")
 	output := task.Capture()
-	io.WriteString(output.Stdout(), "download")
-	io.WriteString(output.Stderr(), " failed\n")
-	io.WriteString(output.Stdout(), " complete\n")
+	_, _ = io.WriteString(output.Stdout(), "download")
+	_, _ = io.WriteString(output.Stderr(), " failed\n")
+	_, _ = io.WriteString(output.Stdout(), " complete\n")
 	_ = output.Close()
 
 	// Must not synthesize "download failed" as one line.
@@ -104,7 +104,7 @@ func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 	task := out.Task("x")
 	output := task.Capture(evo.KeepLastLines(3))
 	for i := 0; i < 10; i++ {
-		fmt.Fprintf(output, "line-%d\n", i)
+		_, _ = fmt.Fprintf(output, "line-%d\n", i)
 	}
 	_ = output.Close()
 	text := output.Text()
@@ -153,8 +153,8 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
-	defer w.Close()
+	defer func() { _ = r.Close() }()
+	defer func() { _ = w.Close() }()
 
 	var diag bytes.Buffer
 	out := evo.NewWithOptions(
@@ -172,7 +172,7 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 	}
 	_ = w.Close()
 	var primary bytes.Buffer
-	primary.ReadFrom(r)
+	_, _ = primary.ReadFrom(r)
 	if !strings.Contains(diag.String(), "diag-line") {
 		t.Fatalf("Diagnostics not wired: %q", diag.String())
 	}

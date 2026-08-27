@@ -138,14 +138,6 @@ func (p *Printer) enqueue(s string) {
 
 	// Single ordered pending stream so Normal/Verbose interleaving preserves call order.
 	// Visibility is attached when each complete line is emitted.
-	type frag struct {
-		vis  Visibility
-		text string
-	}
-	// Flush any pending from the other visibility before switching (ordering).
-	if p.out.pendingVis != p.visibility && (p.out.pendingPrint.Len() > 0) {
-		// pendingPrint holds the current fragment for pendingVis.
-	}
 	if p.out.pendingVis != p.visibility && p.out.pendingPrint.Len() > 0 {
 		// Keep one buffer; visibility switch flushes incomplete fragment as a line.
 		line := p.out.pendingPrint.String()

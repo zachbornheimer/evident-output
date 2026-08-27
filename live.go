@@ -184,11 +184,12 @@ func (o *Output) ensureSpinnerAnimatorLocked() {
 		return
 	}
 	// Waiting for delay: keep a ticker so we can paint when the threshold elapses.
-	if o.live.waitingDelay {
+	switch {
+	case o.live.waitingDelay:
 		// fall through to start animator
-	} else if !o.live.visible {
+	case !o.live.visible:
 		return
-	} else if !o.needsSpinnerAnimLocked() {
+	case !o.needsSpinnerAnimLocked():
 		o.stopSpinnerAnimatorLocked()
 		return
 	}

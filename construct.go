@@ -259,9 +259,10 @@ func configToOptions(c Config) []Option {
 	} else {
 		wantLive = wantLive && IsCharDevice(c.Stdout)
 	}
-	if c.Terminal != nil {
+	switch {
+	case c.Terminal != nil:
 		opts = append(opts, Terminal(c.Terminal))
-	} else if wantLive {
+	case wantLive:
 		width, height := c.Width, 24
 		if width <= 0 {
 			width = defaultWidth
@@ -293,7 +294,7 @@ func configToOptions(c Config) []Option {
 		} else {
 			opts = append(opts, Plain())
 		}
-	} else {
+	default:
 		opts = append(opts, Plain())
 	}
 	if c.NonInteractive {

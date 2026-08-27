@@ -39,11 +39,8 @@ func TestAPI028_AbsoluteProgress(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("t").Progress(3, 10).Bytes(100, 200)
 	// last wins as absolute
-	if out.Snapshot().Tasks[0].Progress.Total != 200 && out.Snapshot().Tasks[0].Progress.Kind != evo.BytesKind {
-		// Progress then Bytes — check bytes kind
-	}
 	s := out.Snapshot().Tasks[0]
-	if s.Progress.Kind != evo.BytesKind {
+	if s.Progress.Kind != evo.BytesKind || s.Progress.Total != 200 {
 		t.Fatal(s.Progress)
 	}
 }
@@ -112,7 +109,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	out.Item("a").OK()
 	out.Debug("d")
 	_ = out.Finish()
-	evo.EncodeJSON(out.Snapshot())
+	_, _ = evo.EncodeJSON(out.Snapshot())
 }
 
 func TestCON016_ChildOrderPreserved(t *testing.T) {
@@ -156,9 +153,6 @@ func TestCON010_CancelVsDoneRace(t *testing.T) {
 	st := task.Snapshot().State
 	if st != evo.Done && st != evo.Cancelled {
 		t.Fatal(st)
-	}
-	if out.Err() == nil && st == evo.Done {
-		// second should record already resolved
 	}
 }
 

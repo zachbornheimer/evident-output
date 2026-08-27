@@ -242,13 +242,8 @@ func paneView(records []debugRecord, height int, newestFirst bool) []debugRecord
 	n := len(records)
 	start := 0
 	if n > height {
-		if newestFirst {
-			start = n - height
-		} else {
-			// oldest-first viewport: show the oldest height records still in the buffer
-			// (full journal is chronological; when truncated, take first height of tail window)
-			start = n - height
-		}
+		// Both orderings show the tail window; newestFirst only changes display order (below).
+		start = n - height
 	}
 	slice := records[start:]
 	if !newestFirst {

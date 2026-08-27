@@ -107,16 +107,16 @@ func (f *frameLog) Rows() int           { return 24 }
 func (f *frameLog) IsInteractive() bool { return true }
 func (f *frameLog) ClearLive()          {}
 func (f *frameLog) WriteDurable(line string) {
-	fmt.Fprintf(f.w, "  · durable: %s\n", line)
+	_, _ = fmt.Fprintf(f.w, "  · durable: %s\n", line)
 }
 func (f *frameLog) WriteFinal(text string) {
-	fmt.Fprintf(f.w, "\n── final ──\n%s\n", text)
+	_, _ = fmt.Fprintf(f.w, "\n── final ──\n%s\n", text)
 }
 func (f *frameLog) WriteLive(text string) {
 	f.n++
-	fmt.Fprintf(f.w, "\n── frame %d ──\n%s\n", f.n, text)
+	_, _ = fmt.Fprintf(f.w, "\n── frame %d ──\n%s\n", f.n, text)
 	if f.step {
-		fmt.Fprint(f.w, "\n[Enter] next frame, or q+Enter to skip stepping… ")
+		_, _ = fmt.Fprint(f.w, "\n[Enter] next frame, or q+Enter to skip stepping… ")
 		line, _ := f.in.ReadString('\n')
 		if len(line) > 0 && (line[0] == 'q' || line[0] == 'Q') {
 			f.step = false

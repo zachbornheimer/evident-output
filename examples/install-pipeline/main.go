@@ -48,8 +48,8 @@ func main() {
 		if *failTests {
 			// Command-runner shape: Capture gets streams; Fail separates Cause (structured)
 			// from DetailTail (user-visible evidence). No Close required for partial lines.
-			fmt.Fprintln(output.Stdout(), "=== RUN   TestFoo")
-			fmt.Fprint(output.Stderr(), "--- FAIL: TestFoo (0.01s)\n    foo_test.go:12: want 1, got 0")
+			_, _ = fmt.Fprintln(output.Stdout(), "=== RUN   TestFoo")
+			_, _ = fmt.Fprint(output.Stderr(), "--- FAIL: TestFoo (0.01s)\n    foo_test.go:12: want 1, got 0")
 			runErr := errors.New("exit status 1")
 			tests.Fail("tests failed", evo.Cause(runErr), output.DetailTail())
 			return nil

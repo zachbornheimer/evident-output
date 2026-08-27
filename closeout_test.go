@@ -295,7 +295,6 @@ func TestTERM024_BrokenPipeNoPanic(t *testing.T) {
 func TestLOG011_RecursiveValuesBounded(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard), evo.DebugLevel(evo.Debug))
 	t.Cleanup(func() { _ = out.Close() })
-	type node struct{ N *node }
 	// don't create real cycle in Field — use deep map
 	m := map[string]any{"a": 1}
 	out.Debug("m", evo.Field{Key: "m", Value: m})

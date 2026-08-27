@@ -126,7 +126,7 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	reactAt := strings.Index(got, "react")
 	esbuildAt := strings.Index(got, "esbuild")
 	sharpAt := strings.Index(got, "sharp")
-	if !(reactAt < esbuildAt && esbuildAt < sharpAt) {
+	if reactAt >= esbuildAt || esbuildAt >= sharpAt {
 		t.Fatalf("declaration order broken: react=%d esbuild=%d sharp=%d", reactAt, esbuildAt, sharpAt)
 	}
 }
