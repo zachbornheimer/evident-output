@@ -22,20 +22,20 @@ EXAMPLES=(
 
 example_args() {
   case "$1" in
-    print) echo "" ;;
-    verbose) echo "" ;; # second pass with --verbose below
-    repo-status) echo "--fast --color=auto" ;;
-    doctor|debug-history|debug-pane|install-pipeline|migrate|data-command|live-progress)
-      echo "--fast"
-      ;;
-    terminal-driver)
-      if [[ ! -t 2 ]]; then
-        echo "--fast --frames"
-      else
-        echo "--fast --frames"
-      fi
-      ;;
-    *) echo "" ;;
+  print) echo "" ;;
+  verbose) echo "" ;; # second pass with --verbose below
+  repo-status) echo "--fast --color=auto" ;;
+  doctor | debug-history | debug-pane | install-pipeline | migrate | data-command | live-progress)
+    echo "--fast"
+    ;;
+  terminal-driver)
+    if [[ ! -t 2 ]]; then
+      echo "--fast --frames"
+    else
+      echo "--fast --frames"
+    fi
+    ;;
+  *) echo "" ;;
   esac
 }
 

@@ -44,13 +44,13 @@ Never move a prior tag (v0.2.9 → fix in v0.2.10 style).
 
 ## What the drift gate forbids (class)
 
-| Defect | Detection |
-|--------|-----------|
-| Skill/integration/README install pin ≠ `PublishedRelease` | `version_drift_test.go` |
-| `go get/install/run …@latest` on this module | same |
-| Personal clone paths (`Developer/Personal/…`, `/Users/…`) on portable surfaces | same |
-| MCP config_client hardcoding a tag string | must use `evo.PublishedRelease` |
-| New skill/integration md forgotten from a hand list | auto-walk of `skills/` + `integrations/` |
+| Defect                                                                         | Detection                                |
+| ------------------------------------------------------------------------------ | ---------------------------------------- |
+| Skill/integration/README install pin ≠ `PublishedRelease`                      | `version_drift_test.go`                  |
+| `go get/install/run …@latest` on this module                                   | same                                     |
+| Personal clone paths (`Developer/Personal/…`, `/Users/…`) on portable surfaces | same                                     |
+| MCP config_client hardcoding a tag string                                      | must use `evo.PublishedRelease`          |
+| New skill/integration md forgotten from a hand list                            | auto-walk of `skills/` + `integrations/` |
 
 ## What it does not do
 

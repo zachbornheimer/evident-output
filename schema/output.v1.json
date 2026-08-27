@@ -3,7 +3,17 @@
   "$id": "https://evident-output.dev/schema/v1/output.json",
   "title": "Evident Output final JSON v1",
   "type": "object",
-  "required": ["schema_version", "output", "conclusion", "items", "task_collections", "tasks", "changes", "plans", "actions"],
+  "required": [
+    "schema_version",
+    "output",
+    "conclusion",
+    "items",
+    "task_collections",
+    "tasks",
+    "changes",
+    "plans",
+    "actions"
+  ],
   "properties": {
     "schema_version": { "const": "0.2" },
     "output": {

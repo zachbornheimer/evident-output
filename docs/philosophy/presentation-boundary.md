@@ -75,13 +75,13 @@ Domain emits facts. Adapter maps facts onto Items/Tasks. Machine contracts stay 
 
 ## Stream ownership (ARCH-002)
 
-| Stream | Owns |
-|---|---|
-| Human final output | Configured **presentation** stream |
-| Live progress and diagnostics | Configured **diagnostic** stream |
-| Raw application data | `ResultWriter` or application-owned writer |
-| MCP stdout | Protocol only |
-| Debug / launcher diagnostics | stderr |
+| Stream                        | Owns                                       |
+| ----------------------------- | ------------------------------------------ |
+| Human final output            | Configured **presentation** stream         |
+| Live progress and diagnostics | Configured **diagnostic** stream           |
+| Raw application data          | `ResultWriter` or application-owned writer |
+| MCP stdout                    | Protocol only                              |
+| Debug / launcher diagnostics  | stderr                                     |
 
 Human presentation must never contaminate raw result output.
 
@@ -138,12 +138,12 @@ Do **not** call `os.Exit` inside library-owned packages. Optional: map `out.Conc
 
 ## Human vs machine contracts
 
-| Concern | Surface |
-|---|---|
-| Human prose | `Print` / `Verbose` / rendered Items, Tasks, Plan, Changes, conclusion |
-| Diagnostics | `slog` via `SlogHandler` (implementation detail, not human UI) |
-| Machine identity | Stable IDs — not display labels (ARCH-003) |
-| Machine payload | `ResultWriter` or app-owned schema; not the human render |
+| Concern          | Surface                                                                |
+| ---------------- | ---------------------------------------------------------------------- |
+| Human prose      | `Print` / `Verbose` / rendered Items, Tasks, Plan, Changes, conclusion |
+| Diagnostics      | `slog` via `SlogHandler` (implementation detail, not human UI)         |
+| Machine identity | Stable IDs — not display labels (ARCH-003)                             |
+| Machine payload  | `ResultWriter` or app-owned schema; not the human render               |
 
 Display labels may change. Stable IDs must not. Coalescing, plugin namespacing, structured consumers, and snapshot comparisons prefer **semantic identity** over normalized strings (ARCH-003). §15: no string-only semantic identity.
 
@@ -155,25 +155,25 @@ The renderer may cap visible rows. The application must not create and destroy s
 
 ## Domain adapter boundary — checklist
 
-| Question | If yes |
-|---|---|
-| Does this package run work reusable outside this CLI? | No `evo` import |
-| Does this package decide how humans see state? | Presentation adapter; Evo OK |
-| Is this JSON for tools/agents? | ResultWriter / app schema; never human chrome |
-| Am I about to add retries inside Evo? | Stop — application owns execution (PHIL-006) |
+| Question                                              | If yes                                        |
+| ----------------------------------------------------- | --------------------------------------------- |
+| Does this package run work reusable outside this CLI? | No `evo` import                               |
+| Does this package decide how humans see state?        | Presentation adapter; Evo OK                  |
+| Is this JSON for tools/agents?                        | ResultWriter / app schema; never human chrome |
+| Am I about to add retries inside Evo?                 | Stop — application owns execution (PHIL-006)  |
 
 ---
 
 ## Accepted vs rejected
 
-| Pattern | Verdict |
-|---|---|
-| Domain facade with `OnPhase` / `OnBytes`; command maps to `task.Phase` / `task.Bytes` | Accepted |
-| Domain package imports `evo` and calls `out.Task` | Rejected |
-| `Main` for a tiny standalone binary | Accepted |
-| Growing `Main` into flag parsing / subcommand routing | Rejected (§15) |
-| Hosted: `defer Close` + `Finish` + map exit code | Accepted |
-| Hosted: only `Finish`, leak resources / skip Close | Rejected |
-| Human failure only in `slog`, no Item/Task Problem | Rejected (see domain-vocabulary RULE-003) |
-| Machine JSON on `ResultWriter`, human summary on presentation stream | Accepted |
-| Mixing progress chrome into machine stdout | Rejected |
+| Pattern                                                                               | Verdict                                   |
+| ------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Domain facade with `OnPhase` / `OnBytes`; command maps to `task.Phase` / `task.Bytes` | Accepted                                  |
+| Domain package imports `evo` and calls `out.Task`                                     | Rejected                                  |
+| `Main` for a tiny standalone binary                                                   | Accepted                                  |
+| Growing `Main` into flag parsing / subcommand routing                                 | Rejected (§15)                            |
+| Hosted: `defer Close` + `Finish` + map exit code                                      | Accepted                                  |
+| Hosted: only `Finish`, leak resources / skip Close                                    | Rejected                                  |
+| Human failure only in `slog`, no Item/Task Problem                                    | Rejected (see domain-vocabulary RULE-003) |
+| Machine JSON on `ResultWriter`, human summary on presentation stream                  | Accepted                                  |
+| Mixing progress chrome into machine stdout                                            | Rejected                                  |

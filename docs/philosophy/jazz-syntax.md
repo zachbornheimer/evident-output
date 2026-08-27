@@ -130,13 +130,13 @@ Sugar is forbidden when it:
 - pretends to do more than it does (PHIL-007),
 - exists only for method-table symmetry (§15).
 
-| Candidate | Verdict |
-|---|---|
-| `New(Config{Title})` as sole constructor on the lead sheet | Accepted |
-| `For(title)` alias of `New` | Rejected — same note, second spelling |
-| `BlockedBy(...Problem)` beside singular `Block` | Accepted — plural evidence voicing |
-| `Progress64` beside `Progress` for the same count intent | Rejected — type-system twin |
-| `Record(verb, n, object)` for domain verbs | Accepted — real domain concept (see domain-vocabulary) |
+| Candidate                                                  | Verdict                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------ |
+| `New(Config{Title})` as sole constructor on the lead sheet | Accepted                                               |
+| `For(title)` alias of `New`                                | Rejected — same note, second spelling                  |
+| `BlockedBy(...Problem)` beside singular `Block`            | Accepted — plural evidence voicing                     |
+| `Progress64` beside `Progress` for the same count intent   | Rejected — type-system twin                            |
+| `Record(verb, n, object)` for domain verbs                 | Accepted — real domain concept (see domain-vocabulary) |
 
 ---
 

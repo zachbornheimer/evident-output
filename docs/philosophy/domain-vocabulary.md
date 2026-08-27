@@ -9,11 +9,11 @@ Cross-links: [jazz-syntax.md](./jazz-syntax.md) · [presentation-boundary.md](./
 
 ## Item / Task / Tasks
 
-| Noun | Meaning |
-|---|---|
-| **Item** | An independent **condition** — something that is OK, warned, blocked, or failed |
-| **Task** | A unit of **work** — phases, progress, done/fail |
-| **Tasks** | A **collection** of Tasks; collection state is **derived** from children |
+| Noun      | Meaning                                                                         |
+| --------- | ------------------------------------------------------------------------------- |
+| **Item**  | An independent **condition** — something that is OK, warned, blocked, or failed |
+| **Task**  | A unit of **work** — phases, progress, done/fail                                |
+| **Tasks** | A **collection** of Tasks; collection state is **derived** from children        |
 
 ```go
 item := out.Item("working tree", evo.ID("repo.working-tree"))
@@ -29,12 +29,12 @@ packages := out.Tasks("packages")
 
 Severity on conditions (Items) and terminal outcomes on work (Tasks):
 
-| Verb | User meaning |
-|---|---|
-| **OK** | Condition holds; work succeeded |
-| **Warn** | Proceed, but notice this |
+| Verb      | User meaning                                          |
+| --------- | ----------------------------------------------------- |
+| **OK**    | Condition holds; work succeeded                       |
+| **Warn**  | Proceed, but notice this                              |
 | **Block** | Stop until the user acts (not necessarily a Go error) |
-| **Fail** | Operation failed |
+| **Fail**  | Operation failed                                      |
 
 ```go
 item.OK()
@@ -56,11 +56,11 @@ item.FailedBy(problemsFrom(summary.Failures)...)
 
 ## Problem / Detail / Cause
 
-| Piece | Audience | Role |
-|---|---|---|
-| **Problem** | Structured evidence | Subject + summary (+ optional pieces) for one failure unit |
-| **Detail** | **User-facing** | What the human should know or do |
-| **Cause** | **Diagnostic** | Underlying error for logs / debug; not the primary human sentence |
+| Piece       | Audience            | Role                                                              |
+| ----------- | ------------------- | ----------------------------------------------------------------- |
+| **Problem** | Structured evidence | Subject + summary (+ optional pieces) for one failure unit        |
+| **Detail**  | **User-facing**     | What the human should know or do                                  |
+| **Cause**   | **Diagnostic**      | Underlying error for logs / debug; not the primary human sentence |
 
 PHIL-005: `Cause` is diagnostic; `Detail` is user-facing. Do not put stack-trace noise in Detail or bury the only user message in Cause alone.
 
@@ -77,10 +77,10 @@ task.Fail("", evo.Cause(err))
 
 ## Plan vs Changes
 
-| Construct | Tense | When |
-|---|---|---|
-| **Plan** | Future / intended | Dry-run, proposed effects, not yet durable |
-| **Changes** | Past / durable | Effects that happened (or were committed) |
+| Construct   | Tense             | When                                       |
+| ----------- | ----------------- | ------------------------------------------ |
+| **Plan**    | Future / intended | Dry-run, proposed effects, not yet durable |
+| **Changes** | Past / durable    | Effects that happened (or were committed)  |
 
 ```go
 out.Plan("dependencies").
@@ -185,13 +185,13 @@ tracked := predeclarePlacementTasks(jobs, sortedFiles)
 
 ## RULE-005 — Scale model cardinality to product need
 
-| Workload | Model |
-|---|---|
-| Small batch | One predeclared Task per operation |
+| Workload     | Model                                                     |
+| ------------ | --------------------------------------------------------- |
+| Small batch  | One predeclared Task per operation                        |
 | Medium batch | Aggregate count Task plus selected active large transfers |
-| Huge batch | Aggregate progress plus bounded failures |
-| Dry-run | Plan, never simulated Tasks |
-| Completion | Changes for durable effects |
+| Huge batch   | Aggregate progress plus bounded failures                  |
+| Dry-run      | Plan, never simulated Tasks                               |
+| Completion   | Changes for durable effects                               |
 
 ---
 
@@ -223,14 +223,14 @@ Evo must not force application error policy. Present the failure for humans; ret
 
 ## Domain-correct vs domain-wrong (quick board)
 
-| Call site | Verdict |
-|---|---|
-| `out.Item("working tree").Block(..., Detail(...))` | Correct — condition + user action |
-| `out.Task("download").Progress` / `.Bytes` / `.Done` | Correct — work |
-| `changes.Record("placed", n, "files")` when domain verb is place | Correct |
-| `changes.Added(n, "files placed")` | Wrong — generic verb, smuggled domain into object |
-| Item that only says “plan ready” next to a Plan section | Wrong — vanity (RULE-002) |
-| Summary Item `FailedBy` over batch failures | Correct — aggregate condition |
-| Failure only in `logger.Error` | Wrong — RULE-003 |
-| Workers calling `out.Task` concurrently for order | Wrong — RULE-004 |
-| Dry-run modeled as Tasks that “succeed” without writing | Wrong — use Plan (RULE-005) |
+| Call site                                                        | Verdict                                           |
+| ---------------------------------------------------------------- | ------------------------------------------------- |
+| `out.Item("working tree").Block(..., Detail(...))`               | Correct — condition + user action                 |
+| `out.Task("download").Progress` / `.Bytes` / `.Done`             | Correct — work                                    |
+| `changes.Record("placed", n, "files")` when domain verb is place | Correct                                           |
+| `changes.Added(n, "files placed")`                               | Wrong — generic verb, smuggled domain into object |
+| Item that only says “plan ready” next to a Plan section          | Wrong — vanity (RULE-002)                         |
+| Summary Item `FailedBy` over batch failures                      | Correct — aggregate condition                     |
+| Failure only in `logger.Error`                                   | Wrong — RULE-003                                  |
+| Workers calling `out.Task` concurrently for order                | Wrong — RULE-004                                  |
+| Dry-run modeled as Tasks that “succeed” without writing          | Wrong — use Plan (RULE-005)                       |

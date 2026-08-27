@@ -32,12 +32,12 @@ type PlaceCallbacks struct {
 
 ## Scale (RULE-005)
 
-| Workload | Model |
-|----------|--------|
-| Small | One Task per operation |
-| Medium | Aggregate Progress + optional active-transfer Tasks |
-| Huge | Aggregate counts + bounded failure Problems |
-| Dry-run | Plan only |
+| Workload | Model                                               |
+| -------- | --------------------------------------------------- |
+| Small    | One Task per operation                              |
+| Medium   | Aggregate Progress + optional active-transfer Tasks |
+| Huge     | Aggregate counts + bounded failure Problems         |
+| Dry-run  | Plan only                                           |
 
 ## Viewport ≠ model
 
