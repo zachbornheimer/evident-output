@@ -2,13 +2,13 @@
 
 ## Architecture, Product, Verification, Agent-Assistance, and Open-Source Specification
 
-**Project name:** Evident Output  
-**Repository and Go module:** `github.com/zachbornheimer/evident-output`  
-**Go package identifier:** `evo`  
-**Companion MCP executable:** `evident-output-mcp`  
-**Document status:** Design candidate, revision 0.5  
-**Intended license:** Apache License 2.0, subject to maintainer approval  
-**Primary implementation language:** Go  
+**Project name:** Evident Output
+**Repository and Go module:** `github.com/zachbornheimer/evident-output`
+**Go package identifier:** `evo`
+**Companion MCP executable:** `evident-output-mcp`
+**Document status:** Design candidate, revision 0.5
+**Intended license:** Apache License 2.0, subject to maintainer approval
+**Primary implementation language:** Go
 **Audience:** maintainers, contributors, CLI authors, systems engineers, security reviewers, developer-experience teams, and AI-tool integrators
 
 ---
@@ -679,24 +679,24 @@ The library SHALL NOT require exclusive process-wide stream ownership. It SHALL 
 
 ## 6. Ubiquitous language
 
-| Term | Meaning | Ownership |
-|---|---|---|
-| `Output` | One command invocation's presentation lifecycle | Aggregate root |
-| `Item` | One named fact, condition, or result meaningful in final output | Output-owned entity |
-| `Task` | One operation with phases or progress | Output-owned leaf entity |
-| `Tasks` | A named collection of independent child tasks | Output-owned aggregate entity |
-| `Problem` | Concrete evidence explaining warning, block, failure, or uncertainty | Immutable value |
-| `Changes` | Durable effects that already occurred | Output-owned report section |
-| `Plan` | Effects that would occur but have not occurred | Output-owned report section |
-| `Action` | A recommended next step | Immutable value |
-| `Command` | Executable and argv used by an action | Immutable value |
-| `Conclusion` | The inferred or explicitly overridden meaning of the whole command | Immutable final value |
-| `Message` | Durable user-facing or diagnostic text | Journaled value |
-| `Snapshot` | Immutable complete presentation state at a version | Produced by Output |
-| `Event` | Immutable state mutation or durable message | Produced by Output/journal |
-| `Projection` | A rendering of semantic state for a consumer | Adapter |
-| `TerminalDriver` | Exclusive owner of terminal control sequences | Infrastructure |
-| `CapabilityProfile` | Terminal facts and feature policies | Environment value |
+| Term                | Meaning                                                              | Ownership                     |
+| ------------------- | -------------------------------------------------------------------- | ----------------------------- |
+| `Output`            | One command invocation's presentation lifecycle                      | Aggregate root                |
+| `Item`              | One named fact, condition, or result meaningful in final output      | Output-owned entity           |
+| `Task`              | One operation with phases or progress                                | Output-owned leaf entity      |
+| `Tasks`             | A named collection of independent child tasks                        | Output-owned aggregate entity |
+| `Problem`           | Concrete evidence explaining warning, block, failure, or uncertainty | Immutable value               |
+| `Changes`           | Durable effects that already occurred                                | Output-owned report section   |
+| `Plan`              | Effects that would occur but have not occurred                       | Output-owned report section   |
+| `Action`            | A recommended next step                                              | Immutable value               |
+| `Command`           | Executable and argv used by an action                                | Immutable value               |
+| `Conclusion`        | The inferred or explicitly overridden meaning of the whole command   | Immutable final value         |
+| `Message`           | Durable user-facing or diagnostic text                               | Journaled value               |
+| `Snapshot`          | Immutable complete presentation state at a version                   | Produced by Output            |
+| `Event`             | Immutable state mutation or durable message                          | Produced by Output/journal    |
+| `Projection`        | A rendering of semantic state for a consumer                         | Adapter                       |
+| `TerminalDriver`    | Exclusive owner of terminal control sequences                        | Infrastructure                |
+| `CapabilityProfile` | Terminal facts and feature policies                                  | Environment value             |
 
 An `Item` is not an arbitrary output line. It is one named condition that remains useful in final output. Temporary actions belong in task phases or debug messages.
 
@@ -2104,14 +2104,14 @@ The library does not call `os.Exit`. It recommends or validates exit codes.
 
 Default mapping:
 
-| Conclusion | Recommended exit |
-|---|---:|
-| `ready` | 0 |
-| `changed` | 0 |
-| `unchanged` | 0 |
-| `warning` | 0 by default, configurable |
-| `blocked` | 1 |
-| `failed` | 2 |
+| Conclusion  |                         Recommended exit |
+| ----------- | ---------------------------------------: |
+| `ready`     |                                        0 |
+| `changed`   |                                        0 |
+| `unchanged` |                                        0 |
+| `warning`   |               0 by default, configurable |
+| `blocked`   |                                        1 |
+| `failed`    |                                        2 |
 | `cancelled` | 130 on interrupt, otherwise configurable |
 
 Applications remain responsible for process exit. Structured output SHALL include the recommended code. Human conclusion, structured conclusion, and actual process exit SHOULD agree.
@@ -2311,11 +2311,7 @@ Input:
 
 ```json
 {
-  "ids": [
-    "items.parallel",
-    "problems.multiple",
-    "terminal.debug-interleaving"
-  ],
+  "ids": ["items.parallel", "problems.multiple", "terminal.debug-interleaving"],
   "detail": "compact",
   "token_budget": 5000
 }
@@ -2474,7 +2470,7 @@ Explains a stable diagnostic or rule ID.
 Input:
 
 ```json
-{"rule": "API-006"}
+{ "rule": "API-006" }
 ```
 
 Output includes:
@@ -2618,6 +2614,7 @@ The skill MUST NOT fail merely because MCP is unavailable. Tool availability cha
 The same implemented `evident-output-mcp` Go executable SHALL be usable through three launch paths:
 
 1. **Pinned GitHub Release binary — preferred user path**
+
    - host-specific integration selects the correct operating-system and architecture asset;
    - the version is pinned;
    - a published SHA-256 checksum or stronger release verification is required;
@@ -2625,9 +2622,11 @@ The same implemented `evident-output-mcp` Go executable SHALL be usable through 
    - no Go toolchain is required after acquisition.
 
 2. **Pinned `go run` command — bootstrap fallback**
+
    ```text
    go run github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@vX.Y.Z
    ```
+
    - the version MUST be exact rather than `@latest`;
    - running the command MUST NOT add the module to the target application's `go.mod` or `go.sum`;
    - the first run may require network access and compilation;
@@ -3023,362 +3022,362 @@ Each concern below is normative. An implementation is not release-ready until ev
 
 ### 31.1 Domain, inference, and lifecycle
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| DOM-001 | `Output.Item` construction | Unit | Stable generated ID and declaration order; no error branch required |
-| DOM-002 | `Output.Task` construction | Unit | Pending task with indeterminate measurement; no live frame yet |
-| DOM-003 | `Output.Tasks` construction | Unit | Collection owns no independent terminal state or progress |
-| DOM-004 | Duplicate display names | Unit | Allowed; generated IDs remain distinct |
-| DOM-005 | Duplicate explicit key | Unit + race | At most one succeeds; `ErrDuplicateKey` is recorded |
-| DOM-006 | `Item.OK` without explicit start | Table + golden | Direct legal terminal transition; no spinner flash |
-| DOM-007 | `Item.Block` | Unit + golden | One anonymous problem is created with summary/options |
-| DOM-008 | `Item.BlockedBy` | Unit + golden | Structured problems preserved in caller order |
-| DOM-009 | `BlockedBy()` with no problems | Unit + strict | State unchanged; `ErrNoProblems`; strict mode panics deterministically |
-| DOM-010 | `WarnedBy` and `FailedBy` | Table + golden | Structured evidence attaches with correct terminal state |
-| DOM-011 | First terminal state wins | Unit + race | Later terminal mutation rejected; original state preserved |
-| DOM-012 | Annotation after item resolution | Unit | `Because` and actions accepted until `Finish` begins |
-| DOM-013 | Mutation after `Finish` begins | Unit + race | Rejected; no semantic change |
-| DOM-014 | `Detail(string)` | Compile/API test | Only user-visible strings accepted |
-| DOM-015 | `Cause(error)` | Unit + security | Cause retained diagnostically and hidden from default human output |
-| DOM-016 | `Task.Phase` without start | Unit + fake clock | Task becomes running and indeterminate |
-| DOM-017 | `Task.Progress` | Unit | Absolute completed/total values stored exactly |
-| DOM-018 | `Task.Bytes` | Unit | Absolute bytes stored and formatted by renderer |
-| DOM-019 | `Task.Advance` | Unit | Explicit delta increments prior valid progress |
-| DOM-020 | Progress exceeds total | Unit + fuzz | Last valid state preserved; `ErrInvalidProgress` recorded |
-| DOM-021 | Negative progress | Unit + fuzz | Rejected without arithmetic wrap |
-| DOM-022 | Progress moves backward | Unit | Rejected with `ErrProgressRegression` unless explicit restart |
-| DOM-023 | Total increases dynamically | Unit | Accepted when not below completed value |
-| DOM-024 | Total decreases below completed | Unit | Rejected and last valid state preserved |
-| DOM-025 | `Task.Done` before visibility threshold | Fake clock + golden | Final row only; zero transient frames |
-| DOM-026 | `Task.Done` after active phase | Unit + golden | Active phase cleared; not reused as completion summary |
-| DOM-027 | `Task.Donef` | Vet + golden | Standard Go formatting and durable completion summary |
-| DOM-028 | Child task starts | Unit | Owning `Tasks` collection derives running state |
-| DOM-029 | One child fails | Unit + golden | Collection derives failed state regardless of summary text |
-| DOM-030 | One child warns | Unit + golden | Collection derives warning when no child fails |
-| DOM-031 | All children complete | Unit + golden | Collection derives done and may render success summary |
-| DOM-032 | Success summary with failed child | Unit + golden | Summary suppressed or qualified; cannot contradict child state |
-| DOM-033 | Unresolved item at `Finish` | Unit + golden | Rendered incomplete/unknown; `ErrUnresolvedItem` returned |
-| DOM-034 | Unresolved task at `Finish` | Unit + golden | Rendered incomplete; `ErrUnresolvedTask` returned |
-| DOM-035 | Unresolved child in collection | Unit + golden | Collection incomplete; no fabricated success/skip |
-| DOM-036 | Blocked item conclusion | Table | Inferred `blocked` unless stronger failure exists |
-| DOM-037 | Failed item/task conclusion | Table | Inferred `failed` |
-| DOM-038 | Warnings only | Table | Inferred `warning` |
-| DOM-039 | Changes plus failure | Table + JSON | Headline failed; `Changed=true`, `Partial` retained as applicable |
-| DOM-040 | Plan only | Table | `planned`; `Changed=false` |
-| DOM-041 | Actions promoted | Unit + golden | Semantic duplicates removed; insertion order preserved |
-| DOM-042 | Explicit explanation | Unit | Replaces generated generic text without deleting evidence |
-| DOM-043 | `Finish` twice | Unit + race | Same result; no duplicate final output |
-| DOM-044 | `Close` twice | Unit + race | Idempotent cleanup |
-| DOM-045 | Empty output | Unit + golden | Neutral documented result; no fabricated subject |
-| DOM-046 | Caller mutates input problem slice | Unit | Output state unchanged due defensive copy |
-| DOM-047 | Inference independent of completion order | Property + race | Equal semantic state produces equal conclusion |
-| DOM-048 | Expected blocked item inside `errgroup` | Compile + review | Presentation state may be negative while callback returns `nil` |
-| DOM-049 | Application error plus `Output.Fail` | Unit | Failed conclusion; original Go error remains host-owned |
-| DOM-050 | Common and advanced APIs share transition engine | Differential | Equivalent actions yield identical snapshots/events |
+| ID      | Concern                                          | Verification        | Pass criteria                                                          |
+| ------- | ------------------------------------------------ | ------------------- | ---------------------------------------------------------------------- |
+| DOM-001 | `Output.Item` construction                       | Unit                | Stable generated ID and declaration order; no error branch required    |
+| DOM-002 | `Output.Task` construction                       | Unit                | Pending task with indeterminate measurement; no live frame yet         |
+| DOM-003 | `Output.Tasks` construction                      | Unit                | Collection owns no independent terminal state or progress              |
+| DOM-004 | Duplicate display names                          | Unit                | Allowed; generated IDs remain distinct                                 |
+| DOM-005 | Duplicate explicit key                           | Unit + race         | At most one succeeds; `ErrDuplicateKey` is recorded                    |
+| DOM-006 | `Item.OK` without explicit start                 | Table + golden      | Direct legal terminal transition; no spinner flash                     |
+| DOM-007 | `Item.Block`                                     | Unit + golden       | One anonymous problem is created with summary/options                  |
+| DOM-008 | `Item.BlockedBy`                                 | Unit + golden       | Structured problems preserved in caller order                          |
+| DOM-009 | `BlockedBy()` with no problems                   | Unit + strict       | State unchanged; `ErrNoProblems`; strict mode panics deterministically |
+| DOM-010 | `WarnedBy` and `FailedBy`                        | Table + golden      | Structured evidence attaches with correct terminal state               |
+| DOM-011 | First terminal state wins                        | Unit + race         | Later terminal mutation rejected; original state preserved             |
+| DOM-012 | Annotation after item resolution                 | Unit                | `Because` and actions accepted until `Finish` begins                   |
+| DOM-013 | Mutation after `Finish` begins                   | Unit + race         | Rejected; no semantic change                                           |
+| DOM-014 | `Detail(string)`                                 | Compile/API test    | Only user-visible strings accepted                                     |
+| DOM-015 | `Cause(error)`                                   | Unit + security     | Cause retained diagnostically and hidden from default human output     |
+| DOM-016 | `Task.Phase` without start                       | Unit + fake clock   | Task becomes running and indeterminate                                 |
+| DOM-017 | `Task.Progress`                                  | Unit                | Absolute completed/total values stored exactly                         |
+| DOM-018 | `Task.Bytes`                                     | Unit                | Absolute bytes stored and formatted by renderer                        |
+| DOM-019 | `Task.Advance`                                   | Unit                | Explicit delta increments prior valid progress                         |
+| DOM-020 | Progress exceeds total                           | Unit + fuzz         | Last valid state preserved; `ErrInvalidProgress` recorded              |
+| DOM-021 | Negative progress                                | Unit + fuzz         | Rejected without arithmetic wrap                                       |
+| DOM-022 | Progress moves backward                          | Unit                | Rejected with `ErrProgressRegression` unless explicit restart          |
+| DOM-023 | Total increases dynamically                      | Unit                | Accepted when not below completed value                                |
+| DOM-024 | Total decreases below completed                  | Unit                | Rejected and last valid state preserved                                |
+| DOM-025 | `Task.Done` before visibility threshold          | Fake clock + golden | Final row only; zero transient frames                                  |
+| DOM-026 | `Task.Done` after active phase                   | Unit + golden       | Active phase cleared; not reused as completion summary                 |
+| DOM-027 | `Task.Donef`                                     | Vet + golden        | Standard Go formatting and durable completion summary                  |
+| DOM-028 | Child task starts                                | Unit                | Owning `Tasks` collection derives running state                        |
+| DOM-029 | One child fails                                  | Unit + golden       | Collection derives failed state regardless of summary text             |
+| DOM-030 | One child warns                                  | Unit + golden       | Collection derives warning when no child fails                         |
+| DOM-031 | All children complete                            | Unit + golden       | Collection derives done and may render success summary                 |
+| DOM-032 | Success summary with failed child                | Unit + golden       | Summary suppressed or qualified; cannot contradict child state         |
+| DOM-033 | Unresolved item at `Finish`                      | Unit + golden       | Rendered incomplete/unknown; `ErrUnresolvedItem` returned              |
+| DOM-034 | Unresolved task at `Finish`                      | Unit + golden       | Rendered incomplete; `ErrUnresolvedTask` returned                      |
+| DOM-035 | Unresolved child in collection                   | Unit + golden       | Collection incomplete; no fabricated success/skip                      |
+| DOM-036 | Blocked item conclusion                          | Table               | Inferred `blocked` unless stronger failure exists                      |
+| DOM-037 | Failed item/task conclusion                      | Table               | Inferred `failed`                                                      |
+| DOM-038 | Warnings only                                    | Table               | Inferred `warning`                                                     |
+| DOM-039 | Changes plus failure                             | Table + JSON        | Headline failed; `Changed=true`, `Partial` retained as applicable      |
+| DOM-040 | Plan only                                        | Table               | `planned`; `Changed=false`                                             |
+| DOM-041 | Actions promoted                                 | Unit + golden       | Semantic duplicates removed; insertion order preserved                 |
+| DOM-042 | Explicit explanation                             | Unit                | Replaces generated generic text without deleting evidence              |
+| DOM-043 | `Finish` twice                                   | Unit + race         | Same result; no duplicate final output                                 |
+| DOM-044 | `Close` twice                                    | Unit + race         | Idempotent cleanup                                                     |
+| DOM-045 | Empty output                                     | Unit + golden       | Neutral documented result; no fabricated subject                       |
+| DOM-046 | Caller mutates input problem slice               | Unit                | Output state unchanged due defensive copy                              |
+| DOM-047 | Inference independent of completion order        | Property + race     | Equal semantic state produces equal conclusion                         |
+| DOM-048 | Expected blocked item inside `errgroup`          | Compile + review    | Presentation state may be negative while callback returns `nil`        |
+| DOM-049 | Application error plus `Output.Fail`             | Unit                | Failed conclusion; original Go error remains host-owned                |
+| DOM-050 | Common and advanced APIs share transition engine | Differential        | Equivalent actions yield identical snapshots/events                    |
 
 ### 31.2 Concurrency and ordering
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| CON-001 | Concurrent task updates | Race + stress | No races; final counts correct |
-| CON-002 | Out-of-order completion | Golden + property | Display order remains configured order |
-| CON-003 | Log while redraw occurs | Virtual terminal + race | No split live rows; log is durable above region |
-| CON-004 | Resize while redraw occurs | Virtual terminal + race | Screen remains valid and next frame uses new width |
-| CON-005 | Close during update storm | Race + fault | No deadlock; durable terminal states retained |
-| CON-006 | Renderer callback logs recursively | Unit | No output-lock reentrancy deadlock |
-| CON-007 | Scheduler dirty channel saturation | Stress | Latest state rendered; no unbounded goroutines |
-| CON-008 | Journal queue saturation | Fault injection | Documented backpressure/degraded behavior; no silent loss of critical events |
-| CON-009 | Multiple renderers with one failure | Fault injection | Healthy renderers finish; error returned |
-| CON-010 | Cancellation races completion | Race + repeated test | One terminal state wins deterministically |
-| CON-011 | Sequence allocation under concurrency | Property + race | Strictly increasing unique sequence numbers |
-| CON-012 | Concurrent duplicate keys | Race | At most one entity owns key |
-| CON-013 | Snapshot during mutation | Race + property | Snapshot internally consistent |
-| CON-014 | High-frequency progress | Benchmark + stress | Frame rate bounded; final value exact |
-| CON-015 | Goroutine leak after close | Leak test | No library goroutines remain after deadline |
-| CON-016 | Child updates complete out of order | Golden + race | Collection rows retain declaration order |
-| CON-017 | Concurrent declarations | Race + docs | Safe but order reflects declaration scheduling unless explicit order supplied |
-| CON-018 | Duplicate child names | Unit | Distinct internal IDs; structured output unambiguous |
-| CON-019 | High-frequency child progress | Stress + virtual terminal | Updates coalesced; final values exact |
+| ID      | Concern                               | Verification              | Pass criteria                                                                 |
+| ------- | ------------------------------------- | ------------------------- | ----------------------------------------------------------------------------- |
+| CON-001 | Concurrent task updates               | Race + stress             | No races; final counts correct                                                |
+| CON-002 | Out-of-order completion               | Golden + property         | Display order remains configured order                                        |
+| CON-003 | Log while redraw occurs               | Virtual terminal + race   | No split live rows; log is durable above region                               |
+| CON-004 | Resize while redraw occurs            | Virtual terminal + race   | Screen remains valid and next frame uses new width                            |
+| CON-005 | Close during update storm             | Race + fault              | No deadlock; durable terminal states retained                                 |
+| CON-006 | Renderer callback logs recursively    | Unit                      | No output-lock reentrancy deadlock                                            |
+| CON-007 | Scheduler dirty channel saturation    | Stress                    | Latest state rendered; no unbounded goroutines                                |
+| CON-008 | Journal queue saturation              | Fault injection           | Documented backpressure/degraded behavior; no silent loss of critical events  |
+| CON-009 | Multiple renderers with one failure   | Fault injection           | Healthy renderers finish; error returned                                      |
+| CON-010 | Cancellation races completion         | Race + repeated test      | One terminal state wins deterministically                                     |
+| CON-011 | Sequence allocation under concurrency | Property + race           | Strictly increasing unique sequence numbers                                   |
+| CON-012 | Concurrent duplicate keys             | Race                      | At most one entity owns key                                                   |
+| CON-013 | Snapshot during mutation              | Race + property           | Snapshot internally consistent                                                |
+| CON-014 | High-frequency progress               | Benchmark + stress        | Frame rate bounded; final value exact                                         |
+| CON-015 | Goroutine leak after close            | Leak test                 | No library goroutines remain after deadline                                   |
+| CON-016 | Child updates complete out of order   | Golden + race             | Collection rows retain declaration order                                      |
+| CON-017 | Concurrent declarations               | Race + docs               | Safe but order reflects declaration scheduling unless explicit order supplied |
+| CON-018 | Duplicate child names                 | Unit                      | Distinct internal IDs; structured output unambiguous                          |
+| CON-019 | High-frequency child progress         | Stress + virtual terminal | Updates coalesced; final values exact                                         |
 
 ### 31.3 Terminal rendering
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| TERM-001 | Initial operation completes before threshold | Fake clock | No spinner flash; final output only |
-| TERM-002 | Operation exceeds threshold | Fake clock + golden | Spinner appears once and resolves |
-| TERM-003 | Sequential phases | Golden | One transient row is replaced, not accumulated |
-| TERM-004 | Parallel items | Golden | One row per item; independent resolution |
-| TERM-005 | Failed row expands | Golden | Problems appear beneath parent without misalignment |
-| TERM-006 | Debug line during live UI | Virtual terminal | Live region erased, log appended, region redrawn |
-| TERM-007 | Partial writer failure during erase | Fault | Cursor restored if possible; interactivity disabled safely |
-| TERM-008 | Cursor hidden on start | Virtual terminal | Cursor shown after close and signal cleanup |
-| TERM-009 | SIGINT | PTY integration | Final cleanup occurs and exit behavior documented |
-| TERM-010 | SIGKILL | Documentation test | No false guarantee; recovery instructions documented |
-| TERM-011 | Terminal width becomes zero | Virtual terminal | Switch to safe plain/event mode |
-| TERM-012 | Terminal height too small | Virtual terminal | Vertical budget collapses without scrolling corruption |
-| TERM-013 | Resize storm | Stress | Redraw rate bounded; latest size wins |
-| TERM-014 | External unmanaged output | Integration fixture | Documented corruption detector or explicit unsupported result |
-| TERM-015 | Suspend external subprocess | PTY integration | UI removed before child output and restored after |
-| TERM-016 | Suspended callback fails | Unit + PTY | Callback error returned; renderer restoration attempted |
-| TERM-017 | Nested suspend | Unit | Rejected or handled according to documented policy |
-| TERM-018 | Many child tasks fit | Golden | One row per child in declaration order |
-| TERM-019 | Child tasks exceed height | Virtual terminal | Failure/warning/active priority; omission count explicit |
-| TERM-020 | Completed child collapse | Fake clock + golden | Screen pressure may collapse success without hiding failure |
-| TERM-021 | Final collection output | Golden | Canonical order restored or documented compact mode selected |
-| TERM-022 | stdout/stderr same terminal | PTY | Managed writes serialize without overlap |
-| TERM-023 | stdout/stderr different targets | Integration | No cross-stream cursor assumptions |
-| TERM-024 | Broken pipe | Integration | Configured clean failure; no panic or corrupted stderr |
+| ID       | Concern                                      | Verification        | Pass criteria                                                 |
+| -------- | -------------------------------------------- | ------------------- | ------------------------------------------------------------- |
+| TERM-001 | Initial operation completes before threshold | Fake clock          | No spinner flash; final output only                           |
+| TERM-002 | Operation exceeds threshold                  | Fake clock + golden | Spinner appears once and resolves                             |
+| TERM-003 | Sequential phases                            | Golden              | One transient row is replaced, not accumulated                |
+| TERM-004 | Parallel items                               | Golden              | One row per item; independent resolution                      |
+| TERM-005 | Failed row expands                           | Golden              | Problems appear beneath parent without misalignment           |
+| TERM-006 | Debug line during live UI                    | Virtual terminal    | Live region erased, log appended, region redrawn              |
+| TERM-007 | Partial writer failure during erase          | Fault               | Cursor restored if possible; interactivity disabled safely    |
+| TERM-008 | Cursor hidden on start                       | Virtual terminal    | Cursor shown after close and signal cleanup                   |
+| TERM-009 | SIGINT                                       | PTY integration     | Final cleanup occurs and exit behavior documented             |
+| TERM-010 | SIGKILL                                      | Documentation test  | No false guarantee; recovery instructions documented          |
+| TERM-011 | Terminal width becomes zero                  | Virtual terminal    | Switch to safe plain/event mode                               |
+| TERM-012 | Terminal height too small                    | Virtual terminal    | Vertical budget collapses without scrolling corruption        |
+| TERM-013 | Resize storm                                 | Stress              | Redraw rate bounded; latest size wins                         |
+| TERM-014 | External unmanaged output                    | Integration fixture | Documented corruption detector or explicit unsupported result |
+| TERM-015 | Suspend external subprocess                  | PTY integration     | UI removed before child output and restored after             |
+| TERM-016 | Suspended callback fails                     | Unit + PTY          | Callback error returned; renderer restoration attempted       |
+| TERM-017 | Nested suspend                               | Unit                | Rejected or handled according to documented policy            |
+| TERM-018 | Many child tasks fit                         | Golden              | One row per child in declaration order                        |
+| TERM-019 | Child tasks exceed height                    | Virtual terminal    | Failure/warning/active priority; omission count explicit      |
+| TERM-020 | Completed child collapse                     | Fake clock + golden | Screen pressure may collapse success without hiding failure   |
+| TERM-021 | Final collection output                      | Golden              | Canonical order restored or documented compact mode selected  |
+| TERM-022 | stdout/stderr same terminal                  | PTY                 | Managed writes serialize without overlap                      |
+| TERM-023 | stdout/stderr different targets              | Integration         | No cross-stream cursor assumptions                            |
+| TERM-024 | Broken pipe                                  | Integration         | Configured clean failure; no panic or corrupted stderr        |
 
 ### 31.4 Layout, Unicode, and text
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| TXT-001 | ASCII text width | Unit | Width equals terminal cells |
-| TXT-002 | Combining marks | Unit + fuzz | No split combining sequence at truncation |
-| TXT-003 | CJK wide characters | Unit + golden | Alignment follows configured width algorithm |
-| TXT-004 | Emoji with variation selector | Corpus + real terminal | Conservative width; no semantic loss |
-| TXT-005 | ZWJ sequence | Fuzz + corpus | Valid UTF-8 and grapheme-safe truncation |
-| TXT-006 | Invalid UTF-8 | Fuzz | Replaced safely; renderer never panics |
-| TXT-007 | Embedded ESC/CSI | Fuzz + security | Neutralized; no injected terminal command |
-| TXT-008 | Embedded OSC hyperlink | Fuzz + security | Neutralized unless generated internally |
-| TXT-009 | Carriage return/backspace | Fuzz | Cannot overwrite prior content |
-| TXT-010 | Newline in item name | Unit | Normalized or rejected according to field contract |
-| TXT-011 | Very long unbroken token | Golden | Documented overflow/truncation policy; bounded memory |
-| TXT-012 | Long path | Golden | Configured middle/path-aware truncation works |
-| TXT-013 | ANSI styling and width | Unit | Styled and unstyled visible widths match |
-| TXT-014 | OSC 8 hyperlink and width | Unit | Link controls count as zero cells |
-| TXT-015 | Narrow stacked layout | Golden | Detail remains associated with correct parent |
-| TXT-016 | Leader rendering | Golden | Leaders dim, bounded, and omitted when unnecessary |
-| TXT-017 | Duplicate names | Golden | Rows remain understandable via order/key-independent details |
-| TXT-018 | Bidirectional control characters | Security test | Escaped, marked, or rejected by policy |
-| TXT-019 | Huge number of problems | Limit test | Bounded output with summary and full structured data policy |
-| TXT-020 | Empty strings | Unit | Required fields rejected; optional fields omitted cleanly |
+| ID      | Concern                          | Verification           | Pass criteria                                                |
+| ------- | -------------------------------- | ---------------------- | ------------------------------------------------------------ |
+| TXT-001 | ASCII text width                 | Unit                   | Width equals terminal cells                                  |
+| TXT-002 | Combining marks                  | Unit + fuzz            | No split combining sequence at truncation                    |
+| TXT-003 | CJK wide characters              | Unit + golden          | Alignment follows configured width algorithm                 |
+| TXT-004 | Emoji with variation selector    | Corpus + real terminal | Conservative width; no semantic loss                         |
+| TXT-005 | ZWJ sequence                     | Fuzz + corpus          | Valid UTF-8 and grapheme-safe truncation                     |
+| TXT-006 | Invalid UTF-8                    | Fuzz                   | Replaced safely; renderer never panics                       |
+| TXT-007 | Embedded ESC/CSI                 | Fuzz + security        | Neutralized; no injected terminal command                    |
+| TXT-008 | Embedded OSC hyperlink           | Fuzz + security        | Neutralized unless generated internally                      |
+| TXT-009 | Carriage return/backspace        | Fuzz                   | Cannot overwrite prior content                               |
+| TXT-010 | Newline in item name             | Unit                   | Normalized or rejected according to field contract           |
+| TXT-011 | Very long unbroken token         | Golden                 | Documented overflow/truncation policy; bounded memory        |
+| TXT-012 | Long path                        | Golden                 | Configured middle/path-aware truncation works                |
+| TXT-013 | ANSI styling and width           | Unit                   | Styled and unstyled visible widths match                     |
+| TXT-014 | OSC 8 hyperlink and width        | Unit                   | Link controls count as zero cells                            |
+| TXT-015 | Narrow stacked layout            | Golden                 | Detail remains associated with correct parent                |
+| TXT-016 | Leader rendering                 | Golden                 | Leaders dim, bounded, and omitted when unnecessary           |
+| TXT-017 | Duplicate names                  | Golden                 | Rows remain understandable via order/key-independent details |
+| TXT-018 | Bidirectional control characters | Security test          | Escaped, marked, or rejected by policy                       |
+| TXT-019 | Huge number of problems          | Limit test             | Bounded output with summary and full structured data policy  |
+| TXT-020 | Empty strings                    | Unit                   | Required fields rejected; optional fields omitted cleanly    |
 
 ### 31.5 Color and accessibility
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| A11Y-001 | `NO_COLOR` | Environment test | No color even on TTY unless explicit documented override wins |
-| A11Y-002 | `--color=never` equivalent API | Unit | No SGR bytes |
-| A11Y-003 | `--color=always` to non-TTY | Unit | Color emitted only because caller explicitly forced it |
-| A11Y-004 | Meaning without color | Golden review | Every state has text/symbol equivalent |
-| A11Y-005 | ASCII fallback | Golden | No Unicode; same semantic states |
-| A11Y-006 | Light/dark themes | Manual + contrast review | Semantic tokens remain legible |
-| A11Y-007 | Screen-reader plain mode | Manual | Stable, non-rewriting transcript is understandable |
-| A11Y-008 | Blinking | Static analysis | Library emits no blink by default |
-| A11Y-009 | Color only smallest token | Golden policy | Paragraphs are not indiscriminately colored |
-| A11Y-010 | Unknown terminal palette | Unit | Uses named/portable colors or no color, not unsafe assumptions |
+| ID       | Concern                        | Verification             | Pass criteria                                                  |
+| -------- | ------------------------------ | ------------------------ | -------------------------------------------------------------- |
+| A11Y-001 | `NO_COLOR`                     | Environment test         | No color even on TTY unless explicit documented override wins  |
+| A11Y-002 | `--color=never` equivalent API | Unit                     | No SGR bytes                                                   |
+| A11Y-003 | `--color=always` to non-TTY    | Unit                     | Color emitted only because caller explicitly forced it         |
+| A11Y-004 | Meaning without color          | Golden review            | Every state has text/symbol equivalent                         |
+| A11Y-005 | ASCII fallback                 | Golden                   | No Unicode; same semantic states                               |
+| A11Y-006 | Light/dark themes              | Manual + contrast review | Semantic tokens remain legible                                 |
+| A11Y-007 | Screen-reader plain mode       | Manual                   | Stable, non-rewriting transcript is understandable             |
+| A11Y-008 | Blinking                       | Static analysis          | Library emits no blink by default                              |
+| A11Y-009 | Color only smallest token      | Golden policy            | Paragraphs are not indiscriminately colored                    |
+| A11Y-010 | Unknown terminal palette       | Unit                     | Uses named/portable colors or no color, not unsafe assumptions |
 
 ### 31.6 Logs and diagnostics
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| LOG-001 | Uppercase bracketed level | Golden | `[DEBUG]`, `[WARN]`, etc. stable |
-| LOG-002 | Timestamp injection | Fake clock | Deterministic exact timestamps |
-| LOG-003 | Structured field order | Unit | Stable canonical order or documented insertion order |
-| LOG-004 | Sensitive field | Unit + fuzz | Redacted before journal and every renderer |
-| LOG-005 | Split UTF-8 across writes | Fuzz | Reassembled or safely replaced |
-| LOG-006 | Unterminated final line | Unit | Flushed once according to policy |
-| LOG-007 | Maximum line length | Limit test | Bounded truncation with explicit marker |
-| LOG-008 | Concurrent line writers | Race | No record interleaving |
-| LOG-009 | `slog` groups | Unit | Preserved in structured form |
-| LOG-010 | `slog` error values | Unit | Stable safe representation |
-| LOG-011 | Recursive/cyclic values | Unit | Bounded representation; no stack overflow |
-| LOG-012 | Debug disabled | Unit | Record omitted from human renderer according to level but policy for journal explicit |
-| LOG-013 | Debug with final JSON | Integration | stdout JSON remains valid; logs stay off stdout |
-| LOG-014 | Warning log versus item warning | API test | Distinct semantics and rendering |
-| LOG-015 | Log burst | Stress | Durable order preserved within configured limits |
-| LOG-016 | History formatter grammar | Golden | Timestamp plus uppercase bracketed level; stable compact fields |
-| LOG-017 | Pane formatter grammar | Golden | `time=… level=… msg=…` followed by escaped `key=value` attributes |
-| LOG-018 | Pane newest-first viewport | Fake clock + virtual terminal | Latest record occupies first pane row; visible order is reverse chronological |
-| LOG-019 | Durable sink order under newest-first pane | Integration | File/journal/JSONL remain chronological oldest-first |
-| LOG-020 | Pane height bound | Virtual terminal | At most configured visible records; heading and terminal budget accounted for |
-| LOG-021 | Pane final cleanup | Virtual terminal | Normal final output contains no transient pane unless preservation configured |
-| LOG-022 | Pane failure tail | Golden | Preserved tail appears only under explicit/severity policy and is clearly labeled |
-| LOG-023 | Pane non-TTY fallback | Integration | No cursor control; records use static fallback policy |
-| LOG-024 | Pane screen-pressure priority | Virtual terminal | Pane shrinks before failed, warning, or active primary rows are hidden |
-| LOG-025 | `slog` quoting and groups in pane | Unit + golden | Strings, spaces, groups, errors, and source fields follow documented text grammar |
+| ID      | Concern                                    | Verification                  | Pass criteria                                                                         |
+| ------- | ------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------- |
+| LOG-001 | Uppercase bracketed level                  | Golden                        | `[DEBUG]`, `[WARN]`, etc. stable                                                      |
+| LOG-002 | Timestamp injection                        | Fake clock                    | Deterministic exact timestamps                                                        |
+| LOG-003 | Structured field order                     | Unit                          | Stable canonical order or documented insertion order                                  |
+| LOG-004 | Sensitive field                            | Unit + fuzz                   | Redacted before journal and every renderer                                            |
+| LOG-005 | Split UTF-8 across writes                  | Fuzz                          | Reassembled or safely replaced                                                        |
+| LOG-006 | Unterminated final line                    | Unit                          | Flushed once according to policy                                                      |
+| LOG-007 | Maximum line length                        | Limit test                    | Bounded truncation with explicit marker                                               |
+| LOG-008 | Concurrent line writers                    | Race                          | No record interleaving                                                                |
+| LOG-009 | `slog` groups                              | Unit                          | Preserved in structured form                                                          |
+| LOG-010 | `slog` error values                        | Unit                          | Stable safe representation                                                            |
+| LOG-011 | Recursive/cyclic values                    | Unit                          | Bounded representation; no stack overflow                                             |
+| LOG-012 | Debug disabled                             | Unit                          | Record omitted from human renderer according to level but policy for journal explicit |
+| LOG-013 | Debug with final JSON                      | Integration                   | stdout JSON remains valid; logs stay off stdout                                       |
+| LOG-014 | Warning log versus item warning            | API test                      | Distinct semantics and rendering                                                      |
+| LOG-015 | Log burst                                  | Stress                        | Durable order preserved within configured limits                                      |
+| LOG-016 | History formatter grammar                  | Golden                        | Timestamp plus uppercase bracketed level; stable compact fields                       |
+| LOG-017 | Pane formatter grammar                     | Golden                        | `time=… level=… msg=…` followed by escaped `key=value` attributes                     |
+| LOG-018 | Pane newest-first viewport                 | Fake clock + virtual terminal | Latest record occupies first pane row; visible order is reverse chronological         |
+| LOG-019 | Durable sink order under newest-first pane | Integration                   | File/journal/JSONL remain chronological oldest-first                                  |
+| LOG-020 | Pane height bound                          | Virtual terminal              | At most configured visible records; heading and terminal budget accounted for         |
+| LOG-021 | Pane final cleanup                         | Virtual terminal              | Normal final output contains no transient pane unless preservation configured         |
+| LOG-022 | Pane failure tail                          | Golden                        | Preserved tail appears only under explicit/severity policy and is clearly labeled     |
+| LOG-023 | Pane non-TTY fallback                      | Integration                   | No cursor control; records use static fallback policy                                 |
+| LOG-024 | Pane screen-pressure priority              | Virtual terminal              | Pane shrinks before failed, warning, or active primary rows are hidden                |
+| LOG-025 | `slog` quoting and groups in pane          | Unit + golden                 | Strings, spaces, groups, errors, and source fields follow documented text grammar     |
 
 ### 31.7 Streams, projection, and machine output
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| OUT-001 | Human report defaults | Integration | Final report uses intended human writer; transient output does not corrupt it |
-| OUT-002 | Application data on stdout | Integration | UI/logs remain on configured diagnostic stream |
-| OUT-003 | Progress to stderr in data projection | Integration | No progress bytes in stdout |
-| OUT-004 | Plain mode | Byte assertion | No ANSI/cursor controls |
-| OUT-005 | Final JSON | Schema validation | Conforms to embedded schema |
-| OUT-006 | JSON Lines | Schema + parser | One valid object per physical line |
-| OUT-007 | Deterministic ordering | Repeat test | Byte-identical with fixed clock/IDs |
-| OUT-008 | Inference provenance | Schema test | Explicit/implicit activation and conclusion source represented correctly |
-| OUT-009 | Unknown optional fields | Compatibility test | Older reader ignores safely |
-| OUT-010 | Unknown enum | Compatibility fixture | Behavior follows documented major-version rule |
-| OUT-011 | Timestamp format | Unit | RFC 3339-compatible documented precision |
-| OUT-012 | Exit recommendation | Table test | Matches inferred/explicit conclusion mapping |
-| OUT-013 | Actual exit mismatch | Integration helper | Optional validator detects mismatch |
-| OUT-014 | JSON with secrets | Security | Redaction policy applied |
-| OUT-015 | Huge event stream | Streaming test | Bounded memory and ordered output |
-| OUT-016 | Consumer closes early | Broken-pipe test | Clean documented policy |
-| OUT-017 | Final snapshot after sampled progress | Replay test | Exact final progress retained |
-| OUT-018 | Direct pure encoder | Unit | Snapshot encodes without terminal/output ownership |
-| OUT-019 | Host writes data while output active | PTY/integration | Managed streams remain coherent under documented ownership |
-| OUT-020 | No subject supplied | Golden + JSON | Human/structured result omits subject rather than guessing |
-| OUT-021 | Structured projection selected explicitly | API test | No TTY heuristic changes machine format |
-| OUT-022 | Plan/change inferred from values | Unit + golden | Correct projection without public intent enum |
-| OUT-023 | `Line` while live UI active | Virtual terminal | Durable line inserted above and live region redrawn |
-| OUT-024 | `Linef` formatting | Vet + unit | Standard `fmt` behavior and sanitization |
+| ID      | Concern                                   | Verification          | Pass criteria                                                                 |
+| ------- | ----------------------------------------- | --------------------- | ----------------------------------------------------------------------------- |
+| OUT-001 | Human report defaults                     | Integration           | Final report uses intended human writer; transient output does not corrupt it |
+| OUT-002 | Application data on stdout                | Integration           | UI/logs remain on configured diagnostic stream                                |
+| OUT-003 | Progress to stderr in data projection     | Integration           | No progress bytes in stdout                                                   |
+| OUT-004 | Plain mode                                | Byte assertion        | No ANSI/cursor controls                                                       |
+| OUT-005 | Final JSON                                | Schema validation     | Conforms to embedded schema                                                   |
+| OUT-006 | JSON Lines                                | Schema + parser       | One valid object per physical line                                            |
+| OUT-007 | Deterministic ordering                    | Repeat test           | Byte-identical with fixed clock/IDs                                           |
+| OUT-008 | Inference provenance                      | Schema test           | Explicit/implicit activation and conclusion source represented correctly      |
+| OUT-009 | Unknown optional fields                   | Compatibility test    | Older reader ignores safely                                                   |
+| OUT-010 | Unknown enum                              | Compatibility fixture | Behavior follows documented major-version rule                                |
+| OUT-011 | Timestamp format                          | Unit                  | RFC 3339-compatible documented precision                                      |
+| OUT-012 | Exit recommendation                       | Table test            | Matches inferred/explicit conclusion mapping                                  |
+| OUT-013 | Actual exit mismatch                      | Integration helper    | Optional validator detects mismatch                                           |
+| OUT-014 | JSON with secrets                         | Security              | Redaction policy applied                                                      |
+| OUT-015 | Huge event stream                         | Streaming test        | Bounded memory and ordered output                                             |
+| OUT-016 | Consumer closes early                     | Broken-pipe test      | Clean documented policy                                                       |
+| OUT-017 | Final snapshot after sampled progress     | Replay test           | Exact final progress retained                                                 |
+| OUT-018 | Direct pure encoder                       | Unit                  | Snapshot encodes without terminal/output ownership                            |
+| OUT-019 | Host writes data while output active      | PTY/integration       | Managed streams remain coherent under documented ownership                    |
+| OUT-020 | No subject supplied                       | Golden + JSON         | Human/structured result omits subject rather than guessing                    |
+| OUT-021 | Structured projection selected explicitly | API test              | No TTY heuristic changes machine format                                       |
+| OUT-022 | Plan/change inferred from values          | Unit + golden         | Correct projection without public intent enum                                 |
+| OUT-023 | `Line` while live UI active               | Virtual terminal      | Durable line inserted above and live region redrawn                           |
+| OUT-024 | `Linef` formatting                        | Vet + unit            | Standard `fmt` behavior and sanitization                                      |
 
 ### 31.8 MCP and agent assistance
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| MCP-001 | Initialization first | Protocol test | Server rejects out-of-lifecycle calls as required |
-| MCP-002 | Capability negotiation | Conformance | Advertised capabilities match implementation |
-| MCP-003 | stdout purity in stdio | Byte capture | Every stdout message is valid MCP framing |
-| MCP-004 | stderr logging | Integration | Logs never contaminate stdout |
-| MCP-005 | Tool list | Schema test | Stable names, descriptions, input/output schemas |
-| MCP-006 | `evident_output.list_guides` catalog | Tool + snapshot | Every entry has ID, use cases, concepts, rules, token estimate |
-| MCP-007 | Guide filtering by use case | Tool test | Relevant sections found without exact title knowledge |
-| MCP-008 | `evident_output.get_guidance` batch retrieval | Tool test | Exact sections returned in requested order within budget |
-| MCP-009 | Unknown guidance ID | Tool test | Fuzzy alternatives and partial success returned |
-| MCP-010 | Guidance source consistency | Generation test | MCP, CLI, website, and embedded resources share checksum/source |
-| MCP-011 | `evident_output.review` valid Go common path | Tool test | No unnecessary advanced-API findings |
-| MCP-012 | Review detects redundant `Start` | Static fixture | `API-006` finding with safe suggestion and recheck signal |
-| MCP-013 | Review detects stdout contamination | Static/transcript fixture | Error finding with stream guidance |
-| MCP-014 | Review expected blocked item vs Go error | Static fixture | Flags control-flow misuse without false positive on real application error |
-| MCP-015 | Review source location | Tool test | File, line, and column accurate for Go AST findings |
-| MCP-016 | Review without type information | Tool test | Partial analysis clearly marked; no invented certainty |
-| MCP-017 | Review with package/type information | Integration | Cross-file API use resolved without executing package code |
-| MCP-018 | Review terminal transcript | Virtual terminal fixture | ANSI corruption, width, and final-state findings detected |
-| MCP-019 | Review structured document | Schema/property | Domain and schema findings deterministic |
-| MCP-020 | `recheck_required=true` | Tool test | True for required repairs or analysis-invalidating changes |
-| MCP-021 | `recheck_required=false` | Tool test | False only after all requested deterministic items complete cleanly |
-| MCP-022 | Iterative repair loop | End-to-end agent fixture | Known-bad sample reaches clean state in bounded cycles |
-| MCP-023 | `evident_output.preview` profile matrix | Tool + golden | All default profiles generated and labeled |
-| MCP-024 | Preview narrow/ASCII/no-color | Golden | Semantic equivalence across degraded profiles |
-| MCP-025 | Preview debug interleaving | Virtual terminal | Durable logs and live region remain coherent |
-| MCP-026 | Preview refuses arbitrary Go execution | Security | Requires scene/event input; no code execution path |
-| MCP-027 | `evident_output.explain` | Tool test | Rule rationale, examples, remedies, and verification IDs returned |
-| MCP-028 | Rule stability | Compatibility | Rule IDs and meanings obey version policy |
-| MCP-029 | Structured output schema | Schema test | `structuredContent` matches advertised schema |
-| MCP-030 | Text compatibility content | Tool test | Useful text accompanies structured result where client support varies |
-| MCP-031 | Oversized request | Security | Rejected within bounded memory |
-| MCP-032 | Deadline/cancellation | Integration | Work stops and resources release |
-| MCP-033 | Malformed JSON-RPC | Conformance/fuzz | Protocol error; server remains safe |
-| MCP-034 | Panic containment | Fault injection | Bounded tool error; server continues where safe |
-| MCP-035 | Local path outside roots | Security | Rejected including symlink traversal |
-| MCP-036 | Remote path input | Schema/security | Unsupported; remote transport accepts content only |
-| MCP-037 | Source mutation | Static/dynamic | No v1 tool writes caller files |
-| MCP-038 | Network access | Sandboxed test | No network calls by core v1 tools |
-| MCP-039 | Shell execution | Static/dynamic | No execution path exists |
-| MCP-040 | Resource URIs | Protocol test | Embedded versioned resources readable and immutable |
-| MCP-041 | Protocol-version compatibility | Matrix | Supported versions negotiate or fail explicitly |
-| MCP-042 | Tool-name rules | Schema test | Names use allowed characters and length |
-| MCP-043 | Unknown input fields | Tool test | Rejected unless documented extension point |
-| MCP-044 | Debug flag | Integration | Server debug goes only to stderr |
-| MCP-045 | HTTP disabled by default | CLI test | No listener in default build |
-| MCP-046 | CLI parity | Differential test | CLI and MCP deterministic operations return equivalent results |
-| MCP-047 | Agent prompt embeds loop | Prompt snapshot | Discover–review–repair–recheck–preview steps explicit |
-| MCP-048 | Agent skill common API | Scenario test | Agent chooses inferred API over specs/config for ordinary task |
-| MCP-049 | Agent stopping condition | Scenario test | Agent stops only when `recheck_required=false` |
-| MCP-050 | Token-budget compliance | Tool test | Guidance truncation explicit and deterministic |
-| MCP-051 | Skill trigger coverage | Skill fixture matrix | CLI-output creation, review, progress, logging, streams, and CI tasks select the skill |
-| MCP-052 | Skill non-trigger precision | Skill fixture matrix | Unrelated application logic does not select the skill merely because a CLI framework is present |
-| MCP-053 | Skill-only usefulness | Agent scenario without MCP/CLI | Agent improves output using bundled guidance and reports reduced verification strength |
-| MCP-054 | Existing Evo detection | Repository fixture | Agent uses the installed package and does not recommend reinstallation |
-| MCP-055 | Adoption restraint | Agent scenario | A single durable line does not trigger a dependency recommendation |
-| MCP-056 | MCP-first fallback order | Tool-availability matrix | Connected MCP is used before CLI and static guidance |
-| MCP-057 | CLI fallback order | Tool-availability matrix | CLI is used when MCP is absent; static guidance is used when both are absent |
-| MCP-058 | Release-binary launch | Integration matrix | Correct pinned asset launches on every supported OS/architecture |
-| MCP-059 | Release integrity | Tampered-asset test | Checksum/signature failure prevents execution and reports safely on stderr |
-| MCP-060 | Pinned `go run` launch | Clean-module integration | Server launches at exact version without modifying target `go.mod` or `go.sum` |
-| MCP-061 | No `@latest` persistence | Static integration lint | Persistent MCP descriptors contain exact versions |
-| MCP-062 | Launcher stdout purity | Byte capture | Bootstrap and server stdout contain only valid MCP protocol messages |
-| MCP-063 | Offline cached startup | Integration | Previously acquired release binary launches without network access |
-| MCP-064 | Unsupported platform | Integration | Clear stderr diagnostic; no corrupt or partial installation |
-| MCP-065 | Plugin/extension bundle | Host fixture | One integration provides both skill and local MCP configuration where supported |
-| MCP-066 | Raw-skill limitation | Documentation/agent fixture | Skill explains that MCP registration is separate when the host lacks bundled integration support |
-| MCP-067 | Generated integration consistency | Generation test | Every host descriptor shares skill checksum, MCP version, and capability manifest |
-| MCP-068 | No hosted-domain dependency | Network-isolated end-to-end | Skill, local MCP, review, and preview work without an Evident Output domain |
-| MCP-069 | GitHub Pages boundary | Static architecture test | Pages assets contain no assumption that static hosting executes MCP requests |
-| MCP-070 | Project-local bootstrap preview | Integration | `init` shows intended changes and preserves existing instructions |
-| MCP-071 | Project-local bootstrap removal | Integration | Generated assets can be removed without deleting user-authored content |
-| MCP-072 | Fresh-agent persistence | End-to-end repository fixture | New agent session discovers project guidance and uses existing Evo conventions |
+| ID      | Concern                                       | Verification                   | Pass criteria                                                                                    |
+| ------- | --------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------ |
+| MCP-001 | Initialization first                          | Protocol test                  | Server rejects out-of-lifecycle calls as required                                                |
+| MCP-002 | Capability negotiation                        | Conformance                    | Advertised capabilities match implementation                                                     |
+| MCP-003 | stdout purity in stdio                        | Byte capture                   | Every stdout message is valid MCP framing                                                        |
+| MCP-004 | stderr logging                                | Integration                    | Logs never contaminate stdout                                                                    |
+| MCP-005 | Tool list                                     | Schema test                    | Stable names, descriptions, input/output schemas                                                 |
+| MCP-006 | `evident_output.list_guides` catalog          | Tool + snapshot                | Every entry has ID, use cases, concepts, rules, token estimate                                   |
+| MCP-007 | Guide filtering by use case                   | Tool test                      | Relevant sections found without exact title knowledge                                            |
+| MCP-008 | `evident_output.get_guidance` batch retrieval | Tool test                      | Exact sections returned in requested order within budget                                         |
+| MCP-009 | Unknown guidance ID                           | Tool test                      | Fuzzy alternatives and partial success returned                                                  |
+| MCP-010 | Guidance source consistency                   | Generation test                | MCP, CLI, website, and embedded resources share checksum/source                                  |
+| MCP-011 | `evident_output.review` valid Go common path  | Tool test                      | No unnecessary advanced-API findings                                                             |
+| MCP-012 | Review detects redundant `Start`              | Static fixture                 | `API-006` finding with safe suggestion and recheck signal                                        |
+| MCP-013 | Review detects stdout contamination           | Static/transcript fixture      | Error finding with stream guidance                                                               |
+| MCP-014 | Review expected blocked item vs Go error      | Static fixture                 | Flags control-flow misuse without false positive on real application error                       |
+| MCP-015 | Review source location                        | Tool test                      | File, line, and column accurate for Go AST findings                                              |
+| MCP-016 | Review without type information               | Tool test                      | Partial analysis clearly marked; no invented certainty                                           |
+| MCP-017 | Review with package/type information          | Integration                    | Cross-file API use resolved without executing package code                                       |
+| MCP-018 | Review terminal transcript                    | Virtual terminal fixture       | ANSI corruption, width, and final-state findings detected                                        |
+| MCP-019 | Review structured document                    | Schema/property                | Domain and schema findings deterministic                                                         |
+| MCP-020 | `recheck_required=true`                       | Tool test                      | True for required repairs or analysis-invalidating changes                                       |
+| MCP-021 | `recheck_required=false`                      | Tool test                      | False only after all requested deterministic items complete cleanly                              |
+| MCP-022 | Iterative repair loop                         | End-to-end agent fixture       | Known-bad sample reaches clean state in bounded cycles                                           |
+| MCP-023 | `evident_output.preview` profile matrix       | Tool + golden                  | All default profiles generated and labeled                                                       |
+| MCP-024 | Preview narrow/ASCII/no-color                 | Golden                         | Semantic equivalence across degraded profiles                                                    |
+| MCP-025 | Preview debug interleaving                    | Virtual terminal               | Durable logs and live region remain coherent                                                     |
+| MCP-026 | Preview refuses arbitrary Go execution        | Security                       | Requires scene/event input; no code execution path                                               |
+| MCP-027 | `evident_output.explain`                      | Tool test                      | Rule rationale, examples, remedies, and verification IDs returned                                |
+| MCP-028 | Rule stability                                | Compatibility                  | Rule IDs and meanings obey version policy                                                        |
+| MCP-029 | Structured output schema                      | Schema test                    | `structuredContent` matches advertised schema                                                    |
+| MCP-030 | Text compatibility content                    | Tool test                      | Useful text accompanies structured result where client support varies                            |
+| MCP-031 | Oversized request                             | Security                       | Rejected within bounded memory                                                                   |
+| MCP-032 | Deadline/cancellation                         | Integration                    | Work stops and resources release                                                                 |
+| MCP-033 | Malformed JSON-RPC                            | Conformance/fuzz               | Protocol error; server remains safe                                                              |
+| MCP-034 | Panic containment                             | Fault injection                | Bounded tool error; server continues where safe                                                  |
+| MCP-035 | Local path outside roots                      | Security                       | Rejected including symlink traversal                                                             |
+| MCP-036 | Remote path input                             | Schema/security                | Unsupported; remote transport accepts content only                                               |
+| MCP-037 | Source mutation                               | Static/dynamic                 | No v1 tool writes caller files                                                                   |
+| MCP-038 | Network access                                | Sandboxed test                 | No network calls by core v1 tools                                                                |
+| MCP-039 | Shell execution                               | Static/dynamic                 | No execution path exists                                                                         |
+| MCP-040 | Resource URIs                                 | Protocol test                  | Embedded versioned resources readable and immutable                                              |
+| MCP-041 | Protocol-version compatibility                | Matrix                         | Supported versions negotiate or fail explicitly                                                  |
+| MCP-042 | Tool-name rules                               | Schema test                    | Names use allowed characters and length                                                          |
+| MCP-043 | Unknown input fields                          | Tool test                      | Rejected unless documented extension point                                                       |
+| MCP-044 | Debug flag                                    | Integration                    | Server debug goes only to stderr                                                                 |
+| MCP-045 | HTTP disabled by default                      | CLI test                       | No listener in default build                                                                     |
+| MCP-046 | CLI parity                                    | Differential test              | CLI and MCP deterministic operations return equivalent results                                   |
+| MCP-047 | Agent prompt embeds loop                      | Prompt snapshot                | Discover–review–repair–recheck–preview steps explicit                                            |
+| MCP-048 | Agent skill common API                        | Scenario test                  | Agent chooses inferred API over specs/config for ordinary task                                   |
+| MCP-049 | Agent stopping condition                      | Scenario test                  | Agent stops only when `recheck_required=false`                                                   |
+| MCP-050 | Token-budget compliance                       | Tool test                      | Guidance truncation explicit and deterministic                                                   |
+| MCP-051 | Skill trigger coverage                        | Skill fixture matrix           | CLI-output creation, review, progress, logging, streams, and CI tasks select the skill           |
+| MCP-052 | Skill non-trigger precision                   | Skill fixture matrix           | Unrelated application logic does not select the skill merely because a CLI framework is present  |
+| MCP-053 | Skill-only usefulness                         | Agent scenario without MCP/CLI | Agent improves output using bundled guidance and reports reduced verification strength           |
+| MCP-054 | Existing Evo detection                        | Repository fixture             | Agent uses the installed package and does not recommend reinstallation                           |
+| MCP-055 | Adoption restraint                            | Agent scenario                 | A single durable line does not trigger a dependency recommendation                               |
+| MCP-056 | MCP-first fallback order                      | Tool-availability matrix       | Connected MCP is used before CLI and static guidance                                             |
+| MCP-057 | CLI fallback order                            | Tool-availability matrix       | CLI is used when MCP is absent; static guidance is used when both are absent                     |
+| MCP-058 | Release-binary launch                         | Integration matrix             | Correct pinned asset launches on every supported OS/architecture                                 |
+| MCP-059 | Release integrity                             | Tampered-asset test            | Checksum/signature failure prevents execution and reports safely on stderr                       |
+| MCP-060 | Pinned `go run` launch                        | Clean-module integration       | Server launches at exact version without modifying target `go.mod` or `go.sum`                   |
+| MCP-061 | No `@latest` persistence                      | Static integration lint        | Persistent MCP descriptors contain exact versions                                                |
+| MCP-062 | Launcher stdout purity                        | Byte capture                   | Bootstrap and server stdout contain only valid MCP protocol messages                             |
+| MCP-063 | Offline cached startup                        | Integration                    | Previously acquired release binary launches without network access                               |
+| MCP-064 | Unsupported platform                          | Integration                    | Clear stderr diagnostic; no corrupt or partial installation                                      |
+| MCP-065 | Plugin/extension bundle                       | Host fixture                   | One integration provides both skill and local MCP configuration where supported                  |
+| MCP-066 | Raw-skill limitation                          | Documentation/agent fixture    | Skill explains that MCP registration is separate when the host lacks bundled integration support |
+| MCP-067 | Generated integration consistency             | Generation test                | Every host descriptor shares skill checksum, MCP version, and capability manifest                |
+| MCP-068 | No hosted-domain dependency                   | Network-isolated end-to-end    | Skill, local MCP, review, and preview work without an Evident Output domain                      |
+| MCP-069 | GitHub Pages boundary                         | Static architecture test       | Pages assets contain no assumption that static hosting executes MCP requests                     |
+| MCP-070 | Project-local bootstrap preview               | Integration                    | `init` shows intended changes and preserves existing instructions                                |
+| MCP-071 | Project-local bootstrap removal               | Integration                    | Generated assets can be removed without deleting user-authored content                           |
+| MCP-072 | Fresh-agent persistence                       | End-to-end repository fixture  | New agent session discovers project guidance and uses existing Evo conventions                   |
 
 ### 31.9 Interoperability and API ergonomics
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| API-001 | Minimal item example | Compile fixture | `For`, `Item`, `OK`/`Block`, `Finish` compile without config structs |
-| API-002 | Minimal task example | Compile fixture | `Task`, `Phase`, `Donef` compile and render correctly |
-| API-003 | Multiple progress example | Compile fixture | `Tasks`, child `Task`, `Bytes`, and derived summary compile without scheduler APIs |
-| API-004 | Common path clarity | API review | Calls read as output facts rather than renderer mechanics |
-| API-005 | No public intent enum in quick start | Static docs | No `IntentReport`/title ceremony |
-| API-006 | Explicit start not required | Differential | Direct terminal resolution and phase-driven start remain valid |
-| API-007 | Advanced API availability | Compile | Stable keys, fixed capabilities, manual start, external projection available |
-| API-008 | Common/advanced parity | Differential | Same semantic input produces same snapshots |
-| API-009 | No runtime `...any` problem overload | API lint | `Block` and `BlockedBy` statically distinguish shapes |
-| API-010 | Standard formatting language | Vet | `*f` methods use Go formatting and are vet-compatible |
-| API-011 | Cobra integration | Compile/integration | No base class, command router, or execution takeover |
-| API-012 | Standard `flag` integration | Compile | Ordinary Go command embeds `Output` directly |
-| API-013 | `urfave/cli` and Kong examples | Compile matrix | No core dependency changes |
-| API-014 | `slog` bridge | Unit/integration | Attributes preserved; live region remains coherent |
-| API-015 | Arbitrary logger writer | Integration | Partial lines, UTF-8, close, and limits handled safely |
-| API-016 | Bubble Tea/external renderer | Compile + snapshot | Host consumes snapshots without terminal ownership |
-| API-017 | Pure projection | Unit | Snapshot renders plain/JSON without active output |
-| API-018 | No `os.Exit` | Static analysis | Library never exits host process |
-| API-019 | No global mutable state | Static + race | Multiple outputs remain independent |
-| API-020 | External subprocess suspend | PTY | Cooperative output works without interception |
-| API-021 | Generated docs compile | CI | Every Go example type-checks and passes vet |
-| API-022 | Discoverability | Usability study | New user finds `Item`, `Task`, and `Tasks` before advanced specs |
-| API-023 | Simple output versus `fmt` | Usability | One durable line is one method call after output creation |
-| API-024 | Complex-output advantage | Comparison fixture | Safe multi-progress/debug implementation materially smaller than ad hoc code |
-| API-025 | Import-name convention | Static docs | Package is lowercase `evo`; examples do not use `EvidentOutput` |
-| API-026 | Execution boundary | Static/API review | No `RunAll`, `Map`, `Retry`, `Timeout`, worker-pool, or shell execution in core |
-| API-027 | Singular/plural distinction | Compile/docs | `Task` cannot contain children; `Tasks` cannot expose leaf lifecycle methods |
-| API-028 | Absolute progress semantics | API review | Primary docs use `Progress(done,total)` and `Bytes(done,total)` |
-| API-029 | Incremental progress semantics | API review | Only `Advance(delta)` communicates a delta |
-| API-030 | Compatibility promise | Integration matrix | Cobra, flag, slog, io.Writer, TUI, CI, pipe, JSON, and MCP paths pass |
+| ID      | Concern                              | Verification        | Pass criteria                                                                      |
+| ------- | ------------------------------------ | ------------------- | ---------------------------------------------------------------------------------- |
+| API-001 | Minimal item example                 | Compile fixture     | `For`, `Item`, `OK`/`Block`, `Finish` compile without config structs               |
+| API-002 | Minimal task example                 | Compile fixture     | `Task`, `Phase`, `Donef` compile and render correctly                              |
+| API-003 | Multiple progress example            | Compile fixture     | `Tasks`, child `Task`, `Bytes`, and derived summary compile without scheduler APIs |
+| API-004 | Common path clarity                  | API review          | Calls read as output facts rather than renderer mechanics                          |
+| API-005 | No public intent enum in quick start | Static docs         | No `IntentReport`/title ceremony                                                   |
+| API-006 | Explicit start not required          | Differential        | Direct terminal resolution and phase-driven start remain valid                     |
+| API-007 | Advanced API availability            | Compile             | Stable keys, fixed capabilities, manual start, external projection available       |
+| API-008 | Common/advanced parity               | Differential        | Same semantic input produces same snapshots                                        |
+| API-009 | No runtime `...any` problem overload | API lint            | `Block` and `BlockedBy` statically distinguish shapes                              |
+| API-010 | Standard formatting language         | Vet                 | `*f` methods use Go formatting and are vet-compatible                              |
+| API-011 | Cobra integration                    | Compile/integration | No base class, command router, or execution takeover                               |
+| API-012 | Standard `flag` integration          | Compile             | Ordinary Go command embeds `Output` directly                                       |
+| API-013 | `urfave/cli` and Kong examples       | Compile matrix      | No core dependency changes                                                         |
+| API-014 | `slog` bridge                        | Unit/integration    | Attributes preserved; live region remains coherent                                 |
+| API-015 | Arbitrary logger writer              | Integration         | Partial lines, UTF-8, close, and limits handled safely                             |
+| API-016 | Bubble Tea/external renderer         | Compile + snapshot  | Host consumes snapshots without terminal ownership                                 |
+| API-017 | Pure projection                      | Unit                | Snapshot renders plain/JSON without active output                                  |
+| API-018 | No `os.Exit`                         | Static analysis     | Library never exits host process                                                   |
+| API-019 | No global mutable state              | Static + race       | Multiple outputs remain independent                                                |
+| API-020 | External subprocess suspend          | PTY                 | Cooperative output works without interception                                      |
+| API-021 | Generated docs compile               | CI                  | Every Go example type-checks and passes vet                                        |
+| API-022 | Discoverability                      | Usability study     | New user finds `Item`, `Task`, and `Tasks` before advanced specs                   |
+| API-023 | Simple output versus `fmt`           | Usability           | One durable line is one method call after output creation                          |
+| API-024 | Complex-output advantage             | Comparison fixture  | Safe multi-progress/debug implementation materially smaller than ad hoc code       |
+| API-025 | Import-name convention               | Static docs         | Package is lowercase `evo`; examples do not use `EvidentOutput`                    |
+| API-026 | Execution boundary                   | Static/API review   | No `RunAll`, `Map`, `Retry`, `Timeout`, worker-pool, or shell execution in core    |
+| API-027 | Singular/plural distinction          | Compile/docs        | `Task` cannot contain children; `Tasks` cannot expose leaf lifecycle methods       |
+| API-028 | Absolute progress semantics          | API review          | Primary docs use `Progress(done,total)` and `Bytes(done,total)`                    |
+| API-029 | Incremental progress semantics       | API review          | Only `Advance(delta)` communicates a delta                                         |
+| API-030 | Compatibility promise                | Integration matrix  | Cobra, flag, slog, io.Writer, TUI, CI, pipe, JSON, and MCP paths pass              |
 
 ### 31.10 Security and limits
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| SEC-001 | Terminal injection | Fuzz + PTY | Untrusted text cannot control terminal |
-| SEC-002 | Secret split across chunks | Fuzz | Redactor detects according to documented capability |
-| SEC-003 | Oversized entity count | Limit | Controlled error/degradation; no unbounded allocation |
-| SEC-004 | Oversized render tree | Limit | Bounded traversal and error |
-| SEC-005 | Integer overflow | Fuzz | Rejected before arithmetic wrap |
-| SEC-006 | Malicious shell argument | Unit | Display quoting preserves argv boundaries |
-| SEC-007 | Destructive action | Unit + JSON | Marked explicitly in human and machine representations |
-| SEC-008 | Dependency vulnerability | CI | `govulncheck` passes or waiver is documented |
-| SEC-009 | Dependency license | CI | Compatible approved license list |
-| SEC-010 | Panic from caller renderer | Fault | Output cleanup and error propagation |
-| SEC-011 | Bidi spoofing | Security corpus | Neutralized or visibly escaped |
-| SEC-012 | Path disclosure | Policy test | Sensitive paths can be redacted consistently |
-| SEC-013 | Log forging with newline | Unit | One caller record cannot forge multiple level-prefixed records |
-| SEC-014 | Resource URI traversal | MCP test | Embedded resource resolver rejects traversal |
-| SEC-015 | Untrusted MCP annotations | Review | No authorization decision depends on annotations |
+| ID      | Concern                    | Verification    | Pass criteria                                                  |
+| ------- | -------------------------- | --------------- | -------------------------------------------------------------- |
+| SEC-001 | Terminal injection         | Fuzz + PTY      | Untrusted text cannot control terminal                         |
+| SEC-002 | Secret split across chunks | Fuzz            | Redactor detects according to documented capability            |
+| SEC-003 | Oversized entity count     | Limit           | Controlled error/degradation; no unbounded allocation          |
+| SEC-004 | Oversized render tree      | Limit           | Bounded traversal and error                                    |
+| SEC-005 | Integer overflow           | Fuzz            | Rejected before arithmetic wrap                                |
+| SEC-006 | Malicious shell argument   | Unit            | Display quoting preserves argv boundaries                      |
+| SEC-007 | Destructive action         | Unit + JSON     | Marked explicitly in human and machine representations         |
+| SEC-008 | Dependency vulnerability   | CI              | `govulncheck` passes or waiver is documented                   |
+| SEC-009 | Dependency license         | CI              | Compatible approved license list                               |
+| SEC-010 | Panic from caller renderer | Fault           | Output cleanup and error propagation                           |
+| SEC-011 | Bidi spoofing              | Security corpus | Neutralized or visibly escaped                                 |
+| SEC-012 | Path disclosure            | Policy test     | Sensitive paths can be redacted consistently                   |
+| SEC-013 | Log forging with newline   | Unit            | One caller record cannot forge multiple level-prefixed records |
+| SEC-014 | Resource URI traversal     | MCP test        | Embedded resource resolver rejects traversal                   |
+| SEC-015 | Untrusted MCP annotations  | Review          | No authorization decision depends on annotations               |
 
 ### 31.11 Portability and compatibility
 
-| ID | Concern | Verification | Pass criteria |
-|---|---|---|---|
-| PORT-001 | Linux TTY | Integration | Correct interactive and cleanup behavior |
-| PORT-002 | macOS TTY | Integration | Correct interactive and cleanup behavior |
-| PORT-003 | Windows ConPTY | Integration | Correct Unicode/color/cleanup or documented degradation |
-| PORT-004 | tmux | Manual/PTY | No region corruption |
-| PORT-005 | SSH | Manual/PTY | Capability detection remains conservative |
-| PORT-006 | `TERM=dumb` | Environment test | No cursor controls; plain output |
-| PORT-007 | No locale UTF-8 | Environment test | ASCII fallback or safe UTF-8 policy |
-| PORT-008 | Width unavailable | Unit | Plain/event fallback |
-| PORT-009 | Height unavailable | Unit | Bounded inline policy |
-| PORT-010 | Go supported-release matrix | CI | Builds and tests on policy-defined Go versions |
-| PORT-011 | 32-bit integer environment | Cross-build/fuzz | Explicit int64 arithmetic remains safe |
-| PORT-012 | Big-endian architecture | Cross-compile | No encoding assumption |
-| PORT-013 | Public API compatibility | `apidiff`-style CI | No unapproved breaking change in major v1 |
-| PORT-014 | Schema compatibility | Fixture suite | Old fixtures decode under current reader |
-| PORT-015 | Reproducible build metadata | Release CI | Version and schema hashes deterministic |
+| ID       | Concern                     | Verification       | Pass criteria                                           |
+| -------- | --------------------------- | ------------------ | ------------------------------------------------------- |
+| PORT-001 | Linux TTY                   | Integration        | Correct interactive and cleanup behavior                |
+| PORT-002 | macOS TTY                   | Integration        | Correct interactive and cleanup behavior                |
+| PORT-003 | Windows ConPTY              | Integration        | Correct Unicode/color/cleanup or documented degradation |
+| PORT-004 | tmux                        | Manual/PTY         | No region corruption                                    |
+| PORT-005 | SSH                         | Manual/PTY         | Capability detection remains conservative               |
+| PORT-006 | `TERM=dumb`                 | Environment test   | No cursor controls; plain output                        |
+| PORT-007 | No locale UTF-8             | Environment test   | ASCII fallback or safe UTF-8 policy                     |
+| PORT-008 | Width unavailable           | Unit               | Plain/event fallback                                    |
+| PORT-009 | Height unavailable          | Unit               | Bounded inline policy                                   |
+| PORT-010 | Go supported-release matrix | CI                 | Builds and tests on policy-defined Go versions          |
+| PORT-011 | 32-bit integer environment  | Cross-build/fuzz   | Explicit int64 arithmetic remains safe                  |
+| PORT-012 | Big-endian architecture     | Cross-compile      | No encoding assumption                                  |
+| PORT-013 | Public API compatibility    | `apidiff`-style CI | No unapproved breaking change in major v1               |
+| PORT-014 | Schema compatibility        | Fixture suite      | Old fixtures decode under current reader                |
+| PORT-015 | Reproducible build metadata | Release CI         | Version and schema hashes deterministic                 |
 
 ---
 
@@ -4677,27 +4676,27 @@ The implementation SHALL pin exact protocol/schema versions in code and tests ra
 
 ## Appendix G — Final architectural decisions
 
-| Concern | Chosen design | Rejected design |
-|---|---|---|
-| Product | Presentation library | CLI framework or workflow engine |
-| Package | `evo` | `EvidentOutput` identifier |
-| Root ownership | `Output` aggregate facade | Global renderer singleton |
-| Reported condition | `Item` | Check, Verification, Status, Result, LineItem |
-| One operation | `Task` | Generic activity/widget |
-| Multiple operations | `Tasks` collection | Parent task with subtasks |
-| Simple block | `Item.Block` | Ambiguous overloaded `Block(...any)` |
-| Structured block | `Item.BlockedBy` | `BlockAll` |
-| Positive item state | `OK` | Pass, Succeed, Ready, Clear |
-| Progress | Absolute `Progress`/`Bytes`; explicit `Advance` | Ambiguous `Total` + `Add` + `Set` common path |
-| Application execution | Host-owned | Library-created goroutines/scheduler |
-| Problem detail | `Detail(string)` and `Cause(error)` | Raw error as user-visible detail |
-| Terminal resolution | First terminal state wins | Last-write-wins |
-| Unresolved work | Explicit incomplete/error | Silent success/skip |
-| Effects | Structured `Changes` | Caller-spaced text |
-| Future effects | Structured `Plan` | Reusing changes with flags |
-| Final result | Multidimensional `Conclusion` | One enum discarding partial/changed facts |
-| Machine output | Separate stable schemas | Scraping human output |
-| Agent support | Guidance → review → repair → recheck → preview | Documentation dump |
+| Concern               | Chosen design                                   | Rejected design                               |
+| --------------------- | ----------------------------------------------- | --------------------------------------------- |
+| Product               | Presentation library                            | CLI framework or workflow engine              |
+| Package               | `evo`                                           | `EvidentOutput` identifier                    |
+| Root ownership        | `Output` aggregate facade                       | Global renderer singleton                     |
+| Reported condition    | `Item`                                          | Check, Verification, Status, Result, LineItem |
+| One operation         | `Task`                                          | Generic activity/widget                       |
+| Multiple operations   | `Tasks` collection                              | Parent task with subtasks                     |
+| Simple block          | `Item.Block`                                    | Ambiguous overloaded `Block(...any)`          |
+| Structured block      | `Item.BlockedBy`                                | `BlockAll`                                    |
+| Positive item state   | `OK`                                            | Pass, Succeed, Ready, Clear                   |
+| Progress              | Absolute `Progress`/`Bytes`; explicit `Advance` | Ambiguous `Total` + `Add` + `Set` common path |
+| Application execution | Host-owned                                      | Library-created goroutines/scheduler          |
+| Problem detail        | `Detail(string)` and `Cause(error)`             | Raw error as user-visible detail              |
+| Terminal resolution   | First terminal state wins                       | Last-write-wins                               |
+| Unresolved work       | Explicit incomplete/error                       | Silent success/skip                           |
+| Effects               | Structured `Changes`                            | Caller-spaced text                            |
+| Future effects        | Structured `Plan`                               | Reusing changes with flags                    |
+| Final result          | Multidimensional `Conclusion`                   | One enum discarding partial/changed facts     |
+| Machine output        | Separate stable schemas                         | Scraping human output                         |
+| Agent support         | Guidance → review → repair → recheck → preview  | Documentation dump                            |
 
 ## Appendix H — Normative red tests
 

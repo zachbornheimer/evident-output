@@ -1,11 +1,11 @@
 # Evident Output — Implementation Basis
 
-**Date:** 2026-07-28  
-**Status:** Approved working basis for implementation planning  
-**Primary library baseline:** `evident-output` v0.2.8 (`dab378e`)  
-**Adoption baseline:** `librarian` local commits `3edd911` → `8eae112` (ahead of origin)  
-**Conversational pedigree:** `~/Downloads/polish.md` (synthesis); this file is the planning authority  
-**Repo check-in path (Phase 0):** `docs/roadmap/implementation-basis.md`  
+**Date:** 2026-07-28
+**Status:** Approved working basis for implementation planning
+**Primary library baseline:** `evident-output` v0.2.8 (`dab378e`)
+**Adoption baseline:** `librarian` local commits `3edd911` → `8eae112` (ahead of origin)
+**Conversational pedigree:** `~/Downloads/polish.md` (synthesis); this file is the planning authority
+**Repo check-in path (Phase 0):** `docs/roadmap/implementation-basis.md`
 **Document role:** one authoritative basis from which implementation plans, design documents, issues, and release work are derived
 
 ---
@@ -56,16 +56,16 @@ This document is the planning basis. It may direct creation of narrower document
 
 ### 3.1 Documents to be created from this basis
 
-| Document | Purpose | Expected lifetime |
-|---|---|---|
-| `docs/philosophy/jazz-syntax.md` | Binding syntax and subtraction philosophy | Long-lived |
-| `docs/philosophy/presentation-boundary.md` | Presentation ≠ execution; human vs machine streams | Long-lived |
-| `docs/philosophy/domain-vocabulary.md` | Item, Task, Tasks, Plan, Changes, Problem, Cause, Detail | Long-lived |
-| `docs/decisions/conclusion-coalescing.md` | Exact projection decision and edge cases | Until superseded by ADR |
-| `docs/decisions/progress-cardinality.md` | Per-item vs aggregate progress model | Long-lived |
-| `docs/adoption/librarian.md` | Reproducible adoption case study | Historical and educational |
-| `docs/roadmap/polish-phase.md` | Concrete milestone/task sequencing | Temporary |
-| `docs/guides/large-platform-adoption.md` | Docker/npm/Homebrew-style platform integration | Long-lived |
+| Document                                   | Purpose                                                  | Expected lifetime          |
+| ------------------------------------------ | -------------------------------------------------------- | -------------------------- |
+| `docs/philosophy/jazz-syntax.md`           | Binding syntax and subtraction philosophy                | Long-lived                 |
+| `docs/philosophy/presentation-boundary.md` | Presentation ≠ execution; human vs machine streams       | Long-lived                 |
+| `docs/philosophy/domain-vocabulary.md`     | Item, Task, Tasks, Plan, Changes, Problem, Cause, Detail | Long-lived                 |
+| `docs/decisions/conclusion-coalescing.md`  | Exact projection decision and edge cases                 | Until superseded by ADR    |
+| `docs/decisions/progress-cardinality.md`   | Per-item vs aggregate progress model                     | Long-lived                 |
+| `docs/adoption/librarian.md`               | Reproducible adoption case study                         | Historical and educational |
+| `docs/roadmap/polish-phase.md`             | Concrete milestone/task sequencing                       | Temporary                  |
+| `docs/guides/large-platform-adoption.md`   | Docker/npm/Homebrew-style platform integration           | Long-lived                 |
 
 These documents are implementation deliverables, not competing sources of truth. They must trace back to decisions in this document.
 
@@ -532,13 +532,13 @@ tracked := predeclarePlacementTasks(jobs, sortedFiles)
 
 ### RULE-005 — Scale model cardinality to product need
 
-| Workload | Model |
-|---|---|
-| Small batch | One predeclared Task per operation |
+| Workload     | Model                                                     |
+| ------------ | --------------------------------------------------------- |
+| Small batch  | One predeclared Task per operation                        |
 | Medium batch | Aggregate count Task plus selected active large transfers |
-| Huge batch | Aggregate progress plus bounded failures |
-| Dry-run | Plan, never simulated Tasks |
-| Completion | Changes for durable effects |
+| Huge batch   | Aggregate progress plus bounded failures                  |
+| Dry-run      | Plan, never simulated Tasks                               |
+| Completion   | Changes for durable effects                               |
 
 ### RULE-006 — Capability does not imply product obligation
 
@@ -672,15 +672,15 @@ String matching is insufficient.
 
 **Draft matrix (must be finalized in ADR; not implementation until then):**
 
-| Visible section tag | Conclusion mood | Coalesce trailing conclusion? |
-|---|---|---|
-| `[changed]` only | ready / changed, no extras | Yes |
-| `[planned]` only | planned / ready, no extras | Yes |
-| `[changed]` | failed / blocked / warning extras | No |
-| any section | NextCommand / problems on conclusion | No |
-| multiple Plan/Changes | any | No |
-| Plan + Changes both visible | any | No |
-| subject ID mismatch | any | No |
+| Visible section tag         | Conclusion mood                      | Coalesce trailing conclusion? |
+| --------------------------- | ------------------------------------ | ----------------------------- |
+| `[changed]` only            | ready / changed, no extras           | Yes                           |
+| `[planned]` only            | planned / ready, no extras           | Yes                           |
+| `[changed]`                 | failed / blocked / warning extras    | No                            |
+| any section                 | NextCommand / problems on conclusion | No                            |
+| multiple Plan/Changes       | any                                  | No                            |
+| Plan + Changes both visible | any                                  | No                            |
+| subject ID mismatch         | any                                  | No                            |
 
 “No extras” means no additional visible severity, partial-completion copy, cancellation, or next-action chrome.
 
@@ -1023,7 +1023,7 @@ cross-platform builds
 
 ### Phase 1 — Philosophy and Librarian polish in parallel
 
-**Track A:** WS-1 design philosophy documents.  
+**Track A:** WS-1 design philosophy documents.
 **Track B:** WS-2 Librarian presentation polish.
 
 Reason: philosophy stabilizes language while adoption fixes provide real examples and goldens (minus coalescing).
@@ -1071,16 +1071,16 @@ WS-7 + WS-8: classify/remove alternate charts; wire conformance and drift checks
 
 ## 14. Dependencies
 
-| Workstream | Depends on |
-|---|---|
-| WS-1 Philosophy docs | This document |
-| WS-2 Librarian polish | Current v0.2.8 API |
-| WS-3 Coalescing | Subject identity decision; golden fixtures |
-| WS-4 Teaching ladder | WS-1 decisions; WS-3 behavior |
-| WS-5 Case study | WS-2 completed and commits accessible |
-| WS-6 Concurrency guidance | Existing Task/Tasks renderer and tests |
-| WS-7 API subtraction | WS-1 philosophy; exported API inventory |
-| WS-8 Conformance | Every behavioral workstream |
+| Workstream                | Depends on                                 |
+| ------------------------- | ------------------------------------------ |
+| WS-1 Philosophy docs      | This document                              |
+| WS-2 Librarian polish     | Current v0.2.8 API                         |
+| WS-3 Coalescing           | Subject identity decision; golden fixtures |
+| WS-4 Teaching ladder      | WS-1 decisions; WS-3 behavior              |
+| WS-5 Case study           | WS-2 completed and commits accessible      |
+| WS-6 Concurrency guidance | Existing Task/Tasks renderer and tests     |
+| WS-7 API subtraction      | WS-1 philosophy; exported API inventory    |
+| WS-8 Conformance          | Every behavioral workstream                |
 
 ---
 
@@ -1106,20 +1106,20 @@ The following are not part of this phase:
 
 These require explicit resolution or deferral. **Working recommendations** are non-binding until ADR or issue close.
 
-| ID | Decision | Working recommendation |
-|---|---|---|
-| OPEN-001 | Semantic subject identity for coalescing | Prefer Output subject / primary section ID linkage; never display-string alone |
-| OPEN-002 | Conclusion compatibility matrix | Tabulate Plan/Changes tag × Conclusion mood; only pure same-mood pairs coalesce |
-| OPEN-003 | Human failure-row default limit | Start at **5** visible Problems + “and N more” (tunable Config later if needed) |
-| OPEN-004 | Structured Problem retention limit | Higher than human (e.g. **50**); always redacted; document cap |
-| OPEN-005 | Partial-failure copy | Use existing **failed** (or blocked) conclusion + Changes of what happened; **no new enum** this phase |
-| OPEN-006 | Dry-run safety prose | Application-specific; evo docs may show as optional pattern, not required chrome |
-| OPEN-007 | Cause in human summary | Default: Cause stays diagnostic; Detail is human; tools may expose Cause in verbose/debug |
-| OPEN-008 | Advanced exports for v1 | Inventory first (WS-7); no removals without replacement path |
-| OPEN-009 | `Progress64` | **Advanced / retain** until proven unused; ordinary path is `Progress(int)` + `Bytes` |
-| OPEN-010 | Plural outcome variants | Keep `BlockedBy` / `FailedBy` / `WarnedBy` as genuine plural voicing (PHIL-002); audit others |
-| OPEN-011 | Case-study permanent URLs | Push Librarian polish branch; link commit SHAs in evo docs |
-| OPEN-012 | Scope expansion | **Entity-only for this phase** (Item/Task/Tasks); no scoped slog/Writer |
+| ID       | Decision                                 | Working recommendation                                                                                 |
+| -------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| OPEN-001 | Semantic subject identity for coalescing | Prefer Output subject / primary section ID linkage; never display-string alone                         |
+| OPEN-002 | Conclusion compatibility matrix          | Tabulate Plan/Changes tag × Conclusion mood; only pure same-mood pairs coalesce                        |
+| OPEN-003 | Human failure-row default limit          | Start at **5** visible Problems + “and N more” (tunable Config later if needed)                        |
+| OPEN-004 | Structured Problem retention limit       | Higher than human (e.g. **50**); always redacted; document cap                                         |
+| OPEN-005 | Partial-failure copy                     | Use existing **failed** (or blocked) conclusion + Changes of what happened; **no new enum** this phase |
+| OPEN-006 | Dry-run safety prose                     | Application-specific; evo docs may show as optional pattern, not required chrome                       |
+| OPEN-007 | Cause in human summary                   | Default: Cause stays diagnostic; Detail is human; tools may expose Cause in verbose/debug              |
+| OPEN-008 | Advanced exports for v1                  | Inventory first (WS-7); no removals without replacement path                                           |
+| OPEN-009 | `Progress64`                             | **Advanced / retain** until proven unused; ordinary path is `Progress(int)` + `Bytes`                  |
+| OPEN-010 | Plural outcome variants                  | Keep `BlockedBy` / `FailedBy` / `WarnedBy` as genuine plural voicing (PHIL-002); audit others          |
+| OPEN-011 | Case-study permanent URLs                | Push Librarian polish branch; link commit SHAs in evo docs                                             |
+| OPEN-012 | Scope expansion                          | **Entity-only for this phase** (Item/Task/Tasks); no scoped slog/Writer                                |
 
 Each open decision must be closed by an ADR, an explicit deferral, or removal from scope.
 
@@ -1131,38 +1131,38 @@ Successful adoption is not measured primarily by diff size.
 
 ### Architecture
 
-| Criterion |
-|---|
-| Presentation decisions centralized |
-| Reusable domain packages remain free of Evo |
-| Existing machine contracts preserved |
-| Execution policy remains application-owned |
+| Criterion                                     |
+| --------------------------------------------- |
+| Presentation decisions centralized            |
+| Reusable domain packages remain free of Evo   |
+| Existing machine contracts preserved          |
+| Execution policy remains application-owned    |
 | Diagnostics separated from human presentation |
 
 ### User-facing quality
 
-| Criterion |
-|---|
-| Failure can be identified without filtering logs |
-| Output does not repeat the same conclusion |
-| Displayed verbs match the domain action |
+| Criterion                                                         |
+| ----------------------------------------------------------------- |
+| Failure can be identified without filtering logs                  |
+| Output does not repeat the same conclusion                        |
+| Displayed verbs match the domain action                           |
 | Success, warning, block, partial change, and failure are scanable |
-| Non-TTY output is complete and free of terminal controls |
-| Output order is deterministic |
-| Failure evidence is bounded and actionable |
-| Dry-run clearly communicates non-mutation |
-| Machine output remains uncontaminated |
+| Non-TTY output is complete and free of terminal controls          |
+| Output order is deterministic                                     |
+| Failure evidence is bounded and actionable                        |
+| Dry-run clearly communicates non-mutation                         |
+| Machine output remains uncontaminated                             |
 
 ### Library quality
 
-| Criterion |
-|---|
-| Ordinary API has one spelling per intent |
-| Advanced APIs do not compete in ordinary docs |
-| Every public mark performs |
-| Model and projection are not conflated |
+| Criterion                                                |
+| -------------------------------------------------------- |
+| Ordinary API has one spelling per intent                 |
+| Advanced APIs do not compete in ordinary docs            |
+| Every public mark performs                               |
+| Model and projection are not conflated                   |
 | Human and structured outputs preserve equivalent meaning |
-| Tests enforce design decisions |
+| Tests enforce design decisions                           |
 
 ---
 
@@ -1213,27 +1213,27 @@ Workstation-specific paths must not appear in published documentation.
 
 ## 21. Document history
 
-| Date | Event |
-|---|---|
-| 2026-07-28 | Initial implementation-basis rewrite from the comprehensive polish synthesis |
-| 2026-07-28 | Added design-philosophy documents as an explicit implementation workstream |
+| Date       | Event                                                                                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-28 | Initial implementation-basis rewrite from the comprehensive polish synthesis                                                                            |
+| 2026-07-28 | Added design-philosophy documents as an explicit implementation workstream                                                                              |
 | 2026-07-28 | Revision A: code-ground Verbosity/Main/Close; WS-2 vs WS-3 acceptance split; OPEN working recommendations; execution PR order; pedigree + check-in path |
 
 ---
 
 ## 22. Revision A change log (this edit)
 
-| Fix | Why |
-|---|---|
-| `VerbosityVerbose` not `Verbose` | Matches exported API in `construct.go` |
-| Hosted lifecycle includes Fail reconcile + `Close` | Parity with `Main` (`run.go`); Close was missing |
-| Main lifecycle spelled out | Prevents “Finish-only” hosted recipes |
-| WS-2 acceptance does not require coalescing | Avoids blocking librarian polish on WS-3 |
-| OPEN-001…012 working recommendations | Unblock implementers without silent re-litigation |
-| Explicit first-PR order | Turns sequencing into an executable queue |
-| Pedigree + `docs/roadmap/implementation-basis.md` | Clear authority and check-in location |
-| Code-grounding rule for snippets | Stops basis drift from becoming false notation |
+| Fix                                                | Why                                               |
+| -------------------------------------------------- | ------------------------------------------------- |
+| `VerbosityVerbose` not `Verbose`                   | Matches exported API in `construct.go`            |
+| Hosted lifecycle includes Fail reconcile + `Close` | Parity with `Main` (`run.go`); Close was missing  |
+| Main lifecycle spelled out                         | Prevents “Finish-only” hosted recipes             |
+| WS-2 acceptance does not require coalescing        | Avoids blocking librarian polish on WS-3          |
+| OPEN-001…012 working recommendations               | Unblock implementers without silent re-litigation |
+| Explicit first-PR order                            | Turns sequencing into an executable queue         |
+| Pedigree + `docs/roadmap/implementation-basis.md`  | Clear authority and check-in location             |
+| Code-grounding rule for snippets                   | Stops basis drift from becoming false notation    |
 
 ---
 
-*This document is deliberately comprehensive because it is the planning basis. Implementation should produce smaller philosophy, decision, adoption, and roadmap artifacts while preserving traceability back to this source.*
+_This document is deliberately comprehensive because it is the planning basis. Implementation should produce smaller philosophy, decision, adoption, and roadmap artifacts while preserving traceability back to this source._

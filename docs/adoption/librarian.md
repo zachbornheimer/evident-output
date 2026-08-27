@@ -1,7 +1,7 @@
 # Adoption case study: librarian
 
-**Evo pin:** v0.2.9+ (presentation polish; library pin hygiene at v0.2.10)  
-**Validated mode:** batch-summary only  
+**Evo pin:** v0.2.9+ (presentation polish; library pin hygiene at v0.2.10)
+**Validated mode:** batch-summary only
 **Not validated:** live per-file Tasks under load
 
 ## Application shape
@@ -42,12 +42,12 @@ os.Exit(evo.Main(out, run))
 
 ## Mistakes discovered (and fixed)
 
-| Mistake | Fix |
-|---------|-----|
-| `Added(1, "files placed")` | `Record("placed", n, noun(...))` |
-| Vanity `✓ dry-run plan` Item | removed |
-| slog-only failure | `fileFailure` + FailedBy |
-| Duplicate conclusion band | evo DEC-COAL projection (library-side) |
+| Mistake                      | Fix                                    |
+| ---------------------------- | -------------------------------------- |
+| `Added(1, "files placed")`   | `Record("placed", n, noun(...))`       |
+| Vanity `✓ dry-run plan` Item | removed                                |
+| slog-only failure            | `fileFailure` + FailedBy               |
+| Duplicate conclusion band    | evo DEC-COAL projection (library-side) |
 
 ## LOC
 

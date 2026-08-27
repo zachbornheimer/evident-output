@@ -38,17 +38,17 @@ return out.Finish()
 
 ## House rules (short)
 
-| Rule | Meaning |
-|------|---------|
+| Rule     | Meaning                                                           |
+| -------- | ----------------------------------------------------------------- |
 | RULE-001 | Domain verbs: `Record("placed", n, noun(...))` not forced `Added` |
-| RULE-002 | No vanity Items that restate Plan/Changes |
-| RULE-003 | User failures → Item/Task Problems, not slog-only |
-| RULE-004 | Predeclare concurrent Tasks before workers |
-| RULE-005 | Scale Task cardinality to product need |
-| RULE-006 | Capability ≠ obligation |
-| PHIL-001 | One ordinary spelling per intent |
+| RULE-002 | No vanity Items that restate Plan/Changes                         |
+| RULE-003 | User failures → Item/Task Problems, not slog-only                 |
+| RULE-004 | Predeclare concurrent Tasks before workers                        |
+| RULE-005 | Scale Task cardinality to product need                            |
+| RULE-006 | Capability ≠ obligation                                           |
+| PHIL-001 | One ordinary spelling per intent                                  |
 
-See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.  
+See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.
 Release pin procedure: `docs/guides/cutting-a-release.md`.
 
 ## Capture
