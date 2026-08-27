@@ -164,3 +164,90 @@ func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
 		t.Fatalf("snapshot must keep Conclusion and Changes: %#v", snap)
 	}
 }
+
+func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(
+		evo.Title("zq"),
+		evo.To(&buf),
+		evo.Plain(),
+		evo.NoColor(),
+	)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Println("zq v0.2.14")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.Contains(buf.String(), "[ready]") || strings.Contains(buf.String(), "[unchanged]") {
+		t.Fatalf("title alone must not fabricate a human conclusion:\n%s", buf.String())
+	}
+	if out.Conclusion().State != evo.StateUnchanged {
+		t.Fatalf("title-only conclusion = %q, want unchanged", out.Conclusion().State)
+	}
+}
+
+func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(
+		evo.Title("database"),
+		evo.To(&buf),
+		evo.Plain(),
+		evo.NoColor(),
+	)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Item("database").OK()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.Contains(buf.String(), "[ready]") {
+		t.Fatalf("matching item already carries the conclusion:\n%s", buf.String())
+	}
+	if strings.Count(buf.String(), "database") != 1 {
+		t.Fatalf("matching subject must render once:\n%s", buf.String())
+	}
+}
+
+func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(
+		evo.Title("release v1.4"),
+		evo.To(&buf),
+		evo.Plain(),
+		evo.NoColor(),
+	)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Item("release signature").Block("signature is missing")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(buf.String(), "[blocked]  release v1.4") {
+		t.Fatalf("broader subject conclusion adds information:\n%s", buf.String())
+	}
+}
+
+func TestCoalesce_MultipleItems_KeepsAggregateConclusion(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(
+		evo.Title("repository"),
+		evo.To(&buf),
+		evo.Plain(),
+		evo.NoColor(),
+	)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Item("working tree").OK()
+	out.Item("branches").OK()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(buf.String(), "[ready]  repository") {
+		t.Fatalf("multiple results need an aggregate conclusion:\n%s", buf.String())
+	}
+}

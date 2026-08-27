@@ -15,10 +15,18 @@ func shouldSuppressStandaloneConclusion(s Snapshot) bool {
 	}
 	c := *s.Conclusion
 
+	if semanticResultCount(s) == 0 {
+		return c.Explanation == "" && len(c.Actions) == 0 && !c.Partial && !c.Cancelled
+	}
+
 	// Extra visible conclusion dimensions — never suppress.
 	if c.Explanation != "" || len(c.Actions) > 0 || c.Partial || c.Cancelled {
 		return false
 	}
+	if shouldSuppressRepeatedCondition(s, c) {
+		return true
+	}
+
 	// Severity that is not pure planned/changed success.
 	switch c.State {
 	case StateChanged, StatePlanned, StateReady, StateUnchanged:
@@ -56,6 +64,49 @@ func shouldSuppressStandaloneConclusion(s Snapshot) bool {
 		return false
 	}
 	return c.State == StatePlanned || c.State == StateReady || c.State == StateUnchanged
+}
+
+func semanticResultCount(s Snapshot) int {
+	return len(s.Items) + len(s.Tasks) + len(s.Collections) + len(s.Changes) + len(s.Plans)
+}
+
+func shouldSuppressRepeatedCondition(s Snapshot, c Conclusion) bool {
+	if len(s.Changes)+len(s.Plans) != 0 || len(s.Items)+len(s.Tasks)+len(s.Collections) != 1 {
+		return false
+	}
+
+	var name string
+	var state EntityState
+	switch {
+	case len(s.Items) == 1:
+		name, state = s.Items[0].Name, s.Items[0].State
+	case len(s.Tasks) == 1:
+		name, state = s.Tasks[0].Name, s.Tasks[0].State
+	default:
+		name, state = s.Collections[0].Name, s.Collections[0].State
+	}
+
+	subjectRepeatsCondition := c.Subject == "" || normalizeSubject(c.Subject) == normalizeSubject(name)
+	return subjectRepeatsCondition && conclusionRepeatsEntityState(c.State, state)
+}
+
+func conclusionRepeatsEntityState(conclusion ConclusionState, entity EntityState) bool {
+	switch entity {
+	case OK, Done, Skipped, Unknown, Empty:
+		return conclusion == StateReady
+	case Warning:
+		return conclusion == StateWarning
+	case Blocked:
+		return conclusion == StateBlocked
+	case Failed:
+		return conclusion == StateFailed
+	case Cancelled:
+		return conclusion == StateCancelled
+	case Pending, Running, Incomplete:
+		return conclusion == StatePartial
+	default:
+		return false
+	}
 }
 
 // sameSemanticSubject compares effect-section identity to conclusion/output subject.

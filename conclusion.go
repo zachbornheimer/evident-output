@@ -113,8 +113,6 @@ func inferConclusion(s Snapshot) Conclusion {
 		}
 	}
 
-	_ = hasDone
-
 	// Headline precedence: failed > blocked > warning > cancelled > changed > planned > ready > unchanged
 	switch {
 	case hasFailed:
@@ -133,7 +131,7 @@ func inferConclusion(s Snapshot) Conclusion {
 	case hasIncomplete:
 		c.State = StatePartial
 		c.Partial = true
-	case s.Subject != "" || len(s.Items)+len(s.Tasks)+len(s.Collections) > 0:
+	case hasDone:
 		c.State = StateReady
 	default:
 		c.State = StateUnchanged

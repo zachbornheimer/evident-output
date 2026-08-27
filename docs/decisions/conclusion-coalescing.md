@@ -1,8 +1,8 @@
 # Decision: Conclusion coalescing (human projection)
 
-**Status:** Accepted  
-**Date:** 2026-07-28  
-**IDs:** DEC-COAL-001 … DEC-COAL-005, OPEN-001, OPEN-002  
+**Status:** Accepted
+**Date:** 2026-07-28
+**IDs:** DEC-COAL-001 … DEC-COAL-008, OPEN-001, OPEN-002
 **Implementation:** `coalesce.go` (`shouldSuppressStandaloneConclusion`)
 
 ## Context
@@ -57,18 +57,44 @@ multiple effect sections, Plan+Changes together, NextCommand/actions, subject mi
 
 ### DEC-COAL-005 — Compatibility matrix
 
-| Visible section | Conclusion state | Suppress? |
-|-----------------|------------------|-----------|
-| one `[changed]` | `changed` / ready+Changed / unchanged | Yes |
-| one `[planned]` | `planned` / ready / unchanged | Yes |
-| one section | `failed` / `blocked` / `warning` / `cancelled` / `partial` | No |
-| multiple sections | any | No |
-| section + failed Item | any (usually failed) | No |
-| section + NextCommand | any | No |
+| Visible section       | Conclusion state                                           | Suppress? |
+| --------------------- | ---------------------------------------------------------- | --------- |
+| one `[changed]`       | `changed` / ready+Changed / unchanged                      | Yes       |
+| one `[planned]`       | `planned` / ready / unchanged                              | Yes       |
+| one section           | `failed` / `blocked` / `warning` / `cancelled` / `partial` | No        |
+| multiple sections     | any                                                        | No        |
+| section + failed Item | any (usually failed)                                       | No        |
+| section + NextCommand | any                                                        | No        |
+
+### DEC-COAL-006 — Evidence, not titles, establishes readiness
+
+A non-empty output title does not establish a successful result. `ready` requires
+at least one resolved Item, Task, or Tasks collection; an output with only a title
+or ordinary lines concludes `unchanged`.
+
+### DEC-COAL-007 — Suppress conclusions with no information gain
+
+The human projection omits a conclusion when either:
+
+1. no semantic result exists and the conclusion has no explanation, action, partial,
+   or cancellation dimension; or
+2. exactly one Item, Task, or Tasks collection already displays the same state and
+   semantic subject.
+
+The structured model retains the conclusion in both cases.
+
+### DEC-COAL-008 — Preserve subject-level rollups
+
+A single condition may still justify a conclusion when its subject differs from
+the output subject. For example, a failed `release signature` condition may add the
+broader conclusion `[blocked] release v1.4`. Multiple condition results also retain
+their aggregate conclusion.
 
 ## Consequences
 
 - Human output is quieter for summary-only Plan/Changes tools (e.g. librarian).
+- Data-only commands no longer gain conclusion chrome from `Title` alone.
+- Exact one-condition restatements collapse without weakening structured output.
 - Tests that expected a duplicated conclusion band must update.
 - Structured consumers are unchanged.
 
