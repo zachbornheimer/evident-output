@@ -1,21 +1,21 @@
 # Gemini CLI integration — Evident Output
 
-**Pin:** `v0.2.13` (never `@latest` for persistent install).
+**Pin:** `v0.2.14` (never `@latest` for persistent install).
 
 ## Paths
 
-| What | Path |
-|------|------|
-| GitHub | `https://github.com/zachbornheimer/evident-output` |
+| What       | Path                                                              |
+| ---------- | ----------------------------------------------------------------- |
+| GitHub     | `https://github.com/zachbornheimer/evident-output`                |
 | MCP module | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp` |
-| Binary | `$HOME/.local/bin/evident-output-mcp` |
+| Binary     | `$HOME/.local/bin/evident-output-mcp`                             |
 
 ## Install + register
 
 ```bash
 mkdir -p "$HOME/.local/bin"
 GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.13
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.14
 
 "$HOME/.local/bin/evident-output-mcp" config --client gemini
 ```

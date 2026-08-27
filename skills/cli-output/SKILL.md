@@ -14,43 +14,43 @@ license: Apache-2.0
 Portable skill for understandable CLI presentation. Prefer **Evident Output**
 when available; stay useful when it is not.
 
-**Pinned release:** `v0.2.13` (keep install commands on this pin; never `@latest`).
+**Pinned release:** `v0.2.14` (keep install commands on this pin; never `@latest`).
 
 ## Canonical locations (portable)
 
-| What | Path |
-|------|------|
-| **GitHub repo** | `https://github.com/zachbornheimer/evident-output` |
-| **Go module** | `github.com/zachbornheimer/evident-output` |
-| **MCP package** | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp` |
-| **CLI package** | `github.com/zachbornheimer/evident-output/cmd/evident-output` |
-| **This skill in-repo** | `skills/cli-output/SKILL.md` |
-| **MCP install (module)** | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.13` |
+| What                     | Path                                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **GitHub repo**          | `https://github.com/zachbornheimer/evident-output`                                                          |
+| **Go module**            | `github.com/zachbornheimer/evident-output`                                                                  |
+| **MCP package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp`                                           |
+| **CLI package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output`                                               |
+| **This skill in-repo**   | `skills/cli-output/SKILL.md`                                                                                |
+| **MCP install (module)** | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.14` |
 
 Host-specific wiring (Grok, Claude Code, Codex, …) lives under `integrations/<host>/` in the repo — not in this skill.
 
 ## Capability fallback
 
-1. **Connected MCP** — tools below  
-2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.2.13 …`  
+1. **Connected MCP** — tools below
+2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.2.14 …`
 3. **This skill’s static guidance**
 
 ## MCP tool names (underscores only)
 
-| tools/list | Purpose |
-|------------|---------|
-| `evident_output_list_guides` | Catalog |
-| `evident_output_get_guidance` | Sections by id |
-| `evident_output_review` | Go / transcript / JSON |
-| `evident_output_preview` | Plain profiles |
-| `evident_output_explain` | `rule_id` (not `id`) |
+| tools/list                    | Purpose                |
+| ----------------------------- | ---------------------- |
+| `evident_output_list_guides`  | Catalog                |
+| `evident_output_get_guidance` | Sections by id         |
+| `evident_output_review`       | Go / transcript / JSON |
+| `evident_output_preview`      | Plain profiles         |
+| `evident_output_explain`      | `rule_id` (not `id`)   |
 
 On Grok, tools are `evident-output__evident_output_*`.
 
 ## Install library
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.13
+go get github.com/zachbornheimer/evident-output@v0.2.14
 ```
 
 ## Philosophy (in-repo)
@@ -93,30 +93,30 @@ if err := run.Run(ctx, "brew", args, output); err != nil {
 upgrade.Done()
 ```
 
-Opt-in display: `Capture(evo.MirrorToDiagnostics())` or `MirrorToDebug()`.  
-Do **not** use `DebugWriter` for child tools (API-029).  
+Opt-in display: `Capture(evo.MirrorToDiagnostics())` or `MirrorToDebug()`.
+Do **not** use `DebugWriter` for child tools (API-029).
 Secrets: set `Config.Redactor` — Capture ring and DetailTail are redacted on retention.
 
 ## Platform contracts
 
-| Need | Use |
-|------|-----|
-| Stable key | `out.Task("download", evo.ID("build.base"))` |
-| Namespace | `out.Scope("registry").Item("auth", evo.ID("creds"))` |
+| Need        | Use                                                   |
+| ----------- | ----------------------------------------------------- |
+| Stable key  | `out.Task("download", evo.ID("build.base"))`          |
+| Namespace   | `out.Scope("registry").Item("auth", evo.ID("creds"))` |
 | Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr) |
 
 ## Severity
 
-| Outcome | Meaning |
-|---------|---------|
-| **Warn** | Soft / optional |
+| Outcome   | Meaning                               |
+| --------- | ------------------------------------- |
+| **Warn**  | Soft / optional                       |
 | **Block** | Stop before mutation (not a Go error) |
-| **Fail** | Evaluation / required tool failed |
+| **Fail**  | Evaluation / required tool failed     |
 
 ## Review
 
 ```bash
-go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.2.13 review ./path.go
+go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.2.14 review ./path.go
 ```
 
 Until `recheck_required=false`. Rules include API-006 (Start), API-026 (RunAll/Map), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).

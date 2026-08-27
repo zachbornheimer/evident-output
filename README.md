@@ -33,39 +33,39 @@ func run(out *evo.Output) error {
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.13
+go get github.com/zachbornheimer/evident-output@v0.2.14
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
 
 Design philosophy and polish-phase basis: [`docs/roadmap/implementation-basis.md`](docs/roadmap/implementation-basis.md), [`docs/philosophy/`](docs/philosophy/).
 
-**Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `NewWithOptions(Title(...), …)`.  
-**Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 150ms). `Debug.Level: LevelTrace` selectable (`LevelUnset` → Info).  
-**Lifecycle:** `os.Exit(evo.Main(out, run))` seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.  
-**Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only). Semantic state: Item/Task.  
-**Capture:** `Task.Capture` (work) or `Item.Capture` (tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention.  
+**Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `NewWithOptions(Title(...), …)`.
+**Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 150ms). `Debug.Level: LevelTrace` selectable (`LevelUnset` → Info).
+**Lifecycle:** `os.Exit(evo.Main(out, run))` seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.
+**Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only). Semantic state: Item/Task.
+**Capture:** `Task.Capture` (work) or `Item.Capture` (tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention.
 **Platform:** `evo.ID` + narrow `Scope` (Item/Task/Tasks only — not a sandbox); `ResultWriter()` under `FormatData`.
 
 ## Pick the entity
 
-| Shape | Use when |
-|-------|----------|
-| **Item** | Check / gate / verdict unit (pass–fail) |
-| **Task** | Work with phases or progress |
-| **Tasks** | Collection of independent tasks (state is **derived**) |
-| **Changes** | Past-tense durable effects that happened |
-| **Plan** | Dry-run would-happen effects |
+| Shape       | Use when                                               |
+| ----------- | ------------------------------------------------------ |
+| **Item**    | Check / gate / verdict unit (pass–fail)                |
+| **Task**    | Work with phases or progress                           |
+| **Tasks**   | Collection of independent tasks (state is **derived**) |
+| **Changes** | Past-tense durable effects that happened               |
+| **Plan**    | Dry-run would-happen effects                           |
 
 When both Item and Task fit: prefer **Item** for pass/fail gates, **Task** for progress. Multi-gate: resolve every Item, then `if out.AnyBlocked() { return nil }` before mutation; `Main` maps `ExitCode`.
 
 ## Severity dialect
 
-| Outcome | Meaning |
-|---------|---------|
-| **Warn** | Soft concern or **optional** tool missing; command may continue |
+| Outcome   | Meaning                                                                       |
+| --------- | ----------------------------------------------------------------------------- |
+| **Warn**  | Soft concern or **optional** tool missing; command may continue               |
 | **Block** | Policy / precondition failed; **stop before mutation** (evaluation succeeded) |
-| **Fail** | Evaluation failed or **required** tool/IO failed |
+| **Fail**  | Evaluation failed or **required** tool/IO failed                              |
 
 `Block` ≠ Go `error`. After Block, return nil from `run` and let `Main` exit `1`.
 
@@ -107,46 +107,46 @@ if err := runDockerInfo(cap); err != nil {
 
 Keep the core vocabulary small. Scale via **Config**, **schema keys**, and **stream contracts**:
 
-| Need | Contract |
-|------|----------|
-| Stable machine identity | `out.Item("label", evo.ID("gate.tree"))` — keys appear in Snapshot/JSON |
+| Need                         | Contract                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Stable machine identity      | `out.Item("label", evo.ID("gate.tree"))` — keys appear in Snapshot/JSON                                |
 | Plugin / subsystem namespace | `out.Scope("registry").Task("pull", evo.ID("image"))` → key `registry.image` (IDs only; not isolation) |
-| Domain payload purity | `Format: FormatData` + `json.NewEncoder(out.ResultWriter())` (stdout); human on stderr |
-| Secret scrubbing | `Config.Redactor` or `evo.Redact(r)` — Debug fields + Capture ring |
-| Host-owned rendering | `FormatExternal` + snapshots (no inline stream) |
+| Domain payload purity        | `Format: FormatData` + `json.NewEncoder(out.ResultWriter())` (stdout); human on stderr                 |
+| Secret scrubbing             | `Config.Redactor` or `evo.Redact(r)` — Debug fields + Capture ring                                     |
+| Host-owned rendering         | `FormatExternal` + snapshots (no inline stream)                                                        |
 
 Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Prefer one `Config` field or `EntityOption` over a new top-level type.
 
 ## Status
 
-**Release:** **v0.2.13** — pin **maintenance class** closed: `PublishedRelease` + auto-walk drift gate + `sync-release-pins` (no ad-hoc skill/README pin edits). Portable install forbids `@latest` and personal clone paths.  
-**Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).  
+**Release:** **v0.2.14** — pin **maintenance class** closed: `PublishedRelease` + auto-walk drift gate + `sync-release-pins` (no ad-hoc skill/README pin edits). Portable install forbids `@latest` and personal clone paths.
+**Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).
 **Implemented surface:** ordinary ladder through Plan/Changes/Capture/slog/ResultWriter; interactive VT; hardened MCP; polish-phase docs under `docs/`. External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 
-| Ready now | External / manual only |
-|-----------|------------------------|
-| Items, Task, Tasks, Changes, Plan, Print | Windows ConPTY RC (PORT-003) |
-| Conclusion + exit codes + Cancel cleanup | tmux RC (PORT-004) |
-| Plain, JSON (§25.1), JSONL (§25.2) | SSH RC (PORT-005) |
-| Interactive live region (`testkit.Screen`) | Light/dark contrast review (A11Y-006) |
-| `SlogHandler`, `DebugWriter`, `Suspend`, `Snapshots()`, `MaxEntities`, `MaxEvents`, `AlsoWrite` | Screen-reader review (A11Y-007) |
-| Appendix H.1–H.22 + agent harness + multi-file GoPackage review | — |
-| ANSI driver + width/CJK + OSC strip + s390x cross-compile | — |
-| CLI: `review` / `preview` / `explain` (real JSON) | — |
-| MCP: lifecycle, protocol negotiate, unknown-field reject, panic contain, token budget, remote-path reject, catalog checksum | — |
-| Framework adapter examples (urfave/Kong shapes, no core deps) | — |
+| Ready now                                                                                                                   | External / manual only                |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Items, Task, Tasks, Changes, Plan, Print                                                                                    | Windows ConPTY RC (PORT-003)          |
+| Conclusion + exit codes + Cancel cleanup                                                                                    | tmux RC (PORT-004)                    |
+| Plain, JSON (§25.1), JSONL (§25.2)                                                                                          | SSH RC (PORT-005)                     |
+| Interactive live region (`testkit.Screen`)                                                                                  | Light/dark contrast review (A11Y-006) |
+| `SlogHandler`, `DebugWriter`, `Suspend`, `Snapshots()`, `MaxEntities`, `MaxEvents`, `AlsoWrite`                             | Screen-reader review (A11Y-007)       |
+| Appendix H.1–H.22 + agent harness + multi-file GoPackage review                                                             | —                                     |
+| ANSI driver + width/CJK + OSC strip + s390x cross-compile                                                                   | —                                     |
+| CLI: `review` / `preview` / `explain` (real JSON)                                                                           | —                                     |
+| MCP: lifecycle, protocol negotiate, unknown-field reject, panic contain, token budget, remote-path reject, catalog checksum | —                                     |
+| Framework adapter examples (urfave/Kong shapes, no core deps)                                                               | —                                     |
 
 ## Vocabulary
 
-| Type | Meaning |
-|------|---------|
-| `Item` | Named condition that stays in the final report |
-| `Task` | One operation (phase / progress / done) |
-| `Tasks` | Collection of independent tasks (state is **derived**) |
-| `Problem` | Structured evidence for warn / block / fail |
-| `Changes` / `Plan` | Effects that happened vs would happen |
-| `Conclusion` | Headline + `Changed` / `Partial` / `Cancelled` + exit code |
-| `Main` | Finish + Close + process exit code for CLI entrypoints |
+| Type               | Meaning                                                    |
+| ------------------ | ---------------------------------------------------------- |
+| `Item`             | Named condition that stays in the final report             |
+| `Task`             | One operation (phase / progress / done)                    |
+| `Tasks`            | Collection of independent tasks (state is **derived**)     |
+| `Problem`          | Structured evidence for warn / block / fail                |
+| `Changes` / `Plan` | Effects that happened vs would happen                      |
+| `Conclusion`       | Headline + `Changed` / `Partial` / `Cancelled` + exit code |
+| `Main`             | Finish + Close + process exit code for CLI entrypoints     |
 
 Do **not** put schedulers, `RunAll`, retries, or shell execution in this library. Review rule **API-026** flags those helpers only on evo receivers (AST), not `strings.Map`.
 
@@ -167,11 +167,11 @@ Trunk is configured **daemonless** (`--monitor=false`). Prefer `mise` over raw t
 
 `conformance/` is the executable specification (Raku/`roast` model):
 
-- `TRACEABILITY.md` — all **272** §31 IDs dispositioned (**267 pass**, **5 waived** with reason + owner for external/manual only; **0 untested**)  
-- `schema/scenario.v1.json` — declarative scenario dialect  
+- `TRACEABILITY.md` — all **272** §31 IDs dispositioned (**267 pass**, **5 waived** with reason + owner for external/manual only; **0 untested**)
+- `schema/scenario.v1.json` — declarative scenario dialect
 - `scenarios/*.json` + Go Appendix H tests (`appendix_h_test.go`)
 
-Architecture source (current design candidate): [`docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md`](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md).  
+Architecture source (current design candidate): [`docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md`](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md).
 Prior implemented baseline: [`docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.3.md`](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.3.md).
 
 Completeness vs §31 (v0.3 matrix): [`docs/architecture/COMPLETENESS_MATRIX.md`](docs/architecture/COMPLETENESS_MATRIX.md) (**267 pass / 5 waived**).
@@ -217,13 +217,13 @@ spec) and **Content-Length** framing (some client SDKs).
 **Advertised tool names** use underscores (Grok rejects dotted tool names and then
 registers `tool_count: 0`). Dotted aliases still work on `tools/call`.
 
-| Tool name (tools/list) | Grok `use_tool` id | Purpose |
-|------------------------|--------------------|---------|
-| `evident_output_list_guides` | `evident-output__evident_output_list_guides` | Guidance catalog |
-| `evident_output_get_guidance` | `evident-output__evident_output_get_guidance` | Sections by id |
-| `evident_output_review` | `evident-output__evident_output_review` | Go / transcript / JSON review |
-| `evident_output_preview` | `evident-output__evident_output_preview` | Plain profile previews |
-| `evident_output_explain` | `evident-output__evident_output_explain` | Rule id (`rule_id`) |
+| Tool name (tools/list)        | Grok `use_tool` id                            | Purpose                       |
+| ----------------------------- | --------------------------------------------- | ----------------------------- |
+| `evident_output_list_guides`  | `evident-output__evident_output_list_guides`  | Guidance catalog              |
+| `evident_output_get_guidance` | `evident-output__evident_output_get_guidance` | Sections by id                |
+| `evident_output_review`       | `evident-output__evident_output_review`       | Go / transcript / JSON review |
+| `evident_output_preview`      | `evident-output__evident_output_preview`      | Plain profile previews        |
+| `evident_output_explain`      | `evident-output__evident_output_explain`      | Rule id (`rule_id`)           |
 
 `explain` arguments: `{ "rule_id": "DOM-011" }` (not `id`).
 
@@ -234,7 +234,7 @@ mkdir -p "$HOME/.local/bin"
 
 # Module install (network + sumdb) — pin a release tag, never @latest:
 GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.13
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.14
 
 # Or from a local clone of this repo:
 #   git clone https://github.com/zachbornheimer/evident-output.git
@@ -318,16 +318,16 @@ Review kinds for `evident_output_review`: `go` (default), `transcript`, `json` /
 
 Small real programs (flags, help, exit codes) — not snippets. Copy a whole folder as a starting shape.
 
-| Example | Pattern |
-|---------|---------|
-| `repo-status` | Parallel **Items** (OK / blocked / warn), conclusion exit code |
-| `install-pipeline` | **Tasks** collection with Progress/Bytes/Fail (final report) |
-| `migrate` | **Plan** dry-run vs **Changes** apply (`--apply`) |
-| `doctor` | Mixed doctor items; `--json` snapshot on stdout |
-| `data-command` | Data command: JSON **stdout**, human report **stderr** |
-| `live-progress` | **Live multi-progress**: bars + indeterminate phases (ANSI on stderr) |
-| `debug-history` | **DebugHistory**: durable `HH:MM:SS [DEBUG] …` above live/items |
-| `debug-pane` | **DebugPane**: rolling slog pane; `--fail` keeps diagnostics tail |
+| Example            | Pattern                                                               |
+| ------------------ | --------------------------------------------------------------------- |
+| `repo-status`      | Parallel **Items** (OK / blocked / warn), conclusion exit code        |
+| `install-pipeline` | **Tasks** collection with Progress/Bytes/Fail (final report)          |
+| `migrate`          | **Plan** dry-run vs **Changes** apply (`--apply`)                     |
+| `doctor`           | Mixed doctor items; `--json` snapshot on stdout                       |
+| `data-command`     | Data command: JSON **stdout**, human report **stderr**                |
+| `live-progress`    | **Live multi-progress**: bars + indeterminate phases (ANSI on stderr) |
+| `debug-history`    | **DebugHistory**: durable `HH:MM:SS [DEBUG] …` above live/items       |
+| `debug-pane`       | **DebugPane**: rolling slog pane; `--fail` keeps diagnostics tail     |
 
 ```bash
 mise run examples                          # all, back-to-back with headers

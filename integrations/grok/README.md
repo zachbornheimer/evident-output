@@ -2,17 +2,17 @@
 
 Local **stdio** MCP only (no hosted URL).
 
-**Pin:** `v0.2.13` (never `@latest` for persistent install).
+**Pin:** `v0.2.14` (never `@latest` for persistent install).
 
 ## Canonical paths
 
-| What | Path |
-|------|------|
-| GitHub | `https://github.com/zachbornheimer/evident-output` |
-| Module / MCP cmd | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp` |
-| Binary install target | `$HOME/.local/bin/evident-output-mcp` |
-| Grok user config | `$HOME/.grok/config.toml` |
-| Skill | `skills/cli-output/SKILL.md` in the repo |
+| What                  | Path                                                              |
+| --------------------- | ----------------------------------------------------------------- |
+| GitHub                | `https://github.com/zachbornheimer/evident-output`                |
+| Module / MCP cmd      | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp` |
+| Binary install target | `$HOME/.local/bin/evident-output-mcp`                             |
+| Grok user config      | `$HOME/.grok/config.toml`                                         |
+| Skill                 | `skills/cli-output/SKILL.md` in the repo                          |
 
 ## 1. Install the server binary
 
@@ -21,7 +21,7 @@ mkdir -p "$HOME/.local/bin"
 
 # Module install — pin a release (never @latest):
 GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.13
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.14
 
 # Or from a local clone of this repo:
 #   go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
@@ -76,10 +76,10 @@ grok -p 'Call use_tool on evident-output__evident_output_list_guides with {}. Re
 
 In `~/.grok/sessions/…/events.jsonl`:
 
-| Event | Meaning |
-|-------|---------|
-| `mcp_server_connected` + `"tool_count":5` | Good |
+| Event                                     | Meaning                               |
+| ----------------------------------------- | ------------------------------------- |
+| `mcp_server_connected` + `"tool_count":5` | Good                                  |
 | `mcp_server_connected` + `"tool_count":0` | Tools rejected (use underscore names) |
-| `mcp_server_failed` | Spawn/handshake error (path/PATH) |
+| `mcp_server_failed`                       | Spawn/handshake error (path/PATH)     |
 
 **Grok gotcha:** dotted tool names (`evident_output.list_guides`) → `tool_count: 0`.
