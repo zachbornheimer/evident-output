@@ -545,7 +545,7 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin stri
 		detail := progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " +
 			fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
 		if t.Phase != "" {
-			detail = detail + "  " + t.Phase
+			detail = detail + "  " + dim(t.Phase, color)
 		}
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
 	case t.State == Running && (t.Progress.Kind == Indeterminate || t.Phase != ""):

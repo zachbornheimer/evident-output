@@ -37,3 +37,25 @@ func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 		t.Fatalf("order:\n%s", got)
 	}
 }
+
+func TestLive_DeterminateProgressPhaseIsDimmed(t *testing.T) {
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24))
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0))
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("scan")
+	task.Progress(3, 10)
+	task.Phase("reading manifest")
+
+	got := screen.LatestLiveText()
+	dimmedPhase := "\x1b[2mreading manifest\x1b[0m"
+	if !strings.Contains(got, dimmedPhase) {
+		t.Fatalf("expected dimmed Phase on determinate Progress+Phase:\n%q", got)
+	}
+	if !strings.Contains(got, "3/10") {
+		t.Fatalf("expected unit count:\n%s", got)
+	}
+	if strings.Contains(got, "\x1b[2m3/10") {
+		t.Fatalf("count must stay undimmed:\n%q", got)
+	}
+}

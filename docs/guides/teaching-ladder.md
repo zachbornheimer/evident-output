@@ -48,6 +48,9 @@ return out.Finish()
 | RULE-006 | Capability ≠ obligation                                           |
 | PHIL-001 | One ordinary spelling per intent                                  |
 
+Batch elements are one Task with Progress+Phase (count + muted activity), not N Items.
+Use `TruncateNames` for a single skip/kept list when names must stay readable.
+
 See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.
 Release pin procedure: `docs/guides/cutting-a-release.md`.
 
