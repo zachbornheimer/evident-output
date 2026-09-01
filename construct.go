@@ -276,8 +276,9 @@ func configToOptions(c Config) []Option {
 				}
 				height = th
 			} else {
-				// Cannot establish size safely — fall back to plain progressive.
-				wantLive = false
+				// TTY without ioctl size (pty, ssh, `timeout`): keep live
+				// with default geometry so a spinner still appears.
+				height = 24
 			}
 		}
 		if wantLive {
