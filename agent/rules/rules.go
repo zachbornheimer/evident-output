@@ -179,7 +179,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Invariant:       "instant completion does not flash spinner",
 			Why:             "Sub-threshold Done should not paint a live spinner that disappears immediately.",
 			BadCode:         `// custom spinner without VisibilityDelay`,
-			GoodCode:        `// rely on evo VisibilityDelay (default 150ms)`,
+			GoodCode:        `// rely on evo VisibilityDelay (default 80ms)`,
 			Remediation:     "Rely on visibility delay; do not paint custom spinners",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-001", "H.17"},

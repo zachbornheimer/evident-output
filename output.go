@@ -283,7 +283,7 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string) *Task {
 		id:          o.nextID("task"),
 		key:         key,
 		name:        name,
-		state:       Pending,
+		state:       Running,
 		progress:    Progress{Kind: Indeterminate},
 		collection:  col,
 		declaration: o.nextDecl(),
@@ -297,6 +297,7 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string) *Task {
 	o.taskByRef[st.id] = st
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
+	o.signalLiveLocked(true)
 	return h
 }
 

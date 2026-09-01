@@ -78,7 +78,7 @@ func TestDefaultConfig_Independent(t *testing.T) {
 }
 
 func TestConfig_VisibilityDelayZeroIsImmediate(t *testing.T) {
-	// Explicit zero must not be rewritten as the 150ms default.
+	// Explicit zero must not be rewritten as the 80ms default.
 	// Option path VisibilityDelay(0) already covers live paint; this asserts Config.
 	cfg := evo.Config{
 		Title:           "immediate",

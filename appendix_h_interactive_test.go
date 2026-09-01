@@ -75,6 +75,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 
 	// History mode: timestamp (FixedClock) + bracketed level above live region.
 	want := []testkit.Operation{
+		testkit.DrawLive("⠋  dependencies  working…"),
 		testkit.DrawLive("⠋  dependencies  resolving packages"),
 		testkit.ClearLive(),
 		testkit.WriteDurable("00:00:00.000 [DEBUG] package index loaded  packages=18"),
@@ -235,8 +236,8 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 			}
 		}
 	}
-	if frames := screen.LiveFrameCount(); frames != 2 {
-		t.Fatalf("live frames=%d, want 2", frames)
+	if frames := screen.LiveFrameCount(); frames != 3 {
+		t.Fatalf("live frames=%d, want 3", frames)
 	}
 	if got := width.StripANSI(screen.LatestLiveText()); !strings.HasSuffix(got, "…") {
 		t.Fatalf("truncated live line must signal omitted text:\n%s", got)

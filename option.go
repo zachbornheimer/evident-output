@@ -92,7 +92,7 @@ func Clock(ts TimeSource) Option {
 }
 
 // VisibilityDelay sets how long live activity must persist before the first
-// interactive paint (default 150ms). Zero paints immediately. Prevents Phase→fast
+// interactive paint (default 80ms). Zero paints immediately. Prevents Phase→fast
 // Done spinner flash (H.2). Domain TimeSource is used for the threshold.
 func VisibilityDelay(delay time.Duration) Option {
 	return optionFunc(func(c *config) { c.visibilityDelay = delay })
@@ -158,7 +158,7 @@ type TerminalDriver interface {
 }
 
 const (
-	defaultVisibilityDelay = 150 * time.Millisecond
+	defaultVisibilityDelay = 80 * time.Millisecond
 	defaultMaxFrameRate    = 20
 	defaultWidth           = 80
 	// defaultMaxEntities bounds items+tasks to prevent unbounded allocation (SEC-003).

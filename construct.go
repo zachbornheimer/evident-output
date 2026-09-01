@@ -98,7 +98,7 @@ type Config struct {
 	Strict   bool
 	Width    int
 	// VisibilityDelay is the wait before the first live paint.
-	// nil means default (150ms). Non-nil is exact, including 0 for immediate.
+	// nil means default (80ms). Non-nil is exact, including 0 for immediate.
 	// Use evo.Delay(d) to set a value from a duration literal.
 	VisibilityDelay *time.Duration
 	MaxFrameRate    int
@@ -118,7 +118,7 @@ type Config struct {
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
 //
 //	cfg.VisibilityDelay = evo.Delay(0)                      // immediate
-//	cfg.VisibilityDelay = evo.Delay(150 * time.Millisecond) // explicit default
+//	cfg.VisibilityDelay = evo.Delay(80 * time.Millisecond) // explicit default
 func Delay(d time.Duration) *time.Duration {
 	return &d
 }

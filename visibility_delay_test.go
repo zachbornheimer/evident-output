@@ -58,3 +58,30 @@ func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 	task.Done()
 	_ = out.Finish()
 }
+
+func TestTask_AlonePaintsLiveWithZeroDelay(t *testing.T) {
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.NewWithOptions(
+		evo.Terminal(screen),
+		evo.VisibilityDelay(0),
+		evo.NoColor(),
+	)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Task("work")
+	if got := screen.LiveFrameCount(); got == 0 {
+		t.Fatal("Task() with VisibilityDelay(0) must paint a live frame without Phase")
+	}
+	_ = out.Finish()
+}
+
+func TestDefaultVisibilityDelay_WithinUserSLA(t *testing.T) {
+	cfg := evo.DefaultConfig()
+	if cfg.VisibilityDelay == nil {
+		t.Fatal("DefaultConfig VisibilityDelay must be set")
+	}
+	const sla = 80 * time.Millisecond
+	if *cfg.VisibilityDelay > sla {
+		t.Fatalf("default VisibilityDelay = %v, want ≤ %v", *cfg.VisibilityDelay, sla)
+	}
+}

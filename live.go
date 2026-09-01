@@ -74,8 +74,8 @@ func (o *Output) liveLocked() LiveSurface {
 // signalLiveLocked marks that interactive presentation may need a redraw.
 // force=true bypasses frame-rate coalescing only (not VisibilityDelay).
 // VisibilityDelay withholds the first live paint after activity starts so
-// Phase→fast Done does not flash a spinner; Instant Done without Phase never
-// sets activity, so no live frames (H.2).
+// Task/Phase→fast Done does not flash a spinner. Instant Done still waits
+// the delay; if delay has not elapsed, no live frames (H.2).
 func (o *Output) signalLiveLocked(force bool) {
 	live := o.liveLocked()
 	if live == nil || !live.IsInteractive() {
