@@ -43,6 +43,12 @@ func (c *Changes) Wrote(object string) *Changes {
 	return c.recordNoQty("wrote", object)
 }
 
+// RecordName records a verb and one named object without a quantity.
+// Quantity is for collapsed counts; RecordName is one named object.
+func (c *Changes) RecordName(verb, object string) *Changes {
+	return c.recordNoQty(verb, object)
+}
+
 // Record records a verb/quantity/object effect.
 func (c *Changes) Record(verb string, quantity int64, object string) *Changes {
 	c.out.mu.Lock()
