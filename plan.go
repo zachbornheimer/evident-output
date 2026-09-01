@@ -53,6 +53,12 @@ func (p *Plan) Retain(description string) *Plan {
 	return p.recordNoQty("retain", description)
 }
 
+// RecordName records a planned verb and one named object without a quantity.
+// Quantity is for collapsed counts; RecordName is one named object.
+func (p *Plan) RecordName(verb, object string) *Plan {
+	return p.recordNoQty(verb, object)
+}
+
 // Record records a planned verb/quantity/object.
 func (p *Plan) Record(verb string, quantity int64, object string) *Plan {
 	p.out.mu.Lock()
