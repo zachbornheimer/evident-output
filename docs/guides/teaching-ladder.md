@@ -5,23 +5,35 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 ## Ladder
 
 ```text
-1. New(Config) + Main (standalone) or Finish+Close (hosted)
+1. evo.Init(Config) + os.Exit(evo.Main(run)) — arms first paint, owns dry-run wording and exit codes
 2. Print / Printf / Println / Verbose
 3. Item — gates and conditions
-4. Task — work units; Capture on Task or Item
-5. Plan / Changes — tense of effect (would / did)
-6. ResultWriter or app machine contract (FormatData)
-7. Scope — namespaced IDs only
-8. Live progress (Tasks collection, Progress/Bytes)
-9. slog via SlogHandler (Config.Debug.Level)
-10. Advanced: NewWithOptions, terminal drivers, testkit
+4. Task — work units; mutation verbs (Delete/Create/Update/…); Capture on Task or Item
+5. Each / PhaseWriter — loop progress and child-process narration
+6. Skipped / Kept — skip/keep taxonomy (reason + name, never a bare count)
+7. Confirm — the whole ask-decide-resolve gate
+8. ResultWriter or app machine contract (FormatData)
+9. Scope — namespaced IDs only
+10. slog via SlogHandler (Config.Debug.Level)
+11. Advanced: NewWithOptions, Plan/Changes (tooling call sites), terminal drivers, testkit, Suspend
+
+Rung 5 (Plan/Changes) demoted to advanced: Task's mutation verbs (Delete/Create/…) already pick
+[planned] vs [changed] from Config.DryRun on the ordinary path; Plan/Changes stay for tooling call
+sites that need the instance API directly.
 ```
 
-## Standalone
+## Standalone (package-level default instance)
 
 ```go
-out := evo.New(evo.Config{Title: "tool"})
-os.Exit(evo.MainWith(out, run))
+func main() {
+    evo.Init(evo.Config{Title: "tool"}) // first statement — arms first paint before any I/O
+    os.Exit(evo.Main(run))
+}
+
+func run() error {
+    evo.Task("scan").Each(items)
+    return nil
+}
 ```
 
 ## Hosted (framework owns exit)
@@ -63,6 +75,26 @@ task.Fail("failed", evo.Cause(err), cap.DetailTail())
 ```
 
 Pending unterminated fragments are included in DetailTail.
+
+## Confirm
+
+```go
+ok := evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))
+```
+
+Owns the whole gate: spinner pause, the `?` prompt, stdin. "n" resolves `⊘ declined`; non-TTY without
+`--yes` resolves `⊘ blocked by policy` — never a Go error, never Failed.
+
+## Suspend (handing the tty to a child)
+
+```go
+cmd := exec.Command("zq", "setup")
+cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+out.Suspend(func() error { return cmd.Run() })
+```
+
+Only needed when a child paints its own UI on the shared terminal (tty passthrough); a captured or
+`PhaseWriter`-wired child never needs it.
 
 ## Data commands
 

@@ -173,6 +173,21 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectSignalNotifyWithoutCancel(filename, src)...)
 	}
 
+	// TERM-015: a child that owns the terminal (tty passthrough) must run
+	// inside out.Suspend, or its own UI glues onto the parent's live
+	// spinner — no in-process fix helps once two processes share one tty
+	// (evo-rec.md "#7b").
+	if hasEvo {
+		findings = append(findings, detectTTYPassthroughWithoutSuspend(filename, src)...)
+	}
+
+	// CONFIRM-001: a hand-rolled stdin prompt reintroduces the exact bugs
+	// evo.Confirm already closes (spinner tearing, CI hangs, declined
+	// answers reported as errors instead of Blocked).
+	if hasEvo {
+		findings = append(findings, detectHandRolledConfirm(filename, src)...)
+	}
+
 	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
@@ -602,6 +617,61 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 		RuleID:   "SIG-001",
 		Severity: "warning",
 		Message:  "signal.Notify without a Cancel call in this file; prefer evo.Main/evo.MainWith, which already wires SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
+		File:     filename,
+		Line:     line,
+	}}
+}
+
+// detectTTYPassthroughWithoutSuspend flags exec.Cmd Stdout/Stderr wired
+// directly to the process's inherited terminal (tty passthrough) in a file
+// that holds an active evo Output but never calls Suspend — two processes
+// painting the same terminal glue the child's first line to the parent's
+// live spinner (evo-rec.md "#7b"). Captured children (PhaseWriter/Capture)
+// are unaffected and never match this pattern.
+func detectTTYPassthroughWithoutSuspend(filename, src string) []Finding {
+	if !strings.Contains(src, "exec.Command(") {
+		return nil
+	}
+	hasPassthrough := strings.Contains(src, ".Stdout = os.Stdout") || strings.Contains(src, ".Stderr = os.Stderr")
+	if !hasPassthrough {
+		return nil
+	}
+	if strings.Contains(src, ".Suspend(") {
+		return nil
+	}
+	line := 1
+	idx := strings.Index(src, ".Stdout = os.Stdout")
+	if idx < 0 {
+		idx = strings.Index(src, ".Stderr = os.Stderr")
+	}
+	if idx >= 0 {
+		line += strings.Count(src[:idx], "\n")
+	}
+	return []Finding{{
+		RuleID:   "TERM-015",
+		Severity: "warning",
+		Message:  "tty-passthrough child (Stdout/Stderr inherited) without a surrounding out.Suspend(...) call; the child's own UI can glue onto the live spinner (evo-rec.md #7b)",
+		File:     filename,
+		Line:     line,
+	}}
+}
+
+// detectHandRolledConfirm flags a bespoke stdin prompt (bufio.NewReader(os.Stdin)
+// or fmt.Scan*) in a file that imports evo — the same gate evo.Confirm already
+// owns (spinner pause, prompt line, OK/declined/blocked resolution).
+func detectHandRolledConfirm(filename, src string) []Finding {
+	idx := strings.Index(src, "bufio.NewReader(os.Stdin)")
+	if idx < 0 {
+		idx = strings.Index(src, "fmt.Scan")
+	}
+	if idx < 0 {
+		return nil
+	}
+	line := 1 + strings.Count(src[:idx], "\n")
+	return []Finding{{
+		RuleID:   "CONFIRM-001",
+		Severity: "warning",
+		Message:  "hand-rolled stdin confirm prompt in a file that imports evo; use evo.Confirm for spinner-pause + OK/declined/blocked resolution",
 		File:     filename,
 		Line:     line,
 	}}

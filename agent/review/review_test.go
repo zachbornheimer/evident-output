@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/agent/review"
+	"github.com/zachbornheimer/evident-output/agent/rules"
 )
 
 func TestGoSource_DetectsStartPrintfExitAndDetailMisuse(t *testing.T) {
@@ -308,6 +309,182 @@ func main() {
 	for _, f := range res.Findings {
 		if f.RuleID == "SIG-001" {
 			t.Fatalf("false positive SIG-001 when Cancel is called: %+v", res.Findings)
+		}
+	}
+}
+
+func TestTERM015_TTYPassthroughWithoutSuspend(t *testing.T) {
+	bad := `package p
+import (
+  "os"
+  "os/exec"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(out *evo.Output) error {
+  cmd := exec.Command("zq", "setup")
+  cmd.Stdout = os.Stdout
+  cmd.Stderr = os.Stderr
+  return cmd.Run()
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "TERM-015" {
+			found = true
+			if f.Line == 0 {
+				t.Error("TERM-015 missing line")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected TERM-015 on tty passthrough without Suspend: %+v", res.Findings)
+	}
+}
+
+func TestTERM015_NoFalsePositiveWithSuspend(t *testing.T) {
+	good := `package p
+import (
+  "os"
+  "os/exec"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(out *evo.Output) error {
+  cmd := exec.Command("zq", "setup")
+  cmd.Stdout = os.Stdout
+  cmd.Stderr = os.Stderr
+  return out.Suspend(func() error { return cmd.Run() })
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "TERM-015" {
+			t.Fatalf("false positive TERM-015 when Suspend wraps the child: %+v", res.Findings)
+		}
+	}
+}
+
+func TestCONFIRM001_HandRolledConfirmDetected(t *testing.T) {
+	bad := `package p
+import (
+  "bufio"
+  "fmt"
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(out *evo.Output) error {
+  reader := bufio.NewReader(os.Stdin)
+  fmt.Print("delete origin/production-hotfix? [y/N] ")
+  _, _ = reader.ReadString('\n')
+  return nil
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "CONFIRM-001" {
+			found = true
+			if f.Line == 0 {
+				t.Error("CONFIRM-001 missing line")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected CONFIRM-001 on hand-rolled stdin prompt: %+v", res.Findings)
+	}
+}
+
+func TestCONFIRM001_NoFalsePositiveOnEvoConfirm(t *testing.T) {
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(flagYes bool) bool {
+  return evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "CONFIRM-001" {
+			t.Fatalf("false positive CONFIRM-001 on evo.Confirm: %+v", res.Findings)
+		}
+	}
+}
+
+// TestReviewEmittedIDsAreRegistered exercises every review detector against a
+// real trigger and asserts the resulting rule IDs all resolve through
+// rules.Explain — an ID review can emit but rules.Explain can't resolve is
+// exactly the agent-loop dead end this test exists to close.
+func TestReviewEmittedIDsAreRegistered(t *testing.T) {
+	emitted := map[string]bool{}
+
+	collect := func(res review.Result) {
+		for _, f := range res.Findings {
+			emitted[f.RuleID] = true
+		}
+	}
+
+	collect(review.GoSource("parse-error.go", `package p
+func f( {
+`))
+
+	collect(review.GoSource("all-findings.go", `package p
+import (
+  "bufio"
+  "errors"
+  "fmt"
+  "os"
+  "os/exec"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(out *evo.Output) error {
+  t := out.Task("x")
+  t.Start()
+  fmt.Printf("hi")
+  out.Item("i").Block("b", evo.Detail(err))
+  os.Exit(1)
+  out.Tasks("jobs").Map(func() {})
+  out.Task("t").Donef("modules cached")
+  _ = out.DebugWriter()
+
+  c := make(chan os.Signal, 1)
+  signal.Notify(c, syscall.SIGINT)
+
+  cmd := exec.Command("zq", "setup")
+  cmd.Stdout = os.Stdout
+  cmd.Stderr = os.Stderr
+
+  reader := bufio.NewReader(os.Stdin)
+  _, _ = reader.ReadString('\n')
+
+  out.Item("working tree").Block("dirty")
+  return errors.New("dirty")
+}
+`))
+
+	collect(review.Transcript("t.txt", "\x1b[?25l hello \x00"))
+	collect(review.StructuredDocument("x.json", []byte(`{"foo":1}`)))
+
+	// MCP-017: cross-file typecheck with an unresolved external symbol.
+	collect(review.GoPackage(map[string]string{
+		"a.go": `package p
+import evo "github.com/zachbornheimer/evident-output"
+func makeOut() *evo.Output { return evo.NewWithOptions() }
+`,
+		"b.go": `package p
+func use() { _ = makeOut() }
+`,
+	}))
+
+	if len(emitted) == 0 {
+		t.Fatal("no findings collected; fixtures no longer trigger any rule")
+	}
+	for id := range emitted {
+		if id == "" {
+			continue
+		}
+		if _, ok := rules.Explain(id); !ok {
+			t.Errorf("review emits %s but rules.Explain(%q) cannot resolve it", id, id)
 		}
 	}
 }
