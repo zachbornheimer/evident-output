@@ -38,6 +38,20 @@ func TestTruncateNames_UnicodeOverflow(t *testing.T) {
 	}
 }
 
+// TestTruncateNames_TwoArgCallDefaultsToUnicode is red-first against the N2
+// regression that forced a mandatory GlyphProfile arg onto TruncateNames,
+// breaking every existing 2-arg caller (e.g. zq's setup_python.go). The
+// simplest call — TruncateNames(names, visible) — must still compile and
+// must default to the Unicode overflow glyph.
+func TestTruncateNames_TwoArgCallDefaultsToUnicode(t *testing.T) {
+	t.Parallel()
+	got := evo.TruncateNames([]string{"a", "b", "c", "d"}, 0)
+	want := "a, b, c … +1 more"
+	if got != want {
+		t.Fatalf("TruncateNames(2-arg) = %q, want %q", got, want)
+	}
+}
+
 // TestTruncateNames_ASCIIOverflow proves the ASCII glyph profile downgrades
 // the overflow marker to "..." with the same "+N more" wording — identical
 // semantics, degraded glyph only (GLYPH-001).
