@@ -24,7 +24,7 @@ func (o *Output) emitItemProgressiveLocked(st *itemState) {
 	snap := st.snapshot()
 
 	if !st.coreEmitted {
-		writeItemCore(&b, snap, color)
+		writeItemCore(&b, snap, color, o.cfg.glyphs)
 		st.coreEmitted = true
 	}
 	if snap.Because != "" && !st.becauseEmitted {
@@ -87,6 +87,13 @@ func (o *Output) writeDurableTextLocked(text string) {
 			o.live.liveActive = false
 		}
 		live.WriteDurable(text)
+		// Redraw immediately (still holding o.mu) so the live region never sits
+		// blank or stale between this durable write and whatever caller or
+		// background tick next touches the terminal — the clear/write/redraw
+		// cycle is one atomic sequence under one lock (evo-rec.md #12).
+		if o.live.visible && o.hasLiveActivityLocked() {
+			o.renderLiveLocked(true)
+		}
 		return
 	}
 	// Plain / non-interactive: stream like fmt — write now, flush now.
@@ -126,7 +133,7 @@ func (o *Output) emitTaskProgressiveLocked(st *taskState) {
 		return
 	}
 	var b strings.Builder
-	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose)
+	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
 	st.coreEmitted = true
 	if b.Len() == 0 {
 		return
@@ -147,6 +154,7 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	cfg := o.cfg
 	color := !cfg.noColor
 	verbose := cfg.verbosity >= VerbosityVerbose
+	profile := cfg.glyphs
 	width := cfg.width
 	if width <= 0 {
 		width = defaultWidth
@@ -165,7 +173,7 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 			o.emitItemProgressiveLocked(it)
 			continue
 		}
-		writeItem(&b, it.snapshot(), color)
+		writeItem(&b, it.snapshot(), color, profile)
 		it.coreEmitted = true
 		it.becauseEmitted = it.because != ""
 		it.actionsEmitted = len(it.actions)
@@ -179,11 +187,11 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 			if t.coreEmitted {
 				continue
 			}
-			writeTask(&b, t.snapshot(), color, verbose)
+			writeTask(&b, t.snapshot(), color, verbose, profile)
 			t.coreEmitted = true
 		}
 		for _, col := range o.collections {
-			writeCollection(&b, col.snapshot(), color)
+			writeCollection(&b, col.snapshot(), color, profile)
 		}
 	}
 	for _, ch := range o.changes {
@@ -213,18 +221,19 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 	color := !o.cfg.noColor
 	verbose := o.cfg.verbosity >= VerbosityVerbose
+	profile := o.cfg.glyphs
 	var b strings.Builder
 	for _, t := range snap.Tasks {
-		writeTask(&b, t, color, verbose)
+		writeTask(&b, t, color, verbose, profile)
 	}
 	for _, col := range snap.Collections {
-		writeCollection(&b, col, color)
+		writeCollection(&b, col, color, profile)
 	}
 	for _, it := range o.items {
 		if it.coreEmitted {
 			continue
 		}
-		writeItem(&b, it.snapshot(), color)
+		writeItem(&b, it.snapshot(), color, profile)
 		it.coreEmitted = true
 		it.becauseEmitted = it.because != ""
 		it.actionsEmitted = len(it.actions)

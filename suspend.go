@@ -13,6 +13,12 @@ func (o *Output) Suspend(fn func() error) error {
 	if live != nil && wasActive {
 		live.ClearLive()
 		o.live.liveActive = false
+		// Suspend means suspend: while fn runs (e.g. Confirm's own durable
+		// prompt write), no redraw may repaint the live region even if fn
+		// itself writes a durable line — "no spinner while waiting on a
+		// human" holds for the whole quiesce window, not just its first
+		// clear. Restored below, symmetrically, once fn returns.
+		o.live.visible = false
 	}
 	o.mu.Unlock()
 

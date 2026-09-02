@@ -42,6 +42,9 @@ type config struct {
 	// dryRun selects mutation-verb tense: true renders TaskHandle mutation
 	// verbs as [planned]/imperative, false as [changed]/past tense.
 	dryRun bool
+	// glyphs selects the state-glyph vocabulary (GlyphsAuto resolved at
+	// construction to GlyphsUnicode or GlyphsASCII; see glyph.go).
+	glyphs GlyphProfile
 }
 
 type optionFunc func(*config)

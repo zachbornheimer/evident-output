@@ -30,15 +30,24 @@ type PlainOptions struct {
 	// taxonomy line. Counts and the reason partition always render; Verbose
 	// only adds the bounded (TruncateNames) name detail.
 	Verbose bool
+	// Glyphs selects the state-glyph vocabulary. Plain projection has no live
+	// TTY to detect, so GlyphsAuto (the default) resolves to GlyphsUnicode —
+	// callers rendering off a known non-UTF-8 destination pass GlyphsASCII.
+	Glyphs GlyphProfile
 }
 
 // RenderPlain projects a snapshot to plain text without terminal ownership.
 func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
+	glyphs := opts.Glyphs
+	if glyphs == GlyphsAuto {
+		glyphs = GlyphsUnicode
+	}
 	cfg := config{
 		width:          opts.Width,
 		noColor:        opts.NoColor,
 		nonInteractive: opts.NonInteractive,
 		plain:          true,
+		glyphs:         glyphs,
 	}
 	if opts.Verbose {
 		cfg.verbosity = VerbosityVerbose
@@ -54,21 +63,22 @@ func renderPlain(s Snapshot, cfg config) string {
 	}
 	color := !cfg.noColor
 	verbose := cfg.verbosity >= VerbosityVerbose
+	profile := cfg.glyphs
 
 	for _, line := range s.Lines {
 		writeDebugOrLine(&b, line, color)
 	}
 
 	for _, it := range s.Items {
-		writeItem(&b, it, color)
+		writeItem(&b, it, color, profile)
 	}
 
 	for _, t := range s.Tasks {
-		writeTask(&b, t, color, verbose)
+		writeTask(&b, t, color, verbose, profile)
 	}
 
 	for _, col := range s.Collections {
-		writeCollection(&b, col, color)
+		writeCollection(&b, col, color, profile)
 	}
 
 	for _, ch := range s.Changes {
@@ -85,8 +95,8 @@ func renderPlain(s Snapshot, cfg config) string {
 	return b.String()
 }
 
-func writeItem(b *strings.Builder, it ItemSnapshot, color bool) {
-	writeItemCore(b, it, color)
+func writeItem(b *strings.Builder, it ItemSnapshot, color bool, profile GlyphProfile) {
+	writeItemCore(b, it, color, profile)
 	if it.Because != "" {
 		writeItemBecause(b, it.Because, color)
 	}
@@ -100,8 +110,8 @@ func writeItem(b *strings.Builder, it ItemSnapshot, color bool) {
 const maxVisibleProblems = 5
 
 // writeItemCore emits glyph, name, and problems (terminal outcome body).
-func writeItemCore(b *strings.Builder, it ItemSnapshot, color bool) {
-	glyph := styleGlyph(itemGlyph(it.State), stateColor(it.State), color)
+func writeItemCore(b *strings.Builder, it ItemSnapshot, color bool, profile GlyphProfile) {
+	glyph := styleGlyph(itemGlyph(it.State, profile), stateColor(it.State), color)
 	fmt.Fprintf(b, "%s  %s\n", glyph, it.Name)
 	problems := it.Problems
 	omitted := 0
@@ -209,8 +219,8 @@ func writeAction(b *strings.Builder, a Action, color bool) {
 	}
 }
 
-func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool) {
-	glyph := styleGlyph(taskGlyph(t.State), stateColor(t.State), color)
+func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile GlyphProfile) {
+	glyph := styleGlyph(taskGlyph(t.State, profile), stateColor(t.State), color)
 	label := t.Name
 	switch {
 	case t.Summary != "":
@@ -290,8 +300,8 @@ func partitionTaxonomyByReason(records []TaxonomyRecord) (map[string][]string, [
 	return names, order
 }
 
-func writeCollection(b *strings.Builder, col TasksSnapshot, color bool) {
-	glyph := styleGlyph(taskGlyph(col.State), stateColor(col.State), color)
+func writeCollection(b *strings.Builder, col TasksSnapshot, color bool, profile GlyphProfile) {
+	glyph := styleGlyph(taskGlyph(col.State, profile), stateColor(col.State), color)
 	if col.Summary != "" && col.State == Done {
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, col.Name, dim(col.Summary, color))
 		return
@@ -301,7 +311,7 @@ func writeCollection(b *strings.Builder, col TasksSnapshot, color bool) {
 		if !needsCollectionDetailLine(t.State) {
 			continue
 		}
-		tg := styleGlyph(taskGlyph(t.State), stateColor(t.State), color)
+		tg := styleGlyph(taskGlyph(t.State, profile), stateColor(t.State), color)
 		fmt.Fprintf(b, "   %s  %s", tg, t.Name)
 		if len(t.Problems) > 0 {
 			fmt.Fprintf(b, "  %s", t.Problems[0].Summary)
@@ -394,52 +404,6 @@ func writeConclusion(b *strings.Builder, c Conclusion, color bool) {
 	}
 	for _, a := range c.Actions {
 		writeAction(b, a, color)
-	}
-}
-
-func itemGlyph(s EntityState) string {
-	switch s {
-	case OK:
-		return "✓"
-	case Failed:
-		return "✗"
-	case Blocked:
-		return "⊘"
-	case Warning:
-		return "!"
-	case Skipped:
-		return "○"
-	case Unknown, Incomplete:
-		return "?"
-	case Running:
-		return "⠋"
-	case Cancelled:
-		return "■"
-	default:
-		return "·"
-	}
-}
-
-func taskGlyph(s EntityState) string {
-	switch s {
-	case Done:
-		return "✓"
-	case Failed:
-		return "✗"
-	case Blocked:
-		return "⊘"
-	case Warning:
-		return "!"
-	case Running:
-		return "⠋"
-	case Pending:
-		return "○"
-	case Cancelled, Skipped:
-		return "○"
-	case NotStarted:
-		return "-"
-	default:
-		return "·"
 	}
 }
 
