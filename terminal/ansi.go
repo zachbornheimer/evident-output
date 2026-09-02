@@ -161,13 +161,18 @@ func (a *ANSI) WriteLive(text string) {
 }
 
 // ClearLive erases the previous live region and shows the cursor.
+//
+// Erasing is gated on liveLines (an on-screen frame was actually drawn with
+// cursor-control escapes), not on the current interactive flag: a short
+// write (TERM-007) can disable a.interactive mid-frame while the frame it
+// was drawing is still sitting on the terminal, escape codes and all — that
+// stale frame still needs erasing with the same kind of escape codes that
+// drew it, regardless of whether future frames give up on cursor control.
 func (a *ANSI) ClearLive() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.interactive {
-		a.eraseLiveLocked()
-		a.showCursorLocked()
-	}
+	a.eraseLiveLocked()
+	a.showCursorLocked()
 	a.liveLines = 0
 }
 
@@ -177,8 +182,9 @@ func (a *ANSI) ClearLive() {
 func (a *ANSI) WriteDurable(line string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.interactive && a.liveLines > 0 {
-		// Should not happen if evo clears first; erase defensively.
+	if a.liveLines > 0 {
+		// Should not happen if evo clears first; erase defensively (see
+		// ClearLive: gated on liveLines, not the current interactive flag).
 		a.eraseLiveLocked()
 		a.liveLines = 0
 	}
@@ -192,13 +198,11 @@ func (a *ANSI) WriteDurable(line string) {
 func (a *ANSI) WriteFinal(text string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.interactive && a.liveLines > 0 {
+	if a.liveLines > 0 {
 		a.eraseLiveLocked()
 		a.liveLines = 0
 	}
-	if a.interactive {
-		a.showCursorLocked()
-	}
+	a.showCursorLocked()
 	a.writeStringLocked(text)
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		a.writeStringLocked("\n")
