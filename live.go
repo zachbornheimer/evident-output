@@ -9,9 +9,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/width"
 )
 
-// Braille spinner sequence (common CLI convention).
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
 // spinnerPeriod is the wall-clock duration between spinner frame advances.
 const spinnerPeriod = 80 * time.Millisecond
 
@@ -325,19 +322,6 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 	}
 }
 
-// spinnerGlyph picks a braille frame from the clock so FixedClock freezes it.
-func spinnerGlyph(now time.Time) string {
-	if len(spinnerFrames) == 0 {
-		return "⠋"
-	}
-	ns := now.UnixNano()
-	if ns < 0 {
-		ns = -ns
-	}
-	i := int(ns/int64(spinnerPeriod)) % len(spinnerFrames)
-	return spinnerFrames[i]
-}
-
 // heartbeatSuffix returns " — <elapsed>" once since has gone stale past
 // phaseStaleAfter, or "" otherwise (including a zero since — a task that has
 // never had Phase/Progress set gets no heartbeat).
@@ -398,23 +382,23 @@ func (o *Output) finishLiveLocked(final string) {
 // renderLiveRegion builds the interactive ledger text for the current snapshot.
 // now selects spinner frames (inject FixedClock in tests for stable glyphs).
 // color applies SGR to glyphs as rows resolve (✓ green, ✗ red, spinner cyan).
-func renderLiveRegion(s Snapshot, height int, now time.Time, color bool) string {
+func renderLiveRegion(s Snapshot, height int, now time.Time, color bool, profile GlyphProfile) string {
 	if height <= 0 {
 		height = 24
 	}
 	var b strings.Builder
-	spin := spinnerGlyph(now)
+	spin := spinnerGlyph(now, profile)
 
 	// Prefer collections for multi-task progress display.
 	for _, col := range s.Collections {
-		writeLiveCollection(&b, col, height, spin, color, now)
+		writeLiveCollection(&b, col, height, spin, color, now, profile)
 	}
 	for _, t := range s.Tasks {
-		writeLiveTaskLine(&b, t, 0, spin, color, now)
+		writeLiveTaskLine(&b, t, 0, spin, color, now, profile)
 	}
 	for _, it := range s.Items {
 		if it.State == Running || it.State == Pending {
-			g := itemGlyph(it.State)
+			g := itemGlyph(it.State, profile)
 			if it.State == Running {
 				g = spin
 			}
@@ -427,6 +411,7 @@ func renderLiveRegion(s Snapshot, height int, now time.Time, color bool) string 
 // renderLiveRegionWithDebug builds the live ledger plus optional rolling debug pane (§21.3.2).
 func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Time) string {
 	color := !o.cfg.noColor
+	profile := o.cfg.glyphs
 	bodyHeight := height
 	if o.cfg.debugPresentation == DebugPresentationPane && len(o.debugRecords) > 0 {
 		// Reserve rows for pane heading + visible records before budgeting the body.
@@ -442,9 +427,9 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 			bodyHeight = 1
 		}
 	}
-	body := renderLiveRegion(o.snapshotLocked(), bodyHeight, now, color)
+	body := renderLiveRegion(o.snapshotLocked(), bodyHeight, now, color, profile)
 	if body == "" && o.armed && len(o.tasks) == 0 && len(o.items) == 0 && len(o.collections) == 0 {
-		body = renderArmedTitleLine(o.cfg.subject, now, color)
+		body = renderArmedTitleLine(o.cfg.subject, now, color, profile)
 	}
 	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {
 		return fitLiveRegion(body, width)
@@ -459,12 +444,12 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 // caller has not declared any entity yet — e.g. still parsing config. Falls
 // back to a generic label rather than an empty string so the paint stays
 // honest (never blank) even before Config.Title is known.
-func renderArmedTitleLine(subject string, now time.Time, color bool) string {
+func renderArmedTitleLine(subject string, now time.Time, color bool, profile GlyphProfile) string {
 	title := subject
 	if title == "" {
 		title = "starting"
 	}
-	return fmt.Sprintf("%s  %s", styleGlyph(spinnerGlyph(now), sgrCyan, color), title)
+	return fmt.Sprintf("%s  %s", styleGlyph(spinnerGlyph(now, profile), sgrCyan, color), title)
 }
 
 func fitLiveRegion(text string, columns int) string {
@@ -478,7 +463,7 @@ func fitLiveRegion(text string, columns int) string {
 	return strings.Join(lines, "\n")
 }
 
-func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin string, color bool, now time.Time) {
+func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin string, color bool, now time.Time, profile GlyphProfile) {
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == Done || t.State == Skipped {
@@ -486,10 +471,10 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin
 		}
 	}
 	// Header
-	glyph := taskGlyph(col.State)
+	glyph := taskGlyph(col.State, profile)
 	if col.State == Failed || anyChildFailed(col) {
 		if col.State == Failed {
-			glyph = "✗"
+			glyph = glyphFailedState.render(profile)
 		}
 	}
 	// When any running, animate header spinner (H.20 uses FixedClock → stable ⠋).
@@ -511,7 +496,7 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin
 	}
 	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
 	for _, t := range selected {
-		writeLiveTaskLine(b, t, 1, spin, color, now)
+		writeLiveTaskLine(b, t, 1, spin, color, now, profile)
 	}
 	if omitted > 0 {
 		fmt.Fprintf(b, "   %s  %d not shown\n", dim("…", color), omitted)
@@ -583,12 +568,12 @@ func selectLiveChildren(tasks []TaskSnapshot, max int) (selected []TaskSnapshot,
 	return selected, len(tasks) - len(selected)
 }
 
-func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin string, color bool, now time.Time) {
+func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin string, color bool, now time.Time, profile GlyphProfile) {
 	pad := ""
 	if indent > 0 {
 		pad = "   "
 	}
-	glyph := taskGlyph(t.State)
+	glyph := taskGlyph(t.State, profile)
 	if t.State == Running {
 		glyph = spin
 	}

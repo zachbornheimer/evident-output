@@ -188,6 +188,7 @@ func newOutput(subject string, options ...Option) *Output {
 	if cfg.maxEvents <= 0 {
 		cfg.maxEvents = defaultMaxEvents
 	}
+	resolveGlyphProfileLocked(&cfg)
 	o := &Output{
 		cfg:        cfg,
 		outputID:   "out_1",

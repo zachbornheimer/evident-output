@@ -111,6 +111,10 @@ type Config struct {
 	// NonInteractive disables live frames.
 	NonInteractive bool
 
+	// Glyphs selects the state-glyph vocabulary (default GlyphsAuto: Unicode
+	// off a TTY or on a UTF-8 locale, ASCII on a non-UTF-8 interactive TTY).
+	Glyphs GlyphProfile
+
 	// FailedExitCode is the process exit code when the conclusion is failed.
 	// Zero means use ExitFailed (2). Set to 1 for conventional CLI tools that
 	// treat any non-zero failure as exit 1 (e.g. quality gates / git hooks).
@@ -357,6 +361,7 @@ func configToOptions(c Config) []Option {
 	if c.DryRun {
 		opts = append(opts, DryRun())
 	}
+	opts = append(opts, Glyphs(c.Glyphs))
 	return opts
 }
 
