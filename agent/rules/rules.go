@@ -187,6 +187,70 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Certainty:       "deterministic",
 		},
 		{
+			ID:        "FP-001",
+			Category:  "FP",
+			Severity:  "warning",
+			Invariant: "visible state paints within 100ms of process start",
+			Why:       "A blank terminal for the first seconds of a run is indistinguishable from a hang; the user re-runs or ^C's healthy work.",
+			BadCode: `func main() {
+  cfg := loadConfig() // seconds of I/O, nothing on screen yet
+  out := evo.New(evo.Config{Title: "tool"})
+  out.Task("scan")
+}`,
+			GoodCode: `func main() {
+  evo.Init(evo.Config{Title: "tool"}) // arms first paint before any I/O
+  evo.Task("scan").Phase("reading config")
+  cfg := loadConfig()
+}`,
+			Remediation:     "Call evo.Init as the first statement in main and declare the first Task/Item/Group before any I/O",
+			RelatedGuidance: []string{"first-paint", "common-api"},
+			VerificationIDs: []string{"FP-001"},
+			Since:           "0.3.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "FP-002",
+			Category:  "FP",
+			Severity:  "warning",
+			Invariant: "no I/O before the first entity is declared",
+			Why:       "Declare-before-compute is what makes FP-001 achievable; I/O ahead of the first Task/Item/Group reintroduces the blank window.",
+			BadCode: `func main() {
+  evo.Init(evo.Config{Title: "tool"})
+  data, _ := os.ReadFile("config.toml") // I/O before any Task/Item/Group
+  evo.Task("scan")
+}`,
+			GoodCode: `func main() {
+  evo.Init(evo.Config{Title: "tool"})
+  scan := evo.Task("scan")
+  scan.Phase("reading config")
+  data, _ := os.ReadFile("config.toml")
+}`,
+			Remediation:     "Move the first Task/Item/Group declaration ahead of the first read/open/dial in main or run",
+			RelatedGuidance: []string{"first-paint"},
+			VerificationIDs: []string{"FP-002"},
+			Since:           "0.3.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "FP-003",
+			Category:  "FP",
+			Severity:  "warning",
+			Invariant: "phases advance on evidence; a stale phase is a defect",
+			Why:       "A spinner whose text never changes is animation, not evidence — the user cannot tell slow from hung.",
+			BadCode: `t := evo.Task("salvage")
+t.Phase("uploading")
+run.Run(ctx, "git", args, io.Discard) // silent for minutes; Phase never refreshed`,
+			GoodCode: `t := evo.Task("salvage")
+t.Phase("uploading")
+run.Run(ctx, "git", args, t.PhaseWriter()) // last child line becomes the live Phase
+// or stream discovery into Progress as totals become known`,
+			Remediation:     "Wire child output through Task.PhaseWriter, or advance Phase/Progress as evidence arrives; the built-in heartbeat covers the remaining silent case (>~10s) automatically",
+			RelatedGuidance: []string{"first-paint", "tasks"},
+			VerificationIDs: []string{"FP-003"},
+			Since:           "0.3.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:              "MCP-021",
 			Category:        "MCP",
 			Severity:        "error",

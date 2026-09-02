@@ -48,6 +48,21 @@ func TestMCP027_ExplainAPI006Examples(t *testing.T) {
 	t.Fatalf("verification_ids missing MCP-012/API-006: %v", r.VerificationIDs)
 }
 
+func TestExplainFirstPaintRules(t *testing.T) {
+	for _, id := range []string{"FP-001", "FP-002", "FP-003"} {
+		r, ok := rules.Explain(id)
+		if !ok {
+			t.Fatalf("%s missing", id)
+		}
+		if r.Invariant == "" || r.Why == "" || r.BadCode == "" || r.GoodCode == "" || r.Remediation == "" {
+			t.Fatalf("%s incomplete payload: %+v", id, r)
+		}
+		if len(r.RelatedGuidance) == 0 {
+			t.Fatalf("%s missing related_guidance", id)
+		}
+	}
+}
+
 func TestMCP028_RuleStabilityVersionPolicy(t *testing.T) {
 	ids := rules.IDs()
 	if len(ids) < 5 {

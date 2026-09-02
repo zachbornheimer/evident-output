@@ -249,6 +249,69 @@ func main() {
 	}
 }
 
+func TestSIG001_SignalNotifyWithoutCancel(t *testing.T) {
+	src := `package main
+import (
+  "os"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func main() {
+  out := evo.NewWithOptions(evo.Title("t"))
+  c := make(chan os.Signal, 1)
+  signal.Notify(c, syscall.SIGINT)
+  go func() {
+    <-c
+    println("interrupted")
+    os.Exit(1)
+  }()
+  _ = out.Finish()
+}
+`
+	res := review.GoSource("bad.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-001" {
+			found = true
+			if f.Line == 0 {
+				t.Error("SIG-001 missing line")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected SIG-001 on signal.Notify without Cancel: %+v", res.Findings)
+	}
+}
+
+func TestSIG001_NoFalsePositiveWhenCancelCalled(t *testing.T) {
+	src := `package main
+import (
+  "os"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func main() {
+  out := evo.NewWithOptions(evo.Title("t"))
+  t := out.Task("scan")
+  c := make(chan os.Signal, 1)
+  signal.Notify(c, syscall.SIGINT)
+  go func() {
+    <-c
+    t.Cancel("interrupted")
+  }()
+  _ = out.Finish()
+}
+`
+	res := review.GoSource("good.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-001" {
+			t.Fatalf("false positive SIG-001 when Cancel is called: %+v", res.Findings)
+		}
+	}
+}
+
 func TestGoPackage_CrossFileTypes(t *testing.T) {
 	// MCP-017: two files, shared package — review resolves across files.
 	files := map[string]string{

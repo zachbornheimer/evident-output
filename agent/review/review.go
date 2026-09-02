@@ -165,6 +165,14 @@ func GoSource(filename, src string) Result {
 		return true
 	})
 
+	// SIG-001: a hand-rolled signal.Notify in a file that never calls Cancel
+	// reintroduces the exact bug evo.Main already closes — the visual ledger
+	// and the exit code can disagree because the signal path never reconciles
+	// through Conclusion (evo-rec.md "Interrupts").
+	if hasEvo {
+		findings = append(findings, detectSignalNotifyWithoutCancel(filename, src)...)
+	}
+
 	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
@@ -572,6 +580,31 @@ func detectBlockedAsError(filename, src string) []Finding {
 		}
 	}
 	return nil
+}
+
+// detectSignalNotifyWithoutCancel flags signal.Notify in an evo-using file
+// that never calls Cancel — evo.Main/MainWith already wires SIGINT/SIGTERM
+// into Cancel on the active task so the ■ glyph and the process exit code
+// (130) can never disagree; a hand-rolled signal.Notify that skips Cancel
+// reopens that gap (evo-rec.md "Interrupts").
+func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
+	if !strings.Contains(src, "signal.Notify(") {
+		return nil
+	}
+	if strings.Contains(src, ".Cancel(") {
+		return nil
+	}
+	line := 1
+	if idx := strings.Index(src, "signal.Notify("); idx >= 0 {
+		line += strings.Count(src[:idx], "\n")
+	}
+	return []Finding{{
+		RuleID:   "SIG-001",
+		Severity: "warning",
+		Message:  "signal.Notify without a Cancel call in this file; prefer evo.Main/evo.MainWith, which already wires SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
+		File:     filename,
+		Line:     line,
+	}}
 }
 
 func hasRequired(fs []Finding) bool {
