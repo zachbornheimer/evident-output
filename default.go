@@ -62,6 +62,15 @@ func Item(name string, opts ...EntityOption) *ItemHandle {
 	return Default().Item(name, opts...)
 }
 
+// Reason returns a get-or-create taxonomy Reason by name on the default
+// instance registry — duplicate strings merge into one bucket, so an inline
+// evo.Reason("protected") at every call site is always legal; lifting it to a
+// package var (var reasonProtected = evo.Reason("protected")) is optional,
+// not required for correctness.
+func Reason(name string, opts ...ReasonOption) TaxonomyReason {
+	return Default().reasonGetOrCreate(name, opts...)
+}
+
 // Print formats like fmt.Sprint and enqueues human-facing text on the default instance.
 func Print(args ...any) {
 	Default().Print(args...)

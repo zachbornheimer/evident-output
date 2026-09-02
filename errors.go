@@ -16,4 +16,6 @@ var (
 	ErrRenderer           = errors.New("evo: renderer failure")
 	ErrFinishing          = errors.New("evo: output is finishing")
 	ErrLimitExceeded      = errors.New("evo: resource limit exceeded")
+	ErrReasonSkipOnly     = errors.New("evo: reason restricted to Skipped was recorded via Kept")
+	ErrReasonWrongTask    = errors.New("evo: reason restricted to another task")
 )

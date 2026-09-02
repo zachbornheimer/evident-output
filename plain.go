@@ -26,6 +26,10 @@ type PlainOptions struct {
 	Width          int
 	NoColor        bool
 	NonInteractive bool
+	// Verbose additionally emits per-reason name lists under a task's skip/keep
+	// taxonomy line. Counts and the reason partition always render; Verbose
+	// only adds the bounded (TruncateNames) name detail.
+	Verbose bool
 }
 
 // RenderPlain projects a snapshot to plain text without terminal ownership.
@@ -35,6 +39,9 @@ func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 		noColor:        opts.NoColor,
 		nonInteractive: opts.NonInteractive,
 		plain:          true,
+	}
+	if opts.Verbose {
+		cfg.verbosity = VerbosityVerbose
 	}
 	return []byte(renderPlain(s, cfg)), nil
 }
@@ -46,6 +53,7 @@ func renderPlain(s Snapshot, cfg config) string {
 		width = defaultWidth
 	}
 	color := !cfg.noColor
+	verbose := cfg.verbosity >= VerbosityVerbose
 
 	for _, line := range s.Lines {
 		writeDebugOrLine(&b, line, color)
@@ -56,7 +64,7 @@ func renderPlain(s Snapshot, cfg config) string {
 	}
 
 	for _, t := range s.Tasks {
-		writeTask(&b, t, color)
+		writeTask(&b, t, color, verbose)
 	}
 
 	for _, col := range s.Collections {
@@ -201,7 +209,7 @@ func writeAction(b *strings.Builder, a Action, color bool) {
 	}
 }
 
-func writeTask(b *strings.Builder, t TaskSnapshot, color bool) {
+func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool) {
 	glyph := styleGlyph(taskGlyph(t.State), stateColor(t.State), color)
 	label := t.Name
 	switch {
@@ -235,6 +243,51 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color bool) {
 			Unit:    "failures",
 		}, color)
 	}
+	writeTaxonomy(b, "skipped", t.Skipped, verbose, color)
+	writeTaxonomy(b, "kept", t.Kept, verbose, color)
+}
+
+// writeTaxonomy emits the derived "!  skipped N  (...)" / "!  kept N  (...)"
+// line for a task's accumulated disposition records. Count and reason
+// partition are computed here, mechanically, from the records themselves —
+// there is nothing for a caller to hand-assemble (and thereby miscount).
+// A single reason collapses to its bare name (the count already said N);
+// multiple reasons each carry their own count so the parts sum to N.
+func writeTaxonomy(b *strings.Builder, verb string, records []TaxonomyRecord, verbose, color bool) {
+	if len(records) == 0 {
+		return
+	}
+	names, order := partitionTaxonomyByReason(records)
+	parts := make([]string, len(order))
+	for i, reason := range order {
+		if len(order) == 1 {
+			parts[i] = reason
+			continue
+		}
+		parts[i] = fmt.Sprintf("%d %s", len(names[reason]), reason)
+	}
+	glyph := styleGlyph("!", sgrYellow, color)
+	fmt.Fprintf(b, "%s  %s %d  (%s)\n", glyph, verb, len(records), strings.Join(parts, ", "))
+	if !verbose {
+		return
+	}
+	for _, reason := range order {
+		fmt.Fprintf(b, "%s%s: %s\n", problemDetailIndent, reason, TruncateNames(names[reason], 0))
+	}
+}
+
+// partitionTaxonomyByReason groups records by reason, preserving first-seen
+// order so the rendered partition matches the order reasons were recorded.
+func partitionTaxonomyByReason(records []TaxonomyRecord) (map[string][]string, []string) {
+	names := make(map[string][]string)
+	var order []string
+	for _, r := range records {
+		if _, ok := names[r.Reason]; !ok {
+			order = append(order, r.Reason)
+		}
+		names[r.Reason] = append(names[r.Reason], r.Name)
+	}
+	return names, order
 }
 
 func writeCollection(b *strings.Builder, col TasksSnapshot, color bool) {

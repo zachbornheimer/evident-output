@@ -35,17 +35,29 @@ type ItemSnapshot struct {
 
 // TaskSnapshot is an immutable task view.
 type TaskSnapshot struct {
-	ID          string
-	Key         string // optional stable machine key (evo.ID); empty when unset
-	Name        string
-	State       EntityState
-	Phase       string
-	Progress    Progress
-	Summary     string
-	Problems    []Problem
-	Actions     []Action
+	ID       string
+	Key      string // optional stable machine key (evo.ID); empty when unset
+	Name     string
+	State    EntityState
+	Phase    string
+	Progress Progress
+	Summary  string
+	Problems []Problem
+	Actions  []Action
+	// Skipped/Kept are the disposition taxonomy accumulated by
+	// TaskHandle.Skipped/Kept — the source the "! skipped N (...)" / "!  kept
+	// N (...)" render lines derive counts and reason partitions from.
+	Skipped     []TaxonomyRecord
+	Kept        []TaxonomyRecord
 	Collection  string
 	Declaration int
+}
+
+// TaxonomyRecord is one accumulated (reason, name) disposition entry —
+// recorded by TaskHandle.Skipped or TaskHandle.Kept, never assembled by hand.
+type TaxonomyRecord struct {
+	Reason string
+	Name   string
 }
 
 // TasksSnapshot is an immutable collection view.

@@ -126,7 +126,7 @@ func (o *Output) emitTaskProgressiveLocked(st *taskState) {
 		return
 	}
 	var b strings.Builder
-	writeTask(&b, st.snapshot(), !o.cfg.noColor)
+	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose)
 	st.coreEmitted = true
 	if b.Len() == 0 {
 		return
@@ -146,6 +146,7 @@ func (o *Output) emitTaskProgressiveLocked(st *taskState) {
 func (o *Output) residualPlainLocked(snap Snapshot) string {
 	cfg := o.cfg
 	color := !cfg.noColor
+	verbose := cfg.verbosity >= VerbosityVerbose
 	width := cfg.width
 	if width <= 0 {
 		width = defaultWidth
@@ -178,7 +179,7 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 			if t.coreEmitted {
 				continue
 			}
-			writeTask(&b, t.snapshot(), color)
+			writeTask(&b, t.snapshot(), color, verbose)
 			t.coreEmitted = true
 		}
 		for _, col := range o.collections {
@@ -211,9 +212,10 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 // Conclusion is written via residualPlain on the primary stream.
 func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 	color := !o.cfg.noColor
+	verbose := o.cfg.verbosity >= VerbosityVerbose
 	var b strings.Builder
 	for _, t := range snap.Tasks {
-		writeTask(&b, t, color)
+		writeTask(&b, t, color, verbose)
 	}
 	for _, col := range snap.Collections {
 		writeCollection(&b, col, color)

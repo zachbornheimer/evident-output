@@ -55,6 +55,9 @@ type Output struct {
 	// instead of one section per call.
 	namedPlans   map[string]*Plan
 	namedChanges map[string]*Changes
+	// namedReasons backs get-or-create identity for evo.Reason: repeated calls
+	// with the same name (inline or lifted to a var) merge into one bucket.
+	namedReasons map[string]TaxonomyReason
 
 	// Progressive durable emission (§17.5: terminal outcomes render immediately).
 	// Finish only appends residual (unemitted entities + conclusion).
@@ -103,6 +106,13 @@ type taskState struct {
 	collection  *tasksState
 	declaration int
 	handle      *TaskHandle
+
+	// skipped/kept hold disposition taxonomy accumulated by Skipped/Kept —
+	// the model that "! skipped N (...)" / "! kept N (...)" are derived from
+	// at render time, never a hand-built summary string. Disposition side of
+	// the model, not the mutation ledger (Plan/Changes).
+	skipped []TaxonomyRecord
+	kept    []TaxonomyRecord
 
 	// Emission bookkeeping so terminal standalone tasks stream in plain mode
 	// on resolve (P2) — same spirit as itemState.coreEmitted.
@@ -744,9 +754,20 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Summary:     t.summary,
 		Problems:    cloneProblems(t.problems),
 		Actions:     cloneActions(t.actions),
+		Skipped:     cloneTaxonomy(t.skipped),
+		Kept:        cloneTaxonomy(t.kept),
 		Collection:  colID,
 		Declaration: t.declaration,
 	}
+}
+
+func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]TaxonomyRecord, len(in))
+	copy(out, in)
+	return out
 }
 
 func (g *tasksState) snapshot() TasksSnapshot {
@@ -968,6 +989,7 @@ func (o *Output) Finish() error {
 	// Full plain for FinalPlain / JSON agreement (may include already-streamed items).
 	fullPlain, _ := RenderPlain(snap, PlainOptions{
 		Width: cfg.width, NoColor: cfg.noColor, NonInteractive: cfg.nonInteractive,
+		Verbose: cfg.verbosity >= VerbosityVerbose,
 	})
 	o.finalPlain = string(fullPlain)
 
