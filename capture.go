@@ -129,18 +129,24 @@ func MirrorToDebug() CaptureOption {
 	return captureOptionFunc(func(c *Capture) { c.mirrorDebug = true })
 }
 
-// Capture returns a process-output sink bound to this Task.
+// Capture returns a process-output sink bound to this Task, get-or-create:
+// the first call (from Capture or PhaseWriter) allocates the ring and every
+// later call returns that same instance, so evidence recorded through either
+// path lands together and survives for DetailTail after Fail.
 func (t *TaskHandle) Capture(opts ...CaptureOption) *Capture {
 	if t == nil || t.out == nil {
 		return newCapture(nil, "", "", opts...)
 	}
-	name := ""
 	t.out.mu.Lock()
-	if st := t.out.taskByRef[t.id]; st != nil {
-		name = st.name
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return newCapture(t.out, t.id, "", opts...)
 	}
-	t.out.mu.Unlock()
-	return newCapture(t.out, t.id, name, opts...)
+	if st.capture == nil {
+		st.capture = newCapture(t.out, t.id, st.name, opts...)
+	}
+	return st.capture
 }
 
 // Capture returns a process-output sink bound to this Item (tool-backed gate).

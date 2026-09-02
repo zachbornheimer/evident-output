@@ -35,15 +35,19 @@ type ItemSnapshot struct {
 
 // TaskSnapshot is an immutable task view.
 type TaskSnapshot struct {
-	ID       string
-	Key      string // optional stable machine key (evo.ID); empty when unset
-	Name     string
-	State    EntityState
-	Phase    string
-	Progress Progress
-	Summary  string
-	Problems []Problem
-	Actions  []Action
+	ID    string
+	Key   string // optional stable machine key (evo.ID); empty when unset
+	Name  string
+	State EntityState
+	Phase string
+	// ActivityAt is the domain-clock time of the most recent Phase or Progress
+	// call; the live renderer uses it to grow a heartbeat suffix once stale
+	// (see phaseStaleAfter). Zero when the task has never had Phase/Progress set.
+	ActivityAt time.Time
+	Progress   Progress
+	Summary    string
+	Problems   []Problem
+	Actions    []Action
 	// Skipped/Kept are the disposition taxonomy accumulated by
 	// TaskHandle.Skipped/Kept — the source the "! skipped N (...)" / "!  kept
 	// N (...)" render lines derive counts and reason partitions from.

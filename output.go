@@ -115,6 +115,17 @@ type taskState struct {
 	declaration int
 	handle      *TaskHandle
 
+	// activityAt is the domain-clock time of the most recent Phase or Progress
+	// call. The live renderer diffs against it to grow a heartbeat suffix
+	// ("pushing feat/a — 90s") once a Running task's phase has gone stale, and
+	// it resets on every Phase/Progress update (see phaseStaleAfter in live.go).
+	activityAt time.Time
+
+	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
+	// so child-process evidence recorded via either path lands in one ring and
+	// DetailTail sees it after Fail.
+	capture *Capture
+
 	// skipped/kept hold disposition taxonomy accumulated by Skipped/Kept —
 	// the model that "! skipped N (...)" / "! kept N (...)" are derived from
 	// at render time, never a hand-built summary string. Disposition side of
@@ -839,6 +850,7 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Name:        t.name,
 		State:       t.state,
 		Phase:       t.phase,
+		ActivityAt:  t.activityAt,
 		Progress:    t.progress,
 		Summary:     t.summary,
 		Problems:    cloneProblems(t.problems),

@@ -29,6 +29,7 @@ func (t *TaskHandle) Phase(text string) *TaskHandle {
 		return t
 	}
 	st.phase = sanitize.Text(text)
+	st.activityAt = t.out.cfg.clock.Now()
 	if st.state == Pending {
 		st.state = Running
 		if st.progress.Kind == "" {
@@ -135,6 +136,7 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 		}
 	}
 	st.progress = Progress{Kind: kind, Completed: completed, Total: total}
+	st.activityAt = t.out.cfg.clock.Now()
 	if st.state == Pending {
 		st.state = Running
 	}

@@ -15,6 +15,13 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 // spinnerPeriod is the wall-clock duration between spinner frame advances.
 const spinnerPeriod = 80 * time.Millisecond
 
+// phaseStaleAfter is how long a Running task's phase (and progress) can go
+// unchanged before the live projection appends an elapsed-time heartbeat
+// suffix ("pushing feat/a — 90s") — the spinner is animation, not evidence,
+// so a silent child must not read the same as a healthy one. Resets on every
+// Phase/Progress call (see taskState.activityAt).
+const phaseStaleAfter = 10 * time.Second
+
 // LiveSurface is an interactive terminal sink for live-region rendering.
 // testkit.Screen implements this; production drivers can as well.
 type LiveSurface interface {
@@ -331,6 +338,30 @@ func spinnerGlyph(now time.Time) string {
 	return spinnerFrames[i]
 }
 
+// heartbeatSuffix returns " — <elapsed>" once since has gone stale past
+// phaseStaleAfter, or "" otherwise (including a zero since — a task that has
+// never had Phase/Progress set gets no heartbeat).
+func heartbeatSuffix(now, since time.Time) string {
+	if since.IsZero() {
+		return ""
+	}
+	elapsed := now.Sub(since)
+	if elapsed < phaseStaleAfter {
+		return ""
+	}
+	return " — " + formatElapsed(elapsed)
+}
+
+// formatElapsed renders a compact, second-rounded duration: "45s" under a
+// minute, "1m30s"/"2m3s" (Go's Duration.String shape) at or past a minute.
+func formatElapsed(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	return d.String()
+}
+
 func (o *Output) debugLiveLocked(line string) {
 	live := o.liveLocked()
 	if live == nil || !live.IsInteractive() {
@@ -376,10 +407,10 @@ func renderLiveRegion(s Snapshot, height int, now time.Time, color bool) string 
 
 	// Prefer collections for multi-task progress display.
 	for _, col := range s.Collections {
-		writeLiveCollection(&b, col, height, spin, color)
+		writeLiveCollection(&b, col, height, spin, color, now)
 	}
 	for _, t := range s.Tasks {
-		writeLiveTaskLine(&b, t, 0, spin, color)
+		writeLiveTaskLine(&b, t, 0, spin, color, now)
 	}
 	for _, it := range s.Items {
 		if it.State == Running || it.State == Pending {
@@ -447,7 +478,7 @@ func fitLiveRegion(text string, columns int) string {
 	return strings.Join(lines, "\n")
 }
 
-func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin string, color bool) {
+func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin string, color bool, now time.Time) {
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == Done || t.State == Skipped {
@@ -480,7 +511,7 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin
 	}
 	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
 	for _, t := range selected {
-		writeLiveTaskLine(b, t, 1, spin, color)
+		writeLiveTaskLine(b, t, 1, spin, color, now)
 	}
 	if omitted > 0 {
 		fmt.Fprintf(b, "   %s  %d not shown\n", dim("…", color), omitted)
@@ -552,7 +583,7 @@ func selectLiveChildren(tasks []TaskSnapshot, max int) (selected []TaskSnapshot,
 	return selected, len(tasks) - len(selected)
 }
 
-func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin string, color bool) {
+func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin string, color bool, now time.Time) {
 	pad := ""
 	if indent > 0 {
 		pad = "   "
@@ -581,7 +612,7 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin stri
 		detail := progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " +
 			fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
 		if t.Phase != "" {
-			detail = detail + "  " + dim(t.Phase, color)
+			detail = detail + "  " + dim(t.Phase+heartbeatSuffix(now, t.ActivityAt), color)
 		}
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
 	case t.State == Running && (t.Progress.Kind == Indeterminate || t.Phase != ""):
@@ -590,6 +621,7 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin stri
 		if phase == "" {
 			phase = "working…"
 		}
+		phase += heartbeatSuffix(now, t.ActivityAt)
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, dim(phase, color))
 	case t.State == Running && t.Phase != "":
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, dim(t.Phase, color))
