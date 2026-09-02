@@ -110,6 +110,15 @@ var (
 	glyphNotStarted   = glyphSpec{"-", "[-]"}
 	glyphPending      = glyphSpec{"○", "[.]"}
 	glyphHumanInput   = glyphSpec{"?", "[?]"}
+	// glyphNextAction marks a follow-up command/label line. evo-rec.md's
+	// tightened vocabulary table gives it its own row so the meaning does not
+	// depend on the cyan color alone (rule: text/glyph carries meaning).
+	glyphNextAction = glyphSpec{"→", ">"}
+	// glyphEvidence is the tree connector for Detail/Cause rows under a
+	// Problem — dim per "Color and style demotions" (subordinate evidence).
+	glyphEvidence = glyphSpec{"└─", "-"}
+	// glyphOverflow marks a truncated/omitted-count line ("… +N more").
+	glyphOverflow = glyphSpec{"…", "..."}
 	// glyphUnclassified covers states with no distinct row in the vocabulary
 	// table (e.g. Empty); it must stay visually distinct from Pending's "○".
 	glyphUnclassified = glyphSpec{"·", "."}

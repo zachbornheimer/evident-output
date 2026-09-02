@@ -2,6 +2,7 @@ package evo
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -93,9 +94,17 @@ func (o *Output) promptConfirm(item *ItemHandle, question string, destructive bo
 	var yes bool
 	_ = o.Suspend(func() error {
 		o.writeConfirmPromptLocked(question, destructive)
-		line, cancelled := o.readConfirmLine(item.id)
+		line, cancelled, eof := o.readConfirmLine(item.id)
 		if cancelled {
 			// cancelPendingConfirmLocked already resolved the gate as Cancelled.
+			return nil
+		}
+		if eof {
+			// Zero-byte EOF on stdin (no interactive human on the other end,
+			// e.g. stdin closed or redirected from /dev/null) is a policy
+			// block, distinct from a human explicitly typing anything else —
+			// evo-rec.md "Confirm EOF = policy block, not decline".
+			item.Block(confirmPolicyBlockedSummary).Next(Label(confirmPolicyHint))
 			return nil
 		}
 		yes = isAffirmative(line)
@@ -118,15 +127,17 @@ func (o *Output) writeConfirmPromptLocked(question string, destructive bool) {
 	if destructive {
 		text += "  (destructive)"
 	}
-	glyph := styleGlyph("?", sgrCyan, color)
+	glyph := styleGlyph(glyphHumanInput.render(o.cfg.glyphs), sgrCyan, color)
 	o.writeDurableTextLocked(fmt.Sprintf("%s  %s  [y/N]\n", glyph, text))
 	o.mu.Unlock()
 }
 
 // readConfirmLine reads one answer line from the Stdin facade, abortable by
 // cancelPendingConfirmLocked so a signal unblocks the wait instead of hanging
-// until the process is killed a second time.
-func (o *Output) readConfirmLine(itemID string) (line string, cancelled bool) {
+// until the process is killed a second time. eof reports a zero-byte EOF (no
+// data read at all before the stream closed) — distinct from an explicit
+// non-yes answer (evo-rec.md "Confirm EOF = policy block, not decline").
+func (o *Output) readConfirmLine(itemID string) (line string, cancelled, eof bool) {
 	abort := make(chan struct{})
 	o.mu.Lock()
 	if o.confirmAbort == nil {
@@ -140,18 +151,25 @@ func (o *Output) readConfirmLine(itemID string) (line string, cancelled bool) {
 		o.mu.Unlock()
 	}()
 
-	result := make(chan string, 1)
+	type readResult struct {
+		text string
+		err  error
+	}
+	result := make(chan readResult, 1)
 	go func() {
 		reader := bufio.NewReader(o.confirmReader())
-		text, _ := reader.ReadString('\n')
-		result <- text
+		text, err := reader.ReadString('\n')
+		result <- readResult{text: text, err: err}
 	}()
 
 	select {
-	case text := <-result:
-		return text, false
+	case r := <-result:
+		if r.text == "" && errors.Is(r.err, io.EOF) {
+			return "", false, true
+		}
+		return r.text, false, false
 	case <-abort:
-		return "", true
+		return "", true, false
 	}
 }
 

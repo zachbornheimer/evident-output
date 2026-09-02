@@ -75,17 +75,24 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 	o.mu.Unlock()
 
 	if dryRun {
+		sec := o.planGetOrCreate(subject)
+		// Declare with the caller's imperative verb before Record runs, so a
+		// section that ends up with zero rows still reads "nothing to delete
+		// <subject>" (evo-rec.md "empty effect section grammar").
+		sec.declareIntendedVerb(verb)
 		if hasQty {
-			o.planGetOrCreate(subject).Record(verb, quantity, object)
+			sec.Record(verb, quantity, object)
 		} else {
-			o.planGetOrCreate(subject).RecordName(verb, object)
+			sec.RecordName(verb, object)
 		}
 		return
 	}
+	sec := o.changesGetOrCreate(subject)
+	sec.declareIntendedVerb(verb)
 	pastTense := conjugatePast(verb)
 	if hasQty {
-		o.changesGetOrCreate(subject).Record(pastTense, quantity, object)
+		sec.Record(pastTense, quantity, object)
 	} else {
-		o.changesGetOrCreate(subject).RecordName(pastTense, object)
+		sec.RecordName(pastTense, object)
 	}
 }

@@ -503,7 +503,7 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin
 		writeLiveTaskLine(b, t, 1, spin, color, now, profile)
 	}
 	if omitted > 0 {
-		fmt.Fprintf(b, "   %s  %d not shown\n", dim("…", color), omitted)
+		fmt.Fprintf(b, "   %s  %d not shown\n", dim(glyphOverflow.render(profile), color), omitted)
 	}
 }
 
@@ -601,7 +601,10 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin stri
 		detail := progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " +
 			fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
 		if t.Phase != "" {
-			detail = detail + "  " + dim(t.Phase+heartbeatSuffix(now, t.ActivityAt), color)
+			// Default intensity: the current phase is diagnostic evidence
+			// while progress stalls, not a subordinate row (evo-rec.md
+			// "Color and style demotions").
+			detail = detail + "  " + t.Phase + heartbeatSuffix(now, t.ActivityAt)
 		}
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
 	case t.State == Running && (t.Progress.Kind == Indeterminate || t.Phase != ""):
@@ -611,9 +614,9 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin stri
 			phase = "working…"
 		}
 		phase += heartbeatSuffix(now, t.ActivityAt)
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, dim(phase, color))
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, phase)
 	case t.State == Running && t.Phase != "":
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, dim(t.Phase, color))
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, t.Phase)
 	case t.State == Failed:
 		msg := t.Summary
 		if msg == "" && len(t.Problems) > 0 {

@@ -59,7 +59,10 @@ func (p *Plan) RecordName(verb, object string) *Plan {
 	return p.recordNoQty(verb, object)
 }
 
-// Record records a planned verb/quantity/object.
+// Record records a planned verb/quantity/object. A zero quantity records no
+// row but still remembers verb as the section's intended verb — see
+// Changes.Record for the empty-section rationale (evo-rec.md guess-driven
+// default #1).
 func (p *Plan) Record(verb string, quantity int64, object string) *Plan {
 	p.out.mu.Lock()
 	defer p.out.mu.Unlock()
@@ -71,8 +74,15 @@ func (p *Plan) Record(verb string, quantity int64, object string) *Plan {
 		p.out.recordMisuse(err)
 		return p
 	}
+	verb = sanitize.Text(verb)
+	if st.intendedVerb == "" {
+		st.intendedVerb = verb
+	}
+	if quantity == 0 {
+		return p
+	}
 	st.records = append(st.records, EffectRecord{
-		Verb:     sanitize.Text(verb),
+		Verb:     verb,
 		Quantity: quantity,
 		HasQty:   true,
 		Object:   sanitize.Text(object),
@@ -93,13 +103,28 @@ func (p *Plan) recordNoQty(verb, object string) *Plan {
 		p.out.recordMisuse(err)
 		return p
 	}
+	verb = sanitize.Text(verb)
+	if st.intendedVerb == "" {
+		st.intendedVerb = verb
+	}
 	st.records = append(st.records, EffectRecord{
-		Verb:   sanitize.Text(verb),
+		Verb:   verb,
 		Object: sanitize.Text(object),
 	})
 	p.out.bumpLocked()
 	p.out.appendEventLocked(Event{Type: "plan.recorded", EntityID: p.id})
 	return p
+}
+
+// declareIntendedVerb mirrors Changes.declareIntendedVerb for plan sections.
+func (p *Plan) declareIntendedVerb(verb string) {
+	p.out.mu.Lock()
+	defer p.out.mu.Unlock()
+	st := p.find()
+	if st == nil || st.intendedVerb != "" {
+		return
+	}
+	st.intendedVerb = sanitize.Text(verb)
 }
 
 func (p *Plan) find() *planState {

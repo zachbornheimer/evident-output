@@ -33,7 +33,7 @@ func (o *Output) emitItemProgressiveLocked(st *itemState) {
 	}
 	if len(snap.Actions) > st.actionsEmitted {
 		for _, a := range snap.Actions[st.actionsEmitted:] {
-			writeAction(&b, a, color)
+			writeAction(&b, a, color, o.cfg.glyphs)
 		}
 		st.actionsEmitted = len(snap.Actions)
 	}
@@ -202,13 +202,13 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 		}
 	}
 	for _, ch := range o.changes {
-		writeEffects(&b, "changed", ch.subject, ch.records, width, color)
+		writeEffects(&b, "changed", ch.subject, ch.records, ch.intendedVerb, width, color, profile)
 	}
 	for _, p := range o.plans {
-		writeEffects(&b, "planned", p.subject, p.records, width, color)
+		writeEffects(&b, "planned", p.subject, p.records, p.intendedVerb, width, color, profile)
 	}
 	if snap.Conclusion != nil && !shouldSuppressStandaloneConclusion(snap) {
-		writeConclusion(&b, *snap.Conclusion, color)
+		writeConclusion(&b, *snap.Conclusion, color, profile)
 	}
 	// Pane mode: optional diagnostic tail under final result (§21.3.2).
 	if snap.Conclusion != nil && o.shouldPreserveDebugTailLocked(*snap.Conclusion) {

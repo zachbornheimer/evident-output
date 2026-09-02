@@ -83,6 +83,11 @@ type ChangesSnapshot struct {
 	ID      string
 	Subject string
 	Records []EffectRecord
+	// IntendedVerb is the first mutation verb recorded for this section, even
+	// when every record ended up with zero quantity and none survived into
+	// Records. Empty when no verb was ever recorded (evo-rec.md "empty effect
+	// section grammar"). Never caller-assembled.
+	IntendedVerb string
 }
 
 // PlanSnapshot is an immutable plan section.
@@ -90,6 +95,8 @@ type PlanSnapshot struct {
 	ID      string
 	Subject string
 	Records []EffectRecord
+	// IntendedVerb mirrors ChangesSnapshot.IntendedVerb for plan sections.
+	IntendedVerb string
 }
 
 // EffectRecord is one semantic change or plan row.

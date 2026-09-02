@@ -163,14 +163,22 @@ type changesState struct {
 	id      string
 	subject string
 	records []EffectRecord
-	handle  *Changes
+	// intendedVerb is the first mutation verb recorded for this section
+	// (evo-rec.md "empty effect section grammar"). Set once, by
+	// changes.go's Record/RecordName; it is what lets a section that ends up
+	// with zero rows still render "nothing to <verb> <subject>" instead of a
+	// generic fallback.
+	intendedVerb string
+	handle       *Changes
 }
 
 type planState struct {
 	id      string
 	subject string
 	records []EffectRecord
-	handle  *Plan
+	// intendedVerb mirrors changesState.intendedVerb for plan sections.
+	intendedVerb string
+	handle       *Plan
 }
 
 func newOutput(subject string, options ...Option) *Output {
@@ -1015,17 +1023,19 @@ func (g *tasksState) displaySummary() string {
 
 func (c *changesState) snapshot() ChangesSnapshot {
 	return ChangesSnapshot{
-		ID:      c.id,
-		Subject: c.subject,
-		Records: append([]EffectRecord(nil), c.records...),
+		ID:           c.id,
+		Subject:      c.subject,
+		Records:      append([]EffectRecord(nil), c.records...),
+		IntendedVerb: c.intendedVerb,
 	}
 }
 
 func (p *planState) snapshot() PlanSnapshot {
 	return PlanSnapshot{
-		ID:      p.id,
-		Subject: p.subject,
-		Records: append([]EffectRecord(nil), p.records...),
+		ID:           p.id,
+		Subject:      p.subject,
+		Records:      append([]EffectRecord(nil), p.records...),
+		IntendedVerb: p.intendedVerb,
 	}
 }
 

@@ -166,9 +166,12 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 }
 
 // TestWriteEffects_EmptySectionRendersNothingToLine is the empty-case
-// contract: a Plan/Changes section that ends with zero records renders the
-// honest "nothing to <subject>" line instead of an empty [planned]/[changed]
-// header.
+// contract: a Plan/Changes section that ends with zero records renders an
+// honest "nothing to ..." line instead of an empty [planned]/[changed]
+// header. A section declared directly (never through a TaskHandle mutation
+// verb) never learned a verb, so it falls back to "nothing to change for
+// <subject>" — never the bare subject noun standing in for a verb
+// (evo-rec.md "Empty effect section grammar").
 func TestWriteEffects_EmptySectionRendersNothingToLine(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -178,10 +181,30 @@ func TestWriteEffects_EmptySectionRendersNothingToLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "nothing to branches") {
+	if !strings.Contains(got, "nothing to change for branches") {
 		t.Fatalf("want empty-success line, got:\n%s", got)
 	}
 	if strings.Contains(got, "[planned]  branches") {
 		t.Fatalf("empty section must not render a header:\n%s", got)
+	}
+}
+
+// TestWriteEffects_EmptySectionWithKnownVerb proves a section whose mutation
+// verb was recorded (via TaskHandle) but which ends with zero rows — because
+// every call recorded a zero quantity — keeps that verb in its "nothing to"
+// line instead of falling back to the generic "change" phrasing.
+func TestWriteEffects_EmptySectionWithKnownVerb(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	branches := out.Task("branches")
+	branches.Delete(0, "local branches")
+	branches.Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "nothing to delete branches") {
+		t.Fatalf("want verb-aware empty-success line, got:\n%s", got)
 	}
 }

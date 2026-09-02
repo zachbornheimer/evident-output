@@ -57,8 +57,14 @@ func inferConclusion(s Snapshot) Conclusion {
 		Plans:       s.Plans,
 		Actions:     s.Actions,
 	}
-	if len(s.Changes) > 0 {
-		c.Changed = true
+	// A Changes section with zero records is a bare declaration that never
+	// recorded a mutation — it must not make the run read as Changed
+	// (evo-rec.md "Empty effect section grammar + Changed flag").
+	for _, ch := range s.Changes {
+		if len(ch.Records) > 0 {
+			c.Changed = true
+			break
+		}
 	}
 
 	var (

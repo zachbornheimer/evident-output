@@ -86,14 +86,14 @@ func renderPlain(s Snapshot, cfg config) string {
 	}
 
 	for _, ch := range s.Changes {
-		writeEffects(&b, "changed", ch.Subject, ch.Records, width, color)
+		writeEffects(&b, "changed", ch.Subject, ch.Records, ch.IntendedVerb, width, color, profile)
 	}
 	for _, p := range s.Plans {
-		writeEffects(&b, "planned", p.Subject, p.Records, width, color)
+		writeEffects(&b, "planned", p.Subject, p.Records, p.IntendedVerb, width, color, profile)
 	}
 
 	if s.Conclusion != nil && !shouldSuppressStandaloneConclusion(s) {
-		writeConclusion(&b, *s.Conclusion, color)
+		writeConclusion(&b, *s.Conclusion, color, profile)
 	}
 
 	return b.String()
@@ -105,7 +105,7 @@ func writeItem(b *strings.Builder, it ItemSnapshot, color bool, profile GlyphPro
 		writeItemBecause(b, it.Because, color)
 	}
 	for _, a := range it.Actions {
-		writeAction(b, a, color)
+		writeAction(b, a, color, profile)
 	}
 }
 
@@ -124,14 +124,14 @@ func writeItemCore(b *strings.Builder, it ItemSnapshot, color bool, profile Glyp
 		problems = problems[:maxVisibleProblems]
 	}
 	for _, p := range problems {
-		writeProblem(b, p, color)
+		writeProblem(b, p, color, profile)
 	}
 	if omitted > 0 {
 		writeProblem(b, Problem{
 			Summary: fmt.Sprintf("and %d more failures", omitted),
 			Count:   int64(omitted),
 			Unit:    "failures",
-		}, color)
+		}, color, profile)
 	}
 }
 
@@ -147,7 +147,7 @@ const (
 	problemDetailIndent = "      "
 )
 
-func writeProblem(b *strings.Builder, p Problem, color bool) {
+func writeProblem(b *strings.Builder, p Problem, color bool, profile GlyphProfile) {
 	if p.Subject != "" {
 		extra := p.Summary
 		if p.Count != 0 {
@@ -161,21 +161,23 @@ func writeProblem(b *strings.Builder, p Problem, color bool) {
 	}
 	// Detail present: preserve multi-line body (P3). Summary heads the block only
 	// when the caller left it set — writeTask clears Summary when it already
-	// appears on the ✗ row so Detail alone is the └─ body (P4).
+	// appears on the ✗ row so Detail alone is the evidence body (P4).
 	if p.Detail != "" {
-		writeProblemDetailBlock(b, p.Summary, p.Detail, color)
+		writeProblemDetailBlock(b, p.Summary, p.Detail, color, profile)
 		return
 	}
-	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, dim("└─", color), p.Summary)
+	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, dim(glyphEvidence.render(profile), color), p.Summary)
 }
 
-// writeProblemDetailBlock renders Detail as an indented multi-line block under └─.
-// When summary is non-empty it opens the block; continuations (and all detail
-// lines when summary is empty) are indented under it.
-func writeProblemDetailBlock(b *strings.Builder, summary, detail string, color bool) {
+// writeProblemDetailBlock renders Detail as an indented multi-line block under
+// the evidence connector. When summary is non-empty it opens the block;
+// continuations (and all detail lines when summary is empty) are indented
+// under it.
+func writeProblemDetailBlock(b *strings.Builder, summary, detail string, color bool, profile GlyphProfile) {
 	lines := splitPresentationLines(detail)
+	evidence := dim(glyphEvidence.render(profile), color)
 	if summary != "" {
-		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, dim("└─", color), summary)
+		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, evidence, summary)
 		for _, line := range lines {
 			fmt.Fprintf(b, "%s%s\n", problemDetailIndent, dim(line, color))
 		}
@@ -184,7 +186,7 @@ func writeProblemDetailBlock(b *strings.Builder, summary, detail string, color b
 	if len(lines) == 0 {
 		return
 	}
-	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, dim("└─", color), dim(lines[0], color))
+	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, evidence, dim(lines[0], color))
 	for _, line := range lines[1:] {
 		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, dim(line, color))
 	}
@@ -212,14 +214,18 @@ func splitPresentationLines(s string) []string {
 	return lines
 }
 
-func writeAction(b *strings.Builder, a Action, color bool) {
+// writeAction renders one next-action row prefixed by the profile-aware next-
+// action glyph (→ / >). evo-rec.md's tightened vocabulary gives "next action"
+// its own row so the meaning does not rest on cyan color alone.
+func writeAction(b *strings.Builder, a Action, color bool, profile GlyphProfile) {
+	glyph := styleGlyph(glyphNextAction.render(profile), sgrCyan, color)
 	if a.Command != nil {
 		cmd := a.Command.Executable + " " + strings.Join(a.Command.Args, " ")
-		fmt.Fprintf(b, "  %s\n", style(cmd, sgrCyan, color))
+		fmt.Fprintf(b, "%s  %s\n", glyph, style(cmd, sgrCyan, color))
 		return
 	}
 	if a.Label != "" {
-		fmt.Fprintf(b, "  %s\n", a.Label)
+		fmt.Fprintf(b, "%s  %s\n", glyph, a.Label)
 	}
 }
 
@@ -230,7 +236,11 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 	case t.Summary != "":
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, dim(t.Summary, color))
 	case t.Phase != "" && t.State == Running:
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, dim(t.Phase, color))
+		// Default intensity, not dim: the in-flight phase/current item is the
+		// diagnostic signal while progress is stalled — dim is reserved for
+		// genuinely subordinate rows (○ pending, - not started, evidence,
+		// overflow), per evo-rec.md "Color and style demotions".
+		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Phase)
 	default:
 		fmt.Fprintf(b, "%s  %s\n", glyph, label)
 	}
@@ -248,17 +258,17 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 		if p.Detail != "" && p.Summary != "" && p.Summary == t.Summary {
 			p.Summary = ""
 		}
-		writeProblem(b, p, color)
+		writeProblem(b, p, color, profile)
 	}
 	if omitted > 0 {
 		writeProblem(b, Problem{
 			Summary: fmt.Sprintf("and %d more failures", omitted),
 			Count:   int64(omitted),
 			Unit:    "failures",
-		}, color)
+		}, color, profile)
 	}
-	writeTaxonomy(b, "", "skipped", t.Skipped, verbose, color)
-	writeTaxonomy(b, "", "kept", t.Kept, verbose, color)
+	writeTaxonomy(b, "", "skipped", t.Skipped, verbose, color, profile)
+	writeTaxonomy(b, "", "kept", t.Kept, verbose, color, profile)
 }
 
 // writeTaxonomy emits the derived "!  skipped N  (...)" / "!  kept N  (...)"
@@ -270,7 +280,7 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 // indent prefixes the taxonomy row (and, verbose, its detail rows) so a
 // collection child's taxonomy nests under the child's own glyph column
 // instead of the standalone task's zero-indent column.
-func writeTaxonomy(b *strings.Builder, indent, verb string, records []TaxonomyRecord, verbose, color bool) {
+func writeTaxonomy(b *strings.Builder, indent, verb string, records []TaxonomyRecord, verbose, color bool, profile GlyphProfile) {
 	if len(records) == 0 {
 		return
 	}
@@ -289,7 +299,7 @@ func writeTaxonomy(b *strings.Builder, indent, verb string, records []TaxonomyRe
 		return
 	}
 	for _, reason := range order {
-		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, reason, TruncateNames(names[reason], 0))
+		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, reason, TruncateNames(names[reason], 0, profile))
 	}
 }
 
@@ -340,34 +350,55 @@ func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose boo
 		fmt.Fprintf(b, "  %s", t.Summary)
 	}
 	b.WriteByte('\n')
-	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, verbose, color)
-	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, verbose, color)
+	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, verbose, color, profile)
+	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, verbose, color, profile)
 }
 
-func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, width int, color bool) {
+// maxVisibleEffectRows bounds how many plan/changes rows the human view
+// renders per section (evo-rec.md "bound visible RecordName rows... model
+// keeps all records"). The snapshot always retains the full record list;
+// only this presentation loop is capped. Mirrors maxVisibleProblems's bound.
+const maxVisibleEffectRows = maxVisibleProblems
+
+func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, intendedVerb string, width int, color bool, profile GlyphProfile) {
 	// A [planned]/[changed] header with zero rows beneath it invents a mutation
 	// story that never happened; render the honest empty-success line instead
-	// (evo-rec.md "nothing-to-do" default).
+	// (evo-rec.md "nothing-to-do" default). The verb comes from the section's
+	// own recorded intent — never hand-assembled — falling back to a generic
+	// phrasing only when no mutation verb was ever recorded for it.
 	if len(records) == 0 {
-		fmt.Fprintf(b, "nothing to %s\n", subject)
+		if intendedVerb != "" {
+			fmt.Fprintf(b, "nothing to %s %s\n", intendedVerb, subject)
+		} else {
+			fmt.Fprintf(b, "nothing to change for %s\n", subject)
+		}
 		return
 	}
 	tag := style(fmt.Sprintf("[%s]", kind), effectColor(kind), color)
 	fmt.Fprintf(b, "%s  %s\n", tag, subject)
+
+	visible := records
+	omitted := 0
+	if len(visible) > maxVisibleEffectRows {
+		omitted = len(visible) - maxVisibleEffectRows
+		visible = visible[:maxVisibleEffectRows]
+	}
+
 	// TXT-016: leaders omitted when unnecessary (single short column / narrow).
 	if width > 0 && width < compactLayoutMaxWidth {
-		for _, r := range records {
+		for _, r := range visible {
 			if r.HasQty {
 				fmt.Fprintf(b, "  %s %d %s\n", r.Verb, r.Quantity, r.Object)
 			} else {
 				fmt.Fprintf(b, "  %s %s\n", r.Verb, r.Object)
 			}
 		}
+		writeEffectOverflow(b, omitted, color, profile)
 		return
 	}
 	maxVerb := 0
 	maxQty := 0
-	for _, r := range records {
+	for _, r := range visible {
 		if len(r.Verb) > maxVerb {
 			maxVerb = len(r.Verb)
 		}
@@ -380,7 +411,7 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 	}
 	// Bound leader fill so wide verbs do not create unbounded gaps (TXT-016).
 	const maxLeader = 12
-	for _, r := range records {
+	for _, r := range visible {
 		verb := padRight(r.Verb, maxVerb)
 		if r.HasQty {
 			qty := padLeft(strconv.FormatInt(r.Quantity, 10), maxQty)
@@ -399,6 +430,18 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 			fmt.Fprintf(b, "  %s  %s %s\n", verb, qtyPad, r.Object)
 		}
 	}
+	writeEffectOverflow(b, omitted, color, profile)
+}
+
+// writeEffectOverflow renders the bounded-rows omission line. The overflow
+// glyph (dim "…"/"...") marks it, not "!" — an omitted-count line is a
+// viewport limit, not something demanding attention (evo-rec.md "! is
+// attention only... Overflow is never !").
+func writeEffectOverflow(b *strings.Builder, omitted int, color bool, profile GlyphProfile) {
+	if omitted <= 0 {
+		return
+	}
+	fmt.Fprintf(b, "  %s  +%d more (not shown)\n", dim(glyphOverflow.render(profile), color), omitted)
 }
 
 // dryRunMarkerText is the fixed announcement body for a dry-run run's
@@ -414,7 +457,7 @@ func writeDryRunMarker(b *strings.Builder, color bool) {
 	fmt.Fprintf(b, "%s  %s\n", tag, dryRunMarkerText)
 }
 
-func writeConclusion(b *strings.Builder, c Conclusion, color bool) {
+func writeConclusion(b *strings.Builder, c Conclusion, color bool, profile GlyphProfile) {
 	subject := c.Subject
 	if subject == "" {
 		subject = string(c.State)
@@ -424,9 +467,70 @@ func writeConclusion(b *strings.Builder, c Conclusion, color bool) {
 	if c.Explanation != "" {
 		fmt.Fprintf(b, "  %s\n", c.Explanation)
 	}
-	for _, a := range c.Actions {
-		writeAction(b, a, color)
+	if c.State == StateCancelled || c.State == StateFailed {
+		writeAlreadyMutated(b, c.Changes, color)
 	}
+	for _, a := range c.Actions {
+		writeAction(b, a, color, profile)
+	}
+}
+
+// writeAlreadyMutated renders the early-termination "! already mutated: ..."
+// line. It fires whenever a run concludes Cancelled or Failed — a partial
+// truth the user must see even when the ledger is empty (rendered as
+// "none") — and the summary is derived mechanically from the Changes
+// ledger, never assembled by the caller (evo-rec.md "Taxonomy and mutation
+// lines are derived, never assembled").
+func writeAlreadyMutated(b *strings.Builder, changes []ChangesSnapshot, color bool) {
+	glyph := styleGlyph("!", sgrYellow, color)
+	fmt.Fprintf(b, "%s  already mutated: %s\n", glyph, summarizeAlreadyMutated(changes))
+}
+
+// summarizeAlreadyMutated derives one compact fragment per non-empty Changes
+// section (e.g. "8 branches deleted"), joined with "; ", or "none" when no
+// section committed any effect.
+func summarizeAlreadyMutated(changes []ChangesSnapshot) string {
+	var parts []string
+	for _, ch := range changes {
+		if len(ch.Records) == 0 {
+			continue
+		}
+		parts = append(parts, summarizeChangeSection(ch))
+	}
+	if len(parts) == 0 {
+		return "none"
+	}
+	return strings.Join(parts, "; ")
+}
+
+// summarizeChangeSection sums a section's record quantities (no-qty records
+// count as 1 each) and reports the shared verb/object when every record
+// agrees, falling back to the section's subject when records name distinct
+// verbs or objects.
+func summarizeChangeSection(ch ChangesSnapshot) string {
+	var total int64
+	verb, mixedVerb := ch.Records[0].Verb, false
+	object, mixedObject := ch.Records[0].Object, false
+	for _, r := range ch.Records {
+		if r.HasQty {
+			total += r.Quantity
+		} else {
+			total++
+		}
+		if r.Verb != verb {
+			mixedVerb = true
+		}
+		if r.Object != object {
+			mixedObject = true
+		}
+	}
+	if mixedObject {
+		object = ch.Subject
+	}
+	if mixedVerb {
+		return fmt.Sprintf("%d %s changed", total, object)
+	}
+	return fmt.Sprintf("%d %s %s", total, object, verb)
 }
 
 func stateColor(s EntityState) string {

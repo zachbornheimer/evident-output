@@ -119,7 +119,7 @@ func TestTaskHandle_SkippedVerboseEmitsTruncatedNameList(t *testing.T) {
 	if !strings.Contains(got, "skipped 4  (protected)") {
 		t.Fatalf("want headline count line, got:\n%s", got)
 	}
-	if !strings.Contains(got, "protected: a, b, c, +1") {
+	if !strings.Contains(got, "protected: a, b, c … +1 more") {
 		t.Fatalf("want Verbose truncated name list, got:\n%s", got)
 	}
 }
@@ -195,7 +195,7 @@ func TestGroup_ChildVerboseRendersTruncatedNameList(t *testing.T) {
 	if !strings.Contains(got, "skipped 4  (protected)") {
 		t.Fatalf("want headline count line for collection child, got:\n%s", got)
 	}
-	if !strings.Contains(got, "protected: a, b, c, +1") {
+	if !strings.Contains(got, "protected: a, b, c … +1 more") {
 		t.Fatalf("want Verbose truncated name list for collection child, got:\n%s", got)
 	}
 }
