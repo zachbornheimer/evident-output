@@ -113,9 +113,9 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 		{
 			ID:       "interactive",
 			Title:    "Live region and debug",
-			UseCases: []string{"spinner", "debug", "narrow", "confirm", "prompt", "resize"},
-			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println"},
-			Rules:    []string{"TERM-001", "TERM-006", "LOG-001"},
+			UseCases: []string{"spinner", "debug", "narrow", "confirm", "prompt", "resize", "suspend", "child-ui"},
+			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println", "Suspend"},
+			Rules:    []string{"TERM-001", "TERM-006", "TERM-015", "CONFIRM-001", "LOG-001"},
 			Body: `Instant Done before the visibility threshold must not flash a spinner.
 Durable notes go through evo.Println/Print/Printf — never fmt.Print* — while a live region is open: evo clears
 the region, writes the line, redraws, atomically. fmt bypassing that path is how frames tear.
@@ -126,8 +126,14 @@ Blocked (⊘, exit 1) is a distinct terminal state from Failed (✗, exit 2): a 
 --yes off-TTY), and a protected-branch rule are all ⊘, never ✗.
 Resize is a rerender: width is re-read every frame; a narrowed pane recomputes truncation and compact layout
 live rather than leaving a wrapped remnant.
-Use evo.Terminal with testkit.Screen or terminal.NewANSI.`,
-			TokenEstimate: 220,
+Use evo.Terminal with testkit.Screen or terminal.NewANSI.
+
+Handing the tty to a child: out.Suspend(func() error { ... }) clears the live region, holds it invisible for the
+whole call, and redraws after — required only when a child paints its own UI on the shared terminal (its Stdout/
+Stderr are the process's own, tty-passthrough); otherwise the parent's spinner and the child's first line glue
+together. Captured or PhaseWriter-wired children (task.Capture(), cmd.Stdout = task.PhaseWriter()) never need
+Suspend — their output already flows through evo's own render loop.`,
+			TokenEstimate: 260,
 		},
 		{
 			ID:       "first-paint",

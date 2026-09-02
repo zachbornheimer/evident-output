@@ -13,21 +13,25 @@ import (
 )
 
 func main() {
-    out := evo.New(evo.Config{Title: "bpp-csharp"})
-    os.Exit(evo.MainWith(out, run))
+    evo.Init(evo.Config{Title: "bpp-csharp"}) // first statement — arms first paint before any I/O
+    os.Exit(evo.Main(run))
 }
 
-func run(out *evo.Output) error {
+func run() error {
     // Start as casually as fmt — then promote to structure when useful.
-    out.Println("Reading configuration")
-    out.Printf("Found %d packages\n", 18)
-    out.Verbose().Printf("Cache: %s\n", "/var/cache")
+    evo.Println("Reading configuration")
+    evo.Printf("Found %d packages\n", 18)
 
-    out.Item("working tree").OK()
-    out.Item("branches").Block(
+    evo.Item("working tree").OK()
+    evo.Item("branches").Block(
         "local-only branch",
         evo.Detail("commit or stash before continuing"),
     )
+
+    evo.Task("branches").Delete(2, "stale local branches") // [changed]/[planned] picked from Config.DryRun
+    for pkg := range evo.Task("install").Each(packages) {
+        install(pkg)
+    }
     return nil // Block is a presentation outcome, not a Go error
 }
 ```
@@ -40,24 +44,27 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 Design philosophy and polish-phase basis: [`docs/roadmap/implementation-basis.md`](docs/roadmap/implementation-basis.md), [`docs/philosophy/`](docs/philosophy/).
 
-**Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `NewWithOptions(Title(...), …)`.
+**Construction:** `evo.Init(Config{…})` for the package-level default instance (front door); `evo.New(Config{…})` / `DefaultConfig()` for a hosted instance — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `NewWithOptions(Title(...), …)`.
 **Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug.Level: LevelTrace` selectable (`LevelUnset` → Info).
-**Lifecycle:** `os.Exit(evo.MainWith(out, run))` seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.
+**Lifecycle:** `os.Exit(evo.Main(run))` (default instance) or `os.Exit(evo.MainWith(out, run))` (hosted) seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only). Semantic state: Item/Task.
-**Capture:** `Task.Capture` (work) or `Item.Capture` (tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention.
+**Mutations:** `Task.Delete/Create/Update/Remove/Write/Push/Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` — one spelling, never a call-site tense flip.
+**Loops and taxonomy:** `Task.Each(items)` / `EachN(n)` own absolute progress; `Task.Skipped(reason, name)` / `Task.Kept(reason, name)` own the counted, summed skip/keep partition.
+**Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `⊘ declined` / `⊘ blocked by policy`, never a Go error.
+**Capture:** `Task.Capture` (work) or `Item.Capture` (tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention. `cmd.Stdout = task.PhaseWriter()` turns a talkative child's last line into the live Phase; `out.Suspend(fn)` hands the tty to a child that paints its own UI.
 **Platform:** `evo.ID` + narrow `Scope` (Item/Task/Tasks only — not a sandbox); `ResultWriter()` under `FormatData`.
 
 ## Pick the entity
 
-| Shape       | Use when                                               |
-| ----------- | ------------------------------------------------------ |
-| **Item**    | Check / gate / verdict unit (pass–fail)                |
-| **Task**    | Work with phases or progress                           |
-| **Tasks**   | Collection of independent tasks (state is **derived**) |
-| **Changes** | Past-tense durable effects that happened               |
-| **Plan**    | Dry-run would-happen effects                           |
+| Shape     | Use when                                               |
+| --------- | ------------------------------------------------------ |
+| **Item**  | Check / gate / verdict unit (pass–fail)                |
+| **Task**  | Work with phases, progress, or mutation verbs          |
+| **Tasks** | Collection of independent tasks (state is **derived**) |
 
 When both Item and Task fit: prefer **Item** for pass/fail gates, **Task** for progress. Multi-gate: resolve every Item, then `if out.AnyBlocked() { return nil }` before mutation; `Main` maps `ExitCode`.
+
+**Advanced (tooling call sites):** `Plan` / `Changes` are the instance-API primitives Task's mutation verbs (`Delete`/`Create`/`Update`/…) are built on — reach for them directly only when a tool needs the would/did split without a Task.
 
 ## Severity dialect
 
