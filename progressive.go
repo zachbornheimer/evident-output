@@ -77,14 +77,21 @@ func (o *Output) writeDurableTextLocked(text string) {
 		return
 	}
 	live := o.liveLocked()
+	// A live region (including the armed, entity-less title line painted by
+	// arm()) may still be on screen even after the surface stops reporting
+	// itself interactive — terminal.ANSI disables IsInteractive() permanently
+	// on a short write, but the fd keeps accepting writes and the stale frame
+	// stays visible. Clear it on the surface's own bookkeeping (o.live.liveActive),
+	// not on a fresh interactive re-check, so durable text is never appended
+	// straight onto whatever line the live region last drew.
+	if live != nil && o.live != nil && o.live.liveActive {
+		live.ClearLive()
+		o.live.liveActive = false
+	}
 	interactive := live != nil && live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
 	if interactive {
 		if o.live == nil {
 			o.live = &liveEngine{surface: live}
-		}
-		if o.live.liveActive {
-			live.ClearLive()
-			o.live.liveActive = false
 		}
 		live.WriteDurable(text)
 		// Redraw immediately (still holding o.mu) so the live region never sits
