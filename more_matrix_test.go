@@ -34,14 +34,22 @@ func TestDOM015_CauseHiddenFromPlain(t *testing.T) {
 	}
 }
 
-func TestDOM023_TotalIncreases(t *testing.T) {
+// TestDOM023_SealedTotalRejectsChange documents the sealed-total invariant
+// (evo-rec.md "Progress invariants"): once a nonzero total is reported, it
+// cannot change to a different value — 14/40 never becomes 14/53. Earlier
+// behavior allowed the total to grow silently; that is now recorded misuse
+// and the first total is kept.
+func TestDOM023_SealedTotalRejectsChange(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(1, 2)
 	task.Progress(2, 5)
-	if task.Snapshot().Progress.Total != 5 {
-		t.Fatal(task.Snapshot().Progress)
+	if task.Snapshot().Progress.Total != 2 {
+		t.Fatalf("sealed total was not preserved: %#v", task.Snapshot().Progress)
+	}
+	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
+		t.Fatalf("error = %v, want ErrInvalidProgress", out.Err())
 	}
 }
 

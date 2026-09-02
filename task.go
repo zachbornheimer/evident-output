@@ -119,18 +119,17 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 		t.out.recordMisuse(ErrInvalidProgress)
 		return
 	}
-	// Regression: completed decreases without restart.
-	if st.state == Running && st.progress.Kind != Indeterminate && st.progress.Total > 0 {
+	// Regression and sealing guards apply only while re-reporting the same
+	// measurement kind (Determinate or Bytes); switching kind (e.g. Progress
+	// then Bytes) is a deliberate re-declaration and resets both freely.
+	if st.state == Running && st.progress.Kind != Indeterminate && st.progress.Total > 0 && kind == st.progress.Kind {
 		if completed < st.progress.Completed {
 			t.out.recordMisuse(ErrProgressRegression)
 			return
 		}
-		if total < st.progress.Total && total < completed {
-			t.out.recordMisuse(ErrInvalidProgress)
-			return
-		}
-		// total may not decrease below completed
-		if total < st.progress.Completed {
+		// Sealed total: once a nonzero total is reported for this kind, it
+		// cannot change. Retry-safety depends on the denominator staying put.
+		if total != st.progress.Total {
 			t.out.recordMisuse(ErrInvalidProgress)
 			return
 		}
