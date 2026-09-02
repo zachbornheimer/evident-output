@@ -57,7 +57,7 @@ type Progress struct {
 // isTerminalItem reports whether s is a terminal item state.
 func isTerminalItem(s EntityState) bool {
 	switch s {
-	case OK, Warning, Blocked, Failed, Unknown, Skipped:
+	case OK, Warning, Blocked, Failed, Unknown, Skipped, Cancelled:
 		return true
 	default:
 		return false

@@ -80,6 +80,8 @@ type Config struct {
 	// Result is an optional domain-payload writer. When nil and Format is
 	// FormatData, ResultWriter returns Stdout. Presentation never writes here.
 	Result io.Writer
+	// Stdin is the facade Confirm reads one answer line from (default os.Stdin).
+	Stdin io.Reader
 
 	// Verbosity gates Verbose() print messages (default VerbosityNormal).
 	Verbosity Verbosity
@@ -174,6 +176,9 @@ func resolveConfig(c Config) Config {
 	}
 	if c.Stderr == nil {
 		c.Stderr = os.Stderr
+	}
+	if c.Stdin == nil {
+		c.Stdin = os.Stdin
 	}
 	// LevelUnset (zero) → LevelInfo. LevelTrace is non-zero and selectable via Config.
 	if c.Debug.Level == LevelUnset {
@@ -312,6 +317,9 @@ func configToOptions(c Config) []Option {
 		opts = append(opts, Plain())
 	}
 
+	if c.Stdin != nil {
+		opts = append(opts, Stdin(c.Stdin))
+	}
 	opts = append(opts, Clock(c.Clock), Redact(c.Redactor), Width(c.Width))
 	visDelay := defaultVisibilityDelay
 	if c.VisibilityDelay != nil {

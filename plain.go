@@ -401,8 +401,10 @@ func itemGlyph(s EntityState) string {
 	switch s {
 	case OK:
 		return "✓"
-	case Blocked, Failed:
+	case Failed:
 		return "✗"
+	case Blocked:
+		return "⊘"
 	case Warning:
 		return "!"
 	case Skipped:
@@ -411,6 +413,8 @@ func itemGlyph(s EntityState) string {
 		return "?"
 	case Running:
 		return "⠋"
+	case Cancelled:
+		return "■"
 	default:
 		return "·"
 	}
@@ -422,6 +426,8 @@ func taskGlyph(s EntityState) string {
 		return "✓"
 	case Failed:
 		return "✗"
+	case Blocked:
+		return "⊘"
 	case Warning:
 		return "!"
 	case Running:

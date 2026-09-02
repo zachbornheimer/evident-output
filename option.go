@@ -33,6 +33,9 @@ type config struct {
 	maxEvents         int
 	extraWriters      []io.Writer
 	verbosity         Verbosity
+	// stdin is the facade Confirm reads one answer line from (default os.Stdin,
+	// resolved lazily so NewWithOptions callers that skip Stdin still work).
+	stdin io.Reader
 	// failedExitCode overrides ExitFailed when conclusion is StateFailed.
 	// Zero means use ExitFailed (2).
 	failedExitCode int
@@ -118,6 +121,12 @@ func Strict() Option {
 // this Option exists for the advanced NewWithOptions surface and tests.
 func DryRun() Option {
 	return optionFunc(func(c *config) { c.dryRun = true })
+}
+
+// Stdin injects the reader Confirm reads answers from (facade rule — no
+// direct os.Stdin read in Confirm's logic). Default os.Stdin.
+func Stdin(r io.Reader) Option {
+	return optionFunc(func(c *config) { c.stdin = r })
 }
 
 // Terminal injects a terminal driver (interactive projection; v0.2).

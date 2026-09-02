@@ -37,6 +37,12 @@ func Command(executable string, args ...string) Action {
 	}
 }
 
+// Label builds a plain-text recommended next step with no executable command
+// (e.g. a policy hint like "pass --yes to confirm non-interactively").
+func Label(text string) Action {
+	return Action{Label: sanitizeDisplay(text)}
+}
+
 func cloneActions(in []Action) []Action {
 	if len(in) == 0 {
 		return nil

@@ -62,6 +62,11 @@ type Output struct {
 	// with the same name return the one Group instead of a duplicate section.
 	namedGroups map[string]*GroupHandle
 
+	// confirmAbort holds one abort channel per pending Confirm gate, keyed by
+	// item id, so cancelActive can unblock Confirm's stdin read and resolve
+	// the gate as Cancelled (not Blocked "declined") on SIGINT/SIGTERM.
+	confirmAbort map[string]chan struct{}
+
 	// Progressive durable emission (§17.5: terminal outcomes render immediately).
 	// Finish only appends residual (unemitted entities + conclusion).
 	linesEmitted int
@@ -418,12 +423,37 @@ func (o *Output) cancelActive(reason string) {
 			break
 		}
 	}
-	o.mu.Unlock()
 	if active != nil {
+		o.mu.Unlock()
 		active.Cancel(reason)
 		return
 	}
+	if o.cancelPendingConfirmLocked(reason) {
+		o.mu.Unlock()
+		return
+	}
+	o.mu.Unlock()
 	o.Cancel(reason)
+}
+
+// cancelPendingConfirmLocked cancels one pending Confirm gate, if any, so ^C
+// at a "[y/N]" prompt unblocks Confirm's stdin read and resolves the gate as
+// Cancelled — never Blocked "declined" (a human "n" and an interrupt are
+// distinct outcomes). Reports whether a gate was cancelled.
+func (o *Output) cancelPendingConfirmLocked(reason string) bool {
+	for id, abort := range o.confirmAbort {
+		close(abort)
+		delete(o.confirmAbort, id)
+		if st := o.itemByRef[id]; st != nil && !isTerminalItem(st.state) {
+			st.state = Cancelled
+			st.because = sanitize.Text(reason)
+			o.bumpLocked()
+			o.appendEventLocked(Event{Type: "item.cancelled", EntityID: id})
+			o.emitItemProgressiveLocked(st)
+		}
+		return true
+	}
+	return false
 }
 
 // Tasks declares a collection of independent child tasks.

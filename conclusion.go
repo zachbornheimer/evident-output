@@ -78,6 +78,8 @@ func inferConclusion(s Snapshot) Conclusion {
 			hasBlocked = true
 		case Warning:
 			hasWarning = true
+		case Cancelled:
+			hasCancelled = true
 		case Pending, Running, Incomplete:
 			hasIncomplete = true
 		case OK, Skipped, Unknown:
