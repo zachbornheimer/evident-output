@@ -16,6 +16,11 @@ const (
 	Cancelled  EntityState = "cancelled"
 	Empty      EntityState = "empty"
 	Incomplete EntityState = "incomplete"
+	// NotStarted marks a group task that never ran because an earlier sibling
+	// already failed or was cancelled — rendered "-  <name>  not started" and
+	// excluded from the conclusion (the group's verdict comes from the
+	// failed/cancelled sibling, not from its unstarted followers).
+	NotStarted EntityState = "not_started"
 )
 
 // ConclusionState is the human headline for a finished output.
@@ -62,7 +67,7 @@ func isTerminalItem(s EntityState) bool {
 // isTerminalTask reports whether s is a terminal task state.
 func isTerminalTask(s EntityState) bool {
 	switch s {
-	case Done, Warning, Failed, Cancelled, Skipped:
+	case Done, Warning, Failed, Cancelled, Skipped, NotStarted:
 		return true
 	default:
 		return false

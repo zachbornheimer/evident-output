@@ -62,6 +62,12 @@ func Item(name string, opts ...EntityOption) *ItemHandle {
 	return Default().Item(name, opts...)
 }
 
+// Group declares (or, for a repeated name, returns) a self-managing task
+// group on the default instance — see Group for the auto-lifecycle contract.
+func Group(name string) *GroupHandle {
+	return Default().Group(name)
+}
+
 // Reason returns a get-or-create taxonomy Reason by name on the default
 // instance registry — duplicate strings merge into one bucket, so an inline
 // evo.Reason("protected") at every call site is always legal; lifting it to a

@@ -318,7 +318,7 @@ func writeCollection(b *strings.Builder, col TasksSnapshot, color bool) {
 // is meaningless without the child detail line that says why.
 func needsCollectionDetailLine(s EntityState) bool {
 	switch s {
-	case Failed, Warning, Blocked, Cancelled, Skipped:
+	case Failed, Warning, Blocked, Cancelled, Skipped, NotStarted:
 		return true
 	default:
 		return false
@@ -430,6 +430,8 @@ func taskGlyph(s EntityState) string {
 		return "○"
 	case Cancelled, Skipped:
 		return "○"
+	case NotStarted:
+		return "-"
 	default:
 		return "·"
 	}
@@ -447,7 +449,7 @@ func stateColor(s EntityState) string {
 		return sgrYellow
 	case Running:
 		return sgrCyan
-	case Pending, Skipped, Cancelled, Unknown, Incomplete:
+	case Pending, Skipped, Cancelled, Unknown, Incomplete, NotStarted:
 		return sgrDim
 	default:
 		return ""

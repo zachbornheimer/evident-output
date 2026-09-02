@@ -58,6 +58,9 @@ type Output struct {
 	// namedReasons backs get-or-create identity for evo.Reason: repeated calls
 	// with the same name (inline or lifted to a var) merge into one bucket.
 	namedReasons map[string]TaxonomyReason
+	// namedGroups backs get-or-create identity for evo.Group: repeated calls
+	// with the same name return the one Group instead of a duplicate section.
+	namedGroups map[string]*GroupHandle
 
 	// Progressive durable emission (§17.5: terminal outcomes render immediately).
 	// Finish only appends residual (unemitted entities + conclusion).
@@ -126,6 +129,10 @@ type tasksState struct {
 	tasks       []*taskState
 	declaration int
 	handle      *Tasks
+
+	// namedTasks backs get-or-create identity for Group.Task: repeated calls
+	// with the same name inside this group return the one child TaskHandle.
+	namedTasks map[string]*TaskHandle
 }
 
 type changesState struct {
@@ -438,6 +445,58 @@ func (o *Output) Tasks(name string) *Tasks {
 	o.tasksByRef[st.id] = st
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
+	return h
+}
+
+// Group declares (or, for a repeated name, returns) a self-managing task
+// group — the front door for a sequence of steps that must stop implying
+// "still might run" once a member has already failed or been cancelled. A
+// second evo.Group("python") call returns the same Group, mirroring Task's
+// get-or-create identity.
+func (o *Output) Group(name string) *GroupHandle {
+	o.mu.Lock()
+	if g, ok := o.namedGroups[name]; ok {
+		o.mu.Unlock()
+		return g
+	}
+	o.mu.Unlock()
+
+	tasks := o.Tasks(name)
+
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if existing, ok := o.namedGroups[name]; ok {
+		return existing
+	}
+	g := &GroupHandle{tasks: tasks}
+	if o.namedGroups == nil {
+		o.namedGroups = make(map[string]*GroupHandle)
+	}
+	o.namedGroups[name] = g
+	return g
+}
+
+// groupTaskGetOrCreate returns the child previously declared under name in
+// the group backed by groupID, or declares a new one — the identity behind
+// Group.Task's get-or-create contract.
+func (o *Output) groupTaskGetOrCreate(groupID, name string, opts ...EntityOption) *TaskHandle {
+	o.mu.Lock()
+	col := o.tasksByRef[groupID]
+	if col == nil {
+		o.mu.Unlock()
+		return &TaskHandle{out: o, id: o.nextID("task")}
+	}
+	if existing, ok := col.namedTasks[name]; ok {
+		o.mu.Unlock()
+		return existing
+	}
+	eo := applyEntityOptions(opts)
+	h := o.addTaskLocked(sanitize.Text(name), col, eo.key)
+	if col.namedTasks == nil {
+		col.namedTasks = make(map[string]*TaskHandle)
+	}
+	col.namedTasks[name] = h
+	o.mu.Unlock()
 	return h
 }
 
@@ -805,6 +864,10 @@ func (g *tasksState) derivedState() EntityState {
 		case Cancelled:
 			anyCancelled = true
 		case Done, Skipped:
+		case NotStarted:
+			// Auto-resolved because an earlier sibling already failed/cancelled —
+			// not a source of incompleteness; the group's verdict already comes
+			// from that sibling.
 		default:
 			anyUnresolved = true
 			allDone = false
@@ -940,6 +1003,37 @@ func (o *Output) compactJournalLocked() {
 	}
 }
 
+// notStartedSummary is the literal detail rendered for an auto-resolved group
+// child — fixed text, not caller-composed, so every call site spells it the
+// same way (evo-rec.md early-termination examples: "-  install  not started").
+const notStartedSummary = "not started"
+
+// autoResolveGroupsLocked stops each group from implying "still might run"
+// once a member has already failed or been cancelled: every declared-after
+// sibling that has not reached its own terminal state becomes NotStarted.
+// A sibling the caller already resolved (explicitly or by an earlier trigger)
+// is left untouched — explicit resolution always wins.
+func (o *Output) autoResolveGroupsLocked() {
+	for _, col := range o.collections {
+		triggered := false
+		for _, t := range col.tasks {
+			if !triggered {
+				if t.state == Failed || t.state == Cancelled {
+					triggered = true
+				}
+				continue
+			}
+			if isTerminalTask(t.state) {
+				continue
+			}
+			t.state = NotStarted
+			t.phase = ""
+			t.summary = notStartedSummary
+			o.appendEventLocked(Event{Type: "task.not_started", EntityID: t.id})
+		}
+	}
+}
+
 // Finish validates, computes conclusion, emits final projections.
 // Projection I/O runs outside the domain lock (§17.1).
 func (o *Output) Finish() error {
@@ -953,6 +1047,11 @@ func (o *Output) Finish() error {
 
 	// Flush unterminated Print fragments into messages.
 	o.flushPendingPrintLocked()
+
+	// Group lifecycle: a failed/cancelled child stops its later siblings from
+	// reading as "still pending" before the generic unresolved-entity sweep
+	// below would otherwise mark them Incomplete (and record misuse).
+	o.autoResolveGroupsLocked()
 
 	// Unresolved entities
 	for _, it := range o.items {
