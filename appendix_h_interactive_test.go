@@ -74,8 +74,11 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	_ = out.Finish()
 
 	// History mode: timestamp (FixedClock) + bracketed level above live region.
+	// The task first paints Pending ("○", no spinner — evo-rec.md "new tasks
+	// declare as Pending"); Phase() is the first evidence that promotes it
+	// to Running and draws the spinner frame.
 	want := []testkit.Operation{
-		testkit.DrawLive("⠋  dependencies  working…"),
+		testkit.DrawLive("○  dependencies"),
 		testkit.DrawLive("⠋  dependencies  resolving packages"),
 		testkit.ClearLive(),
 		testkit.WriteDurable("00:00:00.000 [DEBUG] package index loaded  packages=18"),

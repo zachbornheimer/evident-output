@@ -136,9 +136,6 @@ func inferConclusion(s Snapshot) Conclusion {
 		c.State = StateChanged
 	case len(s.Plans) > 0 && !c.Changed && !hasFailed && !hasBlocked:
 		c.State = StatePlanned
-	case hasIncomplete:
-		c.State = StatePartial
-		c.Partial = true
 	case hasDone:
 		c.State = StateReady
 	case hasWarning:
@@ -147,7 +144,11 @@ func inferConclusion(s Snapshot) Conclusion {
 		c.State = StateUnchanged
 	}
 
-	if hasIncomplete && (hasFailed || hasBlocked || c.Changed) {
+	// Partial is a completeness modifier over the Outcome above, never a root
+	// verdict of its own (evo-rec.md "Conclusion algebra — two axes"): an
+	// unresolved item/task/collection never invents a new headline state —
+	// it marks the existing outcome incomplete instead.
+	if hasIncomplete {
 		c.Partial = true
 	}
 	if hasCancelled {

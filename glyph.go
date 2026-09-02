@@ -170,8 +170,9 @@ func itemGlyph(s EntityState, profile GlyphProfile) string {
 }
 
 // taskGlyph maps a Task's state to its glyph in the given profile. Cancelled
-// and Skipped share Pending's glyph, matching the vocabulary this table
-// replaced — that mapping is preserved verbatim, not revisited here.
+// gets its own face (glyphCancelled) per the tightened vocabulary table —
+// it must be visually distinct from a task that never got attention.
+// Skipped keeps Pending's glyph, unchanged from before the table existed.
 func taskGlyph(s EntityState, profile GlyphProfile) string {
 	switch s {
 	case Done:
@@ -184,11 +185,15 @@ func taskGlyph(s EntityState, profile GlyphProfile) string {
 		return glyphWarningState.render(profile)
 	case Running:
 		return spinnerFrames(profile)[0]
-	case Pending:
+	case Pending, Skipped:
 		return glyphPending.render(profile)
-	case Cancelled, Skipped:
-		return glyphPending.render(profile)
-	case NotStarted:
+	case Cancelled:
+		return glyphCancelled.render(profile)
+	// Incomplete: a task Finish left non-terminal (never ran or never
+	// resolved) has no dedicated row in the vocabulary table; it reads as
+	// "not started" rather than the unclassified "·" no state should ever
+	// need (evo-rec.md "Conclusion algebra").
+	case NotStarted, Incomplete:
 		return glyphNotStarted.render(profile)
 	default:
 		return glyphUnclassified.render(profile)

@@ -53,9 +53,10 @@ func TestTaskGlyph_ASCIITable(t *testing.T) {
 		Blocked:    "[blocked]",
 		Warning:    "[!]",
 		Pending:    "[.]",
-		Cancelled:  "[.]", // preserved verbatim: Cancelled shares Pending's glyph
+		Cancelled:  "[cancel]", // evo-rec.md: Cancelled gets its own face, no longer Pending's
 		Skipped:    "[.]",
 		NotStarted: "[-]",
+		Incomplete: "[-]", // an unresolved task at Finish reads as "not started"
 	}
 	for state, want := range cases {
 		if got := taskGlyph(state, GlyphsASCII); got != want {
@@ -72,9 +73,10 @@ func TestTaskGlyph_UnicodeUnchanged(t *testing.T) {
 		Blocked:    "⊘",
 		Warning:    "!",
 		Pending:    "○",
-		Cancelled:  "○",
+		Cancelled:  "■", // evo-rec.md: Cancelled gets its own face, no longer Pending's
 		Skipped:    "○",
 		NotStarted: "-",
+		Incomplete: "-", // an unresolved task at Finish reads as "not started"
 	}
 	for state, want := range cases {
 		if got := taskGlyph(state, GlyphsUnicode); got != want {

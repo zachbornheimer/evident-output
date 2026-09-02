@@ -248,7 +248,9 @@ func TestReason_OnTaskWrongTaskPanicsUnderStrict(t *testing.T) {
 }
 
 // TestTaskHandle_SkippedDoesNotResolveTask pins "usable pre-resolution and
-// does not resolve the task": after Skipped, the task is still Running, not
+// does not resolve the task": Skipped is not itself evidence of work
+// starting (Phase/Progress/Advance/Bytes/Each/PhaseWriter are), so a task
+// declared Pending and only given a Skipped record stays Pending — not
 // terminal, so the caller can keep classifying before calling Done.
 func TestTaskHandle_SkippedDoesNotResolveTask(t *testing.T) {
 	out := evo.NewWithOptions(evo.Title("t"), evo.NoColor())
@@ -258,7 +260,7 @@ func TestTaskHandle_SkippedDoesNotResolveTask(t *testing.T) {
 	branches := out.Task("branches")
 	branches.Skipped(evo.Reason("protected"), "main")
 
-	if state := branches.Snapshot().State; state != evo.Running {
+	if state := branches.Snapshot().State; state != evo.Pending {
 		t.Fatalf("Skipped must not resolve the task, state = %v", state)
 	}
 }

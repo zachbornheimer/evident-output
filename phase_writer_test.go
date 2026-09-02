@@ -91,6 +91,40 @@ func TestPhaseWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 	}
 }
 
+// TestPhaseWriter_UnboundedPendingFragmentIsCapped is the red-first case for
+// phase_writer.go's unbounded buffer: a child that emits far more than one
+// screen's worth of bytes with no line terminator must not grow the
+// pending-fragment buffer without limit — once it exceeds the cap, the
+// fragment flushes as a phase line on its own.
+func TestPhaseWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.New(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	task := out.Task("build")
+	w := task.PhaseWriter()
+
+	// One line-terminator-free write far larger than any reasonable phase
+	// text — no \r or \n anywhere, so without a cap this buffers forever.
+	const oversized = 8 * 1024 // 2x the 4 KiB cap
+	payload := make([]byte, oversized)
+	for i := range payload {
+		payload[i] = 'x'
+	}
+	if _, err := w.Write(payload); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := task.Snapshot().Phase; len(got) == 0 {
+		t.Fatal("oversized line-less fragment never flushed as a phase line")
+	} else if len(got) > oversized {
+		t.Fatalf("phase text longer than the input payload: %d bytes", len(got))
+	}
+
+	task.Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPhaseWriter_SanitizesHostileLines(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.New(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})

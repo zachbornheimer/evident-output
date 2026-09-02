@@ -29,12 +29,15 @@ func TestEach_DrivesAbsoluteProgressAndPhase(t *testing.T) {
 	if want := []string{"alpha", "beta", "gamma"}; !equalStrings(seenPhases, want) {
 		t.Fatalf("phases = %v, want %v", seenPhases, want)
 	}
-	if want := []int64{1, 2, 3}; !equalInt64s(seenCompleted, want) {
+	// Progress observed *before* each item's own work runs reads as the
+	// count already completed (i, not i+1) — the bar must not read full
+	// while the last item is still in flight (evo-rec.md each off-by-one).
+	if want := []int64{0, 1, 2}; !equalInt64s(seenCompleted, want) {
 		t.Fatalf("completed = %v, want %v", seenCompleted, want)
 	}
 	final := task.Snapshot()
 	if final.Progress.Completed != 3 || final.Progress.Total != 3 {
-		t.Fatalf("final progress = %#v, want 3/3", final.Progress)
+		t.Fatalf("final progress = %#v, want 3/3 (sealed on normal loop completion)", final.Progress)
 	}
 }
 
@@ -50,9 +53,12 @@ func TestEach_BreakLeavesProgressAtCompletedCount(t *testing.T) {
 		}
 	}
 
+	// beta is index 1 (0-indexed): Progress(1, 4) is set before beta is
+	// yielded — "1 done, beta in flight" — and breaking during beta leaves
+	// it there; the loop never reaches the post-loop seal to 4/4.
 	snap := task.Snapshot()
-	if snap.Progress.Completed != 2 || snap.Progress.Total != 4 {
-		t.Fatalf("progress = %#v, want 2/4 (early break leaves count as-is)", snap.Progress)
+	if snap.Progress.Completed != 1 || snap.Progress.Total != 4 {
+		t.Fatalf("progress = %#v, want 1/4 (early break leaves count as-is)", snap.Progress)
 	}
 	if snap.State == evo.Done {
 		t.Fatal("break must not auto-resolve the task")
@@ -95,11 +101,14 @@ func TestEachN_DrivesProgressOnly(t *testing.T) {
 		_ = i
 	}
 
-	if want := []int64{1, 2, 3}; !equalInt64s(seenCompleted, want) {
+	if want := []int64{0, 1, 2}; !equalInt64s(seenCompleted, want) {
 		t.Fatalf("completed = %v, want %v", seenCompleted, want)
 	}
 	if task.Snapshot().Phase != "" {
 		t.Fatalf("EachN must not set Phase, got %q", task.Snapshot().Phase)
+	}
+	if final := task.Snapshot().Progress; final.Completed != 3 || final.Total != 3 {
+		t.Fatalf("final progress = %#v, want 3/3 (sealed on normal loop completion)", final)
 	}
 }
 

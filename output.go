@@ -149,6 +149,14 @@ type tasksState struct {
 	// namedTasks backs get-or-create identity for Group.Task: repeated calls
 	// with the same name inside this group return the one child TaskHandle.
 	namedTasks map[string]*TaskHandle
+
+	// sequential marks a collection whose children are declared as a
+	// sequence of steps (Group), where the "one Running child" heart
+	// contract (evo-rec.md) applies. A plain Tasks collection documents
+	// its children as independent — worker-pool fan-out is a supported,
+	// concurrency-safe pattern there, so promoteRunningLocked does not
+	// police it.
+	sequential bool
 }
 
 type changesState struct {
@@ -239,6 +247,26 @@ func (o *Output) recordMisuse(err error) {
 	if o.cfg.strict {
 		panic(err)
 	}
+}
+
+// promoteRunningLocked transitions a Pending task to Running on its first
+// unit of evidence (Phase/Progress/Advance/Bytes/Each iteration/PhaseWriter
+// write). For a sequential collection (Group), it records misuse when a
+// sibling is already Running, enforcing the heart contract "one Running
+// child" (evo-rec.md) — callers still get the transition; Strict mode is
+// what escalates the violation to a panic. A plain Tasks collection
+// documents its children as independent (worker-pool fan-out is a
+// supported, concurrency-safe pattern there), so it is not policed.
+func (o *Output) promoteRunningLocked(st *taskState) {
+	if st.collection != nil && st.collection.sequential {
+		for _, sibling := range st.collection.tasks {
+			if sibling != st && sibling.state == Running {
+				o.recordMisuse(ErrConcurrentRunning)
+				break
+			}
+		}
+	}
+	st.state = Running
 }
 
 func (o *Output) ensureOpen() error {
@@ -344,7 +372,7 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHa
 		id:          o.nextID("task"),
 		key:         key,
 		name:        name,
-		state:       Running,
+		state:       Pending,
 		progress:    Progress{Kind: Indeterminate},
 		collection:  col,
 		declaration: o.nextDecl(),
@@ -451,6 +479,19 @@ func (o *Output) cancelActive(reason string) {
 			break
 		}
 	}
+	if active == nil {
+		// Nothing has reached Running yet: the earliest-declared Pending
+		// task is the one about to run next (evo-rec.md "one Running
+		// child" — pending siblings are named and idle, waiting their
+		// turn), so an interrupt before any evidence still cancels that
+		// task rather than falling through to Output-level cancel.
+		for _, t := range o.tasks {
+			if t.state == Pending {
+				active = t.handle
+				break
+			}
+		}
+	}
 	if active != nil {
 		o.mu.Unlock()
 		active.Cancel(reason)
@@ -525,6 +566,9 @@ func (o *Output) Group(name string) *GroupHandle {
 	defer o.mu.Unlock()
 	if existing, ok := o.namedGroups[name]; ok {
 		return existing
+	}
+	if col := o.tasksByRef[tasks.id]; col != nil {
+		col.sequential = true
 	}
 	g := &GroupHandle{tasks: tasks}
 	if o.namedGroups == nil {

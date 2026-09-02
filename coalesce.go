@@ -103,7 +103,10 @@ func conclusionRepeatsEntityState(conclusion ConclusionState, entity EntityState
 	case Cancelled:
 		return conclusion == StateCancelled
 	case Pending, Running, Incomplete:
-		return conclusion == StatePartial
+		// Partial is a completeness modifier now, not a headline state
+		// (conclusion.go); a lone unresolved entity concludes the same as
+		// an empty run — StateUnchanged — so that is what "repeats" it.
+		return conclusion == StateUnchanged
 	default:
 		return false
 	}

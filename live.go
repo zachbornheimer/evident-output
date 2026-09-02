@@ -122,7 +122,11 @@ func (o *Output) signalLiveLocked(force bool) {
 
 func (o *Output) hasLiveActivityLocked() bool {
 	for _, t := range o.tasks {
-		if t.state == Running || t.phase != "" {
+		// Pending counts too: a declared task renders its named "○" row
+		// immediately (evo-rec.md "predeclare Tasks; ... others named
+		// idle") — VisibilityDelay withholds the *spinner flash* for
+		// near-instant work, not the fact that a task now exists.
+		if t.state == Running || t.state == Pending || t.phase != "" {
 			return true
 		}
 		if t.progress.Kind == Determinate || t.progress.Kind == BytesKind {
