@@ -65,6 +65,10 @@ func renderPlain(s Snapshot, cfg config) string {
 	verbose := cfg.verbosity >= VerbosityVerbose
 	profile := cfg.glyphs
 
+	if s.DryRun {
+		writeDryRunMarker(&b, color)
+	}
+
 	for _, line := range s.Lines {
 		writeDebugOrLine(&b, line, color)
 	}
@@ -300,39 +304,36 @@ func partitionTaxonomyByReason(records []TaxonomyRecord) (map[string][]string, [
 	return names, order
 }
 
+// writeCollection renders a Tasks group: the parent glyph/name (with its own
+// Summary when set), then every resolved child row with its own summary or
+// problem — Done included. Evo-rec.md Problem 1's final ledger keeps ✓ rows
+// like "✓  branches   14 deleted" instead of the parent collapsing to one
+// line and erasing the children whose evidence lived only in the live
+// region while it was running.
 func writeCollection(b *strings.Builder, col TasksSnapshot, color bool, profile GlyphProfile) {
 	glyph := styleGlyph(taskGlyph(col.State, profile), stateColor(col.State), color)
-	if col.Summary != "" && col.State == Done {
+	if col.Summary != "" {
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, col.Name, dim(col.Summary, color))
-		return
+	} else {
+		fmt.Fprintf(b, "%s  %s\n", glyph, col.Name)
 	}
-	fmt.Fprintf(b, "%s  %s\n", glyph, col.Name)
 	for _, t := range col.Tasks {
-		if !needsCollectionDetailLine(t.State) {
-			continue
-		}
-		tg := styleGlyph(taskGlyph(t.State, profile), stateColor(t.State), color)
-		fmt.Fprintf(b, "   %s  %s", tg, t.Name)
-		if len(t.Problems) > 0 {
-			fmt.Fprintf(b, "  %s", t.Problems[0].Summary)
-		} else if t.Summary != "" {
-			fmt.Fprintf(b, "  %s", t.Summary)
-		}
-		b.WriteByte('\n')
+		writeCollectionChild(b, t, color, profile)
 	}
 }
 
-// needsCollectionDetailLine reports whether a child task's outcome is
-// notable enough to explain under its parent Tasks group summary line.
-// Every non-Done terminal state qualifies — a group glyph like "!" or "✗"
-// is meaningless without the child detail line that says why.
-func needsCollectionDetailLine(s EntityState) bool {
-	switch s {
-	case Failed, Warning, Blocked, Cancelled, Skipped, NotStarted:
-		return true
-	default:
-		return false
+// writeCollectionChild renders one child task row under its parent group:
+// glyph, name, and whichever of problem summary / task summary explains it.
+func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color bool, profile GlyphProfile) {
+	tg := styleGlyph(taskGlyph(t.State, profile), stateColor(t.State), color)
+	fmt.Fprintf(b, "   %s  %s", tg, t.Name)
+	switch {
+	case len(t.Problems) > 0:
+		fmt.Fprintf(b, "  %s", t.Problems[0].Summary)
+	case t.Summary != "":
+		fmt.Fprintf(b, "  %s", t.Summary)
 	}
+	b.WriteByte('\n')
 }
 
 func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, width int, color bool) {
@@ -390,6 +391,19 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 			fmt.Fprintf(b, "  %s  %s %s\n", verb, qtyPad, r.Object)
 		}
 	}
+}
+
+// dryRunMarkerText is the fixed announcement body for a dry-run run's
+// opening line (evo-rec.md Problem 1: "a dry run must announce itself").
+const dryRunMarkerText = "no changes will be made"
+
+// writeDryRunMarker emits the unmissable dry-run marker line. It renders
+// once, first, styled like [planned] — a caller cannot opt out or bury it,
+// because every dry-run projection (RenderPlain and Finish's residual) calls
+// this before any other row.
+func writeDryRunMarker(b *strings.Builder, color bool) {
+	tag := style("[dry-run]", effectColor("planned"), color)
+	fmt.Fprintf(b, "%s  %s\n", tag, dryRunMarkerText)
 }
 
 func writeConclusion(b *strings.Builder, c Conclusion, color bool) {

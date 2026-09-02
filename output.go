@@ -200,7 +200,23 @@ func newOutput(subject string, options ...Option) *Output {
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.nextID("out")
 	o.appendEventLocked(Event{Type: "output.started", OutputID: o.outputID})
+	if cfg.dryRun {
+		// Announce before any task/item can reach the durable stream: no
+		// caller path can finish a DryRun-configured Output without this
+		// line having appeared first (evo-rec.md Problem 1). Safe to write
+		// unlocked — o has not yet been returned to the caller.
+		o.emitDryRunMarkerLocked()
+	}
 	return o
+}
+
+// emitDryRunMarkerLocked writes the "[dry-run]  no changes will be made"
+// announcement immediately, once, through the same durable-write path
+// (writeDurableTextLocked) every other library-owned line uses.
+func (o *Output) emitDryRunMarkerLocked() {
+	var b strings.Builder
+	writeDryRunMarker(&b, !o.cfg.noColor)
+	o.writeDurableTextLocked(b.String())
 }
 
 func (o *Output) nextID(prefix string) string {
@@ -794,6 +810,7 @@ func (o *Output) snapshotLocked() Snapshot {
 		Lines:     append([]string(nil), o.lines...),
 		Actions:   cloneActions(o.collectActionsLocked()),
 		Timestamp: o.cfg.clock.Now(),
+		DryRun:    o.cfg.dryRun,
 	}
 	for _, it := range o.items {
 		s.Items = append(s.Items, it.snapshot())

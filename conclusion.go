@@ -115,14 +115,20 @@ func inferConclusion(s Snapshot) Conclusion {
 		}
 	}
 
-	// Headline precedence: failed > blocked > warning > cancelled > changed > planned > ready > unchanged
+	// Headline precedence: failed > blocked > cancelled > changed > planned >
+	// partial > ready > warning-only > unchanged.
+	//
+	// Warnings sit below every OK-family outcome (evo-rec.md "Conclusion
+	// algebra — two axes"): Outcome is OK|Blocked|Failed|Cancelled, and a
+	// warning is not one of those four — it is visible attention on its own
+	// "!" row, never a headline that overrides an otherwise-OK verdict. It
+	// only becomes the headline when nothing else in the run classifies
+	// (the run's only content is a warning, per TestDOM038_WarningOnly).
 	switch {
 	case hasFailed:
 		c.State = StateFailed
 	case hasBlocked:
 		c.State = StateBlocked
-	case hasWarning:
-		c.State = StateWarning
 	case hasCancelled:
 		c.State = StateCancelled
 		c.Cancelled = true
@@ -135,6 +141,8 @@ func inferConclusion(s Snapshot) Conclusion {
 		c.Partial = true
 	case hasDone:
 		c.State = StateReady
+	case hasWarning:
+		c.State = StateWarning
 	default:
 		c.State = StateUnchanged
 	}
@@ -144,6 +152,16 @@ func inferConclusion(s Snapshot) Conclusion {
 	}
 	if hasCancelled {
 		c.Cancelled = true
+	}
+
+	// DryRun never lets the headline read as done: a run that would
+	// otherwise conclude OK (ready/changed/unchanged) reads as planned
+	// instead — nothing was actually applied (evo-rec.md Problem 1).
+	if s.DryRun {
+		switch c.State {
+		case StateChanged, StateReady, StateUnchanged:
+			c.State = StatePlanned
+		}
 	}
 
 	c.ExitCode = exitCodeFor(c.State)

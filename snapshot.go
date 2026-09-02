@@ -19,6 +19,10 @@ type Snapshot struct {
 	Actions    []Action
 	Conclusion *Conclusion
 	Timestamp  time.Time
+	// DryRun mirrors Config.DryRun: the run's mutation verbs are Plan-only
+	// (never Changes). The plain/final projection uses this to open with an
+	// unmissable marker line — no caller decides whether to announce it.
+	DryRun bool
 }
 
 // ItemSnapshot is an immutable item view.
