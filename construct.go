@@ -113,6 +113,13 @@ type Config struct {
 	// Zero means use ExitFailed (2). Set to 1 for conventional CLI tools that
 	// treat any non-zero failure as exit 1 (e.g. quality gates / git hooks).
 	FailedExitCode int
+
+	// DryRun declares this run a dry run once, for the whole process: every
+	// TaskHandle mutation verb (Delete, Create, Update, Remove, Write, Push,
+	// Record, RecordName) renders as a [planned] row with the imperative verb
+	// instead of a [changed] row with the past-tense verb. No call site writes
+	// its own tense.
+	DryRun bool
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
@@ -338,6 +345,9 @@ func configToOptions(c Config) []Option {
 	opts = append(opts, withVerbosity(c.Verbosity))
 	if c.FailedExitCode != 0 {
 		opts = append(opts, withFailedExitCode(c.FailedExitCode))
+	}
+	if c.DryRun {
+		opts = append(opts, DryRun())
 	}
 	return opts
 }

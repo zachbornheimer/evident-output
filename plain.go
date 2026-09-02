@@ -273,6 +273,13 @@ func needsCollectionDetailLine(s EntityState) bool {
 }
 
 func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, width int, color bool) {
+	// A [planned]/[changed] header with zero rows beneath it invents a mutation
+	// story that never happened; render the honest empty-success line instead
+	// (evo-rec.md "nothing-to-do" default).
+	if len(records) == 0 {
+		fmt.Fprintf(b, "nothing to %s\n", subject)
+		return
+	}
 	tag := style(fmt.Sprintf("[%s]", kind), effectColor(kind), color)
 	fmt.Fprintf(b, "%s  %s\n", tag, subject)
 	// TXT-016: leaders omitted when unnecessary (single short column / narrow).

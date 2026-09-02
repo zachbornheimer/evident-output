@@ -49,6 +49,12 @@ type Output struct {
 	// namedTasks backs get-or-create identity for the package-level default
 	// instance facade: evo.Task(name) called twice returns the same handle.
 	namedTasks map[string]*TaskHandle
+	// namedPlans/namedChanges back get-or-create identity for TaskHandle
+	// mutation verbs (Delete, Create, ...): repeated mutations on one task
+	// accumulate into the one Plan/Changes section named after the task,
+	// instead of one section per call.
+	namedPlans   map[string]*Plan
+	namedChanges map[string]*Changes
 
 	// Progressive durable emission (§17.5: terminal outcomes render immediately).
 	// Finish only appends residual (unemitted entities + conclusion).
@@ -331,6 +337,57 @@ func (o *Output) taskGetOrCreate(name string, opts ...EntityOption) *TaskHandle 
 	o.namedTasks[name] = t
 	o.mu.Unlock()
 	return t
+}
+
+// planGetOrCreate returns the Plan previously created under subject by this
+// method, or declares a new one — the identity backing TaskHandle mutation
+// verbs, where repeated dry-run mutations on one task accumulate into one
+// [planned] section instead of a new one per call.
+func (o *Output) planGetOrCreate(subject string) *Plan {
+	o.mu.Lock()
+	if p, ok := o.namedPlans[subject]; ok {
+		o.mu.Unlock()
+		return p
+	}
+	o.mu.Unlock()
+
+	p := o.Plan(subject)
+
+	o.mu.Lock()
+	if existing, ok := o.namedPlans[subject]; ok {
+		o.mu.Unlock()
+		return existing
+	}
+	if o.namedPlans == nil {
+		o.namedPlans = make(map[string]*Plan)
+	}
+	o.namedPlans[subject] = p
+	o.mu.Unlock()
+	return p
+}
+
+// changesGetOrCreate is planGetOrCreate's counterpart for applied mutations.
+func (o *Output) changesGetOrCreate(subject string) *Changes {
+	o.mu.Lock()
+	if c, ok := o.namedChanges[subject]; ok {
+		o.mu.Unlock()
+		return c
+	}
+	o.mu.Unlock()
+
+	c := o.Changes(subject)
+
+	o.mu.Lock()
+	if existing, ok := o.namedChanges[subject]; ok {
+		o.mu.Unlock()
+		return existing
+	}
+	if o.namedChanges == nil {
+		o.namedChanges = make(map[string]*Changes)
+	}
+	o.namedChanges[subject] = c
+	o.mu.Unlock()
+	return c
 }
 
 // cancelActive cancels the currently running task, or the output itself when
