@@ -82,7 +82,7 @@ func renderPlain(s Snapshot, cfg config) string {
 	}
 
 	for _, col := range s.Collections {
-		writeCollection(&b, col, color, profile)
+		writeCollection(&b, col, color, verbose, profile)
 	}
 
 	for _, ch := range s.Changes {
@@ -257,8 +257,8 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 			Unit:    "failures",
 		}, color)
 	}
-	writeTaxonomy(b, "skipped", t.Skipped, verbose, color)
-	writeTaxonomy(b, "kept", t.Kept, verbose, color)
+	writeTaxonomy(b, "", "skipped", t.Skipped, verbose, color)
+	writeTaxonomy(b, "", "kept", t.Kept, verbose, color)
 }
 
 // writeTaxonomy emits the derived "!  skipped N  (...)" / "!  kept N  (...)"
@@ -267,7 +267,10 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 // there is nothing for a caller to hand-assemble (and thereby miscount).
 // A single reason collapses to its bare name (the count already said N);
 // multiple reasons each carry their own count so the parts sum to N.
-func writeTaxonomy(b *strings.Builder, verb string, records []TaxonomyRecord, verbose, color bool) {
+// indent prefixes the taxonomy row (and, verbose, its detail rows) so a
+// collection child's taxonomy nests under the child's own glyph column
+// instead of the standalone task's zero-indent column.
+func writeTaxonomy(b *strings.Builder, indent, verb string, records []TaxonomyRecord, verbose, color bool) {
 	if len(records) == 0 {
 		return
 	}
@@ -281,12 +284,12 @@ func writeTaxonomy(b *strings.Builder, verb string, records []TaxonomyRecord, ve
 		parts[i] = fmt.Sprintf("%d %s", len(names[reason]), reason)
 	}
 	glyph := styleGlyph("!", sgrYellow, color)
-	fmt.Fprintf(b, "%s  %s %d  (%s)\n", glyph, verb, len(records), strings.Join(parts, ", "))
+	fmt.Fprintf(b, "%s%s  %s %d  (%s)\n", indent, glyph, verb, len(records), strings.Join(parts, ", "))
 	if !verbose {
 		return
 	}
 	for _, reason := range order {
-		fmt.Fprintf(b, "%s%s: %s\n", problemDetailIndent, reason, TruncateNames(names[reason], 0))
+		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, reason, TruncateNames(names[reason], 0))
 	}
 }
 
@@ -310,7 +313,7 @@ func partitionTaxonomyByReason(records []TaxonomyRecord) (map[string][]string, [
 // like "✓  branches   14 deleted" instead of the parent collapsing to one
 // line and erasing the children whose evidence lived only in the live
 // region while it was running.
-func writeCollection(b *strings.Builder, col TasksSnapshot, color bool, profile GlyphProfile) {
+func writeCollection(b *strings.Builder, col TasksSnapshot, color, verbose bool, profile GlyphProfile) {
 	glyph := styleGlyph(taskGlyph(col.State, profile), stateColor(col.State), color)
 	if col.Summary != "" {
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, col.Name, dim(col.Summary, color))
@@ -318,13 +321,16 @@ func writeCollection(b *strings.Builder, col TasksSnapshot, color bool, profile 
 		fmt.Fprintf(b, "%s  %s\n", glyph, col.Name)
 	}
 	for _, t := range col.Tasks {
-		writeCollectionChild(b, t, color, profile)
+		writeCollectionChild(b, t, color, verbose, profile)
 	}
 }
 
 // writeCollectionChild renders one child task row under its parent group:
-// glyph, name, and whichever of problem summary / task summary explains it.
-func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color bool, profile GlyphProfile) {
+// glyph, name, and whichever of problem summary / task summary explains it,
+// followed by the same Kept/Skipped taxonomy a standalone writeTask renders
+// — a collection child is a task, and dropping its taxonomy here was the
+// gap that forced the repo-retire adoption off the Group/Tasks API.
+func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile GlyphProfile) {
 	tg := styleGlyph(taskGlyph(t.State, profile), stateColor(t.State), color)
 	fmt.Fprintf(b, "   %s  %s", tg, t.Name)
 	switch {
@@ -334,6 +340,8 @@ func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color bool, profil
 		fmt.Fprintf(b, "  %s", t.Summary)
 	}
 	b.WriteByte('\n')
+	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, verbose, color)
+	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, verbose, color)
 }
 
 func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, width int, color bool) {

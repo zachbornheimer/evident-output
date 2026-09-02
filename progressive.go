@@ -198,7 +198,7 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 			t.coreEmitted = true
 		}
 		for _, col := range o.collections {
-			writeCollection(&b, col.snapshot(), color, profile)
+			writeCollection(&b, col.snapshot(), color, verbose, profile)
 		}
 	}
 	for _, ch := range o.changes {
@@ -234,7 +234,7 @@ func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 		writeTask(&b, t, color, verbose, profile)
 	}
 	for _, col := range snap.Collections {
-		writeCollection(&b, col, color, profile)
+		writeCollection(&b, col, color, verbose, profile)
 	}
 	for _, it := range o.items {
 		if it.coreEmitted {

@@ -144,6 +144,62 @@ func TestTaskHandle_SkippedNonVerboseOmitsNameList(t *testing.T) {
 	}
 }
 
+// TestGroup_ChildRendersKeptTaxonomyLine is the red-first case for the
+// repo-retire adoption gap: writeCollectionChild never called writeTaxonomy,
+// so a Group/Tasks child's Kept/Skipped records silently vanished from
+// rendered output even though the standalone evo.Task path rendered them.
+// A collection child is a task; it must render the same "!  kept N  (...)"
+// line a standalone task does.
+func TestGroup_ChildRendersKeptTaxonomyLine(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+
+	unpushed := evo.Reason("unpushed")
+	group := out.Group("branches")
+	child := group.Task("feature-branches")
+	child.Kept(unpushed, "feat/a")
+	child.Kept(unpushed, "feat/b")
+	child.Done()
+
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "kept 2  (unpushed)") {
+		t.Fatalf("collection child must render its Kept taxonomy line, got:\n%s", got)
+	}
+}
+
+// TestGroup_ChildVerboseRendersTruncatedNameList pins the Verbose detail line
+// for a collection child, mirroring TestTaskHandle_SkippedVerboseEmitsTruncatedNameList
+// for the standalone path.
+func TestGroup_ChildVerboseRendersTruncatedNameList(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.New(evo.Config{
+		Stdout: &buf, Stderr: &buf, Verbosity: evo.VerbosityVerbose,
+		ForcePlain: true, Color: evo.ColorNever,
+	})
+
+	protected := evo.Reason("protected")
+	group := out.Group("branches")
+	child := group.Task("stale-branches")
+	for _, name := range []string{"a", "b", "c", "d"} {
+		child.Skipped(protected, name)
+	}
+	child.Done()
+
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "skipped 4  (protected)") {
+		t.Fatalf("want headline count line for collection child, got:\n%s", got)
+	}
+	if !strings.Contains(got, "protected: a, b, c, +1") {
+		t.Fatalf("want Verbose truncated name list for collection child, got:\n%s", got)
+	}
+}
+
 // TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts is the red-first
 // case for the ForSkip constraint: recording it through Kept is misuse, and
 // production (non-Strict) still counts the record rather than dropping truth.
