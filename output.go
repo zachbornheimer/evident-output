@@ -25,6 +25,7 @@ type Output struct {
 	closed     bool
 	finishing  bool
 	finished   bool
+	armed      bool // set by arm(): live surface may paint before any entity exists
 	misuse     error
 	conclusion *Conclusion
 	finalPlain string
@@ -44,6 +45,10 @@ type Output struct {
 	taskByRef  map[string]*taskState
 	tasksByRef map[string]*tasksState
 	keys       map[string]struct{}
+
+	// namedTasks backs get-or-create identity for the package-level default
+	// instance facade: evo.Task(name) called twice returns the same handle.
+	namedTasks map[string]*TaskHandle
 
 	// Progressive durable emission (§17.5: terminal outcomes render immediately).
 	// Finish only appends residual (unemitted entities + conclusion).
@@ -71,7 +76,7 @@ type itemState struct {
 	because     string
 	actions     []Action
 	declaration int
-	handle      *Item
+	handle      *ItemHandle
 
 	// Emission bookkeeping so resolved items are not buffered until Finish.
 	coreEmitted    bool
@@ -91,7 +96,7 @@ type taskState struct {
 	actions     []Action
 	collection  *tasksState
 	declaration int
-	handle      *Task
+	handle      *TaskHandle
 
 	// Emission bookkeeping so terminal standalone tasks stream in plain mode
 	// on resolve (P2) — same spirit as itemState.coreEmitted.
@@ -195,11 +200,11 @@ func (o *Output) Err() error {
 }
 
 // Item declares a named final-report condition. Optional evo.ID sets a stable machine key.
-func (o *Output) Item(name string, opts ...EntityOption) *Item {
+func (o *Output) Item(name string, opts ...EntityOption) *ItemHandle {
 	return o.itemScoped(name, "", opts...)
 }
 
-func (o *Output) itemScoped(name, scope string, opts ...EntityOption) *Item {
+func (o *Output) itemScoped(name, scope string, opts ...EntityOption) *ItemHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	eo := applyEntityOptions(opts)
@@ -207,21 +212,21 @@ func (o *Output) itemScoped(name, scope string, opts ...EntityOption) *Item {
 	return o.addItemLocked(sanitize.Text(name), key, 0)
 }
 
-func (o *Output) addItemLocked(name, key string, order int) *Item {
+func (o *Output) addItemLocked(name, key string, order int) *ItemHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &Item{out: o, id: o.nextID("item")}
+		return &ItemHandle{out: o, id: o.nextID("item")}
 	}
 	if key != "" {
 		if _, ok := o.keys[key]; ok {
 			o.recordMisuse(ErrDuplicateKey)
-			return &Item{out: o, id: o.nextID("item")}
+			return &ItemHandle{out: o, id: o.nextID("item")}
 		}
 		o.keys[key] = struct{}{}
 	}
 	if err := o.ensureEntityRoomLocked(); err != nil {
 		o.recordMisuse(err)
-		return &Item{out: o, id: o.nextID("item")}
+		return &ItemHandle{out: o, id: o.nextID("item")}
 	}
 	st := &itemState{
 		id:          o.nextID("item"),
@@ -233,7 +238,7 @@ func (o *Output) addItemLocked(name, key string, order int) *Item {
 	if order != 0 {
 		st.declaration = order
 	}
-	h := &Item{out: o, id: st.id}
+	h := &ItemHandle{out: o, id: st.id}
 	st.handle = h
 	o.items = append(o.items, st)
 	o.itemByRef[st.id] = st
@@ -251,11 +256,11 @@ func (o *Output) ensureEntityRoomLocked() error {
 }
 
 // Task declares a single operation. Optional evo.ID sets a stable machine key.
-func (o *Output) Task(name string, opts ...EntityOption) *Task {
+func (o *Output) Task(name string, opts ...EntityOption) *TaskHandle {
 	return o.taskScoped(name, "", opts...)
 }
 
-func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *Task {
+func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	eo := applyEntityOptions(opts)
@@ -263,21 +268,21 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *Task {
 	return o.addTaskLocked(sanitize.Text(name), nil, key)
 }
 
-func (o *Output) addTaskLocked(name string, col *tasksState, key string) *Task {
+func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &Task{out: o, id: o.nextID("task")}
+		return &TaskHandle{out: o, id: o.nextID("task")}
 	}
 	if key != "" {
 		if _, ok := o.keys[key]; ok {
 			o.recordMisuse(ErrDuplicateKey)
-			return &Task{out: o, id: o.nextID("task")}
+			return &TaskHandle{out: o, id: o.nextID("task")}
 		}
 		o.keys[key] = struct{}{}
 	}
 	if err := o.ensureEntityRoomLocked(); err != nil {
 		o.recordMisuse(err)
-		return &Task{out: o, id: o.nextID("task")}
+		return &TaskHandle{out: o, id: o.nextID("task")}
 	}
 	st := &taskState{
 		id:          o.nextID("task"),
@@ -288,7 +293,7 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string) *Task {
 		collection:  col,
 		declaration: o.nextDecl(),
 	}
-	h := &Task{out: o, id: st.id}
+	h := &TaskHandle{out: o, id: st.id}
 	st.handle = h
 	o.tasks = append(o.tasks, st)
 	if col != nil {
@@ -299,6 +304,52 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string) *Task {
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
 	o.signalLiveLocked(true)
 	return h
+}
+
+// taskGetOrCreate returns the task previously created under name by this
+// method, or declares a new one — the identity backing the package-level
+// evo.Task(name) facade, where repeated calls must return the same handle
+// instead of the duplicate-key error Task/ID would raise.
+func (o *Output) taskGetOrCreate(name string, opts ...EntityOption) *TaskHandle {
+	o.mu.Lock()
+	if t, ok := o.namedTasks[name]; ok {
+		o.mu.Unlock()
+		return t
+	}
+	o.mu.Unlock()
+
+	t := o.Task(name, opts...)
+
+	o.mu.Lock()
+	if existing, ok := o.namedTasks[name]; ok {
+		o.mu.Unlock()
+		return existing
+	}
+	if o.namedTasks == nil {
+		o.namedTasks = make(map[string]*TaskHandle)
+	}
+	o.namedTasks[name] = t
+	o.mu.Unlock()
+	return t
+}
+
+// cancelActive cancels the currently running task, or the output itself when
+// no task is running, so an interrupt always leaves a typed Cancelled state.
+func (o *Output) cancelActive(reason string) {
+	o.mu.Lock()
+	var active *TaskHandle
+	for _, t := range o.tasks {
+		if t.state == Running {
+			active = t.handle
+			break
+		}
+	}
+	o.mu.Unlock()
+	if active != nil {
+		active.Cancel(reason)
+		return
+	}
+	o.Cancel(reason)
 }
 
 // Tasks declares a collection of independent child tasks.

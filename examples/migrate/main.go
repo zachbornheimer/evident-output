@@ -19,7 +19,7 @@ func main() {
 	flag.Parse()
 
 	out := evo.New(evo.Config{Title: "schema migration"})
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
 		if !*apply {
 			o.Println("Dry-run: no database changes will be made.")
 			plan := o.Plan("database")

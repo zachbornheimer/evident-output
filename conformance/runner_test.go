@@ -126,8 +126,8 @@ func runScenarioFile(t *testing.T, path string) {
 	out := evo.NewWithOptions(opts...)
 	t.Cleanup(func() { _ = out.Close() })
 
-	items := map[string]*evo.Item{}
-	tasks := map[string]*evo.Task{}
+	items := map[string]*evo.ItemHandle{}
+	tasks := map[string]*evo.TaskHandle{}
 	cols := map[string]*evo.Tasks{}
 	var finishErr error
 

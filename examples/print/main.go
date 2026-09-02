@@ -11,7 +11,7 @@ import (
 
 func main() {
 	out := evo.New(evo.Config{Title: "packages"})
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
 		// Managed, line-oriented replacement for human-facing fmt.Print*
 		// (not a byte-for-byte fmt drop-in).
 		o.Println("Reading configuration")

@@ -36,7 +36,7 @@ func All() []Guide {
   4) Item / Task / Tasks / Changes / Plan
   5) task.Capture() + DetailTail for subprocess evidence
   6) slog.New(out.SlogHandler()) for implementation diagnostics
-  7) os.Exit(evo.Main(out, run))
+  7) os.Exit(evo.MainWith(out, run))
 
 Pick the entity:
   Item     — check / gate / verdict unit (pass-fail)

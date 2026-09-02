@@ -35,20 +35,20 @@ func main() {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
 	out := evo.New(cfg)
-	code := evo.Main(out, func(o *evo.Output) error {
+	code := evo.MainWith(out, func(o *evo.Output) error {
 		// Only audible when --verbose (or VerbosityVerbose config).
 		o.Verbose().Printf("Strict policy: %t\n", *strict)
 		o.Verbose().Printf("Probe interval: %s\n", step)
 
-		probe := func(name string, resolve func(*evo.Item)) {
+		probe := func(name string, resolve func(*evo.ItemHandle)) {
 			it := o.Item(name)
 			time.Sleep(step)
 			resolve(it)
 		}
 
-		probe("go toolchain", func(it *evo.Item) { it.OK() })
-		probe("mise tasks", func(it *evo.Item) { it.OK() })
-		probe("git commit signing", func(it *evo.Item) {
+		probe("go toolchain", func(it *evo.ItemHandle) { it.OK() })
+		probe("mise tasks", func(it *evo.ItemHandle) { it.OK() })
+		probe("git commit signing", func(it *evo.ItemHandle) {
 			if *strict {
 				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode")).
 					NextCommand("git", "config", "--global", "commit.gpgsign", "true")
@@ -56,11 +56,11 @@ func main() {
 				it.Warn("commit signing not verified", evo.Detail("optional for local work"))
 			}
 		})
-		probe("disk free space", func(it *evo.Item) {
+		probe("disk free space", func(it *evo.ItemHandle) {
 			it.Block("less than 2 GiB free on /", evo.Detail("large builds need headroom")).
 				Because("CI and local builds fail unpredictably when the volume fills.")
 		})
-		probe("docker daemon", func(it *evo.Item) {
+		probe("docker daemon", func(it *evo.ItemHandle) {
 			// Tool-backed gate: Item.Capture holds process evidence (not session Capture).
 			cap := it.Start().Capture()
 			_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"))

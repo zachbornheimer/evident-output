@@ -37,7 +37,7 @@ func main() {
 	out := evo.New(cfg)
 	log := slog.New(out.SlogHandler())
 
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
 		jobs := o.Tasks("audit")
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")

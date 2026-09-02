@@ -67,7 +67,7 @@ func main() {
 		MaxFrameRate:    60,
 	})
 
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
 		jobs := o.Tasks("dependencies")
 		discover := jobs.Task("discover")
 		for _, phase := range []string{"reading lockfile", "resolving graph"} {

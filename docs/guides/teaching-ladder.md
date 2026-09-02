@@ -21,7 +21,7 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 
 ```go
 out := evo.New(evo.Config{Title: "tool"})
-os.Exit(evo.Main(out, run))
+os.Exit(evo.MainWith(out, run))
 ```
 
 ## Hosted (framework owns exit)

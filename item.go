@@ -3,7 +3,7 @@ package evo
 import "github.com/zachbornheimer/evident-output/internal/sanitize"
 
 // Item is a handle for one named final-report condition.
-type Item struct {
+type ItemHandle struct {
 	out *Output
 	id  string
 }
@@ -12,7 +12,7 @@ type Item struct {
 // (indeterminate) while the application evaluates it. Optional: OK/Block/…
 // may resolve pending items directly without Start (no transient frame when
 // resolution is instant — §7.4 rule 5).
-func (i *Item) Start() *Item {
+func (i *ItemHandle) Start() *ItemHandle {
 	i.out.mu.Lock()
 	defer i.out.mu.Unlock()
 	st := i.out.itemByRef[i.id]
@@ -38,59 +38,59 @@ func (i *Item) Start() *Item {
 }
 
 // OK marks the item satisfactory.
-func (i *Item) OK() *Item {
+func (i *ItemHandle) OK() *ItemHandle {
 	i.resolve(OK, nil)
 	return i
 }
 
 // Warn marks the item with a simple warning problem.
-func (i *Item) Warn(summary string, options ...ProblemOption) *Item {
+func (i *ItemHandle) Warn(summary string, options ...ProblemOption) *ItemHandle {
 	p := applyProblemOptions(sanitize.Text(summary), options)
 	i.resolve(Warning, []Problem{p})
 	return i
 }
 
 // WarnedBy marks the item warning with structured problems.
-func (i *Item) WarnedBy(problems ...Problem) *Item {
+func (i *ItemHandle) WarnedBy(problems ...Problem) *ItemHandle {
 	i.resolveBy(Warning, problems)
 	return i
 }
 
 // Block marks the item blocked with a simple problem.
-func (i *Item) Block(summary string, options ...ProblemOption) *Item {
+func (i *ItemHandle) Block(summary string, options ...ProblemOption) *ItemHandle {
 	p := applyProblemOptions(sanitize.Text(summary), options)
 	i.resolve(Blocked, []Problem{p})
 	return i
 }
 
 // BlockedBy marks the item blocked with structured problems.
-func (i *Item) BlockedBy(problems ...Problem) *Item {
+func (i *ItemHandle) BlockedBy(problems ...Problem) *ItemHandle {
 	i.resolveBy(Blocked, problems)
 	return i
 }
 
 // Fail marks the item failed with a simple problem.
-func (i *Item) Fail(summary string, options ...ProblemOption) *Item {
+func (i *ItemHandle) Fail(summary string, options ...ProblemOption) *ItemHandle {
 	p := applyProblemOptions(sanitize.Text(summary), options)
 	i.resolve(Failed, []Problem{p})
 	return i
 }
 
 // FailedBy marks the item failed with structured problems.
-func (i *Item) FailedBy(problems ...Problem) *Item {
+func (i *ItemHandle) FailedBy(problems ...Problem) *ItemHandle {
 	i.resolveBy(Failed, problems)
 	return i
 }
 
 // Unknown marks the item undetermined.
-func (i *Item) Unknown(summary string, options ...ProblemOption) *Item {
+func (i *ItemHandle) Unknown(summary string, options ...ProblemOption) *ItemHandle {
 	p := applyProblemOptions(sanitize.Text(summary), options)
 	i.resolve(Unknown, []Problem{p})
 	return i
 }
 
 // Skip marks the item skipped.
-func (i *Item) Skip(reason string) *Item {
+func (i *ItemHandle) Skip(reason string) *ItemHandle {
 	i.out.mu.Lock()
 	defer i.out.mu.Unlock()
 	st := i.out.itemByRef[i.id]
@@ -114,7 +114,7 @@ func (i *Item) Skip(reason string) *Item {
 }
 
 // Because annotates an explanation after resolution.
-func (i *Item) Because(text string) *Item {
+func (i *ItemHandle) Because(text string) *ItemHandle {
 	i.out.mu.Lock()
 	defer i.out.mu.Unlock()
 	st := i.out.itemByRef[i.id]
@@ -134,7 +134,7 @@ func (i *Item) Because(text string) *Item {
 }
 
 // Next attaches actions.
-func (i *Item) Next(actions ...Action) *Item {
+func (i *ItemHandle) Next(actions ...Action) *ItemHandle {
 	i.out.mu.Lock()
 	defer i.out.mu.Unlock()
 	st := i.out.itemByRef[i.id]
@@ -152,12 +152,12 @@ func (i *Item) Next(actions ...Action) *Item {
 }
 
 // NextCommand attaches a command action.
-func (i *Item) NextCommand(executable string, args ...string) *Item {
+func (i *ItemHandle) NextCommand(executable string, args ...string) *ItemHandle {
 	return i.Next(Command(executable, args...))
 }
 
 // Snapshot returns the item's current snapshot.
-func (i *Item) Snapshot() ItemSnapshot {
+func (i *ItemHandle) Snapshot() ItemSnapshot {
 	i.out.mu.Lock()
 	defer i.out.mu.Unlock()
 	st := i.out.itemByRef[i.id]
@@ -167,7 +167,7 @@ func (i *Item) Snapshot() ItemSnapshot {
 	return st.snapshot()
 }
 
-func (i *Item) resolve(state EntityState, problems []Problem) {
+func (i *ItemHandle) resolve(state EntityState, problems []Problem) {
 	i.out.mu.Lock()
 	defer i.out.mu.Unlock()
 	st := i.out.itemByRef[i.id]
@@ -193,7 +193,7 @@ func (i *Item) resolve(state EntityState, problems []Problem) {
 	i.out.emitItemProgressiveLocked(st)
 }
 
-func (i *Item) resolveBy(state EntityState, problems []Problem) {
+func (i *ItemHandle) resolveBy(state EntityState, problems []Problem) {
 	if len(problems) == 0 {
 		i.out.mu.Lock()
 		defer i.out.mu.Unlock()

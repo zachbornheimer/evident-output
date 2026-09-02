@@ -235,7 +235,7 @@ import (
 )
 func main() {
   out := evo.NewWithOptions(evo.Title("t"))
-  os.Exit(evo.Main(out, func(o *evo.Output) error {
+  os.Exit(evo.MainWith(out, func(o *evo.Output) error {
     o.Item("x").OK()
     return nil
   }))

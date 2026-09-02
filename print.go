@@ -16,8 +16,8 @@ type Visibility uint8
 const (
 	// Normal messages always project at VerbosityNormal.
 	Normal Visibility = iota
-	// Verbose messages project only when Config.Verbosity is VerbosityVerbose.
-	Verbose
+	// VisibilityVerbose messages project only when Config.Verbosity is VerbosityVerbose.
+	VisibilityVerbose
 )
 
 const (
@@ -43,9 +43,9 @@ func (o *Output) At(visibility Visibility) *Printer {
 	return &Printer{out: o, visibility: visibility}
 }
 
-// Verbose is sugar for At(Verbose).
+// Verbose is sugar for At(VisibilityVerbose).
 func (o *Output) Verbose() *Printer {
-	return o.At(Verbose)
+	return o.At(VisibilityVerbose)
 }
 
 // Print formats like fmt.Sprint and enqueues human-facing text (line-buffered).
@@ -206,14 +206,14 @@ func (o *Output) emitMessageLocked(line string, vis Visibility) {
 }
 
 func visibilityName(v Visibility) string {
-	if v == Verbose {
+	if v == VisibilityVerbose {
 		return "verbose"
 	}
 	return "normal"
 }
 
 func (o *Output) projectsVisibilityLocked(v Visibility) bool {
-	if v == Verbose {
+	if v == VisibilityVerbose {
 		return o.cfg.verbosity >= VerbosityVerbose
 	}
 	return true

@@ -147,14 +147,14 @@ func GoSource(filename, src string) Result {
 			})
 		}
 
-		// API-018: os.Exit without presentation exit-code (Main / Conclusion.ExitCode is OK)
+		// API-018: os.Exit without presentation exit-code (Main/MainWith / Conclusion.ExitCode is OK)
 		if hasEvo {
 			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "os" && name == "Exit" {
 				if !isPresentationExitArg(call) {
 					findings = append(findings, Finding{
 						RuleID:   "API-018",
 						Severity: "warning",
-						Message:  "os.Exit in evo-using code; prefer os.Exit(evo.Main(out, run)) or Conclusion().ExitCode",
+						Message:  "os.Exit in evo-using code; prefer os.Exit(evo.Main(run)) / os.Exit(evo.MainWith(out, run)) or Conclusion().ExitCode",
 						File:     filename,
 						Line:     pos.Line,
 						Column:   pos.Column,
@@ -434,7 +434,7 @@ func isEvoExecutionReceiver(x ast.Expr) bool {
 		// out.Tasks("x").Map / out.Task("x").Retry
 		if s, ok := v.Fun.(*ast.SelectorExpr); ok {
 			switch s.Sel.Name {
-			case "Tasks", "Task", "Item", "Changes", "Plan", "For", "New", "Main":
+			case "Tasks", "Task", "Item", "Changes", "Plan", "For", "New", "Main", "MainWith", "Init":
 				return true
 			}
 			return isEvoExecutionReceiver(s.X)
@@ -475,7 +475,8 @@ func isLikelyEvoReceiver(x ast.Expr) bool {
 	}
 }
 
-// isPresentationExitArg is true for os.Exit(evo.Main(...)) and os.Exit(...ExitCode).
+// isPresentationExitArg is true for os.Exit(evo.Main(...)), os.Exit(evo.MainWith(...))
+// and os.Exit(...ExitCode).
 func isPresentationExitArg(call *ast.CallExpr) bool {
 	if len(call.Args) != 1 {
 		return false
@@ -484,7 +485,7 @@ func isPresentationExitArg(call *ast.CallExpr) bool {
 	case *ast.CallExpr:
 		if sel, ok := arg.Fun.(*ast.SelectorExpr); ok {
 			switch sel.Sel.Name {
-			case "Main", "ExitCode":
+			case "Main", "MainWith", "ExitCode":
 				return true
 			}
 		}

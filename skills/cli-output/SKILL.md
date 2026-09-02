@@ -67,7 +67,7 @@ go get github.com/zachbornheimer/evident-output@v0.2.16
 evo.New(Config) → Print/Printf/Println → Verbose()
 → Item / Task / Tasks → Task|Item.Capture() + DetailTail
 → Plan / Changes (domain verbs via Record when needed)
-→ slog via SlogHandler → os.Exit(evo.Main(out, run))
+→ slog via SlogHandler → os.Exit(evo.MainWith(out, run))
 ```
 
 Prefer **contracts over sugar**: plain `Item`/`Task` labels first; `evo.ID` when machine keys matter; `Itemf`/`Taskf` only when the label must embed a value.
@@ -76,7 +76,7 @@ Prefer **contracts over sugar**: plain `Item`/`Task` labels first; `evo.ID` when
 
 ```go
 out := evo.New(evo.Config{Title: "tool"})
-os.Exit(evo.Main(out, run))
+os.Exit(evo.MainWith(out, run))
 ```
 
 `Main` records a non-nil `run` error as Fail before Finish (no `[ready]` with exit 2).

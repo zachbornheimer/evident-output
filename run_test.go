@@ -10,10 +10,10 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func TestMain_SuccessExitZero(t *testing.T) {
+func TestMainWith_SuccessExitZero(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	code := evo.Main(out, func(o *evo.Output) error {
+	code := evo.MainWith(out, func(o *evo.Output) error {
 		o.Item("working tree").OK()
 		return nil
 	})
@@ -25,10 +25,10 @@ func TestMain_SuccessExitZero(t *testing.T) {
 	}
 }
 
-func TestMain_BlockedExitOne(t *testing.T) {
+func TestMainWith_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	code := evo.Main(out, func(o *evo.Output) error {
+	code := evo.MainWith(out, func(o *evo.Output) error {
 		o.Item("working tree").Block("dirty")
 		return nil
 	})
@@ -37,10 +37,10 @@ func TestMain_BlockedExitOne(t *testing.T) {
 	}
 }
 
-func TestMain_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
+func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	code := evo.Main(out, func(o *evo.Output) error {
+	code := evo.MainWith(out, func(o *evo.Output) error {
 		o.Item("x").OK()
 		return errors.New("app boom")
 	})
@@ -49,10 +49,10 @@ func TestMain_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	}
 }
 
-func TestMain_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
+func TestMainWith_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Title: "demo", Stdout: &buf, Stderr: &buf})
-	code := evo.Main(out, func(o *evo.Output) error {
+	code := evo.MainWith(out, func(o *evo.Output) error {
 		o.Task("fetch").Fail("network down", evo.Detail("connection refused"))
 		return errors.New("network down")
 	})
@@ -68,8 +68,8 @@ func TestMain_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
 	}
 }
 
-func TestMain_NilOutput(t *testing.T) {
-	if code := evo.Main(nil, nil); code != evo.ExitFailed {
+func TestMainWith_NilOutput(t *testing.T) {
+	if code := evo.MainWith(nil, nil); code != evo.ExitFailed {
 		t.Fatalf("exit %d", code)
 	}
 }

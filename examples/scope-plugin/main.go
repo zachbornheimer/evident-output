@@ -15,7 +15,7 @@ import (
 
 func main() {
 	out := evo.New(evo.Config{Title: "compose"})
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
 		// Host owns top-level gates with stable keys.
 		o.Item("config", evo.ID("host.config")).OK()
 

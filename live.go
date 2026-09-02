@@ -132,7 +132,28 @@ func (o *Output) hasLiveActivityLocked() bool {
 			return true
 		}
 	}
+	// Armed-but-empty: Init/MainWith promised a paint before any entity exists.
+	// Once the first Task/Item/Tasks is declared, its own state drives activity.
+	if o.armed && len(o.tasks) == 0 && len(o.items) == 0 && len(o.collections) == 0 {
+		return true
+	}
 	return false
+}
+
+// arm marks the live surface as ready to paint before any entity is declared,
+// so Init and MainWith honor the ≤100ms first-paint contract even when the
+// caller does heavy work before the first Task/Item. Idempotent.
+func (o *Output) arm() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.armed {
+		return
+	}
+	o.armed = true
+	o.signalLiveLocked(false)
 }
 
 func (o *Output) renderLiveLocked(force bool) {
@@ -391,6 +412,9 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 		}
 	}
 	body := renderLiveRegion(o.snapshotLocked(), bodyHeight, now, color)
+	if body == "" && o.armed && len(o.tasks) == 0 && len(o.items) == 0 && len(o.collections) == 0 {
+		body = renderArmedTitleLine(o.cfg.subject, now, color)
+	}
 	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {
 		return fitLiveRegion(body, width)
 	}
@@ -398,6 +422,18 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 	b.WriteString(body)
 	writeDebugPane(&b, o.debugRecords, o.cfg.debugPane, width, color)
 	return fitLiveRegion(strings.TrimRight(b.String(), "\n"), width)
+}
+
+// renderArmedTitleLine is the honest placeholder painted after arm() when the
+// caller has not declared any entity yet — e.g. still parsing config. Falls
+// back to a generic label rather than an empty string so the paint stays
+// honest (never blank) even before Config.Title is known.
+func renderArmedTitleLine(subject string, now time.Time, color bool) string {
+	title := subject
+	if title == "" {
+		title = "starting"
+	}
+	return fmt.Sprintf("%s  %s", styleGlyph(spinnerGlyph(now), sgrCyan, color), title)
 }
 
 func fitLiveRegion(text string, columns int) string {
@@ -611,11 +647,4 @@ func formatBytes(n int64) string {
 func formatByteProgressFixed(completed, total int64) string {
 	const mb = 1_000_000.0
 	return fmt.Sprintf("%.1f/%.1f MB", float64(completed)/mb, float64(total)/mb)
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

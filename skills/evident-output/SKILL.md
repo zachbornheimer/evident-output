@@ -54,7 +54,7 @@ grok mcp doctor evident-output --json
 ## Rules of thumb
 
 - Presentation only — no schedulers or `RunAll` / `Map` / `Retry` (API-026, AST-only)
-- Standalone: `os.Exit(evo.Main(out, run))`; hosted: Finish+Close (host owns `os.Exit`)
+- Standalone: `os.Exit(evo.MainWith(out, run))`; hosted: Finish+Close (host owns `os.Exit`)
 - Entity: Item = gate, Task = progress, Changes = did, Plan = would
 - Domain effect verbs: use `Record` when stock verbs lie (RULE-001)
 - `Block` = condition found; `Fail` = evaluation failed; `Warn` = optional/soft

@@ -27,7 +27,7 @@ func main() {
 		Title:  "build",
 		Format: evo.FormatData,
 	})
-	code := evo.Main(out, func(o *evo.Output) error {
+	code := evo.MainWith(out, func(o *evo.Output) error {
 		o.Item("compile").OK()
 		o.Item("tests").OK()
 		link := o.Task("link")

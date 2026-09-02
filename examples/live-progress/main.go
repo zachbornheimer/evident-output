@@ -30,7 +30,7 @@ func main() {
 	})
 	log := slog.New(out.SlogHandler())
 
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
 		return runLive(o, log, step)
 	}))
 }

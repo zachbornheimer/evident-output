@@ -6,7 +6,7 @@
 jobs := out.Tasks("placement")
 type tracked struct {
     file File
-    task *evo.Task
+    task *evo.TaskHandle
 }
 var tracked []tracked
 for _, f := range sortedFiles {
@@ -27,7 +27,7 @@ type PlaceCallbacks struct {
     OnPhase func(string)
     OnBytes func(completed, total int64)
 }
-// domain receives PlaceCallbacks, not *evo.Task
+// domain receives PlaceCallbacks, not *evo.TaskHandle
 ```
 
 ## Scale (RULE-005)

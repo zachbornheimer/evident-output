@@ -69,17 +69,17 @@ func (s *Scope) Name() string {
 }
 
 // Item declares an item; optional evo.ID is prefixed with the scope name.
-func (s *Scope) Item(name string, opts ...EntityOption) *Item {
+func (s *Scope) Item(name string, opts ...EntityOption) *ItemHandle {
 	if s == nil || s.out == nil {
-		return &Item{}
+		return &ItemHandle{}
 	}
 	return s.out.itemScoped(name, s.name, opts...)
 }
 
 // Task declares a task; optional evo.ID is prefixed with the scope name.
-func (s *Scope) Task(name string, opts ...EntityOption) *Task {
+func (s *Scope) Task(name string, opts ...EntityOption) *TaskHandle {
 	if s == nil || s.out == nil {
-		return &Task{}
+		return &TaskHandle{}
 	}
 	return s.out.taskScoped(name, s.name, opts...)
 }

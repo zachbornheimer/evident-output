@@ -25,7 +25,7 @@ func main() {
 	}
 
 	out := evo.New(evo.Config{Title: "install"})
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
 		pipeline := o.Tasks("pipeline")
 
 		modules := pipeline.Task("go mod download", evo.ID("pipeline.mod-download"))

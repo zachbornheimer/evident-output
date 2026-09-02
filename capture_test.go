@@ -116,10 +116,10 @@ func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 	}
 }
 
-func TestMainRunErrorCannotRenderReady(t *testing.T) {
+func TestMainWithRunErrorCannotRenderReady(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Title: "tool", Stdout: &buf, Stderr: &buf})
-	code := evo.Main(out, func(o *evo.Output) error {
+	code := evo.MainWith(out, func(o *evo.Output) error {
 		return fmt.Errorf("database unavailable")
 	})
 	if code != evo.ExitFailed {
@@ -133,10 +133,10 @@ func TestMainRunErrorCannotRenderReady(t *testing.T) {
 	}
 }
 
-func TestMainRunErrorOutranksBlockedConclusion(t *testing.T) {
+func TestMainWithRunErrorOutranksBlockedConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{Title: "tool", Stdout: &buf, Stderr: &buf})
-	code := evo.Main(out, func(o *evo.Output) error {
+	code := evo.MainWith(out, func(o *evo.Output) error {
 		o.Item("policy").Block("not permitted")
 		return fmt.Errorf("database connection failed")
 	})

@@ -187,7 +187,7 @@ func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 
 // TestMain_FailedExitCodeConfigurable is the P5 contract: Config.FailedExitCode
 // overrides the default ExitFailed (2) when the conclusion is failed.
-func TestMain_FailedExitCodeConfigurable(t *testing.T) {
+func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.New(evo.Config{
 		Title:          "zq",
@@ -197,7 +197,7 @@ func TestMain_FailedExitCodeConfigurable(t *testing.T) {
 		Color:          evo.ColorNever,
 		FailedExitCode: 1,
 	})
-	code := evo.Main(out, func(o *evo.Output) error {
+	code := evo.MainWith(out, func(o *evo.Output) error {
 		o.Task("gofmt check").Fail("gofmt check exited 1")
 		return nil
 	})
@@ -213,7 +213,7 @@ func TestMain_FailedExitCodeConfigurable(t *testing.T) {
 		ForcePlain: true,
 		Color:      evo.ColorNever,
 	})
-	code2 := evo.Main(out2, func(o *evo.Output) error {
+	code2 := evo.MainWith(out2, func(o *evo.Output) error {
 		o.Task("x").Fail("boom")
 		return nil
 	})

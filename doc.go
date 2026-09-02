@@ -5,7 +5,7 @@
 //
 //	func main() {
 //	    out := evo.New(evo.Config{Title: "repo"})
-//	    os.Exit(evo.Main(out, run))
+//	    os.Exit(evo.MainWith(out, run))
 //	}
 //
 //	func run(out *evo.Output) error {

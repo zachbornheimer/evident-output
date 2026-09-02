@@ -26,7 +26,7 @@ func main() {
 	})
 	log := slog.New(out.SlogHandler())
 
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
 		time.Sleep(step)
 		log.Debug("opened repository", "path", "/work/bpp-csharp")
 		o.Item("working tree").OK()

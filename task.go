@@ -7,13 +7,13 @@ import (
 )
 
 // Task is a handle for one operation with phases or progress.
-type Task struct {
+type TaskHandle struct {
 	out *Output
 	id  string
 }
 
 // Phase sets the active phase text and starts the task if pending.
-func (t *Task) Phase(text string) *Task {
+func (t *TaskHandle) Phase(text string) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -44,24 +44,24 @@ func (t *Task) Phase(text string) *Task {
 // Progress sets absolute completed/total count progress.
 // Counts use int (collection lengths, indices). For byte quantities use Bytes.
 // Prefer absolute Progress over Advance so retries cannot double-count.
-func (t *Task) Progress(completed, total int) *Task {
+func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	return t.setProgress(int64(completed), int64(total), Determinate)
 }
 
 // Progress64 is an advanced absolute count API for quantities outside the int range.
 // Ordinary call sites should use Progress(int, int) or Bytes for byte totals.
-func (t *Task) Progress64(completed, total int64) *Task {
+func (t *TaskHandle) Progress64(completed, total int64) *TaskHandle {
 	return t.setProgress(completed, total, Determinate)
 }
 
 // Bytes sets absolute byte progress (units and rate formatting).
-func (t *Task) Bytes(completed, total int64) *Task {
+func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
 	return t.setProgress(completed, total, BytesKind)
 }
 
 // Advance increments completed progress by delta.
 // Advanced relative helper — prefer absolute Progress in ordinary code.
-func (t *Task) Advance(delta int64) *Task {
+func (t *TaskHandle) Advance(delta int64) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -86,7 +86,7 @@ func (t *Task) Advance(delta int64) *Task {
 	return t
 }
 
-func (t *Task) setProgress(completed, total int64, kind ProgressKind) *Task {
+func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -105,7 +105,7 @@ func (t *Task) setProgress(completed, total int64, kind ProgressKind) *Task {
 	return t
 }
 
-func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind ProgressKind) {
+func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, kind ProgressKind) {
 	if completed < 0 || total < 0 {
 		t.out.recordMisuse(ErrInvalidProgress)
 		return
@@ -146,7 +146,7 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind P
 
 // Done resolves the task successfully.
 // Optional one summary: Done("modules cached"). More than one summary panics.
-func (t *Task) Done(summary ...string) *Task {
+func (t *TaskHandle) Done(summary ...string) *TaskHandle {
 	switch len(summary) {
 	case 0:
 		return t.finish(Done, "", nil)
@@ -159,34 +159,34 @@ func (t *Task) Done(summary ...string) *Task {
 
 // Donef resolves the task with a formatted summary.
 // Prefer Done("text") when there are no format directives.
-func (t *Task) Donef(format string, args ...any) *Task {
+func (t *TaskHandle) Donef(format string, args ...any) *TaskHandle {
 	return t.finish(Done, sanitize.Text(fmt.Sprintf(format, args...)), nil)
 }
 
 // Warn resolves the task with a warning.
-func (t *Task) Warn(summary string, options ...ProblemOption) *Task {
+func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(sanitize.Text(summary), options)
 	return t.finish(Warning, "", []Problem{p})
 }
 
 // Fail resolves the task as failed.
-func (t *Task) Fail(summary string, options ...ProblemOption) *Task {
+func (t *TaskHandle) Fail(summary string, options ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(sanitize.Text(summary), options)
 	return t.finish(Failed, sanitize.Text(summary), []Problem{p})
 }
 
 // Cancel resolves the task as cancelled.
-func (t *Task) Cancel(reason string) *Task {
+func (t *TaskHandle) Cancel(reason string) *TaskHandle {
 	return t.finish(Cancelled, sanitize.Text(reason), nil)
 }
 
 // Skip resolves the task as skipped.
-func (t *Task) Skip(reason string) *Task {
+func (t *TaskHandle) Skip(reason string) *TaskHandle {
 	return t.finish(Skipped, sanitize.Text(reason), nil)
 }
 
 // Next attaches actions.
-func (t *Task) Next(actions ...Action) *Task {
+func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -203,12 +203,12 @@ func (t *Task) Next(actions ...Action) *Task {
 }
 
 // NextCommand attaches a command action.
-func (t *Task) NextCommand(executable string, args ...string) *Task {
+func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle {
 	return t.Next(Command(executable, args...))
 }
 
 // Snapshot returns the task snapshot.
-func (t *Task) Snapshot() TaskSnapshot {
+func (t *TaskHandle) Snapshot() TaskSnapshot {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -218,7 +218,7 @@ func (t *Task) Snapshot() TaskSnapshot {
 	return st.snapshot()
 }
 
-func (t *Task) finish(state EntityState, summary string, problems []Problem) *Task {
+func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]

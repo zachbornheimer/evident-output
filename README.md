@@ -14,7 +14,7 @@ import (
 
 func main() {
     out := evo.New(evo.Config{Title: "bpp-csharp"})
-    os.Exit(evo.Main(out, run))
+    os.Exit(evo.MainWith(out, run))
 }
 
 func run(out *evo.Output) error {
@@ -42,7 +42,7 @@ Design philosophy and polish-phase basis: [`docs/roadmap/implementation-basis.md
 
 **Construction:** `evo.New()` / `evo.New(Config{…})` / `DefaultConfig()` — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `NewWithOptions(Title(...), …)`.
 **Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug.Level: LevelTrace` selectable (`LevelUnset` → Info).
-**Lifecycle:** `os.Exit(evo.Main(out, run))` seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.
+**Lifecycle:** `os.Exit(evo.MainWith(out, run))` seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only). Semantic state: Item/Task.
 **Capture:** `Task.Capture` (work) or `Item.Capture` (tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention.
 **Platform:** `evo.ID` + narrow `Scope` (Item/Task/Tasks only — not a sandbox); `ResultWriter()` under `FormatData`.

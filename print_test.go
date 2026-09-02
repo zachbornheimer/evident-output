@@ -64,7 +64,7 @@ func TestVerbose_HiddenAtNormal(t *testing.T) {
 	// Canonical model still holds verbose message.
 	var found bool
 	for _, m := range out.Snapshot().Messages {
-		if m.Visibility == evo.Verbose && strings.Contains(m.Text, "hidden detail") {
+		if m.Visibility == evo.VisibilityVerbose && strings.Contains(m.Text, "hidden detail") {
 			found = true
 		}
 	}

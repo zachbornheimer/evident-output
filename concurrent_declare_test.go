@@ -16,7 +16,7 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 
 	jobs := out.Tasks("placement")
 	const n = 20
-	tasks := make([]*evo.Task, n)
+	tasks := make([]*evo.TaskHandle, n)
 	for i := 0; i < n; i++ {
 		tasks[i] = jobs.Task(fmt.Sprintf("file-%02d", i), evo.ID(fmt.Sprintf("file.%d", i)))
 	}

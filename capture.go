@@ -130,7 +130,7 @@ func MirrorToDebug() CaptureOption {
 }
 
 // Capture returns a process-output sink bound to this Task.
-func (t *Task) Capture(opts ...CaptureOption) *Capture {
+func (t *TaskHandle) Capture(opts ...CaptureOption) *Capture {
 	if t == nil || t.out == nil {
 		return newCapture(nil, "", "", opts...)
 	}
@@ -154,7 +154,7 @@ func (t *Task) Capture(opts ...CaptureOption) *Capture {
 //	} else {
 //	    docker.OK()
 //	}
-func (i *Item) Capture(opts ...CaptureOption) *Capture {
+func (i *ItemHandle) Capture(opts ...CaptureOption) *Capture {
 	if i == nil || i.out == nil {
 		return newCapture(nil, "", "", opts...)
 	}

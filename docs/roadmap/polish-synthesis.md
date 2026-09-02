@@ -75,7 +75,7 @@ New(Config) → Main → Print*/Verbose → Item/Task(+ID) → Capture (Task|Ite
 
 ```go
 out := evo.New(evo.Config{Title: "install"})
-os.Exit(evo.Main(out, run))
+os.Exit(evo.MainWith(out, run))
 ```
 
 **Note on Main:** Returning an exit code from a helper is fine; documenting `os.Exit(Main(...))` as the _only_ recipe is slightly framework-shaped for a pure presentation library. Acceptable as ordinary sugar for tiny tools; hosts (Cobra, custom runners) still own process exit. Do not expand Main into a full runner.
@@ -318,7 +318,7 @@ command / present   → Evo presentation only
 -status / ResultWriter / app schemas → machine contracts
 ```
 
-**Never** pass `*evo.Output` or `*evo.Task` into domain packages.
+**Never** pass `*evo.Output` or `*evo.TaskHandle` into domain packages.
 
 Preferred adapter shapes:
 

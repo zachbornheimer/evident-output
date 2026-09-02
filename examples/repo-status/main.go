@@ -42,7 +42,7 @@ func main() {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
 	out := evo.New(cfg)
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
 		o.Verbose().Printf("Checking repository %s\n", *name)
 
 		time.Sleep(step)
