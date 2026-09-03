@@ -16,7 +16,7 @@ func TestDOM014_DetailOnBlock(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	it := out.Item("i")
-	it.Block("b", evo.Detail("user visible"))
+	_ = it.Block("b", evo.Detail("user visible"))
 	if it.Snapshot().Problems[0].Detail != "user visible" {
 		t.Fatal(it.Snapshot().Problems)
 	}
@@ -79,7 +79,9 @@ func TestDOM038_WarningOnly(t *testing.T) {
 func TestDOM041_ActionsPromoted(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("i").Block("b").NextCommand("fix", "it")
+	item := out.Item("i")
+	_ = item.Block("b")
+	item.NextCommand("fix", "it")
 	_ = out.Finish()
 	c := out.Conclusion()
 	if len(c.Actions) == 0 {

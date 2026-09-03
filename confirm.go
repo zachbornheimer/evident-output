@@ -98,7 +98,8 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 	}
 
 	if o.cfg.plain || o.cfg.nonInteractive {
-		item.Block(confirmPolicyBlockedSummary).Next(cfg.resolvedPolicyHint())
+		_ = item.Block(confirmPolicyBlockedSummary)
+		item.Next(cfg.resolvedPolicyHint())
 		return false
 	}
 
@@ -123,14 +124,15 @@ func (o *Output) promptConfirm(item *ItemHandle, question string, cfg confirmCon
 			// e.g. stdin closed or redirected from /dev/null) is a policy
 			// block, distinct from a human explicitly typing anything else —
 			// evo-rec.md "Confirm EOF = policy block, not decline".
-			item.Block(confirmPolicyBlockedSummary).Next(cfg.resolvedPolicyHint())
+			_ = item.Block(confirmPolicyBlockedSummary)
+			item.Next(cfg.resolvedPolicyHint())
 			return nil
 		}
 		yes = isAffirmative(line)
 		if yes {
 			item.OK()
 		} else {
-			item.Block(confirmDeclinedSummary)
+			_ = item.Block(confirmDeclinedSummary)
 		}
 		return nil
 	})

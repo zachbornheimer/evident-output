@@ -117,7 +117,9 @@ func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
 func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("x").Block("b").NextCommand("tool", "--flag", "value")
+	item := out.Item("x")
+	_ = item.Block("b")
+	item.NextCommand("tool", "--flag", "value")
 	acts := out.Item("x").Snapshot().Actions
 	// re-get from first item via snapshot after finish
 	_ = out.Finish()

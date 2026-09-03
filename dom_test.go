@@ -98,7 +98,8 @@ func TestDOM012_AnnotationAfterResolve(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 	it := out.Item("x")
-	it.Block("b").Because("why").NextCommand("fix", "it")
+	_ = it.Block("b")
+	it.Because("why").NextCommand("fix", "it")
 	if it.Snapshot().Because != "why" {
 		t.Fatal(it.Snapshot().Because)
 	}

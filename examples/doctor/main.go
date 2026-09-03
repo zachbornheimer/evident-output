@@ -50,25 +50,26 @@ func main() {
 		probe("mise tasks", func(it *evo.ItemHandle) { it.OK() })
 		probe("git commit signing", func(it *evo.ItemHandle) {
 			if *strict {
-				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode")).
-					NextCommand("git", "config", "--global", "commit.gpgsign", "true")
+				_ = it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode"))
+				it.NextCommand("git", "config", "--global", "commit.gpgsign", "true")
 			} else {
 				it.Warn("commit signing not verified", evo.Detail("optional for local work"))
 			}
 		})
 		probe("disk free space", func(it *evo.ItemHandle) {
-			it.Block("less than 2 GiB free on /", evo.Detail("large builds need headroom")).
-				Because("CI and local builds fail unpredictably when the volume fills.")
+			_ = it.Block("less than 2 GiB free on /", evo.Detail("large builds need headroom"))
+			it.Because("CI and local builds fail unpredictably when the volume fills.")
 		})
 		probe("docker daemon", func(it *evo.ItemHandle) {
 			// Tool-backed gate: Item.Capture holds process evidence (not session Capture).
 			cap := it.Start().Capture()
 			_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"))
-			it.Fail(
+			_ = it.Fail(
 				"cannot connect to docker socket",
 				evo.Cause(fmt.Errorf("dial unix /var/run/docker.sock: connection refused")),
 				cap.DetailTail(), // user-visible tool tail
-			).Because("start Colima or Docker Desktop")
+			)
+			it.Because("start Colima or Docker Desktop")
 		})
 		return nil
 	})

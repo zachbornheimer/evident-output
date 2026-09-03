@@ -1,6 +1,11 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/sanitize"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/zachbornheimer/evident-output/internal/sanitize"
+)
 
 // Problem is structured evidence explaining a negative item or task outcome.
 type Problem struct {
@@ -95,6 +100,18 @@ func Next(action Action) ProblemOption {
 // NextCommand attaches a recommended command action.
 func NextCommand(executable string, args ...string) ProblemOption {
 	return Next(Command(executable, args...))
+}
+
+// resolutionError turns a resolved failure/block Problem into the one-line
+// error a caller can `return` directly: message is the summary, and a
+// Cause(err) option is wrapped with %w so errors.Is/As still reach it. No
+// Cause means a plain errors.New(summary) — never a bare nil, so `return
+// task.Fail(...)` always hands the caller a real error to propagate.
+func resolutionError(p Problem) error {
+	if p.Cause != nil {
+		return fmt.Errorf("%s: %w", p.Summary, p.Cause)
+	}
+	return errors.New(p.Summary)
 }
 
 func applyProblemOptions(summary string, opts []ProblemOption) Problem {
