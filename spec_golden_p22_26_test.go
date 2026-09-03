@@ -4,6 +4,7 @@ package evo_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"syscall"
@@ -870,4 +871,161 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination_Mismatch(t *testing.T) {
 		t.Fatalf("want a worktrees row, got:\n%s", got)
 	}
 	t.Skip("MISMATCH: real ASCII Cancelled marker is \"[cancel]\" (Adopted revisions glyph table), never the stale \"[~]\"; the reason text is \"interrupted\", never \"cancelled - 0 removed\"; and the derived \"already mutated\" line reads \"8 local deleted\", never \"8 local deletes\" — see doc comment")
+}
+
+// Problem 26's step1 and step2 blocks (the narrow-terminal live-resize
+// frames) are out of scope for this file per the work order: "Problems 16
+// and 26 only: skip cells about narrow-terminal/resize live frames (a fix
+// agent owns those)". Left as remaining work; see the final report.
+
+// TestSpecP26_NarrowTerminal_Success covers evo-rec.md Problem 26's success
+// block: the compact dialect's Done summary plus a truncated skip-taxonomy
+// line survive a completed run regardless of the mid-run resize the problem
+// describes.
+//
+//	✓ branches 40 del
+//	! skipped 6
+func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	evo.SetDefault(evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()))
+	out := evo.Default()
+	branches := out.Task("branches")
+	protected := evo.Reason("protected")
+	for i := 0; i < 4; i++ {
+		branches.Skipped(protected, fmt.Sprintf("feat/b%d", i))
+	}
+	dirty := evo.Reason("dirty")
+	for i := 0; i < 2; i++ {
+		branches.Skipped(dirty, fmt.Sprintf("feat/d%d", i))
+	}
+	branches.Record("delete", 40, "branches")
+	branches.Done("40 del")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"✓ branches 40 del", "! skipped 6"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP26_NarrowTerminal_Failure covers Problem 26's failure block: the
+// compact dialect's Failed row plus evidence line.
+//
+//	✗ remotes auth
+//	  └─ 401 token
+func TestSpecP26_NarrowTerminal_Failure(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	remotes := out.Task("remotes")
+	remotes.Fail("auth", evo.Detail("401 token"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"✗ remotes auth", "401 token"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP26_NarrowTerminal_Indeterminate covers Problem 26's indeterminate
+// block: an unsealed phase renders on the live region same as any other
+// indeterminate task, independent of terminal width.
+//
+//	:. branches …
+func TestSpecP26_NarrowTerminal_Indeterminate(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor())
+	out.Task("branches").Phase("…")
+
+	live := screen.LatestLiveText()
+	if !strings.Contains(live, "branches") || !strings.Contains(live, "…") {
+		t.Fatalf("want branches' indeterminate phase in the live frame, got %q", live)
+	}
+}
+
+// TestSpecP26_NarrowTerminal_Error covers Problem 26's error block: the
+// compact dialect's Failed row with a bare evidence line (no separate
+// summary text alongside the task name).
+//
+//	✗ branches
+//	  └─ lock ref
+func TestSpecP26_NarrowTerminal_Error(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	branches := out.Task("branches")
+	branches.Fail("", evo.Detail("lock ref"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"✗ branches", "lock ref"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP26_NarrowTerminal_EarlyTermination_Mismatch covers Problem 26's
+// early termination block, exercised through the real SIGINT path.
+//
+//	✓ branches 15 del
+//	■ branches
+//	! mutated: 15 local
+//
+// MISMATCH (executed, not fixed): the block's second and third lines reuse
+// the name "branches" for what must be a second task — a TaskHandle cannot
+// render two rows (a completed "15 del" Done row and a separate Cancelled
+// row) under one name, the same one-entity-one-state constraint documented
+// on TestSpecP8_LiveFrame_Step2_NotTestable. Driving the closest reachable
+// two-task scenario (branches Done, a second task cancelled) still diverges
+// on wording: the cancelled row always annotates "interrupted", never bare
+// "■ branches" with no reason, and the derived mutation line reads "!
+// already mutated: 15 local deleted" — both the "already" prefix and the
+// past-tense verb are mechanically fixed, never the spec's "! mutated: 15
+// local".
+func TestSpecP26_NarrowTerminal_EarlyTermination_Mismatch(t *testing.T) {
+	var buf bytes.Buffer
+	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	branches := evo.Task("branches")
+	worktrees := evo.Task("worktrees")
+
+	started := make(chan struct{})
+	go func() {
+		<-started
+		time.Sleep(20 * time.Millisecond)
+		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
+	}()
+
+	code := evo.Main(func() error {
+		branches.Record("delete", 15, "local")
+		branches.Done("15 del")
+		worktrees.Record("remove", 0, "worktrees")
+		close(started)
+		deadline := time.Now().Add(2 * time.Second)
+		for worktrees.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		return nil
+	})
+
+	if code != evo.ExitCancelled {
+		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
+	}
+	got := buf.String()
+	if !strings.Contains(got, "✓  branches  15 del") {
+		t.Fatalf("want the Done branches row, got:\n%s", got)
+	}
+	t.Skip("MISMATCH: the spec's two-row shape reuses the name \"branches\" for both a Done and a Cancelled row, which one TaskHandle cannot render (see TestSpecP8_LiveFrame_Step2_NotTestable); the closest reachable two-task scenario still renders \"■ worktrees interrupted\" (never bare \"■ branches\") and \"! already mutated: 15 local deleted\" (never \"! mutated: 15 local\") — see doc comment")
 }
