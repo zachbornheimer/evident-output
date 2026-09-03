@@ -3,6 +3,7 @@ package evo_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -152,7 +153,7 @@ func TestSEC003_ManyEntitiesBounded(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	for i := 0; i < 500; i++ {
-		out.Task("n").Done()
+		out.Task("n", evo.ID(fmt.Sprintf("n%d", i))).Done()
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

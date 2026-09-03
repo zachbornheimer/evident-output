@@ -73,8 +73,9 @@ Sealed-total invariant: indeterminate → determinate happens once; after a tota
 completed > total is unrepresentable.
 
 Skip/keep taxonomy: task.Skipped(reason, name) / task.Kept(reason, name) — evo counts, sums, and truncates the
-reason partition (never a bare "skipped 6"); reasons come from evo.Reason("protected") (get-or-create, typo-safe
-once lifted to a var).
+reason partition (never a bare "skipped 6"); reasons come from evo.Reason("protected") (get-or-create — repeated
+calls with the same text merge into one taxonomy bucket, so inline evo.Reason("protected") at every call site is
+correct as written; lifting it to a package-level var is a style choice, never required for correctness).
 
 Bounded narration (BOUND-001): a slice joined with strings.Join and handed straight to Because/Detail/Phase
 reproduces the same terminal flood evo.TruncateNames already fixed for Plan/Changes rows — wrap it:

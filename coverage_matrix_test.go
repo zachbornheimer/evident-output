@@ -55,11 +55,31 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	}
 }
 
-func TestDOM004_DuplicateDisplayNamesAllowed(t *testing.T) {
+// TestDOM004_SameNameGetsOrCreates pins L1: repeated Output.Task calls with
+// the same name return the live handle instead of a second declared row —
+// the same get-or-create identity evo.Task already gives the default
+// instance (the repo-retire P0 this closes: a second call site under a name
+// already in use produced a duplicate row and ErrDuplicateKey instead of the
+// one live handle).
+func TestDOM004_SameNameGetsOrCreates(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	a := out.Task("same")
 	b := out.Task("same")
+	a.Done()
+	if a.Snapshot().ID != b.Snapshot().ID {
+		t.Fatal("expected the same handle for a repeated name")
+	}
+}
+
+// TestDOM004_DistinctIDsAllowSameDisplayName covers the remaining case the
+// retired DuplicateDisplayNamesAllowed test named: two genuinely distinct
+// entities may still share a display name, using an explicit evo.ID.
+func TestDOM004_DistinctIDsAllowSameDisplayName(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+	a := out.Task("same", evo.ID("a"))
+	b := out.Task("same", evo.ID("b"))
 	a.Done()
 	b.Done()
 	if a.Snapshot().ID == b.Snapshot().ID {

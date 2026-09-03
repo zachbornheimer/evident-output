@@ -44,9 +44,19 @@ type Output struct {
 	tasksByRef map[string]*tasksState
 	keys       map[string]struct{}
 
-	// namedTasks backs get-or-create identity for the package-level default
-	// instance facade: evo.Task(name) called twice returns the same handle.
+	// namedTasks backs get-or-create identity for Output.Task/Scope.Task
+	// (and, through them, the package-level default-instance facade): a
+	// repeated (scope, name) pair — or a repeated explicit evo.ID reused
+	// under the same name — returns the same handle instead of a duplicate
+	// row. Keyed either "\x00"+scope+"\x00"+name (no explicit ID) or
+	// "key:"+key (explicit evo.ID); see taskScoped and taskNameByKey.
 	namedTasks map[string]*TaskHandle
+	// taskNameByKey remembers which display name first claimed an explicit
+	// evo.ID through taskScoped, so a second call under the SAME name gets
+	// the live handle (L1's get-or-create fix) while a second call reusing
+	// the ID under a DIFFERENT name still reports ErrDuplicateKey — a real
+	// identity conflict, not a repeat declaration.
+	taskNameByKey map[string]string
 	// namedPlans/namedChanges back get-or-create identity for TaskHandle
 	// mutation verbs (Delete, Create, ...): repeated mutations on one task
 	// accumulate into the one Plan/Changes section named after the task,
@@ -298,12 +308,50 @@ func (o *Output) Task(name string, args ...any) *TaskHandle {
 	return o.taskScoped(formatted, "", opts...)
 }
 
+// taskScoped is the get-or-create identity behind Output.Task and Scope.Task:
+// a repeated call with the same (scope, name) pair returns the live handle
+// instead of declaring a duplicate row — the same contract evo.Task already
+// gives the package-level default instance. An explicit evo.ID reused under
+// a different name is still a real identity conflict and reports
+// ErrDuplicateKey (addTaskLocked's own key bookkeeping catches it, since a
+// differing identity never short-circuits through the namedTasks cache
+// below).
 func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandle {
+	eo := applyEntityOptions(opts)
+	clean := sanitize.Text(name)
+	key := qualifyKey(scope, eo.key)
+
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	eo := applyEntityOptions(opts)
-	key := qualifyKey(scope, eo.key)
-	return o.addTaskLocked(sanitize.Text(name), nil, key)
+
+	if key != "" {
+		if ownerName, ok := o.taskNameByKey[key]; ok {
+			if ownerName == clean {
+				if existing, ok := o.namedTasks["key:"+key]; ok {
+					return existing
+				}
+			}
+			o.recordMisuse(ErrDuplicateKey)
+			return &TaskHandle{out: o, id: o.nextID("task")}
+		}
+	} else if existing, ok := o.namedTasks["\x00"+scope+"\x00"+clean]; ok {
+		return existing
+	}
+
+	h := o.addTaskLocked(clean, nil, key)
+	if o.namedTasks == nil {
+		o.namedTasks = make(map[string]*TaskHandle)
+	}
+	if key != "" {
+		if o.taskNameByKey == nil {
+			o.taskNameByKey = make(map[string]string)
+		}
+		o.taskNameByKey[key] = clean
+		o.namedTasks["key:"+key] = h
+	} else {
+		o.namedTasks["\x00"+scope+"\x00"+clean] = h
+	}
+	return h
 }
 
 func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHandle {
@@ -349,26 +397,7 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHa
 // evo.Task(name) facade, where repeated calls must return the same handle
 // instead of the duplicate-key error Task/ID would raise.
 func (o *Output) taskGetOrCreate(name string, opts ...EntityOption) *TaskHandle {
-	o.mu.Lock()
-	if t, ok := o.namedTasks[name]; ok {
-		o.mu.Unlock()
-		return t
-	}
-	o.mu.Unlock()
-
-	t := o.taskScoped(name, "", opts...)
-
-	o.mu.Lock()
-	if existing, ok := o.namedTasks[name]; ok {
-		o.mu.Unlock()
-		return existing
-	}
-	if o.namedTasks == nil {
-		o.namedTasks = make(map[string]*TaskHandle)
-	}
-	o.namedTasks[name] = t
-	o.mu.Unlock()
-	return t
+	return o.taskScoped(name, "", opts...)
 }
 
 // planGetOrCreate returns the Plan previously created under subject by this
