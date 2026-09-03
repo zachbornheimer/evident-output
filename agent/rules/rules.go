@@ -129,14 +129,15 @@ task.Donef("%d packages", n)`,
 			ID:        "API-029",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "subprocess evidence uses Task.Capture, not DebugWriter",
+			Invariant: "subprocess evidence uses Task.Evidence, not DebugWriter",
 			Why:       "DebugWriter is filtered by DebugLevel and is the wrong dialect for failure Detail tails.",
 			BadCode: `dbg := out.DebugWriter()
 run.Run(ctx, "brew", args, dbg)`,
-			GoodCode: `output := task.Capture()
-run.Run(ctx, "brew", args, output)
-task.Fail("brew failed", evo.Cause(err), output.DetailTail())`,
-			Remediation:     "Use task.Capture() + DetailTail on Fail",
+			GoodCode: `proof := task.Evidence()
+if err := run.Run(ctx, "brew", args, proof); err != nil {
+	return task.Failf("brew failed: %w", err) // wrapped error renders as an evidence line
+}`,
+			Remediation:     "Use task.Evidence() (or task.Run for an *exec.Cmd) + Failf's trailing %w",
 			RelatedGuidance: []string{"streams", "tasks"},
 			VerificationIDs: []string{"API-029"},
 			Since:           "0.2.0",
@@ -291,11 +292,11 @@ run.Run(ctx, "git", args, t.PhaseWriter()) // last child line becomes the live P
 			ID:              "DOM-014",
 			Category:        "DOM",
 			Severity:        "error",
-			Invariant:       "Detail is user-visible string; use Cause(err) for diagnostic errors",
-			Why:             "Detail(err) exposes error internals as UI copy and skips the Cause path that diagnostic capture relies on.",
+			Invariant:       "Detail is user-visible string; wrap a diagnostic error with Blockf/Failf's trailing %w",
+			Why:             "Detail(err) exposes error internals as UI copy; Blockf/Failf's %w renders the wrapped error as its own evidence line instead.",
 			BadCode:         `it.Block("dirty", evo.Detail(err))`,
-			GoodCode:        `it.Block("dirty", evo.Cause(err))`,
-			Remediation:     "Replace Detail(err) with Cause(err); reserve Detail for user-visible strings",
+			GoodCode:        `return it.Blockf("dirty: %w", err)`,
+			Remediation:     `Replace Detail(err) with a %w-wrapped Blockf/Failf, e.g. it.Blockf("dirty: %w", err); reserve Detail for user-visible strings`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-014"},
 			Since:           "0.1.0",
@@ -537,6 +538,49 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			RelatedGuidance: []string{"tasks", "streams"},
 			VerificationIDs: []string{"API-031"},
 			Since:           "0.7.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-032",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "evo.New-in-main, MainWith, Cause, and Capture are superseded spellings",
+			Why:       "evo.Init+evo.Main is the ordinary main() lifecycle (New/MainWith is the advanced hosted-instance form); Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr.",
+			BadCode: `func main() {
+	out := evo.New(evo.Config{Title: "tool"})
+	os.Exit(evo.MainWith(out, run))
+}
+func run(out *evo.Output) error {
+	output := out.Task("x").Capture()
+	return out.Task("x").Fail("failed", evo.Cause(err))
+}`,
+			GoodCode: `func main() {
+	evo.Init(evo.Config{Title: "tool"})
+	os.Exit(evo.Main(run))
+}
+func run() error {
+	proof := evo.Task("x").Evidence()
+	return evo.Task("x").Failf("failed: %w", err)
+}`,
+			Remediation:     "Replace New+MainWith in main with Init+Main; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with .Evidence()",
+			RelatedGuidance: []string{"common-api", "tasks", "streams"},
+			VerificationIDs: []string{"API-032"},
+			Since:           "0.3.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-033",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "an entity's name is not also its own skip/verb evidence",
+			Why:       "out.Item(note).Skip(note) tells the reader nothing a bare \"skipped 1 (note)\" wouldn't already — the name and the reason/verb argument are the identical expression, so the second one carries zero new information.",
+			BadCode:   `out.Item(note).Skip(note)`,
+			GoodCode: `item := out.Item("branch check")
+item.Skip(note)`,
+			Remediation:     "Give the entity a real label distinct from the reason/verb text it also carries",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-033"},
+			Since:           "0.3.0",
 			Certainty:       "heuristic",
 		},
 		{

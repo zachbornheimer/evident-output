@@ -102,13 +102,15 @@ failure reads as blocked. SIGINT/SIGTERM already route through Main into Cancel 
 ledger's ■ and the process exit code (130) can never disagree; a caller-written signal.Notify handler that
 calls os.Exit itself bypasses that reconciliation.
 
-Child processes: output := task.Capture(); run.Run(ctx, name, args, output); on error task.Fail(...,
-evo.Cause(err), output.DetailTail()). For live narration wire cmd.Stdout = task.PhaseWriter() instead of a
-hand-rolled line-splitting writer — every line becomes the current Phase and is retained for DetailTail. Never
-implement your own io.Writer whose Write method calls TaskHandle.Phase (API-031): that reimplements the exact
-adapter PhaseWriter already owns.
-Tool-backed gates: item.Capture() on the Item evaluating the condition.
-Capture is entity-owned (Task or Item). Ring always retains evidence; Config.Debug.Level gates journal display.
+Child processes: proof := task.Evidence(); run.Run(ctx, name, args, proof); on error
+task.Failf("...: %w", err) (the trailing %w renders as an evidence line under the summary), then
+proof.DetailTail() as an additional Fail option for the retained tail. Prefer task.Run(cmd) for an *exec.Cmd —
+it wires Evidence and Phase together in one call. For live narration wire cmd.Stdout = task.PhaseWriter()
+instead of a hand-rolled line-splitting writer — every line becomes the current Phase and is retained for
+DetailTail. Never implement your own io.Writer whose Write method calls TaskHandle.Phase (API-031): that
+reimplements the exact adapter PhaseWriter already owns.
+Tool-backed gates: item.Evidence() on the Item evaluating the condition.
+Evidence is entity-owned (Task or Item). Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
 EncodeJSON/EncodeJSONL for machines. Avoid fmt.Print during live UI — use evo.Println (see interactive guide).`,
 			TokenEstimate: 260,
@@ -117,9 +119,10 @@ EncodeJSON/EncodeJSONL for machines. Avoid fmt.Print during live UI — use evo.
 			ID:       "security",
 			Title:    "Terminal safety",
 			UseCases: []string{"sanitize", "esc", "secrets"},
-			Concepts: []string{"sanitize", "Detail", "Cause"},
+			Concepts: []string{"sanitize", "Detail", "Failf"},
 			Rules:    []string{"SEC-001", "TXT-007", "SEC-006"},
-			Body: `Untrusted text is sanitized. Detail is user-visible strings only; Cause is diagnostic.
+			Body: `Untrusted text is sanitized. Detail is stable user-visible guidance text; Failf/Blockf's
+trailing %w renders the wrapped error's own text as a separate evidence line, also sanitized.
 Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			TokenEstimate: 110,
 		},
@@ -147,7 +150,7 @@ Use evo.Terminal with testkit.Screen or terminal.NewANSI.
 Handing the tty to a child: out.Suspend(func() error { ... }) clears the live region, holds it invisible for the
 whole call, and redraws after — required only when a child paints its own UI on the shared terminal (its Stdout/
 Stderr are the process's own, tty-passthrough); otherwise the parent's spinner and the child's first line glue
-together. Captured or PhaseWriter-wired children (task.Capture(), cmd.Stdout = task.PhaseWriter()) never need
+together. Captured or PhaseWriter-wired children (task.Evidence(), cmd.Stdout = task.PhaseWriter()) never need
 Suspend — their output already flows through evo's own render loop.`,
 			TokenEstimate: 260,
 		},

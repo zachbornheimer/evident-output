@@ -70,15 +70,76 @@ func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
 	}
 }
 
-// --- Item 2: resolving failure verbs return error ---
+func TestAPISugar_ReasonfFormatsAndGetsOrCreates(t *testing.T) {
+	var buf strings.Builder
+	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
 
-func TestAPISugar_TaskFailReturnsWrappedCause(t *testing.T) {
+	first := evo.Reasonf("stage %d", 2)
+	if got := first.Name(); got != "stage 2" {
+		t.Fatalf("name = %q, want %q", got, "stage 2")
+	}
+	second := evo.Reason("stage 2")
+	if first.Name() != second.Name() {
+		t.Fatal("expected Reasonf's formatted name to get-or-create the same bucket as Reason")
+	}
+}
+
+func TestAPISugar_ScopeTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
+	out := evo.NewWithOptions(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+
+	scoped := out.Scope("registry")
+	task := scoped.Task("sync %s", "auth")
+	if got := task.Snapshot().Name; got != "sync auth" {
+		t.Fatalf("name = %q, want %q", got, "sync auth")
+	}
+}
+
+func TestAPISugar_ScopeItemNameIsPrintfWhenArgsPresent(t *testing.T) {
+	out := evo.NewWithOptions(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+
+	scoped := out.Scope("registry")
+	item := scoped.Item("probe %s", "docker")
+	if got := item.Snapshot().Name; got != "probe docker" {
+		t.Fatalf("name = %q, want %q", got, "probe docker")
+	}
+}
+
+func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
+	out := evo.NewWithOptions(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+
+	group := out.Group("stages")
+	child := group.Task("stage %d", 2)
+	if got := child.Snapshot().Name; got != "stage 2" {
+		t.Fatalf("name = %q, want %q", got, "stage 2")
+	}
+}
+
+// --- Item 0: Fail/Block are statement-form; Failf/Blockf return %w errors ---
+
+func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
+	out := evo.NewWithOptions(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("validate")
+	task.Fail("validate policy manifest") // errcheck-clean: no return value
+	if got := task.Snapshot().State; got != evo.Failed {
+		t.Fatalf("state = %q, want Failed", got)
+	}
+	if got := task.Snapshot().Summary; got != "validate policy manifest" {
+		t.Fatalf("summary = %q, want the Fail argument", got)
+	}
+}
+
+func TestAPISugar_TaskFailfWrapsAndReturnsError(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
 	cause := errors.New("manifest missing")
-	err := task.Fail("validate policy manifest", evo.Cause(cause))
+	err := task.Failf("validate policy manifest: %w", cause)
 	if err == nil {
 		t.Fatal("expected non-nil error")
 	}
@@ -88,23 +149,12 @@ func TestAPISugar_TaskFailReturnsWrappedCause(t *testing.T) {
 	if !errors.Is(err, cause) {
 		t.Fatalf("errors.Is(err, cause) = false, want true (must wrap with %%w)")
 	}
-}
-
-func TestAPISugar_TaskFailNoCauseIsPlainError(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("validate")
-	err := task.Fail("no cause here")
-	if err == nil || err.Error() != "no cause here" {
-		t.Fatalf("err = %v, want plain errors.New(summary)", err)
-	}
-	if errors.Unwrap(err) != nil {
-		t.Fatalf("expected no wrapped error when Cause is absent")
+	if got := task.Snapshot().Summary; got != "validate policy manifest" {
+		t.Fatalf("summary = %q, want the text before the trailing %%w split off", got)
 	}
 }
 
-func TestAPISugar_TaskFailfFormatsAndReturnsError(t *testing.T) {
+func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
@@ -113,15 +163,18 @@ func TestAPISugar_TaskFailfFormatsAndReturnsError(t *testing.T) {
 	if err == nil || err.Error() != "validate manifest: exit 1" {
 		t.Fatalf("err = %v, want formatted summary", err)
 	}
+	if got := task.Snapshot().Summary; got != "validate manifest: exit 1" {
+		t.Fatalf("summary = %q, want the whole formatted text (no %%w to split on)", got)
+	}
 }
 
-func TestAPISugar_ItemBlockReturnsWrappedCause(t *testing.T) {
+func TestAPISugar_ItemBlockfWrapsAndReturnsError(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	item := out.Item("policy gate")
 	cause := errors.New("denied")
-	err := item.Block("blocked by policy", evo.Cause(cause))
+	err := item.Blockf("blocked by policy: %w", cause)
 	if err == nil || !errors.Is(err, cause) {
 		t.Fatalf("err = %v, want it to wrap cause", err)
 	}
@@ -129,13 +182,13 @@ func TestAPISugar_ItemBlockReturnsWrappedCause(t *testing.T) {
 
 func TestAPISugar_FailNilHandleIsSafe(t *testing.T) {
 	var task *evo.TaskHandle
-	err := task.Fail("summary", evo.Cause(errors.New("boom")))
-	if err == nil {
-		t.Fatal("expected non-nil error even on a nil handle")
-	}
+	task.Fail("summary") // must not panic
 
 	var item *evo.ItemHandle
-	if err := item.Block("summary"); err == nil {
+	item.Block("summary") // must not panic
+
+	var itemF *evo.ItemHandle
+	if err := itemF.Blockf("summary: %w", errors.New("boom")); err == nil {
 		t.Fatal("expected non-nil error even on a nil handle")
 	}
 }
@@ -152,7 +205,7 @@ func TestAPISugar_RunCapturesOutputAndUpdatesPhase(t *testing.T) {
 		t.Fatalf("Run returned error: %v", err)
 	}
 
-	tail := task.Capture().Tail()
+	tail := task.Evidence().Tail()
 	if !strings.Contains(tail, "line-one") || !strings.Contains(tail, "line-two") {
 		t.Fatalf("capture tail = %q, want both stdout and stderr lines retained", tail)
 	}
@@ -189,7 +242,7 @@ func TestAPISugar_RunTeesPreWiredWriters(t *testing.T) {
 	if !strings.Contains(mine.String(), "hello") {
 		t.Fatalf("pre-wired writer = %q, want it still received output", mine.String())
 	}
-	if !strings.Contains(task.Capture().Tail(), "hello") {
+	if !strings.Contains(task.Evidence().Tail(), "hello") {
 		t.Fatal("expected Run's own capture to also observe teed stdout")
 	}
 }
@@ -228,7 +281,7 @@ func TestAPISugar_RunRedactsSecrets(t *testing.T) {
 	if err := task.Run(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if strings.Contains(task.Capture().Tail(), "s3kr3t") {
-		t.Fatalf("capture tail leaked the redacted secret: %q", task.Capture().Tail())
+	if strings.Contains(task.Evidence().Tail(), "s3kr3t") {
+		t.Fatalf("capture tail leaked the redacted secret: %q", task.Evidence().Tail())
 	}
 }

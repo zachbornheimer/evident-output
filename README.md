@@ -78,15 +78,16 @@ When both Item and Task fit: prefer **Item** for pass/fail gates, **Task** for p
 
 ## Child processes / tool-backed gates
 
-Capture belongs to the **entity** (Task or Item), not the whole session — and not `context`:
+Evidence belongs to the **entity** (Task or Item), not the whole session — and not `context`.
+For an `*exec.Cmd`, prefer `Task.Run` (below); reach for `Evidence` directly only when the
+caller already owns stdout/stderr plumbing:
 
 ```go
 upgrade := out.Task("brew packages")
-output := upgrade.Capture() // always retains a bounded ring; debug only controls display
+proof := upgrade.Evidence() // always retains a bounded ring; debug only controls display
 
-if err := run.Run(ctx, "brew", []string{"upgrade", "--formula"}, output); err != nil {
-    upgrade.Fail("brew upgrade failed", evo.Cause(err), output.DetailTail())
-    return nil
+if err := run.Run(ctx, "brew", []string{"upgrade", "--formula"}, proof); err != nil {
+    return upgrade.Failf("brew upgrade failed: %w", err)
 }
 upgrade.Done()
 ```
@@ -95,18 +96,19 @@ Tool-backed **condition** (still an Item):
 
 ```go
 docker := out.Item("docker daemon").Start()
-cap := docker.Capture()
-if err := runDockerInfo(cap); err != nil {
-    docker.Fail("could not inspect the daemon", evo.Cause(err), cap.DetailTail())
+proof := docker.Evidence()
+if err := runDockerInfo(proof); err != nil {
+    docker.Failf("could not inspect the daemon: %w", err)
 } else {
     docker.OK()
 }
 ```
 
-- **Ownership:** `Task.Capture` / `Item.Capture` associate evidence with that entity.
+- **Ownership:** `Task.Evidence` / `Item.Evidence` associate evidence with that entity.
 - **Silent by default:** ring always retains; no Diagnostics/Debug mirror unless `MirrorToDiagnostics()` / `MirrorToDebug()`.
 - **Redaction:** `Config.Redactor` (or `evo.Redact`) applies before ring retention.
-- **Detail:** `DetailTail()` is a `ProblemOption`; separate `Stdout()`/`Stderr()` buffers.
+- **Detail:** `DetailTail()` is a `ProblemOption`; separate `Stdout()`/`Stderr()` buffers. `Failf`'s
+  trailing `%w` also renders a summary/evidence split for the wrapped error itself.
 - **Defaults:** last 200 lines / 256KiB via `KeepLastLines` / `MaxCaptureBytes`.
 - **Session `out.Capture`:** advanced only — prefer entity-owned capture.
 
@@ -371,7 +373,7 @@ Schemas: `schema/output.v1.json`, `schema/event.v1.json`.
 import "github.com/zachbornheimer/evident-output/terminal"
 
 drv := terminal.NewANSI(os.Stderr, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-out := evo.New(evo.Terminal(drv))
+out := evo.NewWithOptions(evo.Terminal(drv))
 ```
 
 ### Interactive (testkit / virtual terminal)
@@ -379,7 +381,7 @@ out := evo.New(evo.Terminal(drv))
 ```go
 screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 clock := testkit.NewClock()
-out := evo.New(
+out := evo.NewWithOptions(
     evo.Terminal(screen),
     evo.Clock(clock),
     evo.VisibilityDelay(150*time.Millisecond),

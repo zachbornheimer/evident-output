@@ -60,25 +60,31 @@ func (i *ItemHandle) WarnedBy(problems ...Problem) *ItemHandle {
 	return i
 }
 
-// Block marks the item blocked and returns one error describing it, so
-// `return item.Block("policy manifest missing", evo.Cause(err))` is a single
-// line: the error's message is summary, wrapping a Cause option with %w
-// (errors.Is/As reach it); no Cause option yields errors.New(summary). Not
-// fluent chaining — the handle is never returned, only the error, and a nil
-// *ItemHandle resolves nothing but still returns that same error.
-func (i *ItemHandle) Block(summary string, options ...ProblemOption) error {
+// Block marks the item blocked. This is a statement, not a fluent chain —
+// Block returns nothing, so a bare `item.Block("summary")` is errcheck-clean.
+// A nil *ItemHandle is safe and resolves nothing. Use Blockf to build and
+// return a %w-wrapped error in one line.
+func (i *ItemHandle) Block(summary string, options ...ProblemOption) {
 	p := applyProblemOptions(sanitize.Text(summary), options)
 	if i != nil {
 		i.resolve(Blocked, []Problem{p})
 	}
-	return resolutionError(p)
 }
 
-// Blockf marks the item blocked with a formatted summary (fmt.Sprintf
-// semantics) and returns its error exactly like Block. Attach evo.Cause via
-// Block when a summary needs both formatting and a wrapped cause.
+// Blockf marks the item blocked with a formatted summary and returns the
+// built error so a call site can `return` it directly:
+// `return item.Blockf("policy manifest missing: %w", err)`. fmt.Errorf
+// semantics: %w wraps its argument so errors.Is/As still reach it. See
+// splitWrappedMessage for how a trailing ": %w"/", %w" splits the formatted
+// text into the rendered summary and evidence line.
 func (i *ItemHandle) Blockf(format string, args ...any) error {
-	return i.Block(fmt.Sprintf(format, args...))
+	err := fmt.Errorf(format, args...)
+	summary, evidence := splitWrappedMessage(format, err)
+	p := sanitizeProblem(Problem{Summary: summary, Detail: evidence})
+	if i != nil {
+		i.resolve(Blocked, []Problem{p})
+	}
+	return err
 }
 
 // BlockedBy marks the item blocked with structured problems.
@@ -87,21 +93,28 @@ func (i *ItemHandle) BlockedBy(problems ...Problem) *ItemHandle {
 	return i
 }
 
-// Fail marks the item failed and returns one error describing it — see Block
-// for the shared summary/Cause/nil-safety contract.
-func (i *ItemHandle) Fail(summary string, options ...ProblemOption) error {
+// Fail marks the item failed. This is a statement, not a fluent chain — Fail
+// returns nothing, so a bare `item.Fail("summary")` is errcheck-clean. A nil
+// *ItemHandle is safe and resolves nothing. Use Failf to build and return a
+// %w-wrapped error in one line.
+func (i *ItemHandle) Fail(summary string, options ...ProblemOption) {
 	p := applyProblemOptions(sanitize.Text(summary), options)
 	if i != nil {
 		i.resolve(Failed, []Problem{p})
 	}
-	return resolutionError(p)
 }
 
-// Failf marks the item failed with a formatted summary (fmt.Sprintf
-// semantics) and returns its error exactly like Fail. Attach evo.Cause via
-// Fail when a summary needs both formatting and a wrapped cause.
+// Failf marks the item failed with a formatted summary and returns the built
+// error exactly like Blockf — see Blockf for the fmt.Errorf %w and
+// summary/evidence split contract.
 func (i *ItemHandle) Failf(format string, args ...any) error {
-	return i.Fail(fmt.Sprintf(format, args...))
+	err := fmt.Errorf(format, args...)
+	summary, evidence := splitWrappedMessage(format, err)
+	p := sanitizeProblem(Problem{Summary: summary, Detail: evidence})
+	if i != nil {
+		i.resolve(Failed, []Problem{p})
+	}
+	return err
 }
 
 // FailedBy marks the item failed with structured problems.

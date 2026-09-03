@@ -2,7 +2,7 @@ package evo
 
 import (
 	"errors"
-	"fmt"
+	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/sanitize"
 )
@@ -17,7 +17,7 @@ type Problem struct {
 	Count     int64
 	Unit      string
 	Location  *Location
-	Evidence  []Evidence
+	Evidence  []Attachment
 	Actions   []Action
 	Fields    []Field
 	Cause     error
@@ -31,8 +31,12 @@ type Location struct {
 	Column int
 }
 
-// Evidence is an additional problem attachment.
-type Evidence struct {
+// Attachment is an additional label/value problem attachment.
+//
+// Named Attachment (not Evidence) because Evidence names the retained
+// process-output sink (see Evidence in capture.go) — this is a single
+// labeled fact attached to a Problem, a different concept from that sink.
+type Attachment struct {
 	Label string
 	Value string
 }
@@ -58,7 +62,9 @@ func Detail(text string) ProblemOption {
 	return problemOptionFunc(func(p *Problem) { p.Detail = text })
 }
 
-// Cause attaches a diagnostic error (not shown by default in human output).
+// Cause attaches a diagnostic error to a Problem.
+//
+// Deprecated: Use Failf/Blockf's trailing %w instead. Will be removed in v1.0.
 func Cause(err error) ProblemOption {
 	return problemOptionFunc(func(p *Problem) { p.Cause = err })
 }
@@ -102,16 +108,33 @@ func NextCommand(executable string, args ...string) ProblemOption {
 	return Next(Command(executable, args...))
 }
 
-// resolutionError turns a resolved failure/block Problem into the one-line
-// error a caller can `return` directly: message is the summary, and a
-// Cause(err) option is wrapped with %w so errors.Is/As still reach it. No
-// Cause means a plain errors.New(summary) — never a bare nil, so `return
-// task.Fail(...)` always hands the caller a real error to propagate.
-func resolutionError(p Problem) error {
-	if p.Cause != nil {
-		return fmt.Errorf("%s: %w", p.Summary, p.Cause)
+// splitWrappedMessage separates a Failf/Blockf error into the summary shown
+// as the row's headline and the evidence line rendered underneath it. format
+// is the caller's original fmt.Errorf format string (before substitution);
+// err is fmt.Errorf(format, args...).
+//
+// A trailing ": %w" or ", %w" in format marks the wrapped error as evidence
+// separable from the summary: summary is the text before the separator,
+// evidence is the wrapped error's own text. Without a trailing %w — or when
+// %w appears elsewhere in format — the whole formatted text is the summary
+// and the wrapped error (if any) still feeds evidence.
+func splitWrappedMessage(format string, err error) (summary, evidence string) {
+	full := err.Error()
+	wrapped := errors.Unwrap(err)
+	if wrapped == nil {
+		return full, ""
 	}
-	return errors.New(p.Summary)
+	evidence = wrapped.Error()
+	for _, sep := range [...]string{": %w", ", %w"} {
+		if !strings.HasSuffix(format, sep) {
+			continue
+		}
+		head := strings.TrimSuffix(sep, "%w")
+		if trimmed, ok := strings.CutSuffix(full, head+evidence); ok {
+			return trimmed, evidence
+		}
+	}
+	return full, evidence
 }
 
 func applyProblemOptions(summary string, opts []ProblemOption) Problem {
@@ -145,9 +168,9 @@ func sanitizeProblem(p Problem) Problem {
 		p.Location = &loc
 	}
 	if len(p.Evidence) > 0 {
-		ev := make([]Evidence, len(p.Evidence))
+		ev := make([]Attachment, len(p.Evidence))
 		for i, e := range p.Evidence {
-			ev[i] = Evidence{
+			ev[i] = Attachment{
 				Label: sanitize.Text(e.Label),
 				Value: sanitize.Text(e.Value),
 			}
@@ -195,7 +218,7 @@ func cloneProblems(in []Problem) []Problem {
 			out[i].Fields = append([]Field(nil), out[i].Fields...)
 		}
 		if len(out[i].Evidence) > 0 {
-			out[i].Evidence = append([]Evidence(nil), out[i].Evidence...)
+			out[i].Evidence = append([]Attachment(nil), out[i].Evidence...)
 		}
 		if out[i].Location != nil {
 			loc := *out[i].Location

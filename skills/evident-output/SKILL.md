@@ -60,8 +60,10 @@ grok mcp doctor evident-output --json
 - `Block` = condition found; `Fail` = evaluation failed; `Warn` = optional/soft
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
 - Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
-- Child process chatter → `task.Capture()` / `item.Capture()` + `DetailTail()`
-- Sanitize is automatic; `Config.Redactor` scrubs Capture ring + Debug fields
+- Child process chatter → `task.Evidence()` / `item.Evidence()` + `DetailTail()`; prefer
+  `task.Run(cmd)` for an `*exec.Cmd`
+- Sanitize is automatic; `Config.Redactor` scrubs the Evidence ring + Debug fields
+- `Fail`/`Block` are statements (no return); `Failf`/`Blockf` return a %w-wrapped error
 - Stable machine keys: `evo.ID(...)`; plugins: `out.Scope("name")` (entities only)
 - Data commands: `FormatData` + write domain payload to `out.ResultWriter()`
 - Prefer plain labels over `*f` constructors when identity must stay stable

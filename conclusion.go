@@ -96,6 +96,8 @@ func inferConclusion(s Snapshot) Conclusion {
 		switch t.State {
 		case Failed:
 			hasFailed = true
+		case Blocked:
+			hasBlocked = true
 		case Warning:
 			hasWarning = true
 		case Cancelled:

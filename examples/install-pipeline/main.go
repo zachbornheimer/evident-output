@@ -43,15 +43,16 @@ func main() {
 		generate.Done()
 
 		tests := pipeline.Task("go test ./...", evo.ID("pipeline.test"))
-		output := tests.Capture()
+		output := tests.Evidence()
 		time.Sleep(step)
 		if *failTests {
-			// Command-runner shape: Capture gets streams; Fail separates Cause (structured)
-			// from DetailTail (user-visible evidence). No Close required for partial lines.
+			// Command-runner shape: Capture gets streams; Failf wraps the process
+			// error with %w while DetailTail supplies the user-visible tail.
+			// No Close required for partial lines.
 			_, _ = fmt.Fprintln(output.Stdout(), "=== RUN   TestFoo")
 			_, _ = fmt.Fprint(output.Stderr(), "--- FAIL: TestFoo (0.01s)\n    foo_test.go:12: want 1, got 0")
 			runErr := errors.New("exit status 1")
-			tests.Fail("tests failed", evo.Cause(runErr), output.DetailTail())
+			tests.Fail("tests failed: "+runErr.Error(), output.DetailTail())
 			return nil
 		}
 		tests.Progress(12, 12)

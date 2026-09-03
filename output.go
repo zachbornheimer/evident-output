@@ -674,6 +674,19 @@ func (o *Output) Plan(subject string) *Plan {
 
 // Fail records an output-level failure.
 func (o *Output) Fail(summary string, options ...ProblemOption) {
+	o.failWith(applyProblemOptions(sanitize.Text(summary), options))
+}
+
+// Failf records an output-level failure with a formatted summary. fmt.Errorf
+// semantics: a trailing ": %w"/", %w" splits the formatted text into the
+// recorded summary and evidence line exactly like TaskHandle.Failf.
+func (o *Output) Failf(format string, args ...any) {
+	err := fmt.Errorf(format, args...)
+	summary, evidence := splitWrappedMessage(format, err)
+	o.failWith(sanitizeProblem(Problem{Summary: summary, Detail: evidence}))
+}
+
+func (o *Output) failWith(p Problem) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -685,7 +698,7 @@ func (o *Output) Fail(summary string, options ...ProblemOption) {
 		id:          o.nextID("item"),
 		name:        sanitize.Text(o.cfg.subject),
 		state:       Failed,
-		problems:    []Problem{applyProblemOptions(sanitize.Text(summary), options)},
+		problems:    []Problem{p},
 		declaration: o.nextDecl(),
 	}
 	if st.name == "" {
@@ -960,6 +973,11 @@ func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
 	}
 	out := make([]TaxonomyRecord, len(in))
 	copy(out, in)
+	for i := range out {
+		if len(out[i].Causes) > 0 {
+			out[i].Causes = append([]string(nil), out[i].Causes...)
+		}
+	}
 	return out
 }
 

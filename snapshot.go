@@ -66,6 +66,11 @@ type TaskSnapshot struct {
 type TaxonomyRecord struct {
 	Reason string
 	Name   string
+	// Causes holds the sanitized text of any errs passed to Skipped/Kept for
+	// this record — evidence for why the disposition happened, rendered as
+	// one bounded └─ line under the count row (first cause + "(+N more)"),
+	// full list under Verbose.
+	Causes []string
 }
 
 // TasksSnapshot is an immutable collection view.
