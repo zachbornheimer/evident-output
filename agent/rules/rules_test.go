@@ -63,6 +63,22 @@ func TestExplainFirstPaintRules(t *testing.T) {
 	}
 }
 
+// TestGuidanceOnlyRulesAreMarked proves CON-001 and GLYPH-001 explicitly
+// declare Detection="guidance" — no cheap honest static detector exists for
+// either, and the rule payload must say so rather than leave an agent
+// waiting on a review finding that never arrives.
+func TestGuidanceOnlyRulesAreMarked(t *testing.T) {
+	for _, id := range []string{"CON-001", "GLYPH-001"} {
+		r, ok := rules.Explain(id)
+		if !ok {
+			t.Fatalf("%s missing", id)
+		}
+		if r.Detection != "guidance" {
+			t.Fatalf("%s want Detection=guidance, got %q", id, r.Detection)
+		}
+	}
+}
+
 func TestMCP028_RuleStabilityVersionPolicy(t *testing.T) {
 	ids := rules.IDs()
 	if len(ids) < 5 {

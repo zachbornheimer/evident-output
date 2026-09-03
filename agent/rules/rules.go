@@ -20,6 +20,12 @@ type Rule struct {
 	Deprecated      bool     `json:"deprecated"`
 	Replacement     string   `json:"replacement,omitempty"`
 	Certainty       string   `json:"certainty,omitempty"` // deterministic | heuristic
+	// Detection is "guidance" when no cheap, honest static detector exists
+	// for this rule — agent/review never emits this ID, and the catalog/
+	// docs teach it by example only. Empty means a detector may exist;
+	// callers that need a hard guarantee check agent/review's registered
+	// rule IDs directly.
+	Detection string `json:"detection,omitempty"`
 }
 
 // All returns the v1 rule registry subset. IDs and meanings obey version policy:
@@ -417,6 +423,7 @@ answer, _ := reader.ReadString('\n')`,
 			Remediation:     "Select glyphs via the capability profile (glyphs=auto|unicode|ascii); never infer width from rune count",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"GLYPH-001"},
+			Detection:       "guidance", // no cheap single-file detector: cell-width vs rune-count is a runtime measurement question, not a static AST pattern
 			Since:           "0.6.0",
 			Certainty:       "heuristic",
 		},
@@ -458,6 +465,7 @@ task.Progress(14, 40) // sealed once discovery completes; never re-sealed`,
 			Category:  "CON",
 			Severity:  "error",
 			Invariant: "Partial is a completeness modifier; exit codes come from Outcome alone, and 130 is reserved for interruption",
+			Detection: "guidance", // no cheap single-file detector: correct exit code use is unobservable from source (evo.Main hides the mapping)
 			Why:       "Hand-mapping an exit code outside 0/1/2/130, or using 130 for something other than an actual interrupt, breaks the contract wrapping scripts and CI rely on.",
 			BadCode: `if blocked {
   os.Exit(3) // hand-mapped code outside Outcome's 0/1/2/130
