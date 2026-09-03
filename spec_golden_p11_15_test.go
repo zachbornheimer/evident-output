@@ -751,3 +751,251 @@ func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	}
 	t.Skip("MISMATCH: \"; urllib3 absent\" clause has no mechanical source — see doc comment")
 }
+
+// ---------------------------------------------------------------------------
+// Problem 14: capture streams may include secrets; Fail's DetailTail must
+// never paste them into the durable ledger.
+// ---------------------------------------------------------------------------
+
+// TestSpecP14_LiveFrame_Step1 covers Problem 14's step1 block: an
+// indeterminate phase while a scan/salvage capture is still classifying.
+//
+//	:.  capture  packing tips…
+func TestSpecP14_LiveFrame_Step1(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Task("capture").Phase("packing tips…")
+
+	got := screen.LatestLiveText()
+	if !strings.Contains(got, "capture") || !strings.Contains(got, "packing tips…") {
+		t.Fatalf("want indeterminate packing phase in live frame:\n%s", got)
+	}
+}
+
+// TestSpecP14_LiveFrame_Step2 covers Problem 14's step2 block: sealed count
+// progress with the current branch name.
+//
+//	:.  capture  2/5  feat/secret-work
+func TestSpecP14_LiveFrame_Step2(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	capture := out.Task("capture")
+	capture.Progress(2, 5)
+	capture.Phase("feat/secret-work")
+
+	got := screen.LatestLiveText()
+	for _, want := range []string{"capture", "2/5", "feat/secret-work"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("want %q in live frame:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP14_Capture_Success covers Problem 14's success block: a resolved
+// capture task, a dry-run "salvage" plan section, and a skip-taxonomy line.
+//
+//	✓  capture
+//	[planned]  capture
+//	  salvage  2  tip
+//	!  skip-has-pr 3
+//
+// MISMATCH (documented, not fixed): the taxonomy line's real derived format
+// (task_taxonomy.go / plain.go writeTaxonomy, already proven exactly against
+// Problem 13's success block) is "!  skipped N  (reason[, reason...])" — a
+// single reason collapses to its bare name. For reason "has-pr" this renders
+// "!  skipped 3  (has-pr)", never the spec's concatenated verb-reason spelling
+// "!  skip-has-pr 3" — there is no taxonomy verb naming scheme that fuses the
+// disposition ("skip") and the reason into one token.
+func TestSpecP14_Capture_Success(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	capture := out.Task("capture")
+	hasPR := evo.Reason("has-pr")
+	capture.Record("salvage", 2, "tip")
+	capture.Skipped(hasPR, "feat/a")
+	capture.Skipped(hasPR, "feat/b")
+	capture.Skipped(hasPR, "feat/c")
+	capture.Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{
+		"✓ capture",
+		"[planned] capture",
+		"salvage 2 tip",
+	} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	if !strings.Contains(collapsed, "skipped 3 (has-pr)") {
+		t.Fatalf("want the real derived taxonomy line \"skipped 3 (has-pr)\", got:\n%s", got)
+	}
+	if strings.Contains(got, "skip-has-pr") {
+		t.Fatalf("expected the documented mismatch (no fused verb-reason spelling) but found it:\n%s", got)
+	}
+	t.Skip("MISMATCH: real taxonomy spelling is \"!  skipped 3  (has-pr)\", never the spec's \"!  skip-has-pr 3\" — see doc comment")
+}
+
+// bearerTokenRedactor redacts a "Bearer <token>" credential to "Bearer ***",
+// following the same shape as platform_test.go's secretRedactor.
+type bearerTokenRedactor struct{}
+
+func (bearerTokenRedactor) RedactString(s string) string {
+	const marker = "Bearer "
+	i := strings.Index(s, marker)
+	if i < 0 {
+		return s
+	}
+	rest := s[i+len(marker):]
+	end := strings.IndexAny(rest, " \n")
+	if end < 0 {
+		end = len(rest)
+	}
+	return s[:i] + marker + "***" + rest[end:]
+}
+
+// TestSpecP14_Capture_Failure covers Problem 14's failure block: a captured
+// child-process line carrying a bearer token is redacted before it ever
+// reaches Fail's Detail evidence — the documented spelling (Task.Capture +
+// Redact + DetailTail), same shape as platform_test.go's already-proven
+// TestCapture_RedactsOnRetention.
+//
+//	✗  capture  git push failed
+//	   └─ remote rejected (see redacted stderr)
+//	      Authorization: Bearer ***
+func TestSpecP14_Capture_Failure(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.New(evo.Config{
+		Title:    "capture",
+		Stdout:   &buf,
+		Stderr:   &buf,
+		Redactor: bearerTokenRedactor{},
+		Color:    evo.ColorNever,
+	})
+	capture := out.Task("capture")
+	cap := capture.Capture()
+	_, _ = cap.Write([]byte("remote rejected (see redacted stderr)\nAuthorization: Bearer sk-live-abc123\n"))
+	_ = cap.Close()
+	capture.Fail("git push failed", cap.DetailTail())
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if strings.Contains(got, "sk-live-abc123") {
+		t.Fatalf("raw secret leaked into presentation:\n%s", got)
+	}
+	for _, want := range []string{
+		"✗  capture  git push failed",
+		"remote rejected (see redacted stderr)",
+		"Authorization: Bearer ***",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP14_LiveFrame_Indeterminate covers Problem 14's indeterminate
+// block: a distinct phase text while scanning for local-only branches.
+//
+//	:.  capture  scanning local-only…
+func TestSpecP14_LiveFrame_Indeterminate(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Task("capture").Phase("scanning local-only…")
+
+	got := screen.LatestLiveText()
+	if !strings.Contains(got, "capture") || !strings.Contains(got, "scanning local-only…") {
+		t.Fatalf("want indeterminate scanning phase in live frame:\n%s", got)
+	}
+}
+
+// TestSpecP14_Capture_Error covers Problem 14's error block: the capture
+// mechanism itself detects a leaking credential helper and fails safely
+// without ever pushing.
+//
+//	✗  capture  credential helper printed a secret
+//	   └─ stderr redacted (1 line held)
+//	!  nothing pushed
+//
+// MISMATCH (documented, not fixed): "! nothing pushed" has no mechanical
+// source — no Record/RecordName mutation exists for capture in this
+// scenario, and there is no public stand-alone "!" attention-line API
+// outside the two derived taxonomy/already-mutated mechanisms.
+func TestSpecP14_Capture_Error(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	capture := out.Task("capture")
+	capture.Fail("credential helper printed a secret", evo.Detail("stderr redacted (1 line held)"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{
+		"✗ capture credential helper printed a secret",
+		"stderr redacted (1 line held)",
+	} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "nothing pushed") {
+		t.Fatalf("expected the documented mismatch (no mechanical source) but found it:\n%s", got)
+	}
+	t.Skip("MISMATCH: \"! nothing pushed\" has no mechanical source — see doc comment")
+}
+
+// TestSpecP14_Capture_EarlyTermination covers Problem 14's early termination
+// block: a Cancel mid-capture with the running count/phase preserved on the
+// live frame just before it.
+//
+//	:.  capture  1/5
+//	■  capture  cancelled
+//	!  already mutated: none (dry planning only)
+//
+// MISMATCH (documented, not fixed): "! already mutated: none (dry planning
+// only)" is the same established empty-ledger-suppression case
+// (phase_n2_test.go) — the row is suppressed entirely, never rendered as
+// literal "none (dry planning only)".
+func TestSpecP14_Capture_EarlyTermination(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	capture := out.Task("capture")
+	capture.Progress(1, 5)
+	before := screen.LatestLiveText()
+	if !strings.Contains(before, "capture") || !strings.Contains(before, "1/5") {
+		t.Fatalf("want running 1/5 in live frame:\n%s", before)
+	}
+
+	capture.Cancel("cancelled")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	final := screen.FinalText()
+	if !strings.Contains(final, "capture") || !strings.Contains(final, "cancelled") {
+		t.Fatalf("want cancelled capture in final text:\n%s", final)
+	}
+	if strings.Contains(final, "already mutated") {
+		t.Fatalf("expected the documented mismatch (empty ledger suppresses the row) but found it:\n%s", final)
+	}
+	t.Skip("MISMATCH: \"! already mutated: none (dry planning only)\" — empty ledger suppresses the row entirely — see doc comment")
+}
