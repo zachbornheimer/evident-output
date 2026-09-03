@@ -182,16 +182,16 @@ func GoSource(filename, src string) Result {
 			}
 		}
 
-		// API-029: DebugWriter for child-process evidence (prefer Task.Capture)
+		// API-029: DebugWriter for child-process evidence (prefer Task.Evidence)
 		if hasEvo && name == "DebugWriter" && isLikelyEvoReceiver(sel.X) {
 			findings = append(findings, Finding{
 				RuleID:     "API-029",
 				Severity:   "warning",
-				Message:    "DebugWriter is for intentional DEBUG journal lines; use task.Capture() for subprocess stdout/stderr evidence",
+				Message:    "DebugWriter is for intentional DEBUG journal lines; use task.Evidence() for subprocess stdout/stderr evidence",
 				File:       filename,
 				Line:       pos.Line,
 				Column:     pos.Column,
-				Suggestion: "replace DebugWriter() with task.Capture(), then task.Fail(msg, evo.Cause(err), output.DetailTail())",
+				Suggestion: `replace DebugWriter() with task.Evidence(), then return task.Failf("...: %w", err) on failure`,
 			})
 		}
 
@@ -550,7 +550,7 @@ func strconvUnquote(s string) (string, error) {
 // exprDottedName renders a simple dotted identifier chain (a.b.c) for an
 // Ident or SelectorExpr receiver; returns "" for anything else (e.g. a call
 // result), which intentionally excludes evo's own writer constructors
-// (task.Capture(), out.PhaseWriter()) from the STREAM-003 indirection check —
+// (task.Evidence(), out.PhaseWriter()) from the STREAM-003 indirection check —
 // their return value is never bound to a stream-named identifier at the call
 // site itself.
 func exprDottedName(e ast.Expr) string {
