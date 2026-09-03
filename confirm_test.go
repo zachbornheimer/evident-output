@@ -139,6 +139,50 @@ func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) 
 	}
 }
 
+// TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag is red-first for the
+// hardcoded "--yes" hint: without PolicyHint, the policy block still points
+// at --yes (today's behavior, unchanged by the strict-widening option).
+func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
+	out := evo.NewWithOptions(
+		evo.To(io.Discard),
+		evo.NonInteractive(),
+		evo.Stdin(&panicReader{t: t}),
+	)
+
+	out.Confirm("delete origin/production-hotfix?")
+
+	item := out.Snapshot().Items[0]
+	if len(item.Actions) == 0 || !strings.Contains(item.Actions[0].Label, "--yes") {
+		t.Fatalf("actions = %+v, want default --yes hint", item.Actions)
+	}
+}
+
+// TestConfirm_NonInteractive_PolicyHint_OverridesDefaultYesHint is red-first
+// for evo.PolicyHint: a caller whose confirm flag isn't --yes (e.g. zq
+// clean-repo's --apply) must see its own flag in the policy-block hint, not
+// the hardcoded "--yes" text.
+func TestConfirm_NonInteractive_PolicyHint_OverridesDefaultYesHint(t *testing.T) {
+	out := evo.NewWithOptions(
+		evo.To(io.Discard),
+		evo.NonInteractive(),
+		evo.Stdin(&panicReader{t: t}),
+	)
+
+	out.Confirm("clean the repo?", evo.PolicyHint("zq", "clean-repo", "--apply"))
+
+	item := out.Snapshot().Items[0]
+	if len(item.Actions) == 0 || item.Actions[0].Command == nil {
+		t.Fatalf("actions = %+v, want a command action", item.Actions)
+	}
+	got := item.Actions[0].Command
+	if got.Executable != "zq" || strings.Join(got.Args, " ") != "clean-repo --apply" {
+		t.Fatalf("hint command = %+v, want zq clean-repo --apply", got)
+	}
+	if strings.Contains(item.Actions[0].Label, "--yes") {
+		t.Fatalf("actions = %+v, want no --yes hint once PolicyHint is set", item.Actions)
+	}
+}
+
 // TestConfirm_QuiescesLiveRegion_NoFramesBetweenPromptAndAnswer proves the
 // live region is cleared before the prompt and produces no further live
 // frames while Confirm waits on the answer (evo-rec.md: "no spinner while

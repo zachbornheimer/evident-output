@@ -24,6 +24,16 @@ type ConfirmOption func(*confirmConfig)
 type confirmConfig struct {
 	assumeYes   bool
 	destructive bool
+	policyHint  Action
+}
+
+// resolvedPolicyHint returns the caller's PolicyHint action, or the default
+// "pass --yes" label when the caller didn't set one.
+func (c confirmConfig) resolvedPolicyHint() Action {
+	if c.policyHint != (Action{}) {
+		return c.policyHint
+	}
+	return Label(confirmPolicyHint)
 }
 
 // AssumeYes skips the interactive prompt when v is true (the caller's --yes
@@ -36,6 +46,15 @@ func AssumeYes(v bool) ConfirmOption {
 // Destructive annotates the rendered prompt line as "(destructive)".
 func Destructive() ConfirmOption {
 	return func(c *confirmConfig) { c.destructive = true }
+}
+
+// PolicyHint overrides the Next action rendered by Confirm's non-interactive
+// policy block. Without this option the block points at "pass --yes to
+// confirm non-interactively" — wrong for a caller whose confirm flag isn't
+// --yes (e.g. zq clean-repo's --apply). Pass the caller's own executable and
+// args so the hint names the flag that actually unblocks it.
+func PolicyHint(command string, args ...string) ConfirmOption {
+	return func(c *confirmConfig) { c.policyHint = Command(command, args...) }
 }
 
 // Confirm asks a yes/no question on the default instance. See Output.Confirm.
@@ -79,21 +98,21 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 	}
 
 	if o.cfg.plain || o.cfg.nonInteractive {
-		item.Block(confirmPolicyBlockedSummary).Next(Label(confirmPolicyHint))
+		item.Block(confirmPolicyBlockedSummary).Next(cfg.resolvedPolicyHint())
 		return false
 	}
 
-	return o.promptConfirm(item, question, cfg.destructive)
+	return o.promptConfirm(item, question, cfg)
 }
 
 // promptConfirm quiesces the live region for the whole ask-decide-resolve
 // window so no live frame can land between the prompt and the durable
 // OK/Blocked row — the gate resolves before Suspend resumes any unrelated
 // live activity (e.g. a sibling Task still Running).
-func (o *Output) promptConfirm(item *ItemHandle, question string, destructive bool) bool {
+func (o *Output) promptConfirm(item *ItemHandle, question string, cfg confirmConfig) bool {
 	var yes bool
 	_ = o.Suspend(func() error {
-		o.writeConfirmPromptLocked(question, destructive)
+		o.writeConfirmPromptLocked(question, cfg.destructive)
 		line, cancelled, eof := o.readConfirmLine(item.id)
 		if cancelled {
 			// cancelPendingConfirmLocked already resolved the gate as Cancelled.
@@ -104,7 +123,7 @@ func (o *Output) promptConfirm(item *ItemHandle, question string, destructive bo
 			// e.g. stdin closed or redirected from /dev/null) is a policy
 			// block, distinct from a human explicitly typing anything else —
 			// evo-rec.md "Confirm EOF = policy block, not decline".
-			item.Block(confirmPolicyBlockedSummary).Next(Label(confirmPolicyHint))
+			item.Block(confirmPolicyBlockedSummary).Next(cfg.resolvedPolicyHint())
 			return nil
 		}
 		yes = isAffirmative(line)
