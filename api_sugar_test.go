@@ -70,6 +70,20 @@ func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
 	}
 }
 
+func TestAPISugar_ReasonfFormatsAndGetsOrCreates(t *testing.T) {
+	var buf strings.Builder
+	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+
+	first := evo.Reasonf("stage %d", 2)
+	if got := first.Name(); got != "stage 2" {
+		t.Fatalf("name = %q, want %q", got, "stage 2")
+	}
+	second := evo.Reason("stage 2")
+	if first.Name() != second.Name() {
+		t.Fatal("expected Reasonf's formatted name to get-or-create the same bucket as Reason")
+	}
+}
+
 // --- Item 0: Fail/Block are statement-form; Failf/Blockf return %w errors ---
 
 func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {

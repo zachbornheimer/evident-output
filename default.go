@@ -1,6 +1,9 @@
 package evo
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 // defaultMu guards defaultOut, the package-level default instance installed
 // by Init/SetDefault and read by Default and the package-level Task/Item/
@@ -83,6 +86,13 @@ func Group(name string, args ...any) *GroupHandle {
 // not required for correctness.
 func Reason(name string, opts ...ReasonOption) TaxonomyReason {
 	return Default().reasonGetOrCreate(name, opts...)
+}
+
+// Reasonf returns a get-or-create taxonomy Reason on the default instance
+// using a printf-formatted name (fmt.Sprintf semantics) — the formatted text
+// is the get-or-create key, same identity rule as Reason.
+func Reasonf(format string, args ...any) TaxonomyReason {
+	return Reason(fmt.Sprintf(format, args...))
 }
 
 // Print formats like fmt.Sprint and enqueues human-facing text on the default instance.
