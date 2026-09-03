@@ -287,13 +287,13 @@ func TestSpecP8_PartialTruthSurvivesRemoteAuthFailure(t *testing.T) {
 	}
 }
 
-// TestSpecP13_NothingToDo_Success covers evo-rec.md Problem 13 (empty-success
+// TestSpecP15_NothingToDo_Success covers evo-rec.md Problem 15 (empty-success
 // paths get a quiet Item OK plus one plain line, never an invented warning or
 // a spinning zero-count task).
 //
 //	✓  clean
 //	nothing to clean
-func TestSpecP13_NothingToDo_Success(t *testing.T) {
+func TestSpecP15_NothingToDo_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
@@ -313,14 +313,14 @@ func TestSpecP13_NothingToDo_Success(t *testing.T) {
 	}
 }
 
-// TestSpecP16_RemoteTrackingVsRemoteDelete_Success covers evo-rec.md Problem
-// 16 (fetch --prune stale remote-tracking refs must never share a subject
+// TestSpecP18_RemoteTrackingVsRemoteDelete_Success covers evo-rec.md Problem
+// 18 (fetch --prune stale remote-tracking refs must never share a subject
 // with a real `git push --delete` remote branch delete) success block:
 // distinct Plan/Changes subjects, distinct verbs.
 //
 //	[changed]  remote-tracking
 //	  pruned  12  stale origin/*
-func TestSpecP16_RemoteTrackingVsRemoteDelete_Success(t *testing.T) {
+func TestSpecP18_RemoteTrackingVsRemoteDelete_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
@@ -338,13 +338,13 @@ func TestSpecP16_RemoteTrackingVsRemoteDelete_Success(t *testing.T) {
 		}
 	}
 	// The subject must never be spelled "remotes" — that name is reserved for
-	// real push --delete destructive verbs (Problem 2 / Problem 16 divergence).
+	// real push --delete destructive verbs (Problem 2 / Problem 18 divergence).
 	if strings.Contains(got, "[changed]  remotes\n") {
 		t.Fatalf("remote-tracking prune must not share the \"remotes\" subject, got:\n%s", got)
 	}
 }
 
-// TestSpecP17_ASCIIGlyphFallback_Success covers evo-rec.md Problem 17
+// TestSpecP25_ASCIIGlyphFallback_Success covers evo-rec.md Problem 25
 // (non-UTF-8 locale / dumb terminal: identical dialect, ASCII faces) success
 // block — GlyphsASCII must render "[ok]"/"[!]" markers, never mojibake or
 // bare Unicode.
@@ -352,7 +352,7 @@ func TestSpecP16_RemoteTrackingVsRemoteDelete_Success(t *testing.T) {
 //	[ok] branches   14 deleted
 //	[ok] worktrees  2 removed
 //	[!]  skipped 6  (protected, dirty)
-func TestSpecP17_ASCIIGlyphFallback_Success(t *testing.T) {
+func TestSpecP25_ASCIIGlyphFallback_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state,
 	// same as the existing default-instance tests in taxonomy_test.go.
 	var buf bytes.Buffer
@@ -382,12 +382,12 @@ func TestSpecP17_ASCIIGlyphFallback_Success(t *testing.T) {
 	}
 }
 
-// TestSpecP19_DataFormat_PresentationNeverTouchesPayloadStream covers
-// evo-rec.md Problem 19 (--json pipes stdout to jq; presentation and data
+// TestSpecP24_DataFormat_PresentationNeverTouchesPayloadStream covers
+// evo-rec.md Problem 24 (--json pipes stdout to jq; presentation and data
 // must never share a stream): FormatData's ResultWriter is a distinct stream
 // from the presentation destination, so a spinner/✓ row can never land in
 // the payload.
-func TestSpecP19_DataFormat_PresentationNeverTouchesPayloadStream(t *testing.T) {
+func TestSpecP24_DataFormat_PresentationNeverTouchesPayloadStream(t *testing.T) {
 	t.Parallel()
 	var presentation, payload bytes.Buffer
 	out := evo.New(evo.Config{
