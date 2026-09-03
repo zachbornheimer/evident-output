@@ -739,3 +739,135 @@ func TestSpecP24_DataFormat_EarlyTermination_Mismatch(t *testing.T) {
 	}
 	t.Skip("MISMATCH: the cancelled row's reason text is \"interrupted\" (run.go hard-codes it for every signal cancellation), never \"cancelled at 40/128\" — see doc comment")
 }
+
+// TestSpecP25_ASCIIGlyphFallback_Step2 covers evo-rec.md Problem 25's step2
+// block: the ASCII profile's sequential-action shape — a Done row plus one
+// Running child, driven with an absolute Progress+Phase to reach the
+// documented "1/3" exactly rather than Each's before-yield "0/3".
+//
+//	[ok] branches  14 deleted
+//	/    worktrees 1/3  ../.worktrees/app-sah-1
+func TestSpecP25_ASCIIGlyphFallback_Step2(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII))
+
+	out.Task("branches").Done("14 deleted")
+	worktrees := out.Task("worktrees")
+	worktrees.Progress(1, 3)
+	worktrees.Phase("../.worktrees/app-sah-1")
+
+	live := screen.LatestLiveText()
+	for _, want := range []string{"[ok]", "branches", "14 deleted", "worktrees", "1/3", "../.worktrees/app-sah-1"} {
+		if !strings.Contains(live, want) {
+			t.Fatalf("want %q in ASCII-profile live frame, got %q", want, live)
+		}
+	}
+	if strings.ContainsAny(live, "✓✗⊘■○→…") {
+		t.Fatalf("ASCII profile must not leak a Unicode state glyph, got %q", live)
+	}
+}
+
+// TestSpecP25_ASCIIGlyphFallback_Failure_Mismatch covers Problem 25's failure
+// block.
+//
+//	[x]  remotes  auth failed
+//	     -> remote: Invalid username or token
+//
+// MISMATCH (spec-stale versus the Adopted revisions table, not fixed): the
+// real ASCII Evidence marker is "- " (evo-rec.md "Adopted revisions" ->
+// "Tightened glyph vocabulary": Evidence Unicode "└─" maps to ASCII "`- `"),
+// so the real render is "   - remote: Invalid username or token", never the
+// "->" arrow this older Problem 25 block predates.
+func TestSpecP25_ASCIIGlyphFallback_Failure_Mismatch(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII))
+	remotes := out.Task("remotes")
+	remotes.Fail("auth failed", evo.Detail("remote: Invalid username or token"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"[x] remotes auth failed", "remote: Invalid username or token"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	t.Skip("MISMATCH: real ASCII Evidence marker is \"- \" (Adopted revisions glyph table), rendered as \"   - remote: Invalid username or token\", never the stale \"-> \" arrow this Problem 25 block predates — see doc comment")
+}
+
+// TestSpecP25_ASCIIGlyphFallback_Error_Mismatch covers Problem 25's error
+// block — the same stale Evidence-marker gap as the failure cell above.
+//
+//	[x] branches  cannot lock ref
+//	    -> another git process seems to be running
+func TestSpecP25_ASCIIGlyphFallback_Error_Mismatch(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII))
+	branches := out.Task("branches")
+	branches.Fail("cannot lock ref", evo.Detail("another git process seems to be running"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"[x] branches cannot lock ref", "another git process seems to be running"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	t.Skip("MISMATCH: real ASCII Evidence marker is \"- \" (Adopted revisions glyph table), never the stale \"-> \" arrow this Problem 25 block predates — see doc comment")
+}
+
+// TestSpecP25_ASCIIGlyphFallback_EarlyTermination_Mismatch covers Problem
+// 25's early termination block, exercised through the real SIGINT path.
+//
+//	[ok] branches  8 deleted
+//	[~]  worktrees cancelled - 0 removed
+//	[!]  already mutated: 8 local deletes
+//
+// MISMATCH (spec-stale versus the Adopted revisions table plus a hard-coded
+// reason string, not fixed): the real ASCII Cancelled marker is "[cancel]"
+// (glyph.go: glyphCancelled = {"■", "[cancel]"}), never the stale "[~]" this
+// block predates; the cancelled row always annotates "interrupted", never
+// "cancelled - 0 removed"; and the derived "already mutated" line reads "8
+// local deleted" (singular verb, mechanically derived), never the spec's "8
+// local deletes".
+func TestSpecP25_ASCIIGlyphFallback_EarlyTermination_Mismatch(t *testing.T) {
+	var buf bytes.Buffer
+	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)))
+	branches := evo.Task("branches")
+	worktrees := evo.Task("worktrees")
+
+	started := make(chan struct{})
+	go func() {
+		<-started
+		time.Sleep(20 * time.Millisecond)
+		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
+	}()
+
+	code := evo.Main(func() error {
+		branches.Record("delete", 8, "local")
+		branches.Done("8 deleted")
+		worktrees.Record("remove", 0, "worktrees")
+		close(started)
+		deadline := time.Now().Add(2 * time.Second)
+		for worktrees.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		return nil
+	})
+
+	if code != evo.ExitCancelled {
+		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
+	}
+	got := buf.String()
+	if !strings.Contains(got, "[ok]  branches  8 deleted") {
+		t.Fatalf("want the Done branches row, got:\n%s", got)
+	}
+	if !strings.Contains(got, "worktrees") {
+		t.Fatalf("want a worktrees row, got:\n%s", got)
+	}
+	t.Skip("MISMATCH: real ASCII Cancelled marker is \"[cancel]\" (Adopted revisions glyph table), never the stale \"[~]\"; the reason text is \"interrupted\", never \"cancelled - 0 removed\"; and the derived \"already mutated\" line reads \"8 local deleted\", never \"8 local deletes\" — see doc comment")
+}
