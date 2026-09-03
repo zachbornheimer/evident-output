@@ -71,6 +71,13 @@ type Config struct {
 	// Title is the subject shown in the conclusion (formerly For's argument).
 	Title string
 
+	// Subject is an optional durable line rendered once, immediately, right
+	// under the title — a repo path, a target host, the thing every
+	// projection needs the reader to see up front. Set it once in Config
+	// instead of calling out.Println(root) (or whatever the identifying
+	// value is) at every projection/command that needs to show it.
+	Subject string
+
 	// Stdout is the ordinary human stream (default os.Stdout).
 	// In FormatData mode, Stdout is reserved for domain payload via ResultWriter;
 	// human presentation moves to Stderr.

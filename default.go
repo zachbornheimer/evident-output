@@ -47,6 +47,9 @@ func Init(cfg Config) *Output {
 		SetDefault(out)
 		out.arm()
 	}
+	if cfg.Subject != "" {
+		out.Println(cfg.Subject)
+	}
 	return out
 }
 
