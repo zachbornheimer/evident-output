@@ -282,6 +282,40 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectProgressInPhaseString(filename, src)...)
 	}
 
+	// BOUND-001: an unbounded slice joined straight into Because/Detail/Phase
+	// reproduces the terminal flood evo-rec.md's bounded-rows fix already
+	// closed for Plan/Changes.
+	if hasEvo {
+		findings = append(findings, detectUnboundedSliceIntoNarration(filename, src)...)
+	}
+
+	// API-030: Task/Tasks.Task declared inside a goroutine or g.Go closure
+	// races task creation with rendering (evo-rec.md "predeclare Tasks").
+	if hasEvo {
+		findings = append(findings, detectTaskDeclaredInsideFanOut(filename, src)...)
+	}
+
+	// API-031: a hand-rolled io.Writer whose Write calls TaskHandle.Phase
+	// reimplements Task.PhaseWriter (evo-rec.md "#6").
+	if hasEvo {
+		findings = append(findings, detectHandRolledPhaseWriter(filename, src)...)
+	}
+
+	// CONFIRM-002: a destructive-sounding Confirm question missing Destructive().
+	if hasEvo {
+		findings = append(findings, detectConfirmMissingDestructive(filename, src)...)
+	}
+
+	// CON-002: a joined failure list printed directly duplicates Conclusion.
+	if hasEvo {
+		findings = append(findings, detectHandAssembledFailureSummary(filename, src)...)
+	}
+
+	// FP-004: a Phase string with no domain object is an illegible placeholder.
+	if hasEvo {
+		findings = append(findings, detectPlaceholderPhase(filename, src)...)
+	}
+
 	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
@@ -1011,6 +1045,208 @@ func detectProgressInPhaseString(filename, src string) []Finding {
 			File:       filename,
 			Line:       lineAt(src, m[0]),
 			Suggestion: suggestion,
+		})
+	}
+	return findings
+}
+
+// sliceIntoNarrationPattern matches an unbounded strings.Join passed straight
+// into Because/Detail/Phase.
+var sliceIntoNarrationPattern = regexp.MustCompile(`\.(Because|Detail|Phase)\(\s*strings\.Join\(`)
+
+// detectUnboundedSliceIntoNarration flags a strings.Join(slice, ...) passed
+// directly to Because/Detail/Phase without evo.TruncateNames — the same
+// terminal flood evo-rec.md's bounded-rows fix already closed for
+// Plan/Changes, one call site removed.
+func detectUnboundedSliceIntoNarration(filename, src string) []Finding {
+	if strings.Contains(src, "TruncateNames(") {
+		return nil
+	}
+	var findings []Finding
+	for _, m := range sliceIntoNarrationPattern.FindAllStringSubmatchIndex(src, -1) {
+		method := src[m[2]:m[3]]
+		findings = append(findings, Finding{
+			RuleID:     "BOUND-001",
+			Severity:   "warning",
+			Message:    "strings.Join of an unbounded slice passed to " + method + "; wrap it in evo.TruncateNames before rendering",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace strings.Join(...) with evo.TruncateNames(names, 8) inside ." + method + "(...)",
+		})
+	}
+	return findings
+}
+
+// fanOutClosureMarkers are the two shapes a fan-out worker closure takes:
+// a bare goroutine, or a closure handed to an errgroup-style .Go(func...).
+var fanOutClosureMarkers = []string{"go func(", ".Go(func("}
+
+// detectTaskDeclaredInsideFanOut flags out.Task/Tasks.Task called inside a
+// goroutine or g.Go closure — declaring the Task there races task creation
+// with rendering and produces the unordered multi-spinner defect evo-rec.md
+// "predeclare Tasks; present one Running" forbids.
+func detectTaskDeclaredInsideFanOut(filename, src string) []Finding {
+	var findings []Finding
+	for _, marker := range fanOutClosureMarkers {
+		for i := 0; i < len(src); {
+			idx := strings.Index(src[i:], marker)
+			if idx < 0 {
+				break
+			}
+			idx += i
+			body, start, ok := balancedBraceBody(src, idx)
+			if !ok {
+				break
+			}
+			if strings.Contains(body, ".Task(") {
+				findings = append(findings, Finding{
+					RuleID:     "API-030",
+					Severity:   "error",
+					Message:    "Task declared inside a goroutine/fan-out closure; predeclare all Tasks before starting any goroutine",
+					File:       filename,
+					Line:       lineAt(src, start),
+					Suggestion: "move the .Task(...) call above the goroutine/g.Go and pass the handle into the closure",
+				})
+			}
+			i = start + len(body)
+		}
+	}
+	return findings
+}
+
+// writeMethodDeclPattern matches a Write method declaration on any receiver
+// type, the io.Writer interface shape a hand-rolled phase adapter implements.
+var writeMethodDeclPattern = regexp.MustCompile(`func \([^)]*\)\s*Write\(`)
+
+// detectHandRolledPhaseWriter flags a caller-defined io.Writer whose Write
+// method calls TaskHandle.Phase — reimplementing the exact line-splitting
+// adapter Task.PhaseWriter already owns (evo-rec.md "#6").
+func detectHandRolledPhaseWriter(filename, src string) []Finding {
+	var findings []Finding
+	for _, loc := range writeMethodDeclPattern.FindAllStringIndex(src, -1) {
+		body, start, ok := balancedBraceBody(src, loc[1])
+		if !ok {
+			continue
+		}
+		if strings.Contains(body, ".Phase(") {
+			findings = append(findings, Finding{
+				RuleID:     "API-031",
+				Severity:   "warning",
+				Message:    "hand-rolled io.Writer.Write calls TaskHandle.Phase; use Task.PhaseWriter() instead",
+				File:       filename,
+				Line:       lineAt(src, start),
+				Suggestion: "delete this Write method and wire the subprocess's Stdout/Stderr to task.PhaseWriter()",
+			})
+		}
+	}
+	return findings
+}
+
+// confirmCallPattern captures a Confirm call's question literal.
+var confirmCallPattern = regexp.MustCompile(`Confirm\(\s*"([^"]*)"`)
+
+// destructiveVerbPattern matches the severe-action verbs evo-rec.md's confirm
+// gate calls out by name.
+var destructiveVerbPattern = regexp.MustCompile(`(?i)delete|remove|trash|retire|force`)
+
+// matchingParen returns the index of the ')' matching the '(' at openIdx, or
+// -1 if unbalanced.
+func matchingParen(src string, openIdx int) int {
+	depth := 0
+	for i := openIdx; i < len(src); i++ {
+		switch src[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// detectConfirmMissingDestructive flags a Confirm question naming a severe
+// action (delete/remove/trash/retire/force) without evo.Destructive() among
+// its options — the "(destructive)" cue a user needs before approving it.
+func detectConfirmMissingDestructive(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range confirmCallPattern.FindAllStringSubmatchIndex(src, -1) {
+		question := src[m[2]:m[3]]
+		if !destructiveVerbPattern.MatchString(question) {
+			continue
+		}
+		openIdx := strings.Index(src[m[0]:], "(")
+		if openIdx < 0 {
+			continue
+		}
+		openIdx += m[0]
+		closeIdx := matchingParen(src, openIdx)
+		if closeIdx < 0 || strings.Contains(src[openIdx:closeIdx], "Destructive(") {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "CONFIRM-002",
+			Severity:   "warning",
+			Message:    "Confirm question reads as destructive but is missing evo.Destructive()",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "add evo.Destructive() to this Confirm call's options",
+		})
+	}
+	return findings
+}
+
+// printJoinPattern matches a Print/Println/Printf call fed a joined list —
+// the hand-assembled failure summary evo-rec.md's Conclusion already owns.
+var printJoinPattern = regexp.MustCompile(`\.(Print|Println|Printf)\(\s*strings\.Join\(`)
+
+// detectHandAssembledFailureSummary flags a Print* call whose argument joins
+// a collected list — that summary duplicates Conclusion and can drift from
+// the glyphs/exit code the ledger already shows.
+func detectHandAssembledFailureSummary(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range printJoinPattern.FindAllStringIndex(src, -1) {
+		findings = append(findings, Finding{
+			RuleID:     "CON-002",
+			Severity:   "warning",
+			Message:    "printing a joined list duplicates the Conclusion summary; resolve each item on its own Item/Task instead",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace with one Item/Task per entry, and Next(evo.Label(...)) for follow-up guidance",
+		})
+	}
+	return findings
+}
+
+// placeholderPhasePattern matches a bare-literal Phase call (no concatenation
+// or Sprintf), the shape a placeholder narration string takes.
+var placeholderPhasePattern = regexp.MustCompile(`\.Phase\(\s*"([^"]*)"\s*\)`)
+
+// placeholderPhaseWords are Phase strings that name no domain object — the
+// user cannot tell this frame from the last one (evo-rec.md "Phase carries
+// the current object").
+var placeholderPhaseWords = map[string]bool{
+	"starting": true, "working": true, "running": true, "please wait": true,
+}
+
+// detectPlaceholderPhase flags a Phase literal that is one of the generic
+// placeholder words instead of naming the object currently in motion.
+func detectPlaceholderPhase(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range placeholderPhasePattern.FindAllStringSubmatchIndex(src, -1) {
+		lit := strings.ToLower(strings.TrimSpace(src[m[2]:m[3]]))
+		if !placeholderPhaseWords[lit] {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "FP-004",
+			Severity:   "warning",
+			Message:    `Phase("` + lit + `") names no domain object; the user can't tell this frame from the last one`,
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: `name the object in motion, e.g. Phase("scanning " + name)`,
 		})
 	}
 	return findings

@@ -454,6 +454,270 @@ func f(task *evo.TaskHandle) {
 	}
 }
 
+func TestBOUND001_UnboundedSliceJoinIntoDetail(t *testing.T) {
+	bad := `package p
+import (
+  "strings"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, names []string) {
+  task.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "BOUND-001" {
+			found = true
+			if f.Suggestion == "" {
+				t.Error("BOUND-001 missing suggestion")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected BOUND-001 on unbounded strings.Join into Detail: %+v", res.Findings)
+	}
+}
+
+func TestBOUND001_NoFalsePositiveWithTruncateNames(t *testing.T) {
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle, names []string) {
+  task.Fail("cannot delete", evo.Detail(evo.TruncateNames(names, 8)))
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "BOUND-001" {
+			t.Fatalf("false positive BOUND-001 when TruncateNames bounds the text: %+v", res.Findings)
+		}
+	}
+}
+
+func TestAPI030_TaskDeclaredInsideGoroutine(t *testing.T) {
+	bad := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output, jobs []string) {
+  for _, j := range jobs {
+    go func(j string) {
+      t := out.Task(j)
+      t.Done()
+    }(j)
+  }
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-030" {
+			found = true
+			if f.Suggestion == "" {
+				t.Error("API-030 missing suggestion")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-030 on Task declared inside goroutine: %+v", res.Findings)
+	}
+}
+
+func TestAPI030_NoFalsePositiveWhenPredeclared(t *testing.T) {
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output, jobs []string) {
+  tasks := make([]*evo.TaskHandle, len(jobs))
+  for i, j := range jobs {
+    tasks[i] = out.Task(j)
+  }
+  for i := range jobs {
+    go func(i int) {
+      tasks[i].Done()
+    }(i)
+  }
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-030" {
+			t.Fatalf("false positive API-030 when Task is predeclared: %+v", res.Findings)
+		}
+	}
+}
+
+func TestAPI031_HandRolledPhaseWriter(t *testing.T) {
+	bad := `package p
+import evo "github.com/zachbornheimer/evident-output"
+type livePhase struct{ task *evo.TaskHandle }
+func lastLine(p []byte) string { return string(p) }
+func (w *livePhase) Write(p []byte) (int, error) {
+  w.task.Phase(lastLine(p))
+  return len(p), nil
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-031" {
+			found = true
+			if f.Suggestion == "" {
+				t.Error("API-031 missing suggestion")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-031 on hand-rolled phase writer: %+v", res.Findings)
+	}
+}
+
+func TestAPI031_NoFalsePositiveOnOrdinaryWrite(t *testing.T) {
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+type buf struct{ data []byte }
+func (b *buf) Write(p []byte) (int, error) {
+  b.data = append(b.data, p...)
+  return len(p), nil
+}
+func use(out *evo.Output) { _ = out }
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-031" {
+			t.Fatalf("false positive API-031 on ordinary Write method: %+v", res.Findings)
+		}
+	}
+}
+
+func TestCONFIRM002_DestructiveQuestionMissingOption(t *testing.T) {
+	bad := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(flagYes bool) bool {
+  return evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "CONFIRM-002" {
+			found = true
+			if f.Suggestion == "" {
+				t.Error("CONFIRM-002 missing suggestion")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected CONFIRM-002 on destructive question missing Destructive(): %+v", res.Findings)
+	}
+}
+
+func TestCONFIRM002_NoFalsePositiveWithDestructive(t *testing.T) {
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() bool {
+  return evo.Confirm("delete origin/production-hotfix?", evo.Destructive())
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "CONFIRM-002" {
+			t.Fatalf("false positive CONFIRM-002 when Destructive() is present: %+v", res.Findings)
+		}
+	}
+}
+
+func TestCONFIRM002_NoFalsePositiveOnNonDestructiveQuestion(t *testing.T) {
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() bool {
+  return evo.Confirm("proceed?")
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "CONFIRM-002" {
+			t.Fatalf("false positive CONFIRM-002 on non-destructive question: %+v", res.Findings)
+		}
+	}
+}
+
+func TestCON002_PrintedJoinedFailureList(t *testing.T) {
+	bad := `package p
+import (
+  "strings"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(out *evo.Output, failures []string) {
+  out.Println(strings.Join(failures, "\n"))
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "CON-002" {
+			found = true
+			if f.Suggestion == "" {
+				t.Error("CON-002 missing suggestion")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected CON-002 on printed joined failure list: %+v", res.Findings)
+	}
+}
+
+func TestCON002_NoFalsePositiveOnPerItemResolution(t *testing.T) {
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output, failures []string) {
+  for _, name := range failures {
+    out.Item(name).Fail("failed")
+  }
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "CON-002" {
+			t.Fatalf("false positive CON-002 on per-item resolution: %+v", res.Findings)
+		}
+	}
+}
+
+func TestFP004_PlaceholderPhaseText(t *testing.T) {
+	bad := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Phase("working")
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "FP-004" {
+			found = true
+			if f.Suggestion == "" {
+				t.Error("FP-004 missing suggestion")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected FP-004 on placeholder Phase text: %+v", res.Findings)
+	}
+}
+
+func TestFP004_NoFalsePositiveOnDomainObjectPhase(t *testing.T) {
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Phase("scanning ~/Developer/Personal/zq")
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "FP-004" {
+			t.Fatalf("false positive FP-004 on domain-object Phase text: %+v", res.Findings)
+		}
+	}
+}
+
 func TestFP001_HeavyIOBeforeEvoInit(t *testing.T) {
 	bad := `package main
 import (
