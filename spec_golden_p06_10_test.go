@@ -506,18 +506,11 @@ func TestSpecP9_EarlyTermination_MISMATCH(t *testing.T) {
 // Problem 10 — CI/non-TTY must stay durable lines only, never live redraw.
 // ---------------------------------------------------------------------------
 
-// TestSpecP10_Step1_MISMATCH covers evo-rec.md Problem 10's step1 block: one
-// Running task with a phase, projected as a static line in a non-interactive
-// stream.
+// TestSpecP10_Step1 covers evo-rec.md Problem 10's step1 block: one Running
+// task with a phase, projected as a static line in a non-interactive stream.
 //
 //   - install  installing
-//
-// MISMATCH: nothing streams at all. emitTaskProgressiveLocked only emits a
-// standalone task once it reaches a terminal state (isTerminalTask guard);
-// a Running task's Phase never gets a progressive line in
-// plain/non-interactive mode, so CI output is silent until the task
-// resolves — the opposite of the spec's "static text once" promise.
-func TestSpecP10_Step1_MISMATCH(t *testing.T) {
+func TestSpecP10_Step1(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
@@ -525,23 +518,17 @@ func TestSpecP10_Step1_MISMATCH(t *testing.T) {
 	out.Task("install").Phase("installing")
 
 	got := buf.String()
-	if strings.Contains(got, "install") {
-		t.Fatal("expected the running-phase line to be MISSING (mismatch resolved — update this test)")
+	if !strings.Contains(got, "install") || !strings.Contains(got, "installing") {
+		t.Fatalf("want the Running phase line streamed immediately, got:\n%s", got)
 	}
-	t.Skip("MISMATCH: spec wants \"•  install  installing\" streamed immediately in non-interactive mode; the actual buffer is empty (" + got + ") — a Running task with only Phase set never streams progressively.")
 }
 
-// TestSpecP10_Step2_MISMATCH covers evo-rec.md Problem 10's step2 block: a
-// prior Done task stays, and the next task's progress becomes visible.
+// TestSpecP10_Step2 covers evo-rec.md Problem 10's step2 block: a prior Done
+// task stays, and the next task's progress becomes visible.
 //
 //	✓  scan
 //	•  install  14/40  requests
-//
-// MISMATCH: "✓  scan" streams immediately (terminal outcomes do stream
-// progressively), but the install row never appears — same root cause as
-// TestSpecP10_Step1_MISMATCH: Progress/Phase on a Running task in
-// non-interactive mode produces no output until that task itself resolves.
-func TestSpecP10_Step2_MISMATCH(t *testing.T) {
+func TestSpecP10_Step2(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
@@ -555,10 +542,11 @@ func TestSpecP10_Step2_MISMATCH(t *testing.T) {
 	if !strings.Contains(got, "✓") || !strings.Contains(got, "scan") {
 		t.Fatalf("want the Done scan row to stream immediately, got:\n%s", got)
 	}
-	if strings.Contains(got, "14/40") {
-		t.Fatal("expected the running install progress row to be MISSING (mismatch resolved — update this test)")
+	for _, want := range []string{"install", "14/40", "requests"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("want %q streamed for the Running install task, got:\n%s", want, got)
+		}
 	}
-	t.Skip("MISMATCH: spec wants \"•  install  14/40  requests\" appended after scan's Done row; the actual buffer only ever has the scan line (" + got + ") — Progress/Phase on a Running task never streams in non-interactive mode.")
 }
 
 // TestSpecP10_Success covers evo-rec.md Problem 10's success block: every
@@ -617,15 +605,11 @@ func TestSpecP10_Failure(t *testing.T) {
 	}
 }
 
-// TestSpecP10_LiveFrame_Indeterminate_MISMATCH covers evo-rec.md Problem 10's
+// TestSpecP10_LiveFrame_Indeterminate covers evo-rec.md Problem 10's
 // indeterminate block: scanning has started, no total yet.
 //
 //   - scan  scanning
-//
-// MISMATCH: same root cause as TestSpecP10_Step1_MISMATCH — a Running
-// task's Phase never streams in non-interactive/plain mode, so the buffer
-// is empty rather than showing a static phase line.
-func TestSpecP10_LiveFrame_Indeterminate_MISMATCH(t *testing.T) {
+func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor())
 	t.Cleanup(func() { _ = out.Close() })
@@ -633,10 +617,9 @@ func TestSpecP10_LiveFrame_Indeterminate_MISMATCH(t *testing.T) {
 	out.Task("scan").Phase("scanning")
 
 	got := buf.String()
-	if strings.Contains(got, "scan") {
-		t.Fatal("expected the running-phase line to be MISSING (mismatch resolved — update this test)")
+	if !strings.Contains(got, "scan") || !strings.Contains(got, "scanning") {
+		t.Fatalf("want the Running phase line streamed immediately, got:\n%s", got)
 	}
-	t.Skip("MISMATCH: spec wants \"•  scan  scanning\" streamed immediately in non-interactive mode; the actual buffer is empty — a Running task's Phase never streams progressively (same cause as TestSpecP10_Step1_MISMATCH).")
 }
 
 // TestSpecP10_Error covers evo-rec.md Problem 10's error block: scan

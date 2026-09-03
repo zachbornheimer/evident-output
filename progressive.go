@@ -148,6 +148,53 @@ func (o *Output) emitTaskProgressiveLocked(st *taskState) {
 	o.writeDurableTextLocked(b.String())
 }
 
+// taskProgressiveTrigger names which evidence call is streaming a Running
+// task's plain-mode line, so emitTaskRunningProgressiveLocked can rate-limit
+// each kind independently (a phase change always streams; a progress tick
+// streams once, at the milestone where progress is first established).
+type taskProgressiveTrigger int
+
+const (
+	triggerPhase taskProgressiveTrigger = iota
+	triggerProgress
+)
+
+// emitTaskRunningProgressiveLocked streams a standalone Running task's
+// current phase/progress as a durable line in plain/non-interactive mode
+// (evo-rec.md Problem 10: "Phase as static text once, then terminal rows").
+// Interactive mode owns this task's presentation via the live region
+// instead. A phase change streams every time its text changes; a progress
+// update streams once, when progress is first established — later ticks
+// would flood CI logs and add no new information a human reads mid-stream.
+func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgressiveTrigger) {
+	if st == nil || st.collection != nil || st.state != Running {
+		return
+	}
+	live := o.liveLocked()
+	interactive := live != nil && live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	if interactive {
+		return
+	}
+	switch trigger {
+	case triggerPhase:
+		if st.phase == st.plainPhaseEmitted {
+			return
+		}
+		st.plainPhaseEmitted = st.phase
+	case triggerProgress:
+		if st.plainProgressEmitted {
+			return
+		}
+		st.plainProgressEmitted = true
+	}
+	var b strings.Builder
+	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
+	if b.Len() == 0 {
+		return
+	}
+	o.writeDurableTextLocked(b.String())
+}
+
 // residualPlainLocked builds the Finish tail for the human stream: only what has
 // not already been progressive-emitted. FinalPlain still uses the full snapshot.
 //

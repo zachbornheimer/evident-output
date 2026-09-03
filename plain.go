@@ -232,15 +232,19 @@ func writeAction(b *strings.Builder, a Action, color bool, profile GlyphProfile)
 func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile GlyphProfile) {
 	glyph := styleGlyph(taskGlyph(t.State, profile), stateColor(t.State), color)
 	label := t.Name
+	runningDetail := ""
+	if t.State == Running {
+		runningDetail = runningTaskDetail(t)
+	}
 	switch {
 	case t.Summary != "":
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, dim(t.Summary, color))
-	case t.Phase != "" && t.State == Running:
-		// Default intensity, not dim: the in-flight phase/current item is the
-		// diagnostic signal while progress is stalled — dim is reserved for
+	case runningDetail != "":
+		// Default intensity, not dim: the in-flight phase/progress is the
+		// diagnostic signal while work is stalled — dim is reserved for
 		// genuinely subordinate rows (○ pending, - not started, evidence,
 		// overflow), per evo-rec.md "Color and style demotions".
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Phase)
+		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, runningDetail)
 	default:
 		fmt.Fprintf(b, "%s  %s\n", glyph, label)
 	}
@@ -269,6 +273,30 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 	}
 	writeTaxonomy(b, "", "skipped", t.Skipped, verbose, color, profile)
 	writeTaxonomy(b, "", "kept", t.Kept, verbose, color, profile)
+}
+
+// runningTaskDetail composes a Running task's plain-mode detail text: its
+// progress count (or Bytes fraction), its phase, or both together
+// ("14/40  requests") — the durable-line counterpart of writeLiveTaskLine's
+// interactive combination, without the live-only bar/heartbeat decoration.
+// Returns "" for a Running task with neither (never happens through the
+// public API, since every path that promotes Pending to Running sets one).
+func runningTaskDetail(t TaskSnapshot) string {
+	count := ""
+	switch {
+	case t.Progress.Kind == BytesKind && t.Progress.Total > 0:
+		count = formatByteProgressFixed(t.Progress.Completed, t.Progress.Total)
+	case t.Progress.Kind == Determinate && t.Progress.Total > 0:
+		count = fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
+	}
+	switch {
+	case count != "" && t.Phase != "":
+		return count + "  " + t.Phase
+	case count != "":
+		return count
+	default:
+		return t.Phase
+	}
 }
 
 // writeTaxonomy emits the derived "!  skipped N  (...)" / "!  kept N  (...)"
