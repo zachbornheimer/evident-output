@@ -62,7 +62,7 @@ func main() {
 		})
 		probe("docker daemon", func(it *evo.ItemHandle) {
 			// Tool-backed gate: Item.Capture holds process evidence (not session Capture).
-			cap := it.Start().Capture()
+			cap := it.Start().Evidence()
 			_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"))
 			dialErr := fmt.Errorf("dial unix /var/run/docker.sock: connection refused")
 			it.Fail(

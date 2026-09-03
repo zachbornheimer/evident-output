@@ -43,7 +43,7 @@ out := evo.New(evo.Config{Title: "tool"})
 defer func() { _ = out.Close() }()
 // … use out …
 if err != nil && !out.AnyFailed() {
-    out.Fail("command failed", evo.Cause(err))
+    out.Failf("command failed: %w", err)
 }
 return out.Finish()
 ```
@@ -66,15 +66,16 @@ Use `TruncateNames` for a single skip/kept list when names must stay readable.
 See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.
 Release pin procedure: `docs/guides/cutting-a-release.md`.
 
-## Capture
+## Evidence
 
 ```go
-cap := task.Capture() // or item.Capture() for tool-backed gates
-// … write to cap.Stdout()/Stderr() …
-task.Fail("failed", evo.Cause(err), cap.DetailTail())
+proof := task.Evidence() // or item.Evidence() for tool-backed gates
+// … write to proof.Stdout()/Stderr() …
+return task.Failf("failed: %w", err)
 ```
 
-Pending unterminated fragments are included in DetailTail.
+Pending unterminated fragments are included in DetailTail. Prefer `task.Run(cmd)` for an
+`*exec.Cmd` — it wires Evidence and Phase together in one call.
 
 ## Confirm
 

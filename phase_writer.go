@@ -10,8 +10,8 @@ import (
 // PhaseWriter returns a line-buffered io.Writer for narrating a talkative
 // child process: each complete line (CR or LF terminated, trimmed,
 // non-empty) becomes the task's Phase text, and every byte is also retained
-// in the task's Capture ring (get-or-create, shared with Task.Capture) so
-// DetailTail has evidence after Fail. Phase text passes through the same
+// in the task's Evidence ring (get-or-create, shared with Task.Evidence) so
+// DetailTail has proof after Fail. Phase text passes through the same
 // sanitize layer as Task.Phase, so hostile escape sequences never reach the
 // display. Concurrent-safe.
 //
@@ -20,7 +20,7 @@ func (t *TaskHandle) PhaseWriter() io.Writer {
 	if t == nil || t.out == nil {
 		return io.Discard
 	}
-	return &phaseWriter{task: t, capture: t.Capture()}
+	return &phaseWriter{task: t, capture: t.Evidence()}
 }
 
 // phaseWriterMaxPendingBytes bounds the pending-line buffer: a child that
@@ -39,7 +39,7 @@ const phaseWriterMaxPendingBytes = 4 * 1024 // 4 KiB
 // grow it without bound.
 type phaseWriter struct {
 	task    *TaskHandle
-	capture *Capture
+	capture *Evidence
 
 	mu  sync.Mutex
 	buf []byte

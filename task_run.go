@@ -6,12 +6,14 @@ import (
 	"path/filepath"
 )
 
-// Run executes cmd as this task's subprocess, wiring cmd.Stdout/cmd.Stderr
-// through the same Capture + PhaseWriter plumbing PhaseWriter uses directly:
-// each line becomes the task's live Phase, every byte is retained
-// (redacted, bounded) in the task's Capture ring so DetailTail has evidence
-// after Fail. If cmd.Stdout/cmd.Stderr already point somewhere (a caller
-// wiring its own log file, say), Run tees into it rather than replacing it.
+// Run is the ordinary way to shell out from a Task: it executes cmd as this
+// task's subprocess, wiring cmd.Stdout/cmd.Stderr through the same Evidence +
+// PhaseWriter plumbing PhaseWriter uses directly. Each line becomes the
+// task's live Phase, and every byte is retained (redacted, bounded) in the
+// task's Evidence ring so DetailTail has proof after Fail — reach for
+// Evidence directly only when the caller isn't running an *exec.Cmd. If
+// cmd.Stdout/cmd.Stderr already point somewhere (a caller wiring its own log
+// file, say), Run tees into it rather than replacing it.
 //
 // If the task has no Phase yet, Run sets one from cmd's basename
 // (filepath.Base(cmd.Path) or cmd.Args[0]) so a live view shows what's
@@ -28,13 +30,13 @@ import (
 //
 //	cmd := exec.Command("go", "build", "./...")
 //	if err := task.Run(cmd); err != nil {
-//	    return task.Fail("build failed", Cause(err), task.Capture().DetailTail())
+//	    return task.Failf("build failed: %w", err)
 //	}
 //	task.Done()
 func (t *TaskHandle) Run(cmd *exec.Cmd) error {
 	if t != nil && t.out != nil {
 		t.ensurePhase(commandPhaseName(cmd))
-		pw := &phaseWriter{task: t, capture: t.Capture()}
+		pw := &phaseWriter{task: t, capture: t.Evidence()}
 		cmd.Stdout = teeSubprocessWriter(cmd.Stdout, pw)
 		cmd.Stderr = teeSubprocessWriter(cmd.Stderr, pw)
 	}

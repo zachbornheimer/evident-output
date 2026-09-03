@@ -43,7 +43,7 @@ func main() {
 		generate.Done()
 
 		tests := pipeline.Task("go test ./...", evo.ID("pipeline.test"))
-		output := tests.Capture()
+		output := tests.Evidence()
 		time.Sleep(step)
 		if *failTests {
 			// Command-runner shape: Capture gets streams; Failf wraps the process

@@ -82,7 +82,7 @@ func TestPhaseWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 
 	// The task's Capture ring (get-or-create, same instance PhaseWriter fed)
 	// must carry the child output as failure evidence.
-	task.Fail("push failed", task.Capture().DetailTail())
+	task.Fail("push failed", task.Evidence().DetailTail())
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

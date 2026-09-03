@@ -865,7 +865,7 @@ func TestSpecP14_Capture_Failure(t *testing.T) {
 		Color:    evo.ColorNever,
 	})
 	capture := out.Task("capture")
-	cap := capture.Capture()
+	cap := capture.Evidence()
 	_, _ = cap.Write([]byte("remote rejected (see redacted stderr)\nAuthorization: Bearer sk-live-abc123\n"))
 	_ = cap.Close()
 	capture.Fail("git push failed", cap.DetailTail())

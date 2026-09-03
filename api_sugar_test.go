@@ -172,7 +172,7 @@ func TestAPISugar_RunCapturesOutputAndUpdatesPhase(t *testing.T) {
 		t.Fatalf("Run returned error: %v", err)
 	}
 
-	tail := task.Capture().Tail()
+	tail := task.Evidence().Tail()
 	if !strings.Contains(tail, "line-one") || !strings.Contains(tail, "line-two") {
 		t.Fatalf("capture tail = %q, want both stdout and stderr lines retained", tail)
 	}
@@ -209,7 +209,7 @@ func TestAPISugar_RunTeesPreWiredWriters(t *testing.T) {
 	if !strings.Contains(mine.String(), "hello") {
 		t.Fatalf("pre-wired writer = %q, want it still received output", mine.String())
 	}
-	if !strings.Contains(task.Capture().Tail(), "hello") {
+	if !strings.Contains(task.Evidence().Tail(), "hello") {
 		t.Fatal("expected Run's own capture to also observe teed stdout")
 	}
 }
@@ -248,7 +248,7 @@ func TestAPISugar_RunRedactsSecrets(t *testing.T) {
 	if err := task.Run(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if strings.Contains(task.Capture().Tail(), "s3kr3t") {
-		t.Fatalf("capture tail leaked the redacted secret: %q", task.Capture().Tail())
+	if strings.Contains(task.Evidence().Tail(), "s3kr3t") {
+		t.Fatalf("capture tail leaked the redacted secret: %q", task.Evidence().Tail())
 	}
 }

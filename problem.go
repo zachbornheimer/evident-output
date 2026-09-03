@@ -17,7 +17,7 @@ type Problem struct {
 	Count     int64
 	Unit      string
 	Location  *Location
-	Evidence  []Evidence
+	Evidence  []Attachment
 	Actions   []Action
 	Fields    []Field
 	Cause     error
@@ -31,8 +31,12 @@ type Location struct {
 	Column int
 }
 
-// Evidence is an additional problem attachment.
-type Evidence struct {
+// Attachment is an additional label/value problem attachment.
+//
+// Named Attachment (not Evidence) because Evidence names the retained
+// process-output sink (see Evidence in capture.go) — this is a single
+// labeled fact attached to a Problem, a different concept from that sink.
+type Attachment struct {
 	Label string
 	Value string
 }
@@ -164,9 +168,9 @@ func sanitizeProblem(p Problem) Problem {
 		p.Location = &loc
 	}
 	if len(p.Evidence) > 0 {
-		ev := make([]Evidence, len(p.Evidence))
+		ev := make([]Attachment, len(p.Evidence))
 		for i, e := range p.Evidence {
-			ev[i] = Evidence{
+			ev[i] = Attachment{
 				Label: sanitize.Text(e.Label),
 				Value: sanitize.Text(e.Value),
 			}
@@ -214,7 +218,7 @@ func cloneProblems(in []Problem) []Problem {
 			out[i].Fields = append([]Field(nil), out[i].Fields...)
 		}
 		if len(out[i].Evidence) > 0 {
-			out[i].Evidence = append([]Evidence(nil), out[i].Evidence...)
+			out[i].Evidence = append([]Attachment(nil), out[i].Evidence...)
 		}
 		if out[i].Location != nil {
 			loc := *out[i].Location

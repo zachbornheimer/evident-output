@@ -40,7 +40,7 @@ Severity on conditions (Items) and terminal outcomes on work (Tasks):
 item.OK()
 item.Warn("contains ignored files", evo.Detail("2 files"))
 item.Block("contains local changes", evo.Detail("stash or commit them"))
-item.Fail("could not inspect working tree", evo.Cause(err))
+return item.Failf("could not inspect working tree: %w", err)
 ```
 
 Plural structured evidence only when evidence is actually plural:
@@ -54,24 +54,30 @@ item.FailedBy(problemsFrom(summary.Failures)...)
 
 ---
 
-## Problem / Detail / Cause
+## Problem / Detail / Failf evidence
 
-| Piece       | Audience            | Role                                                              |
-| ----------- | ------------------- | ----------------------------------------------------------------- |
-| **Problem** | Structured evidence | Subject + summary (+ optional pieces) for one failure unit        |
-| **Detail**  | **User-facing**     | What the human should know or do                                  |
-| **Cause**   | **Diagnostic**      | Underlying error for logs / debug; not the primary human sentence |
+| Piece        | Audience            | Role                                                                  |
+| ------------ | ------------------- | --------------------------------------------------------------------- |
+| **Problem**  | Structured evidence | Subject + summary (+ optional pieces) for one failure unit            |
+| **Detail**   | **User-facing**     | What the human should know or do                                      |
+| **Failf %w** | **User-facing**     | Wrapped error's text, rendered as one evidence line under the summary |
 
-PHIL-005: `Cause` is diagnostic; `Detail` is user-facing. Do not put stack-trace noise in Detail or bury the only user message in Cause alone.
+PHIL-005: a trailing `": %w"`/`", %w"` on `Failf`/`Blockf` splits the formatted text into the
+rendered summary and an evidence line for the wrapped error — both user-facing. Use `Detail`
+for stable guidance text that isn't derived from an error. Do not bury the only user message in
+a wrapped error alone with an empty summary.
 
 ```go
 // Right
 item.Block("contains local changes", evo.Detail("stash or commit them"))
-task.Fail("download failed", evo.Cause(err))
+return task.Failf("download failed: %w", err)
 
-// Wrong — user message only in Cause, empty human summary
-task.Fail("", evo.Cause(err))
+// Wrong — user message only in the wrapped error, empty human summary
+return task.Failf(": %w", err)
 ```
+
+`evo.Cause` (a `ProblemOption` from before this split existed) is deprecated: it no longer
+affects the returned error since `Fail`/`Block` are statement-form.
 
 ---
 
@@ -115,17 +121,20 @@ Evo does **not** own English pluralization (§15). Applications own `noun` helpe
 
 ---
 
-## Capture ownership
+## Evidence ownership
 
-Capture attaches **tool-backed evidence** (command output tails, etc.) to an Item or Task.
+Evidence attaches **tool-backed proof** (command output tails, etc.) to an Item or Task.
+"Stdout" would lie as a name — it also takes stderr and combined writes; Evidence says what
+it is for.
 
-- Prefer **Capture on Item or Task** (ordinary lead sheet).
-- Capture is **silent on success** (PHIL-005).
-- Session-level Capture is studio overdub — not the ordinary example (PHIL-003).
+- Prefer **Evidence on Item or Task** (ordinary lead sheet).
+- Prefer **Task.Run(cmd)** for an `*exec.Cmd` — it wires Evidence and Phase in one call.
+- Evidence is **silent on success** (PHIL-005).
+- Session-level Evidence is studio overdub — not the ordinary example (PHIL-003).
 
 ```go
-captured := item.Capture()
-captured := task.Capture()
+proof := item.Evidence()
+proof := task.Evidence()
 ```
 
 Who owns the handle: the entity whose condition or work the evidence explains. Do not Capture “somewhere nearby” for convenience.

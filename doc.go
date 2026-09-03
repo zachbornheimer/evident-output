@@ -12,7 +12,7 @@
 //	    evo.Println("Reading configuration")
 //	    evo.Item("working tree").OK()
 //	    t := evo.Task("fetch")
-//	    output := t.Capture()
+//	    output := t.Evidence()
 //	    // run.Run(ctx, "git", args, output); t.Fail(..., output.DetailTail()) on error
 //	    return nil // Block is a presentation outcome, not a Go error
 //	}
@@ -35,19 +35,20 @@
 //  6. evo.Confirm(question, ...) — owns the whole ask-decide-resolve gate (prompt, quiesce,
 //     ⊘/OK resolution, exit code).
 //  7. evo.Group(name) for named children with derived, auto-lifecycle state.
-//  8. task.Fail(summary, evo.Cause(err)) / item.Block(summary, evo.Cause(err)) return one
-//     error to `return` directly: message is summary, wrapping Cause with %w so errors.Is/As
-//     still reach it; Failf/Blockf take the same summary as a printf format. Success/skip verbs
-//     stay void — this is never fluent chaining.
+//  8. task.Fail(summary) / item.Block(summary) are statements — no return value, so a bare
+//     call is errcheck-clean. `return task.Failf("validate manifest: %w", err)` builds and
+//     returns one error in a single line: a trailing ": %w"/", %w" splits the formatted text
+//     into the rendered summary and an evidence line for the wrapped error; Blockf is the
+//     same for Block. Success/skip verbs stay void too — this is never fluent chaining.
 //
 // Ordinary surface: evo.Init/evo.Main, Print*, evo.Item/evo.Task/evo.Group (+ ID),
-// Task.Capture / Item.Capture, Task.Each / Task.PhaseWriter / Task.Run, Task.Fail / Task.Failf /
-// Item.Block / Item.Blockf, evo.Confirm, evo.Reason, Changes/Plan (tooling call sites, see
-// below), slog via SlogHandler (level from Config.Debug.Level).
+// Task.Evidence / Item.Evidence, Task.Each / Task.PhaseWriter / Task.Run, Task.Fail / Task.Failf /
+// Item.Block / Item.Blockf, evo.Confirm, evo.Reason / evo.Reasonf, Changes/Plan (tooling call
+// sites, see below), slog via SlogHandler (level from Config.Debug.Level).
 //
 // Advanced surface, for testing and tooling call sites that need a hosted instance
 // instead of the package-level default: New(Config) / NewWithOptions to construct an
 // *Output directly, MainWith(out, run) to seal it (this is what Main calls on the
 // default instance), Plan/Changes for the would/did split without a Task, session
-// Capture, Progress64, Advance, terminal drivers, and testkit.
+// Evidence, Progress64, Advance, terminal drivers, and testkit.
 package evo
