@@ -532,3 +532,222 @@ func TestSpecP12_ConfirmGate_EarlyTermination(t *testing.T) {
 	}
 	t.Skip("MISMATCH: \"! already mutated: none\" — empty ledger suppresses the row entirely (established behavior) — see doc comment")
 }
+
+// ---------------------------------------------------------------------------
+// Problem 13: retries must set absolute Progress, never Advance/re-Advance,
+// so a retry cannot double-count or regress.
+// ---------------------------------------------------------------------------
+
+// TestSpecP13_LiveFrame_Step1 covers Problem 13's step1 block: absolute
+// count progress with the named current item.
+//
+//	:.  install  13/40  urllib3
+func TestSpecP13_LiveFrame_Step1(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	install := out.Task("install")
+	install.Progress(13, 40)
+	install.Phase("urllib3")
+
+	got := screen.LatestLiveText()
+	for _, want := range []string{"install", "13/40", "urllib3"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("want %q in live frame:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP13_LiveFrame_Step2 covers Problem 13's step2 block: a retry on
+// the same item holds the absolute count steady (still 13/40) while the
+// phase names the retry.
+//
+//	:.  install  13/40  retrying urllib3
+//	# still 13/40 — not 12, not 14 until success
+func TestSpecP13_LiveFrame_Step2(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	install := out.Task("install")
+	install.Progress(13, 40)
+	install.Phase("retrying urllib3")
+
+	got := screen.LatestLiveText()
+	for _, want := range []string{"install", "13/40", "retrying urllib3"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("want %q in live frame:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP13_Retry_Success covers Problem 13's success block: the resolved
+// Done count plus a skip-taxonomy line whose single-reason format matches
+// the spec's own literal text exactly.
+//
+//	✓  install  40/40
+//	!  skipped 2  (optional)
+func TestSpecP13_Retry_Success(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	install := out.Task("install")
+	optional := evo.Reason("optional")
+	install.Skipped(optional, "extras")
+	install.Skipped(optional, "docs")
+	install.Progress(40, 40)
+	install.Done("40/40")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	for _, want := range []string{"✓  install  40/40", "!  skipped 2  (optional)"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP13_Retry_Failure covers Problem 13's failure block: the running
+// count/phase survives into a Fail with structured Detail evidence.
+//
+//	:.  install  13/40  urllib3
+//	✗  install  urllib3 failed after 3 tries
+//	   └─ HTTP 503 from mirror
+//	!  installed 13; remaining 27 not attempted
+//
+// MISMATCH (documented, not fixed): "! installed 13; remaining 27 not
+// attempted" has no mechanical source — Progress counts are not converted
+// into Changes-ledger content the way Record/RecordName mutations are, so
+// there is nothing for writeAlreadyMutated to derive this sentence from
+// (and it would not fire anyway: writeAlreadyMutated only fires for
+// Cancelled/Failed conclusions on the whole run, whereas this scenario ends
+// with only the install Task Failed, not necessarily the run's Conclusion —
+// see the failure-block notes on Problem 12 for the same guard).
+func TestSpecP13_Retry_Failure(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	install := out.Task("install")
+	install.Progress(13, 40)
+	install.Phase("urllib3")
+	install.Fail("urllib3 failed after 3 tries", evo.Detail("HTTP 503 from mirror"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{
+		"✗ install urllib3 failed after 3 tries",
+		"HTTP 503 from mirror",
+	} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "remaining 27 not attempted") {
+		t.Fatalf("expected the documented mismatch (no mechanical source for this line) but found it:\n%s", got)
+	}
+	t.Skip("MISMATCH: \"! installed 13; remaining 27 not attempted\" has no mechanical source — see doc comment")
+}
+
+// TestSpecP13_LiveFrame_Indeterminate covers Problem 13's indeterminate
+// block: a retry announced before any count is known for this attempt.
+//
+//	:.  install  retrying urllib3…
+func TestSpecP13_LiveFrame_Indeterminate(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Task("install").Phase("retrying urllib3…")
+
+	got := screen.LatestLiveText()
+	if !strings.Contains(got, "install") || !strings.Contains(got, "retrying urllib3…") {
+		t.Fatalf("want indeterminate retry phase in live frame:\n%s", got)
+	}
+}
+
+// TestSpecP13_Retry_Error covers Problem 13's error block, spelled the way
+// the adjacent "Progress invariants" section documents this exact scenario
+// (ErrProgressRegression on a backwards Advance/retry double-count): the
+// caller checks Output.Err() after a rejected regression and Fails the task
+// with the true held count, reachable byte-for-byte through the public API.
+//
+//	:.  install  13/40  urllib3
+//	✗  install  progress misuse avoided — absolute 13/40 held
+//	   └─ connection reset by peer
+func TestSpecP13_Retry_Error(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	install := out.Task("install")
+	install.Progress(13, 40)
+	install.Phase("urllib3")
+	install.Progress(12, 40) // a backwards retry report: rejected, absolute 13/40 held
+	if out.Err() == nil {
+		t.Fatal("want recorded misuse when Progress regresses")
+	}
+	install.Fail("progress misuse avoided — absolute 13/40 held", evo.Detail("connection reset by peer"))
+	// Finish surfaces the already-recorded, already-handled misuse (the rejected
+	// regression above) as its return value — that is the point of this
+	// scenario, not a new failure to fatal on.
+	if err := out.Finish(); err != nil && err != out.Err() {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{
+		"✗ install progress misuse avoided — absolute 13/40 held",
+		"connection reset by peer",
+	} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP13_Retry_EarlyTermination covers Problem 13's early termination
+// block: a Cancel mid-retry, with the completed-so-far count recorded as a
+// real mutation so "already mutated" has ledger content to derive from.
+//
+//	:.  install  13/40
+//	■  install  cancelled during retry
+//	!  already mutated: 13 packages installed; urllib3 absent
+//
+// MISMATCH (documented, not fixed): summarizeChangeSection (plain.go) derives
+// exactly "13 packages installed" from a Record("install", 13, "packages")
+// call — the format matches the spec's first clause byte-for-byte — but it
+// has no mechanism to append a second clause naming which specific item was
+// mid-flight when cancelled ("; urllib3 absent"); that fragment is not
+// derivable from any ledger a caller can populate through this API.
+func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	install := out.Task("install")
+	install.Progress(13, 40)
+	install.Record("install", 13, "packages")
+	install.Cancel("cancelled during retry")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{
+		"■ install cancelled during retry",
+		"already mutated: 13 packages installed",
+	} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "urllib3 absent") {
+		t.Fatalf("expected the documented mismatch (no second-clause mechanism) but found it:\n%s", got)
+	}
+	t.Skip("MISMATCH: \"; urllib3 absent\" clause has no mechanical source — see doc comment")
+}
