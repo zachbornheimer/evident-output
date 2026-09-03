@@ -82,9 +82,9 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   re-sealed or moved backward on manual retry.
 - **`TaskHandle.PhaseWriter()`**: a line-buffered `io.Writer` that turns
   each completed line from a child process into the task's live `Phase`
-  text while retaining every byte in the task's `Capture` ring for
-  `DetailTail` evidence. `Task.Capture()` is now get-or-create per task so
-  `PhaseWriter` and a later `Capture()` call share one ring. A live `Phase`
+  text while retaining every byte in the task's `Evidence` ring for
+  `DetailTail` evidence. `Task.Evidence()` is get-or-create per task so
+  `PhaseWriter` and a later `Evidence()` call share one ring. A live `Phase`
   left unrefreshed for ~10s auto-appends elapsed context (e.g.
   "pushing feat/a — 90s") so a stale spinner is never mistaken for silence.
 - **`evo.TruncateNames(names, n)`**: bounds a slice-derived string before it
@@ -105,15 +105,22 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   that paints its own UI directly on the shared terminal (tty-passthrough).
   Captured or `PhaseWriter`-wired children never need it.
 - **Printf-variadic entity names**: `evo.Task`, `Output.Task`, `Tasks.Task`,
-  `evo.Group`/`Output.Group`, and `Output.Item` accept trailing `args ...any`
-  — with args present, name is `fmt.Sprintf(name, args...)`; with none, name
-  passes through unchanged (a literal `%` in a plain call site never misfires
-  through `Sprintf`). An `evo.ID(...)` (or any other `EntityOption`) may sit
-  anywhere among the args and still applies; get-or-create identity keys on
-  the formatted name.
+  `evo.Group`/`Output.Group`, `Output.Item`, `Scope.Task`/`Scope.Item`, and
+  `GroupHandle.Task` accept trailing `args ...any` — with args present, name
+  is `fmt.Sprintf(name, args...)`; with none, name passes through unchanged
+  (a literal `%` in a plain call site never misfires through `Sprintf`). An
+  `evo.ID(...)` (or any other `EntityOption`) may sit anywhere among the
+  args and still applies; get-or-create identity keys on the formatted name.
+- **MCP review detectors API-032/API-033**: `API-032` catches every
+  superseded spelling (`evo.New`/`MainWith` inside `main`, `evo.Cause`,
+  `Capture`) with a derived one-line fix using the actual call site's
+  identifiers, not just a pointer at the rule. `API-033` flags an entity's
+  own name reused verbatim as its skip/verb argument (`out.Item(note).Skip(note)`)
+  — the second occurrence carries no information the count/reason partition
+  doesn't already show.
 - **`TaskHandle.Run(cmd *exec.Cmd) error`**: the subprocess facade —
   sets the task's `Phase` to the command's basename if none is set yet,
-  wires `cmd.Stdout`/`cmd.Stderr` through the same `Capture`/`PhaseWriter`
+  wires `cmd.Stdout`/`cmd.Stderr` through the same `Evidence`/`PhaseWriter`
   plumbing (retained, redacted, live phase per line, `DetailTail` evidence
   on failure), tees rather than replaces any writer the caller already
   wired, and returns the subprocess error verbatim — `Run` never resolves
@@ -133,17 +140,45 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   `evo.Verbose()` function. `evo.Print*` visibility gating is otherwise
   unchanged.
 - **`Main` re-signature — see "The migration hazard" above.**
-- **`TaskHandle.Fail`/`ItemHandle.Fail`/`ItemHandle.Block` now return `error`
-  instead of the handle** (pre-1.0 API break): `return task.Fail("validate
-policy manifest", evo.Cause(err))` is now a single line — the error's
-  message is the summary, wrapping an `evo.Cause` option with `%w` so
-  `errors.Is`/`errors.As` still reach it; no `Cause` yields a plain
-  `errors.New(summary)`. New `TaskHandle.Failf` / `ItemHandle.Failf` /
-  `ItemHandle.Blockf` take the same summary as a printf format. This is not
-  fluent chaining — the handle is never returned — so any existing call site
-  chaining off `Fail`/`Block` (e.g. `.Fail(...).Because(...)`) needs the
-  chain split into two statements; a call site that already ignored the
-  return value needs no change. Both methods are nil-receiver safe.
+- **Verb-return redesign: `Fail`/`Block` are statement-form; `Failf`/`Blockf`
+  return a `%w`-wrapped error** (pre-1.0 API break, supersedes the
+  error-returning `Fail`/`Block` from the previous unreleased iteration):
+  `TaskHandle.Fail`, `TaskHandle.Block`, `ItemHandle.Fail`, and
+  `ItemHandle.Block` now return nothing, so a bare `task.Fail("summary")` is
+  errcheck-clean and no longer needs `_ =`. `Failf`/`Blockf` use `fmt.Errorf`
+  semantics: `return task.Failf("validate policy manifest: %w", err)`
+  builds and returns the error in one line — a trailing `": %w"`/`", %w"`
+  splits the formatted text into the rendered summary (the text before) and
+  an evidence line (the wrapped error's text); without a trailing `%w` the
+  whole text is the summary and a `%w` placed elsewhere still feeds
+  evidence. `TaskHandle` gains `Block`/`Blockf` (a task can now terminate
+  `Blocked`, exit 1, same as `Item`). Both `Fail`/`Block` and their `f`
+  variants stay nil-receiver safe.
+- **`evo.Cause` is deprecated**: it no longer affects the returned error
+  since `Fail`/`Block` are statement-form. Kept as a `ProblemOption` shim so
+  existing call sites still compile; migrate to `Failf`/`Blockf`'s trailing
+  `%w`.
+- **`Capture` renamed to `Evidence`** (`Task.Evidence`/`Item.Evidence`/
+  `Output.Evidence`): "Stdout" would lie as a name since it also takes
+  stderr and combined writes. `Capture` (type and the three accessor
+  methods) is kept as a type alias / thin shim since it shipped in v0.2.16.
+  `TaskHandle.Run` and `PhaseWriter` now build on `Evidence` internally.
+- **`Problem`'s label/value attachment type renamed `Evidence` → `Attachment`**
+  (pre-1.0 API break, forced by the rename above): `Problem.Evidence` keeps
+  its field name; the element type is now `evo.Attachment`. This type had
+  zero real producers (no `ProblemOption` ever constructed one), so there is
+  no deprecated shim — a genuine collision with the process-output sink
+  claiming the more central `Evidence` name.
+- **`TaskHandle.Skipped`/`Kept` accept a trailing `errs ...error`**: causes
+  render as one bounded evidence line under the count row (first cause +
+  `"(+N more)"`), full list under `Verbose`; the `(reason, name)`
+  aggregation key is untouched. Zero `errs` (every existing call site)
+  renders no evidence line.
+- **`evo.Reasonf(format, args...)`**: printf-formatted `Reason` name,
+  same get-or-create identity rule as `Reason`.
+- **Printf-name symmetry**: `Scope.Task`, `Scope.Item`, and
+  `GroupHandle.Task` now accept trailing `args ...any` like `Output.Task`/
+  `Item` and the package-level facades.
 
 ### Fixed
 
@@ -161,21 +196,25 @@ policy manifest", evo.Cause(err))` is now a single line — the error's
 
 ## Migration guide (v0.2.x → v0.3.0)
 
-| Old (v0.2.x)                                                | New (v0.3.0)                                                                                                   |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `evo.Main(out, run)` — two args                             | `evo.MainWith(out, run)` — same behavior, renamed                                                              |
-| _(none)_                                                    | `evo.Init(cfg)` + `os.Exit(evo.Main(run))` — new front door, one arg                                           |
-| `*evo.Task`                                                 | `*evo.TaskHandle`                                                                                              |
-| `*evo.Item`                                                 | `*evo.ItemHandle`                                                                                              |
-| `evo.Verbose` (Visibility constant)                         | `evo.VisibilityVerbose`                                                                                        |
-| `out.Task(name)` / `out.Item(name)`                         | Unchanged (instance methods); or `evo.Task(name)` / `evo.Item(name)` against the default instance after `Init` |
-| `out.Tasks(name)` for named children                        | `out.Tasks(name)` unchanged, or `evo.Group(name)` / `out.Group(name)` for auto-lifecycle NotStarted-on-failure |
-| Hand-rolled `[y/N]` stdin prompt                            | `evo.Confirm(question, ...)`                                                                                   |
-| Hand-built "skipped N" string                               | `task.Skipped(evo.Reason("..."), name)` / `task.Kept(...)`                                                     |
-| Hand-maintained loop counter for `Progress`                 | `task.Each(items)` / `task.EachN(n)`                                                                           |
-| Hand-rolled `io.Writer` calling `task.Phase`                | `task.PhaseWriter()`                                                                                           |
-| `strings.Join(names, ", ")` into `Detail`/`Because`/`Phase` | `evo.TruncateNames(names, n)` first                                                                            |
-| Manual `[planned]`/`[changed]` string picking               | `Config.DryRun` + `TaskHandle` mutation verbs (`Delete`/`Create`/…)                                            |
+| Old (v0.2.x)                                                 | New (v0.3.0)                                                                                                   |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `evo.Main(out, run)` — two args                              | `evo.MainWith(out, run)` — same behavior, renamed                                                              |
+| _(none)_                                                     | `evo.Init(cfg)` + `os.Exit(evo.Main(run))` — new front door, one arg                                           |
+| `*evo.Task`                                                  | `*evo.TaskHandle`                                                                                              |
+| `*evo.Item`                                                  | `*evo.ItemHandle`                                                                                              |
+| `evo.Verbose` (Visibility constant)                          | `evo.VisibilityVerbose`                                                                                        |
+| `out.Task(name)` / `out.Item(name)`                          | Unchanged (instance methods); or `evo.Task(name)` / `evo.Item(name)` against the default instance after `Init` |
+| `out.Tasks(name)` for named children                         | `out.Tasks(name)` unchanged, or `evo.Group(name)` / `out.Group(name)` for auto-lifecycle NotStarted-on-failure |
+| Hand-rolled `[y/N]` stdin prompt                             | `evo.Confirm(question, ...)`                                                                                   |
+| Hand-built "skipped N" string                                | `task.Skipped(evo.Reason("..."), name)` / `task.Kept(...)`                                                     |
+| Hand-maintained loop counter for `Progress`                  | `task.Each(items)` / `task.EachN(n)`                                                                           |
+| Hand-rolled `io.Writer` calling `task.Phase`                 | `task.PhaseWriter()`                                                                                           |
+| `strings.Join(names, ", ")` into `Detail`/`Because`/`Phase`  | `evo.TruncateNames(names, n)` first                                                                            |
+| Manual `[planned]`/`[changed]` string picking                | `Config.DryRun` + `TaskHandle` mutation verbs (`Delete`/`Create`/…)                                            |
+| `task.Fail(summary, evo.Cause(err))` — returned an `error`   | `return task.Failf("summary: %w", err)`                                                                        |
+| `item.Block(summary, evo.Cause(err))` — returned an `error`  | `return item.Blockf("summary: %w", err)`                                                                       |
+| `task.Capture()` / `item.Capture()` / `out.Capture()`        | `task.Evidence()` / `item.Evidence()` / `out.Evidence()`                                                       |
+| `evo.New(cfg)` + `os.Exit(evo.MainWith(out, run))` in `main` | `evo.Init(cfg)` + `os.Exit(evo.Main(run))` — `New`/`MainWith` stay for a genuinely hosted instance             |
 
 See [`docs/guides/teaching-ladder.md`](docs/guides/teaching-ladder.md) for the
 full adoption order and [`README.md`](README.md) for the quick start.
