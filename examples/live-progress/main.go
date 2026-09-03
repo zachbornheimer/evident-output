@@ -35,15 +35,17 @@ func main() {
 	}))
 }
 
-// runLive takes out explicitly for Tasks: this example's interleaved
-// Task.Bytes progress calls (see download below) hit a GroupHandle defect
-// that is out of this work order's blast radius (group.go/output.go); the
-// Tasks collection is unaffected and stays on the ordinary surface.
+// runLive uses evo.Group: dependencies is a sequence of steps that must stop
+// on failure, and evo-rec.md's dialect for that shape is sequential
+// presentation — one Running child at a time, later siblings named and
+// idle until their turn (the "python" example). Each step below predeclares
+// its handle, then fully resolves before the next step's Phase/Progress/Bytes
+// call promotes it to Running.
 func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 	const packageCount = 24
 	const totalBytes int64 = 18_000_000
 
-	jobs := out.Tasks("dependencies")
+	jobs := out.Group("dependencies")
 	discover := jobs.Task("discover")
 	scan := jobs.Task("scan")
 	download := jobs.Task("download")
@@ -55,10 +57,13 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 	}
 	discover.Donef("%d packages", packageCount)
 
-	download.Bytes(0, totalBytes)
-	verify.Phase("waiting for download")
 	for completed := 1; completed <= packageCount; completed++ {
 		scan.Progress(completed, packageCount)
+		time.Sleep(step)
+	}
+	scan.Done()
+
+	for completed := 1; completed <= packageCount; completed++ {
 		done := totalBytes * int64(completed) / int64(packageCount)
 		download.Bytes(done, totalBytes)
 		if completed == packageCount/2 {
@@ -66,8 +71,6 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 		}
 		time.Sleep(step)
 	}
-	scan.Done()
-	download.Bytes(totalBytes, totalBytes)
 	download.Donef("%.1f MB", float64(totalBytes)/(1000*1000))
 
 	for _, phase := range []string{"checking signatures", "checksums", "quarantine scan"} {
