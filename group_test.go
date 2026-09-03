@@ -154,6 +154,41 @@ func TestGroup_AllChildrenDoneRendersAsToday(t *testing.T) {
 	}
 }
 
+// TestGroup_SequentialBytesProgressFinishesClean is the red-first case for
+// examples/live-progress's release-blocker: a Group child that reports
+// Task.Bytes progress across several calls, resolved before its sibling
+// starts (the "one Running child" sequential contract — evo-rec.md's
+// "python" example, phase_n1_test.go's TestGroup_TwoRunningChildrenRecordsMisuse),
+// must Finish cleanly with no misuse recorded. It failed before this fix
+// because examples/live-progress declared download.Bytes(0, total) then
+// started a sibling's Phase before download resolved, tripping
+// ErrConcurrentRunning and exiting 2 despite printing "[ready]".
+func TestGroup_SequentialBytesProgressFinishesClean(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	t.Cleanup(func() { _ = out.Close() })
+
+	jobs := out.Group("dependencies")
+	download := jobs.Task("download")
+	verify := jobs.Task("verify")
+
+	const total int64 = 18_000_000
+	download.Bytes(0, total)
+	download.Bytes(total/2, total)
+	download.Bytes(total, total)
+	download.Donef("%.1f MB", float64(total)/1_000_000)
+
+	verify.Phase("checking signatures")
+	verify.Done()
+
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v\noutput:\n%s", err, buf.String())
+	}
+	if err := out.Err(); err != nil {
+		t.Fatalf("Err() = %v, want nil", err)
+	}
+}
+
 // TestGroup_PackageLevelGetOrCreate mirrors evo.Task's identity contract:
 // evo.Group(name) called twice returns the same handle, and Group.Task(name)
 // called twice within one group returns the same child.

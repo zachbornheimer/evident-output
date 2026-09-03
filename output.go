@@ -136,6 +136,16 @@ type taskState struct {
 	// Emission bookkeeping so terminal standalone tasks stream in plain mode
 	// on resolve (P2) — same spirit as itemState.coreEmitted.
 	coreEmitted bool
+
+	// Plain/non-interactive progressive-streaming bookkeeping for a still-
+	// Running standalone task (P10: CI logs must not stay silent until
+	// Finish). plainPhaseEmitted is the last Phase text already streamed, so
+	// a repeated/no-op Phase call does not re-emit; plainProgressEmitted
+	// latches once the one-time "progress established" line has streamed —
+	// later Progress/Bytes ticks never stream individually (durable lines,
+	// not a redraw).
+	plainPhaseEmitted    string
+	plainProgressEmitted bool
 }
 
 type tasksState struct {

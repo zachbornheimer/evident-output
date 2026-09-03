@@ -232,15 +232,19 @@ func writeAction(b *strings.Builder, a Action, color bool, profile GlyphProfile)
 func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile GlyphProfile) {
 	glyph := styleGlyph(taskGlyph(t.State, profile), stateColor(t.State), color)
 	label := t.Name
+	runningDetail := ""
+	if t.State == Running {
+		runningDetail = runningTaskDetail(t)
+	}
 	switch {
 	case t.Summary != "":
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, dim(t.Summary, color))
-	case t.Phase != "" && t.State == Running:
-		// Default intensity, not dim: the in-flight phase/current item is the
-		// diagnostic signal while progress is stalled — dim is reserved for
+	case runningDetail != "":
+		// Default intensity, not dim: the in-flight phase/progress is the
+		// diagnostic signal while work is stalled — dim is reserved for
 		// genuinely subordinate rows (○ pending, - not started, evidence,
 		// overflow), per evo-rec.md "Color and style demotions".
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Phase)
+		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, runningDetail)
 	default:
 		fmt.Fprintf(b, "%s  %s\n", glyph, label)
 	}
@@ -269,6 +273,30 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 	}
 	writeTaxonomy(b, "", "skipped", t.Skipped, verbose, color, profile)
 	writeTaxonomy(b, "", "kept", t.Kept, verbose, color, profile)
+}
+
+// runningTaskDetail composes a Running task's plain-mode detail text: its
+// progress count (or Bytes fraction), its phase, or both together
+// ("14/40  requests") — the durable-line counterpart of writeLiveTaskLine's
+// interactive combination, without the live-only bar/heartbeat decoration.
+// Returns "" for a Running task with neither (never happens through the
+// public API, since every path that promotes Pending to Running sets one).
+func runningTaskDetail(t TaskSnapshot) string {
+	count := ""
+	switch {
+	case t.Progress.Kind == BytesKind && t.Progress.Total > 0:
+		count = formatByteProgressFixed(t.Progress.Completed, t.Progress.Total)
+	case t.Progress.Kind == Determinate && t.Progress.Total > 0:
+		count = fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
+	}
+	switch {
+	case count != "" && t.Phase != "":
+		return count + "  " + t.Phase
+	case count != "":
+		return count
+	default:
+		return t.Phase
+	}
 }
 
 // writeTaxonomy emits the derived "!  skipped N  (...)" / "!  kept N  (...)"
@@ -337,19 +365,42 @@ func writeCollection(b *strings.Builder, col TasksSnapshot, color, verbose bool,
 
 // writeCollectionChild renders one child task row under its parent group:
 // glyph, name, and whichever of problem summary / task summary explains it,
-// followed by the same Kept/Skipped taxonomy a standalone writeTask renders
-// — a collection child is a task, and dropping its taxonomy here was the
-// gap that forced the repo-retire adoption off the Group/Tasks API.
+// then every problem's Detail/evidence line the same way a standalone
+// writeTask already does — a collection child is a task, and dropping its
+// evidence (└─ ...) and taxonomy here was the gap that forced the
+// repo-retire adoption off the Group/Tasks API.
 func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile GlyphProfile) {
 	tg := styleGlyph(taskGlyph(t.State, profile), stateColor(t.State), color)
 	fmt.Fprintf(b, "   %s  %s", tg, t.Name)
-	switch {
-	case len(t.Problems) > 0:
-		fmt.Fprintf(b, "  %s", t.Problems[0].Summary)
-	case t.Summary != "":
-		fmt.Fprintf(b, "  %s", t.Summary)
+	headerSummary := t.Summary
+	if len(t.Problems) > 0 {
+		headerSummary = t.Problems[0].Summary
+		fmt.Fprintf(b, "  %s", headerSummary)
+	} else if headerSummary != "" {
+		fmt.Fprintf(b, "  %s", headerSummary)
 	}
 	b.WriteByte('\n')
+	problems := t.Problems
+	omitted := 0
+	if len(problems) > maxVisibleProblems {
+		omitted = len(problems) - maxVisibleProblems
+		problems = problems[:maxVisibleProblems]
+	}
+	for _, p := range problems {
+		// The header row already showed this summary; Detail alone is the
+		// evidence body (mirrors writeTask's P4 dedup).
+		if p.Detail != "" && p.Summary != "" && p.Summary == headerSummary {
+			p.Summary = ""
+		}
+		writeProblem(b, p, color, profile)
+	}
+	if omitted > 0 {
+		writeProblem(b, Problem{
+			Summary: fmt.Sprintf("and %d more failures", omitted),
+			Count:   int64(omitted),
+			Unit:    "failures",
+		}, color, profile)
+	}
 	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, verbose, color, profile)
 	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, verbose, color, profile)
 }

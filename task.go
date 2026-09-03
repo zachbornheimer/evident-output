@@ -39,6 +39,7 @@ func (t *TaskHandle) Phase(text string) *TaskHandle {
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task.phase_changed", EntityID: t.id})
 	t.out.signalLiveLocked(true)
+	t.out.emitTaskRunningProgressiveLocked(st, triggerPhase)
 	return t
 }
 
@@ -143,6 +144,7 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	t.out.appendEventLocked(Event{Type: "task.progress_changed", EntityID: t.id})
 	// Progress is high-frequency: coalesce unless first frame.
 	t.out.signalLiveLocked(false)
+	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
 }
 
 // Done resolves the task successfully.
