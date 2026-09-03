@@ -104,6 +104,22 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   invisible for the whole call, and redraws after — for a child process
   that paints its own UI directly on the shared terminal (tty-passthrough).
   Captured or `PhaseWriter`-wired children never need it.
+- **Printf-variadic entity names**: `evo.Task`, `Output.Task`, `Tasks.Task`,
+  `evo.Group`/`Output.Group`, and `Output.Item` accept trailing `args ...any`
+  — with args present, name is `fmt.Sprintf(name, args...)`; with none, name
+  passes through unchanged (a literal `%` in a plain call site never misfires
+  through `Sprintf`). An `evo.ID(...)` (or any other `EntityOption`) may sit
+  anywhere among the args and still applies; get-or-create identity keys on
+  the formatted name.
+- **`TaskHandle.Run(cmd *exec.Cmd) error`**: the subprocess facade —
+  sets the task's `Phase` to the command's basename if none is set yet,
+  wires `cmd.Stdout`/`cmd.Stderr` through the same `Capture`/`PhaseWriter`
+  plumbing (retained, redacted, live phase per line, `DetailTail` evidence
+  on failure), tees rather than replaces any writer the caller already
+  wired, and returns the subprocess error verbatim — `Run` never resolves
+  the task; the caller still chooses `Done`/`Fail`. `Run` doesn't touch
+  `cmd.Stdin` and doesn't `Suspend`; tty passthrough stays the explicit
+  `Suspend` path.
 
 ### Changed
 
@@ -117,6 +133,17 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   `evo.Verbose()` function. `evo.Print*` visibility gating is otherwise
   unchanged.
 - **`Main` re-signature — see "The migration hazard" above.**
+- **`TaskHandle.Fail`/`ItemHandle.Fail`/`ItemHandle.Block` now return `error`
+  instead of the handle** (pre-1.0 API break): `return task.Fail("validate
+policy manifest", evo.Cause(err))` is now a single line — the error's
+  message is the summary, wrapping an `evo.Cause` option with `%w` so
+  `errors.Is`/`errors.As` still reach it; no `Cause` yields a plain
+  `errors.New(summary)`. New `TaskHandle.Failf` / `ItemHandle.Failf` /
+  `ItemHandle.Blockf` take the same summary as a printf format. This is not
+  fluent chaining — the handle is never returned — so any existing call site
+  chaining off `Fail`/`Block` (e.g. `.Fail(...).Because(...)`) needs the
+  chain split into two statements; a call site that already ignored the
+  return value needs no change. Both methods are nil-receiver safe.
 
 ### Fixed
 
