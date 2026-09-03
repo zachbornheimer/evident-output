@@ -28,19 +28,27 @@ func (t *TaskHandle) Phase(text string) *TaskHandle {
 		t.out.recordMisuse(ErrAlreadyResolved)
 		return t
 	}
+	t.out.setPhaseLocked(st, text)
+	return t
+}
+
+// setPhaseLocked is Phase's locked body, factored out so a caller already
+// holding o.mu (evo.StartPhase's declare-time phase set in taskScoped) can
+// apply it without a nested lock. Callers must have already checked
+// ensureOpen/isTerminalTask.
+func (o *Output) setPhaseLocked(st *taskState, text string) {
 	st.phase = sanitize.Text(text)
-	st.activityAt = t.out.cfg.clock.Now()
+	st.activityAt = o.cfg.clock.Now()
 	if st.state == Pending {
-		t.out.promoteRunningLocked(st)
+		o.promoteRunningLocked(st)
 		if st.progress.Kind == "" {
 			st.progress.Kind = Indeterminate
 		}
 	}
-	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task.phase_changed", EntityID: t.id})
-	t.out.signalLiveLocked(true)
-	t.out.emitTaskRunningProgressiveLocked(st, triggerPhase)
-	return t
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
+	o.signalLiveLocked(true)
+	o.emitTaskRunningProgressiveLocked(st, triggerPhase)
 }
 
 // Progress sets absolute completed/total count progress.

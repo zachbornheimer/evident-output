@@ -9,7 +9,8 @@ type EntityOption interface {
 }
 
 type entityOpts struct {
-	key string
+	key   string
+	phase string
 }
 
 type entityOptionFunc func(*entityOpts)
@@ -22,6 +23,17 @@ func (f entityOptionFunc) applyEntity(o *entityOpts) { f(o) }
 //	out.Task("download base image", evo.ID("build.base-image.download"))
 func ID(id string) EntityOption {
 	return entityOptionFunc(func(o *entityOpts) { o.key = id })
+}
+
+// StartPhase declares a task with its first Phase already set, in one call —
+// declare-then-phase collapsed into the declaration itself:
+//
+//	out.Task("download base image", evo.StartPhase("resolving tag"))
+//
+// is exactly out.Task("download base image").Phase("resolving tag"), with no
+// separate statement (and no gap where the task sits Pending) between them.
+func StartPhase(text string) EntityOption {
+	return entityOptionFunc(func(o *entityOpts) { o.phase = text })
 }
 
 // formatEntityName splits a Task/Item declaration's trailing args into the

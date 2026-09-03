@@ -351,6 +351,11 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 	} else {
 		o.namedTasks["\x00"+scope+"\x00"+clean] = h
 	}
+	if eo.phase != "" {
+		if st := o.taskByRef[h.id]; st != nil && o.ensureOpen() == nil && !isTerminalTask(st.state) {
+			o.setPhaseLocked(st, eo.phase)
+		}
+	}
 	return h
 }
 

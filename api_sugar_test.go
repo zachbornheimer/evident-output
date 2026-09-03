@@ -204,6 +204,23 @@ func TestAPISugar_TaskBlockfNextCommandAttachesRemedy(t *testing.T) {
 	}
 }
 
+// TestAPISugar_StartPhaseDeclaresWithPhaseSet pins L7: evo.StartPhase
+// collapses declare + first Phase into one call, with no gap where the task
+// sits Pending between two statements.
+func TestAPISugar_StartPhaseDeclaresWithPhaseSet(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("download base image", evo.StartPhase("resolving tag"))
+	snap := task.Snapshot()
+	if snap.Phase != "resolving tag" {
+		t.Fatalf("phase = %q, want %q", snap.Phase, "resolving tag")
+	}
+	if snap.State != evo.Running {
+		t.Fatalf("state = %q, want Running", snap.State)
+	}
+}
+
 func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
