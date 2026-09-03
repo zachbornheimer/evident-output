@@ -878,6 +878,169 @@ task.Phase(strings.Join(quoted, " "))`,
 			Certainty:       "heuristic",
 			Detection:       "guidance", // no cheap detector: a raw write of "untrusted" text isn't distinguishable from a raw write of trusted text by AST alone
 		},
+		{
+			ID:        "API-034",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a statement-form Fail/Block that must propagate an error returns that error, not nil",
+			Why:       "return nil immediately after Fail/Block discards the error the caller needed to propagate — the most common shape of \"the remedy has nowhere to attach\" (49 dotfiles + 41 zq sites).",
+			BadCode: `if err := validate(cfg); err != nil {
+  task.Fail("validate policy manifest")
+  return nil
+}`,
+			GoodCode: `if err := validate(cfg); err != nil {
+  return task.Failf("validate policy manifest: %w", err)
+}`,
+			Remediation:     `Replace the Fail/Block + return nil pair with return task.Failf/Blockf("<context>: %w", err)`,
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-034"},
+			Since:           "0.2.17",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-035",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a function that Fails/Blocks wires its checked command's output somewhere, never io.Discard",
+			Why:       "io.Discard as a sink in a function that also Fails/Blocks is an evidence-free security-gate shape: the verdict has nothing to show for itself when it matters most.",
+			BadCode: `cmd.Stdout = io.Discard
+if err := cmd.Run(); err != nil {
+  task.Block("policy check failed")
+}`,
+			GoodCode: `if err := task.Run(cmd); err != nil {
+  return task.Blockf("policy check failed: %w", err).NextCommand("git", "status")
+}`,
+			Remediation:     "Wire the checked command's output through task.Evidence() (or task.Run) instead of io.Discard, so Block/Fail can attach DetailTail",
+			RelatedGuidance: []string{"streams"},
+			VerificationIDs: []string{"API-035"},
+			Since:           "0.2.17",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:              "API-036",
+			Category:        "API",
+			Severity:        "warning",
+			Invariant:       "a Fail/Block/Warn summary uses the matching *f method instead of hand-calling fmt.Sprintf",
+			Why:             "fmt.Sprintf as Fail/Block/Warn's sole argument is ceremony around a formatting method (Failf/Blockf/Warnf) that already exists.",
+			BadCode:         `task.Fail(fmt.Sprintf("delete failed on %s", branch))`,
+			GoodCode:        `task.Failf("delete failed on %s", branch)`,
+			Remediation:     "Replace Fail/Block/Warn(fmt.Sprintf(...)) with the matching Failf/Blockf/Warnf(...) directly",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-036"},
+			Since:           "0.2.17",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "API-037",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a method that only forwards to one Task/Item verb call is inlined at its callers, not wrapped",
+			Why:       "A method whose entire body is one call on a Task/Item handle adds a name and a stack frame with no behavior of its own (zq's resolutionPhase wrapper).",
+			BadCode: `func (r *runner) resolutionPhase(text string) {
+  r.task.Phase(text)
+}`,
+			GoodCode:        `r.task.Phase(text) // called directly at each site`,
+			Remediation:     "Inline the wrapped verb call at each caller and delete the wrapper method",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-037"},
+			Since:           "0.2.17",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:              "DOM-018",
+			Category:        "DOM",
+			Severity:        "warning",
+			Invariant:       "an error surfaces once per resolution, not as both the summary text and evo.Cause",
+			Why:             "err.Error() as the summary alongside evo.Cause(err) surfaces the same error twice — and since Fail/Block are statement-form, evo.Cause no longer affects the returned error at all, so the two are now the identical dead-and-live text.",
+			BadCode:         `task.Fail(err.Error(), evo.Cause(err))`,
+			GoodCode:        `return task.Failf("validate policy manifest: %w", err)`,
+			Remediation:     `Replace the err.Error()+evo.Cause(err) pair with a single %w-wrapped Failf/Blockf`,
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"DOM-018"},
+			Since:           "0.2.17",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:              "TAX-002",
+			Category:        "TAX",
+			Severity:        "warning",
+			Invariant:       "evo.Reason's argument is a fixed string literal or a const/package-level var, never a computed expression",
+			Why:             "evo.Reason built from a computed expression (Sprintf, Join, concatenation) opens one taxonomy bucket per distinct rendered value instead of one per classification (live instance: joining per-item counts into the reason text).",
+			BadCode:         `task.Skipped(evo.Reason(strings.Join(names, ", ")), name)`,
+			GoodCode:        `task.Skipped(evo.Reason("protected"), name) // the per-item detail is the Skipped name argument, not the reason`,
+			Remediation:     `Use a fixed string literal (or a package-level var) naming the classification; fold the dynamic detail into Skipped's name argument`,
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"TAX-002"},
+			Since:           "0.2.17",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "TXT-020",
+			Category:  "TXT",
+			Severity:  "warning",
+			Invariant: "an entity name is a short noun phrase; narration lives in Phase/Donef",
+			Why:       "An entity name over ~40 characters, or narrating a transition (into/->), reads as narration squeezed into a label instead of a name.",
+			BadCode:   `out.Task("copying build artifacts from staging into the production release bucket")`,
+			GoodCode: `t := out.Task("release artifacts")
+t.Phase("copying staging -> production release bucket")`,
+			Remediation:     "Shorten the entity name to a noun phrase; move the narrated detail into Phase(...) or the resolving verb's summary",
+			RelatedGuidance: []string{"first-paint"},
+			VerificationIDs: []string{"TXT-020"},
+			Since:           "0.2.17",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "DOM-019",
+			Category:  "DOM",
+			Severity:  "warning",
+			Invariant: "a live Task/Item handle variable is resolved before it is reassigned to a new declaration",
+			Why:       "Reassigning a variable from a new Task/Item declaration before the previous handle it held was resolved orphans the earlier row Running forever — a double row hiding under one variable name.",
+			BadCode: `t := out.Task("scan")
+t.Phase("walking")
+t = out.Task("build") // the "scan" row never resolves`,
+			GoodCode: `t := out.Task("scan")
+t.Phase("walking")
+t.Done()
+t = out.Task("build")`,
+			Remediation:     "Resolve the handle (Done/Fail/Block/Warn/Cancel/Skip) before reassigning the variable, or give the second declaration its own name",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"DOM-019"},
+			Since:           "0.2.17",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "TXT-021",
+			Category:  "TXT",
+			Severity:  "warning",
+			Invariant: "a Fail/Warn/Block summary is short text; cause and remedy are Detail/Next, never hand-assembled into the summary",
+			Why:       "A summary hand-assembling \" — cause:\"/\" — action:\" fragments reimplements Detail/Next inside plain text, losing their structured rendering and truncation.",
+			BadCode:   `task.Fail("policy check failed — cause: manifest missing — action: run zq init")`,
+			GoodCode: `task.Fail("policy check failed", evo.Detail("manifest missing")).
+	Next(evo.Label("run zq init"))`,
+			Remediation:     "Split the crammed text: keep the summary short, move the cause to Detail(...) and the remedy to Next(evo.Label(...))",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"TXT-021"},
+			Since:           "0.2.17",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:              "DOM-020",
+			Category:        "DOM",
+			Severity:        "warning",
+			Invariant:       "usage/user mistakes resolve Block (exit 1); evaluation failures resolve Fail (exit 2)",
+			Why:             "Block and Fail carry different exit codes for a reason: a caller reading the exit code needs \"you did something wrong\" (1) and \"something broke while checking\" (2) to stay distinguishable. Routing a usage mistake through Fail reports a user error as a system failure.",
+			BadCode:         `task.Fail("missing required --repo flag")`,
+			GoodCode:        `task.Block("missing required --repo flag")`,
+			Remediation:     "Route usage/user mistakes through Block, not Fail; reserve Fail for evaluation/execution failures",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"DOM-020"},
+			Since:           "0.2.17",
+			Certainty:       "heuristic",
+			// No cheap, honest static detector: telling "this Fail is a usage
+			// mistake" from "this Fail is a genuine evaluation failure" needs
+			// the caller's own domain judgment, not a source-level pattern.
+			Detection: "guidance",
+		},
 	}
 }
 

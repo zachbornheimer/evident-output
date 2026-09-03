@@ -1241,3 +1241,373 @@ func f(out *evo.Output, reason string) {
 		}
 	}
 }
+
+func TestAPI034_FailThenReturnNilDiscardsError(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) error {
+  task := out.Task("validate")
+  if err := check(); err != nil {
+    task.Fail("validate failed")
+    return nil
+  }
+  return nil
+}
+`
+	res := review.GoSource("failnil.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-034" {
+			found = true
+			if f.Suggestion == "" {
+				t.Fatal("expected a Suggestion")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-034: %+v", res.Findings)
+	}
+}
+
+func TestAPI034_NoFalsePositiveWhenErrorReturned(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) error {
+  task := out.Task("validate")
+  if err := check(); err != nil {
+    return task.Failf("validate failed: %w", err)
+  }
+  return nil
+}
+`
+	res := review.GoSource("failreturn.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-034" {
+			t.Fatalf("false positive API-034 when the error is actually returned: %+v", res.Findings)
+		}
+	}
+}
+
+func TestAPI035_DiscardSinkInFailingBlock(t *testing.T) {
+	src := `package p
+import (
+  "io"
+  "os/exec"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(out *evo.Output, cmd *exec.Cmd) {
+  task := out.Task("gate")
+  cmd.Stdout = io.Discard
+  if err := cmd.Run(); err != nil {
+    task.Block("policy check failed")
+  }
+}
+`
+	res := review.GoSource("discard.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-035" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-035: %+v", res.Findings)
+	}
+}
+
+func TestAPI035_NoFalsePositiveWithoutFailBlock(t *testing.T) {
+	src := `package p
+import (
+  "io"
+  "os/exec"
+)
+func f(cmd *exec.Cmd) {
+  cmd.Stdout = io.Discard
+  _ = cmd.Run()
+}
+`
+	res := review.GoSource("discardclean.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-035" {
+			t.Fatalf("false positive API-035 with no Fail/Block in the function: %+v", res.Findings)
+		}
+	}
+}
+
+func TestAPI036_SprintfInVerb(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, branch string) {
+  task.Fail(fmt.Sprintf("delete failed on %s", branch))
+}
+`
+	res := review.GoSource("sprintfverb.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-036" {
+			found = true
+			if f.Suggestion != `task.Failf("delete failed on %s", branch)` {
+				t.Fatalf("suggestion = %q", f.Suggestion)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-036: %+v", res.Findings)
+	}
+}
+
+func TestAPI036_NoFalsePositiveWithFailf(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle, branch string) {
+  task.Failf("delete failed on %s", branch)
+}
+`
+	res := review.GoSource("failfclean.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-036" {
+			t.Fatalf("false positive API-036 on Failf: %+v", res.Findings)
+		}
+	}
+}
+
+func TestAPI037_WrapperMethodOverTaskVerb(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+type runner struct{ task *evo.TaskHandle }
+func (r *runner) resolutionPhase(text string) {
+  r.task.Phase(text)
+}
+`
+	res := review.GoSource("wrapper.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-037" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-037: %+v", res.Findings)
+	}
+}
+
+func TestAPI037_NoFalsePositiveOnMultiStatementMethod(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+type runner struct{ task *evo.TaskHandle }
+func (r *runner) resolutionPhase(text string) {
+  r.task.Phase(text)
+  r.task.Progress(1, 2)
+}
+`
+	res := review.GoSource("wrapperclean.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-037" {
+			t.Fatalf("false positive API-037 on a multi-statement method: %+v", res.Findings)
+		}
+	}
+}
+
+func TestDOM018_ErrTwiceViaCause(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle, err error) {
+  task.Fail(err.Error(), evo.Cause(err))
+}
+`
+	res := review.GoSource("errtwice.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-018" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected DOM-018: %+v", res.Findings)
+	}
+}
+
+func TestDOM018_NoFalsePositiveOnDistinctErrorVars(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle, err, other error) {
+  task.Fail(err.Error(), evo.Cause(other))
+}
+`
+	res := review.GoSource("errdistinct.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-018" {
+			t.Fatalf("false positive DOM-018 on distinct error variables: %+v", res.Findings)
+		}
+	}
+}
+
+func TestTAX002_DynamicReasonFromJoin(t *testing.T) {
+	src := `package p
+import (
+  "strings"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, names []string) {
+  task.Skipped(evo.Reason(strings.Join(names, ", ")), "x")
+}
+`
+	res := review.GoSource("dynreason.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "TAX-002" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected TAX-002: %+v", res.Findings)
+	}
+}
+
+func TestTAX002_NoFalsePositiveOnLiteralOrPackageVar(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+var reasonProtected = evo.Reason("protected")
+func f(task *evo.TaskHandle) {
+  task.Skipped(evo.Reason("protected"), "x")
+  task.Skipped(reasonProtected, "y")
+}
+`
+	res := review.GoSource("reasonclean.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "TAX-002" {
+			t.Fatalf("false positive TAX-002 on a literal/package-var reason: %+v", res.Findings)
+		}
+	}
+}
+
+func TestTXT020_LongEntityName(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) {
+  out.Task("copying build artifacts into the production release bucket now")
+}
+`
+	res := review.GoSource("longname.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "TXT-020" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected TXT-020: %+v", res.Findings)
+	}
+}
+
+func TestTXT020_NoFalsePositiveOnShortNoun(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) {
+  out.Task("release artifacts")
+}
+`
+	res := review.GoSource("shortname.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "TXT-020" {
+			t.Fatalf("false positive TXT-020 on a short noun name: %+v", res.Findings)
+		}
+	}
+}
+
+func TestDOM019_ShadowedHandleBeforeResolution(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output, flag bool) {
+  t := out.Task("scan")
+  t.Phase("walking")
+  if flag {
+    t := out.Task("build")
+    t.Done()
+  }
+}
+`
+	res := review.GoSource("shadow.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-019" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected DOM-019: %+v", res.Findings)
+	}
+}
+
+func TestDOM019_NoFalsePositiveWhenResolvedFirst(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output, flag bool) {
+  t := out.Task("scan")
+  t.Phase("walking")
+  t.Done()
+  if flag {
+    t := out.Task("build")
+    t.Done()
+  }
+}
+`
+	res := review.GoSource("shadowclean.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-019" {
+			t.Fatalf("false positive DOM-019 when the first handle was resolved before reassignment: %+v", res.Findings)
+		}
+	}
+}
+
+func TestTXT021_CrammedSummary(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Fail("policy check failed — cause: manifest missing — action: run zq init")
+}
+`
+	res := review.GoSource("crammed.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "TXT-021" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected TXT-021: %+v", res.Findings)
+	}
+}
+
+func TestTXT021_NoFalsePositiveOnPlainSummary(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Fail("policy check failed")
+}
+`
+	res := review.GoSource("plainsummary.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "TXT-021" {
+			t.Fatalf("false positive TXT-021 on a plain summary: %+v", res.Findings)
+		}
+	}
+}
+
+// TestDOM020_GuidanceOnlyResolvesButIsNeverEmitted pins the exit-code
+// honesty rule as guidance-only: rules.Explain resolves it (so a guide
+// reference is never a dead end), but no fixture can make review.GoSource
+// emit it — telling a usage mistake from a genuine evaluation failure needs
+// the caller's own domain judgment, not a source pattern.
+func TestDOM020_GuidanceOnlyResolvesButIsNeverEmitted(t *testing.T) {
+	r, ok := rules.Explain("DOM-020")
+	if !ok {
+		t.Fatal("rules.Explain(\"DOM-020\") did not resolve")
+	}
+	if r.Detection != "guidance" {
+		t.Fatalf("Detection = %q, want %q", r.Detection, "guidance")
+	}
+}

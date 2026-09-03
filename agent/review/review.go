@@ -328,6 +328,63 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectNameEqualsVerbArgument(filename, src)...)
 	}
 
+	// API-034: a statement-form Fail/Block immediately followed by return nil
+	// discards the error the caller needed to propagate.
+	if hasEvo {
+		findings = append(findings, detectFailBlockThenReturnNil(filename, src)...)
+	}
+
+	// API-035: io.Discard wired as a sink in a function that itself Fails/
+	// Blocks is an evidence-free security-gate shape — the verdict has
+	// nothing to show for itself.
+	if hasEvo {
+		findings = append(findings, detectDiscardSinkInFailingBlock(filename, src)...)
+	}
+
+	// API-036: Fail/Block/Warn summary built via fmt.Sprintf instead of the
+	// matching Failf/Blockf/Warnf.
+	if hasEvo {
+		findings = append(findings, detectSprintfInVerb(filename, src)...)
+	}
+
+	// API-037: a method whose whole body is one call on a Task/Item handle —
+	// pure ceremony over the handle's own verb.
+	if hasEvo {
+		findings = append(findings, detectWrapperMethod(filename, src)...)
+	}
+
+	// DOM-018: err.Error() as the summary alongside evo.Cause(err) surfaces
+	// the same error twice; evo.Cause no longer affects the returned error.
+	if hasEvo {
+		findings = append(findings, detectErrTwice(filename, src)...)
+	}
+
+	// TAX-002: evo.Reason built from a computed expression opens one
+	// taxonomy bucket per distinct rendered value instead of one per
+	// classification.
+	if hasEvo {
+		findings = append(findings, detectDynamicReason(filename, src)...)
+	}
+
+	// TXT-020: an entity name too long, or narrating a transition (into/->)
+	// instead of naming a noun — that detail belongs in Phase/Donef.
+	if hasEvo {
+		findings = append(findings, detectLongEntityName(filename, src)...)
+	}
+
+	// DOM-019: a Task/Item handle variable reassigned from a new declaration
+	// before the previous one was resolved — the earlier row is orphaned
+	// Running forever (a double row under one variable name).
+	if hasEvo {
+		findings = append(findings, detectShadowedHandle(filename, src)...)
+	}
+
+	// TXT-021: a Fail/Warn/Block summary hand-assembles a " — cause:"/
+	// " — action:" fragment instead of using Detail/Next.
+	if hasEvo {
+		findings = append(findings, detectCrammedSummary(filename, src)...)
+	}
+
 	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
@@ -1432,6 +1489,402 @@ func detectPlaceholderPhase(filename, src string) []Finding {
 		})
 	}
 	return findings
+}
+
+// failBlockStmtPattern matches a statement-form Fail/Block call (not
+// Failf/Blockf, which already return the built error — the pattern requires
+// "(" immediately after the verb name, which "Failf("/"Blockf(" never has).
+var failBlockStmtPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(`)
+
+// detectFailBlockThenReturnNil is API-034: a statement-form Fail/Block
+// followed immediately by a bare `return nil` discards the error the caller
+// needed to propagate — the most common shape of "the remedy has nowhere to
+// attach" (49 dotfiles + 41 zq sites).
+func detectFailBlockThenReturnNil(filename, src string) []Finding {
+	var findings []Finding
+	lines := strings.Split(src, "\n")
+	for i, line := range lines {
+		m := failBlockStmtPattern.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		recv, verb := m[1], m[2]
+		for j := i + 1; j < len(lines) && j < i+4; j++ {
+			trimmed := strings.TrimSpace(lines[j])
+			if trimmed == "" || trimmed == "}" {
+				continue
+			}
+			if trimmed == "return nil" {
+				findings = append(findings, Finding{
+					RuleID:     "API-034",
+					Severity:   "error",
+					Message:    recv + "." + verb + "(...) followed by return nil discards the error the caller needed to propagate",
+					File:       filename,
+					Line:       j + 1,
+					Suggestion: "return " + recv + "." + verb + `f("<context>: %w", err)`,
+				})
+			}
+			break
+		}
+	}
+	return findings
+}
+
+// detectDiscardSinkInFailingBlock is API-035: io.Discard wired as a sink
+// inside a function that also Fails/Blocks is an evidence-free security-gate
+// shape — the verdict has nothing to show for itself.
+func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
+	var findings []Finding
+	for _, fb := range allFuncBodies(src) {
+		if !strings.Contains(fb.body, "io.Discard") {
+			continue
+		}
+		if !strings.Contains(fb.body, ".Block(") && !strings.Contains(fb.body, ".Fail(") {
+			continue
+		}
+		idx := strings.Index(fb.body, "io.Discard")
+		findings = append(findings, Finding{
+			RuleID:     "API-035",
+			Severity:   "warning",
+			Message:    "io.Discard sink in a function that also Fails/Blocks discards the evidence a security gate needs to explain its own verdict",
+			File:       filename,
+			Line:       lineAt(src, fb.offset+idx),
+			Suggestion: "wire the checked command's output through task.Evidence() (or task.Run) instead of io.Discard, so Block/Fail can attach DetailTail",
+		})
+	}
+	return findings
+}
+
+// sprintfInVerbPattern matches Fail/Block/Warn called with fmt.Sprintf as
+// (the start of) its argument list.
+var sprintfInVerbPattern = regexp.MustCompile(`(\w+)\.(Fail|Block|Warn)\(\s*fmt\.Sprintf\(`)
+
+// detectSprintfInVerb is API-036: a Fail/Block/Warn summary hand-built via
+// fmt.Sprintf should be the matching Failf/Blockf/Warnf directly — fmt.Sprintf
+// as the sole argument is pure ceremony around a formatting method that
+// already exists.
+func detectSprintfInVerb(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range sprintfInVerbPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv, verb := src[m[2]:m[3]], src[m[4]:m[5]]
+		openIdx := strings.Index(src[m[0]:m[1]], "fmt.Sprintf(")
+		if openIdx < 0 {
+			continue
+		}
+		openIdx = m[0] + openIdx + len("fmt.Sprintf")
+		args, endIdx, ok := balancedArgs(src, openIdx)
+		if !ok {
+			continue
+		}
+		rest := strings.TrimLeft(src[endIdx:], " \t\n")
+		if !strings.HasPrefix(rest, ")") {
+			// fmt.Sprintf isn't the sole argument (extra ProblemOptions follow) —
+			// still a real finding, but no cheap derived Verbf substitution.
+			findings = append(findings, Finding{
+				RuleID:     "API-036",
+				Severity:   "warning",
+				Message:    recv + "." + verb + "(fmt.Sprintf(...), ...) should build its summary via " + recv + "." + verb + "f(...)",
+				File:       filename,
+				Line:       lineAt(src, m[0]),
+				Suggestion: recv + "." + verb + "f(" + args + ")",
+			})
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-036",
+			Severity:   "warning",
+			Message:    recv + "." + verb + "(fmt.Sprintf(...)) should be " + recv + "." + verb + "f(...) directly",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: recv + "." + verb + "f(" + args + ")",
+		})
+	}
+	return findings
+}
+
+// methodDeclPattern matches a method declaration (has a receiver), capturing
+// the method name so detectWrapperMethod can name it in the finding.
+var methodDeclPattern = regexp.MustCompile(`func\s*\(\s*\w+\s+\*?\w+\s*\)\s+(\w+)\s*\(`)
+
+// wrapperMethodBodyPattern matches a single statement that is (optionally
+// `return`-ing) exactly one call ending in a known Task-verb method name.
+var wrapperMethodBodyPattern = regexp.MustCompile(`^(?:return\s+)?[\w.]+\.(Phase|Done|Fail|Warn|Block|Cancel|Skip|Kept|Progress|Advance|Step|Evidence|PhaseWriter)\([^{}]*\)\s*;?$`)
+
+// detectWrapperMethod is API-037: a method whose entire body is one call on
+// a Task/Item handle adds a name and a stack frame over calling the verb
+// directly (zq's resolutionPhase wrapper).
+func detectWrapperMethod(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range methodDeclPattern.FindAllStringSubmatchIndex(src, -1) {
+		name := src[m[2]:m[3]]
+		body, start, ok := balancedBraceBody(src, m[0])
+		if !ok || len(body) < 2 {
+			continue
+		}
+		inner := body[1 : len(body)-1]
+		stmt := singleStatementBody(inner)
+		if stmt == "" {
+			continue
+		}
+		call := wrapperMethodBodyPattern.FindStringSubmatch(stmt)
+		if call == nil {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-037",
+			Severity:   "warning",
+			Message:    "method " + name + " wraps a single call (." + call[1] + "(...)) on a Task/Item handle with no added behavior",
+			File:       filename,
+			Line:       lineAt(src, start),
+			Suggestion: "inline ." + call[1] + "(...) at each caller and delete " + name,
+		})
+	}
+	return findings
+}
+
+// singleStatementBody returns the sole non-blank, non-comment line of inner,
+// or "" when inner has zero or more than one such line.
+func singleStatementBody(inner string) string {
+	var stmt string
+	count := 0
+	for _, l := range strings.Split(inner, "\n") {
+		t := strings.TrimSpace(l)
+		if t == "" || strings.HasPrefix(t, "//") {
+			continue
+		}
+		stmt = t
+		count++
+	}
+	if count != 1 {
+		return ""
+	}
+	return stmt
+}
+
+// errTwicePattern matches `recv.Fail(errVar.Error(), evo.Cause(errVar))` (or
+// Block) — the same error surfacing twice, once as bare summary text, once
+// as the (now inert) Cause option.
+var errTwicePattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*(\w+)\.Error\(\)\s*,\s*evo\.Cause\(\s*(\w+)\s*\)\s*\)`)
+
+// detectErrTwice is DOM-018: err.Error() as the summary alongside
+// evo.Cause(err) surfaces the same error twice — and since Fail/Block are
+// statement-form, evo.Cause no longer affects the returned error at all, so
+// the summary text and the (dead) cause option are now the identical string.
+func detectErrTwice(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range errTwicePattern.FindAllStringSubmatchIndex(src, -1) {
+		recv, verb := src[m[2]:m[3]], src[m[4]:m[5]]
+		errVar, causeVar := src[m[6]:m[7]], src[m[8]:m[9]]
+		if errVar != causeVar {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:   "DOM-018",
+			Severity: "warning",
+			Message: errVar + ".Error() as the summary and evo.Cause(" + errVar + ") as an option surface the same error twice; " +
+				"evo.Cause no longer affects the returned error since Fail/Block are statement-form",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "return " + recv + "." + verb + `f("<context>: %w", ` + errVar + ")",
+		})
+	}
+	return findings
+}
+
+// dynamicReasonCallPattern matches a plain evo.Reason( call (not Reasonf,
+// which is always format-built by design).
+var dynamicReasonCallPattern = regexp.MustCompile(`evo\.Reason\(`)
+
+// simpleReasonArgPattern matches the two shapes that keep evo.Reason's
+// cardinality bounded: a string literal, or a bare (optionally
+// package-qualified) identifier — a const or package-level var.
+var simpleReasonArgPattern = regexp.MustCompile(`^(?:"[^"]*"|[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?)$`)
+
+// detectDynamicReason is TAX-002: evo.Reason built from a computed
+// expression (concatenation, Sprintf, a Join over per-item data) opens one
+// taxonomy bucket per distinct rendered value instead of one per
+// classification — the live instance this closes: rr scan.go:60 joining
+// per-item counts into the reason text.
+func detectDynamicReason(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range dynamicReasonCallPattern.FindAllStringIndex(src, -1) {
+		openIdx := m[1] - 1
+		args, _, ok := balancedArgs(src, openIdx)
+		if !ok {
+			continue
+		}
+		parts := splitTopLevelArgs(args)
+		if len(parts) == 0 {
+			continue
+		}
+		firstArg := strings.TrimSpace(parts[0])
+		if firstArg == "" || simpleReasonArgPattern.MatchString(firstArg) {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:   "TAX-002",
+			Severity: "warning",
+			Message: "evo.Reason built from a computed expression (" + firstArg +
+				") is a cardinality bug — each distinct rendered value opens a new taxonomy bucket",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: `use a fixed string literal naming the classification, e.g. evo.Reason("protected"); fold the per-item detail into Skipped's name argument instead`,
+		})
+	}
+	return findings
+}
+
+// entityNameLiteralPattern matches a Task/Item declaration's literal name
+// argument.
+var entityNameLiteralPattern = regexp.MustCompile(`\.(?:Task|Item)\(\s*"([^"]*)"`)
+
+// longNameTransitionPattern flags an entity name narrating a transition
+// (into/->) instead of naming a noun. "to" alone is deliberately excluded —
+// it is common in ordinary noun phrases ("push to origin") and would
+// false-positive on the overwhelming majority of legitimate names.
+var longNameTransitionPattern = regexp.MustCompile(`(?i)\binto\b|->`)
+
+// maxEntityNameLength is the guideline length beyond which a name reads as
+// narration, not a noun (evo-rec.md "a Phase string narrates; a name labels").
+const maxEntityNameLength = 40
+
+// detectLongEntityName is TXT-020: an entity name over the length guideline,
+// or narrating a transition, belongs in Phase/Donef — the name is a noun.
+func detectLongEntityName(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range entityNameLiteralPattern.FindAllStringSubmatchIndex(src, -1) {
+		name := src[m[2]:m[3]]
+		var reason string
+		switch {
+		case len(name) > maxEntityNameLength:
+			reason = fmt.Sprintf("is %d characters (over the ~%d character guideline)", len(name), maxEntityNameLength)
+		case longNameTransitionPattern.MatchString(name):
+			reason = "narrates a transition (into/->) instead of naming a noun"
+		default:
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "TXT-020",
+			Severity:   "warning",
+			Message:    fmt.Sprintf("entity name %q %s", name, reason),
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "shorten to a noun phrase; move the narrated detail into Phase(...) or the resolving verb's summary",
+		})
+	}
+	return findings
+}
+
+// handleAssignPattern matches `name := recv.Task(...)` (or Item), capturing
+// the variable name a live handle is bound to.
+var handleAssignPattern = regexp.MustCompile(`\b(\w+)\s*:=\s*\w+\.(?:Task|Item)\(`)
+
+// detectShadowedHandle is DOM-019: a Task/Item handle variable reassigned
+// from a new declaration before the previous one was resolved orphans the
+// earlier row Running forever — a double row hiding under one variable name.
+func detectShadowedHandle(filename, src string) []Finding {
+	var findings []Finding
+	for _, fb := range allFuncBodies(src) {
+		matches := handleAssignPattern.FindAllStringSubmatchIndex(fb.body, -1)
+		lastDeclEnd := map[string]int{}
+		for _, m := range matches {
+			name := fb.body[m[2]:m[3]]
+			if prevEnd, ok := lastDeclEnd[name]; ok {
+				between := fb.body[prevEnd:m[0]]
+				resolved := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.(Done|Fail|Warn|Block|Cancel|Skip)\(`).MatchString(between)
+				if !resolved {
+					findings = append(findings, Finding{
+						RuleID:   "DOM-019",
+						Severity: "warning",
+						Message: "variable " + name + " is reassigned from a new Task/Item declaration before the previous one was resolved; " +
+							"the earlier row is orphaned Running forever",
+						File:       filename,
+						Line:       lineAt(src, fb.offset+m[0]),
+						Suggestion: "resolve " + name + " (Done/Fail/Block/Warn/Cancel/Skip) before reassigning it, or give the second declaration its own variable name",
+					})
+				}
+			}
+			lastDeclEnd[name] = m[1]
+		}
+	}
+	return findings
+}
+
+// crammedSummaryPattern matches a Fail/Warn/Block string literal summary.
+var crammedSummaryPattern = regexp.MustCompile(`\.(Fail|Warn|Block)\(\s*"([^"]*)"`)
+
+// detectCrammedSummary is TXT-021: a summary that hand-assembles a
+// " — cause:"/" — action:" fragment reimplements Detail/Next inside plain text.
+func detectCrammedSummary(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range crammedSummaryPattern.FindAllStringSubmatchIndex(src, -1) {
+		verb := src[m[2]:m[3]]
+		text := src[m[4]:m[5]]
+		if !strings.Contains(text, "cause:") && !strings.Contains(text, "action:") {
+			continue
+		}
+		if !strings.Contains(text, "—") && !strings.Contains(text, " - ") {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "TXT-021",
+			Severity:   "warning",
+			Message:    verb + " summary hand-assembles a cause/action fragment into the text instead of using Detail/Next",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "split the text: keep the summary short, move the cause to Detail(...) and the remedy to Next(evo.Label(...))",
+		})
+	}
+	return findings
+}
+
+// balancedArgs returns the substring between the parenthesis pair opening at
+// openIdx (which must point at '(') and its matching close, plus the index
+// just past the close paren.
+func balancedArgs(src string, openIdx int) (args string, endIdx int, ok bool) {
+	if openIdx < 0 || openIdx >= len(src) || src[openIdx] != '(' {
+		return "", 0, false
+	}
+	depth := 0
+	for i := openIdx; i < len(src); i++ {
+		switch src[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return src[openIdx+1 : i], i + 1, true
+			}
+		}
+	}
+	return "", 0, false
+}
+
+// splitTopLevelArgs splits s on commas that are not nested inside
+// parens/brackets/braces or a string literal.
+func splitTopLevelArgs(s string) []string {
+	var args []string
+	depth := 0
+	start := 0
+	inStr := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '"' && (i == 0 || s[i-1] != '\\'):
+			inStr = !inStr
+		case inStr:
+			continue
+		case c == '(' || c == '[' || c == '{':
+			depth++
+		case c == ')' || c == ']' || c == '}':
+			depth--
+		case c == ',' && depth == 0:
+			args = append(args, s[start:i])
+			start = i + 1
+		}
+	}
+	args = append(args, s[start:])
+	return args
 }
 
 // funcBody is a function's brace-balanced source region and its byte offset.

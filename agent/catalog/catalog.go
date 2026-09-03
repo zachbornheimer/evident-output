@@ -28,7 +28,10 @@ func All() []Guide {
 			Title:    "Common API path",
 			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
 			Concepts: []string{"Output", "Item", "Task", "Conclusion", "Main", "TaskHandle", "ItemHandle", "GroupHandle"},
-			Rules:    []string{"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002"},
+			Rules: []string{
+				"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002",
+				"API-034", "API-035", "API-036", "API-037", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
+			},
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
   1) evo.Init(evo.Config{Title, DryRun}) once in main, before any I/O; os.Exit(evo.Main(run)) — dry-run wording,
      empty-case, and exit codes are all owned; run returns only error.
@@ -46,6 +49,10 @@ get-or-create facades on the package-level default instance (see evo.Init/evo.Se
 stay on the instance API for tooling call sites, not the front door above.
 
 Severity: Warn = soft/optional; Block = stop before mutate; Fail = evaluation failed.
+Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) so a caller can tell "you did
+something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
+protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
+failure.
 Do not Start (API-006); no RunAll/Map (API-026); Donef needs % (API-028); Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
