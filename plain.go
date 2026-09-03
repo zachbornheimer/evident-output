@@ -293,7 +293,7 @@ func writeTaxonomy(b *strings.Builder, indent, verb string, records []TaxonomyRe
 		}
 		parts[i] = fmt.Sprintf("%d %s", len(names[reason]), reason)
 	}
-	glyph := styleGlyph("!", sgrYellow, color)
+	glyph := styleGlyph(glyphWarningState.render(profile), sgrYellow, color)
 	fmt.Fprintf(b, "%s%s  %s %d  (%s)\n", indent, glyph, verb, len(records), strings.Join(parts, ", "))
 	if !verbose {
 		return
@@ -468,7 +468,7 @@ func writeConclusion(b *strings.Builder, c Conclusion, color bool, profile Glyph
 		fmt.Fprintf(b, "  %s\n", c.Explanation)
 	}
 	if c.State == StateCancelled || c.State == StateFailed {
-		writeAlreadyMutated(b, c.Changes, color)
+		writeAlreadyMutated(b, c.Changes, color, profile)
 	}
 	for _, a := range c.Actions {
 		writeAction(b, a, color, profile)
@@ -482,12 +482,12 @@ func writeConclusion(b *strings.Builder, c Conclusion, color bool, profile Glyph
 // suppressed entirely rather than rendered as "none". The summary is derived
 // mechanically from the Changes ledger, never assembled by the caller
 // (evo-rec.md "Taxonomy and mutation lines are derived, never assembled").
-func writeAlreadyMutated(b *strings.Builder, changes []ChangesSnapshot, color bool) {
+func writeAlreadyMutated(b *strings.Builder, changes []ChangesSnapshot, color bool, profile GlyphProfile) {
 	summary, ok := summarizeAlreadyMutated(changes)
 	if !ok {
 		return
 	}
-	glyph := styleGlyph("!", sgrYellow, color)
+	glyph := styleGlyph(glyphWarningState.render(profile), sgrYellow, color)
 	fmt.Fprintf(b, "%s  already mutated: %s\n", glyph, summary)
 }
 
