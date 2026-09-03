@@ -441,24 +441,12 @@ func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 		"✓ venv",
 		"✗ install uv pip install failed",
 		"skipped 2 (optional extras)",
+		"Could not find a version that satisfies requests==99.0",
 	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	// MISMATCH: a group child's Fail Detail never reaches the render.
-	// writeCollectionChild (plain.go) prints only
-	// "%s  %s  %s" (glyph, name, t.Problems[0].Summary) for a collection
-	// child row — unlike writeTask's top-level path, it never calls
-	// writeProblem/writeProblemDetailBlock, so the nested
-	// "   └─ Could not find a version that satisfies requests==99.0" evidence
-	// line the spec shows has no reachable spelling for a *group* child Fail
-	// today (a top-level TaskHandle.Fail's Detail does render this way — see
-	// TestSpecP1_CleanBatch_Failure above).
-	if strings.Contains(collapsed, "Could not find a version that satisfies requests==99.0") {
-		t.Fatalf("did not expect group-child Fail Detail to be reachable; if this now renders, remove this skip and assert it directly")
-	}
-	t.Skip("MISMATCH: spec shows a nested \"└─ Could not find a version that satisfies requests==99.0\" evidence line under a failed group child; writeCollectionChild (plain.go) only ever prints the child's Problem Summary, never its Detail — a group child's Fail Detail has no reachable rendering today (a top-level Task's Fail Detail does render, see TestSpecP1_CleanBatch_Failure)")
 }
 
 // TestSpecP4_SequentialGroup_EarlyTermination covers evo-rec.md Problem 4's

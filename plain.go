@@ -337,19 +337,42 @@ func writeCollection(b *strings.Builder, col TasksSnapshot, color, verbose bool,
 
 // writeCollectionChild renders one child task row under its parent group:
 // glyph, name, and whichever of problem summary / task summary explains it,
-// followed by the same Kept/Skipped taxonomy a standalone writeTask renders
-// — a collection child is a task, and dropping its taxonomy here was the
-// gap that forced the repo-retire adoption off the Group/Tasks API.
+// then every problem's Detail/evidence line the same way a standalone
+// writeTask already does — a collection child is a task, and dropping its
+// evidence (└─ ...) and taxonomy here was the gap that forced the
+// repo-retire adoption off the Group/Tasks API.
 func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile GlyphProfile) {
 	tg := styleGlyph(taskGlyph(t.State, profile), stateColor(t.State), color)
 	fmt.Fprintf(b, "   %s  %s", tg, t.Name)
-	switch {
-	case len(t.Problems) > 0:
-		fmt.Fprintf(b, "  %s", t.Problems[0].Summary)
-	case t.Summary != "":
-		fmt.Fprintf(b, "  %s", t.Summary)
+	headerSummary := t.Summary
+	if len(t.Problems) > 0 {
+		headerSummary = t.Problems[0].Summary
+		fmt.Fprintf(b, "  %s", headerSummary)
+	} else if headerSummary != "" {
+		fmt.Fprintf(b, "  %s", headerSummary)
 	}
 	b.WriteByte('\n')
+	problems := t.Problems
+	omitted := 0
+	if len(problems) > maxVisibleProblems {
+		omitted = len(problems) - maxVisibleProblems
+		problems = problems[:maxVisibleProblems]
+	}
+	for _, p := range problems {
+		// The header row already showed this summary; Detail alone is the
+		// evidence body (mirrors writeTask's P4 dedup).
+		if p.Detail != "" && p.Summary != "" && p.Summary == headerSummary {
+			p.Summary = ""
+		}
+		writeProblem(b, p, color, profile)
+	}
+	if omitted > 0 {
+		writeProblem(b, Problem{
+			Summary: fmt.Sprintf("and %d more failures", omitted),
+			Count:   int64(omitted),
+			Unit:    "failures",
+		}, color, profile)
+	}
 	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, verbose, color, profile)
 	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, verbose, color, profile)
 }

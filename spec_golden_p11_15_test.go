@@ -93,16 +93,6 @@ func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 //	✗  go test ./...    tests failed
 //	   └─ --- FAIL: TestFoo (0.01s)
 //	       foo_test.go:12: want 1, got 0
-//
-// MISMATCH (documented, not fixed): writeCollectionChild (plain.go) renders
-// only a resolved group child's glyph, name, and Problems[0].Summary — it
-// never calls writeProblem/writeProblemDetailBlock for a child's Detail, so
-// the "└─ --- FAIL: ..." evidence line the spec shows under a failed group
-// child never renders for any Group/Tasks child, unlike a standalone Task's
-// writeTask (which does render Detail). This is a real, executed gap between
-// the "Recommended UI" and what writeCollectionChild implements today, not a
-// stale illustration — a fix would need writeCollectionChild to call
-// writeProblem's Detail path the same way writeTask already does.
 func TestSpecP11_NestedPipeline_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -122,15 +112,13 @@ func TestSpecP11_NestedPipeline_Failure(t *testing.T) {
 		"✓  go mod download  modules cached",
 		"✓  go generate",
 		"✗  go test ./...  tests failed",
+		"--- FAIL: TestFoo (0.01s)",
+		"foo_test.go:12: want 1, got 0",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "FAIL: TestFoo") {
-		t.Fatalf("expected the documented mismatch (group child Detail never rendered) but evidence text was present:\n%s", got)
-	}
-	t.Skip("MISMATCH: writeCollectionChild never renders a failed child's Detail/evidence line (└─ ...) — see doc comment")
 }
 
 // TestSpecP11_LiveFrame_Indeterminate covers Problem 11's indeterminate
@@ -171,10 +159,6 @@ func TestSpecP11_LiveFrame_Indeterminate(t *testing.T) {
 //	✗  go generate  generator exited 1
 //	   └─ stringer: type not found
 //	-  go test ./...  not started
-//
-// MISMATCH (documented, not fixed): same writeCollectionChild gap as the
-// failure block above — the "└─ stringer: type not found" evidence line
-// never renders for a Group child's Fail.
 func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -192,16 +176,13 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 	for _, want := range []string{
 		"✓  go mod download",
 		"✗  go generate  generator exited 1",
+		"stringer: type not found",
 		"go test ./...  not started",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "type not found") {
-		t.Fatalf("expected the documented mismatch (group child Detail never rendered) but evidence text was present:\n%s", got)
-	}
-	t.Skip("MISMATCH: writeCollectionChild never renders a failed child's Detail/evidence line (└─ ...) — see doc comment")
 }
 
 // TestSpecP11_NestedPipeline_EarlyTermination covers Problem 11's early
