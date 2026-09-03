@@ -1122,6 +1122,32 @@ func (o *Output) compactJournalLocked() {
 // same way (evo-rec.md early-termination examples: "-  install  not started").
 const notStartedSummary = "not started"
 
+// unresolvedTaskCancelledSummary is the literal detail rendered for a plain
+// (non-Group) task still Running when Finish is reached — the run concluded
+// without a caller-recorded verdict, so the honest terminal state is
+// Cancelled rather than a stuck/incomplete glyph (evo-rec.md partial-truth
+// rules: an unresolved task never invents a "still might run" reading).
+const unresolvedTaskCancelledSummary = "cancelled — run concluded before finish"
+
+// resolveUnstartedTaskLocked derives a real terminal state for a task Finish
+// found non-terminal, from the one model, so every consumer sees the same
+// honest verdict instead of hand-rolling the same cascade themselves: a task
+// that had already started (Running) reads as Cancelled, and a task that
+// never got attention (Pending) reads as NotStarted ("not started") — the
+// same face a Group gives an unstarted sibling (autoResolveGroupsLocked).
+// Never called for a task an explicit verb already resolved.
+func resolveUnstartedTaskLocked(t *taskState) {
+	if t.state == Running {
+		t.state = Cancelled
+		t.phase = ""
+		t.summary = unresolvedTaskCancelledSummary
+		return
+	}
+	t.state = NotStarted
+	t.phase = ""
+	t.summary = notStartedSummary
+}
+
 // autoResolveGroupsLocked stops each group from implying "still might run"
 // once a member has already failed or been cancelled: every declared-after
 // sibling that has not reached its own terminal state becomes NotStarted.
@@ -1176,7 +1202,7 @@ func (o *Output) Finish() error {
 	}
 	for _, t := range o.tasks {
 		if !isTerminalTask(t.state) {
-			t.state = Incomplete
+			resolveUnstartedTaskLocked(t)
 			o.recordMisuse(ErrUnresolvedTask)
 		}
 	}
