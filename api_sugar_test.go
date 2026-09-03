@@ -2,9 +2,11 @@ package evo_test
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -151,6 +153,123 @@ func TestAPISugar_TaskFailfWrapsAndReturnsError(t *testing.T) {
 	}
 	if got := task.Snapshot().Summary; got != "validate policy manifest" {
 		t.Fatalf("summary = %q, want the text before the trailing %%w split off", got)
+	}
+}
+
+// TestAPISugar_TaskFailfNextAttachesRemedy pins L2: Failf/Blockf return a
+// *Failure so the remedy for a failure has somewhere to attach at the return
+// site — `return task.Failf("...: %w", err).Next(...)` — instead of a second
+// statement (the zq clean_repo.go build break this closes).
+func TestAPISugar_TaskFailfNextAttachesRemedy(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("validate")
+	cause := errors.New("manifest missing")
+
+	run := func() error {
+		return task.Failf("validate policy manifest: %w", cause).
+			Next(evo.Label("re-run with --force"))
+	}
+	err := run()
+
+	if err == nil {
+		t.Fatal("expected non-nil error")
+	}
+	if !errors.Is(err, cause) {
+		t.Fatalf("errors.Is(err, cause) = false, want true through *Failure.Unwrap")
+	}
+	var failure *evo.Failure
+	if !errors.As(err, &failure) {
+		t.Fatalf("errors.As(err, *evo.Failure) = false, want true")
+	}
+	snap := task.Snapshot()
+	if len(snap.Actions) != 1 || snap.Actions[0].Label != "re-run with --force" {
+		t.Fatalf("actions = %#v, want the Next label attached", snap.Actions)
+	}
+}
+
+// TestAPISugar_TaskBlockfNextCommandAttachesRemedy exercises Blockf's
+// matching Next/NextCommand contract.
+func TestAPISugar_TaskBlockfNextCommandAttachesRemedy(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("apply")
+	err := task.Blockf("dirty working tree").NextCommand("git", "status")
+	if err == nil {
+		t.Fatal("expected non-nil error")
+	}
+	snap := task.Snapshot()
+	if len(snap.Actions) != 1 || snap.Actions[0].Command == nil || snap.Actions[0].Command.Executable != "git" {
+		t.Fatalf("actions = %#v, want the NextCommand attached", snap.Actions)
+	}
+}
+
+// TestAPISugar_StartPhaseDeclaresWithPhaseSet pins L7: evo.StartPhase
+// collapses declare + first Phase into one call, with no gap where the task
+// sits Pending between two statements.
+func TestAPISugar_StartPhaseDeclaresWithPhaseSet(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("download base image", evo.StartPhase("resolving tag"))
+	snap := task.Snapshot()
+	if snap.Phase != "resolving tag" {
+		t.Fatalf("phase = %q, want %q", snap.Phase, "resolving tag")
+	}
+	if snap.State != evo.Running {
+		t.Fatalf("state = %q, want Running", snap.State)
+	}
+}
+
+// TestAPISugar_StepSetsProgressAndPhaseUnderOneLock pins L8: Step updates
+// progress count and phase text together, so both always describe the same
+// unit of work even under concurrent callers.
+func TestAPISugar_StepSetsProgressAndPhaseUnderOneLock(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("sync")
+	task.Step(3, 10, "syncing widget-3")
+
+	snap := task.Snapshot()
+	if snap.Progress.Completed != 3 || snap.Progress.Total != 10 {
+		t.Fatalf("progress = %+v, want 3/10", snap.Progress)
+	}
+	if snap.Phase != "syncing widget-3" {
+		t.Fatalf("phase = %q, want %q", snap.Phase, "syncing widget-3")
+	}
+}
+
+// TestAPISugar_StepConcurrentWorkersNeverInterleave races N goroutines each
+// calling Step with a matched (index, name) pair; the final Snapshot's
+// Progress and Phase must always agree with ONE goroutine's own pair — never
+// a mix (the defect two separate Progress+Phase calls under two separate
+// locks allowed).
+func TestAPISugar_StepConcurrentWorkersNeverInterleave(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+	task := out.Task("sync")
+
+	const n = 50
+	var wg sync.WaitGroup
+	for i := 1; i <= n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			task.Step(i, n, fmt.Sprintf("item-%d", i))
+		}(i)
+	}
+	wg.Wait()
+
+	snap := task.Snapshot()
+	want := fmt.Sprintf("item-%d", snap.Progress.Completed)
+	if snap.Progress.Completed < 1 || snap.Progress.Completed > n {
+		t.Fatalf("completed = %d out of range", snap.Progress.Completed)
+	}
+	if snap.Phase != want {
+		t.Fatalf("phase = %q, want %q (matched to completed=%d)", snap.Phase, want, snap.Progress.Completed)
 	}
 }
 

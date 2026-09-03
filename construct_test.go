@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -36,6 +37,41 @@ func TestNew_PartialConfig_InheritsDefaults(t *testing.T) {
 	// Width/color defaults applied without panic.
 	if out.Snapshot().Subject != "bpp-csharp" {
 		t.Fatalf("subject: %q", out.Snapshot().Subject)
+	}
+}
+
+// TestConfig_SubjectRenderedOnceUnderTitle pins L5: Config.Subject renders
+// as a durable line immediately at Init, so a caller stops hand-calling
+// out.Println(root) at every projection that needs to show it.
+func TestConfig_SubjectRenderedOnceUnderTitle(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Title:   "repo-retire",
+		Subject: "/Users/z/dev/stale-repo",
+		Stdout:  &buf,
+		Stderr:  &buf,
+	})
+	t.Cleanup(func() { _ = out.Close() })
+	out.Task("scan").Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(buf.String(), "/Users/z/dev/stale-repo"); got != 1 {
+		t.Fatalf("Subject line count = %d, want exactly 1 in:\n%s", got, buf.String())
+	}
+}
+
+// TestConfig_SubjectEmptyEmitsNothing proves the zero value is silent —
+// Config.Subject is opt-in, never a placeholder line.
+func TestConfig_SubjectEmptyEmitsNothing(t *testing.T) {
+	out := evo.Init(evo.Config{Title: "repo-retire", Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+	out.Task("scan").Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(out.Snapshot().Messages); got != 0 {
+		t.Fatalf("Messages = %d, want 0 with Subject unset", got)
 	}
 }
 

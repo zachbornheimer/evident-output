@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -40,7 +41,7 @@ func TestCON012_ConcurrentItemOK(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	items := make([]*evo.ItemHandle, 20)
 	for i := range items {
-		items[i] = out.Task("x")
+		items[i] = out.Task("x", evo.ID(fmt.Sprintf("x%d", i)))
 	}
 	var wg sync.WaitGroup
 	for _, it := range items {

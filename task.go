@@ -28,19 +28,27 @@ func (t *TaskHandle) Phase(text string) *TaskHandle {
 		t.out.recordMisuse(ErrAlreadyResolved)
 		return t
 	}
+	t.out.setPhaseLocked(st, text)
+	return t
+}
+
+// setPhaseLocked is Phase's locked body, factored out so a caller already
+// holding o.mu (evo.StartPhase's declare-time phase set in taskScoped) can
+// apply it without a nested lock. Callers must have already checked
+// ensureOpen/isTerminalTask.
+func (o *Output) setPhaseLocked(st *taskState, text string) {
 	st.phase = sanitize.Text(text)
-	st.activityAt = t.out.cfg.clock.Now()
+	st.activityAt = o.cfg.clock.Now()
 	if st.state == Pending {
-		t.out.promoteRunningLocked(st)
+		o.promoteRunningLocked(st)
 		if st.progress.Kind == "" {
 			st.progress.Kind = Indeterminate
 		}
 	}
-	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task.phase_changed", EntityID: t.id})
-	t.out.signalLiveLocked(true)
-	t.out.emitTaskRunningProgressiveLocked(st, triggerPhase)
-	return t
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
+	o.signalLiveLocked(true)
+	o.emitTaskRunningProgressiveLocked(st, triggerPhase)
 }
 
 // Progress sets absolute completed/total count progress.
@@ -107,18 +115,23 @@ func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *Tas
 	return t
 }
 
-func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, kind ProgressKind) {
+// applyProgressLocked reports whether the update was applied — false means a
+// guard (invalid values, regression, sealed-total mismatch) rejected it and
+// recorded misuse instead, letting a caller like Step skip a paired update
+// (e.g. Phase) that would otherwise describe a progress change that never
+// happened.
+func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, kind ProgressKind) bool {
 	if completed < 0 || total < 0 {
 		t.out.recordMisuse(ErrInvalidProgress)
-		return
+		return false
 	}
 	if total == 0 && completed != 0 {
 		t.out.recordMisuse(ErrInvalidProgress)
-		return
+		return false
 	}
 	if completed > total && total > 0 {
 		t.out.recordMisuse(ErrInvalidProgress)
-		return
+		return false
 	}
 	// Regression and sealing guards apply only while re-reporting the same
 	// measurement kind (Determinate or Bytes); switching kind (e.g. Progress
@@ -126,13 +139,13 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	if st.state == Running && st.progress.Kind != Indeterminate && st.progress.Total > 0 && kind == st.progress.Kind {
 		if completed < st.progress.Completed {
 			t.out.recordMisuse(ErrProgressRegression)
-			return
+			return false
 		}
 		// Sealed total: once a nonzero total is reported for this kind, it
 		// cannot change. Retry-safety depends on the denominator staying put.
 		if total != st.progress.Total {
 			t.out.recordMisuse(ErrInvalidProgress)
-			return
+			return false
 		}
 	}
 	st.progress = Progress{Kind: kind, Completed: completed, Total: total}
@@ -145,6 +158,32 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	// Progress is high-frequency: coalesce unless first frame.
 	t.out.signalLiveLocked(false)
 	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
+	return true
+}
+
+// Step sets absolute progress and phase text together under one lock
+// acquisition, so a concurrent worker can never observe one goroutine's
+// count paired with another goroutine's phase name — the exact interleaving
+// two separate Progress(...) + Phase(...) calls (two separate locks) allow.
+func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return t
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return t
+	}
+	if isTerminalTask(st.state) {
+		t.out.recordMisuse(ErrAlreadyResolved)
+		return t
+	}
+	if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
+		t.out.setPhaseLocked(st, name)
+	}
+	return t
 }
 
 // Done resolves the task successfully.
@@ -190,20 +229,21 @@ func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	}
 }
 
-// Failf resolves the task as failed with a formatted summary and returns the
-// built error so a call site can `return` it directly:
-// `return task.Failf("validate policy manifest: %w", err)`. fmt.Errorf
+// Failf resolves the task as failed with a formatted summary and returns a
+// *Failure so a call site can `return` it directly:
+// `return task.Failf("validate policy manifest: %w", err)`, and attach a
+// remedy in the same statement: `.Next(evo.Label("..."))`. fmt.Errorf
 // semantics: %w wraps its argument so errors.Is/As still reach it. See
 // splitWrappedMessage for how a trailing ": %w"/", %w" splits the formatted
 // text into the rendered summary and evidence line.
-func (t *TaskHandle) Failf(format string, args ...any) error {
+func (t *TaskHandle) Failf(format string, args ...any) *Failure {
 	err := fmt.Errorf(format, args...)
 	summary, evidence := splitWrappedMessage(format, err)
 	p := sanitizeProblem(Problem{Summary: summary, Detail: evidence})
 	if t != nil {
 		t.finish(Failed, summary, []Problem{p})
 	}
-	return err
+	return newFailure(t, err)
 }
 
 // Block resolves the task as blocked. This is a statement, not a fluent
@@ -217,17 +257,17 @@ func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	}
 }
 
-// Blockf resolves the task as blocked with a formatted summary and returns
-// the built error exactly like Failf — see Failf for the fmt.Errorf %w and
-// summary/evidence split contract.
-func (t *TaskHandle) Blockf(format string, args ...any) error {
+// Blockf resolves the task as blocked with a formatted summary and returns a
+// *Failure exactly like Failf — see Failf for the fmt.Errorf %w,
+// summary/evidence split, and Next/NextCommand remedy-attachment contract.
+func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
 	err := fmt.Errorf(format, args...)
 	summary, evidence := splitWrappedMessage(format, err)
 	p := sanitizeProblem(Problem{Summary: summary, Detail: evidence})
 	if t != nil {
 		t.finish(Blocked, summary, []Problem{p})
 	}
-	return err
+	return newFailure(t, err)
 }
 
 // Cancel resolves the task as cancelled.

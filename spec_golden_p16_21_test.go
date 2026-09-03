@@ -304,9 +304,9 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 }
 
 // TestSpecP17_Taxonomy_Failure covers Problem 17's failure block: a
-// second, independently-declared "branches" task (Output.Task is not
-// name-deduping — only the package-level default-instance facade
-// dedupes by name) fails mid-run while an earlier "branches" task's
+// second, independently-declared "branches" task (Output.Task get-or-creates
+// by name like evo.Task — a genuinely distinct row sharing a display name
+// needs an explicit evo.ID) fails mid-run while an earlier "branches" task's
 // partial success survives, alongside an unchanged skip/keep taxonomy.
 //
 //	✓  branches  10 deleted
@@ -318,11 +318,11 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	out := evo.Default()
-	done := out.Task("branches")
+	done := out.Task("branches", evo.ID("branches.step1"))
 	done.Record("delete", 10, "branches")
 	done.Done("10 deleted")
 
-	failed := out.Task("branches")
+	failed := out.Task("branches", evo.ID("branches.step2"))
 	unchanged := evo.Reason("unchanged")
 	notAttempted := evo.Reason("unpushed, not attempted")
 	for i := 0; i < 6; i++ {
@@ -405,11 +405,11 @@ func TestSpecP17_Taxonomy_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	done := out.Task("branches")
+	done := out.Task("branches", evo.ID("branches.step1"))
 	done.Record("delete", 10, "branches")
 	done.Done("10 deleted")
 
-	cancelled := out.Task("branches")
+	cancelled := out.Task("branches", evo.ID("branches.step2"))
 	cancelled.Cancel("cancelled during keep pass")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

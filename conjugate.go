@@ -23,6 +23,54 @@ var compoundPastTense = map[string]string{
 	"fetch-prune":   "pruned",
 }
 
+// irregularPlural holds singular -> plural spellings that the default
+// +s/+es/+ies rule gets wrong. Extend this table, not call sites, when a new
+// object noun needs a special plural.
+var irregularPlural = map[string]string{
+	"child": "children",
+	"tooth": "teeth",
+	"foot":  "feet",
+	"leaf":  "leaves",
+	"index": "indices",
+}
+
+// Pluralize returns the plural spelling of singular when quantity != 1 (an
+// irregular table for the common exceptions, else the regular English
+// +s/+es/+ies rule), and singular unchanged when quantity == 1 — the
+// object-pluralization counterpart to conjugatePast's verb table, so a
+// mutation call site stops writing its own singular/plural noun() switch:
+//
+//	worktrees.Remove(n, evo.Pluralize(n, "worktree")) // "1 worktree" / "2 worktrees"
+func Pluralize(quantity int64, singular string) string {
+	if quantity == 1 || singular == "" {
+		return singular
+	}
+	if plural, ok := irregularPlural[singular]; ok {
+		return plural
+	}
+	switch {
+	case strings.HasSuffix(singular, "y") && !endsInVowelPlusY(singular):
+		return singular[:len(singular)-1] + "ies"
+	case strings.HasSuffix(singular, "s"), strings.HasSuffix(singular, "x"), strings.HasSuffix(singular, "z"),
+		strings.HasSuffix(singular, "ch"), strings.HasSuffix(singular, "sh"):
+		return singular + "es"
+	default:
+		return singular + "s"
+	}
+}
+
+func endsInVowelPlusY(s string) bool {
+	if len(s) < 2 {
+		return false
+	}
+	switch s[len(s)-2] {
+	case 'a', 'e', 'i', 'o', 'u':
+		return true
+	default:
+		return false
+	}
+}
+
 // conjugatePast returns the past-tense spelling of an imperative mutation
 // verb (delete -> deleted, push -> pushed, write -> wrote) so callers write
 // one imperative verb and evo picks the tense for [changed] rows; [planned]

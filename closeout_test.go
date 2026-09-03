@@ -26,8 +26,10 @@ func TestTXT017_DuplicateNamesReadable(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("same").Done()
-	out.Task("same").Block("x")
+	// Output.Task get-or-creates by name (L1); two distinct rows sharing a
+	// display name need distinct evo.ID.
+	out.Task("same", evo.ID("a")).Done()
+	out.Task("same", evo.ID("b")).Block("x")
 	_ = out.Finish()
 	if strings.Count(buf.String(), "same") < 2 {
 		t.Fatal(buf.String())

@@ -7,7 +7,9 @@ package evo
 // These methods return nothing: recording a mutation is an act, not a value
 // to chain.
 
-// Delete records a deletion of quantity of object.
+// Delete records a deletion of quantity of object. object is rendered
+// exactly as given; pass evo.Pluralize(quantity, "worktree") instead of a
+// hand-written singular/plural switch when the count varies.
 func (t *TaskHandle) Delete(quantity int64, object string) {
 	t.Record("delete", quantity, object)
 }
@@ -17,12 +19,14 @@ func (t *TaskHandle) Create(object string) {
 	t.RecordName("create", object)
 }
 
-// Update records an update of quantity of object.
+// Update records an update of quantity of object; see Delete for
+// evo.Pluralize.
 func (t *TaskHandle) Update(quantity int64, object string) {
 	t.Record("update", quantity, object)
 }
 
-// Remove records a removal of quantity of object.
+// Remove records a removal of quantity of object; see Delete for
+// evo.Pluralize.
 func (t *TaskHandle) Remove(quantity int64, object string) {
 	t.Record("remove", quantity, object)
 }
@@ -32,7 +36,7 @@ func (t *TaskHandle) Write(object string) {
 	t.RecordName("write", object)
 }
 
-// Push records a push of quantity of object.
+// Push records a push of quantity of object; see Delete for evo.Pluralize.
 func (t *TaskHandle) Push(quantity int64, object string) {
 	t.Record("push", quantity, object)
 }
