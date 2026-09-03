@@ -412,6 +412,89 @@ func TestSpecP15_NothingToDo_Success(t *testing.T) {
 	}
 }
 
+// TestSpecP3_DryRunTense_Step1 covers evo-rec.md Problem 3's step1 block: a
+// dry-run plan for a named push, spelled the documented way.
+//
+//	[planned]  salvage
+//	  push  3  feat/a → retire/feat/a
+func TestSpecP3_DryRunTense_Step1(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	salvage := out.Task("salvage")
+	salvage.Push(3, "feat/a → retire/feat/a")
+	salvage.Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"[planned] salvage", "push 3 feat/a → retire/feat/a"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP18_RemoteTrackingVsRemoteDelete_Step1 covers Problem 18's step1
+// block: a dry-run plan for one fetch-prune, using the documented
+// RecordName spelling.
+//
+//	[planned]  remote-tracking
+//	  fetch-prune  origin/feat/gone
+func TestSpecP18_RemoteTrackingVsRemoteDelete_Step1(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	tracking := out.Task("remote-tracking")
+	tracking.RecordName("fetch-prune", "origin/feat/gone")
+	tracking.Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"[planned] remote-tracking", "fetch-prune origin/feat/gone"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP18_RemoteTrackingVsRemoteDelete_Step2 covers Problem 18's step2
+// block: two separate Plan subjects — remote-tracking (fetch-prune) and
+// remotes (delete-remote) — never merged into one, even when one side is
+// empty.
+//
+//	[planned]  remote-tracking
+//	  fetch-prune  12  stale origin/*
+//	[planned]  remotes
+//	  delete-remote  0  (none)
+func TestSpecP18_RemoteTrackingVsRemoteDelete_Step2(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	tracking := out.Task("remote-tracking")
+	tracking.Record("fetch-prune", 12, "stale origin/*")
+	tracking.Done()
+	remotes := out.Task("remotes")
+	remotes.Record("delete-remote", 0, "origin refs")
+	remotes.Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	if !strings.Contains(collapsed, "[planned] remote-tracking") || !strings.Contains(collapsed, "fetch-prune 12 stale origin/*") {
+		t.Fatalf("want fetch-prune plan section, got:\n%s", got)
+	}
+	// A zero-quantity section still renders an honest empty line, never a
+	// fabricated "0 (none)" row that hides which verb was intended.
+	if !strings.Contains(collapsed, "nothing to delete-remote remotes") {
+		t.Fatalf("want empty-section grammar for the zero-quantity remotes plan, got:\n%s", got)
+	}
+}
+
 // TestSpecP18_RemoteTrackingVsRemoteDelete_Success covers evo-rec.md Problem
 // 18 (fetch --prune stale remote-tracking refs must never share a subject
 // with a real `git push --delete` remote branch delete) success block:
