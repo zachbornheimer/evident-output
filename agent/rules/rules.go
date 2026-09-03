@@ -598,6 +598,206 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			Since:           "0.5.0",
 			Certainty:       "deterministic",
 		},
+		{
+			ID:        "API-001",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "the minimal Item happy path (For/Item/OK/Block/Finish) compiles with no Config struct",
+			Why:       "Requiring a Config struct for the common single-item check adds ceremony that discourages the minimal, correct spelling.",
+			BadCode: `out := evo.New(evo.Config{}) // empty struct passed for no reason
+it := out.Item("disk space")
+it.OK()`,
+			GoodCode: `out := evo.New()
+it := out.Item("disk space")
+it.OK()`,
+			Remediation:     "Use evo.New() with no Config for the minimal happy path; add Config only to override stream or behavior defaults",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-001"},
+			Since:           "0.1.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // no cheap detector: an empty/default Config literal is not distinguishable from an intentional one by AST alone
+		},
+		{
+			ID:        "DOM-006",
+			Category:  "DOM",
+			Severity:  "warning",
+			Invariant: "Item.OK/Block is a direct legal terminal transition; explicit Start is not required",
+			Why:       "An Item is pending until it resolves; calling Start first is redundant ceremony and risks a spinner flash for a transition that finishes instantly.",
+			BadCode: `it := out.Item("disk space")
+it.Start()
+it.OK()`,
+			GoodCode: `it := out.Item("disk space")
+it.OK()`,
+			Remediation:     "Call OK/Block/BlockedBy directly; remove the explicit Start call",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"DOM-006"},
+			Since:           "0.1.0",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:              "DOM-007",
+			Category:        "DOM",
+			Severity:        "warning",
+			Invariant:       "Item.Block(summary, options...) creates exactly one anonymous Problem; BlockedBy is for pre-built, multiple Problems",
+			Why:             "Hand-building a single-element Problem slice for BlockedBy duplicates what Block already does automatically and can drift from the anonymous-problem shape Block guarantees.",
+			BadCode:         `it.BlockedBy(evo.Problem{Summary: "disk full"})`,
+			GoodCode:        `it.Block("disk full")`,
+			Remediation:     "Use Block(summary, options...) for a single blocker; reserve BlockedBy for multiple pre-built Problems",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"DOM-007"},
+			Since:           "0.1.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // no cheap detector: distinguishing a legitimate single-Problem BlockedBy call from misuse needs call-site intent, not AST shape
+		},
+		{
+			ID:        "DOM-016",
+			Category:  "DOM",
+			Severity:  "warning",
+			Invariant: "Task.Phase without a prior Start activates the task directly into running, indeterminate state",
+			Why:       "Requiring Start before Phase is the same redundant ceremony API-006 already forbids for Done; Phase alone carries enough information to activate the task.",
+			BadCode: `t := out.Task("scan")
+t.Start()
+t.Phase("walking")`,
+			GoodCode: `t := out.Task("scan")
+t.Phase("walking")`,
+			Remediation:     "Call Phase directly; do not call Start first — see API-006 for the general no-Start-needed rule",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"DOM-016"},
+			Since:           "0.1.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // API-006 already carries the detector for the shared Start-then-X shape; DOM-016 documents the resulting state
+		},
+		{
+			ID:        "DOM-017",
+			Category:  "DOM",
+			Severity:  "warning",
+			Invariant: "Task.Progress(completed, total) stores absolute values, never a delta",
+			Why:       "Passing a delta to Progress instead of Advance silently corrupts the absolute count — repeated Progress(1, total) calls read as stuck at 1, not incrementing.",
+			BadCode: `for range items {
+  t.Progress(1, total) // resets to 1 every call instead of incrementing
+}`,
+			GoodCode: `t.Progress(0, total) // seal indeterminate -> determinate once
+for range items {
+  t.Advance(1) // increments the prior absolute value
+}`,
+			Remediation:     "Use Progress(completed, total) only for absolute values; use Advance(delta) to increment",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"DOM-017"},
+			Since:           "0.1.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // no cheap detector: a literal "1" argument is not distinguishable from a genuine absolute count by AST alone
+		},
+		{
+			ID:              "LOG-001",
+			Category:        "LOG",
+			Severity:        "warning",
+			Invariant:       "log level markers render as a stable uppercase bracketed tag ([DEBUG], [WARN], [ERROR])",
+			Why:             "A hand-formatted or lowercase level prefix breaks golden-stable log parsing and reads inconsistently against every other line evo emits.",
+			BadCode:         `fmt.Fprintf(w, "warn: %s\n", msg)`,
+			GoodCode:        `// route through evo's logging path (slog via SlogHandler, or out.Println) — it renders "[WARN] %s" itself`,
+			Remediation:     "Let evo's logging renderer format the level tag; never hand-assemble a level prefix",
+			RelatedGuidance: []string{"streams"},
+			VerificationIDs: []string{"LOG-001"},
+			Since:           "0.1.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // no cheap detector: a hand-formatted level string is a plain fmt call, indistinguishable from ordinary text by AST alone
+		},
+		{
+			ID:              "OUT-001",
+			Category:        "OUT",
+			Severity:        "warning",
+			Invariant:       "the final human report writes through the configured human writer; transient live-region output never corrupts it",
+			Why:             "Printing the final report through a different writer than Config wires, or interleaving it with live-region redraws, can duplicate or garble the report the human reads at exit.",
+			BadCode:         `fmt.Println(finalReportText) // bypasses out's configured human writer`,
+			GoodCode:        `out.Println(finalReportText) // routed through the same managed writer as everything else`,
+			Remediation:     "Route the final report through the same Output writer as everything else; never fmt.Print it separately",
+			RelatedGuidance: []string{"streams"},
+			VerificationIDs: []string{"OUT-001"},
+			Since:           "0.3.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // no cheap detector: which writer the "final report" logically belongs to is a call-site judgment, not an AST pattern
+		},
+		{
+			ID:        "OUT-003",
+			Category:  "OUT",
+			Severity:  "error",
+			Invariant: "progress and live-UI bytes never reach stdout while a data projection (FormatData) is active",
+			Why:       "A data command's stdout is a machine payload contract; any progress byte on stdout corrupts a JSON/line consumer downstream.",
+			BadCode: `out := evo.New(evo.Config{Stdout: os.Stdout})
+out.FormatData(...) // no Stderr configured: progress/UI also target Stdout`,
+			GoodCode: `out := evo.New(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr})
+out.FormatData(...) // progress/UI route to Stderr; only the payload reaches Stdout`,
+			Remediation:     "Configure Stderr alongside Stdout when using FormatData/ResultWriter; never write progress bytes to stdout by hand",
+			RelatedGuidance: []string{"streams"},
+			VerificationIDs: []string{"OUT-003"},
+			Since:           "0.3.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // no cheap detector: whether a given write targets the data channel vs. progress is a runtime routing question
+		},
+		{
+			ID:              "OUT-004",
+			Category:        "OUT",
+			Severity:        "error",
+			Invariant:       "Plain mode emits no ANSI escape or cursor-control bytes",
+			Why:             "A hand-rolled escape sequence written outside evo's managed writer survives Plain mode and corrupts non-TTY/CI output that Plain exists to keep clean.",
+			BadCode:         `fmt.Fprint(os.Stdout, "\x1b[32mok\x1b[0m") // raw ANSI bypasses Plain mode`,
+			GoodCode:        `out.Println("ok") // evo suppresses ANSI automatically under Plain/NoColor or off-TTY`,
+			Remediation:     "Never write raw ANSI/cursor sequences directly; let evo's managed writers decide based on Plain/NoColor/TTY detection",
+			RelatedGuidance: []string{"streams"},
+			VerificationIDs: []string{"OUT-004"},
+			Since:           "0.1.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // no cheap detector: a raw fmt.Fprint call with an escape-sequence string literal isn't reliably distinguishable from other formatted output
+		},
+		{
+			ID:        "SEC-006",
+			Category:  "SEC",
+			Severity:  "warning",
+			Invariant: "displayed shell/command arguments are quoted so argv boundaries survive presentation",
+			Why:       "Naively space-joining a []string for display can misrepresent argv boundaries — an argument containing a space reads as two arguments — which misleads a human approving a destructive action.",
+			BadCode:   `task.Phase(strings.Join(args, " ")) // "rm -rf my file.txt" reads as 4 words, not 3 args`,
+			GoodCode: `quoted := make([]string, len(args))
+for i, a := range args {
+  quoted[i] = strconv.Quote(a) // preserves argv boundaries even when an arg contains a space
+}
+task.Phase(strings.Join(quoted, " "))`,
+			Remediation:     "Quote each argument individually before joining for display; never join raw argv with bare spaces",
+			RelatedGuidance: []string{"security"},
+			VerificationIDs: []string{"SEC-006"},
+			Since:           "0.1.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // no cheap detector: strings.Join(args, " ") is a common, mostly-safe pattern; flagging it requires knowing args came from a shell command
+		},
+		{
+			ID:              "TERM-006",
+			Category:        "TERM",
+			Severity:        "warning",
+			Invariant:       "a debug/log line written during live UI erases the region, appends the line, and redraws — never interleaves raw",
+			Why:             "A log line written straight to the terminal while a spinner/live region is open tears the frame and corrupts the display until the next redraw.",
+			BadCode:         `fmt.Fprintln(os.Stderr, "[DEBUG] cache miss") // interleaves under the live spinner`,
+			GoodCode:        `out.Println("[DEBUG] cache miss") // clears the region, writes, redraws atomically`,
+			Remediation:     "Route debug/log lines through evo.Println/Print/Printf (or slog via SlogHandler) instead of writing to the raw stream while a live region is open",
+			RelatedGuidance: []string{"interactive"},
+			VerificationIDs: []string{"TERM-006"},
+			Since:           "0.2.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // no cheap detector: whether a live region is open at a given fmt call site is a runtime property, not visible in source
+		},
+		{
+			ID:              "TXT-007",
+			Category:        "TXT",
+			Severity:        "error",
+			Invariant:       "ESC/CSI byte sequences embedded in any caller-supplied text field are neutralized before rendering",
+			Why:             "A malicious or fuzzed ESC/CSI sequence embedded in a name/detail/phase string must never survive into the terminal write; evo's sanitize layer is the single point that guarantees this, so nothing should bypass it with a raw write of untrusted text.",
+			BadCode:         `fmt.Fprint(w, rawUserText) // bypasses evo's sanitize layer entirely`,
+			GoodCode:        `it := out.Item(rawUserText) // evo sanitizes ESC/CSI internally before it reaches the terminal`,
+			Remediation:     "Never bypass evo's managed Item/Task/Print* entry points with a raw write of untrusted text; sanitization only runs on the managed path",
+			RelatedGuidance: []string{"security"},
+			VerificationIDs: []string{"TXT-007", "SEC-001"},
+			Since:           "0.1.0",
+			Certainty:       "heuristic",
+			Detection:       "guidance", // no cheap detector: a raw write of "untrusted" text isn't distinguishable from a raw write of trusted text by AST alone
+		},
 	}
 }
 

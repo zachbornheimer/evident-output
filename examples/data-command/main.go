@@ -23,14 +23,14 @@ func main() {
 	pretty := flag.Bool("pretty", true, "indent domain JSON")
 	flag.Parse()
 
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:  "build",
 		Format: evo.FormatData,
 	})
-	code := evo.MainWith(out, func(o *evo.Output) error {
-		o.Item("compile").OK()
-		o.Item("tests").OK()
-		link := o.Task("link")
+	os.Exit(evo.Main(func() error {
+		evo.Item("compile").OK()
+		evo.Item("tests").OK()
+		link := evo.Task("link")
 		if *failLink {
 			link.Fail("undefined symbol main.Version")
 			return nil
@@ -38,7 +38,7 @@ func main() {
 		link.Done("bin/app")
 		// Domain payload stays on ResultWriter (stdout); presentation is stderr.
 		result := BuildResult{Artifact: "bin/app", Packages: 14, Duration: "3.2s"}
-		enc := json.NewEncoder(o.ResultWriter())
+		enc := json.NewEncoder(out.ResultWriter())
 		if *pretty {
 			enc.SetIndent("", "  ")
 		}
@@ -46,6 +46,5 @@ func main() {
 			return err
 		}
 		return nil
-	})
-	os.Exit(code)
+	}))
 }

@@ -61,14 +61,27 @@ func TestFirstPaintGuideCarriesFPRules(t *testing.T) {
 // TestPhaseQRuleIDsResolve proves the rule IDs this work order's item F added
 // to guide Rules lists resolve through rules.Explain — a typo'd reference is
 // a dead end identical to the review-emitted-ID gap
-// TestReviewEmittedIDsAreRegistered closes on the other side. Scoped to the
-// IDs added here, not the full catalog: several pre-existing guide Rules
-// entries (API-001, DOM-006/007/016/017, OUT-001/003/004, TXT-007, SEC-006,
-// TERM-006, LOG-001) predate this work order and are out of its blast radius.
+// TestReviewEmittedIDsAreRegistered closes on the other side.
 func TestPhaseQRuleIDsResolve(t *testing.T) {
 	for _, id := range []string{"BOUND-001", "API-030", "API-031", "CONFIRM-002", "CON-002", "FP-004"} {
 		if _, ok := rules.Explain(id); !ok {
 			t.Errorf("rule %s referenced by a guide cannot be resolved by rules.Explain", id)
+		}
+	}
+}
+
+// TestCatalogRuleIDsResolve is the catalog↔registry invariant: every rule ID
+// any guide advertises in its Rules list must resolve through rules.Explain.
+// A guide that names a rule ID the registry cannot explain is a dead end for
+// an agent that follows the reference — the exact defect the production-
+// readiness audit found for API-001, DOM-006/007/016/017, LOG-001,
+// OUT-001/003/004, SEC-006, TERM-006, and TXT-007.
+func TestCatalogRuleIDsResolve(t *testing.T) {
+	for _, g := range catalog.All() {
+		for _, id := range g.Rules {
+			if _, ok := rules.Explain(id); !ok {
+				t.Errorf("guide %s references rule %s, which rules.Explain cannot resolve", g.ID, id)
+			}
 		}
 	}
 }

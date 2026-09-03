@@ -24,17 +24,21 @@ func main() {
 		step = 15 * time.Millisecond
 	}
 
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title: "install dependencies",
 		Debug: evo.DebugConfig{Level: evo.Debug},
 	})
 	log := slog.New(out.SlogHandler())
 
-	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
-		return runLive(o, log, step)
+	os.Exit(evo.Main(func() error {
+		return runLive(out, log, step)
 	}))
 }
 
+// runLive takes out explicitly for Tasks: this example's interleaved
+// Task.Bytes progress calls (see download below) hit a GroupHandle defect
+// that is out of this work order's blast radius (group.go/output.go); the
+// Tasks collection is unaffected and stays on the ordinary surface.
 func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 	const packageCount = 24
 	const totalBytes int64 = 18_000_000
@@ -73,7 +77,7 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 	verify.Done()
 
 	log.Debug("dependency graph resolved", "packages", packageCount)
-	out.Item("lockfile").OK()
-	out.Item("registry").OK()
+	evo.Item("lockfile").OK()
+	evo.Item("registry").OK()
 	return nil
 }

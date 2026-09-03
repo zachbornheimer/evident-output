@@ -34,14 +34,14 @@ func main() {
 	if *verbose {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
-	out := evo.New(cfg)
-	code := evo.MainWith(out, func(o *evo.Output) error {
+	out := evo.Init(cfg)
+	code := evo.Main(func() error {
 		// Only audible when --verbose (or VerbosityVerbose config).
-		o.Verbose().Printf("Strict policy: %t\n", *strict)
-		o.Verbose().Printf("Probe interval: %s\n", step)
+		evo.Verbose().Printf("Strict policy: %t\n", *strict)
+		evo.Verbose().Printf("Probe interval: %s\n", step)
 
 		probe := func(name string, resolve func(*evo.ItemHandle)) {
-			it := o.Item(name)
+			it := evo.Item(name)
 			time.Sleep(step)
 			resolve(it)
 		}

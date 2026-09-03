@@ -20,15 +20,15 @@ func main() {
 	if *verbose {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
-	out := evo.New(cfg)
-	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
-		o.Println("Reading configuration")
-		o.Printf("Found %d packages\n", 18)
+	evo.Init(cfg)
+	os.Exit(evo.Main(func() error {
+		evo.Println("Reading configuration")
+		evo.Printf("Found %d packages\n", 18)
 		// Hidden unless --verbose (still present in Snapshot.Messages).
-		o.Verbose().Printf("Cache: %s\n", "/var/cache/packages")
-		o.Verbose().Println("Using registry mirror us-east-1")
+		evo.Verbose().Printf("Cache: %s\n", "/var/cache/packages")
+		evo.Verbose().Println("Using registry mirror us-east-1")
 
-		o.Item("lockfile").OK()
+		evo.Item("lockfile").OK()
 		return nil
 	}))
 }

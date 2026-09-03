@@ -20,22 +20,22 @@ func main() {
 		step = 25 * time.Millisecond
 	}
 
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title: "repo-probe",
 		Debug: evo.DebugConfig{Level: evo.Debug},
 	})
 	log := slog.New(out.SlogHandler())
 
-	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
+	os.Exit(evo.Main(func() error {
 		time.Sleep(step)
 		log.Debug("opened repository", "path", "/work/bpp-csharp")
-		o.Item("working tree").OK()
+		evo.Item("working tree").OK()
 
 		time.Sleep(step)
 		log.Debug("enumerated local branches", "count", 7)
 		time.Sleep(step)
 		log.Debug("branch comparison completed", "blockers", 0, "duration", 11*time.Millisecond)
-		o.Item("branches").OK()
+		evo.Item("branches").OK()
 		return nil
 	}))
 }

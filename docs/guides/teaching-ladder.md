@@ -17,7 +17,7 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 10. slog via SlogHandler (Config.Debug.Level)
 11. Advanced: NewWithOptions, Plan/Changes (tooling call sites), terminal drivers, testkit, Suspend
 
-Rung 5 (Plan/Changes) demoted to advanced: Task's mutation verbs (Delete/Create/…) already pick
+Plan/Changes (rung 11) demoted to advanced: Task's mutation verbs (Delete/Create/…) already pick
 [planned] vs [changed] from Config.DryRun on the ordinary path; Plan/Changes stay for tooling call
 sites that need the instance API directly.
 ```

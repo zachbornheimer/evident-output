@@ -28,7 +28,7 @@ func run() error {
 	defer func() { _ = f.Close() }()
 
 	// Prefixes may include digits (A11Y-001).
-	re := regexp.MustCompile(`^\| ([A-Z0-9]+-[0-9]{3}) \|`)
+	re := regexp.MustCompile(`^\|\s*([A-Z0-9]+-[0-9]{3})\s*\|`)
 	found := map[string]struct{}{}
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {

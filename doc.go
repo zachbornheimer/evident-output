@@ -4,22 +4,42 @@
 // Application code owns execution. Evo owns presentation.
 //
 //	func main() {
-//	    out := evo.New(evo.Config{Title: "repo"})
-//	    os.Exit(evo.MainWith(out, run))
+//	    evo.Init(evo.Config{Title: "repo"}) // first statement — arms first paint before any I/O
+//	    os.Exit(evo.Main(run))
 //	}
 //
-//	func run(out *evo.Output) error {
-//	    out.Println("Reading configuration")
-//	    out.Item("working tree").OK()
-//	    t := out.Task("fetch")
+//	func run() error {
+//	    evo.Println("Reading configuration")
+//	    evo.Item("working tree").OK()
+//	    t := evo.Task("fetch")
 //	    output := t.Capture()
 //	    // run.Run(ctx, "git", args, output); t.Fail(..., output.DetailTail()) on error
-//	    return nil
+//	    return nil // Block is a presentation outcome, not a Go error
 //	}
 //
-// Adoption ladder: Print → Verbose → Item/Task → Capture → slog diagnostics.
+// Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
+//  1. evo.Init(Config) once in main, before any I/O; os.Exit(evo.Main(run)) — dry-run wording,
+//     empty-case, and exit codes are all owned; run returns only error.
+//  2. Print / Printf / Println / Verbose — start as casually as fmt.
+//  3. evo.Item(name) for checks and gates (pass/fail); evo.Task(name) for work with
+//     Phase/Progress or a mutation verb (Delete/Create/Update/Remove/Write/Push/Record/RecordName) —
+//     the verb picks [planned] vs [changed] from Config.DryRun; no call site ever flips its own tense.
+//  4. evo.Task(name).Each(items) for loop progress (absolute, never double-counted);
+//     .PhaseWriter() as cmd.Stdout so a talkative child's last line becomes the live Phase.
+//  5. evo.Task(name).Skipped(reason, name) / .Kept(reason, name) — taxonomy counted and
+//     summed, never a bare "skipped N".
+//  6. evo.Confirm(question, ...) — owns the whole ask-decide-resolve gate (prompt, quiesce,
+//     ⊘/OK resolution, exit code).
+//  7. evo.Group(name) for named children with derived, auto-lifecycle state.
 //
-// Ordinary surface: New(Config), Print*, Item/Task (+ ID), Task.Capture / Item.Capture,
-// Changes/Plan, slog via SlogHandler (level from Config.Debug.Level). Advanced:
-// NewWithOptions, Terminal, session Capture, Progress64, Advance.
+// Ordinary surface: evo.Init/evo.Main, Print*, evo.Item/evo.Task/evo.Group (+ ID),
+// Task.Capture / Item.Capture, Task.Each / Task.PhaseWriter, evo.Confirm, evo.Reason,
+// Changes/Plan (tooling call sites, see below), slog via SlogHandler (level from
+// Config.Debug.Level).
+//
+// Advanced surface, for testing and tooling call sites that need a hosted instance
+// instead of the package-level default: New(Config) / NewWithOptions to construct an
+// *Output directly, MainWith(out, run) to seal it (this is what Main calls on the
+// default instance), Plan/Changes for the would/did split without a Task, session
+// Capture, Progress64, Advance, terminal drivers, and testkit.
 package evo
