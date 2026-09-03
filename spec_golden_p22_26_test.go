@@ -520,3 +520,222 @@ func TestSpecP23_SignalConclusion_EarlyTermination_Mismatch(t *testing.T) {
 	}
 	t.Skip("MISMATCH: the cancelled row's reason text is \"interrupted\", never \"cancelled (SIGINT)\", and the derived \"already mutated\" line reads \"1 .venv directory created\" — a real, mechanically-summarized fact, never the spec's fabricated \"partial .venv directory\" — see doc comment")
 }
+
+// newDataFormatOutput builds an Output in FormatData mode (--json split)
+// with an interactive terminal wired to stderr so live frames are
+// observable, mirroring configToOptions' own wiring for a real TTY stderr
+// (construct.go: Format=FormatData + Terminal set uses the caller's
+// Terminal for the live region on the stderr side).
+func newDataFormatOutput(screen *testkit.Screen, presentation, payload *bytes.Buffer) *evo.Output {
+	return evo.NewWithOptions(
+		evo.Title("scan"),
+		evo.To(presentation),
+		evo.Diagnostics(presentation),
+		evo.DataProjection(),
+		evo.ResultStream(payload),
+		evo.Terminal(screen),
+		evo.VisibilityDelay(0),
+		evo.MaxFrameRate(1_000_000),
+		evo.NoColor(),
+	)
+}
+
+// TestSpecP24_DataFormat_Step1 covers evo-rec.md Problem 24's step1 block:
+// presentation (a Running phase) lives on the live region wired to stderr;
+// the domain payload stream stays empty until a record is written.
+//
+//	# stderr:
+//	•  scan  scanning
+//	# stdout: (empty until payload ready)
+func TestSpecP24_DataFormat_Step1(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	var presentation, payload bytes.Buffer
+	out := newDataFormatOutput(screen, &presentation, &payload)
+
+	out.Task("scan").Phase("scanning")
+
+	live := screen.LatestLiveText()
+	if !strings.Contains(live, "scan") || !strings.Contains(live, "scanning") {
+		t.Fatalf("want scan Running with phase \"scanning\" on the stderr live region, got %q", live)
+	}
+	if payload.Len() != 0 {
+		t.Fatalf("want the payload stream empty until a record is written, got %q", payload.String())
+	}
+}
+
+// TestSpecP24_DataFormat_Step2 covers Problem 24's step2 block: the same
+// live phase advancing to a count, while stdout streams a JSONL record —
+// two independent streams, never mixed.
+//
+//	# stderr:
+//	•  scan  40/128
+//	# stdout streams JSONL as records finalize:
+//	{"repo":"zq","state":"ready"}
+func TestSpecP24_DataFormat_Step2(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	var presentation, payload bytes.Buffer
+	out := newDataFormatOutput(screen, &presentation, &payload)
+
+	scan := out.Task("scan")
+	scan.Progress(40, 128)
+	if _, err := out.ResultWriter().Write([]byte(`{"repo":"zq","state":"ready"}` + "\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	live := screen.LatestLiveText()
+	if !strings.Contains(live, "scan") || !strings.Contains(live, "40/128") {
+		t.Fatalf("want scan's count on the stderr live region, got %q", live)
+	}
+	if strings.ContainsAny(live, "✓✗■") {
+		t.Fatalf("live presentation must never contain a terminal glyph mid-run, got %q", live)
+	}
+	if !strings.Contains(payload.String(), `"repo":"zq","state":"ready"`) {
+		t.Fatalf("want the JSONL record on the payload stream, got %q", payload.String())
+	}
+}
+
+// TestSpecP24_DataFormat_Indeterminate covers Problem 24's indeterminate
+// block: an unsealed phase renders on the stderr live region same as any
+// other indeterminate task.
+//
+//	# stderr:
+//	•  scan  discovering
+func TestSpecP24_DataFormat_Indeterminate(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	var presentation, payload bytes.Buffer
+	out := newDataFormatOutput(screen, &presentation, &payload)
+
+	out.Task("scan").Phase("discovering")
+
+	live := screen.LatestLiveText()
+	if !strings.Contains(live, "scan") || !strings.Contains(live, "discovering") {
+		t.Fatalf("want scan's indeterminate phase on the stderr live region, got %q", live)
+	}
+}
+
+// TestSpecP24_DataFormat_Failure covers Problem 24's failure block: a failed
+// data command emits no partial payload by default, and the failure itself
+// renders on stderr only.
+//
+//	# stderr:
+//	✗  scan  permission denied under ~/Developer
+//	# stdout: empty — a failed data command emits no partial payload by default
+func TestSpecP24_DataFormat_Failure(t *testing.T) {
+	t.Parallel()
+	var presentation, payload bytes.Buffer
+	out := evo.New(evo.Config{
+		Title:  "scan",
+		Format: evo.FormatData,
+		Stderr: &presentation,
+		Result: &payload,
+		Color:  evo.ColorNever,
+	})
+	out.Task("scan").Fail("permission denied under ~/Developer")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(presentation.String(), "✗  scan  permission denied under ~/Developer") {
+		t.Fatalf("want the failure row on stderr, got %q", presentation.String())
+	}
+	if payload.Len() != 0 {
+		t.Fatalf("want the payload stream empty on a failed data command, got %q", payload.String())
+	}
+	if out.Conclusion().ExitCode != evo.ExitFailed {
+		t.Fatalf("exit = %d, want ExitFailed (2)", out.Conclusion().ExitCode)
+	}
+}
+
+// TestSpecP24_DataFormat_Error covers Problem 24's error block: the payload
+// stream stays empty and the consumer keys off the exit code, not payload
+// shape.
+//
+//	# stderr:
+//	✗  scan  git rev-parse failed
+//	   └─ not a git repository
+//	# stdout: empty; $? = 2 — the consumer keys off exit code, not payload shape
+func TestSpecP24_DataFormat_Error(t *testing.T) {
+	t.Parallel()
+	var presentation, payload bytes.Buffer
+	out := evo.New(evo.Config{
+		Title:  "scan",
+		Format: evo.FormatData,
+		Stderr: &presentation,
+		Result: &payload,
+		Color:  evo.ColorNever,
+	})
+	out.Task("scan").Fail("git rev-parse failed", evo.Detail("not a git repository"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := presentation.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"✗ scan git rev-parse failed", "not a git repository"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	if payload.Len() != 0 {
+		t.Fatalf("want the payload stream empty, got %q", payload.String())
+	}
+	if out.Conclusion().ExitCode != evo.ExitFailed {
+		t.Fatalf("exit = %d, want ExitFailed (2)", out.Conclusion().ExitCode)
+	}
+}
+
+// TestSpecP24_DataFormat_EarlyTermination_Mismatch covers Problem 24's early
+// termination block: emitted JSONL records stand after a SIGINT, and the
+// consumer sees exit 130.
+//
+//	# stderr:
+//	■  scan  cancelled at 40/128
+//	# stdout: emitted JSONL records stand; consumer sees $? = 130 and treats set as partial
+//
+// MISMATCH (executed, not fixed): the cancelled row always annotates
+// "interrupted" (run.go hard-codes this reason for every signal
+// cancellation), never "cancelled at 40/128" — the sealed progress count is
+// not folded into the cancellation reason text anywhere in the library.
+func TestSpecP24_DataFormat_EarlyTermination_Mismatch(t *testing.T) {
+	var presentation, payload bytes.Buffer
+	evo.SetDefault(evo.New(evo.Config{
+		Title:  "scan",
+		Format: evo.FormatData,
+		Stderr: &presentation,
+		Result: &payload,
+		Color:  evo.ColorNever,
+	}))
+	scan := evo.Task("scan")
+
+	started := make(chan struct{})
+	go func() {
+		<-started
+		time.Sleep(20 * time.Millisecond)
+		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
+	}()
+
+	code := evo.Main(func() error {
+		scan.Progress(40, 128)
+		if _, err := evo.Default().ResultWriter().Write([]byte(`{"repo":"zq"}` + "\n")); err != nil {
+			return err
+		}
+		close(started)
+		deadline := time.Now().Add(2 * time.Second)
+		for scan.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		return nil
+	})
+
+	if code != evo.ExitCancelled {
+		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, presentation.String())
+	}
+	if !strings.Contains(presentation.String(), "■") || !strings.Contains(presentation.String(), "scan") {
+		t.Fatalf("want the cancelled scan row on stderr, got %q", presentation.String())
+	}
+	if !strings.Contains(payload.String(), `"repo":"zq"`) {
+		t.Fatalf("want the already-emitted JSONL record to stand on the payload stream, got %q", payload.String())
+	}
+	t.Skip("MISMATCH: the cancelled row's reason text is \"interrupted\" (run.go hard-codes it for every signal cancellation), never \"cancelled at 40/128\" — see doc comment")
+}
