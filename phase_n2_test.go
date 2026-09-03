@@ -35,8 +35,9 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 }
 
 // TestConclusion_AlreadyMutated_CancelledEmptyLedger proves an empty Changes
-// ledger renders "! already mutated: none" — the line still appears (partial
-// truth is stated even when nothing happened), never omitted.
+// ledger suppresses the "! already mutated: ..." row entirely — "!" is
+// attention-only (evo-rec.md "Tightened glyph vocabulary"), and "none" earns
+// no attention. Partial truth still holds: there is simply nothing to report.
 func TestConclusion_AlreadyMutated_CancelledEmptyLedger(t *testing.T) {
 	var buf strings.Builder
 	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
@@ -46,8 +47,8 @@ func TestConclusion_AlreadyMutated_CancelledEmptyLedger(t *testing.T) {
 		t.Log(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "!  already mutated: none") {
-		t.Fatalf("want empty-ledger already-mutated line, got:\n%s", got)
+	if strings.Contains(got, "already mutated") {
+		t.Fatalf("empty ledger must not render already-mutated line, got:\n%s", got)
 	}
 }
 

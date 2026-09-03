@@ -20,6 +20,12 @@ type Rule struct {
 	Deprecated      bool     `json:"deprecated"`
 	Replacement     string   `json:"replacement,omitempty"`
 	Certainty       string   `json:"certainty,omitempty"` // deterministic | heuristic
+	// Detection is "guidance" when no cheap, honest static detector exists
+	// for this rule — agent/review never emits this ID, and the catalog/
+	// docs teach it by example only. Empty means a detector may exist;
+	// callers that need a hard guarantee check agent/review's registered
+	// rule IDs directly.
+	Detection string `json:"detection,omitempty"`
 }
 
 // All returns the v1 rule registry subset. IDs and meanings obey version policy:
@@ -417,6 +423,7 @@ answer, _ := reader.ReadString('\n')`,
 			Remediation:     "Select glyphs via the capability profile (glyphs=auto|unicode|ascii); never infer width from rune count",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"GLYPH-001"},
+			Detection:       "guidance", // no cheap single-file detector: cell-width vs rune-count is a runtime measurement question, not a static AST pattern
 			Since:           "0.6.0",
 			Certainty:       "heuristic",
 		},
@@ -458,6 +465,7 @@ task.Progress(14, 40) // sealed once discovery completes; never re-sealed`,
 			Category:  "CON",
 			Severity:  "error",
 			Invariant: "Partial is a completeness modifier; exit codes come from Outcome alone, and 130 is reserved for interruption",
+			Detection: "guidance", // no cheap single-file detector: correct exit code use is unobservable from source (evo.Main hides the mapping)
 			Why:       "Hand-mapping an exit code outside 0/1/2/130, or using 130 for something other than an actual interrupt, breaks the contract wrapping scripts and CI rely on.",
 			BadCode: `if blocked {
   os.Exit(3) // hand-mapped code outside Outcome's 0/1/2/130
@@ -470,6 +478,110 @@ if partial {
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"CON-001"},
 			Since:           "0.6.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "BOUND-001",
+			Category:  "BOUND",
+			Severity:  "warning",
+			Invariant: "slice-derived text into Because/Detail/Phase is bounded before rendering",
+			Why:       "strings.Join of an unbounded slice dumped into Because/Detail/Phase reproduces the 500-name terminal flood evo-rec.md \"bounded effect rows\" already fixed for Plan/Changes.",
+			BadCode: `task.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))
+item.Because(strings.Join(reasons, "; "))`,
+			GoodCode: `task.Fail("cannot delete", evo.Detail(evo.TruncateNames(names, 8)))
+item.Because(evo.TruncateNames(reasons, 8))`,
+			Remediation:     "Wrap the joined slice in evo.TruncateNames before passing it to Because/Detail/Phase",
+			RelatedGuidance: []string{"tasks", "items"},
+			VerificationIDs: []string{"BOUND-001"},
+			Since:           "0.7.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-030",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "Task/Tasks.Task is predeclared before fan-out, never called inside the worker closure",
+			Why:       "Declaring a Task inside a goroutine or g.Go closure races task creation with rendering and produces the exact unordered five-spinner defect evo-rec.md \"sequential presentation\" forbids.",
+			BadCode: `for _, j := range jobs {
+  go func(j Job) {
+    t := out.Task(j.Name) // declared inside the goroutine: race + unordered
+    t.Done()
+  }(j)
+}`,
+			GoodCode: `tasks := make([]*evo.TaskHandle, len(jobs))
+for i, j := range jobs {
+  tasks[i] = out.Task(j.Name) // predeclared, in order, before fan-out
+}
+for i, j := range jobs {
+  go func(i int, j Job) { tasks[i].Done() }(i, j)
+}`,
+			Remediation:     "Call out.Task/Tasks.Task for every child before starting any goroutine; pass the handle in",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-030"},
+			Since:           "0.7.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-031",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "child-process phase narration uses Task.PhaseWriter, never a hand-rolled io.Writer",
+			Why:       "A caller-defined io.Writer whose Write method calls TaskHandle.Phase reimplements the exact 30-line line-splitting adapter Task.PhaseWriter already owns (evo-rec.md \"#6\").",
+			BadCode: `type livePhase struct{ task *evo.TaskHandle }
+func (w *livePhase) Write(p []byte) (int, error) {
+  w.task.Phase(lastLine(p))
+  return len(p), nil
+}`,
+			GoodCode:        `cmd.Stdout = task.PhaseWriter() // last child line becomes the live Phase`,
+			Remediation:     "Delete the hand-rolled io.Writer and wire the subprocess's Stdout/Stderr to Task.PhaseWriter() directly",
+			RelatedGuidance: []string{"tasks", "streams"},
+			VerificationIDs: []string{"API-031"},
+			Since:           "0.7.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:              "CONFIRM-002",
+			Category:        "CONFIRM",
+			Severity:        "warning",
+			Invariant:       "a destructive confirm question is marked evo.Destructive()",
+			Why:             "A remote force-delete or trash confirm rendered like an ordinary yes/no question lets a user approve a severe action without the \"(destructive)\" cue evo-rec.md \"confirm gate\" requires.",
+			BadCode:         `evo.Confirm("delete origin/production-hotfix?")`,
+			GoodCode:        `evo.Confirm("delete origin/production-hotfix?", evo.Destructive())`,
+			Remediation:     "Add evo.Destructive() to any Confirm question containing delete/remove/trash/retire/force",
+			RelatedGuidance: []string{"interactive", "common-api"},
+			VerificationIDs: []string{"CONFIRM-002"},
+			Since:           "0.7.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "CON-002",
+			Category:  "CON",
+			Severity:  "warning",
+			Invariant: "a failure summary is printed once, from Conclusion, not hand-assembled from a collected list",
+			Why:       "fmt/out.Print(strings.Join(failures, ...)) duplicates the exact summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows.",
+			BadCode:   `out.Println(strings.Join(failures, "\n")) // duplicates Conclusion`,
+			GoodCode: `for _, f := range failures {
+  out.Item(f.Name).Fail(f.Reason)
+}
+// Conclusion renders the one summary; add Next(evo.Label(...)) for guidance`,
+			Remediation:     "Resolve each failure on its own Item/Task and let Conclusion summarize; use Next for follow-up guidance",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"CON-002"},
+			Since:           "0.7.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:              "FP-004",
+			Category:        "FP",
+			Severity:        "warning",
+			Invariant:       "a Phase string names the domain object in motion, not a generic placeholder",
+			Why:             "\"starting\"/\"working\"/\"running\"/\"please wait\" tells the user nothing changed since the last frame — the same illegible-spinner defect FP-003 covers for a silent subprocess.",
+			BadCode:         `task.Phase("working")`,
+			GoodCode:        `task.Phase("scanning ~/Developer/Personal/zq")`,
+			Remediation:     "Name the object the task is currently acting on in the Phase string",
+			RelatedGuidance: []string{"first-paint", "tasks"},
+			VerificationIDs: []string{"FP-004"},
+			Since:           "0.7.0",
 			Certainty:       "heuristic",
 		},
 		{

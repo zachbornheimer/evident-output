@@ -25,7 +25,12 @@ func (o *Output) Suspend(fn func() error) error {
 	err := fn()
 
 	o.mu.Lock()
-	if live != nil && wasActive && o.hasLiveActivityLocked() {
+	// Resume painting only when something is actually Running. A settled Done
+	// task with determinate progress still counts as "live activity" for
+	// VisibilityDelay purposes (hasLiveActivityLocked), but repainting that
+	// static state after Suspend produces a stray live frame with nothing in
+	// motion (evo-rec.md "E" — post-Suspend spinner frame with nothing Running).
+	if live != nil && wasActive && o.needsSpinnerAnimLocked() {
 		o.live.visible = true
 		o.renderLiveLocked(true)
 	}

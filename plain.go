@@ -476,20 +476,25 @@ func writeConclusion(b *strings.Builder, c Conclusion, color bool, profile Glyph
 }
 
 // writeAlreadyMutated renders the early-termination "! already mutated: ..."
-// line. It fires whenever a run concludes Cancelled or Failed — a partial
-// truth the user must see even when the ledger is empty (rendered as
-// "none") — and the summary is derived mechanically from the Changes
-// ledger, never assembled by the caller (evo-rec.md "Taxonomy and mutation
-// lines are derived, never assembled").
+// line. It fires whenever a run concludes Cancelled or Failed with at least
+// one committed effect — "!" is attention-only (evo-rec.md "Tightened glyph
+// vocabulary"), and an empty ledger earns no attention, so the row is
+// suppressed entirely rather than rendered as "none". The summary is derived
+// mechanically from the Changes ledger, never assembled by the caller
+// (evo-rec.md "Taxonomy and mutation lines are derived, never assembled").
 func writeAlreadyMutated(b *strings.Builder, changes []ChangesSnapshot, color bool) {
+	summary, ok := summarizeAlreadyMutated(changes)
+	if !ok {
+		return
+	}
 	glyph := styleGlyph("!", sgrYellow, color)
-	fmt.Fprintf(b, "%s  already mutated: %s\n", glyph, summarizeAlreadyMutated(changes))
+	fmt.Fprintf(b, "%s  already mutated: %s\n", glyph, summary)
 }
 
 // summarizeAlreadyMutated derives one compact fragment per non-empty Changes
-// section (e.g. "8 branches deleted"), joined with "; ", or "none" when no
-// section committed any effect.
-func summarizeAlreadyMutated(changes []ChangesSnapshot) string {
+// section (e.g. "8 branches deleted"), joined with "; ". ok is false when no
+// section committed any effect, telling the caller to suppress the row.
+func summarizeAlreadyMutated(changes []ChangesSnapshot) (string, bool) {
 	var parts []string
 	for _, ch := range changes {
 		if len(ch.Records) == 0 {
@@ -498,9 +503,9 @@ func summarizeAlreadyMutated(changes []ChangesSnapshot) string {
 		parts = append(parts, summarizeChangeSection(ch))
 	}
 	if len(parts) == 0 {
-		return "none"
+		return "", false
 	}
-	return strings.Join(parts, "; ")
+	return strings.Join(parts, "; "), true
 }
 
 // summarizeChangeSection sums a section's record quantities (no-qty records
