@@ -1,3 +1,5 @@
+//go:build unix
+
 package evo_test
 
 import (
@@ -281,4 +283,240 @@ func TestSpecP22_ConfirmGate_EarlyTermination_Mismatch(t *testing.T) {
 		t.Fatalf("want the cancelled gate row, got:\n%s", got)
 	}
 	t.Skip("MISMATCH: real reason text is \"interrupted\" (run.go hard-codes it for every signal cancellation), never \"^C at prompt\"; \"! already mutated: none\" never renders — an empty effect ledger deliberately suppresses the whole row (plain.go writeAlreadyMutated) rather than printing \"none\" — see doc comment")
+}
+
+// TestSpecP23_SignalConclusion_Step1 covers evo-rec.md Problem 23's step1
+// block: a prior Done task alongside a Running task's indeterminate phase,
+// right before the human sends ^C (the signal itself is exercised by the
+// step2/early-termination cells below).
+//
+//	✓  scan
+//	:.  venv  creating
+//	# ^C
+func TestSpecP23_SignalConclusion_Step1(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor())
+
+	out.Task("scan").Done()
+	out.Task("venv").Phase("creating")
+
+	live := screen.LatestLiveText()
+	if !strings.Contains(live, "✓") || !strings.Contains(live, "scan") {
+		t.Fatalf("want scan's Done row to survive in the flat live frame, got %q", live)
+	}
+	if !strings.Contains(live, "venv") || !strings.Contains(live, "creating") {
+		t.Fatalf("want venv Running with phase \"creating\" in the live frame, got %q", live)
+	}
+}
+
+// TestSpecP23_SignalConclusion_Success covers Problem 23's success block: a
+// clean multi-task run derives exit 0 from the same Conclusion that draws
+// every ✓.
+//
+//	✓  scan
+//	✓  venv
+//	✓  install
+//	# $? = 0
+func TestSpecP23_SignalConclusion_Success(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out.Task("scan").Done()
+	out.Task("venv").Done()
+	out.Task("install").Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	for _, want := range []string{"✓  scan", "✓  venv", "✓  install"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	if out.Conclusion().ExitCode != evo.ExitOK {
+		t.Fatalf("exit = %d, want ExitOK (0)", out.Conclusion().ExitCode)
+	}
+}
+
+// TestSpecP23_SignalConclusion_Failure covers Problem 23's failure block: a
+// failed child derives exit 2 from the same Conclusion machinery, never a
+// hand-mapped code.
+//
+//	✓  scan
+//	✗  venv  uv exited 1
+//	# $? = 2
+func TestSpecP23_SignalConclusion_Failure(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out.Task("scan").Done()
+	out.Task("venv").Fail("uv exited 1")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	for _, want := range []string{"✓  scan", "✗  venv  uv exited 1"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	if out.Conclusion().ExitCode != evo.ExitFailed {
+		t.Fatalf("exit = %d, want ExitFailed (2)", out.Conclusion().ExitCode)
+	}
+}
+
+// TestSpecP23_SignalConclusion_Error covers Problem 23's error block: an
+// unrecoverable SIGKILL is reported honestly next run (as a Failed row, not
+// invented as Cancelled) — the same exit-2 Conclusion path as any other
+// failure.
+//
+//	✓  scan
+//	✗  venv  signal: killed (SIGKILL — no cleanup possible)
+//	# $? = 2
+func TestSpecP23_SignalConclusion_Error(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out.Task("scan").Done()
+	out.Task("venv").Fail("signal: killed (SIGKILL — no cleanup possible)")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	for _, want := range []string{"✓  scan", "✗  venv  signal: killed (SIGKILL — no cleanup possible)"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	if out.Conclusion().ExitCode != evo.ExitFailed {
+		t.Fatalf("exit = %d, want ExitFailed (2)", out.Conclusion().ExitCode)
+	}
+}
+
+// TestSpecP23_SignalConclusion_Step2_Mismatch covers Problem 23's step2
+// block, exercised through the real SIGINT path (the same
+// runInterruptible/cancelActive mechanism run_signal_test.go proves) against
+// a sequential evo.Group so a later sibling renders "not started".
+//
+//	✓  scan
+//	■  venv  cancelled (SIGINT)
+//	-  install  not started
+//	# $? = 130
+//
+// MISMATCH (executed, not fixed): the cancelled row always annotates
+// "interrupted" (run.go's cancelActive reason string is hard-coded for every
+// SIGINT/SIGTERM), never "cancelled (SIGINT)".
+func TestSpecP23_SignalConclusion_Step2_Mismatch(t *testing.T) {
+	var buf bytes.Buffer
+	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	setup := evo.Group("python")
+	scan, venv := setup.Task("scan"), setup.Task("venv")
+	setup.Task("install")
+
+	started := make(chan struct{})
+	go func() {
+		<-started
+		time.Sleep(20 * time.Millisecond)
+		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
+	}()
+
+	code := evo.Main(func() error {
+		scan.Done()
+		venv.Phase("creating")
+		close(started)
+		deadline := time.Now().Add(2 * time.Second)
+		for venv.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		return nil
+	})
+
+	if code != evo.ExitCancelled {
+		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"✓ scan", "■ venv", "- install not started"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	t.Skip("MISMATCH: the cancelled row's reason text is \"interrupted\" (run.go hard-codes it for every signal cancellation), never \"cancelled (SIGINT)\" — see doc comment")
+}
+
+// TestSpecP23_SignalConclusion_Indeterminate_NotTestable covers Problem 23's
+// indeterminate block.
+//
+//	✓  scan
+//	■  venv  cancelling — finishing current write…
+//	# second ^C forces immediate exit, still 130
+//
+// NOT-TESTABLE through the public API as spelled: the library exposes no
+// primitive for a transient "cancelling, waiting for a graceful window"
+// phase distinct from the final Cancelled state. A cancelled task renders
+// "■  venv  interrupted" the moment Cancel resolves it (see
+// TestSpecP23_SignalConclusion_Step2_Mismatch); there is no caller-visible
+// intermediate state to drive a "cancelling — finishing current write…"
+// phase string onto, and run_signal_test.go's own second-SIGINT coverage
+// (TestMain_SecondSIGINTExits130WithoutWaitingForRun) proves the second
+// signal forces Main to return without any further rendering at all, not a
+// distinguishable in-between frame.
+func TestSpecP23_SignalConclusion_Indeterminate_NotTestable(t *testing.T) {
+	t.Skip("NOT-TESTABLE: see doc comment — no public primitive renders a transient \"cancelling\" phase distinct from the terminal Cancelled state")
+}
+
+// TestSpecP23_SignalConclusion_EarlyTermination_Mismatch covers Problem 23's
+// early termination block: a committed effect survives a SIGINT cancellation
+// as a derived "already mutated" line.
+//
+//	✓  scan
+//	■  venv     cancelled (SIGINT)
+//	-  install  not started
+//	!  already mutated: partial .venv directory
+//	# $? = 130
+//
+// MISMATCH (executed, not fixed): same "interrupted" vs "cancelled (SIGINT)"
+// reason-text gap as the step2 cell above, plus the derived "already
+// mutated" line's grammar is "<qty> <label> <verb>" (e.g. "1 .venv directory
+// created") — it can state a real committed record, never fabricate the
+// word "partial" the spec's illustration uses, since the line is
+// mechanically summarized from the Changes ledger, not hand-assembled
+// (evo-rec.md "Taxonomy and mutation lines are derived, never assembled").
+func TestSpecP23_SignalConclusion_EarlyTermination_Mismatch(t *testing.T) {
+	var buf bytes.Buffer
+	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	setup := evo.Group("python")
+	scan, venv := setup.Task("scan"), setup.Task("venv")
+	setup.Task("install")
+
+	started := make(chan struct{})
+	go func() {
+		<-started
+		time.Sleep(20 * time.Millisecond)
+		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
+	}()
+
+	code := evo.Main(func() error {
+		scan.Done()
+		venv.Record("create", 1, ".venv directory")
+		close(started)
+		deadline := time.Now().Add(2 * time.Second)
+		for venv.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		return nil
+	})
+
+	if code != evo.ExitCancelled {
+		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"✓ scan", "■ venv", "- install not started", "already mutated", ".venv directory"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	t.Skip("MISMATCH: the cancelled row's reason text is \"interrupted\", never \"cancelled (SIGINT)\", and the derived \"already mutated\" line reads \"1 .venv directory created\" — a real, mechanically-summarized fact, never the spec's fabricated \"partial .venv directory\" — see doc comment")
 }
