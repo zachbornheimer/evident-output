@@ -15,11 +15,11 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func f() {
-  out := evo.NewWithOptions()
+  out := evo.Init(evo.Config{Options: []evo.Option{}})
   t := out.Task("x")
   t.Start()
   fmt.Printf("hi")
-  out.Item("i").Block("b", evo.Detail(err))
+  out.Task("i").Block("b", evo.Detail(err))
   os.Exit(1)
 }
 `
@@ -64,9 +64,9 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func check() error {
-  out := evo.NewWithOptions(evo.Title("repo"))
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo")}})
   defer out.Close()
-  out.Item("working tree").Block("dirty")
+  out.Task("working tree").Block("dirty")
   return errors.New("dirty")
 }
 `
@@ -96,14 +96,14 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func check() error {
-  out := evo.NewWithOptions(evo.Title("repo"))
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo")}})
   defer out.Close()
   if err := load(); err != nil {
-    out.Item("data").Fail("load failed")
+    out.Task("data").Fail("load failed")
     _ = out.Finish()
     return err
   }
-  out.Item("data").OK()
+  out.Task("data").Done()
   return out.Finish()
 }
 func load() error { return errors.New("io") }
@@ -121,9 +121,9 @@ func TestMCP014_BlockThenFinishOK(t *testing.T) {
 	ok := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func check() error {
-  out := evo.NewWithOptions(evo.Title("repo"))
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo")}})
   defer out.Close()
-  out.Item("working tree").Block("dirty")
+  out.Task("working tree").Block("dirty")
   return out.Finish()
 }
 `
@@ -186,8 +186,8 @@ import (
 func f() {
   // example: tasks.Map() is not real — do not flag this comment either
   slug := strings.Map(func(r rune) rune { return r }, "ABC")
-  out := evo.NewWithOptions(evo.Title("x"))
-  out.Item(slug).OK()
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("x")}})
+  out.Task(slug).Done()
   _ = out.Finish()
 }
 `
@@ -209,7 +209,7 @@ func TestAPI026_DetectsEvoExecutionHelper(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f() {
-  out := evo.NewWithOptions()
+  out := evo.Init(evo.Config{Options: []evo.Option{}})
   out.Tasks("jobs").Map(func() {})
 }
 `
@@ -235,9 +235,9 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func main() {
-  out := evo.NewWithOptions(evo.Title("t"))
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
   os.Exit(evo.MainWith(out, func(o *evo.Output) error {
-    o.Item("x").OK()
+    o.Task("x").Done()
     return nil
   }))
 }
@@ -259,7 +259,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func main() {
-  out := evo.NewWithOptions(evo.Title("t"))
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
   c := make(chan os.Signal, 1)
   signal.Notify(c, syscall.SIGINT)
   go func() {
@@ -294,7 +294,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func main() {
-  out := evo.NewWithOptions(evo.Title("t"))
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
   t := out.Task("scan")
   c := make(chan os.Signal, 1)
   signal.Notify(c, syscall.SIGINT)
@@ -669,7 +669,7 @@ func TestCON002_NoFalsePositiveOnPerItemResolution(t *testing.T) {
 import evo "github.com/zachbornheimer/evident-output"
 func f(out *evo.Output, failures []string) {
   for _, name := range failures {
-    out.Item(name).Fail("failed")
+    out.Task(name).Fail("failed")
   }
 }
 `
@@ -726,7 +726,7 @@ import (
 )
 func main() {
   data, _ := os.ReadFile("config.toml")
-  out := evo.NewWithOptions(evo.Title("t"))
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
   out.Task("scan").Phase(string(data))
 }
 `
@@ -981,7 +981,7 @@ func run(out *evo.Output) error {
   t := out.Task("x")
   t.Start()
   fmt.Printf("hi")
-  out.Item("i").Block("b", evo.Detail(err))
+  out.Task("i").Block("b", evo.Detail(err))
   os.Exit(1)
   out.Tasks("jobs").Map(func() {})
   out.Task("t").Donef("modules cached")
@@ -997,7 +997,7 @@ func run(out *evo.Output) error {
   reader := bufio.NewReader(os.Stdin)
   _, _ = reader.ReadString('\n')
 
-  out.Item("working tree").Block("dirty")
+  out.Task("working tree").Block("dirty")
   return errors.New("dirty")
 }
 `))
@@ -1009,7 +1009,7 @@ func run(out *evo.Output) error {
 	collect(review.GoPackage(map[string]string{
 		"a.go": `package p
 import evo "github.com/zachbornheimer/evident-output"
-func makeOut() *evo.Output { return evo.NewWithOptions() }
+func makeOut() *evo.Output { return evo.Init(evo.Config{Options: []evo.Option{}}) }
 `,
 		"b.go": `package p
 func use() { _ = makeOut() }
@@ -1056,7 +1056,7 @@ func run(out *evo.Output, svc services, task *evo.TaskHandle, done, total int) e
   t.Start()
   fmt.Printf("hi")
   svc.Err.Write([]byte("dup"))
-  out.Item("i").Block("b", evo.Detail(err))
+  out.Task("i").Block("b", evo.Detail(err))
   os.Exit(1)
   out.Tasks("jobs").Map(func() {})
   out.Task("t").Donef("modules cached")
@@ -1075,7 +1075,7 @@ func run(out *evo.Output, svc services, task *evo.TaskHandle, done, total int) e
   reader := bufio.NewReader(os.Stdin)
   _, _ = reader.ReadString('\n')
 
-  out.Item("working tree").Block("dirty")
+  out.Task("working tree").Block("dirty")
   return errors.New("dirty")
 }
 `
@@ -1098,7 +1098,7 @@ func TestGoPackage_CrossFileTypes(t *testing.T) {
 	files := map[string]string{
 		"a.go": `package p
 import evo "github.com/zachbornheimer/evident-output"
-func makeOut() *evo.Output { return evo.NewWithOptions() }
+func makeOut() *evo.Output { return evo.Init(evo.Config{Options: []evo.Option{}}) }
 `,
 		"b.go": `package p
 import "fmt"
@@ -1212,7 +1212,7 @@ func TestAPI033_NameEqualsSkipArgument(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(out *evo.Output, note string) {
-  out.Item(note).Skip(note)
+  out.Task(note).Skip(note)
 }
 `
 	res := review.GoSource("dup.go", src)
@@ -1223,7 +1223,7 @@ func f(out *evo.Output, note string) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected API-033 for out.Item(note).Skip(note): %+v", res.Findings)
+		t.Fatalf("expected API-033 for out.Task(note).Skip(note): %+v", res.Findings)
 	}
 }
 
@@ -1231,7 +1231,7 @@ func TestAPI033_NoFalsePositiveOnDistinctNameAndReason(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(out *evo.Output, reason string) {
-  out.Item("branch check").Skip(reason)
+  out.Task("branch check").Skip(reason)
 }
 `
 	res := review.GoSource("distinct.go", src)

@@ -11,12 +11,12 @@ import (
 
 func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("librarian"),
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("librarian").Record("placed", 1, "file")
@@ -39,12 +39,12 @@ func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.
 
 func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("librarian"),
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Plan("librarian").Move("a", "b")
@@ -58,19 +58,16 @@ func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) 
 
 func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("librarian"),
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("librarian").Record("placed", 7, "files")
-	out.Item("placement", evo.ID("run.placement")).FailedBy(evo.Problem{
-		Subject: "arr/x",
-		Summary: "not writable",
-	})
+	out.Task("placement", evo.ID("run.placement")).Fail("not writable", evo.On("arr/x"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -85,12 +82,12 @@ func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("tool"),
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("files").Added(1, "file")
@@ -106,12 +103,12 @@ func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("tool"),
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("other-subject").Added(1, "x")
@@ -125,12 +122,12 @@ func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("tool"),
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("tool").Added(1, "x")
@@ -146,10 +143,10 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 }
 
 func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("tool"),
 		evo.To(io.Discard),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Changes("tool").Added(1, "x")
 	if err := out.Finish(); err != nil {
@@ -167,12 +164,12 @@ func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
 
 func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("zq"),
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Println("zq v0.2.14")
@@ -190,15 +187,15 @@ func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) 
 
 func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("database"),
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Item("database").OK()
+	out.Task("database").Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -213,15 +210,15 @@ func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 
 func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("release v1.4"),
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Item("release signature").Block("signature is missing")
+	out.Task("release signature").Block("signature is missing")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -233,16 +230,16 @@ func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_MultipleItems_KeepsAggregateConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("repository"),
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Item("working tree").OK()
-	out.Item("branches").OK()
+	out.Task("working tree").Done()
+	out.Task("branches").Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

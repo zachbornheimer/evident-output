@@ -12,11 +12,11 @@ import (
 func TestNew_ZeroConfig_Defaults(t *testing.T) {
 	// Redirect via Config writers so we do not touch the real TTY.
 	var outBuf, errBuf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Stdout: &outBuf,
 		Stderr: &errBuf,
 	})
-	out.Item("ok").OK()
+	out.Task("ok").Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -27,8 +27,8 @@ func TestNew_ZeroConfig_Defaults(t *testing.T) {
 
 func TestNew_PartialConfig_InheritsDefaults(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "bpp-csharp", Stdout: &buf, Stderr: &buf})
-	out.Item("x").OK()
+	out := evo.Init(evo.Config{Title: "bpp-csharp", Stdout: &buf, Stderr: &buf})
+	out.Task("x").Done()
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "bpp-csharp") {
 		t.Fatalf("title missing:\n%s", buf.String())
@@ -41,7 +41,7 @@ func TestNew_PartialConfig_InheritsDefaults(t *testing.T) {
 
 func TestConfig_DebugLevelTraceSelectable(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:  "trace",
 		Stdout: &buf,
 		Stderr: &buf,
@@ -58,9 +58,9 @@ func TestConfig_DebugLevelTraceSelectable(t *testing.T) {
 
 func TestConfig_DebugLevelUnsetDefaultsToInfo(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "info", Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Title: "info", Stdout: &buf, Stderr: &buf})
 	out.Debug("should-drop")
-	out.Item("ok").OK()
+	out.Task("ok").Done()
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "should-drop") {
 		t.Fatalf("default LevelInfo must suppress Debug:\n%s", buf.String())
@@ -87,7 +87,7 @@ func TestConfig_VisibilityDelayZeroIsImmediate(t *testing.T) {
 		VisibilityDelay: evo.Delay(0),
 		ForcePlain:      true,
 	}
-	out := evo.New(cfg)
+	out := evo.Init(cfg)
 	_ = out.Close()
 	// resolveConfig kept *0: re-resolve via New must not panic; paint policy
 	// is covered by TestVisibilityDelay_ZeroIsImmediate (Option path).
@@ -96,24 +96,15 @@ func TestConfig_VisibilityDelayZeroIsImmediate(t *testing.T) {
 	}
 }
 
-func TestNew_RejectsMultipleConfigs(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic for multiple Config args")
-		}
-	}()
-	_ = evo.New(evo.Config{Title: "a"}, evo.Config{Title: "b"})
-}
-
 func TestNew_DataFormat_HumanOnStderr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:  "build",
 		Stdout: &stdout,
 		Stderr: &stderr,
 		Format: evo.FormatData,
 	})
-	out.Item("compile").OK()
+	out.Task("compile").Done()
 	_ = out.Finish()
 	if strings.Contains(stdout.String(), "compile") {
 		t.Fatalf("data mode must not put human UI on stdout:\n%s", stdout.String())
@@ -136,8 +127,8 @@ func TestParseColorMode(t *testing.T) {
 
 func TestNewWithOptions_StillWorks(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
-	out.Item("legacy").OK()
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out.Task("legacy").Done()
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "legacy") {
 		t.Fatal(buf.String())

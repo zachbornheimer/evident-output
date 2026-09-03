@@ -10,7 +10,7 @@ import (
 
 func TestPhaseWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("push")
 	w := task.PhaseWriter()
 
@@ -33,7 +33,7 @@ func TestPhaseWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 
 func TestPhaseWriter_CRDelimitsProgressFrames(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("download")
 	w := task.PhaseWriter()
 
@@ -53,7 +53,7 @@ func TestPhaseWriter_CRDelimitsProgressFrames(t *testing.T) {
 
 func TestPhaseWriter_BlankLinesIgnored(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("sync")
 	w := task.PhaseWriter()
 
@@ -72,7 +72,7 @@ func TestPhaseWriter_BlankLinesIgnored(t *testing.T) {
 
 func TestPhaseWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 	var primary bytes.Buffer
-	out := evo.New(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
+	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("push")
 	w := task.PhaseWriter()
 
@@ -98,7 +98,7 @@ func TestPhaseWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 // fragment flushes as a phase line on its own.
 func TestPhaseWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("build")
 	w := task.PhaseWriter()
 
@@ -127,7 +127,7 @@ func TestPhaseWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
 
 func TestPhaseWriter_SanitizesHostileLines(t *testing.T) {
 	var primary bytes.Buffer
-	out := evo.New(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
+	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("push")
 	w := task.PhaseWriter()
 

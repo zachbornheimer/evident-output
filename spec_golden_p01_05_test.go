@@ -27,7 +27,7 @@ import (
 func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
 	branches.Delete(8, "branches")
 	branches.Done("8 deleted")
@@ -70,7 +70,7 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
 	branches.Delete(8, "branches")
 	protected := evo.Reason("protected")
@@ -110,7 +110,7 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
 	branches.Delete(8, "branches")
 	branches.Done("8 deleted")
@@ -147,7 +147,7 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
 	branches.Delete(12, "branches")
 	branches.Done("12 deleted")
@@ -182,7 +182,7 @@ func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
 	branches.Delete(5, "branches")
 	branches.Done("5 deleted (local)")
@@ -241,7 +241,7 @@ func TestSpecP2_RemoteSeparation_Indeterminate_NotTestable(t *testing.T) {
 func TestSpecP3_DryRunTense_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	salvage := out.Task("salvage")
 	salvage.Push(3, "branch")
 	salvage.Done()
@@ -273,7 +273,7 @@ func TestSpecP3_DryRunTense_Success(t *testing.T) {
 func TestSpecP3_DryRunTense_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	salvage := out.Task("salvage")
 	salvage.Push(3, "feat/a → retire/feat/a")
 	salvage.Fail("dry-run only — not applied")
@@ -305,7 +305,7 @@ func TestSpecP3_DryRunTense_Failure(t *testing.T) {
 func TestSpecP3_DryRunTense_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	salvage := out.Task("salvage")
 	salvage.Push(1, "branch")
 	salvage.Progress(2, 3)
@@ -338,7 +338,7 @@ func TestSpecP3_DryRunTense_Error(t *testing.T) {
 func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	salvage := out.Task("salvage")
 	salvage.Push(1, "branch")
 	salvage.Cancel("interrupted")
@@ -422,7 +422,7 @@ func TestSpecP4_SequentialGroup_Indeterminate(t *testing.T) {
 func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	setup := out.Group("python")
 	scan, venv, install := setup.Task("scan"), setup.Task("venv"), setup.Task("install")
 	scan.Done()
@@ -462,7 +462,7 @@ func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	setup := out.Group("python")
 	scan, venv, install := setup.Task("scan"), setup.Task("venv"), setup.Task("install")
 	scan.Done()
@@ -503,7 +503,7 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	scan := out.Task("scan")
 	scan.Fail("permission denied under ~/Developer", evo.Detail("open ~/Developer/locked: operation not permitted"))
 	if err := out.Finish(); err != nil {
@@ -532,7 +532,7 @@ func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	scan := out.Task("scan")
 	scan.Progress(40, 128)
 	scan.RecordLabel("ready", 39, "repos")
@@ -574,7 +574,7 @@ func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	scan := out.Task("scan")
 	scan.Progress(40, 128)
 	scan.Cancel("cancelled")

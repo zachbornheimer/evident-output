@@ -2,8 +2,8 @@ package evo
 
 import "fmt"
 
-// EntityOption configures Item or Task declaration (stable keys).
-// The common path remains Item("label") / Task("label"); options are platform-scale.
+// EntityOption configures Task declaration (stable keys).
+// The common path remains Task("label"); options are platform-scale.
 type EntityOption interface {
 	applyEntity(*entityOpts)
 }
@@ -64,14 +64,14 @@ func applyEntityOptions(opts []EntityOption) entityOpts {
 //
 //   - Qualifies evo.ID keys as "scope.key" for stable machine identity.
 //
-//   - Exposes only Item, Task, and Tasks — operations that actually take the namespace.
+//   - Exposes only Task and Tasks — operations that actually take the namespace.
 //
 //   - Is NOT a security sandbox: plugins holding *Output bypass Scope entirely.
 //
 //   - Session Capture, Writer, and SlogHandler stay on *Output (shared session).
 //
 //     registry := out.Scope("registry")
-//     registry.Item("credentials", evo.ID("auth")).OK()
+//     registry.Task("credentials", evo.ID("auth")).Done()
 //     // key → "registry.auth"
 type Scope struct {
 	out  *Output
@@ -92,16 +92,6 @@ func (s *Scope) Name() string {
 		return ""
 	}
 	return s.name
-}
-
-// Item declares an item; optional evo.ID is prefixed with the scope name.
-// name is a printf format when args are present (fmt.Sprintf semantics).
-func (s *Scope) Item(name string, args ...any) *ItemHandle {
-	if s == nil || s.out == nil {
-		return &ItemHandle{}
-	}
-	formatted, opts := formatEntityName(name, args)
-	return s.out.itemScoped(formatted, s.name, opts...)
 }
 
 // Task declares a task; optional evo.ID is prefixed with the scope name.

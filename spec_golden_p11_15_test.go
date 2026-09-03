@@ -60,7 +60,7 @@ func TestSpecP11_LiveFrame_Step2(t *testing.T) {
 func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	pipeline := out.Group("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
@@ -96,7 +96,7 @@ func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 func TestSpecP11_NestedPipeline_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	pipeline := out.Group("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
@@ -162,7 +162,7 @@ func TestSpecP11_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	pipeline := out.Group("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
@@ -206,7 +206,7 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	pipeline := out.Group("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
@@ -248,7 +248,7 @@ func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 func TestSpecP12_ConfirmGate_Step1(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.DryRun(), evo.Stdin(strings.NewReader("y\n")))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.DryRun(), evo.Stdin(strings.NewReader("y\n"))}})
 	remotes := out.Task("remotes")
 	remotes.RecordName("delete-remote", "origin/production-hotfix")
 	remotes.Done()
@@ -314,7 +314,7 @@ func TestSpecP12_LiveFrame_Step2(t *testing.T) {
 func TestSpecP12_ConfirmGate_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	remotes := out.Task("remotes")
 	remotes.Record("delete", 1, "origin tip")
 	remotes.Done()
@@ -350,7 +350,7 @@ func TestSpecP12_ConfirmGate_Success(t *testing.T) {
 func TestSpecP12_ConfirmGate_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.DryRun(), evo.Stdin(strings.NewReader("n\n")))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.DryRun(), evo.Stdin(strings.NewReader("n\n"))}})
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); ok {
 		t.Fatal("Confirm(\"n\") = true, want false")
 	}
@@ -414,7 +414,7 @@ func TestSpecP12_ConfirmGate_Indeterminate(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	reader := newBlockingConfirmReader()
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.Stdin(reader))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.Stdin(reader)}})
 
 	done := make(chan bool, 1)
 	go func() { done <- out.Confirm("confirm remote delete", evo.Destructive()) }()
@@ -451,7 +451,7 @@ func TestSpecP12_ConfirmGate_Indeterminate(t *testing.T) {
 func TestSpecP12_ConfirmGate_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("y\n")))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("y\n"))}})
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}
@@ -492,7 +492,7 @@ func TestSpecP12_ConfirmGate_Error(t *testing.T) {
 func TestSpecP12_ConfirmGate_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("y\n")))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("y\n"))}})
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}
@@ -574,7 +574,7 @@ func TestSpecP13_LiveFrame_Step2(t *testing.T) {
 func TestSpecP13_Retry_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	install := out.Task("install")
 	optional := evo.Reason("optional")
 	install.Skipped(optional, "extras")
@@ -611,7 +611,7 @@ func TestSpecP13_Retry_Success(t *testing.T) {
 func TestSpecP13_Retry_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	install := out.Task("install")
 	install.Progress(13, 40)
 	install.Phase("urllib3")
@@ -665,7 +665,7 @@ func TestSpecP13_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP13_Retry_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	install := out.Task("install")
 	install.Progress(13, 40)
 	install.Phase("urllib3")
@@ -709,7 +709,7 @@ func TestSpecP13_Retry_Error(t *testing.T) {
 func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	install := out.Task("install")
 	install.Progress(13, 40)
 	install.Record("install", 13, "packages")
@@ -796,7 +796,7 @@ func TestSpecP14_LiveFrame_Step2(t *testing.T) {
 func TestSpecP14_Capture_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	capture := out.Task("capture")
 	hasPR := evo.Reason("has-pr")
 	capture.Record("salvage", 2, "tip")
@@ -857,7 +857,7 @@ func (bearerTokenRedactor) RedactString(s string) string {
 func TestSpecP14_Capture_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:    "capture",
 		Stdout:   &buf,
 		Stderr:   &buf,
@@ -920,7 +920,7 @@ func TestSpecP14_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP14_Capture_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	capture := out.Task("capture")
 	capture.Fail("credential helper printed a secret", evo.Detail("stderr redacted (1 line held)"))
 	if err := out.Finish(); err != nil {
@@ -990,7 +990,7 @@ func TestSpecP14_Capture_EarlyTermination(t *testing.T) {
 
 // TestSpecP15_NothingToDo_Step1 covers Problem 15's step1 block — textually
 // identical to the already-proven success block, driven the same documented
-// way (Item(...).OK() + Println), covering this problem's step1 cell in its
+// way (Item(...).Done() + Println), covering this problem's step1 cell in its
 // own right.
 //
 //	✓  clean
@@ -998,8 +998,8 @@ func TestSpecP14_Capture_EarlyTermination(t *testing.T) {
 func TestSpecP15_NothingToDo_Step1(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	out.Item("clean").OK()
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out.Task("clean").Done()
 	out.Println("nothing to clean")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -1020,8 +1020,8 @@ func TestSpecP15_NothingToDo_Step1(t *testing.T) {
 func TestSpecP15_NothingToDo_Step2(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	out.Item("capture plan").OK()
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out.Task("capture plan").Done()
 	out.Println("nothing to capture (tips already on remote or no long-tail work)")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -1047,8 +1047,8 @@ func TestSpecP15_NothingToDo_Step2(t *testing.T) {
 func TestSpecP15_NothingToDo_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	out.Item("clean").OK()
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out.Task("clean").Done()
 	out.Println("nothing to clean")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -1091,7 +1091,7 @@ func TestSpecP15_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP15_NothingToDo_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	clean := out.Task("clean")
 	clean.Fail("cannot read repository", evo.Detail("fatal: not a git repository"))
 	if err := out.Finish(); err != nil {

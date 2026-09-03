@@ -30,8 +30,8 @@ func main() {
 			plan.Add(1, "column users.email_verified")
 			plan.Create("index idx_users_email")
 			plan.Write("migrations/20260727_email_verified.sql")
-			evo.Item("connection").OK()
-			evo.Item("lock").OK()
+			evo.Task("connection").Done()
+			evo.Task("lock").Done()
 			return nil
 		}
 

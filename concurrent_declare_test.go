@@ -11,7 +11,7 @@ import (
 
 // WS-6: predeclared Tasks keep declaration order under concurrent updates.
 func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
-	out := evo.NewWithOptions(evo.Title("batch"), evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("batch"), evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	jobs := out.Tasks("placement")
@@ -66,7 +66,7 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 }
 
 func TestConcurrent_AggregateProgress_NotPerFile(t *testing.T) {
-	out := evo.NewWithOptions(evo.Title("huge"), evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("huge"), evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	// Model-by-scale: one aggregate Task for huge batches.

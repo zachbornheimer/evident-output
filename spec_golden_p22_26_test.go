@@ -42,7 +42,7 @@ import (
 func TestSpecP22_ConfirmGate_Step1(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor(), evo.Stdin(strings.NewReader("y\n")))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor(), evo.Stdin(strings.NewReader("y\n"))}})
 
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
@@ -71,7 +71,7 @@ func TestSpecP22_ConfirmGate_Step1(t *testing.T) {
 func TestSpecP22_ConfirmGate_Indeterminate(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor(), evo.Stdin(strings.NewReader("y\n")))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor(), evo.Stdin(strings.NewReader("y\n"))}})
 
 	out.Confirm("confirm remote delete")
 
@@ -103,7 +103,7 @@ func TestSpecP22_ConfirmGate_Indeterminate(t *testing.T) {
 func TestSpecP22_ConfirmGate_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor(), evo.Stdin(strings.NewReader("y\n")))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor(), evo.Stdin(strings.NewReader("y\n"))}})
 
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
@@ -139,7 +139,7 @@ func TestSpecP22_ConfirmGate_Step2(t *testing.T) {
 func TestSpecP22_ConfirmGate_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("y\n")))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("y\n"))}})
 
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
@@ -179,7 +179,7 @@ func TestSpecP22_ConfirmGate_Success(t *testing.T) {
 func TestSpecP22_ConfirmGate_Failure_Mismatch(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("n\n")))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("n\n"))}})
 
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); ok {
 		t.Fatal("Confirm(\"n\") = true, want false")
@@ -222,7 +222,7 @@ func TestSpecP22_ConfirmGate_Failure_Mismatch(t *testing.T) {
 func TestSpecP22_ConfirmGate_Error_Mismatch(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.NoColor(), evo.NonInteractive(), evo.Stdin(&panicReader{t: t}))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.NonInteractive(), evo.Stdin(&panicReader{t: t})}})
 
 	if ok := out.Confirm("confirm remote delete"); ok {
 		t.Fatal("Confirm on non-interactive without --yes = true, want false")
@@ -261,7 +261,7 @@ func TestSpecP22_ConfirmGate_EarlyTermination_Mismatch(t *testing.T) {
 	}
 	defer func() { _ = r.Close() }()
 	defer func() { _ = w.Close() }()
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.NoColor(), evo.Stdin(r)))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Stdin(r)}}))
 
 	started := make(chan struct{})
 	go func() {
@@ -297,7 +297,7 @@ func TestSpecP22_ConfirmGate_EarlyTermination_Mismatch(t *testing.T) {
 func TestSpecP23_SignalConclusion_Step1(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor()}})
 
 	out.Task("scan").Done()
 	out.Task("venv").Phase("creating")
@@ -322,7 +322,7 @@ func TestSpecP23_SignalConclusion_Step1(t *testing.T) {
 func TestSpecP23_SignalConclusion_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("venv").Done()
 	out.Task("install").Done()
@@ -350,7 +350,7 @@ func TestSpecP23_SignalConclusion_Success(t *testing.T) {
 func TestSpecP23_SignalConclusion_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("venv").Fail("uv exited 1")
 	if err := out.Finish(); err != nil {
@@ -378,7 +378,7 @@ func TestSpecP23_SignalConclusion_Failure(t *testing.T) {
 func TestSpecP23_SignalConclusion_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("venv").Fail("signal: killed (SIGKILL — no cleanup possible)")
 	if err := out.Finish(); err != nil {
@@ -410,7 +410,7 @@ func TestSpecP23_SignalConclusion_Error(t *testing.T) {
 // SIGINT/SIGTERM), never "cancelled (SIGINT)".
 func TestSpecP23_SignalConclusion_Step2_Mismatch(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	setup := evo.Group("python")
 	scan, venv := setup.Task("scan"), setup.Task("venv")
 	setup.Task("install")
@@ -486,7 +486,7 @@ func TestSpecP23_SignalConclusion_Indeterminate_NotTestable(t *testing.T) {
 // (evo-rec.md "Taxonomy and mutation lines are derived, never assembled").
 func TestSpecP23_SignalConclusion_EarlyTermination_Mismatch(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	setup := evo.Group("python")
 	scan, venv := setup.Task("scan"), setup.Task("venv")
 	setup.Task("install")
@@ -528,7 +528,7 @@ func TestSpecP23_SignalConclusion_EarlyTermination_Mismatch(t *testing.T) {
 // (construct.go: Format=FormatData + Terminal set uses the caller's
 // Terminal for the live region on the stderr side).
 func newDataFormatOutput(screen *testkit.Screen, presentation, payload *bytes.Buffer) *evo.Output {
-	return evo.NewWithOptions(
+	return evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("scan"),
 		evo.To(presentation),
 		evo.Diagnostics(presentation),
@@ -538,7 +538,7 @@ func newDataFormatOutput(screen *testkit.Screen, presentation, payload *bytes.Bu
 		evo.VisibilityDelay(0),
 		evo.MaxFrameRate(1_000_000),
 		evo.NoColor(),
-	)
+	}})
 }
 
 // TestSpecP24_DataFormat_Step1 covers evo-rec.md Problem 24's step1 block:
@@ -627,7 +627,7 @@ func TestSpecP24_DataFormat_Indeterminate(t *testing.T) {
 func TestSpecP24_DataFormat_Failure(t *testing.T) {
 	t.Parallel()
 	var presentation, payload bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:  "scan",
 		Format: evo.FormatData,
 		Stderr: &presentation,
@@ -660,7 +660,7 @@ func TestSpecP24_DataFormat_Failure(t *testing.T) {
 func TestSpecP24_DataFormat_Error(t *testing.T) {
 	t.Parallel()
 	var presentation, payload bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:  "scan",
 		Format: evo.FormatData,
 		Stderr: &presentation,
@@ -700,7 +700,7 @@ func TestSpecP24_DataFormat_Error(t *testing.T) {
 // not folded into the cancellation reason text anywhere in the library.
 func TestSpecP24_DataFormat_EarlyTermination_Mismatch(t *testing.T) {
 	var presentation, payload bytes.Buffer
-	evo.SetDefault(evo.New(evo.Config{
+	evo.SetDefault(evo.Init(evo.Config{
 		Title:  "scan",
 		Format: evo.FormatData,
 		Stderr: &presentation,
@@ -751,7 +751,7 @@ func TestSpecP24_DataFormat_EarlyTermination_Mismatch(t *testing.T) {
 func TestSpecP25_ASCIIGlyphFallback_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}})
 
 	out.Task("branches").Done("14 deleted")
 	worktrees := out.Task("worktrees")
@@ -782,7 +782,7 @@ func TestSpecP25_ASCIIGlyphFallback_Step2(t *testing.T) {
 // "->" arrow this older Problem 25 block predates.
 func TestSpecP25_ASCIIGlyphFallback_Failure_Mismatch(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}})
 	remotes := out.Task("remotes")
 	remotes.Fail("auth failed", evo.Detail("remote: Invalid username or token"))
 	if err := out.Finish(); err != nil {
@@ -805,7 +805,7 @@ func TestSpecP25_ASCIIGlyphFallback_Failure_Mismatch(t *testing.T) {
 //	    -> another git process seems to be running
 func TestSpecP25_ASCIIGlyphFallback_Error_Mismatch(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}})
 	branches := out.Task("branches")
 	branches.Fail("cannot lock ref", evo.Detail("another git process seems to be running"))
 	if err := out.Finish(); err != nil {
@@ -837,7 +837,7 @@ func TestSpecP25_ASCIIGlyphFallback_Error_Mismatch(t *testing.T) {
 // local deletes".
 func TestSpecP25_ASCIIGlyphFallback_EarlyTermination_Mismatch(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}}))
 	branches := evo.Task("branches")
 	worktrees := evo.Task("worktrees")
 
@@ -888,7 +888,7 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination_Mismatch(t *testing.T) {
 func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	out := evo.Default()
 	branches := out.Task("branches")
 	protected := evo.Reason("protected")
@@ -921,7 +921,7 @@ func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 func TestSpecP26_NarrowTerminal_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	remotes := out.Task("remotes")
 	remotes.Fail("auth", evo.Detail("401 token"))
 	if err := out.Finish(); err != nil {
@@ -944,7 +944,7 @@ func TestSpecP26_NarrowTerminal_Failure(t *testing.T) {
 func TestSpecP26_NarrowTerminal_Indeterminate(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor()}})
 	out.Task("branches").Phase("…")
 
 	live := screen.LatestLiveText()
@@ -962,7 +962,7 @@ func TestSpecP26_NarrowTerminal_Indeterminate(t *testing.T) {
 func TestSpecP26_NarrowTerminal_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
 	branches.Fail("", evo.Detail("lock ref"))
 	if err := out.Finish(); err != nil {
@@ -997,7 +997,7 @@ func TestSpecP26_NarrowTerminal_Error(t *testing.T) {
 // local".
 func TestSpecP26_NarrowTerminal_EarlyTermination_Mismatch(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	branches := evo.Task("branches")
 	worktrees := evo.Task("worktrees")
 

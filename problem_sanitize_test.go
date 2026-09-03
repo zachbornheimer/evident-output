@@ -13,11 +13,11 @@ func TestProblemSanitize_ItemAndTaskDetailIdentical(t *testing.T) {
 	const payload = "\x1b[31mFAKE OK\x1b[0m secret"
 	var itemBuf, taskBuf bytes.Buffer
 
-	itemOut := evo.New(evo.Config{Title: "i", Stdout: &itemBuf, Stderr: &itemBuf})
-	itemOut.Item("gate").Fail("failed", evo.Detail(payload), evo.On("subj"))
+	itemOut := evo.Init(evo.Config{Title: "i", Stdout: &itemBuf, Stderr: &itemBuf})
+	itemOut.Task("gate").Fail("failed", evo.Detail(payload), evo.On("subj"))
 	_ = itemOut.Finish()
 
-	taskOut := evo.New(evo.Config{Title: "t", Stdout: &taskBuf, Stderr: &taskBuf})
+	taskOut := evo.Init(evo.Config{Title: "t", Stdout: &taskBuf, Stderr: &taskBuf})
 	taskOut.Task("work").Fail("failed", evo.Detail(payload), evo.On("subj"))
 	_ = taskOut.Finish()
 

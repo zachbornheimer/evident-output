@@ -14,7 +14,7 @@ import (
 const (
 	confirmDeclinedSummary      = "declined"
 	confirmPolicyBlockedSummary = "blocked by policy"
-	confirmAssumedYesBecause    = "assumed --yes"
+	confirmAssumedYesSummary    = "assumed --yes"
 	confirmPolicyHint           = "pass --yes to confirm non-interactively"
 )
 
@@ -37,8 +37,8 @@ func (c confirmConfig) resolvedPolicyHint() Action {
 }
 
 // AssumeYes skips the interactive prompt when v is true (the caller's --yes
-// flag). The gate resolves immediately as OK, annotated "assumed --yes",
-// and Confirm returns true without touching stdin or the live region.
+// flag). The gate resolves immediately as Done "assumed --yes", and Confirm
+// returns true without touching stdin or the live region.
 func AssumeYes(v bool) ConfirmOption {
 	return func(c *confirmConfig) { c.assumeYes = v }
 }
@@ -68,11 +68,11 @@ func Confirm(question string, opts ...ConfirmOption) bool {
 // failure (evo-rec.md "confirm gate" default).
 //
 // Resolution:
-//   - AssumeYes(true): OK "assumed --yes", returns true, no prompt.
+//   - AssumeYes(true): Done "assumed --yes", returns true, no prompt.
 //   - No TTY / NonInteractive / plain, without AssumeYes: never blocks on
 //     stdin — Blocked "blocked by policy" with a Next hint to pass --yes,
 //     returns false.
-//   - "y"/"yes" (case-insensitive): OK, returns true.
+//   - "y"/"yes" (case-insensitive): Done, returns true.
 //   - Anything else, including empty: Blocked "declined", returns false —
 //     exit 1 via Conclusion precedence, never Failed, never Cancelled.
 //   - SIGINT/SIGTERM while waiting: the existing signal path (runInterruptible)
@@ -89,32 +89,41 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 		}
 	}
 
-	item := o.Item(question)
+	gate := o.Task(question)
 
 	if cfg.assumeYes {
-		item.OK()
-		item.Because(confirmAssumedYesBecause)
+		gate.Done(confirmAssumedYesSummary)
+		o.flushGateNow(gate.id)
 		return true
 	}
 
 	if o.cfg.plain || o.cfg.nonInteractive {
-		item.Block(confirmPolicyBlockedSummary)
-		item.Next(cfg.resolvedPolicyHint())
+		gate.Block(confirmPolicyBlockedSummary)
+		gate.Next(cfg.resolvedPolicyHint())
+		o.flushGateNow(gate.id)
 		return false
 	}
 
-	return o.promptConfirm(item, question, cfg)
+	return o.promptConfirm(gate, question, cfg)
+}
+
+// flushGateNow locks and forces the immediate durable presentation of a
+// resolved Confirm gate — see flushGateNowLocked.
+func (o *Output) flushGateNow(id string) {
+	o.mu.Lock()
+	o.flushGateNowLocked(id)
+	o.mu.Unlock()
 }
 
 // promptConfirm quiesces the live region for the whole ask-decide-resolve
 // window so no live frame can land between the prompt and the durable
 // OK/Blocked row — the gate resolves before Suspend resumes any unrelated
 // live activity (e.g. a sibling Task still Running).
-func (o *Output) promptConfirm(item *ItemHandle, question string, cfg confirmConfig) bool {
+func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmConfig) bool {
 	var yes bool
 	_ = o.Suspend(func() error {
 		o.writeConfirmPromptLocked(question, cfg.destructive)
-		line, cancelled, eof := o.readConfirmLine(item.id)
+		line, cancelled, eof := o.readConfirmLine(gate.id)
 		if cancelled {
 			// cancelPendingConfirmLocked already resolved the gate as Cancelled.
 			return nil
@@ -124,16 +133,18 @@ func (o *Output) promptConfirm(item *ItemHandle, question string, cfg confirmCon
 			// e.g. stdin closed or redirected from /dev/null) is a policy
 			// block, distinct from a human explicitly typing anything else —
 			// evo-rec.md "Confirm EOF = policy block, not decline".
-			item.Block(confirmPolicyBlockedSummary)
-			item.Next(cfg.resolvedPolicyHint())
+			gate.Block(confirmPolicyBlockedSummary)
+			gate.Next(cfg.resolvedPolicyHint())
+			o.flushGateNow(gate.id)
 			return nil
 		}
 		yes = isAffirmative(line)
 		if yes {
-			item.OK()
+			gate.Done()
 		} else {
-			item.Block(confirmDeclinedSummary)
+			gate.Block(confirmDeclinedSummary)
 		}
+		o.flushGateNow(gate.id)
 		return nil
 	})
 	return yes

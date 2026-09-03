@@ -26,7 +26,7 @@ func nonTTYConfig(title string, buf *bytes.Buffer) evo.Config {
 // block under the fail row, not a single joined line with newlines collapsed.
 func TestFlat_MultiLineDetailPreservedAsBlock(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(nonTTYConfig("tool", &buf))
+	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
 	// Multi-line detail matching a gofmt-style diff (the zq pilot shape).
@@ -60,7 +60,7 @@ func TestFlat_MultiLineDetailPreservedAsBlock(t *testing.T) {
 // present, the └─ block is the tail only — not "summary     detail".
 func TestFlat_FailDetailDoesNotEchoSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(nonTTYConfig("tool", &buf))
+	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
 	summary := "gofmt check exited 1"
@@ -99,7 +99,7 @@ func TestFlat_FailDetailDoesNotEchoSummary(t *testing.T) {
 // appear above the task row.
 func TestFlat_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(nonTTYConfig("zq", &buf))
+	out := evo.Init(nonTTYConfig("zq", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("gofmt check")
@@ -135,7 +135,7 @@ func TestFlat_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 // still populates DetailTail without a separate writer or Mirror.
 func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:      "lint",
 		Stdout:     &primary,
 		Stderr:     &diag,
@@ -189,7 +189,7 @@ func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 // overrides the default ExitFailed (2) when the conclusion is failed.
 func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:          "zq",
 		Stdout:         &buf,
 		Stderr:         &buf,
@@ -197,7 +197,7 @@ func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
 		Color:          evo.ColorNever,
 		FailedExitCode: 1,
 	})
-	code := evo.MainWith(out, func(o *evo.Output) error {
+	code := out.Run(func(o *evo.Output) error {
 		o.Task("gofmt check").Fail("gofmt check exited 1")
 		return nil
 	})
@@ -206,14 +206,14 @@ func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
 	}
 	// Default remains 2 when FailedExitCode is unset.
 	var buf2 bytes.Buffer
-	out2 := evo.New(evo.Config{
+	out2 := evo.Init(evo.Config{
 		Title:      "zq",
 		Stdout:     &buf2,
 		Stderr:     &buf2,
 		ForcePlain: true,
 		Color:      evo.ColorNever,
 	})
-	code2 := evo.MainWith(out2, func(o *evo.Output) error {
+	code2 := out2.Run(func(o *evo.Output) error {
 		o.Task("x").Fail("boom")
 		return nil
 	})
@@ -228,7 +228,7 @@ func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
 // already-streamed content.
 func TestFlat_MixedPrintfThenTaskStillDeterministic(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(nonTTYConfig("tool", &buf))
+	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Printf("starting checks\n")

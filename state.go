@@ -6,12 +6,10 @@ type EntityState string
 const (
 	Pending    EntityState = "pending"
 	Running    EntityState = "running"
-	OK         EntityState = "ok"
 	Done       EntityState = "done"
 	Warning    EntityState = "warning"
 	Blocked    EntityState = "blocked"
 	Failed     EntityState = "failed"
-	Unknown    EntityState = "unknown"
 	Skipped    EntityState = "skipped"
 	Cancelled  EntityState = "cancelled"
 	Empty      EntityState = "empty"
@@ -52,16 +50,6 @@ type Progress struct {
 	Kind      ProgressKind
 	Completed int64
 	Total     int64
-}
-
-// isTerminalItem reports whether s is a terminal item state.
-func isTerminalItem(s EntityState) bool {
-	switch s {
-	case OK, Warning, Blocked, Failed, Unknown, Skipped, Cancelled:
-		return true
-	default:
-		return false
-	}
 }
 
 // isTerminalTask reports whether s is a terminal task state.

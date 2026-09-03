@@ -32,7 +32,6 @@ type Output struct {
 	live       *liveEngine
 	snapCh     chan Snapshot
 
-	items       []*itemState
 	tasks       []*taskState
 	collections []*tasksState
 	changes     []*changesState
@@ -41,7 +40,6 @@ type Output struct {
 	actions     []Action
 	events      []Event
 
-	itemByRef  map[string]*itemState
 	taskByRef  map[string]*taskState
 	tasksByRef map[string]*tasksState
 	keys       map[string]struct{}
@@ -84,23 +82,6 @@ type Output struct {
 	messages     []messageState
 }
 
-type itemState struct {
-	id          string
-	key         string // optional stable machine key (platform ID)
-	name        string
-	state       EntityState
-	problems    []Problem
-	because     string
-	actions     []Action
-	declaration int
-	handle      *ItemHandle
-
-	// Emission bookkeeping so resolved items are not buffered until Finish.
-	coreEmitted    bool
-	becauseEmitted bool
-	actionsEmitted int
-}
-
 type taskState struct {
 	id          string
 	key         string // optional stable machine key (platform ID)
@@ -134,7 +115,7 @@ type taskState struct {
 	kept    []TaxonomyRecord
 
 	// Emission bookkeeping so terminal standalone tasks stream in plain mode
-	// on resolve (P2) — same spirit as itemState.coreEmitted.
+	// on resolve (P2).
 	coreEmitted bool
 
 	// Plain/non-interactive progressive-streaming bookkeeping for a still-
@@ -218,7 +199,6 @@ func newOutput(subject string, options ...Option) *Output {
 	o := &Output{
 		cfg:        cfg,
 		outputID:   "out_1",
-		itemByRef:  make(map[string]*itemState),
 		taskByRef:  make(map[string]*taskState),
 		tasksByRef: make(map[string]*tasksState),
 		keys:       make(map[string]struct{}),
@@ -301,60 +281,8 @@ func (o *Output) Err() error {
 	return o.misuse
 }
 
-// Item declares a named final-report condition. Optional evo.ID sets a stable
-// machine key. name is a printf format when args are present (fmt.Sprintf
-// semantics) — evo.ID (or any other EntityOption) may be mixed into args in
-// any position and still applies.
-func (o *Output) Item(name string, args ...any) *ItemHandle {
-	formatted, opts := formatEntityName(name, args)
-	return o.itemScoped(formatted, "", opts...)
-}
-
-func (o *Output) itemScoped(name, scope string, opts ...EntityOption) *ItemHandle {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	eo := applyEntityOptions(opts)
-	key := qualifyKey(scope, eo.key)
-	return o.addItemLocked(sanitize.Text(name), key, 0)
-}
-
-func (o *Output) addItemLocked(name, key string, order int) *ItemHandle {
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return &ItemHandle{out: o, id: o.nextID("item")}
-	}
-	if key != "" {
-		if _, ok := o.keys[key]; ok {
-			o.recordMisuse(ErrDuplicateKey)
-			return &ItemHandle{out: o, id: o.nextID("item")}
-		}
-		o.keys[key] = struct{}{}
-	}
-	if err := o.ensureEntityRoomLocked(); err != nil {
-		o.recordMisuse(err)
-		return &ItemHandle{out: o, id: o.nextID("item")}
-	}
-	st := &itemState{
-		id:          o.nextID("item"),
-		key:         key,
-		name:        name,
-		state:       Pending,
-		declaration: o.nextDecl(),
-	}
-	if order != 0 {
-		st.declaration = order
-	}
-	h := &ItemHandle{out: o, id: st.id}
-	st.handle = h
-	o.items = append(o.items, st)
-	o.itemByRef[st.id] = st
-	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "item.declared", EntityID: st.id})
-	return h
-}
-
 func (o *Output) ensureEntityRoomLocked() error {
-	n := len(o.items) + len(o.tasks)
+	n := len(o.tasks)
 	if n >= o.cfg.maxEntities {
 		return ErrLimitExceeded
 	}
@@ -496,8 +424,20 @@ func (o *Output) changesGetOrCreate(subject string) *Changes {
 
 // cancelActive cancels the currently running task, or the output itself when
 // no task is running, so an interrupt always leaves a typed Cancelled state.
+//
+// A pending Confirm gate takes priority over the generic task scan below: a
+// gate holds sole control of the run (Confirm suspends the live region and
+// blocks on stdin) and its abort channel — not TaskHandle.Cancel — is what
+// unblocks the stdin read. Since a Confirm gate is an ordinary Task while
+// its answer is pending, the generic Pending-task fallback would otherwise
+// resolve it to Cancelled without ever closing that channel, leaving
+// readConfirmLine blocked forever.
 func (o *Output) cancelActive(reason string) {
 	o.mu.Lock()
+	if o.cancelPendingConfirmLocked(reason) {
+		o.mu.Unlock()
+		return
+	}
 	var active *TaskHandle
 	for _, t := range o.tasks {
 		if t.state == Running {
@@ -523,10 +463,6 @@ func (o *Output) cancelActive(reason string) {
 		active.Cancel(reason)
 		return
 	}
-	if o.cancelPendingConfirmLocked(reason) {
-		o.mu.Unlock()
-		return
-	}
 	o.mu.Unlock()
 	o.Cancel(reason)
 }
@@ -539,12 +475,12 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	for id, abort := range o.confirmAbort {
 		close(abort)
 		delete(o.confirmAbort, id)
-		if st := o.itemByRef[id]; st != nil && !isTerminalItem(st.state) {
+		if st := o.taskByRef[id]; st != nil && !isTerminalTask(st.state) {
 			st.state = Cancelled
-			st.because = sanitize.Text(reason)
+			st.summary = sanitize.Text(reason)
 			o.bumpLocked()
-			o.appendEventLocked(Event{Type: "item.cancelled", EntityID: id})
-			o.emitItemProgressiveLocked(st)
+			o.appendEventLocked(Event{Type: "task.cancelled", EntityID: id})
+			o.flushGateNowLocked(id)
 		}
 		return true
 	}
@@ -693,9 +629,9 @@ func (o *Output) failWith(p Problem) {
 		o.recordMisuse(err)
 		return
 	}
-	// Synthetic failed item for conclusion.
-	st := &itemState{
-		id:          o.nextID("item"),
+	// Synthetic failed task for conclusion.
+	st := &taskState{
+		id:          o.nextID("task"),
 		name:        sanitize.Text(o.cfg.subject),
 		state:       Failed,
 		problems:    []Problem{p},
@@ -704,7 +640,7 @@ func (o *Output) failWith(p Problem) {
 	if st.name == "" {
 		st.name = "command"
 	}
-	o.items = append(o.items, st)
+	o.tasks = append(o.tasks, st)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "output.failed"})
 }
@@ -899,9 +835,6 @@ func (o *Output) snapshotLocked() Snapshot {
 		Timestamp: o.cfg.clock.Now(),
 		DryRun:    o.cfg.dryRun,
 	}
-	for _, it := range o.items {
-		s.Items = append(s.Items, it.snapshot())
-	}
 	for _, col := range o.collections {
 		s.Collections = append(s.Collections, col.snapshot())
 	}
@@ -929,19 +862,6 @@ func (o *Output) snapshotLocked() Snapshot {
 		s.Conclusion = &c
 	}
 	return s
-}
-
-func (it *itemState) snapshot() ItemSnapshot {
-	return ItemSnapshot{
-		ID:          it.id,
-		Key:         it.key,
-		Name:        it.name,
-		State:       it.state,
-		Problems:    cloneProblems(it.problems),
-		Because:     it.because,
-		Actions:     cloneActions(it.actions),
-		Declaration: it.declaration,
-	}
 }
 
 func (t *taskState) snapshot() TaskSnapshot {
@@ -1093,12 +1013,6 @@ func (o *Output) collectActionsLocked() []Action {
 		}
 	}
 	add(o.actions)
-	for _, it := range o.items {
-		add(it.actions)
-		for _, p := range it.problems {
-			add(p.Actions)
-		}
-	}
 	for _, t := range o.tasks {
 		add(t.actions)
 	}
@@ -1129,7 +1043,7 @@ func (o *Output) appendEventLocked(e Event) {
 func criticalEventType(t string) bool {
 	switch t {
 	case "output.failed", "output.finished", "output.cancelled",
-		"item.blocked", "item.failed", "task.failed", "output.started":
+		"task.blocked", "task.failed", "output.started":
 		return true
 	default:
 		return false
@@ -1234,12 +1148,6 @@ func (o *Output) Finish() error {
 	o.autoResolveGroupsLocked()
 
 	// Unresolved entities
-	for _, it := range o.items {
-		if !isTerminalItem(it.state) {
-			it.state = Incomplete
-			o.recordMisuse(ErrUnresolvedItem)
-		}
-	}
 	for _, t := range o.tasks {
 		if !isTerminalTask(t.state) {
 			resolveUnstartedTaskLocked(t)

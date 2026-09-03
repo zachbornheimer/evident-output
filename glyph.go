@@ -152,32 +152,6 @@ func spinnerGlyph(now time.Time, profile GlyphProfile) string {
 	return frames[i]
 }
 
-// itemGlyph maps an Item's state to its glyph in the given profile. The
-// state→meaning mapping is unchanged from before the profile axis existed;
-// only the rendered face (Unicode vs ASCII) varies.
-func itemGlyph(s EntityState, profile GlyphProfile) string {
-	switch s {
-	case OK:
-		return glyphDone.render(profile)
-	case Failed:
-		return glyphFailedState.render(profile)
-	case Blocked:
-		return glyphBlockedState.render(profile)
-	case Warning:
-		return glyphWarningState.render(profile)
-	case Skipped:
-		return glyphPending.render(profile)
-	case Unknown, Incomplete:
-		return glyphHumanInput.render(profile)
-	case Running:
-		return spinnerFrames(profile)[0]
-	case Cancelled:
-		return glyphCancelled.render(profile)
-	default:
-		return glyphUnclassified.render(profile)
-	}
-}
-
 // taskGlyph maps a Task's state to its glyph in the given profile. Cancelled
 // gets its own face (glyphCancelled) per the tightened vocabulary table —
 // it must be visually distinct from a task that never got attention.

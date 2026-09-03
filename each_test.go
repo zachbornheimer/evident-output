@@ -9,7 +9,7 @@ import (
 )
 
 func TestEach_DrivesAbsoluteProgressAndPhase(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("install")
 	packages := []string{"alpha", "beta", "gamma"}
@@ -42,7 +42,7 @@ func TestEach_DrivesAbsoluteProgressAndPhase(t *testing.T) {
 }
 
 func TestEach_BreakLeavesProgressAtCompletedCount(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("install")
 	packages := []string{"alpha", "beta", "gamma", "delta"}
@@ -66,7 +66,7 @@ func TestEach_BreakLeavesProgressAtCompletedCount(t *testing.T) {
 }
 
 func TestEach_RetryInsideBodyDoesNotAdvance(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("install")
 	packages := []string{"alpha", "beta"}
@@ -91,7 +91,7 @@ func TestEach_RetryInsideBodyDoesNotAdvance(t *testing.T) {
 }
 
 func TestEachN_DrivesProgressOnly(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("scan")
 
@@ -113,7 +113,7 @@ func TestEachN_DrivesProgressOnly(t *testing.T) {
 }
 
 func TestProgress_SealedTotalChangeRecordsMisuse(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(14, 40)
@@ -129,7 +129,7 @@ func TestProgress_SealedTotalChangeRecordsMisuse(t *testing.T) {
 }
 
 func TestProgress_IndeterminateToDeterminateOnce(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Phase("scanning")

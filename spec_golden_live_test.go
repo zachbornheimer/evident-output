@@ -25,7 +25,7 @@ func newLiveScreenOutput(screen *testkit.Screen, opts ...evo.Option) *evo.Output
 		evo.MaxFrameRate(1_000_000),
 		evo.NoColor(),
 	}
-	return evo.NewWithOptions(append(base, opts...)...)
+	return evo.Init(evo.Config{Options: append(base, opts...)})
 }
 
 // TestSpecP1_LiveFrame_Step1 covers evo-rec.md Problem 1's step1 block via

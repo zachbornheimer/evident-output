@@ -14,7 +14,7 @@ import (
 
 func TestTask_PackageFuncGetOrCreateReturnsSameHandle(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	a := evo.Task("branches")
 	b := evo.Task("branches")
@@ -34,9 +34,9 @@ func TestTask_PackageFuncGetOrCreateReturnsSameHandle(t *testing.T) {
 
 func TestPackageFuncs_DelegateToDefaultInstance(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
-	evo.Item("working tree").OK()
+	evo.Task("working tree").Done()
 	evo.Println("hello from package func")
 
 	if err := evo.Default().Finish(); err != nil {
@@ -53,7 +53,7 @@ func TestPackageFuncs_DelegateToDefaultInstance(t *testing.T) {
 
 func TestVerbose_PackageFuncScopesVisibility(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.New(evo.Config{
+	evo.SetDefault(evo.Init(evo.Config{
 		Stdout:    &buf,
 		Stderr:    &buf,
 		Verbosity: evo.VerbosityVerbose,
@@ -70,10 +70,10 @@ func TestVerbose_PackageFuncScopesVisibility(t *testing.T) {
 
 func TestMain_OKExitZero(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	code := evo.Main(func() error {
-		evo.Item("working tree").OK()
+		evo.Task("working tree").Done()
 		return nil
 	})
 	if code != evo.ExitOK {
@@ -83,10 +83,10 @@ func TestMain_OKExitZero(t *testing.T) {
 
 func TestMain_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	code := evo.Main(func() error {
-		evo.Item("working tree").Block("dirty")
+		evo.Task("working tree").Block("dirty")
 		return nil
 	})
 	if code != evo.ExitBlocked {
@@ -96,7 +96,7 @@ func TestMain_BlockedExitOne(t *testing.T) {
 
 func TestMain_FailedExitTwo(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	code := evo.Main(func() error {
 		return errors.New("app boom")
@@ -108,7 +108,7 @@ func TestMain_FailedExitTwo(t *testing.T) {
 
 func TestMain_NilRunNeverPanics(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	code := evo.Main(nil)
 	if code != evo.ExitOK {

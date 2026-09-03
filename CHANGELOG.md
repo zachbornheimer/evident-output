@@ -39,6 +39,56 @@ mixed-arity overload; `go build` fails immediately on the old two-argument
 call, which is the safe outcome, but grep for `evo.Main(` before upgrading
 to confirm every call site was already migrated to `MainWith`.
 
+### API unification: one entity, one constructor
+
+**Item folds into Task.** `ItemHandle` is now a zero-cost alias of
+`TaskHandle` — there is one internal state model, one snapshot family
+(`TaskSnapshot`; `ItemSnapshot` and `Snapshot.Items`/`Conclusion.Items` are
+gone), and one JSON wire shape (schema `0.3`: the `"items"` key no longer
+exists — every entity, including a fact-check resolved without ever
+running, is a `"tasks"` row). `Output.Item`/`Scope.Item` are deprecated thin
+shims over `Task`. The v0.2.x Item-only verbs `OK`, `Because`,
+`WarnedBy`/`BlockedBy`/`FailedBy`, `Unknown`, and `Start` are deleted with
+no shim — the fold is small: `OK()` becomes `Done()`, and `OK().Because(x)`
+becomes `Done(x)` (the text moves to the verb's own argument). `TaskHandle`
+gains `Warnf` for printf symmetry with `Donef`/`Failf`/`Blockf`.
+
+```go
+// old (pre-v0.3.0)
+it := out.Item("no incumbent configuration found")
+it.OK()
+it.Because("no incumbent configuration found")
+
+// new
+out.Task("no incumbent configuration found").Done("no incumbent configuration found")
+```
+
+**`evo.Init` is the sole constructor.** `evo.New`, `evo.NewWithOptions`, and
+`evo.MainWith` are deleted — no shim. `Config` gains two fields:
+`Isolated bool` returns an independent `*Output` that never touches
+package state (parallel tests, embedders holding their own instance —
+`Output.Run(run)` replaces `MainWith`'s lifecycle for that instance);
+`Options []Option` is the advanced raw-`Option` escape hatch that replaces
+`NewWithOptions` (when set, ordinary `Config` fields besides `Title` are
+ignored, and — matching `NewWithOptions`'s old behavior — `Init` never
+arms first paint or installs the package-level default; a caller with
+direct `Option` control is expected to control that explicitly).
+
+```go
+// old (pre-v0.3.0)
+out := evo.New(evo.Config{Title: "tool"})
+os.Exit(evo.MainWith(out, run))
+
+// new
+out := evo.Init(evo.Config{Title: "tool", Isolated: true})
+os.Exit(out.Run(run))
+```
+
+- **API-032 extended**: the deprecated-spelling detector now also flags
+  `Item(`, `.OK()`, `.Because(`, in addition to `evo.New(`/`MainWith(` in
+  `main` — each finding carries a derived, identifier-substituted
+  replacement (e.g. `out.Item(...)` → `out.Task(...)`).
+
 ### Added
 
 - **New front door**: `evo.Init(Config)` installs a package-level default
@@ -130,11 +180,11 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 
 ### Changed
 
-- **`Task` → `TaskHandle`, `Item` → `ItemHandle`** (pre-1.0 API break): the
-  old type names are freed for the new package-level `Task`/`Item`
-  functions. Update any type reference (e.g. `func f(t *evo.Task)` →
-  `func f(t *evo.TaskHandle)`); method calls on the returned value are
-  unaffected.
+- **`Task` → `TaskHandle`** (pre-1.0 API break): the old type name is freed
+  for the new package-level `Task` function. Update any type reference
+  (e.g. `func f(t *evo.Task)` → `func f(t *evo.TaskHandle)`); method calls
+  on the returned value are unaffected. (`ItemHandle` later became a
+  zero-cost alias of `TaskHandle` — see "API unification" above.)
 - **`Visibility` constant `Verbose` → `VisibilityVerbose`** (pre-1.0 API
   break): frees the `Verbose` identifier for the new package-level
   `evo.Verbose()` function. `evo.Print*` visibility gating is otherwise
@@ -203,7 +253,7 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 | `*evo.Task`                                                  | `*evo.TaskHandle`                                                                                              |
 | `*evo.Item`                                                  | `*evo.ItemHandle`                                                                                              |
 | `evo.Verbose` (Visibility constant)                          | `evo.VisibilityVerbose`                                                                                        |
-| `out.Task(name)` / `out.Item(name)`                          | Unchanged (instance methods); or `evo.Task(name)` / `evo.Item(name)` against the default instance after `Init` |
+| `out.Task(name)`                                             | Unchanged (instance method); or `evo.Task(name)` against the default instance after `Init`                     |
 | `out.Tasks(name)` for named children                         | `out.Tasks(name)` unchanged, or `evo.Group(name)` / `out.Group(name)` for auto-lifecycle NotStarted-on-failure |
 | Hand-rolled `[y/N]` stdin prompt                             | `evo.Confirm(question, ...)`                                                                                   |
 | Hand-built "skipped N" string                                | `task.Skipped(evo.Reason("..."), name)` / `task.Kept(...)`                                                     |
@@ -214,7 +264,12 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 | `task.Fail(summary, evo.Cause(err))` — returned an `error`   | `return task.Failf("summary: %w", err)`                                                                        |
 | `item.Block(summary, evo.Cause(err))` — returned an `error`  | `return item.Blockf("summary: %w", err)`                                                                       |
 | `task.Capture()` / `item.Capture()` / `out.Capture()`        | `task.Evidence()` / `item.Evidence()` / `out.Evidence()`                                                       |
-| `evo.New(cfg)` + `os.Exit(evo.MainWith(out, run))` in `main` | `evo.Init(cfg)` + `os.Exit(evo.Main(run))` — `New`/`MainWith` stay for a genuinely hosted instance             |
+| `evo.New(cfg)` + `os.Exit(evo.MainWith(out, run))` in `main` | `evo.Init(evo.Config{..., Isolated: true})` + `os.Exit(out.Run(run))` — `New`/`MainWith` are deleted           |
+| `evo.NewWithOptions(opts...)`                                | `evo.Init(evo.Config{Options: opts})`                                                                          |
+| `out.Item(name)` / `evo.Item(name)`                          | `out.Task(name)` / `evo.Task(name)` — `Item` is a deprecated thin shim over `Task`                             |
+| `item.OK()`                                                  | `task.Done()`                                                                                                  |
+| `item.OK().Because(text)`                                    | `task.Done(text)`                                                                                              |
+| `item.Start()`                                               | deleted, no replacement — a task shows its `○` row from declaration; only `Phase`/`Progress` show a spinner    |
 
 See [`docs/guides/teaching-ladder.md`](docs/guides/teaching-ladder.md) for the
 full adoption order and [`README.md`](README.md) for the quick start.

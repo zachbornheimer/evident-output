@@ -14,7 +14,7 @@ import (
 // with the same name on the default instance must be the identical value,
 // and a different name must not collide with it.
 func TestReason_GetOrCreateMergesDuplicateNamesOnDefaultInstance(t *testing.T) {
-	evo.SetDefault(evo.NewWithOptions(evo.Title("t"), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.NoColor()}}))
 
 	a := evo.Reason("protected")
 	b := evo.Reason("protected")
@@ -33,7 +33,7 @@ func TestReason_GetOrCreateMergesDuplicateNamesOnDefaultInstance(t *testing.T) {
 // var) must still merge into one taxonomy bucket by name.
 func TestTaskHandle_SkippedInlineReasonMergesByName(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	branches := evo.Task("branches")
 	branches.Skipped(evo.Reason("protected"), "main")
@@ -54,7 +54,7 @@ func TestTaskHandle_SkippedInlineReasonMergesByName(t *testing.T) {
 // records, so parts mechanically sum to the headline count.
 func TestTaskHandle_SkippedPartitionSumsRendersCountsByReason(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	protected := evo.Reason("protected")
 	dirty := evo.Reason("dirty")
@@ -78,7 +78,7 @@ func TestTaskHandle_SkippedPartitionSumsRendersCountsByReason(t *testing.T) {
 // collapses to its bare name since the count already says N.
 func TestTaskHandle_KeptSingleReasonCollapsesToBareName(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	unpushed := evo.Reason("unpushed")
 	branches := evo.Task("branches")
@@ -101,7 +101,7 @@ func TestTaskHandle_KeptSingleReasonCollapsesToBareName(t *testing.T) {
 // the bounded (TruncateNames) name list per reason.
 func TestTaskHandle_SkippedVerboseEmitsTruncatedNameList(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.New(evo.Config{
+	evo.SetDefault(evo.Init(evo.Config{
 		Stdout: &buf, Stderr: &buf, Verbosity: evo.VerbosityVerbose,
 		ForcePlain: true, Color: evo.ColorNever,
 	}))
@@ -129,7 +129,7 @@ func TestTaskHandle_SkippedVerboseEmitsTruncatedNameList(t *testing.T) {
 // Verbose, only the count/partition line renders, never the raw name list.
 func TestTaskHandle_SkippedNonVerboseOmitsNameList(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	protected := evo.Reason("protected")
 	branches := evo.Task("branches")
@@ -153,7 +153,7 @@ func TestTaskHandle_SkippedNonVerboseOmitsNameList(t *testing.T) {
 // line a standalone task does.
 func TestGroup_ChildRendersKeptTaxonomyLine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 
 	unpushed := evo.Reason("unpushed")
 	group := out.Group("branches")
@@ -176,7 +176,7 @@ func TestGroup_ChildRendersKeptTaxonomyLine(t *testing.T) {
 // for the standalone path.
 func TestGroup_ChildVerboseRendersTruncatedNameList(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Stdout: &buf, Stderr: &buf, Verbosity: evo.VerbosityVerbose,
 		ForcePlain: true, Color: evo.ColorNever,
 	})
@@ -206,7 +206,7 @@ func TestGroup_ChildVerboseRendersTruncatedNameList(t *testing.T) {
 // production (non-Strict) still counts the record rather than dropping truth.
 func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	evo.SetDefault(out)
 	skipOnly := evo.Reason("unpushed", evo.ForSkip())
 
@@ -230,7 +230,7 @@ func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
 // OnTask constraint under Strict: a reason scoped to one task, recorded from
 // a different task, panics instead of silently degrading.
 func TestReason_OnTaskWrongTaskPanicsUnderStrict(t *testing.T) {
-	out := evo.NewWithOptions(evo.Title("t"), evo.Strict(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.Strict(), evo.NoColor()}})
 	evo.SetDefault(out)
 	onlyBranches := evo.Reason("dirty", evo.OnTask("branches"))
 	worktrees := out.Task("worktrees")
@@ -254,7 +254,7 @@ func TestReason_OnTaskWrongTaskPanicsUnderStrict(t *testing.T) {
 // declared Pending and only given a Skipped record stays Pending — not
 // terminal, so the caller can keep classifying before calling Done.
 func TestTaskHandle_SkippedDoesNotResolveTask(t *testing.T) {
-	out := evo.NewWithOptions(evo.Title("t"), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.NoColor()}})
 	evo.SetDefault(out)
 	t.Cleanup(func() { _ = out.Close() })
 
@@ -273,7 +273,7 @@ func TestTaskHandle_SkippedDoesNotResolveTask(t *testing.T) {
 // line per record.
 func TestTaskHandle_SkippedCauseRendersOneBoundedEvidenceLine(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	protected := evo.Reason("protected")
 	branches := evo.Task("branches")
@@ -297,7 +297,7 @@ func TestTaskHandle_SkippedCauseRendersOneBoundedEvidenceLine(t *testing.T) {
 // counterpart: every cause is listed, not just the first.
 func TestTaskHandle_SkippedCauseVerboseListsEveryCause(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.New(evo.Config{
+	evo.SetDefault(evo.Init(evo.Config{
 		Stdout: &buf, Stderr: &buf, Verbosity: evo.VerbosityVerbose,
 		ForcePlain: true, Color: evo.ColorNever,
 	}))
@@ -324,7 +324,7 @@ func TestTaskHandle_SkippedCauseVerboseListsEveryCause(t *testing.T) {
 // backward-compatible path: no errs, no evidence line.
 func TestTaskHandle_SkippedNoCauseOmitsEvidenceLine(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	branches := evo.Task("branches")
 	branches.Skipped(evo.Reason("protected"), "main")
@@ -342,7 +342,7 @@ func TestTaskHandle_SkippedNoCauseOmitsEvidenceLine(t *testing.T) {
 // exposure requirement: Skipped/Kept live in TaskSnapshot (disposition side
 // of the model), not the mutation ledger (Plan/Changes).
 func TestTaskSnapshot_ExposesSkippedAndKeptTaxonomy(t *testing.T) {
-	out := evo.NewWithOptions(evo.Title("t"), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.NoColor()}})
 	evo.SetDefault(out)
 	t.Cleanup(func() { _ = out.Close() })
 

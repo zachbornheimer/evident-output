@@ -44,7 +44,7 @@ func collapsed(s string) string {
 func TestSpecP16_CompactLayout_Step2(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(30))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(30)}})
 	clean := out.Task("clean")
 	clean.Record("delete", 3, "local")
 	clean.Record("prune", 2, "stale")
@@ -78,7 +78,7 @@ func TestSpecP16_CompactLayout_Step2(t *testing.T) {
 func TestSpecP16_CompactLayout_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(30)))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(30)}}))
 	out := evo.Default()
 	branches := out.Task("branches")
 	protected := evo.Reason("protected")
@@ -116,7 +116,7 @@ func TestSpecP16_CompactLayout_Success(t *testing.T) {
 func TestSpecP16_CompactLayout_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(30))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(30)}})
 	remotes := out.Task("remotes")
 	remotes.Fail("auth", evo.Detail("401 token"))
 	if err := out.Finish(); err != nil {
@@ -139,7 +139,7 @@ func TestSpecP16_CompactLayout_Failure(t *testing.T) {
 func TestSpecP16_CompactLayout_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(30))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(30)}})
 	branches := out.Task("branches")
 	branches.Fail("", evo.Detail("lock ref"))
 	if err := out.Finish(); err != nil {
@@ -169,7 +169,7 @@ func TestSpecP16_CompactLayout_Error(t *testing.T) {
 func TestSpecP16_CompactLayout_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(30))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(30)}})
 	branches := out.Task("branches")
 	branches.Record("delete", 3, "local")
 	branches.Done("3 del")
@@ -229,7 +229,7 @@ func TestSpecP17_Taxonomy_Step1(t *testing.T) {
 func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	out := evo.Default()
 	branches := out.Task("branches")
 	protected := evo.Reason("protected")
@@ -270,7 +270,7 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	out := evo.Default()
 	branches := out.Task("branches")
 	protected := evo.Reason("protected")
@@ -316,7 +316,7 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	out := evo.Default()
 	done := out.Task("branches")
 	done.Record("delete", 10, "branches")
@@ -374,7 +374,7 @@ func TestSpecP17_Taxonomy_Indeterminate(t *testing.T) {
 func TestSpecP17_Taxonomy_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
 	branches.Fail("unable to classify dirty worktree", evo.Detail("git status --porcelain failed"))
 	if err := out.Finish(); err != nil {
@@ -404,7 +404,7 @@ func TestSpecP17_Taxonomy_Error(t *testing.T) {
 func TestSpecP17_Taxonomy_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	done := out.Task("branches")
 	done.Record("delete", 10, "branches")
 	done.Done("10 deleted")
@@ -446,7 +446,7 @@ func TestSpecP17_Taxonomy_EarlyTermination(t *testing.T) {
 func TestSpecP18_RemoteTracking_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	tracking := out.Task("remote-tracking")
 	tracking.Fail("fetch --prune failed", evo.Detail("could not lock packed-refs"))
 	out.Println("!  no remotes delete-remote attempted")
@@ -493,7 +493,7 @@ func TestSpecP18_RemoteTracking_Indeterminate(t *testing.T) {
 func TestSpecP18_RemoteTracking_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	tracking := out.Task("remote-tracking")
 	tracking.Fail("network error during fetch", evo.Detail("fatal: unable to access 'https://…'"))
 	out.Println("!  stale tracking refs unchanged; origin untouched")
@@ -609,7 +609,7 @@ func TestSpecP19_FirstPaint_Step2(t *testing.T) {
 func TestSpecP19_FirstPaint_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	scan := out.Task("scan")
 	scan.RecordLabel("ready", 40, "repos")
 	scan.Done("128 checked")
@@ -632,7 +632,7 @@ func TestSpecP19_FirstPaint_Success(t *testing.T) {
 func TestSpecP19_FirstPaint_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	scan := out.Task("scan")
 	scan.Fail("config invalid", evo.Detail(`zq.toml:12: unknown key "paralel"`))
 	if err := out.Finish(); err != nil {
@@ -673,7 +673,7 @@ func TestSpecP19_FirstPaint_Indeterminate(t *testing.T) {
 func TestSpecP19_FirstPaint_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	scan := out.Task("scan")
 	scan.Fail("cannot read config", evo.Detail("open ~/.config/zq/zq.toml: permission denied"))
 	if err := out.Finish(); err != nil {
@@ -700,7 +700,7 @@ func TestSpecP19_FirstPaint_Error(t *testing.T) {
 func TestSpecP19_FirstPaint_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	scan := out.Task("scan")
 	scan.Cancel("cancelled during startup")
 	if err := out.Finish(); err != nil {
@@ -766,7 +766,7 @@ func TestSpecP20_Heartbeat_Step2(t *testing.T) {
 func TestSpecP20_Heartbeat_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("salvage").Done("3 pushed")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -784,7 +784,7 @@ func TestSpecP20_Heartbeat_Success(t *testing.T) {
 func TestSpecP20_Heartbeat_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	salvage := out.Task("salvage")
 	salvage.Fail("remote timed out after 120s", evo.Detail("write: broken pipe"))
 	if err := out.Finish(); err != nil {
@@ -827,7 +827,7 @@ func TestSpecP20_Heartbeat_Indeterminate(t *testing.T) {
 func TestSpecP20_Heartbeat_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	salvage := out.Task("salvage")
 	salvage.Fail("connection reset at 91s", evo.Detail("read tcp: connection reset by peer"))
 	out.Println("!  feat/a state on remote unknown — verify before retry")
@@ -859,7 +859,7 @@ func TestSpecP20_Heartbeat_Error(t *testing.T) {
 func TestSpecP20_Heartbeat_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	salvage := out.Task("salvage")
 	salvage.Cancel("cancelled at 96s")
 	if err := out.Finish(); err != nil {
@@ -952,7 +952,7 @@ func TestSpecP21_DurableNote_Step2(t *testing.T) {
 func TestSpecP21_DurableNote_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Println("using cached wheel index")
 	out.Task("install").Done("40/40")
 	if err := out.Finish(); err != nil {
@@ -979,7 +979,7 @@ func TestSpecP21_DurableNote_Success(t *testing.T) {
 func TestSpecP21_DurableNote_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	install := out.Task("install")
 	install.Fail("mirror unreachable", evo.Detail("dial tcp: i/o timeout"))
 	if err := out.Finish(); err != nil {
@@ -1019,7 +1019,7 @@ func TestSpecP21_DurableNote_Indeterminate(t *testing.T) {
 func TestSpecP21_DurableNote_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	install := out.Task("install")
 	install.Fail("torn frame avoided — durable write serialized", evo.Detail("(caller used out.Println; no fmt in live window)"))
 	if err := out.Finish(); err != nil {
@@ -1051,7 +1051,7 @@ func TestSpecP21_DurableNote_Error(t *testing.T) {
 func TestSpecP21_DurableNote_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Println("using cached wheel index")
 	install := out.Task("install")
 	install.Progress(5, 40)

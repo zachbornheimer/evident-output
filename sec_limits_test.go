@@ -12,19 +12,19 @@ import (
 )
 
 func TestSEC003_MaxEntitiesEnforced(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard), evo.MaxEntities(3))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.MaxEntities(3)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("a").OK()
-	out.Item("b").OK()
-	out.Item("c").OK()
-	out.Item("d").OK() // should record limit
+	out.Task("a").Done()
+	out.Task("b").Done()
+	out.Task("c").Done()
+	out.Task("d").Done() // should record limit
 	if !errors.Is(out.Err(), evo.ErrLimitExceeded) {
 		t.Fatalf("err=%v", out.Err())
 	}
 }
 
 func TestSEC005_ProgressOverflowRejected(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	// Valid absolute max equal values.
@@ -42,14 +42,14 @@ func TestSEC005_ProgressOverflowRejected(t *testing.T) {
 }
 
 func TestSEC007_DestructiveActionFlag(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	a := evo.Action{
 		Label:       "delete everything",
 		Destructive: true,
 		Command:     &evo.CommandSpec{Executable: "rm", Args: []string{"-rf", "/"}},
 	}
-	item := out.Item("x")
+	item := out.Task("x")
 	item.Block("danger")
 	item.Next(a)
 	_ = out.Finish()
@@ -61,7 +61,7 @@ func TestSEC007_DestructiveActionFlag(t *testing.T) {
 		}
 	}
 	// also check item actions before promotion
-	for _, it := range out.Snapshot().Items {
+	for _, it := range out.Snapshot().Tasks {
 		for _, act := range it.Actions {
 			if act.Destructive {
 				found = true
@@ -75,7 +75,7 @@ func TestSEC007_DestructiveActionFlag(t *testing.T) {
 
 func TestSEC002_SensitiveFieldRedactedInDebug(t *testing.T) {
 	var buf strings.Builder
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.Debug))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.Debug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Debug("auth", evo.Field{Key: "token", Value: "super-secret", Sensitive: true})
 	_ = out.Finish()
@@ -96,17 +96,17 @@ func TestSEC011_BidiControlsStripped(t *testing.T) {
 }
 
 func TestDOM005_DuplicateKeyRejected(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("one", evo.ID("k"))
-	out.Item("two", evo.ID("k"))
+	out.Task("one", evo.ID("k"))
+	out.Task("two", evo.ID("k"))
 	if !errors.Is(out.Err(), evo.ErrDuplicateKey) {
 		t.Fatalf("err=%v", out.Err())
 	}
 }
 
 func TestDOM024_TotalDecreaseBelowCompletedRejected(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(5, 10)

@@ -43,7 +43,7 @@ t.Start()
 t.Phase("walking")`,
 			GoodCode: `t := out.Task("scan")
 t.Phase("walking")`,
-			Remediation:     "Use Phase/Progress or direct Done/OK; remove explicit Start",
+			Remediation:     "Use Phase/Progress or a direct Done; remove explicit Start",
 			Exceptions:      []string{"tests that assert Start side effects"},
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"MCP-012", "API-006"},
@@ -67,7 +67,7 @@ for _, j := range jobs {
   }
   t.Done()
 }`,
-			Remediation:     "Keep loops/retries/timeouts in application code; resolve Task/Item outcomes only",
+			Remediation:     "Keep loops/retries/timeouts in application code; resolve Task outcomes only",
 			RelatedGuidance: []string{"common-api", "tasks"},
 			VerificationIDs: []string{"API-026"},
 			Since:           "0.1.0",
@@ -96,9 +96,9 @@ g.Task("b").Done()`,
 			Severity:  "error",
 			Invariant: "progress must not contaminate structured stdout",
 			Why:       "fmt.Print during live UI corrupts managed streams and breaks machine consumers.",
-			BadCode: `out := evo.New()
+			BadCode: `out := evo.Init(evo.Config{})
 fmt.Printf("progress %d\n", n)`,
-			GoodCode: `out := evo.New()
+			GoodCode: `out := evo.Init(evo.Config{})
 out.Printf("progress %d\n", n)
 // or out.Verbose().Println(...) for optional domain detail
 // or slog via out.SlogHandler for implementation diagnostics`,
@@ -119,7 +119,7 @@ out.Printf("progress %d\n", n)
 			BadCode:   `task.Donef("modules cached")`,
 			GoodCode: `task.Done("modules cached")
 task.Donef("%d packages", n)`,
-			Remediation:     "Use Done/Line/Item without f when there is no format verb",
+			Remediation:     "Use Done/Println without f when there is no format verb",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",
@@ -149,7 +149,7 @@ if err := run.Run(ctx, "brew", args, proof); err != nil {
 			Severity:        "error",
 			Invariant:       "untrusted text cannot control the terminal",
 			Why:             "Raw ESC/CSI from user data can hijack the terminal or inject fake UI.",
-			BadCode:         `out.Item(userInput).OK() // userInput may contain ESC`,
+			BadCode:         `out.Task(userInput).Done() // userInput may contain ESC`,
 			GoodCode:        `// library sanitizes names; never write raw ESC to the terminal yourself`,
 			Remediation:     "Sanitize caller text; use Detail/Cause split",
 			RelatedGuidance: []string{"security"},
@@ -163,10 +163,10 @@ if err := run.Run(ctx, "brew", args, proof); err != nil {
 			Severity:  "error",
 			Invariant: "expected blocked items are presentation outcomes, not Go application errors",
 			Why:       "Block means evaluation succeeded and found a blocker. Returning errors.New after Block confuses agents and callers about failure vs blocked.",
-			BadCode: `it := out.Item("working tree")
+			BadCode: `it := out.Task("working tree")
 it.Block("dirty")
 return errors.New("dirty") // wrong: blocked is not an app error`,
-			GoodCode: `it := out.Item("working tree")
+			GoodCode: `it := out.Task("working tree")
 it.Block("dirty")
 if err := out.Finish(); err != nil {
   return err // misuse only
@@ -201,8 +201,8 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Why:       "A blank terminal for the first seconds of a run is indistinguishable from a hang; the user re-runs or ^C's healthy work.",
 			BadCode: `func main() {
   cfg := loadConfig() // seconds of I/O, nothing on screen yet
-  out := evo.New(evo.Config{Title: "tool"})
-  out.Task("scan")
+  evo.Init(evo.Config{Title: "tool"}) // too late — loadConfig already ran
+  evo.Task("scan")
 }`,
 			GoodCode: `func main() {
   evo.Init(evo.Config{Title: "tool"}) // arms first paint before any I/O
@@ -275,14 +275,14 @@ run.Run(ctx, "git", args, t.PhaseWriter()) // last child line becomes the live P
 			ID:        "API-018",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "process exit codes come only from evo.Main/MainWith or Conclusion.ExitCode",
+			Invariant: "process exit codes come only from evo.Main (or Output.Run for a held *Output) or Conclusion.ExitCode",
 			Why:       "A hand-mapped os.Exit int bypasses the Outcome→exit-code contract; a Blocked run (1) can silently read as success, or a real failure can read as blocked.",
 			BadCode: `if err != nil {
   fmt.Println(err)
   os.Exit(1) // hand-mapped, not fed by evo
 }`,
 			GoodCode:        `os.Exit(evo.Main(run)) // run returns error; Conclusion decides 0/1/2/130`,
-			Remediation:     "Route exit through evo.Main/evo.MainWith, or read Conclusion().ExitCode",
+			Remediation:     "Route exit through evo.Main (or Output.Run for a held *Output), or read Conclusion().ExitCode",
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"API-018"},
 			Since:           "0.2.0",
@@ -321,15 +321,15 @@ run.Run(ctx, "git", args, t.PhaseWriter()) // last child line becomes the live P
 			Category:  "SIG",
 			Severity:  "warning",
 			Invariant: "signal handling reconciles through Cancel, not a bespoke exit path",
-			Why:       "evo.Main/MainWith already wires SIGINT/SIGTERM into Cancel so the ledger's ■ glyph and the 130 exit code agree; a hand-rolled signal.Notify without Cancel reopens that gap.",
+			Why:       "evo.Main (or Output.Run for a held *Output) already wires SIGINT/SIGTERM into Cancel so the ledger's ■ glyph and the 130 exit code agree; a hand-rolled signal.Notify without Cancel reopens that gap.",
 			BadCode: `c := make(chan os.Signal, 1)
 signal.Notify(c, syscall.SIGINT)
 go func() { <-c; os.Exit(1) }()`,
 			GoodCode: `c := make(chan os.Signal, 1)
 signal.Notify(c, syscall.SIGINT)
 go func() { <-c; task.Cancel("interrupted") }()
-// or prefer evo.Main/evo.MainWith, which wires this automatically`,
-			Remediation:     "Call Cancel on the active task/handle from the signal goroutine, or use evo.Main/MainWith",
+// or prefer evo.Main (or Output.Run for a held *Output), which wires this automatically`,
+			Remediation:     "Call Cancel on the active task/handle from the signal goroutine, or use evo.Main (or Output.Run for a held *Output)",
 			RelatedGuidance: []string{"streams", "interactive"},
 			VerificationIDs: []string{"SIG-001"},
 			Since:           "0.4.0",
@@ -475,7 +475,7 @@ if partial {
   os.Exit(130) // Partial is not interruption
 }`,
 			GoodCode:        `os.Exit(evo.Main(run)) // exit code derives from Outcome alone: 0 OK / 1 Blocked / 2 Failed / 130 Cancelled; Partial is a completeness modifier only`,
-			Remediation:     "Let evo.Main/MainWith pick the exit code from Outcome; never hand-map an int, and never use 130 outside real interruption",
+			Remediation:     "Let evo.Main (or Output.Run for a held *Output) pick the exit code from Outcome; never hand-map an int, and never use 130 outside real interruption",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"CON-001"},
 			Since:           "0.6.0",
@@ -485,14 +485,14 @@ if partial {
 			ID:        "BOUND-001",
 			Category:  "BOUND",
 			Severity:  "warning",
-			Invariant: "slice-derived text into Because/Detail/Phase is bounded before rendering",
-			Why:       "strings.Join of an unbounded slice dumped into Because/Detail/Phase reproduces the 500-name terminal flood evo-rec.md \"bounded effect rows\" already fixed for Plan/Changes.",
+			Invariant: "slice-derived text into Detail/Phase is bounded before rendering",
+			Why:       "strings.Join of an unbounded slice dumped into Detail/Phase reproduces the 500-name terminal flood evo-rec.md \"bounded effect rows\" already fixed for Plan/Changes.",
 			BadCode: `task.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))
-item.Because(strings.Join(reasons, "; "))`,
+task.Phase(strings.Join(reasons, "; "))`,
 			GoodCode: `task.Fail("cannot delete", evo.Detail(evo.TruncateNames(names, 8)))
-item.Because(evo.TruncateNames(reasons, 8))`,
-			Remediation:     "Wrap the joined slice in evo.TruncateNames before passing it to Because/Detail/Phase",
-			RelatedGuidance: []string{"tasks", "items"},
+task.Phase(evo.TruncateNames(reasons, 8))`,
+			Remediation:     "Wrap the joined slice in evo.TruncateNames before passing it to Detail/Phase",
+			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"BOUND-001"},
 			Since:           "0.7.0",
 			Certainty:       "heuristic",
@@ -544,15 +544,17 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			ID:        "API-032",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "evo.New-in-main, MainWith, Cause, and Capture are superseded spellings",
-			Why:       "evo.Init+evo.Main is the ordinary main() lifecycle (New/MainWith is the advanced hosted-instance form); Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr.",
+			Invariant: "evo.New/MainWith (removed with the item/task fold), Item/.OK/.Because (folded into Task/.Done), Cause, and Capture are superseded spellings",
+			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New/MainWith were deleted, not merely advanced); Item folded into Task — one entity, one constructor; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr.",
 			BadCode: `func main() {
 	out := evo.New(evo.Config{Title: "tool"})
 	os.Exit(evo.MainWith(out, run))
 }
 func run(out *evo.Output) error {
-	output := out.Task("x").Capture()
-	return out.Task("x").Fail("failed", evo.Cause(err))
+	output := out.Item("x").Capture()
+	out.Item("x").OK()
+	out.Item("y").OK().Because("no incumbent configuration found")
+	return out.Task("z").Fail("failed", evo.Cause(err))
 }`,
 			GoodCode: `func main() {
 	evo.Init(evo.Config{Title: "tool"})
@@ -560,9 +562,11 @@ func run(out *evo.Output) error {
 }
 func run() error {
 	proof := evo.Task("x").Evidence()
-	return evo.Task("x").Failf("failed: %w", err)
+	evo.Task("x").Done()
+	evo.Task("y").Done("no incumbent configuration found")
+	return evo.Task("z").Failf("failed: %w", err)
 }`,
-			Remediation:     "Replace New+MainWith in main with Init+Main; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with .Evidence()",
+			Remediation:     "Replace New+MainWith in main with Init+Main; replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with .Evidence()",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
@@ -573,9 +577,9 @@ func run() error {
 			Category:  "API",
 			Severity:  "warning",
 			Invariant: "an entity's name is not also its own skip/verb evidence",
-			Why:       "out.Item(note).Skip(note) tells the reader nothing a bare \"skipped 1 (note)\" wouldn't already — the name and the reason/verb argument are the identical expression, so the second one carries zero new information.",
-			BadCode:   `out.Item(note).Skip(note)`,
-			GoodCode: `item := out.Item("branch check")
+			Why:       "out.Task(note).Skip(note) tells the reader nothing a bare \"skipped 1 (note)\" wouldn't already — the name and the reason/verb argument are the identical expression, so the second one carries zero new information.",
+			BadCode:   `out.Task(note).Skip(note)`,
+			GoodCode: `item := out.Task("branch check")
 item.Skip(note)`,
 			Remediation:     "Give the entity a real label distinct from the reason/verb text it also carries",
 			RelatedGuidance: []string{"tasks", "common-api"},
@@ -605,7 +609,7 @@ item.Skip(note)`,
 			Why:       "fmt/out.Print(strings.Join(failures, ...)) duplicates the exact summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows.",
 			BadCode:   `out.Println(strings.Join(failures, "\n")) // duplicates Conclusion`,
 			GoodCode: `for _, f := range failures {
-  out.Item(f.Name).Fail(f.Reason)
+  out.Task(f.Name).Fail(f.Reason)
 }
 // Conclusion renders the one summary; add Next(evo.Label(...)) for guidance`,
 			Remediation:     "Resolve each failure on its own Item/Task and let Conclusion summarize; use Next for follow-up guidance",
@@ -646,15 +650,15 @@ item.Skip(note)`,
 			ID:        "API-001",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "the minimal Item happy path (For/Item/OK/Block/Finish) compiles with no Config struct",
-			Why:       "Requiring a Config struct for the common single-item check adds ceremony that discourages the minimal, correct spelling.",
-			BadCode: `out := evo.New(evo.Config{}) // empty struct passed for no reason
-it := out.Item("disk space")
-it.OK()`,
-			GoodCode: `out := evo.New()
-it := out.Item("disk space")
-it.OK()`,
-			Remediation:     "Use evo.New() with no Config for the minimal happy path; add Config only to override stream or behavior defaults",
+			Invariant: "the minimal Task happy path (Init/Task/Done/Block/Finish) compiles with a zero Config",
+			Why:       "Requiring a populated Config struct for the common single-task check adds ceremony that discourages the minimal, correct spelling.",
+			BadCode: `out := evo.Init(evo.Config{Title: "tool"}) // fields filled in for no reason
+it := out.Task("disk space")
+it.Done()`,
+			GoodCode: `out := evo.Init(evo.Config{})
+it := out.Task("disk space")
+it.Done()`,
+			Remediation:     "Use evo.Init(evo.Config{}) with a zero Config for the minimal happy path; add fields only to override stream or behavior defaults",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-001"},
 			Since:           "0.1.0",
@@ -667,12 +671,12 @@ it.OK()`,
 			Severity:  "warning",
 			Invariant: "Item.OK/Block is a direct legal terminal transition; explicit Start is not required",
 			Why:       "An Item is pending until it resolves; calling Start first is redundant ceremony and risks a spinner flash for a transition that finishes instantly.",
-			BadCode: `it := out.Item("disk space")
+			BadCode: `it := out.Task("disk space")
 it.Start()
-it.OK()`,
-			GoodCode: `it := out.Item("disk space")
-it.OK()`,
-			Remediation:     "Call OK/Block/BlockedBy directly; remove the explicit Start call",
+it.Done()`,
+			GoodCode: `it := out.Task("disk space")
+it.Done()`,
+			Remediation:     "Call Done/Warn/Block/Fail directly; remove the explicit Start call",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-006"},
 			Since:           "0.1.0",
@@ -682,16 +686,16 @@ it.OK()`,
 			ID:              "DOM-007",
 			Category:        "DOM",
 			Severity:        "warning",
-			Invariant:       "Item.Block(summary, options...) creates exactly one anonymous Problem; BlockedBy is for pre-built, multiple Problems",
-			Why:             "Hand-building a single-element Problem slice for BlockedBy duplicates what Block already does automatically and can drift from the anonymous-problem shape Block guarantees.",
-			BadCode:         `it.BlockedBy(evo.Problem{Summary: "disk full"})`,
-			GoodCode:        `it.Block("disk full")`,
-			Remediation:     "Use Block(summary, options...) for a single blocker; reserve BlockedBy for multiple pre-built Problems",
+			Invariant:       "Task.Block(summary, options...) builds exactly one Problem from ProblemOptions; do not hand-build a Problem literal for the common single-blocker case",
+			Why:             "Hand-building a Problem{} literal duplicates what Block(summary, evo.On(...), evo.Count(...), ...) already does automatically and can drift from the sanitized/anonymous shape Block guarantees.",
+			BadCode:         `task.Block("disk full", evo.Cause(fmt.Errorf("hand-built: %w", err)))`,
+			GoodCode:        `task.Block("disk full")`,
+			Remediation:     "Use Block(summary, options...) — evo.On/evo.Count/evo.Detail — instead of constructing a Problem by hand",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-007"},
 			Since:           "0.1.0",
 			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: distinguishing a legitimate single-Problem BlockedBy call from misuse needs call-site intent, not AST shape
+			Detection:       "guidance", // no cheap detector: distinguishing a legitimate hand-built Problem from misuse needs call-site intent, not AST shape
 		},
 		{
 			ID:        "DOM-016",
@@ -767,9 +771,9 @@ for range items {
 			Severity:  "error",
 			Invariant: "progress and live-UI bytes never reach stdout while a data projection (FormatData) is active",
 			Why:       "A data command's stdout is a machine payload contract; any progress byte on stdout corrupts a JSON/line consumer downstream.",
-			BadCode: `out := evo.New(evo.Config{Stdout: os.Stdout})
+			BadCode: `out := evo.Init(evo.Config{Stdout: os.Stdout})
 out.FormatData(...) // no Stderr configured: progress/UI also target Stdout`,
-			GoodCode: `out := evo.New(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr})
+			GoodCode: `out := evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr})
 out.FormatData(...) // progress/UI route to Stderr; only the payload reaches Stdout`,
 			Remediation:     "Configure Stderr alongside Stdout when using FormatData/ResultWriter; never write progress bytes to stdout by hand",
 			RelatedGuidance: []string{"streams"},
@@ -834,7 +838,7 @@ task.Phase(strings.Join(quoted, " "))`,
 			Invariant:       "ESC/CSI byte sequences embedded in any caller-supplied text field are neutralized before rendering",
 			Why:             "A malicious or fuzzed ESC/CSI sequence embedded in a name/detail/phase string must never survive into the terminal write; evo's sanitize layer is the single point that guarantees this, so nothing should bypass it with a raw write of untrusted text.",
 			BadCode:         `fmt.Fprint(w, rawUserText) // bypasses evo's sanitize layer entirely`,
-			GoodCode:        `it := out.Item(rawUserText) // evo sanitizes ESC/CSI internally before it reaches the terminal`,
+			GoodCode:        `it := out.Task(rawUserText) // evo sanitizes ESC/CSI internally before it reaches the terminal`,
 			Remediation:     "Never bypass evo's managed Item/Task/Print* entry points with a raw write of untrusted text; sanitization only runs on the managed path",
 			RelatedGuidance: []string{"security"},
 			VerificationIDs: []string{"TXT-007", "SEC-001"},

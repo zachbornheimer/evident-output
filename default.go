@@ -13,17 +13,40 @@ var (
 	defaultOut *Output
 )
 
-// Init builds an Output from cfg, installs it as the package-level default,
-// and arms first paint — call once, in main, before any I/O.
+// Init is the sole Output constructor. It builds an Output from cfg,
+// installs it as the package-level default, and arms first paint — call
+// once, in main, before any I/O:
 //
 //	func main() {
 //	    evo.Init(evo.Config{Title: "repo-retire"})
 //	    os.Exit(evo.Main(run))
 //	}
+//
+// evo.Init(evo.Config{}) (or evo.Init(evo.DefaultConfig())) builds an
+// ordinary default instance.
+//
+// Config.Isolated returns an independent instance that skips both steps —
+// it never touches package state (parallel tests, embedders holding their
+// own *Output).
+//
+// Config.Options is the advanced raw-Option escape hatch for tests and
+// specialized embedding; when set, ordinary Config fields (besides Title)
+// are ignored, and — matching the retired NewWithOptions constructor this
+// replaces — Init never installs the result as the package-level default or
+// arms first paint, regardless of Isolated: a caller with direct Option
+// control is expected to also control default-binding and arm() explicitly
+// (e.g. via SetDefault, or Output.Run for the lifecycle MainWith used to own).
 func Init(cfg Config) *Output {
-	out := New(cfg)
-	SetDefault(out)
-	out.arm()
+	if len(cfg.Options) > 0 {
+		// Advanced/testing escape hatch: build directly from raw Options,
+		// bypassing Config's ordinary stream/TTY/color inference entirely.
+		return newOutput(cfg.Title, cfg.Options...)
+	}
+	out := newFromConfig(resolveConfig(cfg))
+	if !cfg.Isolated {
+		SetDefault(out)
+		out.arm()
+	}
 	return out
 }
 
@@ -35,7 +58,7 @@ func SetDefault(out *Output) {
 }
 
 // Default returns the package-level default Output, lazily creating one with
-// a zero Config the first time it's needed — package-level Task/Item/Print*
+// a zero Config the first time it's needed — package-level Task/Print*
 // never panic even when the caller skipped Init.
 func Default() *Output {
 	defaultMu.RLock()
@@ -48,7 +71,7 @@ func Default() *Output {
 	defaultMu.Lock()
 	defer defaultMu.Unlock()
 	if defaultOut == nil {
-		defaultOut = New(Config{})
+		defaultOut = newFromConfig(resolveConfig(Config{}))
 	}
 	return defaultOut
 }
@@ -61,15 +84,6 @@ func Default() *Output {
 func Task(name string, args ...any) *TaskHandle {
 	formatted, opts := formatEntityName(name, args)
 	return Default().taskGetOrCreate(formatted, opts...)
-}
-
-// Item declares an Item on the default instance.
-func Item(name string, opts ...EntityOption) *ItemHandle {
-	args := make([]any, len(opts))
-	for i, opt := range opts {
-		args[i] = opt
-	}
-	return Default().Item(name, args...)
 }
 
 // Group declares (or, for a repeated name, returns) a self-managing task

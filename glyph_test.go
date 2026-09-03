@@ -14,10 +14,10 @@ import (
 // ASCII map (GLYPH-001) for the states a caller hits routinely.
 func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII))
-	out.Item("done").OK()
-	out.Item("failed").Fail("boom")
-	out.Item("gate").Block("declined")
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}})
+	out.Task("done").Done()
+	out.Task("failed").Fail("boom")
+	out.Task("gate").Block("declined")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 // remaining static rows requested in the work order.
 func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}})
 	group := out.Group("pipeline")
 	first := group.Task("first")
 	second := group.Task("second")
@@ -58,10 +58,10 @@ func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 // alphabet excludes every semantic glyph" rule: no frame collides with "-".
 func TestGlyphsASCII_SpinnerExcludesNotStartedGlyph(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Title("demo"), evo.To(&bytes.Buffer{}), evo.Terminal(screen),
 		evo.Glyphs(evo.GlyphsASCII), evo.VisibilityDelay(0),
-	)
+	}})
 	task := out.Task("install")
 	task.Phase("working")
 	frame := screen.LatestLiveText()
@@ -81,7 +81,7 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 
 	t.Run("interactive TTY downgrades to ASCII", func(t *testing.T) {
 		screen := testkit.NewScreen(testkit.Interactive())
-		out := evo.NewWithOptions(evo.Title("demo"), evo.To(&bytes.Buffer{}), evo.Terminal(screen), evo.VisibilityDelay(0))
+		out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&bytes.Buffer{}), evo.Terminal(screen), evo.VisibilityDelay(0)}})
 		task := out.Task("install")
 		task.Phase("working")
 		frame := screen.LatestLiveText()
@@ -93,8 +93,8 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 
 	t.Run("non-interactive keeps Unicode", func(t *testing.T) {
 		var buf bytes.Buffer
-		out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
-		out.Item("done").OK()
+		out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+		out.Task("done").Done()
 		if err := out.Finish(); err != nil {
 			t.Fatal(err)
 		}
@@ -109,7 +109,7 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 	t.Setenv("LC_ALL", "en_US.UTF-8")
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&bytes.Buffer{}), evo.Terminal(screen), evo.VisibilityDelay(0))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&bytes.Buffer{}), evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	task := out.Task("install")
 	task.Phase("working")
 	frame := screen.LatestLiveText()
@@ -124,10 +124,10 @@ func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 // "don't change the Unicode glyphs themselves").
 func TestGlyphUnicode_UnchangedByProfileAxis(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsUnicode))
-	out.Item("done").OK()
-	out.Item("failed").Fail("boom")
-	out.Item("gate").Block("declined")
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsUnicode)}})
+	out.Task("done").Done()
+	out.Task("failed").Fail("boom")
+	out.Task("gate").Block("declined")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

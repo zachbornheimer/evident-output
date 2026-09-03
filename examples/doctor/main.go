@@ -40,15 +40,15 @@ func main() {
 		evo.Verbose().Printf("Strict policy: %t\n", *strict)
 		evo.Verbose().Printf("Probe interval: %s\n", step)
 
-		probe := func(name string, resolve func(*evo.ItemHandle)) {
-			it := evo.Item(name)
+		probe := func(name string, resolve func(*evo.TaskHandle)) {
+			it := evo.Task(name)
 			time.Sleep(step)
 			resolve(it)
 		}
 
-		probe("go toolchain", func(it *evo.ItemHandle) { it.OK() })
-		probe("mise tasks", func(it *evo.ItemHandle) { it.OK() })
-		probe("git commit signing", func(it *evo.ItemHandle) {
+		probe("go toolchain", func(it *evo.TaskHandle) { it.Done() })
+		probe("mise tasks", func(it *evo.TaskHandle) { it.Done() })
+		probe("git commit signing", func(it *evo.TaskHandle) {
 			if *strict {
 				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode"))
 				it.NextCommand("git", "config", "--global", "commit.gpgsign", "true")
@@ -56,21 +56,19 @@ func main() {
 				it.Warn("commit signing not verified", evo.Detail("optional for local work"))
 			}
 		})
-		probe("disk free space", func(it *evo.ItemHandle) {
-			it.Block("less than 2 GiB free on /", evo.Detail("large builds need headroom"))
-			it.Because("CI and local builds fail unpredictably when the volume fills.")
+		probe("disk free space", func(it *evo.TaskHandle) {
+			it.Block("less than 2 GiB free on /", evo.Detail("large builds need headroom. CI and local builds fail unpredictably when the volume fills."))
 		})
-		probe("docker daemon", func(it *evo.ItemHandle) {
-			// Tool-backed gate: Item.Capture holds process evidence (not session Capture).
-			cap := it.Start().Evidence()
+		probe("docker daemon", func(it *evo.TaskHandle) {
+			// Tool-backed gate: Task.Evidence holds process evidence (not session Capture).
+			cap := it.Evidence()
 			_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"))
 			dialErr := fmt.Errorf("dial unix /var/run/docker.sock: connection refused")
 			it.Fail(
 				"cannot connect to docker socket",
-				evo.Detail(dialErr.Error()),
+				evo.Detail(dialErr.Error()+"\nstart Colima or Docker Desktop"),
 				cap.DetailTail(), // user-visible tool tail
 			)
-			it.Because("start Colima or Docker Desktop")
 		})
 		return nil
 	})

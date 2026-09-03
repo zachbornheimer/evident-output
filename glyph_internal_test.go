@@ -2,50 +2,10 @@ package evo
 
 import "testing"
 
-// TestItemGlyph_ASCIITable pins the full item-state → ASCII face mapping,
+// TestTaskGlyph_ASCIITable pins the full task-state → ASCII face mapping —
 // including Cancelled ([cancel]), which is only reachable in practice via a
 // Confirm gate cancelled mid-prompt and is easier to pin at the table level
 // than to reproduce end-to-end.
-func TestItemGlyph_ASCIITable(t *testing.T) {
-	cases := map[EntityState]string{
-		OK:         "[ok]",
-		Failed:     "[x]",
-		Blocked:    "[blocked]",
-		Warning:    "[!]",
-		Skipped:    "[.]",
-		Unknown:    "[?]",
-		Incomplete: "[?]",
-		Cancelled:  "[cancel]",
-	}
-	for state, want := range cases {
-		if got := itemGlyph(state, GlyphsASCII); got != want {
-			t.Errorf("itemGlyph(%s, ASCII) = %q, want %q", state, got, want)
-		}
-	}
-}
-
-// TestItemGlyph_UnicodeUnchanged pins the exact Unicode faces itemGlyph
-// produced before the profile axis existed (blast radius: no Unicode glyph
-// may change).
-func TestItemGlyph_UnicodeUnchanged(t *testing.T) {
-	cases := map[EntityState]string{
-		OK:         "✓",
-		Failed:     "✗",
-		Blocked:    "⊘",
-		Warning:    "!",
-		Skipped:    "○",
-		Unknown:    "?",
-		Incomplete: "?",
-		Cancelled:  "■",
-	}
-	for state, want := range cases {
-		if got := itemGlyph(state, GlyphsUnicode); got != want {
-			t.Errorf("itemGlyph(%s, Unicode) = %q, want %q", state, got, want)
-		}
-	}
-}
-
-// TestTaskGlyph_ASCIITable pins the full task-state → ASCII face mapping.
 func TestTaskGlyph_ASCIITable(t *testing.T) {
 	cases := map[EntityState]string{
 		Done:       "[ok]",

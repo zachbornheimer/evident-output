@@ -10,7 +10,7 @@ import (
 
 func TestPrint_MatchesFmtConstruction(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Printf("Found %d packages\n", 18)
 	out.Println("done")
 	_ = out.Finish()
@@ -26,7 +26,7 @@ func TestPrint_MatchesFmtConstruction(t *testing.T) {
 
 func TestPrint_FragmentsCombine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Print("down")
 	out.Print("loading")
 	out.Print("...\n")
@@ -41,7 +41,7 @@ func TestPrint_FragmentsCombine(t *testing.T) {
 
 func TestPrint_TrailingFragmentFlushedAtFinish(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Print("partial-no-nl")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "partial-no-nl") {
@@ -51,7 +51,7 @@ func TestPrint_TrailingFragmentFlushedAtFinish(t *testing.T) {
 
 func TestVerbose_HiddenAtNormal(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Println("visible")
 	out.Verbose().Println("hidden detail")
 	_ = out.Finish()
@@ -75,7 +75,7 @@ func TestVerbose_HiddenAtNormal(t *testing.T) {
 
 func TestVerbose_ShownWhenConfigured(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Stdout:    &buf,
 		Stderr:    &buf,
 		Verbosity: evo.VerbosityVerbose,
@@ -89,7 +89,7 @@ func TestVerbose_ShownWhenConfigured(t *testing.T) {
 
 func TestPrint_CRLFAndSanitize(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Print("a\r\nb\x1b[31mx\n")
 	_ = out.Finish()
 	s := buf.String()
@@ -103,7 +103,7 @@ func TestPrint_CRLFAndSanitize(t *testing.T) {
 
 func TestPrint_WriterAdapter(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	w := out.Writer()
 	_, _ = w.Write([]byte("from-writer\n"))
 	_ = out.Finish()
@@ -114,8 +114,8 @@ func TestPrint_WriterAdapter(t *testing.T) {
 
 func TestItemf_Taskf(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Itemf("repo %s", "x").OK()
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
+	out.Itemf("repo %s", "x").Done()
 	out.Taskf("check %d", 1).Done("ok")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "repo x") || !strings.Contains(buf.String(), "check 1") {
@@ -125,8 +125,8 @@ func TestItemf_Taskf(t *testing.T) {
 
 func TestWriteJSON_TrailingNewline(t *testing.T) {
 	var human, js bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &human, Stderr: &human})
-	out.Item("a").OK()
+	out := evo.Init(evo.Config{Stdout: &human, Stderr: &human})
+	out.Task("a").Done()
 	_ = out.Finish()
 	if err := evo.WriteJSON(&js, out.Snapshot()); err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ func TestWriteJSON_TrailingNewline(t *testing.T) {
 	if len(b) == 0 || b[len(b)-1] != '\n' {
 		t.Fatalf("want trailing newline: %q", b)
 	}
-	if !strings.Contains(js.String(), `"messages"`) && !strings.Contains(js.String(), "items") {
+	if !strings.Contains(js.String(), `"tasks"`) {
 		t.Fatalf("json: %s", js.String())
 	}
 }

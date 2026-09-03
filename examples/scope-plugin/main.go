@@ -17,22 +17,17 @@ func main() {
 	out := evo.Init(evo.Config{Title: "compose"})
 	os.Exit(evo.Main(func() error {
 		// Host owns top-level gates with stable keys.
-		evo.Item("config", evo.ID("host.config")).OK()
+		evo.Task("config", evo.ID("host.config")).Done()
 
 		// Plugins receive a namespaced Scope — keys become "registry.*".
 		registry := out.Scope("registry")
-		registry.Item("credentials", evo.ID("auth")).OK()
+		registry.Task("credentials", evo.ID("auth")).Done()
 		pull := registry.Task("pull base image", evo.ID("image.pull"))
 		pull.Phase("fetching")
 		pull.Done("sha256:abc")
 
 		// Visible proof of namespaced identity for automation consumers.
 		snap := out.Snapshot()
-		for _, it := range snap.Items {
-			if it.Key != "" {
-				fmt.Fprintf(os.Stderr, "key %s → %q\n", it.Name, it.Key)
-			}
-		}
 		for _, tk := range snap.Tasks {
 			if tk.Key != "" {
 				fmt.Fprintf(os.Stderr, "key %s → %q\n", tk.Name, tk.Key)
