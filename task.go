@@ -115,18 +115,23 @@ func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *Tas
 	return t
 }
 
-func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, kind ProgressKind) {
+// applyProgressLocked reports whether the update was applied — false means a
+// guard (invalid values, regression, sealed-total mismatch) rejected it and
+// recorded misuse instead, letting a caller like Step skip a paired update
+// (e.g. Phase) that would otherwise describe a progress change that never
+// happened.
+func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, kind ProgressKind) bool {
 	if completed < 0 || total < 0 {
 		t.out.recordMisuse(ErrInvalidProgress)
-		return
+		return false
 	}
 	if total == 0 && completed != 0 {
 		t.out.recordMisuse(ErrInvalidProgress)
-		return
+		return false
 	}
 	if completed > total && total > 0 {
 		t.out.recordMisuse(ErrInvalidProgress)
-		return
+		return false
 	}
 	// Regression and sealing guards apply only while re-reporting the same
 	// measurement kind (Determinate or Bytes); switching kind (e.g. Progress
@@ -134,13 +139,13 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	if st.state == Running && st.progress.Kind != Indeterminate && st.progress.Total > 0 && kind == st.progress.Kind {
 		if completed < st.progress.Completed {
 			t.out.recordMisuse(ErrProgressRegression)
-			return
+			return false
 		}
 		// Sealed total: once a nonzero total is reported for this kind, it
 		// cannot change. Retry-safety depends on the denominator staying put.
 		if total != st.progress.Total {
 			t.out.recordMisuse(ErrInvalidProgress)
-			return
+			return false
 		}
 	}
 	st.progress = Progress{Kind: kind, Completed: completed, Total: total}
@@ -153,6 +158,32 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	// Progress is high-frequency: coalesce unless first frame.
 	t.out.signalLiveLocked(false)
 	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
+	return true
+}
+
+// Step sets absolute progress and phase text together under one lock
+// acquisition, so a concurrent worker can never observe one goroutine's
+// count paired with another goroutine's phase name — the exact interleaving
+// two separate Progress(...) + Phase(...) calls (two separate locks) allow.
+func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return t
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return t
+	}
+	if isTerminalTask(st.state) {
+		t.out.recordMisuse(ErrAlreadyResolved)
+		return t
+	}
+	if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
+		t.out.setPhaseLocked(st, name)
+	}
+	return t
 }
 
 // Done resolves the task successfully.

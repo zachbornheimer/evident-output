@@ -2,9 +2,11 @@ package evo_test
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -218,6 +220,56 @@ func TestAPISugar_StartPhaseDeclaresWithPhaseSet(t *testing.T) {
 	}
 	if snap.State != evo.Running {
 		t.Fatalf("state = %q, want Running", snap.State)
+	}
+}
+
+// TestAPISugar_StepSetsProgressAndPhaseUnderOneLock pins L8: Step updates
+// progress count and phase text together, so both always describe the same
+// unit of work even under concurrent callers.
+func TestAPISugar_StepSetsProgressAndPhaseUnderOneLock(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("sync")
+	task.Step(3, 10, "syncing widget-3")
+
+	snap := task.Snapshot()
+	if snap.Progress.Completed != 3 || snap.Progress.Total != 10 {
+		t.Fatalf("progress = %+v, want 3/10", snap.Progress)
+	}
+	if snap.Phase != "syncing widget-3" {
+		t.Fatalf("phase = %q, want %q", snap.Phase, "syncing widget-3")
+	}
+}
+
+// TestAPISugar_StepConcurrentWorkersNeverInterleave races N goroutines each
+// calling Step with a matched (index, name) pair; the final Snapshot's
+// Progress and Phase must always agree with ONE goroutine's own pair — never
+// a mix (the defect two separate Progress+Phase calls under two separate
+// locks allowed).
+func TestAPISugar_StepConcurrentWorkersNeverInterleave(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+	task := out.Task("sync")
+
+	const n = 50
+	var wg sync.WaitGroup
+	for i := 1; i <= n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			task.Step(i, n, fmt.Sprintf("item-%d", i))
+		}(i)
+	}
+	wg.Wait()
+
+	snap := task.Snapshot()
+	want := fmt.Sprintf("item-%d", snap.Progress.Completed)
+	if snap.Progress.Completed < 1 || snap.Progress.Completed > n {
+		t.Fatalf("completed = %d out of range", snap.Progress.Completed)
+	}
+	if snap.Phase != want {
+		t.Fatalf("phase = %q, want %q (matched to completed=%d)", snap.Phase, want, snap.Progress.Completed)
 	}
 }
 
