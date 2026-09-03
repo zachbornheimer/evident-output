@@ -70,15 +70,29 @@ func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
 	}
 }
 
-// --- Item 2: resolving failure verbs return error ---
+// --- Item 0: Fail/Block are statement-form; Failf/Blockf return %w errors ---
 
-func TestAPISugar_TaskFailReturnsWrappedCause(t *testing.T) {
+func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
+	out := evo.NewWithOptions(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("validate")
+	task.Fail("validate policy manifest") // errcheck-clean: no return value
+	if got := task.Snapshot().State; got != evo.Failed {
+		t.Fatalf("state = %q, want Failed", got)
+	}
+	if got := task.Snapshot().Summary; got != "validate policy manifest" {
+		t.Fatalf("summary = %q, want the Fail argument", got)
+	}
+}
+
+func TestAPISugar_TaskFailfWrapsAndReturnsError(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
 	cause := errors.New("manifest missing")
-	err := task.Fail("validate policy manifest", evo.Cause(cause))
+	err := task.Failf("validate policy manifest: %w", cause)
 	if err == nil {
 		t.Fatal("expected non-nil error")
 	}
@@ -88,23 +102,12 @@ func TestAPISugar_TaskFailReturnsWrappedCause(t *testing.T) {
 	if !errors.Is(err, cause) {
 		t.Fatalf("errors.Is(err, cause) = false, want true (must wrap with %%w)")
 	}
-}
-
-func TestAPISugar_TaskFailNoCauseIsPlainError(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("validate")
-	err := task.Fail("no cause here")
-	if err == nil || err.Error() != "no cause here" {
-		t.Fatalf("err = %v, want plain errors.New(summary)", err)
-	}
-	if errors.Unwrap(err) != nil {
-		t.Fatalf("expected no wrapped error when Cause is absent")
+	if got := task.Snapshot().Summary; got != "validate policy manifest" {
+		t.Fatalf("summary = %q, want the text before the trailing %%w split off", got)
 	}
 }
 
-func TestAPISugar_TaskFailfFormatsAndReturnsError(t *testing.T) {
+func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
@@ -113,15 +116,18 @@ func TestAPISugar_TaskFailfFormatsAndReturnsError(t *testing.T) {
 	if err == nil || err.Error() != "validate manifest: exit 1" {
 		t.Fatalf("err = %v, want formatted summary", err)
 	}
+	if got := task.Snapshot().Summary; got != "validate manifest: exit 1" {
+		t.Fatalf("summary = %q, want the whole formatted text (no %%w to split on)", got)
+	}
 }
 
-func TestAPISugar_ItemBlockReturnsWrappedCause(t *testing.T) {
+func TestAPISugar_ItemBlockfWrapsAndReturnsError(t *testing.T) {
 	out := evo.NewWithOptions(evo.To(io.Discard))
 	t.Cleanup(func() { _ = out.Close() })
 
 	item := out.Item("policy gate")
 	cause := errors.New("denied")
-	err := item.Block("blocked by policy", evo.Cause(cause))
+	err := item.Blockf("blocked by policy: %w", cause)
 	if err == nil || !errors.Is(err, cause) {
 		t.Fatalf("err = %v, want it to wrap cause", err)
 	}
@@ -129,13 +135,13 @@ func TestAPISugar_ItemBlockReturnsWrappedCause(t *testing.T) {
 
 func TestAPISugar_FailNilHandleIsSafe(t *testing.T) {
 	var task *evo.TaskHandle
-	err := task.Fail("summary", evo.Cause(errors.New("boom")))
-	if err == nil {
-		t.Fatal("expected non-nil error even on a nil handle")
-	}
+	task.Fail("summary") // must not panic
 
 	var item *evo.ItemHandle
-	if err := item.Block("summary"); err == nil {
+	item.Block("summary") // must not panic
+
+	var itemF *evo.ItemHandle
+	if err := itemF.Blockf("summary: %w", errors.New("boom")); err == nil {
 		t.Fatal("expected non-nil error even on a nil handle")
 	}
 }

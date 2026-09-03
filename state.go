@@ -67,7 +67,7 @@ func isTerminalItem(s EntityState) bool {
 // isTerminalTask reports whether s is a terminal task state.
 func isTerminalTask(s EntityState) bool {
 	switch s {
-	case Done, Warning, Failed, Cancelled, Skipped, NotStarted:
+	case Done, Warning, Blocked, Failed, Cancelled, Skipped, NotStarted:
 		return true
 	default:
 		return false

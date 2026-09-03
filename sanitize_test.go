@@ -29,7 +29,7 @@ func TestSEC001_DonefAndCommandSanitize(t *testing.T) {
 	task := out.Task("t")
 	task.Donef("ok\x1b[31m")
 	item := out.Item("i")
-	_ = item.Block("b")
+	item.Block("b")
 	item.NextCommand("cmd\x1b[31m", "a\x1b")
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "\x1b") {

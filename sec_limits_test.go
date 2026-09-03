@@ -50,7 +50,7 @@ func TestSEC007_DestructiveActionFlag(t *testing.T) {
 		Command:     &evo.CommandSpec{Executable: "rm", Args: []string{"-rf", "/"}},
 	}
 	item := out.Item("x")
-	_ = item.Block("danger")
+	item.Block("danger")
 	item.Next(a)
 	_ = out.Finish()
 	c := out.Conclusion()

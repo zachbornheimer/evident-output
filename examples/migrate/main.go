@@ -11,7 +11,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"os"
 
@@ -39,12 +38,10 @@ func main() {
 		backup := evo.Task("backup")
 		backup.Phase("snapshotting production")
 		if *fail {
-			// Cause = raw SDK/infrastructure error (diagnostic).
-			// Detail = stable user guidance (presentation).
-			err := errors.New("S3 PutObject: AccessDenied: User is not authorized to perform: s3:PutObject on resource arn:aws:s3:::backups/prod (status 403)")
+			// Detail is stable user guidance (presentation); the raw SDK error
+			// would go into Failf's trailing %w if this call site returned it.
 			backup.Fail(
 				"backup failed",
-				evo.Cause(err),
 				evo.Detail("check the backup destination and credentials"),
 			)
 			return nil

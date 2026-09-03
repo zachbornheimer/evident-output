@@ -172,25 +172,55 @@ func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle 
 	return t.finish(Warning, "", []Problem{p})
 }
 
-// Fail resolves the task as failed and returns one error describing it, so
-// `return task.Fail("validate policy manifest", evo.Cause(err))` is a single
-// line: the error's message is summary, wrapping a Cause option with %w
-// (errors.Is/As reach it); no Cause option yields errors.New(summary). Not
-// fluent chaining — the handle is never returned, only the error, and a nil
-// *TaskHandle resolves nothing but still returns that same error.
-func (t *TaskHandle) Fail(summary string, options ...ProblemOption) error {
+// Fail resolves the task as failed. This is a statement, not a fluent
+// chain — Fail returns nothing, so a bare `task.Fail("summary")` is
+// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use Failf
+// to build and return a %w-wrapped error in one line.
+func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	p := applyProblemOptions(sanitize.Text(summary), options)
 	if t != nil {
 		t.finish(Failed, sanitize.Text(summary), []Problem{p})
 	}
-	return resolutionError(p)
 }
 
-// Failf resolves the task as failed with a formatted summary (fmt.Sprintf
-// semantics) and returns its error exactly like Fail. Attach evo.Cause via
-// Fail when a summary needs both formatting and a wrapped cause.
+// Failf resolves the task as failed with a formatted summary and returns the
+// built error so a call site can `return` it directly:
+// `return task.Failf("validate policy manifest: %w", err)`. fmt.Errorf
+// semantics: %w wraps its argument so errors.Is/As still reach it. See
+// splitWrappedMessage for how a trailing ": %w"/", %w" splits the formatted
+// text into the rendered summary and evidence line.
 func (t *TaskHandle) Failf(format string, args ...any) error {
-	return t.Fail(fmt.Sprintf(format, args...))
+	err := fmt.Errorf(format, args...)
+	summary, evidence := splitWrappedMessage(format, err)
+	p := sanitizeProblem(Problem{Summary: summary, Detail: evidence})
+	if t != nil {
+		t.finish(Failed, summary, []Problem{p})
+	}
+	return err
+}
+
+// Block resolves the task as blocked. This is a statement, not a fluent
+// chain — Block returns nothing, so a bare `task.Block("summary")` is
+// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use
+// Blockf to build and return a %w-wrapped error in one line.
+func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
+	p := applyProblemOptions(sanitize.Text(summary), options)
+	if t != nil {
+		t.finish(Blocked, sanitize.Text(summary), []Problem{p})
+	}
+}
+
+// Blockf resolves the task as blocked with a formatted summary and returns
+// the built error exactly like Failf — see Failf for the fmt.Errorf %w and
+// summary/evidence split contract.
+func (t *TaskHandle) Blockf(format string, args ...any) error {
+	err := fmt.Errorf(format, args...)
+	summary, evidence := splitWrappedMessage(format, err)
+	p := sanitizeProblem(Problem{Summary: summary, Detail: evidence})
+	if t != nil {
+		t.finish(Blocked, summary, []Problem{p})
+	}
+	return err
 }
 
 // Cancel resolves the task as cancelled.
