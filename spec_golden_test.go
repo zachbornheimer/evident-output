@@ -148,34 +148,73 @@ func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 	}
 }
 
-// TestSpecP5_DiscoverySealedTotal_Success covers the Done-summary half of
-// evo-rec.md Problem 5's success block ("✓  scan  128 checked" after an
-// indeterminate-to-determinate Progress transition).
+// TestSpecP5_DiscoverySealedTotal_Success covers evo-rec.md Problem 5's full
+// success block: the Done summary after an indeterminate-to-determinate
+// Progress transition, plus a classification ledger reporting the
+// discovered counts verbatim.
 //
-// The block's second half — a "[changed] scan / ready 40 repos" classification
-// ledger — is NOT-TESTABLE through the public API as spelled: TaskHandle.Record
-// always conjugates its verb to past tense for the applied ledger
-// (task_mutations.go recordMutation), because Record/RecordName are documented
-// as mutation verbs (Delete/Create/Update/Remove/Write/Push are its named
-// shorthands). "ready"/"blocked"/"error" are classification labels, not
-// imperative mutation verbs, so the simplest documented spelling renders
-// "readyed 40 repos" / "blockeded 80 repos" / "errored 8 repos" — reaching for
-// the taught API surface itself produces the mismatch, which is the finding
-// (see the final report's checklist entry for this block).
+//	✓  scan  128 checked
+//	[changed]  scan
+//	  ready    40  repos
 func TestSpecP5_DiscoverySealedTotal_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.NewWithOptions(evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor())
 	scan := out.Task("scan")
 	scan.Progress(128, 128)
+	scan.RecordLabel("ready", 40, "repos")
+	scan.RecordLabel("blocked", 80, "repos")
+	scan.RecordLabel("error", 8, "repos")
 	scan.Done("128 checked")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	if !strings.Contains(collapsed, "✓ scan 128 checked") {
-		t.Fatalf("want %q in:\n%s", "✓ scan 128 checked", got)
+	for _, want := range []string{
+		"✓ scan 128 checked",
+		"[changed] scan",
+		"ready 40 repos",
+		"blocked 80 repos",
+		"error 8 repos",
+	} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+	// The classification labels must render verbatim — never conjugated
+	// ("readyed"/"blockeded"/"errored" would be the pre-fix lying output).
+	for _, mustNotContain := range []string{"readyed", "blockeded", "errored"} {
+		if strings.Contains(collapsed, mustNotContain) {
+			t.Fatalf("classification label was conjugated, got %q in:\n%s", mustNotContain, got)
+		}
+	}
+}
+
+// TestSpecP5_RecordLabel_NeverMovesUnderPlanDuringDryRun pins the second half
+// of the fix: classifying/observing already happened whether or not other
+// mutations on this run are a dry run, so RecordLabel always lands in the
+// Changes ledger — never [planned] — even when DryRun is set.
+func TestSpecP5_RecordLabel_NeverMovesUnderPlanDuringDryRun(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	scan := out.Task("scan")
+	scan.RecordLabel("ready", 40, "repos")
+	scan.Done("128 checked")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "[changed]  scan") {
+		t.Fatalf("want RecordLabel in the Changes ledger even under DryRun, got:\n%s", got)
+	}
+	// Checked against the structured snapshot, not a substring of the durable
+	// text: the run's own trailing Conclusion trailer legitimately reads
+	// "[planned]  scan" (DryRun's headline state) even when no Plan *section*
+	// exists, so a plain string search on "[planned]  scan" collides with it.
+	if snap := out.Snapshot(); len(snap.Plans) != 0 {
+		t.Fatalf("RecordLabel must never create a Plan section, got %+v", snap.Plans)
 	}
 }
 
