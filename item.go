@@ -1,6 +1,10 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/sanitize"
+import (
+	"fmt"
+
+	"github.com/zachbornheimer/evident-output/internal/sanitize"
+)
 
 // Item is a handle for one named final-report condition.
 type ItemHandle struct {
@@ -56,11 +60,25 @@ func (i *ItemHandle) WarnedBy(problems ...Problem) *ItemHandle {
 	return i
 }
 
-// Block marks the item blocked with a simple problem.
-func (i *ItemHandle) Block(summary string, options ...ProblemOption) *ItemHandle {
+// Block marks the item blocked and returns one error describing it, so
+// `return item.Block("policy manifest missing", evo.Cause(err))` is a single
+// line: the error's message is summary, wrapping a Cause option with %w
+// (errors.Is/As reach it); no Cause option yields errors.New(summary). Not
+// fluent chaining — the handle is never returned, only the error, and a nil
+// *ItemHandle resolves nothing but still returns that same error.
+func (i *ItemHandle) Block(summary string, options ...ProblemOption) error {
 	p := applyProblemOptions(sanitize.Text(summary), options)
-	i.resolve(Blocked, []Problem{p})
-	return i
+	if i != nil {
+		i.resolve(Blocked, []Problem{p})
+	}
+	return resolutionError(p)
+}
+
+// Blockf marks the item blocked with a formatted summary (fmt.Sprintf
+// semantics) and returns its error exactly like Block. Attach evo.Cause via
+// Block when a summary needs both formatting and a wrapped cause.
+func (i *ItemHandle) Blockf(format string, args ...any) error {
+	return i.Block(fmt.Sprintf(format, args...))
 }
 
 // BlockedBy marks the item blocked with structured problems.
@@ -69,11 +87,21 @@ func (i *ItemHandle) BlockedBy(problems ...Problem) *ItemHandle {
 	return i
 }
 
-// Fail marks the item failed with a simple problem.
-func (i *ItemHandle) Fail(summary string, options ...ProblemOption) *ItemHandle {
+// Fail marks the item failed and returns one error describing it — see Block
+// for the shared summary/Cause/nil-safety contract.
+func (i *ItemHandle) Fail(summary string, options ...ProblemOption) error {
 	p := applyProblemOptions(sanitize.Text(summary), options)
-	i.resolve(Failed, []Problem{p})
-	return i
+	if i != nil {
+		i.resolve(Failed, []Problem{p})
+	}
+	return resolutionError(p)
+}
+
+// Failf marks the item failed with a formatted summary (fmt.Sprintf
+// semantics) and returns its error exactly like Fail. Attach evo.Cause via
+// Fail when a summary needs both formatting and a wrapped cause.
+func (i *ItemHandle) Failf(format string, args ...any) error {
+	return i.Fail(fmt.Sprintf(format, args...))
 }
 
 // FailedBy marks the item failed with structured problems.

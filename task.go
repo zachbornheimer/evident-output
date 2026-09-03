@@ -170,10 +170,25 @@ func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle 
 	return t.finish(Warning, "", []Problem{p})
 }
 
-// Fail resolves the task as failed.
-func (t *TaskHandle) Fail(summary string, options ...ProblemOption) *TaskHandle {
+// Fail resolves the task as failed and returns one error describing it, so
+// `return task.Fail("validate policy manifest", evo.Cause(err))` is a single
+// line: the error's message is summary, wrapping a Cause option with %w
+// (errors.Is/As reach it); no Cause option yields errors.New(summary). Not
+// fluent chaining — the handle is never returned, only the error, and a nil
+// *TaskHandle resolves nothing but still returns that same error.
+func (t *TaskHandle) Fail(summary string, options ...ProblemOption) error {
 	p := applyProblemOptions(sanitize.Text(summary), options)
-	return t.finish(Failed, sanitize.Text(summary), []Problem{p})
+	if t != nil {
+		t.finish(Failed, sanitize.Text(summary), []Problem{p})
+	}
+	return resolutionError(p)
+}
+
+// Failf resolves the task as failed with a formatted summary (fmt.Sprintf
+// semantics) and returns its error exactly like Fail. Attach evo.Cause via
+// Fail when a summary needs both formatting and a wrapped cause.
+func (t *TaskHandle) Failf(format string, args ...any) error {
+	return t.Fail(fmt.Sprintf(format, args...))
 }
 
 // Cancel resolves the task as cancelled.
