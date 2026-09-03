@@ -13,7 +13,7 @@ import (
 
 func TestOUT023_LineWhileLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor(), testkit.Width(80))
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("t").Phase("p")
 	out.Println("durable hello")
@@ -24,10 +24,10 @@ func TestOUT023_LineWhileLive(t *testing.T) {
 
 func TestOUT024_Linef(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Printf("count=%d", 3)
-	out.Item("a").OK()
+	out.Task("a").Done()
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "count=3") {
 		t.Fatal(buf.String())
@@ -35,7 +35,7 @@ func TestOUT024_Linef(t *testing.T) {
 }
 
 func TestAPI028_AbsoluteProgress(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("t").Progress(3, 10).Bytes(100, 200)
 	// last wins as absolute
@@ -46,7 +46,7 @@ func TestAPI028_AbsoluteProgress(t *testing.T) {
 }
 
 func TestAPI029_AdvanceIsDelta(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(0, 5)
@@ -58,32 +58,32 @@ func TestAPI029_AdvanceIsDelta(t *testing.T) {
 
 func TestAPI025_PackageNameEvo(t *testing.T) {
 	// Import path uses evo package name — compile proof via this test package.
-	var _ = evo.OK
+	var _ = evo.Done
 }
 
 func TestAPI005_NoPublicIntentEnum(t *testing.T) {
 	// Construction uses For(subject) without IntentReport ceremony.
-	out := evo.NewWithOptions(evo.Title("s"), evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("s"), evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("a").OK()
+	out.Task("a").Done()
 	_ = out.Finish()
 }
 
 func TestAPI004_CommonPathReadsAsFacts(t *testing.T) {
-	out := evo.NewWithOptions(evo.Title("repo"), evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo"), evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("working tree").OK()
-	out.Item("branches").Block("local-only")
+	out.Task("working tree").Done()
+	out.Task("branches").Block("local-only")
 	_ = out.Finish()
 }
 
 func TestAPI008_CommonAdvancedParity(t *testing.T) {
 	// Item with and without stable ID → same conclusion shape for simple OK.
-	a := evo.NewWithOptions(evo.To(io.Discard))
-	a.Item("x").OK()
+	a := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	a.Task("x").Done()
 	_ = a.Finish()
-	b := evo.NewWithOptions(evo.To(io.Discard))
-	b.Item("x", evo.ID("x")).OK()
+	b := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	b.Task("x", evo.ID("x")).Done()
 	_ = b.Finish()
 	if a.Conclusion().State != b.Conclusion().State {
 		t.Fatal(a.Conclusion().State, b.Conclusion().State)
@@ -94,9 +94,9 @@ func TestAPI008_CommonAdvancedParity(t *testing.T) {
 
 func TestAPI012_StandardFlagStyleEmbed(t *testing.T) {
 	// Ordinary Go main can embed Output — no base class required.
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("flag-demo").OK()
+	out.Task("flag-demo").Done()
 	_ = out.Finish()
 }
 
@@ -104,16 +104,16 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	// pipe + plain + json + slog-ish debug + terminal surface
 	var buf bytes.Buffer
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.NewWithOptions(evo.To(&buf), evo.Terminal(screen), evo.VisibilityDelay(0), evo.Plain(), evo.DebugLevel(evo.Debug))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Terminal(screen), evo.VisibilityDelay(0), evo.Plain(), evo.DebugLevel(evo.Debug)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("a").OK()
+	out.Task("a").Done()
 	out.Debug("d")
 	_ = out.Finish()
 	_, _ = evo.EncodeJSON(out.Snapshot())
 }
 
 func TestCON016_ChildOrderPreserved(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	t1, t2, t3 := g.Task("a"), g.Task("b"), g.Task("c")
@@ -129,7 +129,7 @@ func TestCON016_ChildOrderPreserved(t *testing.T) {
 }
 
 func TestCON018_DuplicateChildNames(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	a := g.Task("same")
@@ -142,7 +142,7 @@ func TestCON018_DuplicateChildNames(t *testing.T) {
 }
 
 func TestCON010_CancelVsDoneRace(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	var wg sync.WaitGroup
@@ -158,7 +158,7 @@ func TestCON010_CancelVsDoneRace(t *testing.T) {
 
 func TestLOG003_FieldOrderStable(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.Debug))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.Debug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Debug("m", evo.Int("a", 1), evo.Int("b", 2))
 	_ = out.Finish()
@@ -170,7 +170,7 @@ func TestLOG003_FieldOrderStable(t *testing.T) {
 }
 
 func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard), evo.DebugLevel(evo.Debug))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.DebugLevel(evo.Debug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	for i := 0; i < 100; i++ {
 		out.Debug("x")
@@ -180,7 +180,7 @@ func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
 }
 
 func TestOUT017_FinalProgressExact(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	for i := int64(0); i <= 100; i++ {
@@ -195,9 +195,9 @@ func TestOUT017_FinalProgressExact(t *testing.T) {
 
 func TestSEC012_PathCanBeInDetailButCauseHidden(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("i").Fail("read failed", evo.Detail("/tmp/x"), evo.Cause(io.EOF))
+	out.Task("i").Fail("read failed", evo.Detail("/tmp/x"), evo.Cause(io.EOF))
 	_ = out.Finish()
 	// detail may show path; cause EOF message not required
 	if !strings.Contains(buf.String(), "read failed") {
@@ -208,9 +208,9 @@ func TestSEC012_PathCanBeInDetailButCauseHidden(t *testing.T) {
 func TestTERM023_SplitStreamsNoCrossCursor(t *testing.T) {
 	var primary, diag bytes.Buffer
 	// NoColor: this test forbids cursor CSI, not semantic SGR color.
-	out := evo.NewWithOptions(evo.To(&primary), evo.Diagnostics(&diag), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&primary), evo.Diagnostics(&diag), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("a").OK()
+	out.Task("a").Done()
 	_ = out.Finish()
 	// no cursor sequences on either
 	if strings.Contains(primary.String()+diag.String(), "\x1b[") {
@@ -219,7 +219,7 @@ func TestTERM023_SplitStreamsNoCrossCursor(t *testing.T) {
 }
 
 func TestTERM016_SuspendCallbackErrorPropagates(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard), evo.Plain())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
 	err := out.Suspend(func() error { return io.EOF })
 	if err != io.EOF {
@@ -229,18 +229,18 @@ func TestTERM016_SuspendCallbackErrorPropagates(t *testing.T) {
 
 func TestPORT010_GoVersionBuilds(t *testing.T) {
 	// This test running on Go 1.25+ is the proof.
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("a").OK()
+	out.Task("a").Done()
 	_ = out.Finish()
 }
 
 func TestPORT015_ReproducibleSchemaVersion(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
-	out.Item("a").OK()
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out.Task("a").Done()
 	_ = out.Finish()
 	b, _ := evo.EncodeJSON(out.Snapshot())
-	if !strings.Contains(string(b), `"schema_version": "0.2"`) {
+	if !strings.Contains(string(b), `"schema_version": "0.3"`) {
 		t.Fatal(string(b))
 	}
 	_ = out.Close()

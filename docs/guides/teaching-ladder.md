@@ -7,15 +7,17 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 ```text
 1. evo.Init(Config) + os.Exit(evo.Main(run)) — arms first paint, owns dry-run wording and exit codes
 2. Print / Printf / Println / Verbose
-3. Item — gates and conditions
-4. Task — work units; mutation verbs (Delete/Create/Update/…); Capture on Task or Item
-5. Each / PhaseWriter — loop progress and child-process narration
-6. Skipped / Kept — skip/keep taxonomy (reason + name, never a bare count)
-7. Confirm — the whole ask-decide-resolve gate
-8. ResultWriter or app machine contract (FormatData)
-9. Scope — namespaced IDs only
-10. slog via SlogHandler (Config.Debug.Level)
-11. Advanced: NewWithOptions, Plan/Changes (tooling call sites), terminal drivers, testkit, Suspend
+3. Task — everything: a gate/condition resolved directly (Done/Warn/Block/Fail/Skip, no Phase/
+   Progress) or work with phases, progress, or mutation verbs (Delete/Create/Update/…); Evidence
+   on either shape
+4. Each / PhaseWriter — loop progress and child-process narration
+5. Skipped / Kept — skip/keep taxonomy (reason + name, never a bare count)
+6. Confirm — the whole ask-decide-resolve gate
+7. ResultWriter or app machine contract (FormatData)
+8. Scope — namespaced IDs only
+9. slog via SlogHandler (Config.Debug.Level)
+10. Advanced: Config.Isolated + Output.Run (hosted instance), Config.Options (raw-Option escape
+    hatch), Plan/Changes (tooling call sites), terminal drivers, testkit, Suspend
 
 Plan/Changes (rung 11) demoted to advanced: Task's mutation verbs (Delete/Create/…) already pick
 [planned] vs [changed] from Config.DryRun on the ordinary path; Plan/Changes stay for tooling call
@@ -39,7 +41,7 @@ func run() error {
 ## Hosted (framework owns exit)
 
 ```go
-out := evo.New(evo.Config{Title: "tool"})
+out := evo.Init(evo.Config{Title: "tool", Isolated: true})
 defer func() { _ = out.Close() }()
 // … use out …
 if err != nil && !out.AnyFailed() {
@@ -100,6 +102,6 @@ Only needed when a child paints its own UI on the shared terminal (tty passthrou
 ## Data commands
 
 ```go
-out := evo.New(evo.Config{Title: "tool", Format: evo.FormatData})
+out := evo.Init(evo.Config{Title: "tool", Format: evo.FormatData, Isolated: true})
 json.NewEncoder(out.ResultWriter()).Encode(payload)
 ```

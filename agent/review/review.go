@@ -904,7 +904,7 @@ var firstPaintIOMarkers = []string{
 }
 
 // firstPaintInitMarkers arm the display (evo-rec.md "First paint").
-var firstPaintInitMarkers = []string{"evo.Init(", "evo.New(", "evo.NewWithOptions("}
+var firstPaintInitMarkers = []string{"evo.Init("}
 
 // firstPaintEntityMarkers declare the first presentation entity.
 var firstPaintEntityMarkers = []string{".Task(", ".Tasks(", ".Item(", ".Group("}
@@ -1063,11 +1063,11 @@ func detectProgressInPhaseString(filename, src string) []Finding {
 }
 
 // sliceIntoNarrationPattern matches an unbounded strings.Join passed straight
-// into Because/Detail/Phase.
-var sliceIntoNarrationPattern = regexp.MustCompile(`\.(Because|Detail|Phase)\(\s*strings\.Join\(`)
+// into Detail/Phase.
+var sliceIntoNarrationPattern = regexp.MustCompile(`\.(Detail|Phase)\(\s*strings\.Join\(`)
 
 // detectUnboundedSliceIntoNarration flags a strings.Join(slice, ...) passed
-// directly to Because/Detail/Phase without evo.TruncateNames — the same
+// directly to Detail/Phase without evo.TruncateNames — the same
 // terminal flood evo-rec.md's bounded-rows fix already closed for
 // Plan/Changes, one call site removed.
 func detectUnboundedSliceIntoNarration(filename, src string) []Finding {
@@ -1247,9 +1247,24 @@ var bareCausePattern = regexp.MustCompile(`evo\.Cause\(`)
 // same parameter list, so this is a pure spelling substitution.
 var captureCallPattern = regexp.MustCompile(`(\w+)\.Capture\(`)
 
+// itemCallPattern matches any receiver's .Item(...) declaration call — the
+// shipped-v0.2.x fact-check constructor, now a deprecated thin shim over
+// Task (Item folded into Task: one entity, one constructor).
+var itemCallPattern = regexp.MustCompile(`(\w+)\.Item\(`)
+
+// becauseCallPattern matches the retired .Because(text) annotation chain —
+// its text is now the resolving verb's own argument (e.g. Done(text)).
+var becauseCallPattern = regexp.MustCompile(`\.Because\(`)
+
+// okCallPattern matches the retired .OK() resolution verb — Task's spelling
+// for the same outcome is Done().
+var okCallPattern = regexp.MustCompile(`(\w+)\.OK\(\)`)
+
 // detectDeprecatedSpellings is API-032: it catches every superseded spelling
-// with a fix, not a lecture — evo.New/MainWith in main() (evo.Init+evo.Main
-// is the ordinary lifecycle), evo.Cause (Failf/Blockf's trailing %w since
+// with a fix, not a lecture — evo.New/MainWith (evo.Init+evo.Main is the
+// sole constructor/lifecycle since the item/task fold), Item/.OK/.Because
+// (Item folded into Task: Item(name).OK().Because(text) is now
+// Task(name).Done(text)), evo.Cause (Failf/Blockf's trailing %w since
 // Fail/Block are statement-form), and Capture (renamed to Evidence).
 func detectDeprecatedSpellings(filename, src string) []Finding {
 	var findings []Finding
@@ -1259,7 +1274,7 @@ func detectDeprecatedSpellings(filename, src string) []Finding {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
 				Severity:   "warning",
-				Message:    "evo.New in main is the advanced hosted-instance constructor; evo.Init is the ordinary main() lifecycle",
+				Message:    "evo.New was removed with the item/task fold; evo.Init is the sole constructor",
 				File:       filename,
 				Line:       lineAt(src, offset+idx),
 				Suggestion: "replace evo.New(cfg) + os.Exit(evo.MainWith(out, run)) with evo.Init(cfg) then os.Exit(evo.Main(run))",
@@ -1269,12 +1284,47 @@ func detectDeprecatedSpellings(filename, src string) []Finding {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
 				Severity:   "warning",
-				Message:    "evo.MainWith in main is the advanced hosted-instance lifecycle; evo.Main is the ordinary spelling",
+				Message:    "evo.MainWith was removed with the item/task fold; evo.Main is the ordinary lifecycle (Output.Run for a held *Output)",
 				File:       filename,
 				Line:       lineAt(src, offset+idx),
 				Suggestion: "replace os.Exit(evo.MainWith(out, run)) with evo.Init(cfg) then os.Exit(evo.Main(run))",
 			})
 		}
+	}
+
+	for _, m := range itemCallPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv := src[m[2]:m[3]]
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "Item folded into Task — Item is now a deprecated thin shim",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace " + recv + ".Item(...) with " + recv + ".Task(...)",
+		})
+	}
+
+	for _, m := range okCallPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv := src[m[2]:m[3]]
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "OK was retired with Item — Task's spelling for the same outcome is Done",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace " + recv + ".OK() with " + recv + ".Done()",
+		})
+	}
+
+	for _, m := range becauseCallPattern.FindAllStringIndex(src, -1) {
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "Because was retired with Item — its text is now the resolving verb's own argument",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: `replace OK().Because("text") with Done("text") (or fold into Warn/Block/Fail's summary)`,
+		})
 	}
 
 	// derivedCauseSpans marks the byte range of every evo.Cause( occurrence

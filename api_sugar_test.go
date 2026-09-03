@@ -13,7 +13,7 @@ import (
 // --- Item 1: printf-variadic entity names ---
 
 func TestAPISugar_TaskNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build %s #%d", "worker", 3)
@@ -23,7 +23,7 @@ func TestAPISugar_TaskNameIsPrintfWhenArgsPresent(t *testing.T) {
 }
 
 func TestAPISugar_TaskNameUnchangedWithoutArgs(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("100% done")
@@ -34,7 +34,7 @@ func TestAPISugar_TaskNameUnchangedWithoutArgs(t *testing.T) {
 
 func TestAPISugar_TaskGetOrCreateKeysOnFormattedName(t *testing.T) {
 	var buf strings.Builder
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	first := evo.Task("branch %s", "main")
 	second := evo.Task("branch %s", "main")
@@ -48,10 +48,10 @@ func TestAPISugar_TaskGetOrCreateKeysOnFormattedName(t *testing.T) {
 }
 
 func TestAPISugar_ItemOptionSurvivesAmongFormatArgs(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	item := out.Item("probe %s", "docker", evo.ID("probe.docker"))
+	item := out.Task("probe %s", "docker", evo.ID("probe.docker"))
 	if got := item.Snapshot().Name; got != "probe docker" {
 		t.Fatalf("name = %q, want %q", got, "probe docker")
 	}
@@ -61,7 +61,7 @@ func TestAPISugar_ItemOptionSurvivesAmongFormatArgs(t *testing.T) {
 }
 
 func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	g := out.Group("stage %d", 2)
@@ -72,7 +72,7 @@ func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
 
 func TestAPISugar_ReasonfFormatsAndGetsOrCreates(t *testing.T) {
 	var buf strings.Builder
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	first := evo.Reasonf("stage %d", 2)
 	if got := first.Name(); got != "stage 2" {
@@ -85,7 +85,7 @@ func TestAPISugar_ReasonfFormatsAndGetsOrCreates(t *testing.T) {
 }
 
 func TestAPISugar_ScopeTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	scoped := out.Scope("registry")
@@ -96,18 +96,18 @@ func TestAPISugar_ScopeTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
 }
 
 func TestAPISugar_ScopeItemNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	scoped := out.Scope("registry")
-	item := scoped.Item("probe %s", "docker")
+	item := scoped.Task("probe %s", "docker")
 	if got := item.Snapshot().Name; got != "probe docker" {
 		t.Fatalf("name = %q, want %q", got, "probe docker")
 	}
 }
 
 func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	group := out.Group("stages")
@@ -120,7 +120,7 @@ func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
 // --- Item 0: Fail/Block are statement-form; Failf/Blockf return %w errors ---
 
 func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
@@ -134,7 +134,7 @@ func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
 }
 
 func TestAPISugar_TaskFailfWrapsAndReturnsError(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
@@ -155,7 +155,7 @@ func TestAPISugar_TaskFailfWrapsAndReturnsError(t *testing.T) {
 }
 
 func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
@@ -169,10 +169,10 @@ func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
 }
 
 func TestAPISugar_ItemBlockfWrapsAndReturnsError(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	item := out.Item("policy gate")
+	item := out.Task("policy gate")
 	cause := errors.New("denied")
 	err := item.Blockf("blocked by policy: %w", cause)
 	if err == nil || !errors.Is(err, cause) {
@@ -196,7 +196,7 @@ func TestAPISugar_FailNilHandleIsSafe(t *testing.T) {
 // --- Item 3: task.Run subprocess facade ---
 
 func TestAPISugar_RunCapturesOutputAndUpdatesPhase(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard), evo.Plain())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
@@ -215,7 +215,7 @@ func TestAPISugar_RunCapturesOutputAndUpdatesPhase(t *testing.T) {
 }
 
 func TestAPISugar_RunSetsPhaseFromCommandName(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard), evo.Plain())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
@@ -229,7 +229,7 @@ func TestAPISugar_RunSetsPhaseFromCommandName(t *testing.T) {
 }
 
 func TestAPISugar_RunTeesPreWiredWriters(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard), evo.Plain())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
@@ -248,7 +248,7 @@ func TestAPISugar_RunTeesPreWiredWriters(t *testing.T) {
 }
 
 func TestAPISugar_RunReturnsSubprocessErrorVerbatim(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard), evo.Plain())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
@@ -273,7 +273,7 @@ func (r literalRedactor) RedactString(s string) string {
 }
 
 func TestAPISugar_RunRedactsSecrets(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard), evo.Plain(), evo.Redact(literalRedactor{secret: "s3kr3t"}))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain(), evo.Redact(literalRedactor{secret: "s3kr3t"})}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")

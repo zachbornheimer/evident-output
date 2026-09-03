@@ -8,7 +8,6 @@ type Conclusion struct {
 	Partial     bool
 	Cancelled   bool
 	Explanation string
-	Items       []ItemSnapshot
 	Tasks       []TaskSnapshot
 	Collections []TasksSnapshot
 	Changes     []ChangesSnapshot
@@ -50,7 +49,6 @@ func applyFailedExitCode(c *Conclusion, code int) {
 func inferConclusion(s Snapshot) Conclusion {
 	c := Conclusion{
 		Subject:     s.Subject,
-		Items:       s.Items,
 		Tasks:       s.Tasks,
 		Collections: s.Collections,
 		Changes:     s.Changes,
@@ -76,22 +74,6 @@ func inferConclusion(s Snapshot) Conclusion {
 		hasDone       bool
 	)
 
-	for _, it := range s.Items {
-		switch it.State {
-		case Failed:
-			hasFailed = true
-		case Blocked:
-			hasBlocked = true
-		case Warning:
-			hasWarning = true
-		case Cancelled:
-			hasCancelled = true
-		case Pending, Running, Incomplete:
-			hasIncomplete = true
-		case OK, Skipped, Unknown:
-			hasDone = true
-		}
-	}
 	for _, t := range s.Tasks {
 		switch t.State {
 		case Failed:
@@ -154,7 +136,7 @@ func inferConclusion(s Snapshot) Conclusion {
 
 	// Partial is a completeness modifier over the Outcome above, never a root
 	// verdict of its own (evo-rec.md "Conclusion algebra — two axes"): an
-	// unresolved item/task/collection never invents a new headline state —
+	// unresolved task/collection never invents a new headline state —
 	// it marks the existing outcome incomplete instead.
 	if hasIncomplete {
 		c.Partial = true

@@ -61,10 +61,10 @@ func main() {
 		if *fail {
 			// Comparison succeeded and found a domain blocker — not an operation failure.
 			compare.Done("1 blocker found")
-			evo.Item("branches").Block("feat/sdk-full-consolidation is local-only")
+			evo.Task("branches").Block("feat/sdk-full-consolidation is local-only")
 		} else {
 			compare.Done()
-			evo.Item("branches").OK()
+			evo.Task("branches").Done()
 		}
 		return nil
 	}))

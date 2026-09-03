@@ -9,7 +9,7 @@ import (
 )
 
 func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	tasks := out.Tasks("batch")
 	const n = 50
@@ -36,18 +36,18 @@ func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
 }
 
 func TestCON012_ConcurrentItemOK(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	items := make([]*evo.ItemHandle, 20)
 	for i := range items {
-		items[i] = out.Item("x")
+		items[i] = out.Task("x")
 	}
 	var wg sync.WaitGroup
 	for _, it := range items {
 		wg.Add(1)
 		go func(it *evo.ItemHandle) {
 			defer wg.Done()
-			it.OK()
+			it.Done()
 		}(it)
 	}
 	wg.Wait()

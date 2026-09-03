@@ -167,42 +167,9 @@ func (t *TaskHandle) Capture(opts ...CaptureOption) *Capture {
 	return t.Evidence(opts...)
 }
 
-// Evidence returns the retained/redacted writer bound to this Item
-// (tool-backed gate). Presentation only — does not run the tool. Use when a
-// condition is evaluated by an external command (git status, docker info,
-// brew doctor, …).
-//
-//	docker := out.Item("docker daemon").Start()
-//	proof := docker.Evidence()
-//	if err := runDockerInfo(proof); err != nil {
-//	    docker.Failf("could not inspect the daemon: %w", err)
-//	} else {
-//	    docker.OK()
-//	}
-func (i *ItemHandle) Evidence(opts ...CaptureOption) *Evidence {
-	if i == nil || i.out == nil {
-		return newEvidence(nil, "", "", opts...)
-	}
-	name := ""
-	i.out.mu.Lock()
-	if st := i.out.itemByRef[i.id]; st != nil {
-		name = st.name
-	}
-	i.out.mu.Unlock()
-	return newEvidence(i.out, i.id, name, opts...)
-}
-
-// Capture is Evidence's shipped v0.2.16 name.
-//
-// Deprecated: Use ItemHandle.Evidence. Will be removed in v1.0.
-func (i *ItemHandle) Capture(opts ...CaptureOption) *Capture {
-	return i.Evidence(opts...)
-}
-
 // Evidence returns a session-level retained/redacted writer with no owning
-// Item/Task. Prefer Task.Evidence or Item.Evidence so failure evidence
-// attaches to an entity. Session-level Evidence is advanced; ordinary call
-// sites should not use it.
+// Task. Prefer Task.Evidence so failure evidence attaches to an entity.
+// Session-level Evidence is advanced; ordinary call sites should not use it.
 func (o *Output) Evidence(opts ...CaptureOption) *Evidence {
 	return newEvidence(o, "", "", opts...)
 }

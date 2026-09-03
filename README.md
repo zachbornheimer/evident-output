@@ -22,8 +22,8 @@ func run() error {
     evo.Println("Reading configuration")
     evo.Printf("Found %d packages\n", 18)
 
-    evo.Item("working tree").OK()
-    evo.Item("branches").Block(
+    evo.Task("working tree").Done()
+    evo.Task("branches").Block(
         "local-only branch",
         evo.Detail("commit or stash before continuing"),
     )
@@ -44,25 +44,24 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 Design philosophy and polish-phase basis: [`docs/roadmap/implementation-basis.md`](docs/roadmap/implementation-basis.md), [`docs/philosophy/`](docs/philosophy/).
 
-**Construction:** `evo.Init(Config{…})` for the package-level default instance (front door); `evo.New(Config{…})` / `DefaultConfig()` for a hosted instance — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `NewWithOptions(Title(...), …)`.
+**Construction:** `evo.Init(Config{…})` is the sole constructor — the package-level default instance (front door) by default; `Config.Isolated: true` returns an independent hosted instance instead — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `Config.Options: []Option{Title(...), …}` for exact writer/terminal/clock wiring.
 **Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug.Level: LevelTrace` selectable (`LevelUnset` → Info).
-**Lifecycle:** `os.Exit(evo.Main(run))` (default instance) or `os.Exit(evo.MainWith(out, run))` (hosted) seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.
-**Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only). Semantic state: Item/Task.
+**Lifecycle:** `os.Exit(evo.Main(run))` (default instance) or `os.Exit(out.Run(run))` (hosted, `Config.Isolated: true`) seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.
+**Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only). Semantic state: `Task`.
 **Mutations:** `Task.Delete/Create/Update/Remove/Write/Push/Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` — one spelling, never a call-site tense flip.
 **Loops and taxonomy:** `Task.Each(items)` / `EachN(n)` own absolute progress; `Task.Skipped(reason, name)` / `Task.Kept(reason, name)` own the counted, summed skip/keep partition.
-**Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `⊘ declined` / `⊘ blocked by policy`, never a Go error.
-**Capture:** `Task.Capture` (work) or `Item.Capture` (tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention. `cmd.Stdout = task.PhaseWriter()` turns a talkative child's last line into the live Phase; `out.Suspend(fn)` hands the tty to a child that paints its own UI.
-**Platform:** `evo.ID` + narrow `Scope` (Item/Task/Tasks only — not a sandbox); `ResultWriter()` under `FormatData`.
+**Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error.
+**Capture:** `Task.Evidence` (work or tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention. `cmd.Stdout = task.PhaseWriter()` turns a talkative child's last line into the live Phase; `out.Suspend(fn)` hands the tty to a child that paints its own UI.
+**Platform:** `evo.ID` + narrow `Scope` (Task/Tasks only — not a sandbox); `ResultWriter()` under `FormatData`.
 
 ## Pick the entity
 
-| Shape     | Use when                                               |
-| --------- | ------------------------------------------------------ |
-| **Item**  | Check / gate / verdict unit (pass–fail)                |
-| **Task**  | Work with phases, progress, or mutation verbs          |
-| **Tasks** | Collection of independent tasks (state is **derived**) |
+| Shape     | Use when                                                                                                                                                                                                    |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**  | Everything — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skip`, no `Phase`/`Progress`) renders as a fact row; work with phases, progress, or mutation verbs shows a spinner while running |
+| **Tasks** | Collection of independent tasks (state is **derived**)                                                                                                                                                      |
 
-When both Item and Task fit: prefer **Item** for pass/fail gates, **Task** for progress. Multi-gate: resolve every Item, then `if out.AnyBlocked() { return nil }` before mutation; `Main` maps `ExitCode`.
+Multi-gate: resolve every Task, then `if out.AnyBlocked() { return nil }` before mutation; `Main` maps `ExitCode`.
 
 **Advanced (tooling call sites):** `Plan` / `Changes` are the instance-API primitives Task's mutation verbs (`Delete`/`Create`/`Update`/…) are built on — reach for them directly only when a tool needs the would/did split without a Task.
 
@@ -78,7 +77,8 @@ When both Item and Task fit: prefer **Item** for pass/fail gates, **Task** for p
 
 ## Child processes / tool-backed gates
 
-Evidence belongs to the **entity** (Task or Item), not the whole session — and not `context`.
+Evidence belongs to the **entity** (a `Task`, whether it ran or was resolved as a
+fact-check gate), not the whole session — and not `context`.
 For an `*exec.Cmd`, prefer `Task.Run` (below); reach for `Evidence` directly only when the
 caller already owns stdout/stderr plumbing:
 
@@ -92,19 +92,19 @@ if err := run.Run(ctx, "brew", []string{"upgrade", "--formula"}, proof); err != 
 upgrade.Done()
 ```
 
-Tool-backed **condition** (still an Item):
+Tool-backed **condition** (a `Task` resolved directly, no `Phase`/`Progress`):
 
 ```go
-docker := out.Item("docker daemon").Start()
+docker := out.Task("docker daemon")
 proof := docker.Evidence()
 if err := runDockerInfo(proof); err != nil {
     docker.Failf("could not inspect the daemon: %w", err)
 } else {
-    docker.OK()
+    docker.Done()
 }
 ```
 
-- **Ownership:** `Task.Evidence` / `Item.Evidence` associate evidence with that entity.
+- **Ownership:** `Task.Evidence` associates evidence with that entity.
 - **Silent by default:** ring always retains; no Diagnostics/Debug mirror unless `MirrorToDiagnostics()` / `MirrorToDebug()`.
 - **Redaction:** `Config.Redactor` (or `evo.Redact`) applies before ring retention.
 - **Detail:** `DetailTail()` is a `ProblemOption`; separate `Stdout()`/`Stderr()` buffers. `Failf`'s
@@ -118,7 +118,7 @@ Keep the core vocabulary small. Scale via **Config**, **schema keys**, and **str
 
 | Need                         | Contract                                                                                               |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Stable machine identity      | `out.Item("label", evo.ID("gate.tree"))` — keys appear in Snapshot/JSON                                |
+| Stable machine identity      | `out.Task("label", evo.ID("gate.tree"))` — keys appear in Snapshot/JSON                                |
 | Plugin / subsystem namespace | `out.Scope("registry").Task("pull", evo.ID("image"))` → key `registry.image` (IDs only; not isolation) |
 | Domain payload purity        | `Format: FormatData` + `json.NewEncoder(out.ResultWriter())` (stdout); human on stderr                 |
 | Secret scrubbing             | `Config.Redactor` or `evo.Redact(r)` — Debug fields + Capture ring                                     |
@@ -134,7 +134,7 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 
 | Ready now                                                                                                                   | External / manual only                |
 | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| Items, Task, Tasks, Changes, Plan, Print                                                                                    | Windows ConPTY RC (PORT-003)          |
+| Task, Tasks, Changes, Plan, Print                                                                                           | Windows ConPTY RC (PORT-003)          |
 | Conclusion + exit codes + Cancel cleanup                                                                                    | tmux RC (PORT-004)                    |
 | Plain, JSON (§25.1), JSONL (§25.2)                                                                                          | SSH RC (PORT-005)                     |
 | Interactive live region (`testkit.Screen`)                                                                                  | Light/dark contrast review (A11Y-006) |
@@ -147,15 +147,14 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 
 ## Vocabulary
 
-| Type               | Meaning                                                    |
-| ------------------ | ---------------------------------------------------------- |
-| `Item`             | Named condition that stays in the final report             |
-| `Task`             | One operation (phase / progress / done)                    |
-| `Tasks`            | Collection of independent tasks (state is **derived**)     |
-| `Problem`          | Structured evidence for warn / block / fail                |
-| `Changes` / `Plan` | Effects that happened vs would happen                      |
-| `Conclusion`       | Headline + `Changed` / `Partial` / `Cancelled` + exit code |
-| `Main`             | Finish + Close + process exit code for CLI entrypoints     |
+| Type               | Meaning                                                                                                     |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `Task`             | One operation — a named condition resolved directly (Done/Warn/Block/Fail/Skip) or work with phase/progress |
+| `Tasks`            | Collection of independent tasks (state is **derived**)                                                      |
+| `Problem`          | Structured evidence for warn / block / fail                                                                 |
+| `Changes` / `Plan` | Effects that happened vs would happen                                                                       |
+| `Conclusion`       | Headline + `Changed` / `Partial` / `Cancelled` + exit code                                                  |
+| `Main`             | Finish + Close + process exit code for CLI entrypoints                                                      |
 
 Do **not** put schedulers, `RunAll`, retries, or shell execution in this library. Review rule **API-026** flags those helpers only on evo receivers (AST), not `strings.Map`.
 
@@ -190,7 +189,7 @@ Completeness vs §31 (v0.3 matrix): [`docs/architecture/COMPLETENESS_MATRIX.md`]
 ```text
 examples/print/              Print, Printf, Println
 examples/verbose/            visibility gating (--verbose)
-examples/repo-status/        Items, Problems, actions
+examples/repo-status/        Tasks, Problems, actions
 examples/install-pipeline/   Tasks + Capture
 examples/migrate/            Plan versus Changes
 examples/doctor/             severity dialect + WriteJSON
@@ -329,7 +328,7 @@ Small real programs (flags, help, exit codes) — not snippets. Copy a whole fol
 
 | Example            | Pattern                                                               |
 | ------------------ | --------------------------------------------------------------------- |
-| `repo-status`      | Parallel **Items** (OK / blocked / warn), conclusion exit code        |
+| `repo-status`      | Parallel **Tasks** (done / blocked / warn), conclusion exit code      |
 | `install-pipeline` | **Tasks** collection with Progress/Bytes/Fail (final report)          |
 | `migrate`          | **Plan** dry-run vs **Changes** apply (`--apply`)                     |
 | `doctor`           | Mixed doctor items; `--json` snapshot on stdout                       |
@@ -373,7 +372,7 @@ Schemas: `schema/output.v1.json`, `schema/event.v1.json`.
 import "github.com/zachbornheimer/evident-output/terminal"
 
 drv := terminal.NewANSI(os.Stderr, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-out := evo.NewWithOptions(evo.Terminal(drv))
+out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv)}})
 ```
 
 ### Interactive (testkit / virtual terminal)
@@ -381,12 +380,12 @@ out := evo.NewWithOptions(evo.Terminal(drv))
 ```go
 screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 clock := testkit.NewClock()
-out := evo.NewWithOptions(
+out := evo.Init(evo.Config{Options: []evo.Option{
     evo.Terminal(screen),
     evo.Clock(clock),
-    evo.VisibilityDelay(150*time.Millisecond),
+    evo.VisibilityDelay(150 * time.Millisecond),
     evo.MaxFrameRate(20),
-)
+}})
 // Phase/Progress draw a live region; instant Done before the threshold does not flash.
 // DebugHistory (default): out.Debug → durable above live (timestamp + [DEBUG]).
 // DebugPane(...): rolling slog viewport in the live region; optional failure tail.

@@ -6,8 +6,6 @@ import "errors"
 var (
 	ErrClosed             = errors.New("evo: output is closed")
 	ErrAlreadyResolved    = errors.New("evo: entity is already resolved")
-	ErrNoProblems         = errors.New("evo: structured resolution requires problems")
-	ErrUnresolvedItem     = errors.New("evo: item has no final state")
 	ErrUnresolvedTask     = errors.New("evo: task has no final state")
 	ErrInvalidProgress    = errors.New("evo: invalid progress")
 	ErrProgressRegression = errors.New("evo: progress moved backward")

@@ -55,8 +55,8 @@ func main() {
 		)
 	}
 
-	// Same New(Config) dialect as ordinary examples; advanced = Terminal field.
-	out := evo.New(evo.Config{
+	// Same Init(Config) dialect as ordinary examples; advanced = Terminal field.
+	out := evo.Init(evo.Config{
 		Title:    "install-deps-advanced",
 		Stdout:   os.Stderr,
 		Stderr:   os.Stderr,
@@ -65,9 +65,10 @@ func main() {
 		// Demo tuning: show spinners immediately.
 		VisibilityDelay: evo.Delay(0),
 		MaxFrameRate:    60,
+		Isolated:        true,
 	})
 
-	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
+	os.Exit(out.Run(func(o *evo.Output) error {
 		jobs := o.Tasks("dependencies")
 		discover := jobs.Task("discover")
 		for _, phase := range []string{"reading lockfile", "resolving graph"} {
@@ -83,7 +84,7 @@ func main() {
 			time.Sleep(stepDur)
 		}
 		download.Done("4.0 MB")
-		o.Item("registry").OK()
+		o.Task("registry").Done()
 		return nil
 	}))
 }

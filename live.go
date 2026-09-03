@@ -135,22 +135,17 @@ func (o *Output) hasLiveActivityLocked() bool {
 			}
 		}
 	}
-	for _, it := range o.items {
-		if it.state == Running {
-			return true
-		}
-	}
-	// Armed-but-empty: Init/MainWith promised a paint before any entity exists.
-	// Once the first Task/Item/Tasks is declared, its own state drives activity.
-	if o.armed && len(o.tasks) == 0 && len(o.items) == 0 && len(o.collections) == 0 {
+	// Armed-but-empty: Init promised a paint before any entity exists. Once
+	// the first Task/Tasks is declared, its own state drives activity.
+	if o.armed && len(o.tasks) == 0 && len(o.collections) == 0 {
 		return true
 	}
 	return false
 }
 
 // arm marks the live surface as ready to paint before any entity is declared,
-// so Init and MainWith honor the ≤100ms first-paint contract even when the
-// caller does heavy work before the first Task/Item. Idempotent.
+// so Init honors the ≤100ms first-paint contract even when the caller does
+// heavy work before the first Task. Idempotent.
 func (o *Output) arm() {
 	if o == nil {
 		return
@@ -194,11 +189,6 @@ func (o *Output) renderLiveLocked(force bool) {
 func (o *Output) needsSpinnerAnimLocked() bool {
 	for _, t := range o.tasks {
 		if t.state == Running {
-			return true
-		}
-	}
-	for _, it := range o.items {
-		if it.state == Running {
 			return true
 		}
 	}
@@ -400,16 +390,25 @@ func renderLiveRegion(s Snapshot, height, width int, now time.Time, color bool, 
 	for _, t := range s.Tasks {
 		writeLiveTaskLine(&b, t, 0, width, spin, color, now, profile)
 	}
-	for _, it := range s.Items {
-		if it.State == Running || it.State == Pending {
-			g := itemGlyph(it.State, profile)
-			if it.State == Running {
-				g = spin
-			}
-			fmt.Fprintf(&b, "%s  %s\n", styleGlyph(g, stateColor(it.State), color), it.Name)
-		}
-	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// liveTickerSnapshotLocked is the snapshot the live ticker draws from: every
+// root task except one already durably flushed by emitTaskProgressiveLocked
+// (a never-ran "fact-check" resolution — see its doc comment). Without this
+// filter, a task dropped from the ticker onto durable text would reappear on
+// the next unrelated redraw and double-print.
+func (o *Output) liveTickerSnapshotLocked() Snapshot {
+	snap := o.snapshotLocked()
+	visible := snap.Tasks[:0]
+	for _, t := range snap.Tasks {
+		if st := o.taskByRef[t.ID]; st != nil && st.collection == nil && st.coreEmitted {
+			continue
+		}
+		visible = append(visible, t)
+	}
+	snap.Tasks = visible
+	return snap
 }
 
 // renderLiveRegionWithDebug builds the live ledger plus optional rolling debug pane (§21.3.2).
@@ -431,8 +430,8 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 			bodyHeight = 1
 		}
 	}
-	body := renderLiveRegion(o.snapshotLocked(), bodyHeight, width, now, color, profile)
-	if body == "" && o.armed && len(o.tasks) == 0 && len(o.items) == 0 && len(o.collections) == 0 {
+	body := renderLiveRegion(o.liveTickerSnapshotLocked(), bodyHeight, width, now, color, profile)
+	if body == "" && o.armed && len(o.tasks) == 0 && len(o.collections) == 0 {
 		body = renderArmedTitleLine(o.cfg.subject, now, color, profile)
 	}
 	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {

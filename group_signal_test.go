@@ -18,7 +18,7 @@ import (
 // (evo-rec.md #4 / #3's early-termination example).
 func TestMain_SIGINTCancelsGroupChildAndLaterSiblingsRenderNotStarted(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	setup := evo.Default().Group("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")

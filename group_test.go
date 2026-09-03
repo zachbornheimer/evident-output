@@ -14,7 +14,7 @@ import (
 // with no caller code.
 func TestGroup_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Group("python")
@@ -43,7 +43,7 @@ func TestGroup_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 // TestGroup_EarlierCompletedSiblingKeepsItsResolvedState covers "earlier
 // Done rows are never erased" once a later sibling fails.
 func TestGroup_EarlierCompletedSiblingKeepsItsResolvedState(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(&bytes.Buffer{}), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&bytes.Buffer{}), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Group("python")
@@ -63,7 +63,7 @@ func TestGroup_EarlierCompletedSiblingKeepsItsResolvedState(t *testing.T) {
 // a later sibling itself before Finish keeps that resolution — the library
 // never overwrites a caller's explicit disposition.
 func TestGroup_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(&bytes.Buffer{}), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&bytes.Buffer{}), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Group("python")
@@ -87,7 +87,7 @@ func TestGroup_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
 // pending siblings still render "-  not started".
 func TestGroup_CancelAutoResolvesLaterSiblings(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Group("python")
@@ -112,7 +112,7 @@ func TestGroup_CancelAutoResolvesLaterSiblings(t *testing.T) {
 // NotStarted rows never count as failure in the Conclusion — the verdict and
 // exit code come from the failed child alone.
 func TestGroup_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(&bytes.Buffer{}), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&bytes.Buffer{}), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Group("python")
@@ -135,7 +135,7 @@ func TestGroup_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted(t *test
 // group with no failure/cancellation renders exactly as before this change.
 func TestGroup_AllChildrenDoneRendersAsToday(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Group("python")
@@ -165,7 +165,7 @@ func TestGroup_AllChildrenDoneRendersAsToday(t *testing.T) {
 // ErrConcurrentRunning and exiting 2 despite printing "[ready]".
 func TestGroup_SequentialBytesProgressFinishesClean(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	jobs := out.Group("dependencies")
@@ -194,7 +194,7 @@ func TestGroup_SequentialBytesProgressFinishesClean(t *testing.T) {
 // called twice within one group returns the same child.
 func TestGroup_PackageLevelGetOrCreate(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	t.Cleanup(func() { _ = evo.Default().Close() })
 
 	g1 := evo.Group("python")

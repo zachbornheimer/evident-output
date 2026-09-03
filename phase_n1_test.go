@@ -12,7 +12,7 @@ import (
 // would draw N simultaneous spinners for N predeclared siblings) until it
 // receives its first unit of evidence.
 func TestTask_DeclaresPendingNotRunning(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("install")
@@ -36,7 +36,7 @@ func TestTask_PromotesToRunningOnFirstEvidence(t *testing.T) {
 	}
 	for name, evidence := range cases {
 		t.Run(name, func(t *testing.T) {
-			out := evo.NewWithOptions(evo.To(io.Discard))
+			out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 			t.Cleanup(func() { _ = out.Close() })
 			task := out.Task("install")
 			evidence(task)
@@ -52,7 +52,7 @@ func TestTask_PromotesToRunningOnFirstEvidence(t *testing.T) {
 // so a Pending task needs one Progress call first to establish it — Advance
 // alone on an unknown total is invalid progress, not a promotion case).
 func TestTask_AdvanceAfterSealedTotalPromotesToRunning(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("install")
 	task.Advance(0) // Advance(0) on the not-yet-sealed Total=0 is valid progress
@@ -65,7 +65,7 @@ func TestTask_AdvanceAfterSealedTotalPromotesToRunning(t *testing.T) {
 // "one Running child" heart contract on a sequential Group: promoting a
 // second sibling to Running while the first is still Running is misuse.
 func TestGroup_TwoRunningChildrenRecordsMisuse(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Group("python")
@@ -85,7 +85,7 @@ func TestGroup_TwoRunningChildrenRecordsMisuse(t *testing.T) {
 // independent (worker-pool fan-out), so two Running siblings there is a
 // supported pattern, not misuse.
 func TestTasks_ConcurrentIndependentChildrenAreNotMisuse(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	jobs := out.Tasks("dependencies")
@@ -106,7 +106,7 @@ func TestTasks_ConcurrentIndependentChildrenAreNotMisuse(t *testing.T) {
 // Partial stays evidence (Conclusion.Partial), the headline stays an
 // Outcome, and Finish still reports the unresolved-task misuse.
 func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	out.Task("install") // declared, never resolved
 
 	_ = out.Finish()

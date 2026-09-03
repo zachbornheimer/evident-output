@@ -73,10 +73,6 @@ func renderPlain(s Snapshot, cfg config) string {
 		writeDebugOrLine(&b, line, color)
 	}
 
-	for _, it := range s.Items {
-		writeItem(&b, it, color, profile)
-	}
-
 	for _, t := range s.Tasks {
 		writeTask(&b, t, color, verbose, profile)
 	}
@@ -99,45 +95,9 @@ func renderPlain(s Snapshot, cfg config) string {
 	return b.String()
 }
 
-func writeItem(b *strings.Builder, it ItemSnapshot, color bool, profile GlyphProfile) {
-	writeItemCore(b, it, color, profile)
-	if it.Because != "" {
-		writeItemBecause(b, it.Because, color)
-	}
-	for _, a := range it.Actions {
-		writeAction(b, a, color, profile)
-	}
-}
-
 // maxVisibleProblems is the human default bound (OPEN-003). Structured snapshots
 // retain full Problem lists separately (DEC-FAIL-001/003).
 const maxVisibleProblems = 5
-
-// writeItemCore emits glyph, name, and problems (terminal outcome body).
-func writeItemCore(b *strings.Builder, it ItemSnapshot, color bool, profile GlyphProfile) {
-	glyph := styleGlyph(itemGlyph(it.State, profile), stateColor(it.State), color)
-	fmt.Fprintf(b, "%s  %s\n", glyph, it.Name)
-	problems := it.Problems
-	omitted := 0
-	if len(problems) > maxVisibleProblems {
-		omitted = len(problems) - maxVisibleProblems
-		problems = problems[:maxVisibleProblems]
-	}
-	for _, p := range problems {
-		writeProblem(b, p, color, profile)
-	}
-	if omitted > 0 {
-		writeProblem(b, Problem{
-			Summary: fmt.Sprintf("and %d more failures", omitted),
-			Count:   int64(omitted),
-			Unit:    "failures",
-		}, color, profile)
-	}
-}
-
-func writeItemBecause(b *strings.Builder, because string, color bool) {
-	fmt.Fprintf(b, "  %s\n", dim(because, color))
-}
 
 // Plain problem indent widths (fixed presentation dialect, not operational knobs).
 const (
@@ -618,7 +578,7 @@ func summarizeChangeSection(ch ChangesSnapshot) string {
 
 func stateColor(s EntityState) string {
 	switch s {
-	case OK, Done:
+	case Done:
 		return sgrGreen
 	case Failed:
 		return sgrRed
@@ -628,7 +588,7 @@ func stateColor(s EntityState) string {
 		return sgrYellow
 	case Running:
 		return sgrCyan
-	case Pending, Skipped, Cancelled, Unknown, Incomplete, NotStarted:
+	case Pending, Skipped, Cancelled, Incomplete, NotStarted:
 		return sgrDim
 	default:
 		return ""

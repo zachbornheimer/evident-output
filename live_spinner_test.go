@@ -27,7 +27,7 @@ func TestLive_SpinnerGlyphAdvancesWithClock(t *testing.T) {
 		t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		d: 80 * time.Millisecond, // one spinner frame per Now()
 	}
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.VisibilityDelay(0), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.VisibilityDelay(0), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	g := out.Tasks("work")

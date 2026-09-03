@@ -123,10 +123,10 @@ func runScenarioFile(t *testing.T, path string) {
 	if sc.Subject != "" {
 		opts = append([]evo.Option{evo.Title(sc.Subject)}, opts...)
 	}
-	out := evo.NewWithOptions(opts...)
+	out := evo.Init(evo.Config{Options: opts})
 	t.Cleanup(func() { _ = out.Close() })
 
-	items := map[string]*evo.ItemHandle{}
+	items := map[string]*evo.TaskHandle{}
 	tasks := map[string]*evo.TaskHandle{}
 	cols := map[string]*evo.Tasks{}
 	var finishErr error
@@ -134,7 +134,7 @@ func runScenarioFile(t *testing.T, path string) {
 	for _, m := range sc.Mutations {
 		switch m.Op {
 		case "item":
-			items[m.Ref] = out.Item(m.Name)
+			items[m.Ref] = out.Task(m.Name)
 		case "task":
 			tasks[m.Ref] = out.Task(m.Name)
 		case "tasks":
@@ -146,15 +146,13 @@ func runScenarioFile(t *testing.T, path string) {
 			}
 			tasks[m.Ref] = parent.Task(m.Name)
 		case "item.ok":
-			items[m.Ref].OK()
+			items[m.Ref].Done()
 		case "item.block":
 			var po []evo.ProblemOption
 			if m.Detail != "" {
 				po = append(po, evo.Detail(m.Detail))
 			}
 			items[m.Ref].Block(m.Summary, po...)
-		case "item.blocked_by":
-			items[m.Ref].BlockedBy(m.Problems...)
 		case "item.warn":
 			items[m.Ref].Warn(m.Summary)
 		case "item.fail":
@@ -222,14 +220,10 @@ func sentinel(name string) error {
 	switch name {
 	case "ErrUnresolvedTask":
 		return evo.ErrUnresolvedTask
-	case "ErrUnresolvedItem":
-		return evo.ErrUnresolvedItem
 	case "ErrInvalidProgress":
 		return evo.ErrInvalidProgress
 	case "ErrProgressRegression":
 		return evo.ErrProgressRegression
-	case "ErrNoProblems":
-		return evo.ErrNoProblems
 	case "ErrAlreadyResolved":
 		return evo.ErrAlreadyResolved
 	default:

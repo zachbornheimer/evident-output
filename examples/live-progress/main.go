@@ -80,7 +80,7 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 	verify.Done()
 
 	log.Debug("dependency graph resolved", "packages", packageCount)
-	evo.Item("lockfile").OK()
-	evo.Item("registry").OK()
+	evo.Task("lockfile").Done()
+	evo.Task("registry").Done()
 	return nil
 }

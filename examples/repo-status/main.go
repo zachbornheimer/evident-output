@@ -46,30 +46,31 @@ func main() {
 		evo.Verbose().Printf("Checking repository %s\n", *name)
 
 		time.Sleep(step)
-		evo.Item("working tree").OK()
+		evo.Task("working tree").Done()
 
 		time.Sleep(step)
-		branches := evo.Item("branches")
+		branches := evo.Task("branches")
 		if *clean {
-			branches.OK()
+			branches.Done()
 		} else {
-			branches.BlockedBy(
-				evo.Problem{Subject: "feat/sdk-full-consolidation", Summary: "local-only branch", Count: 1},
-				evo.Problem{Subject: "fix/login-flow", Summary: "ahead of origin", Count: 2},
-			).Because("Push, merge, or delete local-only work before retiring this repository.").
-				NextCommand("git", "push", "-u", "origin", "feat/sdk-full-consolidation")
+			branches.Block("2 branches need attention",
+				evo.Detail("feat/sdk-full-consolidation: local-only branch (1)\n"+
+					"fix/login-flow: ahead of origin (2)\n"+
+					"Push, merge, or delete local-only work before retiring this repository."),
+			)
+			branches.NextCommand("git", "push", "-u", "origin", "feat/sdk-full-consolidation")
 		}
 
 		time.Sleep(step)
-		remotes := evo.Item("remotes")
+		remotes := evo.Task("remotes")
 		if *clean {
-			remotes.OK()
+			remotes.Done()
 		} else {
 			remotes.Warn("origin was not reachable", evo.Detail("last fetch failed; remote state is unverified"))
 		}
 
 		time.Sleep(step)
-		evo.Item("stashes").OK()
+		evo.Task("stashes").Done()
 		return nil
 	}))
 }

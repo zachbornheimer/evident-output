@@ -19,7 +19,7 @@ func forceRender(ticker *evo.TaskHandle, n int) {
 func TestHeartbeat_AppearsAfterPhaseGoesStale(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	push := out.Task("push")
@@ -46,7 +46,7 @@ func TestHeartbeat_AppearsAfterPhaseGoesStale(t *testing.T) {
 func TestHeartbeat_ResetsOnPhaseUpdate(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	push := out.Task("push")
@@ -73,7 +73,7 @@ func TestHeartbeat_ResetsOnPhaseUpdate(t *testing.T) {
 func TestHeartbeat_AbsentWhileProgressAdvances(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	install := out.Task("install")
@@ -94,7 +94,7 @@ func TestHeartbeat_AbsentWhileProgressAdvances(t *testing.T) {
 func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 	var buf strings.Builder
 	clock := testkit.NewClock()
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.Clock(clock))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.Clock(clock)}})
 
 	push := out.Task("push")
 	push.Phase("pushing feat/a")

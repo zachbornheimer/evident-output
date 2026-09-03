@@ -14,7 +14,7 @@ import (
 
 func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	logger := slog.New(out.SlogHandler())
@@ -38,7 +38,7 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 
 func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:  "slog",
 		Stdout: &buf,
 		Stderr: &buf,
@@ -76,13 +76,13 @@ func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 	var buf bytes.Buffer
 	fixed := evo.FixedClock{T: time.Date(2026, 7, 27, 22, 15, 0, 0, time.UTC)}
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
 		evo.Clock(fixed),
 		evo.DebugLevel(evo.LevelDebug),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	logger := slog.New(out.SlogHandler())
@@ -112,13 +112,13 @@ func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 
 func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugPane(evo.PaneHeight(5), evo.NewestFirst()),
 		evo.NoColor(),
 		evo.VisibilityDelay(0),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	logger := slog.New(out.SlogHandler())
@@ -148,12 +148,12 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 
 func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
 		evo.DebugLevel(evo.LevelDebug),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	// Craft a Record with a non-zero PC (as AddSource would provide).
@@ -184,10 +184,10 @@ func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 
 func TestSuspend_RunsCallbackWithoutLiveCorruption(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Item("pre").OK()
+	out.Task("pre").Done()
 	err := out.Suspend(func() error {
 		// host writes outside evo
 		return nil
@@ -195,23 +195,23 @@ func TestSuspend_RunsCallbackWithoutLiveCorruption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out.Item("post").OK()
+	out.Task("post").Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestSnapshots_ChannelReceivesUpdates(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(ioDiscard{}))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(ioDiscard{})}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	ch := out.Snapshots()
-	out.Item("a").OK()
+	out.Task("a").Done()
 	found := false
 	for i := 0; i < 8; i++ {
 		select {
 		case snap := <-ch:
-			if len(snap.Items) >= 1 && snap.Items[0].Name == "a" {
+			if len(snap.Tasks) >= 1 && snap.Tasks[0].Name == "a" {
 				found = true
 			}
 		default:
@@ -220,7 +220,7 @@ func TestSnapshots_ChannelReceivesUpdates(t *testing.T) {
 	_ = out.Finish()
 	// Drain remaining including final
 	for snap := range ch {
-		if len(snap.Items) >= 1 {
+		if len(snap.Tasks) >= 1 {
 			found = true
 		}
 	}

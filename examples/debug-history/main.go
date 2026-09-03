@@ -29,13 +29,13 @@ func main() {
 	os.Exit(evo.Main(func() error {
 		time.Sleep(step)
 		log.Debug("opened repository", "path", "/work/bpp-csharp")
-		evo.Item("working tree").OK()
+		evo.Task("working tree").Done()
 
 		time.Sleep(step)
 		log.Debug("enumerated local branches", "count", 7)
 		time.Sleep(step)
 		log.Debug("branch comparison completed", "blockers", 0, "duration", 11*time.Millisecond)
-		evo.Item("branches").OK()
+		evo.Task("branches").Done()
 		return nil
 	}))
 }

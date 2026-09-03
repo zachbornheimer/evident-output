@@ -10,13 +10,13 @@ import (
 
 func TestOUT021_DataProjectionOption(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.To(&primary),
 		evo.Diagnostics(&diag),
 		evo.DataProjection(),
 		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("scan").Phase("walk").Donef("ok")
 	_ = out.Finish()
@@ -28,14 +28,14 @@ func TestOUT021_DataProjectionOption(t *testing.T) {
 }
 
 func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Format: evo.FormatExternal,
 		Stdout: io.Discard,
 		Stderr: io.Discard,
 	})
 	t.Cleanup(func() { _ = out.Close() })
 	ch := out.Snapshots()
-	out.Item("x").OK()
+	out.Task("x").Done()
 	_ = out.Finish()
 	got := false
 	for range ch {

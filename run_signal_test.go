@@ -14,7 +14,7 @@ import (
 
 func TestMain_SIGINTCancelsActiveTaskAndExits130(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	task := evo.Task("work")
 	started := make(chan struct{})
 
@@ -42,7 +42,7 @@ func TestMain_SIGINTCancelsActiveTaskAndExits130(t *testing.T) {
 
 func TestMain_SecondSIGINTExits130WithoutWaitingForRun(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	evo.Task("work")
 	started := make(chan struct{})
 

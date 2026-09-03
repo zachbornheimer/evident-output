@@ -28,8 +28,8 @@ func main() {
 		Format: evo.FormatData,
 	})
 	os.Exit(evo.Main(func() error {
-		evo.Item("compile").OK()
-		evo.Item("tests").OK()
+		evo.Task("compile").Done()
+		evo.Task("tests").Done()
 		link := evo.Task("link")
 		if *failLink {
 			link.Fail("undefined symbol main.Version")

@@ -10,7 +10,7 @@
 //
 //	func run() error {
 //	    evo.Println("Reading configuration")
-//	    evo.Item("working tree").OK()
+//	    evo.Task("working tree").Done()
 //	    t := evo.Task("fetch")
 //	    output := t.Evidence()
 //	    // run.Run(ctx, "git", args, output); t.Fail(..., output.DetailTail()) on error
@@ -21,8 +21,9 @@
 //  1. evo.Init(Config) once in main, before any I/O; os.Exit(evo.Main(run)) — dry-run wording,
 //     empty-case, and exit codes are all owned; run returns only error.
 //  2. Print / Printf / Println / Verbose — start as casually as fmt.
-//  3. evo.Item(name) for checks and gates (pass/fail); evo.Task(name) for work with
-//     Phase/Progress or a mutation verb (Delete/Create/Update/Remove/Write/Push/Record/RecordName) —
+//  3. evo.Task(name) for everything — a check/gate resolved directly (Done/Warn/Block/Fail/Skip,
+//     no Phase/Progress call) renders as a fact row; work with Phase/Progress or a mutation verb
+//     (Delete/Create/Update/Remove/Write/Push/Record/RecordName) shows a spinner while running —
 //     the verb picks [planned] vs [changed] from Config.DryRun; no call site ever flips its own tense.
 //     name is a printf format whenever args follow it (evo.Task("build %s", ref)); no args
 //     leaves name untouched.
@@ -33,22 +34,23 @@
 //  5. evo.Task(name).Skipped(reason, name) / .Kept(reason, name) — taxonomy counted and
 //     summed, never a bare "skipped N".
 //  6. evo.Confirm(question, ...) — owns the whole ask-decide-resolve gate (prompt, quiesce,
-//     ⊘/OK resolution, exit code).
+//     Done/Blocked resolution, exit code).
 //  7. evo.Group(name) for named children with derived, auto-lifecycle state.
-//  8. task.Fail(summary) / item.Block(summary) are statements — no return value, so a bare
+//  8. task.Fail(summary) / task.Block(summary) are statements — no return value, so a bare
 //     call is errcheck-clean. `return task.Failf("validate manifest: %w", err)` builds and
 //     returns one error in a single line: a trailing ": %w"/", %w" splits the formatted text
 //     into the rendered summary and an evidence line for the wrapped error; Blockf is the
 //     same for Block. Success/skip verbs stay void too — this is never fluent chaining.
 //
-// Ordinary surface: evo.Init/evo.Main, Print*, evo.Item/evo.Task/evo.Group (+ ID),
-// Task.Evidence / Item.Evidence, Task.Each / Task.PhaseWriter / Task.Run, Task.Fail / Task.Failf /
-// Item.Block / Item.Blockf, evo.Confirm, evo.Reason / evo.Reasonf, Changes/Plan (tooling call
-// sites, see below), slog via SlogHandler (level from Config.Debug.Level).
+// Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Group (+ ID), Task.Evidence,
+// Task.Each / Task.PhaseWriter / Task.Run, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
+// evo.Confirm, evo.Reason / evo.Reasonf, Changes/Plan (tooling call sites, see below), slog
+// via SlogHandler (level from Config.Debug.Level).
 //
 // Advanced surface, for testing and tooling call sites that need a hosted instance
-// instead of the package-level default: New(Config) / NewWithOptions to construct an
-// *Output directly, MainWith(out, run) to seal it (this is what Main calls on the
-// default instance), Plan/Changes for the would/did split without a Task, session
+// instead of the package-level default: Config.Isolated returns an independent *Output
+// that never touches package state; Output.Run(run) seals it (this is what Main calls on
+// the default instance); Config.Options is the raw-Option escape hatch for exact writer/
+// terminal/clock wiring. Plan/Changes for the would/did split without a Task, session
 // Evidence, Progress64, Advance, terminal drivers, and testkit.
 package evo

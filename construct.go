@@ -59,14 +59,14 @@ type DebugConfig struct {
 	PreserveAlways bool
 }
 
-// Config is the ordinary application-facing construction surface.
+// Config is the sole application-facing construction surface.
 //
 // Zero values mean automatic/default behavior. Use DefaultConfig() when you
 // need a mutable baseline for advanced fields.
 //
-//	out := evo.New()
-//	out := evo.New(evo.Config{Title: "bpp-csharp"})
-//	cfg := evo.DefaultConfig(); cfg.Title = "x"; out := evo.New(cfg)
+//	out := evo.Init()
+//	out := evo.Init(evo.Config{Title: "bpp-csharp"})
+//	cfg := evo.DefaultConfig(); cfg.Title = "x"; out := evo.Init(cfg)
 type Config struct {
 	// Title is the subject shown in the conclusion (formerly For's argument).
 	Title string
@@ -126,6 +126,19 @@ type Config struct {
 	// instead of a [changed] row with the past-tense verb. No call site writes
 	// its own tense.
 	DryRun bool
+
+	// Isolated returns an independent Output that never touches package
+	// state: it is not installed as the package-level default and does not
+	// arm first paint. Use for parallel tests and embedders that hold their
+	// own *Output instead of going through Default()/Task()/Print() et al.
+	Isolated bool
+
+	// Options is the advanced, raw Option escape hatch for tests and
+	// specialized embedding (custom Terminal, Clock, exact writer wiring)
+	// that need to bypass Config's ordinary stream/TTY/color inference
+	// entirely. When set, every other Config field except Title and Isolated
+	// is ignored and the Output is built from these Options alone.
+	Options []Option
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
@@ -151,24 +164,6 @@ func DefaultConfig() Config {
 		MaxFrameRate:    defaultMaxFrameRate,
 		MaxEntities:     defaultMaxEntities,
 		MaxEvents:       defaultMaxEvents,
-	}
-}
-
-// New creates an Output from zero or one Config.
-//
-//	out := evo.New()
-//	out := evo.New(evo.Config{Title: "repo"})
-//
-// More than one Config panics (programmer error). For advanced Option plumbing
-// use NewWithOptions.
-func New(config ...Config) *Output {
-	switch len(config) {
-	case 0:
-		return newFromConfig(resolveConfig(DefaultConfig()))
-	case 1:
-		return newFromConfig(resolveConfig(config[0]))
-	default:
-		panic("evo.New: at most one Config argument")
 	}
 }
 
@@ -375,18 +370,7 @@ func withFailedExitCode(code int) Option {
 	return optionFunc(func(c *config) { c.failedExitCode = code })
 }
 
-// NewWithOptions is the advanced Option-based constructor for tests and
-// specialized embedding (custom Terminal, Clock, etc.). Prefer New(Config) in
-// application code.
-//
-// Set the conclusion title with Title(...):
-//
-//	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain())
-func NewWithOptions(options ...Option) *Output {
-	return newOutput("", options...)
-}
-
-// Title sets the conclusion subject for NewWithOptions.
+// Title sets the conclusion subject for Config.Options's raw Option path.
 func Title(subject string) Option {
 	return optionFunc(func(c *config) { c.subject = subject })
 }

@@ -21,11 +21,11 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen),
 		evo.Clock(clock),
-		evo.VisibilityDelay(150*time.Millisecond),
-	)
+		evo.VisibilityDelay(150 * time.Millisecond),
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
@@ -59,12 +59,12 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 
 	// FixedClock freezes spinner glyphs for stable operation expectations.
 	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.DebugLevel(evo.Debug),
 		evo.NoColor(), // assert exact final text without SGR
 		evo.Clock(fixed),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("dependencies")
@@ -100,7 +100,7 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	)
 
 	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(fixed), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(fixed), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -143,7 +143,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		testkit.NoColor(),
 	)
 
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -183,11 +183,11 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.Clock(clock),
 		evo.MaxFrameRate(30),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	download := out.Task("download")
@@ -218,11 +218,11 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 		testkit.Interactive(),
 		testkit.Width(columns),
 	)
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen),
 		evo.VisibilityDelay(0),
 		evo.Clock(evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("goimports check")

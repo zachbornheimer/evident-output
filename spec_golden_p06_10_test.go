@@ -35,7 +35,7 @@ func collapseFields(s string) string {
 func TestSpecP6_BytesVsCounts_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("build"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("build"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	generate := out.Task("generate")
 	generate.Bytes(8_000_000, 8_000_000)
 	generate.Done("8.0 MB")
@@ -174,7 +174,7 @@ func TestSpecP6_EarlyTermination_MISMATCH(t *testing.T) {
 // 2 the spec illustration shows), so the omitted count is 497, not 498.
 func TestSpecP7_Step1_PlanPreview_MISMATCH(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	branches := out.Task("branches")
 	branches.RecordName("delete", "feat/a")
 	branches.RecordName("delete", "feat/b")
@@ -306,7 +306,7 @@ func TestSpecP7_EarlyTermination_NotTestable(t *testing.T) {
 func TestSpecP8_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	remotes := out.Task("remotes")
 	remotes.Delete(3, "origin tip")
 	remotes.Done()
@@ -385,7 +385,7 @@ func TestSpecP8_EarlyTermination_NotTestable(t *testing.T) {
 func TestSpecP9_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("venv").Done()
 	out.Task("install").Done()
@@ -415,7 +415,7 @@ func TestSpecP9_Success(t *testing.T) {
 // scenario-specific "venv did not complete" text.
 func TestSpecP9_Failure_MISMATCH(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	setup := out.Group("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
@@ -445,7 +445,7 @@ func TestSpecP9_Failure_MISMATCH(t *testing.T) {
 func TestSpecP9_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("venv").Fail("signal: killed")
 	if err := out.Finish(); err != nil {
@@ -475,7 +475,7 @@ func TestSpecP9_Error(t *testing.T) {
 // .venv directory" through the public Record/RecordName/Write API.
 func TestSpecP9_EarlyTermination_MISMATCH(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	setup := out.Group("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
@@ -512,7 +512,7 @@ func TestSpecP9_EarlyTermination_MISMATCH(t *testing.T) {
 //   - install  installing
 func TestSpecP10_Step1(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("install").Phase("installing")
@@ -530,7 +530,7 @@ func TestSpecP10_Step1(t *testing.T) {
 //	•  install  14/40  requests
 func TestSpecP10_Step2(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Done()
@@ -560,11 +560,11 @@ func TestSpecP10_Step2(t *testing.T) {
 func TestSpecP10_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("venv").Done()
 	out.Task("install").Done("14 modules")
-	out.Item("python setup").OK().Because("python was set up; 14 modules were installed")
+	out.Task("python setup").Done("python was set up; 14 modules were installed")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -591,7 +591,7 @@ func TestSpecP10_Success(t *testing.T) {
 func TestSpecP10_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("install").Fail("uv pip install failed", evo.Detail("exit status 1"))
 	if err := out.Finish(); err != nil {
@@ -611,7 +611,7 @@ func TestSpecP10_Failure(t *testing.T) {
 //   - scan  scanning
 func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Phase("scanning")
@@ -631,7 +631,7 @@ func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP10_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("install").Fail("network unreachable", evo.Detail("dial tcp: lookup pypi.org: no such host"))
 	if err := out.Finish(); err != nil {
@@ -662,7 +662,7 @@ func TestSpecP10_Error(t *testing.T) {
 // verb always trails), never the spec's bare "6 packages in .venv".
 func TestSpecP10_EarlyTermination_MISMATCH(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
 	out.Task("scan").Done()
 	install := out.Task("install")
 	install.Record("install", 6, "packages in .venv")

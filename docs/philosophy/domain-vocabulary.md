@@ -7,50 +7,55 @@ Cross-links: [jazz-syntax.md](./jazz-syntax.md) · [presentation-boundary.md](./
 
 ---
 
-## Item / Task / Tasks
+## Task / Tasks
 
-| Noun      | Meaning                                                                         |
-| --------- | ------------------------------------------------------------------------------- |
-| **Item**  | An independent **condition** — something that is OK, warned, blocked, or failed |
-| **Task**  | A unit of **work** — phases, progress, done/fail                                |
-| **Tasks** | A **collection** of Tasks; collection state is **derived** from children        |
+One entity, one constructor. A `Task` answers both questions "is this state
+acceptable?" and "how is this work going?" — which one depends on how it's
+used, not on a separate type:
+
+| Noun      | Meaning                                                                                                                                              |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**  | A named condition or unit of work — resolved directly (Done/Warn/Block/Fail/Skip) for a **condition**, or driven through Phase/Progress for **work** |
+| **Tasks** | A **collection** of Tasks; collection state is **derived** from children                                                                             |
 
 ```go
-item := out.Item("working tree", evo.ID("repo.working-tree"))
-task := out.Task("download", evo.ID("install.download"))
+gate := out.Task("working tree", evo.ID("repo.working-tree")) // condition: resolved directly below
+work := out.Task("download", evo.ID("install.download"))      // work: driven through Phase/Progress
 packages := out.Tasks("packages")
 ```
 
-**Test:** If it answers “is this state acceptable?” → Item. If it answers “how is this work going?” → Task.
+(Shipped v0.2.x code spelled the condition shape `Item` — folded into `Task`
+one entity, one constructor; `ItemHandle` is now a deprecated zero-cost
+alias of `TaskHandle`.)
 
 ---
 
 ## Warn / Block / Fail
 
-Severity on conditions (Items) and terminal outcomes on work (Tasks):
+Severity on conditions and terminal outcomes on work — the same four verbs
+either way:
 
 | Verb      | User meaning                                          |
 | --------- | ----------------------------------------------------- |
-| **OK**    | Condition holds; work succeeded                       |
+| **Done**  | Condition holds; work succeeded                       |
 | **Warn**  | Proceed, but notice this                              |
 | **Block** | Stop until the user acts (not necessarily a Go error) |
 | **Fail**  | Operation failed                                      |
 
 ```go
-item.OK()
-item.Warn("contains ignored files", evo.Detail("2 files"))
-item.Block("contains local changes", evo.Detail("stash or commit them"))
-return item.Failf("could not inspect working tree: %w", err)
+gate.Done()
+gate.Warn("contains ignored files", evo.Detail("2 files"))
+gate.Block("contains local changes", evo.Detail("stash or commit them"))
+return gate.Failf("could not inspect working tree: %w", err)
 ```
 
-Plural structured evidence only when evidence is actually plural:
+Structured evidence for one resolution uses `ProblemOption`s on the same call
+(`evo.On(subject)`, `evo.Count(n)`, `evo.Detail(text)`, …) — a Task resolves
+once, with one Problem:
 
 ```go
-branches.BlockedBy(problems...)
-item.FailedBy(problemsFrom(summary.Failures)...)
+gate.Block("contains local changes", evo.On("working tree"), evo.Detail("stash or commit them"))
 ```
-
-`BlockedBy` / `FailedBy` / `WarnedBy` are genuine plural voicing (PHIL-002) — not sugar for the singular form.
 
 ---
 
@@ -123,17 +128,16 @@ Evo does **not** own English pluralization (§15). Applications own `noun` helpe
 
 ## Evidence ownership
 
-Evidence attaches **tool-backed proof** (command output tails, etc.) to an Item or Task.
+Evidence attaches **tool-backed proof** (command output tails, etc.) to a Task.
 "Stdout" would lie as a name — it also takes stderr and combined writes; Evidence says what
 it is for.
 
-- Prefer **Evidence on Item or Task** (ordinary lead sheet).
+- Prefer **Evidence on the Task** (ordinary lead sheet), whether it's a condition or work.
 - Prefer **Task.Run(cmd)** for an `*exec.Cmd` — it wires Evidence and Phase in one call.
 - Evidence is **silent on success** (PHIL-005).
 - Session-level Evidence is studio overdub — not the ordinary example (PHIL-003).
 
 ```go
-proof := item.Evidence()
 proof := task.Evidence()
 ```
 
@@ -141,30 +145,30 @@ Who owns the handle: the entity whose condition or work the evidence explains. D
 
 ---
 
-## Aggregate summary Items (RULE-002)
+## Aggregate summary Tasks (RULE-002)
 
-Keep an Item when it expresses an independent condition or carries severity/evidence not represented elsewhere.
+Keep a condition Task when it expresses an independent state or carries severity/evidence not represented elsewhere.
 
-**Remove** an Item when it only:
+**Remove** a condition Task when it only:
 
 - announces that a Plan exists
 - repeats successful Changes
 - restates a Tasks collection’s derived failure
 - says the command succeeded without adding a condition
 
-A **summary Item** may represent the aggregated condition of work intentionally not modeled as Tasks:
+A **summary Task** may represent the aggregated condition of work intentionally not modeled as a Tasks collection:
 
 ```go
-placement := out.Item("placement", evo.ID("run.placement"))
+placement := out.Task("placement", evo.ID("run.placement"))
 
 if len(summary.Failures) == 0 {
-    placement.OK()
+    placement.Done()
 } else {
-    placement.FailedBy(problemsFrom(summary.Failures)...)
+    placement.Fail(fmt.Sprintf("%d failures", len(summary.Failures)), evo.Detail(detailFrom(summary.Failures)))
 }
 ```
 
-Vanity Items are rejected. Summary Items that carry real severity are accepted.
+Vanity summary Tasks are rejected. Summary Tasks that carry real severity are accepted.
 
 ---
 
@@ -172,7 +176,7 @@ Vanity Items are rejected. Summary Items that carry real severity are accepted.
 
 `slog` carries implementation diagnostics.
 
-Item/Task Problems carry user-facing failure meaning.
+Task Problems carry user-facing failure meaning.
 
 If the user must act or understand a failure, it **must** appear as presentation state — not only as a log line.
 
@@ -234,12 +238,12 @@ Evo must not force application error policy. Present the failure for humans; ret
 
 | Call site                                                        | Verdict                                           |
 | ---------------------------------------------------------------- | ------------------------------------------------- |
-| `out.Item("working tree").Block(..., Detail(...))`               | Correct — condition + user action                 |
+| `out.Task("working tree").Block(..., Detail(...))`               | Correct — condition + user action                 |
 | `out.Task("download").Progress` / `.Bytes` / `.Done`             | Correct — work                                    |
 | `changes.Record("placed", n, "files")` when domain verb is place | Correct                                           |
 | `changes.Added(n, "files placed")`                               | Wrong — generic verb, smuggled domain into object |
-| Item that only says “plan ready” next to a Plan section          | Wrong — vanity (RULE-002)                         |
-| Summary Item `FailedBy` over batch failures                      | Correct — aggregate condition                     |
+| Task that only says “plan ready” next to a Plan section          | Wrong — vanity (RULE-002)                         |
+| Summary Task `Fail` over batch failures                          | Correct — aggregate condition                     |
 | Failure only in `logger.Error`                                   | Wrong — RULE-003                                  |
 | Workers calling `out.Task` concurrently for order                | Wrong — RULE-004                                  |
 | Dry-run modeled as Tasks that “succeed” without writing          | Wrong — use Plan (RULE-005)                       |

@@ -15,7 +15,7 @@ import (
 func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	branches := out.Task("branches")
 	branches.Delete(12, "local branches")
 	branches.Done()
@@ -37,7 +37,7 @@ func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
 	branches.Delete(12, "local branches")
 	branches.Done()
@@ -55,7 +55,7 @@ func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 // own (inferConclusion must not fall through to Ready/Changed for DryRun).
 func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 	t.Parallel()
-	out := evo.NewWithOptions(evo.Title("retire"), evo.NoColor(), evo.DryRun())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.NoColor(), evo.DryRun()}})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
 	branches.Delete(12, "local branches")
@@ -79,9 +79,9 @@ func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 // headline planned-not-done.
 func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
 	t.Parallel()
-	out := evo.NewWithOptions(evo.Title("retire"), evo.NoColor(), evo.DryRun())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.NoColor(), evo.DryRun()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("scan").OK()
+	out.Task("scan").Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
 func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	g := out.Tasks("pipeline")
 	g.Task("branches").Done("14 deleted")
 	g.Task("worktrees").Done("2 removed")
@@ -124,9 +124,9 @@ func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("repo-retire"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo-retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("clean").Done()
-	out.Item("kept").Warn("kept 1")
+	out.Task("kept").Warn("kept 1")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -146,9 +146,9 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 // Done/Changed/Planned in headline precedence must not erase this case.
 func TestConclusion_WarningOnlyStillReadsWarning(t *testing.T) {
 	t.Parallel()
-	out := evo.NewWithOptions(evo.Title("t"), evo.NoColor())
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("i").Warn("careful")
+	out.Task("i").Warn("careful")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestConformance_Problem1SuccessBlock(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault mutates process-global state, same as
 	// the existing default-instance tests in taxonomy_test.go.
 	var buf bytes.Buffer
-	evo.SetDefault(evo.NewWithOptions(evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()))
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
 	branches := evo.Task("branches")
 	protected := evo.Reason("protected")

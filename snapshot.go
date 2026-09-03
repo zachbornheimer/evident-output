@@ -7,7 +7,6 @@ type Snapshot struct {
 	Version     uint64
 	OutputID    string
 	Subject     string
-	Items       []ItemSnapshot
 	Tasks       []TaskSnapshot
 	Collections []TasksSnapshot
 	Changes     []ChangesSnapshot
@@ -23,18 +22,6 @@ type Snapshot struct {
 	// (never Changes). The plain/final projection uses this to open with an
 	// unmissable marker line — no caller decides whether to announce it.
 	DryRun bool
-}
-
-// ItemSnapshot is an immutable item view.
-type ItemSnapshot struct {
-	ID          string
-	Key         string // optional stable machine key (evo.ID); empty when unset
-	Name        string
-	State       EntityState
-	Problems    []Problem
-	Because     string
-	Actions     []Action
-	Declaration int
 }
 
 // TaskSnapshot is an immutable task view.

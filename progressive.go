@@ -13,48 +13,6 @@ type flusher interface {
 	Flush() error
 }
 
-// emitItemProgressiveLocked streams any not-yet-written durable pieces for it.
-// Safe under o.mu. No-op for non-terminal items.
-func (o *Output) emitItemProgressiveLocked(st *itemState) {
-	if st == nil || !isTerminalItem(st.state) {
-		return
-	}
-	color := !o.cfg.noColor
-	var b strings.Builder
-	snap := st.snapshot()
-
-	if !st.coreEmitted {
-		writeItemCore(&b, snap, color, o.cfg.glyphs)
-		st.coreEmitted = true
-	}
-	if snap.Because != "" && !st.becauseEmitted {
-		writeItemBecause(&b, snap.Because, color)
-		st.becauseEmitted = true
-	}
-	if len(snap.Actions) > st.actionsEmitted {
-		for _, a := range snap.Actions[st.actionsEmitted:] {
-			writeAction(&b, a, color, o.cfg.glyphs)
-		}
-		st.actionsEmitted = len(snap.Actions)
-	}
-	if b.Len() == 0 {
-		return
-	}
-	o.writeDurableTextLocked(b.String())
-	// Drop resolved items from the live region; remaining Running keep spinning.
-	if live := o.liveLocked(); live != nil && live.IsInteractive() && !o.cfg.plain {
-		if o.hasLiveActivityLocked() {
-			o.live.visible = true
-			o.renderLiveLocked(true)
-		} else if o.live != nil && o.live.liveActive {
-			live.ClearLive()
-			o.live.liveActive = false
-			o.live.visible = false
-			o.stopSpinnerAnimatorLocked()
-		}
-	}
-}
-
 // emitLineProgressiveLocked streams a newly appended Line() to the human stream.
 func (o *Output) emitLineProgressiveLocked() {
 	if o.linesEmitted >= len(o.lines) {
@@ -148,6 +106,41 @@ func (o *Output) emitTaskProgressiveLocked(st *taskState) {
 	o.writeDurableTextLocked(b.String())
 }
 
+// flushGateNowLocked forces the immediate durable presentation of a
+// resolved Confirm gate and drops it from the live ticker — the one case
+// where a Task-shaped entity keeps the shipped-v0.2.x Item behavior of
+// streaming the instant it resolves, interactive or not. A Confirm gate
+// answers a human question mid-run; leaving its outcome pinned in the
+// ticker until Finish (ordinary standalone-Task behavior — see
+// emitTaskProgressiveLocked) would bury a decision the caller needs visible
+// now, especially when sibling tasks keep running after the prompt.
+func (o *Output) flushGateNowLocked(id string) {
+	st := o.taskByRef[id]
+	if st == nil || st.coreEmitted || !isTerminalTask(st.state) {
+		return
+	}
+	var b strings.Builder
+	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
+	st.coreEmitted = true
+	if b.Len() == 0 {
+		return
+	}
+	o.writeDurableTextLocked(b.String())
+	live := o.liveLocked()
+	if live == nil || !live.IsInteractive() || o.cfg.plain {
+		return
+	}
+	if o.hasLiveActivityLocked() {
+		o.live.visible = true
+		o.renderLiveLocked(true)
+	} else if o.live != nil && o.live.liveActive {
+		live.ClearLive()
+		o.live.liveActive = false
+		o.live.visible = false
+		o.stopSpinnerAnimatorLocked()
+	}
+}
+
 // taskProgressiveTrigger names which evidence call is streaming a Running
 // task's plain-mode line, so emitTaskRunningProgressiveLocked can rate-limit
 // each kind independently (a phase change always streams; a progress tick
@@ -221,18 +214,6 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	}
 	o.linesEmitted = len(snap.Lines)
 
-	for _, it := range o.items {
-		if it.coreEmitted {
-			// Late Because/Next that never flushed (should be rare).
-			o.emitItemProgressiveLocked(it)
-			continue
-		}
-		writeItem(&b, it.snapshot(), color, profile)
-		it.coreEmitted = true
-		it.becauseEmitted = it.because != ""
-		it.actionsEmitted = len(it.actions)
-	}
-
 	if !interactive {
 		for _, t := range o.tasks {
 			if t.collection != nil {
@@ -269,28 +250,23 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 }
 
 // residualInteractiveFinalLocked is the WriteFinal body for interactive mode:
-// standalone tasks + collections + any items that never progressive-emitted.
-// Never re-dumps already-streamed durable evidence (that was the double-print bug).
-// Conclusion is written via residualPlain on the primary stream.
+// standalone tasks + collections. Never re-dumps already-streamed durable
+// evidence (that was the double-print bug) — a never-ran standalone task
+// (o.tasks, not snap.Tasks: coreEmitted lives on the internal state) already
+// streamed via emitTaskProgressiveLocked and is skipped here.
 func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 	color := !o.cfg.noColor
 	verbose := o.cfg.verbosity >= VerbosityVerbose
 	profile := o.cfg.glyphs
 	var b strings.Builder
-	for _, t := range snap.Tasks {
-		writeTask(&b, t, color, verbose, profile)
+	for _, t := range o.tasks {
+		if t.collection != nil || t.coreEmitted {
+			continue
+		}
+		writeTask(&b, t.snapshot(), color, verbose, profile)
 	}
 	for _, col := range snap.Collections {
 		writeCollection(&b, col, color, verbose, profile)
-	}
-	for _, it := range o.items {
-		if it.coreEmitted {
-			continue
-		}
-		writeItem(&b, it.snapshot(), color, profile)
-		it.coreEmitted = true
-		it.becauseEmitted = it.because != ""
-		it.actionsEmitted = len(it.actions)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

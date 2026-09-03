@@ -172,6 +172,13 @@ func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle 
 	return t.finish(Warning, "", []Problem{p})
 }
 
+// Warnf resolves the task with a formatted warning summary.
+// Prefer Warn("text") when there are no format directives.
+func (t *TaskHandle) Warnf(format string, args ...any) *TaskHandle {
+	p := applyProblemOptions(sanitize.Text(fmt.Sprintf(format, args...)), nil)
+	return t.finish(Warning, "", []Problem{p})
+}
+
 // Fail resolves the task as failed. This is a statement, not a fluent
 // chain — Fail returns nothing, so a bare `task.Fail("summary")` is
 // errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use Failf

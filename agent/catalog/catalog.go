@@ -92,11 +92,11 @@ and produces the unordered multi-spinner defect "sequential presentation: one Ru
 			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData", "Main", "PhaseWriter"},
 			Rules:    []string{"STREAM-003", "OUT-001", "OUT-003", "OUT-004", "API-031"},
 			Body: `Human UI and logs must not contaminate structured stdout.
-Ordinary dual-stream: evo.New(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr}) — Config auto-applies Plain/NoColor off-TTY.
+Ordinary dual-stream: evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr}) — Config auto-applies Plain/NoColor off-TTY.
 FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr; a failed
 data command emits no partial payload by default.
 
-Exit codes come only from evo.Main/evo.MainWith: run returns error, nothing else picks 0/1/2/130. Never
+Exit codes come only from evo.Main (or Output.Run for a held *Output): run returns error, nothing else picks 0/1/2/130. Never
 hand-map an int to os.Exit — that is exactly how a Blocked run (1) gets silently read as success, or a real
 failure reads as blocked. SIGINT/SIGTERM already route through Main into Cancel on the active task, so the
 ledger's ■ and the process exit code (130) can never disagree; a caller-written signal.Notify handler that

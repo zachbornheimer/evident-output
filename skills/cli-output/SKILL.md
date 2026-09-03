@@ -57,7 +57,7 @@ go get github.com/zachbornheimer/evident-output@v0.2.16
 
 - `docs/philosophy/jazz-syntax.md` — one spelling per intent
 - `docs/philosophy/presentation-boundary.md` — presentation ≠ execution
-- `docs/philosophy/domain-vocabulary.md` — Item/Task/Plan/Changes/Detail/Failf evidence
+- `docs/philosophy/domain-vocabulary.md` — Task/Plan/Changes/Detail/Failf evidence
 - `docs/guides/teaching-ladder.md` — ordinary learning order
 - `docs/roadmap/implementation-basis.md` — polish-phase authority
 
@@ -65,12 +65,12 @@ go get github.com/zachbornheimer/evident-output@v0.2.16
 
 ```text
 evo.Init(Config) → Print/Printf/Println → Verbose()
-→ Item / Task / Tasks → Task|Item.Evidence() + DetailTail
+→ Task / Tasks → Task.Evidence() + DetailTail
 → Plan / Changes (domain verbs via Record when needed)
 → slog via SlogHandler → os.Exit(evo.Main(run))
 ```
 
-Prefer **contracts over sugar**: plain `Item`/`Task` labels first; `evo.ID` when machine keys matter; `Itemf`/`Taskf` only when the label must embed a value.
+Prefer **contracts over sugar**: plain `Task` labels first; `evo.ID` when machine keys matter; `Taskf` only when the label must embed a value.
 
 ## Entrypoint
 
@@ -79,9 +79,9 @@ evo.Init(evo.Config{Title: "tool"})
 os.Exit(evo.Main(run))
 ```
 
-`New(Config)`/`MainWith(out, run)` are the advanced, hosted-instance form of the same
-lifecycle — reach for them only when a tool needs an `*Output` it doesn't install as
-the package-level default.
+`evo.Init(Config{Isolated: true})` + `out.Run(run)` are the advanced, hosted-instance
+form of the same lifecycle — reach for them only when a tool needs an `*Output` it
+doesn't install as the package-level default.
 
 `Main` records a non-nil `run` error as Fail before Finish (no `[ready]` with exit 2).
 
@@ -106,7 +106,7 @@ Secrets: set `Config.Redactor` — the Evidence ring and DetailTail are redacted
 | Need        | Use                                                   |
 | ----------- | ----------------------------------------------------- |
 | Stable key  | `out.Task("download", evo.ID("build.base"))`          |
-| Namespace   | `out.Scope("registry").Item("auth", evo.ID("creds"))` |
+| Namespace   | `out.Scope("registry").Task("auth", evo.ID("creds"))` |
 | Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr) |
 
 ## Severity

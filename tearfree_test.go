@@ -18,7 +18,7 @@ import (
 // stress test depends on.
 func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := evo.NewWithOptions(evo.Title("demo"), evo.Terminal(screen), evo.VisibilityDelay(0))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	task := out.Task("install")
 	task.Phase("working")
 	if screen.LiveFrameCount() == 0 {
@@ -64,7 +64,7 @@ func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 // land between a complete clear and a full redraw — never mid-frame.
 func TestDurableWrite_TearFreeUnderConcurrentProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := evo.NewWithOptions(evo.Title("demo"), evo.Terminal(screen), evo.VisibilityDelay(0))
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	task := out.Task("install")
 	task.Progress(0, 1000)
 

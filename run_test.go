@@ -12,9 +12,9 @@ import (
 
 func TestMainWith_SuccessExitZero(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	code := evo.MainWith(out, func(o *evo.Output) error {
-		o.Item("working tree").OK()
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	code := out.Run(func(o *evo.Output) error {
+		o.Task("working tree").Done()
 		return nil
 	})
 	if code != evo.ExitOK {
@@ -27,9 +27,9 @@ func TestMainWith_SuccessExitZero(t *testing.T) {
 
 func TestMainWith_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	code := evo.MainWith(out, func(o *evo.Output) error {
-		o.Item("working tree").Block("dirty")
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	code := out.Run(func(o *evo.Output) error {
+		o.Task("working tree").Block("dirty")
 		return nil
 	})
 	if code != evo.ExitBlocked {
@@ -39,9 +39,9 @@ func TestMainWith_BlockedExitOne(t *testing.T) {
 
 func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	code := evo.MainWith(out, func(o *evo.Output) error {
-		o.Item("x").OK()
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	code := out.Run(func(o *evo.Output) error {
+		o.Task("x").Done()
 		return errors.New("app boom")
 	})
 	if code != evo.ExitFailed {
@@ -51,8 +51,8 @@ func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 
 func TestMainWith_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "demo", Stdout: &buf, Stderr: &buf})
-	code := evo.MainWith(out, func(o *evo.Output) error {
+	out := evo.Init(evo.Config{Title: "demo", Stdout: &buf, Stderr: &buf})
+	code := out.Run(func(o *evo.Output) error {
 		o.Task("fetch").Fail("network down", evo.Detail("connection refused"))
 		return errors.New("network down")
 	})
@@ -69,16 +69,17 @@ func TestMainWith_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
 }
 
 func TestMainWith_NilOutput(t *testing.T) {
-	if code := evo.MainWith(nil, nil); code != evo.ExitFailed {
+	var nilOut *evo.Output
+	if code := nilOut.Run(nil); code != evo.ExitFailed {
 		t.Fatalf("exit %d", code)
 	}
 }
 
 func TestAnyBlocked_BeforeMutate(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("gates"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	out.Item("a").OK()
-	out.Item("b").Block("policy")
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("gates"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out.Task("a").Done()
+	out.Task("b").Block("policy")
 	if !out.AnyBlocked() {
 		t.Fatal("expected AnyBlocked")
 	}
@@ -103,8 +104,8 @@ func TestConfig_PipeWriterIsNoColor(t *testing.T) {
 	if evo.IsCharDevice(w) {
 		t.Fatal("pipe write end must not be a char device")
 	}
-	out := evo.New(evo.Config{Title: "pipe", Stdout: w, Stderr: w})
-	out.Item("x").Fail("boom")
+	out := evo.Init(evo.Config{Title: "pipe", Stdout: w, Stderr: w})
+	out.Task("x").Fail("boom")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

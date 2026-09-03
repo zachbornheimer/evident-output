@@ -10,10 +10,10 @@ import (
 
 func TestPlain_ColorOnByDefault(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain())
-	out.Item("ok").OK()
-	out.Item("bad").Fail("x")
-	out.Item("warn").Warn("y")
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain()}})
+	out.Task("ok").Done()
+	out.Task("bad").Fail("x")
+	out.Task("warn").Warn("y")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -35,9 +35,9 @@ func TestPlain_ColorOnByDefault(t *testing.T) {
 
 func TestPlain_NoColorSuppressesSGR(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor())
-	out.Item("ok").OK()
-	out.Item("bad").Fail("x")
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out.Task("ok").Done()
+	out.Task("bad").Fail("x")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
