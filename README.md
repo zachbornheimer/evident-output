@@ -373,7 +373,7 @@ Schemas: `schema/output.v1.json`, `schema/event.v1.json`.
 import "github.com/zachbornheimer/evident-output/terminal"
 
 drv := terminal.NewANSI(os.Stderr, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-out := evo.New(evo.Terminal(drv))
+out := evo.NewWithOptions(evo.Terminal(drv))
 ```
 
 ### Interactive (testkit / virtual terminal)
@@ -381,7 +381,7 @@ out := evo.New(evo.Terminal(drv))
 ```go
 screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 clock := testkit.NewClock()
-out := evo.New(
+out := evo.NewWithOptions(
     evo.Terminal(screen),
     evo.Clock(clock),
     evo.VisibilityDelay(150*time.Millisecond),
