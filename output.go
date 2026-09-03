@@ -973,6 +973,11 @@ func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
 	}
 	out := make([]TaxonomyRecord, len(in))
 	copy(out, in)
+	for i := range out {
+		if len(out[i].Causes) > 0 {
+			out[i].Causes = append([]string(nil), out[i].Causes...)
+		}
+	}
 	return out
 }
 

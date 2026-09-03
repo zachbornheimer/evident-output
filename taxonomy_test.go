@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -262,6 +263,78 @@ func TestTaskHandle_SkippedDoesNotResolveTask(t *testing.T) {
 
 	if state := branches.Snapshot().State; state != evo.Pending {
 		t.Fatalf("Skipped must not resolve the task, state = %v", state)
+	}
+}
+
+// TestTaskHandle_SkippedCauseRendersOneBoundedEvidenceLine is the red-first
+// case for the trailing errs on Skipped/Kept (item 2): the aggregation key
+// (reason, name) is untouched by errs, and the causes render as one bounded
+// └─ line under the count row — first cause plus "(+N more)" — never one
+// line per record.
+func TestTaskHandle_SkippedCauseRendersOneBoundedEvidenceLine(t *testing.T) {
+	var buf bytes.Buffer
+	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+
+	protected := evo.Reason("protected")
+	branches := evo.Task("branches")
+	branches.Skipped(protected, "main", errors.New("required review"))
+	branches.Skipped(protected, "staging", errors.New("required review"))
+	branches.Done()
+
+	if err := evo.Default().Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "skipped 2  (protected)") {
+		t.Fatalf("want headline count line, got:\n%s", got)
+	}
+	if !strings.Contains(got, "└─ required review (+1 more)") {
+		t.Fatalf("want one bounded evidence line (first cause + N more), got:\n%s", got)
+	}
+}
+
+// TestTaskHandle_SkippedCauseVerboseListsEveryCause pins the Verbose
+// counterpart: every cause is listed, not just the first.
+func TestTaskHandle_SkippedCauseVerboseListsEveryCause(t *testing.T) {
+	var buf bytes.Buffer
+	evo.SetDefault(evo.New(evo.Config{
+		Stdout: &buf, Stderr: &buf, Verbosity: evo.VerbosityVerbose,
+		ForcePlain: true, Color: evo.ColorNever,
+	}))
+
+	protected := evo.Reason("protected")
+	branches := evo.Task("branches")
+	branches.Skipped(protected, "main", errors.New("cause one"))
+	branches.Skipped(protected, "staging", errors.New("cause two"))
+	branches.Done()
+
+	if err := evo.Default().Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "cause one") || !strings.Contains(got, "cause two") {
+		t.Fatalf("want every cause listed under Verbose, got:\n%s", got)
+	}
+	if strings.Contains(got, "(+1 more)") {
+		t.Fatalf("Verbose must list every cause, not the bounded summary, got:\n%s", got)
+	}
+}
+
+// TestTaskHandle_SkippedNoCauseOmitsEvidenceLine pins the zero-errs
+// backward-compatible path: no errs, no evidence line.
+func TestTaskHandle_SkippedNoCauseOmitsEvidenceLine(t *testing.T) {
+	var buf bytes.Buffer
+	evo.SetDefault(evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor()))
+
+	branches := evo.Task("branches")
+	branches.Skipped(evo.Reason("protected"), "main")
+	branches.Done()
+
+	if err := evo.Default().Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); strings.Contains(got, "└─") {
+		t.Fatalf("no errs must render no evidence line, got:\n%s", got)
 	}
 }
 

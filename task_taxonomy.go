@@ -11,23 +11,26 @@ const (
 	dispositionKeep dispositionVerb = "keep"
 )
 
-// Skipped accumulates a (reason, name) skip record on the task. It returns
-// nothing — accumulating a record is an act, not a value to chain — is usable
-// before the task resolves, and does not itself resolve the task. The
-// taxonomy line ("!  skipped N  (a reasonA, b reasonB)") is derived from
-// every accumulated record at render time, so no caller can hand-build (and
-// thereby miscount) the summary.
-func (t *TaskHandle) Skipped(reason TaxonomyReason, name string) {
-	t.recordTaxonomy(reason, name, dispositionSkip)
+// Skipped accumulates a (reason, name) skip record on the task, with an
+// optional trailing errs for evidence of why. It returns nothing —
+// accumulating a record is an act, not a value to chain — is usable before
+// the task resolves, and does not itself resolve the task. The taxonomy line
+// ("!  skipped N  (a reasonA, b reasonB)") is derived from every accumulated
+// record at render time, so no caller can hand-build (and thereby miscount)
+// the summary; the aggregation key is untouched by errs. Any errs render as
+// one bounded evidence line under the count row (first cause + "(+N more)"),
+// full list under Verbose.
+func (t *TaskHandle) Skipped(reason TaxonomyReason, name string, errs ...error) {
+	t.recordTaxonomy(reason, name, dispositionSkip, errs)
 }
 
 // Kept accumulates a (reason, name) keep record on the task — same machinery
 // as Skipped, second verb ("!  kept N  (...)").
-func (t *TaskHandle) Kept(reason TaxonomyReason, name string) {
-	t.recordTaxonomy(reason, name, dispositionKeep)
+func (t *TaskHandle) Kept(reason TaxonomyReason, name string, errs ...error) {
+	t.recordTaxonomy(reason, name, dispositionKeep, errs)
 }
 
-func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dispositionVerb) {
+func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -43,7 +46,7 @@ func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dis
 		return
 	}
 	t.out.enforceReasonConstraintLocked(reason, st.name, verb)
-	rec := TaxonomyRecord{Reason: reason.name, Name: sanitize.Text(name)}
+	rec := TaxonomyRecord{Reason: reason.name, Name: sanitize.Text(name), Causes: causesFromErrors(errs)}
 	switch verb {
 	case dispositionSkip:
 		st.skipped = append(st.skipped, rec)
@@ -52,6 +55,22 @@ func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dis
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task." + string(verb) + "_recorded", EntityID: t.id})
+}
+
+// causesFromErrors renders each non-nil err's text, sanitized like every
+// other human-visible taxonomy field, for TaxonomyRecord.Causes.
+func causesFromErrors(errs []error) []string {
+	if len(errs) == 0 {
+		return nil
+	}
+	var out []string
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+		out = append(out, sanitize.Text(err.Error()))
+	}
+	return out
 }
 
 // enforceReasonConstraintLocked records misuse when reason's declared

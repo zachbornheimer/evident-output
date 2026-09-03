@@ -323,11 +323,38 @@ func writeTaxonomy(b *strings.Builder, indent, verb string, records []TaxonomyRe
 	}
 	glyph := styleGlyph(glyphWarningState.render(profile), sgrYellow, color)
 	fmt.Fprintf(b, "%s%s  %s %d  (%s)\n", indent, glyph, verb, len(records), strings.Join(parts, ", "))
+	writeTaxonomyCauses(b, indent, records, verbose, color, profile)
 	if !verbose {
 		return
 	}
 	for _, reason := range order {
 		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, reason, TruncateNames(names[reason], 0, profile))
+	}
+}
+
+// writeTaxonomyCauses renders every records' accumulated Causes as evidence
+// under the count row: one bounded └─ line normally (first cause + "(+N
+// more)"), the full list under Verbose (one line per cause).
+func writeTaxonomyCauses(b *strings.Builder, indent string, records []TaxonomyRecord, verbose, color bool, profile GlyphProfile) {
+	var causes []string
+	for _, r := range records {
+		causes = append(causes, r.Causes...)
+	}
+	if len(causes) == 0 {
+		return
+	}
+	evidence := dim(glyphEvidence.render(profile), color)
+	if !verbose {
+		line := causes[0]
+		if more := len(causes) - 1; more > 0 {
+			line = fmt.Sprintf("%s (+%d more)", line, more)
+		}
+		fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, evidence, line)
+		return
+	}
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, evidence, causes[0])
+	for _, c := range causes[1:] {
+		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, c)
 	}
 }
 
