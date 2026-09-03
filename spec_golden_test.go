@@ -14,6 +14,66 @@ import (
 // every fenced block to a verdict lives in the final report handed back with
 // this work order.
 
+// TestSpecP2_LocalRemoteSeparation_Step1 covers Problem 2's step1 block: a
+// dry-run plan for one local delete, spelled the documented way
+// (evo.DryRun() + Task.Delete — see "Guess-driven defaults" #1).
+//
+//	[planned]  branches
+//	  delete  feat/old-billing
+func TestSpecP2_LocalRemoteSeparation_Step1(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	branches := out.Task("branches")
+	branches.RecordName("delete", "feat/old-billing")
+	branches.Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{"[planned] branches", "delete feat/old-billing"} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestSpecP2_LocalRemoteSeparation_Step2 covers Problem 2's step2 block: a
+// dry-run plan with both a local and a remote-destructive section, kept as
+// two separate Plan subjects with distinct verbs.
+//
+//	[planned]  branches
+//	  delete         12  local tip
+//	[planned]  remotes
+//	  delete-remote   3  origin tip
+func TestSpecP2_LocalRemoteSeparation_Step2(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.NewWithOptions(evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun())
+	branches := out.Task("branches")
+	branches.Record("delete", 12, "local tip")
+	branches.Done()
+	remotes := out.Task("remotes")
+	remotes.Record("delete-remote", 3, "origin tip")
+	remotes.Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{
+		"[planned] branches",
+		"delete 12 local tip",
+		"[planned] remotes",
+		"delete-remote 3 origin tip",
+	} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
 // TestSpecP2_LocalRemoteSeparation_Success covers evo-rec.md Problem 2
 // ("Remote-destructive deletes mixed with local branch deletes") success
 // block: separate Plan/Changes subjects for branches (local) vs remotes,

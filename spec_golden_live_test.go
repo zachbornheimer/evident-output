@@ -407,3 +407,166 @@ func TestSpecP8_LiveFrame_Step1(t *testing.T) {
 func TestSpecP8_LiveFrame_Step2_NotTestable(t *testing.T) {
 	t.Skip("NOT-TESTABLE: see doc comment — a single TaskHandle cannot render two rows (Done + Running) under one name in one frame")
 }
+
+// TestSpecP9_LiveFrame_Step1 covers evo-rec.md Problem 9's step1 block (this
+// text is identical to the spec's "indeterminate" block for the same
+// problem, so this test's verdict covers both):
+//
+//	✓  scan
+//	:.  venv  creating
+func TestSpecP9_LiveFrame_Step1(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Task("scan").Done()
+	out.Task("venv").Phase("creating")
+
+	got := screen.LatestLiveText()
+	lines := strings.Split(got, "\n")
+	if len(lines) != 2 {
+		t.Fatalf("want 2 flat task lines, got %d:\n%s", len(lines), got)
+	}
+	if !strings.Contains(lines[0], "✓") || !strings.Contains(lines[0], "scan") {
+		t.Fatalf("line 1 want Done scan, got %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "venv") || !strings.Contains(lines[1], "creating") {
+		t.Fatalf("line 2 want Running venv with phase, got %q", lines[1])
+	}
+}
+
+// TestSpecP9_LiveFrame_Step2 covers Problem 9's step2 block: a third,
+// not-yet-started sibling is now declared and renders idle.
+//
+//	✓  scan
+//	:.  venv  creating
+//	○  install
+func TestSpecP9_LiveFrame_Step2(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Task("scan").Done()
+	out.Task("venv").Phase("creating")
+	out.Task("install")
+
+	got := screen.LatestLiveText()
+	lines := strings.Split(got, "\n")
+	if len(lines) != 3 {
+		t.Fatalf("want 3 flat task lines, got %d:\n%s", len(lines), got)
+	}
+	if !strings.Contains(lines[2], "○") || !strings.Contains(lines[2], "install") {
+		t.Fatalf("line 3 want pending install, got %q", lines[2])
+	}
+}
+
+// TestSpecP11_LiveFrame_Step1 covers evo-rec.md Problem 11's step1 block: a
+// named parent group ("pipeline") with children carrying Progress, driven
+// via evo.Group exactly like Problem 4's already-proven pattern.
+//
+//	pipeline
+//	:.  go mod download  1/4
+//	   go generate
+//	   go test ./...
+func TestSpecP11_LiveFrame_Step1(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	pipeline := out.Group("pipeline")
+	download := pipeline.Task("go mod download")
+	pipeline.Task("go generate")
+	pipeline.Task("go test ./...")
+	download.Progress(1, 4)
+
+	got := screen.LatestLiveText()
+	if !strings.Contains(got, "pipeline") {
+		t.Fatalf("want group name on header line, got:\n%s", got)
+	}
+	if !strings.Contains(got, "go mod download") || !strings.Contains(got, "1/4") {
+		t.Fatalf("want Running download child at 1/4, got:\n%s", got)
+	}
+	if !strings.Contains(got, "○") || !strings.Contains(got, "go generate") || !strings.Contains(got, "go test ./...") {
+		t.Fatalf("want two pending siblings, got:\n%s", got)
+	}
+}
+
+// TestSpecP25_LiveFrame_ASCIISpinner covers evo-rec.md Problem 25's step1
+// block: the ASCII spinner alphabet excludes every semantic glyph (GLYPH-001
+// / "the ASCII spinner alphabet excludes every semantic glyph so no frame
+// collides with '-' (not started)").
+//
+//	\  branches  1/40  feat/old-billing
+func TestSpecP25_LiveFrame_ASCIISpinner(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen, evo.Glyphs(evo.GlyphsASCII))
+	t.Cleanup(func() { _ = out.Close() })
+
+	branches := out.Task("branches")
+	branches.Progress(1, 40)
+	branches.Phase("feat/old-billing")
+
+	got := screen.LatestLiveText()
+	if !strings.Contains(got, "branches") || !strings.Contains(got, "1/40") || !strings.Contains(got, "feat/old-billing") {
+		t.Fatalf("want branches row with count and current name, got:\n%s", got)
+	}
+	if strings.ContainsAny(got, "✓✗⊘■○→…") {
+		t.Fatalf("ASCII profile must not leak a Unicode glyph, got:\n%s", got)
+	}
+	glyphColumn := strings.Fields(got)[0]
+	if strings.Contains(glyphColumn, "-") {
+		t.Fatalf("spinner glyph must never collide with the not-started glyph '-', got %q", glyphColumn)
+	}
+}
+
+// TestSpecP16_LiveFrame_NarrowTerminal_Mismatch covers evo-rec.md Problem
+// 16's step1 block (identical text also covers the "indeterminate" block for
+// this problem):
+//
+//	:. branches 3/40 ft/old…
+//
+// MISMATCH (documented, not fixed — outside this work order's amended blast
+// radius, which scoped new-behavior changes to the Problem 5 label gap
+// only): writeLiveTaskLine (live.go) has no width-aware compact branch for
+// the determinate-progress row — unlike writeEffects, which does drop
+// leaders below compactLayoutMaxWidth for the final/plain projection. The
+// live row always composes a fixed 12-cell bar plus the full detail string,
+// then the *whole line* is truncated to the terminal width by
+// fitLiveRegion's generic width.TruncateVisible — which does not know how to
+// preserve "count + name" and drop only the bar, so a genuinely narrow
+// terminal collapses the entire detail to a bare "…", losing the progress
+// count and current name the compact dialect exists to keep readable. This
+// is a real, executed divergence from "Default should be: width < 40 →
+// compact effect rows; truncate muted current name with …", not merely a
+// stale illustration — flagged for the coordinator's decision on whether to
+// scope a follow-up fix (would need a width-aware compact branch in
+// writeLiveTaskLine, mirroring writeEffects's compactLayoutMaxWidth check).
+func TestSpecP16_LiveFrame_NarrowTerminal_Mismatch(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(30), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	branches := out.Task("branches")
+	branches.Progress(3, 40)
+	branches.Phase("feat/old-billing-migration")
+
+	got := screen.LatestLiveText()
+	// What the compact dialect promises: count and current name survive,
+	// only the bar/leader is allowed to go.
+	wantSurvives := []string{"3/40", "branches"}
+	var lost []string
+	for _, want := range wantSurvives {
+		if !strings.Contains(got, want) {
+			lost = append(lost, want)
+		}
+	}
+	if len(lost) == 0 {
+		t.Fatalf("expected the documented mismatch (count/name lost to a bare truncated frame) but the frame kept %v intact — either the library already fixed this or the probe conditions changed; got:\n%q", wantSurvives, got)
+	}
+	t.Logf("confirmed mismatch: narrow-terminal live frame lost %v, got %q", lost, got)
+}
