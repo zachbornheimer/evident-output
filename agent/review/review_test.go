@@ -1130,3 +1130,114 @@ func use() {
 	// Stub importer may still leave Partial true — at least multi-file ran without crash.
 	_ = res.Partial
 }
+
+func findAPI032(res review.Result) []review.Finding {
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "API-032" {
+			found = append(found, f)
+		}
+	}
+	return found
+}
+
+func TestAPI032_NewAndMainWithInMain(t *testing.T) {
+	src := `package main
+import evo "github.com/zachbornheimer/evident-output"
+func main() {
+  out := evo.New(evo.Config{Title: "t"})
+  os.Exit(evo.MainWith(out, run))
+}
+`
+	res := review.GoSource("main.go", src)
+	found := findAPI032(res)
+	if len(found) != 2 {
+		t.Fatalf("expected two API-032 findings (New and MainWith in main), got %+v", found)
+	}
+}
+
+func TestAPI032_NoFalsePositiveOnHostedInstanceOutsideMain(t *testing.T) {
+	// New+MainWith outside main() is the documented advanced pattern (a
+	// hosted-instance test harness or framework entrypoint wrapper) — must
+	// not be flagged.
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run() int {
+  out := evo.New(evo.Config{Title: "t"})
+  return evo.MainWith(out, nil)
+}
+`
+	res := review.GoSource("hosted.go", src)
+	if found := findAPI032(res); len(found) != 0 {
+		t.Fatalf("New+MainWith outside main must not be flagged: %+v", found)
+	}
+}
+
+func TestAPI032_CauseDerivesFailfSuggestion(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle, err error) {
+  task.Fail("validate policy manifest", evo.Cause(err))
+}
+`
+	res := review.GoSource("cause.go", src)
+	found := findAPI032(res)
+	if len(found) != 1 {
+		t.Fatalf("expected one API-032 finding for evo.Cause, got %+v", found)
+	}
+	want := `task.Failf("validate policy manifest: %w", err)`
+	if found[0].Suggestion != want {
+		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
+	}
+}
+
+func TestAPI032_CaptureRenamedToEvidence(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  _ = task.Capture()
+}
+`
+	res := review.GoSource("capture.go", src)
+	found := findAPI032(res)
+	if len(found) != 1 {
+		t.Fatalf("expected one API-032 finding for Capture, got %+v", found)
+	}
+	if found[0].Suggestion != "replace task.Capture(...) with task.Evidence(...)" {
+		t.Fatalf("suggestion = %q", found[0].Suggestion)
+	}
+}
+
+func TestAPI033_NameEqualsSkipArgument(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output, note string) {
+  out.Item(note).Skip(note)
+}
+`
+	res := review.GoSource("dup.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-033" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-033 for out.Item(note).Skip(note): %+v", res.Findings)
+	}
+}
+
+func TestAPI033_NoFalsePositiveOnDistinctNameAndReason(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output, reason string) {
+  out.Item("branch check").Skip(reason)
+}
+`
+	res := review.GoSource("distinct.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-033" {
+			t.Fatalf("false positive API-033 on distinct name/reason: %+v", res.Findings)
+		}
+	}
+}

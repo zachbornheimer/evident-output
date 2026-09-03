@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"go/types"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -316,6 +317,17 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectPlaceholderPhase(filename, src)...)
 	}
 
+	// API-032: every superseded spelling (evo.New/MainWith in main, Cause,
+	// Capture) gets a derived fix, not a lecture.
+	if hasEvo {
+		findings = append(findings, detectDeprecatedSpellings(filename, src)...)
+	}
+
+	// API-033: an entity's own name reused verbatim as its skip/verb argument.
+	if hasEvo {
+		findings = append(findings, detectNameEqualsVerbArgument(filename, src)...)
+	}
+
 	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
@@ -323,9 +335,9 @@ func GoSource(filename, src string) Result {
 			findings = append(findings, Finding{
 				RuleID:     "DOM-014",
 				Severity:   "error",
-				Message:    "Detail must be user-visible string; use Cause(err) for diagnostic errors",
+				Message:    "Detail must be user-visible string; wrap the error with Failf/Blockf's trailing %w instead",
 				File:       filename,
-				Suggestion: "replace Detail(err) with Cause(err)",
+				Suggestion: `replace Detail(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,
 			})
 		}
 		// MCP-014 / DOM-011: expected blocked item treated as application error.
@@ -572,7 +584,7 @@ func isOSStdStreamExpr(expr ast.Expr) bool {
 // through one of these does not contaminate a managed stream because evo
 // owns the destination (evo-rec.md "B": "except evo-owned writers").
 var evoOwnedWriterNames = map[string]bool{
-	"Capture": true, "PhaseWriter": true, "ResultWriter": true, "DebugWriter": true,
+	"Capture": true, "Evidence": true, "PhaseWriter": true, "ResultWriter": true, "DebugWriter": true,
 }
 
 // isEvoOwnedWriterExpr reports whether expr's final selector segment names
@@ -1215,6 +1227,126 @@ func detectHandAssembledFailureSummary(filename, src string) []Finding {
 			File:       filename,
 			Line:       lineAt(src, m[0]),
 			Suggestion: "replace with one Item/Task per entry, and Next(evo.Label(...)) for follow-up guidance",
+		})
+	}
+	return findings
+}
+
+// causeOptionPattern matches the shape `receiver.Fail("summary", evo.Cause(err))`
+// (or Block) so a derived suggestion can name the exact Failf/Blockf call the
+// site should become, not just a generic pointer at the rule.
+var causeOptionPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*"([^"]*)"\s*,\s*evo\.Cause\(([^()]*)\)\s*\)`)
+
+// bareCausePattern catches every other evo.Cause( shape (backtick summary,
+// extra options, wrong receiver text) so at least the deprecation itself is
+// still flagged even when a derived Failf/Blockf rewrite isn't cheap.
+var bareCausePattern = regexp.MustCompile(`evo\.Cause\(`)
+
+// captureCallPattern matches a Capture accessor call so its receiver can
+// drive a derived .Evidence(...) suggestion — Capture and Evidence share the
+// same parameter list, so this is a pure spelling substitution.
+var captureCallPattern = regexp.MustCompile(`(\w+)\.Capture\(`)
+
+// detectDeprecatedSpellings is API-032: it catches every superseded spelling
+// with a fix, not a lecture — evo.New/MainWith in main() (evo.Init+evo.Main
+// is the ordinary lifecycle), evo.Cause (Failf/Blockf's trailing %w since
+// Fail/Block are statement-form), and Capture (renamed to Evidence).
+func detectDeprecatedSpellings(filename, src string) []Finding {
+	var findings []Finding
+
+	if body, offset := firstFuncBody(src, "main"); offset >= 0 {
+		if idx := strings.Index(body, "evo.New("); idx >= 0 {
+			findings = append(findings, Finding{
+				RuleID:     "API-032",
+				Severity:   "warning",
+				Message:    "evo.New in main is the advanced hosted-instance constructor; evo.Init is the ordinary main() lifecycle",
+				File:       filename,
+				Line:       lineAt(src, offset+idx),
+				Suggestion: "replace evo.New(cfg) + os.Exit(evo.MainWith(out, run)) with evo.Init(cfg) then os.Exit(evo.Main(run))",
+			})
+		}
+		if idx := strings.Index(body, "evo.MainWith("); idx >= 0 {
+			findings = append(findings, Finding{
+				RuleID:     "API-032",
+				Severity:   "warning",
+				Message:    "evo.MainWith in main is the advanced hosted-instance lifecycle; evo.Main is the ordinary spelling",
+				File:       filename,
+				Line:       lineAt(src, offset+idx),
+				Suggestion: "replace os.Exit(evo.MainWith(out, run)) with evo.Init(cfg) then os.Exit(evo.Main(run))",
+			})
+		}
+	}
+
+	// derivedCauseSpans marks the byte range of every evo.Cause( occurrence
+	// already covered by a derived Failf/Blockf suggestion below, so the
+	// generic fallback pass doesn't double-report the same call site.
+	derivedCauseSpans := make([]int, 0)
+	for _, m := range causeOptionPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv, verb, summary, cause := src[m[2]:m[3]], src[m[4]:m[5]], src[m[6]:m[7]], src[m[8]:m[9]]
+		if idx := strings.Index(src[m[0]:m[1]], "evo.Cause("); idx >= 0 {
+			derivedCauseSpans = append(derivedCauseSpans, m[0]+idx)
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use " + verb + "f's trailing %w",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: fmt.Sprintf(`%s.%sf(%q, %s)`, recv, verb, summary+": %w", cause),
+		})
+	}
+	for _, m := range bareCausePattern.FindAllStringIndex(src, -1) {
+		if slices.Contains(derivedCauseSpans, m[0]) {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use Failf/Blockf's trailing %w",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: `replace evo.Cause(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,
+		})
+	}
+
+	for _, m := range captureCallPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv := src[m[2]:m[3]]
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace " + recv + ".Capture(...) with " + recv + ".Evidence(...)",
+		})
+	}
+
+	return findings
+}
+
+// nameEqualsVerbArgPattern matches an entity declared and immediately
+// resolved with the identical expression as both its name and its
+// skip/verb argument, e.g. out.Item(note).Skip(note) — the owner's
+// complaint that the second occurrence carries zero new information.
+var nameEqualsVerbArgPattern = regexp.MustCompile(`\.(?:Item|Task)\(([^(),]+)\)\.(Skip|Fail|Warn|Block|Done|Cancel)\(([^(),]+)\)`)
+
+// detectNameEqualsVerbArgument is API-033.
+func detectNameEqualsVerbArgument(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range nameEqualsVerbArgPattern.FindAllStringSubmatchIndex(src, -1) {
+		nameArg := strings.TrimSpace(src[m[2]:m[3]])
+		verb := src[m[4]:m[5]]
+		verbArg := strings.TrimSpace(src[m[6]:m[7]])
+		if nameArg == "" || nameArg != verbArg {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-033",
+			Severity:   "warning",
+			Message:    "the same expression (" + nameArg + ") is used as both the entity name and the ." + verb + "(...) argument — the second carries no new information",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: `give the entity a distinct label, e.g. .Item("<what this checks>").` + verb + "(" + verbArg + ")",
 		})
 	}
 	return findings
