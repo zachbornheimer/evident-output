@@ -24,9 +24,9 @@ func main() {
 		step = 20 * time.Millisecond
 	}
 
-	out := evo.New(evo.Config{Title: "install"})
-	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
-		pipeline := o.Tasks("pipeline")
+	evo.Init(evo.Config{Title: "install"})
+	os.Exit(evo.Main(func() error {
+		pipeline := evo.Group("pipeline")
 
 		modules := pipeline.Task("go mod download", evo.ID("pipeline.mod-download"))
 		modules.Phase("resolving modules")

@@ -34,11 +34,11 @@ func main() {
 		NewestFirst:    &newest,
 		PreserveAlways: *preserve,
 	}
-	out := evo.New(cfg)
+	out := evo.Init(cfg)
 	log := slog.New(out.SlogHandler())
 
-	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
-		jobs := o.Tasks("audit")
+	os.Exit(evo.Main(func() error {
+		jobs := evo.Group("audit")
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
 
@@ -61,10 +61,10 @@ func main() {
 		if *fail {
 			// Comparison succeeded and found a domain blocker — not an operation failure.
 			compare.Done("1 blocker found")
-			o.Item("branches").Block("feat/sdk-full-consolidation is local-only")
+			evo.Item("branches").Block("feat/sdk-full-consolidation is local-only")
 		} else {
 			compare.Done()
-			o.Item("branches").OK()
+			evo.Item("branches").OK()
 		}
 		return nil
 	}))

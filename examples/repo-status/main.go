@@ -41,15 +41,15 @@ func main() {
 	if *verbose {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
-	out := evo.New(cfg)
-	os.Exit(evo.MainWith(out, func(o *evo.Output) error {
-		o.Verbose().Printf("Checking repository %s\n", *name)
+	evo.Init(cfg)
+	os.Exit(evo.Main(func() error {
+		evo.Verbose().Printf("Checking repository %s\n", *name)
 
 		time.Sleep(step)
-		o.Item("working tree").OK()
+		evo.Item("working tree").OK()
 
 		time.Sleep(step)
-		branches := o.Item("branches")
+		branches := evo.Item("branches")
 		if *clean {
 			branches.OK()
 		} else {
@@ -61,7 +61,7 @@ func main() {
 		}
 
 		time.Sleep(step)
-		remotes := o.Item("remotes")
+		remotes := evo.Item("remotes")
 		if *clean {
 			remotes.OK()
 		} else {
@@ -69,7 +69,7 @@ func main() {
 		}
 
 		time.Sleep(step)
-		o.Item("stashes").OK()
+		evo.Item("stashes").OK()
 		return nil
 	}))
 }
