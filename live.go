@@ -386,7 +386,7 @@ func (o *Output) finishLiveLocked(final string) {
 // renderLiveRegion builds the interactive ledger text for the current snapshot.
 // now selects spinner frames (inject FixedClock in tests for stable glyphs).
 // color applies SGR to glyphs as rows resolve (✓ green, ✗ red, spinner cyan).
-func renderLiveRegion(s Snapshot, height int, now time.Time, color bool, profile GlyphProfile) string {
+func renderLiveRegion(s Snapshot, height, width int, now time.Time, color bool, profile GlyphProfile) string {
 	if height <= 0 {
 		height = 24
 	}
@@ -395,10 +395,10 @@ func renderLiveRegion(s Snapshot, height int, now time.Time, color bool, profile
 
 	// Prefer collections for multi-task progress display.
 	for _, col := range s.Collections {
-		writeLiveCollection(&b, col, height, spin, color, now, profile)
+		writeLiveCollection(&b, col, height, width, spin, color, now, profile)
 	}
 	for _, t := range s.Tasks {
-		writeLiveTaskLine(&b, t, 0, spin, color, now, profile)
+		writeLiveTaskLine(&b, t, 0, width, spin, color, now, profile)
 	}
 	for _, it := range s.Items {
 		if it.State == Running || it.State == Pending {
@@ -431,7 +431,7 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 			bodyHeight = 1
 		}
 	}
-	body := renderLiveRegion(o.snapshotLocked(), bodyHeight, now, color, profile)
+	body := renderLiveRegion(o.snapshotLocked(), bodyHeight, width, now, color, profile)
 	if body == "" && o.armed && len(o.tasks) == 0 && len(o.items) == 0 && len(o.collections) == 0 {
 		body = renderArmedTitleLine(o.cfg.subject, now, color, profile)
 	}
@@ -467,7 +467,7 @@ func fitLiveRegion(text string, columns int) string {
 	return strings.Join(lines, "\n")
 }
 
-func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin string, color bool, now time.Time, profile GlyphProfile) {
+func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile GlyphProfile) {
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == Done || t.State == Skipped {
@@ -500,7 +500,7 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin
 	}
 	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
 	for _, t := range selected {
-		writeLiveTaskLine(b, t, 1, spin, color, now, profile)
+		writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
 	}
 	if omitted > 0 {
 		fmt.Fprintf(b, "   %s  %d not shown\n", dim(glyphOverflow.render(profile), color), omitted)
@@ -572,7 +572,7 @@ func selectLiveChildren(tasks []TaskSnapshot, max int) (selected []TaskSnapshot,
 	return selected, len(tasks) - len(selected)
 }
 
-func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin string, color bool, now time.Time, profile GlyphProfile) {
+func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent, width int, spin string, color bool, now time.Time, profile GlyphProfile) {
 	pad := ""
 	if indent > 0 {
 		pad = "   "
@@ -598,8 +598,16 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin stri
 		detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + detail
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
 	case t.State == Running && t.Progress.Kind == Determinate && t.Progress.Total > 0:
-		detail := progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " +
-			fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
+		count := fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
+		// Narrow terminals degrade by dropping decoration (the bar) before
+		// information (count, name) — evo-rec.md Problem 16/26's compact
+		// dialect. Below compactLayoutMaxWidth the fixed 12-cell bar is
+		// exactly the kind of leader-only decoration the whole-line
+		// truncation in fitLiveRegion would otherwise eat into first.
+		detail := count
+		if width <= 0 || width >= compactLayoutMaxWidth {
+			detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + count
+		}
 		if t.Phase != "" {
 			// Default intensity: the current phase is diagnostic evidence
 			// while progress stalls, not a subordinate row (evo-rec.md

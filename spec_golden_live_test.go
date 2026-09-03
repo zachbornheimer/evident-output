@@ -523,29 +523,20 @@ func TestSpecP25_LiveFrame_ASCIISpinner(t *testing.T) {
 	}
 }
 
-// TestSpecP16_LiveFrame_NarrowTerminal_Mismatch covers evo-rec.md Problem
-// 16's step1 block (identical text also covers the "indeterminate" block for
-// this problem):
+// TestSpecP16_LiveFrame_NarrowTerminal_CompactDialect covers evo-rec.md
+// Problem 16/26's compact dialect for a determinate-progress live row below
+// compactLayoutMaxWidth (40 cols): "narrow terminals degrade by dropping
+// decoration (the bar) before information (count, name)" —
 //
 //	:. branches 3/40 ft/old…
 //
-// MISMATCH (documented, not fixed — outside this work order's amended blast
-// radius, which scoped new-behavior changes to the Problem 5 label gap
-// only): writeLiveTaskLine (live.go) has no width-aware compact branch for
-// the determinate-progress row — unlike writeEffects, which does drop
-// leaders below compactLayoutMaxWidth for the final/plain projection. The
-// live row always composes a fixed 12-cell bar plus the full detail string,
-// then the *whole line* is truncated to the terminal width by
-// fitLiveRegion's generic width.TruncateVisible — which does not know how to
-// preserve "count + name" and drop only the bar, so a genuinely narrow
-// terminal collapses the entire detail to a bare "…", losing the progress
-// count and current name the compact dialect exists to keep readable. This
-// is a real, executed divergence from "Default should be: width < 40 →
-// compact effect rows; truncate muted current name with …", not merely a
-// stale illustration — flagged for the coordinator's decision on whether to
-// scope a follow-up fix (would need a width-aware compact branch in
-// writeLiveTaskLine, mirroring writeEffects's compactLayoutMaxWidth check).
-func TestSpecP16_LiveFrame_NarrowTerminal_Mismatch(t *testing.T) {
+// FIXED (was TestSpecP16_LiveFrame_NarrowTerminal_Mismatch): writeLiveTaskLine
+// (live.go) now carries a width-aware compact branch for the
+// determinate-progress row, mirroring writeEffects's compactLayoutMaxWidth
+// check — the fixed 12-cell bar is dropped below the threshold so
+// fitLiveRegion's whole-line truncation has only decoration left to eat into,
+// not the count or the current name.
+func TestSpecP16_LiveFrame_NarrowTerminal_CompactDialect(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(30), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
@@ -556,17 +547,49 @@ func TestSpecP16_LiveFrame_NarrowTerminal_Mismatch(t *testing.T) {
 	branches.Phase("feat/old-billing-migration")
 
 	got := screen.LatestLiveText()
-	// What the compact dialect promises: count and current name survive,
-	// only the bar/leader is allowed to go.
-	wantSurvives := []string{"3/40", "branches"}
-	var lost []string
-	for _, want := range wantSurvives {
+	for _, want := range []string{"3/40", "branches"} {
 		if !strings.Contains(got, want) {
-			lost = append(lost, want)
+			t.Fatalf("compact dialect must keep %q, got %q", want, got)
 		}
 	}
-	if len(lost) == 0 {
-		t.Fatalf("expected the documented mismatch (count/name lost to a bare truncated frame) but the frame kept %v intact — either the library already fixed this or the probe conditions changed; got:\n%q", wantSurvives, got)
+	if strings.Contains(got, "[") || strings.Contains(got, "█") || strings.Contains(got, "░") {
+		t.Fatalf("compact dialect must drop the progress bar below compactLayoutMaxWidth, got %q", got)
 	}
-	t.Logf("confirmed mismatch: narrow-terminal live frame lost %v, got %q", lost, got)
+}
+
+// TestSpecP26_LiveFrame_ResizeMidRun_DropsToCompactDialect covers evo-rec.md
+// Problem 26 step1: the terminal is narrowed mid-run, and the very next
+// frame must recompute the layout live rather than leave stale wrapped
+// residue — "a resize is a rerender, never residue". A wide first frame
+// keeps the bar; after testkit.Screen.SetSize narrows the pane below
+// compactLayoutMaxWidth, the following frame drops to the compact dialect
+// (count + name survive, bar gone) in the same render call, not on some
+// later frame.
+func TestSpecP26_LiveFrame_ResizeMidRun_DropsToCompactDialect(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	branches := out.Task("branches")
+	branches.Progress(3, 40)
+	branches.Phase("feat/old-billing-migration")
+
+	wide := screen.LatestLiveText()
+	if !strings.Contains(wide, "[") {
+		t.Fatalf("wide frame should keep the progress bar, got %q", wide)
+	}
+
+	screen.SetSize(30, 0)
+	branches.Progress(4, 40)
+
+	narrow := screen.LatestLiveText()
+	for _, want := range []string{"4/40", "branches"} {
+		if !strings.Contains(narrow, want) {
+			t.Fatalf("post-resize compact dialect must keep %q, got %q", want, narrow)
+		}
+	}
+	if strings.Contains(narrow, "[") || strings.Contains(narrow, "█") || strings.Contains(narrow, "░") {
+		t.Fatalf("post-resize frame must drop the bar, not leave wrapped residue, got %q", narrow)
+	}
 }
