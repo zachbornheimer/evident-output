@@ -154,6 +154,56 @@ func TestAPISugar_TaskFailfWrapsAndReturnsError(t *testing.T) {
 	}
 }
 
+// TestAPISugar_TaskFailfNextAttachesRemedy pins L2: Failf/Blockf return a
+// *Failure so the remedy for a failure has somewhere to attach at the return
+// site — `return task.Failf("...: %w", err).Next(...)` — instead of a second
+// statement (the zq clean_repo.go build break this closes).
+func TestAPISugar_TaskFailfNextAttachesRemedy(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("validate")
+	cause := errors.New("manifest missing")
+
+	run := func() error {
+		return task.Failf("validate policy manifest: %w", cause).
+			Next(evo.Label("re-run with --force"))
+	}
+	err := run()
+
+	if err == nil {
+		t.Fatal("expected non-nil error")
+	}
+	if !errors.Is(err, cause) {
+		t.Fatalf("errors.Is(err, cause) = false, want true through *Failure.Unwrap")
+	}
+	var failure *evo.Failure
+	if !errors.As(err, &failure) {
+		t.Fatalf("errors.As(err, *evo.Failure) = false, want true")
+	}
+	snap := task.Snapshot()
+	if len(snap.Actions) != 1 || snap.Actions[0].Label != "re-run with --force" {
+		t.Fatalf("actions = %#v, want the Next label attached", snap.Actions)
+	}
+}
+
+// TestAPISugar_TaskBlockfNextCommandAttachesRemedy exercises Blockf's
+// matching Next/NextCommand contract.
+func TestAPISugar_TaskBlockfNextCommandAttachesRemedy(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("apply")
+	err := task.Blockf("dirty working tree").NextCommand("git", "status")
+	if err == nil {
+		t.Fatal("expected non-nil error")
+	}
+	snap := task.Snapshot()
+	if len(snap.Actions) != 1 || snap.Actions[0].Command == nil || snap.Actions[0].Command.Executable != "git" {
+		t.Fatalf("actions = %#v, want the NextCommand attached", snap.Actions)
+	}
+}
+
 func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })

@@ -190,20 +190,21 @@ func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	}
 }
 
-// Failf resolves the task as failed with a formatted summary and returns the
-// built error so a call site can `return` it directly:
-// `return task.Failf("validate policy manifest: %w", err)`. fmt.Errorf
+// Failf resolves the task as failed with a formatted summary and returns a
+// *Failure so a call site can `return` it directly:
+// `return task.Failf("validate policy manifest: %w", err)`, and attach a
+// remedy in the same statement: `.Next(evo.Label("..."))`. fmt.Errorf
 // semantics: %w wraps its argument so errors.Is/As still reach it. See
 // splitWrappedMessage for how a trailing ": %w"/", %w" splits the formatted
 // text into the rendered summary and evidence line.
-func (t *TaskHandle) Failf(format string, args ...any) error {
+func (t *TaskHandle) Failf(format string, args ...any) *Failure {
 	err := fmt.Errorf(format, args...)
 	summary, evidence := splitWrappedMessage(format, err)
 	p := sanitizeProblem(Problem{Summary: summary, Detail: evidence})
 	if t != nil {
 		t.finish(Failed, summary, []Problem{p})
 	}
-	return err
+	return newFailure(t, err)
 }
 
 // Block resolves the task as blocked. This is a statement, not a fluent
@@ -217,17 +218,17 @@ func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	}
 }
 
-// Blockf resolves the task as blocked with a formatted summary and returns
-// the built error exactly like Failf — see Failf for the fmt.Errorf %w and
-// summary/evidence split contract.
-func (t *TaskHandle) Blockf(format string, args ...any) error {
+// Blockf resolves the task as blocked with a formatted summary and returns a
+// *Failure exactly like Failf — see Failf for the fmt.Errorf %w,
+// summary/evidence split, and Next/NextCommand remedy-attachment contract.
+func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
 	err := fmt.Errorf(format, args...)
 	summary, evidence := splitWrappedMessage(format, err)
 	p := sanitizeProblem(Problem{Summary: summary, Detail: evidence})
 	if t != nil {
 		t.finish(Blocked, summary, []Problem{p})
 	}
-	return err
+	return newFailure(t, err)
 }
 
 // Cancel resolves the task as cancelled.
