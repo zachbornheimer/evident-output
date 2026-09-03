@@ -28,7 +28,7 @@ func All() []Guide {
 			Title:    "Common API path",
 			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
 			Concepts: []string{"Output", "Item", "Task", "Conclusion", "Main", "TaskHandle", "ItemHandle", "GroupHandle"},
-			Rules:    []string{"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011"},
+			Rules:    []string{"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002"},
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
   1) evo.Init(evo.Config{Title, DryRun}) once in main, before any I/O; os.Exit(evo.Main(run)) — dry-run wording,
      empty-case, and exit codes are all owned; run returns only error.
@@ -46,15 +46,18 @@ get-or-create facades on the package-level default instance (see evo.Init/evo.Se
 stay on the instance API for tooling call sites, not the front door above.
 
 Severity: Warn = soft/optional; Block = stop before mutate; Fail = evaluation failed.
-Do not Start (API-006); no RunAll/Map (API-026); Donef needs % (API-028); Capture not DebugWriter (API-029).`,
-			TokenEstimate: 320,
+Do not Start (API-006); no RunAll/Map (API-026); Donef needs % (API-028); Capture not DebugWriter (API-029).
+Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
+one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
+failure on its own Item/Task and use Next(evo.Label(...)) for follow-up guidance instead.`,
+			TokenEstimate: 340,
 		},
 		{
 			ID:       "tasks",
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
 			Concepts: []string{"Task", "Tasks", "Group", "Progress", "Each", "Skipped", "Kept"},
-			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017"},
+			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030"},
 			Body: `Task is one operation with optional Phase/Progress. Tasks/Group are collections whose state is derived from
 children — never call Done/Fail/Progress on the collection itself (API-027); a Group stops later children as
 "-  not started" automatically after a failed child.
@@ -71,15 +74,23 @@ completed > total is unrepresentable.
 
 Skip/keep taxonomy: task.Skipped(reason, name) / task.Kept(reason, name) — evo counts, sums, and truncates the
 reason partition (never a bare "skipped 6"); reasons come from evo.Reason("protected") (get-or-create, typo-safe
-once lifted to a var).`,
-			TokenEstimate: 260,
+once lifted to a var).
+
+Bounded narration (BOUND-001): a slice joined with strings.Join and handed straight to Because/Detail/Phase
+reproduces the same terminal flood evo.TruncateNames already fixed for Plan/Changes rows — wrap it:
+evo.TruncateNames(names, 8) before it reaches any of those three calls.
+
+Predeclare before fan-out (API-030): call out.Task/Tasks.Task for every child before starting any goroutine or
+g.Go closure, then pass the handle in. Declaring the Task inside the closure races task creation with rendering
+and produces the unordered multi-spinner defect "sequential presentation: one Running child" forbids.`,
+			TokenEstimate: 300,
 		},
 		{
 			ID:       "streams",
 			Title:    "Stdout and stderr contracts",
 			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child", "exit-code", "signal"},
 			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData", "Main", "PhaseWriter"},
-			Rules:    []string{"STREAM-003", "OUT-001", "OUT-003", "OUT-004"},
+			Rules:    []string{"STREAM-003", "OUT-001", "OUT-003", "OUT-004", "API-031"},
 			Body: `Human UI and logs must not contaminate structured stdout.
 Ordinary dual-stream: evo.New(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr}) — Config auto-applies Plain/NoColor off-TTY.
 FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr; a failed
@@ -93,7 +104,9 @@ calls os.Exit itself bypasses that reconciliation.
 
 Child processes: output := task.Capture(); run.Run(ctx, name, args, output); on error task.Fail(...,
 evo.Cause(err), output.DetailTail()). For live narration wire cmd.Stdout = task.PhaseWriter() instead of a
-hand-rolled line-splitting writer — every line becomes the current Phase and is retained for DetailTail.
+hand-rolled line-splitting writer — every line becomes the current Phase and is retained for DetailTail. Never
+implement your own io.Writer whose Write method calls TaskHandle.Phase (API-031): that reimplements the exact
+adapter PhaseWriter already owns.
 Tool-backed gates: item.Capture() on the Item evaluating the condition.
 Capture is entity-owned (Task or Item). Ring always retains evidence; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
@@ -115,13 +128,16 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			Title:    "Live region and debug",
 			UseCases: []string{"spinner", "debug", "narrow", "confirm", "prompt", "resize", "suspend", "child-ui"},
 			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println", "Suspend"},
-			Rules:    []string{"TERM-001", "TERM-006", "TERM-015", "CONFIRM-001", "LOG-001"},
+			Rules:    []string{"TERM-001", "TERM-006", "TERM-015", "CONFIRM-001", "CONFIRM-002", "LOG-001"},
 			Body: `Instant Done before the visibility threshold must not flash a spinner.
 Durable notes go through evo.Println/Print/Printf — never fmt.Print* — while a live region is open: evo clears
 the region, writes the line, redraws, atomically. fmt bypassing that path is how frames tear.
 evo.Confirm(question, ...) quiesces the live region for the whole ask-decide-resolve window before it prompts:
 no spinner ever animates while waiting on a human, and the answer resolves to OK, ⊘ declined, or ⊘ blocked by
 policy (never Failed, never Cancelled) — see common-api for the call.
+A severe question (delete/remove/trash/retire/force) always adds evo.Destructive() (CONFIRM-002): it renders the
+prompt with an explicit "(destructive)" cue, so a user never approves a remote force-delete or trash mistaking it
+for an ordinary yes/no.
 Blocked (⊘, exit 1) is a distinct terminal state from Failed (✗, exit 2): a human "n", a policy refusal (no
 --yes off-TTY), and a protected-branch rule are all ⊘, never ✗.
 Resize is a rerender: width is re-read every frame; a narrowed pane recomputes truncation and compact layout
@@ -140,7 +156,7 @@ Suspend — their output already flows through evo's own render loop.`,
 			Title:    "First paint and the heart contract",
 			UseCases: []string{"startup", "latency", "blank", "streaming"},
 			Concepts: []string{"Init", "VisibilityDelay", "Phase", "Progress"},
-			Rules:    []string{"FP-001", "FP-002", "FP-003"},
+			Rules:    []string{"FP-001", "FP-002", "FP-003", "FP-004"},
 			Body: `The user is always waiting for input, watching work, or reading a verdict — a blank terminal for the first
 one to three seconds of a run is none of those, and reads as a hang.
 
@@ -157,7 +173,11 @@ Discovery streams into the same task's Phase, then Progress, as totals become kn
 "startup" task, never a fake total invented early. A Phase that goes stale for more than ~10s without a refresh
 is a defect (now auto-mitigated by the built-in heartbeat, which appends elapsed context automatically — see the
 tasks guide — but the caller must still not go silent for minutes with no Phase/Progress calls at all when a
-child process could be narrating through PhaseWriter instead).`,
+child process could be narrating through PhaseWriter instead).
+
+A Phase string also names the object in motion, never a placeholder (FP-004): "working"/"running"/"please
+wait"/"starting" reads identically on every frame, so the user cannot tell progress from a hang. Say what is
+being worked on — Phase("scanning ~/Developer/Personal/zq"), not Phase("scanning").`,
 			TokenEstimate: 260,
 		},
 	}
