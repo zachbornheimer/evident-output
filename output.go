@@ -291,9 +291,13 @@ func (o *Output) Err() error {
 	return o.misuse
 }
 
-// Item declares a named final-report condition. Optional evo.ID sets a stable machine key.
-func (o *Output) Item(name string, opts ...EntityOption) *ItemHandle {
-	return o.itemScoped(name, "", opts...)
+// Item declares a named final-report condition. Optional evo.ID sets a stable
+// machine key. name is a printf format when args are present (fmt.Sprintf
+// semantics) — evo.ID (or any other EntityOption) may be mixed into args in
+// any position and still applies.
+func (o *Output) Item(name string, args ...any) *ItemHandle {
+	formatted, opts := formatEntityName(name, args)
+	return o.itemScoped(formatted, "", opts...)
 }
 
 func (o *Output) itemScoped(name, scope string, opts ...EntityOption) *ItemHandle {
@@ -347,9 +351,13 @@ func (o *Output) ensureEntityRoomLocked() error {
 	return nil
 }
 
-// Task declares a single operation. Optional evo.ID sets a stable machine key.
-func (o *Output) Task(name string, opts ...EntityOption) *TaskHandle {
-	return o.taskScoped(name, "", opts...)
+// Task declares a single operation. Optional evo.ID sets a stable machine
+// key. name is a printf format when args are present (fmt.Sprintf
+// semantics) — evo.ID (or any other EntityOption) may be mixed into args in
+// any position and still applies.
+func (o *Output) Task(name string, args ...any) *TaskHandle {
+	formatted, opts := formatEntityName(name, args)
+	return o.taskScoped(formatted, "", opts...)
 }
 
 func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandle {
@@ -410,7 +418,7 @@ func (o *Output) taskGetOrCreate(name string, opts ...EntityOption) *TaskHandle 
 	}
 	o.mu.Unlock()
 
-	t := o.Task(name, opts...)
+	t := o.taskScoped(name, "", opts...)
 
 	o.mu.Lock()
 	if existing, ok := o.namedTasks[name]; ok {
@@ -559,8 +567,12 @@ func (o *Output) Tasks(name string) *Tasks {
 // group — the front door for a sequence of steps that must stop implying
 // "still might run" once a member has already failed or been cancelled. A
 // second evo.Group("python") call returns the same Group, mirroring Task's
-// get-or-create identity.
-func (o *Output) Group(name string) *GroupHandle {
+// get-or-create identity. name is a printf format when args are present
+// (fmt.Sprintf semantics); no args leaves name untouched.
+func (o *Output) Group(name string, args ...any) *GroupHandle {
+	if len(args) > 0 {
+		name = fmt.Sprintf(name, args...)
+	}
 	o.mu.Lock()
 	if g, ok := o.namedGroups[name]; ok {
 		o.mu.Unlock()

@@ -1,5 +1,7 @@
 package evo
 
+import "fmt"
+
 // EntityOption configures Item or Task declaration (stable keys).
 // The common path remains Item("label") / Task("label"); options are platform-scale.
 type EntityOption interface {
@@ -20,6 +22,30 @@ func (f entityOptionFunc) applyEntity(o *entityOpts) { f(o) }
 //	out.Task("download base image", evo.ID("build.base-image.download"))
 func ID(id string) EntityOption {
 	return entityOptionFunc(func(o *entityOpts) { o.key = id })
+}
+
+// formatEntityName splits a Task/Item declaration's trailing args into the
+// fmt.Sprintf arguments and the EntityOption values mixed in among them (e.g.
+// evo.ID("x")), then resolves the printf-style name — no args means name is
+// returned verbatim, so a plain evo.Task("branches") never runs through
+// Sprintf and can't misfire on a literal "%" in a caller's label.
+func formatEntityName(name string, args []any) (string, []EntityOption) {
+	if len(args) == 0 {
+		return name, nil
+	}
+	var opts []EntityOption
+	var fmtArgs []any
+	for _, a := range args {
+		if opt, ok := a.(EntityOption); ok {
+			opts = append(opts, opt)
+			continue
+		}
+		fmtArgs = append(fmtArgs, a)
+	}
+	if len(fmtArgs) == 0 {
+		return name, opts
+	}
+	return fmt.Sprintf(name, fmtArgs...), opts
 }
 
 func applyEntityOptions(opts []EntityOption) entityOpts {

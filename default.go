@@ -52,20 +52,28 @@ func Default() *Output {
 
 // Task declares (or, for a repeated name, returns) a Task on the default
 // instance. Calling Task with the same name twice returns the same handle —
-// the identity a caller doing evo.Task("branches") from two call sites expects.
-func Task(name string, opts ...EntityOption) *TaskHandle {
-	return Default().taskGetOrCreate(name, opts...)
+// the identity a caller doing evo.Task("branches") from two call sites
+// expects. name is a printf format when args are present (fmt.Sprintf
+// semantics); the get-or-create key is the formatted name.
+func Task(name string, args ...any) *TaskHandle {
+	formatted, opts := formatEntityName(name, args)
+	return Default().taskGetOrCreate(formatted, opts...)
 }
 
 // Item declares an Item on the default instance.
 func Item(name string, opts ...EntityOption) *ItemHandle {
-	return Default().Item(name, opts...)
+	args := make([]any, len(opts))
+	for i, opt := range opts {
+		args[i] = opt
+	}
+	return Default().Item(name, args...)
 }
 
 // Group declares (or, for a repeated name, returns) a self-managing task
 // group on the default instance — see Group for the auto-lifecycle contract.
-func Group(name string) *GroupHandle {
-	return Default().Group(name)
+// name is a printf format when args are present (fmt.Sprintf semantics).
+func Group(name string, args ...any) *GroupHandle {
+	return Default().Group(name, args...)
 }
 
 // Reason returns a get-or-create taxonomy Reason by name on the default

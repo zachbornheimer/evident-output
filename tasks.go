@@ -13,8 +13,12 @@ type Tasks struct {
 	id  string
 }
 
-// Task declares a child task in declaration order. Optional evo.ID sets a stable machine key.
-func (g *Tasks) Task(name string, opts ...EntityOption) *TaskHandle {
+// Task declares a child task in declaration order. Optional evo.ID sets a
+// stable machine key. name is a printf format when args are present
+// (fmt.Sprintf semantics) — evo.ID (or any other EntityOption) may be mixed
+// into args in any position and still applies.
+func (g *Tasks) Task(name string, args ...any) *TaskHandle {
+	formatted, opts := formatEntityName(name, args)
 	g.out.mu.Lock()
 	defer g.out.mu.Unlock()
 	col := g.out.tasksByRef[g.id]
@@ -22,7 +26,7 @@ func (g *Tasks) Task(name string, opts ...EntityOption) *TaskHandle {
 		return &TaskHandle{out: g.out, id: g.out.nextID("task")}
 	}
 	eo := applyEntityOptions(opts)
-	return g.out.addTaskLocked(sanitize.Text(name), col, eo.key)
+	return g.out.addTaskLocked(sanitize.Text(formatted), col, eo.key)
 }
 
 // Summary sets a success-oriented collection summary.
