@@ -84,6 +84,39 @@ func TestAPISugar_ReasonfFormatsAndGetsOrCreates(t *testing.T) {
 	}
 }
 
+func TestAPISugar_ScopeTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
+	out := evo.NewWithOptions(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+
+	scoped := out.Scope("registry")
+	task := scoped.Task("sync %s", "auth")
+	if got := task.Snapshot().Name; got != "sync auth" {
+		t.Fatalf("name = %q, want %q", got, "sync auth")
+	}
+}
+
+func TestAPISugar_ScopeItemNameIsPrintfWhenArgsPresent(t *testing.T) {
+	out := evo.NewWithOptions(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+
+	scoped := out.Scope("registry")
+	item := scoped.Item("probe %s", "docker")
+	if got := item.Snapshot().Name; got != "probe docker" {
+		t.Fatalf("name = %q, want %q", got, "probe docker")
+	}
+}
+
+func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
+	out := evo.NewWithOptions(evo.To(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+
+	group := out.Group("stages")
+	child := group.Task("stage %d", 2)
+	if got := child.Snapshot().Name; got != "stage 2" {
+		t.Fatalf("name = %q, want %q", got, "stage 2")
+	}
+}
+
 // --- Item 0: Fail/Block are statement-form; Failf/Blockf return %w errors ---
 
 func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {

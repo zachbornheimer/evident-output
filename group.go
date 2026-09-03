@@ -11,9 +11,12 @@ type GroupHandle struct {
 }
 
 // Task declares (or, for a repeated name, returns) a child task in
-// declaration order. Optional evo.ID sets a stable machine key.
-func (g *GroupHandle) Task(name string, opts ...EntityOption) *TaskHandle {
-	return g.tasks.out.groupTaskGetOrCreate(g.tasks.id, name, opts...)
+// declaration order. name is a printf format when args are present
+// (fmt.Sprintf semantics); the get-or-create key is the formatted name.
+// args may also carry evo.ID to set a stable machine key.
+func (g *GroupHandle) Task(name string, args ...any) *TaskHandle {
+	formatted, opts := formatEntityName(name, args)
+	return g.tasks.out.groupTaskGetOrCreate(g.tasks.id, formatted, opts...)
 }
 
 // Summary sets a success-oriented group summary.
