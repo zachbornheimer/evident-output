@@ -111,6 +111,38 @@ out.Printf("progress %d\n", n)
 			Certainty:       "deterministic",
 		},
 		{
+			ID:        "STREAM-004",
+			Category:  "STREAM",
+			Severity:  "warning",
+			Invariant: "one task wires exactly one subprocess capture path: Task.Run, not a hand-rolled Evidence()+PhaseWriter() pair",
+			Why: "Task.Run already tees cmd.Stdout/cmd.Stderr through Evidence and PhaseWriter together. Wiring both by " +
+				"hand on the same task is easy to get half-right — evidence for the rule: four hand-rolled subprocess " +
+				"wirings this pattern replaced starved the capture (two with no fallback: dead port-in-use detection, " +
+				"empty DetailTail on failure).",
+			BadCode: `proof := task.Evidence()
+cmd.Stdout = task.PhaseWriter()
+cmd.Stderr = proof
+if err := cmd.Run(); err != nil {
+  return task.Failf("build failed: %w", err)
+}`,
+			GoodCode: `if err := task.Run(cmd); err != nil {
+  return task.Failf("build failed: %w", err)
+}
+task.Done()`,
+			Remediation:     "Replace the hand-rolled Evidence()/PhaseWriter() pair with task.Run(cmd); reach for Evidence() alone only when the caller isn't running an *exec.Cmd",
+			RelatedGuidance: []string{"streams"},
+			VerificationIDs: []string{"STREAM-004"},
+			Since:           "0.2.17",
+			Certainty:       "heuristic",
+			// No cheap, honest static detector: telling a Task.Run-shaped
+			// wiring apart from a legitimately mixed capture (e.g. Stdout
+			// through PhaseWriter, Stderr captured separately for a
+			// different reason) needs dataflow analysis the AST pass does
+			// not do. Guidance-only; see the "streams" catalog guide and
+			// Task.Run's own doc comment for the teaching example.
+			Detection: "guidance",
+		},
+		{
 			ID:        "API-028",
 			Category:  "API",
 			Severity:  "warning",
