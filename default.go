@@ -160,13 +160,13 @@ func Verbose() *Printer {
 	return Default().Verbose()
 }
 
-// AnyBlocked reports whether any Task on the default instance is currently
-// Blocked — see Output.AnyBlocked. Package-level parity with Task/Group/
-// Print* (beginner-7): a caller using the default-instance facade
-// throughout a run should never have to reach for a hosted *Output just to
-// check this one thing.
-func AnyBlocked() bool {
-	return Default().AnyBlocked()
+// AnyBlockedSoFar reports whether any Task on the default instance is
+// currently Blocked — see Output.AnyBlockedSoFar. Package-level parity with
+// Task/Group/Print* (beginner-7): a caller using the default-instance
+// facade throughout a run should never have to reach for a hosted *Output
+// just to check this one thing.
+func AnyBlockedSoFar() bool {
+	return Default().AnyBlockedSoFar()
 }
 
 // AnyFailed reports whether any Task on the default instance is currently

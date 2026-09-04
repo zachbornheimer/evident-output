@@ -80,8 +80,8 @@ func TestAnyBlocked_BeforeMutate(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("gates"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("a").Done()
 	out.Task("b").Block("policy")
-	if !out.AnyBlocked() {
-		t.Fatal("expected AnyBlocked")
+	if !out.AnyBlockedSoFar() {
+		t.Fatal("expected AnyBlockedSoFar")
 	}
 	if out.AnyFailed() {
 		t.Fatal("no failures")

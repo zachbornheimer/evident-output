@@ -61,7 +61,7 @@ Design philosophy and polish-phase basis: [`docs/roadmap/implementation-basis.md
 | **Task**  | Everything — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skip`, no `Phase`/`Progress`) renders as a fact row; work with phases, progress, or mutation verbs shows a spinner while running |
 | **Tasks** | Collection of independent tasks (state is **derived**)                                                                                                                                                      |
 
-Multi-gate: resolve every Task, then `if out.AnyBlocked() { return nil }` before mutation; `Main` maps `ExitCode`.
+Multi-gate: resolve every Task, then `if out.AnyBlockedSoFar() { return nil }` before mutation; `Main` maps `ExitCode`.
 
 **Advanced (tooling call sites):** `Plan` / `Changes` are the instance-API primitives Task's mutation verbs (`Delete`/`Create`/`Update`/…) are built on — reach for them directly only when a tool needs the would/did split without a Task.
 

@@ -351,6 +351,10 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   had no int-range problem left to solve (C7). `agent/rules`' DOM-017
   guidance now shows `Each` instead of `Advance` as the good-code example
   (C4).
+- **Breaking**: `Output.AnyBlocked()` (and the package-level facade) are
+  renamed `AnyBlockedSoFar()` — a live, mid-run check, distinct from
+  `Conclusion.AnyBlocked()`'s final-verdict question. The two shared one
+  name despite answering different questions at different times (C12).
 
 ## Migration guide (v0.2.x → v0.3.0)
 
