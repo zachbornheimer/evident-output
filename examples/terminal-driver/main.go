@@ -75,7 +75,7 @@ func main() {
 			discover.Phase(phase)
 			time.Sleep(stepDur * 2)
 		}
-		discover.Donef("%d packages", 12)
+		discover.Done("%d packages", 12)
 
 		download := jobs.Task("download")
 		const total int64 = 4_000_000

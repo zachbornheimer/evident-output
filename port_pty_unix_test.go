@@ -43,7 +43,7 @@ func TestPORT001_ANSIOnPipe(t *testing.T) {
 	drv := terminal.NewANSI(&buf, terminal.WithInteractive(true), terminal.WithSize(80, 24))
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv), evo.DebugLevel(evo.Debug)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("work").Phase("run").Donef("ok")
+	out.Task("work").Phase("run").Done("ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

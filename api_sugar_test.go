@@ -72,17 +72,21 @@ func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
 	}
 }
 
-func TestAPISugar_ReasonfFormatsAndGetsOrCreates(t *testing.T) {
+// TestAPISugar_ReasonFormatsAndGetsOrCreates is C6: Reason is
+// printf-variadic itself now (Reasonf deleted) — a format arg formats the
+// name, and the formatted text still get-or-creates the same bucket a
+// literal call with the same text would.
+func TestAPISugar_ReasonFormatsAndGetsOrCreates(t *testing.T) {
 	var buf strings.Builder
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
-	first := evo.Reasonf("stage %d", 2)
+	first := evo.Reason("stage %d", 2)
 	if got := first.Name(); got != "stage 2" {
 		t.Fatalf("name = %q, want %q", got, "stage 2")
 	}
 	second := evo.Reason("stage 2")
 	if first.Name() != second.Name() {
-		t.Fatal("expected Reasonf's formatted name to get-or-create the same bucket as Reason")
+		t.Fatal("expected Reason's formatted name to get-or-create the same bucket as a literal call")
 	}
 }
 

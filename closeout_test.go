@@ -230,7 +230,7 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("working tree").Done()
-	out.Task("scan").Phase("walk").Donef("done")
+	out.Task("scan").Phase("walk").Done("done")
 	g := out.Tasks("deps")
 	g.Task("a").Done()
 	g.Task("b").Done()

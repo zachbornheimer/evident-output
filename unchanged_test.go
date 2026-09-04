@@ -16,7 +16,7 @@ func TestUnchanged_AllTasksUnchanged_ConcludesStateUnchanged(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Task("config").Unchanged("already up to date")
-	out.Task("lockfile").Unchangedf("no drift (%d deps checked)", 42)
+	out.Task("lockfile").Unchanged("no drift (%d deps checked)", 42)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

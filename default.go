@@ -1,7 +1,6 @@
 package evo
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -128,16 +127,13 @@ func Group(name string, args ...any) *GroupHandle {
 // instance registry — duplicate strings merge into one bucket, so an inline
 // evo.Reason("protected") at every call site is always legal; lifting it to a
 // package var (var reasonProtected = evo.Reason("protected")) is optional,
-// not required for correctness.
-func Reason(name string, opts ...ReasonOption) TaxonomyReason {
-	return Default().reasonGetOrCreate(name, opts...)
-}
-
-// Reasonf returns a get-or-create taxonomy Reason on the default instance
-// using a printf-formatted name (fmt.Sprintf semantics) — the formatted text
-// is the get-or-create key, same identity rule as Reason.
-func Reasonf(format string, args ...any) TaxonomyReason {
-	return Reason(fmt.Sprintf(format, args...))
+// not required for correctness. name is a printf format when args are
+// present (fmt.Sprintf semantics) — one text spelling shared with
+// Task/Group (C6); evo.ForSkip()/evo.OnTask(...) may be mixed into args in
+// any position and still applies, exactly like Task's evo.ID.
+func Reason(name string, args ...any) TaxonomyReason {
+	formatted, opts := formatReasonName(name, args)
+	return Default().reasonGetOrCreate(formatted, opts...)
 }
 
 // Print formats like fmt.Sprint and enqueues human-facing text on the default instance.

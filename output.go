@@ -617,8 +617,13 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	return false
 }
 
-// Tasks declares a collection of independent child tasks.
-func (o *Output) Tasks(name string) *Tasks {
+// Tasks declares a collection of independent child tasks. name is a printf
+// format when args are present (fmt.Sprintf semantics) — one text spelling
+// shared with Task/Group/Reason (C6); no args leaves name untouched.
+func (o *Output) Tasks(name string, args ...any) *Tasks {
+	if len(args) > 0 {
+		name = fmt.Sprintf(name, args...)
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -698,8 +703,12 @@ func (o *Output) groupTaskGetOrCreate(groupID, name string, opts ...EntityOption
 	return h
 }
 
-// Changes starts a durable-effects section.
-func (o *Output) Changes(subject string) *Changes {
+// Changes starts a durable-effects section. subject is a printf format
+// when args are present (fmt.Sprintf semantics) — see Tasks (C6).
+func (o *Output) Changes(subject string, args ...any) *Changes {
+	if len(args) > 0 {
+		subject = fmt.Sprintf(subject, args...)
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -718,8 +727,12 @@ func (o *Output) Changes(subject string) *Changes {
 	return h
 }
 
-// Plan starts a would-occur effects section.
-func (o *Output) Plan(subject string) *Plan {
+// Plan starts a would-occur effects section. subject is a printf format
+// when args are present (fmt.Sprintf semantics) — see Tasks (C6).
+func (o *Output) Plan(subject string, args ...any) *Plan {
+	if len(args) > 0 {
+		subject = fmt.Sprintf(subject, args...)
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {

@@ -180,7 +180,7 @@ func TestCON005_CloseDuringUpdates(t *testing.T) {
 func TestAPI010_DonefFormatting(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Donef("n=%d", 3)
+	out.Task("t").Done("n=%d", 3)
 	s := out.Snapshot()
 	found := false
 	for _, tsk := range s.Tasks {

@@ -19,7 +19,7 @@ func TestANSI_LiveRegionUsesCursorControl(t *testing.T) {
 	task := out.Task("work")
 	task.Phase("running")
 	out.Debug("note")
-	task.Donef("done")
+	task.Done("done")
 	_ = out.Finish()
 
 	s := buf.String()

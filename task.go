@@ -194,38 +194,55 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 	return t
 }
 
-// Done resolves the task successfully.
-// Optional one summary: Done("modules cached"). More than one summary panics.
-func (t *TaskHandle) Done(summary ...string) *TaskHandle {
-	switch len(summary) {
-	case 0:
-		return t.finish(Done, "", nil)
-	case 1:
-		return t.finish(Done, sanitize.Text(summary[0]), nil)
-	default:
-		panic("evo: Task.Done accepts at most one summary string")
+// Done resolves the task successfully, with no summary (Done()), a literal
+// one (Done("modules cached")), or a printf-formatted one
+// (Done("%d packages", 18), fmt.Sprintf semantics) — one text spelling
+// shared with Task/Group/Reason/Warn (C6), including the same "no args
+// leaves text untouched" rule that keeps a literal "%" safe. A non-string
+// first argument is misuse (ErrInvalidConfig): Done's format position is
+// still meant to be a caller-written string, not an accidental value.
+func (t *TaskHandle) Done(args ...any) *TaskHandle {
+	summary, ok := formatSummaryArgs(args)
+	if !ok {
+		t.out.recordMisuse(ErrInvalidConfig)
+		return t
 	}
+	return t.finish(Done, sanitize.Text(summary), nil)
 }
 
 // Unchanged resolves the task successfully, explicitly marking "checked,
 // nothing needed to change" — distinct from an ordinary Done's generic
 // verdict (I7). A run made entirely of Unchanged tasks (no Changes/Plan
 // records, nothing Failed/Blocked/Cancelled/Warning) concludes
-// StateUnchanged instead of the StateReady an ordinary Done gets.
-func (t *TaskHandle) Unchanged(summary string) *TaskHandle {
+// StateUnchanged instead of the StateReady an ordinary Done gets. Same
+// no-args/literal/printf-formatted shape as Done (C6).
+func (t *TaskHandle) Unchanged(args ...any) *TaskHandle {
+	summary, ok := formatSummaryArgs(args)
+	if !ok {
+		t.out.recordMisuse(ErrInvalidConfig)
+		return t
+	}
 	return t.finishTagged(Done, sanitize.Text(summary), nil, true)
 }
 
-// Unchangedf resolves the task with a formatted "nothing needed to change"
-// summary. Prefer Unchanged("text") when there are no format directives.
-func (t *TaskHandle) Unchangedf(format string, args ...any) *TaskHandle {
-	return t.finishTagged(Done, sanitize.Text(fmt.Sprintf(format, args...)), nil, true)
-}
-
-// Donef resolves the task with a formatted summary.
-// Prefer Done("text") when there are no format directives.
-func (t *TaskHandle) Donef(format string, args ...any) *TaskHandle {
-	return t.finish(Done, sanitize.Text(fmt.Sprintf(format, args...)), nil)
+// formatSummaryArgs implements Done/Unchanged's no-args/literal/printf-
+// formatted shape (C6): zero args is no summary; one string arg is a
+// literal (never passed through Sprintf, so a caller's own "%" stays
+// intact); two or more requires args[0] to be a printf format string,
+// applied to the rest via fmt.Sprintf. ok is false only when a non-string
+// first argument is given — a genuine caller mistake, not a valid shape.
+func formatSummaryArgs(args []any) (summary string, ok bool) {
+	if len(args) == 0 {
+		return "", true
+	}
+	format, isString := args[0].(string)
+	if !isString {
+		return "", false
+	}
+	if len(args) == 1 {
+		return format, true
+	}
+	return fmt.Sprintf(format, args[1:]...), true
 }
 
 // Warn resolves the task with a warning. This is a statement, not a fluent
@@ -234,18 +251,13 @@ func (t *TaskHandle) Donef(format string, args ...any) *TaskHandle {
 // promise). The message gets the same summary placement as Fail/Block (the
 // ⚠ row itself carries it), and the same de-echo as Fail/Block drops the
 // redundant problem row when there's no Detail beyond it (beginner-3).
-func (t *TaskHandle) Warn(summary string, options ...ProblemOption) {
-	p := applyProblemOptions(sanitize.Text(summary), options)
-	t.finish(Warning, summary, []Problem{p})
-}
-
-// Warnf resolves the task with a formatted warning summary. This is a
-// statement, not a fluent chain — see Warn. Prefer Warn("text") when there
-// are no format directives.
-func (t *TaskHandle) Warnf(format string, args ...any) {
-	summary := fmt.Sprintf(format, args...)
-	p := applyProblemOptions(sanitize.Text(summary), nil)
-	t.finish(Warning, summary, []Problem{p})
+// summary is a printf format when fmt args are present — one text spelling
+// shared with Done/Task/Group/Reason (C6); evo.Detail(...) and other
+// ProblemOptions may be mixed into args in any position and still apply.
+func (t *TaskHandle) Warn(summary string, args ...any) {
+	formatted, opts := formatWarnArgs(summary, args)
+	p := applyProblemOptions(sanitize.Text(formatted), opts)
+	t.finish(Warning, formatted, []Problem{p})
 }
 
 // Fail resolves the task as failed. This is a statement, not a fluent

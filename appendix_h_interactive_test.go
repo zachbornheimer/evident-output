@@ -29,7 +29,7 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
-	dependencies.Donef("installed %d packages", 18)
+	dependencies.Done("installed %d packages", 18)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	task := out.Task("dependencies")
 	task.Phase("resolving packages")
 	out.Debug("package index loaded", evo.Field{Key: "packages", Value: 18})
-	task.Donef("installed %d packages", 18)
+	task.Done("installed %d packages", 18)
 	_ = out.Finish()
 
 	// History mode: timestamp (FixedClock) + bracketed level above live region.

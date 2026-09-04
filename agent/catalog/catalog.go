@@ -54,7 +54,8 @@ Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) 
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no RunAll/Map (API-026); Donef needs % (API-028); Capture not DebugWriter (API-029).
+Do not Start (API-006); no RunAll/Map (API-026); Failf/Blockf need % (API-028; Done/Warn/Task/Group/Reason
+are printf-variadic themselves — there is no separate Donef/Warnf/Taskf/Reasonf); Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
 failure on its own Task and use Next(evo.Label(...)) for follow-up guidance instead.`,

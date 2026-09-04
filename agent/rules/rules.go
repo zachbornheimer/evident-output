@@ -146,12 +146,15 @@ task.Done()`,
 			ID:        "API-028",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "formatting *f methods require a format directive",
-			Why:       "Donef(\"ok\") is ceremony; Done(\"ok\") is the intent. *f without % confuses readers and agents.",
-			BadCode:   `task.Donef("modules cached")`,
-			GoodCode: `task.Done("modules cached")
-task.Donef("%d packages", n)`,
-			Remediation:     "Use Done/Println without f when there is no format verb",
+			Invariant: "Failf/Blockf require a format directive — every other *f method is deleted",
+			Why: "Failf(\"boom\") with no directive at all is ceremony; Fail(\"boom\") is the intent. " +
+				"C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf entirely — " +
+				"Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are printf-variadic themselves now, " +
+				"so there is nothing left in that family to flag; Failf/Blockf survive for their %w+*Failure semantics.",
+			BadCode: `task.Failf("boom")`,
+			GoodCode: `task.Fail("boom")
+task.Failf("boom: %w", err)`,
+			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason take printf args directly",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",

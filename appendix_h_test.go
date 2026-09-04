@@ -291,7 +291,7 @@ func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 	task := out.Task("dependencies")
 	task.Phase("reading lockfile")
 	task.Phase("resolving packages")
-	task.Donef("installed %d packages", 18)
+	task.Done("installed %d packages", 18)
 	_ = out.Finish()
 
 	got := output.String()

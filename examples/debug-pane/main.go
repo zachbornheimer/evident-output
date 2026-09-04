@@ -47,7 +47,7 @@ func main() {
 		time.Sleep(step)
 		log.Debug("fetched remote metadata", "remote", "origin")
 		time.Sleep(step)
-		scan.Donef("%d branches", 7)
+		scan.Done("%d branches", 7)
 
 		compare.Phase("diffing")
 		blockers := 0

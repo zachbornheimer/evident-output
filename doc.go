@@ -46,12 +46,13 @@
 //     call is errcheck-clean. `return task.Failf("validate manifest: %w", err)` builds and
 //     returns one error in a single line: a trailing ": %w"/", %w" splits the formatted text
 //     into the rendered summary and an evidence line for the wrapped error; Blockf is the
-//     same for Block. Warn/Warnf, and success/skip verbs, stay void too — this is never
-//     fluent chaining.
+//     same for Block. Warn, and success/skip verbs, stay void too — this is never fluent
+//     chaining. Done/Warn/Task/Group/Reason are printf-variadic themselves (fmt.Sprintf
+//     semantics when args follow); there is no separate Donef/Warnf/Taskf/Reasonf (C6).
 //
 // Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Group (+ ID), Task.Evidence,
 // Task.Each / Task.PhaseWriter / Task.Run, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
-// evo.Confirm, evo.Reason / evo.Reasonf, Changes/Plan (tooling call sites, see below), slog
+// evo.Confirm, evo.Reason, Changes/Plan (tooling call sites, see below), slog
 // via SlogHandler (level from Config.Debug.Level).
 //
 // Advanced surface, for testing and tooling call sites that need a hosted instance

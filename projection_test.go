@@ -18,7 +18,7 @@ func TestOUT021_DataProjectionOption(t *testing.T) {
 		evo.NoColor(),
 	}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("scan").Phase("walk").Donef("ok")
+	out.Task("scan").Phase("walk").Done("ok")
 	_ = out.Finish()
 	// Data projection still renders human to primary in v0.3 path unless diagnostic set for UI;
 	// ensure option is accepted and Finish works.

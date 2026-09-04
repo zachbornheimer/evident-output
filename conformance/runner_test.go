@@ -166,7 +166,7 @@ func runScenarioFile(t *testing.T, path string) {
 		case "task.done":
 			tasks[m.Ref].Done()
 		case "task.donef":
-			tasks[m.Ref].Donef("%s", m.Text)
+			tasks[m.Ref].Done("%s", m.Text)
 		case "task.fail":
 			tasks[m.Ref].Fail(m.Summary)
 		case "tasks.summary":

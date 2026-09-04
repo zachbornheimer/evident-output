@@ -2,6 +2,7 @@ package evo
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/sanitize"
@@ -139,6 +140,30 @@ func splitWrappedMessage(format string, err error) (summary, evidence string) {
 		}
 	}
 	return full, evidence
+}
+
+// formatWarnArgs splits args into printf format arguments and
+// ProblemOptions, mirroring formatEntityName/formatReasonName's mixed-args
+// extraction (C6: Warn's summary is a printf format when fmt args are
+// present; evo.Detail(...) and other ProblemOptions may be mixed into args
+// in any position and still apply).
+func formatWarnArgs(summary string, args []any) (string, []ProblemOption) {
+	if len(args) == 0 {
+		return summary, nil
+	}
+	var opts []ProblemOption
+	var fmtArgs []any
+	for _, a := range args {
+		if opt, ok := a.(ProblemOption); ok {
+			opts = append(opts, opt)
+			continue
+		}
+		fmtArgs = append(fmtArgs, a)
+	}
+	if len(fmtArgs) == 0 {
+		return summary, opts
+	}
+	return fmt.Sprintf(summary, fmtArgs...), opts
 }
 
 func applyProblemOptions(summary string, opts []ProblemOption) Problem {

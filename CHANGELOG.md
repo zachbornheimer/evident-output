@@ -366,6 +366,20 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   collide outright with `ConclusionState`'s existing `StateFailed`/
   `StateBlocked`/`StateCancelled`/`StateWarning` constants, and renaming
   those instead would ripple into the JSON wire and every golden (C11).
+- **Breaking**: one printf-variadic text spelling across the API —
+  `Done`, `Unchanged`, `Warn`, `Task`, `Group`, `Tasks`, `Changes`,
+  `Plan`, `Reason`, `GroupHandle.Summary`, `Tasks.Summary` all accept
+  optional `fmt.Sprintf` args now, and their `*f` duplicates
+  (`Donef`, `Unchangedf`, `Warnf`, `Taskf`, `Itemf`, `Tasksf`,
+  `Changesf`, `Planf`, `Reasonf`, `Summaryf` ×2) are deleted. `Failf`/
+  `Blockf` are the only surviving `*f` methods (distinct `%w`+
+  `*Failure` semantics; `Fail`/`Block` stay non-printf statements).
+  `Done`/`Unchanged` keep their zero-arg convenience call
+  (`task.Done()`) and never run a literal one-string summary through
+  `Sprintf`, so an existing `"%"` in a caller's text still survives
+  untouched — only a call with additional args formats. `agent/review`'s
+  API-028 detector and `agent/rules`' API-028 entry retargeted to
+  `Failf`/`Blockf`, the only methods left in that family (C6).
 
 ## Migration guide (v0.2.x → v0.3.0)
 

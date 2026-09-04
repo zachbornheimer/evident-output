@@ -15,7 +15,7 @@ func TestPORT006_TermDumbLikeNonInteractive(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Phase("x").Donef("ok")
+	out.Task("t").Phase("x").Done("ok")
 	_ = out.Finish()
 	if strings.ContainsAny(buf.String(), "\x1b") {
 		t.Fatal("ANSI in dumb mode")

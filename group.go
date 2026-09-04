@@ -19,15 +19,10 @@ func (g *GroupHandle) Task(name string, args ...any) *TaskHandle {
 	return g.tasks.out.groupTaskGetOrCreate(g.tasks.id, formatted, opts...)
 }
 
-// Summary sets a success-oriented group summary.
-func (g *GroupHandle) Summary(text string) *GroupHandle {
-	g.tasks.Summary(text)
-	return g
-}
-
-// Summaryf sets a formatted success-oriented group summary.
-func (g *GroupHandle) Summaryf(format string, args ...any) *GroupHandle {
-	g.tasks.Summaryf(format, args...)
+// Summary sets a success-oriented group summary. text is a printf format
+// when args are present (fmt.Sprintf semantics) — see Task (C6).
+func (g *GroupHandle) Summary(text string, args ...any) *GroupHandle {
+	g.tasks.Summary(text, args...)
 	return g
 }
 

@@ -21,7 +21,7 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	task := out.Task("index")
 	task.Phase("reading documents")
 	logger.Debug("batch loaded", "documents", 200)
-	task.Donef("indexed %d documents", 200)
+	task.Done("indexed %d documents", 200)
 	_ = out.Finish()
 
 	ops := screen.Operations()
