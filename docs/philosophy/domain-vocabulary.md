@@ -7,20 +7,27 @@ Cross-links: [jazz-syntax.md](./jazz-syntax.md) · [presentation-boundary.md](./
 
 ---
 
-## Task / Tasks
+## Task / Sequence / DisplayGroup
 
-One entity, one constructor. A `Task` answers both questions "is this state
-acceptable?" and "how is this work going?" — which one depends on how it's
-used, not on a separate type:
+One leaf entity, one constructor, plus two structural containers (v0.4.0/P3:
+"grouping does not inherently explain whether children are ordered,
+dependent, concurrent, or merely visually related" — `Tasks`/`Group` are
+deleted; every container is one of the two nouns below). A `Task` answers
+both questions "is this state acceptable?" and "how is this work going?" —
+which one depends on how it's used, not on a separate type:
 
-| Noun      | Meaning                                                                                                                                              |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**  | A named condition or unit of work — resolved directly (Done/Warn/Block/Fail/Skip) for a **condition**, or driven through Phase/Progress for **work** |
-| **Tasks** | A **collection** of Tasks; collection state is **derived** from children                                                                             |
+| Noun             | Meaning                                                                                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**         | A named condition or unit of work — resolved directly (Done/Warn/Block/Fail/Skip) for a **condition**, or driven through Doing/Progress for **work** |
+| **Sequence**     | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                     |
+| **DisplayGroup** | Presentation-only grouping — no ordering semantics; any number of children may be `Running` at once                                                  |
+
+Both containers derive their state entirely from their children — never
+`.Done()`/`.Fail()` on the container itself (see RULE-002 below).
 
 ```go
 gate := out.Task("working tree", evo.ID("repo.working-tree")) // condition: resolved directly below
-work := out.Task("download", evo.ID("install.download"))      // work: driven through Phase/Progress
+work := out.Task("download", evo.ID("install.download"))      // work: driven through Doing/Progress
 packages := out.DisplayGroup("packages")
 ```
 
@@ -133,7 +140,7 @@ Evidence attaches **tool-backed proof** (command output tails, etc.) to a Task.
 it is for.
 
 - Prefer **Evidence on the Task** (ordinary lead sheet), whether it's a condition or work.
-- Prefer **Task.Run(cmd)** for an `*exec.Cmd` — it wires Evidence and Phase in one call.
+- Prefer **Task.Run(cmd)** for an `*exec.Cmd` — it wires Evidence and Doing text in one call.
 - Evidence is **silent on success** (PHIL-005).
 - Session-level Evidence is studio overdub — not the ordinary example (PHIL-003).
 
@@ -153,10 +160,10 @@ Keep a condition Task when it expresses an independent state or carries severity
 
 - announces that a Plan exists
 - repeats successful Changes
-- restates a Tasks collection’s derived failure
+- restates a Sequence/DisplayGroup’s derived failure
 - says the command succeeded without adding a condition
 
-A **summary Task** may represent the aggregated condition of work intentionally not modeled as a Tasks collection:
+A **summary Task** may represent the aggregated condition of work intentionally not modeled as a Sequence/DisplayGroup:
 
 ```go
 placement := out.Task("placement", evo.ID("run.placement"))
@@ -191,7 +198,7 @@ Workers **update** handles; they do not declare presentation order concurrently.
 ```go
 jobs := out.DisplayGroup("placement")
 tracked := predeclarePlacementTasks(jobs, sortedFiles)
-// then start workers that call tracked[i].Phase / .Bytes / .Done / .Fail
+// then start workers that call tracked[i].Doing / .Bytes / .Done / .Fail
 ```
 
 ---
