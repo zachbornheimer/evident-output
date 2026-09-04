@@ -150,8 +150,11 @@ func formatLivePaneLine(rec debugRecord, columns int) string {
 	if width.VisibleCells(full) <= columns {
 		return full
 	}
-	// Too narrow for attrs: drop Fields, keep time + level + msg.
-	return formatHistoryLine(debugRecord{Time: rec.Time, Level: rec.Level, Message: rec.Message}, false)
+	// Too narrow for the full line (attrs included): truncate to the column
+	// budget with a trailing "…" rather than silently dropping Fields — the
+	// pane must never claim a record had no attributes when it simply ran
+	// out of room to show them.
+	return width.Truncate(full, columns)
 }
 
 // debugPaneReservedRows is the number of terminal rows the debug pane needs
