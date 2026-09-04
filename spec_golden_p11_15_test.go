@@ -686,7 +686,7 @@ func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	install := out.Task("install")
 	install.Progress(13, 40)
-	install.Record("install", 13, "packages")
+	install.Record("install", 13, "package")
 	install.Cancel("cancelled during retry")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

@@ -293,6 +293,13 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 - `Output.Subject(text)`: a post-Init setter with the same one-shot
   durable-line semantics as `Config.Subject`, for a caller who doesn't
   know the subject text until after `Init` (but still before other I/O).
+- Mutation-verb `object` arguments (`Delete`/`Update`/`Remove`/`Push`/
+  `Record`/`RecordLabel`, and `Changes`/`Plan`'s `Added`/`Updated`/
+  `Reused`/`Removed`/`Add`/`Delete`/`Revoke`) are now always singular
+  (`"branch"`, not `"branches"`) — the ledger derives the correct plural
+  from the recorded quantity at render time. `evo.Pluralize` stays
+  exported for prose outside the ledger. Existing goldens that passed an
+  already-plural object updated to singular.
 
 ## Migration guide (v0.2.x → v0.3.0)
 

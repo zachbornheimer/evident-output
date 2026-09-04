@@ -29,7 +29,7 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(8, "branches")
+	branches.Delete(8, "branch")
 	branches.Done("8 deleted")
 	worktrees := out.Task("worktrees")
 	protected := evo.Reason("protected")
@@ -72,7 +72,7 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(8, "branches")
+	branches.Delete(8, "branch")
 	protected := evo.Reason("protected")
 	for i := 0; i < 6; i++ {
 		branches.Skipped(protected, "b")
@@ -112,7 +112,7 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(8, "branches")
+	branches.Delete(8, "branch")
 	branches.Done("8 deleted")
 	worktrees := out.Task("worktrees")
 	worktrees.Cancel("cancelled — 0 removed")
@@ -149,7 +149,7 @@ func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(12, "branches")
+	branches.Delete(12, "branch")
 	branches.Done("12 deleted")
 	remotes := out.Task("remotes")
 	remotes.Fail("authentication failed", evo.Detail("remote: Invalid username or token"))
@@ -184,7 +184,7 @@ func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(5, "branches")
+	branches.Delete(5, "branch")
 	branches.Done("5 deleted (local)")
 	remotes := out.Task("remotes")
 	remotes.Cancel("cancelled before any delete-remote")

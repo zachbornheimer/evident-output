@@ -409,6 +409,19 @@ func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose boo
 // only this presentation loop is capped. Mirrors maxVisibleProblems's bound.
 const maxVisibleEffectRows = maxVisibleProblems
 
+// ledgerObject renders r.Object pluralized from r.Quantity when the record
+// carries a quantity (I4) — mutation verbs take a singular object
+// (Delete(2, "stale local branch")) and the ledger derives "branches" at
+// render time via Pluralize, instead of every call site hand-composing its
+// own singular/plural noun with evo.Pluralize. Pluralize itself stays
+// exported for prose outside the ledger (a Printf line, a Problem detail).
+func ledgerObject(r EffectRecord) string {
+	if !r.HasQty {
+		return r.Object
+	}
+	return Pluralize(r.Quantity, r.Object)
+}
+
 func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, intendedVerb string, width int, color bool, profile GlyphProfile) {
 	// A [planned]/[changed] header with zero rows beneath it invents a mutation
 	// story that never happened; render the honest empty-success line instead
@@ -437,7 +450,7 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 	if width > 0 && width < compactLayoutMaxWidth {
 		for _, r := range visible {
 			if r.HasQty {
-				fmt.Fprintf(b, "  %s %d %s\n", r.Verb, r.Quantity, r.Object)
+				fmt.Fprintf(b, "  %s %d %s\n", r.Verb, r.Quantity, ledgerObject(r))
 			} else {
 				fmt.Fprintf(b, "  %s %s\n", r.Verb, r.Object)
 			}
@@ -464,7 +477,7 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 		verb := padRight(r.Verb, maxVerb)
 		if r.HasQty {
 			qty := padLeft(strconv.FormatInt(r.Quantity, 10), maxQty)
-			fmt.Fprintf(b, "  %s  %s %s\n", verb, qty, r.Object)
+			fmt.Fprintf(b, "  %s  %s %s\n", verb, qty, ledgerObject(r))
 			continue
 		}
 		gap := maxVerb - len(r.Verb)
@@ -580,6 +593,11 @@ func summarizeChangeSection(ch ChangesSnapshot) string {
 	}
 	if mixedObject {
 		object = ch.Subject
+	} else {
+		// I4: object arrives singular now (mutation verbs take a singular
+		// object); pluralize from the summed quantity here, same as
+		// ledgerObject does per-row.
+		object = Pluralize(total, object)
 	}
 	if mixedVerb {
 		return fmt.Sprintf("%d %s changed", total, object)

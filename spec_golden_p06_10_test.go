@@ -638,7 +638,7 @@ func TestSpecP10_EarlyTermination(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
 	out.Task("scan").Done()
 	install := out.Task("install")
-	install.Record("install", 6, "packages in .venv")
+	install.Record("install", 6, "package in .venv")
 	install.Cancel("cancelled at 6/14")
 	if err := out.Finish(); err != nil {
 		t.Log(err)

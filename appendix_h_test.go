@@ -209,9 +209,9 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("dependencies").
-		Added(14, "packages").
-		Updated(4, "packages").
-		Reused(63, "cached packages").
+		Added(14, "package").
+		Updated(4, "package").
+		Reused(63, "cached package").
 		Wrote("app.lock")
 
 	if err := out.Finish(); err != nil {
@@ -242,8 +242,8 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("dependencies").
-		Added(14, "packages").
-		Updated(4, "packages").
+		Added(14, "package").
+		Updated(4, "package").
 		Wrote("app.lock")
 
 	if err := out.Finish(); err != nil {
@@ -266,7 +266,7 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Plan("delete account acme").
-		Delete(14, "projects").
+		Delete(14, "project").
 		Revoke(7, "API keys")
 
 	if err := out.Finish(); err != nil {

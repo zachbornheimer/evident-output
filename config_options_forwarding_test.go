@@ -18,7 +18,7 @@ func TestInit_OptionsPath_HonorsDryRun(t *testing.T) {
 		Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()},
 	})
 
-	out.Task("cleanup").Delete(2, "stale local branches")
+	out.Task("cleanup").Delete(2, "stale local branch")
 	_ = out.Finish()
 
 	rendered := buf.String()

@@ -28,7 +28,7 @@ func run() error {
         evo.Detail("commit or stash before continuing"),
     )
 
-    evo.Task("cleanup").Delete(2, "stale local branches") // [changed]/[planned] picked from Config.DryRun; no Done needed — a recorded effect auto-resolves
+    evo.Task("cleanup").Delete(2, "stale local branch") // singular object, ledger renders "2 stale local branches"; [changed]/[planned] picked from Config.DryRun; no Done needed — a recorded effect auto-resolves
     for pkg := range evo.Task("install").Each(packages) {
         install(pkg)
     }

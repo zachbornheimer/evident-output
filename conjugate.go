@@ -26,12 +26,20 @@ var compoundPastTense = map[string]string{
 // irregularPlural holds singular -> plural spellings that the default
 // +s/+es/+ies rule gets wrong. Extend this table, not call sites, when a new
 // object noun needs a special plural.
+//
+// "package in .venv" is here, not a suffix-rule fix: the default rule
+// inflects whichever word ends the phrase, which is correct for the common
+// "<adjective> <noun>" shape (English's head noun trails), but wrong once a
+// prepositional qualifier follows the countable noun instead — "package in
+// .venv" pluralizes to "packages in .venv" (the noun before the
+// preposition), not "package in .venvs" (I4's ledger auto-pluralization).
 var irregularPlural = map[string]string{
-	"child": "children",
-	"tooth": "teeth",
-	"foot":  "feet",
-	"leaf":  "leaves",
-	"index": "indices",
+	"child":            "children",
+	"tooth":            "teeth",
+	"foot":             "feet",
+	"leaf":             "leaves",
+	"index":            "indices",
+	"package in .venv": "packages in .venv",
 }
 
 // Pluralize returns the plural spelling of singular when quantity != 1 (an

@@ -22,7 +22,7 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(8, "local branches")
+	branches.Delete(8, "local branch")
 	branches.Done()
 	out.Cancel("interrupted")
 	if err := out.Finish(); err != nil {
@@ -75,7 +75,7 @@ func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(8, "local branches")
+	branches.Delete(8, "local branch")
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

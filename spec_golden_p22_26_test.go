@@ -811,7 +811,7 @@ func TestSpecP25_ASCIIGlyphFallback_Error(t *testing.T) {
 //
 //	[ok] branches  8 deleted
 //	[cancel]  worktrees interrupted
-//	[!]  already mutated: 8 local deleted
+//	[!]  already mutated: 8 locals deleted
 //
 // The real ASCII Cancelled marker is "[cancel]" (glyph.go: glyphCancelled =
 // {"■", "[cancel]"}); the cancelled row always annotates "interrupted"; and
@@ -853,7 +853,7 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 	if !strings.Contains(collapsed, "[cancel] worktrees interrupted") {
 		t.Fatalf("want the ASCII cancelled worktrees row annotated \"interrupted\", got:\n%s", got)
 	}
-	if !strings.Contains(collapsed, "already mutated: 8 local deleted") {
+	if !strings.Contains(collapsed, "already mutated: 8 locals deleted") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
@@ -884,7 +884,7 @@ func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		branches.Skipped(dirty, fmt.Sprintf("feat/d%d", i))
 	}
-	branches.Record("delete", 40, "branches")
+	branches.Record("delete", 40, "branch")
 	branches.Done("40 del")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -967,7 +967,7 @@ func TestSpecP26_NarrowTerminal_Error(t *testing.T) {
 //
 //	✓ branches 15 del
 //	■ worktrees interrupted
-//	! already mutated: 15 local deleted
+//	! already mutated: 15 locals deleted
 //
 // A single TaskHandle cannot render two terminal rows (a completed "15 del"
 // Done row and a separate Cancelled row) under one name — the same
@@ -1013,7 +1013,7 @@ func TestSpecP26_NarrowTerminal_EarlyTermination(t *testing.T) {
 	if !strings.Contains(collapsed, "■ worktrees interrupted") {
 		t.Fatalf("want the cancelled worktrees row annotated \"interrupted\", got:\n%s", got)
 	}
-	if !strings.Contains(collapsed, "already mutated: 15 local deleted") {
+	if !strings.Contains(collapsed, "already mutated: 15 locals deleted") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
