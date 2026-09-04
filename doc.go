@@ -22,17 +22,17 @@
 //     empty-case, and exit codes are all owned; run returns only error.
 //  2. Print / Printf / Println / Verbose — start as casually as fmt.
 //  3. evo.Task(name) for everything — a check/gate resolved directly (Done/Warn/Block/Fail/Skip,
-//     no Phase/Progress call) renders as a fact row; work with Phase/Progress or a mutation verb
+//     no Doing/Progress call) renders as a fact row; work with Doing/Progress or a mutation verb
 //     (Add/Delete/Create/Update/Remove/Write/Push/Record/RecordName) shows a spinner while running —
 //     the verb picks [planned] vs [changed] from Config.DryRun; no call site ever flips its own tense.
 //     name is a printf format whenever args follow it (evo.Task("build %s", ref)); no args
 //     leaves name untouched.
 //  4. evo.Task(name).Each(items) for loop progress (absolute, never double-counted).
-//     Each takes []string (the item name becomes the live Phase); for any other slice
+//     Each takes []string (the item name becomes the live doing-text); for any other slice
 //     type, drive the same absolute progress with EachN(len(items)) — no []string copy
 //     needed just to get a progress bar.
-//     .Writer() as cmd.Stdout so a talkative child's last line becomes the live Phase;
-//     Task.Run(cmd) wires an *exec.Cmd through that same capture/phase plumbing in one call
+//     .Writer() as cmd.Stdout so a talkative child's last line becomes the live doing-text;
+//     Task.Run(cmd) wires an *exec.Cmd through that same capture/doing-text plumbing in one call
 //     and hands back the subprocess error verbatim for the caller to resolve. An item that
 //     fails inside the loop body resolves on the loop's own task handle (task.Fail(...); break)
 //     — never a second evo.Task declared per item — leaving Progress sealed at the count
@@ -48,7 +48,7 @@
 //     (Output.Snapshot / TaskHandle.Snapshot); the wire JSON document does not carry them.
 //  6. evo.Confirm(question, ...) — owns the whole ask-decide-resolve gate (prompt, quiesce,
 //     Done/Blocked resolution, exit code). question is verbatim text, not a printf format
-//     like Task/Sequence/Reason/Phase/Skip's text — use fmt.Sprintf to build a dynamic question
+//     like Task/Sequence/Reason/Doing/Skip's text — use fmt.Sprintf to build a dynamic question
 //     first. Confirm is the one entity-text spelling that stays non-printf (release-gate
 //     round 6 finding 4).
 //  7. evo.Sequence(name) for named children with derived, auto-lifecycle state.
@@ -60,8 +60,8 @@
 //     WHAT went wrong, not the task's own name again — the rendered row already carries the
 //     task label, so a summary of "validate manifest: %w" would just repeat it back. Warn,
 //     and success/skip verbs, stay void too — this is never fluent chaining.
-//     Done/Warn/Task/Sequence/Reason/Phase/Skip are printf-variadic themselves (fmt.Sprintf
-//     semantics when args follow); there is no separate Donef/Warnf/Taskf/Reasonf/Phasef/
+//     Done/Warn/Task/Sequence/Reason/Doing/Skip are printf-variadic themselves (fmt.Sprintf
+//     semantics when args follow); there is no separate Donef/Warnf/Taskf/Reasonf/Doingf/
 //     Skipf (C6).
 //     Output.Failf stays void rather than mirroring TaskHandle.Failf's *Failure return
 //     (release-gate round 4 finding 5): every call site uses it as a bare statement, a
@@ -78,7 +78,7 @@
 //     the same default-instance sugar evo.Task/evo.Verbose already offer.
 //
 // Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Sequence (+ ID), Task.Evidence,
-// Task.Each / Task.PhaseWriter / Task.Run, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
+// Task.Each / Task.Writer / Task.Run, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
 // evo.Confirm, evo.Reason, Changes/Plan (tooling call sites, see below), slog
 // via SlogHandler (level from Config.Debug.Level).
 //

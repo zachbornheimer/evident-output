@@ -17,13 +17,12 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 ```go
 import (
-    "os"
     evo "github.com/zachbornheimer/evident-output"
 )
 
 func main() {
     evo.Init(evo.Config{Title: "bpp-csharp"}) // first statement — arms first paint before any I/O
-    os.Exit(evo.Main(run))
+    evo.Main(run) // exits the process itself; evo.Run(run) if you need the code without exiting
 }
 
 func run() error {
@@ -75,25 +74,24 @@ The trailing `[state]` band and the process exit code always agree — never rea
 one without checking the other. `· partial` and `· warned` are modifiers on
 the state, not a state of their own.
 
-| Band                           | Exit code | Meaning                                                                  |
-| ------------------------------ | --------- | ------------------------------------------------------------------------ |
-| `[changed]`                    | `0`       | A mutation verb (`Delete`/`Create`/…) recorded outside `DryRun`          |
-| `[planned]`                    | `0`       | A mutation verb recorded under `Config.DryRun` (would, not did)          |
-| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation verb recorded                    |
-| `[unchanged]`                  | `0`       | Every task resolved `Done.Unchanged`; nothing needed to change           |
-| `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                               |
-| `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                         |
-| `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                             |
-| any of the above + `· partial` | unchanged | The run also left an unresolved task — same exit code as the state above |
-| any of the above + `· warned`  | unchanged | At least one `Warn` resolved without otherwise changing the headline     |
+| Band                           | Exit code | Meaning                                                                                                                                                  |
+| ------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[changed]`                    | `0`       | A mutation verb (`Delete`/`Create`/…) recorded outside `DryRun`                                                                                          |
+| `[planned]`                    | `0`       | A mutation verb recorded under `Config.DryRun` (would, not did)                                                                                          |
+| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation verb recorded                                                                                                    |
+| `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                                                                                                               |
+| `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                                                                                                         |
+| `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                                                                                                             |
+| any of the above + `· partial` | unchanged | The run also left an unresolved task — same exit code as the state above                                                                                 |
+| any of the above + `· warned`  | unchanged | At least one `Warn` annotated a task without otherwise changing the headline — `Warn` never resolves the task itself; `Done`/`Fail`/`Block`/… still must |
 
 ## Pick the entity
 
-| Shape            | Use when                                                                                                                                                                                                    |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**         | Everything — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skip`, no `Phase`/`Progress`) renders as a fact row; work with phases, progress, or mutation verbs shows a spinner while running |
-| **DisplayGroup** | Presentation-only collection of independent tasks (state is **derived**); concurrent Running children expected                                                                                              |
-| **Sequence**     | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest recursively via `.Sequence`/`.DisplayGroup`                                        |
+| Shape            | Use when                                                                                                                                                                                                        |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**         | Everything — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skip`, no `Doing`/`Progress`) renders as a fact row; work with doing-text, progress, or mutation verbs shows a spinner while running |
+| **DisplayGroup** | Presentation-only collection of independent tasks (state is **derived**); concurrent Running children expected                                                                                                  |
+| **Sequence**     | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest recursively via `.Sequence`/`.DisplayGroup`                                            |
 
 ## Learn more
 

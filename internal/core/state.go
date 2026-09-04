@@ -8,8 +8,8 @@ package core
 // StateBlocked/StateCancelled/StateWarning constants (same package, same
 // identifiers, different types is still a duplicate declaration in Go).
 // Renaming ConclusionState's constants instead would ripple into the JSON
-// wire (schema 0.3, frozen this release) and every existing golden — this
-// is the "document instead" branch the census decision allows.
+// wire and every existing golden — this is the "document instead" branch
+// the census decision allows.
 type EntityState string
 
 const (
@@ -33,8 +33,20 @@ const (
 type ConclusionState string
 
 const (
-	StateReady     ConclusionState = "ready"
-	StateChanged   ConclusionState = "changed"
+	StateReady   ConclusionState = "ready"
+	StateChanged ConclusionState = "changed"
+	// StateWarning is reserved-unreachable through evo's own public surface
+	// today (E3 deletion census, KEEP-documented rather than deleted):
+	// deriveConclusion only reaches its hasWarning case when no task has
+	// resolved Done, but a warned-and-still-unresolved task auto-resolves
+	// Done at Finish (P2 amnesty) before any post-Finish Conclusion is
+	// computed — so hasDone wins first in every conclusion built after a
+	// real Finish. It stays live algebra, not dead code: a caller that
+	// calls Conclusion()/InferConclusion mid-run (before Finish) on a
+	// warned-but-still-running task with nothing else Done yet can reach
+	// it today, and it is the landing state a future run-scoped evo.Warn
+	// (P8, unbuilt this stage) needs once nothing else in the run
+	// classifies.
 	StateWarning   ConclusionState = "warning"
 	StateBlocked   ConclusionState = "blocked"
 	StateFailed    ConclusionState = "failed"
