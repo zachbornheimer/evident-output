@@ -61,30 +61,37 @@ func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
 }
 
 // TestRun_NeverResolvedBareTask_BandAndExitCodeAgree is the red-first case
-// for release-gate round 3 finding 2: a bare, never-touched Task (no amnesty
-// qualification of any kind) leaves bookkeeping misuse recorded at Finish.
-// The band that Finish renders and the exit code Output.Run ultimately
-// returns must be the same fact — never a printed OK-family band with an
-// exit code that silently escalated after the fact.
+// for release-gate round 3 finding 2: the band that Finish renders and the
+// exit code Output.Run ultimately returns must be the same fact — never a
+// printed OK-family band with an exit code that silently escalated after the
+// fact. Release-gate round 4 finding 3 folded this exact scenario (a bare,
+// never-touched task, clean finish) into the same amnesty as an abandoned
+// Phase-then-forgotten task: both read OK-family + partial, never misuse, so
+// this now also doubles as one half of that unification (see
+// release_gate4_test.go's TestFinish_ForgottenTerminalVerb_... for the
+// explicit with/without-Phase comparison).
 func TestRun_NeverResolvedBareTask_BandAndExitCodeAgree(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	code := out.Run(func(o *evo.Output) error {
-		o.Task("install") // declared, never started, never resolved — no amnesty
+		o.Task("install") // declared, never started, never resolved
 		return nil
 	})
 
 	rendered := buf.String()
-	bandIsOKFamily := strings.Contains(rendered, "[ready]") ||
-		strings.Contains(rendered, "[changed]") ||
-		strings.Contains(rendered, "[unchanged]") ||
-		strings.Contains(rendered, "[planned]")
+	bandIsOKFamily := strings.Contains(rendered, "[ready") ||
+		strings.Contains(rendered, "[changed") ||
+		strings.Contains(rendered, "[unchanged") ||
+		strings.Contains(rendered, "[planned")
 	if bandIsOKFamily && code != evo.ExitOK {
 		t.Fatalf("band read OK-family but exit code = %d (want %d to match); out:\n%s", code, evo.ExitOK, rendered)
 	}
 	if !bandIsOKFamily && code == evo.ExitOK {
 		t.Fatalf("exit code read OK but the printed band did not; out:\n%s", rendered)
+	}
+	if code != evo.ExitOK {
+		t.Fatalf("exit code = %d, want %d (ExitOK) — a bare unresolved task on a clean finish is Partial, not misuse", code, evo.ExitOK)
 	}
 }
 

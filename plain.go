@@ -587,12 +587,33 @@ func writeDryRunMarker(b *strings.Builder, color bool) {
 	fmt.Fprintf(b, "%s  %s\n", tag, dryRunMarkerText)
 }
 
+// conclusionPartialModifier is the literal suffix that marks the printed
+// band as evo-rec.md's completeness axis rather than a new headline: a run
+// that never invented a State of its own (StatePartial is dead precisely
+// because Partial is a modifier, not a root verdict) still needs an honest
+// band when Conclusion.Partial is true (release-gate round 4 finding 1) — an
+// abandoned Each loop or a forgotten terminal verb on an otherwise clean
+// finish must not read as silently complete.
+const conclusionPartialModifier = " · partial"
+
+// conclusionBandTag renders the trailing outcome band's bracketed tag,
+// appending conclusionPartialModifier when the conclusion is incomplete —
+// evo-rec.md's spec does not pin a literal spelling for the OK+Partial band
+// (only a two-axis rule), so the modifier form here is the documented
+// implementation choice (see work order for the corresponding spec-edit note).
+func conclusionBandTag(c Conclusion) string {
+	if c.Partial {
+		return fmt.Sprintf("[%s%s]", c.State, conclusionPartialModifier)
+	}
+	return fmt.Sprintf("[%s]", c.State)
+}
+
 func writeConclusion(b *strings.Builder, c Conclusion, color bool, profile GlyphProfile) {
 	subject := c.Subject
 	if subject == "" {
 		subject = string(c.State)
 	}
-	tag := style(fmt.Sprintf("[%s]", c.State), conclusionColor(c.State), color)
+	tag := style(conclusionBandTag(c), conclusionColor(c.State), color)
 	fmt.Fprintf(b, "\n%s  %s\n", tag, style(subject, sgrBold, color))
 	if c.Explanation != "" {
 		fmt.Fprintf(b, "  %s\n", c.Explanation)
@@ -700,8 +721,6 @@ func conclusionColor(s ConclusionState) string {
 		return sgrRed
 	case StateBlocked:
 		return sgrRed
-	case StatePartial:
-		return sgrYellow
 	case StateCancelled:
 		return sgrDim
 	default:

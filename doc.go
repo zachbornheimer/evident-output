@@ -54,6 +54,12 @@
 //     same for Block. Warn, and success/skip verbs, stay void too — this is never fluent
 //     chaining. Done/Warn/Task/Group/Reason are printf-variadic themselves (fmt.Sprintf
 //     semantics when args follow); there is no separate Donef/Warnf/Taskf/Reasonf (C6).
+//     Output.Failf stays void rather than mirroring TaskHandle.Failf's *Failure return
+//     (release-gate round 4 finding 5): every call site uses it as a bare statement, a
+//     returned error would fail errcheck at each of them with no lint-config exception on
+//     this repo, and there is no per-call Next chain for an output-level failure to attach
+//     to the way TaskHandle.Failf's *Failure attaches to its task (Output.Next already
+//     covers the output-level case). Documented asymmetry, not an oversight.
 //
 // Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Group (+ ID), Task.Evidence,
 // Task.Each / Task.PhaseWriter / Task.Run, Task.Fail / Task.Failf / Task.Block / Task.Blockf,

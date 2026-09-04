@@ -347,15 +347,14 @@ func hasRecordedTaxonomy(t *taskState) bool {
 	return len(t.skipped) > 0 || len(t.kept) > 0
 }
 
-// appendMisuseLineLocked renders the one required line naming the first
-// recorded misuse and, when known, the entity it happened on — an exit code
-// may never disagree with everything the caller saw printed (beginner-1).
+// appendMisuseLineLocked renders the one required line for the first
+// recorded misuse — an exit code may never disagree with everything the
+// caller saw printed (beginner-1). The line is misuseHintFor's corrective
+// sentence for the recorded sentinel, never the raw "evo: ..." sentinel text
+// (release-gate round 4 finding 2): machine detail stays in JSON/debug, the
+// human stream gets told what to do next.
 func (o *Output) appendMisuseLineLocked() {
-	if o.misuseSubject == "" {
-		o.lines = append(o.lines, fmt.Sprintf("misuse: %v", o.misuse))
-		return
-	}
-	o.lines = append(o.lines, fmt.Sprintf("misuse: %s: %v", o.misuseSubject, o.misuse))
+	o.lines = append(o.lines, fmt.Sprintf("%s  %s", misuseGlyph, misuseHintFor(o.misuse, o.misuseSubject)))
 }
 
 // recordMisuseFor is recordMisuse with the offending entity's name attached,
@@ -778,6 +777,17 @@ func (o *Output) Fail(summary string, options ...ProblemOption) {
 // Failf records an output-level failure with a formatted summary. fmt.Errorf
 // semantics: a trailing ": %w"/", %w" splits the formatted text into the
 // recorded summary and evidence line exactly like TaskHandle.Failf.
+//
+// Failf stays void rather than returning an error like TaskHandle.Failf does
+// (release-gate round 4 finding 5): every existing call site uses Failf as a
+// bare statement (e.g. Output.Run's own runInterruptible), and errcheck
+// flags a discarded error return with no lint-config exception on this repo
+// — so matching TaskHandle.Failf's signature here would force every one of
+// those call sites to add a needless `_ = ` just to stay lint-clean. There is
+// also no per-call Next chain to attach an error return to here the way
+// TaskHandle.Failf's *Failure does (Output.Next already covers the
+// output-level case), so a returned error would carry less than
+// TaskHandle.Failf's does anyway. Documented asymmetry, not an oversight.
 func (o *Output) Failf(format string, args ...any) {
 	err := fmt.Errorf(format, args...)
 	summary, evidence := splitWrappedMessage(format, err)
@@ -1249,14 +1259,16 @@ const unresolvedTaskCancelledSummary = "cancelled — run concluded before finis
 const unresolvedTaskIncompleteSummary = "incomplete — run concluded before finish"
 
 // resolveUnstartedTaskLocked derives a real terminal state for a task Finish
-// found non-terminal, from the one model, so every consumer sees the same
-// honest verdict instead of hand-rolling the same cascade themselves: a task
-// that had already started (Running) reads as Cancelled, and a task that
-// never got attention (Pending) reads as NotStarted ("not started") — the
-// same face a Group gives an unstarted sibling (autoResolveGroupsLocked).
-// Never called for a task an explicit verb already resolved, and never
-// called for a Running task on a clean finish (see abnormalFinishLocked's
-// caller in Finish, which resolves that case to Incomplete directly instead).
+// found non-terminal during an abnormal finish (abnormalFinishLocked), from
+// the one model, so every consumer sees the same honest verdict instead of
+// hand-rolling the same cascade themselves: a task that had already started
+// (Running) reads as Cancelled, and a task that never got attention
+// (Pending) reads as NotStarted ("not started") — the same face a Group
+// gives an unstarted sibling (autoResolveGroupsLocked). Never called for a
+// task an explicit verb already resolved, and never called on a clean finish
+// at all (see Finish's own !abnormal branch, which resolves every
+// non-terminal task to Incomplete directly instead, regardless of whether it
+// ever reached Running — release-gate round 4 finding 3).
 func resolveUnstartedTaskLocked(t *taskState) {
 	if t.state == Running {
 		t.state = Cancelled
@@ -1365,15 +1377,22 @@ func (o *Output) Finish() error {
 			o.appendEventLocked(Event{Type: "task.done", EntityID: t.id})
 			continue
 		}
-		if t.state == Running && !abnormal {
-			// Clean, unsignalled, error-free finish: an abandoned Running
-			// task told an incomplete story, not a caller bug — never
-			// Cancelled/130 (release-gate finding 1). No misuse recorded:
-			// this is an honest partial outcome (folded into Conclusion.
-			// Partial), not bookkeeping the caller must fix.
+		if !abnormal {
+			// Clean, unsignalled, error-free finish: a forgotten terminal
+			// verb told an incomplete story, not a caller bug — never
+			// Cancelled/130 (release-gate finding 1), and never misuse-driven
+			// exit escalation regardless of whether the task ever reached
+			// Running (release-gate round 4 finding 3: a Phase call that
+			// promoted it to Running before it was abandoned must not flip
+			// the exit code against an identical task that was never
+			// touched at all — same amnesty qualifier, same outcome). No
+			// misuse recorded: this is an honest partial outcome (folded
+			// into Conclusion.Partial), not bookkeeping the caller must fix.
+			// The hint still names the corrective action either way.
 			t.state = Incomplete
 			t.phase = ""
 			t.summary = unresolvedTaskIncompleteSummary
+			attachUnresolvedTaskHintLocked(t)
 			continue
 		}
 		resolveUnstartedTaskLocked(t)

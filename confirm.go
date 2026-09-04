@@ -15,7 +15,14 @@ const (
 	confirmDeclinedSummary      = "declined"
 	confirmPolicyBlockedSummary = "blocked by policy"
 	confirmAssumedYesSummary    = "assumed --yes"
-	confirmPolicyHint           = "pass --yes to confirm non-interactively"
+	// confirmEOFSummary is the rendered detail for a zero-byte EOF on stdin
+	// (release-gate round 4 finding 6) — a distinct sentence from
+	// confirmPolicyBlockedSummary's no-TTY/plain/NonInteractive policy block,
+	// so the printed reason names what actually happened (stdin closed
+	// before any answer arrived) instead of reusing wording that implies a
+	// deliberate policy decision.
+	confirmEOFSummary = "no answer — stdin closed"
+	confirmPolicyHint = "pass --yes to confirm non-interactively"
 )
 
 // ConfirmOption configures a Confirm gate.
@@ -120,6 +127,11 @@ func Confirm(question string, opts ...ConfirmOption) bool {
 //   - "y"/"yes" (case-insensitive): Done, returns true.
 //   - Anything else, including empty: Blocked "declined", returns false —
 //     exit 1 via Conclusion precedence, never Failed, never Cancelled.
+//   - Zero-byte EOF on stdin (stdin closed or redirected from /dev/null
+//     before any answer arrived): Blocked "no answer — stdin closed" with
+//     the same --yes Next hint, returns false — distinct wording from the
+//     no-TTY policy block above, since nothing decided to refuse; the stream
+//     simply gave no answer.
 //   - SIGINT/SIGTERM while waiting: the existing signal path (runInterruptible)
 //     cancels the gate — it renders Cancelled, not declined — and Confirm
 //     returns false.
@@ -199,8 +211,12 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 			// Zero-byte EOF on stdin (no interactive human on the other end,
 			// e.g. stdin closed or redirected from /dev/null) is a policy
 			// block, distinct from a human explicitly typing anything else —
-			// evo-rec.md "Confirm EOF = policy block, not decline".
-			gate.Block(confirmPolicyBlockedSummary)
+			// evo-rec.md "Confirm EOF = policy block, not decline". It gets
+			// its own summary text, distinct from the no-TTY policy-block
+			// wording above: the reader was told nothing arrived, not that a
+			// deliberate policy refused the prompt (release-gate round 4
+			// finding 6).
+			gate.Block(confirmEOFSummary)
 			gate.Next(cfg.resolvedPolicyHint(o))
 			o.flushGateNow(gate.id)
 			return nil

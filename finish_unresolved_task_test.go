@@ -40,9 +40,11 @@ func TestFinish_UnresolvedTaskWithRecordedEffect_AutoResolvesDone(t *testing.T) 
 // TestFinish_RemainingMisuse_RendersTaskLine is beginner-finding-1's fix
 // (b): any misuse that still changes the exit code (here, a mutation verb
 // called on an already-Blocked task — the literal README quickstart bug)
-// must render one line naming the task and the misuse, so a caller is never
-// left staring at an exit code that contradicts everything the printed band
-// showed.
+// must render one line naming the task and a corrective hint, so a caller is
+// never left staring at an exit code that contradicts everything the printed
+// band showed. Release-gate round 4 finding 2 replaced the raw
+// "misuse: <name>: evo: ..." sentinel dump this test used to pin with an
+// honest, sentinel-specific hint — this pins the new line instead.
 func TestFinish_RemainingMisuse_RendersTaskLine(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
@@ -54,7 +56,11 @@ func TestFinish_RemainingMisuse_RendersTaskLine(t *testing.T) {
 		t.Fatal("Finish() = nil, want the recorded misuse")
 	}
 	rendered := buf.String()
-	if !strings.Contains(rendered, "branches") || !strings.Contains(rendered, "misuse") {
-		t.Fatalf("expected a rendered line naming the task and the misuse, got:\n%s", rendered)
+	if strings.Contains(rendered, "evo: entity is already resolved") {
+		t.Fatalf("raw sentinel jargon leaked into the user stream:\n%s", rendered)
+	}
+	wantHint := "resolve each task once; branches was already resolved"
+	if !strings.Contains(rendered, "branches") || !strings.Contains(rendered, wantHint) {
+		t.Fatalf("expected a rendered line naming the task and the corrective hint %q, got:\n%s", wantHint, rendered)
 	}
 }

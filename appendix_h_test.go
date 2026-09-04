@@ -184,7 +184,13 @@ func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 	}
 }
 
-func TestH13_Output_FinishReportsUnresolvedTask(t *testing.T) {
+// TestH13_Output_FinishLeavesUnresolvedTaskPartial pins the release-gate
+// round 4 finding 3 policy: an unresolved task with no problems of its own,
+// on an otherwise clean finish, reads as an honest incomplete outcome
+// (Conclusion.Partial), never as misuse — the caller simply forgot a
+// terminal verb, and a clean finish must never escalate that to
+// ErrUnresolvedTask (previously pinned here as the old behavior).
+func TestH13_Output_FinishLeavesUnresolvedTaskPartial(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
@@ -193,8 +199,11 @@ func TestH13_Output_FinishReportsUnresolvedTask(t *testing.T) {
 	dependencies.Task("esbuild")
 
 	err := out.Finish()
-	if !errors.Is(err, evo.ErrUnresolvedTask) {
-		t.Fatalf("error = %v, want ErrUnresolvedTask", err)
+	if err != nil {
+		t.Fatalf("error = %v, want nil (clean finish, no amnesty-defeating problems)", err)
+	}
+	if !out.Conclusion().Partial {
+		t.Fatal("want Conclusion.Partial = true for the unresolved esbuild task")
 	}
 }
 
