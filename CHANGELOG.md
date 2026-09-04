@@ -290,6 +290,9 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   of a caller-declared Task's own row and suppressed. Its synthetic
   fallback task name is now the caller's own executable basename instead
   of the generic literal `"command"`.
+- `Output.Subject(text)`: a post-Init setter with the same one-shot
+  durable-line semantics as `Config.Subject`, for a caller who doesn't
+  know the subject text until after `Init` (but still before other I/O).
 
 ## Migration guide (v0.2.x → v0.3.0)
 

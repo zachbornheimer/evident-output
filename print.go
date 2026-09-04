@@ -64,6 +64,17 @@ func (o *Output) Println(args ...any) {
 	o.At(Normal).Println(args...)
 }
 
+// Subject prints one durable line immediately — the same one-shot semantics
+// as Config.Subject, for a caller who doesn't know the subject text until
+// after Init (e.g. resolved from a flag), but still before any other I/O
+// (I3). A no-op on a nil Output or empty text.
+func (o *Output) Subject(text string) {
+	if o == nil || text == "" {
+		return
+	}
+	o.Println(text)
+}
+
 // Print implements Printer.
 func (p *Printer) Print(args ...any) {
 	p.enqueue(fmt.Sprint(args...))

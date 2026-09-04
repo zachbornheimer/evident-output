@@ -102,6 +102,11 @@ type Config struct {
 	// projection needs the reader to see up front. Set it once in Config
 	// instead of calling out.Println(root) (or whatever the identifying
 	// value is) at every projection/command that needs to show it.
+	//
+	// When the subject text isn't known until after Init (e.g. resolved
+	// from a flag parsed later, but still before any other I/O), call
+	// Output.Subject(text) instead — same one-shot durable-line semantics,
+	// as a post-construction setter (I3).
 	Subject string
 
 	// Stdout is the ordinary human stream (default os.Stdout).
