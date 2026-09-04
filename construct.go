@@ -66,7 +66,16 @@ type Verbosity int
 const (
 	// VerbosityNormal projects Normal-visibility messages only.
 	VerbosityNormal Verbosity = iota
-	// VerbosityVerbose also projects Verbose-visibility messages.
+	// VerbosityVerbose also projects Verbose-visibility messages. It also
+	// expands each TaskHandle.Skipped/Kept taxonomy row from its default
+	// aggregated "! skipped N (reason1, reason2)" count into one named line
+	// per reason ("reason: name1, name2, ..."). The names themselves are
+	// never lost at VerbosityNormal — they are always present on the Go
+	// TaskSnapshot.Skipped/Kept fields (returned by Output.Snapshot and
+	// TaskHandle.Snapshot); VerbosityVerbose only changes whether the plain
+	// human render surfaces them. The wire JSONDocument (JSONTask) does not
+	// currently carry Skipped/Kept at all — read the Go snapshot directly to
+	// get the names programmatically.
 	VerbosityVerbose
 )
 
