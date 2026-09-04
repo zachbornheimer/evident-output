@@ -125,7 +125,7 @@ type taskState struct {
 	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
 	// so child-process evidence recorded via either path lands in one ring and
 	// DetailTail sees it after Fail.
-	capture *Capture
+	evidence *Evidence
 
 	// skipped/kept hold disposition taxonomy accumulated by Skipped/Kept —
 	// the model that "! skipped N (...)" / "! kept N (...)" are derived from

@@ -37,7 +37,7 @@ import (
 func (t *TaskHandle) Run(cmd *exec.Cmd) error {
 	if t != nil && t.out != nil {
 		t.ensurePhase(commandPhaseName(cmd))
-		pw := &phaseWriter{task: t, capture: t.Evidence()}
+		pw := &phaseWriter{task: t, evidence: t.Evidence()}
 		cmd.Stdout = teeSubprocessWriter(cmd.Stdout, pw)
 		cmd.Stderr = teeSubprocessWriter(cmd.Stderr, pw)
 	}

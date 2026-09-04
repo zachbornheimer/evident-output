@@ -415,6 +415,13 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   - `const Debug` (alias of `LevelDebug`) deleted — one spelling.
   - `RecordLabel` is the one item the census named to keep as-is
     (a golden depends on it).
+- Finished the `Capture`→`Evidence` rename in the option surface (C9):
+  `CaptureOption`→`EvidenceOption`, `CaptureStream`→`EvidenceStream`
+  (+ its three constants), `MaxCaptureBytes`→`MaxEvidenceBytes`. The
+  v0.2.16-shipped spellings stay as deprecated aliases
+  (`type CaptureOption = EvidenceOption`, etc.) — everything else on
+  this list was never shipped, so it breaks cleanly. Internal field
+  (`taskState.capture`, `phaseWriter.capture`) renamed to `evidence`.
 
 ## Migration guide (v0.2.x → v0.3.0)
 

@@ -20,7 +20,7 @@ func (t *TaskHandle) PhaseWriter() io.Writer {
 	if t == nil || t.out == nil {
 		return io.Discard
 	}
-	return &phaseWriter{task: t, capture: t.Evidence()}
+	return &phaseWriter{task: t, evidence: t.Evidence()}
 }
 
 // phaseWriterMaxPendingBytes bounds the pending-line buffer: a child that
@@ -38,16 +38,16 @@ const phaseWriterMaxPendingBytes = 4 * 1024 // 4 KiB
 // phaseWriterMaxPendingBytes so a line-less/oversized child stream cannot
 // grow it without bound.
 type phaseWriter struct {
-	task    *TaskHandle
-	capture *Evidence
+	task     *TaskHandle
+	evidence *Evidence
 
 	mu  sync.Mutex
 	buf []byte
 }
 
 func (w *phaseWriter) Write(p []byte) (int, error) {
-	if w.capture != nil {
-		_, _ = w.capture.Write(p)
+	if w.evidence != nil {
+		_, _ = w.evidence.Write(p)
 	}
 
 	w.mu.Lock()

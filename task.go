@@ -403,10 +403,10 @@ func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []
 		// already gathered via Evidence()/PhaseWriter() is exactly the detail
 		// a Fail/Block row needs, so DetailTail is no longer an opt-in step a
 		// caller has to remember.
-		if (state == Failed || state == Blocked) && st.capture != nil && !st.capture.Empty() {
+		if (state == Failed || state == Blocked) && st.evidence != nil && !st.evidence.Empty() {
 			for i := range problems {
 				if problems[i].Detail == "" {
-					problems[i].Detail = st.capture.detailText()
+					problems[i].Detail = st.evidence.detailText()
 				}
 			}
 		}

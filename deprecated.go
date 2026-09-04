@@ -40,3 +40,31 @@ func Item(name string, opts ...EntityOption) *TaskHandle {
 	}
 	return Default().Item(name, args...)
 }
+
+// CaptureOption is EvidenceOption's shipped v0.2.16 name (C9: finishes the
+// Capture->Evidence rename in the option surface).
+//
+// Deprecated: Use EvidenceOption. Will be removed in v1.0.
+type CaptureOption = EvidenceOption
+
+// CaptureStream is EvidenceStream's shipped v0.2.16 name.
+//
+// Deprecated: Use EvidenceStream. Will be removed in v1.0.
+type CaptureStream = EvidenceStream
+
+// CaptureStreamCombined, CaptureStreamStdout, CaptureStreamStderr are
+// EvidenceStream's shipped v0.2.16 constant names.
+//
+// Deprecated: Use EvidenceStreamCombined/Stdout/Stderr. Will be removed in v1.0.
+const (
+	CaptureStreamCombined = EvidenceStreamCombined
+	CaptureStreamStdout   = EvidenceStreamStdout
+	CaptureStreamStderr   = EvidenceStreamStderr
+)
+
+// MaxCaptureBytes is MaxEvidenceBytes's shipped v0.2.16 name.
+//
+// Deprecated: Use MaxEvidenceBytes. Will be removed in v1.0.
+func MaxCaptureBytes(n int) EvidenceOption {
+	return MaxEvidenceBytes(n)
+}

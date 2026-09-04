@@ -109,7 +109,7 @@ if err := runDockerInfo(proof); err != nil {
 - **Redaction:** `Config.Redactor` (or `evo.Redact`) applies before ring retention.
 - **Detail:** `DetailTail()` is a `ProblemOption`; separate `Stdout()`/`Stderr()` buffers. `Failf`'s
   trailing `%w` also renders a summary/evidence split for the wrapped error itself.
-- **Defaults:** last 200 lines / 256KiB via `KeepLastLines` / `MaxCaptureBytes`.
+- **Defaults:** last 200 lines / 256KiB via `KeepLastLines` / `MaxEvidenceBytes`.
 - **Session `out.Capture`:** advanced only — prefer entity-owned capture.
 
 ## Platform adapters (contracts, not sugar)
@@ -122,7 +122,7 @@ Keep the core vocabulary small. Scale via **Config**, **schema keys**, and **str
 | Plugin / subsystem namespace | `out.Scope("registry").Task("pull", evo.ID("image"))` → key `registry.image` (IDs only; not isolation) |
 | Domain payload purity        | `Format: FormatData` + `json.NewEncoder(out.ResultWriter())` (stdout); human on stderr                 |
 | Secret scrubbing             | `Config.Redactor` or `evo.Redact(r)` — Debug fields + Capture ring                                     |
-| Host-owned rendering         | `FormatExternal` + snapshots (no inline stream)                                                        |
+| Host-owned rendering         | `FormatExternal` + `out.Snapshot()` (no inline stream)                                                 |
 
 Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Prefer one `Config` field or `EntityOption` over a new top-level type.
 
