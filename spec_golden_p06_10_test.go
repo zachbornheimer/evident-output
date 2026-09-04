@@ -105,10 +105,13 @@ func TestSpecP6_ErrorBlock_ProgressThenFail(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	final := screen.FinalText()
+	// Fail commits the resolved row durably at resolution time
+	// (release-gate round 5 finding 3, commitResolvedTaskLocked) rather than
+	// waiting for WriteFinal — PersistedText covers both durable and final.
+	persisted := screen.PersistedText()
 	for _, want := range []string{"✗", "generate", "disk full", "write /tmp/out: no space left on device"} {
-		if !strings.Contains(final, want) {
-			t.Fatalf("want %q in final fail line:\n%s", want, final)
+		if !strings.Contains(persisted, want) {
+			t.Fatalf("want %q in persisted fail line:\n%s", want, persisted)
 		}
 	}
 }
@@ -143,13 +146,16 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
-	final := screen.FinalText()
+	// Cancel commits the resolved row durably at resolution time
+	// (release-gate round 5 finding 3, commitResolvedTaskLocked) rather than
+	// waiting for WriteFinal — PersistedText covers both durable and final.
+	persisted := screen.PersistedText()
 	for _, want := range []string{
 		"■", "generate", "cancelled",
 		"already mutated: 1 partial artifact at /tmp/out (2.1 MB) wrote",
 	} {
-		if !strings.Contains(final, want) {
-			t.Fatalf("want %q in final live surface:\n%s", want, final)
+		if !strings.Contains(persisted, want) {
+			t.Fatalf("want %q in persisted live surface:\n%s", want, persisted)
 		}
 	}
 }
@@ -267,12 +273,15 @@ func TestSpecP7_ErrorBlock(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
-	final := screen.FinalText()
-	if !strings.Contains(final, "✗") || !strings.Contains(final, "branches") || !strings.Contains(final, "fatal: unable to read tree") {
-		t.Fatalf("want failed branches row, got:\n%s", final)
+	// Fail commits the resolved row durably at resolution time
+	// (release-gate round 5 finding 3, commitResolvedTaskLocked) rather than
+	// waiting for WriteFinal — PersistedText covers both durable and final.
+	persisted := screen.PersistedText()
+	if !strings.Contains(persisted, "✗") || !strings.Contains(persisted, "branches") || !strings.Contains(persisted, "fatal: unable to read tree") {
+		t.Fatalf("want failed branches row, got:\n%s", persisted)
 	}
-	if strings.Contains(final, "120 deleted; 380 remaining untouched") || strings.Contains(final, "already mutated") {
-		t.Fatalf("want no early-termination summary row for an empty Changes ledger, got:\n%s", final)
+	if strings.Contains(persisted, "120 deleted; 380 remaining untouched") || strings.Contains(persisted, "already mutated") {
+		t.Fatalf("want no early-termination summary row for an empty Changes ledger, got:\n%s", persisted)
 	}
 }
 

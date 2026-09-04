@@ -93,19 +93,23 @@ func TestSpecP1_LiveFrame_Step2(t *testing.T) {
 		break
 	}
 
+	// branches resolved: it commits durably at resolution time
+	// (release-gate round 5 finding 3, commitResolvedTaskLocked) and drops
+	// out of the live ticker, which now holds only the two unresolved tasks.
+	durable := screen.PersistedText()
+	if !strings.Contains(durable, "✓") || !strings.Contains(durable, "branches") || !strings.Contains(durable, "14 deleted") {
+		t.Fatalf("want Done branches summary committed durably, got:\n%s", durable)
+	}
 	got := screen.LatestLiveText()
 	lines := strings.Split(got, "\n")
-	if len(lines) != 3 {
-		t.Fatalf("want 3 flat task lines (no collection header), got %d:\n%s", len(lines), got)
+	if len(lines) != 2 {
+		t.Fatalf("want 2 flat task lines (resolved branches left the ticker), got %d:\n%s", len(lines), got)
 	}
-	if !strings.Contains(lines[0], "✓") || !strings.Contains(lines[0], "branches") || !strings.Contains(lines[0], "14 deleted") {
-		t.Fatalf("line 1 want Done branches summary, got %q", lines[0])
+	if !strings.Contains(lines[0], "worktrees") || !strings.Contains(lines[0], "../.worktrees/app-sah-1") {
+		t.Fatalf("line 1 want Running worktrees with current name, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "worktrees") || !strings.Contains(lines[1], "../.worktrees/app-sah-1") {
-		t.Fatalf("line 2 want Running worktrees with current name, got %q", lines[1])
-	}
-	if !strings.Contains(lines[2], "○") || !strings.Contains(lines[2], "remotes") {
-		t.Fatalf("line 3 want pending remotes with ○, got %q", lines[2])
+	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "remotes") {
+		t.Fatalf("line 2 want pending remotes with ○, got %q", lines[1])
 	}
 }
 
@@ -334,9 +338,17 @@ func TestSpecP6_LiveFrame_Step2(t *testing.T) {
 	test.Progress(4, 12)
 	test.Phase("") // forces a repaint reflecting the just-set Progress
 
+	// generate resolved: it commits durably at resolution time
+	// (release-gate round 5 finding 3, commitResolvedTaskLocked) and drops
+	// out of the live ticker — the live region only ever holds unresolved
+	// entities now.
+	durable := screen.PersistedText()
+	if !strings.Contains(durable, "✓") || !strings.Contains(durable, "generate") || !strings.Contains(durable, "8.0 MB") {
+		t.Fatalf("want Done generate committed durably, got:\n%s", durable)
+	}
 	got := screen.LatestLiveText()
-	if !strings.Contains(got, "✓") || !strings.Contains(got, "generate") || !strings.Contains(got, "8.0 MB") {
-		t.Fatalf("want Done generate, got:\n%s", got)
+	if strings.Contains(got, "generate") {
+		t.Fatalf("resolved generate must not remain in the live ticker, got:\n%s", got)
 	}
 	if !strings.Contains(got, "test") || !strings.Contains(got, "4/12") {
 		t.Fatalf("want Running test at 4/12, got:\n%s", got)
@@ -423,16 +435,20 @@ func TestSpecP9_LiveFrame_Step1(t *testing.T) {
 	out.Task("scan").Done()
 	out.Task("venv").Phase("creating")
 
+	// scan resolved: it commits durably at resolution time (release-gate
+	// round 5 finding 3, commitResolvedTaskLocked) and drops out of the live
+	// ticker, which now holds only the unresolved venv task.
+	durable := screen.PersistedText()
+	if !strings.Contains(durable, "✓") || !strings.Contains(durable, "scan") {
+		t.Fatalf("want Done scan committed durably, got:\n%s", durable)
+	}
 	got := screen.LatestLiveText()
 	lines := strings.Split(got, "\n")
-	if len(lines) != 2 {
-		t.Fatalf("want 2 flat task lines, got %d:\n%s", len(lines), got)
+	if len(lines) != 1 {
+		t.Fatalf("want 1 flat task line (resolved scan left the ticker), got %d:\n%s", len(lines), got)
 	}
-	if !strings.Contains(lines[0], "✓") || !strings.Contains(lines[0], "scan") {
-		t.Fatalf("line 1 want Done scan, got %q", lines[0])
-	}
-	if !strings.Contains(lines[1], "venv") || !strings.Contains(lines[1], "creating") {
-		t.Fatalf("line 2 want Running venv with phase, got %q", lines[1])
+	if !strings.Contains(lines[0], "venv") || !strings.Contains(lines[0], "creating") {
+		t.Fatalf("line 1 want Running venv with phase, got %q", lines[0])
 	}
 }
 
@@ -452,13 +468,20 @@ func TestSpecP9_LiveFrame_Step2(t *testing.T) {
 	out.Task("venv").Phase("creating")
 	out.Task("install")
 
+	// scan resolved: it commits durably at resolution time (release-gate
+	// round 5 finding 3, commitResolvedTaskLocked) and drops out of the live
+	// ticker, which now holds only the two unresolved tasks.
+	durable := screen.PersistedText()
+	if !strings.Contains(durable, "✓") || !strings.Contains(durable, "scan") {
+		t.Fatalf("want Done scan committed durably, got:\n%s", durable)
+	}
 	got := screen.LatestLiveText()
 	lines := strings.Split(got, "\n")
-	if len(lines) != 3 {
-		t.Fatalf("want 3 flat task lines, got %d:\n%s", len(lines), got)
+	if len(lines) != 2 {
+		t.Fatalf("want 2 flat task lines (resolved scan left the ticker), got %d:\n%s", len(lines), got)
 	}
-	if !strings.Contains(lines[2], "○") || !strings.Contains(lines[2], "install") {
-		t.Fatalf("line 3 want pending install, got %q", lines[2])
+	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "install") {
+		t.Fatalf("line 2 want pending install, got %q", lines[1])
 	}
 }
 

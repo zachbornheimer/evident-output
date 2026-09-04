@@ -79,43 +79,24 @@ func (o *Output) writeDurableTextLocked(text string) {
 	}
 }
 
-// emitTaskProgressiveLocked streams a terminal standalone Task in plain/non-TTY
-// mode as soon as it resolves. Interactive mode keeps H.17 (WriteFinal owns
-// standalone tasks). Collection children stay with the collection renderer.
+// commitResolvedTaskLocked commits a resolved standalone Task's row to
+// durable scrollback the instant it resolves — interactive or not — and
+// drops it from the live ticker (liveTickerSnapshotLocked already filters
+// coreEmitted tasks). Collection children stay with the collection renderer
+// (H.20/H.21 own their ledger via signalLiveLocked instead).
 //
-// Contract (P2): in plain mode, a Task that reaches a terminal state before a
-// later Printf appears above that Printf in the primary stream. residualPlain
-// skips already-emitted tasks so Finish does not reprint them.
-func (o *Output) emitTaskProgressiveLocked(st *taskState) {
-	if st == nil || st.coreEmitted || st.collection != nil {
-		return
-	}
-	if !isTerminalTask(st.state) {
-		return
-	}
-	live := o.liveLocked()
-	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
-	if interactive {
-		return
-	}
-	var b strings.Builder
-	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
-	st.coreEmitted = true
-	if b.Len() == 0 {
-		return
-	}
-	o.writeDurableTextLocked(b.String())
-}
-
-// flushGateNowLocked forces the immediate durable presentation of a
-// resolved Confirm gate and drops it from the live ticker — the one case
-// where a Task-shaped entity keeps the shipped-v0.2.x Item behavior of
-// streaming the instant it resolves, interactive or not. A Confirm gate
-// answers a human question mid-run; leaving its outcome pinned in the
-// ticker until Finish (ordinary standalone-Task behavior — see
-// emitTaskProgressiveLocked) would bury a decision the caller needs visible
-// now, especially when sibling tasks keep running after the prompt.
-func (o *Output) flushGateNowLocked(id string) {
+// Chronology contract (progressive.go's residualPlainLocked doc comment):
+// progressive Task rows and Print lines interleave by resolution/call time —
+// a Task that resolves before a later Println/Confirm prompt must render
+// above it in scrollback. Committing at resolution time, not at Finish
+// (former H.17 behavior), is what makes that true in interactive mode too;
+// release-gate round 5 finding 3 is exactly a Confirm prompt or Println
+// rendering above a task that had already resolved. This was previously
+// Confirm-gate-only (flushGateNowLocked) because a Confirm's answer was the
+// one case that couldn't wait for Finish; every standalone Task now gets the
+// same immediate commit for the same reason — a later evidence call must
+// never race above already-resolved work.
+func (o *Output) commitResolvedTaskLocked(id string) {
 	st := o.taskByRef[id]
 	if st == nil || st.coreEmitted || !isTerminalTask(st.state) {
 		return

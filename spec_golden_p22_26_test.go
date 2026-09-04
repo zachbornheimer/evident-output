@@ -294,9 +294,16 @@ func TestSpecP23_SignalConclusion_Step1(t *testing.T) {
 	out.Task("scan").Done()
 	out.Task("venv").Phase("creating")
 
+	// scan resolved: it commits durably at resolution time (release-gate
+	// round 5 finding 3, commitResolvedTaskLocked) and drops out of the live
+	// ticker, which now holds only the unresolved venv task.
+	durable := screen.PersistedText()
+	if !strings.Contains(durable, "✓") || !strings.Contains(durable, "scan") {
+		t.Fatalf("want scan's Done row committed durably, got %q", durable)
+	}
 	live := screen.LatestLiveText()
-	if !strings.Contains(live, "✓") || !strings.Contains(live, "scan") {
-		t.Fatalf("want scan's Done row to survive in the flat live frame, got %q", live)
+	if strings.Contains(live, "scan") {
+		t.Fatalf("resolved scan must not remain in the live ticker, got %q", live)
 	}
 	if !strings.Contains(live, "venv") || !strings.Contains(live, "creating") {
 		t.Fatalf("want venv Running with phase \"creating\" in the live frame, got %q", live)
@@ -743,14 +750,24 @@ func TestSpecP25_ASCIIGlyphFallback_Step2(t *testing.T) {
 	worktrees.Progress(1, 3)
 	worktrees.Phase("../.worktrees/app-sah-1")
 
+	// branches resolved: it commits durably at resolution time
+	// (release-gate round 5 finding 3, commitResolvedTaskLocked) and drops
+	// out of the live ticker, which now holds only the unresolved worktrees
+	// task.
+	durable := screen.PersistedText()
+	for _, want := range []string{"[ok]", "branches", "14 deleted"} {
+		if !strings.Contains(durable, want) {
+			t.Fatalf("want %q in ASCII-profile durable report, got %q", want, durable)
+		}
+	}
 	live := screen.LatestLiveText()
-	for _, want := range []string{"[ok]", "branches", "14 deleted", "worktrees", "1/3", "../.worktrees/app-sah-1"} {
+	for _, want := range []string{"worktrees", "1/3", "../.worktrees/app-sah-1"} {
 		if !strings.Contains(live, want) {
 			t.Fatalf("want %q in ASCII-profile live frame, got %q", want, live)
 		}
 	}
-	if strings.ContainsAny(live, "✓✗⊘■○→…") {
-		t.Fatalf("ASCII profile must not leak a Unicode state glyph, got %q", live)
+	if strings.ContainsAny(durable+live, "✓✗⊘■○→…") {
+		t.Fatalf("ASCII profile must not leak a Unicode state glyph, got durable=%q live=%q", durable, live)
 	}
 }
 

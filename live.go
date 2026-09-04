@@ -394,7 +394,7 @@ func renderLiveRegion(s Snapshot, height, width int, now time.Time, color bool, 
 }
 
 // liveTickerSnapshotLocked is the snapshot the live ticker draws from: every
-// root task except one already durably flushed by emitTaskProgressiveLocked
+// root task except one already durably flushed by commitResolvedTaskLocked
 // (a never-ran "fact-check" resolution — see its doc comment). Without this
 // filter, a task dropped from the ticker onto durable text would reappear on
 // the next unrelated redraw and double-print.

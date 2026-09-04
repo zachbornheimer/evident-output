@@ -92,12 +92,16 @@ func TestProgressive_NoDoublePrintOnFinish(t *testing.T) {
 
 // Interactive + progressive items: Finish must not re-dump the full report
 // (empty WriteFinal residual used to fall back to renderPlain → double print).
-// TestProgressive_InteractiveNoDoublePrint pins H.17: a standalone Task
-// resolved interactively (even one never Phase'd/Progress'd — the
-// "fact-check" idiom the shipped-v0.2.x Item type used to own) stays pinned
-// in the live ticker and is presented exactly once, by WriteFinal, at
-// Finish — never durably during the run, and never a second time in the
-// primary residual.
+//
+// TestProgressive_InteractiveNoDoublePrint pinned H.17 (a standalone Task
+// stays pinned in the live ticker and is presented exactly once, by
+// WriteFinal, at Finish) until release-gate round 5 finding 3: that deferral
+// let a later Println/Confirm prompt render above a task that had already
+// resolved, since only Println's own durable write happened immediately.
+// The contract is now row-then-line — a resolved task commits to durable
+// scrollback the instant it resolves (commitResolvedTaskLocked), same as a
+// Confirm gate always did. WriteFinal must still never re-dump it: exactly
+// one presentation total, now at resolution time instead of at Finish.
 func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var primary bytes.Buffer
@@ -113,23 +117,23 @@ func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 	out.Task("branches").Block("local-only")
 	_ = out.Finish()
 
-	// No durable evidence during the run: both tasks stay in the ticker.
+	// Durable evidence streams immediately, at resolution — not deferred to Finish.
 	var durable strings.Builder
 	for _, op := range screen.Operations() {
 		if op.Kind == "durable" {
 			durable.WriteString(op.Text)
 		}
 	}
-	if d := durable.String(); strings.Contains(d, "working tree") || strings.Contains(d, "branches") {
-		t.Fatalf("standalone tasks must not stream durably before Finish:\n%s", d)
+	if d := durable.String(); !strings.Contains(d, "working tree") || !strings.Contains(d, "branches") {
+		t.Fatalf("standalone tasks must stream durably at resolution:\n%s", d)
 	}
-	// WriteFinal presents each exactly once.
+	// WriteFinal never re-dumps an already-committed task: conclusion only.
 	final := screen.FinalText()
-	if n := strings.Count(final, "working tree"); n != 1 {
-		t.Fatalf("WriteFinal working tree count=%d want 1:\n%s", n, final)
+	if strings.Contains(final, "working tree") || strings.Contains(final, "branches") {
+		t.Fatalf("WriteFinal re-dumped an already-committed task:\n%s", final)
 	}
-	if n := strings.Count(final, "branches"); n != 1 {
-		t.Fatalf("WriteFinal branches count=%d want 1:\n%s", n, final)
+	if !strings.Contains(final, "[blocked]") {
+		t.Fatalf("WriteFinal missing conclusion:\n%s", final)
 	}
 	// Primary residual: conclusion only (no second task dump).
 	got := primary.String()

@@ -649,7 +649,7 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 			st.summary = sanitize.Text(reason)
 			o.bumpLocked()
 			o.appendEventLocked(Event{Type: "task.cancelled", EntityID: id})
-			o.flushGateNowLocked(id)
+			o.commitResolvedTaskLocked(id)
 		}
 		return true
 	}
