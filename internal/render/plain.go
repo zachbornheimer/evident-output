@@ -170,6 +170,29 @@ func writeProblem(b *strings.Builder, p core.Problem, color, emphasize bool, pro
 	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, txt.Dim(txt.GlyphEvidence.Render(profile), color), emphasizedText(p.Summary, color, emphasize))
 }
 
+// dedupeEvidenceTailAgainstRow is P7's addition (user-13-problems.md
+// Problem 7: "deduplicate it against the failure message"). The exact
+// anti-pattern the doc names — task.Failf("install failed: %s",
+// capture.Text()) — folds the retained output straight into the row's own
+// summary; auto-attach (task.go's finish) still sets EvidenceTail from the
+// same capture ring, which would otherwise render that text a second time
+// underneath the row. Clearing it here (a rendering decision, made once
+// output already has both values in hand) rather than at attach time avoids
+// a real hazard: finish() holds Output's lock while auto-attaching, and
+// re-entering the capture ring's redactor lock from a second, later attempt
+// deadlocks (see task.go's finish doc comment) — so the Problem's stored
+// EvidenceTail must stay exactly as captured, and only the row rendering it
+// decides not to repeat what the row headline already said.
+func dedupeEvidenceTailAgainstRow(p core.Problem, rowSummary string) core.Problem {
+	if p.EvidenceTail == "" || rowSummary == "" {
+		return p
+	}
+	if strings.Contains(rowSummary, p.EvidenceTail) {
+		p.EvidenceTail = ""
+	}
+	return p
+}
+
 // emphasizedText applies txt.Dim unless emphasize opts the text out of demotion —
 // the single place that decides "is this text decoration or evidence" for
 // the problem-rendering chain.
@@ -429,6 +452,7 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, co
 		problems = problems[:maxVisibleProblems]
 	}
 	for _, p := range problems {
+		p = dedupeEvidenceTailAgainstRow(p, t.Summary)
 		// beginner-3: the task glyph row already shows t.Summary. A problem
 		// row with no Detail beyond that summary says nothing new — drop it
 		// entirely instead of re-echoing "└─ <same text>" underneath.
@@ -641,6 +665,7 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int
 		problems = problems[:maxVisibleProblems]
 	}
 	for _, p := range problems {
+		p = dedupeEvidenceTailAgainstRow(p, headerSummary)
 		// beginner-3: mirror writeTask's de-echo — a problem row with no
 		// Detail beyond the already-shown header summary says nothing new.
 		if p.Detail == "" && p.EvidenceTail == "" && p.Subject == "" && p.Summary != "" && p.Summary == headerSummary {

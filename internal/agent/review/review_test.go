@@ -669,6 +669,50 @@ func f(out *evo.Output, failures []string) {
 	}
 }
 
+// TestEV001_FailfEmbedsCaptureText is red-first for P7's MCP detector
+// (user-13-problems.md Problem 7's named anti-pattern):
+// task.Failf("install failed: %s", capture.Text()) folds the retained
+// evidence ring straight into the summary, duplicating what auto-attach
+// already renders as its own evidence line.
+func TestEV001_FailfEmbedsCaptureText(t *testing.T) {
+	bad := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle, capture *evo.Evidence) {
+  task.Failf("install failed: %s", capture.Text())
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "EV-001" {
+			found = true
+			if f.Suggestion == "" {
+				t.Error("EV-001 missing suggestion")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected EV-001 on Failf embedding capture.Text(): %+v", res.Findings)
+	}
+}
+
+// TestEV001_NoFalsePositiveOnPavedPath proves the paved-path Failf("...: %w",
+// err) shape — which lets auto-attach do its one job — never triggers EV-001.
+func TestEV001_NoFalsePositiveOnPavedPath(t *testing.T) {
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle, err error) *evo.Failure {
+  return task.Failf("install dependencies: %w", err)
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "EV-001" {
+			t.Fatalf("false positive EV-001 on the paved-path %%w shape: %+v", res.Findings)
+		}
+	}
+}
+
 func TestCON002_NoFalsePositiveOnPerItemResolution(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output"

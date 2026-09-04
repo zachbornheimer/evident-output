@@ -111,7 +111,7 @@ and produces the unordered multi-spinner defect Sequence's "one Running child" h
 			Title:    "Stdout and stderr contracts",
 			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child", "exit-code", "signal"},
 			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData", "Main", "Writer"},
-			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031"},
+			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001"},
 			Body: `Human UI and logs must not contaminate structured stdout.
 Ordinary dual-stream: evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr}) — Config auto-applies Plain/NoColor off-TTY.
 FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr; a failed
@@ -131,6 +131,9 @@ it wires Evidence and doing-text together in one call. For live narration wire c
 instead of a hand-rolled line-splitting writer — every line becomes the current doing-text and is retained for
 DetailTail. Never implement your own io.Writer whose Write method calls TaskHandle.Doing (API-031): that
 reimplements the exact adapter Writer already owns.
+Evidence is deduplicated for you: never embed proof.Text()/proof.Tail() into a Failf/Blockf summary
+(task.Failf("install failed: %s", capture.Text()) — EV-001) — auto-attach already renders that same
+retained tail as its own evidence line underneath; embedding it in the summary too just repeats it.
 Tool-backed gates: task.Evidence() on the Task evaluating the condition.
 Evidence is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.

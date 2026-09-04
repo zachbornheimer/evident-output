@@ -668,6 +668,22 @@ item.Skip(note)`,
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "EV-001",
+			Category:  "EV",
+			Severity:  "warning",
+			Invariant: "a failure summary does not manually embed the retained evidence text",
+			Why:       "task.Failf(\"install failed: %s\", capture.Text()) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time as evidence underneath it (user-13-problems.md Problem 7: \"execution owns evidence, callers provide context\").",
+			BadCode:   `task.Failf("install failed: %s", capture.Text())`,
+			GoodCode: `proof := task.Evidence()
+run.Run(ctx, "npm", args, proof)
+return task.Failf("install dependencies: %w", err)`,
+			Remediation:     "Pass context via the trailing \": %w\" wrap instead of interpolating capture.Text()/Evidence().Text() into the summary — Failf/Blockf auto-attach the retained tail as its own evidence line",
+			RelatedGuidance: []string{"streams"},
+			VerificationIDs: []string{"EV-001"},
+			Since:           "0.4.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:              "MCP-021",
 			Category:        "MCP",
 			Severity:        "error",

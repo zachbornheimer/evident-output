@@ -312,6 +312,12 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectHandAssembledFailureSummary(filename, src)...)
 	}
 
+	// EV-001: Failf/Blockf embedding the retained evidence ring's own .Text()/
+	// .Tail() in the summary duplicates what auto-attach already renders.
+	if hasEvo {
+		findings = append(findings, detectFailfEmbeddedEvidenceText(filename, src)...)
+	}
+
 	// FP-004: a Doing string with no domain object is an illegible placeholder.
 	if hasEvo {
 		findings = append(findings, detectPlaceholderDoing(filename, src)...)
@@ -1280,6 +1286,31 @@ func detectConfirmMissingDestructive(filename, src string) []Finding {
 
 // printJoinPattern matches a Print/Println/Printf call fed a joined list —
 // the hand-assembled failure summary evo-rec.md's Conclusion already owns.
+// failfCaptureTextPattern is EV-001: task.Failf("...%s...", capture.Text())
+// (or Blockf) folds the retained evidence ring straight into the summary the
+// row already shows — Failf/Blockf's own auto-attach then renders the exact
+// same text a second time as evidence underneath it (user-13-problems.md
+// Problem 7). Matches any receiver's .Text()/.Tail() call appearing as a
+// Failf/Blockf argument, not just a variable literally named "capture" —
+// the misuse is the method call shape, not the identifier.
+var failfCaptureTextPattern = regexp.MustCompile(`\.(?:Failf|Blockf)\([^)]*\.(?:Text|Tail)\(\)[^)]*\)`)
+
+// detectFailfEmbeddedEvidenceText flags EV-001's anti-pattern.
+func detectFailfEmbeddedEvidenceText(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range failfCaptureTextPattern.FindAllStringIndex(src, -1) {
+		findings = append(findings, Finding{
+			RuleID:     "EV-001",
+			Severity:   "warning",
+			Message:    "Failf/Blockf argument calls .Text()/.Tail() on the retained evidence ring — that text is already auto-attached as a separate evidence line, so embedding it in the summary too duplicates it",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: `pass context via the trailing ": %w" wrap instead — e.g. task.Failf("install dependencies: %w", err) — and let Failf/Blockf auto-attach the retained tail`,
+		})
+	}
+	return findings
+}
+
 var printJoinPattern = regexp.MustCompile(`\.(Print|Println|Printf)\(\s*strings\.Join\(`)
 
 // detectHandAssembledFailureSummary flags a Print* call whose argument joins
