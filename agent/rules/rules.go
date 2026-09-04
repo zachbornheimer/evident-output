@@ -100,7 +100,7 @@ g.Task("b").Done()`,
 fmt.Printf("progress %d\n", n)`,
 			GoodCode: `out := evo.Init(evo.Config{})
 out.Printf("progress %d\n", n)
-// or out.Verbose().Println(...) for optional domain detail
+// or out.At(evo.VisibilityVerbose).Println(...) (evo.Verbose() on the default instance) for optional domain detail
 // or slog via out.SlogHandler for implementation diagnostics`,
 			BadOutput:       "interleaved ANSI + printf on stdout",
 			GoodOutput:      "managed Print / Verbose / slog only",
@@ -146,12 +146,15 @@ task.Done()`,
 			ID:        "API-028",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "formatting *f methods require a format directive",
-			Why:       "Donef(\"ok\") is ceremony; Done(\"ok\") is the intent. *f without % confuses readers and agents.",
-			BadCode:   `task.Donef("modules cached")`,
-			GoodCode: `task.Done("modules cached")
-task.Donef("%d packages", n)`,
-			Remediation:     "Use Done/Println without f when there is no format verb",
+			Invariant: "Failf/Blockf require a format directive — every other *f method is deleted",
+			Why: "Failf(\"boom\") with no directive at all is ceremony; Fail(\"boom\") is the intent. " +
+				"C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf entirely — " +
+				"Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are printf-variadic themselves now, " +
+				"so there is nothing left in that family to flag; Failf/Blockf survive for their %w+*Failure semantics.",
+			BadCode: `task.Failf("boom")`,
+			GoodCode: `task.Fail("boom")
+task.Failf("boom: %w", err)`,
+			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason take printf args directly",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",
@@ -752,15 +755,15 @@ t.Phase("walking")`,
 			Category:  "DOM",
 			Severity:  "warning",
 			Invariant: "Task.Progress(completed, total) stores absolute values, never a delta",
-			Why:       "Passing a delta to Progress instead of Advance silently corrupts the absolute count — repeated Progress(1, total) calls read as stuck at 1, not incrementing.",
+			Why:       "Hand-driving Progress from a loop index invites the exact bug it's meant to prevent — a re-run or retry that resets the counter reads as stuck, not incrementing.",
 			BadCode: `for range items {
   t.Progress(1, total) // resets to 1 every call instead of incrementing
 }`,
-			GoodCode: `t.Progress(0, total) // seal indeterminate -> determinate once
-for range items {
-  t.Advance(1) // increments the prior absolute value
+			GoodCode: `for range t.Each(items) {
+  // t.Each owns absolute Progress(i, len(items)) — a retry can never
+  // double-count or move the bar backward.
 }`,
-			Remediation:     "Use Progress(completed, total) only for absolute values; use Advance(delta) to increment",
+			Remediation:     "Use Task.Each(items)/EachN(n) to own absolute loop progress instead of hand-driving Progress from a loop index",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"DOM-017"},
 			Since:           "0.1.0",

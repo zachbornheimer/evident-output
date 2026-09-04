@@ -28,7 +28,7 @@ func run() error {
         evo.Detail("commit or stash before continuing"),
     )
 
-    evo.Task("branches").Delete(2, "stale local branches") // [changed]/[planned] picked from Config.DryRun
+    evo.Task("cleanup").Delete(2, "stale local branch") // singular object, ledger renders "2 stale local branches"; [changed]/[planned] picked from Config.DryRun; no Done needed — a recorded effect auto-resolves
     for pkg := range evo.Task("install").Each(packages) {
         install(pkg)
     }
@@ -48,8 +48,8 @@ Design philosophy and polish-phase basis: [`docs/roadmap/implementation-basis.md
 **Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug.Level: LevelTrace` selectable (`LevelUnset` → Info).
 **Lifecycle:** `os.Exit(evo.Main(run))` (default instance) or `os.Exit(out.Run(run))` (hosted, `Config.Isolated: true`) seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only). Semantic state: `Task`.
-**Mutations:** `Task.Delete/Create/Update/Remove/Write/Push/Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` — one spelling, never a call-site tense flip.
-**Loops and taxonomy:** `Task.Each(items)` / `EachN(n)` own absolute progress; `Task.Skipped(reason, name)` / `Task.Kept(reason, name)` own the counted, summed skip/keep partition.
+**Mutations:** `Task.Add/Delete/Create/Update/Remove/Write/Push/Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` — one spelling, never a call-site tense flip.
+**Loops and taxonomy:** `Task.Each(items []string)` / `EachN(len(items))` (any other slice type) own absolute progress; `Task.Skipped(reason, name)` / `Task.Kept(reason, name)` own the counted, summed skip/keep partition.
 **Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error.
 **Capture:** `Task.Evidence` (work or tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention. `cmd.Stdout = task.PhaseWriter()` turns a talkative child's last line into the live Phase; `out.Suspend(fn)` hands the tty to a child that paints its own UI.
 **Platform:** `evo.ID` + narrow `Scope` (Task/Tasks only — not a sandbox); `ResultWriter()` under `FormatData`.
@@ -61,7 +61,7 @@ Design philosophy and polish-phase basis: [`docs/roadmap/implementation-basis.md
 | **Task**  | Everything — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skip`, no `Phase`/`Progress`) renders as a fact row; work with phases, progress, or mutation verbs shows a spinner while running |
 | **Tasks** | Collection of independent tasks (state is **derived**)                                                                                                                                                      |
 
-Multi-gate: resolve every Task, then `if out.AnyBlocked() { return nil }` before mutation; `Main` maps `ExitCode`.
+Multi-gate: resolve every Task, then `if out.AnyBlockedSoFar() { return nil }` before mutation; `Main` maps `ExitCode`.
 
 **Advanced (tooling call sites):** `Plan` / `Changes` are the instance-API primitives Task's mutation verbs (`Delete`/`Create`/`Update`/…) are built on — reach for them directly only when a tool needs the would/did split without a Task.
 
@@ -109,7 +109,7 @@ if err := runDockerInfo(proof); err != nil {
 - **Redaction:** `Config.Redactor` (or `evo.Redact`) applies before ring retention.
 - **Detail:** `DetailTail()` is a `ProblemOption`; separate `Stdout()`/`Stderr()` buffers. `Failf`'s
   trailing `%w` also renders a summary/evidence split for the wrapped error itself.
-- **Defaults:** last 200 lines / 256KiB via `KeepLastLines` / `MaxCaptureBytes`.
+- **Defaults:** last 200 lines / 256KiB via `KeepLastLines` / `MaxEvidenceBytes`.
 - **Session `out.Capture`:** advanced only — prefer entity-owned capture.
 
 ## Platform adapters (contracts, not sugar)
@@ -122,7 +122,7 @@ Keep the core vocabulary small. Scale via **Config**, **schema keys**, and **str
 | Plugin / subsystem namespace | `out.Scope("registry").Task("pull", evo.ID("image"))` → key `registry.image` (IDs only; not isolation) |
 | Domain payload purity        | `Format: FormatData` + `json.NewEncoder(out.ResultWriter())` (stdout); human on stderr                 |
 | Secret scrubbing             | `Config.Redactor` or `evo.Redact(r)` — Debug fields + Capture ring                                     |
-| Host-owned rendering         | `FormatExternal` + snapshots (no inline stream)                                                        |
+| Host-owned rendering         | `FormatExternal` + `out.Snapshot()` (no inline stream)                                                 |
 
 Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Prefer one `Config` field or `EntityOption` over a new top-level type.
 

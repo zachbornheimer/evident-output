@@ -1,7 +1,6 @@
 package evo
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -22,8 +21,11 @@ var (
 //	    os.Exit(evo.Main(run))
 //	}
 //
-// evo.Init(evo.Config{}) (or evo.Init(evo.DefaultConfig())) builds an
-// ordinary default instance.
+// evo.Init() (zero args) or evo.Init(evo.Config{}) (or
+// evo.Init(evo.DefaultConfig())) all build an ordinary default instance —
+// Init is variadic (I9) so the zero-config call needs no empty Config{}
+// literal. Passing more than one Config uses only the first; there is one
+// construction call, not a merge.
 //
 // Config.Isolated returns an independent instance that skips both steps —
 // it never touches package state (parallel tests, embedders holding their
@@ -36,11 +38,24 @@ var (
 // arms first paint, regardless of Isolated: a caller with direct Option
 // control is expected to also control default-binding and arm() explicitly
 // (e.g. via SetDefault, or Output.Run for the lifecycle MainWith used to own).
-func Init(cfg Config) *Output {
+func Init(configs ...Config) *Output {
+	cfg := resolveInitConfig(configs)
 	if len(cfg.Options) > 0 {
 		// Advanced/testing escape hatch: build directly from raw Options,
 		// bypassing Config's ordinary stream/TTY/color inference entirely.
-		return newOutput(cfg.Title, cfg.Options...)
+		// DryRun and Subject are additive and never conflict with a caller's
+		// own Options, so they are still honored here instead of silently
+		// dropped (I1) — everything else on Config is genuinely superseded
+		// by the caller's explicit Option control.
+		opts := cfg.Options
+		if cfg.DryRun {
+			opts = append(append([]Option{}, opts...), DryRun())
+		}
+		out := newOutput(cfg.Title, opts...)
+		if cfg.Subject != "" {
+			out.Println(cfg.Subject)
+		}
+		return out
 	}
 	out := newFromConfig(resolveConfig(cfg))
 	if !cfg.Isolated {
@@ -51,6 +66,18 @@ func Init(cfg Config) *Output {
 		out.Println(cfg.Subject)
 	}
 	return out
+}
+
+// resolveInitConfig picks Init's effective Config from its variadic
+// argument: zero args is the zero Config (evo.Init()), and one or more
+// uses the first — there is one construction call, not a merge, so any
+// argument past the first is ignored rather than erroring on a call shape
+// no caller has a reason to make.
+func resolveInitConfig(configs []Config) Config {
+	if len(configs) == 0 {
+		return Config{}
+	}
+	return configs[0]
 }
 
 // SetDefault installs out as the package-level default Output.
@@ -100,16 +127,13 @@ func Group(name string, args ...any) *GroupHandle {
 // instance registry — duplicate strings merge into one bucket, so an inline
 // evo.Reason("protected") at every call site is always legal; lifting it to a
 // package var (var reasonProtected = evo.Reason("protected")) is optional,
-// not required for correctness.
-func Reason(name string, opts ...ReasonOption) TaxonomyReason {
-	return Default().reasonGetOrCreate(name, opts...)
-}
-
-// Reasonf returns a get-or-create taxonomy Reason on the default instance
-// using a printf-formatted name (fmt.Sprintf semantics) — the formatted text
-// is the get-or-create key, same identity rule as Reason.
-func Reasonf(format string, args ...any) TaxonomyReason {
-	return Reason(fmt.Sprintf(format, args...))
+// not required for correctness. name is a printf format when args are
+// present (fmt.Sprintf semantics) — one text spelling shared with
+// Task/Group (C6); evo.ForSkip()/evo.OnTask(...) may be mixed into args in
+// any position and still applies, exactly like Task's evo.ID.
+func Reason(name string, args ...any) TaxonomyReason {
+	formatted, opts := formatReasonName(name, args)
+	return Default().reasonGetOrCreate(formatted, opts...)
 }
 
 // Print formats like fmt.Sprint and enqueues human-facing text on the default instance.
@@ -129,5 +153,20 @@ func Println(args ...any) {
 
 // Verbose returns a Printer scoped to Verbose visibility on the default instance.
 func Verbose() *Printer {
-	return Default().Verbose()
+	return Default().At(VisibilityVerbose)
+}
+
+// AnyBlockedSoFar reports whether any Task on the default instance is
+// currently Blocked — see Output.AnyBlockedSoFar. Package-level parity with
+// Task/Group/Print* (beginner-7): a caller using the default-instance
+// facade throughout a run should never have to reach for a hosted *Output
+// just to check this one thing.
+func AnyBlockedSoFar() bool {
+	return Default().AnyBlockedSoFar()
+}
+
+// AnyFailed reports whether any Task on the default instance is currently
+// Failed — see Output.AnyFailed.
+func AnyFailed() bool {
+	return Default().AnyFailed()
 }

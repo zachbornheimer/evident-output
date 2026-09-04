@@ -74,10 +74,12 @@ func main() {
 	})
 
 	if *asJSON {
-		if err := evo.WriteJSON(os.Stdout, out.Snapshot()); err != nil {
+		b, err := evo.EncodeJSON(out.Snapshot())
+		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(evo.ExitFailed)
 		}
+		_, _ = fmt.Fprintln(os.Stdout, string(b))
 	}
 	os.Exit(code)
 }

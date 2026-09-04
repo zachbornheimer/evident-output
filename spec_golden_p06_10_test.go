@@ -118,8 +118,8 @@ func TestSpecP6_ErrorBlock_ProgressThenFail(t *testing.T) {
 // Output.Finish's interactive branch now reuses writeConclusion (via
 // residualInteractiveFinalLocked) — the same conclusion model the plain path
 // renders — so a user watching a real terminal session sees the derived
-// "already mutated" row on abnormal termination too, not just in
-// Output.FinalPlain()'s internal snapshot.
+// "already mutated" row on abnormal termination too, not just in the
+// unexported finalPlain snapshot Finish computes internally.
 //
 //	:.  generate  [████░░░░░░░░]  2.1/8.0 MB
 //	■  generate  cancelled
@@ -490,7 +490,7 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 //   - install  installing
 func TestSpecP10_Step1(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("install").Phase("installing")
@@ -508,7 +508,7 @@ func TestSpecP10_Step1(t *testing.T) {
 //	•  install  14/40  requests
 func TestSpecP10_Step2(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Done()
@@ -538,7 +538,7 @@ func TestSpecP10_Step2(t *testing.T) {
 func TestSpecP10_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("venv").Done()
 	out.Task("install").Done("14 modules")
@@ -569,7 +569,7 @@ func TestSpecP10_Success(t *testing.T) {
 func TestSpecP10_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("install").Fail("uv pip install failed", evo.Detail("exit status 1"))
 	if err := out.Finish(); err != nil {
@@ -589,7 +589,7 @@ func TestSpecP10_Failure(t *testing.T) {
 //   - scan  scanning
 func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Phase("scanning")
@@ -609,7 +609,7 @@ func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP10_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("scan").Done()
 	out.Task("install").Fail("network unreachable", evo.Detail("dial tcp: lookup pypi.org: no such host"))
 	if err := out.Finish(); err != nil {
@@ -635,10 +635,10 @@ func TestSpecP10_Error(t *testing.T) {
 //	!  already mutated: 6 packages in .venv installed
 func TestSpecP10_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("scan").Done()
 	install := out.Task("install")
-	install.Record("install", 6, "packages in .venv")
+	install.Record("install", 6, "package in .venv")
 	install.Cancel("cancelled at 6/14")
 	if err := out.Finish(); err != nil {
 		t.Log(err)

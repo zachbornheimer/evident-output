@@ -29,7 +29,7 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
-	dependencies.Donef("installed %d packages", 18)
+	dependencies.Done("installed %d packages", 18)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.NoColor(), // assert exact final text without SGR
 		evo.Clock(fixed),
 	}})
@@ -69,8 +69,8 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 
 	task := out.Task("dependencies")
 	task.Phase("resolving packages")
-	out.Debug("package index loaded", evo.Int("packages", 18))
-	task.Donef("installed %d packages", 18)
+	out.Debug("package index loaded", evo.Field{Key: "packages", Value: 18})
+	task.Done("installed %d packages", 18)
 	_ = out.Finish()
 
 	// History mode: timestamp (FixedClock) + bracketed level above live region.
@@ -191,8 +191,8 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	download := out.Task("download")
-	for completed := int64(0); completed <= 10_000; completed++ {
-		download.Progress64(completed, 10_000)
+	for completed := 0; completed <= 10_000; completed++ {
+		download.Progress(completed, 10_000)
 		// Keep wall-clock zero; coalescing uses frame budget, not only time.
 	}
 	download.Done()

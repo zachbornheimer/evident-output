@@ -1,11 +1,5 @@
 package evo
 
-import (
-	"fmt"
-
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
-)
-
 // ItemHandle is Task's shipped v0.2.x name for a fact-check entity (a task
 // resolved without ever running). It is a zero-cost alias — TaskHandle is
 // the one entity/handle type — kept only so v0.2.x call sites still compile.
@@ -24,13 +18,6 @@ type ItemHandle = TaskHandle
 // Deprecated: Use Task. Will be removed in v1.0.
 func (o *Output) Item(name string, args ...any) *TaskHandle {
 	return o.Task(name, args...)
-}
-
-// Itemf formats a name and declares a fact-check entity.
-//
-// Deprecated: Use Taskf. Will be removed in v1.0.
-func (o *Output) Itemf(format string, args ...any) *TaskHandle {
-	return o.Task(sanitize.Text(fmt.Sprintf(format, args...)))
 }
 
 // Item declares a fact-check entity under this scope's naming.
@@ -52,4 +39,32 @@ func Item(name string, opts ...EntityOption) *TaskHandle {
 		args[i] = opt
 	}
 	return Default().Item(name, args...)
+}
+
+// CaptureOption is EvidenceOption's shipped v0.2.16 name (C9: finishes the
+// Capture->Evidence rename in the option surface).
+//
+// Deprecated: Use EvidenceOption. Will be removed in v1.0.
+type CaptureOption = EvidenceOption
+
+// CaptureStream is EvidenceStream's shipped v0.2.16 name.
+//
+// Deprecated: Use EvidenceStream. Will be removed in v1.0.
+type CaptureStream = EvidenceStream
+
+// CaptureStreamCombined, CaptureStreamStdout, CaptureStreamStderr are
+// EvidenceStream's shipped v0.2.16 constant names.
+//
+// Deprecated: Use EvidenceStreamCombined/Stdout/Stderr. Will be removed in v1.0.
+const (
+	CaptureStreamCombined = EvidenceStreamCombined
+	CaptureStreamStdout   = EvidenceStreamStdout
+	CaptureStreamStderr   = EvidenceStreamStderr
+)
+
+// MaxCaptureBytes is MaxEvidenceBytes's shipped v0.2.16 name.
+//
+// Deprecated: Use MaxEvidenceBytes. Will be removed in v1.0.
+func MaxCaptureBytes(n int) EvidenceOption {
+	return MaxEvidenceBytes(n)
 }

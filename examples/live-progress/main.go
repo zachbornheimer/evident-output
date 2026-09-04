@@ -26,7 +26,7 @@ func main() {
 
 	out := evo.Init(evo.Config{
 		Title: "install dependencies",
-		Debug: evo.DebugConfig{Level: evo.Debug},
+		Debug: evo.DebugConfig{Level: evo.LevelDebug},
 	})
 	log := slog.New(out.SlogHandler())
 
@@ -55,7 +55,7 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 		discover.Phase(phase)
 		time.Sleep(step * 2)
 	}
-	discover.Donef("%d packages", packageCount)
+	discover.Done("%d packages", packageCount)
 
 	for completed := 1; completed <= packageCount; completed++ {
 		scan.Progress(completed, packageCount)
@@ -71,7 +71,7 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 		}
 		time.Sleep(step)
 	}
-	download.Donef("%.1f MB", float64(totalBytes)/(1000*1000))
+	download.Done("%.1f MB", float64(totalBytes)/(1000*1000))
 
 	for _, phase := range []string{"checking signatures", "checksums", "quarantine scan"} {
 		verify.Phase(phase)

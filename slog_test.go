@@ -14,14 +14,14 @@ import (
 
 func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug)}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	logger := slog.New(out.SlogHandler())
 	task := out.Task("index")
 	task.Phase("reading documents")
 	logger.Debug("batch loaded", "documents", 200)
-	task.Donef("indexed %d documents", 200)
+	task.Done("indexed %d documents", 200)
 	_ = out.Finish()
 
 	ops := screen.Operations()
@@ -200,35 +200,3 @@ func TestSuspend_RunsCallbackWithoutLiveCorruption(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-func TestSnapshots_ChannelReceivesUpdates(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(ioDiscard{})}})
-	t.Cleanup(func() { _ = out.Close() })
-
-	ch := out.Snapshots()
-	out.Task("a").Done()
-	found := false
-	for i := 0; i < 8; i++ {
-		select {
-		case snap := <-ch:
-			if len(snap.Tasks) >= 1 && snap.Tasks[0].Name == "a" {
-				found = true
-			}
-		default:
-		}
-	}
-	_ = out.Finish()
-	// Drain remaining including final
-	for snap := range ch {
-		if len(snap.Tasks) >= 1 {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("expected snapshot containing item a")
-	}
-}
-
-type ioDiscard struct{}
-
-func (ioDiscard) Write(p []byte) (int, error) { return len(p), nil }

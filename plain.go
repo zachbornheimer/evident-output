@@ -23,9 +23,8 @@ const (
 
 // PlainOptions configures pure plain projection (§25.4).
 type PlainOptions struct {
-	Width          int
-	NoColor        bool
-	NonInteractive bool
+	Width   int
+	NoColor bool
 	// Verbose additionally emits per-reason name lists under a task's skip/keep
 	// taxonomy line. Counts and the reason partition always render; Verbose
 	// only adds the bounded (TruncateNames) name detail.
@@ -43,11 +42,10 @@ func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 		glyphs = GlyphsUnicode
 	}
 	cfg := config{
-		width:          opts.Width,
-		noColor:        opts.NoColor,
-		nonInteractive: opts.NonInteractive,
-		plain:          true,
-		glyphs:         glyphs,
+		width:   opts.Width,
+		noColor: opts.NoColor,
+		plain:   true,
+		glyphs:  glyphs,
 	}
 	if opts.Verbose {
 		cfg.verbosity = VerbosityVerbose
@@ -217,6 +215,12 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 		problems = problems[:maxVisibleProblems]
 	}
 	for _, p := range problems {
+		// beginner-3: the task glyph row already shows t.Summary. A problem
+		// row with no Detail beyond that summary says nothing new — drop it
+		// entirely instead of re-echoing "└─ <same text>" underneath.
+		if p.Detail == "" && p.Subject == "" && p.Summary != "" && p.Summary == t.Summary {
+			continue
+		}
 		// P4: task glyph row already shows t.Summary; do not re-echo it as the
 		// └─ header when Detail carries the real evidence (capture tail / diff).
 		if p.Detail != "" && p.Summary != "" && p.Summary == t.Summary {
@@ -374,6 +378,11 @@ func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose boo
 		problems = problems[:maxVisibleProblems]
 	}
 	for _, p := range problems {
+		// beginner-3: mirror writeTask's de-echo — a problem row with no
+		// Detail beyond the already-shown header summary says nothing new.
+		if p.Detail == "" && p.Subject == "" && p.Summary != "" && p.Summary == headerSummary {
+			continue
+		}
 		// The header row already showed this summary; Detail alone is the
 		// evidence body (mirrors writeTask's P4 dedup).
 		if p.Detail != "" && p.Summary != "" && p.Summary == headerSummary {
@@ -397,6 +406,19 @@ func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose boo
 // keeps all records"). The snapshot always retains the full record list;
 // only this presentation loop is capped. Mirrors maxVisibleProblems's bound.
 const maxVisibleEffectRows = maxVisibleProblems
+
+// ledgerObject renders r.Object pluralized from r.Quantity when the record
+// carries a quantity (I4) — mutation verbs take a singular object
+// (Delete(2, "stale local branch")) and the ledger derives "branches" at
+// render time via Pluralize, instead of every call site hand-composing its
+// own singular/plural noun with evo.Pluralize. Pluralize itself stays
+// exported for prose outside the ledger (a Printf line, a Problem detail).
+func ledgerObject(r EffectRecord) string {
+	if !r.HasQty {
+		return r.Object
+	}
+	return Pluralize(r.Quantity, r.Object)
+}
 
 func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, intendedVerb string, width int, color bool, profile GlyphProfile) {
 	// A [planned]/[changed] header with zero rows beneath it invents a mutation
@@ -426,7 +448,7 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 	if width > 0 && width < compactLayoutMaxWidth {
 		for _, r := range visible {
 			if r.HasQty {
-				fmt.Fprintf(b, "  %s %d %s\n", r.Verb, r.Quantity, r.Object)
+				fmt.Fprintf(b, "  %s %d %s\n", r.Verb, r.Quantity, ledgerObject(r))
 			} else {
 				fmt.Fprintf(b, "  %s %s\n", r.Verb, r.Object)
 			}
@@ -453,7 +475,7 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 		verb := padRight(r.Verb, maxVerb)
 		if r.HasQty {
 			qty := padLeft(strconv.FormatInt(r.Quantity, 10), maxQty)
-			fmt.Fprintf(b, "  %s  %s %s\n", verb, qty, r.Object)
+			fmt.Fprintf(b, "  %s  %s %s\n", verb, qty, ledgerObject(r))
 			continue
 		}
 		gap := maxVerb - len(r.Verb)
@@ -569,6 +591,11 @@ func summarizeChangeSection(ch ChangesSnapshot) string {
 	}
 	if mixedObject {
 		object = ch.Subject
+	} else {
+		// I4: object arrives singular now (mutation verbs take a singular
+		// object); pluralize from the summed quantity here, same as
+		// ledgerObject does per-row.
+		object = Pluralize(total, object)
 	}
 	if mixedVerb {
 		return fmt.Sprintf("%d %s changed", total, object)

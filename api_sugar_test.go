@@ -72,17 +72,21 @@ func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
 	}
 }
 
-func TestAPISugar_ReasonfFormatsAndGetsOrCreates(t *testing.T) {
+// TestAPISugar_ReasonFormatsAndGetsOrCreates is C6: Reason is
+// printf-variadic itself now (Reasonf deleted) — a format arg formats the
+// name, and the formatted text still get-or-creates the same bucket a
+// literal call with the same text would.
+func TestAPISugar_ReasonFormatsAndGetsOrCreates(t *testing.T) {
 	var buf strings.Builder
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
-	first := evo.Reasonf("stage %d", 2)
+	first := evo.Reason("stage %d", 2)
 	if got := first.Name(); got != "stage 2" {
 		t.Fatalf("name = %q, want %q", got, "stage 2")
 	}
 	second := evo.Reason("stage 2")
 	if first.Name() != second.Name() {
-		t.Fatal("expected Reasonf's formatted name to get-or-create the same bucket as Reason")
+		t.Fatal("expected Reason's formatted name to get-or-create the same bucket as a literal call")
 	}
 }
 
@@ -324,7 +328,7 @@ func TestAPISugar_RunCapturesOutputAndUpdatesPhase(t *testing.T) {
 		t.Fatalf("Run returned error: %v", err)
 	}
 
-	tail := task.Evidence().Tail()
+	tail := task.Evidence().Text()
 	if !strings.Contains(tail, "line-one") || !strings.Contains(tail, "line-two") {
 		t.Fatalf("capture tail = %q, want both stdout and stderr lines retained", tail)
 	}
@@ -338,12 +342,30 @@ func TestAPISugar_RunSetsPhaseFromCommandName(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
+	cmd := exec.Command("/usr/bin/true")
+	if err := task.Run(cmd); err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if got := task.Snapshot().Phase; got != "true" {
+		t.Fatalf("phase = %q, want basename of argv[0] (%q)", got, "true")
+	}
+}
+
+// TestAPISugar_RunSkipsShellWrapperPhase is beginner-11: task.Run must
+// never publish a shell wrapper's own basename ("sh") as a placeholder
+// phase — it reads the meaningful command from the wrapper's -c script
+// instead (FP-004 applies to ourselves).
+func TestAPISugar_RunSkipsShellWrapperPhase(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "true")
 	if err := task.Run(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if got := task.Snapshot().Phase; got != "sh" {
-		t.Fatalf("phase = %q, want basename of argv[0] (%q)", got, "sh")
+	if got := task.Snapshot().Phase; got != "true" {
+		t.Fatalf("phase = %q, want the shell script's own command (%q), not the wrapper", got, "true")
 	}
 }
 
@@ -361,7 +383,7 @@ func TestAPISugar_RunTeesPreWiredWriters(t *testing.T) {
 	if !strings.Contains(mine.String(), "hello") {
 		t.Fatalf("pre-wired writer = %q, want it still received output", mine.String())
 	}
-	if !strings.Contains(task.Evidence().Tail(), "hello") {
+	if !strings.Contains(task.Evidence().Text(), "hello") {
 		t.Fatal("expected Run's own capture to also observe teed stdout")
 	}
 }
@@ -400,7 +422,7 @@ func TestAPISugar_RunRedactsSecrets(t *testing.T) {
 	if err := task.Run(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if strings.Contains(task.Evidence().Tail(), "s3kr3t") {
-		t.Fatalf("capture tail leaked the redacted secret: %q", task.Evidence().Tail())
+	if strings.Contains(task.Evidence().Text(), "s3kr3t") {
+		t.Fatalf("capture tail leaked the redacted secret: %q", task.Evidence().Text())
 	}
 }

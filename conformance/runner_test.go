@@ -111,7 +111,7 @@ func runScenarioFile(t *testing.T, path string) {
 		opts = append(opts, evo.NoColor())
 	}
 	if sc.Options.NonInteractive {
-		opts = append(opts, evo.NonInteractive())
+		opts = append(opts, evo.Plain())
 	}
 	if sc.Options.Width > 0 {
 		opts = append(opts, evo.Width(sc.Options.Width))
@@ -160,13 +160,13 @@ func runScenarioFile(t *testing.T, path string) {
 		case "task.phase":
 			tasks[m.Ref].Phase(m.Text)
 		case "task.progress":
-			tasks[m.Ref].Progress64(m.Completed, m.Total)
+			tasks[m.Ref].Progress(int(m.Completed), int(m.Total))
 		case "task.bytes":
 			tasks[m.Ref].Bytes(m.Completed, m.Total)
 		case "task.done":
 			tasks[m.Ref].Done()
 		case "task.donef":
-			tasks[m.Ref].Donef("%s", m.Text)
+			tasks[m.Ref].Done("%s", m.Text)
 		case "task.fail":
 			tasks[m.Ref].Fail(m.Summary)
 		case "tasks.summary":

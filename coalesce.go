@@ -79,6 +79,14 @@ func shouldSuppressRepeatedCondition(s Snapshot, c Conclusion) bool {
 	var state EntityState
 	switch {
 	case len(s.Tasks) == 1:
+		// I2: a library-synthesized task (Output.Failf/Cancel's "command"
+		// fallback for an untracked top-level outcome) is never the caller's
+		// own named row — the conclusion band is the ONLY place the run's
+		// outcome is stated, so it must never be suppressed as "redundant"
+		// with a row the caller never declared.
+		if s.Tasks[0].synthetic {
+			return false
+		}
 		name, state = s.Tasks[0].Name, s.Tasks[0].State
 	default:
 		name, state = s.Collections[0].Name, s.Collections[0].State

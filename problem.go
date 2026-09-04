@@ -2,6 +2,7 @@ package evo
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/sanitize"
@@ -16,7 +17,7 @@ type Problem struct {
 	Severity  string
 	Count     int64
 	Unit      string
-	Location  *Location
+	Location  *SourceLocation
 	Evidence  []Attachment
 	Actions   []Action
 	Fields    []Field
@@ -24,8 +25,10 @@ type Problem struct {
 	Sensitive bool
 }
 
-// Location is a path-based source position.
-type Location struct {
+// SourceLocation is a path-based source position. Named SourceLocation
+// (not Location) so the Location(...) ProblemOption constructor below can
+// keep that name without colliding with its own return type.
+type SourceLocation struct {
 	Path   string
 	Line   int
 	Column int
@@ -89,10 +92,12 @@ func Count(value int64, unit ...string) ProblemOption {
 	})
 }
 
-// At sets a source location.
-func At(path string, line, column int) ProblemOption {
+// Location sets a source location on a Problem (renamed from At — C5: a
+// free-function At collided in name, though not in call syntax, with
+// Output.At(visibility), confusing autocomplete and readers alike).
+func Location(path string, line, column int) ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
-		p.Location = &Location{Path: path, Line: line, Column: column}
+		p.Location = &SourceLocation{Path: path, Line: line, Column: column}
 	})
 }
 
@@ -135,6 +140,30 @@ func splitWrappedMessage(format string, err error) (summary, evidence string) {
 		}
 	}
 	return full, evidence
+}
+
+// formatWarnArgs splits args into printf format arguments and
+// ProblemOptions, mirroring formatEntityName/formatReasonName's mixed-args
+// extraction (C6: Warn's summary is a printf format when fmt args are
+// present; evo.Detail(...) and other ProblemOptions may be mixed into args
+// in any position and still apply).
+func formatWarnArgs(summary string, args []any) (string, []ProblemOption) {
+	if len(args) == 0 {
+		return summary, nil
+	}
+	var opts []ProblemOption
+	var fmtArgs []any
+	for _, a := range args {
+		if opt, ok := a.(ProblemOption); ok {
+			opts = append(opts, opt)
+			continue
+		}
+		fmtArgs = append(fmtArgs, a)
+	}
+	if len(fmtArgs) == 0 {
+		return summary, opts
+	}
+	return fmt.Sprintf(summary, fmtArgs...), opts
 }
 
 func applyProblemOptions(summary string, opts []ProblemOption) Problem {

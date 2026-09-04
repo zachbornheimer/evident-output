@@ -4,6 +4,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // Run is the ordinary way to shell out from a Task: it executes cmd as this
@@ -36,23 +37,58 @@ import (
 func (t *TaskHandle) Run(cmd *exec.Cmd) error {
 	if t != nil && t.out != nil {
 		t.ensurePhase(commandPhaseName(cmd))
-		pw := &phaseWriter{task: t, capture: t.Evidence()}
+		pw := &phaseWriter{task: t, evidence: t.Evidence()}
 		cmd.Stdout = teeSubprocessWriter(cmd.Stdout, pw)
 		cmd.Stderr = teeSubprocessWriter(cmd.Stderr, pw)
 	}
 	return cmd.Run()
 }
 
+// shellWrapperBasenames names common shell/interpreter wrappers whose own
+// basename is a meaningless phase — the actual work lives in a -c/-Command
+// script argument, not the wrapper's own name. FP-004 ("no placeholder
+// phase") applies to Run itself: exec.Command("sh", "-c", "go build ./...")
+// must not publish "sh" as the live phase (beginner-11).
+var shellWrapperBasenames = map[string]bool{
+	"sh": true, "bash": true, "zsh": true, "ksh": true, "dash": true,
+	"cmd": true, "cmd.exe": true, "powershell": true, "powershell.exe": true, "pwsh": true,
+}
+
 // commandPhaseName is the human phase text for a not-yet-run *exec.Cmd: the
 // basename of the resolved path when set, else the first argv element —
 // exec.Command("go", "build") and exec.Command("/usr/bin/go", "build") both
-// read "go", not a full path.
+// read "go", not a full path. A shell wrapper's own basename is skipped in
+// favor of its -c/-Command script's first word; when neither is available,
+// commandPhaseName returns "" and ensurePhase defers to first output rather
+// than publish a placeholder.
 func commandPhaseName(cmd *exec.Cmd) string {
-	if cmd.Path != "" {
-		return filepath.Base(cmd.Path)
+	name := ""
+	switch {
+	case cmd.Path != "":
+		name = filepath.Base(cmd.Path)
+	case len(cmd.Args) > 0:
+		name = filepath.Base(cmd.Args[0])
 	}
-	if len(cmd.Args) > 0 {
-		return filepath.Base(cmd.Args[0])
+	if name == "" || !shellWrapperBasenames[name] {
+		return name
+	}
+	if script := shellScriptCommandName(cmd.Args); script != "" {
+		return script
+	}
+	return ""
+}
+
+// shellScriptCommandName returns the basename of the first word of a shell
+// -c (or Windows -Command) script argument, so "sh -c 'go build ./...'"
+// reads "go", not "sh".
+func shellScriptCommandName(args []string) string {
+	for i, a := range args {
+		if (a == "-c" || a == "-Command") && i+1 < len(args) {
+			fields := strings.Fields(args[i+1])
+			if len(fields) > 0 {
+				return filepath.Base(fields[0])
+			}
+		}
 	}
 	return ""
 }

@@ -591,9 +591,15 @@ func StructuredDocument(filename string, raw []byte) Result {
 	return Result{Findings: findings, RecheckRequired: hasRequired(findings)}
 }
 
+// isFormatMethod names the surviving *f methods (C6: Donef/Summaryf/Itemf/
+// Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf are deleted — Done/Summary/
+// Task/Tasks/Changes/Plan/Warn/Reason are printf-variadic themselves now,
+// so there is nothing left in that family to flag). Failf/Blockf survive
+// for their distinct %w+*Failure semantics, but a call with no directive at
+// all is still the same ceremony API-028 warns about.
 func isFormatMethod(name string) bool {
 	switch name {
-	case "Donef", "Summaryf", "Itemf", "Taskf", "Tasksf", "Changesf", "Planf":
+	case "Failf", "Blockf":
 		return true
 	default:
 		return false

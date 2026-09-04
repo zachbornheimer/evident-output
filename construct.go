@@ -3,10 +3,36 @@ package evo
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/terminal"
 )
+
+// processArgv0 is the facade over os.Args[0] (facade rule: no direct
+// os.Args read anywhere else) — a var so tests can inject a fixed value
+// instead of depending on the real test binary's path.
+var processArgv0 = func() string {
+	if len(os.Args) == 0 {
+		return ""
+	}
+	return os.Args[0]
+}
+
+// identityFallbackName is the executable's own basename, used only when an
+// output-level outcome (Output.Failf/Cancel) has no named task and no
+// explicit Config.Title to identify it with — replacing the generic literal
+// "command" with the caller's actual binary name (I2). This is deliberately
+// NOT plumbed into Snapshot.Subject / the conclusion band's Subject: that
+// text is dialect-frozen this release and many existing goldens depend on
+// its "no Subject configured" fallback (bare state name) staying exactly as
+// it is — Config.Title stays the only way to set that.
+func identityFallbackName() string {
+	if base := filepath.Base(processArgv0()); base != "." && base != string(filepath.Separator) {
+		return base
+	}
+	return "command"
+}
 
 // ColorMode selects color policy. The zero value is automatic.
 type ColorMode int
@@ -76,6 +102,11 @@ type Config struct {
 	// projection needs the reader to see up front. Set it once in Config
 	// instead of calling out.Println(root) (or whatever the identifying
 	// value is) at every projection/command that needs to show it.
+	//
+	// When the subject text isn't known until after Init (e.g. resolved
+	// from a flag parsed later, but still before any other I/O), call
+	// Output.Subject(text) instead — same one-shot durable-line semantics,
+	// as a post-construction setter (I3).
 	Subject string
 
 	// Stdout is the ordinary human stream (default os.Stdout).
@@ -113,10 +144,11 @@ type Config struct {
 	MaxFrameRate    int
 	MaxEntities     int
 	MaxEvents       int
-	// ForcePlain disables live interactive frames even on a TTY.
-	ForcePlain bool
-	// NonInteractive disables live frames.
-	NonInteractive bool
+	// Plain disables live interactive frames, on a TTY or off (C3: replaces
+	// the former separate ForcePlain and NonInteractive fields — every read
+	// site combined them with OR, so there was never a distinct behavior
+	// between the two to preserve).
+	Plain bool
 
 	// Glyphs selects the state-glyph vocabulary (default GlyphsAuto: Unicode
 	// off a TTY or on a UTF-8 locale, ASCII on a non-UTF-8 interactive TTY).
@@ -138,13 +170,19 @@ type Config struct {
 	// state: it is not installed as the package-level default and does not
 	// arm first paint. Use for parallel tests and embedders that hold their
 	// own *Output instead of going through Default()/Task()/Print() et al.
+	// Not consulted when Options is set: that path already never installs
+	// the default or arms first paint, regardless of Isolated's value —
+	// see Options.
 	Isolated bool
 
 	// Options is the advanced, raw Option escape hatch for tests and
 	// specialized embedding (custom Terminal, Clock, exact writer wiring)
 	// that need to bypass Config's ordinary stream/TTY/color inference
-	// entirely. When set, every other Config field except Title and Isolated
-	// is ignored and the Output is built from these Options alone.
+	// entirely. When set, every other Config field except Title, DryRun, and
+	// Subject is ignored and the Output is built from these Options alone.
+	// Isolated is not honored differently here: this path never installs
+	// the result as the package-level default or arms first paint, exactly
+	// as if Isolated were always true — see Init.
 	Options []Option
 }
 
@@ -223,10 +261,16 @@ func newFromConfig(c Config) *Output {
 func configToOptions(c Config) []Option {
 	var opts []Option
 
+	// primaryWriter mirrors whichever writer To() receives below — kept as a
+	// value (not re-derived) so the Terminal-sharing detection further down
+	// compares against the exact same stream, per format.
+	primaryWriter := c.Stdout
+
 	// Stream routing
 	switch c.Format {
 	case FormatData:
 		// Human presentation on stderr; domain payload on Result (default Stdout).
+		primaryWriter = c.Stderr
 		opts = append(opts, To(c.Stderr), Diagnostics(c.Stderr), DataProjection())
 		resultW := c.Result
 		if resultW == nil {
@@ -269,17 +313,24 @@ func configToOptions(c Config) []Option {
 	}
 
 	// Interactive live region only on a real TTY and human format.
-	wantLive := !c.ForcePlain && !c.NonInteractive && c.Format == FormatHuman
+	wantLive := !c.Plain && c.Format == FormatHuman
 	liveWriter := c.Stdout
 	if c.Format == FormatData {
 		liveWriter = c.Stderr
-		wantLive = !c.ForcePlain && !c.NonInteractive && IsCharDevice(c.Stderr)
+		wantLive = !c.Plain && IsCharDevice(c.Stderr)
 	} else {
 		wantLive = wantLive && IsCharDevice(c.Stdout)
 	}
 	switch {
 	case c.Terminal != nil:
 		opts = append(opts, Terminal(c.Terminal))
+		// A caller-supplied driver (Config.Terminal or the Options path) may
+		// still write to the same physical stream as primary — DETECT that
+		// via the driver's own Sink() rather than requiring the caller to
+		// say so, closing the examples/terminal-driver double-band gap (X3).
+		if terminalSharesPrimary(c.Terminal, primaryWriter) {
+			opts = append(opts, withPrimarySharesTerminal())
+		}
 	case wantLive:
 		width, height := c.Width, 24
 		if width <= 0 {
@@ -321,10 +372,7 @@ func configToOptions(c Config) []Option {
 	default:
 		opts = append(opts, Plain())
 	}
-	if c.NonInteractive {
-		opts = append(opts, NonInteractive())
-	}
-	if c.ForcePlain {
+	if c.Plain {
 		opts = append(opts, Plain())
 	}
 
@@ -385,24 +433,6 @@ func withFailedExitCode(code int) Option {
 // Title sets the conclusion subject for Config.Options's raw Option path.
 func Title(subject string) Option {
 	return optionFunc(func(c *config) { c.subject = subject })
-}
-
-// ParseColorMode maps always|never|auto (and common synonyms) to ColorMode.
-func ParseColorMode(s string) (ColorMode, error) {
-	switch s {
-	case "", "auto":
-		return ColorAuto, nil
-	case "always", "on", "yes", "true", "1":
-		return ColorAlways, nil
-	case "never", "off", "no", "false", "0":
-		return ColorNever, nil
-	default:
-		return ColorAuto, errInvalidColorMode(s)
-	}
-}
-
-func errInvalidColorMode(s string) error {
-	return &UsageError{Op: "ParseColorMode", Msg: "unknown color mode " + s}
 }
 
 // UsageError is a programmer/user configuration error.

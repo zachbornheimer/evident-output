@@ -25,15 +25,38 @@ type confirmConfig struct {
 	assumeYes   bool
 	destructive bool
 	policyHint  Action
+	// policyFlag is PolicyFlag's flag spelling, resolved into a Command
+	// against the Output's own identity at read time (resolvedPolicyHint) —
+	// not at option-build time, since only the Output knows its Title/
+	// executable identity.
+	policyFlag string
+	// detail holds ConfirmDetail's context lines, rendered under the
+	// "?  <question>  [y/N]" prompt line.
+	detail []string
 }
 
-// resolvedPolicyHint returns the caller's PolicyHint action, or the default
-// "pass --yes" label when the caller didn't set one.
-func (c confirmConfig) resolvedPolicyHint() Action {
+// resolvedPolicyHint returns the caller's PolicyHint action, PolicyFlag
+// resolved against o's own identity, or the default "pass --yes" label when
+// the caller set neither.
+func (c confirmConfig) resolvedPolicyHint(o *Output) Action {
 	if c.policyHint != (Action{}) {
 		return c.policyHint
 	}
+	if c.policyFlag != "" {
+		return Command(o.policySourceName(), c.policyFlag)
+	}
 	return Label(confirmPolicyHint)
+}
+
+// policySourceName names the executable a PolicyFlag hint points at: the
+// caller's own Config.Title when set, else the binary's own basename (I2's
+// identityFallbackName) — the same identity a caller would otherwise have
+// to hand-compose via PolicyHint(os.Args[0], flag).
+func (o *Output) policySourceName() string {
+	if o.cfg.subject != "" {
+		return o.cfg.subject
+	}
+	return identityFallbackName()
 }
 
 // AssumeYes skips the interactive prompt when v is true (the caller's --yes
@@ -55,6 +78,24 @@ func Destructive() ConfirmOption {
 // args so the hint names the flag that actually unblocks it.
 func PolicyHint(command string, args ...string) ConfirmOption {
 	return func(c *confirmConfig) { c.policyHint = Command(command, args...) }
+}
+
+// PolicyFlag sets the non-interactive policy hint to a flag on the caller's
+// own executable (e.g. "--apply") instead of PolicyHint's explicit foreign-
+// command spelling — the common case where the flag that unblocks a
+// non-interactive run belongs to the very binary calling Confirm. The
+// executable name is resolved from the same identity Config.Title/I2's
+// executable-basename fallback uses. Reach for PolicyHint instead when the
+// hint should point at a different tool.
+func PolicyFlag(flag string) ConfirmOption {
+	return func(c *confirmConfig) { c.policyFlag = flag }
+}
+
+// ConfirmDetail attaches one or more context lines rendered under the
+// "?  <question>  [y/N]" prompt line — e.g. what will actually happen,
+// which host is affected. Repeated calls append.
+func ConfirmDetail(lines ...string) ConfirmOption {
+	return func(c *confirmConfig) { c.detail = append(c.detail, lines...) }
 }
 
 // Confirm asks a yes/no question on the default instance. See Output.Confirm.
@@ -97,9 +138,9 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 		return true
 	}
 
-	if o.cfg.plain || o.cfg.nonInteractive {
+	if o.cfg.plain {
 		gate.Block(confirmPolicyBlockedSummary)
-		gate.Next(cfg.resolvedPolicyHint())
+		gate.Next(cfg.resolvedPolicyHint(o))
 		o.flushGateNow(gate.id)
 		return false
 	}
@@ -119,11 +160,33 @@ func (o *Output) flushGateNow(id string) {
 // window so no live frame can land between the prompt and the durable
 // OK/Blocked row — the gate resolves before Suspend resumes any unrelated
 // live activity (e.g. a sibling Task still Running).
+//
+// The abort channel is registered here, before the prompt is written or
+// Suspend touches the live region — not lazily inside readConfirmLine.
+// Registering it late left a window, from gate creation through the
+// durable prompt write, where a SIGINT had no abort channel to close: it
+// fell through cancelActive's generic Running/Pending scan, which marked
+// the gate Cancelled without ever unblocking the stdin read that was about
+// to start — a swallowed ^C that hung waiting for an answer nothing could
+// interrupt (X2).
 func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmConfig) bool {
+	abort := make(chan struct{})
+	o.mu.Lock()
+	if o.confirmAbort == nil {
+		o.confirmAbort = make(map[string]chan struct{})
+	}
+	o.confirmAbort[gate.id] = abort
+	o.mu.Unlock()
+	defer func() {
+		o.mu.Lock()
+		delete(o.confirmAbort, gate.id)
+		o.mu.Unlock()
+	}()
+
 	var yes bool
 	_ = o.Suspend(func() error {
-		o.writeConfirmPromptLocked(question, cfg.destructive)
-		line, cancelled, eof := o.readConfirmLine(gate.id)
+		o.writeConfirmPromptLocked(question, cfg.destructive, cfg.detail)
+		line, cancelled, eof := o.readConfirmLine(abort)
 		if cancelled {
 			// cancelPendingConfirmLocked already resolved the gate as Cancelled.
 			return nil
@@ -134,7 +197,7 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 			// block, distinct from a human explicitly typing anything else —
 			// evo-rec.md "Confirm EOF = policy block, not decline".
 			gate.Block(confirmPolicyBlockedSummary)
-			gate.Next(cfg.resolvedPolicyHint())
+			gate.Next(cfg.resolvedPolicyHint(o))
 			o.flushGateNow(gate.id)
 			return nil
 		}
@@ -150,9 +213,10 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 	return yes
 }
 
-// writeConfirmPromptLocked emits the durable "?  <question>  [y/N]" line
-// above the (now-quiesced) live region.
-func (o *Output) writeConfirmPromptLocked(question string, destructive bool) {
+// writeConfirmPromptLocked emits the durable "?  <question>  [y/N]" line,
+// plus any ConfirmDetail context lines beneath it, above the (now-quiesced)
+// live region.
+func (o *Output) writeConfirmPromptLocked(question string, destructive bool, detail []string) {
 	o.mu.Lock()
 	color := !o.cfg.noColor
 	text := question
@@ -160,29 +224,25 @@ func (o *Output) writeConfirmPromptLocked(question string, destructive bool) {
 		text += "  (destructive)"
 	}
 	glyph := styleGlyph(glyphHumanInput.render(o.cfg.glyphs), sgrCyan, color)
-	o.writeDurableTextLocked(fmt.Sprintf("%s  %s  [y/N]\n", glyph, text))
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s  %s  [y/N]\n", glyph, text)
+	for _, line := range detail {
+		if line == "" {
+			continue
+		}
+		fmt.Fprintf(&b, "  %s\n", dim(line, color))
+	}
+	o.writeDurableTextLocked(b.String())
 	o.mu.Unlock()
 }
 
-// readConfirmLine reads one answer line from the Stdin facade, abortable by
-// cancelPendingConfirmLocked so a signal unblocks the wait instead of hanging
-// until the process is killed a second time. eof reports a zero-byte EOF (no
-// data read at all before the stream closed) — distinct from an explicit
-// non-yes answer (evo-rec.md "Confirm EOF = policy block, not decline").
-func (o *Output) readConfirmLine(itemID string) (line string, cancelled, eof bool) {
-	abort := make(chan struct{})
-	o.mu.Lock()
-	if o.confirmAbort == nil {
-		o.confirmAbort = make(map[string]chan struct{})
-	}
-	o.confirmAbort[itemID] = abort
-	o.mu.Unlock()
-	defer func() {
-		o.mu.Lock()
-		delete(o.confirmAbort, itemID)
-		o.mu.Unlock()
-	}()
-
+// readConfirmLine reads one answer line from the Stdin facade, abortable via
+// abort (registered by promptConfirm at gate creation) so a signal unblocks
+// the wait instead of hanging until the process is killed a second time.
+// eof reports a zero-byte EOF (no data read at all before the stream
+// closed) — distinct from an explicit non-yes answer (evo-rec.md "Confirm
+// EOF = policy block, not decline").
+func (o *Output) readConfirmLine(abort chan struct{}) (line string, cancelled, eof bool) {
 	type readResult struct {
 		text string
 		err  error
@@ -194,14 +254,23 @@ func (o *Output) readConfirmLine(itemID string) (line string, cancelled, eof boo
 		result <- readResult{text: text, err: err}
 	}()
 
+	// abort takes priority when both are ready: a signal that raced the
+	// answer to the finish line still cancels the gate, deterministically —
+	// never left to select's random choice between two ready cases.
 	select {
+	case <-abort:
+		return "", true, false
+	default:
+	}
+
+	select {
+	case <-abort:
+		return "", true, false
 	case r := <-result:
 		if r.text == "" && errors.Is(r.err, io.EOF) {
 			return "", false, true
 		}
 		return r.text, false, false
-	case <-abort:
-		return "", true, false
 	}
 }
 

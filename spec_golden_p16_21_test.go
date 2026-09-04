@@ -173,7 +173,7 @@ func TestSpecP16_CompactLayout_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if !strings.Contains(got, "already mutated: 3 local deleted") {
+	if !strings.Contains(got, "already mutated: 3 locals deleted") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", buf.String())
 	}
 }
@@ -304,7 +304,7 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	out := evo.Default()
 	done := out.Task("branches", evo.ID("branches.step1"))
-	done.Record("delete", 10, "branches")
+	done.Record("delete", 10, "branch")
 	done.Done("10 deleted")
 
 	failed := out.Task("branches", evo.ID("branches.step2"))
@@ -389,7 +389,7 @@ func TestSpecP17_Taxonomy_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	done := out.Task("branches", evo.ID("branches.step1"))
-	done.Record("delete", 10, "branches")
+	done.Record("delete", 10, "branch")
 	done.Done("10 deleted")
 
 	cancelled := out.Task("branches", evo.ID("branches.step2"))
@@ -1024,7 +1024,7 @@ func TestSpecP21_DurableNote_EarlyTermination(t *testing.T) {
 	out.Println("using cached wheel index")
 	install := out.Task("install")
 	install.Progress(5, 40)
-	install.Record("install", 5, "packages in .venv")
+	install.Record("install", 5, "package in .venv")
 	install.Cancel("cancelled at 5/40")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

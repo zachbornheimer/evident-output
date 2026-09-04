@@ -19,7 +19,7 @@ func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugHistory(),
 		evo.NoColor(),
 		evo.Clock(fixedDebugClock()),
@@ -29,7 +29,7 @@ func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 
 	task := out.Task("branches")
 	task.Phase("comparing")
-	out.Debug("opened repository", evo.String("path", "/work/repo"))
+	out.Debug("opened repository", evo.Field{Key: "path", Value: "/work/repo"})
 	task.Done()
 	_ = out.Finish()
 
@@ -55,7 +55,7 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	// Advance so successive Debug calls get distinct times if clock ticks.
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugPane(evo.PaneHeight(2), evo.NewestFirst()),
 		evo.NoColor(),
 		evo.Clock(clock),
@@ -118,7 +118,7 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.To(&primary),
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugPane(evo.PaneHeight(5), evo.NewestFirst()),
 		evo.NoColor(),
 		evo.Clock(fixedDebugClock()),
@@ -127,8 +127,8 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Phase("running")
-	out.Debug("enumerated local branches", evo.Int("count", 7))
-	out.Debug("fetched remote metadata", evo.String("remote", "origin"))
+	out.Debug("enumerated local branches", evo.Field{Key: "count", Value: 7})
+	out.Debug("fetched remote metadata", evo.Field{Key: "remote", Value: "origin"})
 	out.Task("disk").Fail("full")
 	_ = out.Finish()
 
@@ -157,7 +157,7 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		// Plain cannot show a live pane; history streams, but PreserveDebugTail still
 		// requests a diagnostics section at Finish when presentation is pane-configured.
 		evo.DebugPane(evo.PreserveDebugTail(), evo.PaneHeight(3)),
@@ -165,7 +165,7 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Debug("cache warm", evo.String("dir", "/tmp/x"))
+	out.Debug("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
 	out.Task("ok").Done()
 	_ = out.Finish()
 	got := buf.String()
@@ -184,12 +184,12 @@ func TestDebugHistory_PlainStreamsOnce(t *testing.T) {
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugHistory(),
 		evo.Clock(fixedDebugClock()),
 	}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Debug("cache warm", evo.String("dir", "/tmp/x"))
+	out.Debug("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
 	if n := strings.Count(buf.String(), "[DEBUG] cache warm"); n != 1 {
 		t.Fatalf("before Finish count=%d:\n%s", n, buf.String())
 	}

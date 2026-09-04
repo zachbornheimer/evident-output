@@ -13,13 +13,13 @@ func TestANSI_LiveRegionUsesCursorControl(t *testing.T) {
 	var buf bytes.Buffer
 	drv := terminal.NewANSI(&buf, terminal.WithSize(80, 24), terminal.WithInteractive(true))
 
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug)}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("work")
 	task.Phase("running")
 	out.Debug("note")
-	task.Donef("done")
+	task.Done("done")
 	_ = out.Finish()
 
 	s := buf.String()

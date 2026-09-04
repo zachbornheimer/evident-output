@@ -176,7 +176,7 @@ func TestGroup_SequentialBytesProgressFinishesClean(t *testing.T) {
 	download.Bytes(0, total)
 	download.Bytes(total/2, total)
 	download.Bytes(total, total)
-	download.Donef("%.1f MB", float64(total)/1_000_000)
+	download.Done("%.1f MB", float64(total)/1_000_000)
 
 	verify.Phase("checking signatures")
 	verify.Done()

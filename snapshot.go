@@ -46,6 +46,15 @@ type TaskSnapshot struct {
 	Kept        []TaxonomyRecord
 	Collection  string
 	Declaration int
+	// synthetic marks a task the library invented to carry an output-level
+	// outcome (Output.Failf/Cancel) rather than one the caller declared —
+	// unexported: it is presentation-internal bookkeeping (coalesce.go),
+	// never part of the public snapshot contract.
+	synthetic bool
+	// unchanged marks a Done task resolved via Task.Unchanged/Unchangedf
+	// (I7) — unexported: conclusion-inference-internal bookkeeping, never
+	// part of the public snapshot contract.
+	unchanged bool
 }
 
 // TaxonomyRecord is one accumulated (reason, name) disposition entry —

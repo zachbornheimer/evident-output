@@ -94,7 +94,7 @@ func TestOUT015_EventStreamBounded(t *testing.T) {
 	}
 	// with default debug level, Debug may no-op — enable
 	_ = out.Close()
-	out2 := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.DebugLevel(evo.Debug)}})
+	out2 := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.DebugLevel(evo.LevelDebug)}})
 	for i := 0; i < 500; i++ {
 		out2.Debug("x")
 	}
@@ -118,7 +118,7 @@ func TestOUT016_BrokenPipePolicy(t *testing.T) {
 
 func TestCON006_NoDeadlockOnRecursiveLog(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug)}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("t").Phase("p")
 	// Debug during live (recursive-ish path)
@@ -170,8 +170,8 @@ func TestCON019_HighFrequencyChildProgress(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	t1 := g.Task("a")
-	for i := int64(0); i <= 200; i++ {
-		t1.Progress64(i, 200)
+	for i := 0; i <= 200; i++ {
+		t1.Progress(i, 200)
 	}
 	t1.Done()
 	if t1.Snapshot().Progress.Completed != 200 {
@@ -230,7 +230,7 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("working tree").Done()
-	out.Task("scan").Phase("walk").Donef("done")
+	out.Task("scan").Phase("walk").Done("done")
 	g := out.Tasks("deps")
 	g.Task("a").Done()
 	g.Task("b").Done()
@@ -249,7 +249,7 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 func TestAPI024_ComplexSmallerThanAdHoc(t *testing.T) {
 	// Multi-progress + debug is a short common-path program (not ad-hoc ANSI).
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.Debug)}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}})
 	g := out.Tasks("deps")
 	g.Task("a").Bytes(10, 10).Done()
 	g.Task("b").Phase("verifying").Done()
@@ -288,7 +288,7 @@ func TestTERM024_BrokenPipeNoPanic(t *testing.T) {
 }
 
 func TestLOG011_RecursiveValuesBounded(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.DebugLevel(evo.Debug)}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	// don't create real cycle in Field — use deep map
 	m := map[string]any{"a": 1}
@@ -298,7 +298,7 @@ func TestLOG011_RecursiveValuesBounded(t *testing.T) {
 
 func TestLOG013_DebugWithJSONStdout(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.Debug)}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.LevelDebug)}})
 	out.Debug("d")
 	out.Task("a").Done()
 	_ = out.Finish()

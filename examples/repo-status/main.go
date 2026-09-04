@@ -29,7 +29,7 @@ func main() {
 	if *fast {
 		step = 40 * time.Millisecond
 	}
-	color, err := evo.ParseColorMode(*colorFlag)
+	color, err := parseColorMode(*colorFlag)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -73,4 +73,20 @@ func main() {
 		evo.Task("stashes").Done()
 		return nil
 	}))
+}
+
+// parseColorMode maps the --color flag's always|never|auto (and common
+// synonyms) to evo.ColorMode — inlined here since evo.ParseColorMode was
+// deleted (C8): trivial enough for a caller to own directly.
+func parseColorMode(s string) (evo.ColorMode, error) {
+	switch s {
+	case "", "auto":
+		return evo.ColorAuto, nil
+	case "always", "on", "yes", "true", "1":
+		return evo.ColorAlways, nil
+	case "never", "off", "no", "false", "0":
+		return evo.ColorNever, nil
+	default:
+		return evo.ColorAuto, fmt.Errorf("unknown color mode %q", s)
+	}
 }

@@ -16,7 +16,6 @@ type config struct {
 	diagnostic        io.Writer
 	result            io.Writer // domain payload (FormatData); never used for presentation
 	plain             bool
-	nonInteractive    bool
 	noColor           bool
 	width             int
 	clock             TimeSource
@@ -28,7 +27,6 @@ type config struct {
 	debugPresentation DebugPresentation
 	debugPane         debugPaneConfig
 	redactor          Redactor
-	projection        ProjectionPolicy
 	maxEntities       int
 	maxEvents         int
 	extraWriters      []io.Writer
@@ -86,11 +84,6 @@ func ResultStream(w io.Writer) Option {
 // Semantic color is still emitted unless NoColor is set.
 func Plain() Option {
 	return optionFunc(func(c *config) { c.plain = true })
-}
-
-// NonInteractive disables live interactive frames.
-func NonInteractive() Option {
-	return optionFunc(func(c *config) { c.nonInteractive = true })
 }
 
 // NoColor disables color.
@@ -175,9 +168,6 @@ const (
 	LevelError
 )
 
-// Debug is the debug log level (Appendix H). Alias of LevelDebug.
-const Debug = LevelDebug
-
 // DebugLevel sets the minimum debug emission level.
 // Pass LevelTrace or LevelDebug to surface Debug journal lines.
 func DebugLevel(level LogLevel) Option {
@@ -195,6 +185,31 @@ func DebugLevel(level LogLevel) Option {
 // so options and tests compile.
 type TerminalDriver interface {
 	ID() string
+}
+
+// sinkReporter is implemented by a TerminalDriver that knows its own
+// destination writer (terminal.ANSI, testkit's drivers). configToOptions
+// uses it to DETECT whether a caller-supplied Terminal(...) happens to write
+// to the same stream as primary (To), instead of only knowing that for the
+// one construction path that builds both itself — see terminalSharesPrimary.
+type sinkReporter interface {
+	Sink() io.Writer
+}
+
+// terminalSharesPrimary reports whether driver's own writer, if it exposes
+// one via sinkReporter, is the same stream as primary. A driver that doesn't
+// implement sinkReporter (or has no fixed sink, e.g. a virtual test screen)
+// answers false — that's the safe default (dual-write), never a
+// false-positive skip of the conclusion band.
+func terminalSharesPrimary(driver TerminalDriver, primary io.Writer) bool {
+	if driver == nil || primary == nil {
+		return false
+	}
+	sr, ok := driver.(sinkReporter)
+	if !ok {
+		return false
+	}
+	return sr.Sink() == primary
 }
 
 const (

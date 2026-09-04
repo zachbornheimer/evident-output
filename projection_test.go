@@ -18,7 +18,7 @@ func TestOUT021_DataProjectionOption(t *testing.T) {
 		evo.NoColor(),
 	}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("scan").Phase("walk").Donef("ok")
+	out.Task("scan").Phase("walk").Done("ok")
 	_ = out.Finish()
 	// Data projection still renders human to primary in v0.3 path unless diagnostic set for UI;
 	// ensure option is accepted and Finish works.
@@ -27,6 +27,10 @@ func TestOUT021_DataProjectionOption(t *testing.T) {
 	}
 }
 
+// TestAPI016_ExternalProjectionSnapshots is C8: the streaming Snapshots()
+// channel is deleted (Output.Snapshot() — singular, poll-based — is the
+// surviving accessor); FormatExternal's "snapshots only" promise still
+// holds via that path.
 func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
 	out := evo.Init(evo.Config{
 		Format: evo.FormatExternal,
@@ -34,14 +38,10 @@ func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
 		Stderr: io.Discard,
 	})
 	t.Cleanup(func() { _ = out.Close() })
-	ch := out.Snapshots()
 	out.Task("x").Done()
 	_ = out.Finish()
-	got := false
-	for range ch {
-		got = true
-	}
-	if !got {
-		t.Fatal("expected snapshots")
+	snap := out.Snapshot()
+	if len(snap.Tasks) != 1 || snap.Tasks[0].Name != "x" {
+		t.Fatalf("expected the task in the snapshot, got %+v", snap.Tasks)
 	}
 }

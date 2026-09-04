@@ -27,7 +27,7 @@ func TestSEC001_DonefAndCommandSanitize(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("t")
-	task.Donef("ok\x1b[31m")
+	task.Done("ok\x1b[31m")
 	item := out.Task("i")
 	item.Block("b")
 	item.NextCommand("cmd\x1b[31m", "a\x1b")

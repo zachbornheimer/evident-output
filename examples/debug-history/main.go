@@ -22,7 +22,7 @@ func main() {
 
 	out := evo.Init(evo.Config{
 		Title: "repo-probe",
-		Debug: evo.DebugConfig{Level: evo.Debug},
+		Debug: evo.DebugConfig{Level: evo.LevelDebug},
 	})
 	log := slog.New(out.SlogHandler())
 

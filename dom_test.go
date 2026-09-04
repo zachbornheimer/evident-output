@@ -100,18 +100,6 @@ func TestDOM012_NextActionAfterResolve(t *testing.T) {
 	}
 }
 
-func TestDOM019_Advance(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("files")
-	task.Progress(0, 3)
-	task.Advance(1)
-	task.Advance(1)
-	if task.Snapshot().Progress.Completed != 2 {
-		t.Fatalf("got %d", task.Snapshot().Progress.Completed)
-	}
-}
-
 func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })

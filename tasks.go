@@ -29,8 +29,13 @@ func (g *Tasks) Task(name string, args ...any) *TaskHandle {
 	return g.out.addTaskLocked(sanitize.Text(formatted), col, eo.key)
 }
 
-// Summary sets a success-oriented collection summary.
-func (g *Tasks) Summary(text string) *Tasks {
+// Summary sets a success-oriented collection summary. text is a printf
+// format when args are present (fmt.Sprintf semantics) — one text spelling
+// shared with Task/Group/Reason (C6).
+func (g *Tasks) Summary(text string, args ...any) *Tasks {
+	if len(args) > 0 {
+		text = fmt.Sprintf(text, args...)
+	}
 	g.out.mu.Lock()
 	defer g.out.mu.Unlock()
 	col := g.out.tasksByRef[g.id]
@@ -45,11 +50,6 @@ func (g *Tasks) Summary(text string) *Tasks {
 	g.out.bumpLocked()
 	g.out.appendEventLocked(Event{Type: "tasks.summary_set", EntityID: g.id})
 	return g
-}
-
-// Summaryf sets a formatted success-oriented collection summary.
-func (g *Tasks) Summaryf(format string, args ...any) *Tasks {
-	return g.Summary(fmt.Sprintf(format, args...))
 }
 
 // Snapshot returns the collection snapshot with derived state.

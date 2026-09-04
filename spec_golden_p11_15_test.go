@@ -338,6 +338,9 @@ func TestSpecP12_ConfirmGate_Success(t *testing.T) {
 // for a Cancelled/Failed conclusion (plain.go writeConclusion's guard), so no
 // "! nothing mutated" row ever renders here — the same "Blocked renders no
 // already-mutated row" rule the early-termination cell below documents.
+//
+// beginner-3 de-echo: the "declined" problem row is dropped since it
+// repeats the task's own summary with no Detail beyond it.
 func TestSpecP12_ConfirmGate_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -354,8 +357,7 @@ func TestSpecP12_ConfirmGate_Failure(t *testing.T) {
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
-		"⊘ confirm remote delete",
-		"└─ declined",
+		"⊘ confirm remote delete declined",
 		"[planned] remotes",
 		"delete-remote origin/production-hotfix",
 	} {
@@ -684,7 +686,7 @@ func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	install := out.Task("install")
 	install.Progress(13, 40)
-	install.Record("install", 13, "packages")
+	install.Record("install", 13, "package")
 	install.Cancel("cancelled during retry")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

@@ -18,19 +18,22 @@ type Output struct {
 
 	cfg config
 
-	outputID   string
-	idSeq      uint64
-	declSeq    int
-	version    uint64
-	closed     bool
-	finishing  bool
-	finished   bool
-	armed      bool // set by arm(): live surface may paint before any entity exists
-	misuse     error
-	conclusion *Conclusion
-	finalPlain string
-	live       *liveEngine
-	snapCh     chan Snapshot
+	outputID  string
+	idSeq     uint64
+	declSeq   int
+	version   uint64
+	closed    bool
+	finishing bool
+	finished  bool
+	armed     bool // set by arm(): live surface may paint before any entity exists
+	misuse    error
+	// misuseSubject names the task/entity the first recorded misuse happened
+	// on, when known — Finish renders one line naming it whenever that misuse
+	// is about to change the exit code, so a caller never sees an exit code
+	// contradict what the printed band showed (beginner-1).
+	misuseSubject string
+	conclusion    *Conclusion
+	live          *liveEngine
 
 	tasks       []*taskState
 	collections []*tasksState
@@ -79,6 +82,13 @@ type Output struct {
 	// Finish only appends residual (unemitted entities + conclusion).
 	linesEmitted int
 
+	// durableRowsEmitted counts writeDurableTextLocked calls with non-empty
+	// text — the one shared choke point every durable line goes through.
+	// DeclareDryRun (I8) uses it to bound itself: once any row has
+	// streamed, flipping DryRun retroactively would leave earlier rows not
+	// reflecting it, so DeclareDryRun after that point is misuse.
+	durableRowsEmitted int
+
 	// Structured debug journal (§21.3). lines[] still holds history-format strings
 	// for FinalPlain / residual compatibility.
 	debugRecords []debugRecord
@@ -115,7 +125,7 @@ type taskState struct {
 	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
 	// so child-process evidence recorded via either path lands in one ring and
 	// DetailTail sees it after Fail.
-	capture *Capture
+	evidence *Evidence
 
 	// skipped/kept hold disposition taxonomy accumulated by Skipped/Kept —
 	// the model that "! skipped N (...)" / "! kept N (...)" are derived from
@@ -128,15 +138,32 @@ type taskState struct {
 	// on resolve (P2).
 	coreEmitted bool
 
+	// synthetic marks a task the library invented to carry an output-level
+	// outcome (Output.Failf/Cancel's synthetic "command" task) rather than
+	// one the caller declared. shouldSuppressRepeatedCondition (I2) must
+	// never drop the standalone conclusion band for one of these: it is the
+	// only place the run's outcome is ever stated, unlike a caller-declared
+	// Task whose own row already says the same thing.
+	synthetic bool
+
+	// unchanged marks a Done task resolved via Task.Unchanged/Unchangedf
+	// (I7) — "checked, nothing needed to change" — distinct from an
+	// ordinary Done's generic "ready" verdict. inferConclusion derives
+	// StateUnchanged over the generic StateReady when every Done-family
+	// task in the run carries this tag and nothing was recorded changed.
+	unchanged bool
+
 	// Plain/non-interactive progressive-streaming bookkeeping for a still-
 	// Running standalone task (P10: CI logs must not stay silent until
-	// Finish). plainPhaseEmitted is the last Phase text already streamed, so
-	// a repeated/no-op Phase call does not re-emit; plainProgressEmitted
-	// latches once the one-time "progress established" line has streamed —
-	// later Progress/Bytes ticks never stream individually (durable lines,
-	// not a redraw).
+	// Finish; beginner-8: a durable line per progress increment, thinned to
+	// milestones for large totals). plainPhaseEmitted is the last Phase text
+	// already streamed, so a repeated/no-op Phase call does not re-emit.
+	// plainProgressStarted is false until the first Progress/Bytes tick;
+	// plainProgressEmitted holds the last completed value actually streamed,
+	// so a later tick knows whether it crossed a milestone boundary.
 	plainPhaseEmitted    string
-	plainProgressEmitted bool
+	plainProgressStarted bool
+	plainProgressEmitted int64
 }
 
 type tasksState struct {
@@ -226,6 +253,31 @@ func newOutput(subject string, options ...Option) *Output {
 	return o
 }
 
+// DeclareDryRun switches this run into dry-run mode after construction — a
+// bounded late setter (I8): calling it once any durable row has already
+// streamed is misuse (ErrDryRunDeclaredLate), since those earlier rows
+// would not reflect the switch. There is no argv-sniffing helper; the
+// caller decides (e.g. from a flag parsed after Init) and calls this
+// explicitly, before any Task/Print/Confirm call. A no-op when the run is
+// already dry-run.
+func (o *Output) DeclareDryRun() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if err := o.ensureOpen(); err != nil {
+		o.recordMisuse(err)
+		return
+	}
+	if o.cfg.dryRun {
+		return
+	}
+	if o.durableRowsEmitted > 0 {
+		o.recordMisuse(ErrDryRunDeclaredLate)
+		return
+	}
+	o.cfg.dryRun = true
+	o.emitDryRunMarkerLocked()
+}
+
 // emitDryRunMarkerLocked writes the "[dry-run]  no changes will be made"
 // announcement immediately, once, through the same durable-write path
 // (writeDurableTextLocked) every other library-owned line uses.
@@ -255,6 +307,48 @@ func (o *Output) recordMisuse(err error) {
 	if o.cfg.strict {
 		panic(err)
 	}
+}
+
+// hasRecordedEffectLocked reports whether subject already carries at least
+// one mutation-ledger record (Changes or Plan) — see the unresolved-task
+// auto-Done rescue in Finish (beginner-1, I1).
+func (o *Output) hasRecordedEffectLocked(subject string) bool {
+	for _, ch := range o.changes {
+		if ch.subject == subject && len(ch.records) > 0 {
+			return true
+		}
+	}
+	for _, p := range o.plans {
+		if p.subject == subject && len(p.records) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// appendMisuseLineLocked renders the one required line naming the first
+// recorded misuse and, when known, the entity it happened on — an exit code
+// may never disagree with everything the caller saw printed (beginner-1).
+func (o *Output) appendMisuseLineLocked() {
+	if o.misuseSubject == "" {
+		o.lines = append(o.lines, fmt.Sprintf("misuse: %v", o.misuse))
+		return
+	}
+	o.lines = append(o.lines, fmt.Sprintf("misuse: %s: %v", o.misuseSubject, o.misuse))
+}
+
+// recordMisuseFor is recordMisuse with the offending entity's name attached,
+// so Finish can name it in the one required misuse line (beginner-1) instead
+// of an exit code silently disagreeing with everything the caller saw
+// rendered.
+func (o *Output) recordMisuseFor(subject string, err error) {
+	if err == nil {
+		return
+	}
+	if o.misuse == nil {
+		o.misuseSubject = subject
+	}
+	o.recordMisuse(err)
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first
@@ -521,8 +615,13 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	return false
 }
 
-// Tasks declares a collection of independent child tasks.
-func (o *Output) Tasks(name string) *Tasks {
+// Tasks declares a collection of independent child tasks. name is a printf
+// format when args are present (fmt.Sprintf semantics) — one text spelling
+// shared with Task/Group/Reason (C6); no args leaves name untouched.
+func (o *Output) Tasks(name string, args ...any) *Tasks {
+	if len(args) > 0 {
+		name = fmt.Sprintf(name, args...)
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -602,8 +701,12 @@ func (o *Output) groupTaskGetOrCreate(groupID, name string, opts ...EntityOption
 	return h
 }
 
-// Changes starts a durable-effects section.
-func (o *Output) Changes(subject string) *Changes {
+// Changes starts a durable-effects section. subject is a printf format
+// when args are present (fmt.Sprintf semantics) — see Tasks (C6).
+func (o *Output) Changes(subject string, args ...any) *Changes {
+	if len(args) > 0 {
+		subject = fmt.Sprintf(subject, args...)
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -622,8 +725,12 @@ func (o *Output) Changes(subject string) *Changes {
 	return h
 }
 
-// Plan starts a would-occur effects section.
-func (o *Output) Plan(subject string) *Plan {
+// Plan starts a would-occur effects section. subject is a printf format
+// when args are present (fmt.Sprintf semantics) — see Tasks (C6).
+func (o *Output) Plan(subject string, args ...any) *Plan {
+	if len(args) > 0 {
+		subject = fmt.Sprintf(subject, args...)
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -670,9 +777,10 @@ func (o *Output) failWith(p Problem) {
 		state:       Failed,
 		problems:    []Problem{p},
 		declaration: o.nextDecl(),
+		synthetic:   true,
 	}
 	if st.name == "" {
-		st.name = "command"
+		st.name = identityFallbackName()
 	}
 	o.tasks = append(o.tasks, st)
 	o.bumpLocked()
@@ -687,30 +795,21 @@ func (o *Output) Cancel(reason string) {
 		o.recordMisuse(err)
 		return
 	}
+	name := sanitize.Text(o.cfg.subject)
+	if name == "" {
+		name = identityFallbackName()
+	}
 	t := &taskState{
 		id:          o.nextID("task"),
-		name:        "command",
+		name:        name,
 		state:       Cancelled,
 		summary:     sanitize.Text(reason),
 		declaration: o.nextDecl(),
+		synthetic:   true,
 	}
 	o.tasks = append(o.tasks, t)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "output.cancelled"})
-}
-
-// Explain sets an explicit conclusion explanation (applied at Finish).
-func (o *Output) Explain(text string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
-	}
-	if o.conclusion == nil {
-		o.conclusion = &Conclusion{}
-	}
-	o.conclusion.Explanation = sanitize.Text(text)
 }
 
 // Next attaches output-level actions.
@@ -808,7 +907,7 @@ func (o *Output) projectDebugRecordLocked(rec debugRecord) {
 		return
 	}
 
-	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
 	if interactive && o.cfg.debugPresentation == DebugPresentationPane {
 		o.debugPaneActive = true
 		o.linesEmitted = len(o.lines)
@@ -918,6 +1017,8 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Kept:        cloneTaxonomy(t.kept),
 		Collection:  colID,
 		Declaration: t.declaration,
+		synthetic:   t.synthetic,
+		unchanged:   t.unchanged,
 	}
 }
 
@@ -1055,7 +1156,6 @@ func (o *Output) collectActionsLocked() []Action {
 
 func (o *Output) bumpLocked() {
 	o.version++
-	o.publishSnapshotLocked()
 }
 
 func (o *Output) appendEventLocked(e Event) {
@@ -1181,20 +1281,33 @@ func (o *Output) Finish() error {
 	// below would otherwise mark them Incomplete (and record misuse).
 	o.autoResolveGroupsLocked()
 
-	// Unresolved entities
+	// Unresolved entities. A task with at least one recorded mutation-verb
+	// effect (Delete/Create/Update/...) and no problems of its own told an
+	// honest, complete story already — the caller just never called a
+	// terminal verb — so the easiest path (forgetting Done) becomes correct
+	// instead of a surprising Cancelled/NotStarted plus a silent exit-code
+	// flip (beginner-1, I1). Anything else still reads as misuse, but now
+	// names the task so Finish can render it.
 	for _, t := range o.tasks {
-		if !isTerminalTask(t.state) {
-			resolveUnstartedTaskLocked(t)
-			o.recordMisuse(ErrUnresolvedTask)
+		if isTerminalTask(t.state) {
+			continue
 		}
+		if len(t.problems) == 0 && o.hasRecordedEffectLocked(t.name) {
+			t.state = Done
+			t.phase = ""
+			o.appendEventLocked(Event{Type: "task.done", EntityID: t.id})
+			continue
+		}
+		resolveUnstartedTaskLocked(t)
+		o.recordMisuseFor(t.name, ErrUnresolvedTask)
+	}
+	if o.misuse != nil {
+		o.appendMisuseLineLocked()
 	}
 
 	snap := o.snapshotLocked()
 	conc := inferConclusion(snap)
 	applyFailedExitCode(&conc, o.cfg.failedExitCode)
-	if o.conclusion != nil && o.conclusion.Explanation != "" {
-		conc.Explanation = o.conclusion.Explanation
-	}
 	o.conclusion = &conc
 	snap.Conclusion = &conc
 	o.appendEventLocked(Event{
@@ -1207,13 +1320,6 @@ func (o *Output) Finish() error {
 	o.finished = true
 	o.finishing = false
 
-	// Full plain for FinalPlain / JSON agreement (may include already-streamed items).
-	fullPlain, _ := RenderPlain(snap, PlainOptions{
-		Width: cfg.width, NoColor: cfg.noColor, NonInteractive: cfg.nonInteractive,
-		Verbose: cfg.verbosity >= VerbosityVerbose,
-	})
-	o.finalPlain = string(fullPlain)
-
 	// Human stream: only residual (terminal outcomes already streamed).
 	residual := o.residualPlainLocked(snap)
 	interactive := false
@@ -1222,7 +1328,6 @@ func (o *Output) Finish() error {
 		// Interactive final: conclusion + any unemitted entities (not a second full dump).
 		o.finishLiveLocked(o.residualInteractiveFinalLocked(snap))
 	}
-	o.closeSnapshotsLocked()
 	o.mu.Unlock()
 
 	// CON-009: fan-out residual to primary + AlsoWrite when not already on the live driver.
@@ -1243,14 +1348,27 @@ func (o *Output) Finish() error {
 				_ = f.Flush()
 			}
 		}
-	} else if writer != nil && !cfg.samePrimaryAsTerminal {
-		// Dual stream: residual conclusion on primary (items already durable on terminal).
-		// Skipped when primary and the live terminal share one physical writer
-		// (default construction) — the terminal's WriteFinal already rendered
-		// this conclusion band, so writing it again to primary would duplicate
-		// it on the same screen.
-		if _, err := io.WriteString(writer, residual); err != nil {
-			writeErr = fmt.Errorf("%w: %v", ErrRenderer, err)
+	} else {
+		// Dual stream: residual conclusion on primary (items already durable on
+		// terminal). Primary is skipped when it and the live terminal share one
+		// physical writer (default construction) — the terminal's WriteFinal
+		// already rendered this conclusion band, so writing it again to primary
+		// would duplicate it on the same screen. AlsoWrite mirrors are never
+		// skipped: they are a distinct stream from the terminal by definition,
+		// and option.go's AlsoWrite promises the plain projection regardless of
+		// interactive/plain (X4).
+		writers := make([]io.Writer, 0, 1+len(cfg.extraWriters))
+		if writer != nil && !cfg.samePrimaryAsTerminal {
+			writers = append(writers, writer)
+		}
+		writers = append(writers, cfg.extraWriters...)
+		for _, w := range writers {
+			if _, err := io.WriteString(w, residual); err != nil && writeErr == nil {
+				writeErr = fmt.Errorf("%w: %v", ErrRenderer, err)
+			}
+			if f, ok := w.(flusher); ok {
+				_ = f.Flush()
+			}
 		}
 	}
 	if writeErr != nil {
@@ -1302,11 +1420,4 @@ func (o *Output) Events() []Event {
 	out := make([]Event, len(o.events))
 	copy(out, o.events)
 	return out
-}
-
-// FinalPlain returns the last rendered plain text after Finish.
-func (o *Output) FinalPlain() string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.finalPlain
 }

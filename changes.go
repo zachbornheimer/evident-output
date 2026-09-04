@@ -23,24 +23,27 @@ func (c *Changes) Updated(quantity int64, object string) *Changes {
 	return c.Record("updated", quantity, object)
 }
 
-// Reused records a reused quantity.
-func (c *Changes) Reused(quantity int64, object string) *Changes {
-	return c.Record("reused", quantity, object)
-}
-
-// Moved records a move.
-func (c *Changes) Moved(source, destination string) *Changes {
-	return c.recordNoQty("moved", sanitize.Text(source)+" → "+sanitize.Text(destination))
-}
-
 // Removed records a removed quantity.
 func (c *Changes) Removed(quantity int64, object string) *Changes {
 	return c.Record("removed", quantity, object)
 }
 
+// Deleted records a deleted quantity. Part of the verb set unified across
+// TaskHandle/Changes/Plan (C10) — TaskHandle/Plan already had Delete;
+// Changes was missing its past-tense counterpart.
+func (c *Changes) Deleted(quantity int64, object string) *Changes {
+	return c.Record("deleted", quantity, object)
+}
+
 // Wrote records a written object.
 func (c *Changes) Wrote(object string) *Changes {
 	return c.recordNoQty("wrote", object)
+}
+
+// Pushed records a pushed quantity. Part of the verb set unified across
+// TaskHandle/Changes/Plan (C10) — Push was previously TaskHandle-only.
+func (c *Changes) Pushed(quantity int64, object string) *Changes {
+	return c.Record("pushed", quantity, object)
 }
 
 // RecordName records a verb and one named object without a quantity.

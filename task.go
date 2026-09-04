@@ -25,11 +25,30 @@ func (t *TaskHandle) Phase(text string) *TaskHandle {
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
 	t.out.setPhaseLocked(st, text)
 	return t
+}
+
+// autoPhase is Each's per-item phase update — see setAutoPhaseLocked.
+func (t *TaskHandle) autoPhase(text string) {
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return
+	}
+	if isTerminalTask(st.state) {
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		return
+	}
+	t.out.setAutoPhaseLocked(st, text)
 }
 
 // setPhaseLocked is Phase's locked body, factored out so a caller already
@@ -51,6 +70,28 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 	o.emitTaskRunningProgressiveLocked(st, triggerPhase)
 }
 
+// setAutoPhaseLocked is Each's per-item phase update: the same state
+// transition as setPhaseLocked (promotion, activity clock, live redraw
+// signal), but it never forces its own durable line in plain mode
+// (beginner-10). Each's bare item name is a courtesy default, not a
+// caller-declared phase — if the loop body sets its own Phase before the
+// next paint, that call's own emission carries the current text once,
+// instead of the reader seeing the item name and the body's phase as two
+// separate redundant lines.
+func (o *Output) setAutoPhaseLocked(st *taskState, text string) {
+	st.phase = sanitize.Text(text)
+	st.activityAt = o.cfg.clock.Now()
+	if st.state == Pending {
+		o.promoteRunningLocked(st)
+		if st.progress.Kind == "" {
+			st.progress.Kind = Indeterminate
+		}
+	}
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
+	o.signalLiveLocked(true)
+}
+
 // Progress sets absolute completed/total count progress.
 // Counts use int (collection lengths, indices). For byte quantities use Bytes.
 // Prefer absolute Progress over Advance so retries cannot double-count.
@@ -58,42 +99,9 @@ func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	return t.setProgress(int64(completed), int64(total), Determinate)
 }
 
-// Progress64 is an advanced absolute count API for quantities outside the int range.
-// Ordinary call sites should use Progress(int, int) or Bytes for byte totals.
-func (t *TaskHandle) Progress64(completed, total int64) *TaskHandle {
-	return t.setProgress(completed, total, Determinate)
-}
-
 // Bytes sets absolute byte progress (units and rate formatting).
 func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
 	return t.setProgress(completed, total, BytesKind)
-}
-
-// Advance increments completed progress by delta.
-// Advanced relative helper — prefer absolute Progress in ordinary code.
-func (t *TaskHandle) Advance(delta int64) *TaskHandle {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
-		return t
-	}
-	completed := st.progress.Completed + delta
-	total := st.progress.Total
-	kind := st.progress.Kind
-	if kind == "" || kind == Indeterminate {
-		kind = Determinate
-	}
-	t.applyProgressLocked(st, completed, total, kind)
-	return t
 }
 
 func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *TaskHandle {
@@ -108,7 +116,7 @@ func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *Tas
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
 	t.applyProgressLocked(st, completed, total, kind)
@@ -177,7 +185,7 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
 	if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
@@ -186,36 +194,70 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 	return t
 }
 
-// Done resolves the task successfully.
-// Optional one summary: Done("modules cached"). More than one summary panics.
-func (t *TaskHandle) Done(summary ...string) *TaskHandle {
-	switch len(summary) {
-	case 0:
-		return t.finish(Done, "", nil)
-	case 1:
-		return t.finish(Done, sanitize.Text(summary[0]), nil)
-	default:
-		panic("evo: Task.Done accepts at most one summary string")
+// Done resolves the task successfully, with no summary (Done()), a literal
+// one (Done("modules cached")), or a printf-formatted one
+// (Done("%d packages", 18), fmt.Sprintf semantics) — one text spelling
+// shared with Task/Group/Reason/Warn (C6), including the same "no args
+// leaves text untouched" rule that keeps a literal "%" safe. A non-string
+// first argument is misuse (ErrInvalidConfig): Done's format position is
+// still meant to be a caller-written string, not an accidental value.
+func (t *TaskHandle) Done(args ...any) *TaskHandle {
+	summary, ok := formatSummaryArgs(args)
+	if !ok {
+		t.out.recordMisuse(ErrInvalidConfig)
+		return t
 	}
+	return t.finish(Done, sanitize.Text(summary), nil)
 }
 
-// Donef resolves the task with a formatted summary.
-// Prefer Done("text") when there are no format directives.
-func (t *TaskHandle) Donef(format string, args ...any) *TaskHandle {
-	return t.finish(Done, sanitize.Text(fmt.Sprintf(format, args...)), nil)
+// Unchanged resolves the task successfully, explicitly marking "checked,
+// nothing needed to change" — distinct from an ordinary Done's generic
+// verdict (I7). A run made entirely of Unchanged tasks (no Changes/Plan
+// records, nothing Failed/Blocked/Cancelled/Warning) concludes
+// StateUnchanged instead of the StateReady an ordinary Done gets. Same
+// no-args/literal/printf-formatted shape as Done (C6).
+func (t *TaskHandle) Unchanged(args ...any) *TaskHandle {
+	summary, ok := formatSummaryArgs(args)
+	if !ok {
+		t.out.recordMisuse(ErrInvalidConfig)
+		return t
+	}
+	return t.finishTagged(Done, sanitize.Text(summary), nil, true)
 }
 
-// Warn resolves the task with a warning.
-func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle {
-	p := applyProblemOptions(sanitize.Text(summary), options)
-	return t.finish(Warning, "", []Problem{p})
+// formatSummaryArgs implements Done/Unchanged's no-args/literal/printf-
+// formatted shape (C6): zero args is no summary; one string arg is a
+// literal (never passed through Sprintf, so a caller's own "%" stays
+// intact); two or more requires args[0] to be a printf format string,
+// applied to the rest via fmt.Sprintf. ok is false only when a non-string
+// first argument is given — a genuine caller mistake, not a valid shape.
+func formatSummaryArgs(args []any) (summary string, ok bool) {
+	if len(args) == 0 {
+		return "", true
+	}
+	format, isString := args[0].(string)
+	if !isString {
+		return "", false
+	}
+	if len(args) == 1 {
+		return format, true
+	}
+	return fmt.Sprintf(format, args[1:]...), true
 }
 
-// Warnf resolves the task with a formatted warning summary.
-// Prefer Warn("text") when there are no format directives.
-func (t *TaskHandle) Warnf(format string, args ...any) *TaskHandle {
-	p := applyProblemOptions(sanitize.Text(fmt.Sprintf(format, args...)), nil)
-	return t.finish(Warning, "", []Problem{p})
+// Warn resolves the task with a warning. This is a statement, not a fluent
+// chain — Warn returns nothing, so a bare `task.Warn("summary")` is
+// errcheck-clean, matching Fail/Block (beginner-9: doc.go's no-fluent
+// promise). The message gets the same summary placement as Fail/Block (the
+// ⚠ row itself carries it), and the same de-echo as Fail/Block drops the
+// redundant problem row when there's no Detail beyond it (beginner-3).
+// summary is a printf format when fmt args are present — one text spelling
+// shared with Done/Task/Group/Reason (C6); evo.Detail(...) and other
+// ProblemOptions may be mixed into args in any position and still apply.
+func (t *TaskHandle) Warn(summary string, args ...any) {
+	formatted, opts := formatWarnArgs(summary, args)
+	p := applyProblemOptions(sanitize.Text(formatted), opts)
+	t.finish(Warning, formatted, []Problem{p})
 }
 
 // Fail resolves the task as failed. This is a statement, not a fluent
@@ -297,9 +339,21 @@ func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
 	return t
 }
 
-// NextCommand attaches a command action.
+// NextCommand attaches a command action. args names a foreign tool's own
+// executable explicitly — the common case, since most remedies point at a
+// different tool than the one running right now.
 func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle {
 	return t.Next(Command(executable, args...))
+}
+
+// NextSelf attaches a command action that re-runs the caller's own binary
+// with args — a self-referencing remedy ("rerun with --apply") that doesn't
+// restate which binary to run (I6). Uses the same identity source as
+// Confirm's PolicyFlag / I2's Failf fallback: Config.Title when set, else
+// the binary's own basename. Use NextCommand instead when the remedy is a
+// different (foreign) tool.
+func (t *TaskHandle) NextSelf(args ...string) *TaskHandle {
+	return t.NextCommand(t.out.policySourceName(), args...)
 }
 
 // Snapshot returns the task snapshot.
@@ -314,6 +368,15 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 }
 
 func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
+	return t.finishTagged(state, summary, problems, false)
+}
+
+// finishTagged is finish's body, with an extra unchanged tag Task.Unchanged/
+// Unchangedf set (I7) — a run made entirely of Unchanged tasks concludes
+// StateUnchanged instead of the generic StateReady an ordinary Done gets
+// (inferConclusion). Never called with unchanged=true for any state other
+// than Done — Unchanged is a Done-family resolution, not a new glyph.
+func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []Problem, unchanged bool) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -325,15 +388,28 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
 	st.state = state
+	st.unchanged = unchanged
 	st.phase = "" // Done clears active phase
 	if summary != "" {
 		st.summary = sanitize.Text(summary)
 	}
 	if len(problems) > 0 {
+		// Fail/Block with a non-empty evidence ring and no explicit Detail
+		// auto-attach the capture tail (beginner-2) — the evidence a caller
+		// already gathered via Evidence()/PhaseWriter() is exactly the detail
+		// a Fail/Block row needs, so DetailTail is no longer an opt-in step a
+		// caller has to remember.
+		if (state == Failed || state == Blocked) && st.evidence != nil && !st.evidence.Empty() {
+			for i := range problems {
+				if problems[i].Detail == "" {
+					problems[i].Detail = st.evidence.detailText()
+				}
+			}
+		}
 		// storeProblems: shared CSI-safe path (identical to Item).
 		st.problems = storeProblems(problems)
 	}

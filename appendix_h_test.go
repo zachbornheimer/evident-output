@@ -209,9 +209,9 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("dependencies").
-		Added(14, "packages").
-		Updated(4, "packages").
-		Reused(63, "cached packages").
+		Added(14, "package").
+		Updated(4, "package").
+		Record("reused", 63, "cached package").
 		Wrote("app.lock")
 
 	if err := out.Finish(); err != nil {
@@ -242,8 +242,8 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("dependencies").
-		Added(14, "packages").
-		Updated(4, "packages").
+		Added(14, "package").
+		Updated(4, "package").
 		Wrote("app.lock")
 
 	if err := out.Finish(); err != nil {
@@ -266,8 +266,8 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Plan("delete account acme").
-		Delete(14, "projects").
-		Revoke(7, "API keys")
+		Delete(14, "project").
+		Record("revoke", 7, "API keys")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -283,7 +283,7 @@ func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 	var output bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.To(&output),
-		evo.NonInteractive(),
+		evo.Plain(),
 		evo.NoColor(),
 	}})
 	t.Cleanup(func() { _ = out.Close() })
@@ -291,7 +291,7 @@ func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 	task := out.Task("dependencies")
 	task.Phase("reading lockfile")
 	task.Phase("resolving packages")
-	task.Donef("installed %d packages", 18)
+	task.Done("installed %d packages", 18)
 	_ = out.Finish()
 
 	got := output.String()

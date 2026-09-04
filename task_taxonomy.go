@@ -42,7 +42,7 @@ func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dis
 		return
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return
 	}
 	t.out.enforceReasonConstraintLocked(reason, st.name, verb)

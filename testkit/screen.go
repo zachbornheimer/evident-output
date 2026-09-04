@@ -1,7 +1,17 @@
 package testkit
 
+import (
+	"io"
+	"sync"
+)
+
 // Screen is a virtual terminal that records live-region operations for tests.
+// Its methods are safe for concurrent use: a real terminal driver may be
+// written from a render goroutine while a test reads its accessors, so the
+// test double must mirror that contract.
 type Screen struct {
+	mu sync.Mutex
+
 	width, height int
 	interactive   bool
 	noColor       bool
@@ -52,8 +62,15 @@ func NewScreen(opts ...ScreenOption) *Screen {
 // ID implements evo.TerminalDriver.
 func (s *Screen) ID() string { return "testkit-screen" }
 
+// Sink implements evo's optional sinkReporter interface. Screen is a
+// virtual capture surface with no underlying writer, so it never reports as
+// sharing a stream with a real primary writer.
+func (s *Screen) Sink() io.Writer { return nil }
+
 // Columns implements evo.LiveSurface.
 func (s *Screen) Columns() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.width <= 0 {
 		return 80
 	}
@@ -62,6 +79,8 @@ func (s *Screen) Columns() int {
 
 // Rows implements evo.LiveSurface.
 func (s *Screen) Rows() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.height <= 0 {
 		return 24
 	}
@@ -69,10 +88,16 @@ func (s *Screen) Rows() int {
 }
 
 // IsInteractive implements evo.LiveSurface.
-func (s *Screen) IsInteractive() bool { return s.interactive }
+func (s *Screen) IsInteractive() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.interactive
+}
 
 // WriteLive implements evo.LiveSurface.
 func (s *Screen) WriteLive(text string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.liveFrames++
 	s.latestLive = text
 	s.ops = append(s.ops, Operation{Kind: "live", Text: text})
@@ -80,34 +105,58 @@ func (s *Screen) WriteLive(text string) {
 
 // ClearLive implements evo.LiveSurface.
 func (s *Screen) ClearLive() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.ops = append(s.ops, Operation{Kind: "clear"})
 }
 
 // WriteDurable implements evo.LiveSurface.
 func (s *Screen) WriteDurable(line string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.ops = append(s.ops, Operation{Kind: "durable", Text: line})
 }
 
 // WriteFinal implements evo.LiveSurface.
 func (s *Screen) WriteFinal(text string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.finalText = text
 	s.ops = append(s.ops, Operation{Kind: "final", Text: text})
 }
 
 // LiveFrameCount returns recorded live frames.
-func (s *Screen) LiveFrameCount() int { return s.liveFrames }
+func (s *Screen) LiveFrameCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.liveFrames
+}
 
 // FinalText returns durable final text.
-func (s *Screen) FinalText() string { return s.finalText }
+func (s *Screen) FinalText() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.finalText
+}
 
 // Operations returns recorded ops.
-func (s *Screen) Operations() []Operation { return append([]Operation(nil), s.ops...) }
+func (s *Screen) Operations() []Operation {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]Operation(nil), s.ops...)
+}
 
 // LatestLiveText returns the last live frame text.
-func (s *Screen) LatestLiveText() string { return s.latestLive }
+func (s *Screen) LatestLiveText() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.latestLive
+}
 
 // SetSize updates columns/rows mid-session (CON-004 resize storm).
 func (s *Screen) SetSize(width, height int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if width > 0 {
 		s.width = width
 	}

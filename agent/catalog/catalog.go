@@ -27,7 +27,7 @@ func All() []Guide {
 			ID:       "common-api",
 			Title:    "Common API path",
 			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
-			Concepts: []string{"Output", "Item", "Task", "Conclusion", "Main", "TaskHandle", "ItemHandle", "GroupHandle"},
+			Concepts: []string{"Output", "Task", "Conclusion", "Main", "TaskHandle", "GroupHandle"},
 			Rules: []string{
 				"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002",
 				"API-034", "API-035", "API-036", "API-037", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
@@ -43,20 +43,22 @@ func All() []Guide {
      "skipped N".
   5) evo.Confirm(question, ...) — owns the whole gate (prompt, quiesce, ⊘/OK resolution, exit code).
 
-Types: TaskHandle (work with Phase/Progress/mutations/taxonomy), ItemHandle (pass-fail gate/verdict),
-GroupHandle (evo.Group — named children, auto-lifecycle NotStarted on failure/cancel). evo.Task/Item/Group are
-get-or-create facades on the package-level default instance (see evo.Init/evo.SetDefault); Plan/Changes/Record
-stay on the instance API for tooling call sites, not the front door above.
+Types: TaskHandle (work with Phase/Progress/mutations/taxonomy, or a fact-check gate resolved directly with no
+Phase/Progress call), GroupHandle (evo.Group — named children, auto-lifecycle NotStarted on failure/cancel).
+evo.Task/Group are get-or-create facades on the package-level default instance (see evo.Init/evo.SetDefault);
+Plan/Changes/Record stay on the instance API for tooling call sites, not the front door above. Item/ItemHandle
+are deprecated v0.2.x shims over Task/TaskHandle (deprecated.go) — new code always uses Task.
 
 Severity: Warn = soft/optional; Block = stop before mutate; Fail = evaluation failed.
 Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) so a caller can tell "you did
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no RunAll/Map (API-026); Donef needs % (API-028); Capture not DebugWriter (API-029).
+Do not Start (API-006); no RunAll/Map (API-026); Failf/Blockf need % (API-028; Done/Warn/Task/Group/Reason
+are printf-variadic themselves — there is no separate Donef/Warnf/Taskf/Reasonf); Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
-failure on its own Item/Task and use Next(evo.Label(...)) for follow-up guidance instead.`,
+failure on its own Task and use Next(evo.Label(...)) for follow-up guidance instead.`,
 			TokenEstimate: 340,
 		},
 		{
@@ -66,15 +68,16 @@ failure on its own Item/Task and use Next(evo.Label(...)) for follow-up guidance
 			Concepts: []string{"Task", "Tasks", "Group", "Progress", "Each", "Skipped", "Kept"},
 			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030"},
 			Body: `Task is one operation with optional Phase/Progress. Tasks/Group are collections whose state is derived from
-children — never call Done/Fail/Progress on the collection itself (API-027); a Group stops later children as
-"-  not started" automatically after a failed child.
+children — never call Done/Fail/Progress on the collection itself (API-027). Tasks' children are independent (safe
+for concurrent worker-pool fan-out, no ordering assumed); Group's children are a sequence that stops later,
+still-unresolved siblings as "-  not started" automatically once one fails or is cancelled (C13).
 
 Heartbeat: a Phase left unrefreshed for ~10s auto-appends elapsed context ("pushing feat/a — 90s") so a stale
 spinner is never indistinguishable from progress — no manual timer required.
 
 Loops: prefer evo.Task(name).Each(items) (or EachN(n)) over a hand-maintained counter — it owns the absolute
 Progress(completed,total) so a retry can never double-count or move the bar backwards. On manual retry, set
-Progress to the true completed count, not Advance(1) again for the same item.
+Progress to the true completed count directly — there is no relative/delta counter to misuse (C7: Advance deleted).
 
 Sealed-total invariant: indeterminate → determinate happens once; after a total is sealed it never changes, and
 completed > total is unrepresentable.
@@ -117,8 +120,8 @@ it wires Evidence and Phase together in one call. For live narration wire cmd.St
 instead of a hand-rolled line-splitting writer — every line becomes the current Phase and is retained for
 DetailTail. Never implement your own io.Writer whose Write method calls TaskHandle.Phase (API-031): that
 reimplements the exact adapter PhaseWriter already owns.
-Tool-backed gates: item.Evidence() on the Item evaluating the condition.
-Evidence is entity-owned (Task or Item). Ring always retains proof; Config.Debug.Level gates journal display.
+Tool-backed gates: task.Evidence() on the Task evaluating the condition.
+Evidence is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
 EncodeJSON/EncodeJSONL for machines. Avoid fmt.Print during live UI — use evo.Println (see interactive guide).`,
 			TokenEstimate: 260,
@@ -176,7 +179,7 @@ config parsing, git walks, or a network dial. Init + the first declared entity m
 screen within 100ms of process start (FP-001) — VisibilityDelay (default 80ms) only suppresses spinner flash on
 work that finishes instantly; it never excuses a blank window before that.
 
-Declare before you compute (FP-002): the first Task/Item/Group declaration comes before the first read/open/dial
+Declare before you compute (FP-002): the first Task/Group declaration comes before the first read/open/dial
 in main or run — a config load or repo walk that happens first, with the first evo.Task only after, is the exact
 "blank screen for two seconds" bug this guide exists to catch.
 

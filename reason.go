@@ -1,6 +1,10 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/sanitize"
+import (
+	"fmt"
+
+	"github.com/zachbornheimer/evident-output/internal/sanitize"
+)
 
 // TaxonomyReason names why a task skipped or kept an item. It is the opaque
 // handle returned by evo.Reason — duplicate strings merge into one taxonomy
@@ -35,6 +39,29 @@ func ForSkip() ReasonOption {
 // different task is misuse.
 func OnTask(taskName string) ReasonOption {
 	return reasonOptionFunc(func(r *TaxonomyReason) { r.onTask = taskName })
+}
+
+// formatReasonName splits args into printf format arguments and
+// ReasonOption values, mirroring formatEntityName's mixed-args extraction
+// (C6: name is a printf format when fmt args are present; evo.ForSkip()/
+// evo.OnTask(...) may be mixed into args in any position).
+func formatReasonName(name string, args []any) (string, []ReasonOption) {
+	if len(args) == 0 {
+		return name, nil
+	}
+	var opts []ReasonOption
+	var fmtArgs []any
+	for _, a := range args {
+		if opt, ok := a.(ReasonOption); ok {
+			opts = append(opts, opt)
+			continue
+		}
+		fmtArgs = append(fmtArgs, a)
+	}
+	if len(fmtArgs) == 0 {
+		return name, opts
+	}
+	return fmt.Sprintf(name, fmtArgs...), opts
 }
 
 // reasonGetOrCreate returns the Reason previously registered under name on

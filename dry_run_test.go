@@ -85,8 +85,14 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	if len(snap.Changes[0].Records) != 1 || snap.Changes[0].Records[0].Verb != "deleted" {
 		t.Fatalf("records = %+v", snap.Changes[0].Records)
 	}
-	if !strings.Contains(out.FinalPlain(), "deleted") {
-		t.Fatalf("FinalPlain missing deleted row:\n%s", out.FinalPlain())
+	// FinalPlain is unexported (C8); reconstruct the same text RenderPlain
+	// produces from the finished snapshot.
+	finalPlain, err := evo.RenderPlain(out.Snapshot(), evo.PlainOptions{Width: 80, NoColor: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(finalPlain), "deleted") {
+		t.Fatalf("final plain missing deleted row:\n%s", finalPlain)
 	}
 }
 

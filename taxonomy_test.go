@@ -103,7 +103,7 @@ func TestTaskHandle_SkippedVerboseEmitsTruncatedNameList(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{
 		Stdout: &buf, Stderr: &buf, Verbosity: evo.VerbosityVerbose,
-		ForcePlain: true, Color: evo.ColorNever,
+		Plain: true, Color: evo.ColorNever,
 	}))
 
 	protected := evo.Reason("protected")
@@ -178,7 +178,7 @@ func TestGroup_ChildVerboseRendersTruncatedNameList(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Stdout: &buf, Stderr: &buf, Verbosity: evo.VerbosityVerbose,
-		ForcePlain: true, Color: evo.ColorNever,
+		Plain: true, Color: evo.ColorNever,
 	})
 
 	protected := evo.Reason("protected")
@@ -299,7 +299,7 @@ func TestTaskHandle_SkippedCauseVerboseListsEveryCause(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{
 		Stdout: &buf, Stderr: &buf, Verbosity: evo.VerbosityVerbose,
-		ForcePlain: true, Color: evo.ColorNever,
+		Plain: true, Color: evo.ColorNever,
 	}))
 
 	protected := evo.Reason("protected")

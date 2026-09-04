@@ -90,20 +90,9 @@ func TestDOM041_ActionsPromoted(t *testing.T) {
 	}
 }
 
-func TestDOM042_Explain(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Done()
-	out.Explain("custom")
-	_ = out.Finish()
-	if out.Conclusion().Explanation != "custom" {
-		t.Fatal(out.Conclusion().Explanation)
-	}
-}
-
 func TestLOG002_DebugUsesClock(t *testing.T) {
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Clock(clock), evo.DebugLevel(evo.Debug)}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Clock(clock), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Debug("x")
 	ev := out.Events()

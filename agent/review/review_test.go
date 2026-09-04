@@ -135,13 +135,18 @@ func check() error {
 	}
 }
 
-func TestAPI028_DonefWithoutFormat(t *testing.T) {
+// TestAPI028_FailfWithoutFormat is C6's sync: Donef and the rest of the *f
+// family are deleted (Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are
+// printf-variadic themselves now); Failf/Blockf survive for their %w+
+// *Failure semantics, and API-028 now flags one of those with no directive
+// at all instead.
+func TestAPI028_FailfWithoutFormat(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f() {
   out := evo.New()
-  out.Task("t").Donef("modules cached")
-  out.Task("u").Donef("%d ok", 1)
+  _ = out.Task("t").Failf("modules cached")
+  _ = out.Task("u").Failf("%d ok", 1)
 }
 `
 	res := review.GoSource("x.go", src)
@@ -984,7 +989,7 @@ func run(out *evo.Output) error {
   out.Task("i").Block("b", evo.Detail(err))
   os.Exit(1)
   out.Tasks("jobs").Map(func() {})
-  out.Task("t").Donef("modules cached")
+  out.Task("t").Failf("modules cached")
   _ = out.DebugWriter()
 
   c := make(chan os.Signal, 1)
@@ -1059,7 +1064,7 @@ func run(out *evo.Output, svc services, task *evo.TaskHandle, done, total int) e
   out.Task("i").Block("b", evo.Detail(err))
   os.Exit(1)
   out.Tasks("jobs").Map(func() {})
-  out.Task("t").Donef("modules cached")
+  out.Task("t").Failf("modules cached")
   _ = out.DebugWriter()
   task.Advance(1)
   task.Phase(fmt.Sprintf("scanning %d/%d", done, total))

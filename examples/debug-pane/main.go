@@ -28,7 +28,7 @@ func main() {
 	cfg := evo.DefaultConfig()
 	cfg.Title = "branch audit"
 	cfg.Debug = evo.DebugConfig{
-		Level:          evo.Debug,
+		Level:          evo.LevelDebug,
 		View:           evo.DebugPresentationPane,
 		PaneHeight:     4,
 		NewestFirst:    &newest,
@@ -47,7 +47,7 @@ func main() {
 		time.Sleep(step)
 		log.Debug("fetched remote metadata", "remote", "origin")
 		time.Sleep(step)
-		scan.Donef("%d branches", 7)
+		scan.Done("%d branches", 7)
 
 		compare.Phase("diffing")
 		blockers := 0

@@ -61,7 +61,7 @@ func main() {
 		Stdout:   os.Stderr,
 		Stderr:   os.Stderr,
 		Terminal: term,
-		Debug:    evo.DebugConfig{Level: evo.Debug},
+		Debug:    evo.DebugConfig{Level: evo.LevelDebug},
 		// Demo tuning: show spinners immediately.
 		VisibilityDelay: evo.Delay(0),
 		MaxFrameRate:    60,
@@ -75,7 +75,7 @@ func main() {
 			discover.Phase(phase)
 			time.Sleep(stepDur * 2)
 		}
-		discover.Donef("%d packages", 12)
+		discover.Done("%d packages", 12)
 
 		download := jobs.Task("download")
 		const total int64 = 4_000_000
@@ -103,6 +103,7 @@ func newFrameLog(w io.Writer, step bool) *frameLog {
 }
 
 func (f *frameLog) ID() string          { return "frame-log" }
+func (f *frameLog) Sink() io.Writer     { return f.w }
 func (f *frameLog) Columns() int        { return f.width }
 func (f *frameLog) Rows() int           { return 24 }
 func (f *frameLog) IsInteractive() bool { return true }

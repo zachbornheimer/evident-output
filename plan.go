@@ -23,11 +23,6 @@ func (p *Plan) Update(quantity int64, object string) *Plan {
 	return p.Record("update", quantity, object)
 }
 
-// Move records a planned move.
-func (p *Plan) Move(source, destination string) *Plan {
-	return p.recordNoQty("move", sanitize.Text(source)+" → "+sanitize.Text(destination))
-}
-
 // Remove records a planned removal.
 func (p *Plan) Remove(quantity int64, object string) *Plan {
 	return p.Record("remove", quantity, object)
@@ -38,19 +33,16 @@ func (p *Plan) Delete(quantity int64, object string) *Plan {
 	return p.Record("delete", quantity, object)
 }
 
-// Revoke records a planned revocation.
-func (p *Plan) Revoke(quantity int64, object string) *Plan {
-	return p.Record("revoke", quantity, object)
-}
-
 // Write records a planned write.
 func (p *Plan) Write(object string) *Plan {
 	return p.recordNoQty("write", object)
 }
 
-// Retain records a planned retention note.
-func (p *Plan) Retain(description string) *Plan {
-	return p.recordNoQty("retain", description)
+// Push records a planned push of quantity of object. Part of the verb set
+// unified across TaskHandle/Changes/Plan (C10) — Push was previously
+// TaskHandle-only.
+func (p *Plan) Push(quantity int64, object string) *Plan {
+	return p.Record("push", quantity, object)
 }
 
 // RecordName records a planned verb and one named object without a quantity.

@@ -138,8 +138,11 @@ func concludeCancelled(out *Output) int {
 	return ExitCancelled
 }
 
-// AnyBlocked reports whether any Task is currently in the Blocked state.
-func (o *Output) AnyBlocked() bool {
+// AnyBlockedSoFar reports whether any Task is currently in the Blocked
+// state — a live, mid-run check (C12: named "SoFar" to distinguish it from
+// Conclusion.AnyBlocked, which reports the finished run's final verdict;
+// the two answer different questions and previously shared one name).
+func (o *Output) AnyBlockedSoFar() bool {
 	if o == nil {
 		return false
 	}

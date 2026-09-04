@@ -34,6 +34,7 @@ func (o *Output) writeDurableTextLocked(text string) {
 	if text == "" {
 		return
 	}
+	o.durableRowsEmitted++
 	live := o.liveLocked()
 	// A live region (including the armed, entity-less title line painted by
 	// arm()) may still be on screen even after the surface stops reporting
@@ -46,7 +47,7 @@ func (o *Output) writeDurableTextLocked(text string) {
 		live.ClearLive()
 		o.live.liveActive = false
 	}
-	interactive := live != nil && live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
 	if interactive {
 		if o.live == nil {
 			o.live = &liveEngine{surface: live}
@@ -93,7 +94,7 @@ func (o *Output) emitTaskProgressiveLocked(st *taskState) {
 		return
 	}
 	live := o.liveLocked()
-	interactive := live != nil && live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
 	if interactive {
 		return
 	}
@@ -144,7 +145,7 @@ func (o *Output) flushGateNowLocked(id string) {
 // taskProgressiveTrigger names which evidence call is streaming a Running
 // task's plain-mode line, so emitTaskRunningProgressiveLocked can rate-limit
 // each kind independently (a phase change always streams; a progress tick
-// streams once, at the milestone where progress is first established).
+// streams once per milestone).
 type taskProgressiveTrigger int
 
 const (
@@ -152,19 +153,49 @@ const (
 	triggerProgress
 )
 
+// plainProgressMilestones is how many roughly-even steps a determinate
+// total is divided into for plain-mode progress streaming (beginner-8): a
+// durable line per increment would flood CI logs for a large total, so
+// increments are thinned to this many milestones instead of streaming only
+// once ("progress established") and then going silent until Done.
+const plainProgressMilestones = 10
+
+// shouldEmitPlainProgressLocked reports whether st's current progress value
+// crosses a new milestone since the last plain-mode line streamed for it.
+// The first tick and the final tick (completed == total) always stream —
+// beginner-8's "always a final n/n" — everything between is thinned.
+func shouldEmitPlainProgressLocked(st *taskState) bool {
+	completed := st.progress.Completed
+	total := st.progress.Total
+	if !st.plainProgressStarted {
+		return true
+	}
+	if completed == st.plainProgressEmitted {
+		return false
+	}
+	if total <= 0 || completed >= total {
+		return true
+	}
+	step := total / plainProgressMilestones
+	if step < 1 {
+		step = 1
+	}
+	return completed/step != st.plainProgressEmitted/step
+}
+
 // emitTaskRunningProgressiveLocked streams a standalone Running task's
 // current phase/progress as a durable line in plain/non-interactive mode
 // (evo-rec.md Problem 10: "Phase as static text once, then terminal rows").
 // Interactive mode owns this task's presentation via the live region
 // instead. A phase change streams every time its text changes; a progress
-// update streams once, when progress is first established — later ticks
-// would flood CI logs and add no new information a human reads mid-stream.
+// update streams at each milestone (shouldEmitPlainProgressLocked) instead
+// of flooding CI logs with every tick or going silent after the first.
 func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgressiveTrigger) {
 	if st == nil || st.collection != nil || st.state != Running {
 		return
 	}
 	live := o.liveLocked()
-	interactive := live != nil && live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
 	if interactive {
 		return
 	}
@@ -175,10 +206,11 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 		}
 		st.plainPhaseEmitted = st.phase
 	case triggerProgress:
-		if st.plainProgressEmitted {
+		if !shouldEmitPlainProgressLocked(st) {
 			return
 		}
-		st.plainProgressEmitted = true
+		st.plainProgressStarted = true
+		st.plainProgressEmitted = st.progress.Completed
 	}
 	var b strings.Builder
 	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
@@ -189,7 +221,9 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 }
 
 // residualPlainLocked builds the Finish tail for the human stream: only what has
-// not already been progressive-emitted. FinalPlain still uses the full snapshot.
+// not already been progressive-emitted. RenderPlain(snap, ...) still renders the
+// full snapshot for a caller that wants the complete plain projection (C8: the
+// former FinalPlain cache is gone — reconstruct via RenderPlain(out.Snapshot(), ...)).
 //
 // Interactive mode: tasks/collections are owned by WriteFinal (H.17 compact line);
 // residual dual-write must not reprint them onto primary (same stream as Terminal).
@@ -212,7 +246,7 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	if width <= 0 {
 		width = defaultWidth
 	}
-	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !cfg.plain && !cfg.nonInteractive
+	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !cfg.plain
 	var b strings.Builder
 
 	for i := o.linesEmitted; i < len(snap.Lines); i++ {

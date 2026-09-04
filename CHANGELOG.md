@@ -244,6 +244,193 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   derived from the Changes ledger (never caller-assembled), with a `none`
   fallback for an empty ledger.
 
+### Fixed (gate-1 review wave)
+
+- `testkit.Screen` is now safe for concurrent use (`-race` clean); it
+  previously raced on every live/durable/final write against its own
+  accessors.
+- `Confirm`'s abort channel is registered at gate creation, not lazily
+  inside the stdin read — a `^C` arriving before the prompt is written can
+  no longer be swallowed (the gate would hang on stdin with nothing left to
+  unblock it).
+- A caller-supplied `Terminal(...)` (`Config.Terminal`, or the advanced
+  `Options` path) sharing a stream with `primary` is now detected via the
+  driver's own `Sink()`, closing the `examples/terminal-driver` double
+  conclusion-band bug.
+- `Finish` now honors `AlsoWrite` on interactive runs — an `AlsoWrite`
+  mirror previously got nothing when the run had a live terminal.
+- An unresolved `Task` that recorded at least one mutation effect
+  (`Delete`/`Create`/...) but was never given a terminal verb now
+  auto-resolves `Done` instead of silently flipping the exit code to
+  failure. Any misuse that still changes the exit code now renders one
+  line naming the task and the misuse — an exit code can no longer
+  contradict everything the printed band showed.
+- `TaskHandle` mutation verbs (`Delete`/`Update`/`Remove`/`Push`/`Record`/
+  `RecordLabel`) take `int`, not `int64` — `Delete(len(x), "...")` now
+  compiles without a manual conversion.
+- `doc.go`'s adoption ladder: rung 5 shows `evo.Reason("...")` inline
+  instead of a bare `reason` parameter name; rung 4 clarifies `Each` is
+  `[]string`-only and shows `EachN(len(items))` for any other slice type.
+- `evo.AnyBlocked()` / `evo.AnyFailed()` package-level facades on the
+  default instance, matching `evo.Task`/`evo.Group`/`evo.Print*`.
+- Plain-mode `Running` progress now streams a durable line per milestone
+  (thinned for large totals) instead of once and then silence, and always
+  streams the final `n/n`. A plain-mode Running row no longer shows a
+  frozen spinner-alphabet frame — it has its own static glyph now.
+- `Task.Warn`/`Warnf` are void, matching `Fail`/`Block` — no fluent chain.
+- `Each`'s bare item-name phase no longer forces its own durable line when
+  the loop body sets its own `Phase` before the next paint — only the
+  body's phase text streams, not both.
+- `Task.Run` no longer publishes a shell wrapper's own basename ("sh") as
+  a placeholder phase; it reads the meaningful command from the wrapper's
+  `-c`/`-Command` script instead, or defers to first output.
+- An anonymous top-level `Output.Failf`/`Cancel` (no Task, no
+  `Config.Title`) now always renders its `[failed]`/`[cancelled]`
+  conclusion band — it was being incorrectly treated as a redundant echo
+  of a caller-declared Task's own row and suppressed. Its synthetic
+  fallback task name is now the caller's own executable basename instead
+  of the generic literal `"command"`.
+- `Output.Subject(text)`: a post-Init setter with the same one-shot
+  durable-line semantics as `Config.Subject`, for a caller who doesn't
+  know the subject text until after `Init` (but still before other I/O).
+- Mutation-verb `object` arguments (`Delete`/`Update`/`Remove`/`Push`/
+  `Record`/`RecordLabel`, and `Changes`/`Plan`'s `Added`/`Updated`/
+  `Reused`/`Removed`/`Add`/`Delete`/`Revoke`) are now always singular
+  (`"branch"`, not `"branches"`) — the ledger derives the correct plural
+  from the recorded quantity at render time. `evo.Pluralize` stays
+  exported for prose outside the ledger. Existing goldens that passed an
+  already-plural object updated to singular.
+- `evo.ConfirmDetail(lines...)`: context lines rendered under Confirm's
+  "? question [y/N]" prompt.
+- `evo.PolicyFlag(flag)`: fills the non-interactive policy hint's
+  executable from the caller's own identity (`Config.Title`, or I2's
+  executable-basename fallback) instead of the caller hand-composing
+  `PolicyHint(os.Args[0], flag)`. `PolicyHint` stays for a foreign tool.
+- `TaskHandle.NextSelf(args...)`: a self-referencing remedy command
+  ("rerun with --apply") that resolves its own executable from the same
+  identity source as `PolicyFlag`, instead of restating the binary via
+  `NextCommand`. `NextCommand` stays for a foreign tool (the majority).
+- `TaskHandle.Unchanged(summary)` / `Unchangedf(format, args...)`: a Done
+  resolution explicitly tagged "checked, nothing needed to change". A run
+  made entirely of `Unchanged` tasks (and, for a `Tasks`/`Group`
+  collection, entirely `Unchanged` children) concludes `StateUnchanged`
+  instead of the generic `StateReady` an ordinary `Done` gets.
+- `Output.DeclareDryRun()`: a bounded late setter for a caller who doesn't
+  know `DryRun` until after `Init` (e.g. resolved from a flag) — misuse
+  (`ErrDryRunDeclaredLate`) once any durable row has already streamed,
+  since it could not retroactively reflect the switch. No argv-sniffing
+  helper; the caller decides and calls this explicitly.
+- `evo.Init` is now variadic (`Init(configs ...Config)`): `evo.Init()`
+  (zero args) builds an ordinary default instance — `construct.go`'s
+  zero-config doc example is real, not a `Config{}` literal in disguise.
+- Docs: the agent catalog's `Item`/`ItemHandle` mentions removed from
+  prose and `Concepts` (C1) — those are deprecated v0.2.x shims
+  (`deprecated.go`) the catalog was contradicting by teaching them
+  alongside `Task`. `Tasks` vs `Group`'s independent-vs-sequential split
+  now gets one explicit sentence (C13).
+- **Breaking**: `Config.ForcePlain` and `Config.NonInteractive` collapsed
+  into one `Config.Plain` field; the `NonInteractive()` Option is gone —
+  use `Plain()`. Every prior read site combined the two with OR, so there
+  was never a distinct behavior between them to preserve (C3).
+  `PlainOptions.NonInteractive` deleted too — proven a no-op, since
+  `RenderPlain` always forces plain mode regardless of it (C2).
+- **Breaking**: `evo.Int`/`evo.String`/`evo.Duration` field-builder
+  helpers deleted (zero callers beyond their own package; construct a
+  `Field{Key: ..., Value: ...}` literal directly). The `Field` struct
+  stays (C8).
+- **Breaking**: the `At(path, line, column)` `ProblemOption` is renamed
+  `Location(...)` — it shared a name with `Output.At(visibility)`,
+  confusing autocomplete and readers alike. The `Location` struct is
+  renamed `SourceLocation` so the constructor function could keep the
+  `Location` name without colliding with its own return type;
+  `Problem.Location`'s field name is unchanged (C5).
+- **Breaking**: `TaskHandle.Advance`/`Progress64` deleted. `Progress`
+  (absolute, `int`), `Bytes`, `Step`, `Each`, `EachN` are the surviving
+  progress API — `Advance`'s delta shape double-counted on retry, and
+  `int` is 64-bit on every platform this library targets, so `Progress64`
+  had no int-range problem left to solve (C7). `agent/rules`' DOM-017
+  guidance now shows `Each` instead of `Advance` as the good-code example
+  (C4).
+- **Breaking**: `Output.AnyBlocked()` (and the package-level facade) are
+  renamed `AnyBlockedSoFar()` — a live, mid-run check, distinct from
+  `Conclusion.AnyBlocked()`'s final-verdict question. The two shared one
+  name despite answering different questions at different times (C12).
+- Docs: `Config.Isolated`'s field prose now cross-references `Options` —
+  it is not consulted on that path (I1 already fixed the reverse
+  cross-reference). `Width`/`VisibilityDelay` reviewed, no change needed
+  (C14).
+- **Breaking**: `Visibility`'s zero member is renamed `VisibilityNormal`
+  (was the bare `Normal`) — consistent with its sibling
+  `VisibilityVerbose`, which the enum already used. `EntityState`'s own
+  members stay bare (documented, not renamed): a `State*` prefix would
+  collide outright with `ConclusionState`'s existing `StateFailed`/
+  `StateBlocked`/`StateCancelled`/`StateWarning` constants, and renaming
+  those instead would ripple into the JSON wire and every golden (C11).
+- **Breaking**: one printf-variadic text spelling across the API —
+  `Done`, `Unchanged`, `Warn`, `Task`, `Group`, `Tasks`, `Changes`,
+  `Plan`, `Reason`, `GroupHandle.Summary`, `Tasks.Summary` all accept
+  optional `fmt.Sprintf` args now, and their `*f` duplicates
+  (`Donef`, `Unchangedf`, `Warnf`, `Taskf`, `Itemf`, `Tasksf`,
+  `Changesf`, `Planf`, `Reasonf`, `Summaryf` ×2) are deleted. `Failf`/
+  `Blockf` are the only surviving `*f` methods (distinct `%w`+
+  `*Failure` semantics; `Fail`/`Block` stay non-printf statements).
+  `Done`/`Unchanged` keep their zero-arg convenience call
+  (`task.Done()`) and never run a literal one-string summary through
+  `Sprintf`, so an existing `"%"` in a caller's text still survives
+  untouched — only a call with additional args formats. `agent/review`'s
+  API-028 detector and `agent/rules`' API-028 entry retargeted to
+  `Failf`/`Blockf`, the only methods left in that family (C6).
+- **Breaking**: census deletion pass (C8) — every symbol below had zero
+  real callers beyond its own package, or a strictly better surviving
+  alternative:
+  - `Evidence.TaskName`/`Lines`/`Tail` deleted; `Text()` covers the bare
+    (no-limit) case every real caller used.
+  - `Changes.Moved`/`Reused` and `Plan.Move`/`Retain`/`Revoke` deleted —
+    `Record`/`RecordName` cover the same ground (C10's unified verb set).
+  - `Output.Snapshots()` (the streaming channel) and its internal
+    plumbing deleted; `Output.Snapshot()` (poll-based) is the surviving
+    accessor.
+  - `Output.Explain()` deleted (and the now-dead pre-Finish
+    `Conclusion.Explanation` carry-over it existed to support).
+  - `WriteJSON`/`WriteJSONL` and their inert `JSONOptions`/`JSONLOptions`
+    parameter types deleted; `EncodeJSON`/`EncodeJSONL` (now without the
+    unused options parameter) are the surviving encoders — a caller
+    writes the bytes themselves.
+  - `DetailTail` the free function deleted; `Evidence.DetailTail()` the
+    method is the sole spelling.
+  - `ParseColorMode` deleted (trivial enough for a caller to inline).
+  - `Output.Verbose()` deleted; `Output.At(VisibilityVerbose)` (or
+    `evo.Verbose()` on the default instance) is the surviving spelling.
+  - `FinalPlain()` deleted, along with the internal cache it read from
+    (dead once nothing outside the package needed it) — a caller
+    reconstructs the same text via
+    `RenderPlain(out.Snapshot(), PlainOptions{...})`.
+  - `Int`/`String`/`Duration` field-builder helpers deleted (`Field`
+    struct stays) — see above.
+  - `ColorLevel`, `CapabilityProfile`, `DetectCapabilities` unexported
+    (no external caller); the internal, always-write-never-read
+    `projectionPolicy` enum this pass surfaced while unexporting is
+    deleted entirely — `DataProjection()`/`ExternalProjection()` stay as
+    documented Options.
+  - `const Debug` (alias of `LevelDebug`) deleted — one spelling.
+  - `RecordLabel` is the one item the census named to keep as-is
+    (a golden depends on it).
+- Finished the `Capture`→`Evidence` rename in the option surface (C9):
+  `CaptureOption`→`EvidenceOption`, `CaptureStream`→`EvidenceStream`
+  (+ its three constants), `MaxCaptureBytes`→`MaxEvidenceBytes`. The
+  v0.2.16-shipped spellings stay as deprecated aliases
+  (`type CaptureOption = EvidenceOption`, etc.) — everything else on
+  this list was never shipped, so it breaks cleanly. Internal field
+  (`taskState.capture`, `phaseWriter.capture`) renamed to `evidence`.
+- Unified the mutation-verb vocabulary across `TaskHandle`/`Changes`/
+  `Plan` (C10): `TaskHandle.Add` and `Plan.Push` added (each previously
+  missing from one of the three); `Changes.Deleted`/`Pushed` added (the
+  past-tense counterparts `TaskHandle.Delete`/`Push` were missing).
+  `Record`/`RecordName` already covered every non-shorthand case on all
+  three (unaffected); `RecordLabel` stays `TaskHandle`-only (a
+  classification result, not a mutation verb, so it was never meant to
+  be on the shared set).
+
 ## Migration guide (v0.2.x → v0.3.0)
 
 | Old (v0.2.x)                                                 | New (v0.3.0)                                                                                                   |
