@@ -15,7 +15,12 @@ import (
 // Conclusion.AnyBlocked, a different, final-verdict question.
 func TestPackageAnyBlockedAnyFailed_DefaultInstanceParity(t *testing.T) {
 	var buf bytes.Buffer
-	evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	// Config.Options never installs the package-level default (by design —
+	// see Init's doc comment), so this must go through SetDefault
+	// explicitly; otherwise evo.Task/evo.AnyBlockedSoFar below would keep
+	// operating on whatever default instance an earlier test left behind —
+	// invisible at -count=1, a guaranteed failure at -count>1.
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}}))
 
 	if evo.AnyBlockedSoFar() {
 		t.Fatal("AnyBlockedSoFar() = true before any task exists")
