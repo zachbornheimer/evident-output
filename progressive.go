@@ -144,7 +144,7 @@ func (o *Output) flushGateNowLocked(id string) {
 // taskProgressiveTrigger names which evidence call is streaming a Running
 // task's plain-mode line, so emitTaskRunningProgressiveLocked can rate-limit
 // each kind independently (a phase change always streams; a progress tick
-// streams once, at the milestone where progress is first established).
+// streams once per milestone).
 type taskProgressiveTrigger int
 
 const (
@@ -152,13 +152,43 @@ const (
 	triggerProgress
 )
 
+// plainProgressMilestones is how many roughly-even steps a determinate
+// total is divided into for plain-mode progress streaming (beginner-8): a
+// durable line per increment would flood CI logs for a large total, so
+// increments are thinned to this many milestones instead of streaming only
+// once ("progress established") and then going silent until Done.
+const plainProgressMilestones = 10
+
+// shouldEmitPlainProgressLocked reports whether st's current progress value
+// crosses a new milestone since the last plain-mode line streamed for it.
+// The first tick and the final tick (completed == total) always stream —
+// beginner-8's "always a final n/n" — everything between is thinned.
+func shouldEmitPlainProgressLocked(st *taskState) bool {
+	completed := st.progress.Completed
+	total := st.progress.Total
+	if !st.plainProgressStarted {
+		return true
+	}
+	if completed == st.plainProgressEmitted {
+		return false
+	}
+	if total <= 0 || completed >= total {
+		return true
+	}
+	step := total / plainProgressMilestones
+	if step < 1 {
+		step = 1
+	}
+	return completed/step != st.plainProgressEmitted/step
+}
+
 // emitTaskRunningProgressiveLocked streams a standalone Running task's
 // current phase/progress as a durable line in plain/non-interactive mode
 // (evo-rec.md Problem 10: "Phase as static text once, then terminal rows").
 // Interactive mode owns this task's presentation via the live region
 // instead. A phase change streams every time its text changes; a progress
-// update streams once, when progress is first established — later ticks
-// would flood CI logs and add no new information a human reads mid-stream.
+// update streams at each milestone (shouldEmitPlainProgressLocked) instead
+// of flooding CI logs with every tick or going silent after the first.
 func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgressiveTrigger) {
 	if st == nil || st.collection != nil || st.state != Running {
 		return
@@ -175,10 +205,11 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 		}
 		st.plainPhaseEmitted = st.phase
 	case triggerProgress:
-		if st.plainProgressEmitted {
+		if !shouldEmitPlainProgressLocked(st) {
 			return
 		}
-		st.plainProgressEmitted = true
+		st.plainProgressStarted = true
+		st.plainProgressEmitted = st.progress.Completed
 	}
 	var b strings.Builder
 	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)

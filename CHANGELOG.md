@@ -271,6 +271,12 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 - `doc.go`'s adoption ladder: rung 5 shows `evo.Reason("...")` inline
   instead of a bare `reason` parameter name; rung 4 clarifies `Each` is
   `[]string`-only and shows `EachN(len(items))` for any other slice type.
+- `evo.AnyBlocked()` / `evo.AnyFailed()` package-level facades on the
+  default instance, matching `evo.Task`/`evo.Group`/`evo.Print*`.
+- Plain-mode `Running` progress now streams a durable line per milestone
+  (thinned for large totals) instead of once and then silence, and always
+  streams the final `n/n`. A plain-mode Running row no longer shows a
+  frozen spinner-alphabet frame — it has its own static glyph now.
 
 ## Migration guide (v0.2.x → v0.3.0)
 

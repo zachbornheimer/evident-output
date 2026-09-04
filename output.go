@@ -135,13 +135,15 @@ type taskState struct {
 
 	// Plain/non-interactive progressive-streaming bookkeeping for a still-
 	// Running standalone task (P10: CI logs must not stay silent until
-	// Finish). plainPhaseEmitted is the last Phase text already streamed, so
-	// a repeated/no-op Phase call does not re-emit; plainProgressEmitted
-	// latches once the one-time "progress established" line has streamed —
-	// later Progress/Bytes ticks never stream individually (durable lines,
-	// not a redraw).
+	// Finish; beginner-8: a durable line per progress increment, thinned to
+	// milestones for large totals). plainPhaseEmitted is the last Phase text
+	// already streamed, so a repeated/no-op Phase call does not re-emit.
+	// plainProgressStarted is false until the first Progress/Bytes tick;
+	// plainProgressEmitted holds the last completed value actually streamed,
+	// so a later tick knows whether it crossed a milestone boundary.
 	plainPhaseEmitted    string
-	plainProgressEmitted bool
+	plainProgressStarted bool
+	plainProgressEmitted int64
 }
 
 type tasksState struct {

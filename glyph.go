@@ -98,9 +98,13 @@ func (g glyphSpec) cellWidth(profile GlyphProfile) int {
 	return width.Cells(g.render(profile))
 }
 
-// State glyph table (evo-rec.md "Tightened glyph vocabulary"). Meanings not
-// covered by the table (Running) are driven by the spinner alphabet instead
-// of a static glyph.
+// State glyph table (evo-rec.md "Tightened glyph vocabulary"). A live
+// interactive redraw drives Running from the spinner alphabet instead
+// (writeLiveTaskLine overrides taskGlyph's Running result with the current
+// animated frame); every other consumer — a plain/non-interactive durable
+// line, a residual dump, a snapshot — has no animation loop behind it, so
+// taskGlyph gives Running its own static face (glyphRunning) rather than a
+// spinner frame frozen mid-spin (beginner-8: "no spinner glyph in plain").
 var (
 	glyphDone         = glyphSpec{"✓", "[ok]"}
 	glyphFailedState  = glyphSpec{"✗", "[x]"}
@@ -109,6 +113,7 @@ var (
 	glyphCancelled    = glyphSpec{"■", "[cancel]"}
 	glyphNotStarted   = glyphSpec{"-", "[-]"}
 	glyphPending      = glyphSpec{"○", "[.]"}
+	glyphRunning      = glyphSpec{"◐", "[~]"}
 	glyphHumanInput   = glyphSpec{"?", "[?]"}
 	// glyphNextAction marks a follow-up command/label line. evo-rec.md's
 	// tightened vocabulary table gives it its own row so the meaning does not
@@ -167,7 +172,7 @@ func taskGlyph(s EntityState, profile GlyphProfile) string {
 	case Warning:
 		return glyphWarningState.render(profile)
 	case Running:
-		return spinnerFrames(profile)[0]
+		return glyphRunning.render(profile)
 	case Pending, Skipped:
 		return glyphPending.render(profile)
 	case Cancelled:
