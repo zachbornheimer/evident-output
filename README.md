@@ -36,7 +36,7 @@ func run() error {
         evo.Detail("commit or stash before continuing"),
     )
 
-    evo.Task("cleanup").Delete(2, "stale local branch") // singular object, ledger renders "2 stale local branches"
+    evo.Task("cleanup").Delete("stale local branch", nil, evo.Affected(2)) // singular object, ledger renders "2 stale local branches"
     for pkg := range evo.Task("install").Each(packages) {
         install(pkg)
     }
@@ -51,16 +51,16 @@ harness), the same call sites fall back to plain, durable lines:
 ```text
 Reading configuration
 Found 18 packages
-✓  working tree
-⊘  branches  local-only branch
+✓ working tree
+⊘ branches      local-only branch
    └─ commit or stash before continuing
-◐  install  0/2
-◐  install  1/2  a
-◐  install  2/2  b
-✓  cleanup
-✓  install
-[changed]  cleanup
-  deleted  2 stale local branches
+◐ install  0/2
+◐ install  1/2  a
+◐ install  2/2  b
+✓ cleanup
+✓ install
+
+[changed] cleanup  deleted 2 stale local branches
 
 [blocked]  bpp-csharp
 ```

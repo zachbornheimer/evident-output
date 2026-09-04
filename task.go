@@ -7,7 +7,7 @@ import (
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// Task is a handle for one operation with phases or progress.
+// TaskHandle is a handle for one operation with phases or progress.
 type TaskHandle struct {
 	out *Output
 	id  string

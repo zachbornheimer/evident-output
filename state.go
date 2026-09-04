@@ -17,6 +17,8 @@ import "github.com/zachbornheimer/evident-output/internal/core"
 // Snapshot's doc comment (snapshot.go) for why.
 type EntityState = core.EntityState
 
+// EntityState values — see the type doc comment above for the naming
+// rationale (no State* prefix on this block).
 const (
 	Pending    = core.Pending
 	Running    = core.Running
@@ -37,6 +39,7 @@ const (
 // ConclusionState is the human headline for a finished output.
 type ConclusionState = core.ConclusionState
 
+// ConclusionState values — the trailing "[state]" band a run can end in.
 const (
 	StateReady     = core.StateReady
 	StateChanged   = core.StateChanged
@@ -50,6 +53,7 @@ const (
 // ProgressKind classifies task measurement.
 type ProgressKind = core.ProgressKind
 
+// ProgressKind values — which measurement a task's Progress reports.
 const (
 	Indeterminate = core.Indeterminate
 	Determinate   = core.Determinate

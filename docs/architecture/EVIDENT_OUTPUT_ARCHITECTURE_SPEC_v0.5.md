@@ -3705,8 +3705,9 @@ The MCP server SHALL advertise only capabilities it implements and maintain a te
 ```
 
 Root declares the public API's behavioral facades (`Output`, `TaskHandle`,
-`Tasks`, `Group`, `Failure`, `Evidence`, `Config`, the functional-option
-surface, `Confirm`) with their doc-bearing methods, and re-declares the pure
+`DisplayGroup`, `SequenceHandle`, `Failure`, `Evidence`, `Config`, the
+functional-option surface, `Confirm`) with their doc-bearing methods, and
+re-declares the pure
 data-model types internal/core owns as public aliases (`type Snapshot =
 core.Snapshot`, doc comment duplicated on the alias) so the published API
 surface is unchanged. `pkg.go.dev` cannot expand an aliased type's own

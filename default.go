@@ -127,9 +127,10 @@ func Task(name string, args ...any) *TaskHandle {
 	return Default().taskGetOrCreate(formatted, opts...)
 }
 
-// Group declares (or, for a repeated name, returns) a self-managing task
-// group on the default instance — see Group for the auto-lifecycle contract.
-// name is a printf format when args are present (fmt.Sprintf semantics).
+// Sequence declares (or, for a repeated name, returns) a self-managing,
+// ordered task container on the default instance — see Output.Sequence for
+// the auto-lifecycle contract. name is a printf format when args are present
+// (fmt.Sprintf semantics).
 func Sequence(name string, args ...any) *SequenceHandle {
 	return Default().Sequence(name, args...)
 }

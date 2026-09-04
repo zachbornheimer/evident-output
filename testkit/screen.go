@@ -189,10 +189,11 @@ func (s *Screen) SetSize(width, height int) {
 // DrawLive records a live frame expectation helper.
 func DrawLive(text string) Operation { return Operation{Kind: "live", Text: text} }
 
-// ClearLiveOp is an expectation helper (ClearLive method exists on Screen).
+// ClearLive is an expectation helper for a cleared live region (a Screen
+// method of the same name exists separately).
 func ClearLive() Operation { return Operation{Kind: "clear"} }
 
-// WriteDurableOp expectation helper name collision — use WriteDurable as func.
+// WriteDurable is an expectation helper for a durable (non-live) write.
 func WriteDurable(text string) Operation { return Operation{Kind: "durable", Text: text} }
 
 // WriteFinal expectation helper.

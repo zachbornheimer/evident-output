@@ -1,7 +1,7 @@
 package evo
 
-// Sequence is the front door for an ordered dependency of steps that must
-// stop implying "still might run" once a child reaches Failed or Cancelled:
+// SequenceHandle is the front door for an ordered dependency of steps that
+// must stop implying "still might run" once a child reaches Failed or Cancelled:
 // every later-declared sibling still unresolved auto-resolves to NotStarted
 // ("-  <name>  not started") — no caller code required. It is a thin
 // identity layer over DisplayGroup (the underlying collection) that adds
