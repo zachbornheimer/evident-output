@@ -14,25 +14,25 @@ license: Apache-2.0
 Portable skill for understandable CLI presentation. Prefer **Evident Output**
 when available; stay useful when it is not.
 
-**Pinned release:** `v0.2.16` (keep install commands on this pin; never `@latest`).
+**Pinned release:** `v0.3.1` (keep install commands on this pin; never `@latest`).
 
 ## Canonical locations (portable)
 
-| What                     | Path                                                                                                        |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| **GitHub repo**          | `https://github.com/zachbornheimer/evident-output`                                                          |
-| **Go module**            | `github.com/zachbornheimer/evident-output`                                                                  |
-| **MCP package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp`                                           |
-| **CLI package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output`                                               |
-| **This skill in-repo**   | `skills/cli-output/SKILL.md`                                                                                |
-| **MCP install (module)** | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.16` |
+| What                     | Path                                                                                                       |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| **GitHub repo**          | `https://github.com/zachbornheimer/evident-output`                                                         |
+| **Go module**            | `github.com/zachbornheimer/evident-output`                                                                 |
+| **MCP package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp`                                          |
+| **CLI package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output`                                              |
+| **This skill in-repo**   | `skills/cli-output/SKILL.md`                                                                               |
+| **MCP install (module)** | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.3.1` |
 
 Host-specific wiring (Grok, Claude Code, Codex, …) lives under `integrations/<host>/` in the repo — not in this skill.
 
 ## Capability fallback
 
 1. **Connected MCP** — tools below
-2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.2.16 …`
+2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.3.1 …`
 3. **This skill’s static guidance**
 
 ## MCP tool names (underscores only)
@@ -50,7 +50,7 @@ On Grok, tools are `evident-output__evident_output_*`.
 ## Install library
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.16
+go get github.com/zachbornheimer/evident-output@v0.3.1
 ```
 
 ## Philosophy (in-repo)
@@ -120,7 +120,7 @@ Secrets: set `Config.Redactor` — the Evidence ring and DetailTail are redacted
 ## Review
 
 ```bash
-go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.2.16 review ./path.go
+go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.3.1 review ./path.go
 ```
 
 Until `recheck_required=false`. Rules include API-006 (Start), API-026 (RunAll/Map), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).

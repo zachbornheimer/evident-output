@@ -2,7 +2,7 @@
 
 Local **stdio** MCP only (no hosted URL).
 
-**Pin:** `v0.2.16` (never `@latest` for persistent install).
+**Pin:** `v0.3.1` (never `@latest` for persistent install).
 
 ## Canonical paths
 
@@ -21,7 +21,7 @@ mkdir -p "$HOME/.local/bin"
 
 # Module install — pin a release (never @latest):
 GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.16
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.3.1
 
 # Or from a local clone of this repo:
 #   go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp

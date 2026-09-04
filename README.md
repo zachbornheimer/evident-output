@@ -37,7 +37,7 @@ func run() error {
 ```
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.2.16
+go get github.com/zachbornheimer/evident-output@v0.3.1
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
@@ -149,7 +149,7 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 
 ## Status
 
-**Release:** **v0.2.16** — pin **maintenance class** closed: `PublishedRelease` + auto-walk drift gate + `sync-release-pins` (no ad-hoc skill/README pin edits). Portable install forbids `@latest` and personal clone paths.
+**Release:** **v0.3.1** — pin **maintenance class** closed: `PublishedRelease` + auto-walk drift gate + `sync-release-pins` (no ad-hoc skill/README pin edits). Portable install forbids `@latest` and personal clone paths.
 **Architecture spec:** [v0.5](docs/architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).
 **Implemented surface:** ordinary ladder through Plan/Changes/Capture/slog/ResultWriter; interactive VT; hardened MCP; polish-phase docs under `docs/`. External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 
@@ -263,7 +263,7 @@ mkdir -p "$HOME/.local/bin"
 
 # Module install (network + sumdb) — pin a release tag, never @latest:
 GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.2.16
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.3.1
 
 # Or from a local clone of this repo:
 #   git clone https://github.com/zachbornheimer/evident-output.git

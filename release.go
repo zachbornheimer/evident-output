@@ -17,4 +17,4 @@ package evo
 //  4. Tag that commit; do not move prior tags.
 //
 // version_drift_test.go enforces the portable surface stays synchronized.
-const PublishedRelease = "v0.2.16"
+const PublishedRelease = "v0.3.1"
