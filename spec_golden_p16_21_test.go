@@ -519,12 +519,15 @@ func TestSpecP18_RemoteTracking_EarlyTermination(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	final := screen.FinalText()
-	if !strings.Contains(final, "■") || !strings.Contains(final, "remote-tracking") || !strings.Contains(final, "cancelled") {
-		t.Fatalf("want cancelled remote-tracking row in final text, got:\n%s", final)
+	// Cancel commits the resolved row durably at resolution time
+	// (release-gate round 5 finding 3, commitResolvedTaskLocked) rather than
+	// waiting for WriteFinal — PersistedText covers both durable and final.
+	persisted := screen.PersistedText()
+	if !strings.Contains(persisted, "■") || !strings.Contains(persisted, "remote-tracking") || !strings.Contains(persisted, "cancelled") {
+		t.Fatalf("want cancelled remote-tracking row in persisted text, got:\n%s", persisted)
 	}
-	if strings.Contains(final, "already mutated") {
-		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but got one; got:\n%s", final)
+	if strings.Contains(persisted, "already mutated") {
+		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but got one; got:\n%s", persisted)
 	}
 }
 

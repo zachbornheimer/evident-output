@@ -409,7 +409,7 @@ func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		t.out.recordAlreadyResolvedLocked(st.name, summary)
 		return t
 	}
 	st.state = state
@@ -442,14 +442,15 @@ func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task." + string(state), EntityID: t.id})
-	// Terminal outcomes: update live ledger for collections (H.20/H.21), but do not
-	// draw a live "done" frame for a standalone task right before Finish (H.17).
+	// Terminal outcomes: update live ledger for collections (H.20/H.21). A
+	// standalone task commits its own row to durable scrollback right now,
+	// interactive or not, so a later Printf/Println/Confirm can never race
+	// above already-resolved work (P2 / residual order contract;
+	// release-gate round 5 finding 3 — see commitResolvedTaskLocked).
 	if st.collection != nil {
 		t.out.signalLiveLocked(true)
 	} else {
-		// Plain/non-TTY: stream the durable task row now so later Printf cannot
-		// race above completed work (P2 / residual order contract).
-		t.out.emitTaskProgressiveLocked(st)
+		t.out.commitResolvedTaskLocked(st.id)
 	}
 	return t
 }

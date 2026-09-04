@@ -79,43 +79,24 @@ func (o *Output) writeDurableTextLocked(text string) {
 	}
 }
 
-// emitTaskProgressiveLocked streams a terminal standalone Task in plain/non-TTY
-// mode as soon as it resolves. Interactive mode keeps H.17 (WriteFinal owns
-// standalone tasks). Collection children stay with the collection renderer.
+// commitResolvedTaskLocked commits a resolved standalone Task's row to
+// durable scrollback the instant it resolves — interactive or not — and
+// drops it from the live ticker (liveTickerSnapshotLocked already filters
+// coreEmitted tasks). Collection children stay with the collection renderer
+// (H.20/H.21 own their ledger via signalLiveLocked instead).
 //
-// Contract (P2): in plain mode, a Task that reaches a terminal state before a
-// later Printf appears above that Printf in the primary stream. residualPlain
-// skips already-emitted tasks so Finish does not reprint them.
-func (o *Output) emitTaskProgressiveLocked(st *taskState) {
-	if st == nil || st.coreEmitted || st.collection != nil {
-		return
-	}
-	if !isTerminalTask(st.state) {
-		return
-	}
-	live := o.liveLocked()
-	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
-	if interactive {
-		return
-	}
-	var b strings.Builder
-	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
-	st.coreEmitted = true
-	if b.Len() == 0 {
-		return
-	}
-	o.writeDurableTextLocked(b.String())
-}
-
-// flushGateNowLocked forces the immediate durable presentation of a
-// resolved Confirm gate and drops it from the live ticker — the one case
-// where a Task-shaped entity keeps the shipped-v0.2.x Item behavior of
-// streaming the instant it resolves, interactive or not. A Confirm gate
-// answers a human question mid-run; leaving its outcome pinned in the
-// ticker until Finish (ordinary standalone-Task behavior — see
-// emitTaskProgressiveLocked) would bury a decision the caller needs visible
-// now, especially when sibling tasks keep running after the prompt.
-func (o *Output) flushGateNowLocked(id string) {
+// Chronology contract (progressive.go's residualPlainLocked doc comment):
+// progressive Task rows and Print lines interleave by resolution/call time —
+// a Task that resolves before a later Println/Confirm prompt must render
+// above it in scrollback. Committing at resolution time, not at Finish
+// (former H.17 behavior), is what makes that true in interactive mode too;
+// release-gate round 5 finding 3 is exactly a Confirm prompt or Println
+// rendering above a task that had already resolved. This was previously
+// Confirm-gate-only (flushGateNowLocked) because a Confirm's answer was the
+// one case that couldn't wait for Finish; every standalone Task now gets the
+// same immediate commit for the same reason — a later evidence call must
+// never race above already-resolved work.
+func (o *Output) commitResolvedTaskLocked(id string) {
 	st := o.taskByRef[id]
 	if st == nil || st.coreEmitted || !isTerminalTask(st.state) {
 		return
@@ -290,19 +271,32 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 }
 
 // residualInteractiveFinalLocked is the WriteFinal body for interactive mode:
+// any Print lines that never streamed progressively (see linesFrom), then
 // standalone tasks + collections, then the same Conclusion band the plain
 // path renders (writeConclusion — the only source of the derived "already
 // mutated" row, heart-contract principle 4: abnormal ends state what already
-// mutated). One model, one conclusion, both surfaces. Never re-dumps
-// already-streamed durable evidence (that was the double-print bug) — a
-// never-ran standalone task (o.tasks, not snap.Tasks: coreEmitted lives on
-// the internal state) already streamed via emitTaskProgressiveLocked and is
-// skipped here.
-func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
+// mutated), then an optional debug-pane failure tail. One model, one
+// conclusion, both surfaces. Never re-dumps already-streamed durable evidence
+// (that was the double-print bug) — a never-ran standalone task (o.tasks, not
+// snap.Tasks: coreEmitted lives on the internal state) already streamed via
+// flushGateNowLocked/emitTaskRunningProgressiveLocked and is skipped here.
+//
+// linesFrom is the index into snap.Lines this call owns — captured by Finish
+// before residualPlainLocked drains the same shared o.linesEmitted counter
+// for its own copy, so the live terminal and any primary/AlsoWrite mirror
+// each independently render the unemitted tail exactly once (release-gate
+// round 5 finding 1: appendMisuseLineLocked appends the misuse hint directly
+// to o.lines at Finish time, after every ordinary line already streamed —
+// without this, that hint reached a primary/AlsoWrite mirror but never the
+// live terminal a TTY user is actually watching).
+func (o *Output) residualInteractiveFinalLocked(snap Snapshot, linesFrom int) string {
 	color := !o.cfg.noColor
 	verbose := o.cfg.verbosity >= VerbosityVerbose
 	profile := o.cfg.glyphs
 	var b strings.Builder
+	for i := linesFrom; i < len(snap.Lines); i++ {
+		writeDebugOrLine(&b, snap.Lines[i], color)
+	}
 	for _, t := range o.tasks {
 		if t.collection != nil || t.coreEmitted {
 			continue
@@ -314,6 +308,18 @@ func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 	}
 	if snap.Conclusion != nil && !shouldSuppressStandaloneConclusion(snap) {
 		writeConclusion(&b, *snap.Conclusion, color, profile)
+	}
+	// Pane mode: optional diagnostic tail under final result (§21.3.2) — the
+	// default preserveOnBad path only ever fires when debugPaneActive is
+	// true, which only happens for a live rolling pane (interactive), so
+	// residualPlainLocked's copy of this call can never reach the live
+	// terminal on its own (release-gate round 5 finding 2).
+	if snap.Conclusion != nil && o.shouldPreserveDebugTailLocked(*snap.Conclusion) {
+		max := o.cfg.debugPane.height
+		if max <= 0 {
+			max = defaultDebugPaneHeight
+		}
+		writeDebugTail(&b, o.debugRecords, max, color)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

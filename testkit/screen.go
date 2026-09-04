@@ -2,6 +2,7 @@ package testkit
 
 import (
 	"io"
+	"strings"
 	"sync"
 )
 
@@ -144,6 +145,25 @@ func (s *Screen) Operations() []Operation {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]Operation(nil), s.ops...)
+}
+
+// PersistedText concatenates every durable and final write, in the order
+// recorded — everything a real terminal driver leaves in scrollback once the
+// run ends, as opposed to a transient "live" frame a later redraw overwrites.
+// Since release-gate round 5 finding 3, a resolved task's row commits
+// durably at resolution time rather than waiting for WriteFinal, so a test
+// asserting "did this row reach the screen" reads PersistedText instead of
+// FinalText alone.
+func (s *Screen) PersistedText() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var b strings.Builder
+	for _, op := range s.ops {
+		if op.Kind == "durable" || op.Kind == "final" {
+			b.WriteString(op.Text)
+		}
+	}
+	return b.String()
 }
 
 // LatestLiveText returns the last live frame text.

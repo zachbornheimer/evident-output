@@ -928,12 +928,15 @@ func TestSpecP14_Capture_EarlyTermination(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	final := screen.FinalText()
-	if !strings.Contains(final, "capture") || !strings.Contains(final, "cancelled") {
-		t.Fatalf("want cancelled capture in final text:\n%s", final)
+	// Cancel commits the resolved row durably at resolution time
+	// (release-gate round 5 finding 3, commitResolvedTaskLocked) rather than
+	// waiting for WriteFinal — PersistedText covers both durable and final.
+	persisted := screen.PersistedText()
+	if !strings.Contains(persisted, "capture") || !strings.Contains(persisted, "cancelled") {
+		t.Fatalf("want cancelled capture in persisted text:\n%s", persisted)
 	}
-	if strings.Contains(final, "already mutated") {
-		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but found one:\n%s", final)
+	if strings.Contains(persisted, "already mutated") {
+		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but found one:\n%s", persisted)
 	}
 }
 
@@ -1092,11 +1095,14 @@ func TestSpecP15_NothingToDo_EarlyTermination(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	final := screen.FinalText()
-	if !strings.Contains(final, "clean") || !strings.Contains(final, "cancelled") {
-		t.Fatalf("want cancelled clean in final text:\n%s", final)
+	// Cancel commits the resolved row durably at resolution time
+	// (release-gate round 5 finding 3, commitResolvedTaskLocked) rather than
+	// waiting for WriteFinal — PersistedText covers both durable and final.
+	persisted := screen.PersistedText()
+	if !strings.Contains(persisted, "clean") || !strings.Contains(persisted, "cancelled") {
+		t.Fatalf("want cancelled clean in persisted text:\n%s", persisted)
 	}
-	if strings.Contains(final, "already mutated") {
-		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but found one:\n%s", final)
+	if strings.Contains(persisted, "already mutated") {
+		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but found one:\n%s", persisted)
 	}
 }

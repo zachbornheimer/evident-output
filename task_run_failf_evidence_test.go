@@ -45,11 +45,14 @@ func TestRun_ThenFailf_RendersChildStderrInFinalReport(t *testing.T) {
 	if state := out.Conclusion().State; state != evo.StateFailed {
 		t.Fatalf("state = %v, want StateFailed", state)
 	}
-	final := screen.FinalText()
-	if !strings.Contains(final, "undefined reference to main") {
-		t.Fatalf("expected the child's stderr line in the durable final report, got:\n%s", final)
+	// Failf commits the resolved row durably at resolution time
+	// (release-gate round 5 finding 3, commitResolvedTaskLocked) rather than
+	// waiting for WriteFinal — PersistedText covers both durable and final.
+	persisted := screen.PersistedText()
+	if !strings.Contains(persisted, "undefined reference to main") {
+		t.Fatalf("expected the child's stderr line in the durable report, got:\n%s", persisted)
 	}
-	if !strings.Contains(final, "build failed") {
-		t.Fatalf("expected the wrapped-error summary line too, got:\n%s", final)
+	if !strings.Contains(persisted, "build failed") {
+		t.Fatalf("expected the wrapped-error summary line too, got:\n%s", persisted)
 	}
 }

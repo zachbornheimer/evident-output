@@ -165,10 +165,10 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 }
 
 // flushGateNow locks and forces the immediate durable presentation of a
-// resolved Confirm gate — see flushGateNowLocked.
+// resolved Confirm gate — see commitResolvedTaskLocked.
 func (o *Output) flushGateNow(id string) {
 	o.mu.Lock()
-	o.flushGateNowLocked(id)
+	o.commitResolvedTaskLocked(id)
 	o.mu.Unlock()
 }
 
