@@ -355,6 +355,10 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   renamed `AnyBlockedSoFar()` — a live, mid-run check, distinct from
   `Conclusion.AnyBlocked()`'s final-verdict question. The two shared one
   name despite answering different questions at different times (C12).
+- Docs: `Config.Isolated`'s field prose now cross-references `Options` —
+  it is not consulted on that path (I1 already fixed the reverse
+  cross-reference). `Width`/`VisibilityDelay` reviewed, no change needed
+  (C14).
 
 ## Migration guide (v0.2.x → v0.3.0)
 

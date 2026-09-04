@@ -170,6 +170,9 @@ type Config struct {
 	// state: it is not installed as the package-level default and does not
 	// arm first paint. Use for parallel tests and embedders that hold their
 	// own *Output instead of going through Default()/Task()/Print() et al.
+	// Not consulted when Options is set: that path already never installs
+	// the default or arms first paint, regardless of Isolated's value —
+	// see Options.
 	Isolated bool
 
 	// Options is the advanced, raw Option escape hatch for tests and
