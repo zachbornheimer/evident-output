@@ -205,21 +205,24 @@ func (t *TaskHandle) Donef(format string, args ...any) *TaskHandle {
 	return t.finish(Done, sanitize.Text(fmt.Sprintf(format, args...)), nil)
 }
 
-// Warn resolves the task with a warning. The message gets the same summary
-// placement as Fail/Block (the ⚠ row itself carries it), and the same
-// de-echo as Fail/Block drops the redundant problem row when there's no
-// Detail beyond it (beginner-3).
-func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle {
+// Warn resolves the task with a warning. This is a statement, not a fluent
+// chain — Warn returns nothing, so a bare `task.Warn("summary")` is
+// errcheck-clean, matching Fail/Block (beginner-9: doc.go's no-fluent
+// promise). The message gets the same summary placement as Fail/Block (the
+// ⚠ row itself carries it), and the same de-echo as Fail/Block drops the
+// redundant problem row when there's no Detail beyond it (beginner-3).
+func (t *TaskHandle) Warn(summary string, options ...ProblemOption) {
 	p := applyProblemOptions(sanitize.Text(summary), options)
-	return t.finish(Warning, summary, []Problem{p})
+	t.finish(Warning, summary, []Problem{p})
 }
 
-// Warnf resolves the task with a formatted warning summary.
-// Prefer Warn("text") when there are no format directives.
-func (t *TaskHandle) Warnf(format string, args ...any) *TaskHandle {
+// Warnf resolves the task with a formatted warning summary. This is a
+// statement, not a fluent chain — see Warn. Prefer Warn("text") when there
+// are no format directives.
+func (t *TaskHandle) Warnf(format string, args ...any) {
 	summary := fmt.Sprintf(format, args...)
 	p := applyProblemOptions(sanitize.Text(summary), nil)
-	return t.finish(Warning, summary, []Problem{p})
+	t.finish(Warning, summary, []Problem{p})
 }
 
 // Fail resolves the task as failed. This is a statement, not a fluent

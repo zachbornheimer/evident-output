@@ -46,7 +46,8 @@
 //     call is errcheck-clean. `return task.Failf("validate manifest: %w", err)` builds and
 //     returns one error in a single line: a trailing ": %w"/", %w" splits the formatted text
 //     into the rendered summary and an evidence line for the wrapped error; Blockf is the
-//     same for Block. Success/skip verbs stay void too — this is never fluent chaining.
+//     same for Block. Warn/Warnf, and success/skip verbs, stay void too — this is never
+//     fluent chaining.
 //
 // Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Group (+ ID), Task.Evidence,
 // Task.Each / Task.PhaseWriter / Task.Run, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
