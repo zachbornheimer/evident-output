@@ -160,7 +160,7 @@ func TestLOG003_FieldOrderStable(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.Debug)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Debug("m", evo.Int("a", 1), evo.Int("b", 2))
+	out.Debug("m", evo.Field{Key: "a", Value: 1}, evo.Field{Key: "b", Value: 2})
 	_ = out.Finish()
 	// insertion order a then b
 	s := buf.String()

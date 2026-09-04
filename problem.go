@@ -16,7 +16,7 @@ type Problem struct {
 	Severity  string
 	Count     int64
 	Unit      string
-	Location  *Location
+	Location  *SourceLocation
 	Evidence  []Attachment
 	Actions   []Action
 	Fields    []Field
@@ -24,8 +24,10 @@ type Problem struct {
 	Sensitive bool
 }
 
-// Location is a path-based source position.
-type Location struct {
+// SourceLocation is a path-based source position. Named SourceLocation
+// (not Location) so the Location(...) ProblemOption constructor below can
+// keep that name without colliding with its own return type.
+type SourceLocation struct {
 	Path   string
 	Line   int
 	Column int
@@ -89,10 +91,12 @@ func Count(value int64, unit ...string) ProblemOption {
 	})
 }
 
-// At sets a source location.
-func At(path string, line, column int) ProblemOption {
+// Location sets a source location on a Problem (renamed from At — C5: a
+// free-function At collided in name, though not in call syntax, with
+// Output.At(visibility), confusing autocomplete and readers alike).
+func Location(path string, line, column int) ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
-		p.Location = &Location{Path: path, Line: line, Column: column}
+		p.Location = &SourceLocation{Path: path, Line: line, Column: column}
 	})
 }
 

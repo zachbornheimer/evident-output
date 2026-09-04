@@ -334,6 +334,16 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   was never a distinct behavior between them to preserve (C3).
   `PlainOptions.NonInteractive` deleted too — proven a no-op, since
   `RenderPlain` always forces plain mode regardless of it (C2).
+- **Breaking**: `evo.Int`/`evo.String`/`evo.Duration` field-builder
+  helpers deleted (zero callers beyond their own package; construct a
+  `Field{Key: ..., Value: ...}` literal directly). The `Field` struct
+  stays (C8).
+- **Breaking**: the `At(path, line, column)` `ProblemOption` is renamed
+  `Location(...)` — it shared a name with `Output.At(visibility)`,
+  confusing autocomplete and readers alike. The `Location` struct is
+  renamed `SourceLocation` so the constructor function could keep the
+  `Location` name without colliding with its own return type;
+  `Problem.Location`'s field name is unchanged (C5).
 
 ## Migration guide (v0.2.x → v0.3.0)
 

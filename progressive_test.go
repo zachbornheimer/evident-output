@@ -140,7 +140,7 @@ func TestProgressive_DebugStreamsOnce(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.Debug)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Debug("cache warm", evo.String("dir", "/tmp/x"))
+	out.Debug("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
 	before := buf.String()
 	if !strings.Contains(before, "[DEBUG] cache warm") {
 		t.Fatalf("debug not streamed immediately: %q", before)

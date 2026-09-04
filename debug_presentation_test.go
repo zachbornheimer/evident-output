@@ -29,7 +29,7 @@ func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 
 	task := out.Task("branches")
 	task.Phase("comparing")
-	out.Debug("opened repository", evo.String("path", "/work/repo"))
+	out.Debug("opened repository", evo.Field{Key: "path", Value: "/work/repo"})
 	task.Done()
 	_ = out.Finish()
 
@@ -127,8 +127,8 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Phase("running")
-	out.Debug("enumerated local branches", evo.Int("count", 7))
-	out.Debug("fetched remote metadata", evo.String("remote", "origin"))
+	out.Debug("enumerated local branches", evo.Field{Key: "count", Value: 7})
+	out.Debug("fetched remote metadata", evo.Field{Key: "remote", Value: "origin"})
 	out.Task("disk").Fail("full")
 	_ = out.Finish()
 
@@ -165,7 +165,7 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Debug("cache warm", evo.String("dir", "/tmp/x"))
+	out.Debug("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
 	out.Task("ok").Done()
 	_ = out.Finish()
 	got := buf.String()
@@ -189,7 +189,7 @@ func TestDebugHistory_PlainStreamsOnce(t *testing.T) {
 		evo.Clock(fixedDebugClock()),
 	}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Debug("cache warm", evo.String("dir", "/tmp/x"))
+	out.Debug("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
 	if n := strings.Count(buf.String(), "[DEBUG] cache warm"); n != 1 {
 		t.Fatalf("before Finish count=%d:\n%s", n, buf.String())
 	}

@@ -538,7 +538,7 @@ func (o *Output) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line 
 		return
 	}
 	if taskName != "" {
-		o.Debug(line, String("task", taskName))
+		o.Debug(line, Field{Key: "task", Value: taskName})
 	} else {
 		o.Debug(line)
 	}

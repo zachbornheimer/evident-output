@@ -69,7 +69,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 
 	task := out.Task("dependencies")
 	task.Phase("resolving packages")
-	out.Debug("package index loaded", evo.Int("packages", 18))
+	out.Debug("package index loaded", evo.Field{Key: "packages", Value: 18})
 	task.Donef("installed %d packages", 18)
 	_ = out.Finish()
 
