@@ -143,8 +143,11 @@ type Config struct {
 	// Options is the advanced, raw Option escape hatch for tests and
 	// specialized embedding (custom Terminal, Clock, exact writer wiring)
 	// that need to bypass Config's ordinary stream/TTY/color inference
-	// entirely. When set, every other Config field except Title and Isolated
-	// is ignored and the Output is built from these Options alone.
+	// entirely. When set, every other Config field except Title, DryRun, and
+	// Subject is ignored and the Output is built from these Options alone.
+	// Isolated is not honored differently here: this path never installs
+	// the result as the package-level default or arms first paint, exactly
+	// as if Isolated were always true — see Init.
 	Options []Option
 }
 

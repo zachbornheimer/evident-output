@@ -40,7 +40,19 @@ func Init(cfg Config) *Output {
 	if len(cfg.Options) > 0 {
 		// Advanced/testing escape hatch: build directly from raw Options,
 		// bypassing Config's ordinary stream/TTY/color inference entirely.
-		return newOutput(cfg.Title, cfg.Options...)
+		// DryRun and Subject are additive and never conflict with a caller's
+		// own Options, so they are still honored here instead of silently
+		// dropped (I1) — everything else on Config is genuinely superseded
+		// by the caller's explicit Option control.
+		opts := cfg.Options
+		if cfg.DryRun {
+			opts = append(append([]Option{}, opts...), DryRun())
+		}
+		out := newOutput(cfg.Title, opts...)
+		if cfg.Subject != "" {
+			out.Println(cfg.Subject)
+		}
+		return out
 	}
 	out := newFromConfig(resolveConfig(cfg))
 	if !cfg.Isolated {
