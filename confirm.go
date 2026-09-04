@@ -25,6 +25,12 @@ const (
 	// deliberate policy decision.
 	confirmEOFSummary = "no answer — stdin closed"
 	confirmPolicyHint = "pass --yes to confirm non-interactively"
+	// confirmInputLineGlyph is the P11 input line rendered under the question
+	// — the typed answer lands here, on its own line, so the question and
+	// choices never compete visually with the human's keystrokes. No
+	// trailing newline: the human's answer (and their terminal's own
+	// newline on Enter) continues this same line.
+	confirmInputLineGlyph = "›"
 )
 
 // ConfirmOption configures a Confirm gate.
@@ -254,6 +260,10 @@ func (o *Output) writeConfirmPromptLocked(question string, destructive bool, det
 		}
 		fmt.Fprintf(&b, "  %s\n", txt.Dim(line, color))
 	}
+	// P11: the typed answer lands on its own input line, below the question,
+	// so the question/choices and the human's keystrokes never compete on one
+	// line — "? question [y/N] y" is exactly what this replaces.
+	b.WriteString(confirmInputLineGlyph)
 	o.writeDurableTextLocked(b.String())
 	o.mu.Unlock()
 }
