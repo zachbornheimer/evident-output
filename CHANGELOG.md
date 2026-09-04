@@ -306,6 +306,10 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   executable from the caller's own identity (`Config.Title`, or I2's
   executable-basename fallback) instead of the caller hand-composing
   `PolicyHint(os.Args[0], flag)`. `PolicyHint` stays for a foreign tool.
+- `TaskHandle.NextSelf(args...)`: a self-referencing remedy command
+  ("rerun with --apply") that resolves its own executable from the same
+  identity source as `PolicyFlag`, instead of restating the binary via
+  `NextCommand`. `NextCommand` stays for a foreign tool (the majority).
 
 ## Migration guide (v0.2.x → v0.3.0)
 

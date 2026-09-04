@@ -345,9 +345,21 @@ func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
 	return t
 }
 
-// NextCommand attaches a command action.
+// NextCommand attaches a command action. args names a foreign tool's own
+// executable explicitly — the common case, since most remedies point at a
+// different tool than the one running right now.
 func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle {
 	return t.Next(Command(executable, args...))
+}
+
+// NextSelf attaches a command action that re-runs the caller's own binary
+// with args — a self-referencing remedy ("rerun with --apply") that doesn't
+// restate which binary to run (I6). Uses the same identity source as
+// Confirm's PolicyFlag / I2's Failf fallback: Config.Title when set, else
+// the binary's own basename. Use NextCommand instead when the remedy is a
+// different (foreign) tool.
+func (t *TaskHandle) NextSelf(args ...string) *TaskHandle {
+	return t.NextCommand(t.out.policySourceName(), args...)
 }
 
 // Snapshot returns the task snapshot.
