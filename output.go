@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -268,6 +269,21 @@ func newOutput(subject string, options ...Option) *Output {
 			// Driver owns the diagnostic stream; primary is a distinct
 			// stream the caller separately configured — both streams get
 			// their own copy by design, not a duplicate.
+		}
+	}
+	// An Options build that installs neither To() nor a Terminal sink must
+	// still land its residual/conclusion projection somewhere — before this,
+	// primary stayed nil and Finish silently wrote zero bytes, even on a
+	// Fail (exit 2 with no evidence of why). Default to os.Stdout, matching
+	// the non-Options default, and apply the same TTY/color inference the
+	// non-Options path applies to that stream: never override an explicit
+	// NoColor(), only ever strengthen it, so a defaulted destination piped
+	// to a file never leaks raw ANSI into it (release-gate round 9 findings
+	// 2 and 5).
+	if cfg.terminal == nil && cfg.primary == nil {
+		cfg.primary = os.Stdout
+		if !cfg.noColor && (os.Getenv("NO_COLOR") != "" || !IsCharDevice(cfg.primary)) {
+			cfg.noColor = true
 		}
 	}
 	if cfg.maxEntities <= 0 {
