@@ -174,6 +174,7 @@ func (o *Output) renderLiveLocked(force bool) {
 	if cols > 0 {
 		o.cfg.width = cols
 	}
+	o.stampLiveFirstSeenLocked(now)
 	text := o.renderLiveRegionWithDebugLocked(cols, rows, now)
 	if !force && text == o.live.lastLiveText {
 		return
@@ -185,12 +186,22 @@ func (o *Output) renderLiveLocked(force bool) {
 	o.live.pendingRedraw = false
 }
 
-// needsSpinnerAnimLocked reports whether any live row should keep ticking.
+// needsSpinnerAnimLocked reports whether any live row should keep ticking: a
+// Pending or Running task that is still actually rendered in the current
+// frame — not a standalone task already flushed to durable text and dropped
+// from the ticker (see liveTickerSnapshotLocked's matching filter). Counting
+// only Running here used to let an all-Pending frame (nothing has started
+// yet, or every child is still waiting) freeze forever (evo-rec.md Problem
+// 9's universal heartbeat).
 func (o *Output) needsSpinnerAnimLocked() bool {
 	for _, t := range o.tasks {
-		if t.state == Running {
-			return true
+		if t.state != Running && t.state != Pending {
+			continue
 		}
+		if t.collection == nil && t.coreEmitted {
+			continue
+		}
+		return true
 	}
 	return false
 }
@@ -314,6 +325,34 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 			o.mu.Unlock()
 		}
 	}
+}
+
+// stampLiveFirstSeenLocked anchors each unresolved task's heartbeat clock to
+// the moment it is actually painted in the live region for the first time —
+// never to declaration time, so a task declared up-front but not yet visible
+// does not appear pre-aged the instant it is finally shown (evo-rec.md
+// Problem 9). A no-op once set: the field only ever moves from zero once.
+func (o *Output) stampLiveFirstSeenLocked(now time.Time) {
+	for _, t := range o.tasks {
+		if t.state != Running && t.state != Pending {
+			continue
+		}
+		if t.liveFirstSeenAt.IsZero() {
+			t.liveFirstSeenAt = now
+		}
+	}
+}
+
+// activitySince picks the anchor heartbeatSuffix measures elapsed time from:
+// ActivityAt when a Phase/Progress call has actually happened, otherwise the
+// row's first live-region render (see stampLiveFirstSeenLocked) — so a
+// Pending row, which never gets ActivityAt, still ages honestly from the
+// moment it became visible rather than never aging at all.
+func activitySince(t TaskSnapshot) time.Time {
+	if !t.ActivityAt.IsZero() {
+		return t.ActivityAt
+	}
+	return t.liveFirstSeenAt
 }
 
 // heartbeatSuffix returns " — <elapsed>" once since has gone stale past
@@ -524,9 +563,15 @@ func anyChildFailed(col TasksSnapshot) bool {
 	return false
 }
 
+// anyChildPendingActive reports whether the collection has any unresolved
+// child — Running, or Pending regardless of Phase. A Pending child that
+// never called Phase is the ordinary case (Phase/Progress are the only
+// Running promoters), so requiring Phase here used to leave an all-Pending
+// or Pending-tailed collection's header frozen on derivedState's static
+// Incomplete glyph (evo-rec.md Problem 9).
 func anyChildPendingActive(col TasksSnapshot) bool {
 	for _, t := range col.Tasks {
-		if t.State == Running || (t.State == Pending && t.Phase != "") {
+		if t.State == Running || t.State == Pending {
 			return true
 		}
 	}
@@ -611,19 +656,32 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent, width int, sp
 			// Default intensity: the current phase is diagnostic evidence
 			// while progress stalls, not a subordinate row (evo-rec.md
 			// "Color and style demotions").
-			detail = detail + "  " + t.Phase + heartbeatSuffix(now, t.ActivityAt)
+			detail = detail + "  " + t.Phase + heartbeatSuffix(now, activitySince(t))
 		}
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
-	case t.State == Running && (t.Progress.Kind == Indeterminate || t.Phase != ""):
-		// Indeterminate: spinner glyph + phase (or generic working).
+	case t.State == Running && (t.Progress.Kind == Indeterminate || t.Phase != "" || (t.Progress.Kind == Determinate && t.Progress.Total <= 0)):
+		// Indeterminate, or Determinate with nothing to divide by (Total<=0,
+		// e.g. Progress(0,0)): spinner glyph + phase (or generic working) —
+		// folded together because neither has a renderable count/bar, so both
+		// need the same "is this actually still moving?" heartbeat.
 		phase := t.Phase
 		if phase == "" {
 			phase = "working…"
 		}
-		phase += heartbeatSuffix(now, t.ActivityAt)
+		phase += heartbeatSuffix(now, activitySince(t))
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, phase)
 	case t.State == Running && t.Phase != "":
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, t.Phase)
+	case t.State == Pending:
+		// A Pending row left on screen past phaseStaleAfter is exactly as
+		// static as a stalled Running one — same heartbeat, dim (subordinate:
+		// nothing is happening yet) rather than the diagnostic-intensity
+		// phase text a Running row gets.
+		if hb := heartbeatSuffix(now, activitySince(t)); hb != "" {
+			fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, dim("waiting"+hb, color))
+		} else {
+			fmt.Fprintf(b, "%s%s  %s\n", pad, g, strings.TrimRight(nameField, " "))
+		}
 	case t.State == Failed:
 		msg := t.Summary
 		if msg == "" && len(t.Problems) > 0 {

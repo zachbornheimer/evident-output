@@ -134,6 +134,12 @@ type taskState struct {
 	// it resets on every Phase/Progress update (see phaseStaleAfter in live.go).
 	activityAt time.Time
 
+	// liveFirstSeenAt is the domain-clock time this task was first actually
+	// painted in the live region (see stampLiveFirstSeenLocked in live.go) —
+	// the heartbeat anchor for a row that has no activityAt, most notably a
+	// Pending task, which never calls Phase/Progress.
+	liveFirstSeenAt time.Time
+
 	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
 	// so child-process evidence recorded via either path lands in one ring and
 	// DetailTail sees it after Fail.
@@ -1133,22 +1139,23 @@ func (t *taskState) snapshot() TaskSnapshot {
 		colID = t.collection.id
 	}
 	return TaskSnapshot{
-		ID:          t.id,
-		Key:         t.key,
-		Name:        t.name,
-		State:       t.state,
-		Phase:       t.phase,
-		ActivityAt:  t.activityAt,
-		Progress:    t.progress,
-		Summary:     t.summary,
-		Problems:    cloneProblems(t.problems),
-		Actions:     cloneActions(t.actions),
-		Skipped:     cloneTaxonomy(t.skipped),
-		Kept:        cloneTaxonomy(t.kept),
-		Collection:  colID,
-		Declaration: t.declaration,
-		synthetic:   t.synthetic,
-		unchanged:   t.unchanged,
+		ID:              t.id,
+		Key:             t.key,
+		Name:            t.name,
+		State:           t.state,
+		Phase:           t.phase,
+		ActivityAt:      t.activityAt,
+		liveFirstSeenAt: t.liveFirstSeenAt,
+		Progress:        t.progress,
+		Summary:         t.summary,
+		Problems:        cloneProblems(t.problems),
+		Actions:         cloneActions(t.actions),
+		Skipped:         cloneTaxonomy(t.skipped),
+		Kept:            cloneTaxonomy(t.kept),
+		Collection:      colID,
+		Declaration:     t.declaration,
+		synthetic:       t.synthetic,
+		unchanged:       t.unchanged,
 	}
 }
 

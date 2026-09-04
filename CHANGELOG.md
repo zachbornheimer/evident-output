@@ -6,7 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project has not reached 1.0 — pre-1.0 API breaks are called out explicitly
 below rather than deferred to a major version.
 
-## [Unreleased] — v0.3.0
+## [0.3.1] — universal live heartbeat
+
+### Fixed
+
+- The interactive live region could freeze mid-run: a Pending row never grew
+  a heartbeat (`heartbeatSuffix` required a non-zero `ActivityAt`, which a
+  never-started task never has), a Running task with `Progress(0, 0)` and no
+  phase fell through to a bare glyph+name with no working text, the spinner
+  animator stopped ticking the moment nothing was `Running` (an all-Pending
+  frame never animates), and a collection header stayed on the static
+  `-` (Incomplete) glyph whenever its unresolved child never called `Phase`.
+- Every unresolved row actually painted in the live region — pending or
+  running — now grows an automatic `— Ns` elapsed suffix once stale past
+  ~10s (`waiting — 15s` for Pending, `working… — 15s` for a phase-less/
+  progress-less Running row), anchored to the row's first live-region render
+  rather than its declaration time. The spinner animator and a collection's
+  header spinner now key off "any unresolved row rendered", not "any row
+  Running" — evo-rec.md Problem 9.
+
+## [0.3.0]
 
 ### The migration hazard: `Main` changed meaning
 

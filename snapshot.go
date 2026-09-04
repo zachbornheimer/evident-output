@@ -35,10 +35,14 @@ type TaskSnapshot struct {
 	// call; the live renderer uses it to grow a heartbeat suffix once stale
 	// (see phaseStaleAfter). Zero when the task has never had Phase/Progress set.
 	ActivityAt time.Time
-	Progress   Progress
-	Summary    string
-	Problems   []Problem
-	Actions    []Action
+	// liveFirstSeenAt is presentation-internal bookkeeping (live.go's
+	// activitySince) for the universal-heartbeat anchor on a row that has no
+	// ActivityAt — never part of the public snapshot contract.
+	liveFirstSeenAt time.Time
+	Progress        Progress
+	Summary         string
+	Problems        []Problem
+	Actions         []Action
 	// Skipped/Kept are the disposition taxonomy accumulated by
 	// TaskHandle.Skipped/Kept — the source the "! skipped N (...)" / "!  kept
 	// N (...)" render lines derive counts and reason partitions from.
