@@ -777,6 +777,17 @@ func (o *Output) Fail(summary string, options ...ProblemOption) {
 // Failf records an output-level failure with a formatted summary. fmt.Errorf
 // semantics: a trailing ": %w"/", %w" splits the formatted text into the
 // recorded summary and evidence line exactly like TaskHandle.Failf.
+//
+// Failf stays void rather than returning an error like TaskHandle.Failf does
+// (release-gate round 4 finding 5): every existing call site uses Failf as a
+// bare statement (e.g. Output.Run's own runInterruptible), and errcheck
+// flags a discarded error return with no lint-config exception on this repo
+// — so matching TaskHandle.Failf's signature here would force every one of
+// those call sites to add a needless `_ = ` just to stay lint-clean. There is
+// also no per-call Next chain to attach an error return to here the way
+// TaskHandle.Failf's *Failure does (Output.Next already covers the
+// output-level case), so a returned error would carry less than
+// TaskHandle.Failf's does anyway. Documented asymmetry, not an oversight.
 func (o *Output) Failf(format string, args ...any) {
 	err := fmt.Errorf(format, args...)
 	summary, evidence := splitWrappedMessage(format, err)
