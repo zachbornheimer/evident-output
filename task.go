@@ -38,8 +38,16 @@ func (t *TaskHandle) Phase(text string, args ...any) *TaskHandle {
 	return t
 }
 
-// autoPhase is Each's per-item phase update — see setAutoPhaseLocked.
-func (t *TaskHandle) autoPhase(text string) {
+// setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
+// — the shared entry point for every phase source that is NOT the caller's
+// own narrated beat: Each's per-item courtesy default, and PhaseWriter's (and
+// through it, Task.Run's) per-line mirror of a talkative child's raw output.
+// Off-TTY, an explicit TaskHandle.Phase call still forces its own durable row
+// (the P10 contract: the one line the caller asked to see); this path never
+// does — a child's full output already has one durable home, the Evidence
+// ring (and its failure-path DetailTail), so a row per mirrored line would
+// just repeat it (release-gate round 9 finding 4).
+func (t *TaskHandle) setLiveOnlyPhase(text string) {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -54,7 +62,7 @@ func (t *TaskHandle) autoPhase(text string) {
 		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return
 	}
-	t.out.setAutoPhaseLocked(st, text)
+	t.out.setLiveOnlyPhaseLocked(st, text)
 }
 
 // setPhaseLocked is Phase's locked body, factored out so a caller already
@@ -76,15 +84,18 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 	o.emitTaskRunningProgressiveLocked(st, triggerPhase)
 }
 
-// setAutoPhaseLocked is Each's per-item phase update: the same state
-// transition as setPhaseLocked (promotion, activity clock, live redraw
-// signal), but it never forces its own durable line in plain mode
-// (beginner-10). Each's bare item name is a courtesy default, not a
-// caller-declared phase — if the loop body sets its own Phase before the
-// next paint, that call's own emission carries the current text once,
-// instead of the reader seeing the item name and the body's phase as two
-// separate redundant lines.
-func (o *Output) setAutoPhaseLocked(st *taskState, text string) {
+// setLiveOnlyPhaseLocked is the shared locked body behind every phase
+// source that is not the caller's own narrated beat (see setLiveOnlyPhase):
+// the same state transition as setPhaseLocked (promotion, activity clock,
+// live redraw signal), but it never forces its own durable line in plain
+// mode. Each's bare item name is a courtesy default, not a caller-declared
+// phase — if the loop body sets its own Phase before the next paint, that
+// call's own emission carries the current text once, instead of the reader
+// seeing the item name and the body's phase as two separate redundant lines
+// (beginner-10). A talkative child's mirrored output line is the same
+// shape: the Evidence ring is its one durable home, not a plain-mode row
+// per line (release-gate round 9 finding 4).
+func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	st.phase = sanitize.Text(text)
 	st.activityAt = o.cfg.clock.Now()
 	if st.state == Pending {
