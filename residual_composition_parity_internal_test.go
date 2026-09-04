@@ -3,6 +3,8 @@ package evo
 import (
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
 // TestResidualComposition_PlainAndInteractiveSectionParity is release-gate
@@ -32,9 +34,9 @@ func TestResidualComposition_PlainAndInteractiveSectionParity(t *testing.T) {
 
 		out.mu.Lock()
 		snap := out.snapshotLocked()
-		conc := inferConclusion(snap)
-		foldLeftoverMisuseLocked(&conc, out.misuse)
-		applyFailedExitCode(&conc, out.cfg.failedExitCode)
+		conc := core.InferConclusion(snap)
+		core.FoldLeftoverMisuse(&conc, out.misuse)
+		core.ApplyFailedExitCode(&conc, out.cfg.failedExitCode)
 		snap.Conclusion = &conc
 		linesFrom := out.linesEmitted
 

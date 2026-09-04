@@ -1,6 +1,9 @@
 package evo
 
-import txt "github.com/zachbornheimer/evident-output/internal/text"
+import (
+	"github.com/zachbornheimer/evident-output/internal/core"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
+)
 
 // Mutation verbs on TaskHandle record what the task did (or, under DryRun,
 // would do) into the one Changes/Plan section named after the task — the
@@ -96,7 +99,7 @@ func (o *Output) resolveLedgerTarget(taskID string) (subject string, dryRun bool
 		o.recordMisuse(err)
 		return "", false, false
 	}
-	if isTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state) {
 		o.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return "", false, false
 	}

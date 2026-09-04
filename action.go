@@ -1,26 +1,20 @@
 package evo
 
-import txt "github.com/zachbornheimer/evident-output/internal/text"
-
-func sanitizeDisplay(s string) string { return txt.Text(s) }
+import (
+	"github.com/zachbornheimer/evident-output/internal/core"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
+)
 
 // Action is a recommended next step for the user.
-type Action struct {
-	Label                string
-	Command              *CommandSpec
-	URL                  string
-	File                 string
-	Explanation          string
-	RequiresConfirmation bool
-	Destructive          bool
-}
+//
+// Aliased into internal/core alongside the rest of the data model — see
+// Snapshot's doc comment (snapshot.go) for why.
+type Action = core.Action
 
 // CommandSpec is an executable plus argv (never a shell string).
-type CommandSpec struct {
-	Executable string
-	Args       []string
-	WorkingDir string
-}
+type CommandSpec = core.CommandSpec
+
+func sanitizeDisplay(s string) string { return txt.Text(s) }
 
 // Command builds an action with an executable and arguments.
 // Display-bound strings are sanitized at construction.

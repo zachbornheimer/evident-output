@@ -84,7 +84,7 @@ func shouldSuppressRepeatedCondition(s Snapshot, c Conclusion) bool {
 		// own named row — the conclusion band is the ONLY place the run's
 		// outcome is stated, so it must never be suppressed as "redundant"
 		// with a row the caller never declared.
-		if s.Tasks[0].synthetic {
+		if s.Tasks[0].Synthetic() {
 			return false
 		}
 		name, state = s.Tasks[0].Name, s.Tasks[0].State

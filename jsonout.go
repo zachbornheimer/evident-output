@@ -3,6 +3,8 @@ package evo
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
 // JSONSchemaVersion is the final JSON document schema version.
@@ -160,7 +162,7 @@ func toJSONDocument(s Snapshot) JSONDocument {
 	if s.Conclusion != nil {
 		c = *s.Conclusion
 	} else {
-		c = inferConclusion(s)
+		c = core.InferConclusion(s)
 	}
 	doc := JSONDocument{
 		SchemaVersion: JSONSchemaVersion,

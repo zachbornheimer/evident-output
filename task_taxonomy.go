@@ -1,6 +1,9 @@
 package evo
 
-import txt "github.com/zachbornheimer/evident-output/internal/text"
+import (
+	"github.com/zachbornheimer/evident-output/internal/core"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
+)
 
 // dispositionVerb names which accumulation act a Reason's usage constraints
 // are checked against — TaskHandle.Skipped or TaskHandle.Kept.
@@ -41,7 +44,7 @@ func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dis
 		t.out.recordMisuse(err)
 		return
 	}
-	if isTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state) {
 		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return
 	}

@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -549,7 +550,7 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 		o.namedTasks["\x00"+scope+"\x00"+clean] = h
 	}
 	if eo.phase != "" {
-		if st := o.taskByRef[h.id]; st != nil && o.ensureOpen() == nil && !isTerminalTask(st.state) {
+		if st := o.taskByRef[h.id]; st != nil && o.ensureOpen() == nil && !core.IsTerminalTask(st.state) {
 			o.setPhaseLocked(st, eo.phase)
 		}
 	}
@@ -706,7 +707,7 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	for id, abort := range o.confirmAbort {
 		close(abort)
 		delete(o.confirmAbort, id)
-		if st := o.taskByRef[id]; st != nil && !isTerminalTask(st.state) {
+		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.state) {
 			st.state = Cancelled
 			st.summary = txt.Text(reason)
 			o.bumpLocked()
@@ -873,8 +874,8 @@ func (o *Output) Fail(summary string, options ...ProblemOption) {
 // TaskHandle.Failf's does anyway. Documented asymmetry, not an oversight.
 func (o *Output) Failf(format string, args ...any) {
 	err := fmt.Errorf(format, args...)
-	summary, evidence := splitWrappedMessage(format, err)
-	o.failWith(sanitizeProblem(Problem{Summary: summary, Detail: evidence}))
+	summary, evidence := core.SplitWrappedMessage(format, err)
+	o.failWith(core.SanitizeProblem(Problem{Summary: summary, Detail: evidence}))
 }
 
 func (o *Output) failWith(p Problem) {
@@ -1138,25 +1139,23 @@ func (t *taskState) snapshot() TaskSnapshot {
 	if t.collection != nil {
 		colID = t.collection.id
 	}
-	return TaskSnapshot{
-		ID:              t.id,
-		Key:             t.key,
-		Name:            t.name,
-		State:           t.state,
-		Phase:           t.phase,
-		ActivityAt:      t.activityAt,
-		liveFirstSeenAt: t.liveFirstSeenAt,
-		Progress:        t.progress,
-		Summary:         t.summary,
-		Problems:        cloneProblems(t.problems),
-		Actions:         cloneActions(t.actions),
-		Skipped:         cloneTaxonomy(t.skipped),
-		Kept:            cloneTaxonomy(t.kept),
-		Collection:      colID,
-		Declaration:     t.declaration,
-		synthetic:       t.synthetic,
-		unchanged:       t.unchanged,
+	base := TaskSnapshot{
+		ID:          t.id,
+		Key:         t.key,
+		Name:        t.name,
+		State:       t.state,
+		Phase:       t.phase,
+		ActivityAt:  t.activityAt,
+		Progress:    t.progress,
+		Summary:     t.summary,
+		Problems:    core.CloneProblems(t.problems),
+		Actions:     cloneActions(t.actions),
+		Skipped:     cloneTaxonomy(t.skipped),
+		Kept:        cloneTaxonomy(t.kept),
+		Collection:  colID,
+		Declaration: t.declaration,
 	}
+	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic, t.unchanged)
 }
 
 func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
@@ -1432,7 +1431,7 @@ func (o *Output) autoResolveGroupsLocked() {
 				}
 				continue
 			}
-			if isTerminalTask(t.state) {
+			if core.IsTerminalTask(t.state) {
 				continue
 			}
 			t.state = NotStarted
@@ -1474,7 +1473,7 @@ func (o *Output) Finish() error {
 	// can render it.
 	abnormal := o.abnormalFinishLocked()
 	for _, t := range o.tasks {
-		if isTerminalTask(t.state) {
+		if core.IsTerminalTask(t.state) {
 			continue
 		}
 		if len(t.problems) == 0 && (o.hasRecordedEffectLocked(t.name) || hasSealedProgress(t) || hasRecordedTaxonomy(t)) {
@@ -1510,9 +1509,9 @@ func (o *Output) Finish() error {
 	}
 
 	snap := o.snapshotLocked()
-	conc := inferConclusion(snap)
-	foldLeftoverMisuseLocked(&conc, o.misuse)
-	applyFailedExitCode(&conc, o.cfg.failedExitCode)
+	conc := core.InferConclusion(snap)
+	core.FoldLeftoverMisuse(&conc, o.misuse)
+	core.ApplyFailedExitCode(&conc, o.cfg.failedExitCode)
 	o.conclusion = &conc
 	snap.Conclusion = &conc
 	o.appendEventLocked(Event{
@@ -1618,8 +1617,8 @@ func (o *Output) Conclusion() Conclusion {
 		return *o.conclusion
 	}
 	snap := o.snapshotLocked()
-	c := inferConclusion(snap)
-	applyFailedExitCode(&c, o.cfg.failedExitCode)
+	c := core.InferConclusion(snap)
+	core.ApplyFailedExitCode(&c, o.cfg.failedExitCode)
 	return c
 }
 

@@ -3,6 +3,8 @@ package evo
 import (
 	"io"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
 // Progressive emission implements the spirit of §1 (live becomes durable) and
@@ -98,7 +100,7 @@ func (o *Output) writeDurableTextLocked(text string) {
 // never race above already-resolved work.
 func (o *Output) commitResolvedTaskLocked(id string) {
 	st := o.taskByRef[id]
-	if st == nil || st.coreEmitted || !isTerminalTask(st.state) {
+	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.state) {
 		return
 	}
 	var b strings.Builder

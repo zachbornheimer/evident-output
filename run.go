@@ -182,16 +182,3 @@ func (o *Output) AnyFailed() bool {
 	}
 	return false
 }
-
-// AnyBlocked reports whether the finished conclusion is blocked, or any task snapshot is.
-func (c Conclusion) AnyBlocked() bool {
-	if c.State == StateBlocked {
-		return true
-	}
-	for _, t := range c.Tasks {
-		if t.State == Blocked {
-			return true
-		}
-	}
-	return false
-}

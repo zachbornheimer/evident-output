@@ -6,20 +6,24 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Visibility selects whether a message is ordinary or verbose user detail.
 // Zero is VisibilityNormal.
-type Visibility uint8
+//
+// Aliased into internal/core alongside the rest of the data model — see
+// Snapshot's doc comment (snapshot.go) for why.
+type Visibility = core.Visibility
 
 const (
 	// VisibilityNormal messages always project at VerbosityNormal (C11:
 	// prefixed consistently with VisibilityVerbose — the two enum members
 	// previously disagreed on their own naming convention).
-	VisibilityNormal Visibility = iota
+	VisibilityNormal = core.VisibilityNormal
 	// VisibilityVerbose messages project only when Config.Verbosity is VerbosityVerbose.
-	VisibilityVerbose
+	VisibilityVerbose = core.VisibilityVerbose
 )
 
 const (
@@ -28,11 +32,7 @@ const (
 )
 
 // MessageSnapshot is one logical user-facing message in the canonical model.
-type MessageSnapshot struct {
-	ID         string
-	Text       string
-	Visibility Visibility
-}
+type MessageSnapshot = core.MessageSnapshot
 
 // Printer is a visibility-scoped view of Output for Print/Printf/Println.
 type Printer struct {

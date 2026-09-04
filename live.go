@@ -352,7 +352,7 @@ func activitySince(t TaskSnapshot) time.Time {
 	if !t.ActivityAt.IsZero() {
 		return t.ActivityAt
 	}
-	return t.liveFirstSeenAt
+	return t.LiveFirstSeenAt()
 }
 
 // heartbeatSuffix returns " — <elapsed>" once since has gone stale past

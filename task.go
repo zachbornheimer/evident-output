@@ -3,6 +3,7 @@ package evo
 import (
 	"fmt"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -30,7 +31,7 @@ func (t *TaskHandle) Phase(text string, args ...any) *TaskHandle {
 		t.out.recordMisuse(err)
 		return t
 	}
-	if isTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state) {
 		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
@@ -58,7 +59,7 @@ func (t *TaskHandle) setLiveOnlyPhase(text string) {
 		t.out.recordMisuse(err)
 		return
 	}
-	if isTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state) {
 		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return
 	}
@@ -132,7 +133,7 @@ func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *Tas
 		t.out.recordMisuse(err)
 		return t
 	}
-	if isTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state) {
 		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
@@ -201,7 +202,7 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 		t.out.recordMisuse(err)
 		return t
 	}
-	if isTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state) {
 		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
@@ -297,10 +298,10 @@ func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 // text into the rendered summary and evidence line.
 func (t *TaskHandle) Failf(format string, args ...any) *Failure {
 	err := fmt.Errorf(format, args...)
-	summary, evidence := splitWrappedMessage(format, err)
+	summary, evidence := core.SplitWrappedMessage(format, err)
 	problem := Problem{Summary: summary, Detail: evidence}
 	t.attachRetainedEvidenceTail(&problem)
-	p := sanitizeProblem(problem)
+	p := core.SanitizeProblem(problem)
 	if t != nil {
 		t.finish(Failed, summary, []Problem{p})
 	}
@@ -340,10 +341,10 @@ func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 // summary/evidence split, and Next/NextCommand remedy-attachment contract.
 func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
 	err := fmt.Errorf(format, args...)
-	summary, evidence := splitWrappedMessage(format, err)
+	summary, evidence := core.SplitWrappedMessage(format, err)
 	problem := Problem{Summary: summary, Detail: evidence}
 	t.attachRetainedEvidenceTail(&problem)
-	p := sanitizeProblem(problem)
+	p := core.SanitizeProblem(problem)
 	if t != nil {
 		t.finish(Blocked, summary, []Problem{p})
 	}
@@ -430,7 +431,7 @@ func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []
 		t.out.recordMisuse(err)
 		return t
 	}
-	if isTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state) {
 		t.out.recordAlreadyResolvedLocked(st.name, summary)
 		return t
 	}
@@ -460,7 +461,7 @@ func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []
 			}
 		}
 		// storeProblems: shared CSI-safe path (identical to Item).
-		st.problems = storeProblems(problems)
+		st.problems = core.StoreProblems(problems)
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task." + string(state), EntityID: t.id})
