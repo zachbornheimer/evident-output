@@ -396,6 +396,10 @@ drv := terminal.NewANSI(os.Stderr, terminal.WithInteractive(true), terminal.With
 out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv)}})
 ```
 
+No `To()` needed: the driver owns rendering, and evident-output detects its
+`Sink()` and routes the residual/plain projection there too — the conclusion
+band renders exactly once, never a second time on a different stream.
+
 ### Interactive (testkit / virtual terminal)
 
 ```go

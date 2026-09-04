@@ -277,16 +277,10 @@ func newFromConfig(c Config) *Output {
 func configToOptions(c Config) []Option {
 	var opts []Option
 
-	// primaryWriter mirrors whichever writer To() receives below — kept as a
-	// value (not re-derived) so the Terminal-sharing detection further down
-	// compares against the exact same stream, per format.
-	primaryWriter := c.Stdout
-
 	// Stream routing
 	switch c.Format {
 	case FormatData:
 		// Human presentation on stderr; domain payload on Result (default Stdout).
-		primaryWriter = c.Stderr
 		opts = append(opts, To(c.Stderr), Diagnostics(c.Stderr), DataProjection())
 		resultW := c.Result
 		if resultW == nil {
@@ -341,11 +335,31 @@ func configToOptions(c Config) []Option {
 	case c.Terminal != nil:
 		opts = append(opts, Terminal(c.Terminal))
 		// A caller-supplied driver (Config.Terminal or the Options path) may
-		// still write to the same physical stream as primary — DETECT that
-		// via the driver's own Sink() rather than requiring the caller to
-		// say so, closing the examples/terminal-driver double-band gap (X3).
-		if terminalSharesPrimary(c.Terminal, primaryWriter) {
-			opts = append(opts, withPrimarySharesTerminal())
+		// still write to one of the two streams Config already wired up —
+		// DETECT that via the driver's own Sink() rather than requiring the
+		// caller to say so, closing the examples/terminal-driver double-band
+		// gap (X3). Round 8 only compared against the format's primary
+		// writer; a driver aimed at the OTHER configured stream (e.g.
+		// Stderr while primary defaults to Stdout — every doc/example)
+		// still owns rendering there and must not also be duplicated onto
+		// primary, so both configured streams count (release-gate round 9
+		// finding 1).
+		if sr, ok := c.Terminal.(sinkReporter); ok {
+			if sink := sr.Sink(); sink != nil {
+				switch sink {
+				case c.Stdout, c.Stderr:
+					opts = append(opts, withPrimarySharesTerminal())
+				default:
+					// Driver targets a third stream (e.g. a log file) that is
+					// neither configured stream. Config exposes no separate
+					// To() a caller could use to request an intentional
+					// second copy, so route primary there instead of leaving
+					// it on c.Stdout by default (finding-2 symmetry) —
+					// otherwise nothing would ever fan the driver's own
+					// conclusion band out to a plain/non-interactive mirror.
+					opts = append(opts, To(sink))
+				}
+			}
 		}
 		if sr, ok := c.Terminal.(sinkReporter); ok && sameTerminalDevice(sr.Sink(), c.Stderr) {
 			opts = append(opts, withDiagnosticSharesTerminal())
