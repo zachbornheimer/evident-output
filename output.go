@@ -18,19 +18,24 @@ type Output struct {
 
 	cfg config
 
-	outputID   string
-	idSeq      uint64
-	declSeq    int
-	version    uint64
-	closed     bool
-	finishing  bool
-	finished   bool
-	armed      bool // set by arm(): live surface may paint before any entity exists
-	misuse     error
-	conclusion *Conclusion
-	finalPlain string
-	live       *liveEngine
-	snapCh     chan Snapshot
+	outputID  string
+	idSeq     uint64
+	declSeq   int
+	version   uint64
+	closed    bool
+	finishing bool
+	finished  bool
+	armed     bool // set by arm(): live surface may paint before any entity exists
+	misuse    error
+	// misuseSubject names the task/entity the first recorded misuse happened
+	// on, when known — Finish renders one line naming it whenever that misuse
+	// is about to change the exit code, so a caller never sees an exit code
+	// contradict what the printed band showed (beginner-1).
+	misuseSubject string
+	conclusion    *Conclusion
+	finalPlain    string
+	live          *liveEngine
+	snapCh        chan Snapshot
 
 	tasks       []*taskState
 	collections []*tasksState
@@ -255,6 +260,48 @@ func (o *Output) recordMisuse(err error) {
 	if o.cfg.strict {
 		panic(err)
 	}
+}
+
+// hasRecordedEffectLocked reports whether subject already carries at least
+// one mutation-ledger record (Changes or Plan) — see the unresolved-task
+// auto-Done rescue in Finish (beginner-1, I1).
+func (o *Output) hasRecordedEffectLocked(subject string) bool {
+	for _, ch := range o.changes {
+		if ch.subject == subject && len(ch.records) > 0 {
+			return true
+		}
+	}
+	for _, p := range o.plans {
+		if p.subject == subject && len(p.records) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// appendMisuseLineLocked renders the one required line naming the first
+// recorded misuse and, when known, the entity it happened on — an exit code
+// may never disagree with everything the caller saw printed (beginner-1).
+func (o *Output) appendMisuseLineLocked() {
+	if o.misuseSubject == "" {
+		o.lines = append(o.lines, fmt.Sprintf("misuse: %v", o.misuse))
+		return
+	}
+	o.lines = append(o.lines, fmt.Sprintf("misuse: %s: %v", o.misuseSubject, o.misuse))
+}
+
+// recordMisuseFor is recordMisuse with the offending entity's name attached,
+// so Finish can name it in the one required misuse line (beginner-1) instead
+// of an exit code silently disagreeing with everything the caller saw
+// rendered.
+func (o *Output) recordMisuseFor(subject string, err error) {
+	if err == nil {
+		return
+	}
+	if o.misuse == nil {
+		o.misuseSubject = subject
+	}
+	o.recordMisuse(err)
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first
@@ -1181,12 +1228,28 @@ func (o *Output) Finish() error {
 	// below would otherwise mark them Incomplete (and record misuse).
 	o.autoResolveGroupsLocked()
 
-	// Unresolved entities
+	// Unresolved entities. A task with at least one recorded mutation-verb
+	// effect (Delete/Create/Update/...) and no problems of its own told an
+	// honest, complete story already — the caller just never called a
+	// terminal verb — so the easiest path (forgetting Done) becomes correct
+	// instead of a surprising Cancelled/NotStarted plus a silent exit-code
+	// flip (beginner-1, I1). Anything else still reads as misuse, but now
+	// names the task so Finish can render it.
 	for _, t := range o.tasks {
-		if !isTerminalTask(t.state) {
-			resolveUnstartedTaskLocked(t)
-			o.recordMisuse(ErrUnresolvedTask)
+		if isTerminalTask(t.state) {
+			continue
 		}
+		if len(t.problems) == 0 && o.hasRecordedEffectLocked(t.name) {
+			t.state = Done
+			t.phase = ""
+			o.appendEventLocked(Event{Type: "task.done", EntityID: t.id})
+			continue
+		}
+		resolveUnstartedTaskLocked(t)
+		o.recordMisuseFor(t.name, ErrUnresolvedTask)
+	}
+	if o.misuse != nil {
+		o.appendMisuseLineLocked()
 	}
 
 	snap := o.snapshotLocked()

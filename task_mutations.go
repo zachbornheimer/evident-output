@@ -82,7 +82,7 @@ func (o *Output) resolveLedgerTarget(taskID string) (subject string, dryRun bool
 		return "", false, false
 	}
 	if isTerminalTask(st.state) {
-		o.recordMisuse(ErrAlreadyResolved)
+		o.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return "", false, false
 	}
 	return st.name, o.cfg.dryRun, true

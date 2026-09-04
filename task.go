@@ -25,7 +25,7 @@ func (t *TaskHandle) Phase(text string) *TaskHandle {
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
 	t.out.setPhaseLocked(st, text)
@@ -83,7 +83,7 @@ func (t *TaskHandle) Advance(delta int64) *TaskHandle {
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
 	completed := st.progress.Completed + delta
@@ -108,7 +108,7 @@ func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *Tas
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
 	t.applyProgressLocked(st, completed, total, kind)
@@ -177,7 +177,7 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
 	if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
@@ -325,7 +325,7 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuse(ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return t
 	}
 	st.state = state

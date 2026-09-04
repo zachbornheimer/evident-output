@@ -244,6 +244,28 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   derived from the Changes ledger (never caller-assembled), with a `none`
   fallback for an empty ledger.
 
+### Fixed (gate-1 review wave)
+
+- `testkit.Screen` is now safe for concurrent use (`-race` clean); it
+  previously raced on every live/durable/final write against its own
+  accessors.
+- `Confirm`'s abort channel is registered at gate creation, not lazily
+  inside the stdin read — a `^C` arriving before the prompt is written can
+  no longer be swallowed (the gate would hang on stdin with nothing left to
+  unblock it).
+- A caller-supplied `Terminal(...)` (`Config.Terminal`, or the advanced
+  `Options` path) sharing a stream with `primary` is now detected via the
+  driver's own `Sink()`, closing the `examples/terminal-driver` double
+  conclusion-band bug.
+- `Finish` now honors `AlsoWrite` on interactive runs — an `AlsoWrite`
+  mirror previously got nothing when the run had a live terminal.
+- An unresolved `Task` that recorded at least one mutation effect
+  (`Delete`/`Create`/...) but was never given a terminal verb now
+  auto-resolves `Done` instead of silently flipping the exit code to
+  failure. Any misuse that still changes the exit code now renders one
+  line naming the task and the misuse — an exit code can no longer
+  contradict everything the printed band showed.
+
 ## Migration guide (v0.2.x → v0.3.0)
 
 | Old (v0.2.x)                                                 | New (v0.3.0)                                                                                                   |
