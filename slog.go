@@ -22,12 +22,12 @@ type LogRecord struct {
 //
 // Level policy is Config.Debug.Level (one conductor):
 //
-//	out := evo.New(evo.Config{
+//	out := evo.Init(evo.Config{
 //	    Debug: evo.DebugConfig{Level: evo.LevelDebug},
 //	})
 //	logger := slog.New(out.SlogHandler())
 //
-// Application human prose uses Print/Printf/Println or Item/Task outcomes — not slog.
+// Application human prose uses Print/Printf/Println or Task outcomes — not slog.
 // Infrastructure diagnostics use slog through this handler.
 func (o *Output) SlogHandler() slog.Handler {
 	level := slog.LevelInfo

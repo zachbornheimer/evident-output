@@ -65,13 +65,6 @@ func Detail(text string) ProblemOption {
 	return problemOptionFunc(func(p *Problem) { p.Detail = text })
 }
 
-// Cause attaches a diagnostic error to a Problem.
-//
-// Deprecated: Use Failf/Blockf's trailing %w instead. Will be removed in v1.0.
-func Cause(err error) ProblemOption {
-	return problemOptionFunc(func(p *Problem) { p.Cause = err })
-}
-
 // Code sets a stable problem code.
 func Code(value string) ProblemOption {
 	return problemOptionFunc(func(p *Problem) { p.Code = value })

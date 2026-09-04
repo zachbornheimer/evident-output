@@ -1311,8 +1311,8 @@ var bareCausePattern = regexp.MustCompile(`evo\.Cause\(`)
 var captureCallPattern = regexp.MustCompile(`(\w+)\.Capture\(`)
 
 // itemCallPattern matches any receiver's .Item(...) declaration call — the
-// shipped-v0.2.x fact-check constructor, now a deprecated thin shim over
-// Task (Item folded into Task: one entity, one constructor).
+// shipped-v0.2.x fact-check constructor, now removed (Item folded into Task:
+// one entity, one constructor).
 var itemCallPattern = regexp.MustCompile(`(\w+)\.Item\(`)
 
 // becauseCallPattern matches the retired .Because(text) annotation chain —
@@ -1360,7 +1360,7 @@ func detectDeprecatedSpellings(filename, src string) []Finding {
 		findings = append(findings, Finding{
 			RuleID:     "API-032",
 			Severity:   "warning",
-			Message:    "Item folded into Task — Item is now a deprecated thin shim",
+			Message:    "Item folded into Task — Item was removed",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
 			Suggestion: "replace " + recv + ".Item(...) with " + recv + ".Task(...)",

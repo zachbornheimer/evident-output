@@ -182,13 +182,13 @@ func TestOUT017_FinalProgressExact(t *testing.T) {
 	}
 }
 
-func TestSEC012_PathCanBeInDetailButCauseHidden(t *testing.T) {
+func TestSEC012_PathCanBeInDetail(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Fail("read failed", evo.Detail("/tmp/x"), evo.Cause(io.EOF))
+	out.Task("i").Fail("read failed", evo.Detail("/example/path/x"))
 	_ = out.Finish()
-	// detail may show path; cause EOF message not required
+	// detail may show path
 	if !strings.Contains(buf.String(), "read failed") {
 		t.Fatal(buf.String())
 	}

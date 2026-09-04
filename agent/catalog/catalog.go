@@ -47,7 +47,7 @@ Types: TaskHandle (work with Phase/Progress/mutations/taxonomy, or a fact-check 
 Phase/Progress call), GroupHandle (evo.Group — named children, auto-lifecycle NotStarted on failure/cancel).
 evo.Task/Group are get-or-create facades on the package-level default instance (see evo.Init/evo.SetDefault);
 Plan/Changes/Record stay on the instance API for tooling call sites, not the front door above. Item/ItemHandle
-are deprecated v0.2.x shims over Task/TaskHandle (deprecated.go) — new code always uses Task.
+were removed v0.2.x shims over Task/TaskHandle — new code always uses Task.
 
 Severity: Warn = soft/optional; Block = stop before mutate; Fail = evaluation failed.
 Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) so a caller can tell "you did
