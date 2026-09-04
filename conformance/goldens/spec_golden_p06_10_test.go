@@ -418,7 +418,7 @@ func TestSpecP9_Success(t *testing.T) {
 func TestSpecP9_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")
@@ -468,7 +468,7 @@ func TestSpecP9_Error(t *testing.T) {
 func TestSpecP9_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")

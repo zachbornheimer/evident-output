@@ -9,34 +9,34 @@ import (
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// phaseStaleAfter is how long a Running task's phase (and progress) can go
-// unchanged before the live projection appends an elapsed-time heartbeat
-// suffix ("pushing feat/a — 90s") — the spinner is animation, not evidence,
-// so a silent child must not read the same as a healthy one. Resets on every
-// Phase/Progress call (see the root package's taskState.activityAt).
-const phaseStaleAfter = 10 * time.Second
+// elapsedAfter is evo-rec.md Problem 9's one monotonic elapsed-time
+// mechanism: any unresolved row (Running or Pending), and any unfinished
+// container header, gains an elapsed-time suffix ("pushing feat/a — 5s")
+// once this long has passed since the row was first actually painted in the
+// live region. It is a single honest clock, not a staleness heuristic —
+// unlike the old phaseStaleAfter heartbeat, it never resets on Phase/Progress
+// activity (see the root package's stampLiveFirstSeenLocked, the only anchor
+// this timer reads).
+const elapsedAfter = 5 * time.Second
 
-// activitySince picks the anchor heartbeatSuffix measures elapsed time from:
-// ActivityAt when a Phase/core.Progress call has actually happened, otherwise the
-// row's first live-region render (see stampLiveFirstSeenLocked) — so a
-// core.Pending row, which never gets ActivityAt, still ages honestly from the
-// moment it became visible rather than never aging at all.
+// activitySince anchors heartbeatSuffix's elapsed measurement to the row's
+// first live-region render (stampLiveFirstSeenLocked) — never to
+// ActivityAt, so Phase/Progress calls (P5: "never resets on Phase/Progress
+// activity") cannot restart the clock, and a core.Pending row, which never
+// gets ActivityAt, still ages honestly from the moment it became visible.
 func activitySince(t core.TaskSnapshot) time.Time {
-	if !t.ActivityAt.IsZero() {
-		return t.ActivityAt
-	}
 	return t.LiveFirstSeenAt()
 }
 
-// heartbeatSuffix returns " — <elapsed>" once since has gone stale past
-// phaseStaleAfter, or "" otherwise (including a zero since — a task that has
-// never had Phase/core.Progress set gets no heartbeat).
+// heartbeatSuffix returns " — <elapsed>" once since has aged past
+// elapsedAfter, or "" otherwise (including a zero since — a row not yet
+// painted in the live region gets no heartbeat).
 func heartbeatSuffix(now, since time.Time) string {
 	if since.IsZero() {
 		return ""
 	}
 	elapsed := now.Sub(since)
-	if elapsed < phaseStaleAfter {
+	if elapsed < elapsedAfter {
 		return ""
 	}
 	return " — " + formatElapsed(elapsed)
@@ -110,15 +110,31 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		}
 	}
 	// When any running, animate header spinner (H.20 uses FixedClock → stable ⠋).
-	if anyChildRunning(col) || anyChildPendingActive(col) {
+	unresolved := anyChildRunning(col) || anyChildPendingActive(col)
+	if unresolved {
 		glyph = spin
 	}
 	headerState := col.State
-	if anyChildRunning(col) || anyChildPendingActive(col) {
+	if unresolved {
 		headerState = core.Running
 	}
-	fmt.Fprintf(b, "%s  %s  %d/%d complete\n",
-		txt.StyleGlyph(glyph, StateColor(headerState), color), col.Name, done, total)
+	// P5: the same one monotonic elapsed clock a Running/Pending row gets
+	// also ages an unfinished container header — anchored to the earliest
+	// live-first-seen time among its (recursive) children, since that is
+	// when this header itself first painted. A container header is the
+	// same DisplayUnit (P3) a task row is, with Detail populated by the
+	// "N/M complete" count instead of a phase/progress payload.
+	unit := DisplayUnit{
+		Glyph:  txt.StyleGlyph(glyph, StateColor(headerState), color),
+		Name:   col.Name,
+		Detail: fmt.Sprintf("%d/%d complete", done, total),
+	}
+	if unresolved {
+		unit.Elapsed = heartbeatSuffix(now, earliestLiveFirstSeen(col))
+		unit.Detail += unit.Elapsed
+	}
+	b.WriteString(unit.Render(""))
+	b.WriteByte('\n')
 
 	// Select children by severity under height budget.
 	// Budget: height includes header; leave room for omission line.
@@ -133,11 +149,27 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	if omitted > 0 {
 		fmt.Fprintf(b, "   %s  %d not shown\n", txt.Dim(txt.GlyphOverflow.Render(profile), color), omitted)
 	}
+	// Nested containers (P3's recursive .Sequence/.DisplayGroup nesting)
+	// render as an indented sub-header + its own children, one level per
+	// nesting depth — rendered into a scratch builder first so the same
+	// three-space child indent writeLiveTaskLine uses applies uniformly.
+	for _, child := range col.Collections {
+		var nested strings.Builder
+		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
+		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+			fmt.Fprintf(b, "   %s\n", line)
+		}
+	}
 }
 
 func anyChildRunning(col core.TasksSnapshot) bool {
 	for _, t := range col.Tasks {
 		if t.State == core.Running {
+			return true
+		}
+	}
+	for _, child := range col.Collections {
+		if anyChildRunning(child) {
 			return true
 		}
 	}
@@ -150,6 +182,11 @@ func anyChildFailed(col core.TasksSnapshot) bool {
 			return true
 		}
 	}
+	for _, child := range col.Collections {
+		if anyChildFailed(child) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -158,14 +195,47 @@ func anyChildFailed(col core.TasksSnapshot) bool {
 // never called Phase is the ordinary case (Phase/core.Progress are the only
 // core.Running promoters), so requiring Phase here used to leave an all-core.Pending
 // or core.Pending-tailed collection's header frozen on derivedState's static
-// core.Incomplete glyph (evo-rec.md core.Problem 9).
+// core.Incomplete glyph (evo-rec.md core.Problem 9). Recurses into nested
+// containers (P3) so a still-pending grandchild keeps the root header honest.
 func anyChildPendingActive(col core.TasksSnapshot) bool {
 	for _, t := range col.Tasks {
 		if t.State == core.Running || t.State == core.Pending {
 			return true
 		}
 	}
+	for _, child := range col.Collections {
+		if anyChildPendingActive(child) {
+			return true
+		}
+	}
 	return false
+}
+
+// earliestLiveFirstSeen returns the earliest LiveFirstSeenAt among a
+// container's tasks and (recursively) its nested containers — the moment
+// this header itself was first actually painted, and so the anchor its own
+// elapsed-time suffix measures from (P5).
+func earliestLiveFirstSeen(col core.TasksSnapshot) time.Time {
+	var earliest time.Time
+	for _, t := range col.Tasks {
+		ts := t.LiveFirstSeenAt()
+		if ts.IsZero() {
+			continue
+		}
+		if earliest.IsZero() || ts.Before(earliest) {
+			earliest = ts
+		}
+	}
+	for _, child := range col.Collections {
+		ts := earliestLiveFirstSeen(child)
+		if ts.IsZero() {
+			continue
+		}
+		if earliest.IsZero() || ts.Before(earliest) {
+			earliest = ts
+		}
+	}
+	return earliest
 }
 
 func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.TaskSnapshot, omitted int) {
@@ -208,31 +278,40 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 	return selected, len(tasks) - len(selected)
 }
 
+// writeLiveTaskLine composes one task row's DisplayUnit (P3's uniform row
+// model) and renders it. Every case below is a slot-filling policy — which
+// fields get populated for this state/progress/indent combination — not a
+// bespoke format string; DisplayUnit.Render owns the one shared line
+// grammar every case shares.
 func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
-	pad := ""
-	if indent > 0 {
-		pad = "   "
-	}
 	glyph := TaskGlyph(t.State, profile)
 	if t.State == core.Running {
 		glyph = spin
 	}
-	g := txt.StyleGlyph(glyph, StateColor(t.State), color)
-	// Child rows: indent + glyph + two spaces + name padded to 9 + two spaces + detail.
-	// Produces stable columns: "react" and "sharp" share alignment; "esbuild" fills the field.
-	nameField := t.Name
-	if indent > 0 {
-		nameField = txt.PadRight(t.Name, 9)
+	unit := DisplayUnit{
+		Glyph: txt.StyleGlyph(glyph, StateColor(t.State), color),
+		// Child rows: name padded to 9 for stable columns ("react" and
+		// "sharp" share alignment; "esbuild" fills the field) — a standalone
+		// row (indent == 0) uses the bare name (evo-rec.md's "child elapsed
+		// not shown at top level" is this same indent-keyed slot policy).
+		Name: t.Name,
 	}
+	if indent > 0 {
+		unit.Name = txt.PadRight(t.Name, 9)
+	}
+
 	switch {
 	case t.State == core.Done && t.Progress.Kind == core.BytesKind:
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, formatBytes(t.Progress.Completed))
+		unit.Detail = formatBytes(t.Progress.Completed)
 	case t.State == core.Done && t.Summary != "":
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, txt.Dim(t.Summary, color))
+		unit.Detail = txt.Dim(t.Summary, color)
 	case t.State == core.Running && t.Progress.Kind == core.BytesKind && t.Progress.Total > 0:
 		detail := formatByteProgressFixed(t.Progress.Completed, t.Progress.Total)
 		detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + detail
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
+		// P5: every unresolved row ages honestly, with or without a Phase —
+		// a bytes bar that never calls Phase must not be exempt.
+		unit.Elapsed = heartbeatSuffix(now, activitySince(t))
+		unit.Detail = detail + unit.Elapsed
 	case t.State == core.Running && t.Progress.Kind == core.Determinate && t.Progress.Total > 0:
 		count := fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
 		// Narrow terminals degrade by dropping decoration (the bar) before
@@ -244,13 +323,17 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 		if width <= 0 || width >= compactLayoutMaxWidth {
 			detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + count
 		}
+		unit.Elapsed = heartbeatSuffix(now, activitySince(t))
 		if t.Phase != "" {
 			// Default intensity: the current phase is diagnostic evidence
 			// while progress stalls, not a subordinate row (evo-rec.md
 			// "Color and txt.Style demotions").
-			detail = detail + "  " + t.Phase + heartbeatSuffix(now, activitySince(t))
+			detail = detail + "  " + t.Phase + unit.Elapsed
+		} else {
+			// P5: no Phase text yet — still age honestly past elapsedAfter.
+			detail += unit.Elapsed
 		}
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
+		unit.Detail = detail
 	case t.State == core.Running && (t.Progress.Kind == core.Indeterminate || t.Phase != "" || (t.Progress.Kind == core.Determinate && t.Progress.Total <= 0)):
 		// core.Indeterminate, or core.Determinate with nothing to divide by (Total<=0,
 		// e.g. core.Progress(0,0)): spinner glyph + phase (or generic working) —
@@ -260,19 +343,18 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 		if phase == "" {
 			phase = "working…"
 		}
-		phase += heartbeatSuffix(now, activitySince(t))
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, phase)
+		unit.Elapsed = heartbeatSuffix(now, activitySince(t))
+		unit.Detail = phase + unit.Elapsed
 	case t.State == core.Running && t.Phase != "":
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, t.Phase)
+		unit.Detail = t.Phase
 	case t.State == core.Pending:
-		// A core.Pending row left on screen past phaseStaleAfter is exactly as
+		// A core.Pending row left on screen past elapsedAfter is exactly as
 		// static as a stalled core.Running one — same heartbeat, txt.Dim (subordinate:
 		// nothing is happening yet) rather than the diagnostic-intensity
 		// phase text a core.Running row gets.
 		if hb := heartbeatSuffix(now, activitySince(t)); hb != "" {
-			fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, txt.Dim("waiting"+hb, color))
-		} else {
-			fmt.Fprintf(b, "%s%s  %s\n", pad, g, strings.TrimRight(nameField, " "))
+			unit.Elapsed = hb
+			unit.Detail = txt.Dim("waiting"+hb, color)
 		}
 	case t.State == core.Failed:
 		msg := t.Summary
@@ -286,13 +368,11 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 		count := progressCountText(t.Progress)
 		switch {
 		case msg != "" && count != "":
-			fmt.Fprintf(b, "%s%s  %s  %s  %s\n", pad, g, nameField, count, msg)
+			unit.Detail = count + "  " + msg
 		case msg != "":
-			fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, msg)
+			unit.Detail = msg
 		case count != "":
-			fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, count)
-		default:
-			fmt.Fprintf(b, "%s%s  %s\n", pad, g, strings.TrimRight(nameField, " "))
+			unit.Detail = count
 		}
 	case t.State == core.Done && len(t.Warnings) > 0:
 		// A short, single warning inlines on the ✓ row (P2); with more than
@@ -302,10 +382,15 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 		if more := len(t.Warnings) - 1; more > 0 {
 			msg = fmt.Sprintf("%s (+%d more)", msg, more)
 		}
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, txt.Dim(msg, color))
-	default:
-		fmt.Fprintf(b, "%s%s  %s\n", pad, g, strings.TrimRight(nameField, " "))
+		unit.Detail = txt.Dim(msg, color)
 	}
+
+	pad := ""
+	if indent > 0 {
+		pad = "   "
+	}
+	b.WriteString(unit.Render(pad))
+	b.WriteByte('\n')
 }
 
 // progressBar returns a fixed-width ASCII bar for completed/total.

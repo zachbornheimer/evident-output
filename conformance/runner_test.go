@@ -128,7 +128,7 @@ func runScenarioFile(t *testing.T, path string) {
 
 	items := map[string]*evo.TaskHandle{}
 	tasks := map[string]*evo.TaskHandle{}
-	cols := map[string]*evo.Tasks{}
+	cols := map[string]*evo.DisplayGroup{}
 	var finishErr error
 
 	for _, m := range sc.Mutations {
@@ -138,7 +138,7 @@ func runScenarioFile(t *testing.T, path string) {
 		case "task":
 			tasks[m.Ref] = out.Task(m.Name)
 		case "tasks":
-			cols[m.Ref] = out.Tasks(m.Name)
+			cols[m.Ref] = out.DisplayGroup(m.Name)
 		case "tasks.task":
 			parent := cols[m.Parent]
 			if parent == nil {

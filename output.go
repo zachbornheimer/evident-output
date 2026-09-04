@@ -82,7 +82,7 @@ type Output struct {
 	namedReasons map[string]TaxonomyReason
 	// namedGroups backs get-or-create identity for evo.Group: repeated calls
 	// with the same name return the one Group instead of a duplicate section.
-	namedGroups map[string]*GroupHandle
+	namedGroups map[string]*SequenceHandle
 
 	// confirmAbort holds one abort channel per pending Confirm gate, keyed by
 	// item id, so cancelActive can unblock Confirm's stdin read and resolve
@@ -130,16 +130,18 @@ type taskState struct {
 	declaration int
 	handle      *TaskHandle
 
-	// activityAt is the domain-clock time of the most recent Phase or Progress
-	// call. The live renderer diffs against it to grow a heartbeat suffix
-	// ("pushing feat/a — 90s") once a Running task's phase has gone stale, and
-	// it resets on every Phase/Progress update (see phaseStaleAfter in live.go).
+	// activityAt is the domain-clock time of the most recent Phase, Progress,
+	// or mutation-verb-callback-starting call — kept for the public
+	// ActivityAt snapshot field and for Sequence's "one Running child"
+	// bookkeeping. P5's elapsed-time render clock no longer reads it (see
+	// elapsedAfter in live.go): the render anchor is liveFirstSeenAt alone,
+	// so a fresh Phase/Progress call never restarts the elapsed suffix.
 	activityAt time.Time
 
 	// liveFirstSeenAt is the domain-clock time this task was first actually
 	// painted in the live region (see stampLiveFirstSeenLocked in live.go) —
-	// the heartbeat anchor for a row that has no activityAt, most notably a
-	// Pending task, which never calls Phase/Progress.
+	// the one elapsed-time anchor every row's heartbeat suffix reads (P5),
+	// including a Pending task, which never calls Phase/Progress.
 	liveFirstSeenAt time.Time
 
 	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
@@ -192,19 +194,34 @@ type tasksState struct {
 	summary     string
 	tasks       []*taskState
 	declaration int
-	handle      *Tasks
+	handle      *DisplayGroup
 
-	// namedTasks backs get-or-create identity for Group.Task: repeated calls
-	// with the same name inside this group return the one child TaskHandle.
+	// namedTasks backs get-or-create identity for Sequence.Task: repeated
+	// calls with the same name inside this sequence return the one child
+	// TaskHandle.
 	namedTasks map[string]*TaskHandle
 
 	// sequential marks a collection whose children are declared as a
-	// sequence of steps (Group), where the "one Running child" heart
-	// contract (evo-rec.md) applies. A plain Tasks collection documents
-	// its children as independent — worker-pool fan-out is a supported,
-	// concurrency-safe pattern there, so promoteRunningLocked does not
-	// police it.
+	// sequence of steps (Sequence), where the "one Running child" heart
+	// contract (evo-rec.md) applies. A plain DisplayGroup collection
+	// documents its children as independent — worker-pool fan-out is a
+	// supported, concurrency-safe pattern there, so promoteRunningLocked
+	// does not police it.
 	sequential bool
+
+	// children holds nested containers declared via Sequence.Sequence,
+	// Sequence.DisplayGroup, DisplayGroup.Sequence, or
+	// DisplayGroup.DisplayGroup (P3's "both offer .Task/.Sequence/
+	// .DisplayGroup, recursive") — a container's derived state and
+	// rendering fold its children in exactly the way it folds its own
+	// tasks.
+	children []*tasksState
+
+	// namedChildren backs get-or-create identity for a nested Sequence:
+	// mirrors Output.namedGroups, but scoped to this container (P10 —
+	// container path + name is the identity, so the same label under a
+	// different parent is a distinct child).
+	namedChildren map[string]*tasksState
 }
 
 type changesState struct {
@@ -458,10 +475,11 @@ func (o *Output) recordAlreadyResolvedLocked(name, rejectedSummary string) {
 
 // promoteRunningLocked transitions a Pending task to Running on its first
 // unit of evidence (Phase/Progress/Advance/Bytes/Each iteration/PhaseWriter
-// write). For a sequential collection (Group), it records misuse when a
-// sibling is already Running, enforcing the heart contract "one Running
-// child" (evo-rec.md) — callers still get the transition; Strict mode is
-// what escalates the violation to a panic. A plain Tasks collection
+// write, or a mutation-verb callback starting — see promoteRunningForActivity).
+// For a sequential collection (Sequence), it records misuse when a sibling is
+// already Running, enforcing the heart contract "one Running child"
+// (evo-rec.md) — callers still get the transition; Strict mode is what
+// escalates the violation to a panic. A plain DisplayGroup collection
 // documents its children as independent (worker-pool fan-out is a
 // supported, concurrency-safe pattern there), so it is not policed.
 func (o *Output) promoteRunningLocked(st *taskState) {
@@ -474,6 +492,27 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 		}
 	}
 	st.state = Running
+}
+
+// promoteRunningForActivity is mutate's activity-driven promotion hook (P5
+// concurrency truth): a mutation-verb callback about to run counts as the
+// task's first unit of evidence, exactly like a Phase/Progress call, so a
+// long-running Delete/Update/etc. callback renders as Running rather than
+// sitting on a Pending row that looks idle. A no-op for a task that is not
+// Pending (already Running, or already resolved — mutate's own ensureOpen/
+// terminal checks handle that case).
+func (o *Output) promoteRunningForActivity(taskID string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	st := o.taskByRef[taskID]
+	if st == nil || st.state != Pending {
+		return
+	}
+	st.activityAt = o.cfg.clock.Now()
+	o.promoteRunningLocked(st)
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: "task.activity", EntityID: st.id})
+	o.signalLiveLocked(true)
 }
 
 func (o *Output) ensureOpen() error {
@@ -702,10 +741,13 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	return false
 }
 
-// Tasks declares a collection of independent child tasks. name is a printf
-// format when args are present (fmt.Sprintf semantics) — one text spelling
-// shared with Task/Group/Reason (C6); no args leaves name untouched.
-func (o *Output) Tasks(name string, args ...any) *Tasks {
+// DisplayGroup declares a collection of independent child tasks: state is
+// fully derived from children, glyph and header only, no ordering assumed
+// (worker-pool fan-out is a supported, concurrency-safe pattern here — see
+// Sequence for the ordered alternative). name is a printf format when args
+// are present (fmt.Sprintf semantics) — one text spelling shared with
+// Task/Sequence/Reason (C6); no args leaves name untouched.
+func (o *Output) DisplayGroup(name string, args ...any) *DisplayGroup {
 	if len(args) > 0 {
 		name = fmt.Sprintf(name, args...)
 	}
@@ -713,60 +755,98 @@ func (o *Output) Tasks(name string, args ...any) *Tasks {
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &Tasks{out: o, id: o.nextID("tasks")}
+		return &DisplayGroup{out: o, id: o.nextID("tasks")}
 	}
-	st := &tasksState{
-		id:          o.nextID("tasks"),
-		name:        txt.Text(name),
-		declaration: o.nextDecl(),
-	}
-	h := &Tasks{out: o, id: st.id}
-	st.handle = h
+	st := o.declareContainerLocked(name, false)
 	o.collections = append(o.collections, st)
-	o.tasksByRef[st.id] = st
+	h := &DisplayGroup{out: o, id: st.id}
+	st.handle = h
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
 	return h
 }
 
-// Group declares (or, for a repeated name, returns) a self-managing task
-// group — the front door for a sequence of steps that must stop implying
-// "still might run" once a member has already failed or been cancelled. A
-// second evo.Group("python") call returns the same Group, mirroring Task's
-// get-or-create identity. name is a printf format when args are present
-// (fmt.Sprintf semantics); no args leaves name untouched.
-func (o *Output) Group(name string, args ...any) *GroupHandle {
+// Sequence declares (or, for a repeated name, returns) a self-managing,
+// ordered container — the front door for a sequence of steps that must stop
+// implying "still might run" once a member has already failed or been
+// cancelled. A second evo.Sequence("python") call returns the same Sequence,
+// mirroring Task's get-or-create identity. name is a printf format when args
+// are present (fmt.Sprintf semantics); no args leaves name untouched.
+func (o *Output) Sequence(name string, args ...any) *SequenceHandle {
 	if len(args) > 0 {
 		name = fmt.Sprintf(name, args...)
 	}
 	o.mu.Lock()
+	defer o.mu.Unlock()
 	if g, ok := o.namedGroups[name]; ok {
-		o.mu.Unlock()
 		return g
 	}
-	o.mu.Unlock()
-
-	tasks := o.Tasks(name)
-
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if existing, ok := o.namedGroups[name]; ok {
-		return existing
+	if err := o.ensureOpen(); err != nil {
+		o.recordMisuse(err)
+		return &SequenceHandle{tasks: &DisplayGroup{out: o, id: o.nextID("tasks")}}
 	}
-	if col := o.tasksByRef[tasks.id]; col != nil {
-		col.sequential = true
-	}
-	g := &GroupHandle{tasks: tasks}
+	st := o.declareContainerLocked(name, true)
+	o.collections = append(o.collections, st)
+	h := &DisplayGroup{out: o, id: st.id}
+	st.handle = h
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
+	g := &SequenceHandle{tasks: h}
 	if o.namedGroups == nil {
-		o.namedGroups = make(map[string]*GroupHandle)
+		o.namedGroups = make(map[string]*SequenceHandle)
 	}
 	o.namedGroups[name] = g
 	return g
 }
 
+// declareContainerLocked allocates a new top-level tasksState — the shared
+// body behind DisplayGroup and Sequence, which differ only in the sequential
+// flag (the "one Running child" cascade contract belongs to Sequence alone).
+func (o *Output) declareContainerLocked(name string, sequential bool) *tasksState {
+	st := &tasksState{
+		id:          o.nextID("tasks"),
+		name:        txt.Text(name),
+		declaration: o.nextDecl(),
+		sequential:  sequential,
+	}
+	o.tasksByRef[st.id] = st
+	return st
+}
+
+// childContainerGetOrCreateLocked declares (DisplayGroup) or get-or-creates
+// (Sequence) a nested container under parent — the identity behind
+// DisplayGroup.Sequence/DisplayGroup.DisplayGroup and Sequence.Sequence/
+// Sequence.DisplayGroup's recursive nesting (P3). A DisplayGroup child is
+// always fresh (fan-out, no caller identity contract, mirrors
+// Output.DisplayGroup); a Sequence child is get-or-create scoped to this one
+// parent (P10: container path + name is the identity, so the same label
+// under a different parent never collides).
+func (o *Output) childContainerGetOrCreateLocked(parent *tasksState, name string, sequential bool) *tasksState {
+	if sequential {
+		if existing, ok := parent.namedChildren[name]; ok {
+			return existing
+		}
+	}
+	st := &tasksState{
+		id:          o.nextID("tasks"),
+		name:        txt.Text(name),
+		declaration: o.nextDecl(),
+		sequential:  sequential,
+	}
+	o.tasksByRef[st.id] = st
+	parent.children = append(parent.children, st)
+	if sequential {
+		if parent.namedChildren == nil {
+			parent.namedChildren = make(map[string]*tasksState)
+		}
+		parent.namedChildren[name] = st
+	}
+	return st
+}
+
 // groupTaskGetOrCreate returns the child previously declared under name in
-// the group backed by groupID, or declares a new one — the identity behind
-// Group.Task's get-or-create contract.
+// the sequence backed by groupID, or declares a new one — the identity
+// behind Sequence.Task's get-or-create contract.
 func (o *Output) groupTaskGetOrCreate(groupID, name string, opts ...EntityOption) *TaskHandle {
 	o.mu.Lock()
 	col := o.tasksByRef[groupID]
@@ -1156,15 +1236,23 @@ func (g *tasksState) snapshot() TasksSnapshot {
 		State:       g.derivedState(),
 		Summary:     g.displaySummary(),
 		Declaration: g.declaration,
+		Sequential:  g.sequential,
 	}
 	for _, t := range g.tasks {
 		ts.Tasks = append(ts.Tasks, t.snapshot())
 	}
+	for _, child := range g.children {
+		ts.Collections = append(ts.Collections, child.snapshot())
+	}
 	return ts
 }
 
+// derivedState folds both this container's own tasks and its nested
+// children (P3's recursive nesting) into one verdict: a nested Sequence or
+// DisplayGroup contributes exactly like one more task would, so a failure
+// three levels deep still surfaces at the root header.
 func (g *tasksState) derivedState() EntityState {
-	if len(g.tasks) == 0 {
+	if len(g.tasks) == 0 && len(g.children) == 0 {
 		return Empty
 	}
 	var anyRunning, anyFailed, anyCancelled, anyUnresolved bool
@@ -1186,6 +1274,23 @@ func (g *tasksState) derivedState() EntityState {
 			// Auto-resolved because an earlier sibling already failed/cancelled —
 			// not a source of incompleteness; the group's verdict already comes
 			// from that sibling.
+		default:
+			anyUnresolved = true
+			allDone = false
+		}
+	}
+	for _, child := range g.children {
+		switch child.derivedState() {
+		case Running:
+			anyRunning = true
+			allDone = false
+		case Failed:
+			anyFailed = true
+			allDone = false
+		case Cancelled:
+			anyCancelled = true
+			allDone = false
+		case Done, Empty:
 		default:
 			anyUnresolved = true
 			allDone = false

@@ -47,14 +47,14 @@ func TestTask_PromotesToRunningOnFirstEvidence(t *testing.T) {
 	}
 }
 
-// TestGroup_TwoRunningChildrenRecordsMisuse is the red-first case for the
-// "one Running child" heart contract on a sequential Group: promoting a
+// TestSequence_TwoRunningChildrenRecordsMisuse is the red-first case for the
+// "one Running child" heart contract on a Sequence: promoting a
 // second sibling to Running while the first is still Running is misuse.
-func TestGroup_TwoRunningChildrenRecordsMisuse(t *testing.T) {
+func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 
@@ -62,24 +62,24 @@ func TestGroup_TwoRunningChildrenRecordsMisuse(t *testing.T) {
 	venv.Phase("creating venv") // second sibling Running while scan still is
 
 	if err := out.Err(); err == nil {
-		t.Fatal("want misuse recorded for two Running siblings in a sequential Group")
+		t.Fatal("want misuse recorded for two Running siblings in a Sequence")
 	}
 }
 
-// TestTasks_ConcurrentIndependentChildrenAreNotMisuse pins the other side of
-// the same contract: a plain Tasks collection documents its children as
+// TestDisplayGroup_ConcurrentIndependentChildrenAreNotMisuse pins the other side of
+// the same contract: a plain DisplayGroup collection documents its children as
 // independent (worker-pool fan-out), so two Running siblings there is a
 // supported pattern, not misuse.
-func TestTasks_ConcurrentIndependentChildrenAreNotMisuse(t *testing.T) {
+func TestDisplayGroup_ConcurrentIndependentChildrenAreNotMisuse(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	jobs := out.Tasks("dependencies")
+	jobs := out.DisplayGroup("dependencies")
 	a := jobs.Task("discover")
 	b := jobs.Task("verify")
 
 	a.Phase("discovering")
-	b.Phase("waiting") // second Running sibling — allowed on a plain Tasks collection
+	b.Phase("waiting") // second Running sibling — allowed on a plain DisplayGroup collection
 
 	if err := out.Err(); err != nil {
 		t.Fatalf("want no misuse on an independent Tasks collection, got %v", err)

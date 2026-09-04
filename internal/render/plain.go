@@ -457,6 +457,15 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 	for _, t := range col.Tasks {
 		writeCollectionChild(b, t, color, verbose, profile)
 	}
+	// Nested containers (P3's recursive .Sequence/.DisplayGroup nesting)
+	// render as an indented sub-group, one level per nesting depth.
+	for _, child := range col.Collections {
+		var nested strings.Builder
+		WriteCollection(&nested, child, color, verbose, profile)
+		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+			fmt.Fprintf(b, "   %s\n", line)
+		}
+	}
 }
 
 // writeCollectionChild renders one child task row under its parent group:

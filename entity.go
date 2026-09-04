@@ -116,15 +116,6 @@ func (s *Scope) Task(name string, args ...any) *TaskHandle {
 	return s.out.taskScoped(formatted, s.name, opts...)
 }
 
-// Tasks declares a task collection under this scope's naming (human name only;
-// child tasks still take evo.ID with scope qualification via Scope.Task).
-func (s *Scope) Tasks(name string) *Tasks {
-	if s == nil || s.out == nil {
-		return &Tasks{}
-	}
-	return s.out.Tasks(name)
-}
-
 func qualifyKey(scope, key string) string {
 	if key == "" {
 		return ""

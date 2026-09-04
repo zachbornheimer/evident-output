@@ -207,7 +207,7 @@ func TestSpecP4_LiveFrame_Step1(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	setup.Task("venv")
 	setup.Task("install")
@@ -249,7 +249,7 @@ func TestSpecP4_LiveFrame_Step2(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")
@@ -499,7 +499,7 @@ func TestSpecP11_LiveFrame_Step1(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	pipeline := out.Group("pipeline")
+	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	pipeline.Task("go generate")
 	pipeline.Task("go test ./...")

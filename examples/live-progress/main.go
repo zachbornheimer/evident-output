@@ -35,7 +35,7 @@ func main() {
 	}))
 }
 
-// runLive uses evo.Group: dependencies is a sequence of steps that must stop
+// runLive uses evo.Sequence: dependencies is a sequence of steps that must stop
 // on failure, and evo-rec.md's dialect for that shape is sequential
 // presentation — one Running child at a time, later siblings named and
 // idle until their turn (the "python" example). Each step below predeclares
@@ -45,7 +45,7 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 	const packageCount = 24
 	const totalBytes int64 = 18_000_000
 
-	jobs := out.Group("dependencies")
+	jobs := out.Sequence("dependencies")
 	discover := jobs.Task("discover")
 	scan := jobs.Task("scan")
 	download := jobs.Task("download")

@@ -34,7 +34,7 @@ func TestSpecP11_LiveFrame_Step2(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	pipeline := out.Group("pipeline")
+	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
 	pipeline.Task("go test ./...")
@@ -61,7 +61,7 @@ func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	pipeline := out.Group("pipeline")
+	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
 	test := pipeline.Task("go test ./...")
@@ -97,7 +97,7 @@ func TestSpecP11_NestedPipeline_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	pipeline := out.Group("pipeline")
+	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
 	test := pipeline.Task("go test ./...")
@@ -135,7 +135,7 @@ func TestSpecP11_LiveFrame_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	pipeline := out.Group("pipeline")
+	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	pipeline.Task("go generate")
 	pipeline.Task("go test ./...")
@@ -163,7 +163,7 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	pipeline := out.Group("pipeline")
+	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
 	pipeline.Task("go test ./...")
@@ -203,7 +203,7 @@ func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	pipeline := out.Group("pipeline")
+	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
 	pipeline.Task("go test ./...")

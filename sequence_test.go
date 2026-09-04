@@ -8,16 +8,16 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestGroup_FailureAutoResolvesLaterSiblingsToNotStarted is the red-first
+// TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted is the red-first
 // case for evo-rec.md item #3: after a failure, the user can't tell whether
 // later steps ran unless the group renders them "-  <name>  not started"
 // with no caller code.
-func TestGroup_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
+func TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	install := setup.Task("install")
@@ -40,13 +40,13 @@ func TestGroup_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 	}
 }
 
-// TestGroup_EarlierCompletedSiblingKeepsItsResolvedState covers "earlier
+// TestSequence_EarlierCompletedSiblingKeepsItsResolvedState covers "earlier
 // Done rows are never erased" once a later sibling fails.
-func TestGroup_EarlierCompletedSiblingKeepsItsResolvedState(t *testing.T) {
+func TestSequence_EarlierCompletedSiblingKeepsItsResolvedState(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&bytes.Buffer{}), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 
@@ -59,14 +59,14 @@ func TestGroup_EarlierCompletedSiblingKeepsItsResolvedState(t *testing.T) {
 	}
 }
 
-// TestGroup_ExplicitResolutionWinsOverAutoResolution: a caller that resolved
+// TestSequence_ExplicitResolutionWinsOverAutoResolution: a caller that resolved
 // a later sibling itself before Finish keeps that resolution — the library
 // never overwrites a caller's explicit disposition.
-func TestGroup_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
+func TestSequence_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&bytes.Buffer{}), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	extras := setup.Task("extras")
@@ -82,15 +82,15 @@ func TestGroup_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
 	}
 }
 
-// TestGroup_CancelAutoResolvesLaterSiblings covers the SIGINT path
+// TestSequence_CancelAutoResolvesLaterSiblings covers the SIGINT path
 // (evo-rec.md "early termination"): the active task cancels and later
 // pending siblings still render "-  not started".
-func TestGroup_CancelAutoResolvesLaterSiblings(t *testing.T) {
+func TestSequence_CancelAutoResolvesLaterSiblings(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	install := setup.Task("install")
@@ -108,14 +108,14 @@ func TestGroup_CancelAutoResolvesLaterSiblings(t *testing.T) {
 	}
 }
 
-// TestGroup_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted proves
+// TestSequence_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted proves
 // NotStarted rows never count as failure in the Conclusion — the verdict and
 // exit code come from the failed child alone.
-func TestGroup_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted(t *testing.T) {
+func TestSequence_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&bytes.Buffer{}), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	setup.Task("scan").Done()
 	setup.Task("venv").Fail("uv exited 1")
 	setup.Task("install")
@@ -131,14 +131,14 @@ func TestGroup_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted(t *test
 	}
 }
 
-// TestGroup_AllChildrenDoneRendersAsToday is the non-regression control: a
+// TestSequence_AllChildrenDoneRendersAsToday is the non-regression control: a
 // group with no failure/cancellation renders exactly as before this change.
-func TestGroup_AllChildrenDoneRendersAsToday(t *testing.T) {
+func TestSequence_AllChildrenDoneRendersAsToday(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	setup.Task("scan").Done()
 	setup.Task("venv").Done()
 	setup.Task("install").Done()
@@ -154,21 +154,21 @@ func TestGroup_AllChildrenDoneRendersAsToday(t *testing.T) {
 	}
 }
 
-// TestGroup_SequentialBytesProgressFinishesClean is the red-first case for
-// examples/live-progress's release-blocker: a Group child that reports
+// TestSequence_SequentialBytesProgressFinishesClean is the red-first case for
+// examples/live-progress's release-blocker: a Sequence child that reports
 // Task.Bytes progress across several calls, resolved before its sibling
 // starts (the "one Running child" sequential contract — evo-rec.md's
-// "python" example, phase_n1_test.go's TestGroup_TwoRunningChildrenRecordsMisuse),
+// "python" example, phase_n1_test.go's TestSequence_TwoRunningChildrenRecordsMisuse),
 // must Finish cleanly with no misuse recorded. It failed before this fix
 // because examples/live-progress declared download.Bytes(0, total) then
 // started a sibling's Phase before download resolved, tripping
 // ErrConcurrentRunning and exiting 2 despite printing "[ready]".
-func TestGroup_SequentialBytesProgressFinishesClean(t *testing.T) {
+func TestSequence_SequentialBytesProgressFinishesClean(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	jobs := out.Group("dependencies")
+	jobs := out.Sequence("dependencies")
 	download := jobs.Task("download")
 	verify := jobs.Task("verify")
 
@@ -189,23 +189,23 @@ func TestGroup_SequentialBytesProgressFinishesClean(t *testing.T) {
 	}
 }
 
-// TestGroup_PackageLevelGetOrCreate mirrors evo.Task's identity contract:
-// evo.Group(name) called twice returns the same handle, and Group.Task(name)
+// TestSequence_PackageLevelGetOrCreate mirrors evo.Task's identity contract:
+// evo.Sequence(name) called twice returns the same handle, and Sequence.Task(name)
 // called twice within one group returns the same child.
-func TestGroup_PackageLevelGetOrCreate(t *testing.T) {
+func TestSequence_PackageLevelGetOrCreate(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	t.Cleanup(func() { _ = evo.Default().Close() })
 
-	g1 := evo.Group("python")
-	g2 := evo.Group("python")
+	g1 := evo.Sequence("python")
+	g2 := evo.Sequence("python")
 	if g1 != g2 {
-		t.Fatal("evo.Group(name) called twice returned different handles")
+		t.Fatal("evo.Sequence(name) called twice returned different handles")
 	}
 
 	t1 := g1.Task("venv")
 	t2 := g2.Task("venv")
 	if t1 != t2 {
-		t.Fatal("Group.Task(name) called twice returned different handles")
+		t.Fatal("Sequence.Task(name) called twice returned different handles")
 	}
 }

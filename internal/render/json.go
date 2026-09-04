@@ -185,18 +185,7 @@ func toJSONDocument(s core.Snapshot) JSONDocument {
 		Actions:         make([]JSONAction, 0, len(s.Actions)),
 	}
 	for _, col := range s.Collections {
-		children := make([]string, 0, len(col.Tasks))
-		for _, t := range col.Tasks {
-			children = append(children, t.ID)
-			doc.Tasks = append(doc.Tasks, toJSONTask(t))
-		}
-		doc.TaskCollections = append(doc.TaskCollections, JSONCollection{
-			ID:       col.ID,
-			Name:     col.Name,
-			State:    col.State,
-			Summary:  col.Summary,
-			Children: children,
-		})
+		appendJSONCollection(&doc, col)
 	}
 	for _, t := range s.Tasks {
 		doc.Tasks = append(doc.Tasks, toJSONTask(t))
@@ -222,6 +211,31 @@ func toJSONDocument(s core.Snapshot) JSONDocument {
 		doc.Actions = append(doc.Actions, toJSONAction(a))
 	}
 	return doc
+}
+
+// appendJSONCollection flattens col — and, recursively, every container it
+// nests via Sequence.Sequence/Sequence.DisplayGroup/DisplayGroup.Sequence/
+// DisplayGroup.DisplayGroup (P3) — into doc.TaskCollections/doc.Tasks, so a
+// nested container's tasks are never silently dropped from the wire
+// document. JSONCollection's own shape is unchanged; nesting is expressed
+// the same way the live/plain renderers express it, by including the nested
+// collection as its own flat entry.
+func appendJSONCollection(doc *JSONDocument, col core.TasksSnapshot) {
+	children := make([]string, 0, len(col.Tasks))
+	for _, t := range col.Tasks {
+		children = append(children, t.ID)
+		doc.Tasks = append(doc.Tasks, toJSONTask(t))
+	}
+	doc.TaskCollections = append(doc.TaskCollections, JSONCollection{
+		ID:       col.ID,
+		Name:     col.Name,
+		State:    col.State,
+		Summary:  col.Summary,
+		Children: children,
+	})
+	for _, child := range col.Collections {
+		appendJSONCollection(doc, child)
+	}
 }
 
 func toJSONTask(t core.TaskSnapshot) JSONTask {

@@ -69,7 +69,7 @@ func main() {
 	})
 
 	os.Exit(out.Run(func(o *evo.Output) error {
-		jobs := o.Tasks("dependencies")
+		jobs := o.DisplayGroup("dependencies")
 		discover := jobs.Task("discover")
 		for _, phase := range []string{"reading lockfile", "resolving graph"} {
 			discover.Phase(phase)

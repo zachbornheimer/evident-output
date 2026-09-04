@@ -154,7 +154,7 @@ func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.Tasks("dependencies")
+	dependencies := out.DisplayGroup("dependencies")
 	react := dependencies.Task("react")
 	sharp := dependencies.Task("sharp")
 
@@ -172,7 +172,7 @@ func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("dependencies"), evo.To(&output), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.Tasks("dependencies")
+	dependencies := out.DisplayGroup("dependencies")
 	dependencies.Summary("installed 2 packages")
 	dependencies.Task("react").Done()
 	dependencies.Task("sharp").Fail("checksum mismatch")
@@ -194,7 +194,7 @@ func TestH13_Output_FinishLeavesUnresolvedTaskPartial(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.Tasks("dependencies")
+	dependencies := out.DisplayGroup("dependencies")
 	dependencies.Task("react").Done()
 	dependencies.Task("esbuild")
 

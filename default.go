@@ -126,8 +126,8 @@ func Task(name string, args ...any) *TaskHandle {
 // Group declares (or, for a repeated name, returns) a self-managing task
 // group on the default instance — see Group for the auto-lifecycle contract.
 // name is a printf format when args are present (fmt.Sprintf semantics).
-func Group(name string, args ...any) *GroupHandle {
-	return Default().Group(name, args...)
+func Sequence(name string, args ...any) *SequenceHandle {
+	return Default().Sequence(name, args...)
 }
 
 // Reason returns a get-or-create taxonomy Reason by name on the default

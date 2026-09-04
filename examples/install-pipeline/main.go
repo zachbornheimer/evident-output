@@ -26,7 +26,7 @@ func main() {
 
 	evo.Init(evo.Config{Title: "install"})
 	os.Exit(evo.Main(func() error {
-		pipeline := evo.Group("pipeline")
+		pipeline := evo.Sequence("pipeline")
 
 		modules := pipeline.Task("go mod download", evo.ID("pipeline.mod-download"))
 		modules.Phase("resolving modules")

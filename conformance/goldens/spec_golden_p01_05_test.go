@@ -374,7 +374,7 @@ func TestSpecP4_SequentialGroup_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	setup.Task("venv")
 	setup.Task("install")
@@ -413,7 +413,7 @@ func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan, venv, install := setup.Task("scan"), setup.Task("venv"), setup.Task("install")
 	scan.Done()
 	venv.Done()
@@ -453,7 +453,7 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan, venv, install := setup.Task("scan"), setup.Task("venv"), setup.Task("install")
 	scan.Done()
 	venv.Done()

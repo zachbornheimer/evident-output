@@ -12,7 +12,7 @@ import (
 func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	tasks := out.Tasks("batch")
+	tasks := out.DisplayGroup("batch")
 	const n = 50
 	children := make([]*evo.TaskHandle, n)
 	for i := 0; i < n; i++ {

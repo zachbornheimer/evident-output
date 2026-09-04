@@ -19,7 +19,7 @@ import (
 func TestDOM030_CollectionWarning(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	g := out.Tasks("g")
+	g := out.DisplayGroup("g")
 	g.Task("a").Done()
 	g.Task("b").Warn("soft")
 	snap := g.Snapshot()
@@ -39,7 +39,7 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	g := out.Tasks("capture")
+	g := out.DisplayGroup("capture")
 	g.Task("Brewfile").Done()
 	g.Task("Zen").Warn("skipped — zen-bootstrap not available")
 	_ = out.Finish()
@@ -57,7 +57,7 @@ func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 func TestDOM031_CollectionAllDone(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	g := out.Tasks("g")
+	g := out.DisplayGroup("g")
 	g.Summary("all good")
 	g.Task("a").Done()
 	g.Task("b").Done()
@@ -75,7 +75,7 @@ func TestDOM031_CollectionAllDone(t *testing.T) {
 func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	g := out.Tasks("g")
+	g := out.DisplayGroup("g")
 	g.Task("a").Done()
 	g.Task("hanging")
 	if err := out.Finish(); err != nil {

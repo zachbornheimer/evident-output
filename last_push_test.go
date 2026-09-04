@@ -104,7 +104,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 func TestCON016_ChildOrderPreserved(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	g := out.Tasks("g")
+	g := out.DisplayGroup("g")
 	t1, t2, t3 := g.Task("a"), g.Task("b"), g.Task("c")
 	var wg sync.WaitGroup
 	wg.Go(func() { t3.Done() })
@@ -120,7 +120,7 @@ func TestCON016_ChildOrderPreserved(t *testing.T) {
 func TestCON018_DuplicateChildNames(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	g := out.Tasks("g")
+	g := out.DisplayGroup("g")
 	a := g.Task("same")
 	b := g.Task("same")
 	a.Done()

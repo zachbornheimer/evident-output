@@ -168,7 +168,7 @@ func TestCON019_HighFrequencyChildProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
-	g := out.Tasks("g")
+	g := out.DisplayGroup("g")
 	t1 := g.Task("a")
 	for i := 0; i <= 200; i++ {
 		t1.Progress(i, 200)
@@ -231,7 +231,7 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("repo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("working tree").Done()
 	out.Task("scan").Phase("walk").Done("done")
-	g := out.Tasks("deps")
+	g := out.DisplayGroup("deps")
 	g.Task("a").Done()
 	g.Task("b").Done()
 	if err := out.Finish(); err != nil {
@@ -250,7 +250,7 @@ func TestAPI024_ComplexSmallerThanAdHoc(t *testing.T) {
 	// Multi-progress + debug is a short common-path program (not ad-hoc ANSI).
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}})
-	g := out.Tasks("deps")
+	g := out.DisplayGroup("deps")
 	g.Task("a").Bytes(10, 10).Done()
 	g.Task("b").Phase("verifying").Done()
 	out.Debug("index ok")
@@ -266,7 +266,7 @@ func TestAPI024_ComplexSmallerThanAdHoc(t *testing.T) {
 func TestTERM021_FinalCollectionOutput(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	g := out.Tasks("deps")
+	g := out.DisplayGroup("deps")
 	g.Summary("installed 2")
 	g.Task("a").Done()
 	g.Task("b").Done()

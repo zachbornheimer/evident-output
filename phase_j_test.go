@@ -100,7 +100,7 @@ func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	g := out.Tasks("pipeline")
+	g := out.DisplayGroup("pipeline")
 	g.Task("branches").Done("14 deleted")
 	g.Task("worktrees").Done("2 removed")
 	if err := out.Finish(); err != nil {

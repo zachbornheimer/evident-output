@@ -42,14 +42,18 @@ type TaskSnapshot struct {
 	Name  string
 	State EntityState
 	Phase string
-	// ActivityAt is the domain-clock time of the most recent Phase or Progress
-	// call; the live renderer uses it to grow a heartbeat suffix once stale
-	// (see phaseStaleAfter). Zero when the task has never had Phase/Progress set.
+	// ActivityAt is the domain-clock time of the most recent Phase, Progress,
+	// or mutation-verb-callback-starting call. Zero when the task has never
+	// had any of those. The live renderer's elapsed-time suffix (P5,
+	// elapsedAfter) does not read this field — it anchors to
+	// liveFirstSeenAt alone, so a fresh Phase/Progress call never restarts
+	// the render clock.
 	ActivityAt time.Time
 	// liveFirstSeenAt is presentation-internal bookkeeping (live-region
-	// rendering's activitySince) for the universal-heartbeat anchor on a row
-	// that has no ActivityAt — never part of the public snapshot contract.
-	// Set via NewTaskSnapshot, read via LiveFirstSeenAt.
+	// rendering's activitySince) — the one elapsed-time anchor every row's
+	// heartbeat suffix reads (P5), including a row with no ActivityAt at
+	// all. Never part of the public snapshot contract. Set via
+	// NewTaskSnapshot, read via LiveFirstSeenAt.
 	liveFirstSeenAt time.Time
 	Progress        Progress
 	Summary         string
@@ -105,13 +109,24 @@ type TaxonomyRecord struct {
 	Causes []string
 }
 
-// TasksSnapshot is an immutable collection view.
+// TasksSnapshot is an immutable collection view (evo.DisplayGroup or
+// evo.Sequence).
 type TasksSnapshot struct {
-	ID          string
-	Name        string
-	State       EntityState
-	Summary     string
-	Tasks       []TaskSnapshot
+	ID      string
+	Name    string
+	State   EntityState
+	Summary string
+	Tasks   []TaskSnapshot
+	// Collections holds nested child containers declared via
+	// Sequence.Sequence, Sequence.DisplayGroup, DisplayGroup.Sequence, or
+	// DisplayGroup.DisplayGroup (P3's recursive nesting) — a rendering walk
+	// that stops at Tasks alone misses any container nested this way.
+	Collections []TasksSnapshot
+	// Sequential reports whether this container is an evo.Sequence (ordered
+	// dependency, "one Running child" heart contract, failure cascades to
+	// NotStarted) rather than an evo.DisplayGroup (independent, presentation
+	// only, concurrent Running children expected).
+	Sequential  bool
 	Declaration int
 }
 

@@ -38,7 +38,7 @@ func main() {
 	log := slog.New(out.SlogHandler())
 
 	os.Exit(evo.Main(func() error {
-		jobs := evo.Group("audit")
+		jobs := evo.Sequence("audit")
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
 

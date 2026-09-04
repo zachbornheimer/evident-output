@@ -39,7 +39,7 @@ func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}})
-	group := out.Group("pipeline")
+	group := out.Sequence("pipeline")
 	first := group.Task("first")
 	second := group.Task("second")
 	_ = group.Task("third")

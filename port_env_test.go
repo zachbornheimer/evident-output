@@ -51,7 +51,7 @@ func TestTERM012_SmallHeightBudget(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(4), testkit.NoColor())
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
-	col := out.Tasks("g")
+	col := out.DisplayGroup("g")
 	for i := 0; i < 20; i++ {
 		col.Task("t").Phase("p")
 	}

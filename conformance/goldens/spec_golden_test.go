@@ -161,7 +161,7 @@ func TestSpecP4_SequentialGroup_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan, venv, install := setup.Task("scan"), setup.Task("venv"), setup.Task("install")
 	scan.Done()
 	venv.Done()
@@ -189,7 +189,7 @@ func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	setup := out.Group("python")
+	setup := out.Sequence("python")
 	scan, venv := setup.Task("scan"), setup.Task("venv")
 	setup.Task("install")
 	scan.Done()

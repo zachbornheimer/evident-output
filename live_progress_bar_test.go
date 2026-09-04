@@ -13,7 +13,7 @@ func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	g := out.Tasks("work")
+	g := out.DisplayGroup("work")
 	units := g.Task("scan")
 	bytes := g.Task("fetch")
 	spin := g.Task("verify")

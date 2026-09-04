@@ -66,7 +66,7 @@ func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	g := out.Group("stage %d", 2)
+	g := out.Sequence("stage %d", 2)
 	if got := g.Snapshot().Name; got == "" || got == "stage %d" {
 		t.Fatalf("group name not formatted: %q", got)
 	}
@@ -116,7 +116,7 @@ func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	group := out.Group("stages")
+	group := out.Sequence("stages")
 	child := group.Task("stage %d", 2)
 	if got := child.Snapshot().Name; got != "stage 2" {
 		t.Fatalf("name = %q, want %q", got, "stage 2")

@@ -221,7 +221,7 @@ func TestTERM020_CompletedCollapseUnderPressure(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Height(5), testkit.Width(80), testkit.NoColor())
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
-	g := out.Tasks("g")
+	g := out.DisplayGroup("g")
 	for i := 0; i < 30; i++ {
 		g.Task("t").Done()
 	}

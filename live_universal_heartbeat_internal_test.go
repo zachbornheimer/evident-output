@@ -38,7 +38,7 @@ func (f *fakeHeartbeatSurface) latest() string {
 // manualClock is a TimeSource that only moves when Advance is called —
 // distinct from live_spinner_test.go's advancingClock (which steps on every
 // Now()), because these tests need a stable "now" to force a deterministic
-// render before and after a single jump past phaseStaleAfter.
+// render before and after a single jump past elapsedAfter.
 type manualClock struct {
 	mu sync.Mutex
 	t  time.Time
@@ -56,13 +56,16 @@ func (c *manualClock) Advance(d time.Duration) {
 	c.mu.Unlock()
 }
 
-// TestLiveHeartbeat_PendingRowAnimatesAfterTenSeconds is the red-first proof
-// for evo-rec.md Problem 9's static-frame defect: a live region holding only
-// a Pending row (nothing Running) must still grow a heartbeat past ~10s AND
-// keep the spinner animator alive — before the fix, heartbeatSuffix requires
-// a non-zero ActivityAt (which a never-started Pending task never has) and
-// needsSpinnerAnimLocked only counts Running, so the frame freezes forever.
-func TestLiveHeartbeat_PendingRowAnimatesAfterTenSeconds(t *testing.T) {
+// TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold is the red-first
+// proof for evo-rec.md Problem 9's static-frame defect: a live region
+// holding only a Pending row (nothing Running) must still grow an elapsed
+// suffix past elapsedAfter AND keep the spinner animator alive — before the
+// fix, heartbeatSuffix required a non-zero ActivityAt (which a never-started
+// Pending task never has) and needsSpinnerAnimLocked only counted Running,
+// so the frame froze forever. P5 anchors every row to LiveFirstSeenAt
+// instead, so a Pending row ages honestly from the moment it is first
+// painted.
+func TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor())
@@ -128,7 +131,7 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 		out := newOutput("fix", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor(), Glyphs(GlyphsUnicode))
 		t.Cleanup(func() { _ = out.Close() })
 
-		grp := out.Tasks("fix")
+		grp := out.DisplayGroup("fix")
 		grp.Task("a").Done()
 		grp.Task("b").Done()
 		grp.Task("c").Done()
@@ -151,7 +154,7 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 		out := newOutput("fix", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor(), Glyphs(GlyphsUnicode))
 		t.Cleanup(func() { _ = out.Close() })
 
-		grp := out.Tasks("fix")
+		grp := out.DisplayGroup("fix")
 		grp.Task("a")
 		grp.Task("b")
 

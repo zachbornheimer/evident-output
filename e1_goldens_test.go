@@ -229,7 +229,7 @@ func TestE1P9_LifecycleStatesAreDistinct(t *testing.T) {
 	out.Task("failed-task").Fail("build broke")
 	out.Task("blocked-task").Block("needs confirmation")
 
-	seq := out.Group("cancel-sequence")
+	seq := out.Sequence("cancel-sequence")
 	first, second := seq.Task("first"), seq.Task("second")
 	first.Cancel("interrupted")
 	_ = second // never resolved; Finish's group lifecycle marks it NotStarted

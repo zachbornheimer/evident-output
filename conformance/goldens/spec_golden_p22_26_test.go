@@ -409,7 +409,7 @@ func TestSpecP23_SignalConclusion_Error(t *testing.T) {
 func TestSpecP23_SignalConclusion_Step2(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
-	setup := evo.Group("python")
+	setup := evo.Sequence("python")
 	scan, venv := setup.Task("scan"), setup.Task("venv")
 	setup.Task("install")
 
@@ -481,7 +481,7 @@ func TestSpecP23_SignalConclusion_Indeterminate_NotTestable(t *testing.T) {
 func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
-	setup := evo.Group("python")
+	setup := evo.Sequence("python")
 	scan, venv := setup.Task("scan"), setup.Task("venv")
 	setup.Task("install")
 

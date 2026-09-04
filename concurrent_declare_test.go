@@ -14,7 +14,7 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("batch"), evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	jobs := out.Tasks("placement")
+	jobs := out.DisplayGroup("placement")
 	const n = 20
 	tasks := make([]*evo.TaskHandle, n)
 	for i := 0; i < n; i++ {

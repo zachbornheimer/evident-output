@@ -112,7 +112,7 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(fixed), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.Tasks("dependencies")
+	dependencies := out.DisplayGroup("dependencies")
 	react := dependencies.Task("react")
 	esbuild := dependencies.Task("esbuild")
 	sharp := dependencies.Task("sharp")
@@ -155,7 +155,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.Tasks("dependencies")
+	dependencies := out.DisplayGroup("dependencies")
 	for n := 0; n < 120; n++ {
 		task := dependencies.Task(fmt.Sprintf("package-%03d", n))
 		switch n {

@@ -70,6 +70,12 @@ func (t *TaskHandle) mutate(verb, object string, call func() error, opts []Effec
 		return nil
 	}
 	if !dryRun && call != nil {
+		// P5 concurrency truth: a mutation-verb callback starting counts as
+		// activity, promoting a Pending task to Running the same way
+		// Phase/Progress/Each/Run/PhaseWriter's first write does — a
+		// long-running Delete/Update call must render as working, not sit
+		// parked on a queued-looking spinner-less row.
+		t.out.promoteRunningForActivity(t.id)
 		if err := call(); err != nil {
 			return callerEffectError(err)
 		}

@@ -19,7 +19,7 @@ import (
 func TestMain_SIGINTCancelsGroupChildAndLaterSiblingsRenderNotStarted(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
-	setup := evo.Default().Group("python")
+	setup := evo.Default().Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	install := setup.Task("install")
