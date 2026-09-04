@@ -12,8 +12,14 @@ type TaskHandle struct {
 	id  string
 }
 
-// Phase sets the active phase text and starts the task if pending.
-func (t *TaskHandle) Phase(text string) *TaskHandle {
+// Phase sets the active phase text and starts the task if pending. text is a
+// printf format when args are present (fmt.Sprintf semantics) — one text
+// spelling shared with Done/Task/Group/Reason/Skip (C6; release-gate round 6
+// finding 4: Confirm's question is the one true non-printf exception now).
+func (t *TaskHandle) Phase(text string, args ...any) *TaskHandle {
+	if len(args) > 0 {
+		text = fmt.Sprintf(text, args...)
+	}
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -338,8 +344,13 @@ func (t *TaskHandle) Cancel(reason string) *TaskHandle {
 	return t.finish(Cancelled, sanitize.Text(reason), nil)
 }
 
-// Skip resolves the task as skipped.
-func (t *TaskHandle) Skip(reason string) *TaskHandle {
+// Skip resolves the task as skipped. reason is a printf format when args are
+// present (fmt.Sprintf semantics) — one text spelling shared with
+// Done/Task/Group/Reason/Phase (C6; release-gate round 6 finding 4).
+func (t *TaskHandle) Skip(reason string, args ...any) *TaskHandle {
+	if len(args) > 0 {
+		reason = fmt.Sprintf(reason, args...)
+	}
 	return t.finish(Skipped, sanitize.Text(reason), nil)
 }
 
