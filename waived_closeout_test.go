@@ -13,7 +13,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
 	"github.com/zachbornheimer/evident-output/internal/agent/preview"
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/internal/width"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/terminal"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
@@ -116,15 +116,15 @@ func TestCON003_LogWhileLiveNoSplit(t *testing.T) {
 func TestTXT013_ANSIWidthParity(t *testing.T) {
 	plain := "hello world"
 	styled := "\x1b[31mhello world\x1b[0m"
-	if width.VisibleCells(plain) != width.VisibleCells(styled) {
-		t.Fatalf("plain=%d styled=%d", width.VisibleCells(plain), width.VisibleCells(styled))
+	if txt.VisibleCells(plain) != txt.VisibleCells(styled) {
+		t.Fatalf("plain=%d styled=%d", txt.VisibleCells(plain), txt.VisibleCells(styled))
 	}
 }
 
 func TestTXT014_OSC8ZeroCells(t *testing.T) {
 	link := "\x1b]8;;https://example.com\x07click\x1b]8;;\x07"
-	if width.VisibleCells(link) != width.Cells("click") {
-		t.Fatalf("got %d want %d", width.VisibleCells(link), width.Cells("click"))
+	if txt.VisibleCells(link) != txt.Cells("click") {
+		t.Fatalf("got %d want %d", txt.VisibleCells(link), txt.Cells("click"))
 	}
 }
 

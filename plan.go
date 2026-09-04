@@ -1,6 +1,6 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/sanitize"
+import txt "github.com/zachbornheimer/evident-output/internal/text"
 
 // Plan is a handle for effects that would occur but have not.
 type Plan struct {
@@ -66,7 +66,7 @@ func (p *Plan) Record(verb string, quantity int, object string) *Plan {
 		p.out.recordMisuse(err)
 		return p
 	}
-	verb = sanitize.Text(verb)
+	verb = txt.Text(verb)
 	if st.intendedVerb == "" {
 		st.intendedVerb = verb
 	}
@@ -77,7 +77,7 @@ func (p *Plan) Record(verb string, quantity int, object string) *Plan {
 		Verb:     verb,
 		Quantity: int64(quantity),
 		HasQty:   true,
-		Object:   sanitize.Text(object),
+		Object:   txt.Text(object),
 	})
 	p.out.bumpLocked()
 	p.out.appendEventLocked(Event{Type: "plan.recorded", EntityID: p.id})
@@ -95,13 +95,13 @@ func (p *Plan) recordNoQty(verb, object string) *Plan {
 		p.out.recordMisuse(err)
 		return p
 	}
-	verb = sanitize.Text(verb)
+	verb = txt.Text(verb)
 	if st.intendedVerb == "" {
 		st.intendedVerb = verb
 	}
 	st.records = append(st.records, EffectRecord{
 		Verb:   verb,
-		Object: sanitize.Text(object),
+		Object: txt.Text(object),
 	})
 	p.out.bumpLocked()
 	p.out.appendEventLocked(Event{Type: "plan.recorded", EntityID: p.id})
@@ -116,7 +116,7 @@ func (p *Plan) declareIntendedVerb(verb string) {
 	if st == nil || st.intendedVerb != "" {
 		return
 	}
-	st.intendedVerb = sanitize.Text(verb)
+	st.intendedVerb = txt.Text(verb)
 }
 
 func (p *Plan) find() *planState {

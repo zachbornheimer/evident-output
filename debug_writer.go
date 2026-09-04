@@ -5,7 +5,7 @@ import (
 	"io"
 	"unicode/utf8"
 
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // maxDebugLine is the maximum durable debug line length before truncation.
@@ -59,7 +59,7 @@ func (w *debugWriter) flushLine() {
 	if !utf8.ValidString(line) {
 		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
 	}
-	line = sanitize.Text(line)
-	line = truncateUTF8(line, maxDebugLine, "…")
+	line = txt.Text(line)
+	line = txt.TruncateUTF8(line, maxDebugLine, "…")
 	w.out.Debug(line)
 }

@@ -7,15 +7,15 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/width"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 func TestTXT012_LongPathTruncationPolicy(t *testing.T) {
 	long := strings.Repeat("a", 200) + "/file.go"
-	got := width.Truncate(long, 40)
-	if width.Cells(got) > 40 {
-		t.Fatal(got, width.Cells(got))
+	got := txt.Truncate(long, 40)
+	if txt.Cells(got) > 40 {
+		t.Fatal(got, txt.Cells(got))
 	}
 	if !strings.HasSuffix(got, "…") {
 		t.Fatal(got)

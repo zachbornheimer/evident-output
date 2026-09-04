@@ -5,8 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
-	"github.com/zachbornheimer/evident-output/internal/width"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // DebugPresentation selects how structured debug records project to a TTY (§4.6 / §21.3).
@@ -114,7 +113,7 @@ func formatHistoryLine(rec debugRecord, color bool) string {
 		// keep the journal's existing cyan.
 		levelTok = style(levelTok, debugLevelColor(rec.Level), true)
 	}
-	msg := sanitize.Text(rec.Message)
+	msg := txt.Text(rec.Message)
 	var body string
 	if rec.Time.IsZero() {
 		body = levelTok + " " + msg
@@ -152,7 +151,7 @@ func formatHistoryAttrs(fields []Field) string {
 		if f.Sensitive {
 			val = "***"
 		}
-		parts = append(parts, fmt.Sprintf("%s=%s", sanitize.Text(f.Key), sanitize.Text(val)))
+		parts = append(parts, fmt.Sprintf("%s=%s", txt.Text(f.Key), txt.Text(val)))
 	}
 	return joinArgs(parts)
 }
@@ -166,14 +165,14 @@ func formatHistoryAttrs(fields []Field) string {
 // dim() itself, so the level token is never colored underneath that wrap.
 func formatLivePaneLine(rec debugRecord, columns int) string {
 	full := formatHistoryLine(rec, false)
-	if width.VisibleCells(full) <= columns {
+	if txt.VisibleCells(full) <= columns {
 		return full
 	}
 	// Too narrow for the full line (attrs included): truncate to the column
 	// budget with a trailing "…" rather than silently dropping Fields — the
 	// pane must never claim a record had no attributes when it simply ran
 	// out of room to show them.
-	return width.Truncate(full, columns)
+	return txt.Truncate(full, columns)
 }
 
 // debugPaneReservedRows is the number of terminal rows the debug pane needs

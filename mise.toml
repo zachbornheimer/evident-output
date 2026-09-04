@@ -33,7 +33,7 @@ run = "go test ./conformance/..."
 
 [tasks.fuzz]
 description = "Short fuzz smoke (local)"
-run = "go test ./internal/sanitize/ -run=Fuzz -fuzz=Fuzz -fuzztime=5s || true"
+run = "go test ./internal/text/ -run=Fuzz -fuzz=Fuzz -fuzztime=5s || true"
 
 [tasks.scan]
 description = "Security scan (govulncheck; installed on the fly if absent)"

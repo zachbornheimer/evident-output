@@ -1,8 +1,8 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/sanitize"
+import txt "github.com/zachbornheimer/evident-output/internal/text"
 
-func sanitizeDisplay(s string) string { return sanitize.Text(s) }
+func sanitizeDisplay(s string) string { return txt.Text(s) }
 
 // Action is a recommended next step for the user.
 type Action struct {

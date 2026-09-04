@@ -1,6 +1,6 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/sanitize"
+import txt "github.com/zachbornheimer/evident-output/internal/text"
 
 // Changes is a handle for durable effects that already occurred.
 type Changes struct {
@@ -68,7 +68,7 @@ func (c *Changes) Record(verb string, quantity int, object string) *Changes {
 		c.out.recordMisuse(err)
 		return c
 	}
-	verb = sanitize.Text(verb)
+	verb = txt.Text(verb)
 	if st.intendedVerb == "" {
 		st.intendedVerb = verb
 	}
@@ -79,7 +79,7 @@ func (c *Changes) Record(verb string, quantity int, object string) *Changes {
 		Verb:     verb,
 		Quantity: int64(quantity),
 		HasQty:   true,
-		Object:   sanitize.Text(object),
+		Object:   txt.Text(object),
 	})
 	c.out.bumpLocked()
 	c.out.appendEventLocked(Event{Type: "change.recorded", EntityID: c.id})
@@ -97,13 +97,13 @@ func (c *Changes) recordNoQty(verb, object string) *Changes {
 		c.out.recordMisuse(err)
 		return c
 	}
-	verb = sanitize.Text(verb)
+	verb = txt.Text(verb)
 	if st.intendedVerb == "" {
 		st.intendedVerb = verb
 	}
 	st.records = append(st.records, EffectRecord{
 		Verb:   verb,
-		Object: sanitize.Text(object),
+		Object: txt.Text(object),
 	})
 	c.out.bumpLocked()
 	c.out.appendEventLocked(Event{Type: "change.recorded", EntityID: c.id})
@@ -122,7 +122,7 @@ func (c *Changes) declareIntendedVerb(verb string) {
 	if st == nil || st.intendedVerb != "" {
 		return
 	}
-	st.intendedVerb = sanitize.Text(verb)
+	st.intendedVerb = txt.Text(verb)
 }
 
 func (c *Changes) find() *changesState {

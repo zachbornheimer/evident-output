@@ -1,6 +1,6 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/sanitize"
+import txt "github.com/zachbornheimer/evident-output/internal/text"
 
 // dispositionVerb names which accumulation act a Reason's usage constraints
 // are checked against — TaskHandle.Skipped or TaskHandle.Kept.
@@ -46,7 +46,7 @@ func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dis
 		return
 	}
 	t.out.enforceReasonConstraintLocked(reason, st.name, verb)
-	rec := TaxonomyRecord{Reason: reason.name, Name: sanitize.Text(name), Causes: causesFromErrors(errs)}
+	rec := TaxonomyRecord{Reason: reason.name, Name: txt.Text(name), Causes: causesFromErrors(errs)}
 	switch verb {
 	case dispositionSkip:
 		st.skipped = append(st.skipped, rec)
@@ -68,7 +68,7 @@ func causesFromErrors(errs []error) []string {
 		if err == nil {
 			continue
 		}
-		out = append(out, sanitize.Text(err.Error()))
+		out = append(out, txt.Text(err.Error()))
 	}
 	return out
 }

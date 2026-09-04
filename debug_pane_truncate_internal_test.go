@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/width"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // TestFormatLivePaneLine_OverflowTruncatesInsteadOfDroppingFields reproduces
@@ -24,12 +24,12 @@ func TestFormatLivePaneLine_OverflowTruncatesInsteadOfDroppingFields(t *testing.
 		},
 	}
 	full := formatHistoryLine(rec, false)
-	columns := width.VisibleCells(full) - 10 // force overflow, but leave room for some attrs
+	columns := txt.VisibleCells(full) - 10 // force overflow, but leave room for some attrs
 
 	got := formatLivePaneLine(rec, columns)
 
-	if width.VisibleCells(got) > columns {
-		t.Fatalf("expected the pane line to respect the column budget (%d), got %d cells: %q", columns, width.VisibleCells(got), got)
+	if txt.VisibleCells(got) > columns {
+		t.Fatalf("expected the pane line to respect the column budget (%d), got %d cells: %q", columns, txt.VisibleCells(got), got)
 	}
 	if !strings.HasSuffix(got, "…") {
 		t.Fatalf("expected a truncation marker on an overflowing pane line, got %q", got)

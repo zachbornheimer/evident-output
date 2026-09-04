@@ -1,10 +1,10 @@
-package evo
+package text
 
 import "unicode/utf8"
 
-// truncateUTF8 trims s to at most max bytes without splitting a multi-byte rune,
+// TruncateUTF8 trims s to at most max bytes without splitting a multi-byte rune,
 // then appends suffix when truncation occurs. max is a byte budget for s before suffix.
-func truncateUTF8(s string, max int, suffix string) string {
+func TruncateUTF8(s string, max int, suffix string) string {
 	if max <= 0 {
 		if s == "" {
 			return ""

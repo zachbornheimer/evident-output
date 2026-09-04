@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Output is the aggregate root for one command's presentation lifecycle.
@@ -515,7 +515,7 @@ func (o *Output) Task(name string, args ...any) *TaskHandle {
 // below).
 func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandle {
 	eo := applyEntityOptions(opts)
-	clean := sanitize.Text(name)
+	clean := txt.Text(name)
 	key := qualifyKey(scope, eo.key)
 
 	o.mu.Lock()
@@ -708,7 +708,7 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 		delete(o.confirmAbort, id)
 		if st := o.taskByRef[id]; st != nil && !isTerminalTask(st.state) {
 			st.state = Cancelled
-			st.summary = sanitize.Text(reason)
+			st.summary = txt.Text(reason)
 			o.bumpLocked()
 			o.appendEventLocked(Event{Type: "task.cancelled", EntityID: id})
 			o.commitResolvedTaskLocked(id)
@@ -733,7 +733,7 @@ func (o *Output) Tasks(name string, args ...any) *Tasks {
 	}
 	st := &tasksState{
 		id:          o.nextID("tasks"),
-		name:        sanitize.Text(name),
+		name:        txt.Text(name),
 		declaration: o.nextDecl(),
 	}
 	h := &Tasks{out: o, id: st.id}
@@ -795,7 +795,7 @@ func (o *Output) groupTaskGetOrCreate(groupID, name string, opts ...EntityOption
 		return existing
 	}
 	eo := applyEntityOptions(opts)
-	h := o.addTaskLocked(sanitize.Text(name), col, eo.key)
+	h := o.addTaskLocked(txt.Text(name), col, eo.key)
 	if col.namedTasks == nil {
 		col.namedTasks = make(map[string]*TaskHandle)
 	}
@@ -818,7 +818,7 @@ func (o *Output) Changes(subject string, args ...any) *Changes {
 	}
 	st := &changesState{
 		id:      o.nextID("changes"),
-		subject: sanitize.Text(subject),
+		subject: txt.Text(subject),
 	}
 	h := &Changes{out: o, id: st.id}
 	st.handle = h
@@ -842,7 +842,7 @@ func (o *Output) Plan(subject string, args ...any) *Plan {
 	}
 	st := &planState{
 		id:      o.nextID("plan"),
-		subject: sanitize.Text(subject),
+		subject: txt.Text(subject),
 	}
 	h := &Plan{out: o, id: st.id}
 	st.handle = h
@@ -854,7 +854,7 @@ func (o *Output) Plan(subject string, args ...any) *Plan {
 
 // Fail records an output-level failure.
 func (o *Output) Fail(summary string, options ...ProblemOption) {
-	o.failWith(applyProblemOptions(sanitize.Text(summary), options))
+	o.failWith(applyProblemOptions(txt.Text(summary), options))
 }
 
 // Failf records an output-level failure with a formatted summary. fmt.Errorf
@@ -887,7 +887,7 @@ func (o *Output) failWith(p Problem) {
 	// Synthetic failed task for conclusion.
 	st := &taskState{
 		id:          o.nextID("task"),
-		name:        sanitize.Text(o.cfg.subject),
+		name:        txt.Text(o.cfg.subject),
 		state:       Failed,
 		problems:    []Problem{p},
 		declaration: o.nextDecl(),
@@ -909,7 +909,7 @@ func (o *Output) Cancel(reason string) {
 		o.recordMisuse(err)
 		return
 	}
-	name := sanitize.Text(o.cfg.subject)
+	name := txt.Text(o.cfg.subject)
 	if name == "" {
 		name = identityFallbackName()
 	}
@@ -917,7 +917,7 @@ func (o *Output) Cancel(reason string) {
 		id:          o.nextID("task"),
 		name:        name,
 		state:       Cancelled,
-		summary:     sanitize.Text(reason),
+		summary:     txt.Text(reason),
 		declaration: o.nextDecl(),
 		synthetic:   true,
 	}
@@ -991,7 +991,7 @@ func (o *Output) newDebugRecordLocked(levelName, message string, fields []Field,
 	rec := debugRecord{
 		Time:    at,
 		Level:   levelName,
-		Message: sanitize.Text(message),
+		Message: txt.Text(message),
 		Fields:  cloneFields(fields),
 	}
 	for i := range rec.Fields {

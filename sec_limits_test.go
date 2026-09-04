@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 func TestSEC003_MaxEntitiesEnforced(t *testing.T) {
@@ -91,7 +91,7 @@ func TestSEC002_SensitiveFieldRedactedInDebug(t *testing.T) {
 
 func TestSEC011_BidiControlsStripped(t *testing.T) {
 	// U+202E RTL override
-	got := sanitize.Text("safe\u202Eevil")
+	got := txt.Text("safe\u202Eevil")
 	if strings.ContainsRune(got, '\u202e') {
 		t.Fatalf("bidi retained: %q", got)
 	}

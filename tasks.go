@@ -3,7 +3,7 @@ package evo
 import (
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Tasks is a handle for a collection of independent child tasks.
@@ -26,7 +26,7 @@ func (g *Tasks) Task(name string, args ...any) *TaskHandle {
 		return &TaskHandle{out: g.out, id: g.out.nextID("task")}
 	}
 	eo := applyEntityOptions(opts)
-	return g.out.addTaskLocked(sanitize.Text(formatted), col, eo.key)
+	return g.out.addTaskLocked(txt.Text(formatted), col, eo.key)
 }
 
 // Summary sets a success-oriented collection summary. text is a printf
@@ -46,7 +46,7 @@ func (g *Tasks) Summary(text string, args ...any) *Tasks {
 		g.out.recordMisuse(err)
 		return g
 	}
-	col.summary = sanitize.Text(text)
+	col.summary = txt.Text(text)
 	g.out.bumpLocked()
 	g.out.appendEventLocked(Event{Type: "tasks.summary_set", EntityID: g.id})
 	return g

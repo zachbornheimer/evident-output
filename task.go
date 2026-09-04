@@ -3,7 +3,7 @@ package evo
 import (
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Task is a handle for one operation with phases or progress.
@@ -70,7 +70,7 @@ func (t *TaskHandle) setLiveOnlyPhase(text string) {
 // apply it without a nested lock. Callers must have already checked
 // ensureOpen/isTerminalTask.
 func (o *Output) setPhaseLocked(st *taskState, text string) {
-	st.phase = sanitize.Text(text)
+	st.phase = txt.Text(text)
 	st.activityAt = o.cfg.clock.Now()
 	if st.state == Pending {
 		o.promoteRunningLocked(st)
@@ -96,7 +96,7 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // shape: the Evidence ring is its one durable home, not a plain-mode row
 // per line (release-gate round 9 finding 4).
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
-	st.phase = sanitize.Text(text)
+	st.phase = txt.Text(text)
 	st.activityAt = o.cfg.clock.Now()
 	if st.state == Pending {
 		o.promoteRunningLocked(st)
@@ -224,7 +224,7 @@ func (t *TaskHandle) Done(args ...any) *TaskHandle {
 		t.out.recordMisuse(ErrInvalidConfig)
 		return t
 	}
-	return t.finish(Done, sanitize.Text(summary), nil)
+	return t.finish(Done, txt.Text(summary), nil)
 }
 
 // Unchanged resolves the task successfully, explicitly marking "checked,
@@ -239,7 +239,7 @@ func (t *TaskHandle) Unchanged(args ...any) *TaskHandle {
 		t.out.recordMisuse(ErrInvalidConfig)
 		return t
 	}
-	return t.finishTagged(Done, sanitize.Text(summary), nil, true)
+	return t.finishTagged(Done, txt.Text(summary), nil, true)
 }
 
 // formatSummaryArgs implements Done/Unchanged's no-args/literal/printf-
@@ -273,7 +273,7 @@ func formatSummaryArgs(args []any) (summary string, ok bool) {
 // ProblemOptions may be mixed into args in any position and still apply.
 func (t *TaskHandle) Warn(summary string, args ...any) {
 	formatted, opts := formatWarnArgs(summary, args)
-	p := applyProblemOptions(sanitize.Text(formatted), opts)
+	p := applyProblemOptions(txt.Text(formatted), opts)
 	t.finish(Warning, formatted, []Problem{p})
 }
 
@@ -282,9 +282,9 @@ func (t *TaskHandle) Warn(summary string, args ...any) {
 // errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use Failf
 // to build and return a %w-wrapped error in one line.
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
-	p := applyProblemOptions(sanitize.Text(summary), options)
+	p := applyProblemOptions(txt.Text(summary), options)
 	if t != nil {
-		t.finish(Failed, sanitize.Text(summary), []Problem{p})
+		t.finish(Failed, txt.Text(summary), []Problem{p})
 	}
 }
 
@@ -329,9 +329,9 @@ func (t *TaskHandle) attachRetainedEvidenceTail(p *Problem) {
 // errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use
 // Blockf to build and return a %w-wrapped error in one line.
 func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
-	p := applyProblemOptions(sanitize.Text(summary), options)
+	p := applyProblemOptions(txt.Text(summary), options)
 	if t != nil {
-		t.finish(Blocked, sanitize.Text(summary), []Problem{p})
+		t.finish(Blocked, txt.Text(summary), []Problem{p})
 	}
 }
 
@@ -352,7 +352,7 @@ func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
 
 // Cancel resolves the task as cancelled.
 func (t *TaskHandle) Cancel(reason string) *TaskHandle {
-	return t.finish(Cancelled, sanitize.Text(reason), nil)
+	return t.finish(Cancelled, txt.Text(reason), nil)
 }
 
 // Skip resolves the task as skipped. reason is a printf format when args are
@@ -362,7 +362,7 @@ func (t *TaskHandle) Skip(reason string, args ...any) *TaskHandle {
 	if len(args) > 0 {
 		reason = fmt.Sprintf(reason, args...)
 	}
-	return t.finish(Skipped, sanitize.Text(reason), nil)
+	return t.finish(Skipped, txt.Text(reason), nil)
 }
 
 // Next attaches actions.
@@ -438,7 +438,7 @@ func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []
 	st.unchanged = unchanged
 	st.phase = "" // Done clears active phase
 	if summary != "" {
-		st.summary = sanitize.Text(summary)
+		st.summary = txt.Text(summary)
 	}
 	if len(problems) > 0 {
 		// Fail/Block with a non-empty evidence ring and no explicit Detail or

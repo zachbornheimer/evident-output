@@ -10,20 +10,20 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 func TestTXT008_OSCNeutralized(t *testing.T) {
 	// OSC 8 introducer ESC ]
-	s := sanitize.Text("x\x1b]8;;http://evil\x07y")
+	s := txt.Text("x\x1b]8;;http://evil\x07y")
 	if strings.Contains(s, "\x1b") {
 		t.Fatal(s)
 	}
 }
 
 func TestTXT009_CRLFNeutralized(t *testing.T) {
-	s := sanitize.Text("a\rb\bc")
+	s := txt.Text("a\rb\bc")
 	if strings.ContainsAny(s, "\r\b") {
 		t.Fatal(s)
 	}

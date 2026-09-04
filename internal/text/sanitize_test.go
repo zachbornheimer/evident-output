@@ -1,49 +1,49 @@
-package sanitize_test
+package text_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	"github.com/zachbornheimer/evident-output/internal/text"
 )
 
 func TestTextStripsESC(t *testing.T) {
-	got := sanitize.Text("hi\x1b[31mx")
+	got := text.Text("hi\x1b[31mx")
 	if strings.Contains(got, "\x1b") {
 		t.Fatalf("ESC retained: %q", got)
 	}
 }
 
 func TestTextReplacesInvalidUTF8(t *testing.T) {
-	got := sanitize.Text("a\xffb")
+	got := text.Text("a\xffb")
 	if !strings.Contains(got, "a") || !strings.Contains(got, "b") {
 		t.Fatalf("unexpected: %q", got)
 	}
 }
 
 func TestTextNewlinesBecomeSpaces(t *testing.T) {
-	got := sanitize.Text("a\nb")
+	got := text.Text("a\nb")
 	if got != "a b" {
 		t.Fatalf("got %q", got)
 	}
 }
 
 func TestBlockPreservesNewlines(t *testing.T) {
-	got := sanitize.Block("a\nb\nc")
+	got := text.Block("a\nb\nc")
 	if got != "a\nb\nc" {
 		t.Fatalf("got %q", got)
 	}
 }
 
 func TestBlockNormalizesCRLF(t *testing.T) {
-	got := sanitize.Block("a\r\nb\rc")
+	got := text.Block("a\r\nb\rc")
 	if got != "a\nb\nc" {
 		t.Fatalf("got %q", got)
 	}
 }
 
 func TestBlockStillStripsESC(t *testing.T) {
-	got := sanitize.Block("hi\x1b[31mx\nline2")
+	got := text.Block("hi\x1b[31mx\nline2")
 	if strings.Contains(got, "\x1b") {
 		t.Fatalf("ESC retained: %q", got)
 	}
@@ -57,7 +57,7 @@ func FuzzText(f *testing.F) {
 	f.Add("\x1b[31m")
 	f.Add("\r\n\t")
 	f.Fuzz(func(t *testing.T, s string) {
-		got := sanitize.Text(s)
+		got := text.Text(s)
 		if strings.ContainsRune(got, '\x1b') {
 			t.Fatalf("ESC remained in %q", got)
 		}

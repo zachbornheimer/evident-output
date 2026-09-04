@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Problem is structured evidence explaining a negative item or task outcome.
@@ -182,28 +182,28 @@ func applyProblemOptions(summary string, opts []ProblemOption) Problem {
 // Item, Task, and any future entity store problems only through this helper so
 // presentation paths cannot diverge on terminal safety (SEC-001).
 //
-// Detail uses sanitize.Block so multi-line evidence (diffs, capture tails) keeps
+// Detail uses text.Block so multi-line evidence (diffs, capture tails) keeps
 // newlines for the flat renderer (P3); other single-line fields still collapse
-// newlines to spaces via sanitize.Text.
+// newlines to spaces via text.Text.
 func sanitizeProblem(p Problem) Problem {
-	p.Summary = sanitize.Text(p.Summary)
-	p.Detail = sanitize.Block(p.Detail)
-	p.EvidenceTail = sanitize.Block(p.EvidenceTail)
-	p.Subject = sanitize.Text(p.Subject)
-	p.Code = sanitize.Text(p.Code)
-	p.Unit = sanitize.Text(p.Unit)
-	p.Severity = sanitize.Text(p.Severity)
+	p.Summary = txt.Text(p.Summary)
+	p.Detail = txt.Block(p.Detail)
+	p.EvidenceTail = txt.Block(p.EvidenceTail)
+	p.Subject = txt.Text(p.Subject)
+	p.Code = txt.Text(p.Code)
+	p.Unit = txt.Text(p.Unit)
+	p.Severity = txt.Text(p.Severity)
 	if p.Location != nil {
 		loc := *p.Location
-		loc.Path = sanitize.Text(loc.Path)
+		loc.Path = txt.Text(loc.Path)
 		p.Location = &loc
 	}
 	if len(p.Evidence) > 0 {
 		ev := make([]Attachment, len(p.Evidence))
 		for i, e := range p.Evidence {
 			ev[i] = Attachment{
-				Label: sanitize.Text(e.Label),
-				Value: sanitize.Text(e.Value),
+				Label: txt.Text(e.Label),
+				Value: txt.Text(e.Value),
 			}
 		}
 		p.Evidence = ev
@@ -212,9 +212,9 @@ func sanitizeProblem(p Problem) Problem {
 		fs := make([]Field, len(p.Fields))
 		copy(fs, p.Fields)
 		for i := range fs {
-			fs[i].Key = sanitize.Text(fs[i].Key)
+			fs[i].Key = txt.Text(fs[i].Key)
 			if s, ok := fs[i].Value.(string); ok {
-				fs[i].Value = sanitize.Text(s)
+				fs[i].Value = txt.Text(s)
 			}
 		}
 		p.Fields = fs

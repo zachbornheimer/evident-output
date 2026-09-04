@@ -7,7 +7,7 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/width"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -243,7 +243,7 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 			continue
 		}
 		for _, line := range strings.Split(operation.Text, "\n") {
-			if cells := width.VisibleCells(line); cells > columns {
+			if cells := txt.VisibleCells(line); cells > columns {
 				t.Fatalf("live line uses %d cells, terminal has %d:\n%s", cells, columns, operation.Text)
 			}
 		}
@@ -251,7 +251,7 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 	if frames := screen.LiveFrameCount(); frames != 3 {
 		t.Fatalf("live frames=%d, want 3", frames)
 	}
-	if got := width.StripANSI(screen.LatestLiveText()); !strings.HasSuffix(got, "…") {
+	if got := txt.StripANSI(screen.LatestLiveText()); !strings.HasSuffix(got, "…") {
 		t.Fatalf("truncated live line must signal omitted text:\n%s", got)
 	}
 }

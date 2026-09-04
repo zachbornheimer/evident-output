@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/width"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // spinnerPeriod is the wall-clock duration between spinner frame advances.
@@ -170,7 +170,7 @@ func (o *Output) renderLiveLocked(force bool) {
 	}
 	now := o.cfg.clock.Now()
 	cols, rows := live.Columns(), live.Rows()
-	// Keep config width in sync for plain residual paths that still use cfg.width.
+	// Keep config width in sync for plain residual paths that still use cfg.text.
 	if cols > 0 {
 		o.cfg.width = cols
 	}
@@ -500,7 +500,7 @@ func fitLiveRegion(text string, columns int) string {
 	}
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
-		lines[i] = width.TruncateVisible(line, columns)
+		lines[i] = txt.TruncateVisible(line, columns)
 	}
 	return strings.Join(lines, "\n")
 }

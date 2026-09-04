@@ -3,7 +3,7 @@ package evo
 import (
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // TaxonomyReason names why a task skipped or kept an item. It is the opaque
@@ -69,7 +69,7 @@ func formatReasonName(name string, args []any) (string, []ReasonOption) {
 // repeated calls (inline or lifted to a var) merge into one taxonomy bucket
 // instead of drifting into differently-configured duplicates.
 func (o *Output) reasonGetOrCreate(name string, opts ...ReasonOption) TaxonomyReason {
-	name = sanitize.Text(name)
+	name = txt.Text(name)
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if r, ok := o.namedReasons[name]; ok {

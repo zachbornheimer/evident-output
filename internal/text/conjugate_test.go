@@ -1,4 +1,4 @@
-package evo
+package text
 
 import "testing"
 
@@ -17,8 +17,8 @@ func TestConjugatePast_CompoundVerbs(t *testing.T) {
 		{"sync-remote", "synced"}, // unmapped compound: general fallback rule
 	}
 	for _, tc := range cases {
-		if got := conjugatePast(tc.verb); got != tc.want {
-			t.Errorf("conjugatePast(%q) = %q, want %q", tc.verb, got, tc.want)
+		if got := ConjugatePast(tc.verb); got != tc.want {
+			t.Errorf("ConjugatePast(%q) = %q, want %q", tc.verb, got, tc.want)
 		}
 	}
 }
@@ -36,14 +36,14 @@ func TestConjugatePast_SingleWordVerbsUnaffected(t *testing.T) {
 		{"write", "wrote"},
 	}
 	for _, tc := range cases {
-		if got := conjugatePast(tc.verb); got != tc.want {
-			t.Errorf("conjugatePast(%q) = %q, want %q", tc.verb, got, tc.want)
+		if got := ConjugatePast(tc.verb); got != tc.want {
+			t.Errorf("ConjugatePast(%q) = %q, want %q", tc.verb, got, tc.want)
 		}
 	}
 }
 
 // TestPluralize_RegularAndIrregularNouns pins L6: Pluralize is the object
-// counterpart to conjugatePast's verb table, so Delete/Update/Remove/Push
+// counterpart to ConjugatePast's verb table, so Delete/Update/Remove/Push
 // call sites stop writing their own singular/plural noun() switch.
 func TestPluralize_RegularAndIrregularNouns(t *testing.T) {
 	cases := []struct {

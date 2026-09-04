@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/width"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // GlyphProfile selects which glyph vocabulary state markers render in
@@ -93,9 +93,9 @@ func (g glyphSpec) render(profile GlyphProfile) string {
 }
 
 // cellWidth reports the terminal cell width of the active face — measured in
-// cells (internal/width), never rune or byte counts, per GLYPH-001.
+// cells (internal/text), never rune or byte counts, per GLYPH-001.
 func (g glyphSpec) cellWidth(profile GlyphProfile) int {
-	return width.Cells(g.render(profile))
+	return txt.Cells(g.render(profile))
 }
 
 // State glyph table (evo-rec.md "Tightened glyph vocabulary"). A live

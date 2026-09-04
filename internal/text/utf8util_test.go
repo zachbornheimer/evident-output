@@ -1,4 +1,4 @@
-package evo
+package text
 
 import (
 	"strings"
@@ -9,7 +9,7 @@ import (
 func TestTruncateUTF8_DoesNotSplitRune(t *testing.T) {
 	// "あ" is 3 bytes. max=5 should keep one rune + suffix, not a partial rune.
 	s := "あああ"
-	got := truncateUTF8(s, 5, "…")
+	got := TruncateUTF8(s, 5, "…")
 	if !utf8.ValidString(got) {
 		t.Fatalf("invalid utf8: %q", got)
 	}
@@ -28,7 +28,7 @@ func TestTruncateUTF8_DoesNotSplitRune(t *testing.T) {
 }
 
 func TestTruncateUTF8_ShortUnchanged(t *testing.T) {
-	if got := truncateUTF8("hi", 10, "…"); got != "hi" {
+	if got := TruncateUTF8("hi", 10, "…"); got != "hi" {
 		t.Fatalf("got %q", got)
 	}
 }

@@ -1,5 +1,10 @@
-// Package sanitize neutralizes untrusted text for terminal-safe display.
-package sanitize
+// Package text is repo-owned CLI text machinery: sanitization, terminal cell
+// width measurement, truncation, glyph-safe pluralization/conjugation. Not a
+// general-purpose text library — every rule here exists for evident-output's
+// own rendering paths.
+//
+// Sanitization (this file): neutralizes untrusted text for terminal-safe display.
+package text
 
 import (
 	"strings"

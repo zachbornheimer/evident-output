@@ -1,5 +1,5 @@
-// Package width computes terminal cell widths for display text.
-package width
+// Width: terminal cell width measurement for display text.
+package text
 
 import (
 	"strings"

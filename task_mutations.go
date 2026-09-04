@@ -1,5 +1,7 @@
 package evo
 
+import txt "github.com/zachbornheimer/evident-output/internal/text"
+
 // Mutation verbs on TaskHandle record what the task did (or, under DryRun,
 // would do) into the one Changes/Plan section named after the task — the
 // verb chooses the ledger tense (imperative vs. conjugatePast), the run's
@@ -125,7 +127,7 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 	}
 	sec := o.changesGetOrCreate(subject)
 	sec.declareIntendedVerb(verb)
-	pastTense := conjugatePast(verb)
+	pastTense := txt.ConjugatePast(verb)
 	if hasQty {
 		sec.Record(pastTense, int(quantity), object)
 	} else {

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Default ring bounds for Capture (child process evidence, not a live UI).
@@ -418,11 +418,11 @@ func (c *Evidence) normalizeCaptureLine(line string) string {
 	if !utf8.ValidString(line) {
 		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
 	}
-	line = sanitize.Text(line)
+	line = txt.Text(line)
 	if c.out != nil {
 		line = c.out.redactString(line)
 	}
-	return truncateUTF8(line, maxCaptureLineLen, "…")
+	return txt.TruncateUTF8(line, maxCaptureLineLen, "…")
 }
 
 func joinCaptureLines(lines []string, truncated bool) string {

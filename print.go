@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/zachbornheimer/evident-output/internal/sanitize"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Visibility selects whether a message is ordinary or verbose user detail.
@@ -162,7 +162,7 @@ func (p *Printer) enqueue(s string) {
 			if p.out.pendingPrint.Len() > maxPendingPrintBytes {
 				line := p.out.pendingPrint.String()
 				p.out.pendingPrint.Reset()
-				line = truncateUTF8(line, maxPendingPrintBytes, pendingTruncMarker)
+				line = txt.TruncateUTF8(line, maxPendingPrintBytes, pendingTruncMarker)
 				p.out.emitMessageLocked(line, p.visibility)
 			}
 			return
@@ -175,7 +175,7 @@ func (p *Printer) enqueue(s string) {
 		} else {
 			line = s[:i]
 		}
-		line = truncateUTF8(line, maxPendingPrintBytes, pendingTruncMarker)
+		line = txt.TruncateUTF8(line, maxPendingPrintBytes, pendingTruncMarker)
 		p.out.emitMessageLocked(line, p.visibility)
 		s = s[i+1:]
 	}
@@ -185,7 +185,7 @@ func (o *Output) emitMessageLocked(line string, vis Visibility) {
 	if !utf8.ValidString(line) {
 		line = strings.ToValidUTF8(line, "\uFFFD")
 	}
-	line = sanitize.Text(line)
+	line = txt.Text(line)
 	// Drop pure empty? Keep empty lines as messages for fmt parity of blank Println.
 	id := o.nextID("message")
 	st := messageState{

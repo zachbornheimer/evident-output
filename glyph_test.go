@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/width"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -141,17 +141,17 @@ func TestGlyphUnicode_UnchangedByProfileAxis(t *testing.T) {
 
 // TestGlyphWidths_BlockedAndCancelledAreNarrow spot-checks the cell-width
 // metadata the work order calls out: "⊘" and "■" are East Asian
-// Ambiguous-width, one cell wide by internal/width's measurement, unlike the
+// Ambiguous-width, one cell wide by internal/text's measurement, unlike the
 // two-cell "✓"/"✗" dingbats — the glyph table must report this per-face
 // width so layout code can align columns rather than assuming rune count.
 func TestGlyphWidths_BlockedAndCancelledAreNarrow(t *testing.T) {
-	if got := width.Cells("⊘"); got != 1 {
+	if got := txt.Cells("⊘"); got != 1 {
 		t.Fatalf("⊘ width = %d, want 1", got)
 	}
-	if got := width.Cells("■"); got != 1 {
+	if got := txt.Cells("■"); got != 1 {
 		t.Fatalf("■ width = %d, want 1", got)
 	}
-	if got := width.Cells("✓"); got != 2 {
+	if got := txt.Cells("✓"); got != 2 {
 		t.Fatalf("✓ width = %d, want 2", got)
 	}
 }
