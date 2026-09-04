@@ -35,8 +35,9 @@ func All() []Guide {
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
   1) evo.Init(evo.Config{Title, DryRun}) once in main, before any I/O; os.Exit(evo.Main(run)) — dry-run wording,
      empty-case, and exit codes are all owned; run returns only error.
-  2) evo.Task(subject).Delete(n, obj) (also Create/Update/Remove/Write/Push/Record/RecordName) — the verb picks
-     [planned] vs [changed] from Config.DryRun; no call site ever flips its own tense.
+  2) evo.Task(subject).Delete(obj, call, opts...) (also Add/Create/Update/Remove/Write/Push) — call runs only on
+     a non-dry-run and only commits on success; evo.Affected(n) supplies the count. The run's DryRun mode picks
+     [planned] vs [changed]; no call site ever flips its own tense or chooses Changed/Ready/Planned.
   3) evo.Task(name).Each(items) for loop progress (absolute, never double-counted); .PhaseWriter() as
      cmd.Stdout so a talkative child's last line becomes the live Phase.
   4) evo.Task(name).Skipped(reason, name) / .Kept(reason, name) — taxonomy counted and summed, never a bare
@@ -46,10 +47,12 @@ func All() []Guide {
 Types: TaskHandle (work with Phase/Progress/mutations/taxonomy, or a fact-check gate resolved directly with no
 Phase/Progress call), GroupHandle (evo.Group — named children, auto-lifecycle NotStarted on failure/cancel).
 evo.Task/Group are get-or-create facades on the package-level default instance (see evo.Init/evo.SetDefault);
-Plan/Changes/Record stay on the instance API for tooling call sites, not the front door above. Item/ItemHandle
-were removed v0.2.x shims over Task/TaskHandle — new code always uses Task.
+Record/RecordName/RecordLabel stay on TaskHandle for tooling call sites that need a raw ledger row, not a front
+door of their own — Output.Changes/Output.Plan were removed (P1): every effect goes through a Task's mutation
+verb now. Item/ItemHandle were removed v0.2.x shims over Task/TaskHandle — new code always uses Task.
 
-Severity: Warn = soft/optional; Block = stop before mutate; Fail = evaluation failed.
+Severity: Warn = non-terminal annotation (does not resolve the task — call it any number of times before Done/
+Fail/Block); Block = stop before mutate; Fail = evaluation failed.
 Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) so a caller can tell "you did
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
