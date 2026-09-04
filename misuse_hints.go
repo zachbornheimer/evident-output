@@ -50,7 +50,7 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 	case errors.Is(err, ErrReasonWrongTask):
 		return "a Reason built with OnTask only attaches to that named task"
 	case errors.Is(err, ErrConcurrentRunning):
-		return "only one child of a sequential Group runs at a time; use Tasks for independent children"
+		return "only one child of a Sequence runs at a time; use DisplayGroup for independent children"
 	case errors.Is(err, ErrDryRunDeclaredLate):
 		return "call DeclareDryRun before any Task/Print/Confirm row streams"
 	case errors.Is(err, ErrTerminalWithoutSink):

@@ -6,6 +6,76 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project has not reached 1.0 — pre-1.0 API breaks are called out explicitly
 below rather than deferred to a major version.
 
+## [0.4.0] — caller reports effects; evo derives result; structural rename
+
+The 13-problem redesign (evo-rec.md). Breaking throughout — pre-1.0, no
+shims; every deletion below has zero call sites left in this repo.
+
+### Breaking
+
+- **Mutation verbs** (`Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push`)
+  are now `func (t *TaskHandle) Verb(object string, call func() error, opts
+...EffectOption) error`: the caller reports the domain effect and runs its
+  own callback; evo derives the ledger entry, tense, and pluralization.
+  `evo.Affected(n)` supplies quantity (`object` stays a singular noun phrase).
+  `call == nil` records without executing.
+- **`TaskHandle.Warn`** is a non-terminal annotation (`TaskSnapshot.Warnings
+[]Problem`), not a lifecycle state — `EntityState.Warning` is deleted.
+  `· warned` is a conclusion-band modifier, derived from the field.
+- **Deleted**: `TaskHandle.Unchanged`/`Unchangedf`, `StateUnchanged` and its
+  `[unchanged]` band, `Output.Changes`, `Output.Plan` (types unexported; the
+  read-only `ChangesSnapshot`/`PlanSnapshot` projections stay), every
+  past-tense entry point (`Changes.Added`/`Updated`/`Deleted`/…, `Plan.*`),
+  and every other exported presentation-decision API surviving the P13
+  sweep.
+- **`evo.Tasks`/`evo.Group`/`GroupHandle`/`Output.Tasks`/`Output.Group`** are
+  replaced by `evo.Sequence` (ordered dependency; a failed child marks later
+  children `NotStarted`) and `evo.DisplayGroup` (presentation-only;
+  concurrent Running children expected) — both recursive via
+  `.Task`/`.Sequence`/`.DisplayGroup`. Containers have no terminal methods;
+  state is fully derived.
+- **Timer**: one monotonic elapsed-time mechanism (`elapsedAfter = 5s` from
+  first live paint) replaces the staleness heartbeat. Any unresolved row or
+  unfinished container header gains ` — Ns`; it never resets on
+  Phase/Progress activity (a deliberate behavior change from v0.3.1).
+- **`TaskHandle.Phase` → `TaskHandle.Doing`**, **`TaskHandle.PhaseWriter` →
+  `TaskHandle.Writer`** (same semantics; `Writer` follows logrus's
+  `Logger.Writer()`/zapio.Writer precedent). `StartPhase` (a run-level
+  section header, a different concept) is unchanged.
+- **`evo.Main(run func() error)` and `evo.MainWith(out, run)` no longer
+  return an int** — they exit the process themselves through an injectable
+  facade (still never `os.Exit` directly outside that facade). A new
+  package-level `evo.Run(run func() error) int` mirrors `Output.Run` for a
+  caller that needs the code without exiting.
+- **`Output.AnyFailed`/`Output.AnyBlockedSoFar`** (and their package-level
+  mirrors) are internalized — no consumer needed the mid-run question once
+  `Run`/`Conclusion` existed.
+- **Wire (JSON document schema 0.4)**: `JSONTask` gains `warnings`
+  (mirrors `TaskSnapshot.Warnings`); `ConclusionJSON` gains `warned`. The 0.3
+  wire silently dropped a warned task's annotations and had no run-level
+  warned signal at all — a machine-consumer signal loss. `schema/output.v1.json`
+  is rewritten to match (it had drifted to describe a 0.2 shape nothing
+  still emitted) and is now validated by a real test
+  (`TestWireSchema_RenderedDocumentValidates`) instead of sitting unreferenced.
+  `EventSchemaVersion` bumps 0.2 → 0.3 to reflect the already-existing
+  `task.warned` event type.
+
+### Fixed
+
+- Container-child warnings now fold into the run conclusion — a warned child
+  under a `Sequence`/`DisplayGroup` was previously invisible to the `·
+warned` band and `Conclusion.Warned` (regression window during the P1/P2
+  work, closed before release).
+- A mutation verb skipped for a misuse reason (nil handle, nil Output, an
+  already-resolved target) now always returns a sentinel error instead of
+  silently returning nil with the callback never run.
+- `Affected(n < 0)` is rejected as misuse; `Affected(0)`/zero-quantity paths
+  no longer emit an effectless ledger section (the `[planned] repo-retire`
+  empty-row bug class from the repo-retire dry-run fixture).
+
+See `docs/reference.md`, `docs/guides/teaching-ladder.md`, and
+`~/Desktop/evo-rec.md` for the full v0.4.0 surface.
+
 ## [0.3.2] — README rewrite, repo-structure cleanup
 
 ### Changed
