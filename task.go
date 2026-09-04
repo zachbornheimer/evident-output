@@ -398,14 +398,20 @@ func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []
 		st.summary = sanitize.Text(summary)
 	}
 	if len(problems) > 0 {
-		// Fail/Block with a non-empty evidence ring and no explicit Detail
-		// auto-attach the capture tail (beginner-2) — the evidence a caller
-		// already gathered via Evidence()/PhaseWriter() is exactly the detail
-		// a Fail/Block row needs, so DetailTail is no longer an opt-in step a
-		// caller has to remember.
+		// Fail/Block with a non-empty evidence ring and no explicit Detail or
+		// EvidenceTail auto-attach the capture tail (beginner-2) — the
+		// evidence a caller already gathered via Evidence()/PhaseWriter() is
+		// exactly the detail a Fail/Block row needs, so DetailTail is no
+		// longer an opt-in step a caller has to remember. Skipping when
+		// EvidenceTail is already set (an explicit DetailTail() ran as a
+		// ProblemOption before finishTagged's lock was taken) avoids a
+		// duplicate render and, more importantly, avoids re-entering
+		// st.evidence.detailText — which, for a pending (unterminated-line)
+		// tail, calls back into this Output's redactor lock — while this
+		// method already holds that same lock.
 		if (state == Failed || state == Blocked) && st.evidence != nil && !st.evidence.Empty() {
 			for i := range problems {
-				if problems[i].Detail == "" {
+				if problems[i].Detail == "" && problems[i].EvidenceTail == "" {
 					problems[i].Detail = st.evidence.detailText()
 				}
 			}

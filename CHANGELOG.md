@@ -240,6 +240,13 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 - **Printf-name symmetry**: `Scope.Task`, `Scope.Item`, and
   `GroupHandle.Task` now accept trailing `args ...any` like `Output.Task`/
   `Item` and the package-level facades.
+- **Quantity type symmetry: `Changes`/`Plan` mutation verbs and `Record`/
+  `RecordName` now take `int`** (pre-1.0 API break), matching the `int`
+  quantity `TaskHandle` verbs already took: `Changes.Added/Updated/Removed/
+Deleted/Pushed/Record` and `Plan.Add/Update/Remove/Delete/Push/Record`.
+  A caller passing an untyped literal or `len(x)` is unaffected; a caller
+  with an explicit `int64(...)` cast at the call site needs to drop the
+  cast.
 
 ### Fixed
 
@@ -254,6 +261,22 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 - `already mutated: ...` now renders on `Cancelled`/`Failed` conclusions,
   derived from the Changes ledger (never caller-assembled), with a `none`
   fallback for an empty ledger.
+- **An explicit `evo.Detail` is never silently discarded by an explicit
+  `output.DetailTail()` on the same `Fail`/`Block` call** (`Problem` gains an
+  `EvidenceTail` field): previously whichever `ProblemOption` applied last
+  won, silently overwriting the other. Now both render — Detail first, the
+  evidence tail as an additional evidence line underneath — regardless of
+  argument order. Fixing this also closed a real deadlock: the existing
+  evidence auto-attach in `finishTagged` now also skips when `EvidenceTail`
+  is already set, so it never re-enters `Evidence.detailText` (which, for a
+  pending/unterminated-line tail, calls back into the owning `Output`'s
+  redactor lock) while already holding that same lock.
+- The ledger's render-time pluralizer (`evo.Pluralize`) no longer blindly
+  appends "s" to a glob/path/symbol object: only an object that reads as
+  ordinary English words (letters and spaces) is pluralized, so `Delete(2,
+"stale origin/*")` renders `"stale origin/*"` instead of the mangled
+  `"stale origin/*s"`. The irregulars table (`package in .venv`, etc.) is
+  unaffected — it is checked first.
 
 ### Fixed (gate-1 review wave)
 

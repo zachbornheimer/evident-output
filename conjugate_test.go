@@ -71,3 +71,26 @@ func TestPluralize_RegularAndIrregularNouns(t *testing.T) {
 		}
 	}
 }
+
+// TestPluralize_GlobPathAndSymbolObjectsRenderUnchanged pins the
+// pluralization-honesty fix: the render-time pluralizer used to blindly
+// append "s" to any object regardless of shape, mangling a glob/path/symbol
+// object ("stale origin/*" -> "stale origin/*s") into nonsense. Only an
+// object that reads as ordinary English words gets pluralized; a
+// glob/path/symbol object renders unchanged at any quantity != 1.
+func TestPluralize_GlobPathAndSymbolObjectsRenderUnchanged(t *testing.T) {
+	cases := []struct {
+		quantity int64
+		singular string
+		want     string
+	}{
+		{2, "stale origin/*", "stale origin/*"},
+		{2, "*.tmp", "*.tmp"},
+		{0, "stale origin/*", "stale origin/*"},
+	}
+	for _, tc := range cases {
+		if got := Pluralize(tc.quantity, tc.singular); got != tc.want {
+			t.Errorf("Pluralize(%d, %q) = %q, want %q", tc.quantity, tc.singular, got, tc.want)
+		}
+	}
+}

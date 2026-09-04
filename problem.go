@@ -10,19 +10,27 @@ import (
 
 // Problem is structured evidence explaining a negative item or task outcome.
 type Problem struct {
-	Code      string
-	Subject   string
-	Summary   string
-	Detail    string
-	Severity  string
-	Count     int64
-	Unit      string
-	Location  *SourceLocation
-	Evidence  []Attachment
-	Actions   []Action
-	Fields    []Field
-	Cause     error
-	Sensitive bool
+	Code    string
+	Subject string
+	Summary string
+	Detail  string
+	// EvidenceTail is a raw evidence tail (typically a capture ring via
+	// DetailTail) attached alongside an explicit Detail. When Detail is also
+	// set, both render — Detail first, EvidenceTail as an additional evidence
+	// line underneath — so an explicit Detail is never silently discarded by
+	// an auto-attached or explicitly requested evidence tail (or vice versa).
+	// When Detail is empty, EvidenceTail alone renders as the problem's detail
+	// body (DetailTail's original, still-supported shape).
+	EvidenceTail string
+	Severity     string
+	Count        int64
+	Unit         string
+	Location     *SourceLocation
+	Evidence     []Attachment
+	Actions      []Action
+	Fields       []Field
+	Cause        error
+	Sensitive    bool
 }
 
 // SourceLocation is a path-based source position. Named SourceLocation
@@ -180,6 +188,7 @@ func applyProblemOptions(summary string, opts []ProblemOption) Problem {
 func sanitizeProblem(p Problem) Problem {
 	p.Summary = sanitize.Text(p.Summary)
 	p.Detail = sanitize.Block(p.Detail)
+	p.EvidenceTail = sanitize.Block(p.EvidenceTail)
 	p.Subject = sanitize.Text(p.Subject)
 	p.Code = sanitize.Text(p.Code)
 	p.Unit = sanitize.Text(p.Unit)

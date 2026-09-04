@@ -301,11 +301,15 @@ func (c *Evidence) Empty() bool {
 }
 
 // DetailTail returns a ProblemOption attaching a user-visible presentation of
-// the capture tail. Prefers stderr when separate streams were used.
+// the capture tail. Prefers stderr when separate streams were used. Sets
+// Problem.EvidenceTail rather than Problem.Detail: when the same Fail/Block
+// call also carries an explicit Detail, that explicit text still renders (as
+// the primary detail line) and this tail renders as an additional evidence
+// line underneath, regardless of which option was passed first.
 func (c *Evidence) DetailTail() ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
 		if text := c.detailText(); text != "" {
-			p.Detail = text
+			p.EvidenceTail = text
 		}
 	})
 }
