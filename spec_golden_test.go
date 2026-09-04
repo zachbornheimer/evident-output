@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -327,13 +328,19 @@ func TestSpecP6_BytesVsCounts_Success(t *testing.T) {
 //
 //	✓  branches  500 deleted
 //	!  names truncated in live view (500 in model)
+//
+// TestSpecP7_ViewportTruncation_PlanOverflowLine exercises the viewport
+// bound with 500 distinct records — release-gate round 3 finding 6 merges
+// identical (verb, object) records instead of duplicating the row, so this
+// case uses a distinct object per call to keep exercising the bounded-rows
+// overflow line it was written to prove.
 func TestSpecP7_ViewportTruncation_PlanOverflowLine(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
 	for i := 0; i < 500; i++ {
-		branches.RecordName("delete", "feat/branch")
+		branches.RecordName("delete", fmt.Sprintf("feat/branch-%d", i))
 	}
 	branches.Done("500 deleted")
 	if err := out.Finish(); err != nil {
