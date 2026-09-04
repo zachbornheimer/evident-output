@@ -46,6 +46,21 @@ func applyFailedExitCode(c *Conclusion, code int) {
 	c.ExitCode = code
 }
 
+// allChildrenUnchanged reports whether every child task is a Done
+// resolution tagged Task.Unchanged (I7) — an empty child list never counts
+// (a collection with no children says nothing about "unchanged").
+func allChildrenUnchanged(children []TaskSnapshot) bool {
+	if len(children) == 0 {
+		return false
+	}
+	for _, t := range children {
+		if t.State != Done || !t.unchanged {
+			return false
+		}
+	}
+	return true
+}
+
 func inferConclusion(s Snapshot) Conclusion {
 	c := Conclusion{
 		Subject:     s.Subject,
@@ -72,6 +87,12 @@ func inferConclusion(s Snapshot) Conclusion {
 		hasCancelled  bool
 		hasIncomplete bool
 		hasDone       bool
+		// doneCount/unchangedCount let a run made entirely of Task.Unchanged
+		// resolutions conclude StateUnchanged instead of the generic
+		// StateReady an ordinary Done gets (I7) — Skipped doesn't carry the
+		// tag and never counts as "unchanged" on its own.
+		doneCount      int
+		unchangedCount int
 	)
 
 	for _, t := range s.Tasks {
@@ -88,6 +109,10 @@ func inferConclusion(s Snapshot) Conclusion {
 			hasIncomplete = true
 		case Done, Skipped:
 			hasDone = true
+			doneCount++
+			if t.State == Done && t.unchanged {
+				unchangedCount++
+			}
 		}
 	}
 	for _, col := range s.Collections {
@@ -102,6 +127,13 @@ func inferConclusion(s Snapshot) Conclusion {
 			hasIncomplete = true
 		case Done, Empty:
 			hasDone = true
+			doneCount++
+			// A collection counts toward "all unchanged" only when every one
+			// of its children does (collections derive their tally from
+			// children, never their own bare marker).
+			if col.State == Done && allChildrenUnchanged(col.Tasks) {
+				unchangedCount++
+			}
 		}
 	}
 
@@ -126,6 +158,8 @@ func inferConclusion(s Snapshot) Conclusion {
 		c.State = StateChanged
 	case len(s.Plans) > 0 && !c.Changed && !hasFailed && !hasBlocked:
 		c.State = StatePlanned
+	case hasDone && doneCount > 0 && doneCount == unchangedCount:
+		c.State = StateUnchanged
 	case hasDone:
 		c.State = StateReady
 	case hasWarning:

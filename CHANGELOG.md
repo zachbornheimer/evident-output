@@ -310,6 +310,11 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   ("rerun with --apply") that resolves its own executable from the same
   identity source as `PolicyFlag`, instead of restating the binary via
   `NextCommand`. `NextCommand` stays for a foreign tool (the majority).
+- `TaskHandle.Unchanged(summary)` / `Unchangedf(format, args...)`: a Done
+  resolution explicitly tagged "checked, nothing needed to change". A run
+  made entirely of `Unchanged` tasks (and, for a `Tasks`/`Group`
+  collection, entirely `Unchanged` children) concludes `StateUnchanged`
+  instead of the generic `StateReady` an ordinary `Done` gets.
 
 ## Migration guide (v0.2.x → v0.3.0)
 

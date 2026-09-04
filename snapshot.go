@@ -51,6 +51,10 @@ type TaskSnapshot struct {
 	// unexported: it is presentation-internal bookkeeping (coalesce.go),
 	// never part of the public snapshot contract.
 	synthetic bool
+	// unchanged marks a Done task resolved via Task.Unchanged/Unchangedf
+	// (I7) — unexported: conclusion-inference-internal bookkeeping, never
+	// part of the public snapshot contract.
+	unchanged bool
 }
 
 // TaxonomyRecord is one accumulated (reason, name) disposition entry —

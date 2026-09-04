@@ -141,6 +141,13 @@ type taskState struct {
 	// Task whose own row already says the same thing.
 	synthetic bool
 
+	// unchanged marks a Done task resolved via Task.Unchanged/Unchangedf
+	// (I7) — "checked, nothing needed to change" — distinct from an
+	// ordinary Done's generic "ready" verdict. inferConclusion derives
+	// StateUnchanged over the generic StateReady when every Done-family
+	// task in the run carries this tag and nothing was recorded changed.
+	unchanged bool
+
 	// Plain/non-interactive progressive-streaming bookkeeping for a still-
 	// Running standalone task (P10: CI logs must not stay silent until
 	// Finish; beginner-8: a durable line per progress increment, thinned to
@@ -982,6 +989,7 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Collection:  colID,
 		Declaration: t.declaration,
 		synthetic:   t.synthetic,
+		unchanged:   t.unchanged,
 	}
 }
 

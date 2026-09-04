@@ -240,6 +240,21 @@ func (t *TaskHandle) Done(summary ...string) *TaskHandle {
 	}
 }
 
+// Unchanged resolves the task successfully, explicitly marking "checked,
+// nothing needed to change" — distinct from an ordinary Done's generic
+// verdict (I7). A run made entirely of Unchanged tasks (no Changes/Plan
+// records, nothing Failed/Blocked/Cancelled/Warning) concludes
+// StateUnchanged instead of the StateReady an ordinary Done gets.
+func (t *TaskHandle) Unchanged(summary string) *TaskHandle {
+	return t.finishTagged(Done, sanitize.Text(summary), nil, true)
+}
+
+// Unchangedf resolves the task with a formatted "nothing needed to change"
+// summary. Prefer Unchanged("text") when there are no format directives.
+func (t *TaskHandle) Unchangedf(format string, args ...any) *TaskHandle {
+	return t.finishTagged(Done, sanitize.Text(fmt.Sprintf(format, args...)), nil, true)
+}
+
 // Donef resolves the task with a formatted summary.
 // Prefer Done("text") when there are no format directives.
 func (t *TaskHandle) Donef(format string, args ...any) *TaskHandle {
@@ -374,6 +389,15 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 }
 
 func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
+	return t.finishTagged(state, summary, problems, false)
+}
+
+// finishTagged is finish's body, with an extra unchanged tag Task.Unchanged/
+// Unchangedf set (I7) — a run made entirely of Unchanged tasks concludes
+// StateUnchanged instead of the generic StateReady an ordinary Done gets
+// (inferConclusion). Never called with unchanged=true for any state other
+// than Done — Unchanged is a Done-family resolution, not a new glyph.
+func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []Problem, unchanged bool) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -389,6 +413,7 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 		return t
 	}
 	st.state = state
+	st.unchanged = unchanged
 	st.phase = "" // Done clears active phase
 	if summary != "" {
 		st.summary = sanitize.Text(summary)
