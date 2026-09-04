@@ -27,26 +27,30 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 	color := !noColor
 
 	if s.DryRun {
-		WriteDryRunMarker(&b, color)
+		WriteDryRunMarker(&b, color, s.DryRunSubject)
 	}
 
 	for _, line := range s.Lines {
 		WriteDebugOrLine(&b, line, color)
 	}
+	writeRunAnnotations(&b, s.Warnings, s.Facts, color, profile)
 
+	taskNameWidth := maxTaskNameWidth(s.Tasks)
 	for _, t := range s.Tasks {
-		WriteTask(&b, t, color, verbose, profile)
+		WriteTaskAligned(&b, t, taskNameWidth, color, verbose, profile)
 	}
 
 	for _, col := range s.Collections {
 		WriteCollection(&b, col, color, verbose, profile)
 	}
 
+	changeNameWidth := maxEffectSubjectWidth(s.Changes, func(c core.ChangesSnapshot) string { return c.Subject })
 	for _, ch := range s.Changes {
-		WriteEffects(&b, "changed", ch.Subject, ch.Records, ch.IntendedVerb, width, color, profile)
+		WriteEffects(&b, "changed", ch.Subject, changeNameWidth, ch.Records, ch.IntendedVerb, width, color, profile)
 	}
+	planNameWidth := maxEffectSubjectWidth(s.Plans, func(p core.PlanSnapshot) string { return p.Subject })
 	for _, p := range s.Plans {
-		WriteEffects(&b, "planned", p.Subject, p.Records, p.IntendedVerb, width, color, profile)
+		WriteEffects(&b, "planned", p.Subject, planNameWidth, p.Records, p.IntendedVerb, width, color, profile)
 	}
 
 	if s.Conclusion != nil && !ShouldSuppressStandaloneConclusion(s) {
@@ -54,6 +58,57 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 	}
 
 	return b.String()
+}
+
+// writeRunAnnotations renders evo.Warn/evo.Fact's run-scoped annotations
+// (P8 symmetry with a task's own Warn/Fact) — fire-and-forget durable dim
+// lines, warnings first: "! <text>" then "<name>  <value>", in call order
+// within each severity.
+func writeRunAnnotations(b *strings.Builder, warnings []core.Problem, facts []core.Fact, color bool, profile txt.GlyphProfile) {
+	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
+	for _, w := range warnings {
+		fmt.Fprintf(b, "%s %s\n", glyph, w.Summary)
+	}
+	for _, f := range facts {
+		fmt.Fprintf(b, "%s\n", txt.Dim(f.Name+"  "+f.Value, color))
+	}
+}
+
+// maxTaskNameWidth returns the longest task name among sibling root tasks —
+// the shared column an inline warning/fact annotation aligns to across
+// siblings (fixture-repo-retire-dryrun.md). A lone task (or none) needs no
+// alignment, so callers pass the result straight to WriteTaskAligned's
+// nameWidth, where 0 means "don't pad".
+func maxTaskNameWidth(tasks []core.TaskSnapshot) int {
+	if len(tasks) < 2 {
+		return 0
+	}
+	width := 0
+	for _, t := range tasks {
+		if n := len([]rune(t.Name)); n > width {
+			width = n
+		}
+	}
+	return width
+}
+
+// maxEffectSubjectWidth returns the longest subject name across a set of
+// effect sections (Changes or Plans) — the shared column WriteEffects' one-
+// line-per-subject form aligns its verb to (fixture-repo-retire-dryrun.md's
+// "[planned] branches   delete ..." / "[planned] worktrees  remove ...").
+// subjectOf extracts the comparable field since ChangesSnapshot and
+// PlanSnapshot are distinct types with no shared interface.
+func maxEffectSubjectWidth[T any](sections []T, subjectOf func(T) string) int {
+	if len(sections) < 2 {
+		return 0
+	}
+	width := 0
+	for _, s := range sections {
+		if n := len([]rune(subjectOf(s))); n > width {
+			width = n
+		}
+	}
+	return width
 }
 
 // WriteDebugOrLine formats a stored line; dims history/pane debug grammar
@@ -248,6 +303,38 @@ func inlineWarningText(msg string, color bool, profile txt.GlyphProfile) string 
 	return txt.Dim(glyph+" "+msg, color)
 }
 
+// inlineTaskFact mirrors inlineTaskWarning at info severity (P8): a Done
+// task with no summary, no warnings, and exactly one Fact inlines that
+// fact's "name  value" text on its own row instead of nesting it — the same
+// "one short annotation inlines" rule Warn's severity already follows,
+// applied to Fact's severity too (one placement rule, two severities).
+func inlineTaskFact(t core.TaskSnapshot) (core.Fact, bool) {
+	if t.State != core.Done || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 1 {
+		return core.Fact{}, false
+	}
+	f := t.Facts[0]
+	if txt.Cells(f.Name+"  "+f.Value) > warningInlineMaxCells {
+		return core.Fact{}, false
+	}
+	return f, true
+}
+
+// inlineFactText renders an inline fact dim, with no attention glyph — a
+// Fact is information, never something demanding the reader's attention the
+// way an inline warning's "!" does.
+func inlineFactText(f core.Fact, color bool) string {
+	return txt.Dim(f.Name+"  "+f.Value, color)
+}
+
+// writeNestedTaskFacts is inlineTaskFact's nested-line sibling: every fact
+// that didn't qualify for inlining renders as its own dim "name  value" line
+// under the task's row, the same indentation writeNestedTaskWarnings uses.
+func writeNestedTaskFacts(b *strings.Builder, facts []core.Fact, indent string, color bool) {
+	for _, f := range facts {
+		fmt.Fprintf(b, "%s%s\n", indent, txt.Dim(f.Name+"  "+f.Value, color))
+	}
+}
+
 // writeNestedTaskWarnings emits warnings that didn't qualify for
 // inlineTaskWarning as their own "!" lines under the task's row (P2:
 // "multiple/long → nested dim ! lines"), indented by indent (two spaces for
@@ -262,9 +349,22 @@ func writeNestedTaskWarnings(b *strings.Builder, warnings []core.Problem, indent
 	}
 }
 
+// WriteTask renders a standalone task row unpadded — see WriteTaskAligned
+// for the sibling-column-alignment form fixture-repo-retire-dryrun.md
+// requires when annotations (inline warnings/facts) sit among peers.
 func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, profile txt.GlyphProfile) {
+	WriteTaskAligned(b, t, 0, color, verbose, profile)
+}
+
+// WriteTaskAligned renders a task row with its name padded to nameWidth (0
+// = no padding) before any annotation, so a run of sibling tasks with inline
+// warnings/facts line up in one column ("✓ branches          ! kept 13...",
+// fixture-repo-retire-dryrun.md) instead of each row's detail starting
+// wherever its own name happens to end. A detail-less row's padding is
+// trimmed so it never ends in dangling whitespace (mirrors DisplayUnit.Render).
+func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, color, verbose bool, profile txt.GlyphProfile) {
 	glyph := txt.StyleGlyph(TaskGlyph(t.State, profile), StateColor(t.State), color)
-	label := t.Name
+	label := txt.PadRight(t.Name, nameWidth)
 	runningDetail := ""
 	if t.State == core.Running {
 		runningDetail = runningTaskDetail(t)
@@ -273,6 +373,11 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, pro
 	nestedWarnings := t.Warnings
 	if hasInlineWarning {
 		nestedWarnings = nil
+	}
+	inlineFact, hasInlineFact := inlineTaskFact(t)
+	nestedFacts := t.Facts
+	if hasInlineFact {
+		nestedFacts = nil
 	}
 	switch {
 	case t.Summary != "" && t.State == core.Failed:
@@ -300,6 +405,8 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, pro
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, txt.Dim(t.Summary, color))
 	case hasInlineWarning:
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, inlineWarningText(inlineWarning, color, profile))
+	case hasInlineFact:
+		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, inlineFactText(inlineFact, color))
 	case runningDetail != "":
 		// Default intensity, not txt.Dim: the in-flight phase/progress is the
 		// diagnostic signal while work is stalled — txt.Dim is reserved for
@@ -307,7 +414,9 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, pro
 		// overflow), per evo-rec.md "Color and txt.Style demotions".
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, runningDetail)
 	default:
-		fmt.Fprintf(b, "%s  %s\n", glyph, label)
+		// No detail to align a column against — pad-trimmed so this row
+		// never ends in dangling whitespace (DisplayUnit.Render's rule).
+		fmt.Fprintf(b, "%s  %s\n", glyph, strings.TrimRight(label, " "))
 	}
 	// Problems (including Detail from Capture tails) always follow the row.
 	// Early-return on Summary used to drop Fail Detail — a silent dialect hole.
@@ -343,6 +452,7 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, pro
 	writeTaxonomy(b, "", "skipped", t.Skipped, verbose, color, profile)
 	writeTaxonomy(b, "", "kept", t.Kept, verbose, color, profile)
 	writeNestedTaskWarnings(b, nestedWarnings, "  ", color, profile)
+	writeNestedTaskFacts(b, nestedFacts, "  ", color)
 }
 
 // runningTaskDetail composes a core.Running task's plain-mode detail text: its
@@ -466,8 +576,9 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 	} else {
 		fmt.Fprintf(b, "%s  %s\n", glyph, col.Name)
 	}
+	childNameWidth := maxTaskNameWidth(col.Tasks)
 	for _, t := range col.Tasks {
-		writeCollectionChild(b, t, color, verbose, profile)
+		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
 	}
 	// Nested containers (P3's recursive .Sequence/.DisplayGroup nesting)
 	// render as an indented sub-group, one level per nesting depth.
@@ -486,21 +597,38 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 // writeTask already does — a collection child is a task, and dropping its
 // evidence (└─ ...) and taxonomy here was the gap that forced the
 // repo-retire adoption off the Group/Tasks API.
-func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, profile txt.GlyphProfile) {
+func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int, color, verbose bool, profile txt.GlyphProfile) {
 	tg := txt.StyleGlyph(TaskGlyph(t.State, profile), StateColor(t.State), color)
-	fmt.Fprintf(b, "   %s  %s", tg, t.Name)
+	name := txt.PadRight(t.Name, nameWidth)
 	headerSummary := t.Summary
 	inlineWarning, hasInlineWarning := inlineTaskWarning(t)
 	nestedWarnings := t.Warnings
+	inlineFact, hasInlineFact := inlineTaskFact(t)
+	nestedFacts := t.Facts
+	var row strings.Builder
+	fmt.Fprintf(&row, "   %s  %s", tg, name)
+	hasDetail := true
 	switch {
 	case len(t.Problems) > 0:
 		headerSummary = t.Problems[0].Summary
-		fmt.Fprintf(b, "  %s", headerSummary)
+		fmt.Fprintf(&row, "  %s", headerSummary)
 	case headerSummary != "":
-		fmt.Fprintf(b, "  %s", headerSummary)
+		fmt.Fprintf(&row, "  %s", headerSummary)
 	case hasInlineWarning:
-		fmt.Fprintf(b, "  %s", inlineWarningText(inlineWarning, color, profile))
+		fmt.Fprintf(&row, "  %s", inlineWarningText(inlineWarning, color, profile))
 		nestedWarnings = nil
+	case hasInlineFact:
+		fmt.Fprintf(&row, "  %s", inlineFactText(inlineFact, color))
+		nestedFacts = nil
+	default:
+		hasDetail = false
+	}
+	if hasDetail {
+		b.WriteString(row.String())
+	} else {
+		// No detail to align a column against — the padded name's trailing
+		// spaces would otherwise dangle at line end (DisplayUnit.Render's rule).
+		b.WriteString(strings.TrimRight(row.String(), " "))
 	}
 	b.WriteByte('\n')
 	// emphasize keeps a Fail/Block child's evidence at full intensity, the
@@ -535,6 +663,7 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, color, verbos
 	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, verbose, color, profile)
 	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, verbose, color, profile)
 	writeNestedTaskWarnings(b, nestedWarnings, problemTreeIndent, color, profile)
+	writeNestedTaskFacts(b, nestedFacts, problemTreeIndent, color)
 }
 
 // maxVisibleEffectRows bounds how many plan/changes rows the human view
@@ -589,7 +718,7 @@ func mergeIdenticalEffectRecords(records []core.EffectRecord) []core.EffectRecor
 	return merged
 }
 
-func WriteEffects(b *strings.Builder, kind, subject string, records []core.EffectRecord, intendedVerb string, width int, color bool, profile txt.GlyphProfile) {
+func WriteEffects(b *strings.Builder, kind, subject string, nameWidth int, records []core.EffectRecord, intendedVerb string, width int, color bool, profile txt.GlyphProfile) {
 	// A [planned]/[changed] header with zero rows beneath it invents a mutation
 	// story that never happened; render the honest empty-success line instead
 	// (evo-rec.md "nothing-to-do" default). The verb comes from the section's
@@ -604,9 +733,28 @@ func WriteEffects(b *strings.Builder, kind, subject string, records []core.Effec
 		return
 	}
 	tag := txt.Style(fmt.Sprintf("[%s]", kind), effectColor(kind), color)
-	fmt.Fprintf(b, "%s  %s\n", tag, subject)
 
 	visible := mergeIdenticalEffectRecords(records)
+
+	// The common case — one mutation call per task — collapses to ONE
+	// aligned line per subject: "[planned] branches   delete 2 local tips"
+	// (fixture-repo-retire-dryrun.md), instead of a separate header line plus
+	// an indented row underneath. A subject with more than one distinct
+	// record (rarer — several mutation calls under one task) keeps the
+	// original header+rows shape below, since collapsing several records
+	// onto one line would lose which quantity/object belongs to which verb.
+	if len(visible) == 1 && len(visible) <= maxVisibleEffectRows {
+		r := visible[0]
+		name := txt.PadRight(subject, nameWidth)
+		if r.HasQty {
+			fmt.Fprintf(b, "%s %s  %s %d %s\n", tag, name, r.Verb, r.Quantity, ledgerObject(r))
+		} else {
+			fmt.Fprintf(b, "%s %s  %s %s\n", tag, name, r.Verb, r.Object)
+		}
+		return
+	}
+
+	fmt.Fprintf(b, "%s  %s\n", tag, subject)
 	omitted := 0
 	if len(visible) > maxVisibleEffectRows {
 		omitted = len(visible) - maxVisibleEffectRows
@@ -681,9 +829,20 @@ const dryRunMarkerText = "no changes will be made"
 // once, first, styled like [planned] — a caller cannot opt out or bury it,
 // because every dry-run projection (RenderPlain and Finish's residual) calls
 // this before any other row.
-func WriteDryRunMarker(b *strings.Builder, color bool) {
+//
+// subject is Config.Subject's text (fixture-repo-retire-dryrun.md's "repo
+// <path>"), merged onto this one line instead of streaming as a second
+// durable line — a blank line separates the header from whatever follows,
+// matching the fixture's "ONE header line ... blank line after". Empty
+// subject falls back to the plain announcement text, unchanged from before
+// Config.Subject existed.
+func WriteDryRunMarker(b *strings.Builder, color bool, subject string) {
 	tag := txt.Style("[dry-run]", effectColor("planned"), color)
-	fmt.Fprintf(b, "%s  %s\n", tag, dryRunMarkerText)
+	body := dryRunMarkerText
+	if subject != "" {
+		body = subject
+	}
+	fmt.Fprintf(b, "%s  %s\n\n", tag, body)
 }
 
 // conclusionPartialModifier is the literal suffix that marks the printed

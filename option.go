@@ -64,6 +64,15 @@ type config struct {
 	// of writing raw bytes to Diagnostics that would otherwise land
 	// mid-spinner-row on the one screen both writers share.
 	diagnosticSharesTerminal bool
+	// dryRunHeaderText is Config.Subject's text, threaded through so a
+	// dry-run's opening announcement can merge onto ONE line — "[dry-run]
+	// <subject>" (fixture-repo-retire-dryrun.md) — instead of the marker and
+	// the subject printing as two separate durable lines. Only Init's
+	// synchronous Config{DryRun: true, Subject: "..."} path sets this before
+	// construction; DeclareDryRun's later switch keeps the marker's plain
+	// fallback text, since by then any Subject has already streamed as its
+	// own line.
+	dryRunHeaderText string
 }
 
 type optionFunc func(*config)
@@ -138,6 +147,15 @@ func Strict() Option {
 // this Option exists for the advanced NewWithOptions surface and tests.
 func DryRun() Option {
 	return optionFunc(func(c *config) { c.dryRun = true })
+}
+
+// dryRunHeader is Init's unexported plumbing for Config.Subject: it lets a
+// dry-run's opening marker merge the subject onto its own one-line
+// announcement instead of the two separate durable lines a bare Println
+// would produce. Not part of the public Option surface — Config.Subject and
+// Output.Subject stay the caller's only entry points.
+func dryRunHeader(text string) Option {
+	return optionFunc(func(c *config) { c.dryRunHeaderText = text })
 }
 
 // Stdin injects the reader Confirm reads answers from (facade rule — no

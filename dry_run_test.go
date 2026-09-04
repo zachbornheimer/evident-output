@@ -22,7 +22,7 @@ func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "[planned]  branches") {
+	if !strings.Contains(got, "[planned] branches") {
 		t.Fatalf("want [planned] section, got:\n%s", got)
 	}
 	if strings.Contains(got, "[changed]") {
@@ -50,7 +50,7 @@ func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "[changed]  branches") {
+	if !strings.Contains(got, "[changed] branches") {
 		t.Fatalf("want [changed] section, got:\n%s", got)
 	}
 	if strings.Contains(got, "[planned]") {
@@ -195,7 +195,7 @@ func TestWriteEffects_ZeroAffectedMutationVerbRendersNoSection(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if strings.Contains(got, "nothing to") || strings.Contains(got, "[planned]  branches") {
+	if strings.Contains(got, "nothing to") || strings.Contains(got, "[planned] branches") {
 		t.Fatalf("want no \"branches\" ledger section at all for a zero-Affected mutation verb, got:\n%s", got)
 	}
 	if len(out.Snapshot().Plans) != 0 {

@@ -460,6 +460,9 @@ func configToOptions(c Config) []Option {
 	}
 	if c.DryRun {
 		opts = append(opts, DryRun())
+		if c.Subject != "" {
+			opts = append(opts, dryRunHeader(c.Subject))
+		}
 	}
 	opts = append(opts, Glyphs(c.Glyphs))
 	return opts

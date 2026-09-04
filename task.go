@@ -285,6 +285,33 @@ func (t *TaskHandle) Warn(summary string, args ...any) {
 	t.out.signalLiveLocked(true)
 }
 
+// Fact accumulates a discovered name/value annotation on the task — info
+// severity, Warn's non-terminal sibling (user-13-problems.md Problem 8:
+// "Tasks are work. Facts are information."). Renders as a dim "name  value"
+// line, inline when it is the task's only annotation, nested otherwise.
+// Like Warn, this is a statement (no return value) and never resolves the
+// task — call it any number of times before the task's terminal verb.
+func (t *TaskHandle) Fact(name, value string) {
+	f := core.SanitizeFact(FactRecord{Name: txt.Text(name), Value: txt.Text(value)})
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return
+	}
+	if core.IsTerminalTask(st.state) {
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		return
+	}
+	st.facts = append(st.facts, f)
+	t.out.bumpLocked()
+	t.out.signalLiveLocked(true)
+}
+
 // Fail resolves the task as failed. This is a statement, not a fluent
 // chain — Fail returns nothing, so a bare `task.Fail("summary")` is
 // errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use Failf

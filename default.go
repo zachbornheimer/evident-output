@@ -53,23 +53,27 @@ func Init(configs ...Config) *Output {
 		opts := cfg.Options
 		if cfg.DryRun {
 			opts = append(append([]Option{}, opts...), DryRun())
+			if cfg.Subject != "" {
+				opts = append(opts, dryRunHeader(cfg.Subject))
+			}
 		}
 		out := newOutput(cfg.Title, opts...)
 		if !cfg.Isolated {
 			SetDefault(out)
 			out.arm()
 		}
-		if cfg.Subject != "" {
+		if cfg.Subject != "" && !cfg.DryRun {
 			out.Println(cfg.Subject)
 		}
 		return out
 	}
-	out := newFromConfig(resolveConfig(cfg))
+	resolved := resolveConfig(cfg)
+	out := newFromConfig(resolved)
 	if !cfg.Isolated {
 		SetDefault(out)
 		out.arm()
 	}
-	if cfg.Subject != "" {
+	if cfg.Subject != "" && !cfg.DryRun {
 		out.Println(cfg.Subject)
 	}
 	return out

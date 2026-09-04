@@ -74,8 +74,8 @@ func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 	got := buf.String()
 	for _, want := range []string{
 		"✓  go mod download  modules cached",
-		"✓  go generate  0.3 MB",
-		"✓  go test ./...  ok",
+		"✓  go generate      0.3 MB",
+		"✓  go test ./...    ok",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
@@ -111,7 +111,7 @@ func TestSpecP11_NestedPipeline_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✓  go mod download  modules cached",
 		"✓  go generate",
-		"✗  go test ./...  tests failed",
+		"✗  go test ./...    tests failed",
 		"--- FAIL: TestFoo (0.01s)",
 		"foo_test.go:12: want 1, got 0",
 	} {
@@ -175,9 +175,9 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 	got := buf.String()
 	for _, want := range []string{
 		"✓  go mod download",
-		"✗  go generate  generator exited 1",
+		"✗  go generate      generator exited 1",
 		"stringer: type not found",
-		"go test ./...  not started",
+		"go test ./...    not started",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
@@ -215,8 +215,8 @@ func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 	got := buf.String()
 	for _, want := range []string{
 		"✓  go mod download",
-		"■  go generate  cancelled",
-		"go test ./...  not started",
+		"■  go generate      cancelled",
+		"go test ./...    not started",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)

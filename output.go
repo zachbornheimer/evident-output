@@ -114,6 +114,13 @@ type Output struct {
 	pendingPrint strings.Builder
 	pendingVis   Visibility // visibility of the current pending fragment
 	messages     []messageState
+
+	// runWarnings/runFacts accumulate Output.Warn/Output.Fact's run-scoped
+	// annotations (P8) — the same "annotate, never resolve" contract a
+	// task's warnings/facts have, scoped to the run itself instead of one
+	// task.
+	runWarnings []Problem
+	runFacts    []FactRecord
 }
 
 type taskState struct {
@@ -174,6 +181,10 @@ type taskState struct {
 	// Finish auto-resolves Done (see hasRecordedEffectLocked's amnesty
 	// siblings in Finish).
 	warnings []Problem
+	// facts accumulates TaskHandle.Fact's discovered-information annotations
+	// (P8) — info severity, the same "annotate, never resolve" contract
+	// warnings has at warning severity.
+	facts []FactRecord
 
 	// Plain/non-interactive progressive-streaming bookkeeping for a still-
 	// Running standalone task (P10: CI logs must not stay silent until
@@ -371,7 +382,7 @@ func (o *Output) DeclareDryRun() {
 // (writeDurableTextLocked) every other library-owned line uses.
 func (o *Output) emitDryRunMarkerLocked() {
 	var b strings.Builder
-	render.WriteDryRunMarker(&b, !o.cfg.noColor)
+	render.WriteDryRunMarker(&b, !o.cfg.noColor, o.cfg.dryRunHeaderText)
 	o.writeDurableTextLocked(b.String())
 }
 
@@ -1153,13 +1164,16 @@ func (o *Output) Snapshot() Snapshot {
 
 func (o *Output) snapshotLocked() Snapshot {
 	s := Snapshot{
-		Version:   o.version,
-		OutputID:  o.outputID,
-		Subject:   o.cfg.subject,
-		Lines:     append([]string(nil), o.lines...),
-		Actions:   cloneActions(o.collectActionsLocked()),
-		Timestamp: o.cfg.clock.Now(),
-		DryRun:    o.cfg.dryRun,
+		Version:       o.version,
+		OutputID:      o.outputID,
+		Subject:       o.cfg.subject,
+		Lines:         append([]string(nil), o.lines...),
+		Actions:       cloneActions(o.collectActionsLocked()),
+		Timestamp:     o.cfg.clock.Now(),
+		DryRun:        o.cfg.dryRun,
+		DryRunSubject: o.cfg.dryRunHeaderText,
+		Warnings:      core.CloneProblems(o.runWarnings),
+		Facts:         core.CloneFacts(o.runFacts),
 	}
 	for _, col := range o.collections {
 		s.Collections = append(s.Collections, col.snapshot())
@@ -1206,6 +1220,7 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Summary:     t.summary,
 		Problems:    core.CloneProblems(t.problems),
 		Warnings:    core.CloneProblems(t.warnings),
+		Facts:       core.CloneFacts(t.facts),
 		Actions:     cloneActions(t.actions),
 		Skipped:     cloneTaxonomy(t.skipped),
 		Kept:        cloneTaxonomy(t.kept),

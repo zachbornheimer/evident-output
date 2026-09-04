@@ -205,10 +205,10 @@ func TestConformance_Problem1SuccessBlock(t *testing.T) {
 	// Glyph column + counts, per task (the [changed] mutation ledger, not a
 	// caller-composed string — see task_mutations.go).
 	for _, want := range []string{
-		"[changed]  branches",
-		"deleted  14 local branches",
-		"[changed]  worktrees",
-		"removed  2 worktrees",
+		"[changed] branches",
+		"deleted 14 local branches",
+		"[changed] worktrees",
+		"removed 2 worktrees",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in dialect-conformant output:\n%s", want, got)

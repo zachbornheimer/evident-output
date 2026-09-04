@@ -209,7 +209,15 @@ func InferConclusion(s Snapshot) Conclusion {
 	if hasCancelled {
 		c.Cancelled = true
 	}
-	if hasWarning && c.State != StateWarning {
+	// warnedModifier feeds the "· warned" band from BOTH sources at warning
+	// severity — a task's TaskHandle.Warn and the run's own evo.Warn (P8
+	// symmetry) — while hasWarning above (task/collection only) still governs
+	// the (dead, reserved-unreachable) StateWarning headline case alone, so a
+	// bare evo.Warn on a run with no tasks never invents a new headline —
+	// it only modifies whatever the run otherwise concludes (evo-rec.md
+	// "warnings annotate lifecycle; they do not replace it").
+	warnedModifier := hasWarning || len(s.Warnings) > 0
+	if warnedModifier && c.State != StateWarning {
 		c.Warned = true
 	}
 

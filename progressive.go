@@ -254,10 +254,10 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 		}
 	}
 	for _, ch := range o.changes {
-		render.WriteEffects(&b, "changed", ch.subject, ch.records, ch.intendedVerb, width, color, profile)
+		render.WriteEffects(&b, "changed", ch.subject, 0, ch.records, ch.intendedVerb, width, color, profile)
 	}
 	for _, p := range o.plans {
-		render.WriteEffects(&b, "planned", p.subject, p.records, p.intendedVerb, width, color, profile)
+		render.WriteEffects(&b, "planned", p.subject, 0, p.records, p.intendedVerb, width, color, profile)
 	}
 	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {
 		render.WriteConclusion(&b, *snap.Conclusion, color, profile)

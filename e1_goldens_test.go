@@ -44,7 +44,7 @@ func TestE1P1_MutationVerb_SuccessCommitsChangedEffect(t *testing.T) {
 	if got := out.Conclusion().State; got != evo.StateChanged {
 		t.Fatalf("state = %v, want StateChanged", got)
 	}
-	if !strings.Contains(buf.String(), "deleted  2 stale local branches") {
+	if !strings.Contains(buf.String(), "deleted 2 stale local branches") {
 		t.Fatalf("want the derived past-tense ledger row, got:\n%s", buf.String())
 	}
 }
@@ -127,7 +127,7 @@ func TestE1P1_MutationVerb_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
 	if got := out.Conclusion().State; got != evo.StatePlanned {
 		t.Fatalf("state = %v, want StatePlanned", got)
 	}
-	if !strings.Contains(buf.String(), "delete  2 stale local branches") {
+	if !strings.Contains(buf.String(), "delete 2 stale local branches") {
 		t.Fatalf("want the imperative planned ledger row, got:\n%s", buf.String())
 	}
 }
@@ -246,7 +246,7 @@ func TestE1P9_LifecycleStatesAreDistinct(t *testing.T) {
 		"✓  done-task",
 		"✗  failed-task  build broke",
 		"⊘  blocked-task  needs confirmation",
-		"■  first  interrupted",
+		"■  first   interrupted",
 		"-  second  not started",
 	} {
 		if !strings.Contains(got, want) {

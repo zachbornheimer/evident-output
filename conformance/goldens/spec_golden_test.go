@@ -110,7 +110,7 @@ func TestSpecP2_LocalRemoteSeparation_Success(t *testing.T) {
 		}
 	}
 	// The two subjects must never collapse into one list.
-	if strings.Count(got, "[changed]  branches") != 1 || strings.Count(got, "[changed]  remotes") != 1 {
+	if strings.Count(got, "[changed] branches") != 1 || strings.Count(got, "[changed] remotes") != 1 {
 		t.Fatalf("want one [changed] section each for branches and remotes, got:\n%s", got)
 	}
 }
@@ -200,7 +200,7 @@ func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 	got := buf.String()
 	for _, want := range []string{
 		"✓  scan",
-		"✗  venv  uv exited 1: No such file or directory",
+		"✗  venv     uv exited 1: No such file or directory",
 		"-  install  not started",
 	} {
 		if !strings.Contains(got, want) {
@@ -267,7 +267,7 @@ func TestSpecP5_RecordLabel_NeverMovesUnderPlanDuringDryRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "[changed]  scan") {
+	if !strings.Contains(got, "[changed] scan") {
 		t.Fatalf("want RecordLabel in the Changes ledger even under DryRun, got:\n%s", got)
 	}
 	// Checked against the structured snapshot, not a substring of the durable
