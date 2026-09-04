@@ -7,7 +7,6 @@
     "schema_version",
     "output",
     "conclusion",
-    "items",
     "task_collections",
     "tasks",
     "changes",
@@ -15,7 +14,7 @@
     "actions"
   ],
   "properties": {
-    "schema_version": { "const": "0.2" },
+    "schema_version": { "const": "0.4" },
     "output": {
       "type": "object",
       "required": ["id"],
@@ -26,21 +25,134 @@
     },
     "conclusion": {
       "type": "object",
-      "required": ["state", "changed", "partial", "cancelled", "exit_code"],
+      "required": ["state", "changed", "partial", "cancelled", "warned", "exit_code"],
       "properties": {
         "state": { "type": "string" },
         "changed": { "type": "boolean" },
         "partial": { "type": "boolean" },
         "cancelled": { "type": "boolean" },
+        "warned": { "type": "boolean" },
         "exit_code": { "type": "integer" },
         "explanation": { "type": "string" }
       }
     },
-    "items": { "type": "array" },
-    "task_collections": { "type": "array" },
-    "tasks": { "type": "array" },
-    "changes": { "type": "array" },
-    "plans": { "type": "array" },
-    "actions": { "type": "array" }
+    "task_collections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "state", "children"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "state": { "type": "string" },
+          "summary": { "type": "string" },
+          "children": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/task" }
+    },
+    "changes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/effectRecordSet" }
+    },
+    "plans": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/effectRecordSet" }
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "visibility", "text"],
+        "properties": {
+          "id": { "type": "string" },
+          "visibility": { "type": "string" },
+          "text": { "type": "string" }
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string" },
+          "url": { "type": "string" },
+          "command": {
+            "type": "object",
+            "required": ["executable"],
+            "properties": {
+              "executable": { "type": "string" },
+              "args": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "problem": {
+      "type": "object",
+      "properties": {
+        "subject": { "type": "string" },
+        "summary": { "type": "string" },
+        "detail": { "type": "string" },
+        "count": { "type": "integer" },
+        "unit": { "type": "string" },
+        "code": { "type": "string" }
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": ["id", "name", "state"],
+      "properties": {
+        "id": { "type": "string" },
+        "key": { "type": "string" },
+        "name": { "type": "string" },
+        "state": { "type": "string" },
+        "phase": { "type": "string" },
+        "summary": { "type": "string" },
+        "warnings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/problem" }
+        },
+        "progress": {
+          "type": "object",
+          "required": ["kind", "completed", "total"],
+          "properties": {
+            "kind": { "type": "string" },
+            "completed": { "type": "integer" },
+            "total": { "type": "integer" }
+          }
+        },
+        "problems": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/problem" }
+        }
+      }
+    },
+    "effectRecordSet": {
+      "type": "object",
+      "required": ["id", "subject", "records"],
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["verb", "object"],
+            "properties": {
+              "verb": { "type": "string" },
+              "quantity": { "type": "integer" },
+              "object": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
   }
 }
