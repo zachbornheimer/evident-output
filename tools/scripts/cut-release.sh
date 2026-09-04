@@ -10,7 +10,7 @@
 # Never moves an existing tag. Never force-pushes.
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -68,7 +68,7 @@ tmp="$(mktemp)"
 sed "s/^const PublishedRelease = \"v[^\"]*\"/const PublishedRelease = \"${next}\"/" release.go >"${tmp}"
 mv "${tmp}" release.go
 
-go run ./scripts/sync-release-pins
+go run ./tools/scripts/sync-release-pins
 go test . -run 'PublishedRelease|VersionDrift' -count=1
 
 msg="${CUT_RELEASE_MESSAGE:-chore(${next}): cut release}"

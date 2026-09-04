@@ -3,8 +3,8 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/agent/review"
-	"github.com/zachbornheimer/evident-output/agent/rules"
+	"github.com/zachbornheimer/evident-output/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
 
 func TestGoSource_DetectsStartPrintfExitAndDetailMisuse(t *testing.T) {

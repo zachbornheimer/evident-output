@@ -10,9 +10,9 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/agent/catalog"
-	"github.com/zachbornheimer/evident-output/agent/preview"
-	"github.com/zachbornheimer/evident-output/agent/review"
+	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/internal/agent/preview"
+	"github.com/zachbornheimer/evident-output/internal/agent/review"
 	"github.com/zachbornheimer/evident-output/internal/width"
 	"github.com/zachbornheimer/evident-output/terminal"
 	"github.com/zachbornheimer/evident-output/testkit"

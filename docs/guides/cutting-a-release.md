@@ -23,7 +23,7 @@ mise run test && mise run cut-release
 # or pin explicitly: VERSION=v0.2.12 mise run cut-release
 ```
 
-`scripts/cut-release.sh` will:
+`tools/scripts/cut-release.sh` will:
 
 1. Auto patch-bump `PublishedRelease` (or use `VERSION=vX.Y.Z`)
 2. Run `sync-release-pins`

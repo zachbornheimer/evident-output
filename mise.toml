@@ -43,7 +43,7 @@ run = [
 
 [tasks.traceability]
 description = "Verify every §31 ID is listed in TRACEABILITY"
-run = "go run ./scripts/traceability-check"
+run = "go run ./tools/scripts/traceability-check"
 
 [tasks.doctor]
 description = "Verify repo contract"
@@ -59,11 +59,11 @@ run = [
 
 [tasks.sync-release-pins]
 description = "Rewrite portable install pins to match evo.PublishedRelease"
-run = "go run ./scripts/sync-release-pins"
+run = "go run ./tools/scripts/sync-release-pins"
 
 [tasks.cut-release]
 description = "Bump PublishedRelease (patch or VERSION=vX.Y.Z), sync pins, tag, push"
-run = "bash scripts/cut-release.sh"
+run = "bash tools/scripts/cut-release.sh"
 
 [tasks.release]
 description = "Full test gate then cut-release (mise run test && mise run cut-release)"
@@ -71,7 +71,7 @@ run = "mise run test && mise run cut-release"
 
 [tasks.examples]
 description = "Run example CLIs back-to-back with headers"
-run = "bash scripts/run-examples.sh"
+run = "bash tools/scripts/run-examples.sh"
 
 [tasks.ci]
 description = "Full gate: lint + test + scan + conformance + traceability"

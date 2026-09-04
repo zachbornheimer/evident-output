@@ -23,7 +23,7 @@ jobs:
       - name: conformance
         run: go test ./conformance/...
       - name: traceability
-        run: go run ./scripts/traceability-check
+        run: go run ./tools/scripts/traceability-check
       - name: examples smoke
         run: go test ./examples/ -count=1
       - name: build

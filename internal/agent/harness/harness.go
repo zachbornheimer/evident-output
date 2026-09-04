@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/agent/catalog"
-	"github.com/zachbornheimer/evident-output/agent/review"
+	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/internal/agent/review"
 )
 
 // DefaultMaxCycles bounds the repair–recheck loop (MCP-022).

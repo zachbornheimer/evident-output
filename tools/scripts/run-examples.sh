@@ -2,7 +2,7 @@
 # Run example mini-CLIs back-to-back with section headers (mise run examples).
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT}"
 
 # Learning ladder (also documented in README).

@@ -3,8 +3,8 @@ package harness_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/agent/harness"
-	"github.com/zachbornheimer/evident-output/agent/review"
+	"github.com/zachbornheimer/evident-output/internal/agent/harness"
+	"github.com/zachbornheimer/evident-output/internal/agent/review"
 )
 
 func TestAgentHarness_DefaultScenariosPass(t *testing.T) {

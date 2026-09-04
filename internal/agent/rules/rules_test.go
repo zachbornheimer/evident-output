@@ -3,7 +3,7 @@ package rules_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/agent/rules"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
 
 func TestMCP027_ExplainFullPayload(t *testing.T) {

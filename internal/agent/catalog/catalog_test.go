@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/agent/catalog"
-	"github.com/zachbornheimer/evident-output/agent/rules"
+	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
 
 func TestFilterByUseCase(t *testing.T) {
