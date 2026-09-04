@@ -45,6 +45,14 @@ type config struct {
 	// glyphs selects the state-glyph vocabulary (GlyphsAuto resolved at
 	// construction to GlyphsUnicode or GlyphsASCII; see glyph.go).
 	glyphs GlyphProfile
+	// samePrimaryAsTerminal records that the live Terminal driver was built
+	// around the same underlying writer as primary (Config's default-construction
+	// path: To(c.Stdout) and Terminal(ansi-over-c.Stdout) target one stream).
+	// Set only where construction knows both writers, never inferred later by
+	// comparing file descriptors — see configToOptions. Finish uses it to skip
+	// the CON-009 dual-stream write, which would otherwise render the
+	// conclusion band twice on the one physical screen.
+	samePrimaryAsTerminal bool
 }
 
 type optionFunc func(*config)
@@ -135,6 +143,14 @@ func Stdin(r io.Reader) Option {
 // Terminal injects a terminal driver (interactive projection; v0.2).
 func Terminal(driver TerminalDriver) Option {
 	return optionFunc(func(c *config) { c.terminal = driver })
+}
+
+// withPrimarySharesTerminal marks that the just-configured Terminal driver
+// writes to the same stream as primary (To). Only configToOptions calls this
+// — it knows both writers at construction time, so Finish never has to guess
+// stream identity from an fd comparison.
+func withPrimarySharesTerminal() Option {
+	return optionFunc(func(c *config) { c.samePrimaryAsTerminal = true })
 }
 
 // LogLevel is a diagnostic severity.
