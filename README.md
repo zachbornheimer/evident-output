@@ -45,7 +45,7 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 Design philosophy and polish-phase basis: [`docs/roadmap/implementation-basis.md`](docs/roadmap/implementation-basis.md), [`docs/philosophy/`](docs/philosophy/).
 
 **Construction:** `evo.Init(Config{…})` is the sole constructor — the package-level default instance (front door) by default; `Config.Isolated: true` returns an independent hosted instance instead — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `Config.Options: []Option{Title(...), …}` for exact writer/terminal/clock wiring.
-**Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug.Level: LevelTrace` selectable (`LevelUnset` → Info).
+**Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug.Level: evo.LevelDebug` selects the journal threshold — `evo.LogLevel`, a distinct type from stdlib `slog.Level` (`LevelUnset` → Info).
 **Lifecycle:** `os.Exit(evo.Main(run))` (default instance, `run func() error`) or `os.Exit(out.Run(run))` (hosted, `Config.Isolated: true`, `run func(*Output) error`) seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only). Semantic state: `Task`.
 **Mutations:** `Task.Add/Delete/Create/Update/Remove/Write/Push/Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` — one spelling, never a call-site tense flip.
@@ -83,16 +83,16 @@ state of its own: an abandoned loop or a forgotten terminal verb on an
 otherwise clean finish adds `· partial` to whatever state the run already
 concluded, without changing its exit code.
 
-| Band                           | Exit code | Meaning                                                                                       |
-| ------------------------------ | --------- | --------------------------------------------------------------------------------------------- |
-| `[changed]`                    | `0`       | A mutation verb (`Delete`/`Create`/…) recorded outside `DryRun`                               |
-| `[planned]`                    | `0`       | A mutation verb recorded under `Config.DryRun` (would, not did)                               |
-| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation verb recorded                                         |
-| `[unchanged]`                  | `0`       | Every task resolved `Done.Unchanged`; nothing needed to change                                |
-| `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                                                    |
-| `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                                              |
-| `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                                                  |
-| any of the above + `· partial` | unchanged | The run also left an unresolved task or an abandoned loop — same exit code as the state above |
+| Band                           | Exit code | Meaning                                                                  |
+| ------------------------------ | --------- | ------------------------------------------------------------------------ |
+| `[changed]`                    | `0`       | A mutation verb (`Delete`/`Create`/…) recorded outside `DryRun`          |
+| `[planned]`                    | `0`       | A mutation verb recorded under `Config.DryRun` (would, not did)          |
+| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation verb recorded                    |
+| `[unchanged]`                  | `0`       | Every task resolved `Done.Unchanged`; nothing needed to change           |
+| `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                               |
+| `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                         |
+| `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                             |
+| any of the above + `· partial` | unchanged | The run also left an unresolved task — same exit code as the state above |
 
 ## Child processes / tool-backed gates
 
@@ -353,7 +353,7 @@ Small real programs (flags, help, exit codes) — not snippets. Copy a whole fol
 | `doctor`           | Mixed doctor items; `--json` snapshot on stdout                       |
 | `data-command`     | Data command: JSON **stdout**, human report **stderr**                |
 | `live-progress`    | **Live multi-progress**: bars + indeterminate phases (ANSI on stderr) |
-| `debug-history`    | **DebugHistory**: durable `HH:MM:SS [DEBUG] …` above live/items       |
+| `debug-history`    | **DebugHistory**: durable `HH:MM:SS.mmm [DEBUG] …` above live/items   |
 | `debug-pane`       | **DebugPane**: rolling slog pane; `--fail` keeps diagnostics tail     |
 
 ```bash

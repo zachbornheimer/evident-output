@@ -743,6 +743,8 @@ func conclusionColor(s ConclusionState) string {
 	switch s {
 	case StateReady, StateUnchanged, StateChanged:
 		return sgrGreen
+	case StatePlanned:
+		return sgrBlue
 	case StateFailed:
 		return sgrRed
 	case StateBlocked:
