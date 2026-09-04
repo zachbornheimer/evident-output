@@ -88,9 +88,12 @@ func TestTasks_ConcurrentIndependentChildrenAreNotMisuse(t *testing.T) {
 
 // TestConclusion_LoneIncompleteTaskIsNotPartialHeadline is the red-first
 // case for evo-rec.md's "Partial is a modifier, not a root verdict": an
-// unresolved task at Finish must not invent StatePartial as the headline —
-// Partial stays evidence (Conclusion.Partial), the headline stays an
-// Outcome, and Finish still reports the unresolved-task misuse.
+// unresolved task at Finish must not invent a new headline state of its own
+// — Partial stays evidence (Conclusion.Partial) layered over one of the four
+// Outcome states (evo.StateReady/.../StateCancelled), never a fifth state.
+// There is no evo.StatePartial to compare against: the round-4 release gate
+// killed that dead enum member (it was never assigned by inferConclusion)
+// rather than keep two competing models of the same fact.
 func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	out.Task("install") // declared, never resolved
@@ -98,8 +101,11 @@ func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
 	_ = out.Finish()
 	conc := out.Conclusion()
 
-	if conc.State == evo.StatePartial {
-		t.Fatalf("headline = %v, want an Outcome state, not StatePartial", conc.State)
+	switch conc.State {
+	case evo.StateReady, evo.StateChanged, evo.StateUnchanged, evo.StateWarning,
+		evo.StateBlocked, evo.StateFailed, evo.StateCancelled, evo.StatePlanned:
+	default:
+		t.Fatalf("headline = %v, want one of the documented Outcome states", conc.State)
 	}
 	if !conc.Partial {
 		t.Fatal("want Partial=true retained as evidence")

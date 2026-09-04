@@ -42,7 +42,6 @@ const (
 	StateFailed    ConclusionState = "failed"
 	StateCancelled ConclusionState = "cancelled"
 	StatePlanned   ConclusionState = "planned"
-	StatePartial   ConclusionState = "partial"
 )
 
 // ProgressKind classifies task measurement.
