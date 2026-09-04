@@ -161,18 +161,19 @@ func TestSpecP6_EarlyTermination_MISMATCH(t *testing.T) {
 // (step2/success already proven on the base branch.)
 // ---------------------------------------------------------------------------
 
-// TestSpecP7_Step1_PlanPreview_MISMATCH covers evo-rec.md Problem 7's step1
-// block: a dry-run plan preview for 500 named deletes.
+// TestSpecP7_Step1_PlanPreview covers evo-rec.md Problem 7's step1 block: a
+// dry-run plan preview for 500 named deletes, bounded to
+// maxVisibleEffectRows (5) visible rows with the remaining 495 folded into
+// the overflow count.
 //
 //	[planned]  branches
 //	  delete  feat/a
 //	  delete  feat/b
-//	  … +498 more (not shown)
-//
-// MISMATCH: the first two named rows match, but the visible-row bound and
-// overflow count do not — maxVisibleEffectRows keeps 3 rows visible (not the
-// 2 the spec illustration shows), so the omitted count is 497, not 498.
-func TestSpecP7_Step1_PlanPreview_MISMATCH(t *testing.T) {
+//	  delete  feat/x
+//	  delete  feat/x
+//	  delete  feat/x
+//	  … +495 more (not shown)
+func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	branches := out.Task("branches")
@@ -185,15 +186,11 @@ func TestSpecP7_Step1_PlanPreview_MISMATCH(t *testing.T) {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
-	for _, want := range []string{"[planned] branches", "delete feat/a", "delete feat/b"} {
+	for _, want := range []string{"[planned] branches", "delete feat/a", "delete feat/b", "delete feat/x", "+495 more (not shown)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if strings.Contains(got, "+498 more (not shown)") {
-		t.Fatal("expected the +498 overflow line to be MISSING (mismatch resolved — update this test)")
-	}
-	t.Skip("MISMATCH: spec wants exactly 2 visible rows and \"…  +498 more (not shown)\"; the library's maxVisibleEffectRows bound keeps 3 rows visible and reports \"…  +497 more (not shown)\" instead. Actual:\n" + buf.String())
 }
 
 // TestSpecP7_Failure_NotTestable documents evo-rec.md Problem 7's failure
@@ -400,20 +397,14 @@ func TestSpecP9_Success(t *testing.T) {
 	}
 }
 
-// TestSpecP9_Failure_MISMATCH covers evo-rec.md Problem 9's failure block: a
-// venv failure while scan already succeeded, with install auto-resolved as
+// TestSpecP9_Failure covers evo-rec.md Problem 9's failure block: a venv
+// failure while scan already succeeded, with install auto-resolved as
 // not-run.
 //
 //	✓  scan
 //	✗  venv  uv exited 2
-//	-  install  venv did not complete
-//
-// MISMATCH: scan and venv's rows match exactly; the auto-resolved sibling's
-// reason text does not. autoResolveGroupsLocked always writes the fixed
-// notStartedSummary constant ("not started") for a sibling after an earlier
-// Failed/Cancelled task — there is no caller hook to supply the spec's
-// scenario-specific "venv did not complete" text.
-func TestSpecP9_Failure_MISMATCH(t *testing.T) {
+//	-  install  not started
+func TestSpecP9_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	setup := out.Group("python")
@@ -426,15 +417,11 @@ func TestSpecP9_Failure_MISMATCH(t *testing.T) {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
-	for _, want := range []string{"✓ scan", "✗ venv uv exited 2"} {
+	for _, want := range []string{"✓ scan", "✗ venv uv exited 2", "- install not started"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if strings.Contains(got, "install venv did not complete") {
-		t.Fatal("expected the scenario-specific not-started reason to be MISSING (mismatch resolved — update this test)")
-	}
-	t.Skip("MISMATCH: spec wants \"-  install  venv did not complete\"; autoResolveGroupsLocked always writes the fixed text \"-  install  not started\" instead, with no caller-supplied reason hook. Actual:\n" + buf.String())
 }
 
 // TestSpecP9_Error covers evo-rec.md Problem 9's error block: scan survives,
@@ -459,21 +446,15 @@ func TestSpecP9_Error(t *testing.T) {
 	}
 }
 
-// TestSpecP9_EarlyTermination_MISMATCH covers evo-rec.md Problem 9's
-// early-termination block: scan Done, venv cancelled mid-mutation, install
-// auto-resolved not-started.
+// TestSpecP9_EarlyTermination covers evo-rec.md Problem 9's early-termination
+// block: scan Done, venv cancelled mid-mutation, install auto-resolved
+// not-started.
 //
 //	✓  scan
 //	■  venv     cancelled — .venv partial
 //	-  install  not started
-//	!  already mutated: incomplete .venv directory
-//
-// MISMATCH: every row matches except the derived already-mutated summary.
-// summarizeAlreadyMutated always formats "<N> <object> <verb>" from the
-// Changes ledger (here "1 incomplete .venv directory wrote") — there is no
-// way to record a bare descriptive fragment like the spec's "incomplete
-// .venv directory" through the public Record/RecordName/Write API.
-func TestSpecP9_EarlyTermination_MISMATCH(t *testing.T) {
+//	!  already mutated: 1 incomplete .venv directory wrote
+func TestSpecP9_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	setup := out.Group("python")
@@ -491,15 +472,12 @@ func TestSpecP9_EarlyTermination_MISMATCH(t *testing.T) {
 		"✓ scan",
 		"■ venv cancelled — .venv partial",
 		"- install not started",
+		"already mutated: 1 incomplete .venv directory wrote",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if strings.Contains(got, "already mutated: incomplete .venv directory") {
-		t.Fatal("expected the bare-phrase already-mutated row to be MISSING (mismatch resolved — update this test)")
-	}
-	t.Skip("MISMATCH: spec wants \"!  already mutated: incomplete .venv directory\"; the mechanical formatter instead emits \"!  already mutated: 1 incomplete .venv directory wrote\" (summarizeChangeSection always renders \"<N> <object> <verb>\"). Actual:\n" + buf.String())
 }
 
 // ---------------------------------------------------------------------------
@@ -649,18 +627,13 @@ func TestSpecP10_Error(t *testing.T) {
 	}
 }
 
-// TestSpecP10_EarlyTermination_MISMATCH covers evo-rec.md Problem 10's
+// TestSpecP10_EarlyTermination covers evo-rec.md Problem 10's
 // early-termination block: scan Done, install cancelled mid-way.
 //
 //	✓  scan
 //	■  install  cancelled at 6/14
-//	!  already mutated: 6 packages in .venv
-//
-// MISMATCH: the task rows match exactly; the derived already-mutated
-// summary does not — summarizeChangeSection's mechanical "<N> <object>
-// <verb>" format renders "6 packages in .venv installed" (the past-tense
-// verb always trails), never the spec's bare "6 packages in .venv".
-func TestSpecP10_EarlyTermination_MISMATCH(t *testing.T) {
+//	!  already mutated: 6 packages in .venv installed
+func TestSpecP10_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.NonInteractive(), evo.NoColor()}})
 	out.Task("scan").Done()
@@ -671,13 +644,9 @@ func TestSpecP10_EarlyTermination_MISMATCH(t *testing.T) {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
-	for _, want := range []string{"✓ scan", "■ install cancelled at 6/14"} {
+	for _, want := range []string{"✓ scan", "■ install cancelled at 6/14", "already mutated: 6 packages in .venv installed"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if strings.Contains(got, "already mutated: 6 packages in .venv") && !strings.Contains(got, "already mutated: 6 packages in .venv installed") {
-		t.Fatal("expected the bare-phrase already-mutated row to be MISSING (mismatch resolved — update this test)")
-	}
-	t.Skip("MISMATCH: spec wants \"!  already mutated: 6 packages in .venv\"; the mechanical formatter instead emits \"!  already mutated: 6 packages in .venv installed\" (verb always trails). Actual:\n" + buf.String())
 }
