@@ -1,6 +1,6 @@
 # Codex integration — Evident Output
 
-**Pin:** `v0.3.2` (never `@latest` for persistent install).
+**Pin:** `v0.3.3` (never `@latest` for persistent install).
 
 ## Paths
 
@@ -15,7 +15,7 @@
 ```bash
 mkdir -p "$HOME/.local/bin"
 GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.3.2
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.3.3
 
 "$HOME/.local/bin/evident-output-mcp" config --client codex
 ```
