@@ -2,7 +2,9 @@ package evo
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"runtime"
 	"time"
 )
 
@@ -113,7 +115,11 @@ func (h *slogBridge) WithGroup(name string) slog.Handler {
 }
 
 // emitLogRecord journals every accepted slog record as structured diagnostics.
-// Info/Warn/Error keep time, level, attrs, and PC — not demoted to bare Print lines.
+// Info/Warn/Error keep time, level, and attrs on the rendered fields — the raw
+// PC always lives on the LogRecord itself (see SlogHandler callers that want
+// it), but a bare pc=<uintptr> never reaches human/pane/history rendering
+// (release-gate round 6 finding 2). A source=file.go:line field is added
+// instead, only when Config.Debug.AddSource opts in.
 func (o *Output) emitLogRecord(rec LogRecord) {
 	if o == nil {
 		return
@@ -122,13 +128,26 @@ func (o *Output) emitLogRecord(rec LogRecord) {
 	for _, a := range rec.Attrs {
 		fields = append(fields, Field{Key: a.Key, Value: a.Value.Any()})
 	}
-	if rec.PC != 0 {
-		fields = append(fields, Field{Key: "pc", Value: rec.PC})
-	}
 	// Force: Handler.Enabled already applied Config.Debug.Level via min.
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.cfg.debugAddSource && rec.PC != 0 {
+		if source := sourceLocation(rec.PC); source != "" {
+			fields = append(fields, Field{Key: "source", Value: source})
+		}
+	}
 	o.emitDebugRecordLocked(slogLevelName(rec.Level), rec.Message, fields, rec.Time, true)
+}
+
+// sourceLocation resolves a slog record's program counter to "file.go:line",
+// matching slog.HandlerOptions.AddSource's own frame lookup.
+func sourceLocation(pc uintptr) string {
+	frames := runtime.CallersFrames([]uintptr{pc})
+	frame, _ := frames.Next()
+	if frame.File == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d", frame.File, frame.Line)
 }
 
 func slogLevelName(level slog.Level) string {

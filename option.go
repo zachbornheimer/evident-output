@@ -24,6 +24,7 @@ type config struct {
 	strict            bool
 	terminal          TerminalDriver
 	debugLevel        LogLevel
+	debugAddSource    bool
 	debugPresentation DebugPresentation
 	debugPane         debugPaneConfig
 	redactor          Redactor
@@ -178,6 +179,16 @@ func DebugLevel(level LogLevel) Option {
 		}
 		c.debugLevel = level
 	})
+}
+
+// DebugAddSource resolves each debug record's call site to a
+// source=file.go:line field on human/pane/history rendering, matching
+// slog.HandlerOptions.AddSource semantics. Off by default (release-gate
+// round 6 finding 2): a bare pc=<uintptr> field never belongs on a human
+// debug line; the raw PC still lives on LogRecord for machine consumers
+// regardless of this setting.
+func DebugAddSource() Option {
+	return optionFunc(func(c *config) { c.debugAddSource = true })
 }
 
 // TerminalDriver is the exclusive owner of terminal control sequences.

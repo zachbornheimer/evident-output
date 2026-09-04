@@ -140,12 +140,17 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	if !strings.Contains(combined, "registry=ghcr.io") {
 		t.Fatalf("attrs must survive:\n%s", combined)
 	}
-	// Pane grammar uses slog text with level=WARN.
-	if strings.Contains(live, "── debug") && !strings.Contains(live, "level=WARN") {
-		t.Fatalf("pane should show slog grammar for WARN:\n%s", live)
+	// One clock, one grammar (release-gate round 6 finding 3): the pane uses
+	// the same bracketed grammar as durable history, [WARN] not level=WARN.
+	if strings.Contains(live, "── debug") && !strings.Contains(live, "[WARN]") {
+		t.Fatalf("pane should show bracket history grammar for WARN:\n%s", live)
 	}
 }
 
+// TestSlogErrorPreservesLevelAndPC covers release-gate round 6 finding 2: a
+// bare pc=<uintptr> must never reach human rendering, on a piped writer or a
+// pty. The raw PC still lives on the LogRecord type passed to
+// SlogHandler().Handle (see LogRecord.PC) for any machine consumer.
 func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{
@@ -174,11 +179,37 @@ func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	if !strings.Contains(s, "ref=main") {
 		t.Fatalf("attr missing:\n%s", s)
 	}
-	if !strings.Contains(s, "pc=42") {
-		t.Fatalf("PC must be preserved as field:\n%s", s)
+	if strings.Contains(s, "pc=") {
+		t.Fatalf("human debug line must never show a bare pc=<uintptr>:\n%s", s)
 	}
 	if !strings.Contains(s, "22:15:00") {
 		t.Fatalf("record time missing:\n%s", s)
+	}
+}
+
+// TestSlogAddSource_ResolvesSourceField covers release-gate round 6 finding
+// 2's other half: Config.Debug.AddSource resolves the call site to a
+// source=file.go:line field instead of the bare pc it never renders by
+// default.
+func TestSlogAddSource_ResolvesSourceField(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Stdout: &buf,
+		Stderr: &buf,
+		Debug:  evo.DebugConfig{Level: evo.LevelDebug, AddSource: true},
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	logger := slog.New(out.SlogHandler())
+	logger.Error("pull failed")
+	_ = out.Finish()
+
+	s := buf.String()
+	if strings.Contains(s, "pc=") {
+		t.Fatalf("AddSource must render source=, never a bare pc=<uintptr>:\n%s", s)
+	}
+	if !strings.Contains(s, "source=") || !strings.Contains(s, "slog_test.go:") {
+		t.Fatalf("AddSource must resolve the call site to source=file.go:line:\n%s", s)
 	}
 }
 
