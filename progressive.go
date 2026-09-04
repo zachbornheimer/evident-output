@@ -266,6 +266,21 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	o.writeDurableTextLocked(b.String())
 }
 
+// residualHasTaskRows reports whether the run declared any standalone task or
+// collection at all — regardless of whether its row already streamed
+// progressively or is still pending render in this call — so
+// residualCompositionLocked's blank-line separator sees the run's whole
+// shape, not just the slice this one call is about to write.
+func residualHasTaskRows(o *Output, snap Snapshot) bool {
+	return len(o.tasks) > 0 || len(snap.Collections) > 0
+}
+
+// residualHasEffectSections mirrors residualHasTaskRows for the run's
+// [changed]/[planned] ledger.
+func residualHasEffectSections(o *Output) bool {
+	return len(o.changes) > 0 || len(o.plans) > 0
+}
+
 // residualCompositionLocked is the ONE ordered sequence every human-stream
 // destination reaching Finish's tail renders: unemitted lines, unresolved
 // standalone tasks + collections (only for the destination that owns them —
@@ -315,6 +330,14 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 		for _, col := range snap.Collections {
 			render.WriteCollection(&b, col, color, verbose, profile)
 		}
+	}
+	// A blank line separates the task block from the [changed]/[planned]
+	// ledger (fixture-repo-retire-dryrun.md: line 12→14) — checked against
+	// the run's whole task/collection set, not just what this call happened
+	// to render, since a task's row may already have streamed progressively
+	// (commitResolvedTaskLocked) before Finish ever reaches this ledger.
+	if residualHasTaskRows(o, snap) && residualHasEffectSections(o) {
+		b.WriteByte('\n')
 	}
 	changeNameWidth := maxChangeSubjectWidth(o.changes)
 	for _, ch := range o.changes {

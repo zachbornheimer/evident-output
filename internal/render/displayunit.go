@@ -36,15 +36,18 @@ type DisplayUnit struct {
 }
 
 // Render composes glyph + name + detail into the one line grammar every
-// row kind shares: "<indent><glyph>  <name>  <detail>", with the trailing
+// row kind shares: "<indent><glyph> <name>  <detail>", with the trailing
 // name padding trimmed when Detail is empty so a bare row never ends in
-// dangling whitespace.
+// dangling whitespace. The glyph-to-name gap is a single space, matching
+// the durable/plain projection's WriteTaskAligned (fixture-repo-retire-
+// dryrun.md's "✓ branches ...") — mid-run and at-rest rows must agree on
+// this typography, not just at final resolution.
 func (u DisplayUnit) Render(indent string) string {
 	name := u.Name
 	if u.Detail == "" {
-		return trimTrailingSpace(indent + u.Glyph + "  " + name)
+		return trimTrailingSpace(indent + u.Glyph + " " + name)
 	}
-	return fmt.Sprintf("%s%s  %s  %s", indent, u.Glyph, name, u.Detail)
+	return fmt.Sprintf("%s%s %s  %s", indent, u.Glyph, name, u.Detail)
 }
 
 // trimTrailingSpace removes only trailing ASCII spaces — never other

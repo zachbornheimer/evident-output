@@ -231,6 +231,7 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	// own terminal row (auto-resolved Done via Finish's amnesty) precedes the
 	// Changes band; trailing conclusion still coalesces (DEC-COAL).
 	want := `✓ dependencies
+
 [changed]  dependencies
   added    14 packages
   updated   4 packages
@@ -263,6 +264,7 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 	}
 
 	want := `✓ dependencies
+
 [changed]  dependencies
   added 14 packages
   updated 4 packages

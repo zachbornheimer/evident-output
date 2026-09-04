@@ -86,11 +86,11 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	// with nothing further to say (the lone task already told the whole
 	// story, so the standalone conclusion is suppressed too).
 	want := []testkit.Operation{
-		testkit.DrawLive("○  dependencies"),
-		testkit.DrawLive("⠋  dependencies  resolving packages"),
+		testkit.DrawLive("○ dependencies"),
+		testkit.DrawLive("⠋ dependencies  resolving packages"),
 		testkit.ClearLive(),
 		testkit.WriteDurable("00:00:00.000 [DEBUG] package index loaded  packages=18"),
-		testkit.DrawLive("⠋  dependencies  resolving packages"),
+		testkit.DrawLive("⠋ dependencies  resolving packages"),
 		testkit.ClearLive(),
 		testkit.WriteDurable("✓ dependencies  installed 18 packages\n"),
 		testkit.WriteFinal(""),
@@ -127,10 +127,10 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	// Column layout: child names pad to width 9 (spec H.20 semantics: declaration
 	// order + absolute bytes + phases). Spacing normalized to a single rule.
 	// Bytes rows include an ASCII bar plus fixed MB fraction (live progress UX).
-	want := `⠋  dependencies  1/3 complete
-   ✓  react      8.1 MB
-   ⠋  esbuild    [████████░░░░]  12.4/18.0 MB
-   ⠋  sharp      verifying`
+	want := `⠋ dependencies  1/3 complete
+   ✓ react      8.1 MB
+   ⠋ esbuild    [████████░░░░]  12.4/18.0 MB
+   ⠋ sharp      verifying`
 
 	if got != want {
 		t.Fatalf("live output mismatch\ngot:\n%s\nwant:\n%s", got, want)

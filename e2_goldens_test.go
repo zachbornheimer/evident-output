@@ -116,7 +116,10 @@ func TestE2P4_DisplayGroupTwoSpinnerFrame(t *testing.T) {
 	// frame both Running children get at the same instant.
 	glyphOf := func(line string) string {
 		trimmed := strings.TrimLeft(line, " ")
-		fields := strings.SplitN(trimmed, "  ", 2)
+		// The glyph-to-name gap is a single space (DisplayUnit.Render); the
+		// name-to-detail gap is a double space, so a single-space split
+		// isolates the leading glyph regardless of name padding width.
+		fields := strings.SplitN(trimmed, " ", 2)
 		return fields[0]
 	}
 	if glyphOf(spinnerLines[0]) != glyphOf(spinnerLines[1]) {

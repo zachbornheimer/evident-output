@@ -44,6 +44,10 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 		WriteCollection(&b, col, color, verbose, profile)
 	}
 
+	if hasTaskRows(s) && hasEffectSections(s) {
+		b.WriteByte('\n')
+	}
+
 	changeNameWidth := maxEffectSubjectWidth(s.Changes, func(c core.ChangesSnapshot) string { return c.Subject })
 	for _, ch := range s.Changes {
 		WriteEffects(&b, "changed", ch.Subject, changeNameWidth, ch.Records, ch.IntendedVerb, width, color, profile)
@@ -58,6 +62,21 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 	}
 
 	return b.String()
+}
+
+// hasTaskRows reports whether s rendered any task or collection rows above
+// the effects ledger — the blank-line separator below only belongs between
+// two real blocks, never floating above an empty task section.
+func hasTaskRows(s core.Snapshot) bool {
+	return len(s.Tasks) > 0 || len(s.Collections) > 0
+}
+
+// hasEffectSections reports whether s has a [changed]/[planned] ledger to
+// render — the blank line separating it from the task block above
+// (fixture-repo-retire-dryrun.md: a blank line sits between the last task
+// row and the first ledger row) only belongs when both sides are non-empty.
+func hasEffectSections(s core.Snapshot) bool {
+	return len(s.Changes) > 0 || len(s.Plans) > 0
 }
 
 // writeRunAnnotations renders evo.Warn/evo.Fact's run-scoped annotations

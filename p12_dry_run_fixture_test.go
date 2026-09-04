@@ -95,6 +95,10 @@ func TestP12_DryRunFixtureShape(t *testing.T) {
 		"✓ branches          ! kept 13 (8 protected, 5 unpushed)\n",
 		"✓ worktrees         ! kept 6 (4 dirty, 2 unpushed)\n",
 		"✓ remote-tracking     1 stale\n",
+		// A blank line separates the task block from the [planned] ledger
+		// (fixture-repo-retire-dryrun.md line 12→14) — the same separation
+		// the header already gets before the first task row.
+		"✓ remote-tracking     1 stale\n\n[planned] branches",
 		"[planned] branches          delete 2 local tips\n",
 		"[planned] worktrees         remove 1 worktree\n",
 		"[planned] remote-tracking   delete 1 stale origin/*\n",
