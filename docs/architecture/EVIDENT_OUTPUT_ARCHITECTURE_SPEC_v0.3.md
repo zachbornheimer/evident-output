@@ -3298,67 +3298,66 @@ The MCP server SHALL advertise only capabilities it implements and maintain a te
 
 ```text
 /
-├── agent/
-│   ├── catalog/
-│   ├── review/
-│   ├── rules/
-│   └── preview/
-├── agents/
-│   └── evident-output-engineer.md
-├── cmd/
+├── cmd/                        # entry points only (install pins depend on these paths)
 │   ├── evident-output/
 │   └── evident-output-mcp/
-├── examples/
-│   ├── repository-item/
-│   ├── dependency-task/
-│   ├── download/
-│   ├── data-command/
-│   ├── external-renderer/
-│   └── debug-live/
-├── integrations/
-│   ├── claude-code/
-│   ├── codex/
-│   ├── gemini/
-│   ├── grok/
-│   └── opencode/
 ├── internal/
-│   ├── ansi/
-│   ├── capability/
-│   ├── journal/
-│   ├── layout/
-│   ├── scheduler/
-│   ├── sanitize/
-│   ├── termdriver/
-│   └── width/
-├── jsonout/
-├── logbridge/
-├── mcpbridge/
-├── plain/
-├── render/
-├── schema/
+│   ├── core/                   # data model: Snapshot, Problem, Conclusion, EntityState,
+│   │                           #   Action, Event, and peers — plus their pure derivation
+│   │                           #   functions (InferConclusion, SanitizeProblem, ...).
+│   │                           #   Imports internal/text only; never the root package.
+│   ├── render/                 # plain / structured (JSON, JSONL) / interactive (live)
+│   │                           #   projection of a core.Snapshot. Imports core and text.
+│   ├── text/                   # sanitization, terminal cell-width measurement,
+│   │                           #   truncation, glyph vocabulary, pluralization/
+│   │                           #   conjugation, ANSI styling. Leaf package: imports
+│   │                           #   nothing else in this module.
+│   └── agent/                  # catalog, harness, preview, review, rules — the
+│       ├── catalog/            #   evident-output-engineer machinery. Verified
+│       ├── harness/            #   importer-free outside cmd/.
+│       ├── preview/
+│       ├── review/
+│       └── rules/
+├── terminal/                   # public, unchanged import path
+├── testkit/                    # public, unchanged import path
+├── conformance/                # roast/golden suite; conformance/schema/scenario.v1.json
+│   ├── gates/                  #   and TRACEABILITY.md stay exactly where they are
+│   ├── goldens/
+│   └── schema/
+├── examples/
+│   └── internal/demo/
+├── schema/                     # event.v1.json, output.v1.json (wire schemas)
+├── docs/
+├── integrations/
 ├── skills/
-│   └── evident-output/
-│       └── SKILL.md
-├── terminal/
-├── testdata/
-│   ├── agent/
-│   ├── corpus/
-│   ├── events/
-│   ├── golden/
-│   ├── review/
-│   └── schemas/
-├── testkit/
-├── action.go
-├── item.go
+├── tools/
+│   ├── agents/                 # evident-output-engineer.md (repo-authoring guidance)
+│   └── scripts/                # cut-release.sh, sync-release-pins, traceability-check,
+│                               #   run-examples.sh
+├── action.go                   # public evo package: exported types/methods + delegation
 ├── conclusion.go
 ├── event.go
-├── evo.go
-├── problem.go
 ├── output.go
+├── problem.go
+├── release.go
+├── snapshot.go
 └── task.go
 ```
 
-Internal packages remain implementation details. The root package SHALL not become a re-export facade for every subpackage. Generated agent assets SHALL be checked for drift against the canonical guidance/rule source.
+Root declares the public API's behavioral facades (`Output`, `TaskHandle`,
+`Tasks`, `Group`, `Failure`, `Evidence`, `Config`, the functional-option
+surface, `Confirm`) with their doc-bearing methods, and re-declares the pure
+data-model types internal/core owns as public aliases (`type Snapshot =
+core.Snapshot`, doc comment duplicated on the alias) so the published API
+surface is unchanged. `pkg.go.dev` cannot expand an aliased type's own
+fields (it never renders `internal/`) — `docs/reference.md` carries the
+field-level reference for those types. Internal packages remain
+implementation details. The root package SHALL not become a re-export
+facade for every subpackage — machinery (rendering, text measurement,
+capture, coalescing) lives in `internal/`, with root methods delegating
+into it; only the data model and the facades themselves are declared at
+root. Generated agent assets SHALL be checked for drift against the
+canonical guidance/rule source.
 
 ## 39. Documentation deliverables
 
