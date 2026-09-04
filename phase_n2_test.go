@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -89,13 +90,16 @@ func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 // TestWriteEffects_BoundedRows_500Records is red-first for item 3: a plan
 // section with 500 records renders a bounded number of visible rows plus one
 // dim overflow line, while the full 500 remain in the snapshot untouched.
+// Each record names a distinct branch — release-gate round 3 finding 6
+// merges identical (verb, object) records into one summed row, so the
+// bounded-rows overflow this test proves needs 500 distinct rows to exercise.
 func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	plan := out.Plan("branches")
 	const total = 500
 	for i := 0; i < total; i++ {
-		plan.Delete(1, "feat/branch")
+		plan.Delete(1, fmt.Sprintf("feat/branch-%d", i))
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

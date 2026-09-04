@@ -46,6 +46,21 @@ func applyFailedExitCode(c *Conclusion, code int) {
 	c.ExitCode = code
 }
 
+// foldLeftoverMisuseLocked demotes an otherwise-OK-family conclusion when
+// Finish also recorded bookkeeping misuse (a never-resolved bare task, a
+// double-resolve, ...), before the conclusion is ever rendered — so the band
+// that prints and the exit code that follows it are always the same fact
+// (release-gate finding 2). A conclusion that already reads Blocked/Failed/
+// Cancelled for a real, documented reason keeps that verdict: misuse never
+// overrides an outcome the run already printed for a reason of its own.
+func foldLeftoverMisuseLocked(c *Conclusion, misuse error) {
+	if c == nil || misuse == nil || c.ExitCode != ExitOK {
+		return
+	}
+	c.State = StateFailed
+	c.ExitCode = ExitFailed
+}
+
 // allChildrenUnchanged reports whether every child task is a Done
 // resolution tagged Task.Unchanged (I7) — an empty child list never counts
 // (a collection with no children says nothing about "unchanged").

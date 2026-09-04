@@ -38,9 +38,14 @@
 //     taxonomy counted and summed, never a bare "skipped N". evo.Reason(name) is a
 //     get-or-create lookup on the default instance: the same string at every call site
 //     merges into one bucket, so an inline evo.Reason("protected") is always legal —
-//     lifting it to a package var is optional, never required for correctness.
+//     lifting it to a package var is optional, never required for correctness. Individual
+//     names render under Config.Verbosity: VerbosityVerbose (see doc there); at the
+//     default VerbosityNormal the human line stays the aggregated "! skipped N (...)"
+//     count. The names are never dropped — they always live on TaskSnapshot.Skipped/Kept
+//     (Output.Snapshot / TaskHandle.Snapshot); the wire JSON document does not carry them.
 //  6. evo.Confirm(question, ...) — owns the whole ask-decide-resolve gate (prompt, quiesce,
-//     Done/Blocked resolution, exit code).
+//     Done/Blocked resolution, exit code). question is verbatim text, not a printf format
+//     like Task/Group/Reason's name — use fmt.Sprintf to build a dynamic question first.
 //  7. evo.Group(name) for named children with derived, auto-lifecycle state.
 //  8. task.Fail(summary) / task.Block(summary) are statements — no return value, so a bare
 //     call is errcheck-clean. `return task.Failf("validate manifest: %w", err)` builds and

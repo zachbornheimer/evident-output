@@ -160,17 +160,16 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestSpecP7_Step1_PlanPreview covers evo-rec.md Problem 7's step1 block: a
-// dry-run plan preview for 500 named deletes, bounded to
-// maxVisibleEffectRows (5) visible rows with the remaining 495 folded into
-// the overflow count.
+// dry-run plan preview for 500 named deletes. Identical (verb, object)
+// records merge into one summed row (release-gate round 3 finding 6) rather
+// than one row per call, so the 498 identical "delete feat/x" calls render
+// as a single "delete 498 feat/x" line — 3 rows total, well under
+// maxVisibleEffectRows, no overflow line.
 //
 //	[planned]  branches
-//	  delete  feat/a
-//	  delete  feat/b
-//	  delete  feat/x
-//	  delete  feat/x
-//	  delete  feat/x
-//	  … +495 more (not shown)
+//	  delete      feat/a
+//	  delete      feat/b
+//	  delete  498 feat/x
 func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
@@ -184,10 +183,13 @@ func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
-	for _, want := range []string{"[planned] branches", "delete feat/a", "delete feat/b", "delete feat/x", "+495 more (not shown)"} {
+	for _, want := range []string{"[planned] branches", "delete feat/a", "delete feat/b", "delete 498 feat/x"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
+	}
+	if strings.Contains(got, "more (not shown)") {
+		t.Fatalf("498 identical records must merge into one row, not overflow:\n%s", buf.String())
 	}
 }
 

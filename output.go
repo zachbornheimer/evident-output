@@ -1232,11 +1232,21 @@ func (o *Output) compactJournalLocked() {
 const notStartedSummary = "not started"
 
 // unresolvedTaskCancelledSummary is the literal detail rendered for a plain
-// (non-Group) task still Running when Finish is reached — the run concluded
-// without a caller-recorded verdict, so the honest terminal state is
-// Cancelled rather than a stuck/incomplete glyph (evo-rec.md partial-truth
-// rules: an unresolved task never invents a "still might run" reading).
+// (non-Group) task still Running when Finish is reached during an abnormal
+// finish (a real SIGINT/SIGTERM cancellation or an application error already
+// recorded elsewhere in the run) — the run concluded without a caller-
+// recorded verdict AND something really did cut it short, so the honest
+// terminal state is Cancelled rather than a stuck/incomplete glyph.
 const unresolvedTaskCancelledSummary = "cancelled — run concluded before finish"
+
+// unresolvedTaskIncompleteSummary is the literal detail rendered for a plain
+// (non-Group) task still Running when Finish is reached during an otherwise
+// clean finish — no signal, no application error anywhere in the run. Cancel
+// (and its 130 exit) is reserved for a real interruption signal (release-gate
+// finding 1); a caller who simply forgot a terminal verb gets an honest
+// incomplete reading instead, folded into the conclusion as Partial rather
+// than invented as a headline of its own.
+const unresolvedTaskIncompleteSummary = "incomplete — run concluded before finish"
 
 // resolveUnstartedTaskLocked derives a real terminal state for a task Finish
 // found non-terminal, from the one model, so every consumer sees the same
@@ -1244,7 +1254,9 @@ const unresolvedTaskCancelledSummary = "cancelled — run concluded before finis
 // that had already started (Running) reads as Cancelled, and a task that
 // never got attention (Pending) reads as NotStarted ("not started") — the
 // same face a Group gives an unstarted sibling (autoResolveGroupsLocked).
-// Never called for a task an explicit verb already resolved.
+// Never called for a task an explicit verb already resolved, and never
+// called for a Running task on a clean finish (see abnormalFinishLocked's
+// caller in Finish, which resolves that case to Incomplete directly instead).
 func resolveUnstartedTaskLocked(t *taskState) {
 	if t.state == Running {
 		t.state = Cancelled
@@ -1255,6 +1267,36 @@ func resolveUnstartedTaskLocked(t *taskState) {
 	t.state = NotStarted
 	t.phase = ""
 	t.summary = notStartedSummary
+}
+
+// abnormalFinishLocked reports whether the run already carries a real Failed
+// or Cancelled task by the time Finish's unresolved-task sweep runs —
+// evidence that something genuinely interrupted the run (Output.Fail/Failf,
+// or a real SIGINT/SIGTERM cancellation via Output.Cancel/TaskHandle.Cancel),
+// not merely a caller who forgot to resolve a task. It gates whether a
+// leftover Running task may still read as Cancelled/130 (release-gate
+// finding 1).
+func (o *Output) abnormalFinishLocked() bool {
+	for _, t := range o.tasks {
+		if t.state == Failed || t.state == Cancelled {
+			return true
+		}
+	}
+	return false
+}
+
+// unresolvedTaskHint names the concrete corrective action for a task Finish
+// found with no final state — rendered as a "→" conclusion action the same
+// way Confirm's own policy hint renders (TaskHandle.Next), replacing the raw
+// "misuse: <name>: evo: ..." sentinel text that told the reader nothing
+// about what to do next (release-gate finding 3).
+const unresolvedTaskHint = "call Done, Fail, Block, Skip, or a mutation verb on this task"
+
+// attachUnresolvedTaskHintLocked attaches unresolvedTaskHint to t directly.
+// It cannot go through TaskHandle.Next, which refuses once Finish has set
+// o.finishing — this runs from inside Finish's own unresolved-task sweep.
+func attachUnresolvedTaskHintLocked(t *taskState) {
+	t.actions = append(t.actions, Label(unresolvedTaskHint))
 }
 
 // autoResolveGroupsLocked stops each group from implying "still might run"
@@ -1312,6 +1354,7 @@ func (o *Output) Finish() error {
 	// silent exit-code flip (beginner-1, I1; beginner-gate-2 findings 1/2/4).
 	// Anything else still reads as misuse, but now names the task so Finish
 	// can render it.
+	abnormal := o.abnormalFinishLocked()
 	for _, t := range o.tasks {
 		if isTerminalTask(t.state) {
 			continue
@@ -1322,15 +1365,28 @@ func (o *Output) Finish() error {
 			o.appendEventLocked(Event{Type: "task.done", EntityID: t.id})
 			continue
 		}
+		if t.state == Running && !abnormal {
+			// Clean, unsignalled, error-free finish: an abandoned Running
+			// task told an incomplete story, not a caller bug — never
+			// Cancelled/130 (release-gate finding 1). No misuse recorded:
+			// this is an honest partial outcome (folded into Conclusion.
+			// Partial), not bookkeeping the caller must fix.
+			t.state = Incomplete
+			t.phase = ""
+			t.summary = unresolvedTaskIncompleteSummary
+			continue
+		}
 		resolveUnstartedTaskLocked(t)
 		o.recordMisuseFor(t.name, ErrUnresolvedTask)
+		attachUnresolvedTaskHintLocked(t)
 	}
-	if o.misuse != nil {
+	if o.misuse != nil && !errors.Is(o.misuse, ErrUnresolvedTask) {
 		o.appendMisuseLineLocked()
 	}
 
 	snap := o.snapshotLocked()
 	conc := inferConclusion(snap)
+	foldLeftoverMisuseLocked(&conc, o.misuse)
 	applyFailedExitCode(&conc, o.cfg.failedExitCode)
 	o.conclusion = &conc
 	snap.Conclusion = &conc

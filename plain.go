@@ -457,6 +457,39 @@ func ledgerObject(r EffectRecord) string {
 	return Pluralize(r.Quantity, r.Object)
 }
 
+// mergeIdenticalEffectRecords combines repeated records that share the same
+// (verb, object) pair — one ledger's tense is fixed for every record it
+// holds, so verb+object alone identifies a duplicate row — into one row with
+// summed quantities: twelve `Delete(1, "merged branch")` calls render
+// "deleted 12 merged branches", not twelve identical rows plus an overflow
+// ellipsis (release-gate finding 6). Distinct records (different verb or
+// object) are left alone and keep their original relative order. The model
+// itself is untouched — only this presentation-layer view merges.
+func mergeIdenticalEffectRecords(records []EffectRecord) []EffectRecord {
+	type key struct{ verb, object string }
+	index := make(map[key]int, len(records))
+	merged := make([]EffectRecord, 0, len(records))
+	for _, r := range records {
+		k := key{r.Verb, r.Object}
+		if i, ok := index[k]; ok {
+			m := &merged[i]
+			if !m.HasQty {
+				m.HasQty = true
+				m.Quantity = 1
+			}
+			if r.HasQty {
+				m.Quantity += r.Quantity
+			} else {
+				m.Quantity++
+			}
+			continue
+		}
+		index[k] = len(merged)
+		merged = append(merged, r)
+	}
+	return merged
+}
+
 func writeEffects(b *strings.Builder, kind, subject string, records []EffectRecord, intendedVerb string, width int, color bool, profile GlyphProfile) {
 	// A [planned]/[changed] header with zero rows beneath it invents a mutation
 	// story that never happened; render the honest empty-success line instead
@@ -474,7 +507,7 @@ func writeEffects(b *strings.Builder, kind, subject string, records []EffectReco
 	tag := style(fmt.Sprintf("[%s]", kind), effectColor(kind), color)
 	fmt.Fprintf(b, "%s  %s\n", tag, subject)
 
-	visible := records
+	visible := mergeIdenticalEffectRecords(records)
 	omitted := 0
 	if len(visible) > maxVisibleEffectRows {
 		omitted = len(visible) - maxVisibleEffectRows

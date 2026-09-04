@@ -108,6 +108,10 @@ func Confirm(question string, opts ...ConfirmOption) bool {
 // hand-rolls a [y/N] prompt that fights the spinner or misreports "no" as
 // failure (evo-rec.md "confirm gate" default).
 //
+// question is verbatim text, not a printf format (unlike Task/Group/Reason's
+// C6 name argument) — build a dynamic question with fmt.Sprintf before
+// calling Confirm.
+//
 // Resolution:
 //   - AssumeYes(true): Done "assumed --yes", returns true, no prompt.
 //   - No TTY / NonInteractive / plain, without AssumeYes: never blocks on
