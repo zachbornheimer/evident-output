@@ -35,7 +35,10 @@ func main() {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
 	out := evo.Init(cfg)
-	code := evo.Main(func() error {
+	// evo.Run (not Main) here: this entrypoint needs the exit code before it
+	// exits, so it can print the --json snapshot first — Main's immediate
+	// os.Exit would skip that.
+	code := evo.Run(func() error {
 		// Only audible when --verbose (or VerbosityVerbose config).
 		evo.Verbose().Printf("Strict policy: %t\n", *strict)
 		evo.Verbose().Printf("Probe interval: %s\n", step)

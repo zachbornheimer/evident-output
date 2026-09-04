@@ -33,8 +33,9 @@ func All() []Guide {
 				"API-034", "API-035", "API-036", "API-037", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
 			},
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
-  1) evo.Init(evo.Config{Title, DryRun}) once in main, before any I/O; os.Exit(evo.Main(run)) — dry-run wording,
-     empty-case, and exit codes are all owned; run returns only error.
+  1) evo.Init(evo.Config{Title, DryRun}) once in main, before any I/O; evo.Main(run) — dry-run wording,
+     empty-case, and exit codes are all owned; run returns only error; Main exits the process itself
+     (no os.Exit wrapper — evo.Run/Output.Run return the code instead, for a caller that needs it without exiting).
   2) evo.Task(subject).Delete(obj, call, opts...) (also Add/Create/Update/Remove/Write/Push) — call runs only on
      a non-dry-run and only commits on success; evo.Affected(n) supplies the count. The run's DryRun mode picks
      [planned] vs [changed]; no call site ever flips its own tense or chooses Changed/Ready/Planned.
@@ -116,8 +117,9 @@ Ordinary dual-stream: evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr})
 FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr; a failed
 data command emits no partial payload by default.
 
-Exit codes come only from evo.Main (or Output.Run for a held *Output): run returns error, nothing else picks 0/1/2/130. Never
-hand-map an int to os.Exit — that is exactly how a Blocked run (1) gets silently read as success, or a real
+Exit codes come only from evo.Main/evo.MainWith (which exit the process themselves) or evo.Run/Output.Run's
+returned code (0/1/2/130) for a caller that needs it without exiting: run returns error, nothing else picks the
+code. Never hand-map an int to os.Exit — that is exactly how a Blocked run (1) gets silently read as success, or a real
 failure reads as blocked. SIGINT/SIGTERM already route through Main into Cancel on the active task, so the
 ledger's ■ and the process exit code (130) can never disagree; a caller-written signal.Notify handler that
 calls os.Exit itself bypasses that reconciliation.

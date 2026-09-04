@@ -72,7 +72,7 @@ func TestMain_OKExitZero(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		evo.Task("working tree").Done()
 		return nil
 	})
@@ -85,7 +85,7 @@ func TestMain_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		evo.Task("working tree").Block("dirty")
 		return nil
 	})
@@ -98,7 +98,7 @@ func TestMain_FailedExitTwo(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		return errors.New("app boom")
 	})
 	if code != evo.ExitFailed {
@@ -110,7 +110,7 @@ func TestMain_NilRunNeverPanics(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 
-	code := evo.Main(nil)
+	code := evo.Run(nil)
 	if code != evo.ExitOK {
 		t.Fatalf("exit %d, want %d", code, evo.ExitOK)
 	}

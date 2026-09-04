@@ -175,6 +175,13 @@ func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 	// honest Partial outcome now (release-gate round 4 finding 3), not
 	// misuse, so Finish returning nil here is expected, not evidence of a
 	// process exit either way.
+	//
+	// P6 restated the invariant rather than deleting it once Main/MainWith
+	// gained a real os.Exit call: the library's *only* path to it is the
+	// injectable exitProcess facade, proven from inside the package by
+	// TestMain_ExitsThroughExitProcessFacade (run_exit_facade_internal_test.go),
+	// which swaps the facade for a fake and asserts Main/MainWith never
+	// call the real os.Exit.
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	out.Task("x")
 	if err := out.Finish(); err != nil {

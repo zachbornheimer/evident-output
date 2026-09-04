@@ -6,7 +6,6 @@ package main
 import (
 	"flag"
 	"log/slog"
-	"os"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -26,7 +25,7 @@ func main() {
 	})
 	log := slog.New(out.SlogHandler())
 
-	os.Exit(evo.Main(func() error {
+	evo.Main(func() error {
 		time.Sleep(step)
 		log.Debug("opened repository", "path", "/work/bpp-csharp")
 		evo.Task("working tree").Done()
@@ -37,5 +36,5 @@ func main() {
 		log.Debug("branch comparison completed", "blockers", 0, "duration", 11*time.Millisecond)
 		evo.Task("branches").Done()
 		return nil
-	}))
+	})
 }

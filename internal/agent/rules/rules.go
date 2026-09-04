@@ -310,14 +310,14 @@ run.Run(ctx, "git", args, t.PhaseWriter()) // last child line becomes the live P
 			ID:        "API-018",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "process exit codes come only from evo.Main (or Output.Run for a held *Output) or Conclusion.ExitCode",
+			Invariant: "process exit codes come only from evo.Main/evo.MainWith (which exit via evo's own os.Exit facade — the library restates, never lifts, API-018) or evo.Run/Output.Run's returned code",
 			Why:       "A hand-mapped os.Exit int bypasses the Outcome→exit-code contract; a Blocked run (1) can silently read as success, or a real failure can read as blocked.",
 			BadCode: `if err != nil {
   fmt.Println(err)
   os.Exit(1) // hand-mapped, not fed by evo
 }`,
-			GoodCode:        `os.Exit(evo.Main(run)) // run returns error; Conclusion decides 0/1/2/130`,
-			Remediation:     "Route exit through evo.Main (or Output.Run for a held *Output), or read Conclusion().ExitCode",
+			GoodCode:        `evo.Main(run) // run returns error; Conclusion decides 0/1/2/130; Main exits itself`,
+			Remediation:     "Route exit through evo.Main/evo.MainWith (which exit for you), or evo.Run/Output.Run's returned code for a caller that needs the code without exiting",
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"API-018"},
 			Since:           "0.2.0",
@@ -509,8 +509,8 @@ task.Progress(14, 40) // sealed once discovery completes; never re-sealed`,
 if partial {
   os.Exit(130) // Partial is not interruption
 }`,
-			GoodCode:        `os.Exit(evo.Main(run)) // exit code derives from Outcome alone: 0 OK / 1 Blocked / 2 Failed / 130 Cancelled; Partial is a completeness modifier only`,
-			Remediation:     "Let evo.Main (or Output.Run for a held *Output) pick the exit code from Outcome; never hand-map an int, and never use 130 outside real interruption",
+			GoodCode:        `evo.Main(run) // exit code derives from Outcome alone: 0 OK / 1 Blocked / 2 Failed / 130 Cancelled; Partial is a completeness modifier only`,
+			Remediation:     "Let evo.Main/evo.MainWith pick the exit code from Outcome and exit for you; never hand-map an int, and never use 130 outside real interruption",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"CON-001"},
 			Since:           "0.6.0",
@@ -579,11 +579,11 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			ID:        "API-032",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "evo.New/MainWith (removed with the item/task fold), Item/.OK/.Because (folded into Task/.Done), Cause, and Capture are superseded spellings",
-			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New/MainWith were deleted, not merely advanced); Item folded into Task — one entity, one constructor; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr.",
+			Invariant: "evo.New (removed with the item/task fold), Item/.OK/.Because (folded into Task/.Done), Cause, and Capture are superseded spellings; evo.MainWith(out, run) is current again (v0.4.0) as the Isolated-instance lifecycle — it exits itself, so it is never wrapped in os.Exit",
+			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New was deleted, not merely advanced; MainWith returned to pair with Isolated *Output but now exits via evo's own facade instead of returning an int for the caller to pass to os.Exit); Item folded into Task — one entity, one constructor; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr.",
 			BadCode: `func main() {
 	out := evo.New(evo.Config{Title: "tool"})
-	os.Exit(evo.MainWith(out, run))
+	os.Exit(evo.MainWith(out, run)) // New is gone; MainWith no longer returns an int
 }
 func run(out *evo.Output) error {
 	output := out.Item("x").Capture()
@@ -592,16 +592,16 @@ func run(out *evo.Output) error {
 	return out.Task("z").Fail("failed", evo.Cause(err))
 }`,
 			GoodCode: `func main() {
-	evo.Init(evo.Config{Title: "tool"})
-	os.Exit(evo.Main(run))
+	out := evo.Init(evo.Config{Title: "tool", Isolated: true})
+	evo.MainWith(out, run) // exits itself; Output.Run(run) if the caller needs the code without exiting
 }
-func run() error {
-	proof := evo.Task("x").Evidence()
-	evo.Task("x").Done()
-	evo.Task("y").Done("no incumbent configuration found")
-	return evo.Task("z").Failf("failed: %w", err)
+func run(out *evo.Output) error {
+	proof := out.Task("x").Evidence()
+	out.Task("x").Done()
+	out.Task("y").Done("no incumbent configuration found")
+	return out.Task("z").Failf("failed: %w", err)
 }`,
-			Remediation:     "Replace New+MainWith in main with Init+Main; replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with .Evidence()",
+			Remediation:     "Replace evo.New with evo.Init(Config{Isolated: true}); drop os.Exit around evo.MainWith (it exits itself) — or call Output.Run for the code without exiting; replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with .Evidence()",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",

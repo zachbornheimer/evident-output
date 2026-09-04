@@ -19,7 +19,7 @@ var (
 //
 //	func main() {
 //	    evo.Init(evo.Config{Title: "repo-retire"})
-//	    os.Exit(evo.Main(run))
+//	    evo.Main(run)
 //	}
 //
 // evo.Init() (zero args) or evo.Init(evo.Config{}) (or
@@ -170,19 +170,4 @@ func Verbose() *Printer {
 // Output.SlogHandler for the level policy and full contract.
 func SlogHandler() slog.Handler {
 	return Default().SlogHandler()
-}
-
-// AnyBlockedSoFar reports whether any Task on the default instance is
-// currently Blocked — see Output.AnyBlockedSoFar. Package-level parity with
-// Task/Group/Print* (beginner-7): a caller using the default-instance
-// facade throughout a run should never have to reach for a hosted *Output
-// just to check this one thing.
-func AnyBlockedSoFar() bool {
-	return Default().AnyBlockedSoFar()
-}
-
-// AnyFailed reports whether any Task on the default instance is currently
-// Failed — see Output.AnyFailed.
-func AnyFailed() bool {
-	return Default().AnyFailed()
 }

@@ -7,7 +7,6 @@ package main
 import (
 	"flag"
 	"log/slog"
-	"os"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -37,7 +36,7 @@ func main() {
 	out := evo.Init(cfg)
 	log := slog.New(out.SlogHandler())
 
-	os.Exit(evo.Main(func() error {
+	evo.Main(func() error {
 		jobs := evo.Sequence("audit")
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
@@ -67,5 +66,5 @@ func main() {
 			evo.Task("branches").Done()
 		}
 		return nil
-	}))
+	})
 }

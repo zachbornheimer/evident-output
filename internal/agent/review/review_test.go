@@ -241,7 +241,7 @@ import (
 )
 func main() {
   out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
-  os.Exit(evo.MainWith(out, func(o *evo.Output) error {
+  os.Exit(out.Run(func(o *evo.Output) error {
     o.Task("x").Done()
     return nil
   }))
@@ -1146,35 +1146,38 @@ func findAPI032(res review.Result) []review.Finding {
 	return found
 }
 
-func TestAPI032_NewAndMainWithInMain(t *testing.T) {
+func TestAPI032_NewInMain(t *testing.T) {
+	// evo.MainWith(out, run) is current again as of v0.4.0 (paired with
+	// Init(Config{Isolated: true}), not New) — only evo.New itself is
+	// still a superseded spelling.
 	src := `package main
 import evo "github.com/zachbornheimer/evident-output"
 func main() {
   out := evo.New(evo.Config{Title: "t"})
-  os.Exit(evo.MainWith(out, run))
+  evo.MainWith(out, run)
 }
 `
 	res := review.GoSource("main.go", src)
 	found := findAPI032(res)
-	if len(found) != 2 {
-		t.Fatalf("expected two API-032 findings (New and MainWith in main), got %+v", found)
+	if len(found) != 1 {
+		t.Fatalf("expected one API-032 finding (New in main), got %+v", found)
 	}
 }
 
 func TestAPI032_NoFalsePositiveOnHostedInstanceOutsideMain(t *testing.T) {
-	// New+MainWith outside main() is the documented advanced pattern (a
+	// New outside main() is the documented advanced pattern (a
 	// hosted-instance test harness or framework entrypoint wrapper) — must
 	// not be flagged.
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func run() int {
   out := evo.New(evo.Config{Title: "t"})
-  return evo.MainWith(out, nil)
+  return out.Run(nil)
 }
 `
 	res := review.GoSource("hosted.go", src)
 	if found := findAPI032(res); len(found) != 0 {
-		t.Fatalf("New+MainWith outside main must not be flagged: %+v", found)
+		t.Fatalf("New outside main must not be flagged: %+v", found)
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -25,7 +24,7 @@ func main() {
 	}
 
 	evo.Init(evo.Config{Title: "install"})
-	os.Exit(evo.Main(func() error {
+	evo.Main(func() error {
 		pipeline := evo.Sequence("pipeline")
 
 		modules := pipeline.Task("go mod download", evo.ID("pipeline.mod-download"))
@@ -58,5 +57,5 @@ func main() {
 		tests.Progress(12, 12)
 		tests.Done("ok")
 		return nil
-	}))
+	})
 }

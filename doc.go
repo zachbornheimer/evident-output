@@ -5,7 +5,7 @@
 //
 //	func main() {
 //	    evo.Init(evo.Config{Title: "repo"}) // first statement — arms first paint before any I/O
-//	    os.Exit(evo.Main(run))
+//	    evo.Main(run)
 //	}
 //
 //	func run() error {
@@ -18,7 +18,7 @@
 //	}
 //
 // Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
-//  1. evo.Init(Config) once in main, before any I/O; os.Exit(evo.Main(run)) — dry-run wording,
+//  1. evo.Init(Config) once in main, before any I/O; evo.Main(run) — dry-run wording,
 //     empty-case, and exit codes are all owned; run returns only error.
 //  2. Print / Printf / Println / Verbose — start as casually as fmt.
 //  3. evo.Task(name) for everything — a check/gate resolved directly (Done/Warn/Block/Fail/Skip,

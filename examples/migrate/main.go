@@ -11,7 +11,6 @@ package main
 
 import (
 	"flag"
-	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -26,7 +25,7 @@ func main() {
 		opts = append(opts, evo.DryRun())
 	}
 	out := evo.Init(evo.Config{Options: opts})
-	os.Exit(evo.Main(func() error {
+	evo.Main(func() error {
 		backup := evo.Task("backup")
 		backup.Phase("snapshotting production")
 		if *apply && *fail {
@@ -56,7 +55,7 @@ func main() {
 		}
 		database.Done()
 		return nil
-	}))
+	})
 }
 
 func addEmailVerifiedColumn() error { return nil }

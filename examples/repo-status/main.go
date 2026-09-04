@@ -42,7 +42,7 @@ func main() {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
 	evo.Init(cfg)
-	os.Exit(evo.Main(func() error {
+	evo.Main(func() error {
 		evo.Verbose().Printf("Checking repository %s\n", *name)
 
 		time.Sleep(step)
@@ -72,7 +72,7 @@ func main() {
 		time.Sleep(step)
 		evo.Task("stashes").Done()
 		return nil
-	}))
+	})
 }
 
 // parseColorMode maps the --color flag's always|never|auto (and common

@@ -7,7 +7,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -27,7 +26,7 @@ func main() {
 		Title:  "build",
 		Format: evo.FormatData,
 	})
-	os.Exit(evo.Main(func() error {
+	evo.Main(func() error {
 		evo.Task("compile").Done()
 		evo.Task("tests").Done()
 		link := evo.Task("link")
@@ -46,5 +45,5 @@ func main() {
 			return err
 		}
 		return nil
-	}))
+	})
 }

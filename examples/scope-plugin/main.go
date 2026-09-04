@@ -15,7 +15,7 @@ import (
 
 func main() {
 	out := evo.Init(evo.Config{Title: "compose"})
-	os.Exit(evo.Main(func() error {
+	evo.Main(func() error {
 		// Host owns top-level gates with stable keys.
 		evo.Task("config", evo.ID("host.config")).Done()
 
@@ -34,5 +34,5 @@ func main() {
 			}
 		}
 		return nil
-	}))
+	})
 }

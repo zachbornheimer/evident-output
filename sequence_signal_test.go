@@ -31,7 +31,7 @@ func TestMain_SIGINTCancelsGroupChildAndLaterSiblingsRenderNotStarted(t *testing
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
 		for venv.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {

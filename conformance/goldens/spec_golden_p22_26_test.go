@@ -259,7 +259,7 @@ func TestSpecP22_ConfirmGate_EarlyTermination(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		close(started)
 		evo.Confirm("confirm remote delete", evo.Destructive())
 		return nil
@@ -420,7 +420,7 @@ func TestSpecP23_SignalConclusion_Step2(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		scan.Done()
 		venv.Phase("creating")
 		close(started)
@@ -492,7 +492,7 @@ func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		scan.Done()
 		venv.Record("create", 1, ".venv directory")
 		close(started)
@@ -708,7 +708,7 @@ func TestSpecP24_DataFormat_EarlyTermination(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		scan.Progress(40, 128)
 		if _, err := evo.Default().ResultWriter().Write([]byte(`{"repo":"zq"}` + "\n")); err != nil {
 			return err
@@ -847,7 +847,7 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		branches.Record("delete", 8, "local")
 		branches.Done("8 deleted")
 		worktrees.Record("remove", 0, "worktrees")
@@ -1007,7 +1007,7 @@ func TestSpecP26_NarrowTerminal_EarlyTermination(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		branches.Record("delete", 15, "local")
 		branches.Done("15 del")
 		worktrees.Record("remove", 0, "worktrees")

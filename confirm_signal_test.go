@@ -40,7 +40,7 @@ func TestConfirm_SIGINT_CancelsGateNotDeclined(t *testing.T) {
 	}()
 
 	var confirmResult bool
-	code := evo.Main(func() error {
+	code := evo.Run(func() error {
 		close(started)
 		confirmResult = evo.Confirm("delete origin/production-hotfix?")
 		return nil

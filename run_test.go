@@ -75,23 +75,6 @@ func TestMainWith_NilOutput(t *testing.T) {
 	}
 }
 
-func TestAnyBlocked_BeforeMutate(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("gates"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	out.Task("a").Done()
-	out.Task("b").Block("policy")
-	if !out.AnyBlockedSoFar() {
-		t.Fatal("expected AnyBlockedSoFar")
-	}
-	if out.AnyFailed() {
-		t.Fatal("no failures")
-	}
-	_ = out.Finish()
-	if !out.Conclusion().AnyBlocked() {
-		t.Fatal("conclusion AnyBlocked")
-	}
-}
-
 func TestConfig_PipeWriterIsNoColor(t *testing.T) {
 	// Real pipe: not a char device → Config Auto resolves NoColor so capture has no CSI.
 	r, w, err := os.Pipe()

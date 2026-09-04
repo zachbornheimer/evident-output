@@ -1,35 +1,29 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestPackageAnyBlockedAnyFailed_DefaultInstanceParity is beginner-7:
-// evo.AnyBlockedSoFar/evo.AnyFailed exist at package level, mirroring
-// evo.Task/evo.Group/evo.Print*, so a caller using the default-instance
-// facade throughout a run never has to reach for a hosted *Output.
-// AnyBlockedSoFar (C12) is named to distinguish it from
-// Conclusion.AnyBlocked, a different, final-verdict question.
-func TestPackageAnyBlockedAnyFailed_DefaultInstanceParity(t *testing.T) {
+// TestAnyBlockedSoFar_BeforeMutate is a white-box carryover of the deleted
+// public AnyBlockedSoFar/AnyFailed surface (P6 deletion census): the
+// mid-run "is anything blocked/failed yet" question concludeRun needs is
+// still exercised, just as an internal helper rather than exported API —
+// nothing outside the package needs it, since Output.Run/Conclusion already
+// answer the same question once a run has finished.
+func TestAnyBlockedSoFar_BeforeMutate(t *testing.T) {
 	var buf bytes.Buffer
-	// Config.Options never installs the package-level default (by design —
-	// see Init's doc comment), so this must go through SetDefault
-	// explicitly; otherwise evo.Task/evo.AnyBlockedSoFar below would keep
-	// operating on whatever default instance an earlier test left behind —
-	// invisible at -count=1, a guaranteed failure at -count>1.
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}}))
-
-	if evo.AnyBlockedSoFar() {
-		t.Fatal("AnyBlockedSoFar() = true before any task exists")
+	out := Init(Config{Isolated: true, Options: []Option{Title("gates"), To(&buf), Plain(), NoColor()}})
+	out.Task("a").Done()
+	out.Task("b").Block("policy")
+	if !out.anyBlockedSoFar() {
+		t.Fatal("expected anyBlockedSoFar")
 	}
-	evo.Task("branches").Block("local-only branch")
-	if !evo.AnyBlockedSoFar() {
-		t.Fatal("AnyBlockedSoFar() = false after a Blocked task")
+	if out.anyFailed() {
+		t.Fatal("no failures")
 	}
-	if evo.AnyFailed() {
-		t.Fatal("AnyFailed() = true, want false")
+	_ = out.Finish()
+	if !out.Conclusion().AnyBlocked() {
+		t.Fatal("conclusion AnyBlocked")
 	}
 }

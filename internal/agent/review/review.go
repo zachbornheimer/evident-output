@@ -202,11 +202,11 @@ func GoSource(filename, src string) Result {
 					findings = append(findings, Finding{
 						RuleID:     "API-018",
 						Severity:   "warning",
-						Message:    "os.Exit in evo-using code; prefer os.Exit(evo.Main(run)) / os.Exit(evo.MainWith(out, run)) or Conclusion().ExitCode",
+						Message:    "os.Exit in evo-using code; prefer evo.Main(run) / evo.MainWith(out, run) (they exit themselves) or os.Exit(evo.Run(run).../Conclusion().ExitCode)",
 						File:       filename,
 						Line:       pos.Line,
 						Column:     pos.Column,
-						Suggestion: "replace os.Exit(...) with os.Exit(evo.Main(run)) where run returns error",
+						Suggestion: "replace os.Exit(...) with evo.Main(run) (no os.Exit wrapper — Main exits itself) where run returns error",
 					})
 				}
 			}
@@ -775,8 +775,10 @@ func isLikelyEvoReceiver(x ast.Expr) bool {
 	}
 }
 
-// isPresentationExitArg is true for os.Exit(evo.Main(...)), os.Exit(evo.MainWith(...))
-// and os.Exit(...ExitCode).
+// isPresentationExitArg is true for os.Exit(evo.Run(...)), os.Exit(out.Run(...)),
+// and os.Exit(...ExitCode) — the shapes that return a code rather than exit
+// themselves. evo.Main/evo.MainWith exit via their own facade (P6) and are
+// never wrapped in os.Exit — wrapping them is flagged, not allowed here.
 func isPresentationExitArg(call *ast.CallExpr) bool {
 	if len(call.Args) != 1 {
 		return false
@@ -785,9 +787,12 @@ func isPresentationExitArg(call *ast.CallExpr) bool {
 	case *ast.CallExpr:
 		if sel, ok := arg.Fun.(*ast.SelectorExpr); ok {
 			switch sel.Sel.Name {
-			case "Main", "MainWith", "ExitCode":
+			case "Run", "ExitCode":
 				return true
 			}
+		}
+		if id, ok := arg.Fun.(*ast.Ident); ok && id.Name == "Run" {
+			return true
 		}
 	case *ast.SelectorExpr:
 		// out.Conclusion().ExitCode or conc.ExitCode
@@ -1324,9 +1329,10 @@ var becauseCallPattern = regexp.MustCompile(`\.Because\(`)
 var okCallPattern = regexp.MustCompile(`(\w+)\.OK\(\)`)
 
 // detectDeprecatedSpellings is API-032: it catches every superseded spelling
-// with a fix, not a lecture — evo.New/MainWith (evo.Init+evo.Main is the
-// sole constructor/lifecycle since the item/task fold), Item/.OK/.Because
-// (Item folded into Task: Item(name).OK().Because(text) is now
+// with a fix, not a lecture — evo.New (evo.Init is the sole constructor
+// since the item/task fold; evo.MainWith itself is current again as of
+// v0.4.0, paired with Init(Config{Isolated: true}), not New), Item/.OK/
+// .Because (Item folded into Task: Item(name).OK().Because(text) is now
 // Task(name).Done(text)), evo.Cause (Failf/Blockf's trailing %w since
 // Fail/Block are statement-form), and Capture (renamed to Evidence).
 func detectDeprecatedSpellings(filename, src string) []Finding {
@@ -1340,17 +1346,7 @@ func detectDeprecatedSpellings(filename, src string) []Finding {
 				Message:    "evo.New was removed with the item/task fold; evo.Init is the sole constructor",
 				File:       filename,
 				Line:       lineAt(src, offset+idx),
-				Suggestion: "replace evo.New(cfg) + os.Exit(evo.MainWith(out, run)) with evo.Init(cfg) then os.Exit(evo.Main(run))",
-			})
-		}
-		if idx := strings.Index(body, "evo.MainWith("); idx >= 0 {
-			findings = append(findings, Finding{
-				RuleID:     "API-032",
-				Severity:   "warning",
-				Message:    "evo.MainWith was removed with the item/task fold; evo.Main is the ordinary lifecycle (Output.Run for a held *Output)",
-				File:       filename,
-				Line:       lineAt(src, offset+idx),
-				Suggestion: "replace os.Exit(evo.MainWith(out, run)) with evo.Init(cfg) then os.Exit(evo.Main(run))",
+				Suggestion: "replace evo.New(cfg) with evo.Init(cfg, Config{Isolated: true}) then evo.MainWith(out, run) (no os.Exit wrapper — it exits itself)",
 			})
 		}
 	}

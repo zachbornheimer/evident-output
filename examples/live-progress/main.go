@@ -9,7 +9,6 @@ package main
 import (
 	"flag"
 	"log/slog"
-	"os"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -30,9 +29,9 @@ func main() {
 	})
 	log := slog.New(out.SlogHandler())
 
-	os.Exit(evo.Main(func() error {
+	evo.Main(func() error {
 		return runLive(out, log, step)
-	}))
+	})
 }
 
 // runLive uses evo.Sequence: dependencies is a sequence of steps that must stop
