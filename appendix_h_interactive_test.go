@@ -21,7 +21,7 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen),
 		evo.Clock(clock),
 		evo.VisibilityDelay(150 * time.Millisecond),
@@ -62,7 +62,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 
 	// FixedClock freezes spinner glyphs for stable operation expectations.
 	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.DebugLevel(evo.LevelDebug),
 		evo.NoColor(), // assert exact final text without SGR
@@ -109,7 +109,7 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	)
 
 	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(fixed), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(fixed), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -152,7 +152,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		testkit.NoColor(),
 	)
 
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -192,7 +192,7 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.Clock(clock),
 		evo.MaxFrameRate(30),
@@ -227,7 +227,7 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 		testkit.Interactive(),
 		testkit.Width(columns),
 	)
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen),
 		evo.VisibilityDelay(0),
 		evo.Clock(evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}),

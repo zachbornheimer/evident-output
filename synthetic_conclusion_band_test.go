@@ -19,7 +19,7 @@ import (
 // was ever stated.
 func TestFailf_EmptyTitle_StillRendersFailedBand(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Failf("boom: %w", fmt.Errorf("underlying"))
 	_ = out.Finish()

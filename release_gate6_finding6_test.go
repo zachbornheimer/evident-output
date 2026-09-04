@@ -14,7 +14,7 @@ import (
 // writeAlreadyMutated) — asserted on rendered bytes, not left unstyled.
 func TestFinish_MisuseHint_UsesWarnGlyphStyling(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain()}})
 
 	task := out.Task("branches")
 	task.Block("local-only branch")

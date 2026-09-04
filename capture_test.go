@@ -157,7 +157,7 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 	defer func() { _ = w.Close() }()
 
 	var diag bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("tool"),
 		evo.To(w),
 		evo.Plain(),
@@ -180,7 +180,7 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 
 func TestDiagnostics_DualStream_DebugNotOnPrimary(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&primary),
 		evo.Diagnostics(&diag),
 		evo.Plain(),

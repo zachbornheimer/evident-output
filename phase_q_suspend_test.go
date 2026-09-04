@@ -15,7 +15,7 @@ import (
 // not paint a stray frame over already-settled state.
 func TestSuspend_NoPostResumeFrameWhenNothingRunning(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor(), testkit.Width(80))
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("scan")

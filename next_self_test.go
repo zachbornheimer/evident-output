@@ -12,7 +12,7 @@ import (
 // as Confirm's PolicyFlag (Config.Title, or the executable-basename
 // fallback).
 func TestTaskHandle_NextSelf_UsesOwnIdentity(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean-repo")}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("clean-repo")}})
 
 	task := out.Task("dry run")
 	task.NextSelf("--apply")

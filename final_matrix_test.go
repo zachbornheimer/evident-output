@@ -30,7 +30,7 @@ func TestTXT009_CRLFNeutralized(t *testing.T) {
 }
 
 func TestTXT010_NewlineInNameNormalized(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	it := out.Task("a\nb")
 	if strings.Contains(it.Snapshot().Name, "\n") {
@@ -39,14 +39,14 @@ func TestTXT010_NewlineInNameNormalized(t *testing.T) {
 }
 
 func TestTXT020_EmptyNameStillCreates(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("").Done()
 	_ = out.Finish()
 }
 
 func TestOUT008_InferenceInEvents(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("a").Done()
 	_ = out.Finish()
@@ -58,7 +58,7 @@ func TestOUT008_InferenceInEvents(t *testing.T) {
 
 func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 	// Older reader: unmarshal known fields; ignore extras if present.
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	out.Task("a").Done()
 	_ = out.Finish()
 	b, err := evo.EncodeJSON(out.Snapshot())
@@ -88,7 +88,7 @@ func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 
 func TestOUT020_NoSubjectOmitsGuess(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("a").Done()
 	_ = out.Finish()
 	// should not invent a subject name
@@ -99,7 +99,7 @@ func TestOUT020_NoSubjectOmitsGuess(t *testing.T) {
 }
 
 func TestOUT022_PlanVsChanges(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	out.Plan("p").Delete(1, "x")
 	_ = out.Finish()
 	if out.Conclusion().Changed {
@@ -109,7 +109,7 @@ func TestOUT022_PlanVsChanges(t *testing.T) {
 }
 
 func TestCON002_DisplayOrderStable(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	a, b, c := out.Task("a"), out.Task("b"), out.Task("c")
 	var wg sync.WaitGroup
@@ -125,7 +125,7 @@ func TestCON002_DisplayOrderStable(t *testing.T) {
 }
 
 func TestCON011_SequenceIncreasing(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
@@ -147,7 +147,7 @@ func TestCON011_SequenceIncreasing(t *testing.T) {
 }
 
 func TestCON013_SnapshotConsistentUnderLoad(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
@@ -174,7 +174,7 @@ func TestCON013_SnapshotConsistentUnderLoad(t *testing.T) {
 func TestLOG012_DebugDisabledOmitsHuman(t *testing.T) {
 	var buf bytes.Buffer
 	// default debug level is Info — Debug should be omitted from human when not enabled
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Debug("hidden-debug-line")
 	out.Task("a").Done()
@@ -187,7 +187,7 @@ func TestLOG012_DebugDisabledOmitsHuman(t *testing.T) {
 }
 
 func TestLOG010_SlogErrorValues(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.DebugLevel(evo.LevelDebug)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	// use Debug with error field
 	out.Debug("fail", evo.Field{Key: "err", Value: errors.New("boom")})
@@ -196,7 +196,7 @@ func TestLOG010_SlogErrorValues(t *testing.T) {
 
 func TestSEC013_NewlineCannotForgeLogRecords(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.LevelDebug)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Debug("one\n[DEBUG] forged")
 	_ = out.Finish()
@@ -217,7 +217,7 @@ func TestSEC014_ResourceURINoTraversal(t *testing.T) {
 
 func TestTERM020_CompletedCollapseUnderPressure(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Height(5), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	for i := 0; i < 30; i++ {
@@ -231,7 +231,7 @@ func TestTERM020_CompletedCollapseUnderPressure(t *testing.T) {
 }
 
 func TestAPI017_PureProjection(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	out.Task("a").Done()
 	_ = out.Finish()
 	snap := out.Snapshot()
@@ -248,7 +248,7 @@ func TestAPI017_PureProjection(t *testing.T) {
 
 func TestA11Y009_ColorNotRequiredForMeaning(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("ok").Done()
 	out.Task("bad").Fail("x")
 	_ = out.Finish()

@@ -30,7 +30,7 @@ import (
 // under a real pty (script(1)) capture too.
 func TestRun_ThenFailf_RendersChildStderrInFinalReport(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")

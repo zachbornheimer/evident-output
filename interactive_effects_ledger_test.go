@@ -20,7 +20,7 @@ import (
 func TestInteractive_DryRunDeleteReachesLiveTerminalLedger(t *testing.T) {
 	var screen bytes.Buffer
 	drv := terminal.NewANSI(&screen, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(drv), evo.VisibilityDelay(0), evo.NoColor(), evo.DryRun(),
 	}})
 	t.Cleanup(func() { _ = out.Close() })
@@ -48,7 +48,7 @@ func TestInteractive_DryRunDeleteReachesLiveTerminalLedger(t *testing.T) {
 func TestInteractive_ChangesDeleteReachesLiveTerminalLedger(t *testing.T) {
 	var screen bytes.Buffer
 	drv := terminal.NewANSI(&screen, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(drv), evo.VisibilityDelay(0), evo.NoColor(),
 	}})
 	t.Cleanup(func() { _ = out.Close() })

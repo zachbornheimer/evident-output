@@ -14,7 +14,7 @@ import (
 // [planned] exactly as if Config.DryRun had been set at construction.
 func TestDeclareDryRun_BeforeAnyRow_SwitchesMode(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.DeclareDryRun()
 	out.Task("cleanup").Delete(2, "stale local branch")
@@ -34,7 +34,7 @@ func TestDeclareDryRun_BeforeAnyRow_SwitchesMode(t *testing.T) {
 // earlier row cannot retroactively reflect the switch.
 func TestDeclareDryRun_AfterADurableRow_IsMisuse(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Println("Reading configuration")
 	out.DeclareDryRun()

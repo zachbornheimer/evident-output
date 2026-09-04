@@ -185,9 +185,10 @@ type Config struct {
 	// state: it is not installed as the package-level default and does not
 	// arm first paint. Use for parallel tests and embedders that hold their
 	// own *Output instead of going through Default()/Task()/Print() et al.
-	// Not consulted when Options is set: that path already never installs
-	// the default or arms first paint, regardless of Isolated's value —
-	// see Options.
+	// This is the one and only opt-out from default installation — it
+	// applies identically whether or not Options is also set (release-gate
+	// round 8 finding 1): Options is an orthogonal escape hatch for how the
+	// Output is built, not for whether it becomes the default.
 	Isolated bool
 
 	// Options is the advanced, raw Option escape hatch for tests and
@@ -195,9 +196,9 @@ type Config struct {
 	// that need to bypass Config's ordinary stream/TTY/color inference
 	// entirely. When set, every other Config field except Title, DryRun, and
 	// Subject is ignored and the Output is built from these Options alone.
-	// Isolated is not honored differently here: this path never installs
-	// the result as the package-level default or arms first paint, exactly
-	// as if Isolated were always true — see Init.
+	// It still installs as the package-level default and arms first paint
+	// exactly like every other Init call, unless Isolated is also set —
+	// see Isolated and Init.
 	Options []Option
 }
 

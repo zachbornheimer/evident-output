@@ -53,6 +53,8 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 		return "only one child of a sequential Group runs at a time; use Tasks for independent children"
 	case errors.Is(err, ErrDryRunDeclaredLate):
 		return "call DeclareDryRun before any Task/Print/Confirm row streams"
+	case errors.Is(err, ErrTerminalWithoutSink):
+		return "pass evo.To(w) alongside evo.Terminal(driver), or use a driver whose Sink() reports its writer"
 	default:
 		// Every sentinel this package defines has a case above; a caller-
 		// supplied error reaching here (there is no such path today) still

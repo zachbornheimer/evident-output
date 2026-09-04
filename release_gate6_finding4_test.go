@@ -14,7 +14,7 @@ import (
 // spelling left non-printf.
 func TestPhaseAndSkip_ArePrintfVariadic(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 
 	phased := out.Task("fetch")
 	phased.Phase("resolving %s", "main")

@@ -294,7 +294,7 @@ func TestSpecP3_DryRunTense_Failure(t *testing.T) {
 // count survives in the Changes ledger.
 //
 //	:.  salvage  2/3  feat/b
-//	✗  salvage  non-fast-forward
+//	✗  salvage  2/3  non-fast-forward
 //	   └─ tip rejected on retire/feat/b
 //	[changed]  salvage
 //	  pushed  1  branch   # feat/a already went
@@ -312,7 +312,7 @@ func TestSpecP3_DryRunTense_Error(t *testing.T) {
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
-		"✗ salvage non-fast-forward",
+		"✗ salvage 2/3 non-fast-forward",
 		"tip rejected on retire/feat/b",
 		"[changed] salvage",
 		"pushed 1 branch",
@@ -515,7 +515,7 @@ func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 // what was reliably observed so far.
 //
 //	:.  scan  40/128  broken-repo
-//	✗  scan  git rev-parse failed
+//	✗  scan  40/128  git rev-parse failed
 //	   └─ not a git repository
 //	[changed]  scan
 //	  ready  39  repos
@@ -533,7 +533,7 @@ func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
-		"✗ scan git rev-parse failed",
+		"✗ scan 40/128 git rev-parse failed",
 		"not a git repository",
 		"ready 39 repos",
 	} {

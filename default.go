@@ -1,6 +1,7 @@
 package evo
 
 import (
+	"log/slog"
 	"sync"
 )
 
@@ -32,12 +33,14 @@ var (
 // own *Output).
 //
 // Config.Options is the advanced raw-Option escape hatch for tests and
-// specialized embedding; when set, ordinary Config fields (besides Title)
-// are ignored, and — matching the retired NewWithOptions constructor this
-// replaces — Init never installs the result as the package-level default or
-// arms first paint, regardless of Isolated: a caller with direct Option
-// control is expected to also control default-binding and arm() explicitly
-// (e.g. via SetDefault, or Output.Run for the lifecycle MainWith used to own).
+// specialized embedding; when set, ordinary Config fields (besides Title,
+// DryRun, and Subject) are ignored. Options installs as the package-level
+// default and arms first paint exactly like every other Init call — Isolated
+// is the one and only opt-out, orthogonal to Options (release-gate round 8
+// finding 1: a caller who set Options but not Isolated must still be able to
+// reach the instance they configured via the package-level Task/Print
+// facade, instead of those facades lazily building a second, bare Output
+// that silently drops DryRun/Title/writer wiring).
 func Init(configs ...Config) *Output {
 	cfg := resolveInitConfig(configs)
 	if len(cfg.Options) > 0 {
@@ -52,6 +55,10 @@ func Init(configs ...Config) *Output {
 			opts = append(append([]Option{}, opts...), DryRun())
 		}
 		out := newOutput(cfg.Title, opts...)
+		if !cfg.Isolated {
+			SetDefault(out)
+			out.arm()
+		}
 		if cfg.Subject != "" {
 			out.Println(cfg.Subject)
 		}
@@ -154,6 +161,15 @@ func Println(args ...any) {
 // Verbose returns a Printer scoped to Verbose visibility on the default instance.
 func Verbose() *Printer {
 	return Default().At(VisibilityVerbose)
+}
+
+// SlogHandler returns a slog.Handler journaling to the default instance —
+// package-level sugar (release-gate round 8 finding 6) matching Task/Verbose:
+// a caller using the default-instance facade throughout a run should never
+// have to reach for a hosted *Output just for the slog bridge. See
+// Output.SlogHandler for the level policy and full contract.
+func SlogHandler() slog.Handler {
+	return Default().SlogHandler()
 }
 
 // AnyBlockedSoFar reports whether any Task on the default instance is

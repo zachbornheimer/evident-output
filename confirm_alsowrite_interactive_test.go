@@ -18,7 +18,7 @@ func TestFinish_InteractiveWithAlsoWrite_MirrorsPlainProjection(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var mirror bytes.Buffer
 
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen),
 		evo.AlsoWrite(&mirror),
 	}})

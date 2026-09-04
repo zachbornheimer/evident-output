@@ -13,7 +13,7 @@ import (
 // of the generic StateReady an ordinary Done gets.
 func TestUnchanged_AllTasksUnchanged_ConcludesStateUnchanged(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Task("config").Unchanged("already up to date")
 	out.Task("lockfile").Unchanged("no drift (%d deps checked)", 42)
@@ -31,7 +31,7 @@ func TestUnchanged_AllTasksUnchanged_ConcludesStateUnchanged(t *testing.T) {
 // Unchanged only wins when every Done-family task agrees.
 func TestUnchanged_MixedWithOrdinaryDone_StaysReady(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Task("config").Unchanged("already up to date")
 	out.Task("cache").Done("warmed")

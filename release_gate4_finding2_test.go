@@ -17,7 +17,7 @@ import (
 // to one error.
 func TestFinish_MisuseSentinel_RendersHintNotRawSentinelText(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Task("a", evo.ID("dup"))
 	out.Task("b", evo.ID("dup")) // reusing the same evo.ID under a different name is a real conflict
