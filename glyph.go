@@ -53,7 +53,7 @@ func resolveGlyphProfileLocked(cfg *config) {
 // vocabulary unconditionally — evo-rec.md's glyph-safety default only
 // guards the live status column a human is watching.
 func interactiveOutputLocked(cfg *config) bool {
-	if cfg.nonInteractive || cfg.plain {
+	if cfg.plain {
 		return false
 	}
 	ls := asLive(cfg.terminal)

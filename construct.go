@@ -144,10 +144,11 @@ type Config struct {
 	MaxFrameRate    int
 	MaxEntities     int
 	MaxEvents       int
-	// ForcePlain disables live interactive frames even on a TTY.
-	ForcePlain bool
-	// NonInteractive disables live frames.
-	NonInteractive bool
+	// Plain disables live interactive frames, on a TTY or off (C3: replaces
+	// the former separate ForcePlain and NonInteractive fields — every read
+	// site combined them with OR, so there was never a distinct behavior
+	// between the two to preserve).
+	Plain bool
 
 	// Glyphs selects the state-glyph vocabulary (default GlyphsAuto: Unicode
 	// off a TTY or on a UTF-8 locale, ASCII on a non-UTF-8 interactive TTY).
@@ -309,11 +310,11 @@ func configToOptions(c Config) []Option {
 	}
 
 	// Interactive live region only on a real TTY and human format.
-	wantLive := !c.ForcePlain && !c.NonInteractive && c.Format == FormatHuman
+	wantLive := !c.Plain && c.Format == FormatHuman
 	liveWriter := c.Stdout
 	if c.Format == FormatData {
 		liveWriter = c.Stderr
-		wantLive = !c.ForcePlain && !c.NonInteractive && IsCharDevice(c.Stderr)
+		wantLive = !c.Plain && IsCharDevice(c.Stderr)
 	} else {
 		wantLive = wantLive && IsCharDevice(c.Stdout)
 	}
@@ -368,10 +369,7 @@ func configToOptions(c Config) []Option {
 	default:
 		opts = append(opts, Plain())
 	}
-	if c.NonInteractive {
-		opts = append(opts, NonInteractive())
-	}
-	if c.ForcePlain {
+	if c.Plain {
 		opts = append(opts, Plain())
 	}
 

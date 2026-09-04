@@ -23,9 +23,8 @@ const (
 
 // PlainOptions configures pure plain projection (§25.4).
 type PlainOptions struct {
-	Width          int
-	NoColor        bool
-	NonInteractive bool
+	Width   int
+	NoColor bool
 	// Verbose additionally emits per-reason name lists under a task's skip/keep
 	// taxonomy line. Counts and the reason partition always render; Verbose
 	// only adds the bounded (TruncateNames) name detail.
@@ -43,11 +42,10 @@ func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 		glyphs = GlyphsUnicode
 	}
 	cfg := config{
-		width:          opts.Width,
-		noColor:        opts.NoColor,
-		nonInteractive: opts.NonInteractive,
-		plain:          true,
-		glyphs:         glyphs,
+		width:   opts.Width,
+		noColor: opts.NoColor,
+		plain:   true,
+		glyphs:  glyphs,
 	}
 	if opts.Verbose {
 		cfg.verbosity = VerbosityVerbose

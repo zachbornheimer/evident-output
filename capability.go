@@ -34,7 +34,7 @@ func DetectCapabilities(opts ...Option) CapabilityProfile {
 		}
 	}
 	p := CapabilityProfile{
-		Interactive: !cfg.nonInteractive && !cfg.plain,
+		Interactive: !cfg.plain,
 		Unicode:     true,
 		Width:       cfg.width,
 		Height:      24,

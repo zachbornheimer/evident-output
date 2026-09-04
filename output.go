@@ -910,7 +910,7 @@ func (o *Output) projectDebugRecordLocked(rec debugRecord) {
 		return
 	}
 
-	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
 	if interactive && o.cfg.debugPresentation == DebugPresentationPane {
 		o.debugPaneActive = true
 		o.linesEmitted = len(o.lines)
@@ -1329,7 +1329,7 @@ func (o *Output) Finish() error {
 
 	// Full plain for FinalPlain / JSON agreement (may include already-streamed items).
 	fullPlain, _ := RenderPlain(snap, PlainOptions{
-		Width: cfg.width, NoColor: cfg.noColor, NonInteractive: cfg.nonInteractive,
+		Width: cfg.width, NoColor: cfg.noColor,
 		Verbose: cfg.verbosity >= VerbosityVerbose,
 	})
 	o.finalPlain = string(fullPlain)

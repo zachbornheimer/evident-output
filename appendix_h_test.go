@@ -283,7 +283,7 @@ func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 	var output bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.To(&output),
-		evo.NonInteractive(),
+		evo.Plain(),
 		evo.NoColor(),
 	}})
 	t.Cleanup(func() { _ = out.Close() })

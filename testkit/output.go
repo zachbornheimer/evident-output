@@ -17,11 +17,10 @@ import (
 func New(t *testing.T) *evo.Output {
 	t.Helper()
 	out := evo.Init(evo.Config{
-		Isolated:       true,
-		ForcePlain:     true,
-		NonInteractive: true,
-		Stdout:         io.Discard,
-		Stderr:         io.Discard,
+		Isolated: true,
+		Plain:    true,
+		Stdout:   io.Discard,
+		Stderr:   io.Discard,
 	})
 	t.Cleanup(func() { _ = out.Close() })
 	return out

@@ -111,7 +111,7 @@ func runScenarioFile(t *testing.T, path string) {
 		opts = append(opts, evo.NoColor())
 	}
 	if sc.Options.NonInteractive {
-		opts = append(opts, evo.NonInteractive())
+		opts = append(opts, evo.Plain())
 	}
 	if sc.Options.Width > 0 {
 		opts = append(opts, evo.Width(sc.Options.Width))

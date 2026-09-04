@@ -21,5 +21,5 @@ func DataProjection() Option {
 
 // ExternalProjection selects snapshot-only host rendering.
 func ExternalProjection() Option {
-	return optionFunc(func(c *config) { c.projection = ProjectionExternal; c.nonInteractive = true })
+	return optionFunc(func(c *config) { c.projection = ProjectionExternal; c.plain = true })
 }

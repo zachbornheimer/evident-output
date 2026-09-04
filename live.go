@@ -69,7 +69,7 @@ type liveEngine struct {
 }
 
 func (o *Output) liveLocked() LiveSurface {
-	if o.cfg.nonInteractive || o.cfg.plain {
+	if o.cfg.plain {
 		return nil
 	}
 	return asLive(o.cfg.terminal)

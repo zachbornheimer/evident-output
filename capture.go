@@ -527,7 +527,7 @@ func (o *Output) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line 
 	hasDiag := o.cfg.diagnostic != nil
 	interactive := false
 	if live := o.liveLocked(); live != nil {
-		interactive = live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+		interactive = live.IsInteractive() && !o.cfg.plain
 	}
 	o.mu.Unlock()
 	if !allowDebug {

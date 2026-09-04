@@ -16,7 +16,6 @@ type config struct {
 	diagnostic        io.Writer
 	result            io.Writer // domain payload (FormatData); never used for presentation
 	plain             bool
-	nonInteractive    bool
 	noColor           bool
 	width             int
 	clock             TimeSource
@@ -86,11 +85,6 @@ func ResultStream(w io.Writer) Option {
 // Semantic color is still emitted unless NoColor is set.
 func Plain() Option {
 	return optionFunc(func(c *config) { c.plain = true })
-}
-
-// NonInteractive disables live interactive frames.
-func NonInteractive() Option {
-	return optionFunc(func(c *config) { c.nonInteractive = true })
 }
 
 // NoColor disables color.

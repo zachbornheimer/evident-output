@@ -121,7 +121,7 @@ func TestConfig_VisibilityDelayZeroIsImmediate(t *testing.T) {
 		Stdout:          &bytes.Buffer{},
 		Stderr:          &bytes.Buffer{},
 		VisibilityDelay: evo.Delay(0),
-		ForcePlain:      true,
+		Plain:           true,
 	}
 	out := evo.Init(cfg)
 	_ = out.Close()

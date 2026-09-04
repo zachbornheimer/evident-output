@@ -138,7 +138,7 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 		return true
 	}
 
-	if o.cfg.plain || o.cfg.nonInteractive {
+	if o.cfg.plain {
 		gate.Block(confirmPolicyBlockedSummary)
 		gate.Next(cfg.resolvedPolicyHint(o))
 		o.flushGateNow(gate.id)

@@ -328,6 +328,12 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   (`deprecated.go`) the catalog was contradicting by teaching them
   alongside `Task`. `Tasks` vs `Group`'s independent-vs-sequential split
   now gets one explicit sentence (C13).
+- **Breaking**: `Config.ForcePlain` and `Config.NonInteractive` collapsed
+  into one `Config.Plain` field; the `NonInteractive()` Option is gone —
+  use `Plain()`. Every prior read site combined the two with OR, so there
+  was never a distinct behavior between them to preserve (C3).
+  `PlainOptions.NonInteractive` deleted too — proven a no-op, since
+  `RenderPlain` always forces plain mode regardless of it (C2).
 
 ## Migration guide (v0.2.x → v0.3.0)
 

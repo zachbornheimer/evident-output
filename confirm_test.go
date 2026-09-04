@@ -118,7 +118,7 @@ func TestConfirm_AssumeYes_SkipsPromptAndReadsNothing(t *testing.T) {
 func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.To(io.Discard),
-		evo.NonInteractive(),
+		evo.Plain(),
 		evo.Stdin(&panicReader{t: t}),
 	}})
 
@@ -145,7 +145,7 @@ func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) 
 func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.To(io.Discard),
-		evo.NonInteractive(),
+		evo.Plain(),
 		evo.Stdin(&panicReader{t: t}),
 	}})
 
@@ -164,7 +164,7 @@ func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
 func TestConfirm_NonInteractive_PolicyHint_OverridesDefaultYesHint(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.To(io.Discard),
-		evo.NonInteractive(),
+		evo.Plain(),
 		evo.Stdin(&panicReader{t: t}),
 	}})
 

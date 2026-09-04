@@ -19,7 +19,7 @@ func TestPORT_RedirectedStdout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(w), evo.Plain(), evo.NoColor(), evo.NonInteractive()}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(w), evo.Plain(), evo.NoColor(), evo.Plain()}})
 	out.Task("pipe").Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

@@ -47,7 +47,7 @@ func (o *Output) writeDurableTextLocked(text string) {
 		live.ClearLive()
 		o.live.liveActive = false
 	}
-	interactive := live != nil && live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
 	if interactive {
 		if o.live == nil {
 			o.live = &liveEngine{surface: live}
@@ -94,7 +94,7 @@ func (o *Output) emitTaskProgressiveLocked(st *taskState) {
 		return
 	}
 	live := o.liveLocked()
-	interactive := live != nil && live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
 	if interactive {
 		return
 	}
@@ -195,7 +195,7 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 		return
 	}
 	live := o.liveLocked()
-	interactive := live != nil && live.IsInteractive() && !o.cfg.plain && !o.cfg.nonInteractive
+	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
 	if interactive {
 		return
 	}
@@ -244,7 +244,7 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	if width <= 0 {
 		width = defaultWidth
 	}
-	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !cfg.plain && !cfg.nonInteractive
+	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !cfg.plain
 	var b strings.Builder
 
 	for i := o.linesEmitted; i < len(snap.Lines); i++ {

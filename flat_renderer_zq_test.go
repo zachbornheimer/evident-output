@@ -9,15 +9,15 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// nonTTYConfig builds a ForcePlain/NoColor Config that writes into buf.
+// nonTTYConfig builds a Plain/NoColor Config that writes into buf.
 // Buffers are never TTYs, so this is the flat/CI path zq pilots use.
 func nonTTYConfig(title string, buf *bytes.Buffer) evo.Config {
 	return evo.Config{
-		Title:      title,
-		Stdout:     buf,
-		Stderr:     buf,
-		ForcePlain: true,
-		Color:      evo.ColorNever,
+		Title:  title,
+		Stdout: buf,
+		Stderr: buf,
+		Plain:  true,
+		Color:  evo.ColorNever,
 	}
 }
 
@@ -136,11 +136,11 @@ func TestFlat_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{
-		Title:      "lint",
-		Stdout:     &primary,
-		Stderr:     &diag,
-		ForcePlain: true,
-		Color:      evo.ColorNever,
+		Title:  "lint",
+		Stdout: &primary,
+		Stderr: &diag,
+		Plain:  true,
+		Color:  evo.ColorNever,
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
@@ -193,7 +193,7 @@ func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
 		Title:          "zq",
 		Stdout:         &buf,
 		Stderr:         &buf,
-		ForcePlain:     true,
+		Plain:          true,
 		Color:          evo.ColorNever,
 		FailedExitCode: 1,
 	})
@@ -207,11 +207,11 @@ func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
 	// Default remains 2 when FailedExitCode is unset.
 	var buf2 bytes.Buffer
 	out2 := evo.Init(evo.Config{
-		Title:      "zq",
-		Stdout:     &buf2,
-		Stderr:     &buf2,
-		ForcePlain: true,
-		Color:      evo.ColorNever,
+		Title:  "zq",
+		Stdout: &buf2,
+		Stderr: &buf2,
+		Plain:  true,
+		Color:  evo.ColorNever,
 	})
 	code2 := out2.Run(func(o *evo.Output) error {
 		o.Task("x").Fail("boom")

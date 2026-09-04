@@ -34,7 +34,7 @@ func TestConfirm_Detail_RendersContextLines(t *testing.T) {
 func TestConfirm_PolicyFlag_FillsExecutableFromTitle(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{
-		evo.To(&buf), evo.NoColor(), evo.NonInteractive(), evo.Title("clean-repo"),
+		evo.To(&buf), evo.NoColor(), evo.Plain(), evo.Title("clean-repo"),
 	}})
 
 	out.Confirm("delete 8 stale local branches?", evo.PolicyFlag("--apply"))
