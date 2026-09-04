@@ -237,6 +237,23 @@ func newOutput(subject string, options ...Option) *Output {
 			opt.apply(&cfg)
 		}
 	}
+	// A Terminal driver supplied without To() must still land its
+	// non-interactive/residual projection somewhere (release-gate round 8
+	// finding 2): default primary to the driver's own Sink() when it
+	// reports one. A driver that explicitly reports no fixed sink (nil —
+	// e.g. a virtual test screen driving output straight through the live
+	// surface) is left alone; a driver that cannot answer the question at
+	// all is misuse, recorded below once o exists.
+	terminalWithoutSink := false
+	if cfg.terminal != nil && cfg.primary == nil {
+		if sr, ok := cfg.terminal.(sinkReporter); ok {
+			if sink := sr.Sink(); sink != nil {
+				cfg.primary = sink
+			}
+		} else {
+			terminalWithoutSink = true
+		}
+	}
 	if cfg.maxEntities <= 0 {
 		cfg.maxEntities = defaultMaxEntities
 	}
@@ -254,6 +271,9 @@ func newOutput(subject string, options ...Option) *Output {
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.nextID("out")
 	o.appendEventLocked(Event{Type: "output.started", OutputID: o.outputID})
+	if terminalWithoutSink {
+		o.recordMisuse(ErrTerminalWithoutSink)
+	}
 	if cfg.dryRun {
 		// Announce before any task/item can reach the durable stream: no
 		// caller path can finish a DryRun-configured Output without this
