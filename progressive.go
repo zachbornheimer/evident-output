@@ -193,6 +193,12 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 //
 // Interactive mode: tasks/collections are owned by WriteFinal (H.17 compact line);
 // residual dual-write must not reprint them onto primary (same stream as Terminal).
+// The Conclusion band is written here regardless of mode — Output.Finish only
+// forwards this text to primary, a caller-configured stream distinct from the
+// interactive terminal (Terminal owns the live region; primary is its own
+// destination, e.g. a log capture) — and separately to the live terminal via
+// residualInteractiveFinalLocked, so each destination gets its own copy of the
+// same Conclusion model exactly once.
 //
 // Plain order contract (P2): progressive Item/Task rows and Printf lines interleave
 // by completion/call time. Residual only appends entities that never streamed
@@ -250,10 +256,14 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 }
 
 // residualInteractiveFinalLocked is the WriteFinal body for interactive mode:
-// standalone tasks + collections. Never re-dumps already-streamed durable
-// evidence (that was the double-print bug) — a never-ran standalone task
-// (o.tasks, not snap.Tasks: coreEmitted lives on the internal state) already
-// streamed via emitTaskProgressiveLocked and is skipped here.
+// standalone tasks + collections, then the same Conclusion band the plain
+// path renders (writeConclusion — the only source of the derived "already
+// mutated" row, heart-contract principle 4: abnormal ends state what already
+// mutated). One model, one conclusion, both surfaces. Never re-dumps
+// already-streamed durable evidence (that was the double-print bug) — a
+// never-ran standalone task (o.tasks, not snap.Tasks: coreEmitted lives on
+// the internal state) already streamed via emitTaskProgressiveLocked and is
+// skipped here.
 func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 	color := !o.cfg.noColor
 	verbose := o.cfg.verbosity >= VerbosityVerbose
@@ -267,6 +277,9 @@ func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 	}
 	for _, col := range snap.Collections {
 		writeCollection(&b, col, color, verbose, profile)
+	}
+	if snap.Conclusion != nil && !shouldSuppressStandaloneConclusion(snap) {
+		writeConclusion(&b, *snap.Conclusion, color, profile)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

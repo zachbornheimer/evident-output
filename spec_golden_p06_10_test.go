@@ -113,20 +113,18 @@ func TestSpecP6_ErrorBlock_ProgressThenFail(t *testing.T) {
 	}
 }
 
-// TestSpecP6_EarlyTermination_MISMATCH covers evo-rec.md Problem 6's
-// early-termination block. The live bar-then-cancel half proves cleanly, but
-// the derived "! already mutated: ..." row never renders in interactive/live
-// mode at all: writeConclusion (the only place summarizeAlreadyMutated is
-// called) is only reached from residualPlainLocked, and Output.Finish's
-// interactive branch instead calls residualInteractiveFinalLocked, which
-// never emits a conclusion. A user watching a real terminal session never
-// sees this line on abnormal termination — only Output.FinalPlain() (an
-// internal snapshot, not the rendered surface) carries it.
+// TestSpecP6_EarlyTermination covers evo-rec.md Problem 6's
+// early-termination block. The live bar-then-cancel half proves cleanly, and
+// Output.Finish's interactive branch now reuses writeConclusion (via
+// residualInteractiveFinalLocked) — the same conclusion model the plain path
+// renders — so a user watching a real terminal session sees the derived
+// "already mutated" row on abnormal termination too, not just in
+// Output.FinalPlain()'s internal snapshot.
 //
 //	:.  generate  [████░░░░░░░░]  2.1/8.0 MB
 //	■  generate  cancelled
 //	!  already mutated: partial artifact at /tmp/out (2.1 MB)
-func TestSpecP6_EarlyTermination_MISMATCH(t *testing.T) {
+func TestSpecP6_EarlyTermination(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
@@ -146,14 +144,14 @@ func TestSpecP6_EarlyTermination_MISMATCH(t *testing.T) {
 		t.Log(err)
 	}
 	final := screen.FinalText()
-	if !strings.Contains(final, "■") || !strings.Contains(final, "generate") || !strings.Contains(final, "cancelled") {
-		t.Fatalf("want cancelled generate row, got:\n%s", final)
+	for _, want := range []string{
+		"■", "generate", "cancelled",
+		"already mutated: 1 partial artifact at /tmp/out (2.1 MB) wrote",
+	} {
+		if !strings.Contains(final, want) {
+			t.Fatalf("want %q in final live surface:\n%s", want, final)
+		}
 	}
-	if strings.Contains(final, "already mutated") {
-		t.Fatal("expected the already-mutated row to be MISSING from the rendered live surface (mismatch resolved — update this test)")
-	}
-	t.Skip("MISMATCH: spec wants a rendered \"!  already mutated: partial artifact at /tmp/out (2.1 MB)\" row after the cancelled task in the real terminal output; the interactive live surface's final text is only " +
-		final + " — writeConclusion (source of the already-mutated row) is never invoked on the interactive finish path (see output.go Finish, residualInteractiveFinalLocked). The row only exists in Output.FinalPlain(), an internal snapshot never written to the screen.")
 }
 
 // ---------------------------------------------------------------------------
@@ -231,21 +229,24 @@ func TestSpecP7_LiveFrame_Indeterminate(t *testing.T) {
 	}
 }
 
-// TestSpecP7_ErrorBlock_MISMATCH covers evo-rec.md Problem 7's error block as
-// two sequential moments (see TestSpecP6_ErrorBlock_ProgressThenFail): the
-// live progress bar mid-run, then the durable fail line.
+// TestSpecP7_ErrorBlock covers evo-rec.md Problem 7's error block as two
+// sequential moments (see TestSpecP6_ErrorBlock_ProgressThenFail): the live
+// progress bar mid-run, then the durable fail line.
 //
 //	:.  branches  120/500  feat/x
 //	✗  branches  fatal: unable to read tree
 //	!  120 deleted; 380 remaining untouched
 //
-// MISMATCH: the bar-then-fail half matches; the free-text "!" summary row
-// does not exist in any rendered surface for this scenario — it is not the
+// The bar-then-fail half proves cleanly. The free-text "!" summary row does
+// not exist in any rendered surface for this scenario — it is not the
 // mechanically-derived "already mutated" row (which would read "N branches
-// deleted", not "120 deleted; 380 remaining untouched"), and even that
-// derived row would be absent from the interactive final text per
-// TestSpecP6_EarlyTermination_MISMATCH's finding.
-func TestSpecP7_ErrorBlock_MISMATCH(t *testing.T) {
+// deleted", not "120 deleted; 380 remaining untouched"), and this scenario
+// never calls Record/Delete, so its Changes ledger is empty and the derived
+// row is correctly suppressed here too (TestSpecP7_ErrorBlock_MISMATCH's
+// original finding that the derived row was also unreachable on the
+// interactive surface no longer applies — see TestSpecP6_EarlyTermination,
+// which now proves that surface renders it when the ledger is non-empty).
+func TestSpecP7_ErrorBlock(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
@@ -268,10 +269,9 @@ func TestSpecP7_ErrorBlock_MISMATCH(t *testing.T) {
 	if !strings.Contains(final, "✗") || !strings.Contains(final, "branches") || !strings.Contains(final, "fatal: unable to read tree") {
 		t.Fatalf("want failed branches row, got:\n%s", final)
 	}
-	if strings.Contains(final, "120 deleted; 380 remaining untouched") {
-		t.Fatal("expected the free-text overflow row to be MISSING (mismatch resolved — update this test)")
+	if strings.Contains(final, "120 deleted; 380 remaining untouched") || strings.Contains(final, "already mutated") {
+		t.Fatalf("want no early-termination summary row for an empty Changes ledger, got:\n%s", final)
 	}
-	t.Skip("MISMATCH: spec wants a rendered \"!  120 deleted; 380 remaining untouched\" row; no mechanism produces that literal free-text summary, and even a mechanically-derived already-mutated row would not render on the interactive finish path. Actual final text:\n" + final)
 }
 
 // TestSpecP7_EarlyTermination_NotTestable documents evo-rec.md Problem 7's
