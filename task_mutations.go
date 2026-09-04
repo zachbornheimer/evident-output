@@ -9,8 +9,10 @@ package evo
 
 // Delete records a deletion of quantity of object. object is rendered
 // exactly as given; pass evo.Pluralize(quantity, "worktree") instead of a
-// hand-written singular/plural switch when the count varies.
-func (t *TaskHandle) Delete(quantity int64, object string) {
+// hand-written singular/plural switch when the count varies. quantity is
+// int (not int64) so the common caller shape — Delete(len(x), "...") —
+// compiles without a manual conversion.
+func (t *TaskHandle) Delete(quantity int, object string) {
 	t.Record("delete", quantity, object)
 }
 
@@ -20,14 +22,14 @@ func (t *TaskHandle) Create(object string) {
 }
 
 // Update records an update of quantity of object; see Delete for
-// evo.Pluralize.
-func (t *TaskHandle) Update(quantity int64, object string) {
+// evo.Pluralize and the int (not int64) quantity.
+func (t *TaskHandle) Update(quantity int, object string) {
 	t.Record("update", quantity, object)
 }
 
 // Remove records a removal of quantity of object; see Delete for
-// evo.Pluralize.
-func (t *TaskHandle) Remove(quantity int64, object string) {
+// evo.Pluralize and the int (not int64) quantity.
+func (t *TaskHandle) Remove(quantity int, object string) {
 	t.Record("remove", quantity, object)
 }
 
@@ -36,15 +38,16 @@ func (t *TaskHandle) Write(object string) {
 	t.RecordName("write", object)
 }
 
-// Push records a push of quantity of object; see Delete for evo.Pluralize.
-func (t *TaskHandle) Push(quantity int64, object string) {
+// Push records a push of quantity of object; see Delete for evo.Pluralize
+// and the int (not int64) quantity.
+func (t *TaskHandle) Push(quantity int, object string) {
 	t.Record("push", quantity, object)
 }
 
 // Record records an arbitrary imperative verb/quantity/object mutation.
 // Delete/Create/Update/Remove/Write/Push are named shorthands for this.
-func (t *TaskHandle) Record(verb string, quantity int64, object string) {
-	t.out.recordMutation(t.id, verb, quantity, true, object)
+func (t *TaskHandle) Record(verb string, quantity int, object string) {
+	t.out.recordMutation(t.id, verb, int64(quantity), true, object)
 }
 
 // RecordLabel records quantity of object under label, verbatim, into the
@@ -53,8 +56,8 @@ func (t *TaskHandle) Record(verb string, quantity int64, object string) {
 // action, so it is never conjugated to past tense, and it never moves under
 // [planned] during DryRun — classifying/observing already happened whether
 // or not other mutations on this run are a dry run.
-func (t *TaskHandle) RecordLabel(label string, quantity int64, object string) {
-	t.out.recordClassification(t.id, label, quantity, object)
+func (t *TaskHandle) RecordLabel(label string, quantity int, object string) {
+	t.out.recordClassification(t.id, label, int64(quantity), object)
 }
 
 // RecordName records an arbitrary imperative verb and one named object

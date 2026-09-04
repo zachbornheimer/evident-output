@@ -265,6 +265,12 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   failure. Any misuse that still changes the exit code now renders one
   line naming the task and the misuse — an exit code can no longer
   contradict everything the printed band showed.
+- `TaskHandle` mutation verbs (`Delete`/`Update`/`Remove`/`Push`/`Record`/
+  `RecordLabel`) take `int`, not `int64` — `Delete(len(x), "...")` now
+  compiles without a manual conversion.
+- `doc.go`'s adoption ladder: rung 5 shows `evo.Reason("...")` inline
+  instead of a bare `reason` parameter name; rung 4 clarifies `Each` is
+  `[]string`-only and shows `EachN(len(items))` for any other slice type.
 
 ## Migration guide (v0.2.x → v0.3.0)
 

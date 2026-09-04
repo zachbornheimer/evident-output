@@ -27,12 +27,18 @@
 //     the verb picks [planned] vs [changed] from Config.DryRun; no call site ever flips its own tense.
 //     name is a printf format whenever args follow it (evo.Task("build %s", ref)); no args
 //     leaves name untouched.
-//  4. evo.Task(name).Each(items) for loop progress (absolute, never double-counted);
+//  4. evo.Task(name).Each(items) for loop progress (absolute, never double-counted).
+//     Each takes []string (the item name becomes the live Phase); for any other slice
+//     type, drive the same absolute progress with EachN(len(items)) — no []string copy
+//     needed just to get a progress bar.
 //     .PhaseWriter() as cmd.Stdout so a talkative child's last line becomes the live Phase;
 //     Task.Run(cmd) wires an *exec.Cmd through that same capture/phase plumbing in one call
 //     and hands back the subprocess error verbatim for the caller to resolve.
-//  5. evo.Task(name).Skipped(reason, name) / .Kept(reason, name) — taxonomy counted and
-//     summed, never a bare "skipped N".
+//  5. evo.Task(name).Skipped(evo.Reason("..."), name) / .Kept(evo.Reason("..."), name) —
+//     taxonomy counted and summed, never a bare "skipped N". evo.Reason(name) is a
+//     get-or-create lookup on the default instance: the same string at every call site
+//     merges into one bucket, so an inline evo.Reason("protected") is always legal —
+//     lifting it to a package var is optional, never required for correctness.
 //  6. evo.Confirm(question, ...) — owns the whole ask-decide-resolve gate (prompt, quiesce,
 //     Done/Blocked resolution, exit code).
 //  7. evo.Group(name) for named children with derived, auto-lifecycle state.

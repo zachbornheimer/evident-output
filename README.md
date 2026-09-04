@@ -49,7 +49,7 @@ Design philosophy and polish-phase basis: [`docs/roadmap/implementation-basis.md
 **Lifecycle:** `os.Exit(evo.Main(run))` (default instance) or `os.Exit(out.Run(run))` (hosted, `Config.Isolated: true`) seals Finish + Close + exit code; a non-nil `run` error is recorded as Fail only when nothing already failed.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only). Semantic state: `Task`.
 **Mutations:** `Task.Delete/Create/Update/Remove/Write/Push/Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` — one spelling, never a call-site tense flip.
-**Loops and taxonomy:** `Task.Each(items)` / `EachN(n)` own absolute progress; `Task.Skipped(reason, name)` / `Task.Kept(reason, name)` own the counted, summed skip/keep partition.
+**Loops and taxonomy:** `Task.Each(items []string)` / `EachN(len(items))` (any other slice type) own absolute progress; `Task.Skipped(reason, name)` / `Task.Kept(reason, name)` own the counted, summed skip/keep partition.
 **Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error.
 **Capture:** `Task.Evidence` (work or tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention. `cmd.Stdout = task.PhaseWriter()` turns a talkative child's last line into the live Phase; `out.Suspend(fn)` hands the tty to a child that paints its own UI.
 **Platform:** `evo.ID` + narrow `Scope` (Task/Tasks only — not a sandbox); `ResultWriter()` under `FormatData`.
