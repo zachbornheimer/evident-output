@@ -1243,14 +1243,27 @@ func (o *Output) Finish() error {
 				_ = f.Flush()
 			}
 		}
-	} else if writer != nil && !cfg.samePrimaryAsTerminal {
-		// Dual stream: residual conclusion on primary (items already durable on terminal).
-		// Skipped when primary and the live terminal share one physical writer
-		// (default construction) — the terminal's WriteFinal already rendered
-		// this conclusion band, so writing it again to primary would duplicate
-		// it on the same screen.
-		if _, err := io.WriteString(writer, residual); err != nil {
-			writeErr = fmt.Errorf("%w: %v", ErrRenderer, err)
+	} else {
+		// Dual stream: residual conclusion on primary (items already durable on
+		// terminal). Primary is skipped when it and the live terminal share one
+		// physical writer (default construction) — the terminal's WriteFinal
+		// already rendered this conclusion band, so writing it again to primary
+		// would duplicate it on the same screen. AlsoWrite mirrors are never
+		// skipped: they are a distinct stream from the terminal by definition,
+		// and option.go's AlsoWrite promises the plain projection regardless of
+		// interactive/plain (X4).
+		writers := make([]io.Writer, 0, 1+len(cfg.extraWriters))
+		if writer != nil && !cfg.samePrimaryAsTerminal {
+			writers = append(writers, writer)
+		}
+		writers = append(writers, cfg.extraWriters...)
+		for _, w := range writers {
+			if _, err := io.WriteString(w, residual); err != nil && writeErr == nil {
+				writeErr = fmt.Errorf("%w: %v", ErrRenderer, err)
+			}
+			if f, ok := w.(flusher); ok {
+				_ = f.Flush()
+			}
 		}
 	}
 	if writeErr != nil {
