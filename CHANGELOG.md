@@ -315,6 +315,11 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   made entirely of `Unchanged` tasks (and, for a `Tasks`/`Group`
   collection, entirely `Unchanged` children) concludes `StateUnchanged`
   instead of the generic `StateReady` an ordinary `Done` gets.
+- `Output.DeclareDryRun()`: a bounded late setter for a caller who doesn't
+  know `DryRun` until after `Init` (e.g. resolved from a flag) — misuse
+  (`ErrDryRunDeclaredLate`) once any durable row has already streamed,
+  since it could not retroactively reflect the switch. No argv-sniffing
+  helper; the caller decides and calls this explicitly.
 
 ## Migration guide (v0.2.x → v0.3.0)
 

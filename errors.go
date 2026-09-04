@@ -17,4 +17,5 @@ var (
 	ErrReasonSkipOnly     = errors.New("evo: reason restricted to Skipped was recorded via Kept")
 	ErrReasonWrongTask    = errors.New("evo: reason restricted to another task")
 	ErrConcurrentRunning  = errors.New("evo: two siblings in the same collection are Running simultaneously")
+	ErrDryRunDeclaredLate = errors.New("evo: DeclareDryRun called after a durable row was already emitted")
 )

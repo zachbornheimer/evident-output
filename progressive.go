@@ -34,6 +34,7 @@ func (o *Output) writeDurableTextLocked(text string) {
 	if text == "" {
 		return
 	}
+	o.durableRowsEmitted++
 	live := o.liveLocked()
 	// A live region (including the armed, entity-less title line painted by
 	// arm()) may still be on screen even after the surface stops reporting

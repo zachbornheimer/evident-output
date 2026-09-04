@@ -84,6 +84,13 @@ type Output struct {
 	// Finish only appends residual (unemitted entities + conclusion).
 	linesEmitted int
 
+	// durableRowsEmitted counts writeDurableTextLocked calls with non-empty
+	// text — the one shared choke point every durable line goes through.
+	// DeclareDryRun (I8) uses it to bound itself: once any row has
+	// streamed, flipping DryRun retroactively would leave earlier rows not
+	// reflecting it, so DeclareDryRun after that point is misuse.
+	durableRowsEmitted int
+
 	// Structured debug journal (§21.3). lines[] still holds history-format strings
 	// for FinalPlain / residual compatibility.
 	debugRecords []debugRecord
@@ -246,6 +253,31 @@ func newOutput(subject string, options ...Option) *Output {
 		o.emitDryRunMarkerLocked()
 	}
 	return o
+}
+
+// DeclareDryRun switches this run into dry-run mode after construction — a
+// bounded late setter (I8): calling it once any durable row has already
+// streamed is misuse (ErrDryRunDeclaredLate), since those earlier rows
+// would not reflect the switch. There is no argv-sniffing helper; the
+// caller decides (e.g. from a flag parsed after Init) and calls this
+// explicitly, before any Task/Print/Confirm call. A no-op when the run is
+// already dry-run.
+func (o *Output) DeclareDryRun() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if err := o.ensureOpen(); err != nil {
+		o.recordMisuse(err)
+		return
+	}
+	if o.cfg.dryRun {
+		return
+	}
+	if o.durableRowsEmitted > 0 {
+		o.recordMisuse(ErrDryRunDeclaredLate)
+		return
+	}
+	o.cfg.dryRun = true
+	o.emitDryRunMarkerLocked()
 }
 
 // emitDryRunMarkerLocked writes the "[dry-run]  no changes will be made"
