@@ -14,7 +14,7 @@ import (
 
 func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	logger := slog.New(out.SlogHandler())
@@ -33,6 +33,27 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	}
 	if !sawDurable {
 		t.Fatalf("expected slog debug as durable line, ops=%#v", ops)
+	}
+}
+
+// TestSlogHandler_PackageFuncJournalsToDefaultInstance is release-gate round
+// 8 finding 6: evo.SlogHandler() is package-level sugar for the default
+// instance, matching evo.Task/evo.Verbose — a caller using the
+// default-instance facade throughout a run should never have to reach for a
+// hosted *Output just for the slog bridge.
+func TestSlogHandler_PackageFuncJournalsToDefaultInstance(t *testing.T) {
+	var buf bytes.Buffer
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}}))
+
+	logger := slog.New(evo.SlogHandler())
+	logger.Debug("batch loaded", "documents", 200)
+	evo.Task("index").Done()
+
+	if err := evo.Default().Finish(); err != nil {
+		t.Fatalf("Finish() = %v, want nil", err)
+	}
+	if got := buf.String(); !strings.Contains(got, "batch loaded") {
+		t.Fatalf("want the package-level SlogHandler to journal to the default instance, got:\n%s", got)
 	}
 }
 
@@ -76,7 +97,7 @@ func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 	var buf bytes.Buffer
 	fixed := evo.FixedClock{T: time.Date(2026, 7, 27, 22, 15, 0, 0, time.UTC)}
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
@@ -112,7 +133,7 @@ func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 
 func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugPane(evo.PaneHeight(5), evo.NewestFirst()),
@@ -153,7 +174,7 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 // SlogHandler().Handle (see LogRecord.PC) for any machine consumer.
 func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
@@ -215,7 +236,7 @@ func TestSlogAddSource_ResolvesSourceField(t *testing.T) {
 
 func TestSuspend_RunsCallbackWithoutLiveCorruption(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("pre").Done()

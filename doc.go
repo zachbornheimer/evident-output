@@ -66,11 +66,13 @@
 //     this repo, and there is no per-call Next chain for an output-level failure to attach
 //     to the way TaskHandle.Failf's *Failure attaches to its task (Output.Next already
 //     covers the output-level case). Documented asymmetry, not an oversight.
-//  9. Config.Debug.Level: evo.LevelDebug selects the journal threshold for Debug/Capture
-//     mirrors and the slog bridge. evo.LogLevel is its own type, distinct from stdlib
-//     slog.Level — SlogHandler translates between the two internally, but Config.Debug.Level
-//     itself never takes a slog.Level value. LevelUnset (the zero value) resolves to
-//     LevelInfo; LevelTrace/LevelDebug are the two levels that surface Debug journal lines.
+//  9. Config{Debug: evo.DebugConfig{Level: evo.LevelDebug}} selects the journal threshold
+//     for Debug/Capture mirrors and the slog bridge. evo.LogLevel is its own type, distinct
+//     from stdlib slog.Level — SlogHandler translates between the two internally, but
+//     Config.Debug.Level itself never takes a slog.Level value. LevelUnset (the zero value)
+//     resolves to LevelInfo; LevelTrace/LevelDebug are the two levels that surface Debug
+//     journal lines. Package-level evo.SlogHandler() journals to the default instance,
+//     the same default-instance sugar evo.Task/evo.Verbose already offer.
 //
 // Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Group (+ ID), Task.Evidence,
 // Task.Each / Task.PhaseWriter / Task.Run, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
