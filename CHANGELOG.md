@@ -323,6 +323,11 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 - `evo.Init` is now variadic (`Init(configs ...Config)`): `evo.Init()`
   (zero args) builds an ordinary default instance — `construct.go`'s
   zero-config doc example is real, not a `Config{}` literal in disguise.
+- Docs: the agent catalog's `Item`/`ItemHandle` mentions removed from
+  prose and `Concepts` (C1) — those are deprecated v0.2.x shims
+  (`deprecated.go`) the catalog was contradicting by teaching them
+  alongside `Task`. `Tasks` vs `Group`'s independent-vs-sequential split
+  now gets one explicit sentence (C13).
 
 ## Migration guide (v0.2.x → v0.3.0)
 
