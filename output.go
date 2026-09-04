@@ -347,15 +347,14 @@ func hasRecordedTaxonomy(t *taskState) bool {
 	return len(t.skipped) > 0 || len(t.kept) > 0
 }
 
-// appendMisuseLineLocked renders the one required line naming the first
-// recorded misuse and, when known, the entity it happened on — an exit code
-// may never disagree with everything the caller saw printed (beginner-1).
+// appendMisuseLineLocked renders the one required line for the first
+// recorded misuse — an exit code may never disagree with everything the
+// caller saw printed (beginner-1). The line is misuseHintFor's corrective
+// sentence for the recorded sentinel, never the raw "evo: ..." sentinel text
+// (release-gate round 4 finding 2): machine detail stays in JSON/debug, the
+// human stream gets told what to do next.
 func (o *Output) appendMisuseLineLocked() {
-	if o.misuseSubject == "" {
-		o.lines = append(o.lines, fmt.Sprintf("misuse: %v", o.misuse))
-		return
-	}
-	o.lines = append(o.lines, fmt.Sprintf("misuse: %s: %v", o.misuseSubject, o.misuse))
+	o.lines = append(o.lines, fmt.Sprintf("%s  %s", misuseGlyph, misuseHintFor(o.misuse, o.misuseSubject)))
 }
 
 // recordMisuseFor is recordMisuse with the offending entity's name attached,
