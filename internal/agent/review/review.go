@@ -67,6 +67,8 @@ func GoSource(filename, src string) Result {
 		}
 	}
 
+	safeWriterVars := localSafeWriterVars(f)
+
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -120,7 +122,7 @@ func GoSource(filename, src string) Result {
 					// Allow fmt on os.Stderr for flag.Usage / pre-session errors.
 					skip := false
 					if (name == "Fprint" || name == "Fprintf" || name == "Fprintln") && len(call.Args) > 0 {
-						skip = isOSStderrArg(call.Args[0])
+						skip = isOSStderrArg(call.Args[0]) || isSafeWriterArg(call.Args[0], safeWriterVars)
 					}
 					if !skip {
 						findings = append(findings, Finding{
@@ -703,6 +705,91 @@ func isOSStderrArg(expr ast.Expr) bool {
 	}
 	id, ok := sel.X.(*ast.Ident)
 	return ok && id.Name == "os" && sel.Sel.Name == "Stderr"
+}
+
+// localSafeWriterVars finds local variables declared or allocated as
+// strings.Builder/bytes.Buffer — the STREAM-003 exception for fmt.Fprint*:
+// writing into an in-memory buffer never touches a managed stream, so
+// matching on the call name alone (ignoring the destination) is a false
+// positive on ordinary buffered text-building code.
+func localSafeWriterVars(f *ast.File) map[string]bool {
+	vars := map[string]bool{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch decl := n.(type) {
+		case *ast.GenDecl:
+			if decl.Tok != token.VAR {
+				return true
+			}
+			for _, spec := range decl.Specs {
+				vs, ok := spec.(*ast.ValueSpec)
+				if !ok || !isSafeWriterType(vs.Type) {
+					continue
+				}
+				for _, name := range vs.Names {
+					vars[name.Name] = true
+				}
+			}
+		case *ast.AssignStmt:
+			for i, rhs := range decl.Rhs {
+				if i >= len(decl.Lhs) {
+					continue
+				}
+				ident, ok := decl.Lhs[i].(*ast.Ident)
+				if ok && isSafeWriterAllocation(rhs) {
+					vars[ident.Name] = true
+				}
+			}
+		}
+		return true
+	})
+	return vars
+}
+
+// isSafeWriterType reports whether a type expression is strings.Builder or
+// bytes.Buffer in value form (as in "var sb strings.Builder").
+func isSafeWriterType(t ast.Expr) bool {
+	sel, ok := t.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	pkg, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	return (pkg.Name == "strings" && sel.Sel.Name == "Builder") ||
+		(pkg.Name == "bytes" && sel.Sel.Name == "Buffer")
+}
+
+// isSafeWriterAllocation reports whether an assignment's right-hand side
+// constructs a strings.Builder/bytes.Buffer, e.g. "&strings.Builder{}" or
+// "bytes.Buffer{}".
+func isSafeWriterAllocation(e ast.Expr) bool {
+	if u, ok := e.(*ast.UnaryExpr); ok && u.Op == token.AND {
+		e = u.X
+	}
+	lit, ok := e.(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+	return isSafeWriterType(lit.Type)
+}
+
+// isSafeWriterArg reports whether a fmt.Fprint* destination argument is
+// statically known to be an in-memory buffer — a local variable resolved by
+// localSafeWriterVars, or an inline literal at the call site (e.g.
+// "fmt.Fprintf(&bytes.Buffer{}, ...)").
+func isSafeWriterArg(expr ast.Expr, safeVars map[string]bool) bool {
+	if u, ok := expr.(*ast.UnaryExpr); ok && u.Op == token.AND {
+		expr = u.X
+	}
+	switch e := expr.(type) {
+	case *ast.Ident:
+		return safeVars[e.Name]
+	case *ast.CompositeLit:
+		return isSafeWriterType(e.Type)
+	default:
+		return false
+	}
 }
 
 // isForbiddenExecutionHelper names APIs evo deliberately does not provide.

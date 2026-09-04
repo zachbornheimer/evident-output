@@ -459,6 +459,69 @@ func f(task *evo.TaskHandle) {
 	}
 }
 
+func TestSTREAM003_NoFalsePositiveOnFprintfToBuilder(t *testing.T) {
+	good := `package p
+import (
+  "fmt"
+  "strings"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(out *evo.Output) {
+  var sb strings.Builder
+  fmt.Fprintf(&sb, "fine %d", 1)
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "STREAM-003" {
+			t.Fatalf("false positive STREAM-003 on fmt.Fprintf into strings.Builder: %+v", res.Findings)
+		}
+	}
+}
+
+func TestSTREAM003_NoFalsePositiveOnFprintfToBuffer(t *testing.T) {
+	good := `package p
+import (
+  "bytes"
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(out *evo.Output) {
+  var buf bytes.Buffer
+  fmt.Fprintf(&buf, "fine %d", 1)
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "STREAM-003" {
+			t.Fatalf("false positive STREAM-003 on fmt.Fprintf into bytes.Buffer: %+v", res.Findings)
+		}
+	}
+}
+
+func TestSTREAM003_FprintfToStdoutStillFlagged(t *testing.T) {
+	bad := `package p
+import (
+  "fmt"
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(out *evo.Output) {
+  fmt.Fprintf(os.Stdout, "still contaminating %d", 1)
+}
+`
+	res := review.GoSource("bad.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "STREAM-003" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected STREAM-003 on fmt.Fprintf(os.Stdout, ...): %+v", res.Findings)
+	}
+}
+
 func TestBOUND001_UnboundedSliceJoinIntoDetail(t *testing.T) {
 	bad := `package p
 import (

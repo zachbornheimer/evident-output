@@ -37,7 +37,7 @@ Call `evident_output_review` again after applying its suggested fixes — the re
 ## Install the binary (pinned)
 
 ```bash
-GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.3
+GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.4
 "$HOME/.local/bin/evident-output-mcp" --version
 ```
 
@@ -115,3 +115,9 @@ See [`../integrations/grok/README.md`](../integrations/grok/README.md).
 ```
 
 Review kinds for `evident_output_review`: `go` (default), `transcript`, `json` / `structured`.
+
+`file` and `files` (for `kind: "package"`) each accept either inline content
+via `source`/the map value, or a readable local absolute path — the server
+reads it from disk. An unreadable path or an empty `files` map after decoding
+returns an explicit `cannot read <path>: <cause>` or `empty source after
+decode` error instead of a misleading parser EOF.

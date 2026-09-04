@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"strconv"
@@ -583,10 +584,19 @@ func handleToolCall(id any, req map[string]any) {
 		if file == "" {
 			file = "input.go"
 		}
-		// MCP-036: remote paths unsupported — accept inlined content only.
+		// MCP-036: remote paths unsupported — accept inlined content, or a
+		// readable local absolute path.
 		if isRemotePath(file) {
 			writeRPC(id, toolError("remote path unsupported; pass source content only (MCP-036)"))
 			return
+		}
+		if src == "" && filepath.IsAbs(file) {
+			read, err := os.ReadFile(file)
+			if err != nil {
+				writeRPC(id, toolError(fmt.Sprintf("cannot read %s: %s", file, err)))
+				return
+			}
+			src = string(read)
 		}
 		var res review.Result
 		switch kind {
@@ -596,17 +606,41 @@ func handleToolCall(id any, req map[string]any) {
 			res = review.StructuredDocument(file, []byte(src))
 		case "package":
 			// MCP-017: multi-file map via JSON object in source or single pair.
+			// Each map value may be inline source text or a readable local
+			// absolute path — resolved the same way as the single `file` form.
 			files := map[string]string{file: src}
 			if raw, ok := args["files"].(map[string]any); ok {
 				files = map[string]string{}
 				for k, v := range raw {
-					if s, ok := v.(string); ok {
-						files[k] = s
+					s, ok := v.(string)
+					if !ok {
+						continue
 					}
+					if isRemotePath(s) {
+						writeRPC(id, toolError("remote path unsupported; pass source content only (MCP-036)"))
+						return
+					}
+					if filepath.IsAbs(s) {
+						read, err := os.ReadFile(s)
+						if err != nil {
+							writeRPC(id, toolError(fmt.Sprintf("cannot read %s: %s", s, err)))
+							return
+						}
+						s = string(read)
+					}
+					files[k] = s
 				}
+			}
+			if allFileContentEmpty(files) {
+				writeRPC(id, toolError("empty source after decode: check files map shape"))
+				return
 			}
 			res = review.GoPackage(files)
 		default:
+			if src == "" {
+				writeRPC(id, toolError("no source to review: pass `source` content or an absolute `file` path that exists"))
+				return
+			}
 			res = review.GoSource(file, src)
 		}
 		if cancelled.Load() {
@@ -668,6 +702,20 @@ func handleToolCall(id any, req map[string]any) {
 	default:
 		writeRPC(id, toolError("unknown tool"))
 	}
+}
+
+// allFileContentEmpty reports whether every entry in a package-kind `files`
+// map decoded to no usable content — e.g. the map held non-string values, or
+// resolved paths read as empty. This is the honest diagnosis for the "empty
+// source" failure mode: a generic parser EOF error tells the caller nothing
+// about which of these two shapes actually happened.
+func allFileContentEmpty(files map[string]string) bool {
+	for _, content := range files {
+		if content != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // reviewNextAction makes the review→fix→re-review loop self-driving: an
