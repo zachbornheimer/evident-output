@@ -132,7 +132,7 @@ func TestProgress_IndeterminateToDeterminateOnce(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
-	task.Phase("scanning")
+	task.Doing("scanning")
 	if got := task.Snapshot().Progress.Kind; got != evo.Indeterminate {
 		t.Fatalf("kind = %q, want Indeterminate before the denominator is known", got)
 	}

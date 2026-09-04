@@ -41,14 +41,14 @@ func main() {
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
 
-		scan.Phase("enumerating")
+		scan.Doing("enumerating")
 		log.Debug("enumerated local branches", "count", 7)
 		time.Sleep(step)
 		log.Debug("fetched remote metadata", "remote", "origin")
 		time.Sleep(step)
 		scan.Done("%d branches", 7)
 
-		compare.Phase("diffing")
+		compare.Doing("diffing")
 		blockers := 0
 		if *fail {
 			blockers = 1

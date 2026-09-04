@@ -13,11 +13,15 @@ type TaskHandle struct {
 	id  string
 }
 
-// Phase sets the active phase text and starts the task if pending. text is a
-// printf format when args are present (fmt.Sprintf semantics) — one text
-// spelling shared with Done/Task/Group/Reason/Skip (C6; release-gate round 6
-// finding 4: Confirm's question is the one true non-printf exception now).
-func (t *TaskHandle) Phase(text string, args ...any) *TaskHandle {
+// Doing sets the active current-step live text and starts the task if
+// pending — replaces the previous text, promotes the task to Running, and
+// becomes a durable line per step off-TTY. text is a printf format when args
+// are present (fmt.Sprintf semantics) — one text spelling shared with
+// Done/Task/Group/Reason/Skip (C6; release-gate round 6 finding 4: Confirm's
+// question is the one true non-printf exception now). Named Doing, not
+// Phase (P6/rename): "phase" stays the name of the run-level section header
+// (StartPhase), a different concept from a task's own narrated step.
+func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	if len(args) > 0 {
 		text = fmt.Sprintf(text, args...)
 	}

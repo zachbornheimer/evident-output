@@ -21,7 +21,7 @@ func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 
 	running := out.Task("download")
-	running.Phase("fetching")
+	running.Doing("fetching")
 	pending := out.Task("verify")
 
 	code := out.Run(func(o *evo.Output) error {

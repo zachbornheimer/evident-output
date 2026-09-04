@@ -20,7 +20,7 @@ func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
-	dependencies.Phase("reading lockfile")
+	dependencies.Doing("reading lockfile")
 
 	got := dependencies.Snapshot()
 	if got.State != evo.Running {
@@ -302,8 +302,8 @@ func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("dependencies")
-	task.Phase("reading lockfile")
-	task.Phase("resolving packages")
+	task.Doing("reading lockfile")
+	task.Doing("resolving packages")
 	task.Done("installed %d packages", 18)
 	_ = out.Finish()
 

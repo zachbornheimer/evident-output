@@ -320,7 +320,7 @@ captured := item.Capture()
 ```go
 task := out.Task("download", evo.ID("install.download"))
 
-task.Phase("resolving")
+task.Doing("resolving")
 task.Progress(done, total)
 task.Bytes(written, size)
 task.Done("downloaded")
@@ -404,7 +404,7 @@ Preferred neutral domain callback:
 
 ```go
 type PlaceCallbacks struct {
-    OnPhase func(string)
+    OnDoing func(string)
     OnBytes func(completed, total int64)
 }
 ```
@@ -413,7 +413,7 @@ Command adapter:
 
 ```go
 callbacks := PlaceCallbacks{
-    OnPhase: task.Phase,
+    OnDoing: task.Doing,
     OnBytes: task.Bytes,
 }
 ```

@@ -285,7 +285,7 @@ func TestE2_5Item8_ThreeLevelNestedContainerLiveByteShape(t *testing.T) {
 	python := root.Sequence("python")
 	venv := python.Sequence("venv")
 	install := venv.Task("install")
-	install.Phase("installing")
+	install.Doing("installing")
 
 	frame := screen.LatestLiveText()
 	lines := strings.Split(frame, "\n")

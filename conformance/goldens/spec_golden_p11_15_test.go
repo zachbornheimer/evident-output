@@ -139,7 +139,7 @@ func TestSpecP11_LiveFrame_Indeterminate(t *testing.T) {
 	download := pipeline.Task("go mod download")
 	pipeline.Task("go generate")
 	pipeline.Task("go test ./...")
-	download.Phase("resolving modules")
+	download.Doing("resolving modules")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"go mod download", "resolving modules", "go generate", "go test ./..."} {
@@ -281,7 +281,7 @@ func TestSpecP12_LiveFrame_Step2(t *testing.T) {
 	}
 	remotes := out.Task("remotes")
 	remotes.Progress(1, 1)
-	remotes.Phase("origin/production-hotfix")
+	remotes.Doing("origin/production-hotfix")
 
 	var resolvedConfirm string
 	for _, op := range screen.Operations() {
@@ -514,7 +514,7 @@ func TestSpecP13_LiveFrame_Step1(t *testing.T) {
 
 	install := out.Task("install")
 	install.Progress(13, 40)
-	install.Phase("urllib3")
+	install.Doing("urllib3")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"install", "13/40", "urllib3"} {
@@ -538,7 +538,7 @@ func TestSpecP13_LiveFrame_Step2(t *testing.T) {
 
 	install := out.Task("install")
 	install.Progress(13, 40)
-	install.Phase("retrying urllib3")
+	install.Doing("retrying urllib3")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"install", "13/40", "retrying urllib3"} {
@@ -591,7 +591,7 @@ func TestSpecP13_Retry_Failure(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	install := out.Task("install")
 	install.Progress(13, 40)
-	install.Phase("urllib3")
+	install.Doing("urllib3")
 	install.Fail("urllib3 failed after 3 tries", evo.Detail("HTTP 503 from mirror"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -621,7 +621,7 @@ func TestSpecP13_LiveFrame_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("install").Phase("retrying urllib3…")
+	out.Task("install").Doing("retrying urllib3…")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "install") || !strings.Contains(got, "retrying urllib3…") {
@@ -644,7 +644,7 @@ func TestSpecP13_Retry_Error(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	install := out.Task("install")
 	install.Progress(13, 40)
-	install.Phase("urllib3")
+	install.Doing("urllib3")
 	install.Progress(12, 40) // a backwards retry report: rejected, absolute 13/40 held
 	if out.Err() == nil {
 		t.Fatal("want recorded misuse when Progress regresses")
@@ -721,7 +721,7 @@ func TestSpecP14_LiveFrame_Step1(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("capture").Phase("packing tips…")
+	out.Task("capture").Doing("packing tips…")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "capture") || !strings.Contains(got, "packing tips…") {
@@ -741,7 +741,7 @@ func TestSpecP14_LiveFrame_Step2(t *testing.T) {
 
 	capture := out.Task("capture")
 	capture.Progress(2, 5)
-	capture.Phase("feat/secret-work")
+	capture.Doing("feat/secret-work")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"capture", "2/5", "feat/secret-work"} {
@@ -861,7 +861,7 @@ func TestSpecP14_LiveFrame_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("capture").Phase("scanning local-only…")
+	out.Task("capture").Doing("scanning local-only…")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "capture") || !strings.Contains(got, "scanning local-only…") {
@@ -1033,7 +1033,7 @@ func TestSpecP15_LiveFrame_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("clean").Phase("classifying…")
+	out.Task("clean").Doing("classifying…")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "clean") || !strings.Contains(got, "classifying…") {
@@ -1085,7 +1085,7 @@ func TestSpecP15_NothingToDo_EarlyTermination(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	clean := out.Task("clean")
-	clean.Phase("classifying…")
+	clean.Doing("classifying…")
 	before := screen.LatestLiveText()
 	if !strings.Contains(before, "clean") || !strings.Contains(before, "classifying…") {
 		t.Fatalf("want classifying phase in live frame:\n%s", before)

@@ -110,7 +110,7 @@ func TestSpecP22_ConfirmGate_Step2(t *testing.T) {
 	}
 	remotes := out.Task("remotes")
 	remotes.Progress(1, 1)
-	remotes.Phase("origin/production-hotfix")
+	remotes.Doing("origin/production-hotfix")
 
 	var resolved string
 	for _, op := range screen.Operations() {
@@ -292,7 +292,7 @@ func TestSpecP23_SignalConclusion_Step1(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor()}})
 
 	out.Task("scan").Done()
-	out.Task("venv").Phase("creating")
+	out.Task("venv").Doing("creating")
 
 	// scan resolved: it commits durably at resolution time (release-gate
 	// round 5 finding 3, commitResolvedTaskLocked) and drops out of the live
@@ -422,7 +422,7 @@ func TestSpecP23_SignalConclusion_Step2(t *testing.T) {
 
 	code := evo.Run(func() error {
 		scan.Done()
-		venv.Phase("creating")
+		venv.Doing("creating")
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
 		for venv.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
@@ -547,7 +547,7 @@ func TestSpecP24_DataFormat_Step1(t *testing.T) {
 	var presentation, payload bytes.Buffer
 	out := newDataFormatOutput(screen, &presentation, &payload)
 
-	out.Task("scan").Phase("scanning")
+	out.Task("scan").Doing("scanning")
 
 	live := screen.LatestLiveText()
 	if !strings.Contains(live, "scan") || !strings.Contains(live, "scanning") {
@@ -602,7 +602,7 @@ func TestSpecP24_DataFormat_Indeterminate(t *testing.T) {
 	var presentation, payload bytes.Buffer
 	out := newDataFormatOutput(screen, &presentation, &payload)
 
-	out.Task("scan").Phase("discovering")
+	out.Task("scan").Doing("discovering")
 
 	live := screen.LatestLiveText()
 	if !strings.Contains(live, "scan") || !strings.Contains(live, "discovering") {
@@ -748,7 +748,7 @@ func TestSpecP25_ASCIIGlyphFallback_Step2(t *testing.T) {
 	out.Task("branches").Done("14 deleted")
 	worktrees := out.Task("worktrees")
 	worktrees.Progress(1, 3)
-	worktrees.Phase("../.worktrees/app-sah-1")
+	worktrees.Doing("../.worktrees/app-sah-1")
 
 	// branches resolved: it commits durably at resolution time
 	// (release-gate round 5 finding 3, commitResolvedTaskLocked) and drops
@@ -947,7 +947,7 @@ func TestSpecP26_NarrowTerminal_Indeterminate(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.MaxFrameRate(1_000_000), evo.NoColor()}})
-	out.Task("branches").Phase("…")
+	out.Task("branches").Doing("…")
 
 	live := screen.LatestLiveText()
 	if !strings.Contains(live, "branches") || !strings.Contains(live, "…") {

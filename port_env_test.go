@@ -15,7 +15,7 @@ func TestPORT006_TermDumbLikeNonInteractive(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Phase("x").Done("ok")
+	out.Task("t").Doing("x").Done("ok")
 	_ = out.Finish()
 	if strings.ContainsAny(buf.String(), "\x1b") {
 		t.Fatal("ANSI in dumb mode")
@@ -53,7 +53,7 @@ func TestTERM012_SmallHeightBudget(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	col := out.DisplayGroup("g")
 	for i := 0; i < 20; i++ {
-		col.Task("t").Phase("p")
+		col.Task("t").Doing("p")
 	}
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "not shown") && len(strings.Split(got, "\n")) > 6 {

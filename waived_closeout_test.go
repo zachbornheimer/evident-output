@@ -86,7 +86,7 @@ func TestCON004_ResizeWhileLive(t *testing.T) {
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("work")
-	task.Phase("start")
+	task.Doing("start")
 	// Resize mid-flight: next frame should use new width without panicking.
 	screen.SetSize(40, 20)
 	task.Progress(1, 2)
@@ -102,7 +102,7 @@ func TestCON003_LogWhileLiveNoSplit(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
-	task.Phase("running")
+	task.Doing("running")
 	out.Debug("durable note")
 	task.Done()
 	if err := out.Finish(); err != nil {

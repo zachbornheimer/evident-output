@@ -67,7 +67,7 @@ func TestSpecP6_LiveFrame_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("generate").Phase("writing…")
+	out.Task("generate").Doing("writing…")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"generate", "writing…"} {
@@ -227,7 +227,7 @@ func TestSpecP7_LiveFrame_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("branches").Phase("classifying 500 tips…")
+	out.Task("branches").Doing("classifying 500 tips…")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"branches", "classifying 500 tips…"} {
@@ -261,7 +261,7 @@ func TestSpecP7_ErrorBlock(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Progress(120, 500)
-	branches.Phase("feat/x")
+	branches.Doing("feat/x")
 	liveFrame := screen.LatestLiveText()
 	for _, want := range []string{"branches", "120/500", "feat/x"} {
 		if !strings.Contains(liveFrame, want) {
@@ -339,7 +339,7 @@ func TestSpecP8_LiveFrame_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("remotes").Phase("delete-remote…")
+	out.Task("remotes").Doing("delete-remote…")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"remotes", "delete-remote…"} {
@@ -504,7 +504,7 @@ func TestSpecP10_Step1(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("install").Phase("installing")
+	out.Task("install").Doing("installing")
 
 	got := buf.String()
 	if !strings.Contains(got, "install") || !strings.Contains(got, "installing") {
@@ -525,7 +525,7 @@ func TestSpecP10_Step2(t *testing.T) {
 	out.Task("scan").Done()
 	install := out.Task("install")
 	install.Progress(14, 40)
-	install.Phase("requests")
+	install.Doing("requests")
 
 	got := buf.String()
 	if !strings.Contains(got, "✓") || !strings.Contains(got, "scan") {
@@ -603,7 +603,7 @@ func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("scan").Phase("scanning")
+	out.Task("scan").Doing("scanning")
 
 	got := buf.String()
 	if !strings.Contains(got, "scan") || !strings.Contains(got, "scanning") {

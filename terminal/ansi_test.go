@@ -17,7 +17,7 @@ func TestANSI_LiveRegionUsesCursorControl(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("work")
-	task.Phase("running")
+	task.Doing("running")
 	out.Debug("note")
 	task.Done("done")
 	_ = out.Finish()

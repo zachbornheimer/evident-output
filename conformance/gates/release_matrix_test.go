@@ -75,7 +75,7 @@ func TestTERM009_CancelCleanupPath(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(os.Stderr), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("long")
-	task.Phase("working")
+	task.Doing("working")
 	out.Cancel("interrupted by signal")
 	if err := out.Finish(); err != nil {
 		// Cancel may leave misuse nil

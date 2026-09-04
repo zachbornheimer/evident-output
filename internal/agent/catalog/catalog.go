@@ -39,14 +39,14 @@ func All() []Guide {
   2) evo.Task(subject).Delete(obj, call, opts...) (also Add/Create/Update/Remove/Write/Push) — call runs only on
      a non-dry-run and only commits on success; evo.Affected(n) supplies the count. The run's DryRun mode picks
      [planned] vs [changed]; no call site ever flips its own tense or chooses Changed/Ready/Planned.
-  3) evo.Task(name).Each(items) for loop progress (absolute, never double-counted); .PhaseWriter() as
-     cmd.Stdout so a talkative child's last line becomes the live Phase.
+  3) evo.Task(name).Each(items) for loop progress (absolute, never double-counted); .Writer() as
+     cmd.Stdout so a talkative child's last line becomes the live doing-text.
   4) evo.Task(name).Skipped(reason, name) / .Kept(reason, name) — taxonomy counted and summed, never a bare
      "skipped N".
   5) evo.Confirm(question, ...) — owns the whole gate (prompt, quiesce, ⊘/OK resolution, exit code).
 
-Types: TaskHandle (work with Phase/Progress/mutations/taxonomy, or a fact-check gate resolved directly with no
-Phase/Progress call), SequenceHandle (evo.Sequence — named children in dependency order, auto-lifecycle
+Types: TaskHandle (work with Doing/Progress/mutations/taxonomy, or a fact-check gate resolved directly with no
+Doing/Progress call), SequenceHandle (evo.Sequence — named children in dependency order, auto-lifecycle
 NotStarted on failure/cancel), DisplayGroup (evo.DisplayGroup — presentation-only children, no ordering; both
 offer nested .Sequence/.DisplayGroup for recursive containers).
 evo.Task/Sequence are get-or-create facades on the package-level default instance (see evo.Init/evo.SetDefault);
@@ -73,7 +73,7 @@ failure on its own Task and use Next(evo.Label(...)) for follow-up guidance inst
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
 			Concepts: []string{"Task", "DisplayGroup", "Sequence", "Progress", "Each", "Skipped", "Kept"},
 			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030"},
-			Body: `Task is one operation with optional Phase/Progress. DisplayGroup/Sequence are collections whose state is
+			Body: `Task is one operation with optional Doing/Progress. DisplayGroup/Sequence are collections whose state is
 derived from children — never call Done/Fail/Progress on the collection itself (API-027). DisplayGroup's children
 are independent (safe for concurrent worker-pool fan-out, no ordering assumed, concurrent Running children
 expected); Sequence's children are an ordered dependency that stops later, still-unresolved siblings as
@@ -82,7 +82,7 @@ expected); Sequence's children are an ordered dependency that stops later, still
 
 Heartbeat: any unresolved row (Running or Pending), and any unfinished container header, gains an elapsed
 suffix ("pushing feat/a — 5s") 5s after it is first actually painted in the live region — monotonic, never reset
-by Phase/Progress activity, so a stale spinner is never indistinguishable from progress and a queued row ages
+by Doing/Progress activity, so a stale spinner is never indistinguishable from progress and a queued row ages
 honestly even if nothing ever touches it.
 
 Loops: prefer evo.Task(name).Each(items) (or EachN(n)) over a hand-maintained counter — it owns the absolute
@@ -97,7 +97,7 @@ reason partition (never a bare "skipped 6"); reasons come from evo.Reason("prote
 calls with the same text merge into one taxonomy bucket, so inline evo.Reason("protected") at every call site is
 correct as written; lifting it to a package-level var is a style choice, never required for correctness).
 
-Bounded narration (BOUND-001): a slice joined with strings.Join and handed straight to Because/Detail/Phase
+Bounded narration (BOUND-001): a slice joined with strings.Join and handed straight to Because/Detail/Doing
 reproduces the same terminal flood evo.TruncateNames already fixed for Plan/Changes rows — wrap it:
 evo.TruncateNames(names, 8) before it reaches any of those three calls.
 
@@ -110,7 +110,7 @@ and produces the unordered multi-spinner defect Sequence's "one Running child" h
 			ID:       "streams",
 			Title:    "Stdout and stderr contracts",
 			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child", "exit-code", "signal"},
-			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData", "Main", "PhaseWriter"},
+			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData", "Main", "Writer"},
 			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031"},
 			Body: `Human UI and logs must not contaminate structured stdout.
 Ordinary dual-stream: evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr}) — Config auto-applies Plain/NoColor off-TTY.
@@ -127,10 +127,10 @@ calls os.Exit itself bypasses that reconciliation.
 Child processes: proof := task.Evidence(); run.Run(ctx, name, args, proof); on error
 task.Failf("...: %w", err) (the trailing %w renders as an evidence line under the summary), then
 proof.DetailTail() as an additional Fail option for the retained tail. Prefer task.Run(cmd) for an *exec.Cmd —
-it wires Evidence and Phase together in one call. For live narration wire cmd.Stdout = task.PhaseWriter()
-instead of a hand-rolled line-splitting writer — every line becomes the current Phase and is retained for
-DetailTail. Never implement your own io.Writer whose Write method calls TaskHandle.Phase (API-031): that
-reimplements the exact adapter PhaseWriter already owns.
+it wires Evidence and doing-text together in one call. For live narration wire cmd.Stdout = task.Writer()
+instead of a hand-rolled line-splitting writer — every line becomes the current doing-text and is retained for
+DetailTail. Never implement your own io.Writer whose Write method calls TaskHandle.Doing (API-031): that
+reimplements the exact adapter Writer already owns.
 Tool-backed gates: task.Evidence() on the Task evaluating the condition.
 Evidence is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
@@ -172,7 +172,7 @@ Use evo.Terminal with testkit.Screen or terminal.NewANSI.
 Handing the tty to a child: out.Suspend(func() error { ... }) clears the live region, holds it invisible for the
 whole call, and redraws after — required only when a child paints its own UI on the shared terminal (its Stdout/
 Stderr are the process's own, tty-passthrough); otherwise the parent's spinner and the child's first line glue
-together. Captured or PhaseWriter-wired children (task.Evidence(), cmd.Stdout = task.PhaseWriter()) never need
+together. Captured or Writer-wired children (task.Evidence(), cmd.Stdout = task.Writer()) never need
 Suspend — their output already flows through evo's own render loop.`,
 			TokenEstimate: 260,
 		},
@@ -180,7 +180,7 @@ Suspend — their output already flows through evo's own render loop.`,
 			ID:       "first-paint",
 			Title:    "First paint and the heart contract",
 			UseCases: []string{"startup", "latency", "blank", "streaming"},
-			Concepts: []string{"Init", "VisibilityDelay", "Phase", "Progress"},
+			Concepts: []string{"Init", "VisibilityDelay", "Doing", "Progress"},
 			Rules:    []string{"FP-001", "FP-002", "FP-003", "FP-004"},
 			Body: `The user is always waiting for input, watching work, or reading a verdict — a blank terminal for the first
 one to three seconds of a run is none of those, and reads as a hang.
@@ -194,15 +194,15 @@ Declare before you compute (FP-002): the first Task/Sequence declaration comes b
 in main or run — a config load or repo walk that happens first, with the first evo.Task only after, is the exact
 "blank screen for two seconds" bug this guide exists to catch.
 
-Discovery streams into the same task's Phase, then Progress, as totals become known (FP-003) — never a separate
-"startup" task, never a fake total invented early. A Phase that goes stale for more than ~10s without a refresh
+Discovery streams into the same task's Doing, then Progress, as totals become known (FP-003) — never a separate
+"startup" task, never a fake total invented early. Doing text that goes stale for more than ~10s without a refresh
 is a defect (now auto-mitigated by the built-in heartbeat, which appends elapsed context automatically — see the
-tasks guide — but the caller must still not go silent for minutes with no Phase/Progress calls at all when a
-child process could be narrating through PhaseWriter instead).
+tasks guide — but the caller must still not go silent for minutes with no Doing/Progress calls at all when a
+child process could be narrating through Writer instead).
 
-A Phase string also names the object in motion, never a placeholder (FP-004): "working"/"running"/"please
+A Doing string also names the object in motion, never a placeholder (FP-004): "working"/"running"/"please
 wait"/"starting" reads identically on every frame, so the user cannot tell progress from a hang. Say what is
-being worked on — Phase("scanning ~/Developer/Personal/zq"), not Phase("scanning").`,
+being worked on — Doing("scanning ~/Developer/Personal/zq"), not Doing("scanning").`,
 			TokenEstimate: 260,
 		},
 	}

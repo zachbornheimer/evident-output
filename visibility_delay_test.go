@@ -20,13 +20,13 @@ func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("download")
-	task.Phase("fetching") // activity — should wait for delay
+	task.Doing("fetching") // activity — should wait for delay
 	if got := screen.LiveFrameCount(); got != 0 {
 		t.Fatalf("live frames before delay = %d, want 0", got)
 	}
 
 	clock.Advance(50 * time.Millisecond)
-	task.Phase("still fetching") // still within delay
+	task.Doing("still fetching") // still within delay
 	if got := screen.LiveFrameCount(); got != 0 {
 		t.Fatalf("live frames mid-delay = %d, want 0", got)
 	}
@@ -51,7 +51,7 @@ func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("work")
-	task.Phase("running")
+	task.Doing("running")
 	if got := screen.LiveFrameCount(); got == 0 {
 		t.Fatal("VisibilityDelay(0) must paint immediately")
 	}

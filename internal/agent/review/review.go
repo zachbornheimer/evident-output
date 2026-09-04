@@ -26,7 +26,7 @@ type Finding struct {
 	// matched call site's own identifiers where cheaply derivable from the
 	// AST/text match — e.g. "replace fmt.Println(...) with out.Println".
 	// It always names the simplest front-door API (Task.Skipped,
-	// PhaseWriter, Each, Confirm, Init+Main, ...), never Plan/Changes or
+	// Writer, Each, Confirm, Init+Main, ...), never Plan/Changes or
 	// hand-rolled composition. Empty when no substitution is cheap to
 	// derive; the rule's GoodCode remains the fallback teaching example.
 	Suggestion string `json:"suggestion,omitempty"`
@@ -83,14 +83,14 @@ func GoSource(filename, src string) Result {
 		// API-006: redundant Start on presentation handles
 		if name == "Start" && isLikelyEvoReceiver(sel.X) {
 			recv := exprDottedName(sel.X)
-			suggestion := "remove .Start(); Phase/Progress/Done already activate the task"
+			suggestion := "remove .Start(); Doing/Progress/Done already activate the task"
 			if recv != "" {
-				suggestion = "remove " + recv + ".Start(); " + recv + ".Phase(...)/" + recv + ".Progress(...) already activate it"
+				suggestion = "remove " + recv + ".Start(); " + recv + ".Doing(...)/" + recv + ".Progress(...) already activate it"
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-006",
 				Severity:   "warning",
-				Message:    "explicit Start is usually redundant; prefer Phase/Progress or direct terminal resolution",
+				Message:    "explicit Start is usually redundant; prefer Doing/Progress or direct terminal resolution",
 				File:       filename,
 				Line:       pos.Line,
 				Column:     pos.Column,
@@ -153,7 +153,7 @@ func GoSource(filename, src string) Result {
 						File:       filename,
 						Line:       pos.Line,
 						Column:     pos.Column,
-						Suggestion: "replace " + recv + "." + name + "(...) with out.Print/Printf/Println (or the owning Task's Capture/PhaseWriter)",
+						Suggestion: "replace " + recv + "." + name + "(...) with out.Print/Printf/Println (or the owning Task's Capture/Writer)",
 					})
 				}
 			}
@@ -264,11 +264,11 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectFirstPaintGaps(filename, src)...)
 	}
 
-	// FP-003: a task's only Phase call precedes a subprocess run with no
-	// further Phase/Progress/PhaseWriter — the spinner keeps spinning over a
+	// FP-003: a task's only Doing call precedes a subprocess run with no
+	// further Doing/Progress/Writer — the spinner keeps spinning over a
 	// silent child with no way to tell slow from hung.
 	if hasEvo {
-		findings = append(findings, detectStalePhaseBeforeSubprocess(filename, src)...)
+		findings = append(findings, detectStaleDoingBeforeSubprocess(filename, src)...)
 	}
 
 	// TAX-001: a hand-assembled "%d skipped/kept/retained" string bypasses
@@ -277,13 +277,13 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectHandAssembledTaxonomyCount(filename, src)...)
 	}
 
-	// PROG-001 (Phase form): a Phase string smuggling "%d/%d" is progress
+	// PROG-001 (Doing form): a Doing string smuggling "%d/%d" is progress
 	// hidden in narration text instead of a real Progress call.
 	if hasEvo {
-		findings = append(findings, detectProgressInPhaseString(filename, src)...)
+		findings = append(findings, detectProgressInDoingString(filename, src)...)
 	}
 
-	// BOUND-001: an unbounded slice joined straight into Because/Detail/Phase
+	// BOUND-001: an unbounded slice joined straight into Because/Detail/Doing
 	// reproduces the terminal flood evo-rec.md's bounded-rows fix already
 	// closed for Plan/Changes.
 	if hasEvo {
@@ -296,10 +296,10 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectTaskDeclaredInsideFanOut(filename, src)...)
 	}
 
-	// API-031: a hand-rolled io.Writer whose Write calls TaskHandle.Phase
-	// reimplements Task.PhaseWriter (evo-rec.md "#6").
+	// API-031: a hand-rolled io.Writer whose Write calls TaskHandle.Doing
+	// reimplements Task.Writer (evo-rec.md "#6").
 	if hasEvo {
-		findings = append(findings, detectHandRolledPhaseWriter(filename, src)...)
+		findings = append(findings, detectHandRolledWriter(filename, src)...)
 	}
 
 	// CONFIRM-002: a destructive-sounding Confirm question missing Destructive().
@@ -312,9 +312,9 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectHandAssembledFailureSummary(filename, src)...)
 	}
 
-	// FP-004: a Phase string with no domain object is an illegible placeholder.
+	// FP-004: a Doing string with no domain object is an illegible placeholder.
 	if hasEvo {
-		findings = append(findings, detectPlaceholderPhase(filename, src)...)
+		findings = append(findings, detectPlaceholderDoing(filename, src)...)
 	}
 
 	// API-032: every superseded spelling (evo.New/MainWith in main, Cause,
@@ -367,7 +367,7 @@ func GoSource(filename, src string) Result {
 	}
 
 	// TXT-020: an entity name too long, or narrating a transition (into/->)
-	// instead of naming a noun — that detail belongs in Phase/Donef.
+	// instead of naming a noun — that detail belongs in Doing/Donef.
 	if hasEvo {
 		findings = append(findings, detectLongEntityName(filename, src)...)
 	}
@@ -613,7 +613,7 @@ func strconvUnquote(s string) (string, error) {
 // exprDottedName renders a simple dotted identifier chain (a.b.c) for an
 // Ident or SelectorExpr receiver; returns "" for anything else (e.g. a call
 // result), which intentionally excludes evo's own writer constructors
-// (task.Evidence(), out.PhaseWriter()) from the STREAM-003 indirection check —
+// (task.Evidence(), out.Writer()) from the STREAM-003 indirection check —
 // their return value is never bound to a stream-named identifier at the call
 // site itself.
 func exprDottedName(e ast.Expr) string {
@@ -647,7 +647,7 @@ func isOSStdStreamExpr(expr ast.Expr) bool {
 // through one of these does not contaminate a managed stream because evo
 // owns the destination (evo-rec.md "B": "except evo-owned writers").
 var evoOwnedWriterNames = map[string]bool{
-	"Capture": true, "Evidence": true, "PhaseWriter": true, "ResultWriter": true, "DebugWriter": true,
+	"Capture": true, "Evidence": true, "Writer": true, "ResultWriter": true, "DebugWriter": true,
 }
 
 // isEvoOwnedWriterExpr reports whether expr's final selector segment names
@@ -911,7 +911,7 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 // directly to the process's inherited terminal (tty passthrough) in a file
 // that holds an active evo Output but never calls Suspend — two processes
 // painting the same terminal glue the child's first line to the parent's
-// live spinner (evo-rec.md "#7b"). Captured children (PhaseWriter/Capture)
+// live spinner (evo-rec.md "#7b"). Captured children (Writer/Capture)
 // are unaffected and never match this pattern.
 func detectTTYPassthroughWithoutSuspend(filename, src string) []Finding {
 	if !strings.Contains(src, "exec.Command(") {
@@ -1019,41 +1019,41 @@ func detectFirstPaintGaps(filename, src string) []Finding {
 	return findings
 }
 
-// detectStalePhaseBeforeSubprocess flags a task whose only Phase call sits
-// ahead of a subprocess run with no further Phase/Progress/PhaseWriter — the
+// detectStaleDoingBeforeSubprocess flags a task whose only Doing call sits
+// ahead of a subprocess run with no further Doing/Progress/Writer — the
 // spinner keeps animating over a silent child (evo-rec.md "FP-003").
-func detectStalePhaseBeforeSubprocess(filename, src string) []Finding {
+func detectStaleDoingBeforeSubprocess(filename, src string) []Finding {
 	var findings []Finding
 	for _, fn := range allFuncBodies(src) {
-		phaseIdx := strings.Index(fn.body, ".Phase(")
-		if phaseIdx < 0 {
+		doingIdx := strings.Index(fn.body, ".Doing(")
+		if doingIdx < 0 {
 			continue
 		}
-		if strings.Count(fn.body, ".Phase(") != 1 {
+		if strings.Count(fn.body, ".Doing(") != 1 {
 			continue
 		}
-		if strings.Contains(fn.body, ".PhaseWriter(") {
-			continue // child output wired to the live Phase; not stale
+		if strings.Contains(fn.body, ".Writer(") {
+			continue // child output wired to the live Doing; not stale
 		}
 		runIdx := earliestIndex(fn.body, []string{".Run(", "exec.Command("})
-		if runIdx < 0 || runIdx < phaseIdx {
+		if runIdx < 0 || runIdx < doingIdx {
 			continue
 		}
 		after := fn.body[runIdx:]
-		if strings.Contains(after, ".Phase(") || strings.Contains(after, ".Progress(") {
+		if strings.Contains(after, ".Doing(") || strings.Contains(after, ".Progress(") {
 			continue
 		}
-		recv := identBefore(fn.body, phaseIdx)
-		suggestion := "wire the subprocess's Stdout/Stderr to Task.PhaseWriter(), or call Phase/Progress again after it exits"
+		recv := identBefore(fn.body, doingIdx)
+		suggestion := "wire the subprocess's Stdout/Stderr to Task.Writer(), or call Doing/Progress again after it exits"
 		if recv != "" {
-			suggestion = "wire the subprocess's Stdout/Stderr to " + recv + ".PhaseWriter(), or call " + recv + ".Phase(...)/" + recv + ".Progress(...) again after it exits"
+			suggestion = "wire the subprocess's Stdout/Stderr to " + recv + ".Writer(), or call " + recv + ".Doing(...)/" + recv + ".Progress(...) again after it exits"
 		}
 		findings = append(findings, Finding{
 			RuleID:     "FP-003",
 			Severity:   "warning",
-			Message:    "Phase is set once before a subprocess run with no further Phase/Progress/PhaseWriter; wire child output through Task.PhaseWriter or advance Phase as evidence arrives",
+			Message:    "Doing is set once before a subprocess run with no further Doing/Progress/Writer; wire child output through Task.Writer or advance Doing as evidence arrives",
 			File:       filename,
-			Line:       lineAt(src, fn.offset+phaseIdx),
+			Line:       lineAt(src, fn.offset+doingIdx),
 			Suggestion: suggestion,
 		})
 	}
@@ -1099,16 +1099,16 @@ func detectHandAssembledTaxonomyCount(filename, src string) []Finding {
 	return findings
 }
 
-// phaseLiteralPattern captures a Phase call's string literal argument,
+// doingLiteralPattern captures a Doing call's string literal argument,
 // whether passed directly or built via fmt.Sprintf.
-var phaseLiteralPattern = regexp.MustCompile(`\.Phase\(\s*(?:fmt\.Sprintf\()?\s*"([^"]*)"`)
+var doingLiteralPattern = regexp.MustCompile(`\.Doing\(\s*(?:fmt\.Sprintf\()?\s*"([^"]*)"`)
 
-// detectProgressInPhaseString flags a Phase string smuggling "%d/%d" —
+// detectProgressInDoingString flags a Doing string smuggling "%d/%d" —
 // progress hidden in narration text instead of a real Progress call
 // (evo-rec.md "Additions" / PROG-001).
-func detectProgressInPhaseString(filename, src string) []Finding {
+func detectProgressInDoingString(filename, src string) []Finding {
 	var findings []Finding
-	for _, m := range phaseLiteralPattern.FindAllStringSubmatchIndex(src, -1) {
+	for _, m := range doingLiteralPattern.FindAllStringSubmatchIndex(src, -1) {
 		lit := src[m[2]:m[3]]
 		if !strings.Contains(lit, "%d/%d") {
 			continue
@@ -1121,7 +1121,7 @@ func detectProgressInPhaseString(filename, src string) []Finding {
 		findings = append(findings, Finding{
 			RuleID:     "PROG-001",
 			Severity:   "error",
-			Message:    "Phase string smuggles a %d/%d count; use Progress(completed, total) so the count is structured, not narration text",
+			Message:    "Doing string smuggles a %d/%d count; use Progress(completed, total) so the count is structured, not narration text",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
 			Suggestion: suggestion,
@@ -1131,11 +1131,11 @@ func detectProgressInPhaseString(filename, src string) []Finding {
 }
 
 // sliceIntoNarrationPattern matches an unbounded strings.Join passed straight
-// into Detail/Phase.
-var sliceIntoNarrationPattern = regexp.MustCompile(`\.(Detail|Phase)\(\s*strings\.Join\(`)
+// into Detail/Doing.
+var sliceIntoNarrationPattern = regexp.MustCompile(`\.(Detail|Doing)\(\s*strings\.Join\(`)
 
 // detectUnboundedSliceIntoNarration flags a strings.Join(slice, ...) passed
-// directly to Detail/Phase without evo.TruncateNames — the same
+// directly to Detail/Doing without evo.TruncateNames — the same
 // terminal flood evo-rec.md's bounded-rows fix already closed for
 // Plan/Changes, one call site removed.
 func detectUnboundedSliceIntoNarration(filename, src string) []Finding {
@@ -1195,27 +1195,27 @@ func detectTaskDeclaredInsideFanOut(filename, src string) []Finding {
 }
 
 // writeMethodDeclPattern matches a Write method declaration on any receiver
-// type, the io.Writer interface shape a hand-rolled phase adapter implements.
+// type, the io.Writer interface shape a hand-rolled doing adapter implements.
 var writeMethodDeclPattern = regexp.MustCompile(`func \([^)]*\)\s*Write\(`)
 
-// detectHandRolledPhaseWriter flags a caller-defined io.Writer whose Write
-// method calls TaskHandle.Phase — reimplementing the exact line-splitting
-// adapter Task.PhaseWriter already owns (evo-rec.md "#6").
-func detectHandRolledPhaseWriter(filename, src string) []Finding {
+// detectHandRolledWriter flags a caller-defined io.Writer whose Write
+// method calls TaskHandle.Doing — reimplementing the exact line-splitting
+// adapter Task.Writer already owns (evo-rec.md "#6").
+func detectHandRolledWriter(filename, src string) []Finding {
 	var findings []Finding
 	for _, loc := range writeMethodDeclPattern.FindAllStringIndex(src, -1) {
 		body, start, ok := balancedBraceBody(src, loc[1])
 		if !ok {
 			continue
 		}
-		if strings.Contains(body, ".Phase(") {
+		if strings.Contains(body, ".Doing(") {
 			findings = append(findings, Finding{
 				RuleID:     "API-031",
 				Severity:   "warning",
-				Message:    "hand-rolled io.Writer.Write calls TaskHandle.Phase; use Task.PhaseWriter() instead",
+				Message:    "hand-rolled io.Writer.Write calls TaskHandle.Doing; use Task.Writer() instead",
 				File:       filename,
 				Line:       lineAt(src, start),
-				Suggestion: "delete this Write method and wire the subprocess's Stdout/Stderr to task.PhaseWriter()",
+				Suggestion: "delete this Write method and wire the subprocess's Stdout/Stderr to task.Writer()",
 			})
 		}
 	}
@@ -1461,33 +1461,33 @@ func detectNameEqualsVerbArgument(filename, src string) []Finding {
 	return findings
 }
 
-// placeholderPhasePattern matches a bare-literal Phase call (no concatenation
+// placeholderDoingPattern matches a bare-literal Doing call (no concatenation
 // or Sprintf), the shape a placeholder narration string takes.
-var placeholderPhasePattern = regexp.MustCompile(`\.Phase\(\s*"([^"]*)"\s*\)`)
+var placeholderDoingPattern = regexp.MustCompile(`\.Doing\(\s*"([^"]*)"\s*\)`)
 
-// placeholderPhaseWords are Phase strings that name no domain object — the
-// user cannot tell this frame from the last one (evo-rec.md "Phase carries
+// placeholderDoingWords are Doing strings that name no domain object — the
+// user cannot tell this frame from the last one (evo-rec.md "Doing carries
 // the current object").
-var placeholderPhaseWords = map[string]bool{
+var placeholderDoingWords = map[string]bool{
 	"starting": true, "working": true, "running": true, "please wait": true,
 }
 
-// detectPlaceholderPhase flags a Phase literal that is one of the generic
+// detectPlaceholderDoing flags a Doing literal that is one of the generic
 // placeholder words instead of naming the object currently in motion.
-func detectPlaceholderPhase(filename, src string) []Finding {
+func detectPlaceholderDoing(filename, src string) []Finding {
 	var findings []Finding
-	for _, m := range placeholderPhasePattern.FindAllStringSubmatchIndex(src, -1) {
+	for _, m := range placeholderDoingPattern.FindAllStringSubmatchIndex(src, -1) {
 		lit := strings.ToLower(strings.TrimSpace(src[m[2]:m[3]]))
-		if !placeholderPhaseWords[lit] {
+		if !placeholderDoingWords[lit] {
 			continue
 		}
 		findings = append(findings, Finding{
 			RuleID:     "FP-004",
 			Severity:   "warning",
-			Message:    `Phase("` + lit + `") names no domain object; the user can't tell this frame from the last one`,
+			Message:    `Doing("` + lit + `") names no domain object; the user can't tell this frame from the last one`,
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: `name the object in motion, e.g. Phase("scanning " + name)`,
+			Suggestion: `name the object in motion, e.g. Doing("scanning " + name)`,
 		})
 	}
 	return findings
@@ -1610,7 +1610,7 @@ var methodDeclPattern = regexp.MustCompile(`func\s*\(\s*\w+\s+\*?\w+\s*\)\s+(\w+
 
 // wrapperMethodBodyPattern matches a single statement that is (optionally
 // `return`-ing) exactly one call ending in a known Task-verb method name.
-var wrapperMethodBodyPattern = regexp.MustCompile(`^(?:return\s+)?[\w.]+\.(Phase|Done|Fail|Warn|Block|Cancel|Skip|Kept|Progress|Advance|Step|Evidence|PhaseWriter)\([^{}]*\)\s*;?$`)
+var wrapperMethodBodyPattern = regexp.MustCompile(`^(?:return\s+)?[\w.]+\.(Doing|Done|Fail|Warn|Block|Cancel|Skip|Kept|Progress|Advance|Step|Evidence|Writer)\([^{}]*\)\s*;?$`)
 
 // detectWrapperMethod is API-037: a method whose entire body is one call on
 // a Task/Item handle adds a name and a stack frame over calling the verb
@@ -1747,11 +1747,11 @@ var entityNameLiteralPattern = regexp.MustCompile(`\.(?:Task|Item)\(\s*"([^"]*)"
 var longNameTransitionPattern = regexp.MustCompile(`(?i)\binto\b|->`)
 
 // maxEntityNameLength is the guideline length beyond which a name reads as
-// narration, not a noun (evo-rec.md "a Phase string narrates; a name labels").
+// narration, not a noun (evo-rec.md "a Doing string narrates; a name labels").
 const maxEntityNameLength = 40
 
 // detectLongEntityName is TXT-020: an entity name over the length guideline,
-// or narrating a transition, belongs in Phase/Donef — the name is a noun.
+// or narrating a transition, belongs in Doing/Donef — the name is a noun.
 func detectLongEntityName(filename, src string) []Finding {
 	var findings []Finding
 	for _, m := range entityNameLiteralPattern.FindAllStringSubmatchIndex(src, -1) {
@@ -1771,7 +1771,7 @@ func detectLongEntityName(filename, src string) []Finding {
 			Message:    fmt.Sprintf("entity name %q %s", name, reason),
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "shorten to a noun phrase; move the narrated detail into Phase(...) or the resolving verb's summary",
+			Suggestion: "shorten to a noun phrase; move the narrated detail into Doing(...) or the resolving verb's summary",
 		})
 	}
 	return findings
@@ -1974,7 +1974,7 @@ func earliestMarker(s string, markers []string) (int, string) {
 
 // identBefore scans backward from idx over a dotted identifier chain
 // (letters, digits, '_', '.') to recover the receiver name immediately
-// preceding a call, e.g. "task" from "...\n  task.Phase(". Returns "" when
+// preceding a call, e.g. "task" from "...\n  task.Doing(". Returns "" when
 // no identifier character immediately precedes idx.
 func identBefore(body string, idx int) string {
 	end := idx

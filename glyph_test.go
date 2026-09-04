@@ -63,7 +63,7 @@ func TestGlyphsASCII_SpinnerExcludesNotStartedGlyph(t *testing.T) {
 		evo.Glyphs(evo.GlyphsASCII), evo.VisibilityDelay(0),
 	}})
 	task := out.Task("install")
-	task.Phase("working")
+	task.Doing("working")
 	frame := screen.LatestLiveText()
 	if strings.Contains(frame, "-") {
 		t.Fatalf("ASCII spinner frame must never render '-' (reserved for Not-started): %q", frame)
@@ -83,7 +83,7 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 		screen := testkit.NewScreen(testkit.Interactive())
 		out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.To(&bytes.Buffer{}), evo.Terminal(screen), evo.VisibilityDelay(0)}})
 		task := out.Task("install")
-		task.Phase("working")
+		task.Doing("working")
 		frame := screen.LatestLiveText()
 		if strings.Contains(frame, "⠋") {
 			t.Fatalf("expected ASCII spinner on a non-UTF-8 interactive TTY, got %q", frame)
@@ -111,7 +111,7 @@ func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.To(&bytes.Buffer{}), evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	task := out.Task("install")
-	task.Phase("working")
+	task.Doing("working")
 	frame := screen.LatestLiveText()
 	if !strings.ContainsAny(frame, "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏") {
 		t.Fatalf("expected a Unicode braille spinner frame on a UTF-8 TTY, got %q", frame)

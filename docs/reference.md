@@ -13,15 +13,15 @@ wrong or this doc is; file it either way.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only), written to `Config.Stderr` (default `os.Stderr`) — a piped run like `prog > log.txt` won't capture them; redirect with `2>` (or `2>&1`) instead. Semantic state: `Task`.
 **Mutations:** `Task.Add/Delete/Create/Update/Remove/Write/Push/Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` — one spelling, never a call-site tense flip.
 **Loops and taxonomy:** `Task.Each(items []string)` / `EachN(len(items))` (any other slice type) own absolute progress; `Task.Skipped(reason, name)` / `Task.Kept(reason, name)` own the counted, summed skip/keep partition.
-**Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error. `question` is literal text, not a printf format — Confirm is the one entity-text spelling that takes no variadic fmt args (every other one — Task/Done/Warn/Phase/Skip/Sequence/DisplayGroup/Reason — is printf-variadic), so build the string yourself (`fmt.Sprintf`) before calling. A decline resolves `[blocked]` → exit `1` (see the README's exit-code table) — pass `AssumeYes` (or check a separate flag before calling Confirm at all) if declining should exit `0` instead. The default policy hint names a `--yes` flag; pass `evo.PolicyFlag("--apply")` when your program's real flag is spelled differently.
-**Capture:** `Task.Evidence` (work or tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention. `cmd.Stdout = task.PhaseWriter()` turns a talkative child's last line into the live Phase; `out.Suspend(fn)` hands the tty to a child that paints its own UI.
+**Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error. `question` is literal text, not a printf format — Confirm is the one entity-text spelling that takes no variadic fmt args (every other one — Task/Done/Warn/Doing/Skip/Sequence/DisplayGroup/Reason — is printf-variadic), so build the string yourself (`fmt.Sprintf`) before calling. A decline resolves `[blocked]` → exit `1` (see the README's exit-code table) — pass `AssumeYes` (or check a separate flag before calling Confirm at all) if declining should exit `0` instead. The default policy hint names a `--yes` flag; pass `evo.PolicyFlag("--apply")` when your program's real flag is spelled differently.
+**Capture:** `Task.Evidence` (work or tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention. `cmd.Stdout = task.Writer()` turns a talkative child's last line into the live doing-text; `out.Suspend(fn)` hands the tty to a child that paints its own UI.
 **Platform:** `evo.ID` + narrow `Scope` (Task only — not a sandbox); `ResultWriter()` under `FormatData`.
 
 ## Pick the entity
 
 | Shape            | Use when                                                                                                                                                                                                    |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**         | Everything — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skip`, no `Phase`/`Progress`) renders as a fact row; work with phases, progress, or mutation verbs shows a spinner while running |
+| **Task**         | Everything — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skip`, no `Doing`/`Progress`) renders as a fact row; work with phases, progress, or mutation verbs shows a spinner while running |
 | **DisplayGroup** | Presentation-only collection of independent tasks (state is **derived**); concurrent Running children expected                                                                                              |
 | **Sequence**     | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both DisplayGroup and Sequence nest recursively via `.Sequence`/`.DisplayGroup`              |
 
@@ -56,7 +56,7 @@ if err := run.Run(ctx, "brew", []string{"upgrade", "--formula"}, proof); err != 
 upgrade.Done()
 ```
 
-Tool-backed **condition** (a `Task` resolved directly, no `Phase`/`Progress`):
+Tool-backed **condition** (a `Task` resolved directly, no `Doing`/`Progress`):
 
 ```go
 docker := out.Task("docker daemon")

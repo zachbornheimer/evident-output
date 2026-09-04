@@ -125,7 +125,7 @@ func TestSpecP1_LiveFrame_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("branches").Phase("classifying…")
+	out.Task("branches").Doing("classifying…")
 	out.Task("worktrees")
 
 	got := screen.LatestLiveText()
@@ -157,7 +157,7 @@ func TestSpecP3_LiveFrame_Step2(t *testing.T) {
 
 	salvage := out.Task("salvage")
 	salvage.Progress(1, 3)
-	salvage.Phase("feat/a")
+	salvage.Doing("feat/a")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"salvage", "1/3", "feat/a"} {
@@ -177,7 +177,7 @@ func TestSpecP3_LiveFrame_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("salvage").Phase("planning…")
+	out.Task("salvage").Doing("planning…")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "salvage") || !strings.Contains(got, "planning…") {
@@ -211,7 +211,7 @@ func TestSpecP4_LiveFrame_Step1(t *testing.T) {
 	scan := setup.Task("scan")
 	setup.Task("venv")
 	setup.Task("install")
-	scan.Phase("scanning")
+	scan.Doing("scanning")
 
 	got := screen.LatestLiveText()
 	lines := strings.Split(got, "\n")
@@ -254,7 +254,7 @@ func TestSpecP4_LiveFrame_Step2(t *testing.T) {
 	venv := setup.Task("venv")
 	setup.Task("install")
 	scan.Done()
-	venv.Phase("creating")
+	venv.Doing("creating")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "✓") || !strings.Contains(got, "scan") {
@@ -282,14 +282,14 @@ func TestSpecP5_LiveFrame_IndeterminateThenSealed(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	scan := out.Task("scan")
-	scan.Phase("discovering…")
+	scan.Doing("discovering…")
 	before := screen.LatestLiveText()
 	if !strings.Contains(before, "scan") || !strings.Contains(before, "discovering…") {
 		t.Fatalf("want indeterminate discovery phase, got:\n%s", before)
 	}
 
 	scan.Progress(14, 128)
-	scan.Phase("~/Developer/Personal/zq") // forces a repaint reflecting the now-sealed total
+	scan.Doing("~/Developer/Personal/zq") // forces a repaint reflecting the now-sealed total
 	after := screen.LatestLiveText()
 	for _, want := range []string{"scan", "14/128", "~/Developer/Personal/zq"} {
 		if !strings.Contains(after, want) {
@@ -336,7 +336,7 @@ func TestSpecP6_LiveFrame_Step2(t *testing.T) {
 	out.Task("generate").Done("8.0 MB")
 	test := out.Task("test")
 	test.Progress(4, 12)
-	test.Phase("") // forces a repaint reflecting the just-set Progress
+	test.Doing("") // forces a repaint reflecting the just-set Progress
 
 	// generate resolved: it commits durably at resolution time
 	// (release-gate round 5 finding 3, commitResolvedTaskLocked) and drops
@@ -369,7 +369,7 @@ func TestSpecP7_LiveFrame_Step2(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Progress(40, 500)
-	branches.Phase("feat/zz-old")
+	branches.Doing("feat/zz-old")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"branches", "40/500", "feat/zz-old"} {
@@ -391,7 +391,7 @@ func TestSpecP8_LiveFrame_Step1(t *testing.T) {
 
 	remotes := out.Task("remotes")
 	remotes.Progress(1, 3)
-	remotes.Phase("origin/feat/a")
+	remotes.Doing("origin/feat/a")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"remotes", "1/3", "origin/feat/a"} {
@@ -433,7 +433,7 @@ func TestSpecP9_LiveFrame_Step1(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Done()
-	out.Task("venv").Phase("creating")
+	out.Task("venv").Doing("creating")
 
 	// scan resolved: it commits durably at resolution time (release-gate
 	// round 5 finding 3, commitResolvedTaskLocked) and drops out of the live
@@ -465,7 +465,7 @@ func TestSpecP9_LiveFrame_Step2(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Done()
-	out.Task("venv").Phase("creating")
+	out.Task("venv").Doing("creating")
 	out.Task("install")
 
 	// scan resolved: it commits durably at resolution time (release-gate
@@ -531,7 +531,7 @@ func TestSpecP25_LiveFrame_ASCIISpinner(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Progress(1, 40)
-	branches.Phase("feat/old-billing")
+	branches.Doing("feat/old-billing")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "branches") || !strings.Contains(got, "1/40") || !strings.Contains(got, "feat/old-billing") {
@@ -567,7 +567,7 @@ func TestSpecP16_LiveFrame_NarrowTerminal_CompactDialect(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Progress(3, 40)
-	branches.Phase("feat/old-billing-migration")
+	branches.Doing("feat/old-billing-migration")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"3/40", "branches"} {
@@ -596,7 +596,7 @@ func TestSpecP26_LiveFrame_ResizeMidRun_DropsToCompactDialect(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Progress(3, 40)
-	branches.Phase("feat/old-billing-migration")
+	branches.Doing("feat/old-billing-migration")
 
 	wide := screen.LatestLiveText()
 	if !strings.Contains(wide, "[") {

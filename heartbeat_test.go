@@ -29,7 +29,7 @@ func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 	push := out.Task("push")
 	ticker := out.Task("ticker")
 
-	push.Phase("pushing feat/a")
+	push.Doing("pushing feat/a")
 	forceRender(ticker, 1) // first live render: anchors push's elapsed clock
 	if strings.Contains(screen.LatestLiveText(), "—") {
 		t.Fatalf("elapsed suffix appeared before the 5s threshold:\n%s", screen.LatestLiveText())
@@ -60,7 +60,7 @@ func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 	push := out.Task("push")
 	ticker := out.Task("ticker")
 
-	push.Phase("pushing feat/a")
+	push.Doing("pushing feat/a")
 	forceRender(ticker, 1) // anchors push's elapsed clock
 	clock.Advance(5 * time.Second)
 	forceRender(ticker, 2)
@@ -68,7 +68,7 @@ func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 		t.Fatal("expected elapsed suffix before the Phase update")
 	}
 
-	push.Phase("pushing feat/b") // must NOT reset the elapsed clock
+	push.Doing("pushing feat/b") // must NOT reset the elapsed clock
 	forceRender(ticker, 3)
 	if !strings.Contains(screen.LatestLiveText(), "pushing feat/b — 5s") {
 		t.Fatalf("elapsed suffix must survive a Phase update unreset:\n%s", screen.LatestLiveText())
@@ -111,7 +111,7 @@ func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.Clock(clock)}})
 
 	push := out.Task("push")
-	push.Phase("pushing feat/a")
+	push.Doing("pushing feat/a")
 	clock.Advance(90 * time.Second)
 	push.Done()
 	if err := out.Finish(); err != nil {

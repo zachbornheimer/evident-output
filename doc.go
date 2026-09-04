@@ -31,7 +31,7 @@
 //     Each takes []string (the item name becomes the live Phase); for any other slice
 //     type, drive the same absolute progress with EachN(len(items)) — no []string copy
 //     needed just to get a progress bar.
-//     .PhaseWriter() as cmd.Stdout so a talkative child's last line becomes the live Phase;
+//     .Writer() as cmd.Stdout so a talkative child's last line becomes the live Phase;
 //     Task.Run(cmd) wires an *exec.Cmd through that same capture/phase plumbing in one call
 //     and hands back the subprocess error verbatim for the caller to resolve. An item that
 //     fails inside the loop body resolves on the loop's own task handle (task.Fail(...); break)

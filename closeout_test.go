@@ -120,7 +120,7 @@ func TestCON006_NoDeadlockOnRecursiveLog(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Phase("p")
+	out.Task("t").Doing("p")
 	// Debug during live (recursive-ish path)
 	out.Debug("while live")
 	out.Task("t").Done()
@@ -230,7 +230,7 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("repo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("working tree").Done()
-	out.Task("scan").Phase("walk").Done("done")
+	out.Task("scan").Doing("walk").Done("done")
 	g := out.DisplayGroup("deps")
 	g.Task("a").Done()
 	g.Task("b").Done()
@@ -252,7 +252,7 @@ func TestAPI024_ComplexSmallerThanAdHoc(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}})
 	g := out.DisplayGroup("deps")
 	g.Task("a").Bytes(10, 10).Done()
-	g.Task("b").Phase("verifying").Done()
+	g.Task("b").Doing("verifying").Done()
 	out.Debug("index ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

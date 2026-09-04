@@ -30,7 +30,7 @@ func ID(id string) EntityOption {
 //
 //	out.Task("download base image", evo.StartPhase("resolving tag"))
 //
-// is exactly out.Task("download base image").Phase("resolving tag"), with no
+// is exactly out.Task("download base image").Doing("resolving tag"), with no
 // separate statement (and no gap where the task sits Pending) between them.
 func StartPhase(text string) EntityOption {
 	return entityOptionFunc(func(o *entityOpts) { o.phase = text })

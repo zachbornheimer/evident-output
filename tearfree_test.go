@@ -20,7 +20,7 @@ func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	task := out.Task("install")
-	task.Phase("working")
+	task.Doing("working")
 	if screen.LiveFrameCount() == 0 {
 		t.Fatal("setup: expected an initial live frame before Println")
 	}

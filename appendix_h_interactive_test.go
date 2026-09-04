@@ -71,7 +71,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("dependencies")
-	task.Phase("resolving packages")
+	task.Doing("resolving packages")
 	out.Debug("package index loaded", evo.Field{Key: "packages", Value: 18})
 	task.Done("installed %d packages", 18)
 	_ = out.Finish()
@@ -118,7 +118,7 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	sharp := dependencies.Task("sharp")
 
 	// Update and resolve in a different order than declaration.
-	sharp.Phase("verifying")
+	sharp.Doing("verifying")
 	esbuild.Bytes(12_400_000, 18_000_000)
 	react.Bytes(8_100_000, 8_100_000)
 	react.Done()
@@ -162,7 +162,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		case 7:
 			task.Fail("checksum mismatch")
 		case 12, 18:
-			task.Phase("downloading")
+			task.Doing("downloading")
 		case 20:
 			task.Warn("using cached fallback")
 		default:
@@ -235,8 +235,8 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("goimports check")
-	task.Phase("goimports -d " + strings.Repeat("file.go ", 20))
-	task.Phase("goimports -d " + strings.Repeat("1️⃣ ", 20))
+	task.Doing("goimports -d " + strings.Repeat("file.go ", 20))
+	task.Doing("goimports -d " + strings.Repeat("1️⃣ ", 20))
 
 	for _, operation := range screen.Operations() {
 		if operation.Kind != "live" {

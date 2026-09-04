@@ -194,7 +194,7 @@ func TestSpecP17_Taxonomy_Step1(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Progress(10, 40)
-	branches.Phase("feat/tmp")
+	branches.Doing("feat/tmp")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"branches", "10/40", "feat/tmp"} {
@@ -343,7 +343,7 @@ func TestSpecP17_Taxonomy_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("branches").Phase("classifying keep reasons…")
+	out.Task("branches").Doing("classifying keep reasons…")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "branches") || !strings.Contains(got, "classifying keep reasons…") {
@@ -454,7 +454,7 @@ func TestSpecP18_RemoteTracking_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("remote-tracking").Phase("fetch --prune…")
+	out.Task("remote-tracking").Doing("fetch --prune…")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "remote-tracking") || !strings.Contains(got, "fetch --prune…") {
@@ -509,7 +509,7 @@ func TestSpecP18_RemoteTracking_EarlyTermination(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	tracking := out.Task("remote-tracking")
-	tracking.Phase("fetch --prune…")
+	tracking.Doing("fetch --prune…")
 	before := screen.LatestLiveText()
 	if !strings.Contains(before, "remote-tracking") || !strings.Contains(before, "fetch --prune…") {
 		t.Fatalf("want indeterminate fetch-prune phase, got:\n%s", before)
@@ -547,7 +547,7 @@ func TestSpecP19_FirstPaint_Step1(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("scan").Phase("reading config")
+	out.Task("scan").Doing("reading config")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "scan") || !strings.Contains(got, "reading config") {
@@ -566,8 +566,8 @@ func TestSpecP19_FirstPaint_Step2(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	scan := out.Task("scan")
-	scan.Phase("reading config")
-	scan.Phase("discovering…")
+	scan.Doing("reading config")
+	scan.Doing("discovering…")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "scan") || !strings.Contains(got, "discovering…") {
@@ -635,7 +635,7 @@ func TestSpecP19_FirstPaint_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("scan").Phase("reading config")
+	out.Task("scan").Doing("reading config")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "scan") || !strings.Contains(got, "reading config") {
@@ -706,7 +706,7 @@ func TestSpecP20_Heartbeat_Step1(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("salvage").Phase("pushing feat/a")
+	out.Task("salvage").Doing("pushing feat/a")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "salvage") || !strings.Contains(got, "pushing feat/a") {
@@ -726,8 +726,8 @@ func TestSpecP20_Heartbeat_Step2(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	salvage := out.Task("salvage")
-	salvage.Phase("pushing feat/a")
-	salvage.Phase("pushing feat/a — 45s, waiting on remote")
+	salvage.Doing("pushing feat/a")
+	salvage.Doing("pushing feat/a — 45s, waiting on remote")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "salvage") || !strings.Contains(got, "pushing feat/a — 45s, waiting on remote") {
@@ -784,8 +784,8 @@ func TestSpecP20_Heartbeat_Indeterminate(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	salvage := out.Task("salvage")
-	salvage.Phase("pushing feat/a")
-	salvage.Phase("pushing feat/a — 90s")
+	salvage.Doing("pushing feat/a")
+	salvage.Doing("pushing feat/a — 90s")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "salvage") || !strings.Contains(got, "pushing feat/a — 90s") {
@@ -865,7 +865,7 @@ func TestSpecP21_DurableNote_Step1(t *testing.T) {
 
 	install := out.Task("install")
 	install.Progress(4, 40)
-	install.Phase("requests")
+	install.Doing("requests")
 
 	got := screen.LatestLiveText()
 	for _, want := range []string{"install", "4/40", "requests"} {
@@ -892,7 +892,7 @@ func TestSpecP21_DurableNote_Step2(t *testing.T) {
 	install.Progress(4, 40)
 	out.Println("using cached wheel index")
 	install.Progress(5, 40)
-	install.Phase("urllib3")
+	install.Doing("urllib3")
 
 	found := false
 	sealedAfterNote := false
@@ -976,7 +976,7 @@ func TestSpecP21_DurableNote_Indeterminate(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("install").Phase("resolving…")
+	out.Task("install").Doing("resolving…")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "install") || !strings.Contains(got, "resolving…") {

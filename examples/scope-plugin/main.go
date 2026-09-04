@@ -23,7 +23,7 @@ func main() {
 		registry := out.Scope("registry")
 		registry.Task("credentials", evo.ID("auth")).Done()
 		pull := registry.Task("pull base image", evo.ID("image.pull"))
-		pull.Phase("fetching")
+		pull.Doing("fetching")
 		pull.Done("sha256:abc")
 
 		// Visible proof of namespaced identity for automation consumers.

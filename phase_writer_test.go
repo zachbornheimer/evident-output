@@ -12,7 +12,7 @@ func TestPhaseWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("push")
-	w := task.PhaseWriter()
+	w := task.Writer()
 
 	// A line split across two Write calls must still become one Phase update.
 	if _, err := w.Write([]byte("clon")); err != nil {
@@ -35,7 +35,7 @@ func TestPhaseWriter_CRDelimitsProgressFrames(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("download")
-	w := task.PhaseWriter()
+	w := task.Writer()
 
 	// A \r-driven progress bar (no LF between frames) must update Phase per frame.
 	if _, err := w.Write([]byte("50%\r75%\r100%\n")); err != nil {
@@ -55,7 +55,7 @@ func TestPhaseWriter_BlankLinesIgnored(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("sync")
-	w := task.PhaseWriter()
+	w := task.Writer()
 
 	if _, err := w.Write([]byte("first\n\n   \nsecond\n")); err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func TestPhaseWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("push")
-	w := task.PhaseWriter()
+	w := task.Writer()
 
 	if _, err := w.Write([]byte("pushing feat/a\nremote: rejected non-fast-forward\n")); err != nil {
 		t.Fatal(err)
@@ -100,7 +100,7 @@ func TestPhaseWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("build")
-	w := task.PhaseWriter()
+	w := task.Writer()
 
 	// One line-terminator-free write far larger than any reasonable phase
 	// text — no \r or \n anywhere, so without a cap this buffers forever.
@@ -129,7 +129,7 @@ func TestPhaseWriter_SanitizesHostileLines(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("push")
-	w := task.PhaseWriter()
+	w := task.Writer()
 
 	const payload = "\x1b[31mFAKE OK\x1b[0m pushing feat/a\n"
 	if _, err := w.Write([]byte(payload)); err != nil {

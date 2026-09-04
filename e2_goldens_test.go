@@ -94,8 +94,8 @@ func TestE2P4_DisplayGroupTwoSpinnerFrame(t *testing.T) {
 	a := jobs.Task("discover")
 	b := jobs.Task("verify")
 
-	a.Phase("discovering")
-	b.Phase("verifying") // second Running sibling — no misuse, unlike Sequence
+	a.Doing("discovering")
+	b.Doing("verifying") // second Running sibling — no misuse, unlike Sequence
 
 	if err := out.Err(); err != nil {
 		t.Fatalf("Err() = %v, want nil (DisplayGroup permits concurrent Running)", err)
@@ -144,7 +144,7 @@ func TestE2P5_FiveSecondTimer_ContainerHeaderAgesPastThreshold(t *testing.T) {
 	install := jobs.Task("install")
 	ticker := out.Task("ticker")
 
-	install.Phase("installing")
+	install.Doing("installing")
 	ticker.Progress(1, 100) // first live render: anchors the header's clock
 
 	header := strings.SplitN(screen.LatestLiveText(), "\n", 2)[0]
@@ -180,7 +180,7 @@ func TestE2_DisplayUnitRefactor_StandaloneTaskRenderingByteParity(t *testing.T) 
 
 	build := out.Task("build")
 	build.Progress(3, 10)
-	build.Phase("compiling") // forces a fresh render (Progress alone coalesces)
+	build.Doing("compiling") // forces a fresh render (Progress alone coalesces)
 
 	frame := screen.LatestLiveText()
 	if !strings.Contains(frame, "build") || !strings.Contains(frame, "3/10") {

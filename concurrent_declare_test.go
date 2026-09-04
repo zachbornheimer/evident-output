@@ -26,7 +26,7 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			tasks[i].Phase("work")
+			tasks[i].Doing("work")
 			tasks[i].Progress(1, 1)
 			tasks[i].Done()
 		}(i)

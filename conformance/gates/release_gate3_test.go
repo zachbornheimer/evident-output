@@ -19,7 +19,7 @@ func TestFinish_PhaseOnlyTaskCleanReturn_NeverCancels(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
-	out.Task("connect").Phase("connecting")
+	out.Task("connect").Doing("connecting")
 	// early return nil — no Done/Fail/Block/Skip, no signal, no output-level error.
 
 	if err := out.Finish(); err != nil {
@@ -51,7 +51,7 @@ func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	leftover := out.Task("connect")
-	leftover.Phase("connecting")
+	leftover.Doing("connecting")
 	out.Failf("stopped: %v", "disk full")
 
 	_ = out.Finish()

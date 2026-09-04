@@ -19,7 +19,7 @@ func TestEach_BodyPhaseOverride_SuppressesBareItemNameLine(t *testing.T) {
 
 	task := out.Task("install")
 	for pkg := range task.Each([]string{"react"}) {
-		task.Phase("installing " + pkg + " (resolving deps)")
+		task.Doing("installing " + pkg + " (resolving deps)")
 	}
 	task.Done()
 	_ = out.Finish()

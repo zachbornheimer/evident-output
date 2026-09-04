@@ -555,7 +555,7 @@ import evo "github.com/zachbornheimer/evident-output"
 type livePhase struct{ task *evo.TaskHandle }
 func lastLine(p []byte) string { return string(p) }
 func (w *livePhase) Write(p []byte) (int, error) {
-  w.task.Phase(lastLine(p))
+  w.task.Doing(lastLine(p))
   return len(p), nil
 }
 `
@@ -690,7 +690,7 @@ func TestFP004_PlaceholderPhaseText(t *testing.T) {
 	bad := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(task *evo.TaskHandle) {
-  task.Phase("working")
+  task.Doing("working")
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -712,7 +712,7 @@ func TestFP004_NoFalsePositiveOnDomainObjectPhase(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(task *evo.TaskHandle) {
-  task.Phase("scanning ~/Developer/Personal/zq")
+  task.Doing("scanning ~/Developer/Personal/zq")
 }
 `
 	res := review.GoSource("good.go", good)
@@ -732,7 +732,7 @@ import (
 func main() {
   data, _ := os.ReadFile("config.toml")
   out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
-  out.Task("scan").Phase(string(data))
+  out.Task("scan").Doing(string(data))
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -759,7 +759,7 @@ import (
 func main() {
   evo.Init(evo.Config{Title: "t"})
   scan := evo.Task("scan")
-  scan.Phase("reading config")
+  scan.Doing("reading config")
   data, _ := os.ReadFile("config.toml")
   _ = data
 }
@@ -781,7 +781,7 @@ import (
 func main() {
   evo.Init(evo.Config{Title: "t"})
   data, _ := os.ReadFile("config.toml")
-  evo.Task("scan").Phase(string(data))
+  evo.Task("scan").Doing(string(data))
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -803,7 +803,7 @@ func TestFP003_PhaseSetOnceBeforeSilentSubprocess(t *testing.T) {
 	bad := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func run(t *evo.TaskHandle) {
-  t.Phase("uploading")
+  t.Doing("uploading")
   cmd.Run()
 }
 `
@@ -826,8 +826,8 @@ func TestFP003_NoFalsePositiveWithPhaseWriter(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func run(t *evo.TaskHandle) {
-  t.Phase("uploading")
-  cmd.Stdout = t.PhaseWriter()
+  t.Doing("uploading")
+  cmd.Stdout = t.Writer()
   cmd.Run()
 }
 `
@@ -905,7 +905,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func f(task *evo.TaskHandle, done, total int) {
-  task.Phase(fmt.Sprintf("scanning %d/%d", done, total))
+  task.Doing(fmt.Sprintf("scanning %d/%d", done, total))
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -927,7 +927,7 @@ func TestPROG001_NoFalsePositiveOnPlainPhase(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(task *evo.TaskHandle) {
-  task.Phase("scanning")
+  task.Doing("scanning")
   task.Progress(4, 10)
 }
 `
@@ -1067,7 +1067,7 @@ func run(out *evo.Output, svc services, task *evo.TaskHandle, done, total int) e
   out.Task("t").Failf("modules cached")
   _ = out.DebugWriter()
   task.Advance(1)
-  task.Phase(fmt.Sprintf("scanning %d/%d", done, total))
+  task.Doing(fmt.Sprintf("scanning %d/%d", done, total))
   task.Skipped(evo.Reason(fmt.Sprintf("%d skipped (dirty)", done)))
 
   c := make(chan os.Signal, 1)
@@ -1387,7 +1387,7 @@ func TestAPI037_WrapperMethodOverTaskVerb(t *testing.T) {
 import evo "github.com/zachbornheimer/evident-output"
 type runner struct{ task *evo.TaskHandle }
 func (r *runner) resolutionPhase(text string) {
-  r.task.Phase(text)
+  r.task.Doing(text)
 }
 `
 	res := review.GoSource("wrapper.go", src)
@@ -1407,7 +1407,7 @@ func TestAPI037_NoFalsePositiveOnMultiStatementMethod(t *testing.T) {
 import evo "github.com/zachbornheimer/evident-output"
 type runner struct{ task *evo.TaskHandle }
 func (r *runner) resolutionPhase(text string) {
-  r.task.Phase(text)
+  r.task.Doing(text)
   r.task.Progress(1, 2)
 }
 `
@@ -1531,7 +1531,7 @@ func TestDOM019_ShadowedHandleBeforeResolution(t *testing.T) {
 import evo "github.com/zachbornheimer/evident-output"
 func f(out *evo.Output, flag bool) {
   t := out.Task("scan")
-  t.Phase("walking")
+  t.Doing("walking")
   if flag {
     t := out.Task("build")
     t.Done()
@@ -1555,7 +1555,7 @@ func TestDOM019_NoFalsePositiveWhenResolvedFirst(t *testing.T) {
 import evo "github.com/zachbornheimer/evident-output"
 func f(out *evo.Output, flag bool) {
   t := out.Task("scan")
-  t.Phase("walking")
+  t.Doing("walking")
   t.Done()
   if flag {
     t := out.Task("build")

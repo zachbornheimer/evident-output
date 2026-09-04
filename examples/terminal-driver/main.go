@@ -72,7 +72,7 @@ func main() {
 		jobs := o.DisplayGroup("dependencies")
 		discover := jobs.Task("discover")
 		for _, phase := range []string{"reading lockfile", "resolving graph"} {
-			discover.Phase(phase)
+			discover.Doing(phase)
 			time.Sleep(stepDur * 2)
 		}
 		discover.Done("%d packages", 12)

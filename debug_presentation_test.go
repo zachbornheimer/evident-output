@@ -28,7 +28,7 @@ func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
-	task.Phase("comparing")
+	task.Doing("comparing")
 	out.Debug("opened repository", evo.Field{Key: "path", Value: "/work/repo"})
 	task.Done()
 	_ = out.Finish()
@@ -64,7 +64,7 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("work")
-	task.Phase("running")
+	task.Doing("running")
 	out.Debug("first event")
 	clock.Advance(time.Millisecond)
 	out.Debug("second event")
@@ -128,7 +128,7 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("scan").Phase("running")
+	out.Task("scan").Doing("running")
 	out.Debug("enumerated local branches", evo.Field{Key: "count", Value: 7})
 	out.Debug("fetched remote metadata", evo.Field{Key: "remote", Value: "origin"})
 	out.Task("disk").Fail("full")

@@ -178,7 +178,7 @@ func TestSequence_SequentialBytesProgressFinishesClean(t *testing.T) {
 	download.Bytes(total, total)
 	download.Done("%.1f MB", float64(total)/1_000_000)
 
-	verify.Phase("checking signatures")
+	verify.Doing("checking signatures")
 	verify.Done()
 
 	if err := out.Finish(); err != nil {

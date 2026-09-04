@@ -27,7 +27,7 @@ func main() {
 	out := evo.Init(evo.Config{Options: opts})
 	evo.Main(func() error {
 		backup := evo.Task("backup")
-		backup.Phase("snapshotting production")
+		backup.Doing("snapshotting production")
 		if *apply && *fail {
 			// Detail is stable user guidance (presentation); the raw SDK error
 			// would go into Failf's trailing %w if this call site returned it.
@@ -40,7 +40,7 @@ func main() {
 		backup.Done("snapshot created")
 
 		migration := evo.Task("migration")
-		migration.Phase("applying schema changes")
+		migration.Doing("applying schema changes")
 		migration.Done("applied")
 
 		database := out.Task("database")

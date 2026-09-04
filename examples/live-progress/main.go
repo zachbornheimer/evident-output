@@ -51,7 +51,7 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 	verify := jobs.Task("verify")
 
 	for _, phase := range []string{"reading lockfile", "resolving graph", "planning fetch"} {
-		discover.Phase(phase)
+		discover.Doing(phase)
 		time.Sleep(step * 2)
 	}
 	discover.Done("%d packages", packageCount)
@@ -73,7 +73,7 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 	download.Done("%.1f MB", float64(totalBytes)/(1000*1000))
 
 	for _, phase := range []string{"checking signatures", "checksums", "quarantine scan"} {
-		verify.Phase(phase)
+		verify.Doing(phase)
 		time.Sleep(step * 2)
 	}
 	verify.Done()

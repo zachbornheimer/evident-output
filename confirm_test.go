@@ -199,7 +199,7 @@ func TestConfirm_QuiescesLiveRegion_NoFramesBetweenPromptAndAnswer(t *testing.T)
 	}})
 
 	task := out.Task("branches")
-	task.Phase("scanning")
+	task.Doing("scanning")
 
 	if ok := out.Confirm("delete origin/production-hotfix?", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")

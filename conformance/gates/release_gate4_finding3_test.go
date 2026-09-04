@@ -19,7 +19,7 @@ func TestFinish_ForgottenTerminalVerb_SamePolicyWithOrWithoutPhase(t *testing.T)
 		out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 		task := out.Task("install")
 		if callPhase {
-			task.Phase("working")
+			task.Doing("working")
 		}
 		_ = out.Finish()
 		return buf.String(), out.Conclusion().ExitCode

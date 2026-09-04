@@ -42,7 +42,7 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 func TestConclusion_AlreadyMutated_CancelledEmptyLedger(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	out.Task("scan").Phase("scanning")
+	out.Task("scan").Doing("scanning")
 	out.Cancel("interrupted")
 	if err := out.Finish(); err != nil {
 		t.Log(err)

@@ -378,7 +378,7 @@ func TestSpecP4_SequentialGroup_Indeterminate(t *testing.T) {
 	scan := setup.Task("scan")
 	setup.Task("venv")
 	setup.Task("install")
-	scan.Phase("scanning")
+	scan.Doing("scanning")
 
 	got := screen.LatestLiveText()
 	lines := strings.Split(got, "\n")

@@ -30,7 +30,7 @@ func TestTask_DeclaresPendingNotRunning(t *testing.T) {
 // here.
 func TestTask_PromotesToRunningOnFirstEvidence(t *testing.T) {
 	cases := map[string]func(*evo.TaskHandle){
-		"Phase":    func(h *evo.TaskHandle) { h.Phase("working") },
+		"Phase":    func(h *evo.TaskHandle) { h.Doing("working") },
 		"Progress": func(h *evo.TaskHandle) { h.Progress(1, 2) },
 		"Bytes":    func(h *evo.TaskHandle) { h.Bytes(1, 2) },
 	}
@@ -58,8 +58,8 @@ func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 
-	scan.Phase("scanning")      // promotes scan to Running
-	venv.Phase("creating venv") // second sibling Running while scan still is
+	scan.Doing("scanning")      // promotes scan to Running
+	venv.Doing("creating venv") // second sibling Running while scan still is
 
 	if err := out.Err(); err == nil {
 		t.Fatal("want misuse recorded for two Running siblings in a Sequence")
@@ -78,8 +78,8 @@ func TestDisplayGroup_ConcurrentIndependentChildrenAreNotMisuse(t *testing.T) {
 	a := jobs.Task("discover")
 	b := jobs.Task("verify")
 
-	a.Phase("discovering")
-	b.Phase("waiting") // second Running sibling — allowed on a plain DisplayGroup collection
+	a.Doing("discovering")
+	b.Doing("waiting") // second Running sibling — allowed on a plain DisplayGroup collection
 
 	if err := out.Err(); err != nil {
 		t.Fatalf("want no misuse on an independent Tasks collection, got %v", err)

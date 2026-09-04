@@ -19,7 +19,7 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 
 	logger := slog.New(out.SlogHandler())
 	task := out.Task("index")
-	task.Phase("reading documents")
+	task.Doing("reading documents")
 	logger.Debug("batch loaded", "documents", 200)
 	task.Done("indexed %d documents", 200)
 	_ = out.Finish()
@@ -144,7 +144,7 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 
 	logger := slog.New(out.SlogHandler())
 	task := out.Task("pull")
-	task.Phase("fetching")
+	task.Doing("fetching")
 	logger.Warn("registry request slow", "duration", "4s", "registry", "ghcr.io")
 	task.Done()
 	_ = out.Finish()

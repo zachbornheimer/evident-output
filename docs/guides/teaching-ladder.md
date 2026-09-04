@@ -7,10 +7,10 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 ```text
 1. evo.Init(Config) + os.Exit(evo.Main(run)) — arms first paint, owns dry-run wording and exit codes
 2. Print / Printf / Println / Verbose
-3. Task — everything: a gate/condition resolved directly (Done/Warn/Block/Fail/Skip, no Phase/
+3. Task — everything: a gate/condition resolved directly (Done/Warn/Block/Fail/Skip, no Doing/
    Progress) or work with phases, progress, or mutation verbs (Delete/Create/Update/…); Evidence
    on either shape
-4. Each / PhaseWriter — loop progress and child-process narration
+4. Each / Writer — loop progress and child-process narration
 5. Skipped / Kept — skip/keep taxonomy (reason + name, never a bare count)
 6. Confirm — the whole ask-decide-resolve gate
 7. ResultWriter or app machine contract (FormatData)
@@ -65,7 +65,7 @@ return out.Finish()
 | RULE-006 | Capability ≠ obligation                                           |
 | PHIL-001 | One ordinary spelling per intent                                  |
 
-Batch elements are one Task with Progress+Phase (count + muted activity), not N Items.
+Batch elements are one Task with Progress+Doing (count + muted activity), not N Items.
 Use `TruncateNames` for a single skip/kept list when names must stay readable.
 
 See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.
@@ -80,7 +80,7 @@ return task.Failf("failed: %w", err)
 ```
 
 Pending unterminated fragments are included in DetailTail. Prefer `task.Run(cmd)` for an
-`*exec.Cmd` — it wires Evidence and Phase together in one call.
+`*exec.Cmd` — it wires Evidence and doing-text together in one call.
 
 ## Confirm
 
@@ -106,7 +106,7 @@ out.Suspend(func() error { return cmd.Run() })
 ```
 
 Only needed when a child paints its own UI on the shared terminal (tty passthrough); a captured or
-`PhaseWriter`-wired child never needs it.
+`Writer`-wired child never needs it.
 
 ## Data commands
 

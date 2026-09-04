@@ -17,7 +17,7 @@ func TestPhaseAndSkip_ArePrintfVariadic(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 
 	phased := out.Task("fetch")
-	phased.Phase("resolving %s", "main")
+	phased.Doing("resolving %s", "main")
 	if got := phased.Snapshot().Phase; got != "resolving main" {
 		t.Fatalf("Phase must format its printf args, got phase %q", got)
 	}

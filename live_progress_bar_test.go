@@ -20,7 +20,7 @@ func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 
 	units.Progress(3, 10)
 	bytes.Bytes(4_000_000, 10_000_000)
-	spin.Phase("checking signatures")
+	spin.Doing("checking signatures")
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "[") || !strings.Contains(got, "█") || !strings.Contains(got, "░") {
@@ -50,7 +50,7 @@ func TestLive_DeterminateProgressPhaseIsDefaultIntensity(t *testing.T) {
 
 	task := out.Task("scan")
 	task.Progress(3, 10)
-	task.Phase("reading manifest")
+	task.Doing("reading manifest")
 
 	got := screen.LatestLiveText()
 	dimmedPhase := "\x1b[2mreading manifest\x1b[0m"

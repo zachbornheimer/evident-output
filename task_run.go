@@ -125,7 +125,7 @@ func (t *TaskHandle) ensurePhase(phase string) {
 	if phase == "" || t.Snapshot().Phase != "" {
 		return
 	}
-	t.Phase(phase)
+	t.Doing(phase)
 }
 
 // teeSubprocessWriter adds extra to existing without discarding it — an

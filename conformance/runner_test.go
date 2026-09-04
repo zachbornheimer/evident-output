@@ -158,7 +158,7 @@ func runScenarioFile(t *testing.T, path string) {
 		case "item.fail":
 			items[m.Ref].Fail(m.Summary)
 		case "task.phase":
-			tasks[m.Ref].Phase(m.Text)
+			tasks[m.Ref].Doing(m.Text)
 		case "task.progress":
 			tasks[m.Ref].Progress(int(m.Completed), int(m.Total))
 		case "task.bytes":

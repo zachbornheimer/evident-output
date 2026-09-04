@@ -37,13 +37,13 @@ func All() []Rule {
 			Category:  "API",
 			Severity:  "warning",
 			Invariant: "explicit Start is optional",
-			Why:       "Phase/Progress/Done already activate the task; Start is redundant noise for agents and readers.",
+			Why:       "Doing/Progress/Done already activate the task; Start is redundant noise for agents and readers.",
 			BadCode: `t := out.Task("scan")
 t.Start()
-t.Phase("walking")`,
+t.Doing("walking")`,
 			GoodCode: `t := out.Task("scan")
-t.Phase("walking")`,
-			Remediation:     "Use Phase/Progress or a direct Done; remove explicit Start",
+t.Doing("walking")`,
+			Remediation:     "Use Doing/Progress or a direct Done; remove explicit Start",
 			Exceptions:      []string{"tests that assert Start side effects"},
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"MCP-012", "API-006"},
@@ -114,13 +114,13 @@ out.Printf("progress %d\n", n)
 			ID:        "STREAM-004",
 			Category:  "STREAM",
 			Severity:  "warning",
-			Invariant: "one task wires exactly one subprocess capture path: Task.Run, not a hand-rolled Evidence()+PhaseWriter() pair",
-			Why: "Task.Run already tees cmd.Stdout/cmd.Stderr through Evidence and PhaseWriter together. Wiring both by " +
+			Invariant: "one task wires exactly one subprocess capture path: Task.Run, not a hand-rolled Evidence()+Writer() pair",
+			Why: "Task.Run already tees cmd.Stdout/cmd.Stderr through Evidence and Writer together. Wiring both by " +
 				"hand on the same task is easy to get half-right — evidence for the rule: four hand-rolled subprocess " +
 				"wirings this pattern replaced starved the capture (two with no fallback: dead port-in-use detection, " +
 				"empty DetailTail on failure).",
 			BadCode: `proof := task.Evidence()
-cmd.Stdout = task.PhaseWriter()
+cmd.Stdout = task.Writer()
 cmd.Stderr = proof
 if err := cmd.Run(); err != nil {
   return task.Failf("build failed: %w", err)
@@ -129,14 +129,14 @@ if err := cmd.Run(); err != nil {
   return task.Failf("build failed: %w", err)
 }
 task.Done()`,
-			Remediation:     "Replace the hand-rolled Evidence()/PhaseWriter() pair with task.Run(cmd); reach for Evidence() alone only when the caller isn't running an *exec.Cmd",
+			Remediation:     "Replace the hand-rolled Evidence()/Writer() pair with task.Run(cmd); reach for Evidence() alone only when the caller isn't running an *exec.Cmd",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"STREAM-004"},
 			Since:           "0.2.17",
 			Certainty:       "heuristic",
 			// No cheap, honest static detector: telling a Task.Run-shaped
 			// wiring apart from a legitimately mixed capture (e.g. Stdout
-			// through PhaseWriter, Stderr captured separately for a
+			// through Writer, Stderr captured separately for a
 			// different reason) needs dataflow analysis the AST pass does
 			// not do. Guidance-only; see the "streams" catalog guide and
 			// Task.Run's own doc comment for the teaching example.
@@ -241,7 +241,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 }`,
 			GoodCode: `func main() {
   evo.Init(evo.Config{Title: "tool"}) // arms first paint before any I/O
-  evo.Task("scan").Phase("reading config")
+  evo.Task("scan").Doing("reading config")
   cfg := loadConfig()
 }`,
 			Remediation:     "Call evo.Init as the first statement in main and declare the first Task/Item/Sequence before any I/O",
@@ -264,7 +264,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			GoodCode: `func main() {
   evo.Init(evo.Config{Title: "tool"})
   scan := evo.Task("scan")
-  scan.Phase("reading config")
+  scan.Doing("reading config")
   data, _ := os.ReadFile("config.toml")
 }`,
 			Remediation:     "Move the first Task/Item/Sequence declaration ahead of the first read/open/dial in main or run",
@@ -280,13 +280,13 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Invariant: "phases advance on evidence; a stale phase is a defect",
 			Why:       "A spinner whose text never changes is animation, not evidence — the user cannot tell slow from hung.",
 			BadCode: `t := evo.Task("salvage")
-t.Phase("uploading")
-run.Run(ctx, "git", args, io.Discard) // silent for minutes; Phase never refreshed`,
+t.Doing("uploading")
+run.Run(ctx, "git", args, io.Discard) // silent for minutes; doing-text never refreshed`,
 			GoodCode: `t := evo.Task("salvage")
-t.Phase("uploading")
-run.Run(ctx, "git", args, t.PhaseWriter()) // last child line becomes the live Phase
+t.Doing("uploading")
+run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-text
 // or stream discovery into Progress as totals become known`,
-			Remediation:     "Wire child output through Task.PhaseWriter, or advance Phase/Progress as evidence arrives; the built-in heartbeat covers the remaining silent case (>~10s) automatically",
+			Remediation:     "Wire child output through Task.Writer, or advance Doing/Progress as evidence arrives; the built-in heartbeat covers the remaining silent case (>~10s) automatically",
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"FP-003"},
 			Since:           "0.3.0",
@@ -391,8 +391,8 @@ go func() { <-c; task.Cancel("interrupted") }()
 			Invariant:       "transcripts contain only text evo itself wrote through managed streams",
 			Why:             "A NUL byte means something wrote raw/binary data into the terminal stream outside evo's sanitize path.",
 			BadCode:         `// transcript contains \x00 from an unmanaged binary write`,
-			GoodCode:        `// all writes go through out.Print*/task.Capture/PhaseWriter, which sanitize text before it reaches the terminal`,
-			Remediation:     "Route the binary-producing writer through Capture/PhaseWriter or a text-only channel; never write raw child bytes straight to the terminal",
+			GoodCode:        `// all writes go through out.Print*/task.Capture/Writer, which sanitize text before it reaches the terminal`,
+			Remediation:     "Route the binary-producing writer through Capture/Writer or a text-only channel; never write raw child bytes straight to the terminal",
 			RelatedGuidance: []string{"interactive", "streams"},
 			VerificationIDs: []string{"TERM-014"},
 			Since:           "0.1.0",
@@ -426,7 +426,7 @@ cmd.Run()`,
 cmd.Stdout = os.Stdout
 cmd.Stderr = os.Stderr
 out.Suspend(func() error { return cmd.Run() })`,
-			Remediation:     "Wrap tty-passthrough child execution in out.Suspend(fn); captured children (PhaseWriter/Capture) don't need it",
+			Remediation:     "Wrap tty-passthrough child execution in out.Suspend(fn); captured children (Writer/Capture) don't need it",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-015"},
 			Since:           "0.6.0",
@@ -520,13 +520,13 @@ if partial {
 			ID:        "BOUND-001",
 			Category:  "BOUND",
 			Severity:  "warning",
-			Invariant: "slice-derived text into Detail/Phase is bounded before rendering",
-			Why:       "strings.Join of an unbounded slice dumped into Detail/Phase reproduces the 500-name terminal flood evo-rec.md \"bounded effect rows\" already fixed for Plan/Changes.",
+			Invariant: "slice-derived text into Detail/Doing is bounded before rendering",
+			Why:       "strings.Join of an unbounded slice dumped into Detail/Doing reproduces the 500-name terminal flood evo-rec.md \"bounded effect rows\" already fixed for Plan/Changes.",
 			BadCode: `task.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))
-task.Phase(strings.Join(reasons, "; "))`,
+task.Doing(strings.Join(reasons, "; "))`,
 			GoodCode: `task.Fail("cannot delete", evo.Detail(evo.TruncateNames(names, 8)))
-task.Phase(evo.TruncateNames(reasons, 8))`,
-			Remediation:     "Wrap the joined slice in evo.TruncateNames before passing it to Detail/Phase",
+task.Doing(evo.TruncateNames(reasons, 8))`,
+			Remediation:     "Wrap the joined slice in evo.TruncateNames before passing it to Detail/Doing",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"BOUND-001"},
 			Since:           "0.7.0",
@@ -561,15 +561,15 @@ for i, j := range jobs {
 			ID:        "API-031",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "child-process phase narration uses Task.PhaseWriter, never a hand-rolled io.Writer",
-			Why:       "A caller-defined io.Writer whose Write method calls TaskHandle.Phase reimplements the exact 30-line line-splitting adapter Task.PhaseWriter already owns (evo-rec.md \"#6\").",
+			Invariant: "child-process phase narration uses Task.Writer, never a hand-rolled io.Writer",
+			Why:       "A caller-defined io.Writer whose Write method calls TaskHandle.Doing reimplements the exact 30-line line-splitting adapter Task.Writer already owns (evo-rec.md \"#6\").",
 			BadCode: `type livePhase struct{ task *evo.TaskHandle }
 func (w *livePhase) Write(p []byte) (int, error) {
-  w.task.Phase(lastLine(p))
+  w.task.Doing(lastLine(p))
   return len(p), nil
 }`,
-			GoodCode:        `cmd.Stdout = task.PhaseWriter() // last child line becomes the live Phase`,
-			Remediation:     "Delete the hand-rolled io.Writer and wire the subprocess's Stdout/Stderr to Task.PhaseWriter() directly",
+			GoodCode:        `cmd.Stdout = task.Writer() // last child line becomes the live doing-text`,
+			Remediation:     "Delete the hand-rolled io.Writer and wire the subprocess's Stdout/Stderr to Task.Writer() directly",
 			RelatedGuidance: []string{"tasks", "streams"},
 			VerificationIDs: []string{"API-031"},
 			Since:           "0.7.0",
@@ -657,11 +657,11 @@ item.Skip(note)`,
 			ID:              "FP-004",
 			Category:        "FP",
 			Severity:        "warning",
-			Invariant:       "a Phase string names the domain object in motion, not a generic placeholder",
+			Invariant:       "a Doing string names the domain object in motion, not a generic placeholder",
 			Why:             "\"starting\"/\"working\"/\"running\"/\"please wait\" tells the user nothing changed since the last frame — the same illegible-spinner defect FP-003 covers for a silent subprocess.",
-			BadCode:         `task.Phase("working")`,
-			GoodCode:        `task.Phase("scanning ~/Developer/Personal/zq")`,
-			Remediation:     "Name the object the task is currently acting on in the Phase string",
+			BadCode:         `task.Doing("working")`,
+			GoodCode:        `task.Doing("scanning ~/Developer/Personal/zq")`,
+			Remediation:     "Name the object the task is currently acting on in the Doing string",
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"FP-004"},
 			Since:           "0.7.0",
@@ -736,14 +736,14 @@ it.Done()`,
 			ID:        "DOM-016",
 			Category:  "DOM",
 			Severity:  "warning",
-			Invariant: "Task.Phase without a prior Start activates the task directly into running, indeterminate state",
-			Why:       "Requiring Start before Phase is the same redundant ceremony API-006 already forbids for Done; Phase alone carries enough information to activate the task.",
+			Invariant: "Task.Doing without a prior Start activates the task directly into running, indeterminate state",
+			Why:       "Requiring Start before Doing is the same redundant ceremony API-006 already forbids for Done; Doing alone carries enough information to activate the task.",
 			BadCode: `t := out.Task("scan")
 t.Start()
-t.Phase("walking")`,
+t.Doing("walking")`,
 			GoodCode: `t := out.Task("scan")
-t.Phase("walking")`,
-			Remediation:     "Call Phase directly; do not call Start first — see API-006 for the general no-Start-needed rule",
+t.Doing("walking")`,
+			Remediation:     "Call Doing directly; do not call Start first — see API-006 for the general no-Start-needed rule",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"DOM-016"},
 			Since:           "0.1.0",
@@ -838,12 +838,12 @@ out.FormatData(...) // progress/UI route to Stderr; only the payload reaches Std
 			Severity:  "warning",
 			Invariant: "displayed shell/command arguments are quoted so argv boundaries survive presentation",
 			Why:       "Naively space-joining a []string for display can misrepresent argv boundaries — an argument containing a space reads as two arguments — which misleads a human approving a destructive action.",
-			BadCode:   `task.Phase(strings.Join(args, " ")) // "rm -rf my file.txt" reads as 4 words, not 3 args`,
+			BadCode:   `task.Doing(strings.Join(args, " ")) // "rm -rf my file.txt" reads as 4 words, not 3 args`,
 			GoodCode: `quoted := make([]string, len(args))
 for i, a := range args {
   quoted[i] = strconv.Quote(a) // preserves argv boundaries even when an arg contains a space
 }
-task.Phase(strings.Join(quoted, " "))`,
+task.Doing(strings.Join(quoted, " "))`,
 			Remediation:     "Quote each argument individually before joining for display; never join raw argv with bare spaces",
 			RelatedGuidance: []string{"security"},
 			VerificationIDs: []string{"SEC-006"},
@@ -940,9 +940,9 @@ if err := cmd.Run(); err != nil {
 			Invariant: "a method that only forwards to one Task/Item verb call is inlined at its callers, not wrapped",
 			Why:       "A method whose entire body is one call on a Task/Item handle adds a name and a stack frame with no behavior of its own (zq's resolutionPhase wrapper).",
 			BadCode: `func (r *runner) resolutionPhase(text string) {
-  r.task.Phase(text)
+  r.task.Doing(text)
 }`,
-			GoodCode:        `r.task.Phase(text) // called directly at each site`,
+			GoodCode:        `r.task.Doing(text) // called directly at each site`,
 			Remediation:     "Inline the wrapped verb call at each caller and delete the wrapper method",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-037"},
@@ -981,12 +981,12 @@ if err := cmd.Run(); err != nil {
 			ID:        "TXT-020",
 			Category:  "TXT",
 			Severity:  "warning",
-			Invariant: "an entity name is a short noun phrase; narration lives in Phase/Donef",
+			Invariant: "an entity name is a short noun phrase; narration lives in Doing/Donef",
 			Why:       "An entity name over ~40 characters, or narrating a transition (into/->), reads as narration squeezed into a label instead of a name.",
 			BadCode:   `out.Task("copying build artifacts from staging into the production release bucket")`,
 			GoodCode: `t := out.Task("release artifacts")
-t.Phase("copying staging -> production release bucket")`,
-			Remediation:     "Shorten the entity name to a noun phrase; move the narrated detail into Phase(...) or the resolving verb's summary",
+t.Doing("copying staging -> production release bucket")`,
+			Remediation:     "Shorten the entity name to a noun phrase; move the narrated detail into Doing(...) or the resolving verb's summary",
 			RelatedGuidance: []string{"first-paint"},
 			VerificationIDs: []string{"TXT-020"},
 			Since:           "0.2.17",
@@ -999,10 +999,10 @@ t.Phase("copying staging -> production release bucket")`,
 			Invariant: "a live Task/Item handle variable is resolved before it is reassigned to a new declaration",
 			Why:       "Reassigning a variable from a new Task/Item declaration before the previous handle it held was resolved orphans the earlier row Running forever — a double row hiding under one variable name.",
 			BadCode: `t := out.Task("scan")
-t.Phase("walking")
+t.Doing("walking")
 t = out.Task("build") // the "scan" row never resolves`,
 			GoodCode: `t := out.Task("scan")
-t.Phase("walking")
+t.Doing("walking")
 t.Done()
 t = out.Task("build")`,
 			Remediation:     "Resolve the handle (Done/Fail/Block/Warn/Cancel/Skip) before reassigning the variable, or give the second declaration its own name",

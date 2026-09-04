@@ -15,7 +15,7 @@ func TestOUT023_LineWhileLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor(), testkit.Width(80))
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Phase("p")
+	out.Task("t").Doing("p")
 	out.Println("durable hello")
 	// Line currently doesn't trigger debugLive path — call Debug for insert-above
 	// Spec OUT-023: Line while live — ensure no panic and finish works

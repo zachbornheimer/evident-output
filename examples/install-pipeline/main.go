@@ -28,7 +28,7 @@ func main() {
 		pipeline := evo.Sequence("pipeline")
 
 		modules := pipeline.Task("go mod download", evo.ID("pipeline.mod-download"))
-		modules.Phase("resolving modules")
+		modules.Doing("resolving modules")
 		for completed := 1; completed <= 4; completed++ {
 			time.Sleep(step)
 			modules.Progress(completed, 4)
@@ -36,7 +36,7 @@ func main() {
 		modules.Done("modules cached")
 
 		generate := pipeline.Task("go generate", evo.ID("pipeline.generate"))
-		generate.Phase("running generators")
+		generate.Doing("running generators")
 		time.Sleep(step)
 		generate.Bytes(256*1024, 256*1024)
 		generate.Done()

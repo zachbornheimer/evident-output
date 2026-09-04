@@ -88,8 +88,8 @@ func TestCatalogRuleIDsResolve(t *testing.T) {
 
 // TestGuidesCoverPhaseQAdditions pins evo-rec.md work order item F: the
 // guidance catalog must teach bounded Because/Detail text, predeclare-
-// before-fan-out, PhaseWriter over hand-rolled writers, and Destructive()
-// on destructive confirms.
+// before-fan-out, Task.Writer over hand-rolled writers (PhaseWriter's
+// current name, P6/rename), and Destructive() on destructive confirms.
 func TestGuidesCoverPhaseQAdditions(t *testing.T) {
 	all := catalog.All()
 	bodyContains := func(needle string) bool {
@@ -100,7 +100,7 @@ func TestGuidesCoverPhaseQAdditions(t *testing.T) {
 		}
 		return false
 	}
-	for _, want := range []string{"TruncateNames", "Predeclare before fan-out", "PhaseWriter", "Destructive()"} {
+	for _, want := range []string{"TruncateNames", "Predeclare before fan-out", "task.Writer()", "Destructive()"} {
 		if !bodyContains(want) {
 			t.Errorf("no guide body mentions %q", want)
 		}
