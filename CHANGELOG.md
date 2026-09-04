@@ -240,6 +240,13 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 - **Printf-name symmetry**: `Scope.Task`, `Scope.Item`, and
   `GroupHandle.Task` now accept trailing `args ...any` like `Output.Task`/
   `Item` and the package-level facades.
+- **Quantity type symmetry: `Changes`/`Plan` mutation verbs and `Record`/
+  `RecordName` now take `int`** (pre-1.0 API break), matching the `int`
+  quantity `TaskHandle` verbs already took: `Changes.Added/Updated/Removed/
+Deleted/Pushed/Record` and `Plan.Add/Update/Remove/Delete/Push/Record`.
+  A caller passing an untyped literal or `len(x)` is unaffected; a caller
+  with an explicit `int64(...)` cast at the call site needs to drop the
+  cast.
 
 ### Fixed
 

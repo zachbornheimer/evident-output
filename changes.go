@@ -9,7 +9,7 @@ type Changes struct {
 }
 
 // Added records an added quantity.
-func (c *Changes) Added(quantity int64, object string) *Changes {
+func (c *Changes) Added(quantity int, object string) *Changes {
 	return c.Record("added", quantity, object)
 }
 
@@ -19,19 +19,19 @@ func (c *Changes) Created(object string) *Changes {
 }
 
 // Updated records an updated quantity.
-func (c *Changes) Updated(quantity int64, object string) *Changes {
+func (c *Changes) Updated(quantity int, object string) *Changes {
 	return c.Record("updated", quantity, object)
 }
 
 // Removed records a removed quantity.
-func (c *Changes) Removed(quantity int64, object string) *Changes {
+func (c *Changes) Removed(quantity int, object string) *Changes {
 	return c.Record("removed", quantity, object)
 }
 
 // Deleted records a deleted quantity. Part of the verb set unified across
 // TaskHandle/Changes/Plan (C10) — TaskHandle/Plan already had Delete;
 // Changes was missing its past-tense counterpart.
-func (c *Changes) Deleted(quantity int64, object string) *Changes {
+func (c *Changes) Deleted(quantity int, object string) *Changes {
 	return c.Record("deleted", quantity, object)
 }
 
@@ -42,7 +42,7 @@ func (c *Changes) Wrote(object string) *Changes {
 
 // Pushed records a pushed quantity. Part of the verb set unified across
 // TaskHandle/Changes/Plan (C10) — Push was previously TaskHandle-only.
-func (c *Changes) Pushed(quantity int64, object string) *Changes {
+func (c *Changes) Pushed(quantity int, object string) *Changes {
 	return c.Record("pushed", quantity, object)
 }
 
@@ -57,7 +57,7 @@ func (c *Changes) RecordName(verb, object string) *Changes {
 // intended verb, so a section that ends up with no rows at all still renders
 // "nothing to <verb> <subject>" (evo-rec.md guess-driven default #1: "Zero
 // mutations recorded → nothing to delete") instead of inventing a "did 0" row.
-func (c *Changes) Record(verb string, quantity int64, object string) *Changes {
+func (c *Changes) Record(verb string, quantity int, object string) *Changes {
 	c.out.mu.Lock()
 	defer c.out.mu.Unlock()
 	st := c.find()
@@ -77,7 +77,7 @@ func (c *Changes) Record(verb string, quantity int64, object string) *Changes {
 	}
 	st.records = append(st.records, EffectRecord{
 		Verb:     verb,
-		Quantity: quantity,
+		Quantity: int64(quantity),
 		HasQty:   true,
 		Object:   sanitize.Text(object),
 	})

@@ -9,7 +9,7 @@ type Plan struct {
 }
 
 // Add records a planned addition.
-func (p *Plan) Add(quantity int64, object string) *Plan {
+func (p *Plan) Add(quantity int, object string) *Plan {
 	return p.Record("add", quantity, object)
 }
 
@@ -19,17 +19,17 @@ func (p *Plan) Create(object string) *Plan {
 }
 
 // Update records a planned update.
-func (p *Plan) Update(quantity int64, object string) *Plan {
+func (p *Plan) Update(quantity int, object string) *Plan {
 	return p.Record("update", quantity, object)
 }
 
 // Remove records a planned removal.
-func (p *Plan) Remove(quantity int64, object string) *Plan {
+func (p *Plan) Remove(quantity int, object string) *Plan {
 	return p.Record("remove", quantity, object)
 }
 
 // Delete records a planned deletion.
-func (p *Plan) Delete(quantity int64, object string) *Plan {
+func (p *Plan) Delete(quantity int, object string) *Plan {
 	return p.Record("delete", quantity, object)
 }
 
@@ -41,7 +41,7 @@ func (p *Plan) Write(object string) *Plan {
 // Push records a planned push of quantity of object. Part of the verb set
 // unified across TaskHandle/Changes/Plan (C10) — Push was previously
 // TaskHandle-only.
-func (p *Plan) Push(quantity int64, object string) *Plan {
+func (p *Plan) Push(quantity int, object string) *Plan {
 	return p.Record("push", quantity, object)
 }
 
@@ -55,7 +55,7 @@ func (p *Plan) RecordName(verb, object string) *Plan {
 // row but still remembers verb as the section's intended verb — see
 // Changes.Record for the empty-section rationale (evo-rec.md guess-driven
 // default #1).
-func (p *Plan) Record(verb string, quantity int64, object string) *Plan {
+func (p *Plan) Record(verb string, quantity int, object string) *Plan {
 	p.out.mu.Lock()
 	defer p.out.mu.Unlock()
 	st := p.find()
@@ -75,7 +75,7 @@ func (p *Plan) Record(verb string, quantity int64, object string) *Plan {
 	}
 	st.records = append(st.records, EffectRecord{
 		Verb:     verb,
-		Quantity: quantity,
+		Quantity: int64(quantity),
 		HasQty:   true,
 		Object:   sanitize.Text(object),
 	})

@@ -117,7 +117,7 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 		// <subject>" (evo-rec.md "empty effect section grammar").
 		sec.declareIntendedVerb(verb)
 		if hasQty {
-			sec.Record(verb, quantity, object)
+			sec.Record(verb, int(quantity), object)
 		} else {
 			sec.RecordName(verb, object)
 		}
@@ -127,7 +127,7 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 	sec.declareIntendedVerb(verb)
 	pastTense := conjugatePast(verb)
 	if hasQty {
-		sec.Record(pastTense, quantity, object)
+		sec.Record(pastTense, int(quantity), object)
 	} else {
 		sec.RecordName(pastTense, object)
 	}
@@ -144,5 +144,5 @@ func (o *Output) recordClassification(taskID, label string, quantity int64, obje
 	}
 	sec := o.changesGetOrCreate(subject)
 	sec.declareIntendedVerb(label)
-	sec.Record(label, quantity, object)
+	sec.Record(label, int(quantity), object)
 }
