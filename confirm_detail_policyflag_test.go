@@ -14,7 +14,7 @@ import (
 // block) since that's the only path that writes the prompt at all.
 func TestConfirm_Detail_RendersContextLines(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("y\n")),
 	}})
 
@@ -33,7 +33,7 @@ func TestConfirm_Detail_RendersContextLines(t *testing.T) {
 // PolicyHint(os.Args[0], flag).
 func TestConfirm_PolicyFlag_FillsExecutableFromTitle(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&buf), evo.NoColor(), evo.Plain(), evo.Title("clean-repo"),
 	}})
 

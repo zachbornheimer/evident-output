@@ -16,7 +16,7 @@ import (
 func TestFinish_ForgottenTerminalVerb_SamePolicyWithOrWithoutPhase(t *testing.T) {
 	run := func(callPhase bool) (rendered string, exitCode int) {
 		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+		out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 		task := out.Task("install")
 		if callPhase {
 			task.Phase("working")

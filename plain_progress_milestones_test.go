@@ -15,7 +15,7 @@ import (
 // logs for anything that takes a while.
 func TestPlainProgress_StreamsMilestones_NotOnlyFirstTick(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	task := out.Task("download")
 	for i := 0; i <= 100; i += 10 {
@@ -39,7 +39,7 @@ func TestPlainProgress_StreamsMilestones_NotOnlyFirstTick(t *testing.T) {
 // misleading, not informative.
 func TestPlainProgress_NoSpinnerGlyph(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Task("download").Progress(0, 100)
 

@@ -14,7 +14,7 @@ import (
 func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	branches := out.Task("branches")
 	branches.Delete(12, "local branches")
 	branches.Done()
@@ -42,7 +42,7 @@ func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
 	branches.Delete(12, "local branches")
 	branches.Done()
@@ -67,7 +67,7 @@ func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 // therefore appears in the snapshot and FinalPlain.
 func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
 	branches.Delete(3, "local branches")
@@ -101,7 +101,7 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 // task accumulate into one section instead of one per call.
 func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
 	branches.Delete(3, "local branches")
@@ -136,7 +136,7 @@ func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 		t.Run(imperative, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+			out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("t"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 			subject := out.Task("subject")
 			subject.RecordName(imperative, "object")
 			subject.Done()
@@ -155,7 +155,7 @@ func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 // the "resolved tasks record misuse, never panic" contract.
 func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("t"), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("branches")
 	task.Done()
@@ -181,7 +181,7 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 func TestWriteEffects_EmptySectionRendersNothingToLine(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Plan("branches")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -202,7 +202,7 @@ func TestWriteEffects_EmptySectionRendersNothingToLine(t *testing.T) {
 func TestWriteEffects_EmptySectionWithKnownVerb(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	branches := out.Task("branches")
 	branches.Delete(0, "local branches")
 	branches.Done()

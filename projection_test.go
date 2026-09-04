@@ -10,7 +10,7 @@ import (
 
 func TestOUT021_DataProjectionOption(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&primary),
 		evo.Diagnostics(&diag),
 		evo.DataProjection(),

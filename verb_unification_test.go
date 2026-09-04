@@ -15,7 +15,7 @@ import (
 // existed on only one or two of the three.
 func TestVerbVocabulary_UnifiedAcrossTaskChangesPlan(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Task("cleanup").Add(2, "worktree")
 

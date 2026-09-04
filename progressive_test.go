@@ -13,7 +13,7 @@ import (
 // Spec §1 defining interaction + §17.5 "render immediately for terminal outcomes".
 func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	a := out.Task("working tree")
@@ -69,7 +69,7 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 
 func TestProgressive_LineStreamsImmediately(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Println("Dry-run: no changes will be made.")
@@ -81,7 +81,7 @@ func TestProgressive_LineStreamsImmediately(t *testing.T) {
 
 func TestProgressive_NoDoublePrintOnFinish(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("once").Done()
 	_ = out.Finish()
@@ -105,7 +105,7 @@ func TestProgressive_NoDoublePrintOnFinish(t *testing.T) {
 func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var primary bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&primary),
 		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.NoColor(),
@@ -147,7 +147,7 @@ func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 
 func TestProgressive_DebugStreamsOnce(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Debug("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
 	before := buf.String()
@@ -162,7 +162,7 @@ func TestProgressive_DebugStreamsOnce(t *testing.T) {
 
 func TestProgressive_ColorOnImmediateResolve(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}}) // color on
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain()}}) // color on
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("working tree").Done()
 	if !strings.Contains(buf.String(), "\x1b[32m") {
@@ -180,7 +180,7 @@ func TestProgressive_FlushesBufferedWriters(t *testing.T) {
 	// bytes.Buffer has no Flush; use a thin flusher wrapper.
 	var inner bytes.Buffer
 	w := &flushBuffer{Buffer: &inner}
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(w), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(w), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("a").Done()

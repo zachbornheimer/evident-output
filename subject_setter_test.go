@@ -13,7 +13,7 @@ import (
 // Config.Subject — same one-shot durable-line semantics.
 func TestOutput_Subject_PostInitSetter(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor()}})
 
 	out.Subject("/repos/bpp-csharp")
 

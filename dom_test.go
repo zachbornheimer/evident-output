@@ -9,7 +9,7 @@ import (
 )
 
 func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	item := out.Task("working tree")
 	item.Done()
@@ -19,7 +19,7 @@ func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
 }
 
 func TestDOM039_ChangesPlusFailure(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("deps"), evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("deps"), evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Changes("deps").Added(1, "package")
 	out.Task("install").Fail("disk full")
@@ -43,7 +43,7 @@ func TestDOM039_ChangesPlusFailure(t *testing.T) {
 // untested.
 
 func TestDOM043_FinishTwice(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("x").Done()
 	if err := out.Finish(); err != nil {
@@ -55,7 +55,7 @@ func TestDOM043_FinishTwice(t *testing.T) {
 }
 
 func TestAPI001_MinimalItemExample(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo")}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("repo")}})
 	defer func() { _ = out.Close() }()
 	out.Task("working tree").Done()
 	out.Task("branches").Block("local-only")
@@ -66,7 +66,7 @@ func TestAPI001_MinimalItemExample(t *testing.T) {
 }
 
 func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("acct"), evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("acct"), evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Plan("delete").Delete(1, "thing")
 	_ = out.Finish()
@@ -75,7 +75,7 @@ func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
 }
 
 func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	w := out.Task("w")
 	w.Warn("soft")
@@ -90,7 +90,7 @@ func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
 }
 
 func TestDOM012_NextActionAfterResolve(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	it := out.Task("x")
 	it.Block("b")
@@ -104,7 +104,7 @@ func TestDOM012_NextActionAfterResolve(t *testing.T) {
 // never-touched task with no problems, on a clean finish, reads as an honest
 // Partial outcome (Conclusion.Partial), never misuse — Finish returns nil.
 func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("hanging")
 	if err := out.Finish(); err != nil {
@@ -116,7 +116,7 @@ func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
 }
 
 func TestDOM044_CloseTwice(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	out.Task("x").Done()
 	if err := out.Close(); err != nil {
 		t.Fatal(err)
@@ -127,7 +127,7 @@ func TestDOM044_CloseTwice(t *testing.T) {
 }
 
 func TestDOM045_EmptyOutput(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

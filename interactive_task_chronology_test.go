@@ -19,7 +19,7 @@ import (
 // immediately, before any later Println's own durable write.
 func TestInteractive_ResolvedTaskCommitsBeforeLaterPrintln(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("working tree").Done()

@@ -14,7 +14,7 @@ import (
 // "no args leaves name untouched" rule.
 func TestDone_LiteralPercentSurvivesWithoutArgs(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Task("cache").Done("50% cached")
 	_ = out.Finish()
@@ -29,7 +29,7 @@ func TestDone_LiteralPercentSurvivesWithoutArgs(t *testing.T) {
 // no separate Donef.
 func TestDone_FormatsWithArgs(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Task("install").Done("%d packages", 18)
 	_ = out.Finish()
@@ -43,7 +43,7 @@ func TestDone_FormatsWithArgs(t *testing.T) {
 // works exactly like the old zero-arg convenience call.
 func TestDone_NoArgs_NoSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.Task("build").Done()
 	_ = out.Finish()

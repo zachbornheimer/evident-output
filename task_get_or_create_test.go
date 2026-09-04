@@ -16,7 +16,7 @@ import (
 // name already in use produced a ledger with a duplicate row instead of one
 // live handle).
 func TestOutputTask_SameNameGetsOrCreates(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	first := out.Task("gate.ready")
@@ -39,7 +39,7 @@ func TestOutputTask_SameNameGetsOrCreates(t *testing.T) {
 // shape: two call sites declare the same name under the same explicit
 // evo.ID. That must resolve to the one live handle, not ErrDuplicateKey.
 func TestOutputTask_SameNameSameID_GetsOrCreates(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	first := out.Task("ready", evo.ID("gate.ready"))
@@ -57,7 +57,7 @@ func TestOutputTask_SameNameSameID_GetsOrCreates(t *testing.T) {
 // invariant: reusing one explicit evo.ID under two different names is a real
 // identity conflict, not a get-or-create — ErrDuplicateKey must still fire.
 func TestOutputTask_DifferentNameSameID_StillDuplicateKey(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("a", evo.ID("same"))

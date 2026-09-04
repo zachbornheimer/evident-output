@@ -16,7 +16,7 @@ import (
 // decorative "└─" connector may still be dim.
 func TestPlain_FailedTaskSummaryAndEvidenceFullIntensity(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain()}})
 
 	task := out.Task("branches")
 	task.Fail("could not delete", evo.Detail("permission denied: origin/main"))

@@ -12,7 +12,7 @@ import (
 // TestConfirm_Yes_ResolvesOKAndReturnsTrue is red-first against the "confirm
 // gate" default (evo-rec.md): "y" answers OK the gate and return true.
 func TestConfirm_Yes_ResolvesOKAndReturnsTrue(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Stdin(strings.NewReader("y\n"))}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Stdin(strings.NewReader("y\n"))}})
 
 	if ok := out.Confirm("delete origin/production-hotfix?"); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
@@ -33,7 +33,7 @@ func TestConfirm_Yes_ResolvesOKAndReturnsTrue(t *testing.T) {
 // TestConfirm_No_ResolvesBlockedDeclinedAndExitsOne proves a human "n" is a
 // decline (Blocked, exit 1) — never a Failed row, never exit 2.
 func TestConfirm_No_ResolvesBlockedDeclinedAndExitsOne(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Stdin(strings.NewReader("n\n"))}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Stdin(strings.NewReader("n\n"))}})
 
 	if ok := out.Confirm("delete origin/production-hotfix?"); ok {
 		t.Fatal("Confirm(\"n\") = true, want false")
@@ -60,7 +60,7 @@ func TestConfirm_No_ResolvesBlockedDeclinedAndExitsOne(t *testing.T) {
 // TestConfirm_EmptyAnswer_Declines proves an empty line (bare Enter) declines
 // exactly like an explicit "n" — never blocks, never succeeds.
 func TestConfirm_EmptyAnswer_Declines(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Stdin(strings.NewReader("\n"))}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Stdin(strings.NewReader("\n"))}})
 
 	if ok := out.Confirm("proceed?"); ok {
 		t.Fatal("Confirm(\"\") = true, want false")
@@ -79,7 +79,7 @@ func TestConfirm_EmptyAnswer_Declines(t *testing.T) {
 // round 4 finding 6): the reader was told nothing arrived, not that a
 // deliberate policy refused the prompt.
 func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Stdin(strings.NewReader(""))}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Stdin(strings.NewReader(""))}})
 
 	if ok := out.Confirm("proceed?"); ok {
 		t.Fatal("Confirm(EOF) = true, want false")
@@ -101,7 +101,7 @@ func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 // TestConfirm_AssumeYes_SkipsPromptAndReadsNothing proves --yes never touches
 // stdin and resolves OK "assumed --yes" without reading a line.
 func TestConfirm_AssumeYes_SkipsPromptAndReadsNothing(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Stdin(&panicReader{t: t})}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Stdin(&panicReader{t: t})}})
 
 	if ok := out.Confirm("delete origin/production-hotfix?", evo.AssumeYes(true)); !ok {
 		t.Fatal("Confirm with AssumeYes(true) = false, want true")
@@ -119,7 +119,7 @@ func TestConfirm_AssumeYes_SkipsPromptAndReadsNothing(t *testing.T) {
 // non-interactive run without --yes never blocks waiting on stdin: the gate
 // resolves Blocked "blocked by policy" with a Next hint, immediately.
 func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(io.Discard),
 		evo.Plain(),
 		evo.Stdin(&panicReader{t: t}),
@@ -146,7 +146,7 @@ func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) 
 // hardcoded "--yes" hint: without PolicyHint, the policy block still points
 // at --yes (today's behavior, unchanged by the strict-widening option).
 func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(io.Discard),
 		evo.Plain(),
 		evo.Stdin(&panicReader{t: t}),
@@ -165,7 +165,7 @@ func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
 // clean-repo's --apply) must see its own flag in the policy-block hint, not
 // the hardcoded "--yes" text.
 func TestConfirm_NonInteractive_PolicyHint_OverridesDefaultYesHint(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(io.Discard),
 		evo.Plain(),
 		evo.Stdin(&panicReader{t: t}),
@@ -192,7 +192,7 @@ func TestConfirm_NonInteractive_PolicyHint_OverridesDefaultYesHint(t *testing.T)
 // waiting on a human").
 func TestConfirm_QuiescesLiveRegion_NoFramesBetweenPromptAndAnswer(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen),
 		evo.VisibilityDelay(0),
 		evo.Stdin(strings.NewReader("y\n")),
@@ -239,7 +239,7 @@ func TestConfirm_QuiescesLiveRegion_NoFramesBetweenPromptAndAnswer(t *testing.T)
 // glyph vocabulary.
 func TestConfirm_Blocked_RendersBlockedGlyph(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Stdin(strings.NewReader("n\n"))}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Stdin(strings.NewReader("n\n"))}})
 
 	out.Confirm("delete origin/production-hotfix?")
 	if err := out.Finish(); err != nil {

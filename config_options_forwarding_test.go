@@ -14,8 +14,10 @@ import (
 func TestInit_OptionsPath_HonorsDryRun(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
-		DryRun:  true,
-		Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()},
+
+		Isolated: true,
+		DryRun:   true,
+		Options:  []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()},
 	})
 
 	out.Task("cleanup").Delete(2, "stale local branch")
@@ -35,8 +37,10 @@ func TestInit_OptionsPath_HonorsDryRun(t *testing.T) {
 func TestInit_OptionsPath_HonorsSubject(t *testing.T) {
 	var buf bytes.Buffer
 	evo.Init(evo.Config{
-		Subject: "bpp-csharp",
-		Options: []evo.Option{evo.To(&buf), evo.NoColor()},
+
+		Isolated: true,
+		Subject:  "bpp-csharp",
+		Options:  []evo.Option{evo.To(&buf), evo.NoColor()},
 	})
 
 	if !strings.Contains(buf.String(), "bpp-csharp") {

@@ -13,7 +13,7 @@ import (
 func TestPORT006_TermDumbLikeNonInteractive(t *testing.T) {
 	// Simulate TERM=dumb by NonInteractive + Plain (no cursor).
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("t").Phase("x").Done("ok")
 	_ = out.Finish()
@@ -27,7 +27,7 @@ func TestPORT_NO_COLOREnvHonoredViaOption(t *testing.T) {
 	_ = os.Setenv("NO_COLOR", "1")
 	t.Cleanup(func() { _ = os.Unsetenv("NO_COLOR") })
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("x").Done()
 	_ = out.Finish()
@@ -38,7 +38,7 @@ func TestPORT_NO_COLOREnvHonoredViaOption(t *testing.T) {
 
 func TestTERM011_WidthZeroFallsBackSafely(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.Width(0)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.Width(0)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Changes("c").Added(1, "x")
 	_ = out.Finish()
@@ -49,7 +49,7 @@ func TestTERM011_WidthZeroFallsBackSafely(t *testing.T) {
 
 func TestTERM012_SmallHeightBudget(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(4), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
 	col := out.Tasks("g")
 	for i := 0; i < 20; i++ {
@@ -63,7 +63,7 @@ func TestTERM012_SmallHeightBudget(t *testing.T) {
 }
 
 func TestTERM017_NestedSuspendRejectedOrSafe(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(bytes.NewBuffer(nil)), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(bytes.NewBuffer(nil)), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
 	err := out.Suspend(func() error {
 		return out.Suspend(func() error { return nil })

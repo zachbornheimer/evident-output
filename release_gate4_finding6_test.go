@@ -19,7 +19,7 @@ func TestConfirm_ZeroByteEOF_SummaryDistinctFromNoTTYPolicyBlock(t *testing.T) {
 	// no-TTY policy block before stdin is ever read, which is a different
 	// code path from the EOF this test targets (Output.Confirm's Resolution
 	// list — "No TTY / NonInteractive / plain" vs "zero-byte EOF").
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader(""))}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader(""))}})
 
 	if ok := out.Confirm("proceed?"); ok {
 		t.Fatal("Confirm(EOF) = true, want false")

@@ -33,7 +33,7 @@ func TestInteractive_DualStreamDebugTailReachesLiveTerminal(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var primary, diagnostics bytes.Buffer
 
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen), evo.To(&primary), evo.Diagnostics(&diagnostics),
 		evo.VisibilityDelay(0), evo.NoColor(),
 		evo.DebugLevel(evo.LevelDebug), evo.DebugPane(),

@@ -18,7 +18,7 @@ import (
 // rules).
 func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 
 	running := out.Task("download")
 	running.Phase("fetching")

@@ -18,7 +18,7 @@ import (
 // asserting only the Conclusion struct let this regress silently).
 func TestFinish_AbandonedEachLoop_RendersPartialModifierOnBand(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	items := []string{"one", "two", "three"}
 	for range out.Task("install").Each(items) {

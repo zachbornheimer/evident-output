@@ -9,7 +9,7 @@ import (
 
 func TestSEC001_ItemNameNeutralizesESC(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("evil\x1b[31mred").Done()
@@ -23,7 +23,7 @@ func TestSEC001_ItemNameNeutralizesESC(t *testing.T) {
 
 func TestSEC001_DonefAndCommandSanitize(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("t")

@@ -11,7 +11,7 @@ import (
 
 func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("librarian"),
 		evo.To(&buf),
 		evo.Plain(),
@@ -39,7 +39,7 @@ func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.
 
 func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("librarian"),
 		evo.To(&buf),
 		evo.Plain(),
@@ -58,7 +58,7 @@ func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) 
 
 func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("librarian"),
 		evo.To(&buf),
 		evo.Plain(),
@@ -82,7 +82,7 @@ func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("tool"),
 		evo.To(&buf),
 		evo.Plain(),
@@ -103,7 +103,7 @@ func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("tool"),
 		evo.To(&buf),
 		evo.Plain(),
@@ -122,7 +122,7 @@ func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("tool"),
 		evo.To(&buf),
 		evo.Plain(),
@@ -143,7 +143,7 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 }
 
 func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("tool"),
 		evo.To(io.Discard),
 	}})
@@ -164,7 +164,7 @@ func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
 
 func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("zq"),
 		evo.To(&buf),
 		evo.Plain(),
@@ -187,7 +187,7 @@ func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) 
 
 func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("database"),
 		evo.To(&buf),
 		evo.Plain(),
@@ -210,7 +210,7 @@ func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 
 func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("release v1.4"),
 		evo.To(&buf),
 		evo.Plain(),
@@ -230,7 +230,7 @@ func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_MultipleItems_KeepsAggregateConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Title("repository"),
 		evo.To(&buf),
 		evo.Plain(),

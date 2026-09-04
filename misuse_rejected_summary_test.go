@@ -17,7 +17,7 @@ import (
 // misuse line names what got ignored.
 func TestMisuse_AlreadyResolvedCarriesRejectedSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	task := out.Task("build")
 	task.Done("compiled")
@@ -41,7 +41,7 @@ func TestMisuse_AlreadyResolvedCarriesRejectedSummary(t *testing.T) {
 // finding 1's fix, and finding 4 governs its content).
 func TestMisuse_AlreadyResolvedCarriesRejectedSummary_Interactive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")

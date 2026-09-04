@@ -10,7 +10,7 @@ import (
 
 func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	g := out.Tasks("work")
@@ -45,7 +45,7 @@ func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 // started, evidence, overflow), never the current item.
 func TestLive_DeterminateProgressPhaseIsDefaultIntensity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24))
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("scan")

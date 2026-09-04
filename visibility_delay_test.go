@@ -11,7 +11,7 @@ import (
 func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen),
 		evo.Clock(clock),
 		evo.VisibilityDelay(150 * time.Millisecond),
@@ -43,7 +43,7 @@ func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 
 func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen),
 		evo.VisibilityDelay(0),
 		evo.NoColor(),
@@ -61,7 +61,7 @@ func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 
 func TestTask_AlonePaintsLiveWithZeroDelay(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen),
 		evo.VisibilityDelay(0),
 		evo.NoColor(),

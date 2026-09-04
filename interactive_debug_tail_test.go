@@ -19,7 +19,7 @@ import (
 // diagnostic tail on the interactive final render.
 func TestInteractive_DebugTailReachesLiveTerminal(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Options: []evo.Option{
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor(),
 		evo.DebugLevel(evo.LevelDebug), evo.DebugPane(),
 	}})

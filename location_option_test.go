@@ -10,7 +10,7 @@ import (
 // ProblemOption is renamed Location(...) — it no longer shares a name with
 // Output.At(visibility), which confused autocomplete and readers alike.
 func TestProblemLocation_SetsSourceLocation(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(nil)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(nil)}})
 	task := out.Task("lint")
 	task.Fail("syntax error", evo.Location("main.go", 12, 4))
 

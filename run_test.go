@@ -12,7 +12,7 @@ import (
 
 func TestMainWith_SuccessExitZero(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	code := out.Run(func(o *evo.Output) error {
 		o.Task("working tree").Done()
 		return nil
@@ -27,7 +27,7 @@ func TestMainWith_SuccessExitZero(t *testing.T) {
 
 func TestMainWith_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	code := out.Run(func(o *evo.Output) error {
 		o.Task("working tree").Block("dirty")
 		return nil
@@ -39,7 +39,7 @@ func TestMainWith_BlockedExitOne(t *testing.T) {
 
 func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	code := out.Run(func(o *evo.Output) error {
 		o.Task("x").Done()
 		return errors.New("app boom")
@@ -77,7 +77,7 @@ func TestMainWith_NilOutput(t *testing.T) {
 
 func TestAnyBlocked_BeforeMutate(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("gates"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("gates"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Task("a").Done()
 	out.Task("b").Block("policy")
 	if !out.AnyBlockedSoFar() {
