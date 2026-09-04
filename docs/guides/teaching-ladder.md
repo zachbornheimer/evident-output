@@ -33,7 +33,10 @@ func main() {
 }
 
 func run() error {
-    evo.Task("scan").Each(items)
+    for range evo.Task("scan").Each(items) {
+        // scan each item — no explicit Done needed: a completed Each loop
+        // auto-resolves Done at Finish, same as a recorded mutation effect.
+    }
     return nil
 }
 ```
@@ -86,7 +89,9 @@ ok := evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))
 ```
 
 Owns the whole gate: spinner pause, the `?` prompt, stdin. "n" resolves `⊘ declined`; non-TTY without
-`--yes` resolves `⊘ blocked by policy` — never a Go error, never Failed.
+`--yes` resolves `⊘ blocked by policy` — never a Go error, never Failed. `question` is the one
+non-printf exception on this ladder — it is literal text, not a format string, so build it with
+`fmt.Sprintf` first if it needs interpolation.
 
 ## Suspend (handing the tty to a child)
 
