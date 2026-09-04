@@ -31,9 +31,8 @@ work := out.Task("download", evo.ID("install.download"))      // work: driven th
 packages := out.DisplayGroup("packages")
 ```
 
-(Shipped v0.2.x code spelled the condition shape `Item` — folded into `Task`
-one entity, one constructor; `ItemHandle` is now a deprecated zero-cost
-alias of `TaskHandle`.)
+(Shipped v0.2.x code spelled the condition shape `Item` — folded into `Task`:
+one entity, one constructor. `ItemHandle` no longer exists; use `TaskHandle`.)
 
 ---
 
@@ -81,50 +80,52 @@ a wrapped error alone with an empty summary.
 
 ```go
 // Right
-item.Block("contains local changes", evo.Detail("stash or commit them"))
+task.Block("contains local changes", evo.Detail("stash or commit them"))
 return task.Failf("download failed: %w", err)
 
 // Wrong — user message only in the wrapped error, empty human summary
 return task.Failf(": %w", err)
 ```
 
-`evo.Cause` (a `ProblemOption` from before this split existed) is deprecated: it no longer
-affects the returned error since `Fail`/`Block` are statement-form.
+`evo.Cause` (a `ProblemOption` from before this split existed) is removed: `Fail`/`Block` are
+statement-form, so a wrapped error's diagnostic text flows through `Failf`'s trailing `%w`
+instead.
 
 ---
 
-## Plan vs Changes
+## Mutation verbs: planned vs changed
 
-| Construct   | Tense             | When                                       |
-| ----------- | ----------------- | ------------------------------------------ |
-| **Plan**    | Future / intended | Dry-run, proposed effects, not yet durable |
-| **Changes** | Past / durable    | Effects that happened (or were committed)  |
+| Tense             | When                                       |
+| ----------------- | ------------------------------------------ |
+| Future / intended | Dry-run, proposed effects, not yet durable |
+| Past / durable    | Effects that happened (or were committed)  |
+
+The caller reports the effect and runs its own callback; evo derives the ledger entry, tense,
+and `[planned]`/`[changed]` band from `Config.DryRun` — one call-site spelling, never a
+tense flip:
 
 ```go
-out.Plan("dependencies").
-    Add(14, "packages").
-    Remove(3, "packages")
-
-out.Changes("dependencies").
-    Added(14, "packages").
-    Removed(3, "packages")
+task.Delete("packages", func() error { return removePackages(ids) }, evo.Affected(3))
+task.Add("packages", func() error { return installPackages(ids) }, evo.Affected(14))
 ```
 
-RULE-005: dry-run uses Plan, never simulated Tasks. Completion uses Changes for durable effects.
+RULE-005: dry-run picks `[planned]` from `Config.DryRun`, never a simulated Task. Live picks
+`[changed]` the same way, from the same call site.
 
 ---
 
 ## RULE-001 — Domain verbs over generic verbs
 
-Use built-in Changes/Plan verbs only when they are the **real** domain verb.
+Use a mutation verb (`Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push`) only when it is the
+**real** domain verb; reach for `Record` when it isn't.
 
 ```go
 // Wrong — "Added" is not what happened
-changes.Added(1, "files placed")
+task.Add("files placed", func() error { return place(files) }, evo.Affected(1))
 
 // Right — Record the domain verb; object is the final grammatical object
-changes.Record("placed", n, noun(n, "file", "files"))
-changes.Record("offloaded", n, noun(n, "source", "sources"))
+task.Record("placed", n, noun(n, "file", "files"))
+task.Record("offloaded", n, noun(n, "source", "sources"))
 ```
 
 Evo does **not** own English pluralization (§15). Applications own `noun` helpers.
@@ -228,12 +229,12 @@ Per-file progress is added only when users need confidence during sufficiently l
 Both are valid:
 
 ```go
-task.Fail("tests failed", evo.Cause(err))
+task.Failf("tests failed: %w", err)
 return err
 ```
 
 ```go
-task.Fail("one expected operation failed", evo.Cause(err))
+task.Failf("one expected operation failed: %w", err)
 return nil
 ```
 

@@ -4,6 +4,7 @@
 # Repo structure
 !/.gitignore
 !/.prettierignore
+!/.prettierrc.json
 !/LICENSE
 !/NOTICE
 !/CHANGELOG.md

@@ -25,9 +25,7 @@ wrong or this doc is; file it either way.
 | **DisplayGroup** | Presentation-only collection of independent tasks (state is **derived**); concurrent Running children expected                                                                                              |
 | **Sequence**     | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both DisplayGroup and Sequence nest recursively via `.Sequence`/`.DisplayGroup`              |
 
-Multi-gate: resolve every Task, then `if out.AnyBlockedSoFar() { return nil }` before mutation; `Main` maps `ExitCode`.
-
-**Advanced (tooling call sites):** `Plan` / `Changes` are the instance-API primitives Task's mutation verbs (`Delete`/`Create`/`Update`/…) are built on — reach for them directly only when a tool needs the would/did split without a Task.
+Multi-gate: resolve every Task, tracking a local `blocked` bool at each `Block` call site, then `if blocked { return nil }` before mutation — `Output.Run`/`Conclusion` answer the same question once a run has finished, so no mid-run query is exported; `Main` maps `ExitCode`.
 
 ## Severity dialect
 
@@ -92,26 +90,26 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 
 ## Vocabulary
 
-| Type               | Meaning                                                                                                     |
-| ------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `Task`             | One operation — a named condition resolved directly (Done/Warn/Block/Fail/Skip) or work with phase/progress |
-| `DisplayGroup`     | Independent collection of tasks (state is **derived**)                                                      |
-| `Sequence`         | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                          |
-| `Problem`          | Structured evidence for warn / block / fail                                                                 |
-| `Changes` / `Plan` | Effects that happened vs would happen                                                                       |
-| `Conclusion`       | Headline + `Changed` / `Partial` / `Cancelled` + exit code                                                  |
-| `Main`             | Finish + Close + process exit code for CLI entrypoints                                                      |
+| Type           | Meaning                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `Task`         | One operation — a named condition resolved directly (Done/Warn/Block/Fail/Skip) or work with phase/progress          |
+| `DisplayGroup` | Independent collection of tasks (state is **derived**)                                                               |
+| `Sequence`     | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                                   |
+| `Problem`      | Structured evidence for warn / block / fail                                                                          |
+| Mutation verbs | `Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push` — effects that happened vs would happen, from one call site |
+| `Conclusion`   | Headline + `Changed` / `Partial` / `Cancelled` + exit code                                                           |
+| `Main`         | Finish + Close + process exit code for CLI entrypoints                                                               |
 
 Do **not** put schedulers, `RunAll`, retries, or shell execution in this library. Review rule **API-026** flags those helpers only on evo receivers (AST), not `strings.Map`.
 
 ## Status
 
 **Architecture spec:** [v0.5](architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).
-**Implemented surface:** ordinary ladder through Plan/Changes/Capture/slog/ResultWriter; interactive VT; hardened MCP; polish-phase docs under `docs/`. External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
+**Implemented surface:** ordinary ladder through mutation verbs/Capture/slog/ResultWriter; interactive VT; hardened MCP; polish-phase docs under `docs/`. External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 
 | Ready now                                                                                                                   | External / manual only                |
 | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| Task, DisplayGroup, Sequence, Changes, Plan, Print                                                                          | Windows ConPTY RC (PORT-003)          |
+| Task, DisplayGroup, Sequence, mutation verbs, Print                                                                         | Windows ConPTY RC (PORT-003)          |
 | Conclusion + exit codes + Cancel cleanup                                                                                    | tmux RC (PORT-004)                    |
 | Plain, JSON (§25.1), JSONL (§25.2)                                                                                          | SSH RC (PORT-005)                     |
 | Interactive live region (`testkit.Screen`)                                                                                  | Light/dark contrast review (A11Y-006) |

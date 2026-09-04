@@ -64,8 +64,8 @@ task.Bytes(24<<20, 80<<20) // byte progress — different measure
 ```
 
 ```go
-out.Item("credentials")  // condition
-out.Task("authenticate") // work
+out.Task("credentials")  // condition — resolved directly (Done/Warn/Block/Fail/Skip)
+out.Task("authenticate") // work — driven through Doing/Progress
 ```
 
 ### Rejected (false consolidation)
@@ -97,8 +97,8 @@ Advanced capabilities may exist without appearing in ordinary examples.
 ### Lead sheet (ordinary)
 
 ```text
-New(Config) → Main → Print/Verbose → Item/Task/Tasks
-→ Capture on Item or Task → Plan/Changes → slog → ResultWriter
+Init(Config) → Main → Print/Verbose → Task/Sequence/DisplayGroup
+→ Capture on Task → mutation verbs (Delete/Create/Update/…) → slog → ResultWriter
 ```
 
 ---
@@ -145,7 +145,7 @@ Sugar is forbidden when it:
 Defaults, examples, and ownership make correct behavior the path of least resistance.
 
 - Capture is silent on success.
-- `Cause` is diagnostic; `Detail` is user-facing.
+- An error flows through `Failf`'s trailing `%w`, diagnostic and redacted by policy; `Detail` is user-facing.
 - `Main` reconciles application errors before final rendering.
 - stdout data contracts remain uncontaminated.
 - concurrent Task declaration order is deterministic.

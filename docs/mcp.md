@@ -36,14 +36,14 @@ Call `evident_output_review` again after applying its suggested fixes — the re
 
 ## Install the binary (pinned)
 
-See the README install line for the current pinned tag (kept in sync by
-`mise run sync-release-pins`), or a client-specific copy-paste block under
-[`../integrations/`](../integrations/) — Claude Code, Codex, Grok, Gemini, opencode.
-
 ```bash
-mkdir -p "$HOME/.local/bin"
+GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.3
 "$HOME/.local/bin/evident-output-mcp" --version
 ```
+
+The pinned tag is kept in sync by `mise run sync-release-pins`. A
+client-specific copy-paste block lives under
+[`../integrations/`](../integrations/) — Claude Code, Codex, Grok, Gemini, opencode.
 
 Host configs must use an **absolute** command (or `${HOME}/…` where the host expands
 it). Bare `evident-output-mcp` fails when the agent process PATH omits `~/.local/bin`.

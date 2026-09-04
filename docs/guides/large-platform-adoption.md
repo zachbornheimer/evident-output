@@ -12,10 +12,11 @@ machine contract    → existing -status JSON / ResultWriter / schemas
 
 ## What to adopt first
 
-1. `New(Config{Title})` + `Main` or hosted Finish+Close
-2. Plan vs Changes for dry-run vs live
-3. Item for real gates; FailedBy for path-scoped evidence
-4. Capture on Task/Item for subprocesses
+1. `Init(Config{Title})` + `Main` or hosted `Output.Run`
+2. Mutation verbs (`Delete`/`Create`/`Update`/…) for dry-run vs live — `Config.DryRun` picks
+   `[planned]` vs `[changed]` at the same call site
+3. Task for real gates; `FailedBy`/`BlockedBy` for path-scoped evidence
+4. Capture on Task for subprocesses
 5. `ID` / `Scope` when structured consumers exist
 6. `Config.Redactor` before Capture/debug retention of secrets
 

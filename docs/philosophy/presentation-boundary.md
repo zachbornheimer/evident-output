@@ -69,7 +69,7 @@ callbacks := PlaceCallbacks{
 }
 ```
 
-Domain emits facts. Adapter maps facts onto Items/Tasks. Machine contracts stay on their own writers.
+Domain emits facts. Adapter maps facts onto Tasks. Machine contracts stay on their own writers.
 
 ---
 
@@ -98,37 +98,33 @@ json.NewEncoder(out.ResultWriter()).Encode(result)
 
 ```go
 func main() {
-    out := evo.New(evo.Config{Title: "install"})
-    os.Exit(evo.MainWith(out, run))
+    out := evo.Init(evo.Config{Title: "install", Isolated: true})
+    evo.MainWith(out, run)
 }
 ```
 
-`Main` is ordinary convenience for standalone tools, **not** a second product category and **not** a framework.
+`Main`/`MainWith` are ordinary convenience for standalone tools, **not** a second product category and **not** a framework — both exit the process themselves via an injectable facade.
 
 Lifecycle (authoritative; matches `run.go`):
 
 ```text
-run → reconcile run error into Fail if !AnyFailed → Finish → Close → exit code
+run → reconcile run error into Fail if nothing already failed → Finish → Close → exit code
 ```
 
 ### Hosted command boundary
 
-Frameworks and larger hosts own process death. They may own lifecycle explicitly.
-
-**Always `Close`, not only `Finish`.** `Main` does both; hosted code must too.
+Frameworks and larger hosts own process death. They may own lifecycle explicitly by calling
+`Output.Run` — the non-exiting counterpart `Main`/`MainWith` are both built on — instead of
+reconciling the run error and calling Finish/Close by hand.
 
 ```go
 func runCommand(cmd *cobra.Command) error {
-    out := evo.New(configFromCommand(cmd))
+    out := evo.Init(configFromCommand(cmd))
     defer func() { _ = out.Close() }()
 
-    runErr := run(cmd.Context(), out)
-    if runErr != nil && !out.AnyFailed() {
-        out.Fail("command failed", evo.Cause(runErr))
-    }
-    finishErr := out.Finish()
-    // Map Conclusion().ExitCode to ExitCoder / error if the host needs it.
-    return errors.Join(runErr, finishErr)
+    code := out.Run(func(o *Output) error { return run(cmd.Context(), o) })
+    // Map code (or out.Conclusion().ExitCode) to the host's own ExitCoder / error type.
+    return hostExitError(code)
 }
 ```
 
@@ -138,12 +134,12 @@ Do **not** call `os.Exit` inside library-owned packages. Optional: map `out.Conc
 
 ## Human vs machine contracts
 
-| Concern          | Surface                                                                |
-| ---------------- | ---------------------------------------------------------------------- |
-| Human prose      | `Print` / `Verbose` / rendered Items, Tasks, Plan, Changes, conclusion |
-| Diagnostics      | `slog` via `SlogHandler` (implementation detail, not human UI)         |
-| Machine identity | Stable IDs — not display labels (ARCH-003)                             |
-| Machine payload  | `ResultWriter` or app-owned schema; not the human render               |
+| Concern          | Surface                                                           |
+| ---------------- | ----------------------------------------------------------------- |
+| Human prose      | `Print` / `Verbose` / rendered Tasks, mutation ledger, conclusion |
+| Diagnostics      | `slog` via `SlogHandler` (implementation detail, not human UI)    |
+| Machine identity | Stable IDs — not display labels (ARCH-003)                        |
+| Machine payload  | `ResultWriter` or app-owned schema; not the human render          |
 
 Display labels may change. Stable IDs must not. Coalescing, plugin namespacing, structured consumers, and snapshot comparisons prefer **semantic identity** over normalized strings (ARCH-003). §15: no string-only semantic identity.
 
@@ -174,6 +170,6 @@ The renderer may cap visible rows. The application must not create and destroy s
 | Growing `Main` into flag parsing / subcommand routing                                 | Rejected (§15)                            |
 | Hosted: `defer Close` + `Finish` + map exit code                                      | Accepted                                  |
 | Hosted: only `Finish`, leak resources / skip Close                                    | Rejected                                  |
-| Human failure only in `slog`, no Item/Task Problem                                    | Rejected (see domain-vocabulary RULE-003) |
+| Human failure only in `slog`, no Task Problem                                         | Rejected (see domain-vocabulary RULE-003) |
 | Machine JSON on `ResultWriter`, human summary on presentation stream                  | Accepted                                  |
 | Mixing progress chrome into machine stdout                                            | Rejected                                  |

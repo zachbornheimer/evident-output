@@ -5,7 +5,7 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 ## Ladder
 
 ```text
-1. evo.Init(Config) + os.Exit(evo.Main(run)) — arms first paint, owns dry-run wording and exit codes
+1. evo.Init(Config) + evo.Main(run) — arms first paint, owns dry-run wording and exit codes
 2. Print / Printf / Println / Verbose
 3. Task — everything: a gate/condition resolved directly (Done/Warn/Block/Fail/Skip, no Doing/
    Progress) or work with phases, progress, or mutation verbs (Delete/Create/Update/…); Evidence
@@ -17,11 +17,10 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 8. Scope — namespaced IDs only
 9. slog via SlogHandler (Config.Debug.Level)
 10. Advanced: Config.Isolated + Output.Run (hosted instance), Config.Options (raw-Option escape
-    hatch), Plan/Changes (tooling call sites), terminal drivers, testkit, Suspend
+    hatch), terminal drivers, testkit, Suspend
 
-Plan/Changes (rung 11) demoted to advanced: Task's mutation verbs (Delete/Create/…) already pick
-[planned] vs [changed] from Config.DryRun on the ordinary path; Plan/Changes stay for tooling call
-sites that need the instance API directly.
+Task's mutation verbs (Delete/Create/…) pick [planned] vs [changed] from Config.DryRun on the
+ordinary path — no separate Plan/Changes call site exists to reach for.
 ```
 
 ## Standalone (package-level default instance)
@@ -29,7 +28,7 @@ sites that need the instance API directly.
 ```go
 func main() {
     evo.Init(evo.Config{Title: "tool"}) // first statement — arms first paint before any I/O
-    os.Exit(evo.Main(run))
+    evo.Main(run)                        // exits the process itself
 }
 
 func run() error {
@@ -46,11 +45,7 @@ func run() error {
 ```go
 out := evo.Init(evo.Config{Title: "tool", Isolated: true})
 defer func() { _ = out.Close() }()
-// … use out …
-if err != nil && !out.AnyFailed() {
-    out.Failf("command failed: %w", err)
-}
-return out.Finish()
+return out.Run(run) // reconciles a non-nil run error into Fail, then Finish + exit code
 ```
 
 ## House rules (short)
@@ -58,14 +53,14 @@ return out.Finish()
 | Rule     | Meaning                                                           |
 | -------- | ----------------------------------------------------------------- |
 | RULE-001 | Domain verbs: `Record("placed", n, noun(...))` not forced `Added` |
-| RULE-002 | No vanity Items that restate Plan/Changes                         |
-| RULE-003 | User failures → Item/Task Problems, not slog-only                 |
+| RULE-002 | No vanity Tasks that restate the mutation ledger                  |
+| RULE-003 | User failures → Task Problems, not slog-only                      |
 | RULE-004 | Predeclare concurrent Tasks before workers                        |
 | RULE-005 | Scale Task cardinality to product need                            |
 | RULE-006 | Capability ≠ obligation                                           |
 | PHIL-001 | One ordinary spelling per intent                                  |
 
-Batch elements are one Task with Progress+Doing (count + muted activity), not N Items.
+Batch elements are one Task with Progress+Doing (count + muted activity), not N Tasks.
 Use `TruncateNames` for a single skip/kept list when names must stay readable.
 
 See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.

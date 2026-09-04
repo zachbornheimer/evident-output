@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project has not reached 1.0 — pre-1.0 API breaks are called out explicitly
 below rather than deferred to a major version.
 
+## [0.4.3] — blank line before ledger, live-path glyph spacing
+
+### Fixed
+
+- **Blank line before the ledger** (fixture-repo-retire-dryrun.md): `Plain()`
+  and the progressive `Finish` path now separate the task block from the
+  `[changed]`/`[planned]` ledger with a blank line, matching the separation
+  the header already has.
+- **Live-path glyph gap**: `DisplayUnit.Render` (the live/interactive row
+  grammar) now uses the same single-space glyph-to-name gap the durable/plain
+  projection already uses, so mid-run and at-rest rows agree.
+
+## [0.4.2] — inline taxonomy tallies, single glyph-name spacing, annotation alignment
+
+### Fixed
+
+- **Inline Kept/Skipped taxonomy tallies**: `task.Kept`/`task.Skipped` tallies
+  now render inline on the task's own row (the unified annotation model
+  shared with `Warn`/`Fact`) instead of a separate nested line.
+- **Single-space glyph gap**: the glyph-to-name gap collapses from two spaces
+  to one everywhere a task/effect row renders.
+- **Aligned annotation columns**: sibling rows' inline annotations and ledger
+  verbs share one aligned text column via a one-cell margin.
+
+Verified byte-for-byte against a live `repo-retire clean --dry-run` capture.
+
 ## [0.4.1] — dry-run header spacing, trailing-band suppression, census
 
 ### Fixed

@@ -98,6 +98,9 @@ the state, not a state of their own.
 - [`docs/reference.md`](docs/reference.md) — construction, config, lifecycle, severity dialect, evidence capture, platform adapters, vocabulary
 - [`docs/development.md`](docs/development.md) — mise commands, conformance suite, examples ladder, CLI, machine output, production ANSI driver, testkit
 - [`docs/mcp.md`](docs/mcp.md) — the `evident-output-mcp` stdio server (Grok, Claude Code, Codex, …)
+- [`docs/guides/teaching-ladder.md`](docs/guides/teaching-ladder.md) — the ordinary-surface learning order
+- [`docs/guides/large-platform-adoption.md`](docs/guides/large-platform-adoption.md) — guidance for Docker-/npm-/Homebrew-scale CLIs
+- [`docs/adoption/librarian.md`](docs/adoption/librarian.md) — a real adoption case study, with what was and wasn't validated
 - [`docs/roadmap/implementation-basis.md`](docs/roadmap/implementation-basis.md), [`docs/philosophy/`](docs/philosophy/) — design philosophy
 - [`docs/architecture/COMPLETENESS_MATRIX.md`](docs/architecture/COMPLETENESS_MATRIX.md) — §31 requirement coverage
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — DCO sign-off, red test → green → refactor, small conventional commits

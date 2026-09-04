@@ -85,7 +85,7 @@ go get github.com/zachbornheimer/evident-output@v0.4.3
 
 - `docs/philosophy/jazz-syntax.md` — one spelling per intent
 - `docs/philosophy/presentation-boundary.md` — presentation ≠ execution
-- `docs/philosophy/domain-vocabulary.md` — Task/Plan/Changes/Detail/Failf evidence
+- `docs/philosophy/domain-vocabulary.md` — Task/mutation verbs/Detail/Failf evidence
 - `docs/guides/teaching-ladder.md` — ordinary learning order
 - `docs/roadmap/implementation-basis.md` — polish-phase authority
 
@@ -93,9 +93,9 @@ go get github.com/zachbornheimer/evident-output@v0.4.3
 
 ```text
 evo.Init(Config) → Print/Printf/Println → Verbose()
-→ Task / Tasks → Task.Evidence() + DetailTail
-→ Plan / Changes (domain verbs via Record when needed)
-→ slog via SlogHandler → os.Exit(evo.Main(run))
+→ Task / Sequence / DisplayGroup → Task.Evidence() + DetailTail
+→ mutation verbs (Delete/Create/Update/… via Record when the domain verb differs)
+→ slog via SlogHandler → evo.Main(run)
 ```
 
 Prefer **contracts over sugar**: plain `Task` labels first; `evo.ID` when machine keys matter; `Taskf` only when the label must embed a value.
@@ -104,7 +104,7 @@ Prefer **contracts over sugar**: plain `Task` labels first; `evo.ID` when machin
 
 ```go
 evo.Init(evo.Config{Title: "tool"})
-os.Exit(evo.Main(run))
+evo.Main(run) // exits the process itself
 ```
 
 `evo.Init(Config{Isolated: true})` + `out.Run(run)` are the advanced, hosted-instance

@@ -37,6 +37,7 @@ func main() {
 
 	var paths []string
 	paths = append(paths, filepath.Join(root, "README.md"))
+	paths = append(paths, filepath.Join(root, "docs", "mcp.md"))
 	for _, dir := range []string{"skills", "integrations"} {
 		_ = filepath.WalkDir(filepath.Join(root, dir), func(path string, d os.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
