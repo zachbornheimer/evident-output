@@ -675,12 +675,17 @@ func conclusionBandTag(c Conclusion) string {
 }
 
 func writeConclusion(b *strings.Builder, c Conclusion, color bool, profile GlyphProfile) {
-	subject := c.Subject
-	if subject == "" {
-		subject = string(c.State)
-	}
 	tag := style(conclusionBandTag(c), conclusionColor(c.State), color)
-	fmt.Fprintf(b, "\n%s  %s\n", tag, style(subject, sgrBold, color))
+	// A bare Subject that equals the headline state word itself ("changed",
+	// "failed", ...) says nothing the bracketed tag hasn't already said — it
+	// is what an unconfigured Config.Title falls back to, not a caller's
+	// chosen subject, so printing it stutters the band ("[changed]  changed",
+	// release-gate round 10 finding 1). Suppress it instead of repeating it.
+	if c.Subject != "" && c.Subject != string(c.State) {
+		fmt.Fprintf(b, "\n%s  %s\n", tag, style(c.Subject, sgrBold, color))
+	} else {
+		fmt.Fprintf(b, "\n%s\n", tag)
+	}
 	if c.Explanation != "" {
 		fmt.Fprintf(b, "  %s\n", c.Explanation)
 	}
