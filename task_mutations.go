@@ -61,13 +61,31 @@ func (t *TaskHandle) Push(object string, call func() error, opts ...EffectOption
 // a dry run, never when call is nil), then record the resulting effect as
 // committed (Changes) or planned (Plan) depending on the run mode — never
 // both, and never anything at all on a call error.
+//
+// The ledger target resolves exactly once, before call runs (E2.5 finding
+// 5): re-resolving afterward — separately re-locking and re-checking whether
+// the task is still open — created a window where a concurrent Done racing
+// call's execution would see the task already terminal and silently drop
+// the effect call just committed as spurious misuse. subject/dryRun are
+// captured once and carried straight into recordResolvedMutation.
 func (t *TaskHandle) mutate(verb, object string, call func() error, opts []EffectOption) error {
 	if t == nil || t.out == nil {
-		return nil
+		// A nil handle or a handle whose Output is already gone is caller
+		// misuse, not a silent no-op (E2.5 finding 2): the caller must never
+		// read a mutation verb's nil error as "it ran."
+		return ErrClosed
 	}
-	_, dryRun, ok := t.out.resolveLedgerTarget(t.id)
-	if !ok {
-		return nil
+	eo := applyEffectOptions(opts)
+	if eo.hasQty && eo.quantity < 0 {
+		// A negative Affected count can never be a real effect quantity
+		// (E2.5 finding 4) — caller misuse, recorded and nothing else
+		// touched (no call, no ledger section).
+		t.out.recordMisuse(ErrInvalidConfig)
+		return ErrInvalidConfig
+	}
+	subject, dryRun, err := t.out.resolveLedgerTarget(t.id)
+	if err != nil {
+		return err
 	}
 	if !dryRun && call != nil {
 		// P5 concurrency truth: a mutation-verb callback starting counts as
@@ -80,8 +98,16 @@ func (t *TaskHandle) mutate(verb, object string, call func() error, opts []Effec
 			return callerEffectError(err)
 		}
 	}
-	eo := applyEffectOptions(opts)
-	t.out.recordMutation(t.id, verb, int64(eo.quantity), eo.hasQty, object)
+	if eo.hasQty && eo.quantity == 0 {
+		// Affected(0): nothing happened, so there is nothing to plan or
+		// declare (E2.5 finding 4) — declaring an empty section here is
+		// exactly the "[planned] repo-retire" phantom-row bug the fixture
+		// reports. Scoped to the Affected-quantity mutation-verb boundary
+		// only: Record's own zero-quantity contract (evo-rec.md Problem 18's
+		// "nothing to <verb> <subject>" empty-section grammar) is untouched.
+		return nil
+	}
+	t.out.recordResolvedMutation(subject, dryRun, verb, int64(eo.quantity), eo.hasQty, object)
 	return nil
 }
 
@@ -99,10 +125,16 @@ func callerEffectError(err error) error {
 }
 
 // Record records an arbitrary imperative verb/quantity/object mutation
-// directly, bypassing the call/dry-run boundary the named verbs enforce —
-// the low-level primitive the named verbs (and the conformance goldens)
-// share.
+// directly, resolving the target task's dry-run status the same way the
+// named verbs do (it does not bypass Plan/Changes routing — only the
+// call/error boundary the named verbs wrap around an executed callback).
+// The low-level primitive the named verbs (and the conformance goldens)
+// share. Nil-safe: a nil TaskHandle, or one whose Output is already gone,
+// records nothing instead of panicking.
 func (t *TaskHandle) Record(verb string, quantity int, object string) {
+	if t == nil || t.out == nil {
+		return
+	}
 	t.out.recordMutation(t.id, verb, int64(quantity), true, object)
 }
 
@@ -112,51 +144,75 @@ func (t *TaskHandle) Record(verb string, quantity int, object string) {
 // than an imperative action, so it is never conjugated to past tense, and
 // it never moves under [planned] during DryRun — classifying/observing
 // already happened whether or not other mutations on this run are a dry
-// run.
+// run. Nil-safe: see Record.
 func (t *TaskHandle) RecordLabel(label string, quantity int, object string) {
+	if t == nil || t.out == nil {
+		return
+	}
 	t.out.recordClassification(t.id, label, int64(quantity), object)
 }
 
 // RecordName records an arbitrary imperative verb and one named object
 // without a quantity. Quantity is for collapsed counts; RecordName is one
-// named object.
+// named object. Nil-safe: see Record.
 func (t *TaskHandle) RecordName(verb, object string) {
+	if t == nil || t.out == nil {
+		return
+	}
 	t.out.recordMutation(t.id, verb, 0, false, object)
 }
 
 // resolveLedgerTarget resolves the task named by taskID and reports the
 // ledger subject it mutates into (its own name) plus whether this run is a
-// dry run — the shared guard (open, not yet resolved) behind both
-// recordMutation and recordClassification. ok is false when the caller
-// should record nothing further (misuse already recorded, or the task no
-// longer exists).
-func (o *Output) resolveLedgerTarget(taskID string) (subject string, dryRun bool, ok bool) {
+// dry run — the shared guard (open, not yet resolved) behind
+// TaskHandle.mutate, recordMutation, and recordClassification. err is
+// non-nil (already recorded as misuse where the cause is not simply "the
+// task no longer exists") when the caller should record nothing further.
+func (o *Output) resolveLedgerTarget(taskID string) (subject string, dryRun bool, err error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	st := o.taskByRef[taskID]
 	if st == nil {
-		return "", false, false
+		return "", false, ErrClosed
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return "", false, false
+		return "", false, err
 	}
 	if core.IsTerminalTask(st.state) {
 		o.recordMisuseFor(st.name, ErrAlreadyResolved)
-		return "", false, false
+		return "", false, ErrAlreadyResolved
 	}
-	return st.name, o.cfg.dryRun, true
+	return st.name, o.cfg.dryRun, nil
 }
 
 // recordMutation resolves the task named by taskID, then forwards verb to
-// the Plan (DryRun) or Changes (applied) section sharing the task's name,
-// conjugating verb to past tense for the applied ledger only.
+// the Plan (DryRun) or Changes (applied) section sharing the task's name —
+// the single-resolve entry point Record/RecordName use (their call carries
+// no callback, so there is no window for the double-resolve race
+// recordResolvedMutation's callers avoid; see TaskHandle.mutate).
 func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool, object string) {
-	subject, dryRun, ok := o.resolveLedgerTarget(taskID)
-	if !ok {
+	subject, dryRun, err := o.resolveLedgerTarget(taskID)
+	if err != nil {
 		return
 	}
+	o.recordResolvedMutation(subject, dryRun, verb, quantity, hasQty, object)
+}
 
+// recordResolvedMutation records verb/quantity/object into subject's Plan
+// (dryRun) or Changes (applied) ledger, conjugating verb to past tense for
+// the applied ledger only. Takes an already-resolved subject/dryRun pair
+// rather than re-resolving taskID itself (E2.5 finding 5): TaskHandle.mutate
+// resolves once, before running its call, and passes that result straight
+// through here — re-resolving after the call would re-open the terminal-task
+// check to a state a concurrent Done may have legitimately changed in the
+// meantime, dropping a real effect as spurious misuse. A zero-quantity
+// Affected() call never reaches here at all (TaskHandle.mutate returns
+// early, E2.5 finding 4) — Record's own zero-quantity call still does, and
+// keeps declaring its intended verb so an empty Record section still renders
+// evo-rec.md Problem 18's "nothing to <verb> <subject>" empty-section
+// grammar.
+func (o *Output) recordResolvedMutation(subject string, dryRun bool, verb string, quantity int64, hasQty bool, object string) {
 	if dryRun {
 		sec := o.planGetOrCreate(subject)
 		// Declare with the caller's imperative verb before Record runs, so a
@@ -185,8 +241,8 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 // always Changes, never Plan, and never conjugated (see
 // TaskHandle.RecordLabel).
 func (o *Output) recordClassification(taskID, label string, quantity int64, object string) {
-	subject, _, ok := o.resolveLedgerTarget(taskID)
-	if !ok {
+	subject, _, err := o.resolveLedgerTarget(taskID)
+	if err != nil {
 		return
 	}
 	sec := o.changesGetOrCreate(subject)
