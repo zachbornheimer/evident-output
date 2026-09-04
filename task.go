@@ -281,11 +281,30 @@ func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 func (t *TaskHandle) Failf(format string, args ...any) *Failure {
 	err := fmt.Errorf(format, args...)
 	summary, evidence := splitWrappedMessage(format, err)
-	p := sanitizeProblem(Problem{Summary: summary, Detail: evidence})
+	problem := Problem{Summary: summary, Detail: evidence}
+	t.attachRetainedEvidenceTail(&problem)
+	p := sanitizeProblem(problem)
 	if t != nil {
 		t.finish(Failed, summary, []Problem{p})
 	}
 	return newFailure(t, err)
+}
+
+// attachRetainedEvidenceTail attaches the task's own retained Evidence
+// (task.Run(cmd)/PhaseWriter/Evidence() capture) as the Problem's
+// EvidenceTail, the same precedence Evidence.DetailTail() already
+// documents: an existing Detail line — here, Failf/Blockf's own
+// wrapped-error text — still renders as the primary line, and the retained
+// evidence appends underneath rather than being silently dropped
+// (beginner-gate-2 finding 3). Failf/Blockf accept no ProblemOptions, so
+// this is the only way their call sites ever see the proof task.Run already
+// captured; a bare Fail/Block with no Detail still gets its own auto-attach
+// from finishTagged, unaffected by this.
+func (t *TaskHandle) attachRetainedEvidenceTail(p *Problem) {
+	if t == nil {
+		return
+	}
+	t.Evidence().DetailTail().applyProblem(p)
 }
 
 // Block resolves the task as blocked. This is a statement, not a fluent
@@ -305,7 +324,9 @@ func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
 	err := fmt.Errorf(format, args...)
 	summary, evidence := splitWrappedMessage(format, err)
-	p := sanitizeProblem(Problem{Summary: summary, Detail: evidence})
+	problem := Problem{Summary: summary, Detail: evidence}
+	t.attachRetainedEvidenceTail(&problem)
+	p := sanitizeProblem(problem)
 	if t != nil {
 		t.finish(Blocked, summary, []Problem{p})
 	}

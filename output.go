@@ -326,6 +326,27 @@ func (o *Output) hasRecordedEffectLocked(subject string) bool {
 	return false
 }
 
+// hasSealedProgress reports whether t's absolute progress reached the total
+// it declared — a completed Each/EachN/Progress loop — same unresolved-task
+// amnesty rationale as hasRecordedEffectLocked (beginner-gate-2 findings
+// 1/2). Total must be positive and the kind explicitly set (Determinate or
+// BytesKind): a task that never called Progress/Bytes/Each carries the zero
+// value (Total 0, Kind "") and must not read as sealed.
+func hasSealedProgress(t *taskState) bool {
+	if t.progress.Kind == "" || t.progress.Kind == Indeterminate {
+		return false
+	}
+	return t.progress.Total > 0 && t.progress.Completed >= t.progress.Total
+}
+
+// hasRecordedTaxonomy reports whether t accumulated any Skipped/Kept record
+// — same unresolved-task amnesty rationale as hasRecordedEffectLocked
+// (beginner-gate-2 finding 4): the disposition taxonomy already told an
+// honest, complete story even though nothing called a terminal verb.
+func hasRecordedTaxonomy(t *taskState) bool {
+	return len(t.skipped) > 0 || len(t.kept) > 0
+}
+
 // appendMisuseLineLocked renders the one required line naming the first
 // recorded misuse and, when known, the entity it happened on — an exit code
 // may never disagree with everything the caller saw printed (beginner-1).
@@ -1281,18 +1302,21 @@ func (o *Output) Finish() error {
 	// below would otherwise mark them Incomplete (and record misuse).
 	o.autoResolveGroupsLocked()
 
-	// Unresolved entities. A task with at least one recorded mutation-verb
-	// effect (Delete/Create/Update/...) and no problems of its own told an
+	// Unresolved entities. A task with no problems of its own told an
 	// honest, complete story already — the caller just never called a
-	// terminal verb — so the easiest path (forgetting Done) becomes correct
-	// instead of a surprising Cancelled/NotStarted plus a silent exit-code
-	// flip (beginner-1, I1). Anything else still reads as misuse, but now
-	// names the task so Finish can render it.
+	// terminal verb — whenever it also carries at least one of: a recorded
+	// mutation-verb effect (Delete/Create/Update/...), a sealed absolute
+	// progress (a completed Each/EachN/Progress loop reached its total), or
+	// recorded taxonomy (Skipped/Kept). The easiest path (forgetting Done)
+	// becomes correct instead of a surprising Cancelled/NotStarted plus a
+	// silent exit-code flip (beginner-1, I1; beginner-gate-2 findings 1/2/4).
+	// Anything else still reads as misuse, but now names the task so Finish
+	// can render it.
 	for _, t := range o.tasks {
 		if isTerminalTask(t.state) {
 			continue
 		}
-		if len(t.problems) == 0 && o.hasRecordedEffectLocked(t.name) {
+		if len(t.problems) == 0 && (o.hasRecordedEffectLocked(t.name) || hasSealedProgress(t) || hasRecordedTaxonomy(t)) {
 			t.state = Done
 			t.phase = ""
 			o.appendEventLocked(Event{Type: "task.done", EntityID: t.id})

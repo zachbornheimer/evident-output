@@ -40,7 +40,10 @@ const signalChannelCapacity = 2
 //   - SIGINT/SIGTERM → Cancel on the active task (or the output) → ExitCancelled (130)
 //   - a second SIGINT/SIGTERM → ExitCancelled (130) returned immediately, without
 //     waiting for run to unwind, so the caller's os.Exit(out.Run(...)) exits now
-//   - Finish or Close error → ExitFailed (2) when conclusion was OK/blocked
+//   - Finish or Close error → ExitFailed (2) only when the conclusion was OK
+//     (nothing else in the printed run signals a problem); a Blocked
+//     conclusion keeps ExitBlocked (1) — the documented "Block → exit 1"
+//     contract wins over a leftover bookkeeping misuse
 //   - otherwise Conclusion.ExitCode after reconciling run errors into Fail
 //
 // Config.FailedExitCode (when non-zero) overrides ExitFailed for a failed
@@ -122,10 +125,13 @@ func concludeRun(out *Output, runErr error) int {
 	finishErr := out.Finish()
 	closeErr := out.Close()
 	code := out.Conclusion().ExitCode
-	if finishErr != nil || closeErr != nil {
-		if code == ExitOK || code == ExitBlocked {
-			return ExitFailed
-		}
+	// A leftover bookkeeping misuse (finishErr/closeErr) only escalates the
+	// exit code when the conclusion otherwise read as OK — nothing else in
+	// the printed run would have signaled a problem. A Blocked conclusion
+	// already printed its own band; misuse must never silently override the
+	// documented "Block → exit 1" contract (beginner-gate-2 finding iii).
+	if (finishErr != nil || closeErr != nil) && code == ExitOK {
+		return ExitFailed
 	}
 	return code
 }

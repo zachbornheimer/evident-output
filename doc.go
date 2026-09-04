@@ -57,8 +57,9 @@
 //
 // Advanced surface, for testing and tooling call sites that need a hosted instance
 // instead of the package-level default: Config.Isolated returns an independent *Output
-// that never touches package state; Output.Run(run) seals it (this is what Main calls on
-// the default instance); Config.Options is the raw-Option escape hatch for exact writer/
+// that never touches package state; Output.Run(run func(*Output) error) seals it (the
+// hosted counterpart of Main's run func() error, called on the *Output itself instead
+// of the default instance); Config.Options is the raw-Option escape hatch for exact writer/
 // terminal/clock wiring. Plan/Changes for the would/did split without a Task, session
 // Evidence, terminal drivers, and testkit.
 package evo
