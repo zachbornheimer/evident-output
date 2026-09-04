@@ -111,7 +111,7 @@ func formatHistoryLine(rec debugRecord, color bool) string {
 		// (stateColor) — one severity vocabulary, not a second one invented
 		// for the debug journal (release-gate round 9 finding 3). Debug/Info
 		// keep the journal's existing cyan.
-		levelTok = style(levelTok, debugLevelColor(rec.Level), true)
+		levelTok = txt.Style(levelTok, debugLevelColor(rec.Level), true)
 	}
 	msg := txt.Text(rec.Message)
 	var body string
@@ -128,16 +128,16 @@ func formatHistoryLine(rec debugRecord, color bool) string {
 
 // debugLevelColor maps a journal record's level name to the SGR color its
 // level token renders with — LevelWarn and LevelError reuse stateColor's
-// Warning/Failed colors (sgrYellow/sgrRed); every other level (Debug, Info,
+// Warning/Failed colors (txt.SGRYellow/txt.SGRRed); every other level (Debug, Info,
 // Trace) keeps the journal's existing cyan.
 func debugLevelColor(level string) string {
 	switch level {
 	case "WARN":
-		return sgrYellow
+		return txt.SGRYellow
 	case "ERROR":
-		return sgrRed
+		return txt.SGRRed
 	default:
-		return sgrCyan
+		return txt.SGRCyan
 	}
 }
 
@@ -162,7 +162,7 @@ func formatHistoryAttrs(fields []Field) string {
 // same bracketed local-time grammar as formatHistoryLine; only the machine
 // LogRecord (slog.Record.PC, structured Fields) carries anything else.
 // color is always false here — the caller wraps the whole composed line in
-// dim() itself, so the level token is never colored underneath that wrap.
+// txt.Dim() itself, so the level token is never colored underneath that wrap.
 func formatLivePaneLine(rec debugRecord, columns int) string {
 	full := formatHistoryLine(rec, false)
 	if txt.VisibleCells(full) <= columns {
@@ -207,7 +207,7 @@ func writeDebugPane(b *strings.Builder, records []debugRecord, pane debugPaneCon
 		heading = debugPaneHeadingOldest
 	}
 	if color {
-		heading = dim(heading, true)
+		heading = txt.Dim(heading, true)
 	}
 	b.WriteByte('\n')
 	b.WriteString(heading)
@@ -217,7 +217,7 @@ func writeDebugPane(b *strings.Builder, records []debugRecord, pane debugPaneCon
 	for _, rec := range view {
 		line := formatLivePaneLine(rec, columns)
 		if color {
-			line = dim(line, true)
+			line = txt.Dim(line, true)
 		}
 		b.WriteString(line)
 		b.WriteByte('\n')
@@ -257,7 +257,7 @@ func writeDebugTail(b *strings.Builder, records []debugRecord, max int, color bo
 	}
 	heading := debugTailHeading
 	if color {
-		heading = dim(heading, true)
+		heading = txt.Dim(heading, true)
 	}
 	b.WriteByte('\n')
 	b.WriteString(heading)
@@ -266,7 +266,7 @@ func writeDebugTail(b *strings.Builder, records []debugRecord, max int, color bo
 	for _, rec := range view {
 		line := formatHistoryLine(rec, false)
 		if color {
-			line = dim(line, true)
+			line = txt.Dim(line, true)
 		}
 		b.WriteString(line)
 		b.WriteByte('\n')

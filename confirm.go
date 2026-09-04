@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Confirm gate summaries (§ evo-rec.md "confirm gate" default). One spelling
@@ -243,14 +245,14 @@ func (o *Output) writeConfirmPromptLocked(question string, destructive bool, det
 	if destructive {
 		text += "  (destructive)"
 	}
-	glyph := styleGlyph(glyphHumanInput.render(o.cfg.glyphs), sgrCyan, color)
+	glyph := txt.StyleGlyph(txt.GlyphHumanInput.Render(o.cfg.glyphs), txt.SGRCyan, color)
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s  %s  [y/N]\n", glyph, text)
 	for _, line := range detail {
 		if line == "" {
 			continue
 		}
-		fmt.Fprintf(&b, "  %s\n", dim(line, color))
+		fmt.Fprintf(&b, "  %s\n", txt.Dim(line, color))
 	}
 	o.writeDurableTextLocked(b.String())
 	o.mu.Unlock()

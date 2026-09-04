@@ -1,15 +1,19 @@
-package evo
+package render
 
-import "strings"
+import (
+	"strings"
 
-// shouldSuppressStandaloneConclusion implements DEC-COAL-* for human projection.
+	"github.com/zachbornheimer/evident-output/internal/core"
+)
+
+// ShouldSuppressStandaloneConclusion implements DEC-COAL-* for human projection.
 //
-// Model and structured JSON always retain independent Conclusion + Plan/Changes.
+// Model and structured JSON always retain independent core.Conclusion + Plan/Changes.
 // Only the trailing human conclusion band may be omitted when it repeats a single
 // effect section with no extra visible information.
 //
 // See docs/decisions/conclusion-coalescing.md.
-func shouldSuppressStandaloneConclusion(s Snapshot) bool {
+func ShouldSuppressStandaloneConclusion(s core.Snapshot) bool {
 	if s.Conclusion == nil {
 		return false
 	}
@@ -29,7 +33,7 @@ func shouldSuppressStandaloneConclusion(s Snapshot) bool {
 
 	// Severity that is not pure planned/changed success.
 	switch c.State {
-	case StateChanged, StatePlanned, StateReady, StateUnchanged:
+	case core.StateChanged, core.StatePlanned, core.StateReady, core.StateUnchanged:
 		// candidates below
 	default:
 		// failed, blocked, warning, cancelled, partial, …
@@ -55,7 +59,7 @@ func shouldSuppressStandaloneConclusion(s Snapshot) bool {
 			return false
 		}
 		// Compatible: changed (or ready with Changed flag from changes presence).
-		return c.State == StateChanged || (c.State == StateReady && c.Changed) || c.State == StateUnchanged
+		return c.State == core.StateChanged || (c.State == core.StateReady && c.Changed) || c.State == core.StateUnchanged
 	}
 
 	// Exactly one Plan.
@@ -63,20 +67,20 @@ func shouldSuppressStandaloneConclusion(s Snapshot) bool {
 	if !sameSemanticSubject(p.Subject, p.ID, c.Subject, s.Subject) {
 		return false
 	}
-	return c.State == StatePlanned || c.State == StateReady || c.State == StateUnchanged
+	return c.State == core.StatePlanned || c.State == core.StateReady || c.State == core.StateUnchanged
 }
 
-func semanticResultCount(s Snapshot) int {
+func semanticResultCount(s core.Snapshot) int {
 	return len(s.Tasks) + len(s.Collections) + len(s.Changes) + len(s.Plans)
 }
 
-func shouldSuppressRepeatedCondition(s Snapshot, c Conclusion) bool {
+func shouldSuppressRepeatedCondition(s core.Snapshot, c core.Conclusion) bool {
 	if len(s.Changes)+len(s.Plans) != 0 || len(s.Tasks)+len(s.Collections) != 1 {
 		return false
 	}
 
 	var name string
-	var state EntityState
+	var state core.EntityState
 	switch {
 	case len(s.Tasks) == 1:
 		// I2: a library-synthesized task (Output.Failf/Cancel's "command"
@@ -96,23 +100,23 @@ func shouldSuppressRepeatedCondition(s Snapshot, c Conclusion) bool {
 	return subjectRepeatsCondition && conclusionRepeatsEntityState(c.State, state)
 }
 
-func conclusionRepeatsEntityState(conclusion ConclusionState, entity EntityState) bool {
+func conclusionRepeatsEntityState(conclusion core.ConclusionState, entity core.EntityState) bool {
 	switch entity {
-	case Done, Skipped, Empty:
-		return conclusion == StateReady
-	case Warning:
-		return conclusion == StateWarning
-	case Blocked:
-		return conclusion == StateBlocked
-	case Failed:
-		return conclusion == StateFailed
-	case Cancelled:
-		return conclusion == StateCancelled
-	case Pending, Running, Incomplete:
+	case core.Done, core.Skipped, core.Empty:
+		return conclusion == core.StateReady
+	case core.Warning:
+		return conclusion == core.StateWarning
+	case core.Blocked:
+		return conclusion == core.StateBlocked
+	case core.Failed:
+		return conclusion == core.StateFailed
+	case core.Cancelled:
+		return conclusion == core.StateCancelled
+	case core.Pending, core.Running, core.Incomplete:
 		// Partial is a completeness modifier now, not a headline state
 		// (conclusion.go); a lone unresolved entity concludes the same as
-		// an empty run — StateUnchanged — so that is what "repeats" it.
-		return conclusion == StateUnchanged
+		// an empty run — core.StateUnchanged — so that is what "repeats" it.
+		return conclusion == core.StateUnchanged
 	default:
 		return false
 	}
@@ -137,7 +141,7 @@ func sameSemanticSubject(sectionSubject, sectionID, conclusionSubject, outputSub
 	if out != "" && sec == out {
 		return true
 	}
-	// Conclusion subject often equals Config.Title while section uses same label.
+	// core.Conclusion subject often equals Config.Title while section uses same label.
 	return false
 }
 
@@ -145,16 +149,16 @@ func normalizeSubject(s string) string {
 	return strings.TrimSpace(strings.ToLower(s))
 }
 
-func hasIndependentConditionRows(s Snapshot) bool {
+func hasIndependentConditionRows(s core.Snapshot) bool {
 	for _, t := range s.Tasks {
 		switch t.State {
-		case Failed, Warning, Cancelled, Incomplete, Running, Pending:
+		case core.Failed, core.Warning, core.Cancelled, core.Incomplete, core.Running, core.Pending:
 			return true
 		}
 	}
 	for _, col := range s.Collections {
 		switch col.State {
-		case Failed, Warning, Cancelled, Incomplete, Running, Pending:
+		case core.Failed, core.Warning, core.Cancelled, core.Incomplete, core.Running, core.Pending:
 			return true
 		}
 	}

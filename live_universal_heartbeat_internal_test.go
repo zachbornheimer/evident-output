@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // fakeHeartbeatSurface is a minimal LiveSurface test double that records the
@@ -118,7 +120,7 @@ func TestLiveHeartbeat_RunningNoPhaseZeroTotalAnimates(t *testing.T) {
 // normal case) never animates the header, and it freezes on the derivedState
 // "-" (Incomplete) glyph instead.
 func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testing.T) {
-	spinnerFrame := func(now time.Time) string { return spinnerGlyph(now, GlyphsUnicode) }
+	spinnerFrame := func(now time.Time) string { return txt.SpinnerGlyph(now, GlyphsUnicode) }
 
 	t.Run("mixed done and pending", func(t *testing.T) {
 		drv := &fakeHeartbeatSurface{}

@@ -3,6 +3,8 @@ package evo
 import (
 	"strings"
 	"testing"
+
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // TestFormatHistoryLine_WarnErrorReuseEntityGlyphPalette is release-gate
@@ -17,10 +19,10 @@ func TestFormatHistoryLine_WarnErrorReuseEntityGlyphPalette(t *testing.T) {
 		level string
 		want  string
 	}{
-		{"DEBUG", sgrCyan},
-		{"INFO", sgrCyan},
-		{"WARN", sgrYellow},
-		{"ERROR", sgrRed},
+		{"DEBUG", txt.SGRCyan},
+		{"INFO", txt.SGRCyan},
+		{"WARN", txt.SGRYellow},
+		{"ERROR", txt.SGRRed},
 	}
 	for _, tc := range cases {
 		rec := debugRecord{Level: tc.level, Message: "m"}

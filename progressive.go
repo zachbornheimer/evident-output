@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
 )
 
 // Progressive emission implements the spirit of §1 (live becomes durable) and
@@ -104,7 +105,7 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 		return
 	}
 	var b strings.Builder
-	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
+	render.WriteTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
 	st.coreEmitted = true
 	if b.Len() == 0 {
 		return
@@ -196,7 +197,7 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 		st.plainProgressEmitted = st.progress.Completed
 	}
 	var b strings.Builder
-	writeTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
+	render.WriteTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
 	if b.Len() == 0 {
 		return
 	}
@@ -237,7 +238,7 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	var b strings.Builder
 
 	for i := linesFrom; i < len(snap.Lines); i++ {
-		writeDebugOrLine(&b, snap.Lines[i], color)
+		render.WriteDebugOrLine(&b, snap.Lines[i], color)
 	}
 
 	if includeEntities {
@@ -245,21 +246,21 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 			if t.collection != nil || t.coreEmitted {
 				continue
 			}
-			writeTask(&b, t.snapshot(), color, verbose, profile)
+			render.WriteTask(&b, t.snapshot(), color, verbose, profile)
 			t.coreEmitted = true
 		}
 		for _, col := range snap.Collections {
-			writeCollection(&b, col, color, verbose, profile)
+			render.WriteCollection(&b, col, color, verbose, profile)
 		}
 	}
 	for _, ch := range o.changes {
-		writeEffects(&b, "changed", ch.subject, ch.records, ch.intendedVerb, width, color, profile)
+		render.WriteEffects(&b, "changed", ch.subject, ch.records, ch.intendedVerb, width, color, profile)
 	}
 	for _, p := range o.plans {
-		writeEffects(&b, "planned", p.subject, p.records, p.intendedVerb, width, color, profile)
+		render.WriteEffects(&b, "planned", p.subject, p.records, p.intendedVerb, width, color, profile)
 	}
-	if snap.Conclusion != nil && !shouldSuppressStandaloneConclusion(snap) {
-		writeConclusion(&b, *snap.Conclusion, color, profile)
+	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {
+		render.WriteConclusion(&b, *snap.Conclusion, color, profile)
 	}
 	// Pane mode: optional diagnostic tail under final result (§21.3.2) — the
 	// default preserveOnBad path only ever fires when debugPaneActive is
@@ -318,15 +319,4 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 func (o *Output) residualInteractiveFinalLocked(snap Snapshot, linesFrom int) string {
 	text := o.residualCompositionLocked(snap, linesFrom, true)
 	return strings.TrimRight(text, "\n")
-}
-
-// writeDebugOrLine formats a stored line; dim history/pane debug grammar when color is on.
-func writeDebugOrLine(b *strings.Builder, line string, color bool) {
-	if strings.Contains(line, "[DEBUG]") || strings.Contains(line, " level=DEBUG ") {
-		b.WriteString(dim(line, color))
-		b.WriteByte('\n')
-		return
-	}
-	b.WriteString(line)
-	b.WriteByte('\n')
 }

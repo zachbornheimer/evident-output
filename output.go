@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -353,7 +354,7 @@ func (o *Output) DeclareDryRun() {
 // (writeDurableTextLocked) every other library-owned line uses.
 func (o *Output) emitDryRunMarkerLocked() {
 	var b strings.Builder
-	writeDryRunMarker(&b, !o.cfg.noColor)
+	render.WriteDryRunMarker(&b, !o.cfg.noColor)
 	o.writeDurableTextLocked(b.String())
 }
 
@@ -425,7 +426,7 @@ func hasRecordedTaxonomy(t *taskState) bool {
 // human stream gets told what to do next.
 func (o *Output) appendMisuseLineLocked() {
 	hint := misuseHintFor(o.misuse, o.misuseSubject, o.misuseRejectedSummary)
-	glyph := styleGlyph(misuseGlyph, sgrYellow, !o.cfg.noColor)
+	glyph := txt.StyleGlyph(misuseGlyph, txt.SGRYellow, !o.cfg.noColor)
 	o.lines = append(o.lines, fmt.Sprintf("%s  %s", glyph, hint))
 }
 
