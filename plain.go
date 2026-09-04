@@ -106,25 +106,62 @@ const (
 )
 
 func writeProblem(b *strings.Builder, p Problem, color bool, profile GlyphProfile) {
+	detail, tail := effectiveDetailAndTail(p)
 	if p.Subject != "" {
 		extra := p.Summary
 		if p.Count != 0 {
 			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
 		}
 		fmt.Fprintf(b, "%s%s %s  %s\n", problemTreeIndent, dim("├─", color), p.Subject, extra)
-		if p.Detail != "" {
-			writeProblemDetailLines(b, p.Detail, dim("│", color), color)
+		if detail != "" {
+			writeProblemDetailLines(b, detail, dim("│", color), color)
+		}
+		if tail != "" {
+			writeProblemDetailLines(b, tail, dim("│", color), color)
 		}
 		return
 	}
 	// Detail present: preserve multi-line body (P3). Summary heads the block only
 	// when the caller left it set — writeTask clears Summary when it already
 	// appears on the ✗ row so Detail alone is the evidence body (P4).
-	if p.Detail != "" {
-		writeProblemDetailBlock(b, p.Summary, p.Detail, color, profile)
+	if detail != "" {
+		writeProblemDetailBlock(b, p.Summary, detail, color, profile)
+		if tail != "" {
+			writeAdditionalEvidenceLines(b, tail, color)
+		}
 		return
 	}
 	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, dim(glyphEvidence.render(profile), color), p.Summary)
+}
+
+// effectiveDetailAndTail resolves a Problem's Detail and EvidenceTail into
+// the pair actually rendered: an explicit Detail always renders (never
+// silently discarded by an auto-attached or explicitly requested evidence
+// tail), and a distinct EvidenceTail renders as an additional evidence line
+// underneath it. When Detail is empty, EvidenceTail alone renders as the
+// detail body — DetailTail's original, still-supported shape. An identical
+// EvidenceTail (auto-attach filled Detail with the same capture tail a
+// caller also passed explicitly via DetailTail) collapses to one line, not a
+// duplicate.
+func effectiveDetailAndTail(p Problem) (detail, tail string) {
+	switch {
+	case p.Detail == "":
+		return p.EvidenceTail, ""
+	case p.EvidenceTail == "" || p.EvidenceTail == p.Detail:
+		return p.Detail, ""
+	default:
+		return p.Detail, p.EvidenceTail
+	}
+}
+
+// writeAdditionalEvidenceLines renders tail's lines as continuation rows
+// under a just-written Detail block, matching writeProblemDetailBlock's own
+// continuation indent so the tail reads as more evidence for the same
+// problem rather than a new one.
+func writeAdditionalEvidenceLines(b *strings.Builder, tail string, color bool) {
+	for _, line := range splitPresentationLines(tail) {
+		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, dim(line, color))
+	}
 }
 
 // writeProblemDetailBlock renders Detail as an indented multi-line block under
@@ -218,12 +255,12 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 		// beginner-3: the task glyph row already shows t.Summary. A problem
 		// row with no Detail beyond that summary says nothing new — drop it
 		// entirely instead of re-echoing "└─ <same text>" underneath.
-		if p.Detail == "" && p.Subject == "" && p.Summary != "" && p.Summary == t.Summary {
+		if p.Detail == "" && p.EvidenceTail == "" && p.Subject == "" && p.Summary != "" && p.Summary == t.Summary {
 			continue
 		}
 		// P4: task glyph row already shows t.Summary; do not re-echo it as the
 		// └─ header when Detail carries the real evidence (capture tail / diff).
-		if p.Detail != "" && p.Summary != "" && p.Summary == t.Summary {
+		if (p.Detail != "" || p.EvidenceTail != "") && p.Summary != "" && p.Summary == t.Summary {
 			p.Summary = ""
 		}
 		writeProblem(b, p, color, profile)
@@ -380,12 +417,12 @@ func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose boo
 	for _, p := range problems {
 		// beginner-3: mirror writeTask's de-echo — a problem row with no
 		// Detail beyond the already-shown header summary says nothing new.
-		if p.Detail == "" && p.Subject == "" && p.Summary != "" && p.Summary == headerSummary {
+		if p.Detail == "" && p.EvidenceTail == "" && p.Subject == "" && p.Summary != "" && p.Summary == headerSummary {
 			continue
 		}
 		// The header row already showed this summary; Detail alone is the
 		// evidence body (mirrors writeTask's P4 dedup).
-		if p.Detail != "" && p.Summary != "" && p.Summary == headerSummary {
+		if (p.Detail != "" || p.EvidenceTail != "") && p.Summary != "" && p.Summary == headerSummary {
 			p.Summary = ""
 		}
 		writeProblem(b, p, color, profile)
