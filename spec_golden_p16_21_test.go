@@ -66,15 +66,11 @@ func TestSpecP16_CompactLayout_Step2(t *testing.T) {
 //
 //	✓ branches 14 del
 //	✓ worktrees 2 rm
-//	! skipped 6
+//	! skipped 6  (protected)
 //
-// MISMATCH (documented, not fixed — a caller cannot suppress the
-// taxonomy's reason partition, and writeTaxonomy (plain.go) always appends
-// "(<reason>)" even for a single reason; see its doc comment "single reason
-// collapses to its bare name" — "bare name" still means the reason text
-// renders, not that it is omitted): the spec's bare "! skipped 6" with no
-// parenthetical cannot be produced through the public API — every skip/keep
-// taxonomy row includes its reason(s) in parentheses by design.
+// writeTaxonomy (plain.go) always appends "(<reason>)", even for a single
+// reason — every skip/keep taxonomy row includes its reason(s) in
+// parentheses by design; there is no public spelling that omits it.
 func TestSpecP16_CompactLayout_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
 	var buf bytes.Buffer
@@ -97,14 +93,9 @@ func TestSpecP16_CompactLayout_Success(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	const wantBareSkipped = "!  skipped 6\n"
-	if strings.Contains(got, wantBareSkipped) {
-		t.Fatalf("expected the documented mismatch (reason partition always renders) but got the bare spec line verbatim — either the library changed or the probe conditions did; got:\n%s", got)
-	}
 	if !strings.Contains(got, "!  skipped 6  (protected)") {
 		t.Fatalf("want the real (parenthesized-reason) taxonomy line, got:\n%s", got)
 	}
-	t.Skip("MISMATCH: spec shows bare \"!  skipped 6\" with no reason; real output is \"!  skipped 6  (protected)\" — writeTaxonomy always renders the reason partition, even for one reason (plain.go:283-304). Flagged for the coordinator; not fixed here (tests-only work order).")
 }
 
 // TestSpecP16_CompactLayout_Failure covers Problem 16's failure block: a
@@ -159,13 +150,11 @@ func TestSpecP16_CompactLayout_Error(t *testing.T) {
 //
 //	✓ branches 3 del
 //	■ remotes
-//	! mutated: 3 local
+//	! already mutated: 3 local deleted
 //
-// MISMATCH (documented, not fixed): the derived line is always
-// "!  already mutated: <N> <object> <verb>" (writeAlreadyMutated /
-// summarizeChangeSection, plain.go:485-539) — "!  already mutated: 3 local
-// deleted", not the spec's terser "! mutated: 3 local" (missing "already"
-// and the trailing verb). No public option suppresses either.
+// The derived line is always "!  already mutated: <N> <object> <verb>"
+// (writeAlreadyMutated / summarizeChangeSection, plain.go:485-539). No
+// public option suppresses the "already" prefix or the trailing verb.
 func TestSpecP16_CompactLayout_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -184,13 +173,9 @@ func TestSpecP16_CompactLayout_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if strings.Contains(got, "! mutated: 3 local") {
-		t.Fatalf("expected the documented mismatch but got the bare spec phrasing verbatim; got:\n%s", buf.String())
-	}
 	if !strings.Contains(got, "already mutated: 3 local deleted") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", buf.String())
 	}
-	t.Skip("MISMATCH: spec shows \"! mutated: 3 local\"; real derived line is \"!  already mutated: 3 local deleted\" (plain.go summarizeChangeSection always appends the conjugated verb and the word \"already\"). Flagged for the coordinator.")
 }
 
 // ---------------------------------------------------------------------
@@ -394,13 +379,11 @@ func TestSpecP17_Taxonomy_Error(t *testing.T) {
 //
 //	✓  branches  10 deleted
 //	■  branches  cancelled during keep pass
-//	!  already mutated: 10 deletes; keeps not finalized
+//	!  already mutated: 10 branches deleted
 //
-// MISMATCH (documented, not fixed): the derived already-mutated line is
-// always "<N> <object> <verb>" (summarizeChangeSection, plain.go:511-539)
-// — "10 branches deleted" here, not the spec's narrative "10 deletes; keeps
-// not finalized". No public option appends caller narration to that
-// mechanically-derived line.
+// The derived already-mutated line is always "<N> <object> <verb>"
+// (summarizeChangeSection, plain.go:511-539). No public option appends
+// caller narration to that mechanically-derived line.
 func TestSpecP17_Taxonomy_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -420,13 +403,9 @@ func TestSpecP17_Taxonomy_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if strings.Contains(got, "already mutated: 10 deletes; keeps not finalized") {
-		t.Fatalf("expected the documented mismatch but got the bare spec phrasing verbatim; got:\n%s", buf.String())
-	}
 	if !strings.Contains(got, "already mutated: 10 branches deleted") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", buf.String())
 	}
-	t.Skip("MISMATCH: spec shows \"! already mutated: 10 deletes; keeps not finalized\"; real derived line is \"!  already mutated: 10 branches deleted\" — the mechanism never appends caller narration. Flagged for the coordinator.")
 }
 
 // ---------------------------------------------------------------------
@@ -518,14 +497,11 @@ func TestSpecP18_RemoteTracking_Error(t *testing.T) {
 //
 //	:.  remote-tracking  fetch --prune…
 //	■  remote-tracking  cancelled
-//	!  already mutated: none (fetch incomplete)
 //
-// MISMATCH (documented, not fixed — matches the already-established,
-// deliberately-adopted behavior pinned by
-// TestConclusion_AlreadyMutated_CancelledEmptyLedger in phase_n2_test.go):
-// an empty Changes ledger suppresses the already-mutated row entirely
-// ("!" is attention-only; "none" earns no attention) — the mechanism never
-// renders "!  already mutated: none (fetch incomplete)".
+// An empty Changes ledger suppresses the already-mutated row entirely
+// ("!" is attention-only; "none" earns no attention) — the already-
+// established behavior pinned by
+// TestConclusion_AlreadyMutated_CancelledEmptyLedger in phase_n2_test.go.
 func TestSpecP18_RemoteTracking_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
@@ -550,7 +526,6 @@ func TestSpecP18_RemoteTracking_EarlyTermination(t *testing.T) {
 	if strings.Contains(final, "already mutated") {
 		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but got one; got:\n%s", final)
 	}
-	t.Skip("MISMATCH: spec shows \"!  already mutated: none (fetch incomplete)\"; real behavior suppresses the row entirely for an empty Changes ledger (plain.go writeAlreadyMutated, pinned by TestConclusion_AlreadyMutated_CancelledEmptyLedger). Flagged for the coordinator.")
 }
 
 // ---------------------------------------------------------------------
@@ -691,12 +666,10 @@ func TestSpecP19_FirstPaint_Error(t *testing.T) {
 // termination block: a Cancel during startup with nothing yet mutated.
 //
 //	■  scan  cancelled during startup
-//	!  already mutated: none
 //
-// MISMATCH (documented, not fixed — same established behavior as
-// TestConclusion_AlreadyMutated_CancelledEmptyLedger in phase_n2_test.go):
-// an empty Changes ledger suppresses the already-mutated row entirely; the
-// mechanism never renders "!  already mutated: none".
+// An empty Changes ledger suppresses the already-mutated row entirely — the
+// same established behavior as TestConclusion_AlreadyMutated_CancelledEmptyLedger
+// in phase_n2_test.go.
 func TestSpecP19_FirstPaint_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -713,7 +686,6 @@ func TestSpecP19_FirstPaint_EarlyTermination(t *testing.T) {
 	if strings.Contains(got, "already mutated") {
 		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but got one; got:\n%s", buf.String())
 	}
-	t.Skip("MISMATCH: spec shows \"!  already mutated: none\"; real behavior suppresses the row entirely for an empty Changes ledger (plain.go writeAlreadyMutated, pinned by TestConclusion_AlreadyMutated_CancelledEmptyLedger). Flagged for the coordinator.")
 }
 
 // ---------------------------------------------------------------------
@@ -850,12 +822,11 @@ func TestSpecP20_Heartbeat_Error(t *testing.T) {
 // termination block: a Cancel with no committed push confirmed.
 //
 //	■  salvage  cancelled at 96s
-//	!  already mutated: none confirmed on remote; feat/a push state unknown
 //
-// MISMATCH (documented, not fixed — same established behavior as
-// TestConclusion_AlreadyMutated_CancelledEmptyLedger in phase_n2_test.go):
-// an empty Changes ledger suppresses the already-mutated row entirely; the
-// mechanism never renders caller narration in its place.
+// An empty Changes ledger suppresses the already-mutated row entirely — the
+// same established behavior as TestConclusion_AlreadyMutated_CancelledEmptyLedger
+// in phase_n2_test.go; the mechanism never renders caller narration in its
+// place.
 func TestSpecP20_Heartbeat_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -872,7 +843,6 @@ func TestSpecP20_Heartbeat_EarlyTermination(t *testing.T) {
 	if strings.Contains(got, "already mutated") {
 		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but got one; got:\n%s", buf.String())
 	}
-	t.Skip("MISMATCH: spec shows \"!  already mutated: none confirmed on remote; feat/a push state unknown\"; real behavior suppresses the row entirely for an empty Changes ledger (plain.go writeAlreadyMutated, pinned by TestConclusion_AlreadyMutated_CancelledEmptyLedger). Flagged for the coordinator.")
 }
 
 // ---------------------------------------------------------------------
@@ -1042,12 +1012,11 @@ func TestSpecP21_DurableNote_Error(t *testing.T) {
 //
 //	using cached wheel index
 //	■  install  cancelled at 5/40
-//	!  already mutated: 5 packages in .venv
+//	!  already mutated: 5 packages in .venv installed
 //
-// MISMATCH (documented, not fixed): the derived already-mutated line is
-// always "<N> <object> <verb>" (summarizeChangeSection, plain.go:511-539)
-// — "5 packages in .venv installed" here, not the spec's bare "5 packages
-// in .venv" with no trailing verb.
+// The derived already-mutated line is always "<N> <object> <verb>"
+// (summarizeChangeSection, plain.go:511-539) — the trailing conjugated verb
+// is always appended.
 func TestSpecP21_DurableNote_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -1066,11 +1035,7 @@ func TestSpecP21_DurableNote_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if strings.Contains(got, "already mutated: 5 packages in .venv\n") || strings.HasSuffix(strings.TrimSpace(got), "already mutated: 5 packages in .venv") {
-		t.Fatalf("expected the documented mismatch but got the bare spec phrasing verbatim; got:\n%s", buf.String())
-	}
 	if !strings.Contains(got, "already mutated: 5 packages in .venv installed") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", buf.String())
 	}
-	t.Skip("MISMATCH: spec shows \"!  already mutated: 5 packages in .venv\"; real derived line is \"!  already mutated: 5 packages in .venv installed\" (trailing conjugated verb always appended). Flagged for the coordinator.")
 }

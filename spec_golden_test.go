@@ -183,7 +183,7 @@ func TestSpecP4_SequentialGroup_Success(t *testing.T) {
 //	python
 //	✓  scan
 //	✗  venv     uv exited 1: No such file or directory
-//	-  install  venv did not complete
+//	-  install  not started
 func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer

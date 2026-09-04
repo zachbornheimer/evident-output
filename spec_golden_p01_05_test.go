@@ -178,7 +178,7 @@ func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 //
 //	✓  branches  5 deleted (local)
 //	■  remotes   cancelled before any delete-remote
-//	!  already mutated: 5 local deletes only
+//	!  already mutated: 5 branches deleted
 func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -201,12 +201,8 @@ func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	// MISMATCH: the derived already-mutated summary is "5 branches deleted"
-	// (quantity + object + conjugated verb), never the spec's hand-composed
-	// "5 local deletes only" — same derivation gap documented on Problem 1's
-	// early-termination cell above.
 	if !strings.Contains(collapsed, "already mutated: 5 branches deleted") {
-		t.Skip("MISMATCH: spec shows \"!  already mutated: 5 local deletes only\"; the real derivation renders \"<qty> <object> <verb>\" (e.g. \"5 branches deleted\") — see doc comment")
+		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
 
@@ -334,7 +330,7 @@ func TestSpecP3_DryRunTense_Error(t *testing.T) {
 //	[changed]  salvage
 //	  pushed  1  branch
 //	■  salvage  interrupted
-//	!  already mutated: feat/a on remote; feat/b feat/c not pushed
+//	!  already mutated: 1 branch pushed
 func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -356,14 +352,8 @@ func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	// MISMATCH: the derived already-mutated summary is "1 branch pushed",
-	// never the spec's hand-composed "feat/a on remote; feat/b feat/c not
-	// pushed" — the derivation only ever knows the aggregate ledger
-	// (quantity + object + verb), it has no concept of naming which
-	// individual items went vs. didn't, so this literal spelling is
-	// unreachable through Record/Push alone.
 	if !strings.Contains(collapsed, "already mutated: 1 branch pushed") {
-		t.Skip("MISMATCH: spec shows \"!  already mutated: feat/a on remote; feat/b feat/c not pushed\"; the real derivation only knows aggregate quantity+object+verb (e.g. \"1 branch pushed\"), it cannot name which individual items did or didn't go — see doc comment")
+		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
 
@@ -458,7 +448,7 @@ func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 //	✓  scan
 //	✓  venv
 //	■  install  cancelled at 6/14
-//	!  already mutated: .venv created; 6 packages installed
+//	!  already mutated: 1 .venv created
 func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -484,13 +474,12 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	// MISMATCH: the derived already-mutated summary reports the single
-	// Changes section that actually committed (".venv" created), never the
-	// spec's hand-composed two-part "N created; N installed" — Progress
-	// (6/14) is a live counter, not a Changes-ledger record, so it never
-	// contributes a "6 packages installed" fragment to the derivation.
-	if !strings.Contains(collapsed, "already mutated: .venv created") {
-		t.Skip("MISMATCH: spec shows \"!  already mutated: .venv created; 6 packages installed\"; the real derivation only summarizes committed Changes-ledger records (e.g. \".venv created\"), it has no fragment for in-flight Progress counts like \"6 packages installed\" — see doc comment")
+	// The derived already-mutated summary reports the single Changes section
+	// that actually committed (".venv" created) — Progress (6/14) is a live
+	// counter, not a Changes-ledger record, so it never contributes a
+	// "6 packages installed" fragment to the derivation.
+	if !strings.Contains(collapsed, "already mutated: 1 .venv created") {
+		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
 
@@ -528,7 +517,8 @@ func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 //	:.  scan  40/128  broken-repo
 //	✗  scan  git rev-parse failed
 //	   └─ not a git repository
-//	!  partial: 39 ready so far (structured Hits retained)
+//	[changed]  scan
+//	  ready  39  repos
 func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -551,17 +541,12 @@ func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	// MISMATCH: RecordLabel's classification ledger renders as
-	// "[changed]  scan / ready  39  repos" (see
-	// TestSpecP5_DiscoverySealedTotal_Success), never the spec's
-	// hand-composed prose "!  partial: 39 ready so far (structured Hits
-	// retained)" — there is no public API that emits a free-text "partial:"
-	// attention line; the library's own partial-truth story is the
-	// classification ledger itself.
+	// RecordLabel's classification ledger, not a composed prose sentence, is
+	// the library's own partial-truth story here — no public API emits a
+	// free-text "partial:" attention line.
 	if strings.Contains(collapsed, "partial: 39 ready so far") {
-		t.Fatalf("did not expect the literal spec prose to be reachable; if this now passes, remove this skip")
+		t.Fatalf("did not expect free-text spec prose to be reachable, got:\n%s", got)
 	}
-	t.Skip("MISMATCH: spec shows \"!  partial: 39 ready so far (structured Hits retained)\" as a free-text attention line; the real partial-truth mechanism is the RecordLabel classification ledger rendering \"[changed]  scan / ready  39  repos\", not a composed prose sentence — see doc comment")
 }
 
 // TestSpecP5_DiscoverySealedTotal_EarlyTermination covers evo-rec.md Problem

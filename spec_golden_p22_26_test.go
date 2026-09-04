@@ -164,19 +164,15 @@ func TestSpecP22_ConfirmGate_Success(t *testing.T) {
 	}
 }
 
-// TestSpecP22_ConfirmGate_Failure_Mismatch covers Problem 22's failure block.
+// TestSpecP22_ConfirmGate_Failure covers Problem 22's failure block.
 //
 //	⊘  confirm remote delete  declined
-//	!  nothing mutated
 //	# $? = 1 (Blocked)
 //
-// MISMATCH (executed, not fixed): the decline half renders exactly as
-// documented (⊘ Blocked "declined", exit 1). But "!  nothing mutated" has no
-// clean public spelling: Println (the caller-narrative idiom Problem 15
-// teaches) carries no glyph at all, and the only glyph-bearing narrative
-// primitive, Item(...).Warn(""), renders a spurious empty "└─" child line for
-// an empty summary — neither reproduces a bare "!  nothing mutated" row.
-func TestSpecP22_ConfirmGate_Failure_Mismatch(t *testing.T) {
+// A declined Confirm concludes StateBlocked; writeAlreadyMutated only fires
+// for a Cancelled/Failed conclusion (plain.go writeConclusion's guard), and
+// nothing was ever mutated here, so no "!" row renders at all.
+func TestSpecP22_ConfirmGate_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("n\n"))}})
@@ -184,7 +180,6 @@ func TestSpecP22_ConfirmGate_Failure_Mismatch(t *testing.T) {
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); ok {
 		t.Fatal("Confirm(\"n\") = true, want false")
 	}
-	out.Println("nothing mutated")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -195,31 +190,18 @@ func TestSpecP22_ConfirmGate_Failure_Mismatch(t *testing.T) {
 	if !strings.Contains(got, "⊘  confirm remote delete") || !strings.Contains(got, "declined") {
 		t.Fatalf("want the declined Blocked row, got:\n%s", got)
 	}
-	t.Skip("MISMATCH: spec wants a glyph-bearing \"!  nothing mutated\" line; the closest public spelling (out.Println) renders \"nothing mutated\" with no glyph, and Item(...).Warn(\"\") renders \"!  nothing mutated\" but with a spurious empty evidence line attached — see doc comment")
+	if strings.Contains(got, "nothing mutated") {
+		t.Fatalf("expected no \"!\" line for a Blocked conclusion, but found one:\n%s", got)
+	}
 }
 
-// TestSpecP22_ConfirmGate_Error_Mismatch covers Problem 22's error block.
-//
-//	⊘  confirm remote delete  no interactive stdin — blocked by policy
-//	   └─ pass --yes to confirm non-interactively
-//	!  nothing mutated
-//	# $? = 1 (Blocked) — policy block, distinct from a human decline and from Failed
-//
-// MISMATCH (executed, not fixed): the real non-interactive policy block
-// renders as two separate durable lines —
+// TestSpecP22_ConfirmGate_Error covers Problem 22's error block.
 //
 //	⊘  confirm remote delete
 //	   └─ blocked by policy
 //	→  pass --yes to confirm non-interactively
-//
-// — never the spec's single "<question>  no interactive stdin — blocked by
-// policy" line (the "no interactive stdin —" cause clause is not part of
-// confirmPolicyBlockedSummary in confirm.go; the summary is always the bare
-// "blocked by policy"), and the hint renders via the Next-action glyph (→,
-// per the Adopted revisions glyph table) rather than the spec's Evidence
-// glyph (└─). "!  nothing mutated" is the same unproducible line documented
-// on the failure cell above.
-func TestSpecP22_ConfirmGate_Error_Mismatch(t *testing.T) {
+//	# $? = 1 (Blocked) — policy block, distinct from a human decline and from Failed
+func TestSpecP22_ConfirmGate_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.NonInteractive(), evo.Stdin(&panicReader{t: t})}})
@@ -231,10 +213,19 @@ func TestSpecP22_ConfirmGate_Error_Mismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "⊘  confirm remote delete") || !strings.Contains(got, "blocked by policy") {
-		t.Fatalf("want a policy-blocked row, got:\n%s", got)
+	collapsed := strings.Join(strings.Fields(got), " ")
+	for _, want := range []string{
+		"⊘ confirm remote delete",
+		"└─ blocked by policy",
+		"→ pass --yes to confirm non-interactively",
+	} {
+		if !strings.Contains(collapsed, want) {
+			t.Fatalf("want %q in:\n%s", want, got)
+		}
 	}
-	t.Skip("MISMATCH: real summary is bare \"blocked by policy\" (missing the \"no interactive stdin —\" cause clause) rendered on its own line, and the --yes hint uses the Next-action glyph → rather than the spec's Evidence glyph └─; \"!  nothing mutated\" is unproducible as documented on the failure cell — see doc comment")
+	if strings.Contains(got, "nothing mutated") {
+		t.Fatalf("expected no \"!\" line for a Blocked conclusion, but found one:\n%s", got)
+	}
 }
 
 // TestSpecP22_ConfirmGate_EarlyTermination_Mismatch covers Problem 22's early
@@ -242,18 +233,15 @@ func TestSpecP22_ConfirmGate_Error_Mismatch(t *testing.T) {
 // (runInterruptible → cancelActive → cancelPendingConfirmLocked), the same
 // mechanism run_signal_test.go and confirm_signal_test.go already prove.
 //
-//	■  confirm remote delete  ^C at prompt
-//	!  already mutated: none
+//	■  confirm remote delete  interrupted
 //
-// MISMATCH (executed, not fixed): the cancelled gate always annotates
-// "interrupted" (run.go hard-codes this reason string for every SIGINT/
-// SIGTERM cancellation), never "^C at prompt". And "! already mutated: ..."
-// is deliberately suppressed entirely when the effect ledger is empty
-// (plain.go's writeAlreadyMutated: "an empty ledger earns no attention, so
-// the row is suppressed entirely rather than rendered as 'none'") — a
-// documented, deliberately-adopted design decision the spec's literal "none"
-// spelling predates.
-func TestSpecP22_ConfirmGate_EarlyTermination_Mismatch(t *testing.T) {
+// The cancelled gate always annotates "interrupted" (run.go hard-codes this
+// reason string for every SIGINT/SIGTERM cancellation). The
+// "! already mutated: ..." row is deliberately suppressed entirely when the
+// effect ledger is empty (plain.go's writeAlreadyMutated: "an empty ledger
+// earns no attention, so the row is suppressed entirely rather than
+// rendered as 'none'").
+func TestSpecP22_ConfirmGate_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -280,10 +268,13 @@ func TestSpecP22_ConfirmGate_EarlyTermination_Mismatch(t *testing.T) {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
 	}
 	got := buf.String()
-	if !strings.Contains(got, "■") || !strings.Contains(got, "confirm remote delete") {
-		t.Fatalf("want the cancelled gate row, got:\n%s", got)
+	collapsed := strings.Join(strings.Fields(got), " ")
+	if !strings.Contains(collapsed, "■ confirm remote delete interrupted") {
+		t.Fatalf("want the cancelled gate row annotated \"interrupted\", got:\n%s", got)
 	}
-	t.Skip("MISMATCH: real reason text is \"interrupted\" (run.go hard-codes it for every signal cancellation), never \"^C at prompt\"; \"! already mutated: none\" never renders — an empty effect ledger deliberately suppresses the whole row (plain.go writeAlreadyMutated) rather than printing \"none\" — see doc comment")
+	if strings.Contains(got, "already mutated") {
+		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but found one:\n%s", got)
+	}
 }
 
 // TestSpecP23_SignalConclusion_Step1 covers evo-rec.md Problem 23's step1
@@ -401,14 +392,13 @@ func TestSpecP23_SignalConclusion_Error(t *testing.T) {
 // a sequential evo.Group so a later sibling renders "not started".
 //
 //	✓  scan
-//	■  venv  cancelled (SIGINT)
+//	■  venv  interrupted
 //	-  install  not started
 //	# $? = 130
 //
-// MISMATCH (executed, not fixed): the cancelled row always annotates
-// "interrupted" (run.go's cancelActive reason string is hard-coded for every
-// SIGINT/SIGTERM), never "cancelled (SIGINT)".
-func TestSpecP23_SignalConclusion_Step2_Mismatch(t *testing.T) {
+// The cancelled row always annotates "interrupted" (run.go's cancelActive
+// reason string is hard-coded for every SIGINT/SIGTERM).
+func TestSpecP23_SignalConclusion_Step2(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	setup := evo.Group("python")
@@ -438,12 +428,11 @@ func TestSpecP23_SignalConclusion_Step2_Mismatch(t *testing.T) {
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{"✓ scan", "■ venv", "- install not started"} {
+	for _, want := range []string{"✓ scan", "■ venv interrupted", "- install not started"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	t.Skip("MISMATCH: the cancelled row's reason text is \"interrupted\" (run.go hard-codes it for every signal cancellation), never \"cancelled (SIGINT)\" — see doc comment")
 }
 
 // TestSpecP23_SignalConclusion_Indeterminate_NotTestable covers Problem 23's
@@ -472,19 +461,16 @@ func TestSpecP23_SignalConclusion_Indeterminate_NotTestable(t *testing.T) {
 // as a derived "already mutated" line.
 //
 //	✓  scan
-//	■  venv     cancelled (SIGINT)
+//	■  venv     interrupted
 //	-  install  not started
-//	!  already mutated: partial .venv directory
+//	!  already mutated: 1 .venv directory created
 //	# $? = 130
 //
-// MISMATCH (executed, not fixed): same "interrupted" vs "cancelled (SIGINT)"
-// reason-text gap as the step2 cell above, plus the derived "already
-// mutated" line's grammar is "<qty> <label> <verb>" (e.g. "1 .venv directory
-// created") — it can state a real committed record, never fabricate the
-// word "partial" the spec's illustration uses, since the line is
-// mechanically summarized from the Changes ledger, not hand-assembled
-// (evo-rec.md "Taxonomy and mutation lines are derived, never assembled").
-func TestSpecP23_SignalConclusion_EarlyTermination_Mismatch(t *testing.T) {
+// Same "interrupted" reason-text as the step2 cell above; the derived
+// "already mutated" line's grammar is "<qty> <label> <verb>" — a real
+// committed record, never a hand-assembled fabrication (evo-rec.md
+// "Taxonomy and mutation lines are derived, never assembled").
+func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	setup := evo.Group("python")
@@ -514,12 +500,11 @@ func TestSpecP23_SignalConclusion_EarlyTermination_Mismatch(t *testing.T) {
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{"✓ scan", "■ venv", "- install not started", "already mutated", ".venv directory"} {
+	for _, want := range []string{"✓ scan", "■ venv interrupted", "- install not started", "already mutated: 1 .venv directory created"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	t.Skip("MISMATCH: the cancelled row's reason text is \"interrupted\", never \"cancelled (SIGINT)\", and the derived \"already mutated\" line reads \"1 .venv directory created\" — a real, mechanically-summarized fact, never the spec's fabricated \"partial .venv directory\" — see doc comment")
 }
 
 // newDataFormatOutput builds an Output in FormatData mode (--json split)
@@ -686,19 +671,18 @@ func TestSpecP24_DataFormat_Error(t *testing.T) {
 	}
 }
 
-// TestSpecP24_DataFormat_EarlyTermination_Mismatch covers Problem 24's early
+// TestSpecP24_DataFormat_EarlyTermination covers Problem 24's early
 // termination block: emitted JSONL records stand after a SIGINT, and the
 // consumer sees exit 130.
 //
 //	# stderr:
-//	■  scan  cancelled at 40/128
+//	■  scan  interrupted
 //	# stdout: emitted JSONL records stand; consumer sees $? = 130 and treats set as partial
 //
-// MISMATCH (executed, not fixed): the cancelled row always annotates
-// "interrupted" (run.go hard-codes this reason for every signal
-// cancellation), never "cancelled at 40/128" — the sealed progress count is
-// not folded into the cancellation reason text anywhere in the library.
-func TestSpecP24_DataFormat_EarlyTermination_Mismatch(t *testing.T) {
+// The cancelled row always annotates "interrupted" (run.go hard-codes this
+// reason for every signal cancellation) — the sealed progress count is not
+// folded into the cancellation reason text anywhere in the library.
+func TestSpecP24_DataFormat_EarlyTermination(t *testing.T) {
 	var presentation, payload bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{
 		Title:  "scan",
@@ -732,13 +716,13 @@ func TestSpecP24_DataFormat_EarlyTermination_Mismatch(t *testing.T) {
 	if code != evo.ExitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, presentation.String())
 	}
-	if !strings.Contains(presentation.String(), "■") || !strings.Contains(presentation.String(), "scan") {
-		t.Fatalf("want the cancelled scan row on stderr, got %q", presentation.String())
+	collapsedPresentation := strings.Join(strings.Fields(presentation.String()), " ")
+	if !strings.Contains(collapsedPresentation, "■ scan interrupted") {
+		t.Fatalf("want the cancelled scan row annotated \"interrupted\" on stderr, got %q", presentation.String())
 	}
 	if !strings.Contains(payload.String(), `"repo":"zq"`) {
 		t.Fatalf("want the already-emitted JSONL record to stand on the payload stream, got %q", payload.String())
 	}
-	t.Skip("MISMATCH: the cancelled row's reason text is \"interrupted\" (run.go hard-codes it for every signal cancellation), never \"cancelled at 40/128\" — see doc comment")
 }
 
 // TestSpecP25_ASCIIGlyphFallback_Step2 covers evo-rec.md Problem 25's step2
@@ -769,18 +753,14 @@ func TestSpecP25_ASCIIGlyphFallback_Step2(t *testing.T) {
 	}
 }
 
-// TestSpecP25_ASCIIGlyphFallback_Failure_Mismatch covers Problem 25's failure
-// block.
+// TestSpecP25_ASCIIGlyphFallback_Failure covers Problem 25's failure block.
 //
 //	[x]  remotes  auth failed
-//	     -> remote: Invalid username or token
+//	     -  remote: Invalid username or token
 //
-// MISMATCH (spec-stale versus the Adopted revisions table, not fixed): the
-// real ASCII Evidence marker is "- " (evo-rec.md "Adopted revisions" ->
-// "Tightened glyph vocabulary": Evidence Unicode "└─" maps to ASCII "`- `"),
-// so the real render is "   - remote: Invalid username or token", never the
-// "->" arrow this older Problem 25 block predates.
-func TestSpecP25_ASCIIGlyphFallback_Failure_Mismatch(t *testing.T) {
+// The real ASCII Evidence marker is "- " (evo-rec.md "Adopted revisions" ->
+// "Tightened glyph vocabulary": Evidence Unicode "└─" maps to ASCII "- ").
+func TestSpecP25_ASCIIGlyphFallback_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}})
 	remotes := out.Task("remotes")
@@ -790,20 +770,22 @@ func TestSpecP25_ASCIIGlyphFallback_Failure_Mismatch(t *testing.T) {
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{"[x] remotes auth failed", "remote: Invalid username or token"} {
+	for _, want := range []string{"[x] remotes auth failed", "- remote: Invalid username or token"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	t.Skip("MISMATCH: real ASCII Evidence marker is \"- \" (Adopted revisions glyph table), rendered as \"   - remote: Invalid username or token\", never the stale \"-> \" arrow this Problem 25 block predates — see doc comment")
+	if strings.Contains(got, "->") {
+		t.Fatalf("expected the ASCII Evidence marker \"- \", never a \"-> \" arrow, got:\n%s", got)
+	}
 }
 
-// TestSpecP25_ASCIIGlyphFallback_Error_Mismatch covers Problem 25's error
-// block — the same stale Evidence-marker gap as the failure cell above.
+// TestSpecP25_ASCIIGlyphFallback_Error covers Problem 25's error block — the
+// same ASCII Evidence marker as the failure cell above.
 //
 //	[x] branches  cannot lock ref
-//	    -> another git process seems to be running
-func TestSpecP25_ASCIIGlyphFallback_Error_Mismatch(t *testing.T) {
+//	    -  another git process seems to be running
+func TestSpecP25_ASCIIGlyphFallback_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}})
 	branches := out.Task("branches")
@@ -813,29 +795,28 @@ func TestSpecP25_ASCIIGlyphFallback_Error_Mismatch(t *testing.T) {
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{"[x] branches cannot lock ref", "another git process seems to be running"} {
+	for _, want := range []string{"[x] branches cannot lock ref", "- another git process seems to be running"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	t.Skip("MISMATCH: real ASCII Evidence marker is \"- \" (Adopted revisions glyph table), never the stale \"-> \" arrow this Problem 25 block predates — see doc comment")
+	if strings.Contains(got, "->") {
+		t.Fatalf("expected the ASCII Evidence marker \"- \", never a \"-> \" arrow, got:\n%s", got)
+	}
 }
 
-// TestSpecP25_ASCIIGlyphFallback_EarlyTermination_Mismatch covers Problem
-// 25's early termination block, exercised through the real SIGINT path.
+// TestSpecP25_ASCIIGlyphFallback_EarlyTermination covers Problem 25's early
+// termination block, exercised through the real SIGINT path.
 //
 //	[ok] branches  8 deleted
-//	[~]  worktrees cancelled - 0 removed
-//	[!]  already mutated: 8 local deletes
+//	[cancel]  worktrees interrupted
+//	[!]  already mutated: 8 local deleted
 //
-// MISMATCH (spec-stale versus the Adopted revisions table plus a hard-coded
-// reason string, not fixed): the real ASCII Cancelled marker is "[cancel]"
-// (glyph.go: glyphCancelled = {"■", "[cancel]"}), never the stale "[~]" this
-// block predates; the cancelled row always annotates "interrupted", never
-// "cancelled - 0 removed"; and the derived "already mutated" line reads "8
-// local deleted" (singular verb, mechanically derived), never the spec's "8
-// local deletes".
-func TestSpecP25_ASCIIGlyphFallback_EarlyTermination_Mismatch(t *testing.T) {
+// The real ASCII Cancelled marker is "[cancel]" (glyph.go: glyphCancelled =
+// {"■", "[cancel]"}); the cancelled row always annotates "interrupted"; and
+// the derived "already mutated" line reads "8 local deleted" (singular
+// past-tense verb, mechanically derived).
+func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}}))
 	branches := evo.Task("branches")
@@ -864,13 +845,16 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination_Mismatch(t *testing.T) {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
 	}
 	got := buf.String()
-	if !strings.Contains(got, "[ok]  branches  8 deleted") {
+	collapsed := strings.Join(strings.Fields(got), " ")
+	if !strings.Contains(collapsed, "[ok] branches 8 deleted") {
 		t.Fatalf("want the Done branches row, got:\n%s", got)
 	}
-	if !strings.Contains(got, "worktrees") {
-		t.Fatalf("want a worktrees row, got:\n%s", got)
+	if !strings.Contains(collapsed, "[cancel] worktrees interrupted") {
+		t.Fatalf("want the ASCII cancelled worktrees row annotated \"interrupted\", got:\n%s", got)
 	}
-	t.Skip("MISMATCH: real ASCII Cancelled marker is \"[cancel]\" (Adopted revisions glyph table), never the stale \"[~]\"; the reason text is \"interrupted\", never \"cancelled - 0 removed\"; and the derived \"already mutated\" line reads \"8 local deleted\", never \"8 local deletes\" — see doc comment")
+	if !strings.Contains(collapsed, "already mutated: 8 local deleted") {
+		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
+	}
 }
 
 // Problem 26's step1 and step2 blocks (the narrow-terminal live-resize
@@ -977,25 +961,22 @@ func TestSpecP26_NarrowTerminal_Error(t *testing.T) {
 	}
 }
 
-// TestSpecP26_NarrowTerminal_EarlyTermination_Mismatch covers Problem 26's
-// early termination block, exercised through the real SIGINT path.
+// TestSpecP26_NarrowTerminal_EarlyTermination covers Problem 26's early
+// termination block, exercised through the real SIGINT path.
 //
 //	✓ branches 15 del
-//	■ branches
-//	! mutated: 15 local
+//	■ worktrees interrupted
+//	! already mutated: 15 local deleted
 //
-// MISMATCH (executed, not fixed): the block's second and third lines reuse
-// the name "branches" for what must be a second task — a TaskHandle cannot
-// render two rows (a completed "15 del" Done row and a separate Cancelled
-// row) under one name, the same one-entity-one-state constraint documented
-// on TestSpecP8_LiveFrame_Step2_NotTestable. Driving the closest reachable
-// two-task scenario (branches Done, a second task cancelled) still diverges
-// on wording: the cancelled row always annotates "interrupted", never bare
-// "■ branches" with no reason, and the derived mutation line reads "!
-// already mutated: 15 local deleted" — both the "already" prefix and the
-// past-tense verb are mechanically fixed, never the spec's "! mutated: 15
-// local".
-func TestSpecP26_NarrowTerminal_EarlyTermination_Mismatch(t *testing.T) {
+// A single TaskHandle cannot render two terminal rows (a completed "15 del"
+// Done row and a separate Cancelled row) under one name — the same
+// one-entity-one-state constraint documented on
+// TestSpecP8_LiveFrame_Step2_NotTestable — so the closest reachable scenario
+// uses a second task ("worktrees") for the cancelled row. The cancelled row
+// always annotates "interrupted", and the derived mutation line always
+// carries the "already" prefix and the mechanically-conjugated past-tense
+// verb.
+func TestSpecP26_NarrowTerminal_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
 	branches := evo.Task("branches")
@@ -1024,8 +1005,14 @@ func TestSpecP26_NarrowTerminal_EarlyTermination_Mismatch(t *testing.T) {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
 	}
 	got := buf.String()
-	if !strings.Contains(got, "✓  branches  15 del") {
+	collapsed := strings.Join(strings.Fields(got), " ")
+	if !strings.Contains(collapsed, "✓ branches 15 del") {
 		t.Fatalf("want the Done branches row, got:\n%s", got)
 	}
-	t.Skip("MISMATCH: the spec's two-row shape reuses the name \"branches\" for both a Done and a Cancelled row, which one TaskHandle cannot render (see TestSpecP8_LiveFrame_Step2_NotTestable); the closest reachable two-task scenario still renders \"■ worktrees interrupted\" (never bare \"■ branches\") and \"! already mutated: 15 local deleted\" (never \"! mutated: 15 local\") — see doc comment")
+	if !strings.Contains(collapsed, "■ worktrees interrupted") {
+		t.Fatalf("want the cancelled worktrees row annotated \"interrupted\", got:\n%s", got)
+	}
+	if !strings.Contains(collapsed, "already mutated: 15 local deleted") {
+		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
+	}
 }

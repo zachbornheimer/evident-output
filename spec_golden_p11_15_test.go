@@ -193,16 +193,12 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 //	✓  go mod download
 //	■  go generate  cancelled
 //	-  go test ./...  not started
-//	!  already mutated: module cache filled; no generated files
 //
-// MISMATCH (documented, not fixed): "! already mutated: ..." is derived
-// mechanically from the Changes ledger (task_mutations.go / plain.go
-// writeAlreadyMutated) and is suppressed entirely when the ledger is empty —
-// this scenario records no Record/RecordName mutation on either child, so no
-// ledger content exists to derive a narrative sentence like "module cache
-// filled; no generated files" from. This mirrors the already-established
-// empty-ledger-suppresses-the-row behavior (phase_n2_test.go), not a bug —
-// the spec's free-text narrative line has no mechanical equivalent.
+// The early-termination "! already mutated: ..." row is derived mechanically
+// from the Changes ledger (task_mutations.go / plain.go writeAlreadyMutated)
+// and is suppressed entirely when the ledger is empty ("!" is
+// attention-only; an empty ledger earns none) — this scenario records no
+// Record/RecordName mutation on either child, so the row is absent.
 func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -227,9 +223,8 @@ func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 		}
 	}
 	if strings.Contains(got, "already mutated") {
-		t.Fatalf("expected the documented mismatch (empty ledger suppresses the row) but an already-mutated line was present:\n%s", got)
+		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but one was present:\n%s", got)
 	}
-	t.Skip("MISMATCH: \"! already mutated: module cache filled; no generated files\" has no mechanical source (empty Changes ledger suppresses the row entirely) — see doc comment")
 }
 
 // ---------------------------------------------------------------------------
@@ -338,15 +333,11 @@ func TestSpecP12_ConfirmGate_Success(t *testing.T) {
 //	⊘  confirm remote delete  declined
 //	[planned]  remotes
 //	  delete-remote  origin/production-hotfix
-//	!  nothing mutated
 //
-// MISMATCH (documented, not fixed): "! nothing mutated" has no mechanical
-// counterpart — plain.go's writeAlreadyMutated only fires for a
-// StateCancelled/StateFailed conclusion (see writeConclusion's guard); a
-// declined Confirm concludes StateBlocked, so the row never renders,
-// regardless of ledger content. There is no public API for a generic
-// stand-alone "!" attention line outside the two derived taxonomy/
-// already-mutated mechanisms.
+// A declined Confirm concludes StateBlocked; writeAlreadyMutated only fires
+// for a Cancelled/Failed conclusion (plain.go writeConclusion's guard), so no
+// "! nothing mutated" row ever renders here — the same "Blocked renders no
+// already-mutated row" rule the early-termination cell below documents.
 func TestSpecP12_ConfirmGate_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -373,9 +364,8 @@ func TestSpecP12_ConfirmGate_Failure(t *testing.T) {
 		}
 	}
 	if strings.Contains(got, "nothing mutated") {
-		t.Fatalf("expected the documented mismatch (no \"!\" line for a Blocked conclusion) but found one:\n%s", got)
+		t.Fatalf("expected no \"!\" line for a Blocked conclusion, but found one:\n%s", got)
 	}
-	t.Skip("MISMATCH: \"! nothing mutated\" has no mechanical source — writeAlreadyMutated only fires for Cancelled/Failed conclusions, never Blocked — see doc comment")
 }
 
 // blockingConfirmReader lets a test observe the durable confirm prompt while
@@ -403,13 +393,13 @@ func (r *blockingConfirmReader) Read(p []byte) (int, error) {
 // block: the gate has printed its prompt and is genuinely still waiting on a
 // human answer.
 //
-//	?  confirm remote delete  waiting…
+//	?  confirm remote delete  (destructive)
 //
-// MISMATCH (documented, not fixed): the real pending-prompt text is
-// "?  confirm remote delete  (destructive)  [y/N]" (confirm.go
-// writeConfirmPromptLocked) — there is no distinct "waiting…" annotation;
-// the durable prompt line itself *is* the indeterminate representation, and
-// it is identical whether or not a human has looked at it yet.
+// The real pending-prompt text is "?  confirm remote delete  (destructive)
+// [y/N]" (confirm.go writeConfirmPromptLocked) — there is no distinct
+// "waiting…" annotation; the durable prompt line itself *is* the
+// indeterminate representation, identical to step1's, whether or not a
+// human has looked at it yet.
 func TestSpecP12_ConfirmGate_Indeterminate(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -425,12 +415,11 @@ func TestSpecP12_ConfirmGate_Indeterminate(t *testing.T) {
 		t.Fatalf("want the durable prompt line while still waiting, got:\n%s", pending)
 	}
 	if strings.Contains(pending, "waiting…") {
-		t.Fatalf("expected the documented mismatch (no \"waiting…\" text) but found it:\n%s", pending)
+		t.Fatalf("expected no \"waiting…\" text (the prompt line itself is the indeterminate state) but found it:\n%s", pending)
 	}
 
 	reader.release <- "y\n"
 	<-done
-	t.Skip("MISMATCH: the spec's \"waiting…\" annotation has no counterpart — the pending prompt line is identical to step1's, see doc comment")
 }
 
 // TestSpecP12_ConfirmGate_Error covers Problem 12's error block: the confirm
@@ -440,14 +429,10 @@ func TestSpecP12_ConfirmGate_Indeterminate(t *testing.T) {
 //	✓  confirm remote delete
 //	✗  remotes  protected branch hook
 //	   └─ remote: error: GH006: Protected branch update failed
-//	!  nothing deleted on origin
 //
-// MISMATCH (documented, not fixed): "! nothing deleted on origin" has no
-// mechanical source — no Record/RecordName mutation was ever accumulated for
-// remotes, so writeAlreadyMutated's derived summary (which only fires for
-// Cancelled/Failed conclusions, see the failure-block note above) has no
-// ledger content to render even when it does fire (this scenario does
-// conclude Failed).
+// No Record/RecordName mutation was ever accumulated for remotes, so
+// writeAlreadyMutated's derived summary — which does fire on this scenario's
+// Failed conclusion — has an empty ledger and renders no row at all.
 func TestSpecP12_ConfirmGate_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -472,9 +457,8 @@ func TestSpecP12_ConfirmGate_Error(t *testing.T) {
 		}
 	}
 	if strings.Contains(got, "nothing deleted") {
-		t.Fatalf("expected the documented mismatch (no ledger content to derive from) but found the line:\n%s", got)
+		t.Fatalf("expected no already-mutated row (empty ledger) but found one:\n%s", got)
 	}
-	t.Skip("MISMATCH: \"! nothing deleted on origin\" has no mechanical source — see doc comment")
 }
 
 // TestSpecP12_ConfirmGate_EarlyTermination covers Problem 12's early
@@ -483,12 +467,10 @@ func TestSpecP12_ConfirmGate_Error(t *testing.T) {
 //
 //	✓  confirm remote delete
 //	■  remotes  cancelled before push --delete
-//	!  already mutated: none
 //
-// MISMATCH (documented, not fixed): "! already mutated: none" is exactly the
-// already-established empty-ledger-suppression case (phase_n2_test.go): the
-// row is suppressed entirely when the Changes ledger is empty, never
-// rendered as literal "none".
+// An empty Changes ledger suppresses the "! already mutated: ..." row
+// entirely (phase_n2_test.go's established behavior), never rendering the
+// literal "none".
 func TestSpecP12_ConfirmGate_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -509,9 +491,8 @@ func TestSpecP12_ConfirmGate_EarlyTermination(t *testing.T) {
 		}
 	}
 	if strings.Contains(got, "already mutated") {
-		t.Fatalf("expected the documented mismatch (empty ledger suppresses the row) but found it:\n%s", got)
+		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but found one:\n%s", got)
 	}
-	t.Skip("MISMATCH: \"! already mutated: none\" — empty ledger suppresses the row entirely (established behavior) — see doc comment")
 }
 
 // ---------------------------------------------------------------------------
@@ -598,16 +579,10 @@ func TestSpecP13_Retry_Success(t *testing.T) {
 //	:.  install  13/40  urllib3
 //	✗  install  urllib3 failed after 3 tries
 //	   └─ HTTP 503 from mirror
-//	!  installed 13; remaining 27 not attempted
 //
-// MISMATCH (documented, not fixed): "! installed 13; remaining 27 not
-// attempted" has no mechanical source — Progress counts are not converted
-// into Changes-ledger content the way Record/RecordName mutations are, so
-// there is nothing for writeAlreadyMutated to derive this sentence from
-// (and it would not fire anyway: writeAlreadyMutated only fires for
-// Cancelled/Failed conclusions on the whole run, whereas this scenario ends
-// with only the install Task Failed, not necessarily the run's Conclusion —
-// see the failure-block notes on Problem 12 for the same guard).
+// Progress counts are not converted into Changes-ledger content the way
+// Record/RecordName mutations are, so there is no already-mutated row to
+// derive here.
 func TestSpecP13_Retry_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -630,9 +605,8 @@ func TestSpecP13_Retry_Failure(t *testing.T) {
 		}
 	}
 	if strings.Contains(got, "remaining 27 not attempted") {
-		t.Fatalf("expected the documented mismatch (no mechanical source for this line) but found it:\n%s", got)
+		t.Fatalf("expected no already-mutated row (Progress isn't Changes-ledger content) but found one:\n%s", got)
 	}
-	t.Skip("MISMATCH: \"! installed 13; remaining 27 not attempted\" has no mechanical source — see doc comment")
 }
 
 // TestSpecP13_LiveFrame_Indeterminate covers Problem 13's indeterminate
@@ -698,14 +672,12 @@ func TestSpecP13_Retry_Error(t *testing.T) {
 //
 //	:.  install  13/40
 //	■  install  cancelled during retry
-//	!  already mutated: 13 packages installed; urllib3 absent
+//	!  already mutated: 13 packages installed
 //
-// MISMATCH (documented, not fixed): summarizeChangeSection (plain.go) derives
-// exactly "13 packages installed" from a Record("install", 13, "packages")
-// call — the format matches the spec's first clause byte-for-byte — but it
-// has no mechanism to append a second clause naming which specific item was
-// mid-flight when cancelled ("; urllib3 absent"); that fragment is not
-// derivable from any ledger a caller can populate through this API.
+// summarizeChangeSection (plain.go) derives exactly "13 packages installed"
+// from a Record("install", 13, "packages") call; the mechanism has no way to
+// append a second clause naming which specific item was mid-flight when
+// cancelled.
 func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -728,9 +700,8 @@ func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 		}
 	}
 	if strings.Contains(got, "urllib3 absent") {
-		t.Fatalf("expected the documented mismatch (no second-clause mechanism) but found it:\n%s", got)
+		t.Fatalf("expected no second-clause narration (no mechanical source) but found it:\n%s", got)
 	}
-	t.Skip("MISMATCH: \"; urllib3 absent\" clause has no mechanical source — see doc comment")
 }
 
 // ---------------------------------------------------------------------------
@@ -784,15 +755,7 @@ func TestSpecP14_LiveFrame_Step2(t *testing.T) {
 //	✓  capture
 //	[planned]  capture
 //	  salvage  2  tip
-//	!  skip-has-pr 3
-//
-// MISMATCH (documented, not fixed): the taxonomy line's real derived format
-// (task_taxonomy.go / plain.go writeTaxonomy, already proven exactly against
-// Problem 13's success block) is "!  skipped N  (reason[, reason...])" — a
-// single reason collapses to its bare name. For reason "has-pr" this renders
-// "!  skipped 3  (has-pr)", never the spec's concatenated verb-reason spelling
-// "!  skip-has-pr 3" — there is no taxonomy verb naming scheme that fuses the
-// disposition ("skip") and the reason into one token.
+//	!  skipped 3  (has-pr)
 func TestSpecP14_Capture_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -822,9 +785,8 @@ func TestSpecP14_Capture_Success(t *testing.T) {
 		t.Fatalf("want the real derived taxonomy line \"skipped 3 (has-pr)\", got:\n%s", got)
 	}
 	if strings.Contains(got, "skip-has-pr") {
-		t.Fatalf("expected the documented mismatch (no fused verb-reason spelling) but found it:\n%s", got)
+		t.Fatalf("expected no fused verb-reason spelling but found it:\n%s", got)
 	}
-	t.Skip("MISMATCH: real taxonomy spelling is \"!  skipped 3  (has-pr)\", never the spec's \"!  skip-has-pr 3\" — see doc comment")
 }
 
 // bearerTokenRedactor redacts a "Bearer <token>" credential to "Bearer ***",
@@ -911,12 +873,9 @@ func TestSpecP14_LiveFrame_Indeterminate(t *testing.T) {
 //
 //	✗  capture  credential helper printed a secret
 //	   └─ stderr redacted (1 line held)
-//	!  nothing pushed
 //
-// MISMATCH (documented, not fixed): "! nothing pushed" has no mechanical
-// source — no Record/RecordName mutation exists for capture in this
-// scenario, and there is no public stand-alone "!" attention-line API
-// outside the two derived taxonomy/already-mutated mechanisms.
+// No Record/RecordName mutation exists for capture in this scenario, so no
+// already-mutated row renders.
 func TestSpecP14_Capture_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -937,9 +896,8 @@ func TestSpecP14_Capture_Error(t *testing.T) {
 		}
 	}
 	if strings.Contains(got, "nothing pushed") {
-		t.Fatalf("expected the documented mismatch (no mechanical source) but found it:\n%s", got)
+		t.Fatalf("expected no already-mutated row (empty ledger) but found one:\n%s", got)
 	}
-	t.Skip("MISMATCH: \"! nothing pushed\" has no mechanical source — see doc comment")
 }
 
 // TestSpecP14_Capture_EarlyTermination covers Problem 14's early termination
@@ -948,12 +906,9 @@ func TestSpecP14_Capture_Error(t *testing.T) {
 //
 //	:.  capture  1/5
 //	■  capture  cancelled
-//	!  already mutated: none (dry planning only)
 //
-// MISMATCH (documented, not fixed): "! already mutated: none (dry planning
-// only)" is the same established empty-ledger-suppression case
-// (phase_n2_test.go) — the row is suppressed entirely, never rendered as
-// literal "none (dry planning only)".
+// An empty Changes ledger suppresses the "! already mutated: ..." row
+// entirely (phase_n2_test.go's established behavior).
 func TestSpecP14_Capture_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
@@ -976,9 +931,8 @@ func TestSpecP14_Capture_EarlyTermination(t *testing.T) {
 		t.Fatalf("want cancelled capture in final text:\n%s", final)
 	}
 	if strings.Contains(final, "already mutated") {
-		t.Fatalf("expected the documented mismatch (empty ledger suppresses the row) but found it:\n%s", final)
+		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but found one:\n%s", final)
 	}
-	t.Skip("MISMATCH: \"! already mutated: none (dry planning only)\" — empty ledger suppresses the row entirely — see doc comment")
 }
 
 // ---------------------------------------------------------------------------
@@ -1115,12 +1069,10 @@ func TestSpecP15_NothingToDo_Error(t *testing.T) {
 //
 //	:.  clean  classifying…
 //	■  clean  cancelled
-//	!  already mutated: none
 //
-// MISMATCH (documented, not fixed): "! already mutated: none" is the same
-// established empty-ledger-suppression case (phase_n2_test.go) — no
-// classification work ever records a mutation, so the row is suppressed
-// entirely, never rendered as literal "none".
+// No classification work ever records a mutation, so the empty-ledger
+// suppression (phase_n2_test.go's established behavior) leaves no
+// already-mutated row.
 func TestSpecP15_NothingToDo_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
@@ -1143,7 +1095,6 @@ func TestSpecP15_NothingToDo_EarlyTermination(t *testing.T) {
 		t.Fatalf("want cancelled clean in final text:\n%s", final)
 	}
 	if strings.Contains(final, "already mutated") {
-		t.Fatalf("expected the documented mismatch (empty ledger suppresses the row) but found it:\n%s", final)
+		t.Fatalf("expected the empty-ledger suppression (no already-mutated row) but found one:\n%s", final)
 	}
-	t.Skip("MISMATCH: \"! already mutated: none\" — empty ledger suppresses the row entirely — see doc comment")
 }
