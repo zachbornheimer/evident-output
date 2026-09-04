@@ -60,15 +60,20 @@ func TestDOM031_CollectionAllDone(t *testing.T) {
 	}
 }
 
+// TestDOM035_UnresolvedChildInCollection pins release-gate round 4 finding
+// 3: an unresolved child with no problems, on a clean finish, reads as an
+// honest Partial outcome, never misuse — Finish returns nil.
 func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	g.Task("a").Done()
 	g.Task("hanging")
-	err := out.Finish()
-	if !errors.Is(err, evo.ErrUnresolvedTask) {
-		t.Fatalf("%v", err)
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
+	}
+	if !out.Conclusion().Partial {
+		t.Fatal("want Conclusion.Partial = true for the unresolved hanging child")
 	}
 }
 

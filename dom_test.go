@@ -100,13 +100,18 @@ func TestDOM012_NextActionAfterResolve(t *testing.T) {
 	}
 }
 
+// TestDOM033_UnresolvedItemAtFinish pins release-gate round 4 finding 3: a
+// never-touched task with no problems, on a clean finish, reads as an honest
+// Partial outcome (Conclusion.Partial), never misuse — Finish returns nil.
 func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("hanging")
-	err := out.Finish()
-	if err == nil {
-		t.Fatal("expected unresolved item error")
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
+	}
+	if !out.Conclusion().Partial {
+		t.Fatal("want Conclusion.Partial = true for the unresolved hanging task")
 	}
 }
 

@@ -167,11 +167,15 @@ func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
 
 func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 	// Static guarantee: no os.Exit in evo package files is checked by this
-	// behavioral test — Finish returns errors instead of exiting.
+	// behavioral test — reaching this assertion at all is the proof: an
+	// os.Exit inside Finish would have already killed the test process.
+	// An unresolved task with no problems on a clean finish reads as an
+	// honest Partial outcome now (release-gate round 4 finding 3), not
+	// misuse, so Finish returning nil here is expected, not evidence of a
+	// process exit either way.
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	out.Task("x")
-	err := out.Finish()
-	if err == nil {
-		t.Fatal("expected error, not process exit")
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
 	}
 }

@@ -1248,14 +1248,16 @@ const unresolvedTaskCancelledSummary = "cancelled — run concluded before finis
 const unresolvedTaskIncompleteSummary = "incomplete — run concluded before finish"
 
 // resolveUnstartedTaskLocked derives a real terminal state for a task Finish
-// found non-terminal, from the one model, so every consumer sees the same
-// honest verdict instead of hand-rolling the same cascade themselves: a task
-// that had already started (Running) reads as Cancelled, and a task that
-// never got attention (Pending) reads as NotStarted ("not started") — the
-// same face a Group gives an unstarted sibling (autoResolveGroupsLocked).
-// Never called for a task an explicit verb already resolved, and never
-// called for a Running task on a clean finish (see abnormalFinishLocked's
-// caller in Finish, which resolves that case to Incomplete directly instead).
+// found non-terminal during an abnormal finish (abnormalFinishLocked), from
+// the one model, so every consumer sees the same honest verdict instead of
+// hand-rolling the same cascade themselves: a task that had already started
+// (Running) reads as Cancelled, and a task that never got attention
+// (Pending) reads as NotStarted ("not started") — the same face a Group
+// gives an unstarted sibling (autoResolveGroupsLocked). Never called for a
+// task an explicit verb already resolved, and never called on a clean finish
+// at all (see Finish's own !abnormal branch, which resolves every
+// non-terminal task to Incomplete directly instead, regardless of whether it
+// ever reached Running — release-gate round 4 finding 3).
 func resolveUnstartedTaskLocked(t *taskState) {
 	if t.state == Running {
 		t.state = Cancelled
@@ -1364,15 +1366,22 @@ func (o *Output) Finish() error {
 			o.appendEventLocked(Event{Type: "task.done", EntityID: t.id})
 			continue
 		}
-		if t.state == Running && !abnormal {
-			// Clean, unsignalled, error-free finish: an abandoned Running
-			// task told an incomplete story, not a caller bug — never
-			// Cancelled/130 (release-gate finding 1). No misuse recorded:
-			// this is an honest partial outcome (folded into Conclusion.
-			// Partial), not bookkeeping the caller must fix.
+		if !abnormal {
+			// Clean, unsignalled, error-free finish: a forgotten terminal
+			// verb told an incomplete story, not a caller bug — never
+			// Cancelled/130 (release-gate finding 1), and never misuse-driven
+			// exit escalation regardless of whether the task ever reached
+			// Running (release-gate round 4 finding 3: a Phase call that
+			// promoted it to Running before it was abandoned must not flip
+			// the exit code against an identical task that was never
+			// touched at all — same amnesty qualifier, same outcome). No
+			// misuse recorded: this is an honest partial outcome (folded
+			// into Conclusion.Partial), not bookkeeping the caller must fix.
+			// The hint still names the corrective action either way.
 			t.state = Incomplete
 			t.phase = ""
 			t.summary = unresolvedTaskIncompleteSummary
+			attachUnresolvedTaskHintLocked(t)
 			continue
 		}
 		resolveUnstartedTaskLocked(t)
