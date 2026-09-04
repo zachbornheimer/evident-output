@@ -91,7 +91,9 @@ ok := evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))
 Owns the whole gate: spinner pause, the `?` prompt, stdin. "n" resolves `⊘ declined`; non-TTY without
 `--yes` resolves `⊘ blocked by policy` — never a Go error, never Failed. `question` is the one
 non-printf exception on this ladder — it is literal text, not a format string, so build it with
-`fmt.Sprintf` first if it needs interpolation.
+`fmt.Sprintf` first if it needs interpolation. Both outcomes are `Blocked`, so the run concludes
+`[blocked]` → exit `1`; pass `AssumeYes` (or gate on your own flag before calling Confirm) if a
+decline should exit `0` instead.
 
 ## Suspend (handing the tty to a child)
 

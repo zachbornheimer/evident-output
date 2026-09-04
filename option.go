@@ -219,28 +219,13 @@ type TerminalDriver interface {
 }
 
 // sinkReporter is implemented by a TerminalDriver that knows its own
-// destination writer (terminal.ANSI, testkit's drivers). configToOptions
-// uses it to DETECT whether a caller-supplied Terminal(...) happens to write
-// to the same stream as primary (To), instead of only knowing that for the
-// one construction path that builds both itself — see terminalSharesPrimary.
+// destination writer (terminal.ANSI, testkit's drivers). configToOptions and
+// newOutput use it to DETECT whether a caller-supplied Terminal(...) happens
+// to write to a stream evident-output already knows about (primary,
+// diagnostic, or either of Config's Stdout/Stderr), instead of only knowing
+// that for the one construction path that builds both itself.
 type sinkReporter interface {
 	Sink() io.Writer
-}
-
-// terminalSharesPrimary reports whether driver's own writer, if it exposes
-// one via sinkReporter, is the same stream as primary. A driver that doesn't
-// implement sinkReporter (or has no fixed sink, e.g. a virtual test screen)
-// answers false — that's the safe default (dual-write), never a
-// false-positive skip of the conclusion band.
-func terminalSharesPrimary(driver TerminalDriver, primary io.Writer) bool {
-	if driver == nil || primary == nil {
-		return false
-	}
-	sr, ok := driver.(sinkReporter)
-	if !ok {
-		return false
-	}
-	return sr.Sink() == primary
 }
 
 const (

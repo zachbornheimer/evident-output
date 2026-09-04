@@ -53,13 +53,16 @@
 //     round 6 finding 4).
 //  7. evo.Group(name) for named children with derived, auto-lifecycle state.
 //  8. task.Fail(summary) / task.Block(summary) are statements — no return value, so a bare
-//     call is errcheck-clean. `return task.Failf("validate manifest: %w", err)` builds and
-//     returns one error in a single line: a trailing ": %w"/", %w" splits the formatted text
-//     into the rendered summary and an evidence line for the wrapped error; Blockf is the
-//     same for Block. Warn, and success/skip verbs, stay void too — this is never fluent
-//     chaining. Done/Warn/Task/Group/Reason/Phase/Skip are printf-variadic themselves
-//     (fmt.Sprintf semantics when args follow); there is no separate Donef/Warnf/Taskf/
-//     Reasonf/Phasef/Skipf (C6).
+//     call is errcheck-clean. `return task.Failf("schema mismatch: %w", err)` (task declared
+//     as evo.Task("validate manifest")) builds and returns one error in a single line: a
+//     trailing ": %w"/", %w" splits the formatted text into the rendered summary and an
+//     evidence line for the wrapped error; Blockf is the same for Block. The summary states
+//     WHAT went wrong, not the task's own name again — the rendered row already carries the
+//     task label, so a summary of "validate manifest: %w" would just repeat it back. Warn,
+//     and success/skip verbs, stay void too — this is never fluent chaining.
+//     Done/Warn/Task/Group/Reason/Phase/Skip are printf-variadic themselves (fmt.Sprintf
+//     semantics when args follow); there is no separate Donef/Warnf/Taskf/Reasonf/Phasef/
+//     Skipf (C6).
 //     Output.Failf stays void rather than mirroring TaskHandle.Failf's *Failure return
 //     (release-gate round 4 finding 5): every call site uses it as a bare statement, a
 //     returned error would fail errcheck at each of them with no lint-config exception on

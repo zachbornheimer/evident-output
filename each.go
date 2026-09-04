@@ -24,7 +24,7 @@ func (t *TaskHandle) Each(items []string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for i, item := range items {
 			t.Progress(i, total)
-			t.autoPhase(item)
+			t.setLiveOnlyPhase(item)
 			if !yield(item) {
 				return
 			}

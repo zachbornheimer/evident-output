@@ -107,8 +107,12 @@ type debugRecord struct {
 func formatHistoryLine(rec debugRecord, color bool) string {
 	levelTok := "[" + rec.Level + "]"
 	if color {
-		// Spec: color applies primarily to the level token.
-		levelTok = style(levelTok, sgrCyan, true)
+		// Spec: color applies primarily to the level token. Warn/Error reuse
+		// the same entity glyph palette a Task's own Warning/Failed row uses
+		// (stateColor) — one severity vocabulary, not a second one invented
+		// for the debug journal (release-gate round 9 finding 3). Debug/Info
+		// keep the journal's existing cyan.
+		levelTok = style(levelTok, debugLevelColor(rec.Level), true)
 	}
 	msg := sanitize.Text(rec.Message)
 	var body string
@@ -121,6 +125,21 @@ func formatHistoryLine(rec debugRecord, color bool) string {
 		body += "  " + attrs
 	}
 	return body
+}
+
+// debugLevelColor maps a journal record's level name to the SGR color its
+// level token renders with — LevelWarn and LevelError reuse stateColor's
+// Warning/Failed colors (sgrYellow/sgrRed); every other level (Debug, Info,
+// Trace) keeps the journal's existing cyan.
+func debugLevelColor(level string) string {
+	switch level {
+	case "WARN":
+		return sgrYellow
+	case "ERROR":
+		return sgrRed
+	default:
+		return sgrCyan
+	}
 }
 
 func formatHistoryAttrs(fields []Field) string {

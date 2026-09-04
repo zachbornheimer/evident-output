@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -244,14 +245,45 @@ func newOutput(subject string, options ...Option) *Output {
 	// e.g. a virtual test screen driving output straight through the live
 	// surface) is left alone; a driver that cannot answer the question at
 	// all is misuse, recorded below once o exists.
+	//
+	// Whenever the driver's sink IS the primary writer — whether that's this
+	// same defaulting, or an explicit To()/Diagnostics() (Options path) or
+	// Config's own To(c.Stdout)/To(c.Stderr) wiring (Config.Terminal path,
+	// via configToOptions) that happens to coincide — the driver already
+	// rendered the conclusion there once; Finish's dual-write branch must
+	// not render it there again (release-gate round 9 finding 1).
 	terminalWithoutSink := false
-	if cfg.terminal != nil && cfg.primary == nil {
-		if sr, ok := cfg.terminal.(sinkReporter); ok {
-			if sink := sr.Sink(); sink != nil {
-				cfg.primary = sink
-			}
-		} else {
-			terminalWithoutSink = true
+	if cfg.terminal != nil {
+		sr, ok := cfg.terminal.(sinkReporter)
+		switch {
+		case !ok:
+			terminalWithoutSink = cfg.primary == nil
+		case sr.Sink() == nil:
+			// Explicit "no fixed sink" — left alone.
+		case cfg.primary == nil:
+			cfg.primary = sr.Sink()
+			cfg.samePrimaryAsTerminal = true
+		case sr.Sink() == cfg.primary:
+			cfg.samePrimaryAsTerminal = true
+		case sr.Sink() == cfg.diagnostic:
+			// Driver owns the diagnostic stream; primary is a distinct
+			// stream the caller separately configured — both streams get
+			// their own copy by design, not a duplicate.
+		}
+	}
+	// An Options build that installs neither To() nor a Terminal sink must
+	// still land its residual/conclusion projection somewhere — before this,
+	// primary stayed nil and Finish silently wrote zero bytes, even on a
+	// Fail (exit 2 with no evidence of why). Default to os.Stdout, matching
+	// the non-Options default, and apply the same TTY/color inference the
+	// non-Options path applies to that stream: never override an explicit
+	// NoColor(), only ever strengthen it, so a defaulted destination piped
+	// to a file never leaks raw ANSI into it (release-gate round 9 findings
+	// 2 and 5).
+	if cfg.terminal == nil && cfg.primary == nil {
+		cfg.primary = os.Stdout
+		if !cfg.noColor && (os.Getenv("NO_COLOR") != "" || !IsCharDevice(cfg.primary)) {
+			cfg.noColor = true
 		}
 	}
 	if cfg.maxEntities <= 0 {
