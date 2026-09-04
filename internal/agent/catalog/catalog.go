@@ -103,8 +103,16 @@ evo.TruncateNames(names, 8) before it reaches any of those three calls.
 
 Predeclare before fan-out (API-030): call out.Task/DisplayGroup.Task for every child before starting any goroutine
 or g.Go closure, then pass the handle in. Declaring the Task inside the closure races task creation with rendering
-and produces the unordered multi-spinner defect Sequence's "one Running child" heart contract forbids.`,
-			TokenEstimate: 300,
+and produces the unordered multi-spinner defect Sequence's "one Running child" heart contract forbids.
+
+Facts vs Tasks (v0.4.0/P8): discovered information ("repository /repo", "language go", "config loaded") is not
+work — never fake a checkmark Task to display it. Use task.Fact(name, value) (attached to the Task that
+discovered it) or evo.Fact(name, value) (run-scoped) instead; both render as a durable dim "name  value" line,
+never a lifecycle row, fire-and-forget. task.Warn(...)/evo.Warn(...) are the warning-severity sibling — an
+annotation on the lifecycle, never a replacement for it (a warned-but-unresolved Task auto-resolves Done at
+Finish). Both flow through the same placement rule: inline on the row when it is the only annotation, nested dim
+lines otherwise.`,
+			TokenEstimate: 320,
 		},
 		{
 			ID:       "streams",
