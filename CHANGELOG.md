@@ -59,8 +59,35 @@ shims; every deletion below has zero call sites left in this repo.
   (`TestWireSchema_RenderedDocumentValidates`) instead of sitting unreferenced.
   `EventSchemaVersion` bumps 0.2 → 0.3 to reflect the already-existing
   `task.warned` event type.
+- **Facts (P8)**: `task.Fact(name, value)` and `evo.Fact(name, value)`
+  (run-scoped) are Warn's info-severity sibling — a durable dim
+  `"name  value"` annotation, never a lifecycle row, fire-and-forget.
+  `evo.Warn(...)` (run-scoped) is added for symmetry with `TaskHandle.Warn`,
+  feeding `· warned` without ever becoming a headline of its own.
+  `TaskSnapshot.Facts`/`Snapshot.Facts`/`Snapshot.Warnings` (run-scoped)
+  join the wire document.
+- **Confirm gains a `›` input line** under the compact `?  <question>
+[y/N]` prompt (P11) — the typed answer lands on its own line instead of
+  competing with the question and choices.
+- **Dry-run header collapses to one line** (P12,
+  fixture-repo-retire-dryrun.md): `Config.Subject` merges onto the
+  `[dry-run]` marker's own line instead of streaming as a separate durable
+  line. Task rows with an inline warning/fact and the effects ledger (a
+  single-record subject) now align to a shared column —
+  `[planned] branches   delete 2 local tips` instead of a header line plus
+  an indented row underneath.
+- **`ErrFinishing`** (deletion census): a dead sentinel with a misuse-hint
+  branch but no producer anywhere in the repo — removed.
 
 ### Fixed
+
+- **Evidence dedupe (P7)**: `task.Failf("install failed: %s",
+capture.Text())` — the anti-pattern user-13-problems.md Problem 7 names —
+  previously rendered the retained evidence text twice (once folded into
+  the caller's own summary, once again as Failf's auto-attached
+  `EvidenceTail`). The render layer now skips the tail when the row's own
+  summary already contains it. A new `EV-001` MCP rule/detector flags the
+  call-site anti-pattern.
 
 - Container-child warnings now fold into the run conclusion — a warned child
   under a `Sequence`/`DisplayGroup` was previously invisible to the `·
