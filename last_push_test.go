@@ -229,7 +229,7 @@ func TestPORT015_ReproducibleSchemaVersion(t *testing.T) {
 	out.Task("a").Done()
 	_ = out.Finish()
 	b, _ := evo.EncodeJSON(out.Snapshot())
-	if !strings.Contains(string(b), `"schema_version": "0.3"`) {
+	if !strings.Contains(string(b), `"schema_version": "0.4"`) {
 		t.Fatal(string(b))
 	}
 	_ = out.Close()

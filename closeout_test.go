@@ -330,7 +330,7 @@ func TestPORT013_PublicAPIStableShape(t *testing.T) {
 		t.Fatalf("%+v", snap)
 	}
 	b, err := evo.EncodeJSON(snap)
-	if err != nil || !strings.Contains(string(b), `"schema_version": "0.3"`) {
+	if err != nil || !strings.Contains(string(b), `"schema_version": "0.4"`) {
 		t.Fatal(err, string(b))
 	}
 	_ = out.Close()

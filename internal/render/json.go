@@ -8,11 +8,12 @@ import (
 )
 
 // JSONSchemaVersion is the final JSON document schema version.
-// Tracks the 0.3 contract series (pre-1.0 wire format may still evolve).
-// Bumped from 0.2: "items" no longer exists as a separate wire kind — the
-// item/task fold means every entity (including a fact-check resolved
-// without ever running) is a "tasks" row (CHANGELOG "Unreleased").
-const JSONSchemaVersion = "0.3"
+// Tracks the 0.4 contract series (pre-1.0 wire format may still evolve).
+// Bumped from 0.3 (v0.4.0/P8): JSONTask gains warnings and ConclusionJSON
+// gains warned — the 0.3 wire silently dropped a warned task's Warnings
+// entirely and had no run-level warned signal, a machine-consumer signal
+// loss (see CHANGELOG).
+const JSONSchemaVersion = "0.4"
 
 // JSONDocument is the final machine projection (§25.1).
 type JSONDocument struct {
@@ -42,12 +43,18 @@ type JSONOutputMeta struct {
 
 // ConclusionJSON is JSON-friendly conclusion.
 type ConclusionJSON struct {
-	State       core.ConclusionState `json:"state"`
-	Changed     bool                 `json:"changed"`
-	Partial     bool                 `json:"partial"`
-	Cancelled   bool                 `json:"cancelled"`
-	ExitCode    int                  `json:"exit_code"`
-	Explanation string               `json:"explanation,omitempty"`
+	State     core.ConclusionState `json:"state"`
+	Changed   bool                 `json:"changed"`
+	Partial   bool                 `json:"partial"`
+	Cancelled bool                 `json:"cancelled"`
+	// Warned mirrors core.Conclusion.Warned (v0.4.0/P8, wire 0.4): at least
+	// one task warned (or a run-scoped evo.Warn fired) without the run
+	// otherwise failing/blocking. The 0.3 wire had no field for this at
+	// all — a warned run's conclusion band and its JSON document could
+	// disagree for a machine consumer.
+	Warned      bool   `json:"warned"`
+	ExitCode    int    `json:"exit_code"`
+	Explanation string `json:"explanation,omitempty"`
 }
 
 // JSONProblem is a wire-format problem (no raw Cause by default).
@@ -62,14 +69,19 @@ type JSONProblem struct {
 
 // JSONTask is a wire-format task.
 type JSONTask struct {
-	ID       string           `json:"id"`
-	Key      string           `json:"key,omitempty"`
-	Name     string           `json:"name"`
-	State    core.EntityState `json:"state"`
-	Phase    string           `json:"phase,omitempty"`
-	Summary  string           `json:"summary,omitempty"`
-	Progress *JSONProgress    `json:"progress,omitempty"`
-	Problems []JSONProblem    `json:"problems,omitempty"`
+	ID      string           `json:"id"`
+	Key     string           `json:"key,omitempty"`
+	Name    string           `json:"name"`
+	State   core.EntityState `json:"state"`
+	Phase   string           `json:"phase,omitempty"`
+	Summary string           `json:"summary,omitempty"`
+	// Warnings mirrors TaskSnapshot.Warnings (v0.4.0/P8, wire 0.4) — the 0.3
+	// wire dropped a warned task's annotations entirely, a machine-consumer
+	// signal loss the render layer's "· warned" band already surfaced to a
+	// human reader.
+	Warnings []JSONProblem `json:"warnings,omitempty"`
+	Progress *JSONProgress `json:"progress,omitempty"`
+	Problems []JSONProblem `json:"problems,omitempty"`
 }
 
 // JSONProgress is wire-format progress.
@@ -175,6 +187,7 @@ func toJSONDocument(s core.Snapshot) JSONDocument {
 			Changed:     c.Changed,
 			Partial:     c.Partial,
 			Cancelled:   c.Cancelled,
+			Warned:      c.Warned,
 			ExitCode:    c.ExitCode,
 			Explanation: c.Explanation,
 		},
@@ -242,6 +255,9 @@ func toJSONTask(t core.TaskSnapshot) JSONTask {
 	jt := JSONTask{
 		ID: t.ID, Key: t.Key, Name: t.Name, State: t.State, Phase: t.Phase, Summary: t.Summary,
 		Problems: toJSONProblems(t.Problems),
+	}
+	if len(t.Warnings) > 0 {
+		jt.Warnings = toJSONProblems(t.Warnings)
 	}
 	if t.Progress.Kind != "" && t.Progress.Kind != core.Indeterminate {
 		jt.Progress = &JSONProgress{

@@ -344,7 +344,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), `"schema_version": "0.3"`) {
+	if !strings.Contains(string(raw), `"schema_version": "0.4"`) {
 		t.Fatalf("json missing schema_version:\n%s", raw)
 	}
 	if !strings.Contains(string(raw), `"state": "blocked"`) {
@@ -361,7 +361,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 			continue
 		}
 		n++
-		if !strings.Contains(line, `"schema_version":"0.3"`) && !strings.Contains(line, `"schema_version": "0.3"`) {
+		if !strings.Contains(line, `"schema_version":"0.4"`) && !strings.Contains(line, `"schema_version": "0.4"`) {
 			// compact marshal has no space
 			if !strings.Contains(line, "schema_version") {
 				t.Fatalf("jsonl line missing schema_version: %s", line)

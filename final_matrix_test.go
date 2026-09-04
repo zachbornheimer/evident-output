@@ -81,7 +81,7 @@ func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 	if err := json.Unmarshal(raw, &slim); err != nil {
 		t.Fatal(err)
 	}
-	if slim.SchemaVersion != "0.3" || slim.Conclusion.State == "" {
+	if slim.SchemaVersion != "0.4" || slim.Conclusion.State == "" {
 		t.Fatalf("%+v", slim)
 	}
 }

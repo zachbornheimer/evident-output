@@ -170,7 +170,7 @@ func TestOUT011_EventTimestampsPresent(t *testing.T) {
 		if e.Timestamp.IsZero() {
 			t.Fatal("zero timestamp")
 		}
-		if e.SchemaVersion != "0.2" {
+		if e.SchemaVersion != "0.3" {
 			t.Fatal(e.SchemaVersion)
 		}
 	}
