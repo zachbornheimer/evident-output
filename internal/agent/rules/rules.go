@@ -1043,6 +1043,23 @@ t = out.Task("build")`,
 			Certainty:       "deterministic",
 		},
 		{
+			ID:        "API-038",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "fmt.Sprintf(...) is never passed to a method that is already printf-variadic itself",
+			Why: "Task/DisplayGroup/Sequence/Summary/Done/Warn/Doing/Skip/Failf all already accept " +
+				"(format string, args ...any) directly (P1/P2, C6: their separate *f siblings — Warnf included — " +
+				"were deleted) — wrapping the call in fmt.Sprintf is ceremony that also hides the real arguments " +
+				"from evo's own formatting.",
+			BadCode:         `task.Doing(fmt.Sprintf("scanning %s", path))`,
+			GoodCode:        `task.Doing("scanning %s", path)`,
+			Remediation:     "Flatten fmt.Sprintf(...) into the method's own format + args; never wrap a printf-variadic evo call in fmt.Sprintf",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-038"},
+			Since:           "0.4.1",
+			Certainty:       "deterministic",
+		},
+		{
 			ID:              "DOM-020",
 			Category:        "DOM",
 			Severity:        "warning",

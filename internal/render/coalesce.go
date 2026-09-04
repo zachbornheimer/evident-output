@@ -31,6 +31,19 @@ func ShouldSuppressStandaloneConclusion(s core.Snapshot) bool {
 	if c.Explanation != "" || len(c.Actions) > 0 || c.Partial || c.Cancelled || c.Warned {
 		return false
 	}
+
+	// DryRun's own subject header already told the complete story
+	// (fixture-repo-retire-dryrun.md: "NO ledger row for tasks/binaries with
+	// no effects"): once WriteDryRunMarker rendered s.DryRunSubject and the
+	// derived verdict settled on a pure StatePlanned (failed/blocked/warned/
+	// partial/cancelled are all already excluded above), a trailing
+	// "[planned]" band repeats information the header plus the per-section
+	// [planned] ledger rows already gave — regardless of how many effect
+	// sections exist, unlike the single-section rule below.
+	if s.DryRun && s.DryRunSubject != "" && c.State == core.StatePlanned {
+		return true
+	}
+
 	if shouldSuppressRepeatedCondition(s, c) {
 		return true
 	}

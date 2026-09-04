@@ -63,7 +63,7 @@ func TestP12_DryRunFixtureShape(t *testing.T) {
 
 	got := buf.String()
 	for _, want := range []string{
-		"[dry-run]  repo  /Users/zbornheimer/Developer/Software-Automation-Holdings/bpp2.0\n\n",
+		"[dry-run] repo  /Users/zbornheimer/Developer/Software-Automation-Holdings/bpp2.0\n\n",
 		// One shared column: every root task's name pads to the widest
 		// sibling ("remote-tracking", 15 cells) before its annotation.
 		"✓  branches         ! kept 13 (8 protected, 5 unpushed)\n",

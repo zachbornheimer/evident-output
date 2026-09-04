@@ -1426,6 +1426,73 @@ func f(task *evo.TaskHandle, branch string) {
 	}
 }
 
+// TestAPI038_SprintfIntoVariadicVerb is red-first for the new detector: a
+// printf-variadic evo method (Doing here) already accepts format + args
+// directly, so wrapping the call in fmt.Sprintf is ceremony to flatten away.
+func TestAPI038_SprintfIntoVariadicVerb(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, path string) {
+  task.Doing(fmt.Sprintf("scanning %s", path))
+}
+`
+	res := review.GoSource("sprintfdoing.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-038" {
+			found = true
+			if f.Suggestion != `task.Doing("scanning %s", path)` {
+				t.Fatalf("suggestion = %q", f.Suggestion)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-038: %+v", res.Findings)
+	}
+}
+
+// TestAPI038_WarnFlattensNotWarnf proves the Warn case flattens into Warn's
+// own variadic form rather than repeating API-036's now-stale suggestion of
+// a Warnf method that no longer exists (P1/P2 deleted it).
+func TestAPI038_WarnFlattensNotWarnf(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, n int) {
+  task.Warn(fmt.Sprintf("kept %d", n))
+}
+`
+	res := review.GoSource("sprintfwarn.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-036" {
+			t.Fatalf("API-036 must not fire on Warn (Warnf does not exist): %+v", f)
+		}
+		if f.RuleID == "API-038" && f.Suggestion != `task.Warn("kept %d", n)` {
+			t.Fatalf("suggestion = %q", f.Suggestion)
+		}
+	}
+}
+
+func TestAPI038_NoFalsePositiveWithoutSprintf(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle, done, total int) {
+  task.Doing("scanning %d/%d", done, total)
+}
+`
+	res := review.GoSource("doingclean.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-038" {
+			t.Fatalf("false positive API-038 on an already-flattened call: %+v", res.Findings)
+		}
+	}
+}
+
 func TestAPI037_WrapperMethodOverTaskVerb(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"

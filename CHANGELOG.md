@@ -6,6 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project has not reached 1.0 — pre-1.0 API breaks are called out explicitly
 below rather than deferred to a major version.
 
+## [0.4.1] — dry-run header spacing, trailing-band suppression, census
+
+### Fixed
+
+- **Dry-run header spacing** (fixture-repo-retire-dryrun.md): `WriteDryRunMarker`
+  joined the `[dry-run]` tag to its subject with two spaces; the fixture pins
+  exactly one (`[dry-run] repo  <path>` — the second gap belongs to the
+  subject text itself, not the marker). `TestP12_DryRunFixtureShape` and the
+  `emitDryRunMarkerLocked` doc comment now match.
+- **Trailing conclusion band suppression on a clean dry run**
+  (fixture-repo-retire-dryrun.md: "NO ledger row for tasks/binaries with no
+  effects"): when a dry-run's `Config.Subject` header rendered and the
+  derived verdict is a pure `StatePlanned` (no failed/blocked/warned/
+  partial/cancelled), the trailing `[planned]` band is now suppressed
+  regardless of how many effect sections the run has — the header plus the
+  per-section `[planned]` ledger rows already told the whole story. A warned
+  dry run still prints its trailing `[planned · warned]` band unchanged.
+
+### Added
+
+- **`API-038`** MCP review rule/detector: `fmt.Sprintf(...)` passed to a
+  method that is already printf-variadic itself (`Task`/`DisplayGroup`/
+  `Sequence`/`Summary`/`Done`/`Warn`/`Doing`/`Skip`/`Failf`) should flatten
+  into that method's own format + args. `API-036`'s `Warn` handling is
+  removed as stale — it suggested a `Warnf` method that P1/P2 deleted; `Warn`
+  now falls under `API-038` instead.
+
+### Census
+
+- Deletion census over the ~57 exported `*Option` constructors
+  (`EntityOption`/`ProblemOption`/`EffectOption`/`EvidenceOption`/
+  `ConfirmOption`/`DebugPaneOption`/`ReasonOption`/`Option`) plus the
+  remaining `terminal`/`testkit` exports: zero DELETE verdicts. Every symbol
+  has at least one of production wiring (e.g. `DebugAddSource` behind
+  `Config.Debug.AddSource`), a documented example/guide reference, or live
+  test/conformance-golden coverage. `zq`/`repo-retire` are pinned to
+  v0.3.0/v0.3.1 — their silence on v0.4.0-era symbols (`Affected`, `Fact`,
+  …) is expected (too new for that evidence), not a dead-code signal.
+
 ## [0.4.0] — caller reports effects; evo derives result; structural rename
 
 The 13-problem redesign (evo-rec.md). Breaking throughout — pre-1.0, no

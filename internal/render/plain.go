@@ -867,7 +867,7 @@ func WriteDryRunMarker(b *strings.Builder, color bool, subject string) {
 	if subject != "" {
 		body = subject
 	}
-	fmt.Fprintf(b, "%s  %s\n\n", tag, body)
+	fmt.Fprintf(b, "%s %s\n\n", tag, body)
 }
 
 // conclusionPartialModifier is the literal suffix that marks the printed

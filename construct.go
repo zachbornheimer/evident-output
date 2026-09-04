@@ -23,10 +23,15 @@ var processArgv0 = func() string {
 // output-level outcome (Output.Failf/Cancel) has no named task and no
 // explicit Config.Title to identify it with — replacing the generic literal
 // "command" with the caller's actual binary name (I2). This is deliberately
-// NOT plumbed into Snapshot.Subject / the conclusion band's Subject: that
-// text is dialect-frozen this release and many existing goldens depend on
-// its "no Subject configured" fallback (bare state name) staying exactly as
-// it is — Config.Title stays the only way to set that.
+// NOT plumbed into Snapshot.Subject / the conclusion band's Subject: Config.
+// Title stays the only way to set that, and many existing goldens depend on
+// the "no Subject configured" fallback (bare state name) staying exactly as
+// it is. Separately, when a DryRun run's Config.Subject header rendered and
+// the derived verdict settled on a pure StatePlanned (no failed/blocked/
+// warned/partial/cancelled), the trailing conclusion band itself is
+// suppressed as redundant with that header — see
+// render.ShouldSuppressStandaloneConclusion and evo-rec.md's dry-run
+// section.
 func identityFallbackName() string {
 	if base := filepath.Base(processArgv0()); base != "." && base != string(filepath.Separator) {
 		return base

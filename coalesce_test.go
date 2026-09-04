@@ -57,6 +57,72 @@ func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) 
 	}
 }
 
+// TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion is
+// red-first against fixture-repo-retire-dryrun.md's binding reading: "NO
+// ledger row for tasks/binaries with no effects (current `[planned]
+// repo-retire` trailing row is a bug)". A dry-run run that already rendered
+// its Config.Subject header and settled on a pure StatePlanned verdict
+// across MULTIPLE effect sections (not just the single-section case
+// TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion already
+// covers) must not also print a trailing "[planned]" band — the header plus
+// the per-section ledger rows already told the whole story.
+func TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Isolated: true,
+		DryRun:   true,
+		Subject:  "repo  /demo",
+		Options:  []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()},
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	branches := out.Task("branches")
+	_ = branches.Delete("local tip", nil, evo.Affected(2))
+	branches.Done()
+
+	worktrees := out.Task("worktrees")
+	_ = worktrees.Remove("worktree", nil, evo.Affected(1))
+	worktrees.Done()
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	got := buf.String()
+	if strings.Count(got, "[planned]") != 2 {
+		t.Fatalf("want exactly the two per-section [planned] rows, no trailing band:\n%s", got)
+	}
+}
+
+// TestCoalesce_DryRunWarned_KeepsTrailingConclusion proves the suppression
+// above does not overreach: a dry-run header plus a warned task still needs
+// the trailing band to carry the "· warned" modifier, since the header and
+// per-section ledger rows never show it.
+func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Isolated: true,
+		DryRun:   true,
+		Subject:  "repo  /demo",
+		Options:  []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()},
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	branches := out.Task("branches")
+	branches.Warn("kept 13")
+	_ = branches.Delete("local tip", nil, evo.Affected(2))
+	branches.Done()
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	got := buf.String()
+	if !strings.Contains(got, "[planned · warned]") {
+		t.Fatalf("warned dry-run must keep its trailing band:\n%s", got)
+	}
+}
+
 func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{

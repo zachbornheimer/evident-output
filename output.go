@@ -377,7 +377,7 @@ func (o *Output) DeclareDryRun() {
 	o.emitDryRunMarkerLocked()
 }
 
-// emitDryRunMarkerLocked writes the "[dry-run]  no changes will be made"
+// emitDryRunMarkerLocked writes the "[dry-run] no changes will be made"
 // announcement immediately, once, through the same durable-write path
 // (writeDurableTextLocked) every other library-owned line uses.
 func (o *Output) emitDryRunMarkerLocked() {

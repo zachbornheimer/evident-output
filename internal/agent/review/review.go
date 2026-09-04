@@ -347,10 +347,17 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectDiscardSinkInFailingBlock(filename, src)...)
 	}
 
-	// API-036: Fail/Block/Warn summary built via fmt.Sprintf instead of the
-	// matching Failf/Blockf/Warnf.
+	// API-036: Fail/Block summary built via fmt.Sprintf instead of the
+	// matching Failf/Blockf.
 	if hasEvo {
 		findings = append(findings, detectSprintfInVerb(filename, src)...)
+	}
+
+	// API-038: fmt.Sprintf(...) passed to a printf-variadic evo method
+	// (Task/DisplayGroup/Sequence/Summary/Done/Warn/Doing/Skip/Failf) should
+	// flatten into that method's own format + args.
+	if hasEvo {
+		findings = append(findings, detectSprintfIntoVariadicVerb(filename, src)...)
 	}
 
 	// API-037: a method whose whole body is one call on a Task/Item handle —
@@ -1588,12 +1595,15 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 	return findings
 }
 
-// sprintfInVerbPattern matches Fail/Block/Warn called with fmt.Sprintf as
-// (the start of) its argument list.
-var sprintfInVerbPattern = regexp.MustCompile(`(\w+)\.(Fail|Block|Warn)\(\s*fmt\.Sprintf\(`)
+// sprintfInVerbPattern matches Fail/Block called with fmt.Sprintf as (the
+// start of) its argument list. Warn is deliberately excluded: it is itself
+// printf-variadic (P1/P2 deleted the separate Warnf), so a Warn(fmt.Sprintf(
+// ...)) call belongs to API-038's flatten-into-the-call family, not this
+// rule's "use the *f sibling" family — that sibling no longer exists.
+var sprintfInVerbPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*fmt\.Sprintf\(`)
 
-// detectSprintfInVerb is API-036: a Fail/Block/Warn summary hand-built via
-// fmt.Sprintf should be the matching Failf/Blockf/Warnf directly — fmt.Sprintf
+// detectSprintfInVerb is API-036: a Fail/Block summary hand-built via
+// fmt.Sprintf should be the matching Failf/Blockf directly — fmt.Sprintf
 // as the sole argument is pure ceremony around a formatting method that
 // already exists.
 func detectSprintfInVerb(filename, src string) []Finding {
@@ -1630,6 +1640,56 @@ func detectSprintfInVerb(filename, src string) []Finding {
 			File:       filename,
 			Line:       lineAt(src, m[0]),
 			Suggestion: recv + "." + verb + "f(" + args + ")",
+		})
+	}
+	return findings
+}
+
+// printfVariadicVerbPattern matches a call to one of evo's own printf-
+// variadic entity/status methods — Task/DisplayGroup/Sequence/Summary/Done/
+// Warn/Doing/Skip/Failf all already take (format string, args ...any)
+// directly (P1/P2, C6: the separate *f siblings for these were deleted) —
+// with fmt.Sprintf as (the start of) its argument list.
+var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Task|DisplayGroup|Sequence|Summary|Done|Warn|Doing|Skip|Failf)\(\s*fmt\.Sprintf\(`)
+
+// detectSprintfIntoVariadicVerb is API-038: fmt.Sprintf(...) passed to a
+// method that is already printf-variadic itself is ceremony that also hides
+// the real arguments from evo's own formatting — flatten it into the
+// method's own format + args instead.
+func detectSprintfIntoVariadicVerb(filename, src string) []Finding {
+	var findings []Finding
+	for _, m := range printfVariadicVerbPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv, verb := src[m[2]:m[3]], src[m[4]:m[5]]
+		openIdx := strings.Index(src[m[0]:m[1]], "fmt.Sprintf(")
+		if openIdx < 0 {
+			continue
+		}
+		openIdx = m[0] + openIdx + len("fmt.Sprintf")
+		args, endIdx, ok := balancedArgs(src, openIdx)
+		if !ok {
+			continue
+		}
+		rest := strings.TrimLeft(src[endIdx:], " \t\n")
+		if !strings.HasPrefix(rest, ")") {
+			// fmt.Sprintf isn't the sole argument (more options follow) — still
+			// a real finding, but no cheap derived flattened call.
+			findings = append(findings, Finding{
+				RuleID:     "API-038",
+				Severity:   "warning",
+				Message:    recv + "." + verb + "(fmt.Sprintf(...), ...) should flatten fmt.Sprintf into " + recv + "." + verb + "'s own format + args",
+				File:       filename,
+				Line:       lineAt(src, m[0]),
+				Suggestion: recv + "." + verb + "(" + args + ")",
+			})
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-038",
+			Severity:   "warning",
+			Message:    recv + "." + verb + "(fmt.Sprintf(...)) should flatten into " + recv + "." + verb + "(...) directly",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: recv + "." + verb + "(" + args + ")",
 		})
 	}
 	return findings
