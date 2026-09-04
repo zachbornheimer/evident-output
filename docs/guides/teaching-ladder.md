@@ -93,7 +93,9 @@ Owns the whole gate: spinner pause, the `?` prompt, stdin. "n" resolves `⊘ dec
 non-printf exception on this ladder — it is literal text, not a format string, so build it with
 `fmt.Sprintf` first if it needs interpolation. Both outcomes are `Blocked`, so the run concludes
 `[blocked]` → exit `1`; pass `AssumeYes` (or gate on your own flag before calling Confirm) if a
-decline should exit `0` instead.
+decline should exit `0` instead. The blocked-by-policy hint defaults to naming a `--yes` flag your
+program may not actually have — pass `evo.PolicyFlag("--apply")` to name the real one:
+`evo.Confirm(q, evo.PolicyFlag("--apply"))`.
 
 ## Suspend (handing the tty to a child)
 
