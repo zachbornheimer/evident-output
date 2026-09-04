@@ -2,10 +2,17 @@ package evo
 
 // Conclusion is the multidimensional meaning of a finished command.
 type Conclusion struct {
-	State       ConclusionState
-	Subject     string
-	Changed     bool
-	Partial     bool
+	State   ConclusionState
+	Subject string
+	Changed bool
+	Partial bool
+	// Warned reports that at least one task or collection resolved Warning
+	// while the headline State settled on something else (release-gate
+	// round 8 finding 3) — an otherwise-OK run must not read as silently
+	// clean just because Warning sits below the OK-family headline in
+	// precedence. Always false when State is itself StateWarning: that
+	// headline already says it (see inferConclusion).
+	Warned      bool
 	Cancelled   bool
 	Explanation string
 	Tasks       []TaskSnapshot
@@ -192,6 +199,9 @@ func inferConclusion(s Snapshot) Conclusion {
 	}
 	if hasCancelled {
 		c.Cancelled = true
+	}
+	if hasWarning && c.State != StateWarning {
+		c.Warned = true
 	}
 
 	// DryRun never lets the headline read as done: a run that would

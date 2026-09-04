@@ -579,7 +579,7 @@ func TestSpecP13_Retry_Success(t *testing.T) {
 // count/phase survives into a Fail with structured Detail evidence.
 //
 //	:.  install  13/40  urllib3
-//	✗  install  urllib3 failed after 3 tries
+//	✗  install  13/40  urllib3 failed after 3 tries
 //	   └─ HTTP 503 from mirror
 //
 // Progress counts are not converted into Changes-ledger content the way
@@ -599,7 +599,7 @@ func TestSpecP13_Retry_Failure(t *testing.T) {
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
-		"✗ install urllib3 failed after 3 tries",
+		"✗ install 13/40 urllib3 failed after 3 tries",
 		"HTTP 503 from mirror",
 	} {
 		if !strings.Contains(collapsed, want) {
@@ -636,7 +636,7 @@ func TestSpecP13_LiveFrame_Indeterminate(t *testing.T) {
 // with the true held count, reachable byte-for-byte through the public API.
 //
 //	:.  install  13/40  urllib3
-//	✗  install  progress misuse avoided — absolute 13/40 held
+//	✗  install  13/40  progress misuse avoided — absolute 13/40 held
 //	   └─ connection reset by peer
 func TestSpecP13_Retry_Error(t *testing.T) {
 	t.Parallel()
@@ -659,7 +659,7 @@ func TestSpecP13_Retry_Error(t *testing.T) {
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
-		"✗ install progress misuse avoided — absolute 13/40 held",
+		"✗ install 13/40 progress misuse avoided — absolute 13/40 held",
 		"connection reset by peer",
 	} {
 		if !strings.Contains(collapsed, want) {

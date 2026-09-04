@@ -247,11 +247,26 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 		runningDetail = runningTaskDetail(t)
 	}
 	switch {
-	case t.Summary != "" && (t.State == Failed || t.State == Blocked):
-		// release-gate round 6 finding 5: a Fail/Block summary is the evidence
-		// the reader most needs — it must never render at the lowest contrast
-		// on screen. Full intensity here; dim stays for genuinely subordinate
+	case t.Summary != "" && t.State == Failed:
+		// release-gate round 6 finding 5: a Fail summary is the evidence the
+		// reader most needs — it must never render at the lowest contrast on
+		// screen. Full intensity here; dim stays for genuinely subordinate
 		// outcomes (Done/Skip/Cancel summaries) below.
+		//
+		// release-gate round 8 finding 4: a task that failed mid-loop still
+		// carries the in-flight count (e.g. "1/3") it had when Fail was
+		// called — dropping it the instant a task fails would hide exactly
+		// the evidence a reader needs most ("how far did it get"). Rendered
+		// in the same position a Running row shows it (runningTaskDetail).
+		if count := progressCountText(t.Progress); count != "" {
+			fmt.Fprintf(b, "%s  %s  %s  %s\n", glyph, label, count, t.Summary)
+		} else {
+			fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Summary)
+		}
+	case t.Summary != "" && t.State == Blocked:
+		// release-gate round 6 finding 5: same full-intensity treatment as
+		// Failed above; Blocked never carries in-flight progress (a gate
+		// resolves before mutation, never mid-loop), so no count applies.
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Summary)
 	case t.Summary != "":
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, dim(t.Summary, color))
@@ -306,13 +321,7 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 // Returns "" for a Running task with neither (never happens through the
 // public API, since every path that promotes Pending to Running sets one).
 func runningTaskDetail(t TaskSnapshot) string {
-	count := ""
-	switch {
-	case t.Progress.Kind == BytesKind && t.Progress.Total > 0:
-		count = formatByteProgressFixed(t.Progress.Completed, t.Progress.Total)
-	case t.Progress.Kind == Determinate && t.Progress.Total > 0:
-		count = fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
-	}
+	count := progressCountText(t.Progress)
 	switch {
 	case count != "" && t.Phase != "":
 		return count + "  " + t.Phase
@@ -320,6 +329,23 @@ func runningTaskDetail(t TaskSnapshot) string {
 		return count
 	default:
 		return t.Phase
+	}
+}
+
+// progressCountText renders p as the fixed "C/T" (Determinate) or
+// byte-fraction (BytesKind) count text a Running row shows, or "" when p
+// carries neither — the one place that decides "does this progress have a
+// displayable count," shared by runningTaskDetail (Running) and writeTask's
+// Failed row (release-gate round 8 finding 4) so both projections agree on
+// where and how the count reads.
+func progressCountText(p Progress) string {
+	switch {
+	case p.Kind == BytesKind && p.Total > 0:
+		return formatByteProgressFixed(p.Completed, p.Total)
+	case p.Kind == Determinate && p.Total > 0:
+		return fmt.Sprintf("%d/%d", p.Completed, p.Total)
+	default:
+		return ""
 	}
 }
 
@@ -622,16 +648,30 @@ func writeDryRunMarker(b *strings.Builder, color bool) {
 // finish must not read as silently complete.
 const conclusionPartialModifier = " · partial"
 
+// conclusionWarnedModifier marks the printed band with the same "modifier,
+// not a new headline" treatment as conclusionPartialModifier (release-gate
+// round 8 finding 3): a run that resolved at least one Warning while its
+// headline settled on an OK-family state (e.g. [ready]) must not read as
+// silently clean — the exit code is unchanged, only the band gains this
+// suffix. Conclusion.Warned is already false when State is itself
+// StateWarning, so the two never double up.
+const conclusionWarnedModifier = " · warned"
+
 // conclusionBandTag renders the trailing outcome band's bracketed tag,
-// appending conclusionPartialModifier when the conclusion is incomplete —
-// evo-rec.md's spec does not pin a literal spelling for the OK+Partial band
-// (only a two-axis rule), so the modifier form here is the documented
-// implementation choice (see work order for the corresponding spec-edit note).
+// appending conclusionPartialModifier and/or conclusionWarnedModifier when
+// the conclusion carries either — evo-rec.md's spec does not pin a literal
+// spelling for these modifier bands (only the two/three-axis rule), so the
+// modifier form here is the documented implementation choice (see work
+// order for the corresponding spec-edit note).
 func conclusionBandTag(c Conclusion) string {
+	tag := string(c.State)
 	if c.Partial {
-		return fmt.Sprintf("[%s%s]", c.State, conclusionPartialModifier)
+		tag += conclusionPartialModifier
 	}
-	return fmt.Sprintf("[%s]", c.State)
+	if c.Warned {
+		tag += conclusionWarnedModifier
+	}
+	return fmt.Sprintf("[%s]", tag)
 }
 
 func writeConclusion(b *strings.Builder, c Conclusion, color bool, profile GlyphProfile) {

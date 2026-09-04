@@ -629,9 +629,19 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent, width int, sp
 		if msg == "" && len(t.Problems) > 0 {
 			msg = t.Problems[0].Summary
 		}
-		if msg != "" {
+		// release-gate round 8 finding 4: a task that failed mid-loop still
+		// carries the in-flight count it had when Fail was called — render
+		// it in the same position a Running row shows it (right after the
+		// name), so the failure row never loses "how far did it get".
+		count := progressCountText(t.Progress)
+		switch {
+		case msg != "" && count != "":
+			fmt.Fprintf(b, "%s%s  %s  %s  %s\n", pad, g, nameField, count, msg)
+		case msg != "":
 			fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, msg)
-		} else {
+		case count != "":
+			fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, count)
+		default:
 			fmt.Fprintf(b, "%s%s  %s\n", pad, g, strings.TrimRight(nameField, " "))
 		}
 	case t.State == Warning:
