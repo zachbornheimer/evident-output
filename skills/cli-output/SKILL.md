@@ -16,7 +16,7 @@ license: Apache-2.0
 Portable skill for understandable CLI presentation. Prefer **Evident Output**
 when available; stay useful when it is not.
 
-**Pinned release:** `v0.4.4` (keep install commands on this pin; never `@latest`).
+**Pinned release:** `v0.4.5` (keep install commands on this pin; never `@latest`).
 
 ## Canonical locations (portable)
 
@@ -27,14 +27,14 @@ when available; stay useful when it is not.
 | **MCP package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp`                                          |
 | **CLI package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output`                                              |
 | **This skill in-repo**   | `skills/cli-output/SKILL.md`                                                                               |
-| **MCP install (module)** | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.4` |
+| **MCP install (module)** | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.5` |
 
 Host-specific wiring (Grok, Claude Code, Codex, …) lives under `integrations/<host>/` in the repo — not in this skill.
 
 ## Capability fallback
 
 1. **Connected MCP** — tools below
-2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.4.4 …`
+2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.4.5 …`
 3. **This skill’s static guidance**
 
 ## MCP tool names (underscores only)
@@ -78,7 +78,7 @@ plan (no findings) is the adoption's own done-condition.
 ## Install library
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.4.4
+go get github.com/zachbornheimer/evident-output@v0.4.5
 ```
 
 ## Philosophy (in-repo)
@@ -148,7 +148,7 @@ Secrets: set `Config.Redactor` — the Evidence ring and DetailTail are redacted
 ## Review
 
 ```bash
-go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.4.4 review ./path.go
+go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.4.5 review ./path.go
 ```
 
 Until `recheck_required=false`. Rules include API-006 (Start), API-026 (RunAll/Map), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).

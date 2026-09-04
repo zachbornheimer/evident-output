@@ -15,13 +15,13 @@ license: Apache-2.0
 [`skills/cli-output/SKILL.md`](../cli-output/SKILL.md) in
 `https://github.com/zachbornheimer/evident-output`
 
-**Pinned release:** `v0.4.4` (never install `@latest` for persistent tooling).
+**Pinned release:** `v0.4.5` (never install `@latest` for persistent tooling).
 
 | What                 | Path                                                                                                       |
 | -------------------- | ---------------------------------------------------------------------------------------------------------- |
 | Module               | `github.com/zachbornheimer/evident-output`                                                                 |
 | MCP binary target    | `$HOME/.local/bin/evident-output-mcp`                                                                      |
-| MCP install (pinned) | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.4` |
+| MCP install (pinned) | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.5` |
 
 ## Workflow when MCP is connected
 
@@ -43,7 +43,7 @@ On Grok: `evident-output__evident_output_*` (underscores, not dots).
 
 ```bash
 GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.4
+  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.5
 # Or from a local clone of the repo:
 #   go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
 

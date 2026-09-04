@@ -69,12 +69,14 @@ sed "s/^const PublishedRelease = \"v[^\"]*\"/const PublishedRelease = \"${next}\
 mv "${tmp}" release.go
 
 go run ./tools/scripts/sync-release-pins
+# docs/mcp.md is embedded into the MCP binary; regenerate or the staleness gate goes red
+go generate ./internal/agent/sections
 go test . -run 'PublishedRelease|VersionDrift' -count=1
 
 msg="${CUT_RELEASE_MESSAGE:-chore(${next}): cut release}"
-git add release.go README.md docs/mcp.md skills integrations 2>/dev/null || true
+git add release.go README.md docs/mcp.md internal/agent/sections/embedded skills integrations 2>/dev/null || true
 # Stage any pin surface the syncer touched
-git add -u README.md docs/mcp.md skills integrations release.go 2>/dev/null || true
+git add -u README.md docs/mcp.md internal/agent/sections/embedded skills integrations release.go 2>/dev/null || true
 if [[ -n "$(git status --porcelain)" ]]; then
   git commit -m "${msg}"
 else
