@@ -11,7 +11,7 @@ import (
 func TestRecordName_PlanOmitsQuantityInPlain(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("plan"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("plan"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Plan("cleanup").RecordName("delete", "foo")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -29,7 +29,7 @@ func TestRecordName_PlanOmitsQuantityInPlain(t *testing.T) {
 func TestRecordName_ChangesOmitsQuantityInPlain(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("done"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("done"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	out.Changes("cleanup").RecordName("delete", "foo")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

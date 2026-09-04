@@ -17,19 +17,19 @@ func fixedDebugClock() evo.FixedClock {
 // History mode (default): durable append-above, compact grammar with timestamp (§21.3.1).
 func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugHistory(),
 		evo.NoColor(),
 		evo.Clock(fixedDebugClock()),
 		evo.VisibilityDelay(0),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
 	task.Phase("comparing")
-	out.Debug("opened repository", evo.String("path", "/work/repo"))
+	out.Debug("opened repository", evo.Field{Key: "path", Value: "/work/repo"})
 	task.Done()
 	_ = out.Finish()
 
@@ -53,14 +53,14 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
 	// Advance so successive Debug calls get distinct times if clock ticks.
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugPane(evo.PaneHeight(2), evo.NewestFirst()),
 		evo.NoColor(),
 		evo.Clock(clock),
 		evo.VisibilityDelay(0),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("work")
@@ -75,21 +75,23 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	if !strings.Contains(live, "── debug · newest first ──") {
 		t.Fatalf("live missing debug pane heading:\n%s", live)
 	}
-	if !strings.Contains(live, `msg="third event"`) {
+	if !strings.Contains(live, "third event") {
 		t.Fatalf("newest record missing from pane:\n%s", live)
 	}
-	if !strings.Contains(live, `msg="second event"`) {
+	if !strings.Contains(live, "second event") {
 		t.Fatalf("second-newest missing from pane:\n%s", live)
 	}
-	if strings.Contains(live, `msg="first event"`) {
+	if strings.Contains(live, "first event") {
 		t.Fatalf("pane height 2 should drop oldest visible record:\n%s", live)
 	}
-	// level=DEBUG slog grammar (not bracket history inside pane).
-	if strings.Contains(live, "[DEBUG]") {
-		t.Fatalf("pane must use slog text, not bracket history:\n%s", live)
+	// One clock, one grammar (release-gate round 6 finding 3): the live pane
+	// renders the same bracketed local-time grammar as durable history, not
+	// slog-style time=/level=/msg= text.
+	if !strings.Contains(live, "[DEBUG]") {
+		t.Fatalf("pane must use the bracket history grammar:\n%s", live)
 	}
-	if !strings.Contains(live, "level=DEBUG") {
-		t.Fatalf("pane missing level=DEBUG:\n%s", live)
+	if strings.Contains(live, "level=DEBUG") {
+		t.Fatalf("pane must not use slog text grammar:\n%s", live)
 	}
 
 	// No durable history dump while pane owns presentation.
@@ -115,21 +117,21 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var primary bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&primary),
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugPane(evo.PaneHeight(5), evo.NewestFirst()),
 		evo.NoColor(),
 		evo.Clock(fixedDebugClock()),
 		evo.VisibilityDelay(0),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Phase("running")
-	out.Debug("enumerated local branches", evo.Int("count", 7))
-	out.Debug("fetched remote metadata", evo.String("remote", "origin"))
-	out.Item("disk").Fail("full")
+	out.Debug("enumerated local branches", evo.Field{Key: "count", Value: 7})
+	out.Debug("fetched remote metadata", evo.Field{Key: "remote", Value: "origin"})
+	out.Task("disk").Fail("full")
 	_ = out.Finish()
 
 	got := primary.String()
@@ -139,12 +141,12 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	if !strings.Contains(got, "── diagnostics ──") {
 		t.Fatalf("failure must preserve labeled diagnostic tail:\n%s", got)
 	}
-	if !strings.Contains(got, `msg="fetched remote metadata"`) {
-		t.Fatalf("tail missing slog-formatted records:\n%s", got)
+	if !strings.Contains(got, "fetched remote metadata") {
+		t.Fatalf("tail missing bracket-formatted records:\n%s", got)
 	}
 	// Newest first in tail.
-	idxNew := strings.Index(got, `msg="fetched remote metadata"`)
-	idxOld := strings.Index(got, `msg="enumerated local branches"`)
+	idxNew := strings.Index(got, "fetched remote metadata")
+	idxOld := strings.Index(got, "enumerated local branches")
 	if idxNew < 0 || idxOld < 0 || idxNew > idxOld {
 		t.Fatalf("tail should list newest first:\n%s", got)
 	}
@@ -153,26 +155,26 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 // PreserveDebugTail forces a tail even on success (explicit opt-in).
 func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		// Plain cannot show a live pane; history streams, but PreserveDebugTail still
 		// requests a diagnostics section at Finish when presentation is pane-configured.
 		evo.DebugPane(evo.PreserveDebugTail(), evo.PaneHeight(3)),
 		evo.Clock(fixedDebugClock()),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Debug("cache warm", evo.String("dir", "/tmp/x"))
-	out.Item("ok").OK()
+	out.Debug("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
+	out.Task("ok").Done()
 	_ = out.Finish()
 	got := buf.String()
 	if !strings.Contains(got, "── diagnostics ──") {
 		t.Fatalf("PreserveDebugTail should emit diagnostics section:\n%s", got)
 	}
-	if !strings.Contains(got, `msg="cache warm"`) {
+	if !strings.Contains(got, "cache warm") {
 		t.Fatalf("tail missing record:\n%s", got)
 	}
 }
@@ -180,16 +182,16 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 // Plain + history: still one stream, no double print (regression).
 func TestDebugHistory_PlainStreamsOnce(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugHistory(),
 		evo.Clock(fixedDebugClock()),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Debug("cache warm", evo.String("dir", "/tmp/x"))
+	out.Debug("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
 	if n := strings.Count(buf.String(), "[DEBUG] cache warm"); n != 1 {
 		t.Fatalf("before Finish count=%d:\n%s", n, buf.String())
 	}

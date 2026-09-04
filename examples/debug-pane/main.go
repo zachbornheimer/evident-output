@@ -28,17 +28,17 @@ func main() {
 	cfg := evo.DefaultConfig()
 	cfg.Title = "branch audit"
 	cfg.Debug = evo.DebugConfig{
-		Level:          evo.Debug,
+		Level:          evo.LevelDebug,
 		View:           evo.DebugPresentationPane,
 		PaneHeight:     4,
 		NewestFirst:    &newest,
 		PreserveAlways: *preserve,
 	}
-	out := evo.New(cfg)
+	out := evo.Init(cfg)
 	log := slog.New(out.SlogHandler())
 
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
-		jobs := o.Tasks("audit")
+	os.Exit(evo.Main(func() error {
+		jobs := evo.Group("audit")
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
 
@@ -47,7 +47,7 @@ func main() {
 		time.Sleep(step)
 		log.Debug("fetched remote metadata", "remote", "origin")
 		time.Sleep(step)
-		scan.Donef("%d branches", 7)
+		scan.Done("%d branches", 7)
 
 		compare.Phase("diffing")
 		blockers := 0
@@ -61,10 +61,10 @@ func main() {
 		if *fail {
 			// Comparison succeeded and found a domain blocker — not an operation failure.
 			compare.Done("1 blocker found")
-			o.Item("branches").Block("feat/sdk-full-consolidation is local-only")
+			evo.Task("branches").Block("feat/sdk-full-consolidation is local-only")
 		} else {
 			compare.Done()
-			o.Item("branches").OK()
+			evo.Task("branches").Done()
 		}
 		return nil
 	}))

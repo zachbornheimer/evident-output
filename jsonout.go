@@ -2,20 +2,21 @@ package evo
 
 import (
 	"encoding/json"
-	"io"
 	"time"
 )
 
 // JSONSchemaVersion is the final JSON document schema version.
-// Tracks the 0.2 contract series (pre-1.0 wire format may still evolve).
-const JSONSchemaVersion = "0.2"
+// Tracks the 0.3 contract series (pre-1.0 wire format may still evolve).
+// Bumped from 0.2: "items" no longer exists as a separate wire kind — the
+// item/task fold means every entity (including a fact-check resolved
+// without ever running) is a "tasks" row (CHANGELOG "Unreleased").
+const JSONSchemaVersion = "0.3"
 
 // JSONDocument is the final machine projection (§25.1).
 type JSONDocument struct {
 	SchemaVersion   string           `json:"schema_version"`
 	Output          JSONOutputMeta   `json:"output"`
 	Conclusion      ConclusionJSON   `json:"conclusion"`
-	Items           []JSONItem       `json:"items"`
 	TaskCollections []JSONCollection `json:"task_collections"`
 	Tasks           []JSONTask       `json:"tasks"`
 	Changes         []JSONChanges    `json:"changes"`
@@ -45,16 +46,6 @@ type ConclusionJSON struct {
 	Cancelled   bool            `json:"cancelled"`
 	ExitCode    int             `json:"exit_code"`
 	Explanation string          `json:"explanation,omitempty"`
-}
-
-// JSONItem is a wire-format item.
-type JSONItem struct {
-	ID       string        `json:"id"`
-	Key      string        `json:"key,omitempty"`
-	Name     string        `json:"name"`
-	State    EntityState   `json:"state"`
-	Problems []JSONProblem `json:"problems"`
-	Because  string        `json:"because,omitempty"`
 }
 
 // JSONProblem is a wire-format problem (no raw Cause by default).
@@ -145,16 +136,13 @@ type EventJSON struct {
 }
 
 // EncodeJSON encodes a snapshot as final JSON (§25.1 / §25.4).
-func EncodeJSON(s Snapshot, _ ...JSONOptions) ([]byte, error) {
+func EncodeJSON(s Snapshot) ([]byte, error) {
 	doc := toJSONDocument(s)
 	return json.MarshalIndent(doc, "", "  ")
 }
 
-// JSONOptions reserves future encode knobs.
-type JSONOptions struct{}
-
 // EncodeJSONL encodes durable events as JSON Lines (§25.2 / §25.4).
-func EncodeJSONL(events []Event, _ ...JSONLOptions) ([]byte, error) {
+func EncodeJSONL(events []Event) ([]byte, error) {
 	var out []byte
 	for _, e := range events {
 		row, err := json.Marshal(toEventJSON(e))
@@ -166,9 +154,6 @@ func EncodeJSONL(events []Event, _ ...JSONLOptions) ([]byte, error) {
 	}
 	return out, nil
 }
-
-// JSONLOptions reserves future encode knobs.
-type JSONLOptions struct{}
 
 func toJSONDocument(s Snapshot) JSONDocument {
 	c := Conclusion{}
@@ -191,22 +176,11 @@ func toJSONDocument(s Snapshot) JSONDocument {
 			ExitCode:    c.ExitCode,
 			Explanation: c.Explanation,
 		},
-		Items:           make([]JSONItem, 0, len(s.Items)),
 		TaskCollections: make([]JSONCollection, 0, len(s.Collections)),
 		Tasks:           make([]JSONTask, 0, len(s.Tasks)),
 		Changes:         make([]JSONChanges, 0, len(s.Changes)),
 		Plans:           make([]JSONPlan, 0, len(s.Plans)),
 		Actions:         make([]JSONAction, 0, len(s.Actions)),
-	}
-	for _, it := range s.Items {
-		doc.Items = append(doc.Items, JSONItem{
-			ID:       it.ID,
-			Key:      it.Key,
-			Name:     it.Name,
-			State:    it.State,
-			Problems: toJSONProblems(it.Problems),
-			Because:  it.Because,
-		})
 	}
 	for _, col := range s.Collections {
 		children := make([]string, 0, len(col.Tasks))
@@ -246,29 +220,6 @@ func toJSONDocument(s Snapshot) JSONDocument {
 		doc.Actions = append(doc.Actions, toJSONAction(a))
 	}
 	return doc
-}
-
-// WriteJSON encodes the snapshot as indented JSON with a trailing newline.
-func WriteJSON(w io.Writer, snapshot Snapshot) error {
-	b, err := EncodeJSON(snapshot)
-	if err != nil {
-		return err
-	}
-	if len(b) == 0 || b[len(b)-1] != '\n' {
-		b = append(b, '\n')
-	}
-	_, err = w.Write(b)
-	return err
-}
-
-// WriteJSONL encodes events as JSON Lines with a trailing newline per event.
-func WriteJSONL(w io.Writer, events []Event) error {
-	b, err := EncodeJSONL(events)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(b)
-	return err
 }
 
 func toJSONTask(t TaskSnapshot) JSONTask {

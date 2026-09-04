@@ -14,9 +14,9 @@ import (
 
 func TestA11Y001_NoColorOption(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.NoColor(), evo.Plain())
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("x").OK()
+	out.Task("x").Done()
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "\x1b[") {
 		t.Fatal("ANSI with NoColor")
@@ -26,10 +26,10 @@ func TestA11Y001_NoColorOption(t *testing.T) {
 func TestA11Y005_PlainHasNoUnicodeRequirement(t *testing.T) {
 	// Plain mode may use unicode glyphs; meaning must remain without color (A11Y-004).
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("a").OK()
-	out.Item("b").Block("no")
+	out.Task("a").Done()
+	out.Task("b").Block("no")
 	_ = out.Finish()
 	s := buf.String()
 	if !strings.Contains(s, "a") || !strings.Contains(s, "b") {
@@ -40,7 +40,7 @@ func TestA11Y005_PlainHasNoUnicodeRequirement(t *testing.T) {
 func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, width int) {
-		out := evo.NewWithOptions(evo.Title("s"), evo.To(w), evo.Plain(), evo.NoColor(), evo.Width(width))
+		out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("s"), evo.To(w), evo.Plain(), evo.NoColor(), evo.Width(width)}})
 		out.Changes("c").Added(1, "x").Wrote("f")
 		_ = out.Finish()
 		_ = out.Close()
@@ -55,23 +55,43 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	}
 }
 
-func TestDOM004_DuplicateDisplayNamesAllowed(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+// TestDOM004_SameNameGetsOrCreates pins L1: repeated Output.Task calls with
+// the same name return the live handle instead of a second declared row —
+// the same get-or-create identity evo.Task already gives the default
+// instance (the repo-retire P0 this closes: a second call site under a name
+// already in use produced a duplicate row and ErrDuplicateKey instead of the
+// one live handle).
+func TestDOM004_SameNameGetsOrCreates(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	a := out.Item("same")
-	b := out.Item("same")
-	a.OK()
-	b.OK()
+	a := out.Task("same")
+	b := out.Task("same")
+	a.Done()
+	if a.Snapshot().ID != b.Snapshot().ID {
+		t.Fatal("expected the same handle for a repeated name")
+	}
+}
+
+// TestDOM004_DistinctIDsAllowSameDisplayName covers the remaining case the
+// retired DuplicateDisplayNamesAllowed test named: two genuinely distinct
+// entities may still share a display name, using an explicit evo.ID.
+func TestDOM004_DistinctIDsAllowSameDisplayName(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+	a := out.Task("same", evo.ID("a"))
+	b := out.Task("same", evo.ID("b"))
+	a.Done()
+	b.Done()
 	if a.Snapshot().ID == b.Snapshot().ID {
 		t.Fatal("IDs must differ")
 	}
 }
 
 func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
-	out.Item("x").OK()
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out.Task("x").Done()
 	_ = out.Finish()
-	out.Item("y").OK()
+	out.Task("y").Done()
 	if !errors.Is(out.Err(), evo.ErrClosed) && out.Err() == nil {
 		// ensureOpen records ErrClosed
 		if out.Err() == nil {
@@ -82,7 +102,7 @@ func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
 }
 
 func TestDOM021_NegativeProgressRejected(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(-1, 10)
@@ -92,9 +112,9 @@ func TestDOM021_NegativeProgressRejected(t *testing.T) {
 }
 
 func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("a").OK()
+	out.Task("a").Done()
 	_ = out.Finish()
 	raw, err := evo.EncodeJSONL(out.Events())
 	if err != nil {
@@ -115,17 +135,19 @@ func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
 }
 
 func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Item("x").Block("b").NextCommand("tool", "--flag", "value")
-	acts := out.Item("x").Snapshot().Actions
+	item := out.Task("x")
+	item.Block("b")
+	item.NextCommand("tool", "--flag", "value")
+	acts := out.Task("x").Snapshot().Actions
 	// re-get from first item via snapshot after finish
 	_ = out.Finish()
 	snap := out.Snapshot()
-	if len(snap.Items) == 0 || len(snap.Items[0].Actions) == 0 {
+	if len(snap.Tasks) == 0 || len(snap.Tasks[0].Actions) == 0 {
 		// actions on item
 		found := false
-		for _, it := range snap.Items {
+		for _, it := range snap.Tasks {
 			if len(it.Actions) > 0 && it.Actions[0].Command != nil {
 				if it.Actions[0].Command.Executable != "tool" {
 					t.Fatal(it.Actions[0].Command)
@@ -145,11 +167,15 @@ func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
 
 func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 	// Static guarantee: no os.Exit in evo package files is checked by this
-	// behavioral test — Finish returns errors instead of exiting.
-	out := evo.NewWithOptions(evo.To(io.Discard))
-	out.Item("x")
-	err := out.Finish()
-	if err == nil {
-		t.Fatal("expected error, not process exit")
+	// behavioral test — reaching this assertion at all is the proof: an
+	// os.Exit inside Finish would have already killed the test process.
+	// An unresolved task with no problems on a clean finish reads as an
+	// honest Partial outcome now (release-gate round 4 finding 3), not
+	// misuse, so Finish returning nil here is expected, not evidence of a
+	// process exit either way.
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out.Task("x")
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
 	}
 }

@@ -34,50 +34,52 @@ func main() {
 	if *verbose {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
-	out := evo.New(cfg)
-	code := evo.Main(out, func(o *evo.Output) error {
+	out := evo.Init(cfg)
+	code := evo.Main(func() error {
 		// Only audible when --verbose (or VerbosityVerbose config).
-		o.Verbose().Printf("Strict policy: %t\n", *strict)
-		o.Verbose().Printf("Probe interval: %s\n", step)
+		evo.Verbose().Printf("Strict policy: %t\n", *strict)
+		evo.Verbose().Printf("Probe interval: %s\n", step)
 
-		probe := func(name string, resolve func(*evo.Item)) {
-			it := o.Item(name)
+		probe := func(name string, resolve func(*evo.TaskHandle)) {
+			it := evo.Task(name)
 			time.Sleep(step)
 			resolve(it)
 		}
 
-		probe("go toolchain", func(it *evo.Item) { it.OK() })
-		probe("mise tasks", func(it *evo.Item) { it.OK() })
-		probe("git commit signing", func(it *evo.Item) {
+		probe("go toolchain", func(it *evo.TaskHandle) { it.Done() })
+		probe("mise tasks", func(it *evo.TaskHandle) { it.Done() })
+		probe("git commit signing", func(it *evo.TaskHandle) {
 			if *strict {
-				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode")).
-					NextCommand("git", "config", "--global", "commit.gpgsign", "true")
+				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode"))
+				it.NextCommand("git", "config", "--global", "commit.gpgsign", "true")
 			} else {
 				it.Warn("commit signing not verified", evo.Detail("optional for local work"))
 			}
 		})
-		probe("disk free space", func(it *evo.Item) {
-			it.Block("less than 2 GiB free on /", evo.Detail("large builds need headroom")).
-				Because("CI and local builds fail unpredictably when the volume fills.")
+		probe("disk free space", func(it *evo.TaskHandle) {
+			it.Block("less than 2 GiB free on /", evo.Detail("large builds need headroom. CI and local builds fail unpredictably when the volume fills."))
 		})
-		probe("docker daemon", func(it *evo.Item) {
-			// Tool-backed gate: Item.Capture holds process evidence (not session Capture).
-			cap := it.Start().Capture()
+		probe("docker daemon", func(it *evo.TaskHandle) {
+			// Tool-backed gate: Task.Evidence holds process evidence (not session Capture).
+			cap := it.Evidence()
 			_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"))
+			dialErr := fmt.Errorf("dial unix /var/run/docker.sock: connection refused")
 			it.Fail(
 				"cannot connect to docker socket",
-				evo.Cause(fmt.Errorf("dial unix /var/run/docker.sock: connection refused")),
+				evo.Detail(dialErr.Error()+"\nstart Colima or Docker Desktop"),
 				cap.DetailTail(), // user-visible tool tail
-			).Because("start Colima or Docker Desktop")
+			)
 		})
 		return nil
 	})
 
 	if *asJSON {
-		if err := evo.WriteJSON(os.Stdout, out.Snapshot()); err != nil {
+		b, err := evo.EncodeJSON(out.Snapshot())
+		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(evo.ExitFailed)
 		}
+		_, _ = fmt.Fprintln(os.Stdout, string(b))
 	}
 	os.Exit(code)
 }

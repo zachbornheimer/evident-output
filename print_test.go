@@ -10,7 +10,7 @@ import (
 
 func TestPrint_MatchesFmtConstruction(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Printf("Found %d packages\n", 18)
 	out.Println("done")
 	_ = out.Finish()
@@ -26,7 +26,7 @@ func TestPrint_MatchesFmtConstruction(t *testing.T) {
 
 func TestPrint_FragmentsCombine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Print("down")
 	out.Print("loading")
 	out.Print("...\n")
@@ -41,7 +41,7 @@ func TestPrint_FragmentsCombine(t *testing.T) {
 
 func TestPrint_TrailingFragmentFlushedAtFinish(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Print("partial-no-nl")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "partial-no-nl") {
@@ -51,9 +51,9 @@ func TestPrint_TrailingFragmentFlushedAtFinish(t *testing.T) {
 
 func TestVerbose_HiddenAtNormal(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Println("visible")
-	out.Verbose().Println("hidden detail")
+	out.At(evo.VisibilityVerbose).Println("hidden detail")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "visible") {
 		t.Fatal("normal missing")
@@ -64,7 +64,7 @@ func TestVerbose_HiddenAtNormal(t *testing.T) {
 	// Canonical model still holds verbose message.
 	var found bool
 	for _, m := range out.Snapshot().Messages {
-		if m.Visibility == evo.Verbose && strings.Contains(m.Text, "hidden detail") {
+		if m.Visibility == evo.VisibilityVerbose && strings.Contains(m.Text, "hidden detail") {
 			found = true
 		}
 	}
@@ -75,12 +75,12 @@ func TestVerbose_HiddenAtNormal(t *testing.T) {
 
 func TestVerbose_ShownWhenConfigured(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Stdout:    &buf,
 		Stderr:    &buf,
 		Verbosity: evo.VerbosityVerbose,
 	})
-	out.Verbose().Printf("Cache: %s\n", "/tmp/x")
+	out.At(evo.VisibilityVerbose).Printf("Cache: %s\n", "/tmp/x")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "Cache: /tmp/x") {
 		t.Fatalf("%s", buf.String())
@@ -89,7 +89,7 @@ func TestVerbose_ShownWhenConfigured(t *testing.T) {
 
 func TestPrint_CRLFAndSanitize(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Print("a\r\nb\x1b[31mx\n")
 	_ = out.Finish()
 	s := buf.String()
@@ -103,7 +103,7 @@ func TestPrint_CRLFAndSanitize(t *testing.T) {
 
 func TestPrint_WriterAdapter(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	w := out.Writer()
 	_, _ = w.Write([]byte("from-writer\n"))
 	_ = out.Finish()
@@ -112,30 +112,31 @@ func TestPrint_WriterAdapter(t *testing.T) {
 	}
 }
 
-func TestItemf_Taskf(t *testing.T) {
+// TestTask_PrintfNames is C6: Task is printf-variadic itself (Taskf
+// deleted; Item folded into Task).
+func TestTask_PrintfNames(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Itemf("repo %s", "x").OK()
-	out.Taskf("check %d", 1).Done("ok")
+	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
+	out.Task("repo %s", "x").Done()
+	out.Task("check %d", 1).Done("ok")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "repo x") || !strings.Contains(buf.String(), "check 1") {
 		t.Fatal(buf.String())
 	}
 }
 
-func TestWriteJSON_TrailingNewline(t *testing.T) {
-	var human, js bytes.Buffer
-	out := evo.New(evo.Config{Stdout: &human, Stderr: &human})
-	out.Item("a").OK()
+// TestEncodeJSON_ContainsTasks is C8: WriteJSON (an io.Writer wrapper adding
+// a trailing newline) is deleted — EncodeJSON is the surviving encoder; a
+// caller who wants the newline appends it themselves.
+func TestEncodeJSON_ContainsTasks(t *testing.T) {
+	out := evo.Init(evo.Config{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	out.Task("a").Done()
 	_ = out.Finish()
-	if err := evo.WriteJSON(&js, out.Snapshot()); err != nil {
+	b, err := evo.EncodeJSON(out.Snapshot())
+	if err != nil {
 		t.Fatal(err)
 	}
-	b := js.Bytes()
-	if len(b) == 0 || b[len(b)-1] != '\n' {
-		t.Fatalf("want trailing newline: %q", b)
-	}
-	if !strings.Contains(js.String(), `"messages"`) && !strings.Contains(js.String(), "items") {
-		t.Fatalf("json: %s", js.String())
+	if !strings.Contains(string(b), `"tasks"`) {
+		t.Fatalf("json: %s", b)
 	}
 }

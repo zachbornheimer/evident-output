@@ -3,10 +3,36 @@ package evo
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/terminal"
 )
+
+// processArgv0 is the facade over os.Args[0] (facade rule: no direct
+// os.Args read anywhere else) — a var so tests can inject a fixed value
+// instead of depending on the real test binary's path.
+var processArgv0 = func() string {
+	if len(os.Args) == 0 {
+		return ""
+	}
+	return os.Args[0]
+}
+
+// identityFallbackName is the executable's own basename, used only when an
+// output-level outcome (Output.Failf/Cancel) has no named task and no
+// explicit Config.Title to identify it with — replacing the generic literal
+// "command" with the caller's actual binary name (I2). This is deliberately
+// NOT plumbed into Snapshot.Subject / the conclusion band's Subject: that
+// text is dialect-frozen this release and many existing goldens depend on
+// its "no Subject configured" fallback (bare state name) staying exactly as
+// it is — Config.Title stays the only way to set that.
+func identityFallbackName() string {
+	if base := filepath.Base(processArgv0()); base != "." && base != string(filepath.Separator) {
+		return base
+	}
+	return "command"
+}
 
 // ColorMode selects color policy. The zero value is automatic.
 type ColorMode int
@@ -40,7 +66,16 @@ type Verbosity int
 const (
 	// VerbosityNormal projects Normal-visibility messages only.
 	VerbosityNormal Verbosity = iota
-	// VerbosityVerbose also projects Verbose-visibility messages.
+	// VerbosityVerbose also projects Verbose-visibility messages. It also
+	// expands each TaskHandle.Skipped/Kept taxonomy row from its default
+	// aggregated "! skipped N (reason1, reason2)" count into one named line
+	// per reason ("reason: name1, name2, ..."). The names themselves are
+	// never lost at VerbosityNormal — they are always present on the Go
+	// TaskSnapshot.Skipped/Kept fields (returned by Output.Snapshot and
+	// TaskHandle.Snapshot); VerbosityVerbose only changes whether the plain
+	// human render surfaces them. The wire JSONDocument (JSONTask) does not
+	// currently carry Skipped/Kept at all — read the Go snapshot directly to
+	// get the names programmatically.
 	VerbosityVerbose
 )
 
@@ -57,19 +92,37 @@ type DebugConfig struct {
 	NewestFirst *bool
 	// PreserveAlways forces a diagnostic tail on every Finish in pane mode.
 	PreserveAlways bool
+	// AddSource resolves each record's call site to a source=file.go:line
+	// field on human/pane/history rendering (slog.HandlerOptions.AddSource
+	// semantics). Off by default: the raw program counter is always kept on
+	// LogRecord.PC for machine consumers, but a human debug line never shows
+	// a bare pc=<uintptr> unless this is set.
+	AddSource bool
 }
 
-// Config is the ordinary application-facing construction surface.
+// Config is the sole application-facing construction surface.
 //
 // Zero values mean automatic/default behavior. Use DefaultConfig() when you
 // need a mutable baseline for advanced fields.
 //
-//	out := evo.New()
-//	out := evo.New(evo.Config{Title: "bpp-csharp"})
-//	cfg := evo.DefaultConfig(); cfg.Title = "x"; out := evo.New(cfg)
+//	out := evo.Init()
+//	out := evo.Init(evo.Config{Title: "bpp-csharp"})
+//	cfg := evo.DefaultConfig(); cfg.Title = "x"; out := evo.Init(cfg)
 type Config struct {
 	// Title is the subject shown in the conclusion (formerly For's argument).
 	Title string
+
+	// Subject is an optional durable line rendered once, immediately, right
+	// under the title — a repo path, a target host, the thing every
+	// projection needs the reader to see up front. Set it once in Config
+	// instead of calling out.Println(root) (or whatever the identifying
+	// value is) at every projection/command that needs to show it.
+	//
+	// When the subject text isn't known until after Init (e.g. resolved
+	// from a flag parsed later, but still before any other I/O), call
+	// Output.Subject(text) instead — same one-shot durable-line semantics,
+	// as a post-construction setter (I3).
+	Subject string
 
 	// Stdout is the ordinary human stream (default os.Stdout).
 	// In FormatData mode, Stdout is reserved for domain payload via ResultWriter;
@@ -80,6 +133,8 @@ type Config struct {
 	// Result is an optional domain-payload writer. When nil and Format is
 	// FormatData, ResultWriter returns Stdout. Presentation never writes here.
 	Result io.Writer
+	// Stdin is the facade Confirm reads one answer line from (default os.Stdin).
+	Stdin io.Reader
 
 	// Verbosity gates Verbose() print messages (default VerbosityNormal).
 	Verbosity Verbosity
@@ -104,15 +159,47 @@ type Config struct {
 	MaxFrameRate    int
 	MaxEntities     int
 	MaxEvents       int
-	// ForcePlain disables live interactive frames even on a TTY.
-	ForcePlain bool
-	// NonInteractive disables live frames.
-	NonInteractive bool
+	// Plain disables live interactive frames, on a TTY or off (C3: replaces
+	// the former separate ForcePlain and NonInteractive fields — every read
+	// site combined them with OR, so there was never a distinct behavior
+	// between the two to preserve).
+	Plain bool
+
+	// Glyphs selects the state-glyph vocabulary (default GlyphsAuto: Unicode
+	// off a TTY or on a UTF-8 locale, ASCII on a non-UTF-8 interactive TTY).
+	Glyphs GlyphProfile
 
 	// FailedExitCode is the process exit code when the conclusion is failed.
 	// Zero means use ExitFailed (2). Set to 1 for conventional CLI tools that
 	// treat any non-zero failure as exit 1 (e.g. quality gates / git hooks).
 	FailedExitCode int
+
+	// DryRun declares this run a dry run once, for the whole process: every
+	// TaskHandle mutation verb (Delete, Create, Update, Remove, Write, Push,
+	// Record, RecordName) renders as a [planned] row with the imperative verb
+	// instead of a [changed] row with the past-tense verb. No call site writes
+	// its own tense.
+	DryRun bool
+
+	// Isolated returns an independent Output that never touches package
+	// state: it is not installed as the package-level default and does not
+	// arm first paint. Use for parallel tests and embedders that hold their
+	// own *Output instead of going through Default()/Task()/Print() et al.
+	// This is the one and only opt-out from default installation — it
+	// applies identically whether or not Options is also set (release-gate
+	// round 8 finding 1): Options is an orthogonal escape hatch for how the
+	// Output is built, not for whether it becomes the default.
+	Isolated bool
+
+	// Options is the advanced, raw Option escape hatch for tests and
+	// specialized embedding (custom Terminal, Clock, exact writer wiring)
+	// that need to bypass Config's ordinary stream/TTY/color inference
+	// entirely. When set, every other Config field except Title, DryRun, and
+	// Subject is ignored and the Output is built from these Options alone.
+	// It still installs as the package-level default and arms first paint
+	// exactly like every other Init call, unless Isolated is also set —
+	// see Isolated and Init.
+	Options []Option
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
@@ -141,24 +228,6 @@ func DefaultConfig() Config {
 	}
 }
 
-// New creates an Output from zero or one Config.
-//
-//	out := evo.New()
-//	out := evo.New(evo.Config{Title: "repo"})
-//
-// More than one Config panics (programmer error). For advanced Option plumbing
-// use NewWithOptions.
-func New(config ...Config) *Output {
-	switch len(config) {
-	case 0:
-		return newFromConfig(resolveConfig(DefaultConfig()))
-	case 1:
-		return newFromConfig(resolveConfig(config[0]))
-	default:
-		panic("evo.New: at most one Config argument")
-	}
-}
-
 // resolveConfig fills zero-value fields with ordinary CLI defaults.
 func resolveConfig(c Config) Config {
 	base := DefaultConfig()
@@ -167,6 +236,9 @@ func resolveConfig(c Config) Config {
 	}
 	if c.Stderr == nil {
 		c.Stderr = os.Stderr
+	}
+	if c.Stdin == nil {
+		c.Stdin = os.Stdin
 	}
 	// LevelUnset (zero) → LevelInfo. LevelTrace is non-zero and selectable via Config.
 	if c.Debug.Level == LevelUnset {
@@ -251,17 +323,47 @@ func configToOptions(c Config) []Option {
 	}
 
 	// Interactive live region only on a real TTY and human format.
-	wantLive := !c.ForcePlain && !c.NonInteractive && c.Format == FormatHuman
+	wantLive := !c.Plain && c.Format == FormatHuman
 	liveWriter := c.Stdout
 	if c.Format == FormatData {
 		liveWriter = c.Stderr
-		wantLive = !c.ForcePlain && !c.NonInteractive && IsCharDevice(c.Stderr)
+		wantLive = !c.Plain && IsCharDevice(c.Stderr)
 	} else {
 		wantLive = wantLive && IsCharDevice(c.Stdout)
 	}
 	switch {
 	case c.Terminal != nil:
 		opts = append(opts, Terminal(c.Terminal))
+		// A caller-supplied driver (Config.Terminal or the Options path) may
+		// still write to one of the two streams Config already wired up —
+		// DETECT that via the driver's own Sink() rather than requiring the
+		// caller to say so, closing the examples/terminal-driver double-band
+		// gap (X3). Round 8 only compared against the format's primary
+		// writer; a driver aimed at the OTHER configured stream (e.g.
+		// Stderr while primary defaults to Stdout — every doc/example)
+		// still owns rendering there and must not also be duplicated onto
+		// primary, so both configured streams count (release-gate round 9
+		// finding 1).
+		if sr, ok := c.Terminal.(sinkReporter); ok {
+			if sink := sr.Sink(); sink != nil {
+				switch sink {
+				case c.Stdout, c.Stderr:
+					opts = append(opts, withPrimarySharesTerminal())
+				default:
+					// Driver targets a third stream (e.g. a log file) that is
+					// neither configured stream. Config exposes no separate
+					// To() a caller could use to request an intentional
+					// second copy, so route primary there instead of leaving
+					// it on c.Stdout by default (finding-2 symmetry) —
+					// otherwise nothing would ever fan the driver's own
+					// conclusion band out to a plain/non-interactive mirror.
+					opts = append(opts, To(sink))
+				}
+			}
+		}
+		if sr, ok := c.Terminal.(sinkReporter); ok && sameTerminalDevice(sr.Sink(), c.Stderr) {
+			opts = append(opts, withDiagnosticSharesTerminal())
+		}
 	case wantLive:
 		width, height := c.Width, 24
 		if width <= 0 {
@@ -292,19 +394,33 @@ func configToOptions(c Config) []Option {
 			}
 			opts = append(opts, Terminal(terminal.NewANSI(liveWriter, ansiOpts...)))
 			opts = append(opts, Width(width))
+			// liveWriter is the same stream To() was already given above
+			// (c.Stdout, or c.Stderr in FormatData) — the terminal and
+			// primary are one physical destination, so Finish must not
+			// dual-write the conclusion band a second time.
+			opts = append(opts, withPrimarySharesTerminal())
+			// Diagnostics(c.Stderr) is a distinct io.Writer from liveWriter
+			// in the realistic default (To(Stdout), Diagnostics(Stderr)),
+			// but on an interactive shell without redirection both fds name
+			// the same controlling tty — detect that here so Debug routes
+			// through live-aware sequencing instead of a raw dual-stream
+			// write (gate-7 finding 1).
+			if sameTerminalDevice(liveWriter, c.Stderr) {
+				opts = append(opts, withDiagnosticSharesTerminal())
+			}
 		} else {
 			opts = append(opts, Plain())
 		}
 	default:
 		opts = append(opts, Plain())
 	}
-	if c.NonInteractive {
-		opts = append(opts, NonInteractive())
-	}
-	if c.ForcePlain {
+	if c.Plain {
 		opts = append(opts, Plain())
 	}
 
+	if c.Stdin != nil {
+		opts = append(opts, Stdin(c.Stdin))
+	}
 	opts = append(opts, Clock(c.Clock), Redact(c.Redactor), Width(c.Width))
 	visDelay := defaultVisibilityDelay
 	if c.VisibilityDelay != nil {
@@ -313,6 +429,9 @@ func configToOptions(c Config) []Option {
 	opts = append(opts, VisibilityDelay(visDelay), MaxFrameRate(c.MaxFrameRate))
 	opts = append(opts, MaxEntities(c.MaxEntities), MaxEvents(c.MaxEvents))
 	opts = append(opts, DebugLevel(c.Debug.Level))
+	if c.Debug.AddSource {
+		opts = append(opts, DebugAddSource())
+	}
 	if c.Debug.View == DebugPresentationPane {
 		var paneOpts []DebugPaneOption
 		if c.Debug.PaneHeight > 0 {
@@ -339,6 +458,10 @@ func configToOptions(c Config) []Option {
 	if c.FailedExitCode != 0 {
 		opts = append(opts, withFailedExitCode(c.FailedExitCode))
 	}
+	if c.DryRun {
+		opts = append(opts, DryRun())
+	}
+	opts = append(opts, Glyphs(c.Glyphs))
 	return opts
 }
 
@@ -352,52 +475,7 @@ func withFailedExitCode(code int) Option {
 	return optionFunc(func(c *config) { c.failedExitCode = code })
 }
 
-// NewWithOptions is the advanced Option-based constructor for tests and
-// specialized embedding (custom Terminal, Clock, etc.). Prefer New(Config) in
-// application code.
-//
-// Set the conclusion title with Title(...):
-//
-//	out := evo.NewWithOptions(evo.Title("install"), evo.To(&buf), evo.Plain())
-func NewWithOptions(options ...Option) *Output {
-	return newOutput("", options...)
-}
-
-// Title sets the conclusion subject for NewWithOptions.
+// Title sets the conclusion subject for Config.Options's raw Option path.
 func Title(subject string) Option {
 	return optionFunc(func(c *config) { c.subject = subject })
-}
-
-// ParseColorMode maps always|never|auto (and common synonyms) to ColorMode.
-func ParseColorMode(s string) (ColorMode, error) {
-	switch s {
-	case "", "auto":
-		return ColorAuto, nil
-	case "always", "on", "yes", "true", "1":
-		return ColorAlways, nil
-	case "never", "off", "no", "false", "0":
-		return ColorNever, nil
-	default:
-		return ColorAuto, errInvalidColorMode(s)
-	}
-}
-
-func errInvalidColorMode(s string) error {
-	return &UsageError{Op: "ParseColorMode", Msg: "unknown color mode " + s}
-}
-
-// UsageError is a programmer/user configuration error.
-type UsageError struct {
-	Op  string
-	Msg string
-}
-
-func (e *UsageError) Error() string {
-	if e == nil {
-		return "usage error"
-	}
-	if e.Op == "" {
-		return e.Msg
-	}
-	return e.Op + ": " + e.Msg
 }

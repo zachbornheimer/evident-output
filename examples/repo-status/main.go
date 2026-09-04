@@ -29,7 +29,7 @@ func main() {
 	if *fast {
 		step = 40 * time.Millisecond
 	}
-	color, err := evo.ParseColorMode(*colorFlag)
+	color, err := parseColorMode(*colorFlag)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -41,35 +41,52 @@ func main() {
 	if *verbose {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
-	out := evo.New(cfg)
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
-		o.Verbose().Printf("Checking repository %s\n", *name)
+	evo.Init(cfg)
+	os.Exit(evo.Main(func() error {
+		evo.Verbose().Printf("Checking repository %s\n", *name)
 
 		time.Sleep(step)
-		o.Item("working tree").OK()
+		evo.Task("working tree").Done()
 
 		time.Sleep(step)
-		branches := o.Item("branches")
+		branches := evo.Task("branches")
 		if *clean {
-			branches.OK()
+			branches.Done()
 		} else {
-			branches.BlockedBy(
-				evo.Problem{Subject: "feat/sdk-full-consolidation", Summary: "local-only branch", Count: 1},
-				evo.Problem{Subject: "fix/login-flow", Summary: "ahead of origin", Count: 2},
-			).Because("Push, merge, or delete local-only work before retiring this repository.").
-				NextCommand("git", "push", "-u", "origin", "feat/sdk-full-consolidation")
+			branches.Block("2 branches need attention",
+				evo.Detail("feat/sdk-full-consolidation: local-only branch (1)\n"+
+					"fix/login-flow: ahead of origin (2)\n"+
+					"Push, merge, or delete local-only work before retiring this repository."),
+			)
+			branches.NextCommand("git", "push", "-u", "origin", "feat/sdk-full-consolidation")
 		}
 
 		time.Sleep(step)
-		remotes := o.Item("remotes")
+		remotes := evo.Task("remotes")
 		if *clean {
-			remotes.OK()
+			remotes.Done()
 		} else {
 			remotes.Warn("origin was not reachable", evo.Detail("last fetch failed; remote state is unverified"))
 		}
 
 		time.Sleep(step)
-		o.Item("stashes").OK()
+		evo.Task("stashes").Done()
 		return nil
 	}))
+}
+
+// parseColorMode maps the --color flag's always|never|auto (and common
+// synonyms) to evo.ColorMode — inlined here since evo.ParseColorMode was
+// deleted (C8): trivial enough for a caller to own directly.
+func parseColorMode(s string) (evo.ColorMode, error) {
+	switch s {
+	case "", "auto":
+		return evo.ColorAuto, nil
+	case "always", "on", "yes", "true", "1":
+		return evo.ColorAlways, nil
+	case "never", "off", "no", "false", "0":
+		return evo.ColorNever, nil
+	default:
+		return evo.ColorAuto, fmt.Errorf("unknown color mode %q", s)
+	}
 }

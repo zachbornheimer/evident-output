@@ -1,4 +1,9 @@
-// Command migrate shows dry-run Plan vs applied Changes.
+// Command migrate demonstrates the advanced Plan/Changes instance API — the
+// primitives Task's mutation verbs (Delete/Create/Update/…) are built on.
+// Reach for Plan/Changes directly, as this example does, only when a tool
+// needs the would/did split without a Task; ordinary callers get the same
+// dry-run/applied split for free from Task's mutation verbs (see the README
+// quick start).
 //
 //	go run ./examples/migrate/
 //	go run ./examples/migrate/ --apply
@@ -6,7 +11,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"os"
 
@@ -18,39 +22,37 @@ func main() {
 	fail := flag.Bool("fail", false, "with --apply, simulate backup failure")
 	flag.Parse()
 
-	out := evo.New(evo.Config{Title: "schema migration"})
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	out := evo.Init(evo.Config{Title: "schema migration"})
+	os.Exit(evo.Main(func() error {
 		if !*apply {
-			o.Println("Dry-run: no database changes will be made.")
-			plan := o.Plan("database")
+			evo.Println("Dry-run: no database changes will be made.")
+			plan := out.Plan("database")
 			plan.Add(1, "column users.email_verified")
 			plan.Create("index idx_users_email")
 			plan.Write("migrations/20260727_email_verified.sql")
-			o.Item("connection").OK()
-			o.Item("lock").OK()
+			evo.Task("connection").Done()
+			evo.Task("lock").Done()
 			return nil
 		}
 
-		backup := o.Task("backup")
+		backup := evo.Task("backup")
 		backup.Phase("snapshotting production")
 		if *fail {
-			// Cause = raw SDK/infrastructure error (diagnostic).
-			// Detail = stable user guidance (presentation).
-			err := errors.New("S3 PutObject: AccessDenied: User is not authorized to perform: s3:PutObject on resource arn:aws:s3:::backups/prod (status 403)")
+			// Detail is stable user guidance (presentation); the raw SDK error
+			// would go into Failf's trailing %w if this call site returned it.
 			backup.Fail(
 				"backup failed",
-				evo.Cause(err),
 				evo.Detail("check the backup destination and credentials"),
 			)
 			return nil
 		}
 		backup.Done("snapshot created")
 
-		migration := o.Task("migration")
+		migration := evo.Task("migration")
 		migration.Phase("applying schema changes")
 		migration.Done("applied")
 
-		changes := o.Changes("database")
+		changes := out.Changes("database")
 		changes.Added(1, "column users.email_verified")
 		changes.Created("index idx_users_email")
 		changes.Wrote("migrations/20260727_email_verified.sql")

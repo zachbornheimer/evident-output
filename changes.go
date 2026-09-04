@@ -9,7 +9,7 @@ type Changes struct {
 }
 
 // Added records an added quantity.
-func (c *Changes) Added(quantity int64, object string) *Changes {
+func (c *Changes) Added(quantity int, object string) *Changes {
 	return c.Record("added", quantity, object)
 }
 
@@ -19,28 +19,31 @@ func (c *Changes) Created(object string) *Changes {
 }
 
 // Updated records an updated quantity.
-func (c *Changes) Updated(quantity int64, object string) *Changes {
+func (c *Changes) Updated(quantity int, object string) *Changes {
 	return c.Record("updated", quantity, object)
 }
 
-// Reused records a reused quantity.
-func (c *Changes) Reused(quantity int64, object string) *Changes {
-	return c.Record("reused", quantity, object)
-}
-
-// Moved records a move.
-func (c *Changes) Moved(source, destination string) *Changes {
-	return c.recordNoQty("moved", sanitize.Text(source)+" → "+sanitize.Text(destination))
-}
-
 // Removed records a removed quantity.
-func (c *Changes) Removed(quantity int64, object string) *Changes {
+func (c *Changes) Removed(quantity int, object string) *Changes {
 	return c.Record("removed", quantity, object)
+}
+
+// Deleted records a deleted quantity. Part of the verb set unified across
+// TaskHandle/Changes/Plan (C10) — TaskHandle/Plan already had Delete;
+// Changes was missing its past-tense counterpart.
+func (c *Changes) Deleted(quantity int, object string) *Changes {
+	return c.Record("deleted", quantity, object)
 }
 
 // Wrote records a written object.
 func (c *Changes) Wrote(object string) *Changes {
 	return c.recordNoQty("wrote", object)
+}
+
+// Pushed records a pushed quantity. Part of the verb set unified across
+// TaskHandle/Changes/Plan (C10) — Push was previously TaskHandle-only.
+func (c *Changes) Pushed(quantity int, object string) *Changes {
+	return c.Record("pushed", quantity, object)
 }
 
 // RecordName records a verb and one named object without a quantity.
@@ -49,8 +52,12 @@ func (c *Changes) RecordName(verb, object string) *Changes {
 	return c.recordNoQty(verb, object)
 }
 
-// Record records a verb/quantity/object effect.
-func (c *Changes) Record(verb string, quantity int64, object string) *Changes {
+// Record records a verb/quantity/object effect. A zero quantity records no
+// row (there is nothing to show) but still remembers verb as the section's
+// intended verb, so a section that ends up with no rows at all still renders
+// "nothing to <verb> <subject>" (evo-rec.md guess-driven default #1: "Zero
+// mutations recorded → nothing to delete") instead of inventing a "did 0" row.
+func (c *Changes) Record(verb string, quantity int, object string) *Changes {
 	c.out.mu.Lock()
 	defer c.out.mu.Unlock()
 	st := c.find()
@@ -61,9 +68,16 @@ func (c *Changes) Record(verb string, quantity int64, object string) *Changes {
 		c.out.recordMisuse(err)
 		return c
 	}
+	verb = sanitize.Text(verb)
+	if st.intendedVerb == "" {
+		st.intendedVerb = verb
+	}
+	if quantity == 0 {
+		return c
+	}
 	st.records = append(st.records, EffectRecord{
-		Verb:     sanitize.Text(verb),
-		Quantity: quantity,
+		Verb:     verb,
+		Quantity: int64(quantity),
 		HasQty:   true,
 		Object:   sanitize.Text(object),
 	})
@@ -83,13 +97,32 @@ func (c *Changes) recordNoQty(verb, object string) *Changes {
 		c.out.recordMisuse(err)
 		return c
 	}
+	verb = sanitize.Text(verb)
+	if st.intendedVerb == "" {
+		st.intendedVerb = verb
+	}
 	st.records = append(st.records, EffectRecord{
-		Verb:   sanitize.Text(verb),
+		Verb:   verb,
 		Object: sanitize.Text(object),
 	})
 	c.out.bumpLocked()
 	c.out.appendEventLocked(Event{Type: "change.recorded", EntityID: c.id})
 	return c
+}
+
+// declareIntendedVerb records verb as the section's intended verb if none is
+// set yet, without adding a row. TaskHandle mutation verbs (task_mutations.go)
+// call this with the caller's original imperative verb before Record
+// conjugates it to past tense, so an empty section still reads "nothing to
+// delete <subject>" rather than "nothing to deleted <subject>".
+func (c *Changes) declareIntendedVerb(verb string) {
+	c.out.mu.Lock()
+	defer c.out.mu.Unlock()
+	st := c.find()
+	if st == nil || st.intendedVerb != "" {
+		return
+	}
+	st.intendedVerb = sanitize.Text(verb)
 }
 
 func (c *Changes) find() *changesState {

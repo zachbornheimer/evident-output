@@ -16,7 +16,7 @@ import (
 // Interactive H.2/H.17/H.20–H.22 require testkit terminal (v0.2).
 
 func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
@@ -35,7 +35,7 @@ func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
 }
 
 func TestH3_Task_ProgressStartsDeterminateTask(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
@@ -51,7 +51,7 @@ func TestH3_Task_ProgressStartsDeterminateTask(t *testing.T) {
 }
 
 func TestH4_Task_InvalidProgressIsRecordedWithoutCorruption(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("download")
@@ -68,7 +68,7 @@ func TestH4_Task_InvalidProgressIsRecordedWithoutCorruption(t *testing.T) {
 }
 
 func TestH5_Task_BackwardProgressIsRejected(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("download")
@@ -81,10 +81,10 @@ func TestH5_Task_BackwardProgressIsRejected(t *testing.T) {
 }
 
 func TestH6_Item_BlockCreatesSingleProblem(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	workingTree := out.Item("working tree")
+	workingTree := out.Task("working tree")
 	workingTree.Block(
 		"unstashed changes",
 		evo.Detail("index contains modified files"),
@@ -102,75 +102,37 @@ func TestH6_Item_BlockCreatesSingleProblem(t *testing.T) {
 	}
 }
 
-func TestH7_Item_BlockedByPreservesProblems(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+func TestH9_Task_FirstTerminalStateWins(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	branches := out.Item("branches")
-	problems := []evo.Problem{
-		{Subject: "feat/sdk-full-consolidation", Summary: "local-only", Count: 1},
-		{Subject: "fix/login-flow", Summary: "ahead of origin", Count: 2},
-	}
-
-	branches.BlockedBy(problems...)
-
-	got := branches.Snapshot().Problems
-	if len(got) != len(problems) {
-		t.Fatalf("problems len = %d, want %d", len(got), len(problems))
-	}
-	for i := range problems {
-		if got[i].Subject != problems[i].Subject || got[i].Summary != problems[i].Summary || got[i].Count != problems[i].Count {
-			t.Fatalf("problems[%d] = %#v, want %#v", i, got[i], problems[i])
-		}
-	}
-}
-
-func TestH8_Item_BlockedByWithoutProblemsRecordsMisuse(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
-	t.Cleanup(func() { _ = out.Close() })
-
-	branches := out.Item("branches")
-	branches.BlockedBy()
-
-	if !errors.Is(out.Err(), evo.ErrNoProblems) {
-		t.Fatalf("error = %v, want ErrNoProblems", out.Err())
-	}
-	if got := branches.Snapshot().State; got != evo.Pending {
-		t.Fatalf("state = %q, want %q", got, evo.Pending)
-	}
-}
-
-func TestH9_Item_FirstTerminalStateWins(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
-	t.Cleanup(func() { _ = out.Close() })
-
-	item := out.Item("working tree")
-	item.OK()
+	item := out.Task("working tree")
+	item.Done()
 	item.Block("unstashed changes")
 
-	if got := item.Snapshot().State; got != evo.OK {
-		t.Fatalf("state = %q, want %q", got, evo.OK)
+	if got := item.Snapshot().State; got != evo.Done {
+		t.Fatalf("state = %q, want %q", got, evo.Done)
 	}
 	if !errors.Is(out.Err(), evo.ErrAlreadyResolved) {
 		t.Fatalf("error = %v, want ErrAlreadyResolved", out.Err())
 	}
 }
 
-func TestH10_Item_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+func TestH10_Task_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	workingTree := out.Item("working tree")
-	branches := out.Item("branches")
-	remotes := out.Item("remotes")
+	workingTree := out.Task("working tree")
+	branches := out.Task("branches")
+	remotes := out.Task("remotes")
 
 	remoteResolved := make(chan struct{})
 	branchResolved := make(chan struct{})
 
 	var group sync.WaitGroup
-	group.Go(func() { remotes.OK(); close(remoteResolved) })
+	group.Go(func() { remotes.Done(); close(remoteResolved) })
 	group.Go(func() { <-remoteResolved; branches.Warn("unreachable"); close(branchResolved) })
-	group.Go(func() { <-branchResolved; workingTree.OK() })
+	group.Go(func() { <-branchResolved; workingTree.Done() })
 	group.Wait()
 
 	if err := out.Finish(); err != nil {
@@ -178,9 +140,9 @@ func TestH10_Item_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
 	}
 	conclusion := out.Conclusion()
 	got := []string{
-		conclusion.Items[0].Name,
-		conclusion.Items[1].Name,
-		conclusion.Items[2].Name,
+		conclusion.Tasks[0].Name,
+		conclusion.Tasks[1].Name,
+		conclusion.Tasks[2].Name,
 	}
 	want := []string{"working tree", "branches", "remotes"}
 	if !reflect.DeepEqual(got, want) {
@@ -189,7 +151,7 @@ func TestH10_Item_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
 }
 
 func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -207,7 +169,7 @@ func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
 
 func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("dependencies"), evo.To(&output), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("dependencies"), evo.To(&output), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -222,8 +184,14 @@ func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 	}
 }
 
-func TestH13_Output_FinishReportsUnresolvedTask(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(io.Discard))
+// TestH13_Output_FinishLeavesUnresolvedTaskPartial pins the release-gate
+// round 4 finding 3 policy: an unresolved task with no problems of its own,
+// on an otherwise clean finish, reads as an honest incomplete outcome
+// (Conclusion.Partial), never as misuse — the caller simply forgot a
+// terminal verb, and a clean finish must never escalate that to
+// ErrUnresolvedTask (previously pinned here as the old behavior).
+func TestH13_Output_FinishLeavesUnresolvedTaskPartial(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Tasks("dependencies")
@@ -231,25 +199,28 @@ func TestH13_Output_FinishReportsUnresolvedTask(t *testing.T) {
 	dependencies.Task("esbuild")
 
 	err := out.Finish()
-	if !errors.Is(err, evo.ErrUnresolvedTask) {
-		t.Fatalf("error = %v, want ErrUnresolvedTask", err)
+	if err != nil {
+		t.Fatalf("error = %v, want nil (clean finish, no amnesty-defeating problems)", err)
+	}
+	if !out.Conclusion().Partial {
+		t.Fatal("want Conclusion.Partial = true for the unresolved esbuild task")
 	}
 }
 
 func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.NewWithOptions(evo.Title(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title(
 		"dependencies"), evo.To(&output),
 		evo.Plain(),
 		evo.NoColor(),
 		evo.Width(80),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("dependencies").
-		Added(14, "packages").
-		Updated(4, "packages").
-		Reused(63, "cached packages").
+		Added(14, "package").
+		Updated(4, "package").
+		Record("reused", 63, "cached package").
 		Wrote("app.lock")
 
 	if err := out.Finish(); err != nil {
@@ -271,17 +242,17 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 
 func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.NewWithOptions(evo.Title(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title(
 		"dependencies"), evo.To(&output),
 		evo.Plain(),
 		evo.NoColor(),
 		evo.Width(30),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Changes("dependencies").
-		Added(14, "packages").
-		Updated(4, "packages").
+		Added(14, "package").
+		Updated(4, "package").
 		Wrote("app.lock")
 
 	if err := out.Finish(); err != nil {
@@ -300,12 +271,12 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 }
 
 func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
-	out := evo.NewWithOptions(evo.Title("account acme"), evo.To(io.Discard))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("account acme"), evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Plan("delete account acme").
-		Delete(14, "projects").
-		Revoke(7, "API keys")
+		Delete(14, "project").
+		Record("revoke", 7, "API keys")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -319,17 +290,17 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 
 func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&output),
-		evo.NonInteractive(),
+		evo.Plain(),
 		evo.NoColor(),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("dependencies")
 	task.Phase("reading lockfile")
 	task.Phase("resolving packages")
-	task.Donef("installed %d packages", 18)
+	task.Done("installed %d packages", 18)
 	_ = out.Finish()
 
 	got := output.String()
@@ -342,16 +313,12 @@ func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 
 func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title("bpp-csharp"), evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("bpp-csharp"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Item("working tree").OK()
-	out.Item("branches").BlockedBy(evo.Problem{
-		Subject: "feat/sdk-full-consolidation",
-		Summary: "local-only",
-		Count:   1,
-	})
-	out.Item("remotes").OK()
+	out.Task("working tree").Done()
+	out.Task("branches").Block("local-only", evo.On("feat/sdk-full-consolidation"), evo.Count(1))
+	out.Task("remotes").Done()
 	if err := out.Finish(); err != nil {
 		// blocked items are resolved; no unresolved error expected
 		t.Fatal(err)
@@ -373,7 +340,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), `"schema_version": "0.2"`) {
+	if !strings.Contains(string(raw), `"schema_version": "0.3"`) {
 		t.Fatalf("json missing schema_version:\n%s", raw)
 	}
 	if !strings.Contains(string(raw), `"state": "blocked"`) {
@@ -390,7 +357,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 			continue
 		}
 		n++
-		if !strings.Contains(line, `"schema_version":"0.2"`) && !strings.Contains(line, `"schema_version": "0.2"`) {
+		if !strings.Contains(line, `"schema_version":"0.3"`) && !strings.Contains(line, `"schema_version": "0.3"`) {
 			// compact marshal has no space
 			if !strings.Contains(line, "schema_version") {
 				t.Fatalf("jsonl line missing schema_version: %s", line)

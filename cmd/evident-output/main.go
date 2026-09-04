@@ -82,15 +82,15 @@ func cmdPreview(args []string) error {
 		}
 	}
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.Title(subject), evo.To(&buf), evo.Plain(), evo.NoColor())
-	it := out.Item(item)
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title(subject), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	it := out.Task(item)
 	switch state {
 	case "blocked":
 		it.Block("blocked for preview")
 	case "failed":
 		it.Fail("failed for preview")
 	default:
-		it.OK()
+		it.Done()
 	}
 	_ = out.Finish()
 	profiles := preview.DefaultProfiles(out.Snapshot())

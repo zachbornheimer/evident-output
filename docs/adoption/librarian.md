@@ -30,7 +30,7 @@ out := evo.New(evo.Config{
     Title: "librarian",
     Debug: evo.DebugConfig{Level: evo.LevelWarn},
 })
-os.Exit(evo.Main(out, run))
+os.Exit(evo.MainWith(out, run))
 ```
 
 ## Mechanical changes

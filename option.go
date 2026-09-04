@@ -16,7 +16,6 @@ type config struct {
 	diagnostic        io.Writer
 	result            io.Writer // domain payload (FormatData); never used for presentation
 	plain             bool
-	nonInteractive    bool
 	noColor           bool
 	width             int
 	clock             TimeSource
@@ -25,17 +24,46 @@ type config struct {
 	strict            bool
 	terminal          TerminalDriver
 	debugLevel        LogLevel
+	debugAddSource    bool
 	debugPresentation DebugPresentation
 	debugPane         debugPaneConfig
 	redactor          Redactor
-	projection        ProjectionPolicy
 	maxEntities       int
 	maxEvents         int
 	extraWriters      []io.Writer
 	verbosity         Verbosity
+	// stdin is the facade Confirm reads one answer line from (default os.Stdin,
+	// resolved lazily so NewWithOptions callers that skip Stdin still work).
+	stdin io.Reader
 	// failedExitCode overrides ExitFailed when conclusion is StateFailed.
 	// Zero means use ExitFailed (2).
 	failedExitCode int
+	// dryRun selects mutation-verb tense: true renders TaskHandle mutation
+	// verbs as [planned]/imperative, false as [changed]/past tense.
+	dryRun bool
+	// glyphs selects the state-glyph vocabulary (GlyphsAuto resolved at
+	// construction to GlyphsUnicode or GlyphsASCII; see glyph.go).
+	glyphs GlyphProfile
+	// samePrimaryAsTerminal records that the live Terminal driver was built
+	// around the same underlying writer as primary (Config's default-construction
+	// path: To(c.Stdout) and Terminal(ansi-over-c.Stdout) target one stream).
+	// Set only where construction knows both writers, never inferred later by
+	// comparing file descriptors — see configToOptions. Finish uses it to skip
+	// the CON-009 dual-stream write, which would otherwise render the
+	// conclusion band twice on the one physical screen.
+	samePrimaryAsTerminal bool
+	// diagnosticSharesTerminal records that the Diagnostics writer resolves
+	// to the same physical terminal device as the live region's Terminal
+	// driver, even though the two are distinct io.Writer values (the
+	// realistic default: Config{Stdout, Stderr} on an interactive shell,
+	// where fd 1 and fd 2 both name the one controlling tty). Set only at
+	// construction, where the real writers are known — see construct.go's
+	// sameTerminalDevice detection. projectDebugRecordLocked uses it to
+	// route dual-stream Debug records through the same clear-live →
+	// write-durable → repaint sequencing as single-stream records, instead
+	// of writing raw bytes to Diagnostics that would otherwise land
+	// mid-spinner-row on the one screen both writers share.
+	diagnosticSharesTerminal bool
 }
 
 type optionFunc func(*config)
@@ -71,11 +99,6 @@ func Plain() Option {
 	return optionFunc(func(c *config) { c.plain = true })
 }
 
-// NonInteractive disables live interactive frames.
-func NonInteractive() Option {
-	return optionFunc(func(c *config) { c.nonInteractive = true })
-}
-
 // NoColor disables color.
 func NoColor() Option {
 	return optionFunc(func(c *config) { c.noColor = true })
@@ -108,9 +131,40 @@ func Strict() Option {
 	return optionFunc(func(c *config) { c.strict = true })
 }
 
+// DryRun declares this run a dry run: TaskHandle mutation verbs (Delete,
+// Create, Update, Remove, Write, Push, Record, RecordName) render as
+// [planned] rows with imperative verbs instead of [changed] rows with
+// past-tense verbs. Set once via Config.DryRun in ordinary application code;
+// this Option exists for the advanced NewWithOptions surface and tests.
+func DryRun() Option {
+	return optionFunc(func(c *config) { c.dryRun = true })
+}
+
+// Stdin injects the reader Confirm reads answers from (facade rule — no
+// direct os.Stdin read in Confirm's logic). Default os.Stdin.
+func Stdin(r io.Reader) Option {
+	return optionFunc(func(c *config) { c.stdin = r })
+}
+
 // Terminal injects a terminal driver (interactive projection; v0.2).
 func Terminal(driver TerminalDriver) Option {
 	return optionFunc(func(c *config) { c.terminal = driver })
+}
+
+// withPrimarySharesTerminal marks that the just-configured Terminal driver
+// writes to the same stream as primary (To). Only configToOptions calls this
+// — it knows both writers at construction time, so Finish never has to guess
+// stream identity from an fd comparison.
+func withPrimarySharesTerminal() Option {
+	return optionFunc(func(c *config) { c.samePrimaryAsTerminal = true })
+}
+
+// withDiagnosticSharesTerminal marks that the Diagnostics writer resolves to
+// the same physical terminal device as the live region, even when it is a
+// distinct io.Writer from primary. Only configToOptions calls this — see
+// config.diagnosticSharesTerminal.
+func withDiagnosticSharesTerminal() Option {
+	return optionFunc(func(c *config) { c.diagnosticSharesTerminal = true })
 }
 
 // LogLevel is a diagnostic severity.
@@ -135,9 +189,6 @@ const (
 	LevelError
 )
 
-// Debug is the debug log level (Appendix H). Alias of LevelDebug.
-const Debug = LevelDebug
-
 // DebugLevel sets the minimum debug emission level.
 // Pass LevelTrace or LevelDebug to surface Debug journal lines.
 func DebugLevel(level LogLevel) Option {
@@ -150,11 +201,31 @@ func DebugLevel(level LogLevel) Option {
 	})
 }
 
+// DebugAddSource resolves each debug record's call site to a
+// source=file.go:line field on human/pane/history rendering, matching
+// slog.HandlerOptions.AddSource semantics. Off by default (release-gate
+// round 6 finding 2): a bare pc=<uintptr> field never belongs on a human
+// debug line; the raw PC still lives on LogRecord for machine consumers
+// regardless of this setting.
+func DebugAddSource() Option {
+	return optionFunc(func(c *config) { c.debugAddSource = true })
+}
+
 // TerminalDriver is the exclusive owner of terminal control sequences.
 // Interactive implementation arrives in v0.2; the interface is defined early
 // so options and tests compile.
 type TerminalDriver interface {
 	ID() string
+}
+
+// sinkReporter is implemented by a TerminalDriver that knows its own
+// destination writer (terminal.ANSI, testkit's drivers). configToOptions and
+// newOutput use it to DETECT whether a caller-supplied Terminal(...) happens
+// to write to a stream evident-output already knows about (primary,
+// diagnostic, or either of Config's Stdout/Stderr), instead of only knowing
+// that for the one construction path that builds both itself.
+type sinkReporter interface {
+	Sink() io.Writer
 }
 
 const (

@@ -19,14 +19,14 @@ func (secretRedactor) RedactString(s string) string {
 
 func TestCapture_RedactsOnRetention(t *testing.T) {
 	var primary bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:    "sec",
 		Stdout:   &primary,
 		Stderr:   &primary,
 		Redactor: secretRedactor{},
 	})
 	task := out.Task("fetch")
-	cap := task.Capture()
+	cap := task.Evidence()
 	_, _ = fmt.Fprintln(cap, "Authorization: Bearer SECRET_TOKEN")
 	_ = cap.Close()
 
@@ -46,17 +46,17 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 
 func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "id", Stdout: &buf, Stderr: &buf})
-	out.Item("working tree", evo.ID("gate.working-tree")).OK()
+	out := evo.Init(evo.Config{Title: "id", Stdout: &buf, Stderr: &buf})
+	out.Task("working tree", evo.ID("gate.working-tree")).Done()
 	out.Task("download base", evo.ID("build.base.download")).Done()
 	_ = out.Finish()
 
 	snap := out.Snapshot()
-	if len(snap.Items) != 1 || snap.Items[0].Key != "gate.working-tree" {
-		t.Fatalf("item key: %+v", snap.Items)
+	if len(snap.Tasks) != 2 || snap.Tasks[0].Key != "gate.working-tree" {
+		t.Fatalf("first task key: %+v", snap.Tasks)
 	}
-	if len(snap.Tasks) != 1 || snap.Tasks[0].Key != "build.base.download" {
-		t.Fatalf("task key: %+v", snap.Tasks)
+	if snap.Tasks[1].Key != "build.base.download" {
+		t.Fatalf("second task key: %+v", snap.Tasks)
 	}
 
 	raw, err := evo.EncodeJSON(snap)
@@ -67,23 +67,22 @@ func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
-	items, _ := doc["items"].([]any)
-	item0, _ := items[0].(map[string]any)
-	if item0["key"] != "gate.working-tree" {
-		t.Fatalf("json item key: %#v", item0)
-	}
 	tasks, _ := doc["tasks"].([]any)
 	task0, _ := tasks[0].(map[string]any)
-	if task0["key"] != "build.base.download" {
-		t.Fatalf("json task key: %#v", task0)
+	if task0["key"] != "gate.working-tree" {
+		t.Fatalf("json first task key: %#v", task0)
+	}
+	task1, _ := tasks[1].(map[string]any)
+	if task1["key"] != "build.base.download" {
+		t.Fatalf("json second task key: %#v", task1)
 	}
 }
 
 func TestEntityID_DuplicateIsMisuse(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "dup", Stdout: &buf, Stderr: &buf})
-	out.Item("a", evo.ID("same")).OK()
-	out.Item("b", evo.ID("same")).OK()
+	out := evo.Init(evo.Config{Title: "dup", Stdout: &buf, Stderr: &buf})
+	out.Task("a", evo.ID("same")).Done()
+	out.Task("b", evo.ID("same")).Done()
 	if out.Err() == nil {
 		t.Fatal("expected ErrDuplicateKey misuse")
 	}
@@ -91,17 +90,17 @@ func TestEntityID_DuplicateIsMisuse(t *testing.T) {
 
 func TestScope_QualifiesKeys(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "scope", Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Title: "scope", Stdout: &buf, Stderr: &buf})
 	reg := out.Scope("registry")
-	reg.Item("credentials", evo.ID("auth")).OK()
+	reg.Task("credentials", evo.ID("auth")).Done()
 	reg.Task("pull", evo.ID("image.pull")).Done()
 	// Already-qualified IDs are not double-prefixed.
-	reg.Item("ready", evo.ID("registry.ready")).OK()
+	reg.Task("ready", evo.ID("registry.ready")).Done()
 	_ = out.Finish()
 
 	snap := out.Snapshot()
 	keys := map[string]bool{}
-	for _, it := range snap.Items {
+	for _, it := range snap.Tasks {
 		keys[it.Key] = true
 	}
 	for _, tk := range snap.Tasks {
@@ -114,13 +113,13 @@ func TestScope_QualifiesKeys(t *testing.T) {
 
 func TestResultWriter_FormatDataPurity(t *testing.T) {
 	var human, result bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:  "build",
 		Format: evo.FormatData,
 		Stdout: &result,
 		Stderr: &human,
 	})
-	out.Item("compile").OK()
+	out.Task("compile").Done()
 	out.Task("link").Done("bin/app")
 	if _, err := io.WriteString(out.ResultWriter(), `{"artifact":"bin/app"}`+"\n"); err != nil {
 		t.Fatal(err)
@@ -143,7 +142,7 @@ func TestResultWriter_FormatDataPurity(t *testing.T) {
 
 func TestResultWriter_UnsetIsDiscard(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "h", Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Title: "h", Stdout: &buf, Stderr: &buf})
 	n, err := out.ResultWriter().Write([]byte("should-not-appear"))
 	if err != nil {
 		t.Fatal(err)
@@ -159,13 +158,13 @@ func TestResultWriter_UnsetIsDiscard(t *testing.T) {
 
 func TestScope_NamespacedItemAndSessionTools(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "s", Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Title: "s", Stdout: &buf, Stderr: &buf})
 	sc := out.Scope("plugin")
 	if sc.Name() != "plugin" {
 		t.Fatalf("name %q", sc.Name())
 	}
 	// Scope only declares entities; session tools remain on Output.
-	sc.Item("credentials", evo.ID("auth")).OK()
+	sc.Task("credentials", evo.ID("auth")).Done()
 	if out.Writer() == nil {
 		t.Fatal("Writer nil")
 	}
@@ -173,16 +172,16 @@ func TestScope_NamespacedItemAndSessionTools(t *testing.T) {
 		t.Fatal("SlogHandler nil")
 	}
 	_ = out.Finish()
-	if out.Snapshot().Items[0].Key != "plugin.auth" {
-		t.Fatalf("key %q", out.Snapshot().Items[0].Key)
+	if out.Snapshot().Tasks[0].Key != "plugin.auth" {
+		t.Fatalf("key %q", out.Snapshot().Tasks[0].Key)
 	}
 }
 
 func TestItem_CaptureBindsEvidence(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "gate", Stdout: &buf, Stderr: &buf})
-	docker := out.Item("docker daemon").Start()
-	cap := docker.Capture()
+	out := evo.Init(evo.Config{Title: "gate", Stdout: &buf, Stderr: &buf})
+	docker := out.Task("docker daemon")
+	cap := docker.Evidence()
 	_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon"))
 	docker.Fail("could not inspect the daemon", cap.DetailTail())
 	_ = out.Finish()

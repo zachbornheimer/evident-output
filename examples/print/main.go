@@ -10,16 +10,16 @@ import (
 )
 
 func main() {
-	out := evo.New(evo.Config{Title: "packages"})
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	evo.Init(evo.Config{Title: "packages"})
+	os.Exit(evo.Main(func() error {
 		// Managed, line-oriented replacement for human-facing fmt.Print*
 		// (not a byte-for-byte fmt drop-in).
-		o.Println("Reading configuration")
-		o.Printf("Found %d packages\n", 18)
-		o.Print("Resolving")
-		o.Print("…")
-		o.Print("\n")
-		o.Println("Ready")
+		evo.Println("Reading configuration")
+		evo.Printf("Found %d packages\n", 18)
+		evo.Print("Resolving")
+		evo.Print("…")
+		evo.Print("\n")
+		evo.Println("Ready")
 		return nil
 	}))
 }

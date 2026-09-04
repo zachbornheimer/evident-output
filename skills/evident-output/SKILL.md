@@ -24,7 +24,7 @@ license: Apache-2.0
 ## Workflow when MCP is connected
 
 1. `evident_output_list_guides` / `evident_output_get_guidance`
-2. Implement with `New(Config)`, `Print*`, `Item`/`Task`, `Capture`, `Main`
+2. Implement with `Init(Config)`, `Print*`, `Task`, `Evidence`, `Main`
 3. `evident_output_review` until `recheck_required=false`
 4. `evident_output_preview` for profiles
 5. `evident_output_explain` with `rule_id` (not `id`)
@@ -54,14 +54,16 @@ grok mcp doctor evident-output --json
 ## Rules of thumb
 
 - Presentation only — no schedulers or `RunAll` / `Map` / `Retry` (API-026, AST-only)
-- Standalone: `os.Exit(evo.Main(out, run))`; hosted: Finish+Close (host owns `os.Exit`)
-- Entity: Item = gate, Task = progress, Changes = did, Plan = would
+- Standalone: `os.Exit(evo.Main(run))`; hosted (`Config.Isolated: true`): `os.Exit(out.Run(run))`, or Finish+Close (host owns `os.Exit`)
+- Entity: Task = gate (resolved directly) or progress (Phase/Progress-driven); Changes = did, Plan = would
 - Domain effect verbs: use `Record` when stock verbs lie (RULE-001)
 - `Block` = condition found; `Fail` = evaluation failed; `Warn` = optional/soft
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
 - Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
-- Child process chatter → `task.Capture()` / `item.Capture()` + `DetailTail()`
-- Sanitize is automatic; `Config.Redactor` scrubs Capture ring + Debug fields
+- Child process chatter → `task.Evidence()` / `item.Evidence()` + `DetailTail()`; prefer
+  `task.Run(cmd)` for an `*exec.Cmd`
+- Sanitize is automatic; `Config.Redactor` scrubs the Evidence ring + Debug fields
+- `Fail`/`Block` are statements (no return); `Failf`/`Blockf` return a %w-wrapped error
 - Stable machine keys: `evo.ID(...)`; plugins: `out.Scope("name")` (entities only)
 - Data commands: `FormatData` + write domain payload to `out.ResultWriter()`
 - Prefer plain labels over `*f` constructors when identity must stay stable

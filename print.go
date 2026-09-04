@@ -10,14 +10,16 @@ import (
 )
 
 // Visibility selects whether a message is ordinary or verbose user detail.
-// Zero is Normal.
+// Zero is VisibilityNormal.
 type Visibility uint8
 
 const (
-	// Normal messages always project at VerbosityNormal.
-	Normal Visibility = iota
-	// Verbose messages project only when Config.Verbosity is VerbosityVerbose.
-	Verbose
+	// VisibilityNormal messages always project at VerbosityNormal (C11:
+	// prefixed consistently with VisibilityVerbose — the two enum members
+	// previously disagreed on their own naming convention).
+	VisibilityNormal Visibility = iota
+	// VisibilityVerbose messages project only when Config.Verbosity is VerbosityVerbose.
+	VisibilityVerbose
 )
 
 const (
@@ -43,25 +45,31 @@ func (o *Output) At(visibility Visibility) *Printer {
 	return &Printer{out: o, visibility: visibility}
 }
 
-// Verbose is sugar for At(Verbose).
-func (o *Output) Verbose() *Printer {
-	return o.At(Verbose)
-}
-
 // Print formats like fmt.Sprint and enqueues human-facing text (line-buffered).
 // Errors are recorded on the Output and returned by Finish/Main — not ignored mid-stream.
 func (o *Output) Print(args ...any) {
-	o.At(Normal).Print(args...)
+	o.At(VisibilityNormal).Print(args...)
 }
 
 // Printf formats like fmt.Sprintf and enqueues human-facing text (line-buffered).
 func (o *Output) Printf(format string, args ...any) {
-	o.At(Normal).Printf(format, args...)
+	o.At(VisibilityNormal).Printf(format, args...)
 }
 
 // Println formats like fmt.Sprintln and enqueues a complete human-facing line.
 func (o *Output) Println(args ...any) {
-	o.At(Normal).Println(args...)
+	o.At(VisibilityNormal).Println(args...)
+}
+
+// Subject prints one durable line immediately — the same one-shot semantics
+// as Config.Subject, for a caller who doesn't know the subject text until
+// after Init (e.g. resolved from a flag), but still before any other I/O
+// (I3). A no-op on a nil Output or empty text.
+func (o *Output) Subject(text string) {
+	if o == nil || text == "" {
+		return
+	}
+	o.Println(text)
 }
 
 // Print implements Printer.
@@ -81,16 +89,16 @@ func (p *Printer) Println(args ...any) {
 
 // Writer returns an io.Writer that feeds this printer's line buffer (human stream).
 func (o *Output) Writer() io.Writer {
-	return o.At(Normal).Writer()
+	return o.At(VisibilityNormal).Writer()
 }
 
 // ResultWriter returns the domain-payload stream. Presentation never writes here.
 //
 // In FormatData mode this is Config.Result if set, otherwise Config.Stdout —
-// so machine JSON stays pure while Items/Tasks render on stderr.
+// so machine JSON stays pure while Tasks render on stderr.
 // When no result stream is configured, returns io.Discard.
 //
-//	out := evo.New(evo.Config{Title: "build", Format: evo.FormatData})
+//	out := evo.Init(evo.Config{Title: "build", Format: evo.FormatData})
 //	// after work succeeds:
 //	_ = json.NewEncoder(out.ResultWriter()).Encode(payload)
 func (o *Output) ResultWriter() io.Writer {
@@ -206,14 +214,14 @@ func (o *Output) emitMessageLocked(line string, vis Visibility) {
 }
 
 func visibilityName(v Visibility) string {
-	if v == Verbose {
+	if v == VisibilityVerbose {
 		return "verbose"
 	}
 	return "normal"
 }
 
 func (o *Output) projectsVisibilityLocked(v Visibility) bool {
-	if v == Verbose {
+	if v == VisibilityVerbose {
 		return o.cfg.verbosity >= VerbosityVerbose
 	}
 	return true

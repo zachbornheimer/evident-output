@@ -10,7 +10,7 @@ import (
 
 func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor())
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	g := out.Tasks("work")
@@ -38,9 +38,14 @@ func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	}
 }
 
-func TestLive_DeterminateProgressPhaseIsDimmed(t *testing.T) {
+// TestLive_DeterminateProgressPhaseIsDefaultIntensity is red-first against
+// evo-rec.md's "Color and style demotions": the in-flight phase is the
+// diagnostic signal while progress stalls, so it renders at default
+// intensity — dim is reserved for genuinely subordinate rows (pending, not
+// started, evidence, overflow), never the current item.
+func TestLive_DeterminateProgressPhaseIsDefaultIntensity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24))
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("scan")
@@ -49,8 +54,11 @@ func TestLive_DeterminateProgressPhaseIsDimmed(t *testing.T) {
 
 	got := screen.LatestLiveText()
 	dimmedPhase := "\x1b[2mreading manifest\x1b[0m"
-	if !strings.Contains(got, dimmedPhase) {
-		t.Fatalf("expected dimmed Phase on determinate Progress+Phase:\n%q", got)
+	if strings.Contains(got, dimmedPhase) {
+		t.Fatalf("phase must not be dimmed while the task is running:\n%q", got)
+	}
+	if !strings.Contains(got, "reading manifest") {
+		t.Fatalf("expected phase text present:\n%q", got)
 	}
 	if !strings.Contains(got, "3/10") {
 		t.Fatalf("expected unit count:\n%s", got)

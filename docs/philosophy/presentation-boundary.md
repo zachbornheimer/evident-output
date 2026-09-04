@@ -99,7 +99,7 @@ json.NewEncoder(out.ResultWriter()).Encode(result)
 ```go
 func main() {
     out := evo.New(evo.Config{Title: "install"})
-    os.Exit(evo.Main(out, run))
+    os.Exit(evo.MainWith(out, run))
 }
 ```
 

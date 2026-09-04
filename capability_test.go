@@ -1,15 +1,30 @@
-package evo_test
+package evo
 
-import (
-	"testing"
+import "testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
-)
+// capability_test.go is an internal (package evo) test file — C8
+// unexported ColorLevel/CapabilityProfile/DetectCapabilities, so this
+// coverage moved from evo_test to exercise them directly. It can't import
+// testkit here (testkit imports evo — an internal evo test importing it
+// back would be a cycle), so fakeCapabilityScreen is a minimal inline
+// LiveSurface stand-in instead.
+
+type fakeCapabilityScreen struct {
+	width, height int
+}
+
+func (f *fakeCapabilityScreen) ID() string          { return "fake-capability-screen" }
+func (f *fakeCapabilityScreen) Columns() int        { return f.width }
+func (f *fakeCapabilityScreen) Rows() int           { return f.height }
+func (f *fakeCapabilityScreen) IsInteractive() bool { return true }
+func (f *fakeCapabilityScreen) WriteLive(string)    {}
+func (f *fakeCapabilityScreen) ClearLive()          {}
+func (f *fakeCapabilityScreen) WriteDurable(string) {}
+func (f *fakeCapabilityScreen) WriteFinal(string)   {}
 
 func TestCapability_NoColorForcesNone(t *testing.T) {
-	p := evo.DetectCapabilities(evo.NoColor(), evo.Plain())
-	if p.Color != evo.ColorNone {
+	p := detectCapabilities(NoColor(), Plain())
+	if p.Color != colorNone {
 		t.Fatal(p.Color)
 	}
 	if p.Interactive {
@@ -18,8 +33,8 @@ func TestCapability_NoColorForcesNone(t *testing.T) {
 }
 
 func TestCapability_FromScreen(t *testing.T) {
-	s := testkit.NewScreen(testkit.Interactive(), testkit.Width(100), testkit.Height(40))
-	p := evo.DetectCapabilities(evo.Terminal(s), evo.VisibilityDelay(0))
+	s := &fakeCapabilityScreen{width: 100, height: 40}
+	p := detectCapabilities(Terminal(s), VisibilityDelay(0))
 	if p.Width != 100 || p.Height != 40 {
 		t.Fatalf("%+v", p)
 	}

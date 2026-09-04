@@ -107,8 +107,12 @@ type debugRecord struct {
 func formatHistoryLine(rec debugRecord, color bool) string {
 	levelTok := "[" + rec.Level + "]"
 	if color {
-		// Spec: color applies primarily to the level token.
-		levelTok = style(levelTok, sgrCyan, true)
+		// Spec: color applies primarily to the level token. Warn/Error reuse
+		// the same entity glyph palette a Task's own Warning/Failed row uses
+		// (stateColor) — one severity vocabulary, not a second one invented
+		// for the debug journal (release-gate round 9 finding 3). Debug/Info
+		// keep the journal's existing cyan.
+		levelTok = style(levelTok, debugLevelColor(rec.Level), true)
 	}
 	msg := sanitize.Text(rec.Message)
 	var body string
@@ -121,6 +125,21 @@ func formatHistoryLine(rec debugRecord, color bool) string {
 		body += "  " + attrs
 	}
 	return body
+}
+
+// debugLevelColor maps a journal record's level name to the SGR color its
+// level token renders with — LevelWarn and LevelError reuse stateColor's
+// Warning/Failed colors (sgrYellow/sgrRed); every other level (Debug, Info,
+// Trace) keeps the journal's existing cyan.
+func debugLevelColor(level string) string {
+	switch level {
+	case "WARN":
+		return sgrYellow
+	case "ERROR":
+		return sgrRed
+	default:
+		return sgrCyan
+	}
 }
 
 func formatHistoryAttrs(fields []Field) string {
@@ -138,51 +157,23 @@ func formatHistoryAttrs(fields []Field) string {
 	return joinArgs(parts)
 }
 
-// formatPaneLine is slog-style text for the rolling pane / diagnostic tail.
-// Example: time=2026-07-27T12:04:18.219Z level=DEBUG msg="package index loaded" packages=18
-func formatPaneLine(rec debugRecord) string {
-	return "time=" + rec.Time.UTC().Format(time.RFC3339Nano) + " " + formatPaneBody(rec)
-}
-
+// formatLivePaneLine renders rec for the rolling live pane, narrowing to fit
+// columns. One clock, one grammar (release-gate round 6 finding 3): every
+// human debug surface — history, live pane, diagnostics tail — renders the
+// same bracketed local-time grammar as formatHistoryLine; only the machine
+// LogRecord (slog.Record.PC, structured Fields) carries anything else.
+// color is always false here — the caller wraps the whole composed line in
+// dim() itself, so the level token is never colored underneath that wrap.
 func formatLivePaneLine(rec debugRecord, columns int) string {
-	body := formatPaneBody(rec)
-	full := formatPaneLine(rec)
+	full := formatHistoryLine(rec, false)
 	if width.VisibleCells(full) <= columns {
 		return full
 	}
-	compact := "time=" + rec.Time.UTC().Format("15:04:05.000") + " " + body
-	if width.VisibleCells(compact) <= columns {
-		return compact
-	}
-	return body
-}
-
-func formatPaneBody(rec debugRecord) string {
-	msg := sanitize.Text(rec.Message)
-	// Quote msg when it contains spaces (slog text convention).
-	if strings.ContainsAny(msg, " \t\"") {
-		msg = strconvQuote(msg)
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "level=%s msg=%s", rec.Level, msg)
-	for _, f := range rec.Fields {
-		val := fmt.Sprint(f.Value)
-		if f.Sensitive {
-			val = "***"
-		}
-		key := sanitize.Text(f.Key)
-		val = sanitize.Text(val)
-		if strings.ContainsAny(val, " \t\"") {
-			val = strconvQuote(val)
-		}
-		fmt.Fprintf(&b, " %s=%s", key, val)
-	}
-	return b.String()
-}
-
-func strconvQuote(s string) string {
-	// Minimal quoting without importing strconv for display-only values.
-	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
+	// Too narrow for the full line (attrs included): truncate to the column
+	// budget with a trailing "…" rather than silently dropping Fields — the
+	// pane must never claim a record had no attributes when it simply ran
+	// out of room to show them.
+	return width.Truncate(full, columns)
 }
 
 // debugPaneReservedRows is the number of terminal rows the debug pane needs
@@ -274,7 +265,7 @@ func writeDebugTail(b *strings.Builder, records []debugRecord, max int, color bo
 	b.WriteByte('\n')
 	view := paneView(records, max, true) // newest first in failure tail
 	for _, rec := range view {
-		line := formatPaneLine(rec)
+		line := formatHistoryLine(rec, false)
 		if color {
 			line = dim(line, true)
 		}

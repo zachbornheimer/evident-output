@@ -2,7 +2,7 @@ package evo_test
 
 import (
 	"bytes"
-	"os"
+	"io"
 	"strings"
 	"testing"
 
@@ -12,11 +12,11 @@ import (
 func TestNew_ZeroConfig_Defaults(t *testing.T) {
 	// Redirect via Config writers so we do not touch the real TTY.
 	var outBuf, errBuf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Stdout: &outBuf,
 		Stderr: &errBuf,
 	})
-	out.Item("ok").OK()
+	out.Task("ok").Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -27,8 +27,8 @@ func TestNew_ZeroConfig_Defaults(t *testing.T) {
 
 func TestNew_PartialConfig_InheritsDefaults(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "bpp-csharp", Stdout: &buf, Stderr: &buf})
-	out.Item("x").OK()
+	out := evo.Init(evo.Config{Title: "bpp-csharp", Stdout: &buf, Stderr: &buf})
+	out.Task("x").Done()
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "bpp-csharp") {
 		t.Fatalf("title missing:\n%s", buf.String())
@@ -39,9 +39,44 @@ func TestNew_PartialConfig_InheritsDefaults(t *testing.T) {
 	}
 }
 
+// TestConfig_SubjectRenderedOnceUnderTitle pins L5: Config.Subject renders
+// as a durable line immediately at Init, so a caller stops hand-calling
+// out.Println(root) at every projection that needs to show it.
+func TestConfig_SubjectRenderedOnceUnderTitle(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Title:   "repo-retire",
+		Subject: "/Users/z/dev/stale-repo",
+		Stdout:  &buf,
+		Stderr:  &buf,
+	})
+	t.Cleanup(func() { _ = out.Close() })
+	out.Task("scan").Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(buf.String(), "/Users/z/dev/stale-repo"); got != 1 {
+		t.Fatalf("Subject line count = %d, want exactly 1 in:\n%s", got, buf.String())
+	}
+}
+
+// TestConfig_SubjectEmptyEmitsNothing proves the zero value is silent —
+// Config.Subject is opt-in, never a placeholder line.
+func TestConfig_SubjectEmptyEmitsNothing(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Title: "repo-retire", Options: []evo.Option{evo.To(io.Discard)}})
+	t.Cleanup(func() { _ = out.Close() })
+	out.Task("scan").Done()
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(out.Snapshot().Messages); got != 0 {
+		t.Fatalf("Messages = %d, want 0 with Subject unset", got)
+	}
+}
+
 func TestConfig_DebugLevelTraceSelectable(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:  "trace",
 		Stdout: &buf,
 		Stderr: &buf,
@@ -58,9 +93,9 @@ func TestConfig_DebugLevelTraceSelectable(t *testing.T) {
 
 func TestConfig_DebugLevelUnsetDefaultsToInfo(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{Title: "info", Stdout: &buf, Stderr: &buf})
+	out := evo.Init(evo.Config{Title: "info", Stdout: &buf, Stderr: &buf})
 	out.Debug("should-drop")
-	out.Item("ok").OK()
+	out.Task("ok").Done()
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "should-drop") {
 		t.Fatalf("default LevelInfo must suppress Debug:\n%s", buf.String())
@@ -85,9 +120,9 @@ func TestConfig_VisibilityDelayZeroIsImmediate(t *testing.T) {
 		Stdout:          &bytes.Buffer{},
 		Stderr:          &bytes.Buffer{},
 		VisibilityDelay: evo.Delay(0),
-		ForcePlain:      true,
+		Plain:           true,
 	}
-	out := evo.New(cfg)
+	out := evo.Init(cfg)
 	_ = out.Close()
 	// resolveConfig kept *0: re-resolve via New must not panic; paint policy
 	// is covered by TestVisibilityDelay_ZeroIsImmediate (Option path).
@@ -96,24 +131,15 @@ func TestConfig_VisibilityDelayZeroIsImmediate(t *testing.T) {
 	}
 }
 
-func TestNew_RejectsMultipleConfigs(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic for multiple Config args")
-		}
-	}()
-	_ = evo.New(evo.Config{Title: "a"}, evo.Config{Title: "b"})
-}
-
 func TestNew_DataFormat_HumanOnStderr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:  "build",
 		Stdout: &stdout,
 		Stderr: &stderr,
 		Format: evo.FormatData,
 	})
-	out.Item("compile").OK()
+	out.Task("compile").Done()
 	_ = out.Finish()
 	if strings.Contains(stdout.String(), "compile") {
 		t.Fatalf("data mode must not put human UI on stdout:\n%s", stdout.String())
@@ -123,21 +149,10 @@ func TestNew_DataFormat_HumanOnStderr(t *testing.T) {
 	}
 }
 
-func TestParseColorMode(t *testing.T) {
-	m, err := evo.ParseColorMode("never")
-	if err != nil || m != evo.ColorNever {
-		t.Fatalf("%v %v", m, err)
-	}
-	if _, err := evo.ParseColorMode("rainbow"); err == nil {
-		t.Fatal("expected error")
-	}
-	_ = os.Environ() // keep os imported if needed
-}
-
 func TestNewWithOptions_StillWorks(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
-	out.Item("legacy").OK()
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out.Task("legacy").Done()
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "legacy") {
 		t.Fatal(buf.String())

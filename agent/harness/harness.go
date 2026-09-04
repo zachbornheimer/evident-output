@@ -60,7 +60,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func f() {
-  out := evo.NewWithOptions()
+  out := evo.Init(evo.Config{Options: []evo.Option{}})
   fmt.Printf("hi")
   _ = out
 }
@@ -75,7 +75,7 @@ func f() {
 			BadSource: `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f() {
-  out := evo.NewWithOptions()
+  out := evo.Init(evo.Config{Options: []evo.Option{}})
   t := out.Task("x")
   t.Start()
 }
@@ -93,9 +93,9 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func check() error {
-  out := evo.NewWithOptions(evo.Title("repo"))
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo")}})
   defer out.Close()
-  out.Item("working tree").Block("dirty")
+  out.Task("working tree").Block("dirty")
   return errors.New("dirty")
 }
 `,

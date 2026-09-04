@@ -9,11 +9,15 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/width"
 )
 
-// Braille spinner sequence (common CLI convention).
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
 // spinnerPeriod is the wall-clock duration between spinner frame advances.
 const spinnerPeriod = 80 * time.Millisecond
+
+// phaseStaleAfter is how long a Running task's phase (and progress) can go
+// unchanged before the live projection appends an elapsed-time heartbeat
+// suffix ("pushing feat/a — 90s") — the spinner is animation, not evidence,
+// so a silent child must not read the same as a healthy one. Resets on every
+// Phase/Progress call (see taskState.activityAt).
+const phaseStaleAfter = 10 * time.Second
 
 // LiveSurface is an interactive terminal sink for live-region rendering.
 // testkit.Screen implements this; production drivers can as well.
@@ -65,7 +69,7 @@ type liveEngine struct {
 }
 
 func (o *Output) liveLocked() LiveSurface {
-	if o.cfg.nonInteractive || o.cfg.plain {
+	if o.cfg.plain {
 		return nil
 	}
 	return asLive(o.cfg.terminal)
@@ -118,7 +122,11 @@ func (o *Output) signalLiveLocked(force bool) {
 
 func (o *Output) hasLiveActivityLocked() bool {
 	for _, t := range o.tasks {
-		if t.state == Running || t.phase != "" {
+		// Pending counts too: a declared task renders its named "○" row
+		// immediately (evo-rec.md "predeclare Tasks; ... others named
+		// idle") — VisibilityDelay withholds the *spinner flash* for
+		// near-instant work, not the fact that a task now exists.
+		if t.state == Running || t.state == Pending || t.phase != "" {
 			return true
 		}
 		if t.progress.Kind == Determinate || t.progress.Kind == BytesKind {
@@ -127,12 +135,28 @@ func (o *Output) hasLiveActivityLocked() bool {
 			}
 		}
 	}
-	for _, it := range o.items {
-		if it.state == Running {
-			return true
-		}
+	// Armed-but-empty: Init promised a paint before any entity exists. Once
+	// the first Task/Tasks is declared, its own state drives activity.
+	if o.armed && len(o.tasks) == 0 && len(o.collections) == 0 {
+		return true
 	}
 	return false
+}
+
+// arm marks the live surface as ready to paint before any entity is declared,
+// so Init honors the ≤100ms first-paint contract even when the caller does
+// heavy work before the first Task. Idempotent.
+func (o *Output) arm() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.armed {
+		return
+	}
+	o.armed = true
+	o.signalLiveLocked(false)
 }
 
 func (o *Output) renderLiveLocked(force bool) {
@@ -165,11 +189,6 @@ func (o *Output) renderLiveLocked(force bool) {
 func (o *Output) needsSpinnerAnimLocked() bool {
 	for _, t := range o.tasks {
 		if t.state == Running {
-			return true
-		}
-	}
-	for _, it := range o.items {
-		if it.state == Running {
 			return true
 		}
 	}
@@ -297,17 +316,28 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 	}
 }
 
-// spinnerGlyph picks a braille frame from the clock so FixedClock freezes it.
-func spinnerGlyph(now time.Time) string {
-	if len(spinnerFrames) == 0 {
-		return "⠋"
+// heartbeatSuffix returns " — <elapsed>" once since has gone stale past
+// phaseStaleAfter, or "" otherwise (including a zero since — a task that has
+// never had Phase/Progress set gets no heartbeat).
+func heartbeatSuffix(now, since time.Time) string {
+	if since.IsZero() {
+		return ""
 	}
-	ns := now.UnixNano()
-	if ns < 0 {
-		ns = -ns
+	elapsed := now.Sub(since)
+	if elapsed < phaseStaleAfter {
+		return ""
 	}
-	i := int(ns/int64(spinnerPeriod)) % len(spinnerFrames)
-	return spinnerFrames[i]
+	return " — " + formatElapsed(elapsed)
+}
+
+// formatElapsed renders a compact, second-rounded duration: "45s" under a
+// minute, "1m30s"/"2m3s" (Go's Duration.String shape) at or past a minute.
+func formatElapsed(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	return d.String()
 }
 
 func (o *Output) debugLiveLocked(line string) {
@@ -346,35 +376,45 @@ func (o *Output) finishLiveLocked(final string) {
 // renderLiveRegion builds the interactive ledger text for the current snapshot.
 // now selects spinner frames (inject FixedClock in tests for stable glyphs).
 // color applies SGR to glyphs as rows resolve (✓ green, ✗ red, spinner cyan).
-func renderLiveRegion(s Snapshot, height int, now time.Time, color bool) string {
+func renderLiveRegion(s Snapshot, height, width int, now time.Time, color bool, profile GlyphProfile) string {
 	if height <= 0 {
 		height = 24
 	}
 	var b strings.Builder
-	spin := spinnerGlyph(now)
+	spin := spinnerGlyph(now, profile)
 
 	// Prefer collections for multi-task progress display.
 	for _, col := range s.Collections {
-		writeLiveCollection(&b, col, height, spin, color)
+		writeLiveCollection(&b, col, height, width, spin, color, now, profile)
 	}
 	for _, t := range s.Tasks {
-		writeLiveTaskLine(&b, t, 0, spin, color)
-	}
-	for _, it := range s.Items {
-		if it.State == Running || it.State == Pending {
-			g := itemGlyph(it.State)
-			if it.State == Running {
-				g = spin
-			}
-			fmt.Fprintf(&b, "%s  %s\n", styleGlyph(g, stateColor(it.State), color), it.Name)
-		}
+		writeLiveTaskLine(&b, t, 0, width, spin, color, now, profile)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// liveTickerSnapshotLocked is the snapshot the live ticker draws from: every
+// root task except one already durably flushed by commitResolvedTaskLocked
+// (a never-ran "fact-check" resolution — see its doc comment). Without this
+// filter, a task dropped from the ticker onto durable text would reappear on
+// the next unrelated redraw and double-print.
+func (o *Output) liveTickerSnapshotLocked() Snapshot {
+	snap := o.snapshotLocked()
+	visible := snap.Tasks[:0]
+	for _, t := range snap.Tasks {
+		if st := o.taskByRef[t.ID]; st != nil && st.collection == nil && st.coreEmitted {
+			continue
+		}
+		visible = append(visible, t)
+	}
+	snap.Tasks = visible
+	return snap
 }
 
 // renderLiveRegionWithDebug builds the live ledger plus optional rolling debug pane (§21.3.2).
 func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Time) string {
 	color := !o.cfg.noColor
+	profile := o.cfg.glyphs
 	bodyHeight := height
 	if o.cfg.debugPresentation == DebugPresentationPane && len(o.debugRecords) > 0 {
 		// Reserve rows for pane heading + visible records before budgeting the body.
@@ -390,7 +430,10 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 			bodyHeight = 1
 		}
 	}
-	body := renderLiveRegion(o.snapshotLocked(), bodyHeight, now, color)
+	body := renderLiveRegion(o.liveTickerSnapshotLocked(), bodyHeight, width, now, color, profile)
+	if body == "" && o.armed && len(o.tasks) == 0 && len(o.collections) == 0 {
+		body = renderArmedTitleLine(o.cfg.subject, now, color, profile)
+	}
 	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {
 		return fitLiveRegion(body, width)
 	}
@@ -398,6 +441,18 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 	b.WriteString(body)
 	writeDebugPane(&b, o.debugRecords, o.cfg.debugPane, width, color)
 	return fitLiveRegion(strings.TrimRight(b.String(), "\n"), width)
+}
+
+// renderArmedTitleLine is the honest placeholder painted after arm() when the
+// caller has not declared any entity yet — e.g. still parsing config. Falls
+// back to a generic label rather than an empty string so the paint stays
+// honest (never blank) even before Config.Title is known.
+func renderArmedTitleLine(subject string, now time.Time, color bool, profile GlyphProfile) string {
+	title := subject
+	if title == "" {
+		title = "starting"
+	}
+	return fmt.Sprintf("%s  %s", styleGlyph(spinnerGlyph(now, profile), sgrCyan, color), title)
 }
 
 func fitLiveRegion(text string, columns int) string {
@@ -411,7 +466,7 @@ func fitLiveRegion(text string, columns int) string {
 	return strings.Join(lines, "\n")
 }
 
-func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin string, color bool) {
+func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile GlyphProfile) {
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == Done || t.State == Skipped {
@@ -419,10 +474,10 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin
 		}
 	}
 	// Header
-	glyph := taskGlyph(col.State)
+	glyph := taskGlyph(col.State, profile)
 	if col.State == Failed || anyChildFailed(col) {
 		if col.State == Failed {
-			glyph = "✗"
+			glyph = glyphFailedState.render(profile)
 		}
 	}
 	// When any running, animate header spinner (H.20 uses FixedClock → stable ⠋).
@@ -444,10 +499,10 @@ func writeLiveCollection(b *strings.Builder, col TasksSnapshot, height int, spin
 	}
 	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
 	for _, t := range selected {
-		writeLiveTaskLine(b, t, 1, spin, color)
+		writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
 	}
 	if omitted > 0 {
-		fmt.Fprintf(b, "   %s  %d not shown\n", dim("…", color), omitted)
+		fmt.Fprintf(b, "   %s  %d not shown\n", dim(glyphOverflow.render(profile), color), omitted)
 	}
 }
 
@@ -516,12 +571,12 @@ func selectLiveChildren(tasks []TaskSnapshot, max int) (selected []TaskSnapshot,
 	return selected, len(tasks) - len(selected)
 }
 
-func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin string, color bool) {
+func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent, width int, spin string, color bool, now time.Time, profile GlyphProfile) {
 	pad := ""
 	if indent > 0 {
 		pad = "   "
 	}
-	glyph := taskGlyph(t.State)
+	glyph := taskGlyph(t.State, profile)
 	if t.State == Running {
 		glyph = spin
 	}
@@ -542,10 +597,21 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin stri
 		detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + detail
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
 	case t.State == Running && t.Progress.Kind == Determinate && t.Progress.Total > 0:
-		detail := progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " +
-			fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
+		count := fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
+		// Narrow terminals degrade by dropping decoration (the bar) before
+		// information (count, name) — evo-rec.md Problem 16/26's compact
+		// dialect. Below compactLayoutMaxWidth the fixed 12-cell bar is
+		// exactly the kind of leader-only decoration the whole-line
+		// truncation in fitLiveRegion would otherwise eat into first.
+		detail := count
+		if width <= 0 || width >= compactLayoutMaxWidth {
+			detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + count
+		}
 		if t.Phase != "" {
-			detail = detail + "  " + dim(t.Phase, color)
+			// Default intensity: the current phase is diagnostic evidence
+			// while progress stalls, not a subordinate row (evo-rec.md
+			// "Color and style demotions").
+			detail = detail + "  " + t.Phase + heartbeatSuffix(now, t.ActivityAt)
 		}
 		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, detail)
 	case t.State == Running && (t.Progress.Kind == Indeterminate || t.Phase != ""):
@@ -554,17 +620,28 @@ func writeLiveTaskLine(b *strings.Builder, t TaskSnapshot, indent int, spin stri
 		if phase == "" {
 			phase = "working…"
 		}
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, dim(phase, color))
+		phase += heartbeatSuffix(now, t.ActivityAt)
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, phase)
 	case t.State == Running && t.Phase != "":
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, dim(t.Phase, color))
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, t.Phase)
 	case t.State == Failed:
 		msg := t.Summary
 		if msg == "" && len(t.Problems) > 0 {
 			msg = t.Problems[0].Summary
 		}
-		if msg != "" {
+		// release-gate round 8 finding 4: a task that failed mid-loop still
+		// carries the in-flight count it had when Fail was called — render
+		// it in the same position a Running row shows it (right after the
+		// name), so the failure row never loses "how far did it get".
+		count := progressCountText(t.Progress)
+		switch {
+		case msg != "" && count != "":
+			fmt.Fprintf(b, "%s%s  %s  %s  %s\n", pad, g, nameField, count, msg)
+		case msg != "":
 			fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, msg)
-		} else {
+		case count != "":
+			fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, count)
+		default:
 			fmt.Fprintf(b, "%s%s  %s\n", pad, g, strings.TrimRight(nameField, " "))
 		}
 	case t.State == Warning:
@@ -611,11 +688,4 @@ func formatBytes(n int64) string {
 func formatByteProgressFixed(completed, total int64) string {
 	const mb = 1_000_000.0
 	return fmt.Sprintf("%.1f/%.1f MB", float64(completed)/mb, float64(total)/mb)
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

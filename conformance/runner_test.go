@@ -111,7 +111,7 @@ func runScenarioFile(t *testing.T, path string) {
 		opts = append(opts, evo.NoColor())
 	}
 	if sc.Options.NonInteractive {
-		opts = append(opts, evo.NonInteractive())
+		opts = append(opts, evo.Plain())
 	}
 	if sc.Options.Width > 0 {
 		opts = append(opts, evo.Width(sc.Options.Width))
@@ -123,18 +123,18 @@ func runScenarioFile(t *testing.T, path string) {
 	if sc.Subject != "" {
 		opts = append([]evo.Option{evo.Title(sc.Subject)}, opts...)
 	}
-	out := evo.NewWithOptions(opts...)
+	out := evo.Init(evo.Config{Options: opts})
 	t.Cleanup(func() { _ = out.Close() })
 
-	items := map[string]*evo.Item{}
-	tasks := map[string]*evo.Task{}
+	items := map[string]*evo.TaskHandle{}
+	tasks := map[string]*evo.TaskHandle{}
 	cols := map[string]*evo.Tasks{}
 	var finishErr error
 
 	for _, m := range sc.Mutations {
 		switch m.Op {
 		case "item":
-			items[m.Ref] = out.Item(m.Name)
+			items[m.Ref] = out.Task(m.Name)
 		case "task":
 			tasks[m.Ref] = out.Task(m.Name)
 		case "tasks":
@@ -146,15 +146,13 @@ func runScenarioFile(t *testing.T, path string) {
 			}
 			tasks[m.Ref] = parent.Task(m.Name)
 		case "item.ok":
-			items[m.Ref].OK()
+			items[m.Ref].Done()
 		case "item.block":
 			var po []evo.ProblemOption
 			if m.Detail != "" {
 				po = append(po, evo.Detail(m.Detail))
 			}
 			items[m.Ref].Block(m.Summary, po...)
-		case "item.blocked_by":
-			items[m.Ref].BlockedBy(m.Problems...)
 		case "item.warn":
 			items[m.Ref].Warn(m.Summary)
 		case "item.fail":
@@ -162,13 +160,13 @@ func runScenarioFile(t *testing.T, path string) {
 		case "task.phase":
 			tasks[m.Ref].Phase(m.Text)
 		case "task.progress":
-			tasks[m.Ref].Progress64(m.Completed, m.Total)
+			tasks[m.Ref].Progress(int(m.Completed), int(m.Total))
 		case "task.bytes":
 			tasks[m.Ref].Bytes(m.Completed, m.Total)
 		case "task.done":
 			tasks[m.Ref].Done()
 		case "task.donef":
-			tasks[m.Ref].Donef("%s", m.Text)
+			tasks[m.Ref].Done("%s", m.Text)
 		case "task.fail":
 			tasks[m.Ref].Fail(m.Summary)
 		case "tasks.summary":
@@ -222,14 +220,10 @@ func sentinel(name string) error {
 	switch name {
 	case "ErrUnresolvedTask":
 		return evo.ErrUnresolvedTask
-	case "ErrUnresolvedItem":
-		return evo.ErrUnresolvedItem
 	case "ErrInvalidProgress":
 		return evo.ErrInvalidProgress
 	case "ErrProgressRegression":
 		return evo.ErrProgressRegression
-	case "ErrNoProblems":
-		return evo.ErrNoProblems
 	case "ErrAlreadyResolved":
 		return evo.ErrAlreadyResolved
 	default:

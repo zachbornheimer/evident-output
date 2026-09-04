@@ -55,26 +55,27 @@ func main() {
 		)
 	}
 
-	// Same New(Config) dialect as ordinary examples; advanced = Terminal field.
-	out := evo.New(evo.Config{
+	// Same Init(Config) dialect as ordinary examples; advanced = Terminal field.
+	out := evo.Init(evo.Config{
 		Title:    "install-deps-advanced",
 		Stdout:   os.Stderr,
 		Stderr:   os.Stderr,
 		Terminal: term,
-		Debug:    evo.DebugConfig{Level: evo.Debug},
+		Debug:    evo.DebugConfig{Level: evo.LevelDebug},
 		// Demo tuning: show spinners immediately.
 		VisibilityDelay: evo.Delay(0),
 		MaxFrameRate:    60,
+		Isolated:        true,
 	})
 
-	os.Exit(evo.Main(out, func(o *evo.Output) error {
+	os.Exit(out.Run(func(o *evo.Output) error {
 		jobs := o.Tasks("dependencies")
 		discover := jobs.Task("discover")
 		for _, phase := range []string{"reading lockfile", "resolving graph"} {
 			discover.Phase(phase)
 			time.Sleep(stepDur * 2)
 		}
-		discover.Donef("%d packages", 12)
+		discover.Done("%d packages", 12)
 
 		download := jobs.Task("download")
 		const total int64 = 4_000_000
@@ -83,7 +84,7 @@ func main() {
 			time.Sleep(stepDur)
 		}
 		download.Done("4.0 MB")
-		o.Item("registry").OK()
+		o.Task("registry").Done()
 		return nil
 	}))
 }
@@ -102,6 +103,7 @@ func newFrameLog(w io.Writer, step bool) *frameLog {
 }
 
 func (f *frameLog) ID() string          { return "frame-log" }
+func (f *frameLog) Sink() io.Writer     { return f.w }
 func (f *frameLog) Columns() int        { return f.width }
 func (f *frameLog) Rows() int           { return 24 }
 func (f *frameLog) IsInteractive() bool { return true }

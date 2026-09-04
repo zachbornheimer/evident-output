@@ -1,33 +1,53 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/sanitize"
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/sanitize"
+)
 
 // Problem is structured evidence explaining a negative item or task outcome.
 type Problem struct {
-	Code      string
-	Subject   string
-	Summary   string
-	Detail    string
-	Severity  string
-	Count     int64
-	Unit      string
-	Location  *Location
-	Evidence  []Evidence
-	Actions   []Action
-	Fields    []Field
-	Cause     error
-	Sensitive bool
+	Code    string
+	Subject string
+	Summary string
+	Detail  string
+	// EvidenceTail is a raw evidence tail (typically a capture ring via
+	// DetailTail) attached alongside an explicit Detail. When Detail is also
+	// set, both render — Detail first, EvidenceTail as an additional evidence
+	// line underneath — so an explicit Detail is never silently discarded by
+	// an auto-attached or explicitly requested evidence tail (or vice versa).
+	// When Detail is empty, EvidenceTail alone renders as the problem's detail
+	// body (DetailTail's original, still-supported shape).
+	EvidenceTail string
+	Severity     string
+	Count        int64
+	Unit         string
+	Location     *SourceLocation
+	Evidence     []Attachment
+	Actions      []Action
+	Fields       []Field
+	Cause        error
+	Sensitive    bool
 }
 
-// Location is a path-based source position.
-type Location struct {
+// SourceLocation is a path-based source position. Named SourceLocation
+// (not Location) so the Location(...) ProblemOption constructor below can
+// keep that name without colliding with its own return type.
+type SourceLocation struct {
 	Path   string
 	Line   int
 	Column int
 }
 
-// Evidence is an additional problem attachment.
-type Evidence struct {
+// Attachment is an additional label/value problem attachment.
+//
+// Named Attachment (not Evidence) because Evidence names the retained
+// process-output sink (see Evidence in capture.go) — this is a single
+// labeled fact attached to a Problem, a different concept from that sink.
+type Attachment struct {
 	Label string
 	Value string
 }
@@ -53,11 +73,6 @@ func Detail(text string) ProblemOption {
 	return problemOptionFunc(func(p *Problem) { p.Detail = text })
 }
 
-// Cause attaches a diagnostic error (not shown by default in human output).
-func Cause(err error) ProblemOption {
-	return problemOptionFunc(func(p *Problem) { p.Cause = err })
-}
-
 // Code sets a stable problem code.
 func Code(value string) ProblemOption {
 	return problemOptionFunc(func(p *Problem) { p.Code = value })
@@ -78,10 +93,12 @@ func Count(value int64, unit ...string) ProblemOption {
 	})
 }
 
-// At sets a source location.
-func At(path string, line, column int) ProblemOption {
+// Location sets a source location on a Problem (renamed from At — C5: a
+// free-function At collided in name, though not in call syntax, with
+// Output.At(visibility), confusing autocomplete and readers alike).
+func Location(path string, line, column int) ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
-		p.Location = &Location{Path: path, Line: line, Column: column}
+		p.Location = &SourceLocation{Path: path, Line: line, Column: column}
 	})
 }
 
@@ -95,6 +112,59 @@ func Next(action Action) ProblemOption {
 // NextCommand attaches a recommended command action.
 func NextCommand(executable string, args ...string) ProblemOption {
 	return Next(Command(executable, args...))
+}
+
+// splitWrappedMessage separates a Failf/Blockf error into the summary shown
+// as the row's headline and the evidence line rendered underneath it. format
+// is the caller's original fmt.Errorf format string (before substitution);
+// err is fmt.Errorf(format, args...).
+//
+// A trailing ": %w" or ", %w" in format marks the wrapped error as evidence
+// separable from the summary: summary is the text before the separator,
+// evidence is the wrapped error's own text. Without a trailing %w — or when
+// %w appears elsewhere in format — the whole formatted text is the summary
+// and the wrapped error (if any) still feeds evidence.
+func splitWrappedMessage(format string, err error) (summary, evidence string) {
+	full := err.Error()
+	wrapped := errors.Unwrap(err)
+	if wrapped == nil {
+		return full, ""
+	}
+	evidence = wrapped.Error()
+	for _, sep := range [...]string{": %w", ", %w"} {
+		if !strings.HasSuffix(format, sep) {
+			continue
+		}
+		head := strings.TrimSuffix(sep, "%w")
+		if trimmed, ok := strings.CutSuffix(full, head+evidence); ok {
+			return trimmed, evidence
+		}
+	}
+	return full, evidence
+}
+
+// formatWarnArgs splits args into printf format arguments and
+// ProblemOptions, mirroring formatEntityName/formatReasonName's mixed-args
+// extraction (C6: Warn's summary is a printf format when fmt args are
+// present; evo.Detail(...) and other ProblemOptions may be mixed into args
+// in any position and still apply).
+func formatWarnArgs(summary string, args []any) (string, []ProblemOption) {
+	if len(args) == 0 {
+		return summary, nil
+	}
+	var opts []ProblemOption
+	var fmtArgs []any
+	for _, a := range args {
+		if opt, ok := a.(ProblemOption); ok {
+			opts = append(opts, opt)
+			continue
+		}
+		fmtArgs = append(fmtArgs, a)
+	}
+	if len(fmtArgs) == 0 {
+		return summary, opts
+	}
+	return fmt.Sprintf(summary, fmtArgs...), opts
 }
 
 func applyProblemOptions(summary string, opts []ProblemOption) Problem {
@@ -118,6 +188,7 @@ func applyProblemOptions(summary string, opts []ProblemOption) Problem {
 func sanitizeProblem(p Problem) Problem {
 	p.Summary = sanitize.Text(p.Summary)
 	p.Detail = sanitize.Block(p.Detail)
+	p.EvidenceTail = sanitize.Block(p.EvidenceTail)
 	p.Subject = sanitize.Text(p.Subject)
 	p.Code = sanitize.Text(p.Code)
 	p.Unit = sanitize.Text(p.Unit)
@@ -128,9 +199,9 @@ func sanitizeProblem(p Problem) Problem {
 		p.Location = &loc
 	}
 	if len(p.Evidence) > 0 {
-		ev := make([]Evidence, len(p.Evidence))
+		ev := make([]Attachment, len(p.Evidence))
 		for i, e := range p.Evidence {
-			ev[i] = Evidence{
+			ev[i] = Attachment{
 				Label: sanitize.Text(e.Label),
 				Value: sanitize.Text(e.Value),
 			}
@@ -178,7 +249,7 @@ func cloneProblems(in []Problem) []Problem {
 			out[i].Fields = append([]Field(nil), out[i].Fields...)
 		}
 		if len(out[i].Evidence) > 0 {
-			out[i].Evidence = append([]Evidence(nil), out[i].Evidence...)
+			out[i].Evidence = append([]Attachment(nil), out[i].Evidence...)
 		}
 		if out[i].Location != nil {
 			loc := *out[i].Location

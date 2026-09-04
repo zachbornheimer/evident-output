@@ -42,9 +42,9 @@ func shouldSuppressStandaloneConclusion(s Snapshot) bool {
 		return false
 	}
 
-	// Any Item/Task/Collection failure or block means conclusion may carry
+	// Any Task/Collection failure or block means conclusion may carry
 	// independent severity (or the state switch already failed). Double-check
-	// for warning-only items that still need a footer.
+	// for warning-only tasks that still need a footer.
 	if hasIndependentConditionRows(s) {
 		return false
 	}
@@ -67,20 +67,26 @@ func shouldSuppressStandaloneConclusion(s Snapshot) bool {
 }
 
 func semanticResultCount(s Snapshot) int {
-	return len(s.Items) + len(s.Tasks) + len(s.Collections) + len(s.Changes) + len(s.Plans)
+	return len(s.Tasks) + len(s.Collections) + len(s.Changes) + len(s.Plans)
 }
 
 func shouldSuppressRepeatedCondition(s Snapshot, c Conclusion) bool {
-	if len(s.Changes)+len(s.Plans) != 0 || len(s.Items)+len(s.Tasks)+len(s.Collections) != 1 {
+	if len(s.Changes)+len(s.Plans) != 0 || len(s.Tasks)+len(s.Collections) != 1 {
 		return false
 	}
 
 	var name string
 	var state EntityState
 	switch {
-	case len(s.Items) == 1:
-		name, state = s.Items[0].Name, s.Items[0].State
 	case len(s.Tasks) == 1:
+		// I2: a library-synthesized task (Output.Failf/Cancel's "command"
+		// fallback for an untracked top-level outcome) is never the caller's
+		// own named row — the conclusion band is the ONLY place the run's
+		// outcome is stated, so it must never be suppressed as "redundant"
+		// with a row the caller never declared.
+		if s.Tasks[0].synthetic {
+			return false
+		}
 		name, state = s.Tasks[0].Name, s.Tasks[0].State
 	default:
 		name, state = s.Collections[0].Name, s.Collections[0].State
@@ -92,7 +98,7 @@ func shouldSuppressRepeatedCondition(s Snapshot, c Conclusion) bool {
 
 func conclusionRepeatsEntityState(conclusion ConclusionState, entity EntityState) bool {
 	switch entity {
-	case OK, Done, Skipped, Unknown, Empty:
+	case Done, Skipped, Empty:
 		return conclusion == StateReady
 	case Warning:
 		return conclusion == StateWarning
@@ -103,7 +109,10 @@ func conclusionRepeatsEntityState(conclusion ConclusionState, entity EntityState
 	case Cancelled:
 		return conclusion == StateCancelled
 	case Pending, Running, Incomplete:
-		return conclusion == StatePartial
+		// Partial is a completeness modifier now, not a headline state
+		// (conclusion.go); a lone unresolved entity concludes the same as
+		// an empty run — StateUnchanged — so that is what "repeats" it.
+		return conclusion == StateUnchanged
 	default:
 		return false
 	}
@@ -137,12 +146,6 @@ func normalizeSubject(s string) string {
 }
 
 func hasIndependentConditionRows(s Snapshot) bool {
-	for _, it := range s.Items {
-		switch it.State {
-		case Failed, Blocked, Warning, Incomplete, Running, Pending:
-			return true
-		}
-	}
 	for _, t := range s.Tasks {
 		switch t.State {
 		case Failed, Warning, Cancelled, Incomplete, Running, Pending:

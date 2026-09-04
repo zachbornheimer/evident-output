@@ -9,15 +9,15 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// nonTTYConfig builds a ForcePlain/NoColor Config that writes into buf.
+// nonTTYConfig builds a Plain/NoColor Config that writes into buf.
 // Buffers are never TTYs, so this is the flat/CI path zq pilots use.
 func nonTTYConfig(title string, buf *bytes.Buffer) evo.Config {
 	return evo.Config{
-		Title:      title,
-		Stdout:     buf,
-		Stderr:     buf,
-		ForcePlain: true,
-		Color:      evo.ColorNever,
+		Title:  title,
+		Stdout: buf,
+		Stderr: buf,
+		Plain:  true,
+		Color:  evo.ColorNever,
 	}
 }
 
@@ -26,7 +26,7 @@ func nonTTYConfig(title string, buf *bytes.Buffer) evo.Config {
 // block under the fail row, not a single joined line with newlines collapsed.
 func TestFlat_MultiLineDetailPreservedAsBlock(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(nonTTYConfig("tool", &buf))
+	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
 	// Multi-line detail matching a gofmt-style diff (the zq pilot shape).
@@ -60,7 +60,7 @@ func TestFlat_MultiLineDetailPreservedAsBlock(t *testing.T) {
 // present, the └─ block is the tail only — not "summary     detail".
 func TestFlat_FailDetailDoesNotEchoSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(nonTTYConfig("tool", &buf))
+	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
 	summary := "gofmt check exited 1"
@@ -99,7 +99,7 @@ func TestFlat_FailDetailDoesNotEchoSummary(t *testing.T) {
 // appear above the task row.
 func TestFlat_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(nonTTYConfig("zq", &buf))
+	out := evo.Init(nonTTYConfig("zq", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("gofmt check")
@@ -130,22 +130,22 @@ func TestFlat_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 	}
 }
 
-// TestCapture_StderrOnlyFeedsDetailTail is the P1 contract: Task.Capture()
+// TestCapture_StderrOnlyFeedsDetailTail is the P1 contract: Task.Evidence()
 // retains stderr into the evidence ring by default; writing only to Stderr()
 // still populates DetailTail without a separate writer or Mirror.
 func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := evo.New(evo.Config{
-		Title:      "lint",
-		Stdout:     &primary,
-		Stderr:     &diag,
-		ForcePlain: true,
-		Color:      evo.ColorNever,
+	out := evo.Init(evo.Config{
+		Title:  "lint",
+		Stdout: &primary,
+		Stderr: &diag,
+		Plain:  true,
+		Color:  evo.ColorNever,
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("golangci-lint")
-	cap := task.Capture()
+	cap := task.Evidence()
 	// Linters commonly write diagnostics only on stderr.
 	_, _ = io.WriteString(cap.Stderr(), "level=warning msg=\"can't process results\"\n")
 	_, _ = io.WriteString(cap.Stderr(), "../tmp/main.go:1:1: File is not properly formatted (gofmt)\n")
@@ -187,17 +187,17 @@ func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 
 // TestMain_FailedExitCodeConfigurable is the P5 contract: Config.FailedExitCode
 // overrides the default ExitFailed (2) when the conclusion is failed.
-func TestMain_FailedExitCodeConfigurable(t *testing.T) {
+func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:          "zq",
 		Stdout:         &buf,
 		Stderr:         &buf,
-		ForcePlain:     true,
+		Plain:          true,
 		Color:          evo.ColorNever,
 		FailedExitCode: 1,
 	})
-	code := evo.Main(out, func(o *evo.Output) error {
+	code := out.Run(func(o *evo.Output) error {
 		o.Task("gofmt check").Fail("gofmt check exited 1")
 		return nil
 	})
@@ -206,14 +206,14 @@ func TestMain_FailedExitCodeConfigurable(t *testing.T) {
 	}
 	// Default remains 2 when FailedExitCode is unset.
 	var buf2 bytes.Buffer
-	out2 := evo.New(evo.Config{
-		Title:      "zq",
-		Stdout:     &buf2,
-		Stderr:     &buf2,
-		ForcePlain: true,
-		Color:      evo.ColorNever,
+	out2 := evo.Init(evo.Config{
+		Title:  "zq",
+		Stdout: &buf2,
+		Stderr: &buf2,
+		Plain:  true,
+		Color:  evo.ColorNever,
 	})
-	code2 := evo.Main(out2, func(o *evo.Output) error {
+	code2 := out2.Run(func(o *evo.Output) error {
 		o.Task("x").Fail("boom")
 		return nil
 	})
@@ -228,7 +228,7 @@ func TestMain_FailedExitCodeConfigurable(t *testing.T) {
 // already-streamed content.
 func TestFlat_MixedPrintfThenTaskStillDeterministic(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(nonTTYConfig("tool", &buf))
+	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Printf("starting checks\n")

@@ -24,9 +24,8 @@ func DefaultProfiles(snap evo.Snapshot) []Profile {
 	var out []Profile
 	for _, s := range specs {
 		b, err := evo.RenderPlain(snap, evo.PlainOptions{
-			Width:          s.width,
-			NoColor:        true,
-			NonInteractive: true,
+			Width:   s.width,
+			NoColor: true,
 		})
 		if err != nil {
 			continue

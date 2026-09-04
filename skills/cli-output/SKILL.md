@@ -57,27 +57,31 @@ go get github.com/zachbornheimer/evident-output@v0.2.16
 
 - `docs/philosophy/jazz-syntax.md` — one spelling per intent
 - `docs/philosophy/presentation-boundary.md` — presentation ≠ execution
-- `docs/philosophy/domain-vocabulary.md` — Item/Task/Plan/Changes/Cause/Detail
+- `docs/philosophy/domain-vocabulary.md` — Task/Plan/Changes/Detail/Failf evidence
 - `docs/guides/teaching-ladder.md` — ordinary learning order
 - `docs/roadmap/implementation-basis.md` — polish-phase authority
 
 ## Adoption ladder
 
 ```text
-evo.New(Config) → Print/Printf/Println → Verbose()
-→ Item / Task / Tasks → Task|Item.Capture() + DetailTail
+evo.Init(Config) → Print/Printf/Println → Verbose()
+→ Task / Tasks → Task.Evidence() + DetailTail
 → Plan / Changes (domain verbs via Record when needed)
-→ slog via SlogHandler → os.Exit(evo.Main(out, run))
+→ slog via SlogHandler → os.Exit(evo.Main(run))
 ```
 
-Prefer **contracts over sugar**: plain `Item`/`Task` labels first; `evo.ID` when machine keys matter; `Itemf`/`Taskf` only when the label must embed a value.
+Prefer **contracts over sugar**: plain `Task` labels first; `evo.ID` when machine keys matter; `Taskf` only when the label must embed a value.
 
 ## Entrypoint
 
 ```go
-out := evo.New(evo.Config{Title: "tool"})
-os.Exit(evo.Main(out, run))
+evo.Init(evo.Config{Title: "tool"})
+os.Exit(evo.Main(run))
 ```
+
+`evo.Init(Config{Isolated: true})` + `out.Run(run)` are the advanced, hosted-instance
+form of the same lifecycle — reach for them only when a tool needs an `*Output` it
+doesn't install as the package-level default.
 
 `Main` records a non-nil `run` error as Fail before Finish (no `[ready]` with exit 2).
 
@@ -85,24 +89,24 @@ os.Exit(evo.Main(out, run))
 
 ```go
 upgrade := out.Task("brew packages")
-output := upgrade.Capture() // silent retention by default
-if err := run.Run(ctx, "brew", args, output); err != nil {
-    upgrade.Fail("brew upgrade failed", evo.Cause(err), output.DetailTail())
-    return nil
+proof := upgrade.Evidence() // silent retention by default
+if err := run.Run(ctx, "brew", args, proof); err != nil {
+    return upgrade.Failf("brew upgrade failed: %w", err)
 }
 upgrade.Done()
 ```
 
-Opt-in display: `Capture(evo.MirrorToDiagnostics())` or `MirrorToDebug()`.
+Prefer `task.Run(cmd)` for an `*exec.Cmd` — it wires Evidence and Phase together in one call.
+Opt-in display: `Evidence(evo.MirrorToDiagnostics())` or `MirrorToDebug()`.
 Do **not** use `DebugWriter` for child tools (API-029).
-Secrets: set `Config.Redactor` — Capture ring and DetailTail are redacted on retention.
+Secrets: set `Config.Redactor` — the Evidence ring and DetailTail are redacted on retention.
 
 ## Platform contracts
 
 | Need        | Use                                                   |
 | ----------- | ----------------------------------------------------- |
 | Stable key  | `out.Task("download", evo.ID("build.base"))`          |
-| Namespace   | `out.Scope("registry").Item("auth", evo.ID("creds"))` |
+| Namespace   | `out.Scope("registry").Task("auth", evo.ID("creds"))` |
 | Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr) |
 
 ## Severity

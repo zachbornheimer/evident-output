@@ -14,14 +14,14 @@ import (
 
 func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug))
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	logger := slog.New(out.SlogHandler())
 	task := out.Task("index")
 	task.Phase("reading documents")
 	logger.Debug("batch loaded", "documents", 200)
-	task.Donef("indexed %d documents", 200)
+	task.Done("indexed %d documents", 200)
 	_ = out.Finish()
 
 	ops := screen.Operations()
@@ -36,9 +36,30 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	}
 }
 
+// TestSlogHandler_PackageFuncJournalsToDefaultInstance is release-gate round
+// 8 finding 6: evo.SlogHandler() is package-level sugar for the default
+// instance, matching evo.Task/evo.Verbose — a caller using the
+// default-instance facade throughout a run should never have to reach for a
+// hosted *Output just for the slog bridge.
+func TestSlogHandler_PackageFuncJournalsToDefaultInstance(t *testing.T) {
+	var buf bytes.Buffer
+	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}}))
+
+	logger := slog.New(evo.SlogHandler())
+	logger.Debug("batch loaded", "documents", 200)
+	evo.Task("index").Done()
+
+	if err := evo.Default().Finish(); err != nil {
+		t.Fatalf("Finish() = %v, want nil", err)
+	}
+	if got := buf.String(); !strings.Contains(got, "batch loaded") {
+		t.Fatalf("want the package-level SlogHandler to journal to the default instance, got:\n%s", got)
+	}
+}
+
 func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.New(evo.Config{
+	out := evo.Init(evo.Config{
 		Title:  "slog",
 		Stdout: &buf,
 		Stderr: &buf,
@@ -76,13 +97,13 @@ func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 	var buf bytes.Buffer
 	fixed := evo.FixedClock{T: time.Date(2026, 7, 27, 22, 15, 0, 0, time.UTC)}
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
 		evo.Clock(fixed),
 		evo.DebugLevel(evo.LevelDebug),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	logger := slog.New(out.SlogHandler())
@@ -112,13 +133,13 @@ func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 
 func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
 		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugPane(evo.PaneHeight(5), evo.NewestFirst()),
 		evo.NoColor(),
 		evo.VisibilityDelay(0),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	logger := slog.New(out.SlogHandler())
@@ -140,20 +161,25 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	if !strings.Contains(combined, "registry=ghcr.io") {
 		t.Fatalf("attrs must survive:\n%s", combined)
 	}
-	// Pane grammar uses slog text with level=WARN.
-	if strings.Contains(live, "── debug") && !strings.Contains(live, "level=WARN") {
-		t.Fatalf("pane should show slog grammar for WARN:\n%s", live)
+	// One clock, one grammar (release-gate round 6 finding 3): the pane uses
+	// the same bracketed grammar as durable history, [WARN] not level=WARN.
+	if strings.Contains(live, "── debug") && !strings.Contains(live, "[WARN]") {
+		t.Fatalf("pane should show bracket history grammar for WARN:\n%s", live)
 	}
 }
 
+// TestSlogErrorPreservesLevelAndPC covers release-gate round 6 finding 2: a
+// bare pc=<uintptr> must never reach human rendering, on a piped writer or a
+// pty. The raw PC still lives on the LogRecord type passed to
+// SlogHandler().Handle (see LogRecord.PC) for any machine consumer.
 func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
 		evo.DebugLevel(evo.LevelDebug),
-	)
+	}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	// Craft a Record with a non-zero PC (as AddSource would provide).
@@ -174,20 +200,46 @@ func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	if !strings.Contains(s, "ref=main") {
 		t.Fatalf("attr missing:\n%s", s)
 	}
-	if !strings.Contains(s, "pc=42") {
-		t.Fatalf("PC must be preserved as field:\n%s", s)
+	if strings.Contains(s, "pc=") {
+		t.Fatalf("human debug line must never show a bare pc=<uintptr>:\n%s", s)
 	}
 	if !strings.Contains(s, "22:15:00") {
 		t.Fatalf("record time missing:\n%s", s)
 	}
 }
 
-func TestSuspend_RunsCallbackWithoutLiveCorruption(t *testing.T) {
+// TestSlogAddSource_ResolvesSourceField covers release-gate round 6 finding
+// 2's other half: Config.Debug.AddSource resolves the call site to a
+// source=file.go:line field instead of the bare pc it never renders by
+// default.
+func TestSlogAddSource_ResolvesSourceField(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.NewWithOptions(evo.To(&buf), evo.Plain(), evo.NoColor())
+	out := evo.Init(evo.Config{
+		Stdout: &buf,
+		Stderr: &buf,
+		Debug:  evo.DebugConfig{Level: evo.LevelDebug, AddSource: true},
+	})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Item("pre").OK()
+	logger := slog.New(out.SlogHandler())
+	logger.Error("pull failed")
+	_ = out.Finish()
+
+	s := buf.String()
+	if strings.Contains(s, "pc=") {
+		t.Fatalf("AddSource must render source=, never a bare pc=<uintptr>:\n%s", s)
+	}
+	if !strings.Contains(s, "source=") || !strings.Contains(s, "slog_test.go:") {
+		t.Fatalf("AddSource must resolve the call site to source=file.go:line:\n%s", s)
+	}
+}
+
+func TestSuspend_RunsCallbackWithoutLiveCorruption(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Task("pre").Done()
 	err := out.Suspend(func() error {
 		// host writes outside evo
 		return nil
@@ -195,40 +247,8 @@ func TestSuspend_RunsCallbackWithoutLiveCorruption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out.Item("post").OK()
+	out.Task("post").Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 }
-
-func TestSnapshots_ChannelReceivesUpdates(t *testing.T) {
-	out := evo.NewWithOptions(evo.To(ioDiscard{}))
-	t.Cleanup(func() { _ = out.Close() })
-
-	ch := out.Snapshots()
-	out.Item("a").OK()
-	found := false
-	for i := 0; i < 8; i++ {
-		select {
-		case snap := <-ch:
-			if len(snap.Items) >= 1 && snap.Items[0].Name == "a" {
-				found = true
-			}
-		default:
-		}
-	}
-	_ = out.Finish()
-	// Drain remaining including final
-	for snap := range ch {
-		if len(snap.Items) >= 1 {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("expected snapshot containing item a")
-	}
-}
-
-type ioDiscard struct{}
-
-func (ioDiscard) Write(p []byte) (int, error) { return len(p), nil }

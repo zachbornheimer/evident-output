@@ -249,7 +249,7 @@ out := evo.New(cfg)
 ```go
 func main() {
     out := evo.New(evo.Config{Title: "install"})
-    os.Exit(evo.Main(out, run))
+    os.Exit(evo.MainWith(out, run))
 }
 ```
 
