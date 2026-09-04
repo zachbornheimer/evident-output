@@ -74,7 +74,10 @@ func TestConfirm_EmptyAnswer_Declines(t *testing.T) {
 // TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline is red-first for
 // evo-rec.md "Confirm EOF = policy block, not decline": a zero-byte EOF on
 // stdin (e.g. redirected from /dev/null, or piped from a closed process) is
-// a policy block, distinct from a human explicitly typing anything else.
+// a policy block, distinct from a human explicitly typing anything else. Its
+// summary is also distinct from the no-TTY policy-block wording (release-gate
+// round 4 finding 6): the reader was told nothing arrived, not that a
+// deliberate policy refused the prompt.
 func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Stdin(strings.NewReader(""))}})
 
@@ -87,8 +90,8 @@ func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 	if item.State != evo.Blocked {
 		t.Fatalf("item state = %v, want Blocked", item.State)
 	}
-	if len(item.Problems) == 0 || item.Problems[0].Summary != "blocked by policy" {
-		t.Fatalf("problems = %+v, want summary %q (not %q)", item.Problems, "blocked by policy", "declined")
+	if len(item.Problems) == 0 || item.Problems[0].Summary != "no answer — stdin closed" {
+		t.Fatalf("problems = %+v, want summary %q (not %q or %q)", item.Problems, "no answer — stdin closed", "blocked by policy", "declined")
 	}
 	if len(item.Actions) == 0 || !strings.Contains(item.Actions[0].Label, "--yes") {
 		t.Fatalf("actions = %+v, want a --yes hint", item.Actions)
