@@ -75,21 +75,23 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	if !strings.Contains(live, "── debug · newest first ──") {
 		t.Fatalf("live missing debug pane heading:\n%s", live)
 	}
-	if !strings.Contains(live, `msg="third event"`) {
+	if !strings.Contains(live, "third event") {
 		t.Fatalf("newest record missing from pane:\n%s", live)
 	}
-	if !strings.Contains(live, `msg="second event"`) {
+	if !strings.Contains(live, "second event") {
 		t.Fatalf("second-newest missing from pane:\n%s", live)
 	}
-	if strings.Contains(live, `msg="first event"`) {
+	if strings.Contains(live, "first event") {
 		t.Fatalf("pane height 2 should drop oldest visible record:\n%s", live)
 	}
-	// level=DEBUG slog grammar (not bracket history inside pane).
-	if strings.Contains(live, "[DEBUG]") {
-		t.Fatalf("pane must use slog text, not bracket history:\n%s", live)
+	// One clock, one grammar (release-gate round 6 finding 3): the live pane
+	// renders the same bracketed local-time grammar as durable history, not
+	// slog-style time=/level=/msg= text.
+	if !strings.Contains(live, "[DEBUG]") {
+		t.Fatalf("pane must use the bracket history grammar:\n%s", live)
 	}
-	if !strings.Contains(live, "level=DEBUG") {
-		t.Fatalf("pane missing level=DEBUG:\n%s", live)
+	if strings.Contains(live, "level=DEBUG") {
+		t.Fatalf("pane must not use slog text grammar:\n%s", live)
 	}
 
 	// No durable history dump while pane owns presentation.
@@ -139,12 +141,12 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	if !strings.Contains(got, "── diagnostics ──") {
 		t.Fatalf("failure must preserve labeled diagnostic tail:\n%s", got)
 	}
-	if !strings.Contains(got, `msg="fetched remote metadata"`) {
-		t.Fatalf("tail missing slog-formatted records:\n%s", got)
+	if !strings.Contains(got, "fetched remote metadata") {
+		t.Fatalf("tail missing bracket-formatted records:\n%s", got)
 	}
 	// Newest first in tail.
-	idxNew := strings.Index(got, `msg="fetched remote metadata"`)
-	idxOld := strings.Index(got, `msg="enumerated local branches"`)
+	idxNew := strings.Index(got, "fetched remote metadata")
+	idxOld := strings.Index(got, "enumerated local branches")
 	if idxNew < 0 || idxOld < 0 || idxNew > idxOld {
 		t.Fatalf("tail should list newest first:\n%s", got)
 	}
@@ -172,7 +174,7 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 	if !strings.Contains(got, "── diagnostics ──") {
 		t.Fatalf("PreserveDebugTail should emit diagnostics section:\n%s", got)
 	}
-	if !strings.Contains(got, `msg="cache warm"`) {
+	if !strings.Contains(got, "cache warm") {
 		t.Fatalf("tail missing record:\n%s", got)
 	}
 }
