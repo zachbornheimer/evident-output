@@ -59,5 +59,5 @@
 // that never touches package state; Output.Run(run) seals it (this is what Main calls on
 // the default instance); Config.Options is the raw-Option escape hatch for exact writer/
 // terminal/clock wiring. Plan/Changes for the would/did split without a Task, session
-// Evidence, Progress64, Advance, terminal drivers, and testkit.
+// Evidence, terminal drivers, and testkit.
 package evo

@@ -280,21 +280,6 @@ func TestSEC015_NoAuthOnAnnotations(t *testing.T) {
 	}
 }
 
-func TestPORT011_Int64ProgressPaths(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("big")
-	// Use values that would truncate on 32-bit int if progress were int.
-	const big int64 = 1 << 40
-	task.Progress64(big/2, big)
-	got := task.Snapshot().Progress
-	if got.Completed != big/2 || got.Total != big {
-		t.Fatalf("%+v", got)
-	}
-	task.Done()
-	_ = out.Finish()
-}
-
 func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.Debug), evo.VisibilityDelay(0)}})

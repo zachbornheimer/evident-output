@@ -191,8 +191,8 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	download := out.Task("download")
-	for completed := int64(0); completed <= 10_000; completed++ {
-		download.Progress64(completed, 10_000)
+	for completed := 0; completed <= 10_000; completed++ {
+		download.Progress(completed, 10_000)
 		// Keep wall-clock zero; coalescing uses frame budget, not only time.
 	}
 	download.Done()

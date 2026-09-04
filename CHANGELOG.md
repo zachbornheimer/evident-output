@@ -344,6 +344,13 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   renamed `SourceLocation` so the constructor function could keep the
   `Location` name without colliding with its own return type;
   `Problem.Location`'s field name is unchanged (C5).
+- **Breaking**: `TaskHandle.Advance`/`Progress64` deleted. `Progress`
+  (absolute, `int`), `Bytes`, `Step`, `Each`, `EachN` are the surviving
+  progress API — `Advance`'s delta shape double-counted on retry, and
+  `int` is 64-bit on every platform this library targets, so `Progress64`
+  had no int-range problem left to solve (C7). `agent/rules`' DOM-017
+  guidance now shows `Each` instead of `Advance` as the good-code example
+  (C4).
 
 ## Migration guide (v0.2.x → v0.3.0)
 

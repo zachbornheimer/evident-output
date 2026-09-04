@@ -45,17 +45,6 @@ func TestAPI028_AbsoluteProgress(t *testing.T) {
 	}
 }
 
-func TestAPI029_AdvanceIsDelta(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("t")
-	task.Progress(0, 5)
-	task.Advance(2)
-	if task.Snapshot().Progress.Completed != 2 {
-		t.Fatal(task.Snapshot().Progress)
-	}
-}
-
 func TestAPI025_PackageNameEvo(t *testing.T) {
 	// Import path uses evo package name — compile proof via this test package.
 	var _ = evo.Done

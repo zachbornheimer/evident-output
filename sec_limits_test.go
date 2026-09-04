@@ -28,11 +28,13 @@ func TestSEC005_ProgressOverflowRejected(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	// Valid absolute max equal values.
-	task.Progress64(math.MaxInt64, math.MaxInt64)
-	// Advance would wrap past total / overflow completed — must record misuse.
-	task.Advance(1)
+	task.Progress(math.MaxInt64, math.MaxInt64)
+	// Completed past the sealed total must record misuse (C7: Advance/
+	// Progress64 deleted — Progress is the sole absolute-count API now, so
+	// the overflow guard is exercised directly with a completed > total call).
+	task.Progress(math.MaxInt64, math.MaxInt64-1)
 	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
-		t.Fatalf("expected ErrInvalidProgress after Advance past MaxInt64 total, got %v", out.Err())
+		t.Fatalf("expected ErrInvalidProgress after completed exceeds the sealed total, got %v", out.Err())
 	}
 	// Last valid progress preserved.
 	got := task.Snapshot().Progress

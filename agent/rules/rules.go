@@ -752,15 +752,15 @@ t.Phase("walking")`,
 			Category:  "DOM",
 			Severity:  "warning",
 			Invariant: "Task.Progress(completed, total) stores absolute values, never a delta",
-			Why:       "Passing a delta to Progress instead of Advance silently corrupts the absolute count — repeated Progress(1, total) calls read as stuck at 1, not incrementing.",
+			Why:       "Hand-driving Progress from a loop index invites the exact bug it's meant to prevent — a re-run or retry that resets the counter reads as stuck, not incrementing.",
 			BadCode: `for range items {
   t.Progress(1, total) // resets to 1 every call instead of incrementing
 }`,
-			GoodCode: `t.Progress(0, total) // seal indeterminate -> determinate once
-for range items {
-  t.Advance(1) // increments the prior absolute value
+			GoodCode: `for range t.Each(items) {
+  // t.Each owns absolute Progress(i, len(items)) — a retry can never
+  // double-count or move the bar backward.
 }`,
-			Remediation:     "Use Progress(completed, total) only for absolute values; use Advance(delta) to increment",
+			Remediation:     "Use Task.Each(items)/EachN(n) to own absolute loop progress instead of hand-driving Progress from a loop index",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"DOM-017"},
 			Since:           "0.1.0",

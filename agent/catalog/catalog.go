@@ -76,7 +76,7 @@ spinner is never indistinguishable from progress — no manual timer required.
 
 Loops: prefer evo.Task(name).Each(items) (or EachN(n)) over a hand-maintained counter — it owns the absolute
 Progress(completed,total) so a retry can never double-count or move the bar backwards. On manual retry, set
-Progress to the true completed count, not Advance(1) again for the same item.
+Progress to the true completed count directly — there is no relative/delta counter to misuse (C7: Advance deleted).
 
 Sealed-total invariant: indeterminate → determinate happens once; after a total is sealed it never changes, and
 completed > total is unrepresentable.

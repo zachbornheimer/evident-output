@@ -99,42 +99,9 @@ func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	return t.setProgress(int64(completed), int64(total), Determinate)
 }
 
-// Progress64 is an advanced absolute count API for quantities outside the int range.
-// Ordinary call sites should use Progress(int, int) or Bytes for byte totals.
-func (t *TaskHandle) Progress64(completed, total int64) *TaskHandle {
-	return t.setProgress(completed, total, Determinate)
-}
-
 // Bytes sets absolute byte progress (units and rate formatting).
 func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
 	return t.setProgress(completed, total, BytesKind)
-}
-
-// Advance increments completed progress by delta.
-// Advanced relative helper — prefer absolute Progress in ordinary code.
-func (t *TaskHandle) Advance(delta int64) *TaskHandle {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if isTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		return t
-	}
-	completed := st.progress.Completed + delta
-	total := st.progress.Total
-	kind := st.progress.Kind
-	if kind == "" || kind == Indeterminate {
-		kind = Determinate
-	}
-	t.applyProgressLocked(st, completed, total, kind)
-	return t
 }
 
 func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *TaskHandle {
