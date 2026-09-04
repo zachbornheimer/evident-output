@@ -4,6 +4,8 @@ description: >
   Use when creating, modifying, reviewing, testing, or debugging command-line
   output (items, tasks, progress, plans, changes, debug logs, TTY/CI streams).
   Prefer the portable skill name cli-output; this alias targets Evident Output (evo).
+  Also apply when asked to "adopt evident-output", "migrate to evo", or "clean up
+  CLI output" in an existing codebase — see cli-output's Adoption workflow.
 license: Apache-2.0
 ---
 
@@ -23,11 +25,17 @@ license: Apache-2.0
 
 ## Workflow when MCP is connected
 
-1. `evident_output_list_guides` / `evident_output_get_guidance`
+1. `evident_output_list_guides` / `evident_output_get_guidance` (or, for the full
+   docs corpus, `evident_output_list_sections` / `evident_output_get_documentation`)
 2. Implement with `Init(Config)`, `Print*`, `Task`, `Evidence`, `Main`
-3. `evident_output_review` until `recheck_required=false`
+3. `evident_output_review` until `recheck_required=false` (loop until its
+   `next_action` field says `clean`)
 4. `evident_output_preview` for profiles
 5. `evident_output_explain` with `rule_id` (not `id`)
+
+**Adopting evo into an existing codebase?** Start with `evident_output_adopt_plan`
+and follow the Adoption workflow in
+[`skills/cli-output/SKILL.md`](../cli-output/SKILL.md#adoption-workflow-existing-codebase--evo).
 
 On Grok: `evident-output__evident_output_*` (underscores, not dots).
 

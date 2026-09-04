@@ -3,6 +3,7 @@
 
 # Repo structure
 !/.gitignore
+!/.prettierignore
 !/LICENSE
 !/NOTICE
 !/CHANGELOG.md
@@ -60,3 +61,5 @@
 !/agents/**
 !/integrations/
 !/integrations/**
+!/tools/
+!/tools/**

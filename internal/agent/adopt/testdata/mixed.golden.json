@@ -1,0 +1,41 @@
+{
+  "directory": "mixed",
+  "findings": [
+    {
+      "file": "main.go",
+      "line": 13,
+      "pattern": "import github.com/briandowns/spinner",
+      "rung": "Task/Done",
+      "suggestion": "evo.Task's live heartbeat renders progress/elapsed automatically — delete the manual spinner and its Start/Stop calls.",
+      "certainty": "high"
+    },
+    {
+      "file": "main.go",
+      "line": 21,
+      "pattern": "fmt.Printf",
+      "rung": "Task/Done",
+      "suggestion": "replace with evo.Println/Print/Printf (durable notes) or a Task's Doing/Done — never fmt.Print* while a live region may be open.",
+      "certainty": "needs-review"
+    },
+    {
+      "file": "main.go",
+      "line": 22,
+      "pattern": "log.Println",
+      "rung": "Task/Done",
+      "suggestion": "replace with evo.Println/Print/Printf for a durable note, or task.Doing/Done if this reports lifecycle state — see the common-api guide.",
+      "certainty": "needs-review"
+    },
+    {
+      "file": "main.go",
+      "line": 25,
+      "pattern": "log.Fatal",
+      "rung": "Init/Main",
+      "suggestion": "this exits/panics directly, bypassing evo's exit-code contract — resolve the active Task with Fail/Failf or Block/Blockf and return, then let evo.Main(run) exit.",
+      "certainty": "high"
+    }
+  ],
+  "rungs_touched": [
+    "Init/Main",
+    "Task/Done"
+  ]
+}

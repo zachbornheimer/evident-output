@@ -1,0 +1,4 @@
+# testdata/ fixtures are pinned byte-for-byte by their owning Go test
+# (e.g. golden comparisons) — Prettier reformatting them independently of
+# the test that generates them would make the two permanently disagree.
+**/testdata/**

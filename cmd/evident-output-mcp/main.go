@@ -17,11 +17,22 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/agent/adopt"
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
 	"github.com/zachbornheimer/evident-output/internal/agent/preview"
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
 	"github.com/zachbornheimer/evident-output/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/internal/agent/sections"
 )
+
+// serverInstructions is the MCP `instructions` hint returned on initialize —
+// modeled on the official Svelte MCP server's contract ("This is the
+// official Svelte MCP server. It MUST be used whenever svelte development
+// is involved. ... After you correct the component call this tool again to
+// confirm all the issues are fixed."): a directive to use the server, not
+// just a description of it, and an explicit instruction to loop the review
+// tool until it reports zero findings.
+const serverInstructions = "This is the official Evident Output MCP server. It MUST be used whenever CLI output or presentation code is written or changed in a repo that uses evident-output (or is adopting it). Call evident_output_list_sections / evident_output_get_documentation for authoritative docs, evident_output_adopt_plan to inventory non-evo output in an existing codebase, and evident_output_review before treating any CLI output change as done. After applying evident_output_review's suggested fixes, call evident_output_review again on the same source — repeat until it reports zero findings (recheck_required=false); only then is the change clean. Catalog checksum available via resource evident-output://meta/catalog-checksum."
 
 // Version is injected at build time.
 var Version = "dev"
@@ -156,7 +167,7 @@ func runStdioServer(in io.Reader, out io.Writer) {
 					"version": Version,
 				},
 				// Optional human hint (allowed on InitializeResult).
-				"instructions": "Evident Output: local CLI presentation guidance, review, preview, and explain. Catalog checksum available via resource evident-output://meta/catalog-checksum.",
+				"instructions": serverInstructions,
 			})
 		case "tools/list":
 			writeRPC(id, map[string]any{"tools": toolList()})
@@ -298,6 +309,28 @@ func toolList() []map[string]any {
 				"max_tokens":  map[string]any{"type": "integer"},
 				"deadline_ms": map[string]any{"type": "integer"},
 			},
+		}},
+		{"name": "evident_output_list_sections", "description": "List the full docs corpus servable via evident_output_get_documentation (reference, development, MCP wiring, adoption ladder, per-concept guides)", "inputSchema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"query":       map[string]any{"type": "string"},
+				"deadline_ms": map[string]any{"type": "integer"},
+			},
+		}},
+		{"name": "evident_output_get_documentation", "description": "Retrieve one or more documentation sections by id (see evident_output_list_sections)", "inputSchema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"ids":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+				"deadline_ms": map[string]any{"type": "integer"},
+			},
+		}},
+		{"name": "evident_output_adopt_plan", "description": "Inventory non-evo CLI output (fmt.Print*/log.*/os.Stdout/spinner libs) under a directory and return a migration plan keyed to the adoption ladder", "inputSchema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"directory":   map[string]any{"type": "string"},
+				"deadline_ms": map[string]any{"type": "integer"},
+			},
+			"required": []string{"directory"},
 		}},
 		{"name": "evident_output_review", "description": "Review Go source, multi-file package, transcript, or structured JSON for evo misuse", "inputSchema": map[string]any{
 			"type": "object",
@@ -473,6 +506,76 @@ func handleToolCall(id any, req map[string]any) {
 			return
 		}
 		writeRPC(id, toolError("unknown rule"))
+	case "evident_output_list_sections":
+		query, _ := args["query"].(string)
+		list := sections.Filter(query)
+		if cancelled.Load() {
+			writeRPC(id, toolError("deadline exceeded"))
+			return
+		}
+		writeRPC(id, map[string]any{
+			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d sections", len(list))}},
+			"structuredContent": map[string]any{
+				"schema":   "evident_output.sections.v1",
+				"sections": summarizeSections(list),
+			},
+		})
+	case "evident_output_get_documentation":
+		var ids []string
+		if raw, ok := args["ids"].([]any); ok {
+			for _, v := range raw {
+				if s, ok := v.(string); ok {
+					ids = append(ids, s)
+				}
+			}
+		}
+		var found []sections.Section
+		var missing []string
+		for _, sid := range ids {
+			if s, ok := sections.Get(sid); ok {
+				found = append(found, s)
+			} else {
+				missing = append(missing, sid)
+			}
+		}
+		if cancelled.Load() {
+			writeRPC(id, toolError("deadline exceeded"))
+			return
+		}
+		writeRPC(id, map[string]any{
+			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("found=%d missing=%d", len(found), len(missing))}},
+			"structuredContent": map[string]any{
+				"schema":   "evident_output.documentation.v1",
+				"sections": found,
+				"missing":  missing,
+			},
+		})
+	case "evident_output_adopt_plan":
+		directory, _ := args["directory"].(string)
+		if directory == "" {
+			writeRPC(id, toolError("directory is required"))
+			return
+		}
+		if isRemotePath(directory) {
+			writeRPC(id, toolError("remote path unsupported; pass a local directory (MCP-036)"))
+			return
+		}
+		plan, err := adopt.Inventory(directory)
+		if err != nil {
+			writeRPC(id, toolError("adopt_plan: "+err.Error()))
+			return
+		}
+		if cancelled.Load() {
+			writeRPC(id, toolError("deadline exceeded"))
+			return
+		}
+		writeRPC(id, map[string]any{
+			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d findings across %d ladder rungs", len(plan.Findings), len(plan.RungsTouched))}},
+			"structuredContent": map[string]any{
+				"schema": "evident_output_adopt_plan.v1",
+				"plan":   plan,
+			},
+		})
 	case "evident_output_review":
 		src, _ := args["source"].(string)
 		file, _ := args["file"].(string)
@@ -510,7 +613,8 @@ func handleToolCall(id any, req map[string]any) {
 			writeRPC(id, toolError("deadline exceeded"))
 			return
 		}
-		text := fmt.Sprintf("findings=%d recheck=%v partial=%v", len(res.Findings), res.RecheckRequired, res.Partial)
+		nextAction := reviewNextAction(res)
+		text := fmt.Sprintf("findings=%d recheck=%v partial=%v — %s", len(res.Findings), res.RecheckRequired, res.Partial, nextAction)
 		writeRPC(id, map[string]any{
 			"content": []map[string]any{{"type": "text", "text": text}},
 			"structuredContent": map[string]any{
@@ -518,6 +622,7 @@ func handleToolCall(id any, req map[string]any) {
 				"recheck_required": res.RecheckRequired,
 				"partial":          res.Partial,
 				"findings":         res.Findings,
+				"next_action":      nextAction,
 			},
 		})
 	case "evident_output_preview":
@@ -565,6 +670,32 @@ func handleToolCall(id any, req map[string]any) {
 	}
 }
 
+// reviewNextAction makes the review→fix→re-review loop self-driving: an
+// agent that only reads this field (never the findings count itself) still
+// knows whether to stop or keep going, matching the Svelte MCP's "call this
+// tool again to confirm all the issues are fixed" instruction.
+func reviewNextAction(res review.Result) string {
+	if len(res.Findings) == 0 && !res.RecheckRequired {
+		return "clean: 0 findings, no recheck needed"
+	}
+	return "re-run evident_output_review after applying the suggested fixes, until findings=0 and recheck_required=false"
+}
+
+// summarizeSections strips body text for the list view — evident_output_list_sections
+// is a table of contents; evident_output_get_documentation returns the body.
+func summarizeSections(list []sections.Section) []map[string]any {
+	out := make([]map[string]any, 0, len(list))
+	for _, s := range list {
+		out = append(out, map[string]any{
+			"id":       s.ID,
+			"title":    s.Title,
+			"source":   s.Source,
+			"concepts": s.Concepts,
+		})
+	}
+	return out
+}
+
 func toolError(msg string) map[string]any {
 	return map[string]any{
 		"content": []map[string]any{{"type": "text", "text": msg}},
@@ -576,8 +707,11 @@ func toolError(msg string) map[string]any {
 	}
 }
 
-func validateArgs(name string, args map[string]any) string {
-	allowed := map[string]map[string]bool{
+// toolArgAllowlist is the argument-name registry validateArgs enforces —
+// factored out so TestToolRegistryMatchesToolList can hold it against
+// toolList() without duplicating the literal.
+func toolArgAllowlist() map[string]map[string]bool {
+	return map[string]map[string]bool{
 		"evident_output_list_guides": {"use_case": true, "max_tokens": true, "deadline_ms": true},
 		"evident_output_get_guidance": {
 			"ids": true, "max_tokens": true, "deadline_ms": true,
@@ -588,8 +722,17 @@ func validateArgs(name string, args map[string]any) string {
 		"evident_output_preview": {
 			"subject": true, "item": true, "state": true, "debug": true, "deadline_ms": true,
 		},
-		"evident_output_explain": {"rule_id": true, "deadline_ms": true},
+		"evident_output_explain":       {"rule_id": true, "deadline_ms": true},
+		"evident_output_list_sections": {"query": true, "deadline_ms": true},
+		"evident_output_get_documentation": {
+			"ids": true, "deadline_ms": true,
+		},
+		"evident_output_adopt_plan": {"directory": true, "deadline_ms": true},
 	}
+}
+
+func validateArgs(name string, args map[string]any) string {
+	allowed := toolArgAllowlist()
 	keys, ok := allowed[name]
 	if !ok {
 		return ""
