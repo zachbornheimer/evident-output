@@ -1,6 +1,7 @@
 package evo
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -40,10 +41,14 @@ const signalChannelCapacity = 2
 //   - SIGINT/SIGTERM → Cancel on the active task (or the output) → ExitCancelled (130)
 //   - a second SIGINT/SIGTERM → ExitCancelled (130) returned immediately, without
 //     waiting for run to unwind, so the caller's os.Exit(out.Run(...)) exits now
-//   - Finish or Close error → ExitFailed (2) only when the conclusion was OK
-//     (nothing else in the printed run signals a problem); a Blocked
-//     conclusion keeps ExitBlocked (1) — the documented "Block → exit 1"
-//     contract wins over a leftover bookkeeping misuse
+//   - Finish/Close bookkeeping misuse (a leftover unresolved task, a
+//     double-resolve, ...) is folded into the Conclusion before it renders,
+//     so the printed band and Conclusion.ExitCode already agree; a Blocked
+//     conclusion keeps ExitBlocked (1) regardless — the documented
+//     "Block → exit 1" contract wins over a leftover bookkeeping misuse
+//   - a genuine renderer/write failure (surfacing only after the band is
+//     already flushed) still escalates an otherwise-OK exit code to
+//     ExitFailed (2)
 //   - otherwise Conclusion.ExitCode after reconciling run errors into Fail
 //
 // Config.FailedExitCode (when non-zero) overrides ExitFailed for a failed
@@ -125,12 +130,13 @@ func concludeRun(out *Output, runErr error) int {
 	finishErr := out.Finish()
 	closeErr := out.Close()
 	code := out.Conclusion().ExitCode
-	// A leftover bookkeeping misuse (finishErr/closeErr) only escalates the
-	// exit code when the conclusion otherwise read as OK — nothing else in
-	// the printed run would have signaled a problem. A Blocked conclusion
-	// already printed its own band; misuse must never silently override the
-	// documented "Block → exit 1" contract (beginner-gate-2 finding iii).
-	if (finishErr != nil || closeErr != nil) && code == ExitOK {
+	// Bookkeeping misuse (a leftover unresolved task, a duplicate key, ...)
+	// is already folded into the Conclusion itself before the band renders
+	// (release-gate finding 2) — ExitCode already agrees with what printed.
+	// A genuine renderer/write failure is different: it surfaces only after
+	// the band is already flushed, so the band never had a chance to
+	// reflect it — that still escalates an otherwise-OK exit code here.
+	if code == ExitOK && (errors.Is(finishErr, ErrRenderer) || errors.Is(closeErr, ErrRenderer)) {
 		return ExitFailed
 	}
 	return code
