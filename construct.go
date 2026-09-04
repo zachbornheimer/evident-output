@@ -3,10 +3,36 @@ package evo
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/terminal"
 )
+
+// processArgv0 is the facade over os.Args[0] (facade rule: no direct
+// os.Args read anywhere else) — a var so tests can inject a fixed value
+// instead of depending on the real test binary's path.
+var processArgv0 = func() string {
+	if len(os.Args) == 0 {
+		return ""
+	}
+	return os.Args[0]
+}
+
+// identityFallbackName is the executable's own basename, used only when an
+// output-level outcome (Output.Failf/Cancel) has no named task and no
+// explicit Config.Title to identify it with — replacing the generic literal
+// "command" with the caller's actual binary name (I2). This is deliberately
+// NOT plumbed into Snapshot.Subject / the conclusion band's Subject: that
+// text is dialect-frozen this release and many existing goldens depend on
+// its "no Subject configured" fallback (bare state name) staying exactly as
+// it is — Config.Title stays the only way to set that.
+func identityFallbackName() string {
+	if base := filepath.Base(processArgv0()); base != "." && base != string(filepath.Separator) {
+		return base
+	}
+	return "command"
+}
 
 // ColorMode selects color policy. The zero value is automatic.
 type ColorMode int

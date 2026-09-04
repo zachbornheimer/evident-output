@@ -133,6 +133,14 @@ type taskState struct {
 	// on resolve (P2).
 	coreEmitted bool
 
+	// synthetic marks a task the library invented to carry an output-level
+	// outcome (Output.Failf/Cancel's synthetic "command" task) rather than
+	// one the caller declared. shouldSuppressRepeatedCondition (I2) must
+	// never drop the standalone conclusion band for one of these: it is the
+	// only place the run's outcome is ever stated, unlike a caller-declared
+	// Task whose own row already says the same thing.
+	synthetic bool
+
 	// Plain/non-interactive progressive-streaming bookkeeping for a still-
 	// Running standalone task (P10: CI logs must not stay silent until
 	// Finish; beginner-8: a durable line per progress increment, thinned to
@@ -719,9 +727,10 @@ func (o *Output) failWith(p Problem) {
 		state:       Failed,
 		problems:    []Problem{p},
 		declaration: o.nextDecl(),
+		synthetic:   true,
 	}
 	if st.name == "" {
-		st.name = "command"
+		st.name = identityFallbackName()
 	}
 	o.tasks = append(o.tasks, st)
 	o.bumpLocked()
@@ -736,12 +745,17 @@ func (o *Output) Cancel(reason string) {
 		o.recordMisuse(err)
 		return
 	}
+	name := sanitize.Text(o.cfg.subject)
+	if name == "" {
+		name = identityFallbackName()
+	}
 	t := &taskState{
 		id:          o.nextID("task"),
-		name:        "command",
+		name:        name,
 		state:       Cancelled,
 		summary:     sanitize.Text(reason),
 		declaration: o.nextDecl(),
+		synthetic:   true,
 	}
 	o.tasks = append(o.tasks, t)
 	o.bumpLocked()
@@ -967,6 +981,7 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Kept:        cloneTaxonomy(t.kept),
 		Collection:  colID,
 		Declaration: t.declaration,
+		synthetic:   t.synthetic,
 	}
 }
 

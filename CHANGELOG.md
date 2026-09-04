@@ -284,6 +284,12 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 - `Task.Run` no longer publishes a shell wrapper's own basename ("sh") as
   a placeholder phase; it reads the meaningful command from the wrapper's
   `-c`/`-Command` script instead, or defers to first output.
+- An anonymous top-level `Output.Failf`/`Cancel` (no Task, no
+  `Config.Title`) now always renders its `[failed]`/`[cancelled]`
+  conclusion band — it was being incorrectly treated as a redundant echo
+  of a caller-declared Task's own row and suppressed. Its synthetic
+  fallback task name is now the caller's own executable basename instead
+  of the generic literal `"command"`.
 
 ## Migration guide (v0.2.x → v0.3.0)
 
