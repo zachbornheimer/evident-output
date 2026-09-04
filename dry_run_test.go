@@ -171,11 +171,20 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	}
 }
 
-// TestWriteEffects_EmptySectionWithKnownVerb proves a section whose mutation
-// verb was recorded (via TaskHandle) but which ends with zero rows — because
-// every call recorded a zero quantity — keeps that verb in its "nothing to"
-// line instead of falling back to the generic "change" phrasing.
-func TestWriteEffects_EmptySectionWithKnownVerb(t *testing.T) {
+// TestWriteEffects_ZeroAffectedMutationVerbRendersNoSection proves a
+// mutation-verb call (TaskHandle.Delete/...) with Affected(0) never declares
+// a Plan/Changes section at all — no ledger row, no "nothing to X" fallback
+// line either.
+//
+// E2.5 finding 4 supersedes this test's original expectation ("nothing to
+// delete branches" via the mutation-verb boundary): that grammar is exactly
+// the fixture's "[planned] repo-retire" phantom-row bug class an effect that
+// never happened must never materialize a ledger section of its own. The
+// "nothing to <verb> <subject>" empty-section grammar itself is still
+// covered — for TaskHandle.Record's own zero-quantity contract, a distinct,
+// lower-level primitive Affected's fix does not touch — by
+// TestSpecP18_RemoteTrackingVsRemoteDelete_Step2.
+func TestWriteEffects_ZeroAffectedMutationVerbRendersNoSection(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
@@ -186,7 +195,10 @@ func TestWriteEffects_EmptySectionWithKnownVerb(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "nothing to delete branches") {
-		t.Fatalf("want verb-aware empty-success line, got:\n%s", got)
+	if strings.Contains(got, "nothing to") || strings.Contains(got, "[planned]  branches") {
+		t.Fatalf("want no \"branches\" ledger section at all for a zero-Affected mutation verb, got:\n%s", got)
+	}
+	if len(out.Snapshot().Plans) != 0 {
+		t.Fatalf("want no Plan section declared, got %+v", out.Snapshot().Plans)
 	}
 }
