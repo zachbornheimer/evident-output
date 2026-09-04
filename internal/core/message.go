@@ -19,3 +19,11 @@ type MessageSnapshot struct {
 	Text       string
 	Visibility Visibility
 }
+
+// VisibilityName returns the wire/event-log name for v ("normal" or "verbose").
+func VisibilityName(v Visibility) string {
+	if v == VisibilityVerbose {
+		return "verbose"
+	}
+	return "normal"
+}

@@ -202,7 +202,7 @@ func (o *Output) emitMessageLocked(line string, vis Visibility) {
 	o.appendEventLocked(Event{
 		Type:     "message.emitted",
 		EntityID: id,
-		Name:     string(visibilityName(vis)),
+		Name:     core.VisibilityName(vis),
 		// State field reused as visibility tag in JSONL path via Name
 	})
 	if o.projectsVisibilityLocked(vis) {
@@ -211,13 +211,6 @@ func (o *Output) emitMessageLocked(line string, vis Visibility) {
 		// Hidden verbose: still count as "emitted" for residual bookkeeping of lines.
 		o.linesEmitted = len(o.lines)
 	}
-}
-
-func visibilityName(v Visibility) string {
-	if v == VisibilityVerbose {
-		return "verbose"
-	}
-	return "normal"
 }
 
 func (o *Output) projectsVisibilityLocked(v Visibility) bool {
