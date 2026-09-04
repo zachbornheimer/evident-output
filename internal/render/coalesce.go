@@ -161,9 +161,29 @@ func hasIndependentConditionRows(s core.Snapshot) bool {
 			return true
 		}
 	}
-	for _, col := range s.Collections {
+	return anyCollectionHasIndependentConditionRows(s.Collections)
+}
+
+// anyCollectionHasIndependentConditionRows recurses into every container's
+// own children (E2.5 finding 1): a warned grandchild several containers deep
+// must count as an independent condition row the same way a root-level
+// warned task does, not just the container's own headline State.
+func anyCollectionHasIndependentConditionRows(collections []core.TasksSnapshot) bool {
+	for _, col := range collections {
+		for _, t := range col.Tasks {
+			if len(t.Warnings) > 0 {
+				return true
+			}
+			switch t.State {
+			case core.Failed, core.Cancelled, core.Incomplete, core.Running, core.Pending:
+				return true
+			}
+		}
 		switch col.State {
 		case core.Failed, core.Cancelled, core.Incomplete, core.Running, core.Pending:
+			return true
+		}
+		if anyCollectionHasIndependentConditionRows(col.Collections) {
 			return true
 		}
 	}

@@ -94,6 +94,21 @@ func anyTaskWarned(tasks []TaskSnapshot) bool {
 	return false
 }
 
+// anyCollectionWarned recurses into every container's own tasks and nested
+// containers (E2.5 finding 1): a Snapshot's root anyTaskWarned(s.Tasks) alone
+// sees only root-level tasks, so a warned child living under a
+// Sequence/DisplayGroup — at any nesting depth — otherwise yields no "·
+// warned" modifier and Warned stays false, a silent regression from a run
+// that would have surfaced the same warning at the top level.
+func anyCollectionWarned(collections []TasksSnapshot) bool {
+	for _, col := range collections {
+		if anyTaskWarned(col.Tasks) || anyCollectionWarned(col.Collections) {
+			return true
+		}
+	}
+	return false
+}
+
 // InferConclusion derives the multidimensional meaning of a finished command
 // from its final Snapshot.
 func InferConclusion(s Snapshot) Conclusion {
@@ -151,7 +166,7 @@ func InferConclusion(s Snapshot) Conclusion {
 	}
 	// hasWarning reads TaskSnapshot.Warnings (P2), never a lifecycle
 	// EntityState — Warn annotates a task, it never resolves one.
-	hasWarning := anyTaskWarned(s.Tasks)
+	hasWarning := anyTaskWarned(s.Tasks) || anyCollectionWarned(s.Collections)
 
 	// Headline precedence: failed > blocked > cancelled > changed > planned >
 	// ready > warning-only.

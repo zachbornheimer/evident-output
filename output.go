@@ -1317,16 +1317,30 @@ func (g *tasksState) derivedState() EntityState {
 func (g *tasksState) displaySummary() string {
 	// Success summary only when all children done/skipped successfully.
 	st := g.derivedState()
-	if st == Done && g.summary != "" {
-		// only if no failures/warnings
-		for _, t := range g.tasks {
-			if t.state == Failed || t.state == Cancelled {
-				return ""
-			}
-		}
+	if st == Done && g.summary != "" && !g.hasWarnedOrFailedDescendant() {
 		return g.summary
 	}
 	return ""
+}
+
+// hasWarnedOrFailedDescendant reports whether g or any nested child
+// container carries a Failed/Cancelled task or a task with a Warn annotation
+// (E2.5 finding 1): the group's own success summary must not paper over a
+// warning or failure living several containers deep — the same suppression
+// this method already gave Failed/Cancelled, restored and extended to
+// Warnings.
+func (g *tasksState) hasWarnedOrFailedDescendant() bool {
+	for _, t := range g.tasks {
+		if t.state == Failed || t.state == Cancelled || len(t.warnings) > 0 {
+			return true
+		}
+	}
+	for _, child := range g.children {
+		if child.hasWarnedOrFailedDescendant() {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *changesState) snapshot() ChangesSnapshot {
