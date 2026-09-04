@@ -75,7 +75,7 @@ func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
 func TestDOM049_OutputFail(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Fail("stopped", evo.Cause(errors.New("disk")))
+	out.Failf("stopped: %w", errors.New("disk"))
 	_ = out.Finish()
 	if out.Conclusion().State != evo.StateFailed {
 		t.Fatal(out.Conclusion().State)

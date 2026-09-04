@@ -1,11 +1,9 @@
 package evo_test
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,18 +18,6 @@ func TestDOM014_DetailOnBlock(t *testing.T) {
 	it.Block("b", evo.Detail("user visible"))
 	if it.Snapshot().Problems[0].Detail != "user visible" {
 		t.Fatal(it.Snapshot().Problems)
-	}
-}
-
-func TestDOM015_CauseHiddenFromPlain(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	t.Cleanup(func() { _ = out.Close() })
-	secret := errors.New("secret-token-xyz")
-	out.Task("i").Fail("boom", evo.Cause(secret))
-	_ = out.Finish()
-	if strings.Contains(buf.String(), "secret-token-xyz") {
-		t.Fatal("cause leaked into plain")
 	}
 }
 

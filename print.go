@@ -95,10 +95,10 @@ func (o *Output) Writer() io.Writer {
 // ResultWriter returns the domain-payload stream. Presentation never writes here.
 //
 // In FormatData mode this is Config.Result if set, otherwise Config.Stdout —
-// so machine JSON stays pure while Items/Tasks render on stderr.
+// so machine JSON stays pure while Tasks render on stderr.
 // When no result stream is configured, returns io.Discard.
 //
-//	out := evo.New(evo.Config{Title: "build", Format: evo.FormatData})
+//	out := evo.Init(evo.Config{Title: "build", Format: evo.FormatData})
 //	// after work succeeds:
 //	_ = json.NewEncoder(out.ResultWriter()).Encode(payload)
 func (o *Output) ResultWriter() io.Writer {

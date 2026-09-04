@@ -96,14 +96,7 @@ type Evidence struct {
 	parent *Evidence
 }
 
-// Capture is Evidence's shipped v0.2.16 name.
-//
-// Deprecated: Use Evidence. Will be removed in v1.0.
-type Capture = Evidence
-
-// EvidenceOption configures Evidence (C9: finishes the Capture->Evidence
-// rename in the option surface — CaptureOption is now a deprecated alias,
-// deprecated.go).
+// EvidenceOption configures Evidence.
 type EvidenceOption interface {
 	applyCapture(*Evidence)
 }
@@ -163,25 +156,11 @@ func (t *TaskHandle) Evidence(opts ...EvidenceOption) *Evidence {
 	return st.evidence
 }
 
-// Capture is Evidence's shipped v0.2.16 name.
-//
-// Deprecated: Use TaskHandle.Evidence. Will be removed in v1.0.
-func (t *TaskHandle) Capture(opts ...EvidenceOption) *Capture {
-	return t.Evidence(opts...)
-}
-
 // Evidence returns a session-level retained/redacted writer with no owning
 // Task. Prefer Task.Evidence so failure evidence attaches to an entity.
 // Session-level Evidence is advanced; ordinary call sites should not use it.
 func (o *Output) Evidence(opts ...EvidenceOption) *Evidence {
 	return newEvidence(o, "", "", opts...)
-}
-
-// Capture is Evidence's shipped v0.2.16 name.
-//
-// Deprecated: Use Output.Evidence. Will be removed in v1.0.
-func (o *Output) Capture(opts ...EvidenceOption) *Capture {
-	return o.Evidence(opts...)
 }
 
 func newEvidence(out *Output, taskID, taskName string, opts ...EvidenceOption) *Evidence {
@@ -252,7 +231,7 @@ func (c *Evidence) Write(p []byte) (int, error) {
 
 // Close flushes trailing partial lines.
 //
-// On the root Capture (task.Capture()), every stream pending buffer is flushed
+// On the root Evidence (task.Evidence()), every stream pending buffer is flushed
 // so Stdout/Stderr partial lines are retained. On a side writer (Stdout/Stderr),
 // only that stream is flushed.
 func (c *Evidence) Close() error {

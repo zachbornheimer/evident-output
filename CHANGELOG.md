@@ -41,13 +41,14 @@ to confirm every call site was already migrated to `MainWith`.
 
 ### API unification: one entity, one constructor
 
-**Item folds into Task.** `ItemHandle` is now a zero-cost alias of
+**Item folds into Task.** `ItemHandle` was a zero-cost alias of
 `TaskHandle` — there is one internal state model, one snapshot family
 (`TaskSnapshot`; `ItemSnapshot` and `Snapshot.Items`/`Conclusion.Items` are
 gone), and one JSON wire shape (schema `0.3`: the `"items"` key no longer
 exists — every entity, including a fact-check resolved without ever
-running, is a `"tasks"` row). `Output.Item`/`Scope.Item` are deprecated thin
-shims over `Task`. The v0.2.x Item-only verbs `OK`, `Because`,
+running, is a `"tasks"` row). `Output.Item`/`Scope.Item`/`ItemHandle` are
+now removed with no shim — migrate to `Task`/`TaskHandle`. The v0.2.x
+Item-only verbs `OK`, `Because`,
 `WarnedBy`/`BlockedBy`/`FailedBy`, `Unknown`, and `Start` are deleted with
 no shim — the fold is small: `OK()` becomes `Done()`, and `OK().Because(x)`
 becomes `Done(x)` (the text moves to the verb's own argument). `TaskHandle`
@@ -204,15 +205,25 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   evidence. `TaskHandle` gains `Block`/`Blockf` (a task can now terminate
   `Blocked`, exit 1, same as `Item`). Both `Fail`/`Block` and their `f`
   variants stay nil-receiver safe.
-- **`evo.Cause` is deprecated**: it no longer affects the returned error
-  since `Fail`/`Block` are statement-form. Kept as a `ProblemOption` shim so
-  existing call sites still compile; migrate to `Failf`/`Blockf`'s trailing
-  `%w`.
+- **`evo.Cause` is removed** (pre-1.0 API break): it no longer affected the
+  returned error since `Fail`/`Block` are statement-form. There is no shim;
+  migrate to `Failf`/`Blockf`'s trailing `%w`.
 - **`Capture` renamed to `Evidence`** (`Task.Evidence`/`Item.Evidence`/
   `Output.Evidence`): "Stdout" would lie as a name since it also takes
-  stderr and combined writes. `Capture` (type and the three accessor
-  methods) is kept as a type alias / thin shim since it shipped in v0.2.16.
-  `TaskHandle.Run` and `PhaseWriter` now build on `Evidence` internally.
+  stderr and combined writes. `TaskHandle.Run` and `PhaseWriter` now build
+  on `Evidence` internally. The `Capture` type alias and its three accessor
+  methods (`TaskHandle.Capture`/`Output.Capture`) are removed (pre-1.0 API
+  break) — there is no shim; migrate to `Evidence`.
+- **`Item`/`ItemHandle` and the `CaptureOption`/`CaptureStream*`/
+  `MaxCaptureBytes`/`UsageError` compatibility aliases are removed**
+  (pre-1.0 API break): `deprecated.go` is deleted in full. `Output.Item`,
+  `Scope.Item`, the package-level `evo.Item`, and `ItemHandle` have no
+  shim — migrate to `Task`/`TaskHandle`. `CaptureOption`, `CaptureStream`,
+  `CaptureStreamCombined`/`Stdout`/`Stderr`, and `MaxCaptureBytes` have no
+  shim — migrate to `EvidenceOption`, `EvidenceStream`,
+  `EvidenceStreamCombined`/`Stdout`/`Stderr`, and `MaxEvidenceBytes`.
+  `UsageError` (orphaned after `ParseColorMode`'s removal) is deleted with
+  no replacement.
 - **`Problem`'s label/value attachment type renamed `Evidence` → `Attachment`**
   (pre-1.0 API break, forced by the rename above): `Problem.Evidence` keeps
   its field name; the element type is now `evo.Attachment`. This type had
@@ -324,8 +335,8 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   (zero args) builds an ordinary default instance — `construct.go`'s
   zero-config doc example is real, not a `Config{}` literal in disguise.
 - Docs: the agent catalog's `Item`/`ItemHandle` mentions removed from
-  prose and `Concepts` (C1) — those are deprecated v0.2.x shims
-  (`deprecated.go`) the catalog was contradicting by teaching them
+  prose and `Concepts` (C1) — those were deprecated v0.2.x shims (now
+  removed in full) the catalog was contradicting by teaching them
   alongside `Task`. `Tasks` vs `Group`'s independent-vs-sequential split
   now gets one explicit sentence (C13).
 - **Breaking**: `Config.ForcePlain` and `Config.NonInteractive` collapsed
@@ -418,10 +429,11 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 - Finished the `Capture`→`Evidence` rename in the option surface (C9):
   `CaptureOption`→`EvidenceOption`, `CaptureStream`→`EvidenceStream`
   (+ its three constants), `MaxCaptureBytes`→`MaxEvidenceBytes`. The
-  v0.2.16-shipped spellings stay as deprecated aliases
-  (`type CaptureOption = EvidenceOption`, etc.) — everything else on
-  this list was never shipped, so it breaks cleanly. Internal field
-  (`taskState.capture`, `phaseWriter.capture`) renamed to `evidence`.
+  v0.2.16-shipped spellings were kept briefly as deprecated aliases
+  (`type CaptureOption = EvidenceOption`, etc.) and are now removed with
+  no shim — everything else on this list was never shipped, so it broke
+  cleanly. Internal field (`taskState.capture`, `phaseWriter.capture`)
+  renamed to `evidence`.
 - Unified the mutation-verb vocabulary across `TaskHandle`/`Changes`/
   `Plan` (C10): `TaskHandle.Add` and `Plan.Push` added (each previously
   missing from one of the three); `Changes.Deleted`/`Pushed` added (the
@@ -453,7 +465,7 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 | `task.Capture()` / `item.Capture()` / `out.Capture()`        | `task.Evidence()` / `item.Evidence()` / `out.Evidence()`                                                       |
 | `evo.New(cfg)` + `os.Exit(evo.MainWith(out, run))` in `main` | `evo.Init(evo.Config{..., Isolated: true})` + `os.Exit(out.Run(run))` — `New`/`MainWith` are deleted           |
 | `evo.NewWithOptions(opts...)`                                | `evo.Init(evo.Config{Options: opts})`                                                                          |
-| `out.Item(name)` / `evo.Item(name)`                          | `out.Task(name)` / `evo.Task(name)` — `Item` is a deprecated thin shim over `Task`                             |
+| `out.Item(name)` / `evo.Item(name)`                          | `out.Task(name)` / `evo.Task(name)` — `Item` is removed with no shim                                           |
 | `item.OK()`                                                  | `task.Done()`                                                                                                  |
 | `item.OK().Because(text)`                                    | `task.Done(text)`                                                                                              |
 | `item.Start()`                                               | deleted, no replacement — a task shows its `○` row from declaration; only `Phase`/`Progress` show a spinner    |

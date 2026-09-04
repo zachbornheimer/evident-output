@@ -39,14 +39,14 @@ func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
 func TestCON012_ConcurrentItemOK(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	items := make([]*evo.ItemHandle, 20)
+	items := make([]*evo.TaskHandle, 20)
 	for i := range items {
 		items[i] = out.Task("x", evo.ID(fmt.Sprintf("x%d", i)))
 	}
 	var wg sync.WaitGroup
 	for _, it := range items {
 		wg.Add(1)
-		go func(it *evo.ItemHandle) {
+		go func(it *evo.TaskHandle) {
 			defer wg.Done()
 			it.Done()
 		}(it)

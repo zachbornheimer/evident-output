@@ -112,12 +112,12 @@ func TestPrint_WriterAdapter(t *testing.T) {
 	}
 }
 
-// TestItem_Task_PrintfNames is C6: Item/Task are printf-variadic
-// themselves (Itemf/Taskf deleted).
-func TestItem_Task_PrintfNames(t *testing.T) {
+// TestTask_PrintfNames is C6: Task is printf-variadic itself (Taskf
+// deleted; Item folded into Task).
+func TestTask_PrintfNames(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Item("repo %s", "x").Done()
+	out.Task("repo %s", "x").Done()
 	out.Task("check %d", 1).Done("ok")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "repo x") || !strings.Contains(buf.String(), "check 1") {

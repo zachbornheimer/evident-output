@@ -307,10 +307,10 @@ func TestAPISugar_FailNilHandleIsSafe(t *testing.T) {
 	var task *evo.TaskHandle
 	task.Fail("summary") // must not panic
 
-	var item *evo.ItemHandle
+	var item *evo.TaskHandle
 	item.Block("summary") // must not panic
 
-	var itemF *evo.ItemHandle
+	var itemF *evo.TaskHandle
 	if err := itemF.Blockf("summary: %w", errors.New("boom")); err == nil {
 		t.Fatal("expected non-nil error even on a nil handle")
 	}

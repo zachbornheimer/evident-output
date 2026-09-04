@@ -86,16 +86,6 @@ func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 	}
 }
 
-func TestOUT014_JSONOmitsRawCause(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
-	out.Task("a").Fail("f", evo.Cause(errors.New("password=secret")))
-	_ = out.Finish()
-	b, _ := evo.EncodeJSON(out.Snapshot())
-	if strings.Contains(string(b), "password=secret") {
-		t.Fatal(string(b))
-	}
-}
-
 func TestOUT020_NoSubjectOmitsGuess(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})

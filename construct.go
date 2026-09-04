@@ -434,19 +434,3 @@ func withFailedExitCode(code int) Option {
 func Title(subject string) Option {
 	return optionFunc(func(c *config) { c.subject = subject })
 }
-
-// UsageError is a programmer/user configuration error.
-type UsageError struct {
-	Op  string
-	Msg string
-}
-
-func (e *UsageError) Error() string {
-	if e == nil {
-		return "usage error"
-	}
-	if e.Op == "" {
-		return e.Msg
-	}
-	return e.Op + ": " + e.Msg
-}
