@@ -119,11 +119,33 @@ func (o *Output) flushGateNow(id string) {
 // window so no live frame can land between the prompt and the durable
 // OK/Blocked row — the gate resolves before Suspend resumes any unrelated
 // live activity (e.g. a sibling Task still Running).
+//
+// The abort channel is registered here, before the prompt is written or
+// Suspend touches the live region — not lazily inside readConfirmLine.
+// Registering it late left a window, from gate creation through the
+// durable prompt write, where a SIGINT had no abort channel to close: it
+// fell through cancelActive's generic Running/Pending scan, which marked
+// the gate Cancelled without ever unblocking the stdin read that was about
+// to start — a swallowed ^C that hung waiting for an answer nothing could
+// interrupt (X2).
 func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmConfig) bool {
+	abort := make(chan struct{})
+	o.mu.Lock()
+	if o.confirmAbort == nil {
+		o.confirmAbort = make(map[string]chan struct{})
+	}
+	o.confirmAbort[gate.id] = abort
+	o.mu.Unlock()
+	defer func() {
+		o.mu.Lock()
+		delete(o.confirmAbort, gate.id)
+		o.mu.Unlock()
+	}()
+
 	var yes bool
 	_ = o.Suspend(func() error {
 		o.writeConfirmPromptLocked(question, cfg.destructive)
-		line, cancelled, eof := o.readConfirmLine(gate.id)
+		line, cancelled, eof := o.readConfirmLine(abort)
 		if cancelled {
 			// cancelPendingConfirmLocked already resolved the gate as Cancelled.
 			return nil
@@ -164,25 +186,13 @@ func (o *Output) writeConfirmPromptLocked(question string, destructive bool) {
 	o.mu.Unlock()
 }
 
-// readConfirmLine reads one answer line from the Stdin facade, abortable by
-// cancelPendingConfirmLocked so a signal unblocks the wait instead of hanging
-// until the process is killed a second time. eof reports a zero-byte EOF (no
-// data read at all before the stream closed) — distinct from an explicit
-// non-yes answer (evo-rec.md "Confirm EOF = policy block, not decline").
-func (o *Output) readConfirmLine(itemID string) (line string, cancelled, eof bool) {
-	abort := make(chan struct{})
-	o.mu.Lock()
-	if o.confirmAbort == nil {
-		o.confirmAbort = make(map[string]chan struct{})
-	}
-	o.confirmAbort[itemID] = abort
-	o.mu.Unlock()
-	defer func() {
-		o.mu.Lock()
-		delete(o.confirmAbort, itemID)
-		o.mu.Unlock()
-	}()
-
+// readConfirmLine reads one answer line from the Stdin facade, abortable via
+// abort (registered by promptConfirm at gate creation) so a signal unblocks
+// the wait instead of hanging until the process is killed a second time.
+// eof reports a zero-byte EOF (no data read at all before the stream
+// closed) — distinct from an explicit non-yes answer (evo-rec.md "Confirm
+// EOF = policy block, not decline").
+func (o *Output) readConfirmLine(abort chan struct{}) (line string, cancelled, eof bool) {
 	type readResult struct {
 		text string
 		err  error
@@ -194,14 +204,23 @@ func (o *Output) readConfirmLine(itemID string) (line string, cancelled, eof boo
 		result <- readResult{text: text, err: err}
 	}()
 
+	// abort takes priority when both are ready: a signal that raced the
+	// answer to the finish line still cancels the gate, deterministically —
+	// never left to select's random choice between two ready cases.
 	select {
+	case <-abort:
+		return "", true, false
+	default:
+	}
+
+	select {
+	case <-abort:
+		return "", true, false
 	case r := <-result:
 		if r.text == "" && errors.Is(r.err, io.EOF) {
 			return "", false, true
 		}
 		return r.text, false, false
-	case <-abort:
-		return "", true, false
 	}
 }
 
