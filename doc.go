@@ -33,7 +33,10 @@
 //     needed just to get a progress bar.
 //     .PhaseWriter() as cmd.Stdout so a talkative child's last line becomes the live Phase;
 //     Task.Run(cmd) wires an *exec.Cmd through that same capture/phase plumbing in one call
-//     and hands back the subprocess error verbatim for the caller to resolve.
+//     and hands back the subprocess error verbatim for the caller to resolve. An item that
+//     fails inside the loop body resolves on the loop's own task handle (task.Fail(...); break)
+//     — never a second evo.Task declared per item — leaving Progress sealed at the count
+//     already reached (release-gate round 6 finding 7).
 //  5. evo.Task(name).Skipped(evo.Reason("..."), name) / .Kept(evo.Reason("..."), name) —
 //     taxonomy counted and summed, never a bare "skipped N". evo.Reason(name) is a
 //     get-or-create lookup on the default instance: the same string at every call site
@@ -45,15 +48,18 @@
 //     (Output.Snapshot / TaskHandle.Snapshot); the wire JSON document does not carry them.
 //  6. evo.Confirm(question, ...) — owns the whole ask-decide-resolve gate (prompt, quiesce,
 //     Done/Blocked resolution, exit code). question is verbatim text, not a printf format
-//     like Task/Group/Reason's name — use fmt.Sprintf to build a dynamic question first.
+//     like Task/Group/Reason/Phase/Skip's text — use fmt.Sprintf to build a dynamic question
+//     first. Confirm is the one entity-text spelling that stays non-printf (release-gate
+//     round 6 finding 4).
 //  7. evo.Group(name) for named children with derived, auto-lifecycle state.
 //  8. task.Fail(summary) / task.Block(summary) are statements — no return value, so a bare
 //     call is errcheck-clean. `return task.Failf("validate manifest: %w", err)` builds and
 //     returns one error in a single line: a trailing ": %w"/", %w" splits the formatted text
 //     into the rendered summary and an evidence line for the wrapped error; Blockf is the
 //     same for Block. Warn, and success/skip verbs, stay void too — this is never fluent
-//     chaining. Done/Warn/Task/Group/Reason are printf-variadic themselves (fmt.Sprintf
-//     semantics when args follow); there is no separate Donef/Warnf/Taskf/Reasonf (C6).
+//     chaining. Done/Warn/Task/Group/Reason/Phase/Skip are printf-variadic themselves
+//     (fmt.Sprintf semantics when args follow); there is no separate Donef/Warnf/Taskf/
+//     Reasonf/Phasef/Skipf (C6).
 //     Output.Failf stays void rather than mirroring TaskHandle.Failf's *Failure return
 //     (release-gate round 4 finding 5): every call site uses it as a bare statement, a
 //     returned error would fail errcheck at each of them with no lint-config exception on

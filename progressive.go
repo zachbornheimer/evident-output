@@ -201,24 +201,29 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	o.writeDurableTextLocked(b.String())
 }
 
-// residualPlainLocked builds the Finish tail for the human stream: only what has
-// not already been progressive-emitted. RenderPlain(snap, ...) still renders the
-// full snapshot for a caller that wants the complete plain projection (C8: the
-// former FinalPlain cache is gone — reconstruct via RenderPlain(out.Snapshot(), ...)).
+// residualCompositionLocked is the ONE ordered sequence every human-stream
+// destination reaching Finish's tail renders: unemitted lines, unresolved
+// standalone tasks + collections (only for the destination that owns them —
+// see includeEntities), effects (Changes/Plan — never streamed
+// progressively, so every destination always renders them), the Conclusion
+// band, then an optional debug-pane failure tail. Both residualPlainLocked
+// (the plain/primary-mirror destination) and residualInteractiveFinalLocked
+// (the live terminal's WriteFinal body) call this one function and differ
+// only in includeEntities and their own write-target formatting (the
+// terminal trims its trailing newline; the mirror does not) — a section
+// added here reaches both destinations mechanically, closing release-gate
+// round 6 finding 1 (the third parity gap between the two paths: misuse
+// lines, then the debug tail, and now writeEffects — residualInteractiveFinalLocked
+// used to hand-duplicate this sequence and silently drop the effects
+// section, so a TTY dry-run's Plan/Changes ledger never reached the screen).
 //
-// Interactive mode: tasks/collections are owned by WriteFinal (H.17 compact line);
-// residual dual-write must not reprint them onto primary (same stream as Terminal).
-// The Conclusion band is written here regardless of mode — Output.Finish only
-// forwards this text to primary, a caller-configured stream distinct from the
-// interactive terminal (Terminal owns the live region; primary is its own
-// destination, e.g. a log capture) — and separately to the live terminal via
-// residualInteractiveFinalLocked, so each destination gets its own copy of the
-// same Conclusion model exactly once.
-//
-// Plain order contract (P2): progressive Item/Task rows and Printf lines interleave
-// by completion/call time. Residual only appends entities that never streamed
-// (still-pending-until-Finish, collections, effects, conclusion).
-func (o *Output) residualPlainLocked(snap Snapshot) string {
+// includeEntities is true for the one destination that owns rendering
+// unresolved tasks/collections at this Finish: the interactive live
+// terminal always does (H.17 compact line); the plain/primary mirror does
+// only when there is no live interactive terminal to own them instead —
+// dual-stream skips them here to avoid a second render of the same rows on
+// two destinations.
+func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, includeEntities bool) string {
 	cfg := o.cfg
 	color := !cfg.noColor
 	verbose := cfg.verbosity >= VerbosityVerbose
@@ -227,27 +232,22 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	if width <= 0 {
 		width = defaultWidth
 	}
-	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !cfg.plain
 	var b strings.Builder
 
-	for i := o.linesEmitted; i < len(snap.Lines); i++ {
+	for i := linesFrom; i < len(snap.Lines); i++ {
 		writeDebugOrLine(&b, snap.Lines[i], color)
 	}
-	o.linesEmitted = len(snap.Lines)
 
-	if !interactive {
+	if includeEntities {
 		for _, t := range o.tasks {
-			if t.collection != nil {
-				continue
-			}
-			if t.coreEmitted {
+			if t.collection != nil || t.coreEmitted {
 				continue
 			}
 			writeTask(&b, t.snapshot(), color, verbose, profile)
 			t.coreEmitted = true
 		}
-		for _, col := range o.collections {
-			writeCollection(&b, col.snapshot(), color, verbose, profile)
+		for _, col := range snap.Collections {
+			writeCollection(&b, col, color, verbose, profile)
 		}
 	}
 	for _, ch := range o.changes {
@@ -259,7 +259,9 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	if snap.Conclusion != nil && !shouldSuppressStandaloneConclusion(snap) {
 		writeConclusion(&b, *snap.Conclusion, color, profile)
 	}
-	// Pane mode: optional diagnostic tail under final result (§21.3.2).
+	// Pane mode: optional diagnostic tail under final result (§21.3.2) — the
+	// default preserveOnBad path only ever fires when debugPaneActive is
+	// true, which only happens for a live rolling pane (interactive).
 	if snap.Conclusion != nil && o.shouldPreserveDebugTailLocked(*snap.Conclusion) {
 		max := o.cfg.debugPane.height
 		if max <= 0 {
@@ -270,58 +272,50 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	return b.String()
 }
 
-// residualInteractiveFinalLocked is the WriteFinal body for interactive mode:
-// any Print lines that never streamed progressively (see linesFrom), then
-// standalone tasks + collections, then the same Conclusion band the plain
-// path renders (writeConclusion — the only source of the derived "already
-// mutated" row, heart-contract principle 4: abnormal ends state what already
-// mutated), then an optional debug-pane failure tail. One model, one
-// conclusion, both surfaces. Never re-dumps already-streamed durable evidence
-// (that was the double-print bug) — a never-ran standalone task (o.tasks, not
-// snap.Tasks: coreEmitted lives on the internal state) already streamed via
-// flushGateNowLocked/emitTaskRunningProgressiveLocked and is skipped here.
+// residualPlainLocked builds the Finish tail for the plain/primary-mirror
+// human stream: only what has not already been progressive-emitted.
+// RenderPlain(snap, ...) still renders the full snapshot for a caller that
+// wants the complete plain projection (C8: the former FinalPlain cache is
+// gone — reconstruct via RenderPlain(out.Snapshot(), ...)).
+//
+// Interactive mode: tasks/collections are owned by WriteFinal (H.17 compact
+// line); this destination's own copy must not reprint them onto primary
+// (same stream as Terminal) — includeEntities is false whenever a live
+// interactive terminal owns them instead. See residualCompositionLocked for
+// the shared ordered sequence both destinations render.
+//
+// Plain order contract (P2): progressive Item/Task rows and Printf lines
+// interleave by completion/call time. Residual only appends entities that
+// never streamed (still-pending-until-Finish, collections, effects,
+// conclusion).
+func (o *Output) residualPlainLocked(snap Snapshot) string {
+	linesFrom := o.linesEmitted
+	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
+	text := o.residualCompositionLocked(snap, linesFrom, !interactive)
+	o.linesEmitted = len(snap.Lines)
+	return text
+}
+
+// residualInteractiveFinalLocked is the WriteFinal body for interactive
+// mode: it always owns rendering unresolved tasks/collections (includeEntities
+// true), then the same effects/Conclusion/debug-tail sections
+// residualCompositionLocked shares with residualPlainLocked — one model, one
+// conclusion, both surfaces. Never re-dumps already-streamed durable
+// evidence (that was the double-print bug) — a never-ran standalone task
+// (o.tasks, not snap.Tasks: coreEmitted lives on the internal state) already
+// streamed via flushGateNowLocked/emitTaskRunningProgressiveLocked and is
+// skipped by residualCompositionLocked's own coreEmitted check.
 //
 // linesFrom is the index into snap.Lines this call owns — captured by Finish
 // before residualPlainLocked drains the same shared o.linesEmitted counter
 // for its own copy, so the live terminal and any primary/AlsoWrite mirror
 // each independently render the unemitted tail exactly once (release-gate
-// round 5 finding 1: appendMisuseLineLocked appends the misuse hint directly
-// to o.lines at Finish time, after every ordinary line already streamed —
-// without this, that hint reached a primary/AlsoWrite mirror but never the
-// live terminal a TTY user is actually watching).
+// round 5 finding 1). The trailing-newline trim is this destination's own
+// write-target formatting (the terminal driver owns its own line discipline;
+// the plain/primary mirror does not trim).
 func (o *Output) residualInteractiveFinalLocked(snap Snapshot, linesFrom int) string {
-	color := !o.cfg.noColor
-	verbose := o.cfg.verbosity >= VerbosityVerbose
-	profile := o.cfg.glyphs
-	var b strings.Builder
-	for i := linesFrom; i < len(snap.Lines); i++ {
-		writeDebugOrLine(&b, snap.Lines[i], color)
-	}
-	for _, t := range o.tasks {
-		if t.collection != nil || t.coreEmitted {
-			continue
-		}
-		writeTask(&b, t.snapshot(), color, verbose, profile)
-	}
-	for _, col := range snap.Collections {
-		writeCollection(&b, col, color, verbose, profile)
-	}
-	if snap.Conclusion != nil && !shouldSuppressStandaloneConclusion(snap) {
-		writeConclusion(&b, *snap.Conclusion, color, profile)
-	}
-	// Pane mode: optional diagnostic tail under final result (§21.3.2) — the
-	// default preserveOnBad path only ever fires when debugPaneActive is
-	// true, which only happens for a live rolling pane (interactive), so
-	// residualPlainLocked's copy of this call can never reach the live
-	// terminal on its own (release-gate round 5 finding 2).
-	if snap.Conclusion != nil && o.shouldPreserveDebugTailLocked(*snap.Conclusion) {
-		max := o.cfg.debugPane.height
-		if max <= 0 {
-			max = defaultDebugPaneHeight
-		}
-		writeDebugTail(&b, o.debugRecords, max, color)
-	}
-	return strings.TrimRight(b.String(), "\n")
+	text := o.residualCompositionLocked(snap, linesFrom, true)
+	return strings.TrimRight(text, "\n")
 }
 
 // writeDebugOrLine formats a stored line; dim history/pane debug grammar when color is on.

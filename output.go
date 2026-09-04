@@ -366,7 +366,8 @@ func hasRecordedTaxonomy(t *taskState) bool {
 // human stream gets told what to do next.
 func (o *Output) appendMisuseLineLocked() {
 	hint := misuseHintFor(o.misuse, o.misuseSubject, o.misuseRejectedSummary)
-	o.lines = append(o.lines, fmt.Sprintf("%s  %s", misuseGlyph, hint))
+	glyph := styleGlyph(misuseGlyph, sgrYellow, !o.cfg.noColor)
+	o.lines = append(o.lines, fmt.Sprintf("%s  %s", glyph, hint))
 }
 
 // recordMisuseFor is recordMisuse with the offending entity's name attached,

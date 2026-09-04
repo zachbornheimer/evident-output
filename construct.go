@@ -92,6 +92,12 @@ type DebugConfig struct {
 	NewestFirst *bool
 	// PreserveAlways forces a diagnostic tail on every Finish in pane mode.
 	PreserveAlways bool
+	// AddSource resolves each record's call site to a source=file.go:line
+	// field on human/pane/history rendering (slog.HandlerOptions.AddSource
+	// semantics). Off by default: the raw program counter is always kept on
+	// LogRecord.PC for machine consumers, but a human debug line never shows
+	// a bare pc=<uintptr> unless this is set.
+	AddSource bool
 }
 
 // Config is the sole application-facing construction surface.
@@ -396,6 +402,9 @@ func configToOptions(c Config) []Option {
 	opts = append(opts, VisibilityDelay(visDelay), MaxFrameRate(c.MaxFrameRate))
 	opts = append(opts, MaxEntities(c.MaxEntities), MaxEvents(c.MaxEvents))
 	opts = append(opts, DebugLevel(c.Debug.Level))
+	if c.Debug.AddSource {
+		opts = append(opts, DebugAddSource())
+	}
 	if c.Debug.View == DebugPresentationPane {
 		var paneOpts []DebugPaneOption
 		if c.Debug.PaneHeight > 0 {

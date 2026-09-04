@@ -105,7 +105,12 @@ const (
 	problemDetailIndent = "      "
 )
 
-func writeProblem(b *strings.Builder, p Problem, color bool, profile GlyphProfile) {
+// writeProblem renders one problem row. emphasize is true for a Failed/Blocked
+// task's evidence (release-gate round 6 finding 5): the ├─/│/evidence-glyph
+// connectors stay dim either way — they are decoration — but the evidence
+// text itself renders at full intensity so a failure's proof is never the
+// lowest-contrast text on screen.
+func writeProblem(b *strings.Builder, p Problem, color, emphasize bool, profile GlyphProfile) {
 	detail, tail := effectiveDetailAndTail(p)
 	if p.Subject != "" {
 		extra := p.Summary
@@ -114,10 +119,10 @@ func writeProblem(b *strings.Builder, p Problem, color bool, profile GlyphProfil
 		}
 		fmt.Fprintf(b, "%s%s %s  %s\n", problemTreeIndent, dim("├─", color), p.Subject, extra)
 		if detail != "" {
-			writeProblemDetailLines(b, detail, dim("│", color), color)
+			writeProblemDetailLines(b, detail, dim("│", color), color, emphasize)
 		}
 		if tail != "" {
-			writeProblemDetailLines(b, tail, dim("│", color), color)
+			writeProblemDetailLines(b, tail, dim("│", color), color, emphasize)
 		}
 		return
 	}
@@ -125,13 +130,23 @@ func writeProblem(b *strings.Builder, p Problem, color bool, profile GlyphProfil
 	// when the caller left it set — writeTask clears Summary when it already
 	// appears on the ✗ row so Detail alone is the evidence body (P4).
 	if detail != "" {
-		writeProblemDetailBlock(b, p.Summary, detail, color, profile)
+		writeProblemDetailBlock(b, p.Summary, detail, color, emphasize, profile)
 		if tail != "" {
-			writeAdditionalEvidenceLines(b, tail, color)
+			writeAdditionalEvidenceLines(b, tail, color, emphasize)
 		}
 		return
 	}
-	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, dim(glyphEvidence.render(profile), color), p.Summary)
+	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, dim(glyphEvidence.render(profile), color), emphasizedText(p.Summary, color, emphasize))
+}
+
+// emphasizedText applies dim unless emphasize opts the text out of demotion —
+// the single place that decides "is this text decoration or evidence" for
+// the problem-rendering chain.
+func emphasizedText(s string, color, emphasize bool) string {
+	if emphasize {
+		return s
+	}
+	return dim(s, color)
 }
 
 // effectiveDetailAndTail resolves a Problem's Detail and EvidenceTail into
@@ -158,9 +173,9 @@ func effectiveDetailAndTail(p Problem) (detail, tail string) {
 // under a just-written Detail block, matching writeProblemDetailBlock's own
 // continuation indent so the tail reads as more evidence for the same
 // problem rather than a new one.
-func writeAdditionalEvidenceLines(b *strings.Builder, tail string, color bool) {
+func writeAdditionalEvidenceLines(b *strings.Builder, tail string, color, emphasize bool) {
 	for _, line := range splitPresentationLines(tail) {
-		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, dim(line, color))
+		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, emphasizedText(line, color, emphasize))
 	}
 }
 
@@ -168,29 +183,29 @@ func writeAdditionalEvidenceLines(b *strings.Builder, tail string, color bool) {
 // the evidence connector. When summary is non-empty it opens the block;
 // continuations (and all detail lines when summary is empty) are indented
 // under it.
-func writeProblemDetailBlock(b *strings.Builder, summary, detail string, color bool, profile GlyphProfile) {
+func writeProblemDetailBlock(b *strings.Builder, summary, detail string, color, emphasize bool, profile GlyphProfile) {
 	lines := splitPresentationLines(detail)
 	evidence := dim(glyphEvidence.render(profile), color)
 	if summary != "" {
-		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, evidence, summary)
+		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, evidence, emphasizedText(summary, color, emphasize))
 		for _, line := range lines {
-			fmt.Fprintf(b, "%s%s\n", problemDetailIndent, dim(line, color))
+			fmt.Fprintf(b, "%s%s\n", problemDetailIndent, emphasizedText(line, color, emphasize))
 		}
 		return
 	}
 	if len(lines) == 0 {
 		return
 	}
-	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, evidence, dim(lines[0], color))
+	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, evidence, emphasizedText(lines[0], color, emphasize))
 	for _, line := range lines[1:] {
-		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, dim(line, color))
+		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, emphasizedText(line, color, emphasize))
 	}
 }
 
 // writeProblemDetailLines continues Detail under a subject (├─) row with │ prefixes.
-func writeProblemDetailLines(b *strings.Builder, detail, pipe string, color bool) {
+func writeProblemDetailLines(b *strings.Builder, detail, pipe string, color, emphasize bool) {
 	for _, line := range splitPresentationLines(detail) {
-		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, pipe, dim(line, color))
+		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, pipe, emphasizedText(line, color, emphasize))
 	}
 }
 
@@ -232,6 +247,12 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 		runningDetail = runningTaskDetail(t)
 	}
 	switch {
+	case t.Summary != "" && (t.State == Failed || t.State == Blocked):
+		// release-gate round 6 finding 5: a Fail/Block summary is the evidence
+		// the reader most needs — it must never render at the lowest contrast
+		// on screen. Full intensity here; dim stays for genuinely subordinate
+		// outcomes (Done/Skip/Cancel summaries) below.
+		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Summary)
 	case t.Summary != "":
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, dim(t.Summary, color))
 	case runningDetail != "":
@@ -245,6 +266,8 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 	}
 	// Problems (including Detail from Capture tails) always follow the row.
 	// Early-return on Summary used to drop Fail Detail — a silent dialect hole.
+	// emphasize keeps a Fail/Block task's evidence at full intensity (finding 5).
+	emphasize := t.State == Failed || t.State == Blocked
 	problems := t.Problems
 	omitted := 0
 	if len(problems) > maxVisibleProblems {
@@ -263,14 +286,14 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 		if (p.Detail != "" || p.EvidenceTail != "") && p.Summary != "" && p.Summary == t.Summary {
 			p.Summary = ""
 		}
-		writeProblem(b, p, color, profile)
+		writeProblem(b, p, color, emphasize, profile)
 	}
 	if omitted > 0 {
 		writeProblem(b, Problem{
 			Summary: fmt.Sprintf("and %d more failures", omitted),
 			Count:   int64(omitted),
 			Unit:    "failures",
-		}, color, profile)
+		}, color, emphasize, profile)
 	}
 	writeTaxonomy(b, "", "skipped", t.Skipped, verbose, color, profile)
 	writeTaxonomy(b, "", "kept", t.Kept, verbose, color, profile)
@@ -408,6 +431,9 @@ func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose boo
 		fmt.Fprintf(b, "  %s", headerSummary)
 	}
 	b.WriteByte('\n')
+	// emphasize keeps a Fail/Block child's evidence at full intensity, the
+	// same contrast rule writeTask applies to a standalone task (finding 5).
+	emphasize := t.State == Failed || t.State == Blocked
 	problems := t.Problems
 	omitted := 0
 	if len(problems) > maxVisibleProblems {
@@ -425,14 +451,14 @@ func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose boo
 		if (p.Detail != "" || p.EvidenceTail != "") && p.Summary != "" && p.Summary == headerSummary {
 			p.Summary = ""
 		}
-		writeProblem(b, p, color, profile)
+		writeProblem(b, p, color, emphasize, profile)
 	}
 	if omitted > 0 {
 		writeProblem(b, Problem{
 			Summary: fmt.Sprintf("and %d more failures", omitted),
 			Count:   int64(omitted),
 			Unit:    "failures",
-		}, color, profile)
+		}, color, emphasize, profile)
 	}
 	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, verbose, color, profile)
 	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, verbose, color, profile)
