@@ -271,6 +271,12 @@ Deleted/Pushed/Record` and `Plan.Add/Update/Remove/Delete/Push/Record`.
   is already set, so it never re-enters `Evidence.detailText` (which, for a
   pending/unterminated-line tail, calls back into the owning `Output`'s
   redactor lock) while already holding that same lock.
+- The ledger's render-time pluralizer (`evo.Pluralize`) no longer blindly
+  appends "s" to a glob/path/symbol object: only an object that reads as
+  ordinary English words (letters and spaces) is pluralized, so `Delete(2,
+"stale origin/*")` renders `"stale origin/*"` instead of the mangled
+  `"stale origin/*s"`. The irregulars table (`package in .venv`, etc.) is
+  unaffected — it is checked first.
 
 ### Fixed (gate-1 review wave)
 

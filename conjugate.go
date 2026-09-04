@@ -1,6 +1,9 @@
 package evo
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 // irregularPastTense holds imperative-verb -> past-tense spellings that the
 // default +d/+ed rule gets wrong. Extend this table, not call sites, when a
@@ -49,12 +52,20 @@ var irregularPlural = map[string]string{
 // mutation call site stops writing its own singular/plural noun() switch:
 //
 //	worktrees.Remove(n, evo.Pluralize(n, "worktree")) // "1 worktree" / "2 worktrees"
+//
+// A glob/path/symbol object ("stale origin/*", "*.tmp") renders unchanged at
+// any quantity — see isPluralizableWord — instead of blindly gaining a
+// trailing "s" ("stale origin/*s") that the +s/+es/+ies rule was never
+// designed to produce.
 func Pluralize(quantity int64, singular string) string {
 	if quantity == 1 || singular == "" {
 		return singular
 	}
 	if plural, ok := irregularPlural[singular]; ok {
 		return plural
+	}
+	if !isPluralizableWord(singular) {
+		return singular
 	}
 	switch {
 	case strings.HasSuffix(singular, "y") && !endsInVowelPlusY(singular):
@@ -65,6 +76,21 @@ func Pluralize(quantity int64, singular string) string {
 	default:
 		return singular + "s"
 	}
+}
+
+// isPluralizableWord reports whether singular reads as ordinary English
+// words (letters and spaces only) rather than a glob, path, or symbol token
+// the English +s/+es/+ies rule would mangle. "stale origin/*" and "*.tmp"
+// both fail this check (a path separator, a wildcard, a dot) and render
+// unchanged; irregularPlural entries such as "package in .venv" bypass this
+// check entirely since the irregular-table lookup runs first.
+func isPluralizableWord(s string) bool {
+	for _, r := range s {
+		if !unicode.IsLetter(r) && r != ' ' {
+			return false
+		}
+	}
+	return true
 }
 
 func endsInVowelPlusY(s string) bool {
