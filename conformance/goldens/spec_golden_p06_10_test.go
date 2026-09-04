@@ -2,7 +2,7 @@
 // Problems 6 through 10 (see spec_golden_test.go / spec_golden_live_test.go
 // for the sibling files and shared helpers this file reuses, e.g.
 // newLiveScreenOutput).
-package evo_test
+package goldens_test
 
 import (
 	"bytes"

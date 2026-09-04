@@ -1,4 +1,4 @@
-package evo_test
+package gates_test
 
 import (
 	"os"
@@ -126,18 +126,13 @@ func isRemotePath(p string) bool {
 		strings.Contains(lower, "://")
 }
 
+// repoRoot resolves the module root from this file's location
+// (conformance/gates/), independent of the caller's working directory.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("caller")
 	}
-	return filepath.Dir(file)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+	return filepath.Dir(filepath.Dir(filepath.Dir(file)))
 }

@@ -101,7 +101,7 @@ func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 // TestConfirm_AssumeYes_SkipsPromptAndReadsNothing proves --yes never touches
 // stdin and resolves OK "assumed --yes" without reading a line.
 func TestConfirm_AssumeYes_SkipsPromptAndReadsNothing(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Stdin(&panicReader{t: t})}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Stdin(testkit.UnreadableStdin(t))}})
 
 	if ok := out.Confirm("delete origin/production-hotfix?", evo.AssumeYes(true)); !ok {
 		t.Fatal("Confirm with AssumeYes(true) = false, want true")
@@ -122,7 +122,7 @@ func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) 
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(io.Discard),
 		evo.Plain(),
-		evo.Stdin(&panicReader{t: t}),
+		evo.Stdin(testkit.UnreadableStdin(t)),
 	}})
 
 	if ok := out.Confirm("delete origin/production-hotfix?"); ok {
@@ -149,7 +149,7 @@ func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(io.Discard),
 		evo.Plain(),
-		evo.Stdin(&panicReader{t: t}),
+		evo.Stdin(testkit.UnreadableStdin(t)),
 	}})
 
 	out.Confirm("delete origin/production-hotfix?")
@@ -168,7 +168,7 @@ func TestConfirm_NonInteractive_PolicyHint_OverridesDefaultYesHint(t *testing.T)
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
 		evo.To(io.Discard),
 		evo.Plain(),
-		evo.Stdin(&panicReader{t: t}),
+		evo.Stdin(testkit.UnreadableStdin(t)),
 	}})
 
 	out.Confirm("clean the repo?", evo.PolicyHint("zq", "clean-repo", "--apply"))
@@ -253,14 +253,4 @@ func TestConfirm_Blocked_RendersBlockedGlyph(t *testing.T) {
 	if strings.Contains(rendered, "✗") {
 		t.Fatalf("rendered output used ✗ (Failed) glyph for a decline:\n%s", rendered)
 	}
-}
-
-// panicReader fails the test if Confirm ever reads from it — used to prove a
-// code path (AssumeYes, non-interactive policy block) never touches stdin.
-type panicReader struct{ t *testing.T }
-
-func (r *panicReader) Read(_ []byte) (int, error) {
-	r.t.Helper()
-	r.t.Fatal("Confirm read from stdin when it should not have")
-	return 0, io.EOF
 }

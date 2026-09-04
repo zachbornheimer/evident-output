@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project has not reached 1.0 — pre-1.0 API breaks are called out explicitly
 below rather than deferred to a major version.
 
+## [0.3.2] — README rewrite, repo-structure cleanup
+
+### Changed
+
+- README rewritten quickstart-first (~100 lines): what/why, install, a
+  runnable quickstart, a verbatim rendered sample, the exit-code table, and
+  the entity-choice table. The prior wall of one-line reference paragraphs
+  moved to `docs/reference.md`; `mise`/examples/CLI/machine-output/ANSI-driver/
+  testkit walkthroughs moved to `docs/development.md`; the MCP server section
+  moved to `docs/mcp.md`.
+- External spec-golden and release-gate test files moved out of the module
+  root into `conformance/goldens/` and `conformance/gates/` as their own test
+  packages — the root directory now shows the library's shape instead of
+  ~180 flat `.go` files. `version_drift_test.go` and the doctor-gated
+  `PublishedRelease`/`VersionDrift` tests stay in root; internal (`package
+evo`) tests are untouched. `conformance/TRACEABILITY.md` and
+  `docs/architecture/COMPLETENESS_MATRIX.md` paths updated to match.
+- Extracted a shared `testkit.UnreadableStdin` helper (previously a private
+  `panicReader` duplicated across a root test file and a moved golden test)
+  so both sides of the boundary use one implementation.
+
+No API, rendering, or wire-format changes; no behavior changes; test-list
+parity verified (835 test names, before and after the move).
+
 ## [0.3.1] — universal live heartbeat
 
 ### Fixed

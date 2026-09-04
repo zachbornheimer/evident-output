@@ -1,4 +1,4 @@
-package evo_test
+package gates_test
 
 import (
 	"bytes"

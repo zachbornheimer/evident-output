@@ -1,4 +1,4 @@
-package evo_test
+package goldens_test
 
 import (
 	"bytes"

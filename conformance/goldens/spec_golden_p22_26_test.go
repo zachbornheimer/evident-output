@@ -1,6 +1,6 @@
 //go:build unix
 
-package evo_test
+package goldens_test
 
 import (
 	"bytes"
@@ -206,7 +206,7 @@ func TestSpecP22_ConfirmGate_Failure(t *testing.T) {
 func TestSpecP22_ConfirmGate_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain(), evo.Stdin(&panicReader{t: t})}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain(), evo.Stdin(testkit.UnreadableStdin(t))}})
 
 	if ok := out.Confirm("confirm remote delete"); ok {
 		t.Fatal("Confirm on non-interactive without --yes = true, want false")
