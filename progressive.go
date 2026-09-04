@@ -290,19 +290,32 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 }
 
 // residualInteractiveFinalLocked is the WriteFinal body for interactive mode:
+// any Print lines that never streamed progressively (see linesFrom), then
 // standalone tasks + collections, then the same Conclusion band the plain
 // path renders (writeConclusion — the only source of the derived "already
 // mutated" row, heart-contract principle 4: abnormal ends state what already
-// mutated). One model, one conclusion, both surfaces. Never re-dumps
-// already-streamed durable evidence (that was the double-print bug) — a
-// never-ran standalone task (o.tasks, not snap.Tasks: coreEmitted lives on
-// the internal state) already streamed via emitTaskProgressiveLocked and is
-// skipped here.
-func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
+// mutated), then an optional debug-pane failure tail. One model, one
+// conclusion, both surfaces. Never re-dumps already-streamed durable evidence
+// (that was the double-print bug) — a never-ran standalone task (o.tasks, not
+// snap.Tasks: coreEmitted lives on the internal state) already streamed via
+// flushGateNowLocked/emitTaskRunningProgressiveLocked and is skipped here.
+//
+// linesFrom is the index into snap.Lines this call owns — captured by Finish
+// before residualPlainLocked drains the same shared o.linesEmitted counter
+// for its own copy, so the live terminal and any primary/AlsoWrite mirror
+// each independently render the unemitted tail exactly once (release-gate
+// round 5 finding 1: appendMisuseLineLocked appends the misuse hint directly
+// to o.lines at Finish time, after every ordinary line already streamed —
+// without this, that hint reached a primary/AlsoWrite mirror but never the
+// live terminal a TTY user is actually watching).
+func (o *Output) residualInteractiveFinalLocked(snap Snapshot, linesFrom int) string {
 	color := !o.cfg.noColor
 	verbose := o.cfg.verbosity >= VerbosityVerbose
 	profile := o.cfg.glyphs
 	var b strings.Builder
+	for i := linesFrom; i < len(snap.Lines); i++ {
+		writeDebugOrLine(&b, snap.Lines[i], color)
+	}
 	for _, t := range o.tasks {
 		if t.collection != nil || t.coreEmitted {
 			continue
@@ -314,6 +327,18 @@ func (o *Output) residualInteractiveFinalLocked(snap Snapshot) string {
 	}
 	if snap.Conclusion != nil && !shouldSuppressStandaloneConclusion(snap) {
 		writeConclusion(&b, *snap.Conclusion, color, profile)
+	}
+	// Pane mode: optional diagnostic tail under final result (§21.3.2) — the
+	// default preserveOnBad path only ever fires when debugPaneActive is
+	// true, which only happens for a live rolling pane (interactive), so
+	// residualPlainLocked's copy of this call can never reach the live
+	// terminal on its own (release-gate round 5 finding 2).
+	if snap.Conclusion != nil && o.shouldPreserveDebugTailLocked(*snap.Conclusion) {
+		max := o.cfg.debugPane.height
+		if max <= 0 {
+			max = defaultDebugPaneHeight
+		}
+		writeDebugTail(&b, o.debugRecords, max, color)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

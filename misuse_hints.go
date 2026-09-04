@@ -18,11 +18,17 @@ const misuseGlyph = "!"
 // gets an honest, specific hint — no raw "evo: ..." sentinel text reaches the
 // human stream (release-gate round 4 finding 2). subject is the offending
 // entity's name when recordMisuseFor attached one (currently only
-// ErrAlreadyResolved), empty otherwise.
-func misuseHintFor(err error, subject string) string {
+// ErrAlreadyResolved), empty otherwise. rejectedSummary is the text a second
+// terminal verb tried to attach to an already-resolved task, when it carried
+// one (release-gate round 5 finding 4) — empty for every other sentinel.
+func misuseHintFor(err error, subject, rejectedSummary string) string {
 	switch {
 	case errors.Is(err, ErrAlreadyResolved):
-		return fmt.Sprintf("resolve each task once; %s was already resolved", subject)
+		hint := fmt.Sprintf("resolve each task once; %s was already resolved", subject)
+		if rejectedSummary != "" {
+			hint += fmt.Sprintf("; second outcome ignored: %s", rejectedSummary)
+		}
+		return hint
 	case errors.Is(err, ErrClosed):
 		return "the run is already closed; calls after Finish/Close have no effect"
 	case errors.Is(err, ErrInvalidProgress):

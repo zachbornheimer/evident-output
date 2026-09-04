@@ -32,8 +32,16 @@ type Output struct {
 	// is about to change the exit code, so a caller never sees an exit code
 	// contradict what the printed band showed (beginner-1).
 	misuseSubject string
-	conclusion    *Conclusion
-	live          *liveEngine
+	// misuseRejectedSummary is the summary text a second terminal verb
+	// (Done/Fail/Block/Warn/Cancel/Skip) tried to attach to an
+	// already-resolved task, captured on the first recorded misuse only —
+	// the same "first ever recorded" scope as misuseSubject. Empty when the
+	// rejected call carried no summary, or the first misuse wasn't this kind
+	// (release-gate round 5 finding 4: the band's severity otherwise has no
+	// visible cause beyond "was already resolved").
+	misuseRejectedSummary string
+	conclusion            *Conclusion
+	live                  *liveEngine
 
 	tasks       []*taskState
 	collections []*tasksState
@@ -354,7 +362,8 @@ func hasRecordedTaxonomy(t *taskState) bool {
 // (release-gate round 4 finding 2): machine detail stays in JSON/debug, the
 // human stream gets told what to do next.
 func (o *Output) appendMisuseLineLocked() {
-	o.lines = append(o.lines, fmt.Sprintf("%s  %s", misuseGlyph, misuseHintFor(o.misuse, o.misuseSubject)))
+	hint := misuseHintFor(o.misuse, o.misuseSubject, o.misuseRejectedSummary)
+	o.lines = append(o.lines, fmt.Sprintf("%s  %s", misuseGlyph, hint))
 }
 
 // recordMisuseFor is recordMisuse with the offending entity's name attached,
@@ -369,6 +378,18 @@ func (o *Output) recordMisuseFor(subject string, err error) {
 		o.misuseSubject = subject
 	}
 	o.recordMisuse(err)
+}
+
+// recordAlreadyResolvedLocked records ErrAlreadyResolved for a second
+// terminal verb (Done/Fail/Block/Warn/Cancel/Skip) on task name, retaining
+// the rejected call's own summary text — when it carried one — so the
+// misuse line can show what got dropped instead of only naming the task
+// (release-gate round 5 finding 4).
+func (o *Output) recordAlreadyResolvedLocked(name, rejectedSummary string) {
+	if o.misuse == nil {
+		o.misuseRejectedSummary = rejectedSummary
+	}
+	o.recordMisuseFor(name, ErrAlreadyResolved)
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first
@@ -1419,13 +1440,18 @@ func (o *Output) Finish() error {
 	o.finished = true
 	o.finishing = false
 
+	// Captured before residualPlainLocked drains o.linesEmitted for its own
+	// copy, so residualInteractiveFinalLocked's copy (below) sees the same
+	// unemitted tail instead of finding it already consumed (release-gate
+	// round 5 finding 1).
+	linesFrom := o.linesEmitted
 	// Human stream: only residual (terminal outcomes already streamed).
 	residual := o.residualPlainLocked(snap)
 	interactive := false
 	if live := o.liveLocked(); live != nil && live.IsInteractive() && !cfg.plain {
 		interactive = true
 		// Interactive final: conclusion + any unemitted entities (not a second full dump).
-		o.finishLiveLocked(o.residualInteractiveFinalLocked(snap))
+		o.finishLiveLocked(o.residualInteractiveFinalLocked(snap, linesFrom))
 	}
 	o.mu.Unlock()
 

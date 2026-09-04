@@ -409,7 +409,7 @@ func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []
 		return t
 	}
 	if isTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		t.out.recordAlreadyResolvedLocked(st.name, summary)
 		return t
 	}
 	st.state = state
