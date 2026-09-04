@@ -41,8 +41,6 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 		return "pass a string, optionally with fmt-style args, as the summary"
 	case errors.Is(err, ErrRenderer):
 		return "the configured writer failed; check the output destination"
-	case errors.Is(err, ErrFinishing):
-		return "no further calls once Finish has started; call them before Finish"
 	case errors.Is(err, ErrLimitExceeded):
 		return "raise Config.MaxEntities or declare fewer tasks in this run"
 	case errors.Is(err, ErrReasonSkipOnly):
