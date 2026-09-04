@@ -422,6 +422,14 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   (`type CaptureOption = EvidenceOption`, etc.) — everything else on
   this list was never shipped, so it breaks cleanly. Internal field
   (`taskState.capture`, `phaseWriter.capture`) renamed to `evidence`.
+- Unified the mutation-verb vocabulary across `TaskHandle`/`Changes`/
+  `Plan` (C10): `TaskHandle.Add` and `Plan.Push` added (each previously
+  missing from one of the three); `Changes.Deleted`/`Pushed` added (the
+  past-tense counterparts `TaskHandle.Delete`/`Push` were missing).
+  `Record`/`RecordName` already covered every non-shorthand case on all
+  three (unaffected); `RecordLabel` stays `TaskHandle`-only (a
+  classification result, not a mutation verb, so it was never meant to
+  be on the shared set).
 
 ## Migration guide (v0.2.x → v0.3.0)
 

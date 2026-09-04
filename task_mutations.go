@@ -7,6 +7,14 @@ package evo
 // These methods return nothing: recording a mutation is an act, not a value
 // to chain.
 
+// Add records an addition of quantity of object; see Delete for the
+// singular-object convention and the int (not int64) quantity. Part of the
+// verb set unified across TaskHandle/Changes/Plan (C10) — Add was
+// previously Plan-only.
+func (t *TaskHandle) Add(quantity int, object string) {
+	t.Record("add", quantity, object)
+}
+
 // Delete records a deletion of quantity of object. object is always
 // singular ("branch", not "branches") — the ledger pluralizes it from
 // quantity at render time (I4), so a call site never hand-composes its own
@@ -46,7 +54,7 @@ func (t *TaskHandle) Push(quantity int, object string) {
 }
 
 // Record records an arbitrary imperative verb/quantity/object mutation.
-// Delete/Create/Update/Remove/Write/Push are named shorthands for this.
+// Add/Delete/Create/Update/Remove/Write/Push are named shorthands for this.
 func (t *TaskHandle) Record(verb string, quantity int, object string) {
 	t.out.recordMutation(t.id, verb, int64(quantity), true, object)
 }

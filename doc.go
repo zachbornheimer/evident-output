@@ -23,7 +23,7 @@
 //  2. Print / Printf / Println / Verbose — start as casually as fmt.
 //  3. evo.Task(name) for everything — a check/gate resolved directly (Done/Warn/Block/Fail/Skip,
 //     no Phase/Progress call) renders as a fact row; work with Phase/Progress or a mutation verb
-//     (Delete/Create/Update/Remove/Write/Push/Record/RecordName) shows a spinner while running —
+//     (Add/Delete/Create/Update/Remove/Write/Push/Record/RecordName) shows a spinner while running —
 //     the verb picks [planned] vs [changed] from Config.DryRun; no call site ever flips its own tense.
 //     name is a printf format whenever args follow it (evo.Task("build %s", ref)); no args
 //     leaves name untouched.

@@ -38,6 +38,13 @@ func (p *Plan) Write(object string) *Plan {
 	return p.recordNoQty("write", object)
 }
 
+// Push records a planned push of quantity of object. Part of the verb set
+// unified across TaskHandle/Changes/Plan (C10) — Push was previously
+// TaskHandle-only.
+func (p *Plan) Push(quantity int64, object string) *Plan {
+	return p.Record("push", quantity, object)
+}
+
 // RecordName records a planned verb and one named object without a quantity.
 // Quantity is for collapsed counts; RecordName is one named object.
 func (p *Plan) RecordName(verb, object string) *Plan {
