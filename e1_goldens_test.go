@@ -148,11 +148,14 @@ func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "✓  branches  kept 11 (7 protected, 4 unpushed)") {
-		t.Fatalf("want the warning inlined on the ✓ row, got:\n%s", got)
+	// E2.5 finding 3: the inline warning carries the same "! " bang the
+	// normative repo-retire dry-run fixture uses ("! kept 13 (...)") — an
+	// inline and a nested warning must signal identically, one row, one line.
+	if !strings.Contains(got, "✓  branches  ! kept 11 (7 protected, 4 unpushed)\n") {
+		t.Fatalf("want the warning inlined on the ✓ row with its \"! \" prefix, got:\n%s", got)
 	}
-	if strings.Contains(got, "!") {
-		t.Fatalf("a single short warning must not also render a nested ! line, got:\n%s", got)
+	if strings.Count(got, "!") != 1 {
+		t.Fatalf("a single short warning must inline exactly once, not also render a nested ! line, got:\n%s", got)
 	}
 }
 

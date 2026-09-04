@@ -215,11 +215,13 @@ func writeAction(b *strings.Builder, a core.Action, color bool, profile txt.Glyp
 	}
 }
 
-// warningInlineMaxLen bounds how long a Done task's one warning may be
-// before it must move off the ✓ row onto its own nested "!" line (P2): the
-// same threshold evo-rec.md's compact layout already uses — a warning that
-// would already force a Task row to wrap is not "short."
-const warningInlineMaxLen = compactLayoutMaxWidth
+// warningInlineMaxCells bounds how many display cells a Done task's one
+// warning may occupy before it must move off the ✓ row onto its own nested
+// "!" line (P2) — the same threshold evo-rec.md's compact layout already
+// uses for row width, measured in display cells (E2.5 finding 6): a plain
+// byte-length check overcounts multi-byte runes and undercounts wide ones,
+// so it agrees with the compact-layout width check only by coincidence.
+const warningInlineMaxCells = compactLayoutMaxWidth
 
 // inlineTaskWarning reports the one warning that belongs directly on t's own
 // row (P2: "one short warning inlines on the ✓ row") — only when t has
@@ -230,10 +232,20 @@ func inlineTaskWarning(t core.TaskSnapshot) (string, bool) {
 		return "", false
 	}
 	msg := t.Warnings[0].Summary
-	if len(msg) > warningInlineMaxLen {
+	if txt.Cells(msg) > warningInlineMaxCells {
 		return "", false
 	}
 	return msg, true
+}
+
+// inlineWarningText renders an inline warning with the same "! " bang the
+// nested writeNestedTaskWarnings line uses (E2.5 finding 3): the normative
+// repo-retire dry-run fixture inlines a warning as "! kept 13 (...)" — an
+// inline and a nested warning must signal identically, never a dim-only
+// inline row that drops the one glyph the fixture treats as load-bearing.
+func inlineWarningText(msg string, color bool, profile txt.GlyphProfile) string {
+	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
+	return txt.Dim(glyph+" "+msg, color)
 }
 
 // writeNestedTaskWarnings emits warnings that didn't qualify for
@@ -287,7 +299,7 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, pro
 	case t.Summary != "":
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, txt.Dim(t.Summary, color))
 	case hasInlineWarning:
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, txt.Dim(inlineWarning, color))
+		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, inlineWarningText(inlineWarning, color, profile))
 	case runningDetail != "":
 		// Default intensity, not txt.Dim: the in-flight phase/progress is the
 		// diagnostic signal while work is stalled — txt.Dim is reserved for
@@ -487,7 +499,7 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, color, verbos
 	case headerSummary != "":
 		fmt.Fprintf(b, "  %s", headerSummary)
 	case hasInlineWarning:
-		fmt.Fprintf(b, "  %s", txt.Dim(inlineWarning, color))
+		fmt.Fprintf(b, "  %s", inlineWarningText(inlineWarning, color, profile))
 		nestedWarnings = nil
 	}
 	b.WriteByte('\n')
