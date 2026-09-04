@@ -1,6 +1,15 @@
 package evo
 
 // EntityState is the lifecycle state of an item or task.
+//
+// C11 naming sweep: these members stay bare (Done, Failed, Blocked, ...)
+// rather than gaining a State* prefix to match ConclusionState below —
+// prefixing would collide outright with ConclusionState's own StateFailed/
+// StateBlocked/StateCancelled/StateWarning constants (same package, same
+// identifiers, different types is still a duplicate declaration in Go).
+// Renaming ConclusionState's constants instead would ripple into the JSON
+// wire (schema 0.3, frozen this release) and every existing golden — this
+// is the "document instead" branch the census decision allows.
 type EntityState string
 
 const (

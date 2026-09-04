@@ -359,6 +359,13 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   it is not consulted on that path (I1 already fixed the reverse
   cross-reference). `Width`/`VisibilityDelay` reviewed, no change needed
   (C14).
+- **Breaking**: `Visibility`'s zero member is renamed `VisibilityNormal`
+  (was the bare `Normal`) — consistent with its sibling
+  `VisibilityVerbose`, which the enum already used. `EntityState`'s own
+  members stay bare (documented, not renamed): a `State*` prefix would
+  collide outright with `ConclusionState`'s existing `StateFailed`/
+  `StateBlocked`/`StateCancelled`/`StateWarning` constants, and renaming
+  those instead would ripple into the JSON wire and every golden (C11).
 
 ## Migration guide (v0.2.x → v0.3.0)
 

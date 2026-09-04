@@ -10,12 +10,14 @@ import (
 )
 
 // Visibility selects whether a message is ordinary or verbose user detail.
-// Zero is Normal.
+// Zero is VisibilityNormal.
 type Visibility uint8
 
 const (
-	// Normal messages always project at VerbosityNormal.
-	Normal Visibility = iota
+	// VisibilityNormal messages always project at VerbosityNormal (C11:
+	// prefixed consistently with VisibilityVerbose — the two enum members
+	// previously disagreed on their own naming convention).
+	VisibilityNormal Visibility = iota
 	// VisibilityVerbose messages project only when Config.Verbosity is VerbosityVerbose.
 	VisibilityVerbose
 )
@@ -51,17 +53,17 @@ func (o *Output) Verbose() *Printer {
 // Print formats like fmt.Sprint and enqueues human-facing text (line-buffered).
 // Errors are recorded on the Output and returned by Finish/Main — not ignored mid-stream.
 func (o *Output) Print(args ...any) {
-	o.At(Normal).Print(args...)
+	o.At(VisibilityNormal).Print(args...)
 }
 
 // Printf formats like fmt.Sprintf and enqueues human-facing text (line-buffered).
 func (o *Output) Printf(format string, args ...any) {
-	o.At(Normal).Printf(format, args...)
+	o.At(VisibilityNormal).Printf(format, args...)
 }
 
 // Println formats like fmt.Sprintln and enqueues a complete human-facing line.
 func (o *Output) Println(args ...any) {
-	o.At(Normal).Println(args...)
+	o.At(VisibilityNormal).Println(args...)
 }
 
 // Subject prints one durable line immediately — the same one-shot semantics
@@ -92,7 +94,7 @@ func (p *Printer) Println(args ...any) {
 
 // Writer returns an io.Writer that feeds this printer's line buffer (human stream).
 func (o *Output) Writer() io.Writer {
-	return o.At(Normal).Writer()
+	return o.At(VisibilityNormal).Writer()
 }
 
 // ResultWriter returns the domain-payload stream. Presentation never writes here.
