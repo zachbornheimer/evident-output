@@ -80,17 +80,43 @@ func commandPhaseName(cmd *exec.Cmd) string {
 
 // shellScriptCommandName returns the basename of the first word of a shell
 // -c (or Windows -Command) script argument, so "sh -c 'go build ./...'"
-// reads "go", not "sh".
+// reads "go", not "sh" — but only when the script is a single simple command.
+// A compound script (newline, ;, &&, or |) has no one "first word" that
+// honestly describes the whole script — "cd /tmp && make" naming an initial
+// phase of "cd" would be a placeholder as misleading as the wrapper's own
+// basename FP-004 already guards against (release-gate round 5 finding 7).
+// commandPhaseName returns "" instead, and Run's ensurePhase defers to the
+// child's first output line.
 func shellScriptCommandName(args []string) string {
 	for i, a := range args {
 		if (a == "-c" || a == "-Command") && i+1 < len(args) {
-			fields := strings.Fields(args[i+1])
+			script := args[i+1]
+			if !isSingleSimpleCommand(script) {
+				return ""
+			}
+			fields := strings.Fields(script)
 			if len(fields) > 0 {
 				return filepath.Base(fields[0])
 			}
 		}
 	}
 	return ""
+}
+
+// compoundShellOperators are substrings that mark a shell script as more
+// than one simple command — the presence of any of these means no single
+// "first word" honestly names the whole script.
+var compoundShellOperators = []string{"\n", ";", "&&", "|"}
+
+// isSingleSimpleCommand reports whether script contains none of
+// compoundShellOperators.
+func isSingleSimpleCommand(script string) bool {
+	for _, op := range compoundShellOperators {
+		if strings.Contains(script, op) {
+			return false
+		}
+	}
+	return true
 }
 
 // ensurePhase sets phase only when the task has none yet, so Run never

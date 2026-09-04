@@ -75,6 +75,25 @@ Multi-gate: resolve every Task, then `if out.AnyBlockedSoFar() { return nil }` b
 
 `Block` ≠ Go `error`. After Block, return nil from `run` and let `Main` exit `1`.
 
+## Conclusion band → exit code
+
+The trailing `[state]` band and the process exit code always agree — never read
+one without checking the other. `· partial` is a modifier on the state, not a
+state of its own: an abandoned loop or a forgotten terminal verb on an
+otherwise clean finish adds `· partial` to whatever state the run already
+concluded, without changing its exit code.
+
+| Band                           | Exit code | Meaning                                                                                       |
+| ------------------------------ | --------- | --------------------------------------------------------------------------------------------- |
+| `[changed]`                    | `0`       | A mutation verb (`Delete`/`Create`/…) recorded outside `DryRun`                               |
+| `[planned]`                    | `0`       | A mutation verb recorded under `Config.DryRun` (would, not did)                               |
+| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation verb recorded                                         |
+| `[unchanged]`                  | `0`       | Every task resolved `Done.Unchanged`; nothing needed to change                                |
+| `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                                                    |
+| `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                                              |
+| `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                                                  |
+| any of the above + `· partial` | unchanged | The run also left an unresolved task or an abandoned loop — same exit code as the state above |
+
 ## Child processes / tool-backed gates
 
 Evidence belongs to the **entity** (a `Task`, whether it ran or was resolved as a
