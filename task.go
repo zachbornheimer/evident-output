@@ -334,6 +334,18 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 		st.summary = sanitize.Text(summary)
 	}
 	if len(problems) > 0 {
+		// Fail/Block with a non-empty evidence ring and no explicit Detail
+		// auto-attach the capture tail (beginner-2) — the evidence a caller
+		// already gathered via Evidence()/PhaseWriter() is exactly the detail
+		// a Fail/Block row needs, so DetailTail is no longer an opt-in step a
+		// caller has to remember.
+		if (state == Failed || state == Blocked) && st.capture != nil && !st.capture.Empty() {
+			for i := range problems {
+				if problems[i].Detail == "" {
+					problems[i].Detail = st.capture.detailText()
+				}
+			}
+		}
 		// storeProblems: shared CSI-safe path (identical to Item).
 		st.problems = storeProblems(problems)
 	}
