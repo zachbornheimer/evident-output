@@ -955,12 +955,23 @@ func (o *Output) projectDebugRecordLocked(rec debugRecord) {
 	o.appendEventLocked(Event{Type: "log.emitted"})
 
 	dual := o.cfg.diagnostic != nil && o.cfg.primary != nil && o.cfg.diagnostic != o.cfg.primary
-	if o.cfg.diagnostic != nil {
-		o.writeDiagnosticTextLocked(plainHistory + "\n")
-	}
 	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
 	panePresentation := o.cfg.debugPresentation == DebugPresentationPane
-	if dual {
+
+	// dualSameTerminal is true when Diagnostics is a distinct writer from
+	// primary but both resolve to the SAME physical terminal (the realistic
+	// default: Config{Stdout, Stderr} on an interactive shell, where fd 1 and
+	// fd 2 name one controlling tty). Writing raw bytes straight to
+	// Diagnostics in that case bypasses the live region's clear-live ->
+	// write-durable -> repaint sequencing and corrupts the spinner row on
+	// the one screen both writers share — route it through the same
+	// sequencing single-stream records use instead.
+	dualSameTerminal := dual && interactive && o.cfg.diagnosticSharesTerminal
+
+	if o.cfg.diagnostic != nil && !dualSameTerminal {
+		o.writeDiagnosticTextLocked(plainHistory + "\n")
+	}
+	if dual && !dualSameTerminal {
 		// The record already went to Diagnostics above; don't also duplicate
 		// it onto the live pane/durable primary. Still mark pane presentation
 		// as active so a failing Finish can preserve the diagnostics tail on

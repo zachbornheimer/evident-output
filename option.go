@@ -52,6 +52,18 @@ type config struct {
 	// the CON-009 dual-stream write, which would otherwise render the
 	// conclusion band twice on the one physical screen.
 	samePrimaryAsTerminal bool
+	// diagnosticSharesTerminal records that the Diagnostics writer resolves
+	// to the same physical terminal device as the live region's Terminal
+	// driver, even though the two are distinct io.Writer values (the
+	// realistic default: Config{Stdout, Stderr} on an interactive shell,
+	// where fd 1 and fd 2 both name the one controlling tty). Set only at
+	// construction, where the real writers are known — see construct.go's
+	// sameTerminalDevice detection. projectDebugRecordLocked uses it to
+	// route dual-stream Debug records through the same clear-live →
+	// write-durable → repaint sequencing as single-stream records, instead
+	// of writing raw bytes to Diagnostics that would otherwise land
+	// mid-spinner-row on the one screen both writers share.
+	diagnosticSharesTerminal bool
 }
 
 type optionFunc func(*config)
@@ -145,6 +157,14 @@ func Terminal(driver TerminalDriver) Option {
 // stream identity from an fd comparison.
 func withPrimarySharesTerminal() Option {
 	return optionFunc(func(c *config) { c.samePrimaryAsTerminal = true })
+}
+
+// withDiagnosticSharesTerminal marks that the Diagnostics writer resolves to
+// the same physical terminal device as the live region, even when it is a
+// distinct io.Writer from primary. Only configToOptions calls this — see
+// config.diagnosticSharesTerminal.
+func withDiagnosticSharesTerminal() Option {
+	return optionFunc(func(c *config) { c.diagnosticSharesTerminal = true })
 }
 
 // LogLevel is a diagnostic severity.

@@ -346,6 +346,9 @@ func configToOptions(c Config) []Option {
 		if terminalSharesPrimary(c.Terminal, primaryWriter) {
 			opts = append(opts, withPrimarySharesTerminal())
 		}
+		if sr, ok := c.Terminal.(sinkReporter); ok && sameTerminalDevice(sr.Sink(), c.Stderr) {
+			opts = append(opts, withDiagnosticSharesTerminal())
+		}
 	case wantLive:
 		width, height := c.Width, 24
 		if width <= 0 {
@@ -381,6 +384,15 @@ func configToOptions(c Config) []Option {
 			// primary are one physical destination, so Finish must not
 			// dual-write the conclusion band a second time.
 			opts = append(opts, withPrimarySharesTerminal())
+			// Diagnostics(c.Stderr) is a distinct io.Writer from liveWriter
+			// in the realistic default (To(Stdout), Diagnostics(Stderr)),
+			// but on an interactive shell without redirection both fds name
+			// the same controlling tty — detect that here so Debug routes
+			// through live-aware sequencing instead of a raw dual-stream
+			// write (gate-7 finding 1).
+			if sameTerminalDevice(liveWriter, c.Stderr) {
+				opts = append(opts, withDiagnosticSharesTerminal())
+			}
 		} else {
 			opts = append(opts, Plain())
 		}
