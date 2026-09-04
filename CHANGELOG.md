@@ -277,6 +277,13 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   (thinned for large totals) instead of once and then silence, and always
   streams the final `n/n`. A plain-mode Running row no longer shows a
   frozen spinner-alphabet frame — it has its own static glyph now.
+- `Task.Warn`/`Warnf` are void, matching `Fail`/`Block` — no fluent chain.
+- `Each`'s bare item-name phase no longer forces its own durable line when
+  the loop body sets its own `Phase` before the next paint — only the
+  body's phase text streams, not both.
+- `Task.Run` no longer publishes a shell wrapper's own basename ("sh") as
+  a placeholder phase; it reads the meaningful command from the wrapper's
+  `-c`/`-Command` script instead, or defers to first output.
 
 ## Migration guide (v0.2.x → v0.3.0)
 

@@ -32,6 +32,25 @@ func (t *TaskHandle) Phase(text string) *TaskHandle {
 	return t
 }
 
+// autoPhase is Each's per-item phase update — see setAutoPhaseLocked.
+func (t *TaskHandle) autoPhase(text string) {
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return
+	}
+	if isTerminalTask(st.state) {
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		return
+	}
+	t.out.setAutoPhaseLocked(st, text)
+}
+
 // setPhaseLocked is Phase's locked body, factored out so a caller already
 // holding o.mu (evo.StartPhase's declare-time phase set in taskScoped) can
 // apply it without a nested lock. Callers must have already checked
@@ -49,6 +68,28 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
 	o.signalLiveLocked(true)
 	o.emitTaskRunningProgressiveLocked(st, triggerPhase)
+}
+
+// setAutoPhaseLocked is Each's per-item phase update: the same state
+// transition as setPhaseLocked (promotion, activity clock, live redraw
+// signal), but it never forces its own durable line in plain mode
+// (beginner-10). Each's bare item name is a courtesy default, not a
+// caller-declared phase — if the loop body sets its own Phase before the
+// next paint, that call's own emission carries the current text once,
+// instead of the reader seeing the item name and the body's phase as two
+// separate redundant lines.
+func (o *Output) setAutoPhaseLocked(st *taskState, text string) {
+	st.phase = sanitize.Text(text)
+	st.activityAt = o.cfg.clock.Now()
+	if st.state == Pending {
+		o.promoteRunningLocked(st)
+		if st.progress.Kind == "" {
+			st.progress.Kind = Indeterminate
+		}
+	}
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
+	o.signalLiveLocked(true)
 }
 
 // Progress sets absolute completed/total count progress.

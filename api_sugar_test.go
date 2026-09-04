@@ -338,12 +338,30 @@ func TestAPISugar_RunSetsPhaseFromCommandName(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
+	cmd := exec.Command("/usr/bin/true")
+	if err := task.Run(cmd); err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if got := task.Snapshot().Phase; got != "true" {
+		t.Fatalf("phase = %q, want basename of argv[0] (%q)", got, "true")
+	}
+}
+
+// TestAPISugar_RunSkipsShellWrapperPhase is beginner-11: task.Run must
+// never publish a shell wrapper's own basename ("sh") as a placeholder
+// phase — it reads the meaningful command from the wrapper's -c script
+// instead (FP-004 applies to ourselves).
+func TestAPISugar_RunSkipsShellWrapperPhase(t *testing.T) {
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "true")
 	if err := task.Run(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if got := task.Snapshot().Phase; got != "sh" {
-		t.Fatalf("phase = %q, want basename of argv[0] (%q)", got, "sh")
+	if got := task.Snapshot().Phase; got != "true" {
+		t.Fatalf("phase = %q, want the shell script's own command (%q), not the wrapper", got, "true")
 	}
 }
 
