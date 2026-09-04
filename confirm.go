@@ -25,15 +25,38 @@ type confirmConfig struct {
 	assumeYes   bool
 	destructive bool
 	policyHint  Action
+	// policyFlag is PolicyFlag's flag spelling, resolved into a Command
+	// against the Output's own identity at read time (resolvedPolicyHint) —
+	// not at option-build time, since only the Output knows its Title/
+	// executable identity.
+	policyFlag string
+	// detail holds ConfirmDetail's context lines, rendered under the
+	// "?  <question>  [y/N]" prompt line.
+	detail []string
 }
 
-// resolvedPolicyHint returns the caller's PolicyHint action, or the default
-// "pass --yes" label when the caller didn't set one.
-func (c confirmConfig) resolvedPolicyHint() Action {
+// resolvedPolicyHint returns the caller's PolicyHint action, PolicyFlag
+// resolved against o's own identity, or the default "pass --yes" label when
+// the caller set neither.
+func (c confirmConfig) resolvedPolicyHint(o *Output) Action {
 	if c.policyHint != (Action{}) {
 		return c.policyHint
 	}
+	if c.policyFlag != "" {
+		return Command(o.policySourceName(), c.policyFlag)
+	}
 	return Label(confirmPolicyHint)
+}
+
+// policySourceName names the executable a PolicyFlag hint points at: the
+// caller's own Config.Title when set, else the binary's own basename (I2's
+// identityFallbackName) — the same identity a caller would otherwise have
+// to hand-compose via PolicyHint(os.Args[0], flag).
+func (o *Output) policySourceName() string {
+	if o.cfg.subject != "" {
+		return o.cfg.subject
+	}
+	return identityFallbackName()
 }
 
 // AssumeYes skips the interactive prompt when v is true (the caller's --yes
@@ -55,6 +78,24 @@ func Destructive() ConfirmOption {
 // args so the hint names the flag that actually unblocks it.
 func PolicyHint(command string, args ...string) ConfirmOption {
 	return func(c *confirmConfig) { c.policyHint = Command(command, args...) }
+}
+
+// PolicyFlag sets the non-interactive policy hint to a flag on the caller's
+// own executable (e.g. "--apply") instead of PolicyHint's explicit foreign-
+// command spelling — the common case where the flag that unblocks a
+// non-interactive run belongs to the very binary calling Confirm. The
+// executable name is resolved from the same identity Config.Title/I2's
+// executable-basename fallback uses. Reach for PolicyHint instead when the
+// hint should point at a different tool.
+func PolicyFlag(flag string) ConfirmOption {
+	return func(c *confirmConfig) { c.policyFlag = flag }
+}
+
+// ConfirmDetail attaches one or more context lines rendered under the
+// "?  <question>  [y/N]" prompt line — e.g. what will actually happen,
+// which host is affected. Repeated calls append.
+func ConfirmDetail(lines ...string) ConfirmOption {
+	return func(c *confirmConfig) { c.detail = append(c.detail, lines...) }
 }
 
 // Confirm asks a yes/no question on the default instance. See Output.Confirm.
@@ -99,7 +140,7 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 
 	if o.cfg.plain || o.cfg.nonInteractive {
 		gate.Block(confirmPolicyBlockedSummary)
-		gate.Next(cfg.resolvedPolicyHint())
+		gate.Next(cfg.resolvedPolicyHint(o))
 		o.flushGateNow(gate.id)
 		return false
 	}
@@ -144,7 +185,7 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 
 	var yes bool
 	_ = o.Suspend(func() error {
-		o.writeConfirmPromptLocked(question, cfg.destructive)
+		o.writeConfirmPromptLocked(question, cfg.destructive, cfg.detail)
 		line, cancelled, eof := o.readConfirmLine(abort)
 		if cancelled {
 			// cancelPendingConfirmLocked already resolved the gate as Cancelled.
@@ -156,7 +197,7 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 			// block, distinct from a human explicitly typing anything else —
 			// evo-rec.md "Confirm EOF = policy block, not decline".
 			gate.Block(confirmPolicyBlockedSummary)
-			gate.Next(cfg.resolvedPolicyHint())
+			gate.Next(cfg.resolvedPolicyHint(o))
 			o.flushGateNow(gate.id)
 			return nil
 		}
@@ -172,9 +213,10 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 	return yes
 }
 
-// writeConfirmPromptLocked emits the durable "?  <question>  [y/N]" line
-// above the (now-quiesced) live region.
-func (o *Output) writeConfirmPromptLocked(question string, destructive bool) {
+// writeConfirmPromptLocked emits the durable "?  <question>  [y/N]" line,
+// plus any ConfirmDetail context lines beneath it, above the (now-quiesced)
+// live region.
+func (o *Output) writeConfirmPromptLocked(question string, destructive bool, detail []string) {
 	o.mu.Lock()
 	color := !o.cfg.noColor
 	text := question
@@ -182,7 +224,15 @@ func (o *Output) writeConfirmPromptLocked(question string, destructive bool) {
 		text += "  (destructive)"
 	}
 	glyph := styleGlyph(glyphHumanInput.render(o.cfg.glyphs), sgrCyan, color)
-	o.writeDurableTextLocked(fmt.Sprintf("%s  %s  [y/N]\n", glyph, text))
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s  %s  [y/N]\n", glyph, text)
+	for _, line := range detail {
+		if line == "" {
+			continue
+		}
+		fmt.Fprintf(&b, "  %s\n", dim(line, color))
+	}
+	o.writeDurableTextLocked(b.String())
 	o.mu.Unlock()
 }
 

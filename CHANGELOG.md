@@ -300,6 +300,12 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   from the recorded quantity at render time. `evo.Pluralize` stays
   exported for prose outside the ledger. Existing goldens that passed an
   already-plural object updated to singular.
+- `evo.ConfirmDetail(lines...)`: context lines rendered under Confirm's
+  "? question [y/N]" prompt.
+- `evo.PolicyFlag(flag)`: fills the non-interactive policy hint's
+  executable from the caller's own identity (`Config.Title`, or I2's
+  executable-basename fallback) instead of the caller hand-composing
+  `PolicyHint(os.Args[0], flag)`. `PolicyHint` stays for a foreign tool.
 
 ## Migration guide (v0.2.x → v0.3.0)
 
