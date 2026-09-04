@@ -315,7 +315,7 @@ func TestSpecP6_BytesVsCounts_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  generate  8.0 MB", "✓  test  12/12  ok"} {
+	for _, want := range []string{"✓  generate  8.0 MB", "✓  test      12/12  ok"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}

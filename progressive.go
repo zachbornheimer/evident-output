@@ -82,6 +82,67 @@ func (o *Output) writeDurableTextLocked(text string) {
 	}
 }
 
+// maxRootTaskNameWidth is progressive emission's sibling-column-alignment
+// width (fixture-repo-retire-dryrun.md): every root (non-collection) task
+// the caller has declared so far, whether or not it has resolved yet. A
+// caller that declares its whole known set of sibling tasks before
+// resolving any of them (e.g. branches/worktrees/remote-tracking declared
+// upfront, then worked through one at a time) gets the same aligned column
+// a batch render would produce — declaring one, fully resolving it, then
+// declaring the next narrows the column to whatever was known at each
+// commit, which is the honest limit of "render immediately" (§17.5)
+// progressive streaming: a name declared after this row already committed
+// cannot retroactively widen it.
+func maxRootTaskNameWidth(tasks []*taskState) int {
+	width := 0
+	count := 0
+	for _, t := range tasks {
+		if t.collection != nil {
+			continue
+		}
+		count++
+		if n := len([]rune(t.name)); n > width {
+			width = n
+		}
+	}
+	if count < 2 {
+		return 0
+	}
+	return width
+}
+
+// maxChangeSubjectWidth/maxPlanSubjectWidth are residualCompositionLocked's
+// batch-time equivalent of maxRootTaskNameWidth for the Changes/Plan ledger
+// (fixture-repo-retire-dryrun.md's aligned "[planned] <name>  <verb> ..."
+// column) — Changes/Plans render only at Finish (never progressively, see
+// residualCompositionLocked's doc comment), so the full set is always known
+// here, unlike task rows above.
+func maxChangeSubjectWidth(sections []*changesState) int {
+	if len(sections) < 2 {
+		return 0
+	}
+	width := 0
+	for _, s := range sections {
+		if n := len([]rune(s.subject)); n > width {
+			width = n
+		}
+	}
+	return width
+}
+
+func maxPlanSubjectWidth(sections []*planState) int {
+	if len(sections) < 2 {
+		return 0
+	}
+	width := 0
+	for _, s := range sections {
+		if n := len([]rune(s.subject)); n > width {
+			width = n
+		}
+	}
+	return width
+}
+
 // commitResolvedTaskLocked commits a resolved standalone Task's row to
 // durable scrollback the instant it resolves — interactive or not — and
 // drops it from the live ticker (liveTickerSnapshotLocked already filters
@@ -105,7 +166,8 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 		return
 	}
 	var b strings.Builder
-	render.WriteTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
+	nameWidth := maxRootTaskNameWidth(o.tasks)
+	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
 	st.coreEmitted = true
 	if b.Len() == 0 {
 		return
@@ -242,22 +304,25 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	}
 
 	if includeEntities {
+		residualNameWidth := maxRootTaskNameWidth(o.tasks)
 		for _, t := range o.tasks {
 			if t.collection != nil || t.coreEmitted {
 				continue
 			}
-			render.WriteTask(&b, t.snapshot(), color, verbose, profile)
+			render.WriteTaskAligned(&b, t.snapshot(), residualNameWidth, color, verbose, profile)
 			t.coreEmitted = true
 		}
 		for _, col := range snap.Collections {
 			render.WriteCollection(&b, col, color, verbose, profile)
 		}
 	}
+	changeNameWidth := maxChangeSubjectWidth(o.changes)
 	for _, ch := range o.changes {
-		render.WriteEffects(&b, "changed", ch.subject, 0, ch.records, ch.intendedVerb, width, color, profile)
+		render.WriteEffects(&b, "changed", ch.subject, changeNameWidth, ch.records, ch.intendedVerb, width, color, profile)
 	}
+	planNameWidth := maxPlanSubjectWidth(o.plans)
 	for _, p := range o.plans {
-		render.WriteEffects(&b, "planned", p.subject, 0, p.records, p.intendedVerb, width, color, profile)
+		render.WriteEffects(&b, "planned", p.subject, planNameWidth, p.records, p.intendedVerb, width, color, profile)
 	}
 	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {
 		render.WriteConclusion(&b, *snap.Conclusion, color, profile)
