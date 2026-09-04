@@ -3,7 +3,7 @@
 ## Predeclare (RULE-004)
 
 ```go
-jobs := out.Tasks("placement")
+jobs := out.DisplayGroup("placement")
 type tracked struct {
     file File
     task *evo.TaskHandle
@@ -32,14 +32,14 @@ type PlaceCallbacks struct {
 
 ## Scale (RULE-005)
 
-| Workload | Model                                               |
-| -------- | --------------------------------------------------- |
-| Small    | One Task per operation                              |
-| Medium   | Aggregate Progress + optional active-transfer Tasks |
-| Huge     | Aggregate counts + bounded failure Problems         |
-| Dry-run  | Plan only                                           |
+| Workload | Model                                                      |
+| -------- | ---------------------------------------------------------- |
+| Small    | One Task per operation                                     |
+| Medium   | Aggregate Progress + optional active-transfer DisplayGroup |
+| Huge     | Aggregate counts + bounded failure Problems                |
+| Dry-run  | Plan only                                                  |
 
 ## Viewport ≠ model
 
 Renderer may cap visible rows. Semantic Task set is durable; do not create/destroy
-Tasks only for terminal height.
+tasks only for terminal height.

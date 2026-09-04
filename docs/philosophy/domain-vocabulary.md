@@ -21,7 +21,7 @@ used, not on a separate type:
 ```go
 gate := out.Task("working tree", evo.ID("repo.working-tree")) // condition: resolved directly below
 work := out.Task("download", evo.ID("install.download"))      // work: driven through Phase/Progress
-packages := out.Tasks("packages")
+packages := out.DisplayGroup("packages")
 ```
 
 (Shipped v0.2.x code spelled the condition shape `Item` — folded into `Task`
@@ -189,7 +189,7 @@ Declare Tasks in **deterministic semantic order** before starting workers.
 Workers **update** handles; they do not declare presentation order concurrently.
 
 ```go
-jobs := out.Tasks("placement")
+jobs := out.DisplayGroup("placement")
 tracked := predeclarePlacementTasks(jobs, sortedFiles)
 // then start workers that call tracked[i].Phase / .Bytes / .Done / .Fail
 ```

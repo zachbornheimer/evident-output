@@ -290,7 +290,7 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectUnboundedSliceIntoNarration(filename, src)...)
 	}
 
-	// API-030: Task/Tasks.Task declared inside a goroutine or g.Go closure
+	// API-030: Task/DisplayGroup.Task declared inside a goroutine or g.Go closure
 	// races task creation with rendering (evo-rec.md "predeclare Tasks").
 	if hasEvo {
 		findings = append(findings, detectTaskDeclaredInsideFanOut(filename, src)...)
@@ -479,7 +479,7 @@ func GoPackage(files map[string]string) Result {
 	}
 	_, err := conf.Check(pkgName, fset, parsed, info)
 	typed := err == nil || info != nil
-	// Cross-file: detect Tasks collection leaf misuse with type info when available.
+	// Cross-file: detect DisplayGroup/Sequence collection leaf misuse with type info when available.
 	for _, f := range parsed {
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
@@ -490,10 +490,10 @@ func GoPackage(files map[string]string) Result {
 			if !ok {
 				return true
 			}
-			// If receiver type name ends with Tasks (package-local), leaf Done/Fail is misuse.
+			// If receiver type name is DisplayGroup/Sequence (package-local), leaf Done/Fail is misuse.
 			if tv, ok := info.Types[sel.X]; ok && tv.Type != nil {
 				tn := tv.Type.String()
-				if strings.Contains(tn, "Tasks") && (sel.Sel.Name == "Done" || sel.Sel.Name == "Fail" || sel.Sel.Name == "Progress") {
+				if (strings.Contains(tn, "DisplayGroup") || strings.Contains(tn, "SequenceHandle")) && (sel.Sel.Name == "Done" || sel.Sel.Name == "Fail" || sel.Sel.Name == "Progress") {
 					pos := fset.Position(n.Pos())
 					all = append(all, Finding{
 						RuleID:   "API-027",
@@ -593,7 +593,7 @@ func StructuredDocument(filename string, raw []byte) Result {
 
 // isFormatMethod names the surviving *f methods (C6: Donef/Summaryf/Itemf/
 // Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf are deleted — Done/Summary/
-// Task/Tasks/Changes/Plan/Warn/Reason are printf-variadic themselves now,
+// Task/DisplayGroup/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now,
 // so there is nothing left in that family to flag). Failf/Blockf survive
 // for their distinct %w+*Failure semantics, but a call with no directive at
 // all is still the same ceremony API-028 warns about.
@@ -731,10 +731,10 @@ func isEvoExecutionReceiver(x ast.Expr) bool {
 		// Bare unknown.Map(...) — prefer miss over false positive (trust in review).
 		return false
 	case *ast.CallExpr:
-		// out.Tasks("x").Map / out.Task("x").Retry
+		// out.DisplayGroup("x").Map / out.Task("x").Retry
 		if s, ok := v.Fun.(*ast.SelectorExpr); ok {
 			switch s.Sel.Name {
-			case "Tasks", "Task", "Item", "Changes", "Plan", "For", "New", "Main", "MainWith", "Init":
+			case "DisplayGroup", "Sequence", "Task", "Item", "Changes", "Plan", "For", "New", "Main", "MainWith", "Init":
 				return true
 			}
 			return isEvoExecutionReceiver(s.X)
@@ -970,11 +970,11 @@ var firstPaintIOMarkers = []string{
 var firstPaintInitMarkers = []string{"evo.Init("}
 
 // firstPaintEntityMarkers declare the first presentation entity.
-var firstPaintEntityMarkers = []string{".Task(", ".Tasks(", ".Item(", ".Group("}
+var firstPaintEntityMarkers = []string{".Task(", ".DisplayGroup(", ".Sequence(", ".Item("}
 
 // detectFirstPaintGaps flags heavy I/O that runs ahead of evo's init call
 // (FP-001: nothing is armed yet, so nothing can paint) or between init and
-// the first declared Task/Item/Group (FP-002: armed but still blank) inside
+// the first declared Task/Item/Sequence (FP-002: armed but still blank) inside
 // main/run — the two orderings evo-rec.md "First paint" calls out by name.
 // Best-effort: scoped to main/run bodies to avoid flagging unrelated helper
 // functions that happen to call these stdlib APIs.
@@ -1005,10 +1005,10 @@ func detectFirstPaintGaps(filename, src string) []Finding {
 		findings = append(findings, Finding{
 			RuleID:     "FP-002",
 			Severity:   "warning",
-			Message:    "heavy I/O runs between evo.Init/New and the first Task/Item/Group; declare the first entity before this I/O",
+			Message:    "heavy I/O runs between evo.Init/New and the first Task/Item/Sequence; declare the first entity before this I/O",
 			File:       filename,
 			Line:       lineAt(src, offset+ioIdx),
-			Suggestion: "declare the first Task/Item/Group before " + ioMarker + "...)",
+			Suggestion: "declare the first Task/Item/Sequence before " + ioMarker + "...)",
 		})
 	}
 	return findings
@@ -1156,10 +1156,10 @@ func detectUnboundedSliceIntoNarration(filename, src string) []Finding {
 // a bare goroutine, or a closure handed to an errgroup-style .Go(func...).
 var fanOutClosureMarkers = []string{"go func(", ".Go(func("}
 
-// detectTaskDeclaredInsideFanOut flags out.Task/Tasks.Task called inside a
+// detectTaskDeclaredInsideFanOut flags out.Task/DisplayGroup.Task called inside a
 // goroutine or g.Go closure — declaring the Task there races task creation
 // with rendering and produces the unordered multi-spinner defect evo-rec.md
-// "predeclare Tasks; present one Running" forbids.
+// "predeclare children; present one Running" forbids.
 func detectTaskDeclaredInsideFanOut(filename, src string) []Finding {
 	var findings []Finding
 	for _, marker := range fanOutClosureMarkers {
@@ -1177,7 +1177,7 @@ func detectTaskDeclaredInsideFanOut(filename, src string) []Finding {
 				findings = append(findings, Finding{
 					RuleID:     "API-030",
 					Severity:   "error",
-					Message:    "Task declared inside a goroutine/fan-out closure; predeclare all Tasks before starting any goroutine",
+					Message:    "Task declared inside a goroutine/fan-out closure; predeclare all children before starting any goroutine",
 					File:       filename,
 					Line:       lineAt(src, start),
 					Suggestion: "move the .Task(...) call above the goroutine/g.Go and pass the handle into the closure",

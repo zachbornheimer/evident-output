@@ -56,7 +56,7 @@ t.Phase("walking")`,
 			Severity:  "error",
 			Invariant: "evo has no execution helpers (RunAll/Map/Retry/Parallel/Timeout)",
 			Why:       "Presentation library must not grow schedulers. Substring detection false-positives on strings.Map; review uses AST on evo receivers only.",
-			BadCode: `out.Tasks("jobs").Map(func() {})
+			BadCode: `out.DisplayGroup("jobs").Map(func() {})
 out.Task("x").Retry(3)`,
 			GoodCode: `// application owns execution
 for _, j := range jobs {
@@ -77,14 +77,14 @@ for _, j := range jobs {
 			ID:        "API-027",
 			Category:  "API",
 			Severity:  "error",
-			Invariant: "Task cannot contain children; Tasks has no leaf lifecycle",
-			Why:       "Collection state is derived from children; calling Done/Fail on Tasks invents false authority.",
-			BadCode: `g := out.Tasks("deps")
+			Invariant: "Task cannot contain children; DisplayGroup/Sequence have no leaf lifecycle",
+			Why:       "Collection state is derived from children; calling Done/Fail on DisplayGroup/Sequence invents false authority.",
+			BadCode: `g := out.DisplayGroup("deps")
 g.Done() // forbidden`,
-			GoodCode: `g := out.Tasks("deps")
+			GoodCode: `g := out.DisplayGroup("deps")
 g.Task("a").Done()
 g.Task("b").Done()`,
-			Remediation:     "Use Tasks.Task for children; never Done/Fail/Progress on the collection",
+			Remediation:     "Use DisplayGroup.Task/Sequence.Task for children; never Done/Fail/Progress on the collection",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-027", "DOM-016"},
 			Since:           "0.1.0",
@@ -149,12 +149,12 @@ task.Done()`,
 			Invariant: "Failf/Blockf require a format directive — every other *f method is deleted",
 			Why: "Failf(\"boom\") with no directive at all is ceremony; Fail(\"boom\") is the intent. " +
 				"C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf entirely — " +
-				"Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are printf-variadic themselves now, " +
+				"Done/Summary/Task/DisplayGroup/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now, " +
 				"so there is nothing left in that family to flag; Failf/Blockf survive for their %w+*Failure semantics.",
 			BadCode: `task.Failf("boom")`,
 			GoodCode: `task.Fail("boom")
 task.Failf("boom: %w", err)`,
-			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason take printf args directly",
+			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Done/Summary/Task/DisplayGroup/Sequence/Changes/Plan/Warn/Reason take printf args directly",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",
@@ -244,7 +244,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
   evo.Task("scan").Phase("reading config")
   cfg := loadConfig()
 }`,
-			Remediation:     "Call evo.Init as the first statement in main and declare the first Task/Item/Group before any I/O",
+			Remediation:     "Call evo.Init as the first statement in main and declare the first Task/Item/Sequence before any I/O",
 			RelatedGuidance: []string{"first-paint", "common-api"},
 			VerificationIDs: []string{"FP-001"},
 			Since:           "0.3.0",
@@ -255,10 +255,10 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Category:  "FP",
 			Severity:  "warning",
 			Invariant: "no I/O before the first entity is declared",
-			Why:       "Declare-before-compute is what makes FP-001 achievable; I/O ahead of the first Task/Item/Group reintroduces the blank window.",
+			Why:       "Declare-before-compute is what makes FP-001 achievable; I/O ahead of the first Task/Item/Sequence reintroduces the blank window.",
 			BadCode: `func main() {
   evo.Init(evo.Config{Title: "tool"})
-  data, _ := os.ReadFile("config.toml") // I/O before any Task/Item/Group
+  data, _ := os.ReadFile("config.toml") // I/O before any Task/Item/Sequence
   evo.Task("scan")
 }`,
 			GoodCode: `func main() {
@@ -267,7 +267,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
   scan.Phase("reading config")
   data, _ := os.ReadFile("config.toml")
 }`,
-			Remediation:     "Move the first Task/Item/Group declaration ahead of the first read/open/dial in main or run",
+			Remediation:     "Move the first Task/Item/Sequence declaration ahead of the first read/open/dial in main or run",
 			RelatedGuidance: []string{"first-paint"},
 			VerificationIDs: []string{"FP-002"},
 			Since:           "0.3.0",
@@ -536,7 +536,7 @@ task.Phase(evo.TruncateNames(reasons, 8))`,
 			ID:        "API-030",
 			Category:  "API",
 			Severity:  "error",
-			Invariant: "Task/Tasks.Task is predeclared before fan-out, never called inside the worker closure",
+			Invariant: "Task/DisplayGroup.Task is predeclared before fan-out, never called inside the worker closure",
 			Why:       "Declaring a Task inside a goroutine or g.Go closure races task creation with rendering and produces the exact unordered five-spinner defect evo-rec.md \"sequential presentation\" forbids.",
 			BadCode: `for _, j := range jobs {
   go func(j Job) {
@@ -551,7 +551,7 @@ for i, j := range jobs {
 for i, j := range jobs {
   go func(i int, j Job) { tasks[i].Done() }(i, j)
 }`,
-			Remediation:     "Call out.Task/Tasks.Task for every child before starting any goroutine; pass the handle in",
+			Remediation:     "Call out.Task/DisplayGroup.Task for every child before starting any goroutine; pass the handle in",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-030"},
 			Since:           "0.7.0",

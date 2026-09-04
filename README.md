@@ -89,10 +89,11 @@ the state, not a state of their own.
 
 ## Pick the entity
 
-| Shape     | Use when                                                                                                                                                                                                    |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**  | Everything — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skip`, no `Phase`/`Progress`) renders as a fact row; work with phases, progress, or mutation verbs shows a spinner while running |
-| **Tasks** | Collection of independent tasks (state is **derived**)                                                                                                                                                      |
+| Shape            | Use when                                                                                                                                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**         | Everything — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skip`, no `Phase`/`Progress`) renders as a fact row; work with phases, progress, or mutation verbs shows a spinner while running |
+| **DisplayGroup** | Presentation-only collection of independent tasks (state is **derived**); concurrent Running children expected                                                                                              |
+| **Sequence**     | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest recursively via `.Sequence`/`.DisplayGroup`                                        |
 
 ## Learn more
 

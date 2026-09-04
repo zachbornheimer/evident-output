@@ -27,7 +27,7 @@ func All() []Guide {
 			ID:       "common-api",
 			Title:    "Common API path",
 			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
-			Concepts: []string{"Output", "Task", "Conclusion", "Main", "TaskHandle", "GroupHandle"},
+			Concepts: []string{"Output", "Task", "Conclusion", "Main", "TaskHandle", "Sequence", "DisplayGroup"},
 			Rules: []string{
 				"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002",
 				"API-034", "API-035", "API-036", "API-037", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
@@ -45,8 +45,10 @@ func All() []Guide {
   5) evo.Confirm(question, ...) — owns the whole gate (prompt, quiesce, ⊘/OK resolution, exit code).
 
 Types: TaskHandle (work with Phase/Progress/mutations/taxonomy, or a fact-check gate resolved directly with no
-Phase/Progress call), GroupHandle (evo.Group — named children, auto-lifecycle NotStarted on failure/cancel).
-evo.Task/Group are get-or-create facades on the package-level default instance (see evo.Init/evo.SetDefault);
+Phase/Progress call), SequenceHandle (evo.Sequence — named children in dependency order, auto-lifecycle
+NotStarted on failure/cancel), DisplayGroup (evo.DisplayGroup — presentation-only children, no ordering; both
+offer nested .Sequence/.DisplayGroup for recursive containers).
+evo.Task/Sequence are get-or-create facades on the package-level default instance (see evo.Init/evo.SetDefault);
 Record/RecordName/RecordLabel stay on TaskHandle for tooling call sites that need a raw ledger row, not a front
 door of their own — Output.Changes/Output.Plan were removed (P1): every effect goes through a Task's mutation
 verb now. Item/ItemHandle were removed v0.2.x shims over Task/TaskHandle — new code always uses Task.
@@ -57,7 +59,7 @@ Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) 
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no RunAll/Map (API-026); Failf/Blockf need % (API-028; Done/Warn/Task/Group/Reason
+Do not Start (API-006); no RunAll/Map (API-026); Failf/Blockf need % (API-028; Done/Warn/Task/Sequence/Reason
 are printf-variadic themselves — there is no separate Donef/Warnf/Taskf/Reasonf); Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
@@ -68,15 +70,19 @@ failure on its own Task and use Next(evo.Label(...)) for follow-up guidance inst
 			ID:       "tasks",
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
-			Concepts: []string{"Task", "Tasks", "Group", "Progress", "Each", "Skipped", "Kept"},
+			Concepts: []string{"Task", "DisplayGroup", "Sequence", "Progress", "Each", "Skipped", "Kept"},
 			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030"},
-			Body: `Task is one operation with optional Phase/Progress. Tasks/Group are collections whose state is derived from
-children — never call Done/Fail/Progress on the collection itself (API-027). Tasks' children are independent (safe
-for concurrent worker-pool fan-out, no ordering assumed); Group's children are a sequence that stops later,
-still-unresolved siblings as "-  not started" automatically once one fails or is cancelled (C13).
+			Body: `Task is one operation with optional Phase/Progress. DisplayGroup/Sequence are collections whose state is
+derived from children — never call Done/Fail/Progress on the collection itself (API-027). DisplayGroup's children
+are independent (safe for concurrent worker-pool fan-out, no ordering assumed, concurrent Running children
+expected); Sequence's children are an ordered dependency that stops later, still-unresolved siblings as
+"-  not started" automatically once one fails or is cancelled (C13). Both offer nested .Sequence(name)/
+.DisplayGroup(name) for recursive containers — a failure three levels deep still surfaces at the root header.
 
-Heartbeat: a Phase left unrefreshed for ~10s auto-appends elapsed context ("pushing feat/a — 90s") so a stale
-spinner is never indistinguishable from progress — no manual timer required.
+Heartbeat: any unresolved row (Running or Pending), and any unfinished container header, gains an elapsed
+suffix ("pushing feat/a — 5s") 5s after it is first actually painted in the live region — monotonic, never reset
+by Phase/Progress activity, so a stale spinner is never indistinguishable from progress and a queued row ages
+honestly even if nothing ever touches it.
 
 Loops: prefer evo.Task(name).Each(items) (or EachN(n)) over a hand-maintained counter — it owns the absolute
 Progress(completed,total) so a retry can never double-count or move the bar backwards. On manual retry, set
@@ -94,9 +100,9 @@ Bounded narration (BOUND-001): a slice joined with strings.Join and handed strai
 reproduces the same terminal flood evo.TruncateNames already fixed for Plan/Changes rows — wrap it:
 evo.TruncateNames(names, 8) before it reaches any of those three calls.
 
-Predeclare before fan-out (API-030): call out.Task/Tasks.Task for every child before starting any goroutine or
-g.Go closure, then pass the handle in. Declaring the Task inside the closure races task creation with rendering
-and produces the unordered multi-spinner defect "sequential presentation: one Running child" forbids.`,
+Predeclare before fan-out (API-030): call out.Task/DisplayGroup.Task for every child before starting any goroutine
+or g.Go closure, then pass the handle in. Declaring the Task inside the closure races task creation with rendering
+and produces the unordered multi-spinner defect Sequence's "one Running child" heart contract forbids.`,
 			TokenEstimate: 300,
 		},
 		{
@@ -182,7 +188,7 @@ config parsing, git walks, or a network dial. Init + the first declared entity m
 screen within 100ms of process start (FP-001) — VisibilityDelay (default 80ms) only suppresses spinner flash on
 work that finishes instantly; it never excuses a blank window before that.
 
-Declare before you compute (FP-002): the first Task/Group declaration comes before the first read/open/dial
+Declare before you compute (FP-002): the first Task/Sequence declaration comes before the first read/open/dial
 in main or run — a config load or repo walk that happens first, with the first evo.Task only after, is the exact
 "blank screen for two seconds" bug this guide exists to catch.
 

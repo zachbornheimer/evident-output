@@ -48,10 +48,10 @@
 //     (Output.Snapshot / TaskHandle.Snapshot); the wire JSON document does not carry them.
 //  6. evo.Confirm(question, ...) — owns the whole ask-decide-resolve gate (prompt, quiesce,
 //     Done/Blocked resolution, exit code). question is verbatim text, not a printf format
-//     like Task/Group/Reason/Phase/Skip's text — use fmt.Sprintf to build a dynamic question
+//     like Task/Sequence/Reason/Phase/Skip's text — use fmt.Sprintf to build a dynamic question
 //     first. Confirm is the one entity-text spelling that stays non-printf (release-gate
 //     round 6 finding 4).
-//  7. evo.Group(name) for named children with derived, auto-lifecycle state.
+//  7. evo.Sequence(name) for named children with derived, auto-lifecycle state.
 //  8. task.Fail(summary) / task.Block(summary) are statements — no return value, so a bare
 //     call is errcheck-clean. `return task.Failf("schema mismatch: %w", err)` (task declared
 //     as evo.Task("validate manifest")) builds and returns one error in a single line: a
@@ -60,7 +60,7 @@
 //     WHAT went wrong, not the task's own name again — the rendered row already carries the
 //     task label, so a summary of "validate manifest: %w" would just repeat it back. Warn,
 //     and success/skip verbs, stay void too — this is never fluent chaining.
-//     Done/Warn/Task/Group/Reason/Phase/Skip are printf-variadic themselves (fmt.Sprintf
+//     Done/Warn/Task/Sequence/Reason/Phase/Skip are printf-variadic themselves (fmt.Sprintf
 //     semantics when args follow); there is no separate Donef/Warnf/Taskf/Reasonf/Phasef/
 //     Skipf (C6).
 //     Output.Failf stays void rather than mirroring TaskHandle.Failf's *Failure return
@@ -77,7 +77,7 @@
 //     journal lines. Package-level evo.SlogHandler() journals to the default instance,
 //     the same default-instance sugar evo.Task/evo.Verbose already offer.
 //
-// Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Group (+ ID), Task.Evidence,
+// Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Sequence (+ ID), Task.Evidence,
 // Task.Each / Task.PhaseWriter / Task.Run, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
 // evo.Confirm, evo.Reason, Changes/Plan (tooling call sites, see below), slog
 // via SlogHandler (level from Config.Debug.Level).
