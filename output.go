@@ -100,8 +100,11 @@ type Output struct {
 	// Structured debug journal (§21.3). lines[] still holds history-format strings
 	// for FinalPlain / residual compatibility.
 	debugRecords []debugRecord
-	// debugPaneActive is true once Debug was projected via the live rolling pane
-	// (not history fallback). Controls failure diagnostic-tail eligibility.
+	// debugPaneActive is true once a Debug record was subject to pane
+	// presentation while interactive — either projected onto the live
+	// rolling pane, or (dual-stream construction) routed to Diagnostics only
+	// while pane presentation was still in effect. Controls failure
+	// diagnostic-tail eligibility; not "the pane rendered this record".
 	debugPaneActive bool
 
 	// Print/Printf/Println line buffers and canonical messages.
@@ -954,13 +957,24 @@ func (o *Output) projectDebugRecordLocked(rec debugRecord) {
 	if o.cfg.diagnostic != nil {
 		o.writeDiagnosticTextLocked(plainHistory + "\n")
 	}
+	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
+	panePresentation := o.cfg.debugPresentation == DebugPresentationPane
 	if dual {
+		// The record already went to Diagnostics above; don't also duplicate
+		// it onto the live pane/durable primary. Still mark pane presentation
+		// as active so a failing Finish can preserve the diagnostics tail on
+		// the live terminal (§21.3.2) — otherwise the promised failure tail
+		// is unreachable whenever the caller uses two distinct real streams
+		// (the realistic default: Config{Stdout, Stderr} routes To(Stdout),
+		// Diagnostics(Stderr)).
+		if interactive && panePresentation {
+			o.debugPaneActive = true
+		}
 		o.linesEmitted = len(o.lines)
 		return
 	}
 
-	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
-	if interactive && o.cfg.debugPresentation == DebugPresentationPane {
+	if interactive && panePresentation {
 		o.debugPaneActive = true
 		o.linesEmitted = len(o.lines)
 		o.signalLiveLocked(true)
