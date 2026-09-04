@@ -103,6 +103,7 @@ func newFrameLog(w io.Writer, step bool) *frameLog {
 }
 
 func (f *frameLog) ID() string          { return "frame-log" }
+func (f *frameLog) Sink() io.Writer     { return f.w }
 func (f *frameLog) Columns() int        { return f.width }
 func (f *frameLog) Rows() int           { return 24 }
 func (f *frameLog) IsInteractive() bool { return true }

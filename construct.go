@@ -223,10 +223,16 @@ func newFromConfig(c Config) *Output {
 func configToOptions(c Config) []Option {
 	var opts []Option
 
+	// primaryWriter mirrors whichever writer To() receives below — kept as a
+	// value (not re-derived) so the Terminal-sharing detection further down
+	// compares against the exact same stream, per format.
+	primaryWriter := c.Stdout
+
 	// Stream routing
 	switch c.Format {
 	case FormatData:
 		// Human presentation on stderr; domain payload on Result (default Stdout).
+		primaryWriter = c.Stderr
 		opts = append(opts, To(c.Stderr), Diagnostics(c.Stderr), DataProjection())
 		resultW := c.Result
 		if resultW == nil {
@@ -280,6 +286,13 @@ func configToOptions(c Config) []Option {
 	switch {
 	case c.Terminal != nil:
 		opts = append(opts, Terminal(c.Terminal))
+		// A caller-supplied driver (Config.Terminal or the Options path) may
+		// still write to the same physical stream as primary — DETECT that
+		// via the driver's own Sink() rather than requiring the caller to
+		// say so, closing the examples/terminal-driver double-band gap (X3).
+		if terminalSharesPrimary(c.Terminal, primaryWriter) {
+			opts = append(opts, withPrimarySharesTerminal())
+		}
 	case wantLive:
 		width, height := c.Width, 24
 		if width <= 0 {

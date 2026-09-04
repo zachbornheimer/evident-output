@@ -1,6 +1,9 @@
 package testkit
 
-import "sync"
+import (
+	"io"
+	"sync"
+)
 
 // Screen is a virtual terminal that records live-region operations for tests.
 // Its methods are safe for concurrent use: a real terminal driver may be
@@ -58,6 +61,11 @@ func NewScreen(opts ...ScreenOption) *Screen {
 
 // ID implements evo.TerminalDriver.
 func (s *Screen) ID() string { return "testkit-screen" }
+
+// Sink implements evo's optional sinkReporter interface. Screen is a
+// virtual capture surface with no underlying writer, so it never reports as
+// sharing a stream with a real primary writer.
+func (s *Screen) Sink() io.Writer { return nil }
 
 // Columns implements evo.LiveSurface.
 func (s *Screen) Columns() int {

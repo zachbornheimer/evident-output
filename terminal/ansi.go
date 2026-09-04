@@ -88,6 +88,11 @@ func NewANSI(w io.Writer, opts ...Option) *ANSI {
 // ID implements TerminalDriver.
 func (a *ANSI) ID() string { return a.id }
 
+// Sink returns the writer this driver renders to, so a caller-supplied
+// Terminal(...) can be detected as sharing a stream with the primary
+// writer (evo's configToOptions samePrimaryAsTerminal detection).
+func (a *ANSI) Sink() io.Writer { return a.w }
+
 // Columns implements LiveSurface.
 func (a *ANSI) Columns() int {
 	a.mu.Lock()
