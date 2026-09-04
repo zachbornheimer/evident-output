@@ -368,7 +368,13 @@ func TestSpecP8_PartialTruthSurvivesRemoteAuthFailure(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	got := out.FinalPlain()
+	// FinalPlain is unexported (C8); reconstruct the same text RenderPlain
+	// produces from the finished snapshot.
+	rendered, err := evo.RenderPlain(out.Snapshot(), evo.PlainOptions{Width: 80, NoColor: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(rendered)
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"[changed] remotes",

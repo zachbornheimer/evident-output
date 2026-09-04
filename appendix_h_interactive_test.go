@@ -61,7 +61,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.NoColor(), // assert exact final text without SGR
 		evo.Clock(fixed),
 	}})

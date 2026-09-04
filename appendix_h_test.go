@@ -211,7 +211,7 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	out.Changes("dependencies").
 		Added(14, "package").
 		Updated(4, "package").
-		Reused(63, "cached package").
+		Record("reused", 63, "cached package").
 		Wrote("app.lock")
 
 	if err := out.Finish(); err != nil {
@@ -267,7 +267,7 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 
 	out.Plan("delete account acme").
 		Delete(14, "project").
-		Revoke(7, "API keys")
+		Record("revoke", 7, "API keys")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

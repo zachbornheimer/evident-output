@@ -28,7 +28,7 @@ func main() {
 	cfg := evo.DefaultConfig()
 	cfg.Title = "branch audit"
 	cfg.Debug = evo.DebugConfig{
-		Level:          evo.Debug,
+		Level:          evo.LevelDebug,
 		View:           evo.DebugPresentationPane,
 		PaneHeight:     4,
 		NewestFirst:    &newest,

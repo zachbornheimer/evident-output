@@ -1,29 +1,32 @@
 package evo
 
-// ColorLevel describes terminal color support.
-type ColorLevel int
+// colorLevel describes terminal color support. Unexported (C8): no public
+// entry point ever returned this to a caller except detectCapabilities,
+// which is unexported alongside it.
+type colorLevel int
 
 const (
-	ColorNone ColorLevel = iota
-	ColorBasic
-	Color256
-	ColorTrue
+	colorNone colorLevel = iota
+	colorBasic
+	color256
+	colorTrue
 )
 
-// CapabilityProfile holds terminal capability facts (§22).
-type CapabilityProfile struct {
+// capabilityProfile holds terminal capability facts (§22). Unexported (C8).
+type capabilityProfile struct {
 	Interactive bool
-	Color       ColorLevel
+	Color       colorLevel
 	Unicode     bool
 	Width       int
 	Height      int
 	NoColor     bool
 }
 
-// DetectCapabilities builds a profile from options and environment-like hints.
-// It does not read the real environment in the core package without injection;
-// callers pass NoColor/Width/NonInteractive options instead.
-func DetectCapabilities(opts ...Option) CapabilityProfile {
+// detectCapabilities builds a profile from options and environment-like
+// hints. Unexported (C8: no external caller). It does not read the real
+// environment in the core package without injection; callers pass
+// NoColor/Width/Plain options instead.
+func detectCapabilities(opts ...Option) capabilityProfile {
 	cfg := config{
 		width:      defaultWidth,
 		debugLevel: LevelInfo,
@@ -33,17 +36,17 @@ func DetectCapabilities(opts ...Option) CapabilityProfile {
 			o.apply(&cfg)
 		}
 	}
-	p := CapabilityProfile{
+	p := capabilityProfile{
 		Interactive: !cfg.plain,
 		Unicode:     true,
 		Width:       cfg.width,
 		Height:      24,
 		NoColor:     cfg.noColor,
-		Color:       ColorBasic,
+		Color:       colorBasic,
 	}
 	// Plain/non-interactive still allow semantic color on final reports unless NoColor.
 	if cfg.noColor {
-		p.Color = ColorNone
+		p.Color = colorNone
 	}
 	if cfg.terminal != nil {
 		if ls := asLive(cfg.terminal); ls != nil {

@@ -435,24 +435,6 @@ func Title(subject string) Option {
 	return optionFunc(func(c *config) { c.subject = subject })
 }
 
-// ParseColorMode maps always|never|auto (and common synonyms) to ColorMode.
-func ParseColorMode(s string) (ColorMode, error) {
-	switch s {
-	case "", "auto":
-		return ColorAuto, nil
-	case "always", "on", "yes", "true", "1":
-		return ColorAlways, nil
-	case "never", "off", "no", "false", "0":
-		return ColorNever, nil
-	default:
-		return ColorAuto, errInvalidColorMode(s)
-	}
-}
-
-func errInvalidColorMode(s string) error {
-	return &UsageError{Op: "ParseColorMode", Msg: "unknown color mode " + s}
-}
-
 // UsageError is a programmer/user configuration error.
 type UsageError struct {
 	Op  string

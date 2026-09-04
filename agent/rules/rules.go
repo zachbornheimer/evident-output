@@ -100,7 +100,7 @@ g.Task("b").Done()`,
 fmt.Printf("progress %d\n", n)`,
 			GoodCode: `out := evo.Init(evo.Config{})
 out.Printf("progress %d\n", n)
-// or out.Verbose().Println(...) for optional domain detail
+// or out.At(evo.VisibilityVerbose).Println(...) (evo.Verbose() on the default instance) for optional domain detail
 // or slog via out.SlogHandler for implementation diagnostics`,
 			BadOutput:       "interleaved ANSI + printf on stdout",
 			GoodOutput:      "managed Print / Verbose / slog only",

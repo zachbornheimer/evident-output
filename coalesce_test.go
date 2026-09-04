@@ -47,7 +47,7 @@ func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) 
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Plan("librarian").Move("a", "b")
+	out.Plan("librarian").RecordName("move", "a → b")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

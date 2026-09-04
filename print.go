@@ -45,11 +45,6 @@ func (o *Output) At(visibility Visibility) *Printer {
 	return &Printer{out: o, visibility: visibility}
 }
 
-// Verbose is sugar for At(VisibilityVerbose).
-func (o *Output) Verbose() *Printer {
-	return o.At(VisibilityVerbose)
-}
-
 // Print formats like fmt.Sprint and enqueues human-facing text (line-buffered).
 // Errors are recorded on the Output and returned by Finish/Main — not ignored mid-stream.
 func (o *Output) Print(args ...any) {

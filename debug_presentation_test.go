@@ -19,7 +19,7 @@ func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugHistory(),
 		evo.NoColor(),
 		evo.Clock(fixedDebugClock()),
@@ -55,7 +55,7 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	// Advance so successive Debug calls get distinct times if clock ticks.
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugPane(evo.PaneHeight(2), evo.NewestFirst()),
 		evo.NoColor(),
 		evo.Clock(clock),
@@ -118,7 +118,7 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{
 		evo.To(&primary),
 		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugPane(evo.PaneHeight(5), evo.NewestFirst()),
 		evo.NoColor(),
 		evo.Clock(fixedDebugClock()),
@@ -157,7 +157,7 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		// Plain cannot show a live pane; history streams, but PreserveDebugTail still
 		// requests a diagnostics section at Finish when presentation is pane-configured.
 		evo.DebugPane(evo.PreserveDebugTail(), evo.PaneHeight(3)),
@@ -184,7 +184,7 @@ func TestDebugHistory_PlainStreamsOnce(t *testing.T) {
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 		evo.DebugHistory(),
 		evo.Clock(fixedDebugClock()),
 	}})

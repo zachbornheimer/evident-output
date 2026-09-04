@@ -302,22 +302,6 @@ func (c *Evidence) Text() string {
 	return joinCaptureLines(lines, truncated)
 }
 
-// Lines returns retained combined line texts (oldest first).
-func (c *Evidence) Lines() []string {
-	lines, _ := c.snapshotTexts(CaptureStreamCombined, 0)
-	return lines
-}
-
-// Tail returns the last n retained combined lines.
-func (c *Evidence) Tail(n ...int) string {
-	limit := 0
-	if len(n) > 0 {
-		limit = n[0]
-	}
-	lines, truncated := c.snapshotTexts(CaptureStreamCombined, limit)
-	return joinCaptureLines(lines, truncated)
-}
-
 // Empty reports whether no completed lines and no pending fragments exist.
 func (c *Evidence) Empty() bool {
 	root := c.root()
@@ -334,15 +318,6 @@ func (c *Evidence) Empty() bool {
 		root.pendingFor(CaptureStreamStderr).Len() == 0
 }
 
-// TaskName returns the owning task name when created via Task.Capture.
-func (c *Evidence) TaskName() string {
-	root := c.root()
-	if root == nil {
-		return ""
-	}
-	return root.taskName
-}
-
 // DetailTail returns a ProblemOption attaching a user-visible presentation of
 // the capture tail. Prefers stderr when separate streams were used.
 func (c *Evidence) DetailTail() ProblemOption {
@@ -351,14 +326,6 @@ func (c *Evidence) DetailTail() ProblemOption {
 			p.Detail = text
 		}
 	})
-}
-
-// DetailTail free-function form (prefer method on Capture).
-func DetailTail(c *Evidence) ProblemOption {
-	if c == nil {
-		return problemOptionFunc(func(*Problem) {})
-	}
-	return c.DetailTail()
 }
 
 func (c *Evidence) detailText() string {

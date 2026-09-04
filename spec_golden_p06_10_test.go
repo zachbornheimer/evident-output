@@ -118,8 +118,8 @@ func TestSpecP6_ErrorBlock_ProgressThenFail(t *testing.T) {
 // Output.Finish's interactive branch now reuses writeConclusion (via
 // residualInteractiveFinalLocked) — the same conclusion model the plain path
 // renders — so a user watching a real terminal session sees the derived
-// "already mutated" row on abnormal termination too, not just in
-// Output.FinalPlain()'s internal snapshot.
+// "already mutated" row on abnormal termination too, not just in the
+// unexported finalPlain snapshot Finish computes internally.
 //
 //	:.  generate  [████░░░░░░░░]  2.1/8.0 MB
 //	■  generate  cancelled

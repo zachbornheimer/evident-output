@@ -61,7 +61,7 @@ func main() {
 		Stdout:   os.Stderr,
 		Stderr:   os.Stderr,
 		Terminal: term,
-		Debug:    evo.DebugConfig{Level: evo.Debug},
+		Debug:    evo.DebugConfig{Level: evo.LevelDebug},
 		// Demo tuning: show spinners immediately.
 		VisibilityDelay: evo.Delay(0),
 		MaxFrameRate:    60,

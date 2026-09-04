@@ -23,16 +23,6 @@ func (c *Changes) Updated(quantity int64, object string) *Changes {
 	return c.Record("updated", quantity, object)
 }
 
-// Reused records a reused quantity.
-func (c *Changes) Reused(quantity int64, object string) *Changes {
-	return c.Record("reused", quantity, object)
-}
-
-// Moved records a move.
-func (c *Changes) Moved(source, destination string) *Changes {
-	return c.recordNoQty("moved", sanitize.Text(source)+" → "+sanitize.Text(destination))
-}
-
 // Removed records a removed quantity.
 func (c *Changes) Removed(quantity int64, object string) *Changes {
 	return c.Record("removed", quantity, object)

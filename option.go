@@ -27,7 +27,6 @@ type config struct {
 	debugPresentation DebugPresentation
 	debugPane         debugPaneConfig
 	redactor          Redactor
-	projection        ProjectionPolicy
 	maxEntities       int
 	maxEvents         int
 	extraWriters      []io.Writer
@@ -168,9 +167,6 @@ const (
 	// LevelError is reserved for future error-threshold filtering.
 	LevelError
 )
-
-// Debug is the debug log level (Appendix H). Alias of LevelDebug.
-const Debug = LevelDebug
 
 // DebugLevel sets the minimum debug emission level.
 // Pass LevelTrace or LevelDebug to surface Debug journal lines.

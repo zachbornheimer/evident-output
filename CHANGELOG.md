@@ -380,6 +380,41 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   untouched — only a call with additional args formats. `agent/review`'s
   API-028 detector and `agent/rules`' API-028 entry retargeted to
   `Failf`/`Blockf`, the only methods left in that family (C6).
+- **Breaking**: census deletion pass (C8) — every symbol below had zero
+  real callers beyond its own package, or a strictly better surviving
+  alternative:
+  - `Evidence.TaskName`/`Lines`/`Tail` deleted; `Text()` covers the bare
+    (no-limit) case every real caller used.
+  - `Changes.Moved`/`Reused` and `Plan.Move`/`Retain`/`Revoke` deleted —
+    `Record`/`RecordName` cover the same ground (C10's unified verb set).
+  - `Output.Snapshots()` (the streaming channel) and its internal
+    plumbing deleted; `Output.Snapshot()` (poll-based) is the surviving
+    accessor.
+  - `Output.Explain()` deleted (and the now-dead pre-Finish
+    `Conclusion.Explanation` carry-over it existed to support).
+  - `WriteJSON`/`WriteJSONL` and their inert `JSONOptions`/`JSONLOptions`
+    parameter types deleted; `EncodeJSON`/`EncodeJSONL` (now without the
+    unused options parameter) are the surviving encoders — a caller
+    writes the bytes themselves.
+  - `DetailTail` the free function deleted; `Evidence.DetailTail()` the
+    method is the sole spelling.
+  - `ParseColorMode` deleted (trivial enough for a caller to inline).
+  - `Output.Verbose()` deleted; `Output.At(VisibilityVerbose)` (or
+    `evo.Verbose()` on the default instance) is the surviving spelling.
+  - `FinalPlain()` deleted, along with the internal cache it read from
+    (dead once nothing outside the package needed it) — a caller
+    reconstructs the same text via
+    `RenderPlain(out.Snapshot(), PlainOptions{...})`.
+  - `Int`/`String`/`Duration` field-builder helpers deleted (`Field`
+    struct stays) — see above.
+  - `ColorLevel`, `CapabilityProfile`, `DetectCapabilities` unexported
+    (no external caller); the internal, always-write-never-read
+    `projectionPolicy` enum this pass surfaced while unexporting is
+    deleted entirely — `DataProjection()`/`ExternalProjection()` stay as
+    documented Options.
+  - `const Debug` (alias of `LevelDebug`) deleted — one spelling.
+  - `RecordLabel` is the one item the census named to keep as-is
+    (a golden depends on it).
 
 ## Migration guide (v0.2.x → v0.3.0)
 

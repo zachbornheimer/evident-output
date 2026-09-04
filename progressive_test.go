@@ -56,9 +56,14 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	if !strings.Contains(final, "git push") {
 		t.Fatalf("expected NextCommand in the Finish conclusion; buf=%q", final)
 	}
-	// Full snapshot still available for machines.
-	if plain := out.FinalPlain(); !strings.Contains(plain, "working tree") || !strings.Contains(plain, "[blocked]") {
-		t.Fatalf("FinalPlain incomplete:\n%s", plain)
+	// Full snapshot still available for machines. FinalPlain is unexported
+	// (C8); reconstruct the same text RenderPlain produces.
+	rendered, err := evo.RenderPlain(out.Snapshot(), evo.PlainOptions{Width: 80, NoColor: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain := string(rendered); !strings.Contains(plain, "working tree") || !strings.Contains(plain, "[blocked]") {
+		t.Fatalf("final plain incomplete:\n%s", plain)
 	}
 }
 
@@ -138,7 +143,7 @@ func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 
 func TestProgressive_DebugStreamsOnce(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.Debug)}})
+	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Debug("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
 	before := buf.String()

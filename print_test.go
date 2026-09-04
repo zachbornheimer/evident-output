@@ -53,7 +53,7 @@ func TestVerbose_HiddenAtNormal(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Println("visible")
-	out.Verbose().Println("hidden detail")
+	out.At(evo.VisibilityVerbose).Println("hidden detail")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "visible") {
 		t.Fatal("normal missing")
@@ -80,7 +80,7 @@ func TestVerbose_ShownWhenConfigured(t *testing.T) {
 		Stderr:    &buf,
 		Verbosity: evo.VerbosityVerbose,
 	})
-	out.Verbose().Printf("Cache: %s\n", "/tmp/x")
+	out.At(evo.VisibilityVerbose).Printf("Cache: %s\n", "/tmp/x")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "Cache: /tmp/x") {
 		t.Fatalf("%s", buf.String())
@@ -125,19 +125,18 @@ func TestItem_Task_PrintfNames(t *testing.T) {
 	}
 }
 
-func TestWriteJSON_TrailingNewline(t *testing.T) {
-	var human, js bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &human, Stderr: &human})
+// TestEncodeJSON_ContainsTasks is C8: WriteJSON (an io.Writer wrapper adding
+// a trailing newline) is deleted — EncodeJSON is the surviving encoder; a
+// caller who wants the newline appends it themselves.
+func TestEncodeJSON_ContainsTasks(t *testing.T) {
+	out := evo.Init(evo.Config{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
 	out.Task("a").Done()
 	_ = out.Finish()
-	if err := evo.WriteJSON(&js, out.Snapshot()); err != nil {
+	b, err := evo.EncodeJSON(out.Snapshot())
+	if err != nil {
 		t.Fatal(err)
 	}
-	b := js.Bytes()
-	if len(b) == 0 || b[len(b)-1] != '\n' {
-		t.Fatalf("want trailing newline: %q", b)
-	}
-	if !strings.Contains(js.String(), `"tasks"`) {
-		t.Fatalf("json: %s", js.String())
+	if !strings.Contains(string(b), `"tasks"`) {
+		t.Fatalf("json: %s", b)
 	}
 }

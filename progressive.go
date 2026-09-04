@@ -221,7 +221,9 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 }
 
 // residualPlainLocked builds the Finish tail for the human stream: only what has
-// not already been progressive-emitted. FinalPlain still uses the full snapshot.
+// not already been progressive-emitted. RenderPlain(snap, ...) still renders the
+// full snapshot for a caller that wants the complete plain projection (C8: the
+// former FinalPlain cache is gone — reconstruct via RenderPlain(out.Snapshot(), ...)).
 //
 // Interactive mode: tasks/collections are owned by WriteFinal (H.17 compact line);
 // residual dual-write must not reprint them onto primary (same stream as Terminal).

@@ -153,7 +153,7 @@ func Println(args ...any) {
 
 // Verbose returns a Printer scoped to Verbose visibility on the default instance.
 func Verbose() *Printer {
-	return Default().Verbose()
+	return Default().At(VisibilityVerbose)
 }
 
 // AnyBlockedSoFar reports whether any Task on the default instance is

@@ -3,7 +3,6 @@ package evo_test
 import (
 	"bytes"
 	"io"
-	"os"
 	"strings"
 	"testing"
 
@@ -148,17 +147,6 @@ func TestNew_DataFormat_HumanOnStderr(t *testing.T) {
 	if !strings.Contains(stderr.String(), "compile") {
 		t.Fatalf("data mode human UI on stderr:\n%s", stderr.String())
 	}
-}
-
-func TestParseColorMode(t *testing.T) {
-	m, err := evo.ParseColorMode("never")
-	if err != nil || m != evo.ColorNever {
-		t.Fatalf("%v %v", m, err)
-	}
-	if _, err := evo.ParseColorMode("rainbow"); err == nil {
-		t.Fatal("expected error")
-	}
-	_ = os.Environ() // keep os imported if needed
 }
 
 func TestNewWithOptions_StillWorks(t *testing.T) {

@@ -532,7 +532,7 @@ func handleToolCall(id any, req map[string]any) {
 			item = "status"
 		}
 		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Options: []evo.Option{evo.Title(subject), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.Debug)}})
+		out := evo.Init(evo.Config{Options: []evo.Option{evo.Title(subject), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}})
 		it := out.Task(item)
 		switch state {
 		case "blocked":

@@ -26,7 +26,7 @@ func main() {
 
 	out := evo.Init(evo.Config{
 		Title: "install dependencies",
-		Debug: evo.DebugConfig{Level: evo.Debug},
+		Debug: evo.DebugConfig{Level: evo.LevelDebug},
 	})
 	log := slog.New(out.SlogHandler())
 

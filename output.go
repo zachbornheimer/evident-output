@@ -33,9 +33,7 @@ type Output struct {
 	// contradict what the printed band showed (beginner-1).
 	misuseSubject string
 	conclusion    *Conclusion
-	finalPlain    string
 	live          *liveEngine
-	snapCh        chan Snapshot
 
 	tasks       []*taskState
 	collections []*tasksState
@@ -814,20 +812,6 @@ func (o *Output) Cancel(reason string) {
 	o.appendEventLocked(Event{Type: "output.cancelled"})
 }
 
-// Explain sets an explicit conclusion explanation (applied at Finish).
-func (o *Output) Explain(text string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
-	}
-	if o.conclusion == nil {
-		o.conclusion = &Conclusion{}
-	}
-	o.conclusion.Explanation = sanitize.Text(text)
-}
-
 // Next attaches output-level actions.
 func (o *Output) Next(actions ...Action) {
 	o.mu.Lock()
@@ -1172,7 +1156,6 @@ func (o *Output) collectActionsLocked() []Action {
 
 func (o *Output) bumpLocked() {
 	o.version++
-	o.publishSnapshotLocked()
 }
 
 func (o *Output) appendEventLocked(e Event) {
@@ -1325,9 +1308,6 @@ func (o *Output) Finish() error {
 	snap := o.snapshotLocked()
 	conc := inferConclusion(snap)
 	applyFailedExitCode(&conc, o.cfg.failedExitCode)
-	if o.conclusion != nil && o.conclusion.Explanation != "" {
-		conc.Explanation = o.conclusion.Explanation
-	}
 	o.conclusion = &conc
 	snap.Conclusion = &conc
 	o.appendEventLocked(Event{
@@ -1340,13 +1320,6 @@ func (o *Output) Finish() error {
 	o.finished = true
 	o.finishing = false
 
-	// Full plain for FinalPlain / JSON agreement (may include already-streamed items).
-	fullPlain, _ := RenderPlain(snap, PlainOptions{
-		Width: cfg.width, NoColor: cfg.noColor,
-		Verbose: cfg.verbosity >= VerbosityVerbose,
-	})
-	o.finalPlain = string(fullPlain)
-
 	// Human stream: only residual (terminal outcomes already streamed).
 	residual := o.residualPlainLocked(snap)
 	interactive := false
@@ -1355,7 +1328,6 @@ func (o *Output) Finish() error {
 		// Interactive final: conclusion + any unemitted entities (not a second full dump).
 		o.finishLiveLocked(o.residualInteractiveFinalLocked(snap))
 	}
-	o.closeSnapshotsLocked()
 	o.mu.Unlock()
 
 	// CON-009: fan-out residual to primary + AlsoWrite when not already on the live driver.
@@ -1448,11 +1420,4 @@ func (o *Output) Events() []Event {
 	out := make([]Event, len(o.events))
 	copy(out, o.events)
 	return out
-}
-
-// FinalPlain returns the last rendered plain text after Finish.
-func (o *Output) FinalPlain() string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.finalPlain
 }

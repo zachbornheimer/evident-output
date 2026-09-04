@@ -163,7 +163,7 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 		evo.Plain(),
 		evo.NoColor(),
 		evo.Diagnostics(&diag),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 	}})
 	out.Debug("diag-line")
 	out.Task("gate").Block("dirty")
@@ -185,7 +185,7 @@ func TestDiagnostics_DualStream_DebugNotOnPrimary(t *testing.T) {
 		evo.Diagnostics(&diag),
 		evo.Plain(),
 		evo.NoColor(),
-		evo.DebugLevel(evo.Debug),
+		evo.DebugLevel(evo.LevelDebug),
 	}})
 	out.Debug("internal only")
 	out.Task("ok").Done()
