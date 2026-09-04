@@ -320,6 +320,9 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
   (`ErrDryRunDeclaredLate`) once any durable row has already streamed,
   since it could not retroactively reflect the switch. No argv-sniffing
   helper; the caller decides and calls this explicitly.
+- `evo.Init` is now variadic (`Init(configs ...Config)`): `evo.Init()`
+  (zero args) builds an ordinary default instance — `construct.go`'s
+  zero-config doc example is real, not a `Config{}` literal in disguise.
 
 ## Migration guide (v0.2.x → v0.3.0)
 

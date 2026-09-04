@@ -22,8 +22,11 @@ var (
 //	    os.Exit(evo.Main(run))
 //	}
 //
-// evo.Init(evo.Config{}) (or evo.Init(evo.DefaultConfig())) builds an
-// ordinary default instance.
+// evo.Init() (zero args) or evo.Init(evo.Config{}) (or
+// evo.Init(evo.DefaultConfig())) all build an ordinary default instance —
+// Init is variadic (I9) so the zero-config call needs no empty Config{}
+// literal. Passing more than one Config uses only the first; there is one
+// construction call, not a merge.
 //
 // Config.Isolated returns an independent instance that skips both steps —
 // it never touches package state (parallel tests, embedders holding their
@@ -36,7 +39,8 @@ var (
 // arms first paint, regardless of Isolated: a caller with direct Option
 // control is expected to also control default-binding and arm() explicitly
 // (e.g. via SetDefault, or Output.Run for the lifecycle MainWith used to own).
-func Init(cfg Config) *Output {
+func Init(configs ...Config) *Output {
+	cfg := resolveInitConfig(configs)
 	if len(cfg.Options) > 0 {
 		// Advanced/testing escape hatch: build directly from raw Options,
 		// bypassing Config's ordinary stream/TTY/color inference entirely.
@@ -63,6 +67,18 @@ func Init(cfg Config) *Output {
 		out.Println(cfg.Subject)
 	}
 	return out
+}
+
+// resolveInitConfig picks Init's effective Config from its variadic
+// argument: zero args is the zero Config (evo.Init()), and one or more
+// uses the first — there is one construction call, not a merge, so any
+// argument past the first is ignored rather than erroring on a call shape
+// no caller has a reason to make.
+func resolveInitConfig(configs []Config) Config {
+	if len(configs) == 0 {
+		return Config{}
+	}
+	return configs[0]
 }
 
 // SetDefault installs out as the package-level default Output.
