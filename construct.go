@@ -310,6 +310,11 @@ func configToOptions(c Config) []Option {
 			}
 			opts = append(opts, Terminal(terminal.NewANSI(liveWriter, ansiOpts...)))
 			opts = append(opts, Width(width))
+			// liveWriter is the same stream To() was already given above
+			// (c.Stdout, or c.Stderr in FormatData) — the terminal and
+			// primary are one physical destination, so Finish must not
+			// dual-write the conclusion band a second time.
+			opts = append(opts, withPrimarySharesTerminal())
 		} else {
 			opts = append(opts, Plain())
 		}

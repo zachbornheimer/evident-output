@@ -1243,8 +1243,12 @@ func (o *Output) Finish() error {
 				_ = f.Flush()
 			}
 		}
-	} else if writer != nil {
+	} else if writer != nil && !cfg.samePrimaryAsTerminal {
 		// Dual stream: residual conclusion on primary (items already durable on terminal).
+		// Skipped when primary and the live terminal share one physical writer
+		// (default construction) — the terminal's WriteFinal already rendered
+		// this conclusion band, so writing it again to primary would duplicate
+		// it on the same screen.
 		if _, err := io.WriteString(writer, residual); err != nil {
 			writeErr = fmt.Errorf("%w: %v", ErrRenderer, err)
 		}
