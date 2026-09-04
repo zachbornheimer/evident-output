@@ -120,7 +120,7 @@ func (o *Output) hasLiveActivityLocked() bool {
 			return true
 		}
 		if t.progress.Kind == Determinate || t.progress.Kind == BytesKind {
-			if t.state == Running || t.state == Done || t.state == Failed || t.state == Warning {
+			if t.state == Running || t.state == Done || t.state == Failed {
 				return true
 			}
 		}

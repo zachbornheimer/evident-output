@@ -75,8 +75,8 @@ type Output struct {
 	// mutation verbs (Delete, Create, ...): repeated mutations on one task
 	// accumulate into the one Plan/Changes section named after the task,
 	// instead of one section per call.
-	namedPlans   map[string]*Plan
-	namedChanges map[string]*Changes
+	namedPlans   map[string]*planLedger
+	namedChanges map[string]*changeLedger
 	// namedReasons backs get-or-create identity for evo.Reason: repeated calls
 	// with the same name (inline or lifted to a var) merge into one bucket.
 	namedReasons map[string]TaxonomyReason
@@ -166,12 +166,12 @@ type taskState struct {
 	// Task whose own row already says the same thing.
 	synthetic bool
 
-	// unchanged marks a Done task resolved via Task.Unchanged/Unchangedf
-	// (I7) — "checked, nothing needed to change" — distinct from an
-	// ordinary Done's generic "ready" verdict. inferConclusion derives
-	// StateUnchanged over the generic StateReady when every Done-family
-	// task in the run carries this tag and nothing was recorded changed.
-	unchanged bool
+	// warnings accumulates TaskHandle.Warn's annotations (P2: warnings
+	// annotate lifecycle, they never replace it — Warn does not itself
+	// resolve the task). A task with warnings but no terminal verb by
+	// Finish auto-resolves Done (see hasRecordedEffectLocked's amnesty
+	// siblings in Finish).
+	warnings []Problem
 
 	// Plain/non-interactive progressive-streaming bookkeeping for a still-
 	// Running standalone task (P10: CI logs must not stay silent until
@@ -217,7 +217,7 @@ type changesState struct {
 	// with zero rows still render "nothing to <verb> <subject>" instead of a
 	// generic fallback.
 	intendedVerb string
-	handle       *Changes
+	handle       *changeLedger
 }
 
 type planState struct {
@@ -226,7 +226,7 @@ type planState struct {
 	records []EffectRecord
 	// intendedVerb mirrors changesState.intendedVerb for plan sections.
 	intendedVerb string
-	handle       *Plan
+	handle       *planLedger
 }
 
 func newOutput(subject string, options ...Option) *Output {
@@ -608,50 +608,32 @@ func (o *Output) taskGetOrCreate(name string, opts ...EntityOption) *TaskHandle 
 // method, or declares a new one — the identity backing TaskHandle mutation
 // verbs, where repeated dry-run mutations on one task accumulate into one
 // [planned] section instead of a new one per call.
-func (o *Output) planGetOrCreate(subject string) *Plan {
+func (o *Output) planGetOrCreate(subject string) *planLedger {
 	o.mu.Lock()
+	defer o.mu.Unlock()
 	if p, ok := o.namedPlans[subject]; ok {
-		o.mu.Unlock()
 		return p
 	}
-	o.mu.Unlock()
-
-	p := o.Plan(subject)
-
-	o.mu.Lock()
-	if existing, ok := o.namedPlans[subject]; ok {
-		o.mu.Unlock()
-		return existing
-	}
+	p := o.declarePlanLedgerLocked(subject)
 	if o.namedPlans == nil {
-		o.namedPlans = make(map[string]*Plan)
+		o.namedPlans = make(map[string]*planLedger)
 	}
 	o.namedPlans[subject] = p
-	o.mu.Unlock()
 	return p
 }
 
 // changesGetOrCreate is planGetOrCreate's counterpart for applied mutations.
-func (o *Output) changesGetOrCreate(subject string) *Changes {
+func (o *Output) changesGetOrCreate(subject string) *changeLedger {
 	o.mu.Lock()
+	defer o.mu.Unlock()
 	if c, ok := o.namedChanges[subject]; ok {
-		o.mu.Unlock()
 		return c
 	}
-	o.mu.Unlock()
-
-	c := o.Changes(subject)
-
-	o.mu.Lock()
-	if existing, ok := o.namedChanges[subject]; ok {
-		o.mu.Unlock()
-		return existing
-	}
+	c := o.declareChangeLedgerLocked(subject)
 	if o.namedChanges == nil {
-		o.namedChanges = make(map[string]*Changes)
+		o.namedChanges = make(map[string]*changeLedger)
 	}
 	o.namedChanges[subject] = c
-	o.mu.Unlock()
 	return c
 }
 
@@ -806,23 +788,20 @@ func (o *Output) groupTaskGetOrCreate(groupID, name string, opts ...EntityOption
 	return h
 }
 
-// Changes starts a durable-effects section. subject is a printf format
-// when args are present (fmt.Sprintf semantics) — see Tasks (C6).
-func (o *Output) Changes(subject string, args ...any) *Changes {
-	if len(args) > 0 {
-		subject = fmt.Sprintf(subject, args...)
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
+// declareChangeLedgerLocked starts a durable-effects section named subject —
+// the internal counterpart of the deleted public Output.Changes entry point
+// (P1/P13: presentation-decision API, callers reach effects only through
+// TaskHandle's mutation verbs now). Caller must hold o.mu.
+func (o *Output) declareChangeLedgerLocked(subject string) *changeLedger {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &Changes{out: o, id: o.nextID("changes")}
+		return &changeLedger{out: o, id: o.nextID("changes")}
 	}
 	st := &changesState{
 		id:      o.nextID("changes"),
 		subject: txt.Text(subject),
 	}
-	h := &Changes{out: o, id: st.id}
+	h := &changeLedger{out: o, id: st.id}
 	st.handle = h
 	o.changes = append(o.changes, st)
 	o.bumpLocked()
@@ -830,23 +809,19 @@ func (o *Output) Changes(subject string, args ...any) *Changes {
 	return h
 }
 
-// Plan starts a would-occur effects section. subject is a printf format
-// when args are present (fmt.Sprintf semantics) — see Tasks (C6).
-func (o *Output) Plan(subject string, args ...any) *Plan {
-	if len(args) > 0 {
-		subject = fmt.Sprintf(subject, args...)
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
+// declarePlanLedgerLocked starts a would-occur effects section named
+// subject — the internal counterpart of the deleted public Output.Plan
+// entry point (see declareChangeLedgerLocked). Caller must hold o.mu.
+func (o *Output) declarePlanLedgerLocked(subject string) *planLedger {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &Plan{out: o, id: o.nextID("plan")}
+		return &planLedger{out: o, id: o.nextID("plan")}
 	}
 	st := &planState{
 		id:      o.nextID("plan"),
 		subject: txt.Text(subject),
 	}
-	h := &Plan{out: o, id: st.id}
+	h := &planLedger{out: o, id: st.id}
 	st.handle = h
 	o.plans = append(o.plans, st)
 	o.bumpLocked()
@@ -1150,13 +1125,14 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Progress:    t.progress,
 		Summary:     t.summary,
 		Problems:    core.CloneProblems(t.problems),
+		Warnings:    core.CloneProblems(t.warnings),
 		Actions:     cloneActions(t.actions),
 		Skipped:     cloneTaxonomy(t.skipped),
 		Kept:        cloneTaxonomy(t.kept),
 		Collection:  colID,
 		Declaration: t.declaration,
 	}
-	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic, t.unchanged)
+	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic)
 }
 
 func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
@@ -1191,7 +1167,7 @@ func (g *tasksState) derivedState() EntityState {
 	if len(g.tasks) == 0 {
 		return Empty
 	}
-	var anyRunning, anyFailed, anyWarning, anyCancelled, anyUnresolved bool
+	var anyRunning, anyFailed, anyCancelled, anyUnresolved bool
 	allDone := true
 	for _, t := range g.tasks {
 		switch t.state {
@@ -1203,8 +1179,6 @@ func (g *tasksState) derivedState() EntityState {
 			allDone = false
 		case Failed:
 			anyFailed = true
-		case Warning:
-			anyWarning = true
 		case Cancelled:
 			anyCancelled = true
 		case Done, Skipped:
@@ -1222,9 +1196,6 @@ func (g *tasksState) derivedState() EntityState {
 	}
 	if anyFailed {
 		return Failed
-	}
-	if anyWarning {
-		return Warning
 	}
 	if anyCancelled {
 		return Cancelled
@@ -1244,7 +1215,7 @@ func (g *tasksState) displaySummary() string {
 	if st == Done && g.summary != "" {
 		// only if no failures/warnings
 		for _, t := range g.tasks {
-			if t.state == Failed || t.state == Warning || t.state == Cancelled {
+			if t.state == Failed || t.state == Cancelled {
 				return ""
 			}
 		}
@@ -1466,18 +1437,20 @@ func (o *Output) Finish() error {
 	// honest, complete story already — the caller just never called a
 	// terminal verb — whenever it also carries at least one of: a recorded
 	// mutation-verb effect (Delete/Create/Update/...), a sealed absolute
-	// progress (a completed Each/EachN/Progress loop reached its total), or
-	// recorded taxonomy (Skipped/Kept). The easiest path (forgetting Done)
-	// becomes correct instead of a surprising Cancelled/NotStarted plus a
-	// silent exit-code flip (beginner-1, I1; beginner-gate-2 findings 1/2/4).
-	// Anything else still reads as misuse, but now names the task so Finish
-	// can render it.
+	// progress (a completed Each/EachN/Progress loop reached its total),
+	// recorded taxonomy (Skipped/Kept), or a recorded warning (P2:
+	// TaskHandle.Warn never itself resolves the task, so a warned-but-
+	// unresolved task earns the same amnesty). The easiest path (forgetting
+	// Done) becomes correct instead of a surprising Cancelled/NotStarted
+	// plus a silent exit-code flip (beginner-1, I1; beginner-gate-2 findings
+	// 1/2/4). Anything else still reads as misuse, but now names the task
+	// so Finish can render it.
 	abnormal := o.abnormalFinishLocked()
 	for _, t := range o.tasks {
 		if core.IsTerminalTask(t.state) {
 			continue
 		}
-		if len(t.problems) == 0 && (o.hasRecordedEffectLocked(t.name) || hasSealedProgress(t) || hasRecordedTaxonomy(t)) {
+		if len(t.problems) == 0 && (o.hasRecordedEffectLocked(t.name) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0) {
 			t.state = Done
 			t.phase = ""
 			o.appendEventLocked(Event{Type: "task.done", EntityID: t.id})

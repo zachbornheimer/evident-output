@@ -26,7 +26,7 @@ func TestInteractive_DryRunDeleteReachesLiveTerminalLedger(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
-	task.Delete(3, "stale local branch")
+	_ = task.Delete("stale local branch", nil, evo.Affected(3))
 	task.Done()
 
 	if err := out.Finish(); err != nil {
@@ -54,7 +54,7 @@ func TestInteractive_ChangesDeleteReachesLiveTerminalLedger(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
-	task.Delete(3, "stale local branch")
+	_ = task.Delete("stale local branch", nil, evo.Affected(3))
 	task.Done()
 
 	if err := out.Finish(); err != nil {

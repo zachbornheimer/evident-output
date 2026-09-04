@@ -21,7 +21,7 @@ func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
 func TestDOM039_ChangesPlusFailure(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("deps"), evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Changes("deps").Added(1, "package")
+	_ = out.Task("deps").Add("package", nil, evo.Affected(1))
 	out.Task("install").Fail("disk full")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -66,21 +66,33 @@ func TestAPI001_MinimalItemExample(t *testing.T) {
 }
 
 func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("acct"), evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("acct"), evo.To(io.Discard), evo.DryRun()}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Plan("delete").Delete(1, "thing")
+	_ = out.Task("delete").Delete("thing", nil, evo.Affected(1))
 	_ = out.Finish()
 	testkit.RequireConclusion(t, out, evo.StatePlanned)
 	testkit.RequireClean(t, out)
 }
 
+// TestDOM010_WarnAndFailWithStructuredSummary is updated for P2: Warn
+// annotates a task instead of resolving it (evo.Warning as a terminal
+// EntityState is deleted). A warned task stays non-terminal — Pending here,
+// since nothing else touched it — and its warning lands on the Warnings
+// field; a later Done still resolves it normally.
 func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	w := out.Task("w")
 	w.Warn("soft")
-	if w.Snapshot().State != evo.Warning {
-		t.Fatal(w.Snapshot().State)
+	if got := w.Snapshot().State; got != evo.Pending {
+		t.Fatalf("state = %q, want Pending: Warn must not resolve the task", got)
+	}
+	if warnings := w.Snapshot().Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
+		t.Fatalf("warnings = %+v, want one warning %q", warnings, "soft")
+	}
+	w.Done()
+	if got := w.Snapshot().State; got != evo.Done {
+		t.Fatalf("state = %q, want Done after Warn then Done", got)
 	}
 	f := out.Task("f")
 	f.Fail("hard")
@@ -133,7 +145,7 @@ func TestDOM045_EmptyOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := out.Conclusion()
-	if c.State != evo.StateUnchanged {
-		t.Fatalf("state=%q", c.State)
+	if c.State != evo.StateReady {
+		t.Fatalf("state=%q, want StateReady (StateUnchanged was deleted, P1)", c.State)
 	}
 }

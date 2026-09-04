@@ -21,7 +21,6 @@ const (
 	Pending    = core.Pending
 	Running    = core.Running
 	Done       = core.Done
-	Warning    = core.Warning
 	Blocked    = core.Blocked
 	Failed     = core.Failed
 	Skipped    = core.Skipped
@@ -41,7 +40,6 @@ type ConclusionState = core.ConclusionState
 const (
 	StateReady     = core.StateReady
 	StateChanged   = core.StateChanged
-	StateUnchanged = core.StateUnchanged
 	StateWarning   = core.StateWarning
 	StateBlocked   = core.StateBlocked
 	StateFailed    = core.StateFailed

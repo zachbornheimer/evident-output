@@ -2,60 +2,22 @@ package evo
 
 import txt "github.com/zachbornheimer/evident-output/internal/text"
 
-// Plan is a handle for effects that would occur but have not.
-type Plan struct {
+// planLedger is the internal handle for one task's planned (dry-run)
+// effects — the section named after the task that TaskHandle's mutation
+// verbs (task_mutations.go) record planned effects into during DryRun.
+// Unexported: P1/P13 removed the caller-facing Output.Plan entry point and
+// its builder methods from the public surface — PlanSnapshot stays the
+// public, read-only view.
+type planLedger struct {
 	out *Output
 	id  string
 }
 
-// Add records a planned addition.
-func (p *Plan) Add(quantity int, object string) *Plan {
-	return p.Record("add", quantity, object)
-}
-
-// Create records a planned create.
-func (p *Plan) Create(object string) *Plan {
-	return p.recordNoQty("create", object)
-}
-
-// Update records a planned update.
-func (p *Plan) Update(quantity int, object string) *Plan {
-	return p.Record("update", quantity, object)
-}
-
-// Remove records a planned removal.
-func (p *Plan) Remove(quantity int, object string) *Plan {
-	return p.Record("remove", quantity, object)
-}
-
-// Delete records a planned deletion.
-func (p *Plan) Delete(quantity int, object string) *Plan {
-	return p.Record("delete", quantity, object)
-}
-
-// Write records a planned write.
-func (p *Plan) Write(object string) *Plan {
-	return p.recordNoQty("write", object)
-}
-
-// Push records a planned push of quantity of object. Part of the verb set
-// unified across TaskHandle/Changes/Plan (C10) — Push was previously
-// TaskHandle-only.
-func (p *Plan) Push(quantity int, object string) *Plan {
-	return p.Record("push", quantity, object)
-}
-
-// RecordName records a planned verb and one named object without a quantity.
-// Quantity is for collapsed counts; RecordName is one named object.
-func (p *Plan) RecordName(verb, object string) *Plan {
-	return p.recordNoQty(verb, object)
-}
-
-// Record records a planned verb/quantity/object. A zero quantity records no
+// record records a planned verb/quantity/object. A zero quantity records no
 // row but still remembers verb as the section's intended verb — see
-// Changes.Record for the empty-section rationale (evo-rec.md guess-driven
-// default #1).
-func (p *Plan) Record(verb string, quantity int, object string) *Plan {
+// changeLedger.record for the empty-section rationale (evo-rec.md
+// guess-driven default #1).
+func (p *planLedger) record(verb string, quantity int, object string) *planLedger {
 	p.out.mu.Lock()
 	defer p.out.mu.Unlock()
 	st := p.find()
@@ -84,7 +46,7 @@ func (p *Plan) Record(verb string, quantity int, object string) *Plan {
 	return p
 }
 
-func (p *Plan) recordNoQty(verb, object string) *Plan {
+func (p *planLedger) recordNoQty(verb, object string) *planLedger {
 	p.out.mu.Lock()
 	defer p.out.mu.Unlock()
 	st := p.find()
@@ -108,8 +70,9 @@ func (p *Plan) recordNoQty(verb, object string) *Plan {
 	return p
 }
 
-// declareIntendedVerb mirrors Changes.declareIntendedVerb for plan sections.
-func (p *Plan) declareIntendedVerb(verb string) {
+// declareIntendedVerb mirrors changeLedger.declareIntendedVerb for plan
+// sections.
+func (p *planLedger) declareIntendedVerb(verb string) {
 	p.out.mu.Lock()
 	defer p.out.mu.Unlock()
 	st := p.find()
@@ -119,7 +82,7 @@ func (p *Plan) declareIntendedVerb(verb string) {
 	st.intendedVerb = txt.Text(verb)
 }
 
-func (p *Plan) find() *planState {
+func (p *planLedger) find() *planState {
 	for _, st := range p.out.plans {
 		if st.id == p.id {
 			return st

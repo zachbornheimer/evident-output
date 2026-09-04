@@ -19,7 +19,7 @@ func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Changes("librarian").Record("placed", 1, "file")
+	out.Task("librarian").Record("placed", 1, "file")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -44,10 +44,11 @@ func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) 
 		evo.To(&buf),
 		evo.Plain(),
 		evo.NoColor(),
+		evo.DryRun(),
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Plan("librarian").RecordName("move", "a → b")
+	out.Task("librarian").RecordName("move", "a → b")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +67,7 @@ func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Changes("librarian").Record("placed", 7, "files")
+	out.Task("librarian").Record("placed", 7, "files")
 	out.Task("placement", evo.ID("run.placement")).Fail("not writable", evo.On("arr/x"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -90,8 +91,8 @@ func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Changes("files").Added(1, "file")
-	out.Changes("manifest").Updated(1, "entry")
+	_ = out.Task("files").Add("file", nil, evo.Affected(1))
+	_ = out.Task("manifest").Update("entry", nil, evo.Affected(1))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +112,7 @@ func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Changes("other-subject").Added(1, "x")
+	_ = out.Task("other-subject").Add("x", nil, evo.Affected(1))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +131,7 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Changes("tool").Added(1, "x")
+	_ = out.Task("tool").Add("x", nil, evo.Affected(1))
 	out.NextCommand("git", "status")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -148,7 +149,7 @@ func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
 		evo.To(io.Discard),
 	}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Changes("tool").Added(1, "x")
+	_ = out.Task("tool").Add("x", nil, evo.Affected(1))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -180,8 +181,8 @@ func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) 
 	if strings.Contains(buf.String(), "[ready]") || strings.Contains(buf.String(), "[unchanged]") {
 		t.Fatalf("title alone must not fabricate a human conclusion:\n%s", buf.String())
 	}
-	if out.Conclusion().State != evo.StateUnchanged {
-		t.Fatalf("title-only conclusion = %q, want unchanged", out.Conclusion().State)
+	if out.Conclusion().State != evo.StateReady {
+		t.Fatalf("title-only conclusion = %q, want ready (StateUnchanged was deleted, P1)", out.Conclusion().State)
 	}
 }
 

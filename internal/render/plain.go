@@ -215,12 +215,52 @@ func writeAction(b *strings.Builder, a core.Action, color bool, profile txt.Glyp
 	}
 }
 
+// warningInlineMaxLen bounds how long a Done task's one warning may be
+// before it must move off the ✓ row onto its own nested "!" line (P2): the
+// same threshold evo-rec.md's compact layout already uses — a warning that
+// would already force a Task row to wrap is not "short."
+const warningInlineMaxLen = compactLayoutMaxWidth
+
+// inlineTaskWarning reports the one warning that belongs directly on t's own
+// row (P2: "one short warning inlines on the ✓ row") — only when t has
+// exactly one warning, it is short enough, and the row isn't already
+// carrying a Summary of its own. Everything else nests below the row.
+func inlineTaskWarning(t core.TaskSnapshot) (string, bool) {
+	if t.State != core.Done || t.Summary != "" || len(t.Warnings) != 1 {
+		return "", false
+	}
+	msg := t.Warnings[0].Summary
+	if len(msg) > warningInlineMaxLen {
+		return "", false
+	}
+	return msg, true
+}
+
+// writeNestedTaskWarnings emits warnings that didn't qualify for
+// inlineTaskWarning as their own "!" lines under the task's row (P2:
+// "multiple/long → nested dim ! lines"), indented by indent (two spaces for
+// a standalone task, problemTreeIndent for a collection child). The glyph
+// keeps the same yellow attention color writeTaxonomy's "!" rows use — the
+// one place a warned task still reads as "not silently clean" in a colored
+// terminal, now that its own row glyph is an ordinary green ✓.
+func writeNestedTaskWarnings(b *strings.Builder, warnings []core.Problem, indent string, color bool, profile txt.GlyphProfile) {
+	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
+	for _, w := range warnings {
+		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, w.Summary)
+	}
+}
+
 func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, profile txt.GlyphProfile) {
 	glyph := txt.StyleGlyph(TaskGlyph(t.State, profile), StateColor(t.State), color)
 	label := t.Name
 	runningDetail := ""
 	if t.State == core.Running {
 		runningDetail = runningTaskDetail(t)
+	}
+	inlineWarning, hasInlineWarning := inlineTaskWarning(t)
+	nestedWarnings := t.Warnings
+	if hasInlineWarning {
+		nestedWarnings = nil
 	}
 	switch {
 	case t.Summary != "" && t.State == core.Failed:
@@ -246,6 +286,8 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, pro
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Summary)
 	case t.Summary != "":
 		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, txt.Dim(t.Summary, color))
+	case hasInlineWarning:
+		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, txt.Dim(inlineWarning, color))
 	case runningDetail != "":
 		// Default intensity, not txt.Dim: the in-flight phase/progress is the
 		// diagnostic signal while work is stalled — txt.Dim is reserved for
@@ -288,6 +330,7 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, pro
 	}
 	writeTaxonomy(b, "", "skipped", t.Skipped, verbose, color, profile)
 	writeTaxonomy(b, "", "kept", t.Kept, verbose, color, profile)
+	writeNestedTaskWarnings(b, nestedWarnings, "  ", color, profile)
 }
 
 // runningTaskDetail composes a core.Running task's plain-mode detail text: its
@@ -426,11 +469,17 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, color, verbos
 	tg := txt.StyleGlyph(TaskGlyph(t.State, profile), StateColor(t.State), color)
 	fmt.Fprintf(b, "   %s  %s", tg, t.Name)
 	headerSummary := t.Summary
-	if len(t.Problems) > 0 {
+	inlineWarning, hasInlineWarning := inlineTaskWarning(t)
+	nestedWarnings := t.Warnings
+	switch {
+	case len(t.Problems) > 0:
 		headerSummary = t.Problems[0].Summary
 		fmt.Fprintf(b, "  %s", headerSummary)
-	} else if headerSummary != "" {
+	case headerSummary != "":
 		fmt.Fprintf(b, "  %s", headerSummary)
+	case hasInlineWarning:
+		fmt.Fprintf(b, "  %s", txt.Dim(inlineWarning, color))
+		nestedWarnings = nil
 	}
 	b.WriteByte('\n')
 	// emphasize keeps a Fail/Block child's evidence at full intensity, the
@@ -464,6 +513,7 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, color, verbos
 	}
 	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, verbose, color, profile)
 	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, verbose, color, profile)
+	writeNestedTaskWarnings(b, nestedWarnings, problemTreeIndent, color, profile)
 }
 
 // maxVisibleEffectRows bounds how many plan/changes rows the human view
@@ -626,7 +676,8 @@ const conclusionPartialModifier = " · partial"
 
 // conclusionWarnedModifier marks the printed band with the same "modifier,
 // not a new headline" treatment as conclusionPartialModifier (release-gate
-// round 8 finding 3): a run that resolved at least one core.Warning while its
+// round 8 finding 3): a run that carries at least one TaskHandle.Warn
+// annotation (P2: Warn never resolves its own lifecycle state) while its
 // headline settled on an OK-family state (e.g. [ready]) must not read as
 // silently clean — the exit code is unchanged, only the band gains this
 // suffix. core.Conclusion.Warned is already false when State is itself
@@ -749,8 +800,6 @@ func StateColor(s core.EntityState) string {
 		return txt.SGRRed
 	case core.Blocked:
 		return txt.SGRRed
-	case core.Warning:
-		return txt.SGRYellow
 	case core.Running:
 		return txt.SGRCyan
 	case core.Pending, core.Skipped, core.Cancelled, core.Incomplete, core.NotStarted:
@@ -762,7 +811,7 @@ func StateColor(s core.EntityState) string {
 
 func conclusionColor(s core.ConclusionState) string {
 	switch s {
-	case core.StateReady, core.StateUnchanged, core.StateChanged:
+	case core.StateReady, core.StateChanged:
 		return txt.SGRGreen
 	case core.StatePlanned:
 		return txt.SGRBlue

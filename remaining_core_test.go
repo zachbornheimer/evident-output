@@ -11,14 +11,23 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
+// TestDOM030_CollectionWarning is updated for P2: Warn annotates a task
+// instead of resolving it, so a task that only ever calls Warn stays
+// non-terminal (Pending) until Finish's amnesty resolves it — before
+// Finish, the collection reads Incomplete (one unresolved child), and the
+// warning itself lives on that child's Warnings field.
 func TestDOM030_CollectionWarning(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Tasks("g")
 	g.Task("a").Done()
 	g.Task("b").Warn("soft")
-	if g.Snapshot().State != evo.Warning {
-		t.Fatal(g.Snapshot().State)
+	snap := g.Snapshot()
+	if snap.State != evo.Incomplete {
+		t.Fatalf("state = %v, want Incomplete (Warn no longer resolves its task)", snap.State)
+	}
+	if warnings := snap.Tasks[1].Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
+		t.Fatalf("child warnings = %+v, want one warning %q", warnings, "soft")
 	}
 }
 

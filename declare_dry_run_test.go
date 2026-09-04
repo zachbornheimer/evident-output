@@ -17,7 +17,7 @@ func TestDeclareDryRun_BeforeAnyRow_SwitchesMode(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
 	out.DeclareDryRun()
-	out.Task("cleanup").Delete(2, "stale local branch")
+	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(2))
 	_ = out.Finish()
 
 	rendered := buf.String()

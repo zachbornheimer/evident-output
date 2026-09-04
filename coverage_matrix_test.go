@@ -41,7 +41,9 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, width int) {
 		out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("s"), evo.To(w), evo.Plain(), evo.NoColor(), evo.Width(width)}})
-		out.Changes("c").Added(1, "x").Wrote("f")
+		c := out.Task("c")
+		_ = c.Add("x", nil, evo.Affected(1))
+		_ = c.Write("f", nil)
 		_ = out.Finish()
 		_ = out.Close()
 	}

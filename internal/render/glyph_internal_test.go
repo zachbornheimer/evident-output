@@ -16,7 +16,6 @@ func TestTaskGlyph_ASCIITable(t *testing.T) {
 		core.Done:       "[ok]",
 		core.Failed:     "[x]",
 		core.Blocked:    "[blocked]",
-		core.Warning:    "[!]",
 		core.Pending:    "[.]",
 		core.Cancelled:  "[cancel]", // evo-rec.md: Cancelled gets its own face, no longer Pending's
 		core.Skipped:    "[.]",
@@ -36,7 +35,6 @@ func TestTaskGlyph_UnicodeUnchanged(t *testing.T) {
 		core.Done:       "✓",
 		core.Failed:     "✗",
 		core.Blocked:    "⊘",
-		core.Warning:    "!",
 		core.Pending:    "○",
 		core.Cancelled:  "■", // evo-rec.md: Cancelled gets its own face, no longer Pending's
 		core.Skipped:    "○",

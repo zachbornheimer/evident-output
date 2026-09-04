@@ -34,7 +34,7 @@ func TestInit_WithOptionsInstallsDefault(t *testing.T) {
 	t.Cleanup(func() { evo.SetDefault(nil) })
 
 	branches := evo.Task("branches")
-	branches.Delete(2, "stale branches")
+	_ = branches.Delete("stale branches", nil, evo.Affected(2))
 	branches.Done()
 
 	if err := evo.Default().Finish(); err != nil {

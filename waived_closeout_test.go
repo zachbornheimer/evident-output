@@ -150,9 +150,9 @@ func TestTXT016_LeaderBoundedAndOmittedNarrow(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, cols int) {
 		out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("x"), evo.To(w), evo.Plain(), evo.NoColor(), evo.Width(cols)}})
-		ch := out.Changes("files")
-		ch.Added(1, "a.go")
-		ch.Removed(2, "b.go")
+		ch := out.Task("files")
+		_ = ch.Add("a.go", nil, evo.Affected(1))
+		_ = ch.Remove("b.go", nil, evo.Affected(2))
 		_ = out.Finish()
 		_ = out.Close()
 	}

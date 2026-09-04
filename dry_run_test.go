@@ -16,7 +16,7 @@ func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	branches := out.Task("branches")
-	branches.Delete(12, "local branches")
+	_ = branches.Delete("local branches", nil, evo.Affected(12))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -44,7 +44,7 @@ func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(12, "local branches")
+	_ = branches.Delete("local branches", nil, evo.Affected(12))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	branches.Delete(3, "local branches")
+	_ = branches.Delete("local branches", nil, evo.Affected(3))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -104,8 +104,8 @@ func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	branches.Delete(3, "local branches")
-	branches.Update(1, "tip")
+	_ = branches.Delete("local branches", nil, evo.Affected(3))
+	_ = branches.Update("tip", nil, evo.Affected(1))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	task := out.Task("branches")
 	task.Done()
 
-	task.Delete(1, "thing")
+	_ = task.Delete("thing", nil, evo.Affected(1))
 
 	if out.Err() == nil {
 		t.Fatal("want recorded misuse after mutating a resolved task")
@@ -168,30 +168,6 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	snap := out.Snapshot()
 	if len(snap.Changes) != 0 {
 		t.Fatalf("no mutation should have been recorded, got %+v", snap.Changes)
-	}
-}
-
-// TestWriteEffects_EmptySectionRendersNothingToLine is the empty-case
-// contract: a Plan/Changes section that ends with zero records renders an
-// honest "nothing to ..." line instead of an empty [planned]/[changed]
-// header. A section declared directly (never through a TaskHandle mutation
-// verb) never learned a verb, so it falls back to "nothing to change for
-// <subject>" — never the bare subject noun standing in for a verb
-// (evo-rec.md "Empty effect section grammar").
-func TestWriteEffects_EmptySectionRendersNothingToLine(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	out.Plan("branches")
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-	if !strings.Contains(got, "nothing to change for branches") {
-		t.Fatalf("want empty-success line, got:\n%s", got)
-	}
-	if strings.Contains(got, "[planned]  branches") {
-		t.Fatalf("empty section must not render a header:\n%s", got)
 	}
 }
 
@@ -204,7 +180,7 @@ func TestWriteEffects_EmptySectionWithKnownVerb(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	branches := out.Task("branches")
-	branches.Delete(0, "local branches")
+	_ = branches.Delete("local branches", nil, evo.Affected(0))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

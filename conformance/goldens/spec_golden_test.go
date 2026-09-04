@@ -435,7 +435,7 @@ func TestSpecP3_DryRunTense_Step1(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	salvage := out.Task("salvage")
-	salvage.Push(3, "feat/a → retire/feat/a")
+	_ = salvage.Push("feat/a → retire/feat/a", nil, evo.Affected(3))
 	salvage.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

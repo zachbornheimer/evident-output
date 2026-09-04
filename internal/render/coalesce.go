@@ -20,11 +20,15 @@ func ShouldSuppressStandaloneConclusion(s core.Snapshot) bool {
 	c := *s.Conclusion
 
 	if semanticResultCount(s) == 0 {
-		return c.Explanation == "" && len(c.Actions) == 0 && !c.Partial && !c.Cancelled
+		return c.Explanation == "" && len(c.Actions) == 0 && !c.Partial && !c.Cancelled && !c.Warned
 	}
 
-	// Extra visible conclusion dimensions — never suppress.
-	if c.Explanation != "" || len(c.Actions) > 0 || c.Partial || c.Cancelled {
+	// Extra visible conclusion dimensions — never suppress. Warned joins
+	// Partial/Cancelled here (P2): a warned-but-otherwise-suppressible run
+	// must not have its "· warned" modifier silently swallowed along with
+	// the band it rides on (the same class of gap release-gate round 8
+	// finding 3 fixed for the non-suppressed case).
+	if c.Explanation != "" || len(c.Actions) > 0 || c.Partial || c.Cancelled || c.Warned {
 		return false
 	}
 	if shouldSuppressRepeatedCondition(s, c) {
@@ -33,7 +37,7 @@ func ShouldSuppressStandaloneConclusion(s core.Snapshot) bool {
 
 	// Severity that is not pure planned/changed success.
 	switch c.State {
-	case core.StateChanged, core.StatePlanned, core.StateReady, core.StateUnchanged:
+	case core.StateChanged, core.StatePlanned, core.StateReady:
 		// candidates below
 	default:
 		// failed, blocked, warning, cancelled, partial, …
@@ -59,7 +63,7 @@ func ShouldSuppressStandaloneConclusion(s core.Snapshot) bool {
 			return false
 		}
 		// Compatible: changed (or ready with Changed flag from changes presence).
-		return c.State == core.StateChanged || (c.State == core.StateReady && c.Changed) || c.State == core.StateUnchanged
+		return c.State == core.StateChanged || (c.State == core.StateReady && c.Changed)
 	}
 
 	// Exactly one Plan.
@@ -67,7 +71,7 @@ func ShouldSuppressStandaloneConclusion(s core.Snapshot) bool {
 	if !sameSemanticSubject(p.Subject, p.ID, c.Subject, s.Subject) {
 		return false
 	}
-	return c.State == core.StatePlanned || c.State == core.StateReady || c.State == core.StateUnchanged
+	return c.State == core.StatePlanned || c.State == core.StateReady
 }
 
 func semanticResultCount(s core.Snapshot) int {
@@ -104,8 +108,6 @@ func conclusionRepeatsEntityState(conclusion core.ConclusionState, entity core.E
 	switch entity {
 	case core.Done, core.Skipped, core.Empty:
 		return conclusion == core.StateReady
-	case core.Warning:
-		return conclusion == core.StateWarning
 	case core.Blocked:
 		return conclusion == core.StateBlocked
 	case core.Failed:
@@ -115,8 +117,8 @@ func conclusionRepeatsEntityState(conclusion core.ConclusionState, entity core.E
 	case core.Pending, core.Running, core.Incomplete:
 		// Partial is a completeness modifier now, not a headline state
 		// (conclusion.go); a lone unresolved entity concludes the same as
-		// an empty run — core.StateUnchanged — so that is what "repeats" it.
-		return conclusion == core.StateUnchanged
+		// an empty run — core.StateReady — so that is what "repeats" it.
+		return conclusion == core.StateReady
 	default:
 		return false
 	}
@@ -151,14 +153,17 @@ func normalizeSubject(s string) string {
 
 func hasIndependentConditionRows(s core.Snapshot) bool {
 	for _, t := range s.Tasks {
+		if len(t.Warnings) > 0 {
+			return true
+		}
 		switch t.State {
-		case core.Failed, core.Warning, core.Cancelled, core.Incomplete, core.Running, core.Pending:
+		case core.Failed, core.Cancelled, core.Incomplete, core.Running, core.Pending:
 			return true
 		}
 	}
 	for _, col := range s.Collections {
 		switch col.State {
-		case core.Failed, core.Warning, core.Cancelled, core.Incomplete, core.Running, core.Pending:
+		case core.Failed, core.Cancelled, core.Incomplete, core.Running, core.Pending:
 			return true
 		}
 	}

@@ -1,9 +1,8 @@
-// Command migrate demonstrates the advanced Plan/Changes instance API — the
-// primitives Task's mutation verbs (Delete/Create/Update/…) are built on.
-// Reach for Plan/Changes directly, as this example does, only when a tool
-// needs the would/did split without a Task; ordinary callers get the same
-// dry-run/applied split for free from Task's mutation verbs (see the README
-// quick start).
+// Command migrate demonstrates the mutation-verb effect boundary
+// (Add/Create/Write, ...): the same call site records a planned effect
+// under --dry-run (evo.DryRun) or a committed one when it actually runs, and
+// evo derives Changed/Ready/Planned from what happened — the caller never
+// chooses which ledger a mutation lands in.
 //
 //	go run ./examples/migrate/
 //	go run ./examples/migrate/ --apply
@@ -22,22 +21,15 @@ func main() {
 	fail := flag.Bool("fail", false, "with --apply, simulate backup failure")
 	flag.Parse()
 
-	out := evo.Init(evo.Config{Title: "schema migration"})
+	opts := []evo.Option{evo.Title("schema migration")}
+	if !*apply {
+		opts = append(opts, evo.DryRun())
+	}
+	out := evo.Init(evo.Config{Options: opts})
 	os.Exit(evo.Main(func() error {
-		if !*apply {
-			evo.Println("Dry-run: no database changes will be made.")
-			plan := out.Plan("database")
-			plan.Add(1, "column users.email_verified")
-			plan.Create("index idx_users_email")
-			plan.Write("migrations/20260727_email_verified.sql")
-			evo.Task("connection").Done()
-			evo.Task("lock").Done()
-			return nil
-		}
-
 		backup := evo.Task("backup")
 		backup.Phase("snapshotting production")
-		if *fail {
+		if *apply && *fail {
 			// Detail is stable user guidance (presentation); the raw SDK error
 			// would go into Failf's trailing %w if this call site returned it.
 			backup.Fail(
@@ -52,10 +44,21 @@ func main() {
 		migration.Phase("applying schema changes")
 		migration.Done("applied")
 
-		changes := out.Changes("database")
-		changes.Added(1, "column users.email_verified")
-		changes.Created("index idx_users_email")
-		changes.Wrote("migrations/20260727_email_verified.sql")
+		database := out.Task("database")
+		if err := database.Add("column users.email_verified", addEmailVerifiedColumn); err != nil {
+			return database.Failf("add column: %w", err)
+		}
+		if err := database.Create("index idx_users_email", createEmailIndex); err != nil {
+			return database.Failf("create index: %w", err)
+		}
+		if err := database.Write("migrations/20260727_email_verified.sql", writeMigrationFile); err != nil {
+			return database.Failf("write migration file: %w", err)
+		}
+		database.Done()
 		return nil
 	}))
 }
+
+func addEmailVerifiedColumn() error { return nil }
+func createEmailIndex() error       { return nil }
+func writeMigrationFile() error     { return nil }

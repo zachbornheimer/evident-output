@@ -173,17 +173,19 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 		return tasks, 0
 	}
 	// Priority: failed, warning, active(running), pending, successful.
+	// Warning is a Done-task annotation now (P2), not a lifecycle state, so
+	// it ranks ahead of state on len(t.Warnings) rather than t.State.
 	rank := func(t core.TaskSnapshot) int {
-		switch t.State {
-		case core.Failed:
+		switch {
+		case t.State == core.Failed:
 			return 0
-		case core.Warning:
+		case len(t.Warnings) > 0:
 			return 1
-		case core.Running:
+		case t.State == core.Running:
 			return 2
-		case core.Pending:
+		case t.State == core.Pending:
 			return 3
-		case core.Done, core.Skipped:
+		case t.State == core.Done, t.State == core.Skipped:
 			return 4
 		default:
 			return 5
@@ -292,12 +294,15 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 		default:
 			fmt.Fprintf(b, "%s%s  %s\n", pad, g, strings.TrimRight(nameField, " "))
 		}
-	case t.State == core.Warning:
-		msg := t.Summary
-		if msg == "" && len(t.Problems) > 0 {
-			msg = t.Problems[0].Summary
+	case t.State == core.Done && len(t.Warnings) > 0:
+		// A short, single warning inlines on the ✓ row (P2); with more than
+		// one, name the first and count the rest — live is one line per row,
+		// unlike plain mode's nested "!" lines.
+		msg := t.Warnings[0].Summary
+		if more := len(t.Warnings) - 1; more > 0 {
+			msg = fmt.Sprintf("%s (+%d more)", msg, more)
 		}
-		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, msg)
+		fmt.Fprintf(b, "%s%s  %s  %s\n", pad, g, nameField, txt.Dim(msg, color))
 	default:
 		fmt.Fprintf(b, "%s%s  %s\n", pad, g, strings.TrimRight(nameField, " "))
 	}

@@ -141,7 +141,7 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 		}
 	}
 
-	generate.Write("partial artifact at /tmp/out (2.1 MB)")
+	_ = generate.Write("partial artifact at /tmp/out (2.1 MB)", nil)
 	generate.Cancel("cancelled")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -316,7 +316,7 @@ func TestSpecP8_Success(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	remotes := out.Task("remotes")
-	remotes.Delete(3, "origin tip")
+	_ = remotes.Delete("origin tip", nil, evo.Affected(3))
 	remotes.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -473,7 +473,7 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 	venv := setup.Task("venv")
 	setup.Task("install")
 	scan.Done()
-	venv.Write("incomplete .venv directory")
+	_ = venv.Write("incomplete .venv directory", nil)
 	venv.Cancel("cancelled — .venv partial")
 	if err := out.Finish(); err != nil {
 		t.Log(err)

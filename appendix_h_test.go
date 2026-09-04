@@ -217,18 +217,21 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Changes("dependencies").
-		Added(14, "package").
-		Updated(4, "package").
-		Record("reused", 63, "cached package").
-		Wrote("app.lock")
+	dependencies := out.Task("dependencies")
+	_ = dependencies.Add("package", nil, evo.Affected(14))
+	_ = dependencies.Update("package", nil, evo.Affected(4))
+	dependencies.RecordLabel("reused", 63, "cached package")
+	_ = dependencies.Write("app.lock", nil)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	// Full Finish output: single Changes band; trailing conclusion coalesced (DEC-COAL).
-	want := `[changed]  dependencies
+	// Full Finish output: the mutation verbs now live on a Task (P1), so its
+	// own terminal row (auto-resolved Done via Finish's amnesty) precedes the
+	// Changes band; trailing conclusion still coalesces (DEC-COAL).
+	want := `✓  dependencies
+[changed]  dependencies
   added    14 packages
   updated   4 packages
   reused   63 cached packages
@@ -250,16 +253,17 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 	}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Changes("dependencies").
-		Added(14, "package").
-		Updated(4, "package").
-		Wrote("app.lock")
+	dependencies := out.Task("dependencies")
+	_ = dependencies.Add("package", nil, evo.Affected(14))
+	_ = dependencies.Update("package", nil, evo.Affected(4))
+	_ = dependencies.Write("app.lock", nil)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	want := `[changed]  dependencies
+	want := `✓  dependencies
+[changed]  dependencies
   added 14 packages
   updated 4 packages
   wrote app.lock
@@ -271,12 +275,12 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 }
 
 func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("account acme"), evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("account acme"), evo.To(io.Discard), evo.DryRun()}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Plan("delete account acme").
-		Delete(14, "project").
-		Record("revoke", 7, "API keys")
+	deleteAcct := out.Task("delete account acme")
+	_ = deleteAcct.Delete("project", nil, evo.Affected(14))
+	deleteAcct.Record("revoke", 7, "API keys")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

@@ -16,7 +16,7 @@ func TestLedger_PluralizesSingularObjectFromQuantity(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
-	out.Task("cleanup").Delete(8, "stale local branch")
+	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(8))
 	_ = out.Finish()
 
 	rendered := buf.String()
@@ -34,7 +34,7 @@ func TestLedger_QuantityOne_StaysSingular(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
 
-	out.Task("cleanup").Delete(1, "stale local branch")
+	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(1))
 	_ = out.Finish()
 
 	rendered := buf.String()

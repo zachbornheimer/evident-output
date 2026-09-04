@@ -53,13 +53,21 @@ func TestDOM037_FailedConclusion(t *testing.T) {
 	}
 }
 
+// TestDOM038_WarningOnly is updated for P2: Warn no longer resolves its
+// task, so a task that only ever calls Warn auto-resolves Done at Finish
+// (the same amnesty a recorded effect gets) — the run reads StateReady, with
+// Conclusion.Warned carrying the warning forward instead of a StateWarning
+// headline.
 func TestDOM038_WarningOnly(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("i").Warn("careful")
 	_ = out.Finish()
-	if out.Conclusion().State != evo.StateWarning {
-		t.Fatal(out.Conclusion().State)
+	if got := out.Conclusion().State; got != evo.StateReady {
+		t.Fatalf("state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
+	}
+	if !out.Conclusion().Warned {
+		t.Fatal("Conclusion.Warned = false, want true")
 	}
 }
 

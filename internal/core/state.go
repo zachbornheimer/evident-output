@@ -16,7 +16,6 @@ const (
 	Pending    EntityState = "pending"
 	Running    EntityState = "running"
 	Done       EntityState = "done"
-	Warning    EntityState = "warning"
 	Blocked    EntityState = "blocked"
 	Failed     EntityState = "failed"
 	Skipped    EntityState = "skipped"
@@ -36,7 +35,6 @@ type ConclusionState string
 const (
 	StateReady     ConclusionState = "ready"
 	StateChanged   ConclusionState = "changed"
-	StateUnchanged ConclusionState = "unchanged"
 	StateWarning   ConclusionState = "warning"
 	StateBlocked   ConclusionState = "blocked"
 	StateFailed    ConclusionState = "failed"
@@ -63,7 +61,7 @@ type Progress struct {
 // IsTerminalTask reports whether s is a terminal task state.
 func IsTerminalTask(s EntityState) bool {
 	switch s {
-	case Done, Warning, Blocked, Failed, Cancelled, Skipped, NotStarted:
+	case Done, Blocked, Failed, Cancelled, Skipped, NotStarted:
 		return true
 	default:
 		return false

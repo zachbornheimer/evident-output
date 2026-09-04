@@ -23,7 +23,7 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(8, "local branch")
+	_ = branches.Delete("local branch", nil, evo.Affected(8))
 	branches.Done()
 	out.Cancel("interrupted")
 	if err := out.Finish(); err != nil {
@@ -59,7 +59,7 @@ func TestConclusion_AlreadyMutated_Failed(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	remotes := out.Task("remotes")
-	remotes.Delete(1, "origin tip")
+	_ = remotes.Delete("origin tip", nil, evo.Affected(1))
 	remotes.Fail("authentication failed")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -76,7 +76,7 @@ func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(8, "local branch")
+	_ = branches.Delete("local branch", nil, evo.Affected(8))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -95,12 +95,13 @@ func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 // bounded-rows overflow this test proves needs 500 distinct rows to exercise.
 func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	plan := out.Plan("branches")
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	branches := out.Task("branches")
 	const total = 500
 	for i := 0; i < total; i++ {
-		plan.Delete(1, fmt.Sprintf("feat/branch-%d", i))
+		branches.RecordName("delete", fmt.Sprintf("feat/branch-%d", i))
 	}
+	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

@@ -29,7 +29,7 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(8, "branch")
+	_ = branches.Delete("branch", nil, evo.Affected(8))
 	branches.Done("8 deleted")
 	worktrees := out.Task("worktrees")
 	protected := evo.Reason("protected")
@@ -72,7 +72,7 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(8, "branch")
+	_ = branches.Delete("branch", nil, evo.Affected(8))
 	protected := evo.Reason("protected")
 	for i := 0; i < 6; i++ {
 		branches.Skipped(protected, "b")
@@ -112,7 +112,7 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(8, "branch")
+	_ = branches.Delete("branch", nil, evo.Affected(8))
 	branches.Done("8 deleted")
 	worktrees := out.Task("worktrees")
 	worktrees.Cancel("cancelled — 0 removed")
@@ -149,7 +149,7 @@ func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(12, "branch")
+	_ = branches.Delete("branch", nil, evo.Affected(12))
 	branches.Done("12 deleted")
 	remotes := out.Task("remotes")
 	remotes.Fail("authentication failed", evo.Detail("remote: Invalid username or token"))
@@ -184,7 +184,7 @@ func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(5, "branch")
+	_ = branches.Delete("branch", nil, evo.Affected(5))
 	branches.Done("5 deleted (local)")
 	remotes := out.Task("remotes")
 	remotes.Cancel("cancelled before any delete-remote")
@@ -239,7 +239,7 @@ func TestSpecP3_DryRunTense_Success(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	salvage := out.Task("salvage")
-	salvage.Push(3, "branch")
+	_ = salvage.Push("branch", nil, evo.Affected(3))
 	salvage.Done()
 	salvage.Next(evo.Label("repo-retire --retire demo"))
 	if err := out.Finish(); err != nil {
@@ -271,7 +271,7 @@ func TestSpecP3_DryRunTense_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	salvage := out.Task("salvage")
-	salvage.Push(3, "feat/a → retire/feat/a")
+	_ = salvage.Push("feat/a → retire/feat/a", nil, evo.Affected(3))
 	salvage.Fail("dry-run only — not applied")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -303,7 +303,7 @@ func TestSpecP3_DryRunTense_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	salvage := out.Task("salvage")
-	salvage.Push(1, "branch")
+	_ = salvage.Push("branch", nil, evo.Affected(1))
 	salvage.Progress(2, 3)
 	salvage.Fail("non-fast-forward", evo.Detail("tip rejected on retire/feat/b"))
 	if err := out.Finish(); err != nil {
@@ -336,7 +336,7 @@ func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	salvage := out.Task("salvage")
-	salvage.Push(1, "branch")
+	_ = salvage.Push("branch", nil, evo.Affected(1))
 	salvage.Cancel("interrupted")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -457,7 +457,7 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	scan, venv, install := setup.Task("scan"), setup.Task("venv"), setup.Task("install")
 	scan.Done()
 	venv.Done()
-	install.Create(".venv")
+	_ = install.Create(".venv", nil)
 	install.Progress(6, 14)
 	install.Cancel("cancelled at 6/14")
 	if err := out.Finish(); err != nil {

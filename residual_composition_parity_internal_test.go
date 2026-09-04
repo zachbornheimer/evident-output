@@ -21,7 +21,7 @@ import (
 // reaching only one destination.
 func TestResidualComposition_PlainAndInteractiveSectionParity(t *testing.T) {
 	for _, colorOn := range []bool{false, true} {
-		opts := []Option{Plain(), VisibilityDelay(0)}
+		opts := []Option{Plain(), VisibilityDelay(0), DryRun()}
 		if !colorOn {
 			opts = append(opts, NoColor())
 		}
@@ -30,7 +30,9 @@ func TestResidualComposition_PlainAndInteractiveSectionParity(t *testing.T) {
 
 		task := out.Task("branches")
 		task.Fail("could not delete", Detail("permission denied"))
-		out.Plan("branches").Delete(3, "stale local branch")
+		cleanup := out.Task("cleanup")
+		_ = cleanup.Delete("stale local branch", nil, Affected(3))
+		cleanup.Done()
 
 		out.mu.Lock()
 		snap := out.snapshotLocked()

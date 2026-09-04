@@ -99,8 +99,10 @@ func TestOUT020_NoSubjectOmitsGuess(t *testing.T) {
 }
 
 func TestOUT022_PlanVsChanges(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
-	out.Plan("p").Delete(1, "x")
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.DryRun()}})
+	p := out.Task("p")
+	_ = p.Delete("x", nil, evo.Affected(1))
+	p.Done()
 	_ = out.Finish()
 	if out.Conclusion().Changed {
 		t.Fatal("plan must not set changed")

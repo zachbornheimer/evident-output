@@ -228,21 +228,6 @@ func (t *TaskHandle) Done(args ...any) *TaskHandle {
 	return t.finish(Done, txt.Text(summary), nil)
 }
 
-// Unchanged resolves the task successfully, explicitly marking "checked,
-// nothing needed to change" — distinct from an ordinary Done's generic
-// verdict (I7). A run made entirely of Unchanged tasks (no Changes/Plan
-// records, nothing Failed/Blocked/Cancelled/Warning) concludes
-// StateUnchanged instead of the StateReady an ordinary Done gets. Same
-// no-args/literal/printf-formatted shape as Done (C6).
-func (t *TaskHandle) Unchanged(args ...any) *TaskHandle {
-	summary, ok := formatSummaryArgs(args)
-	if !ok {
-		t.out.recordMisuse(ErrInvalidConfig)
-		return t
-	}
-	return t.finishTagged(Done, txt.Text(summary), nil, true)
-}
-
 // formatSummaryArgs implements Done/Unchanged's no-args/literal/printf-
 // formatted shape (C6): zero args is no summary; one string arg is a
 // literal (never passed through Sprintf, so a caller's own "%" stays
@@ -263,19 +248,37 @@ func formatSummaryArgs(args []any) (summary string, ok bool) {
 	return fmt.Sprintf(format, args[1:]...), true
 }
 
-// Warn resolves the task with a warning. This is a statement, not a fluent
-// chain — Warn returns nothing, so a bare `task.Warn("summary")` is
-// errcheck-clean, matching Fail/Block (beginner-9: doc.go's no-fluent
-// promise). The message gets the same summary placement as Fail/Block (the
-// ⚠ row itself carries it), and the same de-echo as Fail/Block drops the
-// redundant problem row when there's no Detail beyond it (beginner-3).
-// summary is a printf format when fmt args are present — one text spelling
-// shared with Done/Task/Group/Reason (C6); evo.Detail(...) and other
-// ProblemOptions may be mixed into args in any position and still apply.
+// Warn accumulates a warning annotation on the task. This is a statement,
+// not a fluent chain — Warn returns nothing, so a bare `task.Warn("summary")`
+// is errcheck-clean, matching Fail/Block (beginner-9: doc.go's no-fluent
+// promise). Unlike Fail/Block, Warn does not resolve the task (13-problem
+// doc P2: "warnings annotate lifecycle; they do not replace it") — call it
+// any number of times before the task's terminal verb. A warned task that
+// never reaches a terminal verb auto-resolves Done at Finish. summary is a
+// printf format when fmt args are present — one text spelling shared with
+// Done/Task/Group/Reason (C6); evo.Detail(...) and other ProblemOptions may
+// be mixed into args in any position and still apply.
 func (t *TaskHandle) Warn(summary string, args ...any) {
 	formatted, opts := formatWarnArgs(summary, args)
 	p := applyProblemOptions(txt.Text(formatted), opts)
-	t.finish(Warning, formatted, []Problem{p})
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return
+	}
+	if core.IsTerminalTask(st.state) {
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		return
+	}
+	st.warnings = append(st.warnings, p)
+	t.out.bumpLocked()
+	t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
+	t.out.signalLiveLocked(true)
 }
 
 // Fail resolves the task as failed. This is a statement, not a fluent
@@ -412,15 +415,6 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 }
 
 func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
-	return t.finishTagged(state, summary, problems, false)
-}
-
-// finishTagged is finish's body, with an extra unchanged tag Task.Unchanged/
-// Unchangedf set (I7) — a run made entirely of Unchanged tasks concludes
-// StateUnchanged instead of the generic StateReady an ordinary Done gets
-// (inferConclusion). Never called with unchanged=true for any state other
-// than Done — Unchanged is a Done-family resolution, not a new glyph.
-func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []Problem, unchanged bool) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -436,7 +430,6 @@ func (t *TaskHandle) finishTagged(state EntityState, summary string, problems []
 		return t
 	}
 	st.state = state
-	st.unchanged = unchanged
 	st.phase = "" // Done clears active phase
 	if summary != "" {
 		st.summary = txt.Text(summary)

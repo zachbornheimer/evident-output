@@ -22,8 +22,6 @@ func TaskGlyph(s core.EntityState, profile txt.GlyphProfile) string {
 		return txt.GlyphFailedState.Render(profile)
 	case core.Blocked:
 		return txt.GlyphBlockedState.Render(profile)
-	case core.Warning:
-		return txt.GlyphWarningState.Render(profile)
 	case core.Running:
 		return txt.GlyphRunning.Render(profile)
 	case core.Pending, core.Skipped:

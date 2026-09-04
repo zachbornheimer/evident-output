@@ -102,7 +102,7 @@ func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
 	conc := out.Conclusion()
 
 	switch conc.State {
-	case evo.StateReady, evo.StateChanged, evo.StateUnchanged, evo.StateWarning,
+	case evo.StateReady, evo.StateChanged, evo.StateWarning,
 		evo.StateBlocked, evo.StateFailed, evo.StateCancelled, evo.StatePlanned:
 	default:
 		t.Fatalf("headline = %v, want one of the documented Outcome states", conc.State)

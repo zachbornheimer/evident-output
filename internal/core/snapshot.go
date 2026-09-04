@@ -54,7 +54,12 @@ type TaskSnapshot struct {
 	Progress        Progress
 	Summary         string
 	Problems        []Problem
-	Actions         []Action
+	// Warnings holds TaskHandle.Warn's accumulated annotations (P2):
+	// warnings annotate the task's lifecycle, they never become a lifecycle
+	// state of their own. Rendering inlines a single short warning on the
+	// task's own row; multiple or long warnings render as nested lines.
+	Warnings []Problem
+	Actions  []Action
 	// Skipped/Kept are the disposition taxonomy accumulated by
 	// TaskHandle.Skipped/Kept — the source the "! skipped N (...)" / "!  kept
 	// N (...)" render lines derive counts and reason partitions from.
@@ -67,20 +72,15 @@ type TaskSnapshot struct {
 	// presentation-internal bookkeeping (coalescing), never part of the
 	// public snapshot contract. Set via NewTaskSnapshot, read via Synthetic.
 	synthetic bool
-	// unchanged marks a Done task resolved via Task.Unchanged/Unchangedf
-	// (I7) — conclusion-inference-internal bookkeeping, never part of the
-	// public snapshot contract. Set via NewTaskSnapshot.
-	unchanged bool
 }
 
 // NewTaskSnapshot returns base with its presentation-internal bookkeeping
 // fields set — the only way to populate them from outside this package
 // (they are deliberately unexported: never part of the public snapshot
 // contract). Called once, by the root package's taskState.snapshot().
-func NewTaskSnapshot(base TaskSnapshot, liveFirstSeenAt time.Time, synthetic, unchanged bool) TaskSnapshot {
+func NewTaskSnapshot(base TaskSnapshot, liveFirstSeenAt time.Time, synthetic bool) TaskSnapshot {
 	base.liveFirstSeenAt = liveFirstSeenAt
 	base.synthetic = synthetic
-	base.unchanged = unchanged
 	return base
 }
 

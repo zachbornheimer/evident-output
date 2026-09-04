@@ -23,7 +23,7 @@ func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 		"local-only branch",
 		evo.Detail("commit or stash before continuing"),
 	)
-	out.Task("cleanup").Delete(2, "stale local branch")
+	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(2))
 	packages := []string{"a", "b", "c"}
 	for range out.Task("install").Each(packages) {
 		// install(pkg) — no explicit Done afterward, matching the README.

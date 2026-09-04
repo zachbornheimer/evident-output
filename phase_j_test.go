@@ -17,7 +17,7 @@ func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
 	branches := out.Task("branches")
-	branches.Delete(12, "local branches")
+	_ = branches.Delete("local branches", nil, evo.Affected(12))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
 	branches := out.Task("branches")
-	branches.Delete(12, "local branches")
+	_ = branches.Delete("local branches", nil, evo.Affected(12))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.NoColor(), evo.DryRun()}})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	branches.Delete(12, "local branches")
+	_ = branches.Delete("local branches", nil, evo.Affected(12))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -140,11 +140,13 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	}
 }
 
-// TestConclusion_WarningOnlyStillReadsWarning is the green counterpart:
-// when a warning is the only content in the run (nothing else to be OK
-// about), the conclusion still reads StateWarning — moving warning below
-// Done/Changed/Planned in headline precedence must not erase this case.
-func TestConclusion_WarningOnlyStillReadsWarning(t *testing.T) {
+// TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned is
+// TestConclusion_WarningOnlyStillReadsWarning's P2 replacement: Warn no
+// longer resolves its task (13-problem doc P2), so a task that only ever
+// calls Warn auto-resolves Done at Finish (the same amnesty a recorded
+// effect or sealed progress already gets) — the run reads StateReady, with
+// Conclusion.Warned still true so the warning stays visible.
+func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 	t.Parallel()
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.NoColor()}})
 	t.Cleanup(func() { _ = out.Close() })
@@ -152,8 +154,11 @@ func TestConclusion_WarningOnlyStillReadsWarning(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	if out.Conclusion().State != evo.StateWarning {
-		t.Fatalf("conclusion state = %v, want StateWarning when nothing else in the run resolved OK", out.Conclusion().State)
+	if got := out.Conclusion().State; got != evo.StateReady {
+		t.Fatalf("conclusion state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
+	}
+	if !out.Conclusion().Warned {
+		t.Fatal("Conclusion.Warned = false, want true: the recorded warning must stay visible")
 	}
 }
 
@@ -185,11 +190,11 @@ func TestConformance_Problem1SuccessBlock(t *testing.T) {
 	branches.Kept(unpushed, "feat/a")
 	branches.Kept(unpushed, "feat/b")
 	branches.Kept(unpushed, "feat/c")
-	branches.Delete(14, "local branches")
+	_ = branches.Delete("local branches", nil, evo.Affected(14))
 	branches.Done()
 
 	worktrees := evo.Task("worktrees")
-	worktrees.Remove(2, "worktrees")
+	_ = worktrees.Remove("worktrees", nil, evo.Affected(2))
 	worktrees.Done()
 
 	if err := evo.Default().Finish(); err != nil {

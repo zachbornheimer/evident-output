@@ -81,19 +81,17 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 	c.ExitCode = ExitFailed
 }
 
-// allChildrenUnchanged reports whether every child task is a Done
-// resolution tagged Task.Unchanged (I7) — an empty child list never counts
-// (a collection with no children says nothing about "unchanged").
-func allChildrenUnchanged(children []TaskSnapshot) bool {
-	if len(children) == 0 {
-		return false
-	}
-	for _, t := range children {
-		if t.State != Done || !t.unchanged {
-			return false
+// anyTaskWarned reports whether any task in tasks carries at least one
+// TaskHandle.Warn annotation (P2: conclusion algebra reads TaskSnapshot.
+// Warnings, never a lifecycle state — Warning is not one of the terminal
+// EntityState values).
+func anyTaskWarned(tasks []TaskSnapshot) bool {
+	for _, t := range tasks {
+		if len(t.Warnings) > 0 {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 // InferConclusion derives the multidimensional meaning of a finished command
@@ -120,16 +118,9 @@ func InferConclusion(s Snapshot) Conclusion {
 	var (
 		hasFailed     bool
 		hasBlocked    bool
-		hasWarning    bool
 		hasCancelled  bool
 		hasIncomplete bool
 		hasDone       bool
-		// doneCount/unchangedCount let a run made entirely of Task.Unchanged
-		// resolutions conclude StateUnchanged instead of the generic
-		// StateReady an ordinary Done gets (I7) — Skipped doesn't carry the
-		// tag and never counts as "unchanged" on its own.
-		doneCount      int
-		unchangedCount int
 	)
 
 	for _, t := range s.Tasks {
@@ -138,51 +129,41 @@ func InferConclusion(s Snapshot) Conclusion {
 			hasFailed = true
 		case Blocked:
 			hasBlocked = true
-		case Warning:
-			hasWarning = true
 		case Cancelled:
 			hasCancelled = true
 		case Pending, Running, Incomplete, NotStarted:
 			hasIncomplete = true
 		case Done, Skipped:
 			hasDone = true
-			doneCount++
-			if t.State == Done && t.unchanged {
-				unchangedCount++
-			}
 		}
 	}
 	for _, col := range s.Collections {
 		switch col.State {
 		case Failed:
 			hasFailed = true
-		case Warning:
-			hasWarning = true
 		case Cancelled:
 			hasCancelled = true
 		case Incomplete, Running, Pending:
 			hasIncomplete = true
 		case Done, Empty:
 			hasDone = true
-			doneCount++
-			// A collection counts toward "all unchanged" only when every one
-			// of its children does (collections derive their tally from
-			// children, never their own bare marker).
-			if col.State == Done && allChildrenUnchanged(col.Tasks) {
-				unchangedCount++
-			}
 		}
 	}
+	// hasWarning reads TaskSnapshot.Warnings (P2), never a lifecycle
+	// EntityState — Warn annotates a task, it never resolves one.
+	hasWarning := anyTaskWarned(s.Tasks)
 
 	// Headline precedence: failed > blocked > cancelled > changed > planned >
-	// partial > ready > warning-only > unchanged.
+	// ready > warning-only.
 	//
 	// Warnings sit below every OK-family outcome (evo-rec.md "Conclusion
 	// algebra — two axes"): Outcome is OK|Blocked|Failed|Cancelled, and a
 	// warning is not one of those four — it is visible attention on its own
 	// "!" row, never a headline that overrides an otherwise-OK verdict. It
-	// only becomes the headline when nothing else in the run classifies
-	// (the run's only content is a warning, per TestDOM038_WarningOnly).
+	// only becomes the headline when nothing else in the run classifies —
+	// which, since Warn no longer resolves its task, requires an as-yet
+	// unbuilt output-level Warn (P8/Facts territory); kept for that future
+	// reachability and because it costs nothing to keep the algebra total.
 	switch {
 	case hasFailed:
 		c.State = StateFailed
@@ -195,14 +176,12 @@ func InferConclusion(s Snapshot) Conclusion {
 		c.State = StateChanged
 	case len(s.Plans) > 0 && !c.Changed && !hasFailed && !hasBlocked:
 		c.State = StatePlanned
-	case hasDone && doneCount > 0 && doneCount == unchangedCount:
-		c.State = StateUnchanged
 	case hasDone:
 		c.State = StateReady
 	case hasWarning:
 		c.State = StateWarning
 	default:
-		c.State = StateUnchanged
+		c.State = StateReady
 	}
 
 	// Partial is a completeness modifier over the Outcome above, never a root
@@ -220,11 +199,11 @@ func InferConclusion(s Snapshot) Conclusion {
 	}
 
 	// DryRun never lets the headline read as done: a run that would
-	// otherwise conclude OK (ready/changed/unchanged) reads as planned
-	// instead — nothing was actually applied (evo-rec.md Problem 1).
+	// otherwise conclude OK (ready/changed) reads as planned instead —
+	// nothing was actually applied (evo-rec.md Problem 1).
 	if s.DryRun {
 		switch c.State {
-		case StateChanged, StateReady, StateUnchanged:
+		case StateChanged, StateReady:
 			c.State = StatePlanned
 		}
 	}

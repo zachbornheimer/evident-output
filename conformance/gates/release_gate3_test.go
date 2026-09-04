@@ -125,7 +125,7 @@ func TestChanges_RepeatedIdenticalRecordsMergeQuantities(t *testing.T) {
 
 	task := out.Task("cleanup")
 	for i := 0; i < 12; i++ {
-		task.Delete(1, "merged branch")
+		_ = task.Delete("merged branch", nil, evo.Affected(1))
 	}
 	task.Done()
 

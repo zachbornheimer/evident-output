@@ -1,65 +1,101 @@
 package evo
 
 import (
+	"fmt"
+
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// Mutation verbs on TaskHandle record what the task did (or, under DryRun,
-// would do) into the one Changes/Plan section named after the task — the
-// verb chooses the ledger tense (imperative vs. conjugatePast), the run's
-// DryRun mode chooses Plan vs. Changes. Callers never write their own tense.
-// These methods return nothing: recording a mutation is an act, not a value
-// to chain.
+// Mutation verbs on TaskHandle are Evo-controlled mutation boundaries (13-
+// problem doc P1): the caller reports success and domain effects; evo
+// derives the result (Changed/Ready/Planned), the tense (imperative vs.
+// past), and the number (evo.Affected). object is always a singular noun
+// phrase ("branch", not "branches") — the ledger pluralizes it from the
+// affected quantity at render time (I4), so a call site never hand-composes
+// its own singular/plural noun.
+//
+// call == nil records the effect without executing anything. Otherwise:
+// normal run executes call and commits the effect only on success; dry run
+// never executes call and records a planned effect instead; a non-nil error
+// from call commits nothing and is returned (see callerEffectError).
 
-// Add records an addition of quantity of object; see Delete for the
-// singular-object convention and the int (not int64) quantity. Part of the
-// verb set unified across TaskHandle/Changes/Plan (C10) — Add was
-// previously Plan-only.
-func (t *TaskHandle) Add(quantity int, object string) {
-	t.Record("add", quantity, object)
+// Add records an addition of object.
+func (t *TaskHandle) Add(object string, call func() error, opts ...EffectOption) error {
+	return t.mutate("add", object, call, opts)
 }
 
-// Delete records a deletion of quantity of object. object is always
-// singular ("branch", not "branches") — the ledger pluralizes it from
-// quantity at render time (I4), so a call site never hand-composes its own
-// singular/plural noun or calls evo.Pluralize itself. quantity is int (not
-// int64) so the common caller shape — Delete(len(x), "...") — compiles
-// without a manual conversion.
-func (t *TaskHandle) Delete(quantity int, object string) {
-	t.Record("delete", quantity, object)
+// Delete records a deletion of object; see Add for the call/dry-run/
+// singular-object contract shared by every mutation verb.
+func (t *TaskHandle) Delete(object string, call func() error, opts ...EffectOption) error {
+	return t.mutate("delete", object, call, opts)
 }
 
-// Create records the creation of one named object.
-func (t *TaskHandle) Create(object string) {
-	t.RecordName("create", object)
+// Create records the creation of object.
+func (t *TaskHandle) Create(object string, call func() error, opts ...EffectOption) error {
+	return t.mutate("create", object, call, opts)
 }
 
-// Update records an update of quantity of object; see Delete for the
-// singular-object convention and the int (not int64) quantity.
-func (t *TaskHandle) Update(quantity int, object string) {
-	t.Record("update", quantity, object)
+// Update records an update of object.
+func (t *TaskHandle) Update(object string, call func() error, opts ...EffectOption) error {
+	return t.mutate("update", object, call, opts)
 }
 
-// Remove records a removal of quantity of object; see Delete for the
-// singular-object convention and the int (not int64) quantity.
-func (t *TaskHandle) Remove(quantity int, object string) {
-	t.Record("remove", quantity, object)
+// Remove records a removal of object.
+func (t *TaskHandle) Remove(object string, call func() error, opts ...EffectOption) error {
+	return t.mutate("remove", object, call, opts)
 }
 
-// Write records the writing of one named object.
-func (t *TaskHandle) Write(object string) {
-	t.RecordName("write", object)
+// Write records the writing of object.
+func (t *TaskHandle) Write(object string, call func() error, opts ...EffectOption) error {
+	return t.mutate("write", object, call, opts)
 }
 
-// Push records a push of quantity of object; see Delete for the
-// singular-object convention and the int (not int64) quantity.
-func (t *TaskHandle) Push(quantity int, object string) {
-	t.Record("push", quantity, object)
+// Push records a push of object.
+func (t *TaskHandle) Push(object string, call func() error, opts ...EffectOption) error {
+	return t.mutate("push", object, call, opts)
 }
 
-// Record records an arbitrary imperative verb/quantity/object mutation.
-// Add/Delete/Create/Update/Remove/Write/Push are named shorthands for this.
+// mutate is the shared mutation boundary behind Add/Delete/Create/Update/
+// Remove/Write/Push: resolve the task's dry-run status, run call (never on
+// a dry run, never when call is nil), then record the resulting effect as
+// committed (Changes) or planned (Plan) depending on the run mode — never
+// both, and never anything at all on a call error.
+func (t *TaskHandle) mutate(verb, object string, call func() error, opts []EffectOption) error {
+	if t == nil || t.out == nil {
+		return nil
+	}
+	_, dryRun, ok := t.out.resolveLedgerTarget(t.id)
+	if !ok {
+		return nil
+	}
+	if !dryRun && call != nil {
+		if err := call(); err != nil {
+			return callerEffectError(err)
+		}
+	}
+	eo := applyEffectOptions(opts)
+	t.out.recordMutation(t.id, verb, int64(eo.quantity), eo.hasQty, object)
+	return nil
+}
+
+// callerEffectError passes a mutation verb's call error back with its
+// message untouched: it is the caller's own callback failing, not an
+// evo-internal operation, so adding evo's own "doing X: " context here
+// would misattribute ownership. The %w wrap keeps errors.Is/As reaching the
+// caller's original error (mirrors TaskHandle.Run's own `return cmd.Run()`
+// passthrough).
+func callerEffectError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w", err)
+}
+
+// Record records an arbitrary imperative verb/quantity/object mutation
+// directly, bypassing the call/dry-run boundary the named verbs enforce —
+// the low-level primitive the named verbs (and the conformance goldens)
+// share.
 func (t *TaskHandle) Record(verb string, quantity int, object string) {
 	t.out.recordMutation(t.id, verb, int64(quantity), true, object)
 }
@@ -122,9 +158,9 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 		// <subject>" (evo-rec.md "empty effect section grammar").
 		sec.declareIntendedVerb(verb)
 		if hasQty {
-			sec.Record(verb, int(quantity), object)
+			sec.record(verb, int(quantity), object)
 		} else {
-			sec.RecordName(verb, object)
+			sec.recordNoQty(verb, object)
 		}
 		return
 	}
@@ -132,9 +168,9 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 	sec.declareIntendedVerb(verb)
 	pastTense := txt.ConjugatePast(verb)
 	if hasQty {
-		sec.Record(pastTense, int(quantity), object)
+		sec.record(pastTense, int(quantity), object)
 	} else {
-		sec.RecordName(pastTense, object)
+		sec.recordNoQty(pastTense, object)
 	}
 }
 
@@ -149,5 +185,5 @@ func (o *Output) recordClassification(taskID, label string, quantity int64, obje
 	}
 	sec := o.changesGetOrCreate(subject)
 	sec.declareIntendedVerb(label)
-	sec.Record(label, int(quantity), object)
+	sec.record(label, int(quantity), object)
 }
