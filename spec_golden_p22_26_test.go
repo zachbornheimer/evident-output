@@ -197,10 +197,12 @@ func TestSpecP22_ConfirmGate_Failure(t *testing.T) {
 
 // TestSpecP22_ConfirmGate_Error covers Problem 22's error block.
 //
-//	⊘  confirm remote delete
-//	   └─ blocked by policy
+//	⊘  confirm remote delete  blocked by policy
 //	→  pass --yes to confirm non-interactively
 //	# $? = 1 (Blocked) — policy block, distinct from a human decline and from Failed
+//
+// beginner-3 de-echo: the "blocked by policy" problem row is dropped since
+// it repeats the task's own summary with no Detail beyond it.
 func TestSpecP22_ConfirmGate_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -215,8 +217,7 @@ func TestSpecP22_ConfirmGate_Error(t *testing.T) {
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
-		"⊘ confirm remote delete",
-		"└─ blocked by policy",
+		"⊘ confirm remote delete blocked by policy",
 		"→ pass --yes to confirm non-interactively",
 	} {
 		if !strings.Contains(collapsed, want) {

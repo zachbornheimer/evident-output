@@ -217,6 +217,12 @@ func writeTask(b *strings.Builder, t TaskSnapshot, color, verbose bool, profile 
 		problems = problems[:maxVisibleProblems]
 	}
 	for _, p := range problems {
+		// beginner-3: the task glyph row already shows t.Summary. A problem
+		// row with no Detail beyond that summary says nothing new — drop it
+		// entirely instead of re-echoing "└─ <same text>" underneath.
+		if p.Detail == "" && p.Subject == "" && p.Summary != "" && p.Summary == t.Summary {
+			continue
+		}
 		// P4: task glyph row already shows t.Summary; do not re-echo it as the
 		// └─ header when Detail carries the real evidence (capture tail / diff).
 		if p.Detail != "" && p.Summary != "" && p.Summary == t.Summary {
@@ -374,6 +380,11 @@ func writeCollectionChild(b *strings.Builder, t TaskSnapshot, color, verbose boo
 		problems = problems[:maxVisibleProblems]
 	}
 	for _, p := range problems {
+		// beginner-3: mirror writeTask's de-echo — a problem row with no
+		// Detail beyond the already-shown header summary says nothing new.
+		if p.Detail == "" && p.Subject == "" && p.Summary != "" && p.Summary == headerSummary {
+			continue
+		}
 		// The header row already showed this summary; Detail alone is the
 		// evidence body (mirrors writeTask's P4 dedup).
 		if p.Detail != "" && p.Summary != "" && p.Summary == headerSummary {
