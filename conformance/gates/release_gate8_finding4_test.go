@@ -34,7 +34,7 @@ func TestFailedTask_WithProgressRendersCountOnFailureRow(t *testing.T) {
 	}
 
 	got := buf.String()
-	if !strings.Contains(got, "✗  install  1/3  install bravo") {
+	if !strings.Contains(got, "✗ install  1/3  install bravo") {
 		t.Fatalf("want the failure row to carry the in-flight count in the live row's position, got:\n%s", got)
 	}
 }

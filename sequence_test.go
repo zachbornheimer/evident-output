@@ -35,8 +35,8 @@ func TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 	if got := install.Snapshot().Summary; got != "not started" {
 		t.Fatalf("install summary = %q, want %q", got, "not started")
 	}
-	if !strings.Contains(buf.String(), "-  install  not started") {
-		t.Fatalf("rendered output missing \"-  install  not started\":\n%s", buf.String())
+	if !strings.Contains(buf.String(), "- install  not started") {
+		t.Fatalf("rendered output missing \"- install  not started\":\n%s", buf.String())
 	}
 }
 
@@ -84,7 +84,7 @@ func TestSequence_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
 
 // TestSequence_CancelAutoResolvesLaterSiblings covers the SIGINT path
 // (evo-rec.md "early termination"): the active task cancels and later
-// pending siblings still render "-  not started".
+// pending siblings still render "- not started".
 func TestSequence_CancelAutoResolvesLaterSiblings(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
@@ -103,8 +103,8 @@ func TestSequence_CancelAutoResolvesLaterSiblings(t *testing.T) {
 	if got := install.Snapshot().State; got != evo.NotStarted {
 		t.Fatalf("install state = %v, want NotStarted", got)
 	}
-	if !strings.Contains(buf.String(), "-  install  not started") {
-		t.Fatalf("rendered output missing \"-  install  not started\":\n%s", buf.String())
+	if !strings.Contains(buf.String(), "- install  not started") {
+		t.Fatalf("rendered output missing \"- install  not started\":\n%s", buf.String())
 	}
 }
 

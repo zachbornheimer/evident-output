@@ -166,7 +166,7 @@ func TestSpecP22_ConfirmGate_Success(t *testing.T) {
 
 // TestSpecP22_ConfirmGate_Failure covers Problem 22's failure block.
 //
-//	⊘  confirm remote delete  declined
+//	⊘ confirm remote delete  declined
 //	# $? = 1 (Blocked)
 //
 // A declined Confirm concludes StateBlocked; writeAlreadyMutated only fires
@@ -187,7 +187,7 @@ func TestSpecP22_ConfirmGate_Failure(t *testing.T) {
 		t.Fatalf("exit = %d, want ExitBlocked (1)", out.Conclusion().ExitCode)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "⊘  confirm remote delete") || !strings.Contains(got, "declined") {
+	if !strings.Contains(got, "⊘ confirm remote delete") || !strings.Contains(got, "declined") {
 		t.Fatalf("want the declined Blocked row, got:\n%s", got)
 	}
 	if strings.Contains(got, "nothing mutated") {
@@ -197,7 +197,7 @@ func TestSpecP22_ConfirmGate_Failure(t *testing.T) {
 
 // TestSpecP22_ConfirmGate_Error covers Problem 22's error block.
 //
-//	⊘  confirm remote delete  blocked by policy
+//	⊘ confirm remote delete  blocked by policy
 //	→  pass --yes to confirm non-interactively
 //	# $? = 1 (Blocked) — policy block, distinct from a human decline and from Failed
 //
@@ -329,7 +329,7 @@ func TestSpecP23_SignalConclusion_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  scan", "✓  venv", "✓  install"} {
+	for _, want := range []string{"✓ scan", "✓ venv", "✓ install"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -356,7 +356,7 @@ func TestSpecP23_SignalConclusion_Failure(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  scan", "✗  venv  uv exited 1"} {
+	for _, want := range []string{"✓ scan", "✗ venv  uv exited 1"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -384,7 +384,7 @@ func TestSpecP23_SignalConclusion_Error(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  scan", "✗  venv  signal: killed (SIGKILL — no cleanup possible)"} {
+	for _, want := range []string{"✓ scan", "✗ venv  signal: killed (SIGKILL — no cleanup possible)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -453,7 +453,7 @@ func TestSpecP23_SignalConclusion_Step2(t *testing.T) {
 // NOT-TESTABLE through the public API as spelled: the library exposes no
 // primitive for a transient "cancelling, waiting for a graceful window"
 // phase distinct from the final Cancelled state. A cancelled task renders
-// "■  venv  interrupted" the moment Cancel resolves it (see
+// "■ venv  interrupted" the moment Cancel resolves it (see
 // TestSpecP23_SignalConclusion_Step2_Mismatch); there is no caller-visible
 // intermediate state to drive a "cancelling — finishing current write…"
 // phase string onto, and run_signal_test.go's own second-SIGINT coverage
@@ -631,7 +631,7 @@ func TestSpecP24_DataFormat_Failure(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(presentation.String(), "✗  scan  permission denied under ~/Developer") {
+	if !strings.Contains(presentation.String(), "✗ scan  permission denied under ~/Developer") {
 		t.Fatalf("want the failure row on stderr, got %q", presentation.String())
 	}
 	if payload.Len() != 0 {

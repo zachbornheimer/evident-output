@@ -230,7 +230,7 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	// Full Finish output: the mutation verbs now live on a Task (P1), so its
 	// own terminal row (auto-resolved Done via Finish's amnesty) precedes the
 	// Changes band; trailing conclusion still coalesces (DEC-COAL).
-	want := `✓  dependencies
+	want := `✓ dependencies
 [changed]  dependencies
   added    14 packages
   updated   4 packages
@@ -262,7 +262,7 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := `✓  dependencies
+	want := `✓ dependencies
 [changed]  dependencies
   added 14 packages
   updated 4 packages

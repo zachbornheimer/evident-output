@@ -170,7 +170,7 @@ func TestSpecP4_SequentialGroup_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  scan", "✓  venv", "✓  install  14 modules"} {
+	for _, want := range []string{"✓ scan", "✓ venv", "✓ install  14 modules"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -199,9 +199,9 @@ func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 	}
 	got := buf.String()
 	for _, want := range []string{
-		"✓  scan",
-		"✗  venv     uv exited 1: No such file or directory",
-		"-  install  not started",
+		"✓ scan",
+		"✗ venv     uv exited 1: No such file or directory",
+		"- install  not started",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
@@ -315,7 +315,7 @@ func TestSpecP6_BytesVsCounts_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  generate  8.0 MB", "✓  test      12/12  ok"} {
+	for _, want := range []string{"✓ generate  8.0 MB", "✓ test      12/12  ok"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -347,7 +347,7 @@ func TestSpecP7_ViewportTruncation_PlanOverflowLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "✓  branches  500 deleted") {
+	if !strings.Contains(got, "✓ branches  500 deleted") {
 		t.Fatalf("want done summary, got:\n%s", got)
 	}
 	if !strings.Contains(got, "more (not shown)") {
@@ -415,7 +415,7 @@ func TestSpecP15_NothingToDo_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  clean", "nothing to clean"} {
+	for _, want := range []string{"✓ clean", "nothing to clean"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -546,7 +546,7 @@ func TestSpecP18_RemoteTrackingVsRemoteDelete_Success(t *testing.T) {
 //
 //	[ok] branches   14 deleted
 //	[ok] worktrees  2 removed
-//	[!]  skipped 6  (protected, dirty)
+//	[!] skipped 6 (protected, dirty)
 func TestSpecP25_ASCIIGlyphFallback_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state,
 	// same as the existing default-instance tests in taxonomy_test.go.
@@ -567,7 +567,7 @@ func TestSpecP25_ASCIIGlyphFallback_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"[ok]  branches  14 deleted", "[ok]  worktrees  2 removed", "[!]  skipped 2"} {
+	for _, want := range []string{"[ok] branches  14 deleted", "[ok] worktrees  2 removed", "[!] skipped 2"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in ASCII-profile output:\n%s", want, got)
 		}
@@ -607,7 +607,7 @@ func TestSpecP24_DataFormat_PresentationNeverTouchesPayloadStream(t *testing.T) 
 	if !strings.Contains(payload.String(), `"ready":40`) {
 		t.Fatalf("payload stream missing the domain payload:\n%s", payload.String())
 	}
-	if !strings.Contains(presentation.String(), "✓  scan  128 checked") {
+	if !strings.Contains(presentation.String(), "✓ scan  128 checked") {
 		t.Fatalf("presentation stream missing the task row:\n%s", presentation.String())
 	}
 }

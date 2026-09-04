@@ -73,9 +73,9 @@ func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 	}
 	got := buf.String()
 	for _, want := range []string{
-		"✓  go mod download  modules cached",
-		"✓  go generate      0.3 MB",
-		"✓  go test ./...    ok",
+		"✓ go mod download  modules cached",
+		"✓ go generate      0.3 MB",
+		"✓ go test ./...    ok",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
@@ -109,9 +109,9 @@ func TestSpecP11_NestedPipeline_Failure(t *testing.T) {
 	}
 	got := buf.String()
 	for _, want := range []string{
-		"✓  go mod download  modules cached",
-		"✓  go generate",
-		"✗  go test ./...    tests failed",
+		"✓ go mod download  modules cached",
+		"✓ go generate",
+		"✗ go test ./...    tests failed",
 		"--- FAIL: TestFoo (0.01s)",
 		"foo_test.go:12: want 1, got 0",
 	} {
@@ -174,8 +174,8 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 	}
 	got := buf.String()
 	for _, want := range []string{
-		"✓  go mod download",
-		"✗  go generate      generator exited 1",
+		"✓ go mod download",
+		"✗ go generate      generator exited 1",
 		"stringer: type not found",
 		"go test ./...    not started",
 	} {
@@ -214,8 +214,8 @@ func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 	}
 	got := buf.String()
 	for _, want := range []string{
-		"✓  go mod download",
-		"■  go generate      cancelled",
+		"✓ go mod download",
+		"■ go generate      cancelled",
 		"go test ./...    not started",
 	} {
 		if !strings.Contains(got, want) {
@@ -552,8 +552,8 @@ func TestSpecP13_LiveFrame_Step2(t *testing.T) {
 // Done count plus a skip-taxonomy line whose single-reason format matches
 // the spec's own literal text exactly.
 //
-//	✓  install  40/40
-//	!  skipped 2  (optional)
+//	✓ install  40/40
+//	! skipped 2 (optional)
 func TestSpecP13_Retry_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -568,7 +568,7 @@ func TestSpecP13_Retry_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  install  40/40", "!  skipped 2  (optional)"} {
+	for _, want := range []string{"✓ install  40/40", "! skipped 2 (optional)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -841,7 +841,7 @@ func TestSpecP14_Capture_Failure(t *testing.T) {
 		t.Fatalf("raw secret leaked into presentation:\n%s", got)
 	}
 	for _, want := range []string{
-		"✗  capture  git push failed",
+		"✗ capture  git push failed",
 		"remote rejected (see redacted stderr)",
 		"Authorization: Bearer ***",
 	} {
@@ -964,7 +964,7 @@ func TestSpecP15_NothingToDo_Step1(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  clean", "nothing to clean"} {
+	for _, want := range []string{"✓ clean", "nothing to clean"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -986,7 +986,7 @@ func TestSpecP15_NothingToDo_Step2(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  capture plan", "nothing to capture (tips already on remote or no long-tail work)"} {
+	for _, want := range []string{"✓ capture plan", "nothing to capture (tips already on remote or no long-tail work)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -1013,7 +1013,7 @@ func TestSpecP15_NothingToDo_Failure(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  clean", "nothing to clean"} {
+	for _, want := range []string{"✓ clean", "nothing to clean"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}

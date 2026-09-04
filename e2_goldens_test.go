@@ -44,8 +44,8 @@ func TestE2P3_SequenceCascade_FailureNotStartsLaterSiblings(t *testing.T) {
 	if got := install.Snapshot().State; got != evo.NotStarted {
 		t.Fatalf("install state = %v, want NotStarted", got)
 	}
-	if !strings.Contains(buf.String(), "-  install  not started") {
-		t.Fatalf("rendered output missing \"-  install  not started\":\n%s", buf.String())
+	if !strings.Contains(buf.String(), "- install  not started") {
+		t.Fatalf("rendered output missing \"- install  not started\":\n%s", buf.String())
 	}
 }
 

@@ -92,7 +92,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 		testkit.WriteDurable("00:00:00.000 [DEBUG] package index loaded  packages=18"),
 		testkit.DrawLive("⠋  dependencies  resolving packages"),
 		testkit.ClearLive(),
-		testkit.WriteDurable("✓  dependencies  installed 18 packages\n"),
+		testkit.WriteDurable("✓ dependencies  installed 18 packages\n"),
 		testkit.WriteFinal(""),
 	}
 

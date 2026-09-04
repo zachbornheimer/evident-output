@@ -72,7 +72,7 @@ func TestFlat_FailDetailDoesNotEchoSummary(t *testing.T) {
 	got := buf.String()
 
 	// Fail summary still appears on the ✗ row.
-	if !strings.Contains(got, "✗  gofmt check") {
+	if !strings.Contains(got, "✗ gofmt check") {
 		t.Fatalf("expected fail glyph row:\n%s", got)
 	}
 	if !strings.Contains(got, summary) {
@@ -117,7 +117,7 @@ func TestFlat_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 	}
 	got := buf.String()
 
-	taskIdx := strings.Index(got, "✗  gofmt check")
+	taskIdx := strings.Index(got, "✗ gofmt check")
 	summaryIdx := strings.Index(got, "[SUMMARY] failed:")
 	if taskIdx < 0 {
 		t.Fatalf("missing task fail row:\n%s", got)

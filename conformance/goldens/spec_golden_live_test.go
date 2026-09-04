@@ -88,7 +88,7 @@ func TestSpecP1_LiveFrame_Step2(t *testing.T) {
 
 	out.Task("branches").Done("14 deleted")
 	worktrees := out.Task("worktrees")
-	out.Task("remotes") // declared, not yet started — renders "○  remotes"
+	out.Task("remotes") // declared, not yet started — renders "○ remotes"
 	for range worktrees.Each([]string{"../.worktrees/app-sah-1", "../.worktrees/app-sah-2", "../.worktrees/app-sah-3"}) {
 		break
 	}

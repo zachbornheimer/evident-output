@@ -95,7 +95,7 @@ func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
 // ledger": a Done child with a Summary used to vanish from the plain/final
 // projection because writeCollection only rendered "notable" (non-Done)
 // children. The final output must list every resolved child with its
-// summary, exactly like the spec's "✓  branches   14 deleted" row.
+// summary, exactly like the spec's "✓ branches   14 deleted" row.
 func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -117,7 +117,7 @@ func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 // TestConclusion_WarningDoesNotOverrideOKOutcome is the red-first case for
 // evo-rec.md Problem 3: a warning row must not flip an otherwise-OK verdict
 // to a contradictory "[warning]" trailer sitting right under a ✓ row — the
-// reproduction was "✓  clean" immediately followed by "[warning]  repo-retire".
+// reproduction was "✓ clean" immediately followed by "[warning]  repo-retire".
 // Per the two-axis conclusion algebra, Outcome is OK|Blocked|Failed|Cancelled;
 // warnings stay visible on their own "!" row without becoming the headline
 // when a Done task already makes the outcome OK.
@@ -216,10 +216,10 @@ func TestConformance_Problem1SuccessBlock(t *testing.T) {
 	}
 	// Derived taxonomy lines: counts sum from the accumulated records, never
 	// hand-assembled (TAX-001).
-	if !strings.Contains(got, "skipped 6  (1 protected, 5 dirty)") {
+	if !strings.Contains(got, "skipped 6 (1 protected, 5 dirty)") {
 		t.Fatalf("want summed skip taxonomy, got:\n%s", got)
 	}
-	if !strings.Contains(got, "kept 3  (unpushed)") {
+	if !strings.Contains(got, "kept 3 (unpushed)") {
 		t.Fatalf("want kept taxonomy, got:\n%s", got)
 	}
 }

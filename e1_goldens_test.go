@@ -151,7 +151,7 @@ func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	// E2.5 finding 3: the inline warning carries the same "! " bang the
 	// normative repo-retire dry-run fixture uses ("! kept 13 (...)") — an
 	// inline and a nested warning must signal identically, one row, one line.
-	if !strings.Contains(got, "✓  branches  ! kept 11 (7 protected, 4 unpushed)\n") {
+	if !strings.Contains(got, "✓ branches  ! kept 11 (7 protected, 4 unpushed)\n") {
 		t.Fatalf("want the warning inlined on the ✓ row with its \"! \" prefix, got:\n%s", got)
 	}
 	if strings.Count(got, "!") != 1 {
@@ -175,7 +175,7 @@ func TestE1P2_Warn_MultipleWarningsNestUnderneath(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "✓  branches\n") {
+	if !strings.Contains(got, "✓ branches\n") {
 		t.Fatalf("want a bare ✓ row (warnings moved below it), got:\n%s", got)
 	}
 	if !strings.Contains(got, "! kept 11 (7 protected, 4 unpushed)") || !strings.Contains(got, "! 2 remotes unreachable") {
@@ -243,11 +243,11 @@ func TestE1P9_LifecycleStatesAreDistinct(t *testing.T) {
 
 	got := buf.String()
 	for _, want := range []string{
-		"✓  done-task",
-		"✗  failed-task  build broke",
-		"⊘  blocked-task  needs confirmation",
-		"■  first   interrupted",
-		"-  second  not started",
+		"✓ done-task",
+		"✗ failed-task  build broke",
+		"⊘ blocked-task  needs confirmation",
+		"■ first   interrupted",
+		"- second  not started",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q distinctly rendered, got:\n%s", want, got)

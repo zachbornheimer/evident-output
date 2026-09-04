@@ -99,7 +99,7 @@ func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "✓  branches  ! kept 11 (7 protected, 4 unpushed)") {
+	if !strings.Contains(got, "✓ branches  ! kept 11 (7 protected, 4 unpushed)") {
 		t.Fatalf("want the inline warning to carry the \"! \" bang prefix, got:\n%s", got)
 	}
 }
@@ -221,7 +221,7 @@ func TestE2_5Finding6_InlineThresholdMeasuresDisplayWidthNotBytes(t *testing.T) 
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "✓  branches  ! "+warning) {
+	if !strings.Contains(got, "✓ branches  ! "+warning) {
 		t.Fatalf("want the warning inlined (display-width under threshold), got:\n%s", got)
 	}
 }
@@ -264,10 +264,10 @@ func TestE2_5Item8_ThreeLevelNestedContainerPlainByteShape(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	want := "✓  release\n" +
-		"   ✓  python\n" +
-		"      ✓  venv\n" +
-		"         ✓  install\n"
+	want := "✓ release\n" +
+		"   ✓ python\n" +
+		"      ✓ venv\n" +
+		"         ✓ install\n"
 	if !strings.Contains(buf.String(), want) {
 		t.Fatalf("want the 3-level nested container to indent 3 spaces per level, got:\n%s", buf.String())
 	}

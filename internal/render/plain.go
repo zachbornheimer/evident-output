@@ -70,15 +70,38 @@ func writeRunAnnotations(b *strings.Builder, warnings []core.Problem, facts []co
 		fmt.Fprintf(b, "%s %s\n", glyph, w.Summary)
 	}
 	for _, f := range facts {
-		fmt.Fprintf(b, "%s\n", txt.Dim(f.Name+"  "+f.Value, color))
+		fmt.Fprintf(b, "%s\n", txt.Dim(factText(f), color))
 	}
 }
 
-// maxTaskNameWidth returns the longest task name among sibling root tasks —
-// the shared column an inline warning/fact annotation aligns to across
-// siblings (fixture-repo-retire-dryrun.md). A lone task (or none) needs no
-// alignment, so callers pass the result straight to WriteTaskAligned's
-// nameWidth, where 0 means "don't pad".
+// factText renders a Fact's "<name>  <value>" text — bare Value alone when
+// Name is empty (evo.Fact("", "1 stale")'s value-only spelling), so an
+// unnamed fact never carries a spurious leading "  " separator with nothing
+// on its left.
+func factText(f core.Fact) string {
+	if f.Name == "" {
+		return f.Value
+	}
+	return f.Name + "  " + f.Value
+}
+
+// taskNameColumnMargin is the one extra column an inline annotation's own
+// text column carries beyond the widest sibling name (fixture-repo-retire-
+// dryrun.md, measured byte-for-byte: the widest name — "remote-tracking",
+// 15 cells — still leaves one blank column of its own before the fixed
+// 2-space gap to its "! "-prefixed or ledger-verb text, not zero). It
+// applies only where that fixture pins it — an inline warning/fact/taxonomy
+// annotation and a WriteEffects ledger row — never to a caller-supplied
+// Summary, which keeps the plain nameWidth+2 gap evo-rec.md's own examples
+// pin (TestSpecP16 etc.): the two annotation kinds render through different
+// visual conventions ("! text" / bare verb vs. a caller's own words) and are
+// measured against different fixtures.
+const taskNameColumnMargin = 1
+
+// maxTaskNameWidth returns the shared column sibling root tasks pad their
+// name to (fixture-repo-retire-dryrun.md) — the widest name's cell width. A
+// lone task (or none) needs no alignment, so callers pass the result
+// straight to WriteTaskAligned's nameWidth, where 0 means "don't pad".
 func maxTaskNameWidth(tasks []core.TaskSnapshot) int {
 	if len(tasks) < 2 {
 		return 0
@@ -92,12 +115,12 @@ func maxTaskNameWidth(tasks []core.TaskSnapshot) int {
 	return width
 }
 
-// maxEffectSubjectWidth returns the longest subject name across a set of
-// effect sections (Changes or Plans) — the shared column WriteEffects' one-
-// line-per-subject form aligns its verb to (fixture-repo-retire-dryrun.md's
-// "[planned] branches   delete ..." / "[planned] worktrees  remove ...").
-// subjectOf extracts the comparable field since ChangesSnapshot and
-// PlanSnapshot are distinct types with no shared interface.
+// maxEffectSubjectWidth returns the shared column WriteEffects' one-
+// line-per-subject form pads its subject to, before taskNameColumnMargin and
+// the verb gap (fixture-repo-retire-dryrun.md's "[planned] branches   delete
+// ..." / "[planned] worktrees  remove ..."). subjectOf extracts the
+// comparable field since ChangesSnapshot and PlanSnapshot are distinct types
+// with no shared interface.
 func maxEffectSubjectWidth[T any](sections []T, subjectOf func(T) string) int {
 	if len(sections) < 2 {
 		return 0
@@ -326,6 +349,37 @@ func inlineWarningText(msg string, color bool, profile txt.GlyphProfile) string 
 	return txt.Dim(glyph+" "+msg, color)
 }
 
+// inlineTaskTaxonomy mirrors inlineTaskWarning/inlineTaskFact for a task's
+// accumulated Kept/Skipped disposition records (fixture-repo-retire-dryrun.md:
+// "✓ branches          ! kept 13 (8 protected, 5 unpushed)" — a taxonomy
+// tally IS a warning in the unified annotation model, so it competes for the
+// same one-inline-annotation-per-row slot and is disqualified by the same
+// conditions: a Summary, an explicit Warn, or an explicit Fact already claims
+// the row. Both dispositions accumulated at once still nest below (rare, and
+// two summaries cannot share one inline slot). The returned verb tells the
+// caller which of Skipped/Kept was inlined, so its causes/Verbose name list
+// (writeTaxonomy's other output) still renders below the row — inlining
+// only replaces the headline count line, never the evidence under it.
+func inlineTaskTaxonomy(t core.TaskSnapshot) (text, verb string, ok bool) {
+	if t.State != core.Done || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 0 {
+		return "", "", false
+	}
+	var records []core.TaxonomyRecord
+	switch {
+	case len(t.Skipped) > 0 && len(t.Kept) == 0:
+		verb, records = "skipped", t.Skipped
+	case len(t.Kept) > 0 && len(t.Skipped) == 0:
+		verb, records = "kept", t.Kept
+	default:
+		return "", "", false
+	}
+	text = taxonomySummaryText(verb, records)
+	if txt.Cells(text) > warningInlineMaxCells {
+		return "", "", false
+	}
+	return text, verb, true
+}
+
 // inlineTaskFact mirrors inlineTaskWarning at info severity (P8): a Done
 // task with no summary, no warnings, and exactly one Fact inlines that
 // fact's "name  value" text on its own row instead of nesting it — the same
@@ -336,17 +390,27 @@ func inlineTaskFact(t core.TaskSnapshot) (core.Fact, bool) {
 		return core.Fact{}, false
 	}
 	f := t.Facts[0]
-	if txt.Cells(f.Name+"  "+f.Value) > warningInlineMaxCells {
+	if txt.Cells(factText(f)) > warningInlineMaxCells {
 		return core.Fact{}, false
 	}
 	return f, true
 }
 
+// bangColumnFiller is as wide as inlineWarningText's "! " glyph+space
+// prefix — a Fact's inline text stands in this much blank space so its own
+// text starts at the same column a sibling row's "! <text>" would
+// (fixture-repo-retire-dryrun.md, measured byte-for-byte: "remote-tracking"
+// carries a bare Fact while its siblings carry "! kept ..."; all three
+// annotation texts land in one column).
+const bangColumnFiller = "  "
+
 // inlineFactText renders an inline fact dim, with no attention glyph — a
 // Fact is information, never something demanding the reader's attention the
-// way an inline warning's "!" does.
+// way an inline warning's "!" does. The leading bangColumnFiller keeps its
+// text aligned with a sibling's inline warning/taxonomy text regardless of
+// whether such a sibling exists on this render.
 func inlineFactText(f core.Fact, color bool) string {
-	return txt.Dim(f.Name+"  "+f.Value, color)
+	return bangColumnFiller + txt.Dim(factText(f), color)
 }
 
 // writeNestedTaskFacts is inlineTaskFact's nested-line sibling: every fact
@@ -354,7 +418,7 @@ func inlineFactText(f core.Fact, color bool) string {
 // under the task's row, the same indentation writeNestedTaskWarnings uses.
 func writeNestedTaskFacts(b *strings.Builder, facts []core.Fact, indent string, color bool) {
 	for _, f := range facts {
-		fmt.Fprintf(b, "%s%s\n", indent, txt.Dim(f.Name+"  "+f.Value, color))
+		fmt.Fprintf(b, "%s%s\n", indent, txt.Dim(factText(f), color))
 	}
 }
 
@@ -388,6 +452,9 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, pro
 func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, color, verbose bool, profile txt.GlyphProfile) {
 	glyph := txt.StyleGlyph(TaskGlyph(t.State, profile), StateColor(t.State), color)
 	label := txt.PadRight(t.Name, nameWidth)
+	// annotatedLabel carries taskNameColumnMargin's extra column — only the
+	// inline warning/fact/taxonomy cases below use it, never a Summary row.
+	annotatedLabel := txt.PadRight(t.Name, nameWidth+taskNameColumnMargin)
 	runningDetail := ""
 	if t.State == core.Running {
 		runningDetail = runningTaskDetail(t)
@@ -402,6 +469,7 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, co
 	if hasInlineFact {
 		nestedFacts = nil
 	}
+	inlineTaxonomy, inlineTaxonomyVerb, hasInlineTaxonomy := inlineTaskTaxonomy(t)
 	switch {
 	case t.Summary != "" && t.State == core.Failed:
 		// release-gate round 6 finding 5: a Fail summary is the evidence the
@@ -415,31 +483,33 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, co
 		// the evidence a reader needs most ("how far did it get"). Rendered
 		// in the same position a core.Running row shows it (runningTaskDetail).
 		if count := progressCountText(t.Progress); count != "" {
-			fmt.Fprintf(b, "%s  %s  %s  %s\n", glyph, label, count, t.Summary)
+			fmt.Fprintf(b, "%s %s  %s  %s\n", glyph, label, count, t.Summary)
 		} else {
-			fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Summary)
+			fmt.Fprintf(b, "%s %s  %s\n", glyph, label, t.Summary)
 		}
 	case t.Summary != "" && t.State == core.Blocked:
 		// release-gate round 6 finding 5: same full-intensity treatment as
 		// core.Failed above; core.Blocked never carries in-flight progress (a gate
 		// resolves before mutation, never mid-loop), so no count applies.
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, t.Summary)
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, label, t.Summary)
 	case t.Summary != "":
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, txt.Dim(t.Summary, color))
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, label, txt.Dim(t.Summary, color))
 	case hasInlineWarning:
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, inlineWarningText(inlineWarning, color, profile))
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, annotatedLabel, inlineWarningText(inlineWarning, color, profile))
+	case hasInlineTaxonomy:
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, annotatedLabel, inlineWarningText(inlineTaxonomy, color, profile))
 	case hasInlineFact:
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, inlineFactText(inlineFact, color))
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, annotatedLabel, inlineFactText(inlineFact, color))
 	case runningDetail != "":
 		// Default intensity, not txt.Dim: the in-flight phase/progress is the
 		// diagnostic signal while work is stalled — txt.Dim is reserved for
 		// genuinely subordinate rows (○ pending, - not started, evidence,
 		// overflow), per evo-rec.md "Color and txt.Style demotions".
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, label, runningDetail)
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, label, runningDetail)
 	default:
 		// No detail to align a column against — pad-trimmed so this row
 		// never ends in dangling whitespace (DisplayUnit.Render's rule).
-		fmt.Fprintf(b, "%s  %s\n", glyph, strings.TrimRight(label, " "))
+		fmt.Fprintf(b, "%s %s\n", glyph, strings.TrimRight(label, " "))
 	}
 	// Problems (including Detail from Capture tails) always follow the row.
 	// Early-return on Summary used to drop Fail Detail — a silent dialect hole.
@@ -473,8 +543,8 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, co
 			Unit:    "failures",
 		}, color, emphasize, profile)
 	}
-	writeTaxonomy(b, "", "skipped", t.Skipped, verbose, color, profile)
-	writeTaxonomy(b, "", "kept", t.Kept, verbose, color, profile)
+	writeTaxonomy(b, "", "skipped", t.Skipped, hasInlineTaxonomy && inlineTaxonomyVerb == "skipped", verbose, color, profile)
+	writeTaxonomy(b, "", "kept", t.Kept, hasInlineTaxonomy && inlineTaxonomyVerb == "kept", verbose, color, profile)
 	writeNestedTaskWarnings(b, nestedWarnings, "  ", color, profile)
 	writeNestedTaskFacts(b, nestedFacts, "  ", color)
 }
@@ -523,10 +593,35 @@ func progressCountText(p core.Progress) string {
 // indent prefixes the taxonomy row (and, verbose, its detail rows) so a
 // collection child's taxonomy nests under the child's own glyph column
 // instead of the standalone task's zero-indent column.
-func writeTaxonomy(b *strings.Builder, indent, verb string, records []core.TaxonomyRecord, verbose, color bool, profile txt.GlyphProfile) {
+// skipSummary is true when the caller already rendered this verb's summary
+// text inline on the task's own row (inlineTaskTaxonomy) — the causes
+// evidence line and Verbose name list below are unaffected by where the
+// headline text landed, so only the summary line itself is suppressed.
+func writeTaxonomy(b *strings.Builder, indent, verb string, records []core.TaxonomyRecord, skipSummary, verbose, color bool, profile txt.GlyphProfile) {
 	if len(records) == 0 {
 		return
 	}
+	if !skipSummary {
+		glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
+		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, taxonomySummaryText(verb, records))
+	}
+	writeTaxonomyCauses(b, indent, records, verbose, color, profile)
+	if !verbose {
+		return
+	}
+	names, order := partitionTaxonomyByReason(records)
+	for _, reason := range order {
+		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, reason, txt.TruncateNames(names[reason], 0, profile))
+	}
+}
+
+// taxonomySummaryText derives the "<verb> N (<reason breakdown>)" text shared
+// by a nested taxonomy line and an inlined one (inlineTaskTaxonomy) — one
+// place computes the count/reason partition so both placements render
+// byte-identical text (fixture-repo-retire-dryrun.md's "kept 13 (8 protected,
+// 5 unpushed)": single space before the parenthesis, not the two-space form
+// the pre-fixture rendering used).
+func taxonomySummaryText(verb string, records []core.TaxonomyRecord) string {
 	names, order := partitionTaxonomyByReason(records)
 	parts := make([]string, len(order))
 	for i, reason := range order {
@@ -536,15 +631,7 @@ func writeTaxonomy(b *strings.Builder, indent, verb string, records []core.Taxon
 		}
 		parts[i] = fmt.Sprintf("%d %s", len(names[reason]), reason)
 	}
-	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
-	fmt.Fprintf(b, "%s%s  %s %d  (%s)\n", indent, glyph, verb, len(records), strings.Join(parts, ", "))
-	writeTaxonomyCauses(b, indent, records, verbose, color, profile)
-	if !verbose {
-		return
-	}
-	for _, reason := range order {
-		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, reason, txt.TruncateNames(names[reason], 0, profile))
-	}
+	return fmt.Sprintf("%s %d (%s)", verb, len(records), strings.Join(parts, ", "))
 }
 
 // writeTaxonomyCauses renders every records' accumulated Causes as evidence
@@ -596,9 +683,9 @@ func partitionTaxonomyByReason(records []core.TaxonomyRecord) (map[string][]stri
 func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose bool, profile txt.GlyphProfile) {
 	glyph := txt.StyleGlyph(TaskGlyph(col.State, profile), StateColor(col.State), color)
 	if col.Summary != "" {
-		fmt.Fprintf(b, "%s  %s  %s\n", glyph, col.Name, txt.Dim(col.Summary, color))
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, txt.Dim(col.Summary, color))
 	} else {
-		fmt.Fprintf(b, "%s  %s\n", glyph, col.Name)
+		fmt.Fprintf(b, "%s %s\n", glyph, col.Name)
 	}
 	childNameWidth := maxTaskNameWidth(col.Tasks)
 	for _, t := range col.Tasks {
@@ -624,27 +711,34 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int, color, verbose bool, profile txt.GlyphProfile) {
 	tg := txt.StyleGlyph(TaskGlyph(t.State, profile), StateColor(t.State), color)
 	name := txt.PadRight(t.Name, nameWidth)
+	// annotatedName carries taskNameColumnMargin's extra column — only the
+	// inline warning/fact/taxonomy cases below use it, never a Summary row
+	// (mirrors WriteTaskAligned's annotatedLabel; see taskNameColumnMargin).
+	annotatedName := txt.PadRight(t.Name, nameWidth+taskNameColumnMargin)
 	headerSummary := t.Summary
 	inlineWarning, hasInlineWarning := inlineTaskWarning(t)
 	nestedWarnings := t.Warnings
 	inlineFact, hasInlineFact := inlineTaskFact(t)
 	nestedFacts := t.Facts
+	inlineTaxonomy, inlineTaxonomyVerb, hasInlineTaxonomy := inlineTaskTaxonomy(t)
 	var row strings.Builder
-	fmt.Fprintf(&row, "   %s  %s", tg, name)
 	hasDetail := true
 	switch {
 	case len(t.Problems) > 0:
 		headerSummary = t.Problems[0].Summary
-		fmt.Fprintf(&row, "  %s", headerSummary)
+		fmt.Fprintf(&row, "   %s %s  %s", tg, name, headerSummary)
 	case headerSummary != "":
-		fmt.Fprintf(&row, "  %s", headerSummary)
+		fmt.Fprintf(&row, "   %s %s  %s", tg, name, headerSummary)
 	case hasInlineWarning:
-		fmt.Fprintf(&row, "  %s", inlineWarningText(inlineWarning, color, profile))
+		fmt.Fprintf(&row, "   %s %s  %s", tg, annotatedName, inlineWarningText(inlineWarning, color, profile))
 		nestedWarnings = nil
+	case hasInlineTaxonomy:
+		fmt.Fprintf(&row, "   %s %s  %s", tg, annotatedName, inlineWarningText(inlineTaxonomy, color, profile))
 	case hasInlineFact:
-		fmt.Fprintf(&row, "  %s", inlineFactText(inlineFact, color))
+		fmt.Fprintf(&row, "   %s %s  %s", tg, annotatedName, inlineFactText(inlineFact, color))
 		nestedFacts = nil
 	default:
+		fmt.Fprintf(&row, "   %s %s", tg, name)
 		hasDetail = false
 	}
 	if hasDetail {
@@ -685,8 +779,8 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int
 			Unit:    "failures",
 		}, color, emphasize, profile)
 	}
-	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, verbose, color, profile)
-	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, verbose, color, profile)
+	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, hasInlineTaxonomy && inlineTaxonomyVerb == "skipped", verbose, color, profile)
+	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, hasInlineTaxonomy && inlineTaxonomyVerb == "kept", verbose, color, profile)
 	writeNestedTaskWarnings(b, nestedWarnings, problemTreeIndent, color, profile)
 	writeNestedTaskFacts(b, nestedFacts, problemTreeIndent, color)
 }
@@ -770,7 +864,10 @@ func WriteEffects(b *strings.Builder, kind, subject string, nameWidth int, recor
 	// onto one line would lose which quantity/object belongs to which verb.
 	if len(visible) == 1 && len(visible) <= maxVisibleEffectRows {
 		r := visible[0]
-		name := txt.PadRight(subject, nameWidth)
+		// taskNameColumnMargin: this collapsed one-row-per-subject form is
+		// measured against the same fixture-repo-retire-dryrun.md ledger rows
+		// as the task-row inline annotations, so it carries the same margin.
+		name := txt.PadRight(subject, nameWidth+taskNameColumnMargin)
 		if r.HasQty {
 			fmt.Fprintf(b, "%s %s  %s %d %s\n", tag, name, r.Verb, r.Quantity, ledgerObject(r))
 		} else {

@@ -66,7 +66,7 @@ func TestSpecP16_CompactLayout_Step2(t *testing.T) {
 //
 //	✓ branches 14 del
 //	✓ worktrees 2 rm
-//	! skipped 6  (protected)
+//	! skipped 6 (protected)
 //
 // writeTaxonomy (plain.go) always appends "(<reason>)", even for a single
 // reason — every skip/keep taxonomy row includes its reason(s) in
@@ -88,12 +88,12 @@ func TestSpecP16_CompactLayout_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓  branches  14 del", "✓  worktrees  2 rm"} {
+	for _, want := range []string{"✓ branches  14 del", "✓ worktrees  2 rm"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if !strings.Contains(got, "!  skipped 6  (protected)") {
+	if !strings.Contains(got, "! skipped 6 (protected)") {
 		t.Fatalf("want the real (parenthesized-reason) taxonomy line, got:\n%s", got)
 	}
 }

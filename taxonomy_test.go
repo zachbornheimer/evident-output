@@ -44,7 +44,7 @@ func TestTaskHandle_SkippedInlineReasonMergesByName(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "skipped 2  (protected)") {
+	if !strings.Contains(got, "skipped 2 (protected)") {
 		t.Fatalf("inline evo.Reason calls must merge into one bucket, got:\n%s", got)
 	}
 }
@@ -68,7 +68,7 @@ func TestTaskHandle_SkippedPartitionSumsRendersCountsByReason(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "skipped 3  (2 protected, 1 dirty)") {
+	if !strings.Contains(got, "skipped 3 (2 protected, 1 dirty)") {
 		t.Fatalf("want derived partition line, got:\n%s", got)
 	}
 }
@@ -91,7 +91,7 @@ func TestTaskHandle_KeptSingleReasonCollapsesToBareName(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "kept 3  (unpushed)") {
+	if !strings.Contains(got, "kept 3 (unpushed)") {
 		t.Fatalf("want single-reason collapse, got:\n%s", got)
 	}
 }
@@ -117,7 +117,7 @@ func TestTaskHandle_SkippedVerboseEmitsTruncatedNameList(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "skipped 4  (protected)") {
+	if !strings.Contains(got, "skipped 4 (protected)") {
 		t.Fatalf("want headline count line, got:\n%s", got)
 	}
 	if !strings.Contains(got, "protected: a, b, c … +1 more") {
@@ -149,7 +149,7 @@ func TestTaskHandle_SkippedNonVerboseOmitsNameList(t *testing.T) {
 // repo-retire adoption gap: writeCollectionChild never called writeTaxonomy,
 // so a Sequence/DisplayGroup child's Kept/Skipped records silently vanished from
 // rendered output even though the standalone evo.Task path rendered them.
-// A collection child is a task; it must render the same "!  kept N  (...)"
+// A collection child is a task; it must render the same "! kept N (...)"
 // line a standalone task does.
 func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 	var buf bytes.Buffer
@@ -166,7 +166,7 @@ func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 		t.Fatalf("Finish: %v", err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "kept 2  (unpushed)") {
+	if !strings.Contains(got, "kept 2 (unpushed)") {
 		t.Fatalf("collection child must render its Kept taxonomy line, got:\n%s", got)
 	}
 }
@@ -193,7 +193,7 @@ func TestSequence_ChildVerboseRendersTruncatedNameList(t *testing.T) {
 		t.Fatalf("Finish: %v", err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "skipped 4  (protected)") {
+	if !strings.Contains(got, "skipped 4 (protected)") {
 		t.Fatalf("want headline count line for collection child, got:\n%s", got)
 	}
 	if !strings.Contains(got, "protected: a, b, c … +1 more") {
@@ -221,7 +221,7 @@ func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
 	// contracts elsewhere); the assertion here is that the record still
 	// rendered, not that Finish reports a clean run.
 	_ = out.Finish()
-	if !strings.Contains(buf.String(), "kept 1  (unpushed)") {
+	if !strings.Contains(buf.String(), "kept 1 (unpushed)") {
 		t.Fatalf("misuse must still count the record, got:\n%s", buf.String())
 	}
 }
@@ -285,7 +285,7 @@ func TestTaskHandle_SkippedCauseRendersOneBoundedEvidenceLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "skipped 2  (protected)") {
+	if !strings.Contains(got, "skipped 2 (protected)") {
 		t.Fatalf("want headline count line, got:\n%s", got)
 	}
 	if !strings.Contains(got, "└─ required review (+1 more)") {
