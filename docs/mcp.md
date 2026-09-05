@@ -37,7 +37,7 @@ Call `evident_output_review` again after applying its suggested fixes — the re
 ## Install the binary (pinned)
 
 ```bash
-GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.5
+GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
 "$HOME/.local/bin/evident-output-mcp" --version
 ```
 

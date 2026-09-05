@@ -8,7 +8,7 @@ log file, and the exit code always matches what the screen just said.
 ## Install
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.4.5
+go get github.com/zachbornheimer/evident-output@v0.4.6
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
