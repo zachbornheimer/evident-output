@@ -246,6 +246,12 @@ type changesState struct {
 	// generic fallback.
 	intendedVerb string
 	handle       *changeLedger
+	// namedRowsEmitted is true once commitNamedEffectsLocked has already
+	// streamed this section's rows durably at its owning task's resolution
+	// (progressive.go) — Finish's residual ledger loop skips a section this
+	// is true for so a named/enumerate section's items never render twice
+	// (once live, once again at Finish).
+	namedRowsEmitted bool
 }
 
 type planState struct {
@@ -255,6 +261,9 @@ type planState struct {
 	// intendedVerb mirrors changesState.intendedVerb for plan sections.
 	intendedVerb string
 	handle       *planLedger
+	// namedRowsEmitted mirrors changesState.namedRowsEmitted for plan
+	// sections.
+	namedRowsEmitted bool
 }
 
 func newOutput(subject string, options ...Option) *Output {

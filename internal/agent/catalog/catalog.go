@@ -53,6 +53,9 @@ evo.Task/Sequence are get-or-create facades on the package-level default instanc
 Record/RecordName/RecordLabel stay on TaskHandle for tooling call sites that need a raw ledger row, not a front
 door of their own — Output.Changes/Output.Plan were removed (P1): every effect goes through a Task's mutation
 verb now. Item/ItemHandle were removed v0.2.x shims over Task/TaskHandle — new code always uses Task.
+Record/RecordLabel are quantity tallies and always render at Finish; RecordName names one item individually and
+streams its row the instant its owning task resolves (Done/Fail/Block), bounded by the same viewport cap and
+"… +N more (not shown)" overflow the Finish ledger uses.
 
 Severity: Warn = non-terminal annotation (does not resolve the task — call it any number of times before Done/
 Fail/Block); Block = stop before mutate; Fail = evaluation failed.

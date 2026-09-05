@@ -188,6 +188,63 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	}
 }
 
+// hasNamedEffectRecord reports whether records holds at least one no-qty
+// (RecordName) row — the "named record enumerates" half of "Quantity
+// records tally; named records enumerate": Record/mutation-verb rows and
+// RecordLabel's classification rows always carry a quantity (HasQty true)
+// and stay Finish-only, tallied and bounded there exactly as before.
+func hasNamedEffectRecord(records []core.EffectRecord) bool {
+	for _, r := range records {
+		if !r.HasQty {
+			return true
+		}
+	}
+	return false
+}
+
+// commitNamedEffectsLocked streams subject's Plan/Changes ledger section the
+// instant its owning standalone task resolves (task.go's finish), provided
+// the section holds at least one named (RecordName) record — evo-rec.md's
+// "a --dry user loses 'what would run' per item" fix: a caller working
+// through several tasks in sequence sees each task's planned/changed items
+// the moment that task's own work finishes, instead of every task's rows
+// piling up at the very end of the whole run's Finish. A pure-quantity
+// section (Record/mutation verbs, RecordLabel) is untouched — it always
+// waits for Finish, exactly as before (see hasNamedEffectRecord).
+//
+// This calls the same render.WriteEffects Finish already uses (merge,
+// bounded-rows cap, "+N more" overflow) so a task that records many named
+// items still collapses identical (verb, object) pairs and bounds distinct
+// ones — the model in o.plans/o.changes is the only place records
+// accumulate; only the presentation instant moves earlier. Marking the
+// section namedRowsEmitted is what makes residualCompositionLocked's Finish
+// loop skip it — the raw item list must never render twice.
+func (o *Output) commitNamedEffectsLocked(subject string) {
+	for _, p := range o.plans {
+		if p.subject != subject || p.namedRowsEmitted || !hasNamedEffectRecord(p.records) {
+			continue
+		}
+		o.emitEffectSectionLocked("planned", p.subject, p.records, p.intendedVerb, maxPlanSubjectWidth(o.plans))
+		p.namedRowsEmitted = true
+	}
+	for _, c := range o.changes {
+		if c.subject != subject || c.namedRowsEmitted || !hasNamedEffectRecord(c.records) {
+			continue
+		}
+		o.emitEffectSectionLocked("changed", c.subject, c.records, c.intendedVerb, maxChangeSubjectWidth(o.changes))
+		c.namedRowsEmitted = true
+	}
+}
+
+// emitEffectSectionLocked renders one Plan/Changes section with the same
+// render.WriteEffects call residualCompositionLocked uses at Finish, and
+// streams it as durable text immediately (see writeDurableTextLocked).
+func (o *Output) emitEffectSectionLocked(kind, subject string, records []core.EffectRecord, intendedVerb string, nameWidth int) {
+	var b strings.Builder
+	render.WriteEffects(&b, kind, subject, nameWidth, records, intendedVerb, o.cfg.width, !o.cfg.noColor, o.cfg.glyphs)
+	o.writeDurableTextLocked(b.String())
+}
+
 // taskProgressiveTrigger names which evidence call is streaming a Running
 // task's plain-mode line, so emitTaskRunningProgressiveLocked can rate-limit
 // each kind independently (a phase change always streams; a progress tick
@@ -276,9 +333,23 @@ func residualHasTaskRows(o *Output, snap Snapshot) bool {
 }
 
 // residualHasEffectSections mirrors residualHasTaskRows for the run's
-// [changed]/[planned] ledger.
+// [changed]/[planned] ledger — true only when a section remains that Finish
+// still owns rendering for. A named/enumerate section that already streamed
+// at its task's resolution (commitNamedEffectsLocked) does not count: it
+// renders nothing further here, so it must not reserve the blank-line
+// separator either.
 func residualHasEffectSections(o *Output) bool {
-	return len(o.changes) > 0 || len(o.plans) > 0
+	for _, c := range o.changes {
+		if !c.namedRowsEmitted {
+			return true
+		}
+	}
+	for _, p := range o.plans {
+		if !p.namedRowsEmitted {
+			return true
+		}
+	}
+	return false
 }
 
 // residualCompositionLocked is the ONE ordered sequence every human-stream
@@ -341,10 +412,16 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	}
 	changeNameWidth := maxChangeSubjectWidth(o.changes)
 	for _, ch := range o.changes {
+		if ch.namedRowsEmitted {
+			continue
+		}
 		render.WriteEffects(&b, "changed", ch.subject, changeNameWidth, ch.records, ch.intendedVerb, width, color, profile)
 	}
 	planNameWidth := maxPlanSubjectWidth(o.plans)
 	for _, p := range o.plans {
+		if p.namedRowsEmitted {
+			continue
+		}
 		render.WriteEffects(&b, "planned", p.subject, planNameWidth, p.records, p.intendedVerb, width, color, profile)
 	}
 	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {

@@ -498,6 +498,11 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 		t.out.signalLiveLocked(true)
 	} else {
 		t.out.commitResolvedTaskLocked(st.id)
+		// A resolving standalone task's own named (RecordName) Plan/Changes
+		// rows stream right now too — under this task's own block, the
+		// instant its work is known-final, rather than waiting for every
+		// other task in the run to finish (see commitNamedEffectsLocked).
+		t.out.commitNamedEffectsLocked(st.name)
 	}
 	return t
 }
