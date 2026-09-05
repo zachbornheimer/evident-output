@@ -39,16 +39,14 @@ Host-specific wiring (Grok, Claude Code, Codex, …) lives under `integrations/<
 
 ## MCP tool names (underscores only)
 
-| tools/list                         | Purpose                            |
-| ---------------------------------- | ---------------------------------- |
-| `evident_output_list_guides`       | Catalog (token-budgeted snippets)  |
-| `evident_output_get_guidance`      | Guidance snippets by id            |
-| `evident_output_list_sections`     | Full docs corpus table of contents |
-| `evident_output_get_documentation` | Full doc section body by id        |
-| `evident_output_review`            | Go / transcript / JSON             |
-| `evident_output_adopt_plan`        | Migration plan for a directory     |
-| `evident_output_preview`           | Plain profiles                     |
-| `evident_output_explain`           | `rule_id` (not `id`)               |
+| tools/list                         | Purpose                              |
+| ---------------------------------- | ------------------------------------ |
+| `evident_output_list_sections`     | Full docs corpus table of contents   |
+| `evident_output_get_documentation` | Full doc section body by id          |
+| `evident_output_adopt_plan`        | Paged migration plan for a directory |
+| `evident_output_review`            | Go / directory / transcript / JSON   |
+| `evident_output_preview`           | Plain profiles                       |
+| `evident_output_explain`           | `rule_id` (not `id`)                 |
 
 On Grok, tools are `evident-output__evident_output_*`.
 
@@ -57,9 +55,11 @@ On Grok, tools are `evident-output__evident_output_*`.
 Trigger phrases: "adopt evident-output", "migrate to evo", "clean up CLI output".
 
 1. **Inventory** — `evident_output_adopt_plan` with `{ "directory": "<repo or package path>" }`.
-   Returns findings (file/line/pattern/suggestion) grouped by `rungs_touched`, in ladder order.
-2. **Migrate rung by rung**, one rung fully before the next:
-   `Init/Main → Task/Done → effects → containers → facts/warnings → confirm/dry-run`.
+   Returns one page: `findings` (≤40), `rung`, `remaining`, `next_cursor`, `next_action`.
+   If `facades` is set, migrate the facade first (`next_action` says so) — not each call site.
+2. **Migrate the current page**, then re-call with `{ "directory": "...", "cursor": "<next_cursor>" }`
+   until `next_action` is `clean`. Ladder order (no containers rung):
+   `Init/Main → Task/Done → effects → facts/warnings → confirm/dry-run`.
    Pull authoritative detail per rung with `evident_output_get_documentation` (ids
    `adoption-ladder`, `guide/common-api`, `guide/tasks`) rather than guessing spellings —
    the catalog is the single source of truth, this skill only points at it.
@@ -72,8 +72,7 @@ Trigger phrases: "adopt evident-output", "migrate to evo", "clean up CLI output"
    the live region renders as expected; a review pass with zero findings does not by itself
    prove the terminal output looks right.
 
-Re-run `evident_output_adopt_plan` on the same directory after a rung completes — a clean
-plan (no findings) is the adoption's own done-condition.
+`next_action` of `clean` is the adoption's own done-condition.
 
 ## Install library
 

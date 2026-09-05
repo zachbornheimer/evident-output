@@ -25,8 +25,7 @@ license: Apache-2.0
 
 ## Workflow when MCP is connected
 
-1. `evident_output_list_guides` / `evident_output_get_guidance` (or, for the full
-   docs corpus, `evident_output_list_sections` / `evident_output_get_documentation`)
+1. `evident_output_list_sections` / `evident_output_get_documentation`
 2. Implement with `Init(Config)`, `Print*`, `Task`, `Evidence`, `Main`
 3. `evident_output_review` until `recheck_required=false` (loop until its
    `next_action` field says `clean`)

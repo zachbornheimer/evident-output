@@ -25,6 +25,6 @@ Paste the printed snippet. Prefer an **absolute** path such as
 
 ## Tools
 
-`evident_output_list_guides`, `evident_output_get_guidance`, `evident_output_review`, `evident_output_preview`, `evident_output_explain` (underscores).
+`evident_output_list_sections`, `evident_output_get_documentation`, `evident_output_adopt_plan`, `evident_output_review`, `evident_output_preview`, `evident_output_explain` (underscores).
 
 Skill: [`../../skills/cli-output/SKILL.md`](../../skills/cli-output/SKILL.md)
