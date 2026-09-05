@@ -16,6 +16,7 @@ type config struct {
 	diagnostic        io.Writer
 	result            io.Writer // domain payload (FormatData); never used for presentation
 	plain             bool
+	projection        Projection
 	noColor           bool
 	width             int
 	clock             TimeSource
@@ -106,6 +107,10 @@ func ResultStream(w io.Writer) Option {
 // Semantic color is still emitted unless NoColor is set.
 func Plain() Option {
 	return optionFunc(func(c *config) { c.plain = true })
+}
+
+func withProjection(p Projection) Option {
+	return optionFunc(func(c *config) { c.projection = p })
 }
 
 // NoColor disables color.

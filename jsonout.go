@@ -1,6 +1,12 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/render"
+import (
+	"errors"
+	"fmt"
+	"io"
+
+	"github.com/zachbornheimer/evident-output/internal/render"
+)
 
 // JSONSchemaVersion is the final JSON document schema version.
 // Tracks the 0.3 contract series (pre-1.0 wire format may still evolve).
@@ -62,4 +68,42 @@ func EncodeJSON(s Snapshot) ([]byte, error) {
 // EncodeJSONL encodes durable events as JSON Lines (§25.2 / §25.4).
 func EncodeJSONL(events []Event) ([]byte, error) {
 	return render.EncodeJSONL(events)
+}
+
+// EncodeEventJSON encodes one journal event as a single JSON object (no newline).
+func EncodeEventJSON(e Event) ([]byte, error) {
+	return render.EncodeEventJSON(e)
+}
+
+func writeMachinePresentation(w io.Writer, snap Snapshot, events []Event, proj Projection, misuse error) error {
+	var body []byte
+	var err error
+	switch proj {
+	case ProjectionJSON:
+		body, err = EncodeJSON(snap)
+	case ProjectionJSONL:
+		body, err = EncodeJSONL(events)
+	default:
+		return misuse
+	}
+	if err != nil {
+		err = fmt.Errorf("%w: %v", ErrRenderer, err)
+		if misuse == nil {
+			return err
+		}
+		return errors.Join(misuse, err)
+	}
+	if w != nil && len(body) > 0 {
+		if _, werr := w.Write(body); werr != nil {
+			werr = fmt.Errorf("%w: %v", ErrRenderer, werr)
+			if misuse == nil {
+				return werr
+			}
+			return errors.Join(misuse, werr)
+		}
+		if f, ok := w.(flusher); ok {
+			_ = f.Flush()
+		}
+	}
+	return misuse
 }

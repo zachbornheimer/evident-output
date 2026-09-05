@@ -145,8 +145,13 @@ type Config struct {
 	Verbosity Verbosity
 	// Color policy (default ColorAuto).
 	Color ColorMode
-	// Format projection mode (default FormatHuman).
+	// Format projection mode (default FormatHuman). Stream routing only —
+	// FormatData does not mean JSON. Presentation encoding is Projection.
 	Format Format
+	// Projection selects presentation encoding (human, plain, json, jsonl,
+	// stream-json). Zero is unspecified: Init applies EVO_OUTPUT when set,
+	// otherwise human TTY/plain inference. Independent of Format.
+	Projection Projection
 
 	// Debug configures the debug journal.
 	Debug DebugConfig
@@ -312,14 +317,14 @@ func configToOptions(c Config) []Option {
 	case ColorAlways:
 		// keep color
 	default: // ColorAuto
-		if os.Getenv("NO_COLOR") != "" {
+		if lookupEnv(envKeyNoColor) != "" {
 			noColor = true
 		}
-		if !IsCharDevice(c.Stdout) && c.Format != FormatData {
+		if !writerIsCharDevice(c.Stdout) && c.Format != FormatData {
 			// Off-TTY human primary: no CSI.
 			noColor = true
 		}
-		if c.Format == FormatData && !IsCharDevice(c.Stderr) {
+		if c.Format == FormatData && !writerIsCharDevice(c.Stderr) {
 			noColor = true
 		}
 	}
@@ -332,9 +337,9 @@ func configToOptions(c Config) []Option {
 	liveWriter := c.Stdout
 	if c.Format == FormatData {
 		liveWriter = c.Stderr
-		wantLive = !c.Plain && IsCharDevice(c.Stderr)
+		wantLive = !c.Plain && writerIsCharDevice(c.Stderr)
 	} else {
-		wantLive = wantLive && IsCharDevice(c.Stdout)
+		wantLive = wantLive && writerIsCharDevice(c.Stdout)
 	}
 	switch {
 	case c.Terminal != nil:
@@ -419,9 +424,10 @@ func configToOptions(c Config) []Option {
 	default:
 		opts = append(opts, Plain())
 	}
-	if c.Plain {
+	if c.Plain || c.Projection.forcesPlain() {
 		opts = append(opts, Plain())
 	}
+	opts = append(opts, withProjection(c.Projection))
 
 	if c.Stdin != nil {
 		opts = append(opts, Stdin(c.Stdin))
