@@ -13,6 +13,7 @@ mise run test-race
 mise run conformance
 mise run traceability   # all §31 IDs present
 mise run ci             # lint + test + scan + conformance + traceability
+mise run evo-usage-audit <repo-path> [--output FILE]   # evo usage inventory for another repo
 ```
 
 Trunk is configured **daemonless** (`--monitor=false`). Prefer `mise` over raw tools.
