@@ -16,9 +16,9 @@ machine contract    → existing -status JSON / ResultWriter / schemas
 2. Mutation verbs (`Delete`/`Create`/`Update`/…) for dry-run vs live — `Config.DryRun` picks
    `[planned]` vs `[changed]` at the same call site
 3. Task for real gates; `FailedBy`/`BlockedBy` for path-scoped evidence
-4. Capture on Task for subprocesses
+4. `task.Evidence()` for subprocesses
 5. `ID` / `Scope` when structured consumers exist
-6. `Config.Redactor` before Capture/debug retention of secrets
+6. `Config.Redactor` before Evidence/debug retention of secrets
 
 ## What not to force
 

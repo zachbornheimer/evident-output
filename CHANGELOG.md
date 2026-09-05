@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project has not reached 1.0 — pre-1.0 API breaks are called out explicitly
 below rather than deferred to a major version.
 
+## Unreleased
+
+### Added
+
+- **`EVO_OUTPUT`** presentation projection (`human`/`plain`/`json`/`jsonl`/`stream-json`),
+  plus `EVO_COLOR`, `EVO_VERBOSE`, `EVO_DEBUG`. Independent of `Format` (stream
+  routing). `FormatData` plus `stream-json` writes EventJSON to stderr; stdout
+  stays the domain payload. `stream-json` emits one line at each journal append.
+- **`adopt_plan` paging:** cursor, 40-finding pages, `cmd/` first, skip `*_test.go`,
+  facades as the page when present. CLI `evident-output adopt [--cursor=] <dir>`.
+- **`review` `kind=directory`** and CLI `review <dir>`.
+- **API-032** for `Plan`/`Changes` (removed in v0.4).
+
+### Changed
+
+- MCP `tools/list` advertises six tools (`list_sections`, `get_documentation`,
+  `adopt_plan`, `review`, `preview`, `explain`). `list_guides`/`get_guidance`
+  remain `tools/call` aliases.
+
+### Fixed
+
+- Facade detection no longer treats `fmt.Fprint(os.Stderr)` inside an arbitrary
+  method as an output facade; `io.Writer` fields that methods write through
+  still count.
+
+## [0.4.6] — RecordName streams at task resolution
+
+### Fixed
+
+- **RecordName rows** stream when the owning task resolves, not only at Finish.
+- **adopt/review:** detect output facades; allow the exit-code fidelity pattern.
+
+## [0.4.5] — honest MCP file reads
+
+### Fixed
+
+- **MCP `file`/`files`:** unreadable paths return `cannot read <path>` instead of
+  a parser EOF. Builder/Buffer `fmt.Fprint` is not STREAM-003.
+
+## [0.4.4] — MCP docs and adopt_plan
+
+### Added
+
+- **Docs through the server:** `list_sections` / `get_documentation`.
+- **`adopt_plan`** inventory of non-evo output.
+- Self-driving review loop (`next_action`, initialize instructions).
+
 ## [0.4.3] — blank line before ledger, live-path glyph spacing
 
 ### Fixed
