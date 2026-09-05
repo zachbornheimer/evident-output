@@ -13,8 +13,19 @@ const usageText = `Usage: evo-usage-audit [--output FILE | -o FILE] <repo-path>
 Scans a Go repo for uses of ` + evoModulePath + ` (and its subpackages) and
 prints a markdown usage inventory: one heading per file, one fenced code
 block per top-level declaration that uses evo, tagged "direct" (the
-declaration's body calls through evo) or "evo-typed signature" (no direct
-call, but its signature/type references an evo type).
+declaration's body calls through evo), "evo-typed signature" (no direct
+call, but its signature/type references an evo type), or "evo-typed value"
+(no direct call and no evo-typed signature, but the body reaches evo through
+a receiver or parameter field whose declared type references evo — even
+when that field is declared in a different file of the same package).
+
+evo-typed value detection is intentionally conservative: only the
+function's own receiver and parameters are resolved to a type; a local
+variable (var or :=) is never resolved, so when a value's type can't be
+determined this way the declaration is left unclassified rather than
+guessed. It also applies to function/method bodies only — a var/const
+declaration that reaches evo purely through a typed value (not through its
+own initializer or declared type) is not classified by this rule.
 
   --output FILE, -o FILE   write markdown to FILE instead of stdout
   --help, -h                show this message

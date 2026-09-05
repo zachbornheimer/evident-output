@@ -57,11 +57,12 @@ func referencesEvoIdent(node ast.Node, idents map[string]bool) bool {
 	return found
 }
 
-// classifyFuncDecl applies the direct/evo-typed-signature rule to one
-// function or method: direct if its body calls through an evo identifier;
-// otherwise evo-typed if its receiver, params, or results reference an evo
-// type.
-func classifyFuncDecl(fd *ast.FuncDecl, idents map[string]bool) usage {
+// classifyFuncDecl applies the three-tier rule to one function or method,
+// in precedence order: direct if its body calls through an evo identifier;
+// else evo-typed if its receiver, params, or results reference an evo type;
+// else evo-typed value if its body reaches evo only through a receiver or
+// parameter field resolved via index (see classifyTypedValue).
+func classifyFuncDecl(fd *ast.FuncDecl, idents map[string]bool, index typedValueIndex) usage {
 	if fd.Body != nil && referencesEvoIdent(fd.Body, idents) {
 		return usageDirect
 	}
@@ -74,7 +75,7 @@ func classifyFuncDecl(fd *ast.FuncDecl, idents map[string]bool) usage {
 	if fd.Type.Results != nil && referencesEvoIdent(fd.Type.Results, idents) {
 		return usageEvoTyped
 	}
-	return usageNone
+	return classifyTypedValue(fd, index)
 }
 
 // classifyGenDecl applies the grouped-declaration rule from the work order:
@@ -107,13 +108,13 @@ func classifyGenDecl(gd *ast.GenDecl, idents map[string]bool) usage {
 // classifyFile marks every file dot-importing evo conservatively as direct
 // on every declaration — a dot import erases the qualifier a static
 // classifier relies on, so "can't tell" resolves to "include it".
-func classifyDecl(decl ast.Decl, idents map[string]bool, dotImported bool) usage {
+func classifyDecl(decl ast.Decl, idents map[string]bool, dotImported bool, index typedValueIndex) usage {
 	switch d := decl.(type) {
 	case *ast.FuncDecl:
 		if dotImported {
 			return usageDirect
 		}
-		return classifyFuncDecl(d, idents)
+		return classifyFuncDecl(d, idents, index)
 	case *ast.GenDecl:
 		if d.Tok == token.IMPORT {
 			return usageNone

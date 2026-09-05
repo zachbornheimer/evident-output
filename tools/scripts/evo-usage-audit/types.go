@@ -8,12 +8,14 @@ package main
 // itself or any "<evoModulePath>/..." subpackage (terminal, testkit, …).
 const evoModulePath = "github.com/zachbornheimer/evident-output"
 
-// usage says how a declaration references evo, in the order dedupe prefers
-// (direct beats evoTyped beats none — see classifyFuncDecl/classifyGenDecl).
+// usage says how a declaration references evo, in the order dedupe prefers:
+// direct beats evoTyped beats evoTypedValue beats none — see
+// classifyFuncDecl and classifyTypedValue.
 type usage int
 
 const (
 	usageNone usage = iota
+	usageEvoTypedValue
 	usageEvoTyped
 	usageDirect
 )
@@ -25,6 +27,8 @@ func (u usage) String() string {
 		return "direct"
 	case usageEvoTyped:
 		return "evo-typed signature"
+	case usageEvoTypedValue:
+		return "evo-typed value"
 	default:
 		return ""
 	}
