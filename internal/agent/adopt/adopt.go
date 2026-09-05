@@ -9,6 +9,7 @@ package adopt
 
 import (
 	"fmt"
+	"go/ast"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ import (
 func Inventory(dir string) (Plan, error) {
 	plan := Plan{Directory: dir}
 	fset := token.NewFileSet()
+	var parsed []parsedFile
 
 	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -34,11 +36,14 @@ func Inventory(dir string) (Plan, error) {
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
-		findings, invErr := inventoryPath(fset, path)
+		findings, file, invErr := inventoryPath(fset, path)
 		if invErr != nil {
 			return fmt.Errorf("inventory %s: %w", path, invErr)
 		}
 		plan.Findings = append(plan.Findings, findings...)
+		if file != nil {
+			parsed = append(parsed, parsedFile{Path: path, File: file})
+		}
 		return nil
 	})
 	if walkErr != nil {
@@ -47,6 +52,10 @@ func Inventory(dir string) (Plan, error) {
 
 	sortFindings(plan.Findings)
 	plan.RungsTouched = rungsTouched(plan.Findings)
+	plan.Facades = detectFacades(fset, parsed)
+	if len(plan.Facades) > 0 {
+		plan.Caveat = facadeInventoryCaveat
+	}
 	return plan, nil
 }
 
@@ -59,19 +68,19 @@ func skipUninventoried(d os.DirEntry) error {
 	return nil
 }
 
-func inventoryPath(fset *token.FileSet, path string) ([]Finding, error) {
+func inventoryPath(fset *token.FileSet, path string) ([]Finding, *ast.File, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
+		return nil, nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	if isGenerated(src) {
-		return nil, nil
+		return nil, nil, nil
 	}
-	findings, err := inventoryFile(fset, path, src)
+	findings, file, err := inventoryFile(fset, path, src)
 	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+		return nil, nil, fmt.Errorf("parse %s: %w", path, err)
 	}
-	return findings, nil
+	return findings, file, nil
 }
 
 func isGenerated(src []byte) bool {

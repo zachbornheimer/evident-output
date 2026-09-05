@@ -42,4 +42,29 @@ type Plan struct {
 	// RungsTouched lists, in ladder order, every rung with at least one
 	// finding — the rung-by-rung order the adoption skill migrates in.
 	RungsTouched []Rung `json:"rungs_touched"`
+	// Facades lists every custom output-facade type detected (a struct
+	// whose methods wrap fmt.Fprint*, a color printer, or an io.Writer
+	// field to reach stdout/stderr) — see Facade for why these are their
+	// own finding class instead of one Finding per call site.
+	Facades []Facade `json:"facades,omitempty"`
+	// Caveat is set whenever a Facade is detected: facade call-site
+	// enumeration is a call-site heuristic, not full type resolution, so
+	// the plan says so instead of implying it counted every real site.
+	Caveat string `json:"caveat,omitempty"`
+}
+
+// Facade is one custom output-facade type: a struct whose methods wrap
+// fmt.Fprint*, a color printer, or an io.Writer field to reach stdout or
+// stderr. A per-call-site classifier can't see these — go-task's
+// internal/logger routes all real status output this way, and a
+// call-site-only inventory misses every one of them. Migrating the facade
+// itself carries every call site with it, so Facade is reported once with
+// its full call-site enumeration rather than once per call site.
+type Facade struct {
+	Type    string   `json:"type"`
+	File    string   `json:"file"`
+	Methods []string `json:"methods"`
+	// CallSites enumerates every "path:line" that calls one of Methods.
+	CallSites []string `json:"call_sites"`
+	Note      string   `json:"note"`
 }

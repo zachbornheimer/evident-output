@@ -84,3 +84,45 @@ func TestInventoryUnknownDirectory(t *testing.T) {
 		t.Fatal("expected an error for a missing directory")
 	}
 }
+
+// TestInventoryDetectsOutputFacade proves adopt reports a wrapped-logger
+// type (testdata/facade, modeled on go-task's internal/logger) as its own
+// facade finding — migrate the type, not each call site — rather than
+// missing it the way a per-call-site-only classifier does. It was RED
+// before facade detection existed: the fixture's Outf/Errf/Warnf call
+// sites are invisible to fmt/os/log call-site classification alone.
+func TestInventoryDetectsOutputFacade(t *testing.T) {
+	plan, err := adopt.Inventory(filepath.Join("testdata", "facade"))
+	if err != nil {
+		t.Fatalf("Inventory: %v", err)
+	}
+	if len(plan.Facades) != 1 {
+		t.Fatalf("want exactly 1 facade, got %d: %+v", len(plan.Facades), plan.Facades)
+	}
+
+	got := plan.Facades[0]
+	if got.Type != "Logger" {
+		t.Errorf("Type = %q, want %q", got.Type, "Logger")
+	}
+	wantMethods := []string{"Errf", "Outf", "Warnf"}
+	if len(got.Methods) != len(wantMethods) {
+		t.Fatalf("Methods = %v, want %v", got.Methods, wantMethods)
+	}
+	for i, m := range wantMethods {
+		if got.Methods[i] != m {
+			t.Errorf("Methods[%d] = %q, want %q", i, got.Methods[i], m)
+		}
+	}
+
+	// main.go calls Outf twice, Errf once, Warnf once: 4 real call sites.
+	if len(got.CallSites) != 4 {
+		t.Errorf("CallSites = %v, want 4 entries", got.CallSites)
+	}
+	if got.Note == "" {
+		t.Error("facade finding has no migrate-the-facade note")
+	}
+
+	if plan.Caveat == "" {
+		t.Error("plan with a detected facade must disclose that inventory is a floor, not a census")
+	}
+}

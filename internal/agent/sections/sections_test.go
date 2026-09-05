@@ -36,10 +36,11 @@ func TestEveryListedSectionIDResolves(t *testing.T) {
 func TestEmbeddedDocsMatchSource(t *testing.T) {
 	root := repoRoot(t)
 	cases := map[string]string{
-		"reference.md":       filepath.Join(root, "docs", "reference.md"),
-		"development.md":     filepath.Join(root, "docs", "development.md"),
-		"mcp.md":             filepath.Join(root, "docs", "mcp.md"),
-		"adoption-ladder.md": filepath.Join(root, "docs", "guides", "teaching-ladder.md"),
+		"reference.md":          filepath.Join(root, "docs", "reference.md"),
+		"development.md":        filepath.Join(root, "docs", "development.md"),
+		"mcp.md":                filepath.Join(root, "docs", "mcp.md"),
+		"adoption-ladder.md":    filepath.Join(root, "docs", "guides", "teaching-ladder.md"),
+		"exit-code-fidelity.md": filepath.Join(root, "docs", "guides", "exit-code-fidelity.md"),
 	}
 	for embeddedName, srcPath := range cases {
 		want, err := os.ReadFile(srcPath)
@@ -67,6 +68,8 @@ func sectionIDForFile(file string) string {
 		return "mcp"
 	case "adoption-ladder.md":
 		return "adoption-ladder"
+	case "exit-code-fidelity.md":
+		return "exit-code-fidelity"
 	default:
 		return ""
 	}

@@ -10,10 +10,10 @@ import (
 // inventoryFile parses one Go file and returns every non-evo output site it
 // recognizes: spinner/progress-bar imports and fmt/log/os call sites that
 // print, exit, or panic outside evo's own front doors.
-func inventoryFile(fset *token.FileSet, path string, src []byte) ([]Finding, error) {
+func inventoryFile(fset *token.FileSet, path string, src []byte) ([]Finding, *ast.File, error) {
 	f, err := parser.ParseFile(fset, path, src, parser.SkipObjectResolution)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	findings := spinnerFindings(fset, path, f)
@@ -27,7 +27,7 @@ func inventoryFile(fset *token.FileSet, path string, src []byte) ([]Finding, err
 		}
 		return true
 	})
-	return findings, nil
+	return findings, f, nil
 }
 
 func spinnerFindings(fset *token.FileSet, path string, f *ast.File) []Finding {

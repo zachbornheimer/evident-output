@@ -17,10 +17,11 @@ import (
 // sourceDocs maps each served section's stable ID to its source-of-truth
 // path (relative to the module root) and the embedded copy's filename.
 var sourceDocs = map[string]string{
-	"reference.md":       filepath.Join("docs", "reference.md"),
-	"development.md":     filepath.Join("docs", "development.md"),
-	"mcp.md":             filepath.Join("docs", "mcp.md"),
-	"adoption-ladder.md": filepath.Join("docs", "guides", "teaching-ladder.md"),
+	"reference.md":          filepath.Join("docs", "reference.md"),
+	"development.md":        filepath.Join("docs", "development.md"),
+	"mcp.md":                filepath.Join("docs", "mcp.md"),
+	"adoption-ladder.md":    filepath.Join("docs", "guides", "teaching-ladder.md"),
+	"exit-code-fidelity.md": filepath.Join("docs", "guides", "exit-code-fidelity.md"),
 }
 
 func main() {

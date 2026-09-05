@@ -255,6 +255,67 @@ func main() {
 	}
 }
 
+// TestAPI018_AllowsExitCodeFidelityPattern pins the sanctioned pattern for
+// CLIs (like go-task) that must propagate a child process's own exit code:
+// capture evo.Run's code, override it when a child exits non-zero for its
+// own reason, then os.Exit the resulting variable. This must not warn —
+// it's a documented GoodCode shape, not something the maintainer can't
+// clear (docs/guides/exit-code-fidelity.md).
+func TestAPI018_AllowsExitCodeFidelityPattern(t *testing.T) {
+	src := `package main
+import (
+  "os"
+  "os/exec"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func main() {
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
+  var childErr *exec.ExitError
+  code := evo.Run(func(o *evo.Output) error {
+    o.Task("x").Done()
+    return nil
+  })
+  if childErr != nil {
+    code = childErr.ExitCode()
+  }
+  os.Exit(code)
+}
+`
+	res := review.GoSource("main.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-018" {
+			t.Fatalf("false positive API-018 on the exit-code-fidelity pattern: %+v", res.Findings)
+		}
+	}
+}
+
+// TestAPI018_StillFlagsNakedExit proves the fidelity-pattern allowance
+// above did not weaken detection of a genuinely bare os.Exit(1) that never
+// touched evo.Run's returned code.
+func TestAPI018_StillFlagsNakedExit(t *testing.T) {
+	src := `package main
+import (
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func main() {
+  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
+  out.Task("x").Done()
+  os.Exit(1)
+}
+`
+	res := review.GoSource("main.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-018" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-018 on naked os.Exit(1): %+v", res.Findings)
+	}
+}
+
 func TestSIG001_SignalNotifyWithoutCancel(t *testing.T) {
 	src := `package main
 import (

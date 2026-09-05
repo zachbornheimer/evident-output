@@ -68,6 +68,7 @@ func GoSource(filename, src string) Result {
 	}
 
 	safeWriterVars := localSafeWriterVars(f)
+	runCodeVars := runExitCodeVars(f)
 
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
@@ -200,7 +201,7 @@ func GoSource(filename, src string) Result {
 		// API-018: os.Exit without presentation exit-code (Main/MainWith / Conclusion.ExitCode is OK)
 		if hasEvo {
 			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "os" && name == "Exit" {
-				if !isPresentationExitArg(call) {
+				if !isPresentationExitArg(call, runCodeVars) {
 					findings = append(findings, Finding{
 						RuleID:     "API-018",
 						Severity:   "warning",
@@ -876,29 +877,73 @@ func isLikelyEvoReceiver(x ast.Expr) bool {
 }
 
 // isPresentationExitArg is true for os.Exit(evo.Run(...)), os.Exit(out.Run(...)),
-// and os.Exit(...ExitCode) — the shapes that return a code rather than exit
-// themselves. evo.Main/evo.MainWith exit via their own facade (P6) and are
-// never wrapped in os.Exit — wrapping them is flagged, not allowed here.
-func isPresentationExitArg(call *ast.CallExpr) bool {
+// os.Exit(...ExitCode), and os.Exit(xe) where xe is a runCodeVars identifier
+// — the exit-code-fidelity pattern (docs/guides/exit-code-fidelity.md) that
+// captures evo.Run's code, branches to override it with a child process's
+// own exit code, and only then calls os.Exit. All of these return a code
+// rather than exit themselves. evo.Main/evo.MainWith exit via their own
+// facade (P6) and are never wrapped in os.Exit — wrapping them is flagged,
+// not allowed here.
+func isPresentationExitArg(call *ast.CallExpr, runCodeVars map[string]bool) bool {
 	if len(call.Args) != 1 {
 		return false
 	}
 	switch arg := call.Args[0].(type) {
 	case *ast.CallExpr:
-		if sel, ok := arg.Fun.(*ast.SelectorExpr); ok {
-			switch sel.Sel.Name {
-			case "Run", "ExitCode":
-				return true
-			}
-		}
-		if id, ok := arg.Fun.(*ast.Ident); ok && id.Name == "Run" {
-			return true
-		}
+		return isRunExitCodeCall(arg)
 	case *ast.SelectorExpr:
 		// out.Conclusion().ExitCode or conc.ExitCode
 		if arg.Sel.Name == "ExitCode" {
 			return true
 		}
+	case *ast.Ident:
+		return runCodeVars[arg.Name]
+	}
+	return false
+}
+
+// runExitCodeVars collects every identifier ever assigned the result of an
+// evo.Run(...)/out.Run(...)/....ExitCode call — the variable the exit-code-
+// fidelity pattern captures before optionally overriding it with a child
+// process's own exit code. Tracking is file-wide, not scope-precise,
+// matching localSafeWriterVars's existing tradeoff: a false pass here is a
+// missed warning, not a wrong fix applied.
+func runExitCodeVars(f *ast.File) map[string]bool {
+	vars := map[string]bool{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for i, rhs := range assign.Rhs {
+			if i >= len(assign.Lhs) {
+				continue
+			}
+			if ident, ok := assign.Lhs[i].(*ast.Ident); ok && isRunExitCodeCall(rhs) {
+				vars[ident.Name] = true
+			}
+		}
+		return true
+	})
+	return vars
+}
+
+// isRunExitCodeCall is true for evo.Run(...), out.Run(...), and any
+// ....ExitCode() call — the call shapes runExitCodeVars looks for on an
+// assignment's right-hand side.
+func isRunExitCodeCall(expr ast.Expr) bool {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+		switch sel.Sel.Name {
+		case "Run", "ExitCode":
+			return true
+		}
+	}
+	if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "Run" {
+		return true
 	}
 	return false
 }

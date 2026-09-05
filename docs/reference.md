@@ -9,13 +9,37 @@ wrong or this doc is; file it either way.
 
 **Construction:** `evo.Init(Config{…})` is the sole constructor — the package-level default instance (front door) by default; `Config.Isolated: true` returns an independent hosted instance instead — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `Config.Options: []Option{Title(...), …}` for exact writer/terminal/clock wiring — an explicit `To(w)` under `Options` bypasses TTY/color inference entirely (raw ANSI on `w` unless you also call `NoColor()`); leaving both `To()` and `Terminal(...)` unset instead defaults to `os.Stdout` with the ordinary TTY/`NO_COLOR` inference applied.
 **Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug: evo.DebugConfig{Level: evo.LevelDebug}` selects the journal threshold — `evo.LogLevel`, a distinct type from stdlib `slog.Level` (`LevelUnset` → Info).
-**Lifecycle:** `evo.Main(run)` (default instance, `run func() error`) or `evo.MainWith(out, run)` (hosted, `Config.Isolated: true`, `run func(*Output) error`) exits the process itself after Finish + Close; `evo.Run(run)` / `out.Run(run)` return the exit code instead of exiting, for callers composing their own exit path. A non-nil `run` error is recorded as Fail only when nothing already failed.
+**Lifecycle:** `evo.Main(run)` (default instance, `run func() error`) or `evo.MainWith(out, run)` (hosted, `Config.Isolated: true`, `run func(*Output) error`) exits the process itself after Finish + Close; `evo.Run(run)` / `out.Run(run)` return the exit code instead of exiting, for callers composing their own exit path. A non-nil `run` error is recorded as Fail only when nothing already failed. See "Lifecycles" below for the three supported shapes, including `Init` with no `Main`/`Run` at all.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only), written to `Config.Stderr` (default `os.Stderr`) — a piped run like `prog > log.txt` won't capture them; redirect with `2>` (or `2>&1`) instead. Semantic state: `Task`.
 **Mutations:** `Task.Add/Delete/Create/Update/Remove/Write/Push/Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` — one spelling, never a call-site tense flip.
 **Loops and taxonomy:** `Task.Each(items []string)` / `EachN(len(items))` (any other slice type) own absolute progress; `Task.Skipped(reason, name)` / `Task.Kept(reason, name)` own the counted, summed skip/keep partition.
 **Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error. `question` is literal text, not a printf format — Confirm is the one entity-text spelling that takes no variadic fmt args (every other one — Task/Done/Warn/Doing/Skip/Sequence/DisplayGroup/Reason — is printf-variadic), so build the string yourself (`fmt.Sprintf`) before calling. A decline resolves `[blocked]` → exit `1` (see the README's exit-code table) — pass `AssumeYes` (or check a separate flag before calling Confirm at all) if declining should exit `0` instead. The default policy hint names a `--yes` flag; pass `evo.PolicyFlag("--apply")` when your program's real flag is spelled differently.
 **Capture:** `Task.Evidence` (work or tool-backed gate); silent by default; pending fragments in `DetailTail`; `Config.Redactor` before retention. `cmd.Stdout = task.Writer()` turns a talkative child's last line into the live doing-text; `out.Suspend(fn)` hands the tty to a child that paints its own UI.
 **Platform:** `evo.ID` + narrow `Scope` (Task only — not a sandbox); `ResultWriter()` under `FormatData`.
+
+## Lifecycles
+
+Three supported shapes, all built on the same `Finish` (validate + compute
+Conclusion) → `Close` (idempotent cleanup) sequence:
+
+| Shape                      | Who calls Finish/Close                                                                                                         | Who exits the process                                             | Use when                                                                                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Init` + `Main`/`MainWith` | Main/MainWith, automatically                                                                                                   | Main/MainWith, via `os.Exit`                                      | An ordinary CLI entrypoint — the common case                                                                                                                                   |
+| `Init` + `Run`/`out.Run`   | Run/out.Run, automatically                                                                                                     | The caller, after inspecting `code`                               | A CLI composing its own exit path (see [exit-code-fidelity](guides/exit-code-fidelity.md)), or a test that needs the code without exiting the test binary                      |
+| `Init` alone (no Main/Run) | The caller, explicitly (`out.Finish()` then `out.Close()`, or just `defer out.Close()` — Close runs Finish itself when needed) | Never — evo never exits a process it didn't arm via Main/MainWith | A hosted/embedded use (a library, a long-running service, an MCP tool handler) that owns its own process lifetime and only wants evo's presentation, not its exit-code opinion |
+
+`Run` (`evo.Run` / `out.Run`) is the non-exiting reconciler every other
+lifecycle is built from — it is never itself a "fire and forget" call:
+its returned `int` is the Conclusion's exit code, and something must do
+something with it (return it from `main` via `os.Exit`, assert on it in a
+test, or fold it into a larger program's own decision).
+
+For `Init` alone: nothing renders the final Conclusion band, and evidence
+capture / redaction never flush, until `Finish` runs — an embedding caller
+that forgets to call it (or `Close`, which calls it for you) gets an Output
+that never reports its own outcome. `Close` is safe to call unconditionally
+and more than once (idempotent); prefer `defer out.Close()` right after
+`Init` so every return path — including a panic — still finalizes.
 
 ## Pick the entity
 
