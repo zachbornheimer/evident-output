@@ -70,6 +70,58 @@ func f() {
 	}
 }
 
+func TestCLI_ReviewDirectoryMergesFiles(t *testing.T) {
+	bin := buildCLI(t)
+	dir := t.TempDir()
+	a := `package a
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) { out.Plan("a") }
+`
+	b := `package b
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) { out.Changes("b") }
+`
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte(a), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.go"), []byte(b), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(bin, "review", dir)
+	stdout, _ := cmd.Output()
+	if !strings.Contains(string(stdout), "API-032") {
+		t.Fatalf("review dir missing API-032: %s", stdout)
+	}
+	if !strings.Contains(string(stdout), "a.go") || !strings.Contains(string(stdout), "b.go") {
+		t.Fatalf("review dir must merge both files: %s", stdout)
+	}
+}
+
+func TestCLI_AdoptPrintsPagedJSON(t *testing.T) {
+	bin := buildCLI(t)
+	mixed := filepath.Join("..", "..", "internal", "agent", "adopt", "testdata", "mixed")
+	out, err := exec.Command(bin, "adopt", mixed).Output()
+	if err != nil {
+		t.Fatalf("adopt: %v\n%s", err, out)
+	}
+	var page map[string]any
+	if err := json.Unmarshal(out, &page); err != nil {
+		t.Fatalf("adopt json: %v\n%s", err, out)
+	}
+	for _, key := range []string{"findings", "rung", "remaining", "next_cursor", "next_action"} {
+		if _, ok := page[key]; !ok {
+			t.Errorf("adopt json missing %s: %s", key, out)
+		}
+	}
+	if page["next_action"] == "clean" {
+		t.Fatalf("mixed fixture is not clean: %s", out)
+	}
+	raw, _ := json.Marshal(page["findings"])
+	if !strings.Contains(string(raw), "log.Fatal") && !strings.Contains(string(raw), "fmt.Printf") {
+		t.Fatalf("adopt findings missing mixed patterns: %s", out)
+	}
+}
+
 func buildCLI(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
