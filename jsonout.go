@@ -1,10 +1,6 @@
 package evo
 
 import (
-	"errors"
-	"fmt"
-	"io"
-
 	"github.com/zachbornheimer/evident-output/internal/render"
 )
 
@@ -73,37 +69,4 @@ func EncodeJSONL(events []Event) ([]byte, error) {
 // EncodeEventJSON encodes one journal event as a single JSON object (no newline).
 func EncodeEventJSON(e Event) ([]byte, error) {
 	return render.EncodeEventJSON(e)
-}
-
-func writeMachinePresentation(w io.Writer, snap Snapshot, events []Event, proj Projection, misuse error) error {
-	var body []byte
-	var err error
-	switch proj {
-	case ProjectionJSON:
-		body, err = EncodeJSON(snap)
-	case ProjectionJSONL:
-		body, err = EncodeJSONL(events)
-	default:
-		return misuse
-	}
-	if err != nil {
-		err = fmt.Errorf("%w: %v", ErrRenderer, err)
-		if misuse == nil {
-			return err
-		}
-		return errors.Join(misuse, err)
-	}
-	if w != nil && len(body) > 0 {
-		if _, werr := w.Write(body); werr != nil {
-			werr = fmt.Errorf("%w: %v", ErrRenderer, werr)
-			if misuse == nil {
-				return werr
-			}
-			return errors.Join(misuse, werr)
-		}
-		if f, ok := w.(flusher); ok {
-			_ = f.Flush()
-		}
-	}
-	return misuse
 }
