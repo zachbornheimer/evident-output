@@ -127,7 +127,7 @@ func cmdPreview(args []string) error {
 		}
 	}
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title(subject), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: subject, Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	it := out.Task(item)
 	switch state {
 	case "blocked":

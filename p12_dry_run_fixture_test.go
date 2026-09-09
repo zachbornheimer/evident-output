@@ -38,14 +38,7 @@ import (
 // shape and typography only).
 func TestP12_DryRunFixtureShape(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		DryRun:   true,
-		Subject:  "repo  /Users/zbornheimer/Developer/Software-Automation-Holdings/bpp2.0",
-		Options: []evo.Option{
-			evo.To(&buf), evo.NoColor(), evo.Plain(),
-		},
-	})
+	out := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "repo  /Users/zbornheimer/Developer/Software-Automation-Holdings/bpp2.0", Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	// The caller declares its whole known set of sibling tasks up front —
 	// the pattern that lets progressive/immediate rendering (§17.5) still
@@ -63,7 +56,7 @@ func TestP12_DryRunFixtureShape(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		branches.Kept(unpushedBranch, fmt.Sprintf("unpushed-%d", i))
 	}
-	_ = branches.Delete("local tip", nil, evo.Affected(2))
+	branches.Delete(2, "local tip")
 	branches.Done()
 
 	dirty := evo.Reason("dirty")
@@ -74,11 +67,11 @@ func TestP12_DryRunFixtureShape(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		worktrees.Kept(unpushedWorktree, fmt.Sprintf("unpushed-%d", i))
 	}
-	_ = worktrees.Remove("worktree", nil, evo.Affected(1))
+	worktrees.Remove(1, "worktree")
 	worktrees.Done()
 
 	remoteTracking.Fact("", "1 stale")
-	_ = remoteTracking.Delete("stale origin/*", nil, evo.Affected(1))
+	remoteTracking.Delete(1, "stale origin/*")
 	remoteTracking.Done()
 
 	if err := out.Finish(); err != nil {

@@ -93,7 +93,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func check() error {
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo")}})
+  out := evo.Init(evo.Config{Title: "repo"})
   defer out.Close()
   out.Task("working tree").Block("dirty")
   return errors.New("dirty")

@@ -140,7 +140,7 @@ func MirrorToDebug() EvidenceOption {
 // get-or-create: the first call (from Evidence or PhaseWriter) allocates the
 // ring and every later call returns that same instance, so evidence recorded
 // through either path lands together and survives for DetailTail after Fail.
-func (t *TaskHandle) Evidence(opts ...EvidenceOption) *Evidence {
+func (t *TaskHandle) evidence(opts ...EvidenceOption) *Evidence {
 	if t == nil || t.out == nil {
 		return newEvidence(nil, "", "", opts...)
 	}
@@ -159,7 +159,7 @@ func (t *TaskHandle) Evidence(opts ...EvidenceOption) *Evidence {
 // Evidence returns a session-level retained/redacted writer with no owning
 // Task. Prefer Task.Evidence so failure evidence attaches to an entity.
 // Session-level Evidence is advanced; ordinary call sites should not use it.
-func (o *Output) Evidence(opts ...EvidenceOption) *Evidence {
+func (o *Output) evidence(opts ...EvidenceOption) *Evidence {
 	return newEvidence(o, "", "", opts...)
 }
 
@@ -491,9 +491,9 @@ func (o *Output) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line 
 		return
 	}
 	if taskName != "" {
-		o.Debug(line, Field{Key: "task", Value: taskName})
+		o.debug(line, Field{Key: "task", Value: taskName})
 	} else {
-		o.Debug(line)
+		o.debug(line)
 	}
 }
 

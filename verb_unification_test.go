@@ -18,15 +18,15 @@ import (
 // separate types.
 func TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	cleanup := out.Task("cleanup")
-	_ = cleanup.Add("worktree", nil, evo.Affected(2))
+	cleanup.Add(2, "worktree")
 	cleanup.Done()
 
 	applied := out.Task("changes-section")
-	_ = applied.Delete("branch", nil, evo.Affected(1))
-	_ = applied.Push("tag", nil, evo.Affected(1))
+	applied.Delete(1, "branch")
+	applied.Push(1, "tag")
 	applied.Done()
 
 	_ = out.Finish()
@@ -44,10 +44,10 @@ func TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes(t *testing.T) {
 // ("push"), never conjugated, under Config.DryRun.
 func TestVerbVocabulary_PlanKeepsImperativeUnderDryRun(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
 
 	plan := out.Task("plan-section")
-	_ = plan.Push("commit", nil, evo.Affected(3))
+	plan.Push(3, "commit")
 	plan.Done()
 
 	_ = out.Finish()

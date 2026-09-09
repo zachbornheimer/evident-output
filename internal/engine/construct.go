@@ -201,6 +201,9 @@ type Config struct {
 	// Output is built, not for whether it becomes the default.
 	Isolated bool
 
+	// API reserved for HTTP JSON encoding on this Output.
+	API bool
+
 	// Options is the advanced, raw Option escape hatch for tests and
 	// specialized embedding (custom Terminal, Clock, exact writer wiring)
 	// that need to bypass Config's ordinary stream/TTY/color inference

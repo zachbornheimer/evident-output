@@ -3,6 +3,7 @@ package preview
 
 import (
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
 // Profile is one terminal profile rendering.
@@ -23,7 +24,7 @@ func DefaultProfiles(snap evo.Snapshot) []Profile {
 	}
 	var out []Profile
 	for _, s := range specs {
-		b, err := evo.RenderPlain(snap, evo.PlainOptions{
+		b, err := engine.RenderPlain(snap, evo.PlainOptions{
 			Width:   s.width,
 			NoColor: true,
 		})

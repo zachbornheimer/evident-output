@@ -73,8 +73,33 @@ func TestMCP_InitializeInstructionsDriveReviewLoop(t *testing.T) {
 	if !strings.Contains(out, "call evident_output_review again") {
 		t.Fatalf("instructions missing re-run-until-clean directive: %s", out)
 	}
+	if !strings.Contains(out, "update_needed") || !strings.Contains(out, "evident_output_update") {
+		t.Fatalf("instructions missing update-then-restart directive: %s", out)
+	}
+	if !strings.Contains(out, "autofixer") || !strings.Contains(out, "migrating existing evo call sites") {
+		t.Fatalf("instructions missing autofixer-for-migration directive: %s", out)
+	}
 	if strings.Contains(out, "list_guides") {
 		t.Fatalf("instructions must not mention list_guides: %s", out)
+	}
+}
+
+func TestReviewToolDescriptionIsAutofixer(t *testing.T) {
+	var desc string
+	for _, tool := range toolList() {
+		if tool["name"] == "evident_output_review" {
+			desc, _ = tool["description"].(string)
+			break
+		}
+	}
+	if desc == "" {
+		t.Fatal("evident_output_review missing from toolList")
+	}
+	if !strings.Contains(desc, "migrating existing evo call sites") {
+		t.Fatalf("review tool description must mention migrating existing evo call sites, got %q", desc)
+	}
+	if !strings.Contains(desc, "autofixer") {
+		t.Fatalf("review tool description must name itself the autofixer, got %q", desc)
 	}
 }
 

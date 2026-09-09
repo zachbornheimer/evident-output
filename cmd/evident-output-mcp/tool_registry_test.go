@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 var advertisedToolNames = []string{
 	"evident_output_list_sections",
@@ -9,6 +13,7 @@ var advertisedToolNames = []string{
 	"evident_output_review",
 	"evident_output_preview",
 	"evident_output_explain",
+	"evident_output_update",
 }
 
 var callableAliasNames = []string{
@@ -61,7 +66,7 @@ func TestToolRegistryMatchesToolList(t *testing.T) {
 	}
 }
 
-// TestNewMCPToolsAdvertised pins tools/list to exactly the six advertised names.
+// TestNewMCPToolsAdvertised pins tools/list to exactly the advertised names.
 func TestNewMCPToolsAdvertised(t *testing.T) {
 	advertised := advertisedSet()
 	if len(advertised) != len(advertisedToolNames) {
@@ -76,5 +81,50 @@ func TestNewMCPToolsAdvertised(t *testing.T) {
 		if advertised[name] {
 			t.Errorf("alias %q must not be advertised by toolList()", name)
 		}
+	}
+}
+
+func TestMCP_ToolsListIncludesUpdateWithSchema(t *testing.T) {
+	bin := buildMCP(t)
+	in := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`,
+	}, "\n") + "\n"
+	out := runMCP(t, bin, in)
+	var update map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		var msg map[string]any
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			continue
+		}
+		result, _ := msg["result"].(map[string]any)
+		tools, _ := result["tools"].([]any)
+		for _, raw := range tools {
+			tm, _ := raw.(map[string]any)
+			if tm["name"] == "evident_output_update" {
+				update = tm
+			}
+		}
+	}
+	if update == nil {
+		t.Fatalf("tools/list missing evident_output_update: %s", out)
+	}
+	schema, _ := update["inputSchema"].(map[string]any)
+	if len(schema) == 0 {
+		t.Fatalf("evident_output_update missing inputSchema: %v", update)
+	}
+	if schema["type"] != "object" {
+		t.Fatalf("inputSchema.type=%v", schema["type"])
+	}
+	props, _ := schema["properties"].(map[string]any)
+	if _, ok := props["version"]; !ok {
+		t.Fatalf("inputSchema missing version: %v", schema)
+	}
+	if _, ok := props["directory"]; !ok {
+		t.Fatalf("inputSchema missing directory: %v", schema)
+	}
+	listed := listedToolNames(t, out)
+	if len(listed) != 7 {
+		t.Fatalf("advertised %d tools, want 7: %v", len(listed), listed)
 	}
 }

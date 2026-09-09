@@ -50,7 +50,7 @@ func TestProjectDebugRecord_DualStreamSameTerminalRoutesThroughLiveSequencing(t 
 		withDiagnosticSharesTerminal(), DebugLevel(LevelDebug))
 	t.Cleanup(func() { _ = o.Close() })
 
-	o.Debug("dual stream debug line")
+	o.debug("dual stream debug line")
 
 	var sawSequencedWrite bool
 	for _, c := range drv.calls {

@@ -205,7 +205,7 @@ type tasksState struct {
 	summary     string
 	tasks       []*taskState
 	declaration int
-	handle      *DisplayGroup
+	handle      *DisplayGroupHandle
 
 	// namedTasks backs get-or-create identity for Sequence.Task: repeated
 	// calls with the same name inside this sequence return the one child
@@ -368,7 +368,7 @@ func newOutput(subject string, options ...Option) *Output {
 // caller decides (e.g. from a flag parsed after Init) and calls this
 // explicitly, before any Task/Print/Confirm call. A no-op when the run is
 // already dry-run.
-func (o *Output) DeclareDryRun() {
+func (o *Output) declareDryRun() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -514,27 +514,6 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 	st.state = Running
 }
 
-// promoteRunningForActivity is mutate's activity-driven promotion hook (P5
-// concurrency truth): a mutation-verb callback about to run counts as the
-// task's first unit of evidence, exactly like a Phase/Progress call, so a
-// long-running Delete/Update/etc. callback renders as Running rather than
-// sitting on a Pending row that looks idle. A no-op for a task that is not
-// Pending (already Running, or already resolved — mutate's own ensureOpen/
-// terminal checks handle that case).
-func (o *Output) promoteRunningForActivity(taskID string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskByRef[taskID]
-	if st == nil || st.state != Pending {
-		return
-	}
-	st.activityAt = o.cfg.clock.Now()
-	o.promoteRunningLocked(st)
-	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "task.activity", EntityID: st.id})
-	o.signalLiveLocked(true)
-}
-
 func (o *Output) ensureOpen() error {
 	if o.closed || o.finishing || o.finished {
 		return ErrClosed
@@ -561,9 +540,8 @@ func (o *Output) ensureEntityRoomLocked() error {
 // key. name is a printf format when args are present (fmt.Sprintf
 // semantics) — evo.ID (or any other EntityOption) may be mixed into args in
 // any position and still applies.
-func (o *Output) Task(name string, args ...any) *TaskHandle {
-	formatted, opts := formatEntityName(name, args)
-	return o.taskScoped(formatted, "", opts...)
+func (o *Output) Task(name string) *TaskHandle {
+	return o.taskScoped(name, "")
 }
 
 // taskScoped is the get-or-create identity behind Output.Task and Scope.Task:
@@ -617,6 +595,13 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 	return h
 }
 
+func declaredTaskState(col *tasksState) EntityState {
+	if col != nil && col.sequential {
+		return Pending
+	}
+	return Running
+}
+
 func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
@@ -637,7 +622,7 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHa
 		id:          o.nextID("task"),
 		key:         key,
 		name:        name,
-		state:       Pending,
+		state:       declaredTaskState(col),
 		progress:    Progress{Kind: Indeterminate},
 		collection:  col,
 		declaration: o.nextDecl(),
@@ -767,19 +752,16 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 // Sequence for the ordered alternative). name is a printf format when args
 // are present (fmt.Sprintf semantics) — one text spelling shared with
 // Task/Sequence/Reason (C6); no args leaves name untouched.
-func (o *Output) DisplayGroup(name string, args ...any) *DisplayGroup {
-	if len(args) > 0 {
-		name = fmt.Sprintf(name, args...)
-	}
+func (o *Output) DisplayGroup(name string) *DisplayGroupHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &DisplayGroup{out: o, id: o.nextID("tasks")}
+		return &DisplayGroupHandle{out: o, id: o.nextID("tasks")}
 	}
 	st := o.declareContainerLocked(name, false)
 	o.collections = append(o.collections, st)
-	h := &DisplayGroup{out: o, id: st.id}
+	h := &DisplayGroupHandle{out: o, id: st.id}
 	st.handle = h
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
@@ -792,10 +774,7 @@ func (o *Output) DisplayGroup(name string, args ...any) *DisplayGroup {
 // cancelled. A second evo.Sequence("python") call returns the same Sequence,
 // mirroring Task's get-or-create identity. name is a printf format when args
 // are present (fmt.Sprintf semantics); no args leaves name untouched.
-func (o *Output) Sequence(name string, args ...any) *SequenceHandle {
-	if len(args) > 0 {
-		name = fmt.Sprintf(name, args...)
-	}
+func (o *Output) Sequence(name string) *SequenceHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if g, ok := o.namedGroups[name]; ok {
@@ -803,11 +782,11 @@ func (o *Output) Sequence(name string, args ...any) *SequenceHandle {
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &SequenceHandle{tasks: &DisplayGroup{out: o, id: o.nextID("tasks")}}
+		return &SequenceHandle{tasks: &DisplayGroupHandle{out: o, id: o.nextID("tasks")}}
 	}
 	st := o.declareContainerLocked(name, true)
 	o.collections = append(o.collections, st)
-	h := &DisplayGroup{out: o, id: st.id}
+	h := &DisplayGroupHandle{out: o, id: st.id}
 	st.handle = h
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
@@ -1029,7 +1008,7 @@ func (o *Output) NextCommand(executable string, args ...string) {
 // When Diagnostics is configured and is a different writer than the primary stream,
 // debug lines go to Diagnostics only (not the human Items/Tasks stream). Use
 // Capture for child-process evidence instead of DebugWriter when you need Fail Detail.
-func (o *Output) Debug(message string, fields ...Field) {
+func (o *Output) debug(message string, fields ...Field) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.emitDebugLocked(message, fields, false)

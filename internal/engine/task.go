@@ -101,7 +101,11 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // shape: the Evidence ring is its one durable home, not a plain-mode row
 // per line (release-gate round 9 finding 4).
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
-	st.phase = txt.Text(text)
+	text = txt.Text(text)
+	if text == st.phase {
+		return
+	}
+	st.phase = text
 	st.activityAt = o.cfg.clock.Now()
 	if st.state == Pending {
 		o.promoteRunningLocked(st)
@@ -195,7 +199,7 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 // acquisition, so a concurrent worker can never observe one goroutine's
 // count paired with another goroutine's phase name — the exact interleaving
 // two separate Progress(...) + Phase(...) calls (two separate locks) allow.
-func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
+func (t *TaskHandle) step(completed, total int, name string) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -262,9 +266,8 @@ func formatSummaryArgs(args []any) (summary string, ok bool) {
 // printf format when fmt args are present — one text spelling shared with
 // Done/Task/Group/Reason (C6); evo.Detail(...) and other ProblemOptions may
 // be mixed into args in any position and still apply.
-func (t *TaskHandle) Warn(summary string, args ...any) {
-	formatted, opts := formatWarnArgs(summary, args)
-	p := applyProblemOptions(txt.Text(formatted), opts)
+func (t *TaskHandle) Warn(summary string) {
+	p := applyProblemOptions(txt.Text(summary), nil)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -356,7 +359,7 @@ func (t *TaskHandle) attachRetainedEvidenceTail(p *Problem) {
 	if t == nil {
 		return
 	}
-	t.Evidence().DetailTail().applyProblem(p)
+	t.evidence().DetailTail().applyProblem(p)
 }
 
 // Block resolves the task as blocked. This is a statement, not a fluent
@@ -393,7 +396,7 @@ func (t *TaskHandle) Cancel(reason string) *TaskHandle {
 // Skip resolves the task as skipped. reason is a printf format when args are
 // present (fmt.Sprintf semantics) — one text spelling shared with
 // Done/Task/Group/Reason/Phase (C6; release-gate round 6 finding 4).
-func (t *TaskHandle) Skip(reason string, args ...any) *TaskHandle {
+func (t *TaskHandle) skip(reason string, args ...any) *TaskHandle {
 	if len(args) > 0 {
 		reason = fmt.Sprintf(reason, args...)
 	}
@@ -430,7 +433,7 @@ func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle 
 // Confirm's PolicyFlag / I2's Failf fallback: Config.Title when set, else
 // the binary's own basename. Use NextCommand instead when the remedy is a
 // different (foreign) tool.
-func (t *TaskHandle) NextSelf(args ...string) *TaskHandle {
+func (t *TaskHandle) nextSelf(args ...string) *TaskHandle {
 	return t.NextCommand(t.out.policySourceName(), args...)
 }
 
@@ -446,6 +449,7 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 }
 
 func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
+	t.out.holdRunningPaint(t.id)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
