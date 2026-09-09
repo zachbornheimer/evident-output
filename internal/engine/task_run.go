@@ -34,10 +34,10 @@ import (
 //	    return task.Failf("build failed: %w", err)
 //	}
 //	task.Done()
-func (t *TaskHandle) Run(cmd *exec.Cmd) error {
+func (t *TaskHandle) run(cmd *exec.Cmd) error {
 	if t != nil && t.out != nil {
 		t.ensurePhase(commandPhaseName(cmd))
-		pw := &phaseWriter{task: t, evidence: t.Evidence()}
+		pw := &phaseWriter{task: t, evidence: t.evidence()}
 		cmd.Stdout = teeSubprocessWriter(cmd.Stdout, pw)
 		cmd.Stderr = teeSubprocessWriter(cmd.Stderr, pw)
 	}

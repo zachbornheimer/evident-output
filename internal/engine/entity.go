@@ -1,7 +1,5 @@
 package engine
 
-import "fmt"
-
 // EntityOption configures Task declaration (stable keys).
 // The common path remains Task("label"); options are platform-scale.
 type EntityOption interface {
@@ -36,30 +34,6 @@ func StartPhase(text string) EntityOption {
 	return entityOptionFunc(func(o *entityOpts) { o.phase = text })
 }
 
-// formatEntityName splits a Task/Item declaration's trailing args into the
-// fmt.Sprintf arguments and the EntityOption values mixed in among them (e.g.
-// evo.ID("x")), then resolves the printf-style name — no args means name is
-// returned verbatim, so a plain evo.Task("branches") never runs through
-// Sprintf and can't misfire on a literal "%" in a caller's label.
-func formatEntityName(name string, args []any) (string, []EntityOption) {
-	if len(args) == 0 {
-		return name, nil
-	}
-	var opts []EntityOption
-	var fmtArgs []any
-	for _, a := range args {
-		if opt, ok := a.(EntityOption); ok {
-			opts = append(opts, opt)
-			continue
-		}
-		fmtArgs = append(fmtArgs, a)
-	}
-	if len(fmtArgs) == 0 {
-		return name, opts
-	}
-	return fmt.Sprintf(name, fmtArgs...), opts
-}
-
 func applyEntityOptions(opts []EntityOption) entityOpts {
 	var o entityOpts
 	for _, opt := range opts {
@@ -91,7 +65,7 @@ type Scope struct {
 }
 
 // Scope returns a namespaced handle. It does not render a visible section.
-func (o *Output) Scope(name string) *Scope {
+func (o *Output) scope(name string) *Scope {
 	if o == nil {
 		return &Scope{name: name}
 	}
@@ -108,12 +82,11 @@ func (s *Scope) Name() string {
 
 // Task declares a task; optional evo.ID is prefixed with the scope name.
 // name is a printf format when args are present (fmt.Sprintf semantics).
-func (s *Scope) Task(name string, args ...any) *TaskHandle {
+func (s *Scope) Task(name string) *TaskHandle {
 	if s == nil || s.out == nil {
 		return &TaskHandle{}
 	}
-	formatted, opts := formatEntityName(name, args)
-	return s.out.taskScoped(formatted, s.name, opts...)
+	return s.out.taskScoped(name, s.name)
 }
 
 func qualifyKey(scope, key string) string {

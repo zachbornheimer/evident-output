@@ -23,14 +23,14 @@ const (
 // the summary; the aggregation key is untouched by errs. Any errs render as
 // one bounded evidence line under the count row (first cause + "(+N more)"),
 // full list under Verbose.
-func (t *TaskHandle) Skipped(reason TaxonomyReason, name string, errs ...error) {
-	t.recordTaxonomy(reason, name, dispositionSkip, errs)
+func (t *TaskHandle) Skipped(reason TaxonomyReason, name string) {
+	t.recordTaxonomy(reason, name, dispositionSkip, nil)
 }
 
 // Kept accumulates a (reason, name) keep record on the task — same machinery
 // as Skipped, second verb ("!  kept N  (...)").
-func (t *TaskHandle) Kept(reason TaxonomyReason, name string, errs ...error) {
-	t.recordTaxonomy(reason, name, dispositionKeep, errs)
+func (t *TaskHandle) Kept(reason TaxonomyReason, name string) {
+	t.recordTaxonomy(reason, name, dispositionKeep, nil)
 }
 
 func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {

@@ -46,8 +46,7 @@ var (
 // reach the instance they configured via the package-level Task/Print
 // facade, instead of those facades lazily building a second, bare Output
 // that silently drops DryRun/Title/writer wiring).
-func Init(configs ...Config) *Output {
-	cfg := resolveInitConfig(configs)
+func Init(cfg Config) *Output {
 	if len(cfg.Options) == 0 {
 		cfg = applyEnv(cfg)
 	}
@@ -87,18 +86,6 @@ func Init(configs ...Config) *Output {
 	return out
 }
 
-// resolveInitConfig picks Init's effective Config from its variadic
-// argument: zero args is the zero Config (evo.Init()), and one or more
-// uses the first — there is one construction call, not a merge, so any
-// argument past the first is ignored rather than erroring on a call shape
-// no caller has a reason to make.
-func resolveInitConfig(configs []Config) Config {
-	if len(configs) == 0 {
-		return Config{}
-	}
-	return configs[0]
-}
-
 // SetDefault installs out as the package-level default Output.
 func SetDefault(out *Output) {
 	defaultMu.Lock()
@@ -130,17 +117,22 @@ func Default() *Output {
 // the identity a caller doing evo.Task("branches") from two call sites
 // expects. name is a printf format when args are present (fmt.Sprintf
 // semantics); the get-or-create key is the formatted name.
-func Task(name string, args ...any) *TaskHandle {
-	formatted, opts := formatEntityName(name, args)
-	return Default().taskGetOrCreate(formatted, opts...)
+func Task(name string) *TaskHandle {
+	return Default().taskGetOrCreate(name)
 }
 
 // Sequence declares (or, for a repeated name, returns) a self-managing,
 // ordered task container on the default instance — see Output.Sequence for
 // the auto-lifecycle contract. name is a printf format when args are present
 // (fmt.Sprintf semantics).
-func Sequence(name string, args ...any) *SequenceHandle {
-	return Default().Sequence(name, args...)
+func Sequence(name string) *SequenceHandle {
+	return Default().Sequence(name)
+}
+
+// DisplayGroup declares a presentation-only collection of independent child
+// tasks on the default instance.
+func DisplayGroup(name string) *DisplayGroupHandle {
+	return Default().DisplayGroup(name)
 }
 
 // Reason returns a get-or-create taxonomy Reason by name on the default
@@ -151,9 +143,8 @@ func Sequence(name string, args ...any) *SequenceHandle {
 // present (fmt.Sprintf semantics) — one text spelling shared with
 // Task/Group (C6); evo.ForSkip()/evo.OnTask(...) may be mixed into args in
 // any position and still applies, exactly like Task's evo.ID.
-func Reason(name string, args ...any) TaxonomyReason {
-	formatted, opts := formatReasonName(name, args)
-	return Default().reasonGetOrCreate(formatted, opts...)
+func Reason(name string) TaxonomyReason {
+	return Default().reasonGetOrCreate(name)
 }
 
 // Print formats like fmt.Sprint and enqueues human-facing text on the default instance.
@@ -173,7 +164,7 @@ func Println(args ...any) {
 
 // Verbose returns a Printer scoped to Verbose visibility on the default instance.
 func Verbose() *Printer {
-	return Default().At(VisibilityVerbose)
+	return Default().at(VisibilityVerbose)
 }
 
 // SlogHandler returns a slog.Handler journaling to the default instance —
@@ -182,5 +173,5 @@ func Verbose() *Printer {
 // have to reach for a hosted *Output just for the slog bridge. See
 // Output.SlogHandler for the level policy and full contract.
 func SlogHandler() slog.Handler {
-	return Default().SlogHandler()
+	return Default().slogHandler()
 }

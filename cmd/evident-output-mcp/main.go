@@ -33,7 +33,7 @@ import (
 // confirm all the issues are fixed."): a directive to use the server, not
 // just a description of it, and an explicit instruction to loop the review
 // tool until it reports zero findings.
-const serverInstructions = "This is the official Evident Output MCP server. It MUST be used whenever CLI output or presentation code is written or changed in a repo that uses evident-output (or is adopting it). Call evident_output_list_sections / evident_output_get_documentation for authoritative docs, evident_output_adopt_plan to inventory non-evo output in an existing codebase, and evident_output_review before treating any CLI output change as done. After applying evident_output_review's suggested fixes, call evident_output_review again on the same source — repeat until it reports zero findings (recheck_required=false); only then is the change clean. Catalog checksum available via resource evident-output://meta/catalog-checksum."
+const serverInstructions = "This is the official Evident Output MCP server. It MUST be used whenever CLI output or presentation code is written or changed in a repo that uses evident-output (or is adopting it). Call evident_output_list_sections / evident_output_get_documentation for authoritative docs, evident_output_adopt_plan to inventory non-evo output in an existing codebase, and evident_output_review before treating any CLI output change as done. When review reports update_needed, call evident_output_update then restart the MCP host before treating review as done. When migrating existing evo call sites, evident_output_review is the autofixer (same role as svelte-autofixer): pass the Go source or kind=directory, apply every suggestion, and call again until zero findings. After applying evident_output_review's suggested fixes, call evident_output_review again on the same source — repeat until it reports zero findings (recheck_required=false); only then is the change clean. Catalog checksum available via resource evident-output://meta/catalog-checksum."
 
 // Version is injected at build time.
 var Version = "dev"
@@ -75,6 +75,12 @@ func main() {
 		if code := runConfig(os.Args[1:]); code >= 0 {
 			os.Exit(code)
 		}
+		if code := runUpdate(os.Args[1:]); code >= 0 {
+			os.Exit(code)
+		}
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		maybeAutoUpdate(cwd, os.Args, osEnv{}, osFiles{}, execRunner{}, syscallExecer{}, liveIdentity())
 	}
 	// Log only to stderr (MCP stdio: stdout is protocol-only).
 	fmt.Fprintf(os.Stderr, "evident-output-mcp %s starting (stdio)\n", Version)
@@ -319,14 +325,23 @@ func toolList() []map[string]any {
 			},
 			"required": []string{"directory"},
 		}},
-		{"name": "evident_output_review", "description": "Review Go source, a local directory, multi-file package, transcript, or structured JSON for evo misuse", "inputSchema": map[string]any{
+		{"name": "evident_output_review", "description": "Review Go source, a local directory, multi-file package, transcript, or structured JSON for evo misuse. MUST be used when migrating existing evo call sites (the autofixer, same role as svelte-autofixer): pass Go source or kind=directory, apply every suggestion, call again until zero findings", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"source":      map[string]any{"type": "string"},
-				"file":        map[string]any{"type": "string"},
+				"source":          map[string]any{"type": "string"},
+				"file":            map[string]any{"type": "string"},
+				"directory":       map[string]any{"type": "string"},
+				"kind":            map[string]any{"type": "string"},
+				"files":           map[string]any{"type": "object"},
+				"desired_version": map[string]any{"type": "string"},
+				"deadline_ms":     map[string]any{"type": "integer"},
+			},
+		}},
+		{"name": "evident_output_update", "description": "Install a matching evident-output-mcp binary for a go.mod pin (--directory) or a release tag (--version), then symlink into ~/.local/bin. Requires version XOR directory. After it returns, restart the MCP host.", "inputSchema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"version":     map[string]any{"type": "string"},
 				"directory":   map[string]any{"type": "string"},
-				"kind":        map[string]any{"type": "string"},
-				"files":       map[string]any{"type": "object"},
 				"deadline_ms": map[string]any{"type": "integer"},
 			},
 		}},
@@ -643,18 +658,21 @@ func handleToolCall(id any, req map[string]any) {
 				writeRPC(id, toolError("no source to review: pass `source` content or an absolute `file` path that exists"))
 				return
 			}
-			res = review.GoSource(file, src)
+			desired, _ := args["desired_version"].(string)
+			res = review.GoSourceAt(file, src, desired)
 		}
 		if cancelled.Load() {
 			writeRPC(id, toolError("deadline exceeded"))
 			return
 		}
+		applyDesiredVersion(&res, args)
 		writeReviewResult(id, res)
+	case "evident_output_update":
+		handleUpdateTool(id, args)
 	case "evident_output_preview":
 		subject, _ := args["subject"].(string)
 		item, _ := args["item"].(string)
 		state, _ := args["state"].(string)
-		dbg, _ := args["debug"].(string)
 		if subject == "" {
 			subject = "demo"
 		}
@@ -662,8 +680,8 @@ func handleToolCall(id any, req map[string]any) {
 			item = "status"
 		}
 		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Options: []evo.Option{evo.Title(subject), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}})
-		it := out.Task(item)
+		out := evo.Init(evo.Config{Title: subject, Stdout: &buf, Plain: true, Color: evo.ColorNever, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
+		it := out.Task(item).Doing("preview")
 		switch state {
 		case "blocked":
 			it.Block("blocked for demo")
@@ -671,9 +689,6 @@ func handleToolCall(id any, req map[string]any) {
 			it.Fail("failed for demo")
 		default:
 			it.Done()
-		}
-		if dbg != "" {
-			out.Debug(dbg)
 		}
 		_ = out.Finish()
 		snap := out.Snapshot()
@@ -723,7 +738,8 @@ func handleReviewDirectory(id any, args map[string]any, cancelled *atomic.Bool) 
 		writeRPC(id, toolError("directory must be an absolute local path"))
 		return
 	}
-	res, err := review.GoDirectory(directory)
+	desired, _ := args["desired_version"].(string)
+	res, err := review.GoDirectoryAt(directory, desired)
 	if err != nil {
 		writeRPC(id, toolError("review directory: "+err.Error()))
 		return
@@ -732,33 +748,14 @@ func handleReviewDirectory(id any, args map[string]any, cancelled *atomic.Bool) 
 		writeRPC(id, toolError("deadline exceeded"))
 		return
 	}
+	applyDesiredVersion(&res, args)
 	writeReviewResult(id, res)
 }
 
-func writeReviewResult(id any, res review.Result) {
-	nextAction := reviewNextAction(res)
-	text := fmt.Sprintf("findings=%d recheck=%v partial=%v — %s", len(res.Findings), res.RecheckRequired, res.Partial, nextAction)
-	writeRPC(id, map[string]any{
-		"content": []map[string]any{{"type": "text", "text": text}},
-		"structuredContent": map[string]any{
-			"schema":           "evident_output_review.v1",
-			"recheck_required": res.RecheckRequired,
-			"partial":          res.Partial,
-			"findings":         res.Findings,
-			"next_action":      nextAction,
-		},
-	})
-}
-
-// reviewNextAction makes the review→fix→re-review loop self-driving: an
-// agent that only reads this field (never the findings count itself) still
-// knows whether to stop or keep going, matching the Svelte MCP's "call this
-// tool again to confirm all the issues are fixed" instruction.
-func reviewNextAction(res review.Result) string {
-	if len(res.Findings) == 0 && !res.RecheckRequired {
-		return "clean: 0 findings, no recheck needed"
+func applyDesiredVersion(res *review.Result, args map[string]any) {
+	if v, _ := args["desired_version"].(string); v != "" {
+		res.DesiredVersion = v
 	}
-	return "re-run evident_output_review after applying the suggested fixes, until findings=0 and recheck_required=false"
 }
 
 // summarizeSections strips body text for the list view — evident_output_list_sections
@@ -797,8 +794,9 @@ func toolArgAllowlist() map[string]map[string]bool {
 			"ids": true, "max_tokens": true, "deadline_ms": true,
 		},
 		"evident_output_review": {
-			"source": true, "file": true, "directory": true, "kind": true, "files": true, "deadline_ms": true,
+			"source": true, "file": true, "directory": true, "kind": true, "files": true, "desired_version": true, "deadline_ms": true,
 		},
+		"evident_output_update": {"version": true, "directory": true, "deadline_ms": true},
 		"evident_output_preview": {
 			"subject": true, "item": true, "state": true, "debug": true, "deadline_ms": true,
 		},

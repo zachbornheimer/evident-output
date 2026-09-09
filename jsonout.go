@@ -57,16 +57,14 @@ type JSONCommand = render.JSONCommand
 type EventJSON = render.EventJSON
 
 // EncodeJSON encodes a snapshot as final JSON (§25.1 / §25.4).
-func EncodeJSON(s Snapshot) ([]byte, error) {
+func encodeJSON(s Snapshot) ([]byte, error) {
 	return render.EncodeJSON(s)
 }
 
-// EncodeJSONL encodes durable events as JSON Lines (§25.2 / §25.4).
-func EncodeJSONL(events []Event) ([]byte, error) {
+func encodeJSONL(events []Event) ([]byte, error) {
 	return render.EncodeJSONL(events)
 }
 
-// EncodeEventJSON encodes one journal event as a single JSON object (no newline).
-func EncodeEventJSON(e Event) ([]byte, error) {
+func encodeEventJSON(e Event) ([]byte, error) {
 	return render.EncodeEventJSON(e)
 }

@@ -48,7 +48,7 @@ func TestEVOOutput_Plain_NoLiveRegionOnTTYShapedWriter(t *testing.T) {
 	out := isolatedInit(t, evo.Config{
 		Stdout:          &buf,
 		Stderr:          &buf,
-		VisibilityDelay: evo.Delay(0),
+		VisibilityDelay: evo.DelayForTest(0),
 	})
 	out.Task("scan").Doing("walk").Done("ok")
 	_ = out.Finish()
@@ -143,7 +143,7 @@ func TestEVOOutput_StreamJSON_FormatDataKeepsPayloadOnStdout(t *testing.T) {
 	})
 	out.Task("scan").Done("ok")
 	const payload = `{"ready":true}`
-	if _, err := io.WriteString(out.ResultWriter(), payload); err != nil {
+	if _, err := io.WriteString(out.ResultWriterForTest(), payload); err != nil {
 		t.Fatal(err)
 	}
 	beforeFinish := stderr.String()
@@ -183,7 +183,7 @@ func TestEVOOutput_HumanDoesNotOverrideExplicitPlain(t *testing.T) {
 		Plain:           true,
 		Stdout:          &buf,
 		Stderr:          &buf,
-		VisibilityDelay: evo.Delay(0),
+		VisibilityDelay: evo.DelayForTest(0),
 	})
 	out.Task("scan").Doing("walk").Done("ok")
 	_ = out.Finish()
@@ -230,7 +230,7 @@ func TestEVOVerbose_OneProjectsVerboseMessages(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_VERBOSE": "1"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: &buf})
-	out.At(evo.VisibilityVerbose).Println("hidden detail")
+	out.AtForTest(evo.VisibilityVerbose).Println("hidden detail")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "hidden detail") {
 		t.Fatalf("EVO_VERBOSE=1 must project verbose messages:\n%s", buf.String())
@@ -241,7 +241,7 @@ func TestEVODebug_DebugLevelSurfacesJournal(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_DEBUG": "debug"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Debug("trace-visible")
+	out.DebugForTest("trace-visible")
 	out.Task("ok").Done()
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "trace-visible") {

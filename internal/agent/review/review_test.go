@@ -1,6 +1,7 @@
 package review_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
@@ -191,8 +192,10 @@ import (
 func f() {
   // example: tasks.Map() is not real — do not flag this comment either
   slug := strings.Map(func(r rune) rune { return r }, "ABC")
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("x")}})
-  out.Task(slug).Done()
+  out := evo.Init(evo.Config{Title: "x"})
+  t := out.Task(slug)
+  t.Doing("resolving %s", slug)
+  t.Done()
   _ = out.Finish()
 }
 `
@@ -1315,9 +1318,8 @@ func findAPI032(res review.Result) []review.Finding {
 }
 
 func TestAPI032_NewInMain(t *testing.T) {
-	// evo.MainWith(out, run) is current again as of v0.4.0 (paired with
-	// Init(Config{Isolated: true}), not New) — only evo.New itself is
-	// still a superseded spelling.
+	// evo.New and evo.MainWith are both superseded: Init is the constructor,
+	// Main/Output.Run are the lifecycle. Flagging MainWith is required.
 	src := `package main
 import evo "github.com/zachbornheimer/evident-output"
 func main() {
@@ -1327,8 +1329,23 @@ func main() {
 `
 	res := review.GoSource("main.go", src)
 	found := findAPI032(res)
-	if len(found) != 1 {
-		t.Fatalf("expected one API-032 finding (New in main), got %+v", found)
+	var sawNew, sawMainWith bool
+	for _, f := range found {
+		if strings.Contains(f.Message, "evo.New") || strings.Contains(f.Suggestion, "evo.New") {
+			sawNew = true
+		}
+		if strings.Contains(f.Message, "MainWith") || strings.Contains(f.Suggestion, "MainWith") {
+			sawMainWith = true
+			if !strings.Contains(f.Suggestion, "out.Run(run)") {
+				t.Errorf("MainWith suggestion must name out.Run(run), got %q", f.Suggestion)
+			}
+		}
+	}
+	if !sawNew {
+		t.Fatalf("expected API-032 finding for evo.New in main, got %+v", found)
+	}
+	if !sawMainWith {
+		t.Fatalf("expected API-032 finding for evo.MainWith, got %+v", found)
 	}
 }
 
