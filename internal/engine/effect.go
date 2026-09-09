@@ -24,13 +24,3 @@ func (f effectOptionFunc) applyEffect(o *effectOpts) { f(o) }
 func Affected(n int) EffectOption {
 	return effectOptionFunc(func(o *effectOpts) { o.quantity = n; o.hasQty = true })
 }
-
-func applyEffectOptions(opts []EffectOption) effectOpts {
-	var o effectOpts
-	for _, opt := range opts {
-		if opt != nil {
-			opt.applyEffect(&o)
-		}
-	}
-	return o
-}
