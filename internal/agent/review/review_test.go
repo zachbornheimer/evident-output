@@ -1763,6 +1763,28 @@ func (r *runner) resolutionPhase(text string) {
 	}
 }
 
+// A wrapper that composes the verb's argument is not a bare passthrough:
+// the caller cannot "inline the verb" without copying that composition, so
+// the name and the frame are earning their place.
+func TestAPI037_NoFalsePositiveOnComposedArgument(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+type subject struct{ classify *evo.TaskHandle }
+func (s subject) Warn(summary string, cause error) {
+  s.classify.Warn(fmt.Sprintf("%s: %s", summary, cause))
+}
+`
+	res := review.GoSource("composed.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-037" {
+			t.Fatalf("false positive API-037 on a composed argument: %+v", res.Findings)
+		}
+	}
+}
+
 func TestDOM018_ErrTwiceViaCause(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"

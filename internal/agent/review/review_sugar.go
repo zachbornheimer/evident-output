@@ -280,12 +280,37 @@ func singletonGroupsInFunc(filename string, body *ast.BlockStmt, fset *token.Fil
 	})
 
 	for name, g := range groups {
-		if g.inLoop || g.tasks != 1 {
+		if g.inLoop || g.tasks != 1 || groupEscapes(body, name) {
 			continue
 		}
 		findings = append(findings, singletonGroupFindingAt(filename, g.line, g.col, name))
 	}
 	return findings
+}
+
+// groupEscapes reports whether this function hands the group back to its
+// caller. A constructor cannot be judged on the children it declared —
+// whoever receives the group is where the collection actually gets filled —
+// so counting only this body's own Task calls would flag every subject
+// factory as a one-child group.
+func groupEscapes(body *ast.BlockStmt, name string) bool {
+	escapes := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		ret, ok := n.(*ast.ReturnStmt)
+		if !ok || escapes {
+			return !escapes
+		}
+		for _, result := range ret.Results {
+			ast.Inspect(result, func(inner ast.Node) bool {
+				if id, ok := inner.(*ast.Ident); ok && id.Name == name {
+					escapes = true
+				}
+				return !escapes
+			})
+		}
+		return !escapes
+	})
+	return escapes
 }
 
 func isGroupCall(e ast.Expr) bool {

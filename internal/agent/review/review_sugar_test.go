@@ -120,6 +120,30 @@ func run(out *evo.Output, names []string) {
 	}
 }
 
+// A constructor that hands its group back cannot be judged on the children
+// it declared: whoever receives the group is where the collection gets
+// filled. Counting only this function's own Task calls flagged every
+// subject factory as a one-child group.
+func TestGoSource_GroupReturnedToCaller_IsNotSingleton(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+type subject struct {
+  group *evo.GroupHandle
+  classify *evo.TaskHandle
+}
+func declare(out *evo.Output, name string) subject {
+  group := out.Group(name)
+  return subject{group: group, classify: group.Task("classify")}
+}
+`
+	res := review.GoSource("factory.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-039" {
+			t.Fatalf("a group returned to its caller must not emit API-039: %+v", f)
+		}
+	}
+}
+
 func TestGoSource_FP005SuggestionNamesDefine(t *testing.T) {
 	res := review.GoSource("bind.go", instantDoneToolSrc)
 	f := findingByID(t, res, "FP-005")

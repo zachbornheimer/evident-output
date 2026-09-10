@@ -1971,6 +1971,9 @@ func detectWrapperMethod(filename, src string) []Finding {
 		if call == nil {
 			continue
 		}
+		if composesItsArgument(stmt) {
+			continue
+		}
 		findings = append(findings, Finding{
 			RuleID:     "API-037",
 			Severity:   "warning",
@@ -1981,6 +1984,19 @@ func detectWrapperMethod(filename, src string) []Finding {
 		})
 	}
 	return findings
+}
+
+// nestedCallArgumentPattern matches a call appearing inside the verb's own
+// argument list — `fmt.Sprintf(...)`, `humanize(...)` — anywhere after the
+// verb's opening parenthesis.
+var nestedCallArgumentPattern = regexp.MustCompile(`\([^()]*[\w.]+\(`)
+
+// composesItsArgument reports whether the wrapped verb's argument is built
+// by the wrapper rather than passed straight through. Such a method is not a
+// bare passthrough: a caller cannot inline the verb without copying the
+// composition, so the name and the stack frame are earning their place.
+func composesItsArgument(stmt string) bool {
+	return nestedCallArgumentPattern.MatchString(stmt)
 }
 
 // singleStatementBody returns the sole non-blank, non-comment line of inner,
