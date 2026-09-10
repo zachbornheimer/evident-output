@@ -1326,7 +1326,16 @@ func (g *tasksState) derivedState() EntityState {
 	}
 	var anyRunning, anyFailed, anyCancelled, anyUnresolved bool
 	allDone := true
+	// A NotStarted child normally borrows its group's verdict from the
+	// sibling that failed first, so it contributes nothing of its own. When
+	// every child is NotStarted there is no such sibling — whatever stopped
+	// the run was another subject entirely — and folding to Done rendered a
+	// check over a subject that never ran.
+	allNotStarted := len(g.tasks) > 0 && len(g.children) == 0
 	for _, t := range g.tasks {
+		if t.state != NotStarted {
+			allNotStarted = false
+		}
 		switch t.state {
 		case Running:
 			anyRunning = true
@@ -1340,13 +1349,13 @@ func (g *tasksState) derivedState() EntityState {
 			anyCancelled = true
 		case Done, Skipped:
 		case NotStarted:
-			// Auto-resolved because an earlier sibling already failed/cancelled —
-			// not a source of incompleteness; the group's verdict already comes
-			// from that sibling.
 		default:
 			anyUnresolved = true
 			allDone = false
 		}
+	}
+	if allNotStarted {
+		return NotStarted
 	}
 	for _, child := range g.children {
 		switch child.derivedState() {
