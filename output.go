@@ -101,6 +101,16 @@ type Output struct {
 	schedStartOrder  []string
 	schedDraining    bool
 
+	// schedExecuting counts task callbacks currently running, pooled and
+	// donated alike — schedInflight counts only the pooled slots, so it
+	// cannot answer "is any callback still moving?".
+	schedExecuting int
+	// schedWaits holds one ticket per goroutine parked in TaskHandle.Wait.
+	// Together with schedExecuting it decides whether the run can still
+	// progress, and it is how a wait that never can be satisfied is
+	// released instead of hanging Finish (see releaseUnsatisfiableWaits).
+	schedWaits map[*waitTicket]struct{}
+
 	// confirmAbort holds one abort channel per pending Confirm gate, keyed by
 	// item id, so cancelActive can unblock Confirm's stdin read and resolve
 	// the gate as Cancelled (not Blocked "declined") on SIGINT/SIGTERM.

@@ -31,6 +31,13 @@ var (
 	// rendered a green row over the very next line admitting the work it
 	// awaited never started.
 	ErrNotStarted = errors.New("evo: awaited task never started")
+	// ErrWaitDeadlock is what TaskHandle.Wait returns, and records as
+	// misuse, when nothing in the run can ever satisfy the wait: a task
+	// waiting on itself, two tasks waiting on each other, or any wait left
+	// standing once no callback is running and no task can start. The
+	// waiting callback is released with this error so its row states the
+	// cycle, rather than the whole run hanging in Finish.
+	ErrWaitDeadlock = errors.New("evo: awaited task can never be reached")
 )
 
 // errWaitCancelled is what TaskHandle.Wait returns for a task an interrupt
