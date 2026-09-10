@@ -153,7 +153,7 @@ func (o *Output) concurrencyCeilingLocked() int {
 func (o *Output) runWork(st *taskState, fn func() error, mut *mutationSpec) {
 	defer func() {
 		if r := recover(); r != nil {
-			st.handle.Fail(fmt.Sprintf("panic: %v", r))
+			st.handle.failScheduled(fmt.Sprintf("panic: %v", r))
 		}
 		o.mu.Lock()
 		o.schedInflight--
@@ -162,35 +162,113 @@ func (o *Output) runWork(st *taskState, fn func() error, mut *mutationSpec) {
 		o.kick()
 	}()
 
-	dryRun := false
-	subject := ""
+	o.executeWork(st, fn, mut)
+}
+
+// executeWork runs one task's callback and resolves the task from what it
+// returned — the scheduler's sole resolution point (see TaskHandle.finish).
+// Shared by the pooled worker (runWork) and by a waiter that donates its own
+// goroutine to work it would otherwise block on (TaskHandle.Wait).
+func (o *Output) executeWork(st *taskState, fn func() error, mut *mutationSpec) {
 	o.mu.Lock()
+	subject := ""
 	if st != nil {
 		subject = st.name
 	}
-	dryRun = o.cfg.dryRun
+	dryRun := o.cfg.dryRun
 	o.mu.Unlock()
 
 	if mut != nil && dryRun {
 		o.recordResolvedMutation(subject, true, mut.verb, mut.quantity, mut.hasQty, mut.object)
-		st.handle.Done()
+		o.recordWorkOutcome(st, nil)
+		o.resolveObserved(st, nil)
 		return
 	}
 	var err error
 	if fn != nil {
 		err = fn()
 	}
-	if err != nil {
-		st.handle.Fail(err.Error())
-		o.failSequenceFollowers(st)
-		return
-	}
-	if mut != nil {
+	o.recordWorkOutcome(st, err)
+	// The effect commits on the callback's success alone, before any
+	// resolution: a task that mutated and then failed still owes the reader
+	// its "! already mutated: ..." line.
+	if err == nil && mut != nil {
 		o.recordResolvedMutation(subject, false, mut.verb, mut.quantity, mut.hasQty, mut.object)
 	}
-	if st.handle.Snapshot().State == Running || st.handle.Snapshot().State == Pending {
-		st.handle.Done()
+	// A callback that resolved its own task (Failf/Fail/Block inside fn, or
+	// an interrupt that cancelled the row) already stated one outcome. The
+	// scheduler neither restates it nor calls it misuse (P13) — returning
+	// the same error it already reported is the documented Failf shape.
+	if o.taskIsTerminal(st) {
+		if err != nil {
+			o.failSequenceFollowers(st)
+		}
+		return
 	}
+	o.resolveObserved(st, err)
+	if err != nil {
+		o.failSequenceFollowers(st)
+	}
+}
+
+// resolveObserved commits the task's outcome from what the callback actually
+// returned, ratifying or rejecting the caller's proposal (see
+// TaskHandle.finish). A ratified proposal supplies the row's summary — the
+// caller's own words, now backed by an observation.
+func (o *Output) resolveObserved(st *taskState, err error) {
+	proposal := o.takeProposal(st)
+	if err != nil {
+		if proposal != nil {
+			o.rejectProposal(st, proposal)
+		}
+		st.handle.failScheduled(err.Error())
+		return
+	}
+	if proposal != nil {
+		st.handle.resolveScheduled(proposal.state, proposal.summary, proposal.problems)
+		return
+	}
+	st.handle.doneScheduled()
+}
+
+func (o *Output) takeProposal(st *taskState) *proposedOutcome {
+	if st == nil {
+		return nil
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	proposal := st.proposed
+	st.proposed = nil
+	return proposal
+}
+
+// rejectProposal records the misuse a contradicted success claim earns: the
+// caller said the work was done, the work says otherwise, and the reader is
+// told which task and which claim was dropped.
+func (o *Output) rejectProposal(st *taskState, proposal *proposedOutcome) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.recordAlreadyResolvedLocked(st.name, proposal.summary)
+}
+
+// recordWorkOutcome stores the callback's error on the task so a waiter
+// (TaskHandle.Wait) can return the same value the callback returned.
+func (o *Output) recordWorkOutcome(st *taskState, err error) {
+	if st == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	st.workErr = err
+}
+
+func (o *Output) taskIsTerminal(st *taskState) bool {
+	if st == nil {
+		return true
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return core.IsTerminalTask(st.state)
 }
 
 func (o *Output) drainScheduler() {

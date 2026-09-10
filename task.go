@@ -439,6 +439,20 @@ func (t *TaskHandle) nextSelf(args ...string) *TaskHandle {
 	return t.NextCommand(t.out.policySourceName(), args...)
 }
 
+// failScheduled resolves the task Failed on the scheduler's authority,
+// carrying the callback's error text as the row summary — Fail's shape,
+// without Fail's caller-side submitted-task guard.
+func (t *TaskHandle) failScheduled(summary string) {
+	p := applyProblemOptions(txt.Text(summary), nil)
+	t.resolveScheduled(Failed, txt.Text(summary), []Problem{p})
+}
+
+// doneScheduled resolves the task Done on the scheduler's authority — the
+// one path that may declare a submitted task successful (see finish).
+func (t *TaskHandle) doneScheduled() {
+	t.resolveScheduled(Done, "", nil)
+}
+
 // Snapshot returns the task snapshot.
 func (t *TaskHandle) Snapshot() TaskSnapshot {
 	t.out.mu.Lock()
@@ -450,7 +464,59 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 	return st.snapshot()
 }
 
+// finish is the caller-facing resolution path — every terminal verb
+// (Done/Fail/Block/Cancel/Skip) a program writes by hand.
+//
+// Once a task is submitted, the scheduler owns the verdict on its work: only
+// the callback's own return value says whether the work succeeded. So a
+// hand-written Done/Skipped on a submitted task is a *proposal*, not a
+// resolution — it is held until the callback returns and then either
+// ratified (the work did succeed; the caller's own summary is what renders,
+// which is how a callback declares "✓ branches  8 deleted") or rejected as
+// ErrAlreadyResolved misuse, with the observed failure taking the row (P2:
+// `task.Delete(obj, fn); task.Done()` can no longer launder an error into a
+// green row). Nothing ratifies its own completion.
+//
+// Bad news needs no ratification: Fail/Block/Cancel state an outcome the
+// caller already knows and can only make the row worse, so they resolve
+// immediately — that is how a callback reports its own failure (P13, where
+// the scheduler must then not resolve it a second time) and how an interrupt
+// cancels a running row.
 func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
+	return t.resolve(state, summary, problems, byCaller)
+}
+
+// resolveScheduled is the scheduler's own resolution path, called only from
+// executeWork once the callback has returned. It is the sole authority that
+// may declare a submitted task successful.
+func (t *TaskHandle) resolveScheduled(state EntityState, summary string, problems []Problem) {
+	t.resolve(state, summary, problems, byScheduler)
+}
+
+// resolutionAuthority names who is resolving a task — the program that wrote
+// the terminal verb, or the scheduler reporting what the callback returned.
+type resolutionAuthority int
+
+const (
+	byCaller resolutionAuthority = iota
+	byScheduler
+)
+
+// proposedOutcome is a caller's unratified success claim on a submitted
+// task, held until the callback's return value confirms or contradicts it.
+type proposedOutcome struct {
+	state    EntityState
+	summary  string
+	problems []Problem
+}
+
+// declaresSuccess reports whether state claims the work went well — the
+// class of claim only the scheduler's observation can ratify.
+func declaresSuccess(state EntityState) bool {
+	return state == Done || state == Skipped
+}
+
+func (t *TaskHandle) resolve(state EntityState, summary string, problems []Problem, authority resolutionAuthority) *TaskHandle {
 	t.out.holdRunningPaint(t.id)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
@@ -464,6 +530,10 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 	}
 	if core.IsTerminalTask(st.state) {
 		t.out.recordAlreadyResolvedLocked(st.name, summary)
+		return t
+	}
+	if st.submitted && authority == byCaller && declaresSuccess(state) {
+		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
 		return t
 	}
 	st.state = state

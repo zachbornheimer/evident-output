@@ -199,8 +199,14 @@ type taskState struct {
 	workFn      func() error
 	mutation    *mutationSpec
 	preds       []predecessor
-	doneOnce    sync.Once
-	doneCh      chan struct{}
+	// workErr is the callback's own return value, kept so TaskHandle.Wait
+	// returns exactly what the work returned rather than a state guess.
+	workErr error
+	// proposed holds a caller's unratified success claim on a submitted task
+	// until the callback's return value confirms or contradicts it.
+	proposed *proposedOutcome
+	doneOnce sync.Once
+	doneCh   chan struct{}
 
 	// Plain/non-interactive progressive-streaming bookkeeping for a still-
 	// Running standalone task (P10: CI logs must not stay silent until
