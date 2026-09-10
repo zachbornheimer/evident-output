@@ -35,8 +35,57 @@ import (
 // tool until it reports zero findings.
 const serverInstructions = "This is the official Evident Output MCP server. It MUST be used whenever CLI output or presentation code is written or changed in a repo that uses evident-output (or is adopting it). Call evident_output_list_sections / evident_output_get_documentation for authoritative docs, evident_output_adopt_plan to inventory non-evo output in an existing codebase, and evident_output_review before treating any CLI output change as done. When review reports update_needed, call evident_output_update then restart the MCP host before treating review as done. When migrating existing evo call sites, evident_output_review is the autofixer (same role as svelte-autofixer): pass the Go source or kind=directory, apply every suggestion, and call again until zero findings. After applying evident_output_review's suggested fixes, call evident_output_review again on the same source — repeat until it reports zero findings (recheck_required=false); only then is the change clean. Catalog checksum available via resource evident-output://meta/catalog-checksum."
 
-// Version is injected at build time.
-var Version = "dev"
+// Version is injected at build time via -ldflags "-X main.Version=...".
+// installedVersionUnset stays "dev" only when neither the build-time stamp
+// nor the Go toolchain's own VCS stamp is available — see resolvedVersion.
+const installedVersionUnset = "dev"
+
+var Version = installedVersionUnset
+
+// resolvedVersion is what --version prints, in priority order: the
+// ldflags-stamped Version when set (mise's build task, install.go's
+// `go install -C <dir>` for a local/replace pin); else the module version
+// Go itself embeds for `go install pkg@vX.Y.Z` (debug.BuildInfo.Main.Version
+// — no ldflags needed, this is how `go version -m` reports any installed
+// Go tool's pin); else the VCS revision Go auto-embeds into local
+// go run/go build binaries built inside a git checkout (buildvcs=auto,
+// default since Go 1.18). A stale-host check ("is this binary older than
+// the pin?") never has to trust the literal string "dev" (AGENTS.md
+// "Dialect the MCP enforces" / evo-dialect-axes-report.md axis 4/12: a
+// fresh --version printing "dev" cannot tell stale from fresh).
+func resolvedVersion() string {
+	if Version != installedVersionUnset {
+		return Version
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return Version
+	}
+	if v := info.Main.Version; v != "" && v != "(devel)" {
+		return v
+	}
+	var revision string
+	var modified bool
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			revision = s.Value
+		case "vcs.modified":
+			modified = s.Value == "true"
+		}
+	}
+	if revision == "" {
+		return Version
+	}
+	if len(revision) > 12 {
+		revision = revision[:12]
+	}
+	stamp := "devel+" + revision
+	if modified {
+		stamp += "-dirty"
+	}
+	return stamp
+}
 
 // faultHook is an optional test-only injector for MCP-034 panic containment.
 // Production always leaves this nil.
@@ -67,7 +116,7 @@ var toolNameRE = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
 
 func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "version") {
-		fmt.Fprintf(os.Stderr, "evident-output-mcp %s\n", Version)
+		fmt.Fprintf(os.Stderr, "evident-output-mcp %s\n", resolvedVersion())
 		os.Exit(0)
 	}
 	if len(os.Args) > 1 {
@@ -82,7 +131,7 @@ func main() {
 		maybeAutoUpdate(cwd, os.Args, osEnv{}, osFiles{}, execRunner{}, syscallExecer{}, liveIdentity())
 	}
 	// Log only to stderr (MCP stdio: stdout is protocol-only).
-	fmt.Fprintf(os.Stderr, "evident-output-mcp %s starting (stdio)\n", Version)
+	fmt.Fprintf(os.Stderr, "evident-output-mcp %s starting (stdio)\n", resolvedVersion())
 	runStdioServer(os.Stdin, os.Stdout)
 }
 
@@ -169,7 +218,7 @@ func runStdioServer(in io.Reader, out io.Writer) {
 					"resources": map[string]any{}},
 				"serverInfo": map[string]any{
 					"name":    "evident-output-mcp",
-					"version": Version},
+					"version": resolvedVersion()},
 				// Optional human hint (allowed on InitializeResult).
 				"instructions": serverInstructions})
 		case "tools/list":
