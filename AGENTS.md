@@ -70,7 +70,11 @@ Stale if any of these are true:
 
 - `evident_output_review` schema has no `directory`
 - `evident_output_update` is missing from `tools/list`
-- `list_sections` returns ~11 sections (current rec is more)
+- `evident-output-mcp --version` prints an older commit/tag than the
+  consumer's go.mod pin (or than `evo.PublishedRelease`) — never trust a
+  section count as a freshness signal; a fresh server's section count
+  changes every time a doc is added and is not a stable number to check
+  against.
 - review fires **API-032 on `Create(object, fn)` / `Delete(object, fn)`**
 
 That last one is inverted rec. Applying those suggestions **reverts** the
@@ -184,13 +188,20 @@ use empty (current rec) because of the path replace.
 These are real dialect defects MCP currently misses. Fix them in the consumer
 anyway; add detectors when they recur:
 
-- `errgroup` / `go func` driving **predeclared** evo Tasks (rec is `Group.Each` + `Define`)
 - `for _, task := range x.Each(` (discards the item name)
-- empty mutation callback / work-then-`Create` theater
-- `Doing` + I/O + `Done` instead of `Define` / a mutation verb
-- `Doing().Done()` on the same line for work that just happened off-row
 
-`defineAndWait` in zq is the documented adapter, not a defect.
+Caught as of this MCP build (do not re-add to this list): `errgroup`/`go func`
+driving predeclared evo Tasks (API-041), `Failf`/`Fail` inside a
+Define/mutation callback whose result is returned (API-040), a nil or no-op
+mutation callback (API-042), a plural object literal on a mutation verb
+(API-043), a hand-rolled channel wrapper around Define (API-044),
+`Doing(...).Done(...)` with no real work between them (FP-006), and an
+inline `evo.Reason(...)` literal or one that restates its own verb (TAX-003).
+
+`defineAndWait` in zq is no longer a documented exception: it is exactly the
+API-044 channel-wait shape (it hangs when the task is already terminal
+before Define runs) and review now flags it; `task.Wait()` is the fix once
+that method lands.
 
 ## Install / pin
 

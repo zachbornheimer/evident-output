@@ -36,9 +36,12 @@ func run() error {
         evo.Detail("commit or stash before continuing"),
     )
 
-    evo.Task("cleanup").Delete("stale local branch", nil, evo.Affected(2)) // singular object, ledger renders "2 stale local branches"
-    for pkg := range evo.Task("install").Each(packages) {
-        install(pkg)
+    evo.Task("cleanup").Delete("stale local branch", func() error {
+        return removeStaleBranches()
+    }, evo.Affected(2)) // singular object, ledger renders "2 stale local branches"
+
+    for pkg, task := range evo.Group("install").Each(packages) {
+        task.Define(func() error { return install(pkg) })
     }
     return nil // Block is a presentation outcome, not a Go error
 }
