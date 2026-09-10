@@ -1,8 +1,10 @@
 package evo_test
 
 import (
+	"bytes"
 	"errors"
 	"io"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -66,6 +68,46 @@ func TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve(t *testing.T) {
 		t.Fatalf("misuse = %v, want none: the callback resolved itself once", err)
 	}
 	testkit.RequireConclusion(t, out, evo.StateFailed)
+}
+
+// TestScheduler_P4_MutationVerbWithNilCallbackIsRejected pins the P4 probe:
+// a verb with no callback declares an effect nothing performs. The
+// after-the-fact spelling is Record(verb, n, object).
+func TestScheduler_P4_MutationVerbWithNilCallbackIsRejected(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := isolatedScheduler(t, 1, &buf, true)
+	out.Task("venv").Create("venv", nil)
+	_ = out.Finish()
+
+	if err := out.Err(); !errors.Is(err, evo.ErrInvalidConfig) {
+		t.Fatalf("misuse = %v, want ErrInvalidConfig", err)
+	}
+	if got := buf.String(); strings.Contains(got, "create 1 venv") {
+		t.Fatalf("a verb with no callback must plan no effect, got:\n%s", got)
+	}
+}
+
+// TestScheduler_P17_PluralObjectOnMutationVerbIsRejected pins the P17
+// probe: mutation verbs take a singular object and the ledger pluralizes
+// from the quantity, so `Delete("worktrees", …, Affected(1))` printed
+// "deleted 1 worktrees". The object is named misuse, and Pluralize never
+// inflects a word that is already plural.
+func TestScheduler_P17_PluralObjectOnMutationVerbIsRejected(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := isolatedScheduler(t, 1, &buf, false)
+	out.Task("clean").Delete("worktrees", func() error { return nil }, evo.Affected(1))
+	_ = out.Finish()
+
+	if err := out.Err(); !errors.Is(err, evo.ErrInvalidConfig) {
+		t.Fatalf("misuse = %v, want ErrInvalidConfig for a plural object", err)
+	}
+	for _, singular := range []string{"worktrees", "children", "logs"} {
+		if got := evo.Pluralize(3, singular); got != singular {
+			t.Fatalf("Pluralize(3, %q) = %q, want it unchanged: already plural", singular, got)
+		}
+	}
 }
 
 // waitBudget bounds a test that would otherwise hang forever on the defect

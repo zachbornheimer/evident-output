@@ -16,7 +16,7 @@ func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
-	branches.Delete("local branches", func() error { return nil }, evo.Affected(12))
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	branches.Delete("local branches", func() error { return nil }, evo.Affected(12))
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	branches.Delete("local branches", func() error { return nil }, evo.Affected(3))
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(3))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestWriteEffects_ZeroAffectedMutationVerbRendersNoSection(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "clean", Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
-	branches.Delete("local branches", func() error { return nil }, evo.Affected(0))
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(0))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

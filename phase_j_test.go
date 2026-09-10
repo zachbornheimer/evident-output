@@ -17,7 +17,7 @@ func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
-	branches.Delete("local branches", func() error { return nil }, evo.Affected(12))
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	branches.Delete("local branches", func() error { return nil }, evo.Affected(12))
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	branches.Delete("local branches", func() error { return nil }, evo.Affected(12))
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
