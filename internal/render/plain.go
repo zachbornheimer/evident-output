@@ -705,7 +705,7 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 		writePlainEachAggregate(b, col, fromEach, explicit, color, verbose, profile)
 		return
 	}
-	if !col.Sequential && len(col.Tasks) == 1 && len(col.Collections) == 0 {
+	if collapsesIntoOnlyChild(col) {
 		WriteTaskAligned(b, col.Tasks[0], maxTaskNameWidth(col.Tasks), color, verbose, profile)
 		return
 	}

@@ -120,7 +120,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		writeLiveEachAggregate(b, col, fromEach, explicit, height, width, spin, color, now, profile)
 		return
 	}
-	if !col.Sequential && len(col.Tasks) == 1 && len(col.Collections) == 0 {
+	if collapsesIntoOnlyChild(col) {
 		writeLiveTaskLine(b, col.Tasks[0], 0, width, spin, color, now, profile)
 		return
 	}
@@ -188,6 +188,16 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
+}
+
+// collapsesIntoOnlyChild reports whether a group's header row is pure
+// redundancy over the one row beneath it, so both renderers agree on when
+// the header disappears. A caller's own Summary is the exception: it is the
+// group's answer ("nothing to clean") and no child row can carry it, so a
+// group that has one keeps its row — dropping it deleted both the subject's
+// name and its answer from the transcript.
+func collapsesIntoOnlyChild(col core.TasksSnapshot) bool {
+	return !col.Sequential && col.Summary == "" && len(col.Tasks) == 1 && len(col.Collections) == 0
 }
 
 func partitionEachChildren(tasks []core.TaskSnapshot) (fromEach, explicit []core.TaskSnapshot) {
