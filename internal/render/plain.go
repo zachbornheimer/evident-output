@@ -1133,28 +1133,80 @@ func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, col
 	fmt.Fprintf(b, "%s  already mutated: %s\n", glyph, summary)
 }
 
-// summarizeAlreadyMutated derives one compact fragment per non-empty Changes
-// section (e.g. "8 branches deleted"), joined with "; ". ok is false when no
-// section committed any effect, telling the caller to suppress the row.
-func summarizeAlreadyMutated(changes []core.ChangesSnapshot) (string, bool) {
-	var parts []string
-	for _, ch := range changes {
-		if len(ch.Records) == 0 {
-			continue
-		}
-		parts = append(parts, summarizeChangeSection(ch))
+// mutatedEffect is what one committed effect states on the early-termination
+// line: how many, of what, done how — and which tasks did it.
+type mutatedEffect struct {
+	verb string
+	// object is singular and pluralized from total at render time, unless
+	// countable is false — a section whose records name distinct objects
+	// falls back to the section's own subject, which is a name, not a noun.
+	object    string
+	countable bool
+	total     int64
+	owners    []string
+}
+
+func (e mutatedEffect) text() string {
+	object := e.object
+	if e.countable {
+		object = txt.Pluralize(e.total, object)
 	}
-	if len(parts) == 0 {
+	if e.verb == "" {
+		return fmt.Sprintf("%d %s changed", e.total, object)
+	}
+	return fmt.Sprintf("%d %s %s", e.total, object, e.verb)
+}
+
+// summarizeAlreadyMutated derives the "! already mutated: ..." line's
+// content. Sections that committed the same effect are one fragment with one
+// count — "1 module created; 1 module created" told the reader nothing twice
+// (P7). When more than one distinct effect survives, a fragment a single task
+// owns is named, so the reader learns where each effect happened; a run with
+// one effect keeps the unqualified spelling. ok is false when nothing
+// committed, telling the caller to suppress the row.
+func summarizeAlreadyMutated(changes []core.ChangesSnapshot) (string, bool) {
+	effects := aggregateMutatedEffects(changes)
+	if len(effects) == 0 {
 		return "", false
+	}
+	parts := make([]string, 0, len(effects))
+	for _, e := range effects {
+		text := e.text()
+		if len(effects) > 1 && len(e.owners) == 1 {
+			text = e.owners[0] + ": " + text
+		}
+		parts = append(parts, text)
 	}
 	return strings.Join(parts, "; "), true
 }
 
-// summarizeChangeSection sums a section's record quantities (no-qty records
+// aggregateMutatedEffects reduces every non-empty Changes section to its
+// effect and merges the ones that say the same thing, in first-seen order.
+func aggregateMutatedEffects(changes []core.ChangesSnapshot) []mutatedEffect {
+	var effects []mutatedEffect
+	index := map[string]int{}
+	for _, ch := range changes {
+		if len(ch.Records) == 0 {
+			continue
+		}
+		e := changeSectionEffect(ch)
+		key := fmt.Sprintf("%s\x00%s\x00%t", e.verb, e.object, e.countable)
+		if at, ok := index[key]; ok {
+			effects[at].total += e.total
+			effects[at].owners = append(effects[at].owners, e.owners...)
+			continue
+		}
+		index[key] = len(effects)
+		effects = append(effects, e)
+	}
+	return effects
+}
+
+// changeSectionEffect sums a section's record quantities (no-qty records
 // count as 1 each) and reports the shared verb/object when every record
 // agrees, falling back to the section's subject when records name distinct
 // verbs or objects.
-func summarizeChangeSection(ch core.ChangesSnapshot) string {
+func changeSectionEffect(ch core.ChangesSnapshot) mutatedEffect {
 	var total int64
 	verb, mixedVerb := ch.Records[0].Verb, false
 	object, mixedObject := ch.Records[0].Object, false
@@ -1171,18 +1223,14 @@ func summarizeChangeSection(ch core.ChangesSnapshot) string {
 			mixedObject = true
 		}
 	}
+	e := mutatedEffect{verb: verb, object: object, countable: true, total: total, owners: []string{ch.Subject}}
 	if mixedObject {
-		object = ch.Subject
-	} else {
-		// I4: object arrives singular now (mutation verbs take a singular
-		// object); pluralize from the summed quantity here, same as
-		// ledgerObject does per-row.
-		object = txt.Pluralize(total, object)
+		e.object, e.countable = ch.Subject, false
 	}
 	if mixedVerb {
-		return fmt.Sprintf("%d %s changed", total, object)
+		e.verb = ""
 	}
-	return fmt.Sprintf("%d %s %s", total, object, verb)
+	return e
 }
 
 func StateColor(s core.EntityState) string {
