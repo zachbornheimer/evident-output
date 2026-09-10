@@ -142,7 +142,7 @@ func runInterruptible(out *Output, run func(*Output) error) int {
 	case runErr := <-done:
 		return concludeRun(out, runErr)
 	case <-sigCh:
-		out.cancelActive("interrupted")
+		out.interrupt("interrupted")
 		select {
 		case <-done:
 			return concludeCancelled(out)

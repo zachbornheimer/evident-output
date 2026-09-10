@@ -1,6 +1,7 @@
 package evo
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -84,6 +85,15 @@ type Output struct {
 	namedGroups map[string]*SequenceHandle
 	// namedGroupHandles backs get-or-create identity for evo.Group.
 	namedGroupHandles map[string]*GroupHandle
+
+	// ctx is the run's own cancellation signal — the thing a callback doing
+	// I/O selects on. cancelRun trips it on interrupt and on Close, so no
+	// callback can outlive the run that owns it.
+	ctx       context.Context
+	cancelRun context.CancelFunc
+	// schedCancelled stops the scheduler dispatching anything new: after an
+	// interrupt the queue is abandoned, not drained.
+	schedCancelled bool
 
 	schedWG          sync.WaitGroup
 	schedInflight    int
@@ -199,8 +209,14 @@ type taskState struct {
 	workFn      func() error
 	mutation    *mutationSpec
 	preds       []predecessor
-	doneOnce    sync.Once
-	doneCh      chan struct{}
+	// workErr is the callback's own return value, kept so TaskHandle.Wait
+	// returns exactly what the work returned rather than a state guess.
+	workErr error
+	// proposed holds a caller's unratified success claim on a submitted task
+	// until the callback's return value confirms or contradicts it.
+	proposed *proposedOutcome
+	doneOnce sync.Once
+	doneCh   chan struct{}
 
 	// Plain/non-interactive progressive-streaming bookkeeping for a still-
 	// Running standalone task (P10: CI logs must not stay silent until
@@ -350,12 +366,15 @@ func newOutput(subject string, options ...Option) *Output {
 		cfg.maxEvents = defaultMaxEvents
 	}
 	resolveGlyphProfileLocked(&cfg)
+	runCtx, cancelRun := context.WithCancel(context.Background())
 	o := &Output{
 		cfg:        cfg,
 		outputID:   "out_1",
 		taskByRef:  make(map[string]*taskState),
 		tasksByRef: make(map[string]*tasksState),
 		keys:       make(map[string]struct{}),
+		ctx:        runCtx,
+		cancelRun:  cancelRun,
 	}
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.nextID("out")
@@ -704,30 +723,71 @@ func (o *Output) changesGetOrCreate(subject string) *changeLedger {
 // its answer is pending, the generic Pending-task fallback would otherwise
 // resolve it to Cancelled without ever closing that channel, leaving
 // readConfirmLine blocked forever.
+// interrupt stops the run at the first signal, in the one order that leaves
+// the ledger honest: the scheduler is closed to new work, every row is put
+// into the state the reader must see, and only then is the run's context
+// cancelled to release the callbacks still in flight. Cancelling first would
+// race a finishing callback into a ✓ row after the ^C.
+func (o *Output) interrupt(reason string) {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	o.schedCancelled = true
+	cancelRun := o.cancelRun
+	o.mu.Unlock()
+
+	o.cancelActive(reason)
+	o.abandonQueuedWork()
+
+	if cancelRun != nil {
+		cancelRun()
+	}
+}
+
+// abandonQueuedWork resolves every task the scheduler had accepted but not
+// started as NotStarted — the interrupt's answer to "and what about the
+// rest?", which the reader would otherwise never get.
+func (o *Output) abandonQueuedWork() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, st := range o.tasks {
+		if !st.submitted || st.runningWork || core.IsTerminalTask(st.state) {
+			continue
+		}
+		o.markNotStartedLocked(st)
+	}
+}
+
 func (o *Output) cancelActive(reason string) {
 	o.mu.Lock()
 	if o.cancelPendingConfirmLocked(reason) {
 		o.mu.Unlock()
 		return
 	}
-	var active *TaskHandle
+	running := make([]*TaskHandle, 0, len(o.tasks))
 	for _, t := range o.tasks {
 		if t.state == Running {
-			active = t.handle
-			break
+			running = append(running, t.handle)
 		}
 	}
-	if active == nil {
-		// Nothing has reached Running yet: the earliest-declared Pending
-		// task is the one about to run next (evo-rec.md "one Running
-		// child" — pending siblings are named and idle, waiting their
-		// turn), so an interrupt before any evidence still cancels that
-		// task rather than falling through to Output-level cancel.
-		for _, t := range o.tasks {
-			if t.state == Pending {
-				active = t.handle
-				break
-			}
+	if len(running) > 0 {
+		o.mu.Unlock()
+		for _, t := range running {
+			t.Cancel(reason)
+		}
+		return
+	}
+	// Nothing has reached Running yet: the earliest-declared Pending task is
+	// the one about to run next (evo-rec.md "one Running child" — pending
+	// siblings are named and idle, waiting their turn), so an interrupt
+	// before any evidence still cancels that task rather than falling
+	// through to Output-level cancel.
+	var active *TaskHandle
+	for _, t := range o.tasks {
+		if t.state == Pending {
+			active = t.handle
+			break
 		}
 	}
 	if active != nil {
@@ -1739,8 +1799,29 @@ func (o *Output) Close() error {
 	o.stopSpinnerAnimatorLocked()
 	o.stopResizeWatchLocked()
 	o.closed = true
+	cancelRun := o.cancelRun
 	o.mu.Unlock()
+	if cancelRun != nil {
+		cancelRun()
+	}
 	return nil
+}
+
+// Context reports the run's cancellation signal. It is cancelled when the
+// run is interrupted (SIGINT/SIGTERM) and when the Output closes, so work
+// that does I/O can select on it and stop instead of running on past the ^C
+// that was supposed to end it. A nil Output reports a never-cancelled
+// context so a caller never has to nil-check before selecting.
+func (o *Output) Context() context.Context {
+	if o == nil {
+		return context.Background()
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ctx == nil {
+		return context.Background()
+	}
+	return o.ctx
 }
 
 // Conclusion returns the computed conclusion after Finish.

@@ -109,6 +109,12 @@ func (o *Output) kick() {
 func (o *Output) takeEligible() (st *taskState, fn func() error, mut *mutationSpec) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.schedCancelled {
+		// After an interrupt the queue is abandoned, not drained: nothing
+		// new starts, so the run stops at the ^C instead of running to
+		// completion behind one cancelled row.
+		return nil, nil, nil
+	}
 	max := o.concurrencyCeilingLocked()
 	if o.schedInflight >= max {
 		return nil, nil, nil
@@ -153,7 +159,7 @@ func (o *Output) concurrencyCeilingLocked() int {
 func (o *Output) runWork(st *taskState, fn func() error, mut *mutationSpec) {
 	defer func() {
 		if r := recover(); r != nil {
-			st.handle.Fail(fmt.Sprintf("panic: %v", r))
+			st.handle.failScheduled(fmt.Sprintf("panic: %v", r))
 		}
 		o.mu.Lock()
 		o.schedInflight--
@@ -162,35 +168,159 @@ func (o *Output) runWork(st *taskState, fn func() error, mut *mutationSpec) {
 		o.kick()
 	}()
 
-	dryRun := false
-	subject := ""
+	o.executeWork(st, fn, mut)
+}
+
+// executeWork runs one task's callback and resolves the task from what it
+// returned — the scheduler's sole resolution point (see TaskHandle.finish).
+// Shared by the pooled worker (runWork) and by a waiter that donates its own
+// goroutine to work it would otherwise block on (TaskHandle.Wait).
+func (o *Output) executeWork(st *taskState, fn func() error, mut *mutationSpec) {
 	o.mu.Lock()
+	subject := ""
 	if st != nil {
 		subject = st.name
 	}
-	dryRun = o.cfg.dryRun
+	dryRun := o.cfg.dryRun
 	o.mu.Unlock()
 
 	if mut != nil && dryRun {
 		o.recordResolvedMutation(subject, true, mut.verb, mut.quantity, mut.hasQty, mut.object)
-		st.handle.Done()
+		o.recordWorkOutcome(st, nil)
+		o.resolveObserved(st, nil)
 		return
 	}
 	var err error
 	if fn != nil {
 		err = fn()
 	}
-	if err != nil {
-		st.handle.Fail(err.Error())
-		o.failSequenceFollowers(st)
-		return
-	}
-	if mut != nil {
+	o.recordWorkOutcome(st, err)
+	// The effect commits on the callback's success alone, before any
+	// resolution: a task that mutated and then failed still owes the reader
+	// its "! already mutated: ..." line.
+	if err == nil && mut != nil {
 		o.recordResolvedMutation(subject, false, mut.verb, mut.quantity, mut.hasQty, mut.object)
 	}
-	if st.handle.Snapshot().State == Running || st.handle.Snapshot().State == Pending {
-		st.handle.Done()
+	// A callback that resolved its own task (Failf/Fail/Block inside fn, or
+	// an interrupt that cancelled the row) already stated one outcome. The
+	// scheduler neither restates it nor calls it misuse (P13) — returning
+	// the same error it already reported is the documented Failf shape.
+	if o.taskIsTerminal(st) {
+		if err != nil {
+			o.failSequenceFollowers(st)
+		}
+		return
 	}
+	o.resolveObserved(st, err)
+	if err != nil {
+		o.failSequenceFollowers(st)
+	}
+}
+
+// resolveObserved commits the task's outcome from what the callback actually
+// returned, ratifying or rejecting the caller's proposal (see
+// TaskHandle.finish). A ratified proposal supplies the row's summary — the
+// caller's own words, now backed by an observation.
+func (o *Output) resolveObserved(st *taskState, err error) {
+	proposal := o.takeProposal(st)
+	if err != nil {
+		if proposal != nil {
+			o.rejectProposal(st, proposal)
+		}
+		st.handle.failScheduled(err.Error())
+		return
+	}
+	if proposal != nil {
+		st.handle.resolveScheduled(proposal.state, proposal.summary, proposal.problems)
+		return
+	}
+	st.handle.doneScheduled()
+}
+
+func (o *Output) takeProposal(st *taskState) *proposedOutcome {
+	if st == nil {
+		return nil
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	proposal := st.proposed
+	st.proposed = nil
+	return proposal
+}
+
+// rejectProposal records the misuse a contradicted success claim earns: the
+// caller said the work was done, the work says otherwise, and the reader is
+// told which task and which claim was dropped.
+func (o *Output) rejectProposal(st *taskState, proposal *proposedOutcome) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.recordAlreadyResolvedLocked(st.name, proposal.summary)
+}
+
+// recordWorkOutcome stores the callback's error on the task so a waiter
+// (TaskHandle.Wait) can return the same value the callback returned.
+func (o *Output) recordWorkOutcome(st *taskState, err error) {
+	if st == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	st.workErr = err
+}
+
+func (o *Output) taskIsTerminal(st *taskState) bool {
+	if st == nil {
+		return true
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return core.IsTerminalTask(st.state)
+}
+
+// runForWaiter executes the task a caller is about to block on, on the
+// caller's own goroutine, when the scheduler has not started it yet. It
+// consumes no scheduler slot: the waiting goroutine either already holds one
+// (a callback nested inside another callback) or holds none at all, so the
+// number of callbacks actually executing never rises above the ceiling.
+// A no-op when the task is not claimable — already running, already
+// terminal, never defined, not yet eligible, or the run is cancelling.
+func (o *Output) runForWaiter(taskID string) {
+	st, fn, mut, claimed := o.claimForWaiter(taskID)
+	if !claimed {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			st.handle.failScheduled(fmt.Sprintf("panic: %v", r))
+		}
+		o.schedWG.Done()
+		o.kick()
+	}()
+	o.executeWork(st, fn, mut)
+}
+
+// claimForWaiter marks one submitted, eligible, not-yet-started task as
+// running for a waiting goroutine — takeEligible's body without the
+// concurrency ceiling and without the in-flight accounting (see
+// runForWaiter).
+func (o *Output) claimForWaiter(taskID string) (st *taskState, fn func() error, mut *mutationSpec, claimed bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	cand := o.taskByRef[taskID]
+	if o.schedCancelled || cand == nil || !cand.submitted || cand.runningWork || core.IsTerminalTask(cand.state) {
+		return nil, nil, nil, false
+	}
+	if !o.eligibleLocked(cand) {
+		return nil, nil, nil, false
+	}
+	cand.runningWork = true
+	o.schedStartOrder = append(o.schedStartOrder, cand.name)
+	if cand.state == Pending {
+		o.promoteRunningLocked(cand)
+	}
+	o.bumpLocked()
+	o.signalLiveLocked(true)
+	return cand, cand.workFn, cand.mutation, true
 }
 
 func (o *Output) drainScheduler() {
@@ -417,6 +547,33 @@ func (st *taskState) closeDoneLocked() {
 		return
 	}
 	st.doneOnce.Do(func() { close(st.doneCh) })
+}
+
+// Wait blocks until the task is terminal and returns the error its callback
+// returned (nil on Done, Skipped, or a dry run that never invoked it).
+//
+// A task that was already resolved before it was defined never runs its
+// callback (the misuse is recorded at the Define call), and Wait returns nil
+// immediately rather than blocking on work that will never happen (P15).
+//
+// A waiter has stopped doing work, so the concurrency ceiling must not be
+// the reason the task it waits on cannot start (P16). Wait therefore runs
+// that task on its own goroutine when the scheduler has not picked it up:
+// nested Define+Wait completes even at MaxConcurrency 1, because the waiting
+// callback's slot carries the work it is waiting for instead of idling.
+func (t *TaskHandle) Wait() error {
+	if t == nil || t.out == nil {
+		return nil
+	}
+	t.out.runForWaiter(t.id)
+	t.waitSubmitted()
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return nil
+	}
+	return st.workErr
 }
 
 func (t *TaskHandle) wasSubmitted() bool {

@@ -51,6 +51,18 @@ func (t *TaskHandle) mutate(verb, object string, fn func() error, opts ...Mutati
 		return
 	}
 	cfg := applyMutationOptions(opts)
+	// A verb with no callback declares an effect nothing performs — the row
+	// and the ledger would describe work that never happened (P4). Record is
+	// the spelling for an effect that already happened elsewhere.
+	if fn == nil {
+		t.out.recordMisuse(ErrInvalidConfig)
+		return
+	}
+	// object is a singular noun phrase; the ledger pluralizes it from the
+	// quantity. A plural literal reads "deleted 1 worktrees" (P17).
+	if txt.IsPlural(object) {
+		t.out.recordMisuse(ErrInvalidConfig)
+	}
 	if cfg.hasQty && cfg.quantity < 0 {
 		t.out.recordMisuse(ErrInvalidConfig)
 		return
