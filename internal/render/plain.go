@@ -776,8 +776,10 @@ func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEac
 	}
 }
 
-// notStartedLabel is the wording a NotStarted row already carries, reused so
-// the aggregate's count line and an individual row say the same thing.
+// notStartedLabel is the wording a NotStarted row already carries, so the
+// aggregate's count line and an individual row say the same thing. Spelled
+// as a literal here rather than imported (like defaultWidth above) because
+// render must never import the root package — see glyph.go's package doc.
 const notStartedLabel = "not started"
 
 // writeNotStartedCount renders the one line that accounts for the children an

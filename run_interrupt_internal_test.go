@@ -32,13 +32,13 @@ func sendOneSignal(t *testing.T) (interrupt func()) {
 	}
 }
 
-// TestRun_SingleInterruptStopsTheRun pins the user-visible contract of one
+// TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue pins the user-visible contract of one
 // ^C (spec: Ctrl-C, "early termination"): work already finished stays
 // finished, the row that was running says it was cancelled, everything
 // queued behind it says it never started, and the exit code is 130. Before
 // this, one signal cancelled a single row while the scheduler kept
 // dispatching the rest of the run to completion.
-func TestRun_SingleInterruptStopsTheRun(t *testing.T) {
+func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 	var buf strings.Builder
 	out := Init(Config{
 		Isolated: true, Plain: true, Color: ColorNever,
@@ -98,11 +98,11 @@ func TestRun_SingleInterruptStopsTheRun(t *testing.T) {
 	}
 }
 
-// TestRun_InterruptPreservesCompletedWorkAndCommittedEffects pins the rest
+// TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects pins the rest
 // of the spec's early-termination block: a task that already finished keeps
 // its ✓ row, and the effects it committed are named on the "! already
 // mutated: ..." line rather than being lost with the run.
-func TestRun_InterruptPreservesCompletedWorkAndCommittedEffects(t *testing.T) {
+func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testing.T) {
 	var buf strings.Builder
 	out := Init(Config{
 		Isolated: true, Plain: true, Color: ColorNever,

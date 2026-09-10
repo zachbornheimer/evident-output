@@ -42,12 +42,12 @@ func TestRender_P8_DurableEachAggregateShowsCount(t *testing.T) {
 	}
 }
 
-// TestRender_P7_PartialEachAggregateCountsAndNamesTheUnstarted pins the
+// TestRender_P7_PartialEachAggregateCountsTheNotStarted pins the
 // P7/axis-9 gap: a collection that stopped early rendered its one failure
 // and silently dropped every NotStarted sibling — no names, no count. The
 // count says how far the run got; one derived line says how much never
 // started.
-func TestRender_P7_PartialEachAggregateCountsAndNamesTheUnstarted(t *testing.T) {
+func TestRender_P7_PartialEachAggregateCountsTheNotStarted(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := isolatedScheduler(t, 1, &buf, false)
