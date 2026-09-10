@@ -194,8 +194,9 @@ func f() {
   slug := strings.Map(func(r rune) rune { return r }, "ABC")
   out := evo.Init(evo.Config{Title: "x"})
   t := out.Task(slug)
-  t.Doing("resolving %s", slug)
-  t.Done()
+  t.Define(func() error {
+    return nil
+  })
   _ = out.Finish()
 }
 `

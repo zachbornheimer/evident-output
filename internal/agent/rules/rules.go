@@ -1060,15 +1060,35 @@ t = out.Task("build")`,
 			ID:        "FP-005",
 			Category:  "FP",
 			Severity:  "warning",
-			Invariant: "a Task that will complete is declared, shown running, then resolved — never created already Done",
-			Why:       "A tool row that first appears as ✓ looks like a lie: the work happened off-screen. Declare the Task, call Doing while resolving, then Done.",
+			Invariant: "a Task that will complete submits its work through Define or a mutation verb — never created already Done",
+			Why:       "A tool row that first appears as ✓ looks like a lie: the work happened off-screen. Narrating with Doing before an unrelated Done is the same lie with extra steps (FP-006); the real fix is to let evo run the work via Define or a mutation verb.",
 			BadCode:   `out.Task("go@1.25.11").Done(path)`,
 			GoodCode: `t := out.Task("go@1.25.11")
-t.Doing("resolving %s", path)
-t.Done(path)`,
-			Remediation:     "Call Doing(...) before Done so the live row spins while the work runs",
+t.Define(func() error {
+  return resolve(path)
+})`,
+			Remediation:     "Call Define(func() error { ... }) or the matching mutation verb (Create/Delete/Update/...) so evo decides when the row resolves, instead of resolving with Done alone",
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"FP-005"},
+			Since:           "0.4.7",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "FP-006",
+			Category:  "FP",
+			Severity:  "error",
+			Invariant: "Doing narrates work in flight; a Done that immediately follows it with no Define/mutation verb submitting work between them is theater over work that already happened off-row",
+			Why:       "`.Doing(\"fixing\").Done(...)` after the fix already ran (zq fix.go:58,265) makes the row narrate a job it never actually gave to evo; FP-005's old suggestion (\"Doing before Done\") prescribed exactly this theater instead of naming Define/a verb.",
+			BadCode:   `a.out.Task("file integrity").Doing("fixing").Done("%d files changed", fixed)`,
+			GoodCode: `t := a.out.Task("file integrity")
+t.Define(func() error {
+  var err error
+  fixed, err = quality.Fix(a.services.FS, root, files)
+  return err
+})`,
+			Remediation:     "Replace Doing(...).Done(...) with Define(func() error { ... }) or the matching mutation verb so evo — not the caller — decides when the row resolves",
+			RelatedGuidance: []string{"first-paint", "tasks"},
+			VerificationIDs: []string{"FP-006"},
 			Since:           "0.4.7",
 			Certainty:       "deterministic",
 		},
@@ -1105,6 +1125,123 @@ t.Doing("running install:fresh-start")`,
 			// mistake" from "this Fail is a genuine evaluation failure" needs
 			// the caller's own domain judgment, not a source-level pattern.
 			Detection: "guidance",
+		},
+		{
+			ID:        "API-040",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "Failf/Blockf inside a Define or mutation callback whose return value reaches that same callback resolves the task twice",
+			Why:       "Define's own contract is \"a non-nil return fails the task\"; calling Failf/Fail on the same task and then also returning that error double-resolves it — the row is correct but a spurious second misuse line appears, and zq's taskAlreadyResolved guard exists only to paper over this (app.go:162-167).",
+			BadCode: `task.Define(func() error {
+  if err := a.executeCommand(ctx, root, task, item); err != nil {
+    return task.Failf("resolve %s: %w", item.Name, err)
+  }
+  return nil
+})`,
+			GoodCode: `task.Define(func() error {
+  if err := a.executeCommand(ctx, root, task, item); err != nil {
+    return err // Define's own non-nil-return-fails-the-task resolves it once
+  }
+  return nil
+})`,
+			Remediation:     "Inside a Define/mutation callback, return the error and let Define resolve the task; do not call Failf/Fail on the same task first",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-040"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-041",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a goroutine/fan-out closure resolves a predeclared Task (Doing/Done/Fail/Progress) only through Define; a bare go func/.Go(func with no Define races the scheduler",
+			Why:       "`go func(){ task.Doing(\"x\"); task.Done() }()` over a predeclared Task compiles and renders identically to scheduled work (zq axis-11 P1) — nothing tells the author evo never scheduled it, so the row and the actual concurrency model silently disagree.",
+			BadCode: `t := out.Task("a")
+go func() {
+  t.Doing("working")
+  t.Done()
+}()`,
+			GoodCode: `for name, t := range out.Group("work").Each([]string{"a"}) {
+  t.Define(func() error { return doWork(name) })
+}`,
+			Remediation:     "Predeclare with Group(...).Each(items) or Group.Task(...), then call task.Define(func() error { ... }) instead of a bare goroutine",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-041"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-042",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a mutation verb's callback does the work; nil or a no-op callback is theater over work that ran elsewhere",
+			Why:       "`Create(\"module\", nil)` (README.md:39) and `Create(\"module\", func() error { return installedPythonModuleCount(name, n) })` (zq setup_python.go:172-181, where the named func only validates a count) both let the bulk work already run outside the callback, then hand the verb an empty gesture.",
+			BadCode: `task.Create("module", nil, evo.Affected(n))
+task.Create("module", func() error { return installedPythonModuleCount(name, n) }, evo.Affected(n))`,
+			GoodCode: `task.Create("module", func() error {
+  return invokeUV(ctx, root, packages)
+}, evo.Affected(n))
+// or, when the work already ran:
+task.Record("create", n, "module")`,
+			Remediation:     "Move the real work into the callback, or use Record(verb, n, object) when the work already happened",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-042"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:              "API-043",
+			Category:        "API",
+			Severity:        "warning",
+			Invariant:       "a mutation verb's object literal names the singular; evo pluralizes it via Affected(n)",
+			Why:             "`Delete(\"worktrees\", fn, evo.Affected(1))` renders \"deleted 1 worktrees\" (zq axis-14 P17) because Pluralize treats an already-plural literal as unchanged; the object argument must stay singular so pluralization has one job.",
+			BadCode:         `task.Delete("worktrees", fn, evo.Affected(1))`,
+			GoodCode:        `task.Delete("worktree", fn, evo.Affected(1))`,
+			Remediation:     "Pass the singular noun as the object literal; let Affected(n) drive pluralization",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-043"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-044",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a caller waiting for a Define result on this stack uses task.Wait(); a hand-rolled channel wrapper around Define hangs when the task is already terminal",
+			Why:       "zq's defineAndWait (setup_python.go:190-210) — make(chan error, 1) + Define + <-done — hangs when the task is already terminal before Define runs (submitWork never calls fn) and deadlocks when nested under MaxConcurrency:1 (axis-3, axis-15, P15/P16 confirmed).",
+			BadCode: `done := make(chan error, 1)
+task.Define(func() error {
+  err := fn()
+  done <- err
+  return err
+})
+return <-done`,
+			GoodCode: `task.Define(fn)
+return task.Wait()`,
+			Remediation:     "Replace the make(chan error)/Define/<-done wrapper with task.Define(fn); task.Wait()",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-044"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
+			// Wait is being added to the public API in parallel with this
+			// rule; this entry documents the spelling the MCP now teaches.
+		},
+		{
+			ID:        "TAX-003",
+			Category:  "TAX",
+			Severity:  "warning",
+			Invariant: "a reason used more than as a one-off literal is a compile-time name; a reason names why, not the verb it accompanies",
+			Why:       "evo.Reason(\"x\") is legal inline (duplicate strings merge into one bucket), but an inline literal can typo apart into two buckets across call sites, and a reason that only restates the verb (`Skipped(evo.Reason(\"skipped\"))`, zq cmd/zq-build/main.go:81) tells the user nothing they didn't already know from the glyph.",
+			BadCode: `task.Skipped(evo.Reason("skipped"))
+task.Kept(evo.Reason("protected"))`,
+			GoodCode: `var reasonProtected = evo.Reason("protected")
+task.Skipped(evo.Reason("timeout"))
+task.Kept(reasonProtected)`,
+			Remediation:     "Lift a repeated reason to a package-level var so it is a compile-time name; name why the item skipped/was kept, not the verb itself",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"TAX-003"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
 		},
 	}
 }

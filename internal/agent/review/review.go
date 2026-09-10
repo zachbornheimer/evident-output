@@ -234,9 +234,9 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		// Progress instead (evo-rec.md "Progress invariants").
 		if hasEvo && name == "Advance" && isLikelyEvoReceiver(sel.X) {
 			recv := exprDottedName(sel.X)
-			suggestion := "prefer " + recv + ".Each(...) for loop progress or " + recv + ".Progress(completed, total) for an absolute count"
+			suggestion := "prefer Group(...).Each(items)/Sequence(...).Each(items) with " + recv + ".Define(fn) for loop progress, or " + recv + ".Progress(completed, total) for an absolute count"
 			if recv == "" {
-				suggestion = "prefer Each(...) for loop progress or Progress(completed, total) for an absolute count"
+				suggestion = "prefer Group(...).Each(items)/Sequence(...).Each(items) with task.Define(fn) for loop progress, or Progress(completed, total) for an absolute count"
 			}
 			findings = append(findings, Finding{
 				RuleID:     "PROG-001",
@@ -419,6 +419,45 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// FP-005: Task created and Done with no Doing/Progress/Writer window.
 	if hasEvo {
 		findings = append(findings, detectInstantDone(filename, f, fset)...)
+	}
+
+	// FP-006: Doing(...) immediately followed by Done(...) with no
+	// Define/mutation verb submitting work between them (theater).
+	if hasEvo {
+		findings = append(findings, detectDoingDoneTheater(filename, f, fset)...)
+	}
+
+	// API-040: Failf/Fail inside a Define/mutation callback whose result
+	// reaches that same callback — double-resolves the task.
+	if hasEvo {
+		findings = append(findings, detectFailInResolvedCallback(filename, f, fset)...)
+	}
+
+	// API-041: goroutine/fan-out closure resolves a predeclared Task with
+	// no Define inside it.
+	if hasEvo {
+		findings = append(findings, detectGoroutineResolvesPredeclaredTask(filename, src)...)
+	}
+
+	// API-042: mutation verb with a nil or no-op callback.
+	if hasEvo {
+		findings = append(findings, detectNoOpMutationCallback(filename, f, fset)...)
+	}
+
+	// API-043: plural object literal on a mutation verb.
+	if hasEvo {
+		findings = append(findings, detectPluralMutationObject(filename, f, fset)...)
+	}
+
+	// API-044: channel-wait wrapper around Define.
+	if hasEvo {
+		findings = append(findings, detectChannelWaitWrapperAroundDefine(filename, src)...)
+	}
+
+	// TAX-003: inline evo.Reason("...") literal, or a reason that restates
+	// its own verb.
+	if hasEvo {
+		findings = append(findings, detectInlineReasonLiteral(filename, f, fset)...)
 	}
 
 	// API-027: Done/Fail/Progress on Group/Sequence (name-match).

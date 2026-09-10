@@ -18,8 +18,9 @@ const instantDoneToolFixedSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
 func bind(out *evo.Output, path string) {
   t := out.Task("go@1.25.11")
-  t.Doing("resolving")
-  t.Done(path)
+  t.Define(func() error {
+    return resolve(path)
+  })
 }
 `
 
@@ -119,11 +120,14 @@ func run(out *evo.Output, names []string) {
 	}
 }
 
-func TestGoSource_FP005SuggestionNamesDoing(t *testing.T) {
+func TestGoSource_FP005SuggestionNamesDefine(t *testing.T) {
 	res := review.GoSource("bind.go", instantDoneToolSrc)
 	f := findingByID(t, res, "FP-005")
-	if !strings.Contains(f.Suggestion, "Doing") {
-		t.Fatalf("FP-005 suggestion %q does not name Doing", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "Define") {
+		t.Fatalf("FP-005 suggestion %q does not name Define", f.Suggestion)
+	}
+	if strings.Contains(f.Suggestion, "Doing(\"resolving\")") {
+		t.Fatalf("FP-005 suggestion %q still prescribes Doing-before-Done theater", f.Suggestion)
 	}
 }
 
