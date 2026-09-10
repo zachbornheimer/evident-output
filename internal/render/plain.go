@@ -730,12 +730,29 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 	}
 }
 
+// eachAggregateDetail is the durable row's answer to "how many?" — the same
+// completed/total the live frame shows (EachAggregateCount), because a bare
+// "✓ fix tools" cannot tell 999/1000 from 1/1000 once the live region is
+// gone. Empty when the caller's own Summary already answers it for a
+// collection that finished; a collection that stopped short still owes the
+// reader the number, summary or not.
+func eachAggregateDetail(col core.TasksSnapshot, fromEach []core.TaskSnapshot) string {
+	done, total := EachAggregateCount(fromEach)
+	if col.Summary != "" && done == total {
+		return ""
+	}
+	return fmt.Sprintf("%d/%d", done, total)
+}
+
 func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach, explicit []core.TaskSnapshot, color, verbose bool, profile txt.GlyphProfile) {
 	glyph := txt.StyleGlyph(TaskGlyph(col.State, profile), StateColor(col.State), color)
-	if col.Summary != "" {
+	switch detail := eachAggregateDetail(col, fromEach); {
+	case detail != "" && col.Summary != "":
+		fmt.Fprintf(b, "%s %s  %s  %s\n", glyph, col.Name, detail, txt.Dim(col.Summary, color))
+	case col.Summary != "":
 		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, txt.Dim(col.Summary, color))
-	} else {
-		fmt.Fprintf(b, "%s %s\n", glyph, col.Name)
+	default:
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, detail)
 	}
 	skipped, kept := collectEachTaxonomy(fromEach)
 	writeTaxonomy(b, problemTreeIndent, "skipped", skipped, false, verbose, color, profile)
@@ -746,6 +763,7 @@ func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEac
 			writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
 		}
 	}
+	writeNotStartedCount(b, fromEach, color, profile)
 	for _, t := range explicit {
 		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
 	}
@@ -756,6 +774,23 @@ func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEac
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
+}
+
+// notStartedLabel is the wording a NotStarted row already carries, reused so
+// the aggregate's count line and an individual row say the same thing.
+const notStartedLabel = "not started"
+
+// writeNotStartedCount renders the one line that accounts for the children an
+// early termination left behind ("- 6 not started"). It sits under the
+// surfaced failures because it is the rest of the same sentence: this is what
+// stopped, and this is how much never began.
+func writeNotStartedCount(b *strings.Builder, fromEach []core.TaskSnapshot, color bool, profile txt.GlyphProfile) {
+	n := CountNotStarted(fromEach)
+	if n == 0 {
+		return
+	}
+	glyph := txt.StyleGlyph(TaskGlyph(core.NotStarted, profile), StateColor(core.NotStarted), color)
+	fmt.Fprintf(b, "   %s %s\n", glyph, txt.Dim(fmt.Sprintf("%d %s", n, notStartedLabel), color))
 }
 
 // writeCollectionChild renders one child task row under its parent group:

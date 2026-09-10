@@ -201,6 +201,34 @@ func partitionEachChildren(tasks []core.TaskSnapshot) (fromEach, explicit []core
 	return fromEach, explicit
 }
 
+// EachAggregateCount derives a collection's completed/total from its
+// Each-created atomic children alone — the one denominator both the live
+// frame and the durable row read, so the two can never disagree. An
+// explicitly declared child stays individually visible on its own row and
+// never enters the count: `✓ branches  146/146` on a 145-branch repo was the
+// group's own "classify tips" task counting itself as a branch.
+func EachAggregateCount(fromEach []core.TaskSnapshot) (done, total int) {
+	for _, t := range fromEach {
+		if t.State == core.Done || t.State == core.Skipped {
+			done++
+		}
+	}
+	return done, len(fromEach)
+}
+
+// CountNotStarted reports how many children never began — the collection's
+// silent majority after an early termination. They are counted, never named:
+// a thousand names is not evidence, one number is.
+func CountNotStarted(tasks []core.TaskSnapshot) int {
+	n := 0
+	for _, t := range tasks {
+		if t.State == core.NotStarted {
+			n++
+		}
+	}
+	return n
+}
+
 func eachChildNeedsSurface(t core.TaskSnapshot) bool {
 	if t.State == core.Failed || t.State == core.Blocked || t.State == core.Cancelled {
 		return true
@@ -231,12 +259,7 @@ func collectEachTaxonomy(fromEach []core.TaskSnapshot) (skipped, kept []core.Tax
 }
 
 func writeLiveEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach, explicit []core.TaskSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
-	done, total := 0, len(fromEach)+len(explicit)
-	for _, t := range col.Tasks {
-		if t.State == core.Done || t.State == core.Skipped {
-			done++
-		}
-	}
+	done, total := EachAggregateCount(fromEach)
 	unresolved := false
 	for _, t := range col.Tasks {
 		if t.State == core.Running || t.State == core.Pending {
