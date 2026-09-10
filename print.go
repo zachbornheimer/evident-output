@@ -41,35 +41,48 @@ type Printer struct {
 }
 
 // At returns a printer for the given visibility.
-func (o *Output) At(visibility Visibility) *Printer {
+func (o *Output) at(visibility Visibility) *Printer {
 	return &Printer{out: o, visibility: visibility}
 }
 
 // Print formats like fmt.Sprint and enqueues human-facing text (line-buffered).
 // Errors are recorded on the Output and returned by Finish/Main — not ignored mid-stream.
 func (o *Output) Print(args ...any) {
-	o.At(VisibilityNormal).Print(args...)
+	o.at(VisibilityNormal).Print(args...)
 }
 
 // Printf formats like fmt.Sprintf and enqueues human-facing text (line-buffered).
 func (o *Output) Printf(format string, args ...any) {
-	o.At(VisibilityNormal).Printf(format, args...)
+	o.at(VisibilityNormal).Printf(format, args...)
 }
 
 // Println formats like fmt.Sprintln and enqueues a complete human-facing line.
 func (o *Output) Println(args ...any) {
-	o.At(VisibilityNormal).Println(args...)
+	o.at(VisibilityNormal).Println(args...)
 }
 
 // Subject prints one durable line immediately — the same one-shot semantics
 // as Config.Subject, for a caller who doesn't know the subject text until
 // after Init (e.g. resolved from a flag), but still before any other I/O
 // (I3). A no-op on a nil Output or empty text.
-func (o *Output) Subject(text string) {
+func (o *Output) subject(text string) {
 	if o == nil || text == "" {
 		return
 	}
 	o.Println(text)
+}
+
+// About names what this run is acting on without emitting a row. Call it
+// before DeclareDryRun so the header reads "[dry-run] repo  /path" instead
+// of the generic marker. Hosts that Init without a path (zq) used to drop
+// the name; the library that knows the path should call About.
+func (o *Output) about(text string) {
+	if o == nil || text == "" {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.cfg.dryRunHeaderText = text
 }
 
 // Print implements Printer.
@@ -89,7 +102,7 @@ func (p *Printer) Println(args ...any) {
 
 // Writer returns an io.Writer that feeds this printer's line buffer (human stream).
 func (o *Output) Writer() io.Writer {
-	return o.At(VisibilityNormal).Writer()
+	return o.at(VisibilityNormal).Writer()
 }
 
 // ResultWriter returns the domain-payload stream. Presentation never writes here.
@@ -100,8 +113,8 @@ func (o *Output) Writer() io.Writer {
 //
 //	out := evo.Init(evo.Config{Title: "build", Format: evo.FormatData})
 //	// after work succeeds:
-//	_ = json.NewEncoder(out.ResultWriter()).Encode(payload)
-func (o *Output) ResultWriter() io.Writer {
+//	_ = json.NewEncoder(out.resultWriter()).Encode(payload)
+func (o *Output) resultWriter() io.Writer {
 	if o == nil {
 		return io.Discard
 	}

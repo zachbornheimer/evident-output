@@ -87,11 +87,11 @@ the state, not a state of their own.
 
 ## Pick the entity
 
-| Shape            | Use when                                                                                                                                                                                                        |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**         | Everything — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skip`, no `Doing`/`Progress`) renders as a fact row; work with doing-text, progress, or mutation verbs shows a spinner while running |
-| **DisplayGroup** | Presentation-only collection of independent tasks (state is **derived**); concurrent Running children expected                                                                                                  |
-| **Sequence**     | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest recursively via `.Sequence`/`.DisplayGroup`                                            |
+| Shape        | Use when                                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**     | One atomic unit — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skipped`) or work submitted with `Define` / a mutation verb       |
+| **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children; `Group.Each` for homogeneous items    |
+| **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest via `.Sequence`/`.Group` |
 
 ## Learn more
 

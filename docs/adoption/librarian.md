@@ -1,5 +1,11 @@
 # Adoption case study: librarian
 
+> **v0.2.9 snapshot — do not copy.** This write-up records a migration onto
+> `evo.New`, `Plan`, `Changes`, and `Item`. Those spellings were removed in
+> v0.4. On current evo use `evo.Init` + `evo.Main(run)` and Task mutation
+> verbs (`Delete`/`Create`/`Record`/…). See the 0.2 → 0.4 note in
+> [`docs/mcp.md`](../mcp.md).
+
 **Evo pin:** v0.2.9+ (presentation polish; library pin hygiene at v0.2.10)
 **Validated mode:** batch-summary only
 **Not validated:** live per-file Tasks under load

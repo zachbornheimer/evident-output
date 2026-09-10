@@ -49,7 +49,7 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 // through it, Task.Run's) per-line mirror of a talkative child's raw output.
 // Off-TTY, an explicit TaskHandle.Phase call still forces its own durable row
 // (the P10 contract: the one line the caller asked to see); this path never
-// does — a child's full output already has one durable home, the Evidence
+// does — a child's full output already has one durable home, the evidence
 // ring (and its failure-path DetailTail), so a row per mirrored line would
 // just repeat it (release-gate round 9 finding 4).
 func (t *TaskHandle) setLiveOnlyPhase(text string) {
@@ -98,10 +98,16 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // call's own emission carries the current text once, instead of the reader
 // seeing the item name and the body's phase as two separate redundant lines
 // (beginner-10). A talkative child's mirrored output line is the same
-// shape: the Evidence ring is its one durable home, not a plain-mode row
+// shape: the evidence ring is its one durable home, not a plain-mode row
 // per line (release-gate round 9 finding 4).
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
-	st.phase = txt.Text(text)
+	text = txt.Text(text)
+	// Identical live-only phase is a no-op: Writer leftover/repeated lines
+	// must not bump, emit task.phase_changed, or force a live paint.
+	if text == st.phase {
+		return
+	}
+	st.phase = text
 	st.activityAt = o.cfg.clock.Now()
 	if st.state == Pending {
 		o.promoteRunningLocked(st)
@@ -195,7 +201,7 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 // acquisition, so a concurrent worker can never observe one goroutine's
 // count paired with another goroutine's phase name — the exact interleaving
 // two separate Progress(...) + Phase(...) calls (two separate locks) allow.
-func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
+func (t *TaskHandle) step(completed, total int, name string) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -223,13 +229,13 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 // leaves text untouched" rule that keeps a literal "%" safe. A non-string
 // first argument is misuse (ErrInvalidConfig): Done's format position is
 // still meant to be a caller-written string, not an accidental value.
-func (t *TaskHandle) Done(args ...any) *TaskHandle {
+func (t *TaskHandle) Done(args ...any) {
 	summary, ok := formatSummaryArgs(args)
 	if !ok {
 		t.out.recordMisuse(ErrInvalidConfig)
-		return t
+		return
 	}
-	return t.finish(Done, txt.Text(summary), nil)
+	t.finish(Done, txt.Text(summary), nil)
 }
 
 // formatSummaryArgs implements Done/Unchanged's no-args/literal/printf-
@@ -262,9 +268,8 @@ func formatSummaryArgs(args []any) (summary string, ok bool) {
 // printf format when fmt args are present — one text spelling shared with
 // Done/Task/Group/Reason (C6); evo.Detail(...) and other ProblemOptions may
 // be mixed into args in any position and still apply.
-func (t *TaskHandle) Warn(summary string, args ...any) {
-	formatted, opts := formatWarnArgs(summary, args)
-	p := applyProblemOptions(txt.Text(formatted), opts)
+func (t *TaskHandle) Warn(summary string) {
+	p := applyProblemOptions(txt.Text(summary), nil)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -342,8 +347,8 @@ func (t *TaskHandle) Failf(format string, args ...any) *Failure {
 	return newFailure(t, err)
 }
 
-// attachRetainedEvidenceTail attaches the task's own retained Evidence
-// (task.Run(cmd)/PhaseWriter/Evidence() capture) as the Problem's
+// attachRetainedEvidenceTail attaches the task's own retained evidence
+// (task.run(cmd)/PhaseWriter/evidence() capture) as the Problem's
 // EvidenceTail, the same precedence Evidence.DetailTail() already
 // documents: an existing Detail line — here, Failf/Blockf's own
 // wrapped-error text — still renders as the primary line, and the retained
@@ -356,7 +361,7 @@ func (t *TaskHandle) attachRetainedEvidenceTail(p *Problem) {
 	if t == nil {
 		return
 	}
-	t.Evidence().DetailTail().applyProblem(p)
+	t.evidence().DetailTail().applyProblem(p)
 }
 
 // Block resolves the task as blocked. This is a statement, not a fluent
@@ -386,14 +391,14 @@ func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
 }
 
 // Cancel resolves the task as cancelled.
-func (t *TaskHandle) Cancel(reason string) *TaskHandle {
-	return t.finish(Cancelled, txt.Text(reason), nil)
+func (t *TaskHandle) Cancel(reason string) {
+	t.finish(Cancelled, txt.Text(reason), nil)
 }
 
 // Skip resolves the task as skipped. reason is a printf format when args are
 // present (fmt.Sprintf semantics) — one text spelling shared with
 // Done/Task/Group/Reason/Phase (C6; release-gate round 6 finding 4).
-func (t *TaskHandle) Skip(reason string, args ...any) *TaskHandle {
+func (t *TaskHandle) skip(reason string, args ...any) *TaskHandle {
 	if len(args) > 0 {
 		reason = fmt.Sprintf(reason, args...)
 	}
@@ -430,7 +435,7 @@ func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle 
 // Confirm's PolicyFlag / I2's Failf fallback: Config.Title when set, else
 // the binary's own basename. Use NextCommand instead when the remedy is a
 // different (foreign) tool.
-func (t *TaskHandle) NextSelf(args ...string) *TaskHandle {
+func (t *TaskHandle) nextSelf(args ...string) *TaskHandle {
 	return t.NextCommand(t.out.policySourceName(), args...)
 }
 
@@ -446,6 +451,7 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 }
 
 func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
+	t.out.holdRunningPaint(t.id)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -468,7 +474,7 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 	if len(problems) > 0 {
 		// Fail/Block with a non-empty evidence ring and no explicit Detail or
 		// EvidenceTail auto-attach the capture tail (beginner-2) — the
-		// evidence a caller already gathered via Evidence()/PhaseWriter() is
+		// evidence a caller already gathered via evidence()/PhaseWriter() is
 		// exactly the detail a Fail/Block row needs, so DetailTail is no
 		// longer an opt-in step a caller has to remember. Skipping when
 		// EvidenceTail is already set (an explicit DetailTail() ran as a
@@ -504,5 +510,6 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 		// other task in the run to finish (see commitNamedEffectsLocked).
 		t.out.commitNamedEffectsLocked(st.name)
 	}
+	st.closeDoneLocked()
 	return t
 }

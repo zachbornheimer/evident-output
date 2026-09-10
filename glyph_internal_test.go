@@ -15,7 +15,7 @@ func TestResolveGlyphProfileLocked_AutoOnNonInteractiveStaysUnicode(t *testing.T
 }
 
 // TestResolveGlyphProfileLocked_ExplicitProfileIsNeverOverridden pins that an
-// explicit Glyphs() choice always wins over detection.
+// explicit glyphs() choice always wins over detection.
 func TestResolveGlyphProfileLocked_ExplicitProfileIsNeverOverridden(t *testing.T) {
 	t.Setenv("LC_ALL", "en_US.UTF-8")
 	cfg := config{plain: true, glyphs: GlyphsASCII}

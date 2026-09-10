@@ -24,7 +24,7 @@ import (
 func TestSpecP2_LocalRemoteSeparation_Step1(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	branches := out.Task("branches")
 	branches.RecordName("delete", "feat/old-billing")
 	branches.Done()
@@ -51,7 +51,7 @@ func TestSpecP2_LocalRemoteSeparation_Step1(t *testing.T) {
 func TestSpecP2_LocalRemoteSeparation_Step2(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	branches := out.Task("branches")
 	branches.Record("delete", 12, "local tip")
 	branches.Done()
@@ -67,8 +67,7 @@ func TestSpecP2_LocalRemoteSeparation_Step2(t *testing.T) {
 		"[planned] branches",
 		"delete 12 local tip",
 		"[planned] remotes",
-		"delete-remote 3 origin tip",
-	} {
+		"delete-remote 3 origin tip"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -87,7 +86,7 @@ func TestSpecP2_LocalRemoteSeparation_Step2(t *testing.T) {
 func TestSpecP2_LocalRemoteSeparation_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
 	branches.Record("delete", 12, "local tip")
 	branches.Done()
@@ -103,8 +102,7 @@ func TestSpecP2_LocalRemoteSeparation_Success(t *testing.T) {
 		"[changed] branches",
 		"deleted 12 local tip",
 		"[changed] remotes",
-		"deleted 3 origin tip",
-	} {
+		"deleted 3 origin tip"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -125,7 +123,7 @@ func TestSpecP2_LocalRemoteSeparation_Success(t *testing.T) {
 func TestSpecP2_LocalRemoteSeparation_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
 	branches.Record("delete", 12, "local tip")
 	branches.Done()
@@ -140,8 +138,7 @@ func TestSpecP2_LocalRemoteSeparation_Failure(t *testing.T) {
 		"[changed] branches",
 		"deleted 12 local tip",
 		"✗ remotes push --delete denied",
-		"protected branch rule on origin",
-	} {
+		"protected branch rule on origin"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -160,12 +157,15 @@ func TestSpecP2_LocalRemoteSeparation_Failure(t *testing.T) {
 func TestSpecP4_SequentialGroup_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "python", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
-	scan, venv, install := setup.Task("scan"), setup.Task("venv"), setup.Task("install")
-	scan.Done()
-	venv.Done()
-	install.Done("14 modules")
+	setup.Task("scan").Define(func() error { return nil })
+	setup.Task("venv").Define(func() error { return nil })
+	install := setup.Task("install")
+	install.Define(func() error {
+		install.Done("14 modules")
+		return nil
+	})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -188,12 +188,13 @@ func TestSpecP4_SequentialGroup_Success(t *testing.T) {
 func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "python", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
-	scan, venv := setup.Task("scan"), setup.Task("venv")
+	setup.Task("scan").Define(func() error { return nil })
+	setup.Task("venv").Define(func() error {
+		return fmt.Errorf("uv exited 1: No such file or directory")
+	})
 	setup.Task("install")
-	scan.Done()
-	venv.Fail("uv exited 1: No such file or directory")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -201,8 +202,7 @@ func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✓ scan",
 		"✗ venv     uv exited 1: No such file or directory",
-		"- install  not started",
-	} {
+		"- install  not started"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -220,7 +220,7 @@ func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	scan := out.Task("scan")
 	scan.Progress(128, 128)
 	scan.RecordLabel("ready", 40, "repos")
@@ -237,8 +237,7 @@ func TestSpecP5_DiscoverySealedTotal_Success(t *testing.T) {
 		"[changed] scan",
 		"ready 40 repos",
 		"blocked 80 repos",
-		"error 8 repos",
-	} {
+		"error 8 repos"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -259,7 +258,7 @@ func TestSpecP5_DiscoverySealedTotal_Success(t *testing.T) {
 func TestSpecP5_RecordLabel_NeverMovesUnderPlanDuringDryRun(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	scan := out.Task("scan")
 	scan.RecordLabel("ready", 40, "repos")
 	scan.Done("128 checked")
@@ -285,7 +284,7 @@ func TestSpecP5_RecordLabel_NeverMovesUnderPlanDuringDryRun(t *testing.T) {
 // than silently reprinting a smaller denominator.
 func TestSpecP5_DiscoverySealedTotal_NeverShrinks(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("scan"), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "scan", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	scan := out.Task("scan")
 	scan.Progress(40, 128)
@@ -304,7 +303,7 @@ func TestSpecP5_DiscoverySealedTotal_NeverShrinks(t *testing.T) {
 func TestSpecP6_BytesVsCounts_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("build"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "build", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	generate := out.Task("generate")
 	generate.Bytes(8_000_000, 8_000_000)
 	generate.Done("8.0 MB")
@@ -337,7 +336,7 @@ func TestSpecP6_BytesVsCounts_Success(t *testing.T) {
 func TestSpecP7_ViewportTruncation_PlanOverflowLine(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
 	for i := 0; i < 500; i++ {
 		branches.RecordName("delete", fmt.Sprintf("feat/branch-%d", i))
@@ -367,7 +366,8 @@ func TestSpecP7_ViewportTruncation_PlanOverflowLine(t *testing.T) {
 //	!  already mutated: origin/feat/a deleted; feat/b feat/c not
 func TestSpecP8_PartialTruthSurvivesRemoteAuthFailure(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.NoColor()}})
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 	remotes := out.Task("remotes")
 	remotes.RecordName("delete", "origin/feat/a")
@@ -375,20 +375,13 @@ func TestSpecP8_PartialTruthSurvivesRemoteAuthFailure(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	// FinalPlain is unexported (C8); reconstruct the same text RenderPlain
-	// produces from the finished snapshot.
-	rendered, err := evo.RenderPlain(out.Snapshot(), evo.PlainOptions{Width: 80, NoColor: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := string(rendered)
+	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"[changed] remotes",
 		"deleted origin/feat/a",
 		"✗ remotes authentication failed",
-		"remote: Invalid username or token",
-	} {
+		"remote: Invalid username or token"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -408,7 +401,7 @@ func TestSpecP8_PartialTruthSurvivesRemoteAuthFailure(t *testing.T) {
 func TestSpecP15_NothingToDo_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("clean").Done()
 	out.Println("nothing to clean")
 	if err := out.Finish(); err != nil {
@@ -433,12 +426,18 @@ func TestSpecP15_NothingToDo_Success(t *testing.T) {
 func TestSpecP3_DryRunTense_Step1(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
+	called := false
 	salvage := out.Task("salvage")
-	_ = salvage.Push("feat/a → retire/feat/a", nil, evo.Affected(3))
-	salvage.Done()
+	salvage.Push("feat/a → retire/feat/a", func() error {
+		called = true
+		return nil
+	}, evo.Affected(3))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
+	}
+	if called {
+		t.Fatal("dry-run mutation callback must not run")
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
@@ -458,7 +457,7 @@ func TestSpecP3_DryRunTense_Step1(t *testing.T) {
 func TestSpecP18_RemoteTrackingVsRemoteDelete_Step1(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	tracking := out.Task("remote-tracking")
 	tracking.RecordName("fetch-prune", "origin/feat/gone")
 	tracking.Done()
@@ -486,7 +485,7 @@ func TestSpecP18_RemoteTrackingVsRemoteDelete_Step1(t *testing.T) {
 func TestSpecP18_RemoteTrackingVsRemoteDelete_Step2(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	tracking := out.Task("remote-tracking")
 	tracking.Record("fetch-prune", 12, "stale origin/*")
 	tracking.Done()
@@ -518,7 +517,7 @@ func TestSpecP18_RemoteTrackingVsRemoteDelete_Step2(t *testing.T) {
 func TestSpecP18_RemoteTrackingVsRemoteDelete_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	tracking := out.Task("remote-tracking")
 	tracking.Record("prune", 12, "stale origin/*")
 	tracking.Done()
@@ -551,15 +550,22 @@ func TestSpecP25_ASCIIGlyphFallback_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state,
 	// same as the existing default-instance tests in taxonomy_test.go.
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}}))
+	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, Glyphs: evo.GlyphsASCII}))
 	out := evo.Default()
-	branches := out.Task("branches")
-	pr := evo.Reason("protected")
+	protected := evo.Reason("protected")
 	dirty := evo.Reason("dirty")
-	branches.Skipped(pr, "main")
-	branches.Skipped(dirty, "feat/a")
-	branches.Record("delete", 14, "branches")
-	branches.Done("14 deleted")
+	g := out.Group("branches")
+	g.Summary("14 deleted")
+	for name, task := range g.Each([]string{"protected-0", "dirty-0"}) {
+		switch name {
+		case "protected-0":
+			task.Skipped(protected)
+		default:
+			task.Skipped(dirty)
+		}
+	}
+	g.Task("deleted").Record("delete", 14, "branches")
+	g.Task("deleted").Done("14 deleted")
 	worktrees := out.Task("worktrees")
 	worktrees.Record("remove", 2, "worktrees")
 	worktrees.Done("2 removed")
@@ -590,11 +596,10 @@ func TestSpecP24_DataFormat_PresentationNeverTouchesPayloadStream(t *testing.T) 
 		Format: evo.FormatData,
 		Stderr: &presentation,
 		Result: &payload,
-		Color:  evo.ColorNever,
-	})
+		Color:  evo.ColorNever})
 	scan := out.Task("scan")
 	scan.Done("128 checked")
-	_, err := out.ResultWriter().Write([]byte(`{"ready":40,"blocked":80,"error":8}`))
+	_, err := payload.Write([]byte(`{"ready":40,"blocked":80,"error":8}`))
 	if err != nil {
 		t.Fatal(err)
 	}

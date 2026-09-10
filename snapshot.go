@@ -8,7 +8,7 @@ import "github.com/zachbornheimer/evident-output/internal/core"
 // package — see EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md §38): rendering
 // and evidence-capture machinery import core, never this root package, so
 // the data model has to live where they can reach it without an import
-// cycle back through the behavioral facades (Output, TaskHandle, Evidence)
+// cycle back through the behavioral facades (Output, TaskHandle, evidence)
 // that stay declared here. pkg.go.dev cannot expand an aliased type's
 // fields (internal/core is never rendered) — see docs/reference.md for the
 // full field-level reference this doc comment summarizes.

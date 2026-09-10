@@ -11,14 +11,14 @@ import (
 
 // WS-6: predeclared Tasks keep declaration order under concurrent updates.
 func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("batch"), evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "batch"})
 	t.Cleanup(func() { _ = out.Close() })
 
-	jobs := out.DisplayGroup("placement")
+	jobs := out.Group("placement")
 	const n = 20
 	tasks := make([]*evo.TaskHandle, n)
 	for i := 0; i < n; i++ {
-		tasks[i] = jobs.Task(fmt.Sprintf("file-%02d", i), evo.ID(fmt.Sprintf("file.%d", i)))
+		tasks[i] = jobs.Task(fmt.Sprintf("file-%02d", i))
 	}
 
 	var wg sync.WaitGroup
@@ -66,11 +66,11 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 }
 
 func TestConcurrent_AggregateProgress_NotPerFile(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("huge"), evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "huge"})
 	t.Cleanup(func() { _ = out.Close() })
 
 	// Model-by-scale: one aggregate Task for huge batches.
-	t0 := out.Task("placement", evo.ID("placement"))
+	t0 := out.Task("placement")
 	const total = 10_000
 	for done := 0; done <= total; done += 1000 {
 		t0.Progress(done, total)

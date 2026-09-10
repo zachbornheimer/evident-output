@@ -6,14 +6,14 @@ type Redactor interface {
 	RedactString(s string) string
 }
 
-// NoopRedactor leaves strings unchanged.
-type NoopRedactor struct{}
+// noopRedactor leaves strings unchanged.
+type noopRedactor struct{}
 
 // RedactString implements Redactor.
-func (NoopRedactor) RedactString(s string) string { return s }
+func (noopRedactor) RedactString(s string) string { return s }
 
 // Redact injects a redactor (Debug fields, Capture lines, problem detail paths).
-func Redact(r Redactor) Option {
+func redact(r Redactor) Option {
 	return optionFunc(func(c *config) {
 		if r != nil {
 			c.redactor = r

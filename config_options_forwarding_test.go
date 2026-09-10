@@ -13,14 +13,9 @@ import (
 // with explicit Options got [changed] rows instead of [planned].
 func TestInit_OptionsPath_HonorsDryRun(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
+	out := evo.Init(evo.Config{Isolated: true, DryRun: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-		Isolated: true,
-		DryRun:   true,
-		Options:  []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()},
-	})
-
-	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(2))
+	out.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(2))
 	_ = out.Finish()
 
 	rendered := buf.String()
@@ -36,12 +31,7 @@ func TestInit_OptionsPath_HonorsDryRun(t *testing.T) {
 // dropped on the Config.Options escape hatch.
 func TestInit_OptionsPath_HonorsSubject(t *testing.T) {
 	var buf bytes.Buffer
-	evo.Init(evo.Config{
-
-		Isolated: true,
-		Subject:  "bpp-csharp",
-		Options:  []evo.Option{evo.To(&buf), evo.NoColor()},
-	})
+	evo.Init(evo.Config{Isolated: true, Subject: "bpp-csharp", Stdout: &buf, Color: evo.ColorNever})
 
 	if !strings.Contains(buf.String(), "bpp-csharp") {
 		t.Fatalf("Subject not printed on the Options path, got:\n%s", buf.String())

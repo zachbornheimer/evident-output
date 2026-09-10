@@ -2,7 +2,6 @@ package evo_test
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestDOM014_DetailOnBlock(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	it := out.Task("i")
 	it.Block("b", evo.Detail("user visible"))
@@ -27,7 +26,7 @@ func TestDOM014_DetailOnBlock(t *testing.T) {
 // behavior allowed the total to grow silently; that is now recorded misuse
 // and the first total is kept.
 func TestDOM023_SealedTotalRejectsChange(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(1, 2)
@@ -41,7 +40,7 @@ func TestDOM023_SealedTotalRejectsChange(t *testing.T) {
 }
 
 func TestDOM037_FailedConclusion(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("i").Fail("no")
 	_ = out.Finish()
@@ -59,7 +58,7 @@ func TestDOM037_FailedConclusion(t *testing.T) {
 // Conclusion.Warned carrying the warning forward instead of a StateWarning
 // headline.
 func TestDOM038_WarningOnly(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("i").Warn("careful")
 	_ = out.Finish()
@@ -72,7 +71,7 @@ func TestDOM038_WarningOnly(t *testing.T) {
 }
 
 func TestDOM041_ActionsPromoted(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	item := out.Task("i")
 	item.Block("b")
@@ -86,9 +85,9 @@ func TestDOM041_ActionsPromoted(t *testing.T) {
 
 func TestLOG002_DebugUsesClock(t *testing.T) {
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Clock(clock), evo.DebugLevel(evo.LevelDebug)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Clock: clock, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Debug("x")
+	out.DebugForTest("x")
 	ev := out.Events()
 	if len(ev) == 0 {
 		t.Fatal("no events")
@@ -112,7 +111,7 @@ func TestOUT012_ExitCodes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+			out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 			tc.fn(out)
 			_ = out.Finish()
 			if out.Conclusion().ExitCode != tc.code {
@@ -125,7 +124,7 @@ func TestOUT012_ExitCodes(t *testing.T) {
 
 func TestAPI026_NoRunAllSymbol(t *testing.T) {
 	// Behavioral: core package has no execution helpers — we can only call presentation APIs.
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	// If RunAll existed tests might call it; absence is compile-time.
 	out.Task("x").Done()
@@ -133,10 +132,10 @@ func TestAPI026_NoRunAllSymbol(t *testing.T) {
 }
 
 func TestSEC003_ManyEntitiesBounded(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	for i := 0; i < 500; i++ {
-		out.Task("n", evo.ID(fmt.Sprintf("n%d", i))).Done()
+		out.Task(string(rune('A'+(i%26))) + string(rune('a'+(i/26)))).Done()
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

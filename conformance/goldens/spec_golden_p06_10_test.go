@@ -35,7 +35,7 @@ func collapseFields(s string) string {
 func TestSpecP6_BytesVsCounts_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("build"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "build", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	generate := out.Task("generate")
 	generate.Bytes(8_000_000, 8_000_000)
 	generate.Done("8.0 MB")
@@ -48,8 +48,7 @@ func TestSpecP6_BytesVsCounts_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✓ generate 8.0 MB",
 		"✗ test tests failed",
-		"--- FAIL: TestFoo (0.01s)",
-	} {
+		"--- FAIL: TestFoo (0.01s)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -141,7 +140,7 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 		}
 	}
 
-	_ = generate.Write("partial artifact at /tmp/out (2.1 MB)", nil)
+	generate.Record("write", 1, "partial artifact at /tmp/out (2.1 MB)")
 	generate.Cancel("cancelled")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -152,8 +151,7 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 	persisted := screen.PersistedText()
 	for _, want := range []string{
 		"■", "generate", "cancelled",
-		"already mutated: 1 partial artifact at /tmp/out (2.1 MB) wrote",
-	} {
+		"already mutated: 1 partial artifact at /tmp/out (2.1 MB) wrote"} {
 		if !strings.Contains(persisted, want) {
 			t.Fatalf("want %q in persisted live surface:\n%s", want, persisted)
 		}
@@ -178,7 +176,7 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 //	  delete  498 feat/x
 func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	branches := out.Task("branches")
 	branches.RecordName("delete", "feat/a")
 	branches.RecordName("delete", "feat/b")
@@ -199,22 +197,28 @@ func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 	}
 }
 
-// TestSpecP7_Failure_NotTestable documents evo-rec.md Problem 7's failure
-// block:
+// TestSpecP7_Failure covers evo-rec.md Problem 7's failure block as sibling
+// child Tasks under a Group: a Done delete sibling and a Failed sibling.
 //
 //	✓  branches  120 deleted
 //	✗  branches  cannot delete feat/protected
-//	!  +380 not attempted after failure
-//
-// NOT-TESTABLE: both the Done row ("120 deleted") and the Failed row
-// ("cannot delete feat/protected") share the name "branches", but a Task is
-// one resolvable entity that can only reach one terminal state — the same
-// structural reason spec_golden_live_test.go's
-// TestSpecP8_LiveFrame_Step2_NotTestable already documents for Problem 8's
-// step2 block. There is no simplest-documented-spelling way to make one
-// TaskHandle render as both ✓ and ✗ at once.
-func TestSpecP7_Failure_NotTestable(t *testing.T) {
-	t.Skip("NOT-TESTABLE: see doc comment — a single TaskHandle cannot render both a Done row and a Failed row under one name")
+func TestSpecP7_Failure(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	g := out.Group("branches")
+	g.Task("deleted").Delete("branch", func() error { return nil }, evo.Affected(120))
+	g.Task("feat/protected").Fail("cannot delete feat/protected")
+	if err := out.Finish(); err != nil {
+		t.Log(err)
+	}
+	got := collapseFields(buf.String())
+	if !strings.Contains(got, "✓") || !strings.Contains(got, "deleted") {
+		t.Fatalf("want Done sibling, got:\n%s", buf.String())
+	}
+	if !strings.Contains(got, "✗") || !strings.Contains(got, "cannot delete feat/protected") {
+		t.Fatalf("want Failed sibling, got:\n%s", buf.String())
+	}
 }
 
 // TestSpecP7_LiveFrame_Indeterminate covers evo-rec.md Problem 7's
@@ -285,18 +289,29 @@ func TestSpecP7_ErrorBlock(t *testing.T) {
 	}
 }
 
-// TestSpecP7_EarlyTermination_NotTestable documents evo-rec.md Problem 7's
-// early-termination block:
+// TestSpecP7_EarlyTermination covers evo-rec.md Problem 7's early-termination
+// block as sibling child Tasks under a Group: a Done delete sibling and a
+// Cancelled sibling.
 //
 //	✓  branches  120 deleted
 //	■  branches  cancelled
-//	!  already mutated: 120 deletes; 380 remain
-//
-// NOT-TESTABLE: the Done row and the Cancelled row share the name
-// "branches" — the same one-entity-one-terminal-state constraint as
-// TestSpecP7_Failure_NotTestable above.
-func TestSpecP7_EarlyTermination_NotTestable(t *testing.T) {
-	t.Skip("NOT-TESTABLE: see doc comment — a single TaskHandle cannot render both a Done row and a Cancelled row under one name")
+func TestSpecP7_EarlyTermination(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	g := out.Group("branches")
+	g.Task("deleted").Delete("branch", func() error { return nil }, evo.Affected(120))
+	g.Task("remaining").Cancel("cancelled")
+	if err := out.Finish(); err != nil {
+		t.Log(err)
+	}
+	got := collapseFields(buf.String())
+	if !strings.Contains(got, "✓") || !strings.Contains(got, "deleted") {
+		t.Fatalf("want Done sibling, got:\n%s", buf.String())
+	}
+	if !strings.Contains(got, "■") || !strings.Contains(got, "cancelled") {
+		t.Fatalf("want Cancelled sibling, got:\n%s", buf.String())
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -314,10 +329,9 @@ func TestSpecP7_EarlyTermination_NotTestable(t *testing.T) {
 func TestSpecP8_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	remotes := out.Task("remotes")
-	_ = remotes.Delete("origin tip", nil, evo.Affected(3))
-	remotes.Done()
+	remotes.Delete("origin tip", func() error { return nil }, evo.Affected(3))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -349,32 +363,57 @@ func TestSpecP8_LiveFrame_Indeterminate(t *testing.T) {
 	}
 }
 
-// TestSpecP8_Error_NotTestable documents evo-rec.md Problem 8's error block:
+// TestSpecP8_Error covers evo-rec.md Problem 8's error block as sibling
+// child Tasks under a Group.
 //
 //	✓  remotes  deleted origin/feat/a
 //	✗  remotes  HTTP 401
-//	   └─ Authorization: token expired
-//	→  gh auth refresh
-//
-// NOT-TESTABLE: the Done row and the Failed row share the name "remotes" —
-// the same one-entity-one-terminal-state constraint documented by
-// spec_golden_live_test.go's TestSpecP8_LiveFrame_Step2_NotTestable, which
-// covers this exact problem's step2 block with an identical two-row shape.
-func TestSpecP8_Error_NotTestable(t *testing.T) {
-	t.Skip("NOT-TESTABLE: see doc comment — a single TaskHandle cannot render both a Done row and a Failed row under one name (same constraint as TestSpecP8_LiveFrame_Step2_NotTestable)")
+func TestSpecP8_Error(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	g := out.Group("remotes")
+	g.Task("origin/feat/a").Delete("origin tip", func() error { return nil })
+	failed := g.Task("origin/feat/b")
+	failed.Fail("HTTP 401", evo.Detail("Authorization: token expired"))
+	failed.NextCommand("gh", "auth", "refresh")
+	if err := out.Finish(); err != nil {
+		t.Log(err)
+	}
+	got := collapseFields(buf.String())
+	if !strings.Contains(got, "✓") || !strings.Contains(got, "origin/feat/a") {
+		t.Fatalf("want Done sibling, got:\n%s", buf.String())
+	}
+	if !strings.Contains(got, "✗") || !strings.Contains(got, "HTTP 401") {
+		t.Fatalf("want Failed sibling, got:\n%s", buf.String())
+	}
+	if !strings.Contains(got, "Authorization: token expired") {
+		t.Fatalf("want detail, got:\n%s", buf.String())
+	}
 }
 
-// TestSpecP8_EarlyTermination_NotTestable documents evo-rec.md Problem 8's
-// early-termination block:
+// TestSpecP8_EarlyTermination covers evo-rec.md Problem 8's early-termination
+// block as sibling child Tasks under a Group.
 //
 //	✓  remotes  deleted origin/feat/a
 //	■  remotes  cancelled before feat/b
-//	!  already mutated: 1 remote delete
-//
-// NOT-TESTABLE: the Done row and the Cancelled row share the name
-// "remotes" — the same constraint as TestSpecP8_Error_NotTestable above.
-func TestSpecP8_EarlyTermination_NotTestable(t *testing.T) {
-	t.Skip("NOT-TESTABLE: see doc comment — a single TaskHandle cannot render both a Done row and a Cancelled row under one name")
+func TestSpecP8_EarlyTermination(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	g := out.Group("remotes")
+	g.Task("origin/feat/a").Delete("origin tip", func() error { return nil })
+	g.Task("origin/feat/b").Cancel("cancelled before feat/b")
+	if err := out.Finish(); err != nil {
+		t.Log(err)
+	}
+	got := collapseFields(buf.String())
+	if !strings.Contains(got, "✓") || !strings.Contains(got, "origin/feat/a") {
+		t.Fatalf("want Done sibling, got:\n%s", buf.String())
+	}
+	if !strings.Contains(got, "■") || !strings.Contains(got, "cancelled before feat/b") {
+		t.Fatalf("want Cancelled sibling, got:\n%s", buf.String())
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -393,7 +432,7 @@ func TestSpecP8_EarlyTermination_NotTestable(t *testing.T) {
 func TestSpecP9_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	out.Task("venv").Done()
 	out.Task("install").Done()
@@ -417,7 +456,7 @@ func TestSpecP9_Success(t *testing.T) {
 //	-  install  not started
 func TestSpecP9_Failure(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
@@ -443,7 +482,7 @@ func TestSpecP9_Failure(t *testing.T) {
 func TestSpecP9_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	out.Task("venv").Fail("signal: killed")
 	if err := out.Finish(); err != nil {
@@ -467,13 +506,13 @@ func TestSpecP9_Error(t *testing.T) {
 //	!  already mutated: 1 incomplete .venv directory wrote
 func TestSpecP9_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")
 	scan.Done()
-	_ = venv.Write("incomplete .venv directory", nil)
+	venv.Record("write", 1, "incomplete .venv directory")
 	venv.Cancel("cancelled — .venv partial")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -483,8 +522,7 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 		"✓ scan",
 		"■ venv cancelled — .venv partial",
 		"- install not started",
-		"already mutated: 1 incomplete .venv directory wrote",
-	} {
+		"already mutated: 1 incomplete .venv directory wrote"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -501,7 +539,7 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 //   - install  installing
 func TestSpecP10_Step1(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("install").Doing("installing")
@@ -519,7 +557,7 @@ func TestSpecP10_Step1(t *testing.T) {
 //	•  install  14/40  requests
 func TestSpecP10_Step2(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Done()
@@ -549,7 +587,7 @@ func TestSpecP10_Step2(t *testing.T) {
 func TestSpecP10_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	out.Task("venv").Done()
 	out.Task("install").Done("14 modules")
@@ -563,8 +601,7 @@ func TestSpecP10_Success(t *testing.T) {
 		"✓ venv",
 		"✓ install 14 modules",
 		"✓ python setup",
-		"python was set up; 14 modules were installed",
-	} {
+		"python was set up; 14 modules were installed"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -580,7 +617,7 @@ func TestSpecP10_Success(t *testing.T) {
 func TestSpecP10_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	out.Task("install").Fail("uv pip install failed", evo.Detail("exit status 1"))
 	if err := out.Finish(); err != nil {
@@ -600,7 +637,7 @@ func TestSpecP10_Failure(t *testing.T) {
 //   - scan  scanning
 func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Doing("scanning")
@@ -620,7 +657,7 @@ func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP10_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	out.Task("install").Fail("network unreachable", evo.Detail("dial tcp: lookup pypi.org: no such host"))
 	if err := out.Finish(); err != nil {
@@ -630,8 +667,7 @@ func TestSpecP10_Error(t *testing.T) {
 	for _, want := range []string{
 		"✓ scan",
 		"✗ install network unreachable",
-		"dial tcp: lookup pypi.org: no such host",
-	} {
+		"dial tcp: lookup pypi.org: no such host"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -646,7 +682,7 @@ func TestSpecP10_Error(t *testing.T) {
 //	!  already mutated: 6 packages in .venv installed
 func TestSpecP10_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	install := out.Task("install")
 	install.Record("install", 6, "package in .venv")

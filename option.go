@@ -16,6 +16,7 @@ type config struct {
 	diagnostic        io.Writer
 	result            io.Writer // domain payload (FormatData); never used for presentation
 	plain             bool
+	projection        Projection
 	noColor           bool
 	width             int
 	clock             TimeSource
@@ -30,6 +31,7 @@ type config struct {
 	redactor          Redactor
 	maxEntities       int
 	maxEvents         int
+	maxConcurrency    int
 	extraWriters      []io.Writer
 	verbosity         Verbosity
 	// stdin is the facade Confirm reads one answer line from (default os.Stdin,
@@ -46,7 +48,7 @@ type config struct {
 	glyphs GlyphProfile
 	// samePrimaryAsTerminal records that the live Terminal driver was built
 	// around the same underlying writer as primary (Config's default-construction
-	// path: To(c.Stdout) and Terminal(ansi-over-c.Stdout) target one stream).
+	// path: to(c.Stdout) and withTerminal(ansi-over-c.Stdout) target one stream).
 	// Set only where construction knows both writers, never inferred later by
 	// comparing file descriptors — see configToOptions. Finish uses it to skip
 	// the CON-009 dual-stream write, which would otherwise render the
@@ -80,7 +82,7 @@ type optionFunc func(*config)
 func (f optionFunc) apply(c *config) { f(c) }
 
 // To sets the primary human writer.
-func To(w io.Writer) Option {
+func to(w io.Writer) Option {
 	return optionFunc(func(c *config) { c.primary = w })
 }
 
@@ -88,13 +90,13 @@ func To(w io.Writer) Option {
 // When set and distinct from the primary writer (To), Debug lines are not also
 // written to the human primary stream — use dual-stream for LaunchAgent /
 // data-command layouts (human on stdout, diagnostics on stderr).
-func Diagnostics(w io.Writer) Option {
+func withDiagnostics(w io.Writer) Option {
 	return optionFunc(func(c *config) { c.diagnostic = w })
 }
 
 // ResultStream sets the domain-payload writer (see Output.ResultWriter).
 // Presentation never writes here. FormatData defaults this to Config.Stdout.
-func ResultStream(w io.Writer) Option {
+func resultStream(w io.Writer) Option {
 	return optionFunc(func(c *config) {
 		if w != nil {
 			c.result = w
@@ -104,39 +106,43 @@ func ResultStream(w io.Writer) Option {
 
 // Plain forces final-report projection (no live spinner region).
 // Semantic color is still emitted unless NoColor is set.
-func Plain() Option {
+func plain() Option {
 	return optionFunc(func(c *config) { c.plain = true })
 }
 
+func withProjection(p Projection) Option {
+	return optionFunc(func(c *config) { c.projection = p })
+}
+
 // NoColor disables color.
-func NoColor() Option {
+func withNoColor() Option {
 	return optionFunc(func(c *config) { c.noColor = true })
 }
 
 // Width sets the terminal width in columns.
-func Width(columns int) Option {
+func withWidth(columns int) Option {
 	return optionFunc(func(c *config) { c.width = columns })
 }
 
 // Clock injects a time source facade.
-func Clock(ts TimeSource) Option {
+func withClock(ts TimeSource) Option {
 	return optionFunc(func(c *config) { c.clock = ts })
 }
 
 // VisibilityDelay sets how long live activity must persist before the first
 // interactive paint (default 80ms). Zero paints immediately. Prevents Phase→fast
 // Done spinner flash (H.2). Domain TimeSource is used for the threshold.
-func VisibilityDelay(delay time.Duration) Option {
+func visibilityDelay(delay time.Duration) Option {
 	return optionFunc(func(c *config) { c.visibilityDelay = delay })
 }
 
 // MaxFrameRate caps interactive redraws per second.
-func MaxFrameRate(framesPerSecond int) Option {
+func maxFrameRate(framesPerSecond int) Option {
 	return optionFunc(func(c *config) { c.maxFrameRate = framesPerSecond })
 }
 
 // Strict enables panic-on-misuse for tests.
-func Strict() Option {
+func strict() Option {
 	return optionFunc(func(c *config) { c.strict = true })
 }
 
@@ -145,7 +151,7 @@ func Strict() Option {
 // [planned] rows with imperative verbs instead of [changed] rows with
 // past-tense verbs. Set once via Config.DryRun in ordinary application code;
 // this Option exists for the advanced NewWithOptions surface and tests.
-func DryRun() Option {
+func dryRun() Option {
 	return optionFunc(func(c *config) { c.dryRun = true })
 }
 
@@ -160,12 +166,12 @@ func dryRunHeader(text string) Option {
 
 // Stdin injects the reader Confirm reads answers from (facade rule — no
 // direct os.Stdin read in Confirm's logic). Default os.Stdin.
-func Stdin(r io.Reader) Option {
+func stdin(r io.Reader) Option {
 	return optionFunc(func(c *config) { c.stdin = r })
 }
 
 // Terminal injects a terminal driver (interactive projection; v0.2).
-func Terminal(driver TerminalDriver) Option {
+func withTerminal(driver TerminalDriver) Option {
 	return optionFunc(func(c *config) { c.terminal = driver })
 }
 
@@ -209,7 +215,7 @@ const (
 
 // DebugLevel sets the minimum debug emission level.
 // Pass LevelTrace or LevelDebug to surface Debug journal lines.
-func DebugLevel(level LogLevel) Option {
+func debugLevel(level LogLevel) Option {
 	return optionFunc(func(c *config) {
 		if level == LevelUnset {
 			c.debugLevel = LevelInfo
@@ -225,7 +231,7 @@ func DebugLevel(level LogLevel) Option {
 // round 6 finding 2): a bare pc=<uintptr> field never belongs on a human
 // debug line; the raw PC still lives on LogRecord for machine consumers
 // regardless of this setting.
-func DebugAddSource() Option {
+func debugAddSource() Option {
 	return optionFunc(func(c *config) { c.debugAddSource = true })
 }
 
@@ -238,7 +244,7 @@ type TerminalDriver interface {
 
 // sinkReporter is implemented by a TerminalDriver that knows its own
 // destination writer (terminal.ANSI, testkit's drivers). configToOptions and
-// newOutput use it to DETECT whether a caller-supplied Terminal(...) happens
+// newOutput use it to DETECT whether a caller-supplied withTerminal(...) happens
 // to write to a stream evident-output already knows about (primary,
 // diagnostic, or either of Config's Stdout/Stderr), instead of only knowing
 // that for the one construction path that builds both itself.
@@ -257,19 +263,23 @@ const (
 )
 
 // MaxEntities caps total items and tasks for one Output (0 uses default).
-func MaxEntities(n int) Option {
+func maxEntities(n int) Option {
 	return optionFunc(func(c *config) { c.maxEntities = n })
 }
 
 // MaxEvents caps durable journal events; when exceeded, oldest non-critical
 // events are dropped so critical terminal events are retained (CON-008).
-func MaxEvents(n int) Option {
+func maxEvents(n int) Option {
 	return optionFunc(func(c *config) { c.maxEvents = n })
+}
+
+func maxConcurrency(n int) Option {
+	return optionFunc(func(c *config) { c.maxConcurrency = n })
 }
 
 // AlsoWrite adds an additional human projection writer. On Finish, each writer
 // receives the plain projection; failures on one do not skip the others (CON-009).
-func AlsoWrite(w io.Writer) Option {
+func alsoWrite(w io.Writer) Option {
 	return optionFunc(func(c *config) {
 		if w != nil {
 			c.extraWriters = append(c.extraWriters, w)

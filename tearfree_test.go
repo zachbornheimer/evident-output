@@ -18,9 +18,11 @@ import (
 // stress test depends on.
 func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.Terminal(screen), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Title: "demo", VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
+	out.DropDiagnosticForTest()
 	task := out.Task("install")
 	task.Doing("working")
+	out.ForceLiveVisibleForTest()
 	if screen.LiveFrameCount() == 0 {
 		t.Fatal("setup: expected an initial live frame before Println")
 	}
@@ -64,9 +66,11 @@ func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 // land between a complete clear and a full redraw — never mid-frame.
 func TestDurableWrite_TearFreeUnderConcurrentProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.Terminal(screen), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Title: "demo", VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
+	out.DropDiagnosticForTest()
 	task := out.Task("install")
 	task.Progress(0, 1000)
+	out.ForceLiveVisibleForTest()
 
 	const iterations = 500
 	var wg sync.WaitGroup

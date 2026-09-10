@@ -3,22 +3,12 @@
 ## Predeclare (RULE-004)
 
 ```go
-jobs := out.DisplayGroup("placement")
-type tracked struct {
-    file File
-    task *evo.TaskHandle
+for path, task := range out.Group("placement").Each(paths) {
+    task.Define(func() error { return place(path) })
 }
-var tracked []tracked
-for _, f := range sortedFiles {
-    tracked = append(tracked, tracked{
-        file: f,
-        task: jobs.Task(f.RelPath, evo.ID("file."+stableID(f))),
-    })
-}
-// start workers that only call task.Phase / Bytes / Done / Fail
 ```
 
-Do **not** call `jobs.Task(...)` inside workers — declaration order is presentation order.
+Do **not** spawn caller goroutines to make Group work parallel — Evo's scheduler owns overlap. `Sequence` is the same scheduler with implicit predecessor dependencies. `After(...)` is the escape hatch for a DAG edge nesting cannot express.
 
 ## Neutral domain boundary
 
@@ -32,12 +22,12 @@ type PlaceCallbacks struct {
 
 ## Scale (RULE-005)
 
-| Workload | Model                                                      |
-| -------- | ---------------------------------------------------------- |
-| Small    | One Task per operation                                     |
-| Medium   | Aggregate Progress + optional active-transfer DisplayGroup |
-| Huge     | Aggregate counts + bounded failure Problems                |
-| Dry-run  | Plan only                                                  |
+| Workload | Model                                               |
+| -------- | --------------------------------------------------- |
+| Small    | One Task per operation                              |
+| Medium   | Aggregate Progress + optional active-transfer Group |
+| Huge     | Aggregate counts + bounded failure Problems         |
+| Dry-run  | Plan only                                           |
 
 ## Viewport ≠ model
 

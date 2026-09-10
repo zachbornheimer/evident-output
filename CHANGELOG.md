@@ -6,6 +6,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project has not reached 1.0 — pre-1.0 API breaks are called out explicitly
 below rather than deferred to a major version.
 
+## Unreleased
+
+### Added
+
+- **MCP `evident_output_update` / `evident-output-mcp update`:** reinstall a matching stdio server after an evo bump (`--version` XOR `--directory`), symlink into `~/.local/bin`, then restart the host. Review reports `module_version` / `replace_path` / `desired_version`; the MCP writer adds `mcp_version` / `update_needed`.
+- **`Output.About`:** names the run (a repo path) without emitting a row, so a later `DeclareDryRun` can merge `[dry-run] repo  /path`. Hosts that Init before they know the path used to drop it.
+- **`evo.NewAPI()` / `EncodeEnvelope` / `EncodeProblem`:** HTTP JSON uses the zyins V1 envelope (`object`, `livemode`, `request_id`, `data`) and RFC 7807 problems with `livemode`. APIDefaults is on for `NewAPI()`; CLI `Init` JSONDocument is unchanged. `idempotency_key` is omitempty only.
+- **FP-005 / API-039:** review flags a Task that is `Done` with no running window, and a DisplayGroup that only ever has one child. Suggestions name `Doing` and a lone `Task`.
+- Declared standalone/DisplayGroup tasks paint **Running** immediately so tool rows spin before they can show complete. A 1-child DisplayGroup collapses to a single live/plain line (no `0/1 complete` header).
+- **`EVO_OUTPUT`** presentation projection (`human`/`plain`/`json`/`jsonl`/`stream-json`),
+  plus `EVO_COLOR`, `EVO_VERBOSE`, `EVO_DEBUG`. Independent of `Format` (stream
+  routing). `FormatData` plus `stream-json` writes EventJSON to stderr; stdout
+  stays the domain payload. `stream-json` emits one line at each journal append.
+- **`adopt_plan` paging:** cursor, 40-finding pages, `cmd/` first, skip `*_test.go`,
+  facades as the page when present. CLI `evident-output adopt [--cursor=] <dir>`.
+- **`review` `kind=directory`** and CLI `review <dir>`.
+- **API-032** for `Plan`/`Changes` (removed in v0.4).
+
+### Changed
+
+- MCP `tools/list` advertises seven tools (`list_sections`, `get_documentation`,
+  `adopt_plan`, `review`, `preview`, `explain`, `update`). `list_guides`/`get_guidance`
+  remain `tools/call` aliases.
+
+### Fixed
+
+- Facade detection no longer treats `fmt.Fprint(os.Stderr)` inside an arbitrary
+  method as an output facade; `io.Writer` fields that methods write through
+  still count.
+
+## [0.4.6] — RecordName streams at task resolution
+
+### Fixed
+
+- **RecordName rows** stream when the owning task resolves, not only at Finish.
+- **adopt/review:** detect output facades; allow the exit-code fidelity pattern.
+
+## [0.4.5] — honest MCP file reads
+
+### Fixed
+
+- **MCP `file`/`files`:** unreadable paths return `cannot read <path>` instead of
+  a parser EOF. Builder/Buffer `fmt.Fprint` is not STREAM-003.
+
+## [0.4.4] — MCP docs and adopt_plan
+
+### Added
+
+- **Docs through the server:** `list_sections` / `get_documentation`.
+- **`adopt_plan`** inventory of non-evo output.
+- Self-driving review loop (`next_action`, initialize instructions).
+
 ## [0.4.3] — blank line before ledger, live-path glyph spacing
 
 ### Fixed

@@ -60,30 +60,28 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func f() {
-  out := evo.Init(evo.Config{Options: []evo.Option{}})
+  out := evo.Init(evo.Config{})
   fmt.Printf("hi")
   _ = out
 }
 `,
 			MustDetect: []string{"STREAM-003"},
 			GuidanceID: "streams",
-			Repairable: true,
-		},
+			Repairable: true},
 		{
 			ID:          "redundant-start",
 			Description: "detect redundant Start",
 			BadSource: `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f() {
-  out := evo.Init(evo.Config{Options: []evo.Option{}})
+  out := evo.Init(evo.Config{})
   t := out.Task("x")
   t.Start()
 }
 `,
 			MustDetect: []string{"API-006"},
 			GuidanceID: "tasks",
-			Repairable: true,
-		},
+			Repairable: true},
 		{
 			ID:          "blocked-as-error",
 			Description: "detect blocked item returned as application error (MCP-014)",
@@ -93,7 +91,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func check() error {
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo")}})
+  out := evo.Init(evo.Config{Title: "repo"})
   defer out.Close()
   out.Task("working tree").Block("dirty")
   return errors.New("dirty")
@@ -101,16 +99,13 @@ func check() error {
 `,
 			MustDetect: []string{"DOM-011"},
 			GuidanceID: "common-api",
-			Repairable: true,
-		},
+			Repairable: true},
 		{
 			ID:          "common-api-guidance",
 			Description: "guidance catalog has common-api",
 			BadSource:   `package p`,
 			MustDetect:  nil,
-			GuidanceID:  "common-api",
-		},
-	}
+			GuidanceID:  "common-api"}}
 }
 
 // Run executes all default scenarios (detect-only pass criteria).
@@ -287,8 +282,7 @@ func RunAllRepairable() []Result {
 			RecheckRequired: loop.Final.RecheckRequired,
 			Clean:           loop.ReachedClean,
 			Passed:          loop.ReachedClean,
-			Detail:          loop.StoppedReason,
-		}
+			Detail:          loop.StoppedReason}
 		// Also require initial detection of MustDetect.
 		init := review.GoSource(s.ID+".go", s.BadSource)
 		have := map[string]bool{}

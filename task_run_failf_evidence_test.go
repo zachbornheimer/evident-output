@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"io"
 	"os/exec"
 	"strings"
 	"testing"
@@ -12,7 +13,7 @@ import (
 // TestRun_ThenFailf_RendersChildStderrInFinalReport is beginner-gate-2
 // finding 3, root cause B: task_run.go's own documented spelling —
 //
-//	if err := task.Run(cmd); err != nil {
+//	if err := task.RunForTest(cmd); err != nil {
 //	    return task.Failf("build failed: %w", err)
 //	}
 //
@@ -30,12 +31,12 @@ import (
 // under a real pty (script(1)) capture too.
 func TestRun_ThenFailf_RendersChildStderrInFinalReport(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "echo 'undefined reference to main' 1>&2; exit 1")
-	if err := task.Run(cmd); err != nil {
+	if err := task.RunForTest(cmd); err != nil {
 		_ = task.Failf("build failed: %w", err)
 	}
 

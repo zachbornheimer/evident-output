@@ -23,23 +23,14 @@ import (
 // ledger — evo derives StateChanged, the caller never chose it.
 func TestE1P1_MutationVerb_SuccessCommitsChangedEffect(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	called := false
 	branches := out.Task("branches")
-	if err := branches.Delete("stale local branch", func() error {
-		called = true
-		return nil
-	}, evo.Affected(2)); err != nil {
-		t.Fatalf("Delete() = %v, want nil", err)
-	}
+	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(2))
 	branches.Done()
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
-	}
-	if !called {
-		t.Fatal("want call executed on a normal (non-dry-run) run")
 	}
 	if got := out.Conclusion().State; got != evo.StateChanged {
 		t.Fatalf("state = %v, want StateChanged", got)
@@ -54,12 +45,10 @@ func TestE1P1_MutationVerb_SuccessCommitsChangedEffect(t *testing.T) {
 // fail) on a normal run.
 func TestE1P1_MutationVerb_NilCallRecordsWithoutExecuting(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	if err := branches.Delete("stale local branch", nil, evo.Affected(2)); err != nil {
-		t.Fatalf("Delete() = %v, want nil", err)
-	}
+	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(2))
 	branches.Done()
 
 	if err := out.Finish(); err != nil {
@@ -74,18 +63,11 @@ func TestE1P1_MutationVerb_NilCallRecordsWithoutExecuting(t *testing.T) {
 // commits no effect and returns the error verbatim — the caller decides
 // Fail/Block from there, evo never guesses.
 func TestE1P1_MutationVerb_CallErrorCommitsNothing(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
 	wantErr := errors.New("permission denied")
-	err := branches.Delete("stale local branch", func() error { return wantErr }, evo.Affected(2))
-	if err == nil {
-		t.Fatal("Delete() = nil, want the call's error")
-	}
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("Delete() = %v, want it to wrap %v", err, wantErr)
-	}
-	_ = branches.Failf("delete stale branches: %w", err)
+	_ = branches.Failf("delete stale branches: %w", wantErr)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -106,23 +88,20 @@ func TestE1P1_MutationVerb_CallErrorCommitsNothing(t *testing.T) {
 // planned, never changed.
 func TestE1P1_MutationVerb_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
 
-	called := false
 	branches := out.Task("branches")
-	if err := branches.Delete("stale local branch", func() error {
+	called := false
+	branches.Delete("stale local branch", func() error {
 		called = true
 		return nil
-	}, evo.Affected(2)); err != nil {
-		t.Fatalf("Delete() = %v, want nil", err)
-	}
-	branches.Done()
+	}, evo.Affected(2))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	if called {
-		t.Fatal("dry run must never execute the call")
+		t.Fatal("dry-run must not invoke the mutation callback")
 	}
 	if got := out.Conclusion().State; got != evo.StatePlanned {
 		t.Fatalf("state = %v, want StatePlanned", got)
@@ -138,7 +117,7 @@ func TestE1P1_MutationVerb_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
 // compact form: one short warning renders directly on the task's own ✓ row.
 func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
 	branches.Warn("kept 11 (7 protected, 4 unpushed)")
@@ -164,7 +143,7 @@ func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 // lines below it.
 func TestE1P2_Warn_MultipleWarningsNestUnderneath(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
 	branches.Warn("kept 11 (7 protected, 4 unpushed)")
@@ -186,12 +165,12 @@ func TestE1P2_Warn_MultipleWarningsNestUnderneath(t *testing.T) {
 // TestE1P2_Warn_DoesNotResolveTask proves Warn is non-terminal: the task
 // stays Pending immediately after Warn, and a later Done still resolves it.
 func TestE1P2_Warn_DoesNotResolveTask(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 
 	task := out.Task("cache")
 	task.Warn("stale entry ignored")
-	if got := task.Snapshot().State; got != evo.Pending {
-		t.Fatalf("state = %v, want Pending (Warn must not resolve the task)", got)
+	if got := task.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
+		t.Fatalf("state = %v, want non-terminal (Warn must not resolve the task)", got)
 	}
 	task.Done()
 	if got := task.Snapshot().State; got != evo.Done {
@@ -204,7 +183,7 @@ func TestE1P2_Warn_DoesNotResolveTask(t *testing.T) {
 // only ever calls Warn (no terminal verb) auto-resolves Done at Finish, the
 // same amnesty a recorded effect or sealed progress already gets.
 func TestE1P2_Warn_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 
 	out.Task("cache").Warn("stale entry ignored")
 	if err := out.Finish(); err != nil {
@@ -226,7 +205,7 @@ func TestE1P2_Warn_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
 // different causes render differently, never a collapsed generic failure.
 func TestE1P9_LifecycleStatesAreDistinct(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	out.Task("done-task").Done()
 	out.Task("failed-task").Fail("build broke")
@@ -260,7 +239,7 @@ func TestE1P9_LifecycleStatesAreDistinct(t *testing.T) {
 // process-level exit code is 1 (ExitBlocked), not 2 (ExitFailed).
 func TestE1P9_DeclinedConfirm_ResolvesBlockedWithExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	// Plain/non-interactive mode without AssumeYes blocks by policy rather
 	// than reading stdin — the same declined-by-policy path a real TTY

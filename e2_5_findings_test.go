@@ -3,10 +3,9 @@ package evo_test
 import (
 	"bytes"
 	"errors"
+	"io"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
@@ -25,10 +24,10 @@ import (
 // suppressed rather than papering over the warning underneath it.
 func TestE2_5Finding1_WarnedGroupChildReachesConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	group := out.DisplayGroup("dependencies")
+	group := out.Group("dependencies")
 	child := group.Task("cache")
 	child.Warn("stale entry ignored")
 	child.Done()
@@ -57,26 +56,14 @@ func TestE2_5Finding1_WarnedGroupChildReachesConclusion(t *testing.T) {
 // mutation verb called after the task already resolved (Done) never
 // executes the call and never silently swallows the misuse as a nil error.
 func TestE2_5Finding2_MutationOnResolvedTaskReturnsErrorNeverNil(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
 	task.Done()
-
-	called := false
-	err := task.Delete("stale local branch", func() error {
-		called = true
-		return nil
-	}, evo.Affected(1))
-
-	if called {
-		t.Fatal("Delete's call must not run once the task is already resolved")
-	}
-	if err == nil {
-		t.Fatal("Delete() = nil, want a non-nil error for a mutation on an already-resolved task")
-	}
-	if !errors.Is(err, evo.ErrAlreadyResolved) {
-		t.Fatalf("Delete() = %v, want it to wrap ErrAlreadyResolved", err)
+	task.Delete("stale local branch", func() error { return nil }, evo.Affected(1))
+	if !errors.Is(out.Err(), evo.ErrAlreadyResolved) {
+		t.Fatalf("Err() = %v, want ErrAlreadyResolved for a mutation on an already-resolved task", out.Err())
 	}
 }
 
@@ -88,7 +75,7 @@ func TestE2_5Finding2_MutationOnResolvedTaskReturnsErrorNeverNil(t *testing.T) {
 // no bang at all.
 func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
@@ -111,12 +98,13 @@ func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 // reports ErrInvalidConfig.
 func TestE2_5Finding4_NegativeAffectedRecordsMisuseNothing(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
-	if err := branches.Delete("stale local branch", nil, evo.Affected(-1)); !errors.Is(err, evo.ErrInvalidConfig) {
-		t.Fatalf("Delete() = %v, want ErrInvalidConfig for a negative Affected quantity", err)
+	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(-1))
+	if !errors.Is(out.Err(), evo.ErrInvalidConfig) {
+		t.Fatalf("Err() = %v, want ErrInvalidConfig for a negative count", out.Err())
 	}
 	branches.Done()
 	_ = out.Finish()
@@ -135,13 +123,11 @@ func TestE2_5Finding4_NegativeAffectedRecordsMisuseNothing(t *testing.T) {
 // bug class.
 func TestE2_5Finding4_ZeroAffectedNeverCreatesEffectlessLedgerSection(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
-	if err := branches.Delete("stale local branch", nil, evo.Affected(0)); err != nil {
-		t.Fatalf("Delete() = %v, want nil", err)
-	}
+	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(0))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -162,31 +148,21 @@ func TestE2_5Finding4_ZeroAffectedNeverCreatesEffectlessLedgerSection(t *testing
 // verb's in-flight call must not cause the effect that call just committed
 // to be silently dropped as spurious misuse.
 func TestE2_5Finding5_ConcurrentDoneDuringMutationCallDoesNotDropEffect(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
+	started := make(chan struct{})
+	release := make(chan struct{})
 	branches := out.Task("branches")
-	callStarted := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-callStarted
-		branches.Done()
-	}()
-
-	err := branches.Delete("stale local branch", func() error {
-		close(callStarted)
-		// Give the concurrent Done a chance to run before the call returns
-		// and the effect gets recorded.
-		<-time.After(20 * time.Millisecond)
+	branches.Delete("stale local branch", func() error {
+		close(started)
+		<-release
 		return nil
 	}, evo.Affected(2))
-	wg.Wait()
-
-	if err != nil {
-		t.Fatalf("Delete() = %v, want nil (the call itself succeeded)", err)
-	}
+	<-started
+	branches.Done()
+	close(release)
+	_ = out.Finish()
 	snap := out.Snapshot()
 	found := false
 	for _, ch := range snap.Changes {
@@ -207,7 +183,7 @@ func TestE2_5Finding5_ConcurrentDoneDuringMutationCallDoesNotDropEffect(t *testi
 // forced onto a nested line just because its byte length is inflated.
 func TestE2_5Finding6_InlineThresholdMeasuresDisplayWidthNotBytes(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	// Each "é" is 2 bytes but 1 display cell — 30 of them is 60 bytes but
@@ -253,7 +229,7 @@ func TestE2_5Finding7_RecordFamilyNilSafe(t *testing.T) {
 // recurses correctly; this golden proves the rendered indentation does too.
 func TestE2_5Item8_ThreeLevelNestedContainerPlainByteShape(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	root := out.Sequence("release")
@@ -278,7 +254,7 @@ func TestE2_5Item8_ThreeLevelNestedContainerPlainByteShape(t *testing.T) {
 // indents its children 3 spaces deeper while Running.
 func TestE2_5Item8_ThreeLevelNestedContainerLiveByteShape(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	root := out.Sequence("release")

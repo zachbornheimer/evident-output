@@ -45,7 +45,7 @@ func TestFirstPaintGuideCarriesFPRules(t *testing.T) {
 		t.Fatalf("found=%#v missing=%#v", found, missing)
 	}
 	g := found[0]
-	for _, want := range []string{"FP-001", "FP-002", "FP-003"} {
+	for _, want := range []string{"FP-001", "FP-002", "FP-003", "FP-005"} {
 		hit := false
 		for _, r := range g.Rules {
 			if r == want {

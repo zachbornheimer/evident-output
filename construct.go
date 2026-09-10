@@ -125,7 +125,7 @@ type Config struct {
 	//
 	// When the subject text isn't known until after Init (e.g. resolved
 	// from a flag parsed later, but still before any other I/O), call
-	// Output.Subject(text) instead — same one-shot durable-line semantics,
+	// Output.subject(text) instead — same one-shot durable-line semantics,
 	// as a post-construction setter (I3).
 	Subject string
 
@@ -145,8 +145,13 @@ type Config struct {
 	Verbosity Verbosity
 	// Color policy (default ColorAuto).
 	Color ColorMode
-	// Format projection mode (default FormatHuman).
+	// Format projection mode (default FormatHuman). Stream routing only —
+	// FormatData does not mean JSON. Presentation encoding is Projection.
 	Format Format
+	// Projection selects presentation encoding (human, plain, json, jsonl,
+	// stream-json). Zero is unspecified: Init applies EVO_OUTPUT when set,
+	// otherwise human TTY/plain inference. Independent of Format.
+	Projection Projection
 
 	// Debug configures the debug journal.
 	Debug DebugConfig
@@ -190,28 +195,21 @@ type Config struct {
 	// state: it is not installed as the package-level default and does not
 	// arm first paint. Use for parallel tests and embedders that hold their
 	// own *Output instead of going through Default()/Task()/Print() et al.
-	// This is the one and only opt-out from default installation — it
-	// applies identically whether or not Options is also set (release-gate
-	// round 8 finding 1): Options is an orthogonal escape hatch for how the
-	// Output is built, not for whether it becomes the default.
 	Isolated bool
 
-	// Options is the advanced, raw Option escape hatch for tests and
-	// specialized embedding (custom Terminal, Clock, exact writer wiring)
-	// that need to bypass Config's ordinary stream/TTY/color inference
-	// entirely. When set, every other Config field except Title, DryRun, and
-	// Subject is ignored and the Output is built from these Options alone.
-	// It still installs as the package-level default and arms first paint
-	// exactly like every other Init call, unless Isolated is also set —
-	// see Isolated and Init.
-	Options []Option
+	// MaxConcurrency is the scheduler ceiling. Zero means GOMAXPROCS.
+	MaxConcurrency int
+
+	// API reserved for HTTP JSON encoding on this Output. Unused this
+	// slice except as a construction field (Init(Config{API: false})).
+	API bool
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
 //
 //	cfg.VisibilityDelay = evo.Delay(0)                      // immediate
 //	cfg.VisibilityDelay = evo.Delay(80 * time.Millisecond) // explicit default
-func Delay(d time.Duration) *time.Duration {
+func delay(d time.Duration) *time.Duration {
 	return &d
 }
 
@@ -226,7 +224,7 @@ func DefaultConfig() Config {
 			View:  DebugPresentationHistory,
 		},
 		Width:           defaultWidth,
-		VisibilityDelay: Delay(defaultVisibilityDelay),
+		VisibilityDelay: delay(defaultVisibilityDelay),
 		MaxFrameRate:    defaultMaxFrameRate,
 		MaxEntities:     defaultMaxEntities,
 		MaxEvents:       defaultMaxEvents,
@@ -254,7 +252,7 @@ func resolveConfig(c Config) Config {
 	}
 	// nil = unspecified → default; non-nil (including 0) is intentional.
 	if c.VisibilityDelay == nil {
-		c.VisibilityDelay = Delay(defaultVisibilityDelay)
+		c.VisibilityDelay = delay(defaultVisibilityDelay)
 	}
 	if c.MaxFrameRate <= 0 {
 		c.MaxFrameRate = base.MaxFrameRate
@@ -266,10 +264,10 @@ func resolveConfig(c Config) Config {
 		c.MaxEvents = base.MaxEvents
 	}
 	if c.Clock == nil {
-		c.Clock = SystemClock{}
+		c.Clock = systemClock{}
 	}
 	if c.Redactor == nil {
-		c.Redactor = NoopRedactor{}
+		c.Redactor = noopRedactor{}
 	}
 	return c
 }
@@ -286,21 +284,21 @@ func configToOptions(c Config) []Option {
 	switch c.Format {
 	case FormatData:
 		// Human presentation on stderr; domain payload on Result (default Stdout).
-		opts = append(opts, To(c.Stderr), Diagnostics(c.Stderr), DataProjection())
+		opts = append(opts, to(c.Stderr), withDiagnostics(c.Stderr), dataProjection())
 		resultW := c.Result
 		if resultW == nil {
 			resultW = c.Stdout
 		}
-		opts = append(opts, ResultStream(resultW))
+		opts = append(opts, resultStream(resultW))
 	case FormatExternal:
-		opts = append(opts, To(c.Stdout), Diagnostics(c.Stderr), ExternalProjection())
+		opts = append(opts, to(c.Stdout), withDiagnostics(c.Stderr), externalProjection())
 		if c.Result != nil {
-			opts = append(opts, ResultStream(c.Result))
+			opts = append(opts, resultStream(c.Result))
 		}
 	default:
-		opts = append(opts, To(c.Stdout), Diagnostics(c.Stderr))
+		opts = append(opts, to(c.Stdout), withDiagnostics(c.Stderr))
 		if c.Result != nil {
-			opts = append(opts, ResultStream(c.Result))
+			opts = append(opts, resultStream(c.Result))
 		}
 	}
 
@@ -312,19 +310,19 @@ func configToOptions(c Config) []Option {
 	case ColorAlways:
 		// keep color
 	default: // ColorAuto
-		if os.Getenv("NO_COLOR") != "" {
+		if lookupEnv(envKeyNoColor) != "" {
 			noColor = true
 		}
-		if !IsCharDevice(c.Stdout) && c.Format != FormatData {
+		if !writerIsCharDevice(c.Stdout) && c.Format != FormatData {
 			// Off-TTY human primary: no CSI.
 			noColor = true
 		}
-		if c.Format == FormatData && !IsCharDevice(c.Stderr) {
+		if c.Format == FormatData && !writerIsCharDevice(c.Stderr) {
 			noColor = true
 		}
 	}
 	if noColor {
-		opts = append(opts, NoColor())
+		opts = append(opts, withNoColor())
 	}
 
 	// Interactive live region only on a real TTY and human format.
@@ -332,13 +330,13 @@ func configToOptions(c Config) []Option {
 	liveWriter := c.Stdout
 	if c.Format == FormatData {
 		liveWriter = c.Stderr
-		wantLive = !c.Plain && IsCharDevice(c.Stderr)
+		wantLive = !c.Plain && writerIsCharDevice(c.Stderr)
 	} else {
-		wantLive = wantLive && IsCharDevice(c.Stdout)
+		wantLive = wantLive && writerIsCharDevice(c.Stdout)
 	}
 	switch {
 	case c.Terminal != nil:
-		opts = append(opts, Terminal(c.Terminal))
+		opts = append(opts, withTerminal(c.Terminal))
 		// A caller-supplied driver (Config.Terminal or the Options path) may
 		// still write to one of the two streams Config already wired up —
 		// DETECT that via the driver's own Sink() rather than requiring the
@@ -357,12 +355,12 @@ func configToOptions(c Config) []Option {
 				default:
 					// Driver targets a third stream (e.g. a log file) that is
 					// neither configured stream. Config exposes no separate
-					// To() a caller could use to request an intentional
+					// to() a caller could use to request an intentional
 					// second copy, so route primary there instead of leaving
 					// it on c.Stdout by default (finding-2 symmetry) —
 					// otherwise nothing would ever fan the driver's own
 					// conclusion band out to a plain/non-interactive mirror.
-					opts = append(opts, To(sink))
+					opts = append(opts, to(sink))
 				}
 			}
 		}
@@ -397,15 +395,15 @@ func configToOptions(c Config) []Option {
 			if f, ok := liveWriter.(*os.File); ok {
 				ansiOpts = append(ansiOpts, terminal.WithSizeFile(f))
 			}
-			opts = append(opts, Terminal(terminal.NewANSI(liveWriter, ansiOpts...)))
-			opts = append(opts, Width(width))
-			// liveWriter is the same stream To() was already given above
+			opts = append(opts, withTerminal(terminal.NewANSI(liveWriter, ansiOpts...)))
+			opts = append(opts, withWidth(width))
+			// liveWriter is the same stream to() was already given above
 			// (c.Stdout, or c.Stderr in FormatData) — the terminal and
 			// primary are one physical destination, so Finish must not
 			// dual-write the conclusion band a second time.
 			opts = append(opts, withPrimarySharesTerminal())
-			// Diagnostics(c.Stderr) is a distinct io.Writer from liveWriter
-			// in the realistic default (To(Stdout), Diagnostics(Stderr)),
+			// withDiagnostics(c.Stderr) is a distinct io.Writer from liveWriter
+			// in the realistic default (to(Stdout), withDiagnostics(Stderr)),
 			// but on an interactive shell without redirection both fds name
 			// the same controlling tty — detect that here so Debug routes
 			// through live-aware sequencing instead of a raw dual-stream
@@ -414,62 +412,64 @@ func configToOptions(c Config) []Option {
 				opts = append(opts, withDiagnosticSharesTerminal())
 			}
 		} else {
-			opts = append(opts, Plain())
+			opts = append(opts, plain())
 		}
 	default:
-		opts = append(opts, Plain())
+		opts = append(opts, plain())
 	}
-	if c.Plain {
-		opts = append(opts, Plain())
+	if c.Plain || c.Projection.forcesPlain() {
+		opts = append(opts, plain())
 	}
+	opts = append(opts, withProjection(c.Projection))
 
 	if c.Stdin != nil {
-		opts = append(opts, Stdin(c.Stdin))
+		opts = append(opts, stdin(c.Stdin))
 	}
-	opts = append(opts, Clock(c.Clock), Redact(c.Redactor), Width(c.Width))
+	opts = append(opts, withClock(c.Clock), redact(c.Redactor), withWidth(c.Width))
 	visDelay := defaultVisibilityDelay
 	if c.VisibilityDelay != nil {
 		visDelay = *c.VisibilityDelay
 	}
-	opts = append(opts, VisibilityDelay(visDelay), MaxFrameRate(c.MaxFrameRate))
-	opts = append(opts, MaxEntities(c.MaxEntities), MaxEvents(c.MaxEvents))
-	opts = append(opts, DebugLevel(c.Debug.Level))
+	opts = append(opts, visibilityDelay(visDelay), maxFrameRate(c.MaxFrameRate))
+	opts = append(opts, maxEntities(c.MaxEntities), maxEvents(c.MaxEvents))
+	opts = append(opts, maxConcurrency(c.MaxConcurrency))
+	opts = append(opts, debugLevel(c.Debug.Level))
 	if c.Debug.AddSource {
-		opts = append(opts, DebugAddSource())
+		opts = append(opts, debugAddSource())
 	}
 	if c.Debug.View == DebugPresentationPane {
 		var paneOpts []DebugPaneOption
 		if c.Debug.PaneHeight > 0 {
-			paneOpts = append(paneOpts, PaneHeight(c.Debug.PaneHeight))
+			paneOpts = append(paneOpts, paneHeight(c.Debug.PaneHeight))
 		}
 		if c.Debug.NewestFirst != nil {
 			if *c.Debug.NewestFirst {
-				paneOpts = append(paneOpts, NewestFirst())
+				paneOpts = append(paneOpts, newestFirst())
 			} else {
-				paneOpts = append(paneOpts, OldestFirst())
+				paneOpts = append(paneOpts, oldestFirst())
 			}
 		}
 		if c.Debug.PreserveAlways {
-			paneOpts = append(paneOpts, PreserveDebugTail())
+			paneOpts = append(paneOpts, preserveDebugTail())
 		}
-		opts = append(opts, DebugPane(paneOpts...))
+		opts = append(opts, debugPane(paneOpts...))
 	} else {
-		opts = append(opts, DebugHistory())
+		opts = append(opts, debugHistory())
 	}
 	if c.Strict {
-		opts = append(opts, Strict())
+		opts = append(opts, strict())
 	}
 	opts = append(opts, withVerbosity(c.Verbosity))
 	if c.FailedExitCode != 0 {
 		opts = append(opts, withFailedExitCode(c.FailedExitCode))
 	}
 	if c.DryRun {
-		opts = append(opts, DryRun())
+		opts = append(opts, dryRun())
 		if c.Subject != "" {
 			opts = append(opts, dryRunHeader(c.Subject))
 		}
 	}
-	opts = append(opts, Glyphs(c.Glyphs))
+	opts = append(opts, glyphs(c.Glyphs))
 	return opts
 }
 
@@ -481,9 +481,4 @@ func withVerbosity(v Verbosity) Option {
 // withFailedExitCode stores a non-default failed conclusion exit code.
 func withFailedExitCode(code int) Option {
 	return optionFunc(func(c *config) { c.failedExitCode = code })
-}
-
-// Title sets the conclusion subject for Config.Options's raw Option path.
-func Title(subject string) Option {
-	return optionFunc(func(c *config) { c.subject = subject })
 }

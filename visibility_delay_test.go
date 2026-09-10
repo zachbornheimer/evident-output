@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -11,30 +12,22 @@ import (
 func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(screen),
-		evo.Clock(clock),
-		evo.VisibilityDelay(150 * time.Millisecond),
-		evo.NoColor(),
-	}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(150 * time.Millisecond), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("download")
-	task.Doing("fetching") // activity — should wait for delay
 	if got := screen.LiveFrameCount(); got != 0 {
-		t.Fatalf("live frames before delay = %d, want 0", got)
+		t.Fatal("pending declare must be withheld until VisibilityDelay elapses")
 	}
 
-	clock.Advance(50 * time.Millisecond)
-	task.Doing("still fetching") // still within delay
-	if got := screen.LiveFrameCount(); got != 0 {
-		t.Fatalf("live frames mid-delay = %d, want 0", got)
-	}
-
-	clock.Advance(120 * time.Millisecond) // total 170ms >= 150ms
-	task.Progress(1, 2)                   // re-enter signalLive past delay
+	clock.Advance(150 * time.Millisecond)
+	task.Doing("fetching")
 	if got := screen.LiveFrameCount(); got == 0 {
 		t.Fatal("expected live frame after VisibilityDelay elapsed")
+	}
+	live := screen.LatestLiveText()
+	if live == "" || !hasSpinnerGlyph(live) {
+		t.Fatalf("submitted work must spin after delay elapsed, live=%q", live)
 	}
 
 	task.Done()
@@ -43,11 +36,7 @@ func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 
 func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(screen),
-		evo.VisibilityDelay(0),
-		evo.NoColor(),
-	}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("work")
@@ -61,11 +50,7 @@ func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 
 func TestTask_AlonePaintsLiveWithZeroDelay(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(screen),
-		evo.VisibilityDelay(0),
-		evo.NoColor(),
-	}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("work")

@@ -3,21 +3,21 @@ package evo
 import "time"
 
 // TimeSource provides the current time for deterministic tests.
-// Option constructor is Clock(TimeSource) to match the public API examples.
+// Option constructor is withClock(TimeSource) to match the public aPI examples.
 type TimeSource interface {
 	Now() time.Time
 }
 
-// SystemClock uses the real wall clock.
-type SystemClock struct{}
+// systemClock uses the real wall clock.
+type systemClock struct{}
 
 // Now returns the system time.
-func (SystemClock) Now() time.Time { return time.Now() }
+func (systemClock) Now() time.Time { return time.Now() }
 
-// FixedClock always returns the same instant.
-type FixedClock struct {
+// fixedClock always returns the same instant.
+type fixedClock struct {
 	T time.Time
 }
 
 // Now returns the fixed instant.
-func (c FixedClock) Now() time.Time { return c.T }
+func (c fixedClock) Now() time.Time { return c.T }

@@ -44,7 +44,7 @@ type paneOptionFunc func(*debugPaneConfig)
 func (f paneOptionFunc) applyPane(c *debugPaneConfig) { f(c) }
 
 // PaneHeight sets how many debug records are visible in the pane (not including heading).
-func PaneHeight(lines int) DebugPaneOption {
+func paneHeight(lines int) DebugPaneOption {
 	return paneOptionFunc(func(c *debugPaneConfig) {
 		if lines > 0 {
 			c.height = lines
@@ -53,30 +53,30 @@ func PaneHeight(lines int) DebugPaneOption {
 }
 
 // NewestFirst orders the pane with the most recent record first (default).
-func NewestFirst() DebugPaneOption {
+func newestFirst() DebugPaneOption {
 	return paneOptionFunc(func(c *debugPaneConfig) { c.newestFirst = true })
 }
 
 // OldestFirst orders the pane chronologically (oldest visible first).
-func OldestFirst() DebugPaneOption {
+func oldestFirst() DebugPaneOption {
 	return paneOptionFunc(func(c *debugPaneConfig) { c.newestFirst = false })
 }
 
 // PreserveDebugTail always emits a bounded diagnostic tail under the final report.
 // Without this, pane mode still preserves a tail on failed/blocked/cancelled conclusions.
-func PreserveDebugTail() DebugPaneOption {
+func preserveDebugTail() DebugPaneOption {
 	return paneOptionFunc(func(c *debugPaneConfig) { c.preserveAlways = true })
 }
 
 // DebugHistory selects durable append-above-and-redraw presentation (v0.4 default).
-func DebugHistory() Option {
+func debugHistory() Option {
 	return optionFunc(func(c *config) {
 		c.debugPresentation = DebugPresentationHistory
 	})
 }
 
 // DebugPane selects a rolling TTY debug viewport at the bottom of the live region.
-func DebugPane(opts ...DebugPaneOption) Option {
+func debugPane(opts ...DebugPaneOption) Option {
 	return optionFunc(func(c *config) {
 		c.debugPresentation = DebugPresentationPane
 		cfg := debugPaneConfig{

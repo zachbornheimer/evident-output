@@ -38,6 +38,9 @@ func (o *Output) writeDurableTextLocked(text string) {
 		return
 	}
 	o.durableRowsEmitted++
+	if o.cfg.projection.suppressesHuman() {
+		return
+	}
 	live := o.liveLocked()
 	// A live region (including the armed, entity-less title line painted by
 	// arm()) may still be on screen even after the surface stops reporting
@@ -49,6 +52,7 @@ func (o *Output) writeDurableTextLocked(text string) {
 	if live != nil && o.live != nil && o.live.liveActive {
 		live.ClearLive()
 		o.live.liveActive = false
+		o.live.lastLiveText = ""
 	}
 	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
 	if interactive {
@@ -294,7 +298,10 @@ func shouldEmitPlainProgressLocked(st *taskState) bool {
 // update streams at each milestone (shouldEmitPlainProgressLocked) instead
 // of flooding CI logs with every tick or going silent after the first.
 func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgressiveTrigger) {
-	if st == nil || st.collection != nil || st.state != Running {
+	if st == nil || st.state != Running {
+		return
+	}
+	if st.collection != nil && !st.fromEach {
 		return
 	}
 	live := o.liveLocked()
@@ -442,9 +449,9 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 
 // residualPlainLocked builds the Finish tail for the plain/primary-mirror
 // human stream: only what has not already been progressive-emitted.
-// RenderPlain(snap, ...) still renders the full snapshot for a caller that
+// renderPlain(snap, ...) still renders the full snapshot for a caller that
 // wants the complete plain projection (C8: the former FinalPlain cache is
-// gone — reconstruct via RenderPlain(out.Snapshot(), ...)).
+// gone — reconstruct via renderPlain(out.Snapshot(), ...)).
 //
 // Interactive mode: tasks/collections are owned by WriteFinal (H.17 compact
 // line); this destination's own copy must not reprint them onto primary

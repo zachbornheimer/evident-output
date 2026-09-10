@@ -1,6 +1,12 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/render"
+import (
+	"errors"
+	"fmt"
+	"io"
+
+	"github.com/zachbornheimer/evident-output/internal/render"
+)
 
 // JSONSchemaVersion is the final JSON document schema version.
 // Tracks the 0.3 contract series (pre-1.0 wire format may still evolve).
@@ -55,11 +61,49 @@ type JSONCommand = render.JSONCommand
 type EventJSON = render.EventJSON
 
 // EncodeJSON encodes a snapshot as final JSON (§25.1 / §25.4).
-func EncodeJSON(s Snapshot) ([]byte, error) {
+func encodeJSON(s Snapshot) ([]byte, error) {
 	return render.EncodeJSON(s)
 }
 
 // EncodeJSONL encodes durable events as JSON Lines (§25.2 / §25.4).
-func EncodeJSONL(events []Event) ([]byte, error) {
+func encodeJSONL(events []Event) ([]byte, error) {
 	return render.EncodeJSONL(events)
+}
+
+// EncodeEventJSON encodes one journal event as a single JSON object (no newline).
+func encodeEventJSON(e Event) ([]byte, error) {
+	return render.EncodeEventJSON(e)
+}
+
+func writeMachinePresentation(w io.Writer, snap Snapshot, events []Event, proj Projection, misuse error) error {
+	var body []byte
+	var err error
+	switch proj {
+	case ProjectionJSON:
+		body, err = encodeJSON(snap)
+	case ProjectionJSONL:
+		body, err = encodeJSONL(events)
+	default:
+		return misuse
+	}
+	if err != nil {
+		err = fmt.Errorf("%w: %v", ErrRenderer, err)
+		if misuse == nil {
+			return err
+		}
+		return errors.Join(misuse, err)
+	}
+	if w != nil && len(body) > 0 {
+		if _, werr := w.Write(body); werr != nil {
+			werr = fmt.Errorf("%w: %v", ErrRenderer, werr)
+			if misuse == nil {
+				return werr
+			}
+			return errors.Join(misuse, werr)
+		}
+		if f, ok := w.(flusher); ok {
+			_ = f.Flush()
+		}
+	}
+	return misuse
 }

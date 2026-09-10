@@ -8,112 +8,113 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func TestEach_DrivesAbsoluteProgressAndPhase(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+func TestEach_YieldsNamedChildrenAndSettlesDefine(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("install")
+	g := out.Group("install")
 	packages := []string{"alpha", "beta", "gamma"}
 
-	var seenPhases []string
-	var seenCompleted []int64
-	for pkg := range task.Each(packages) {
-		snap := task.Snapshot()
-		seenPhases = append(seenPhases, snap.Phase)
-		seenCompleted = append(seenCompleted, snap.Progress.Completed)
-		if snap.Progress.Total != int64(len(packages)) {
-			t.Fatalf("total = %d, want %d", snap.Progress.Total, len(packages))
-		}
-		_ = pkg
+	var seen []string
+	for pkg, task := range g.Each(packages) {
+		seen = append(seen, pkg)
+		task.Define(func() error { return nil })
 	}
 
-	if want := []string{"alpha", "beta", "gamma"}; !equalStrings(seenPhases, want) {
-		t.Fatalf("phases = %v, want %v", seenPhases, want)
+	if want := []string{"alpha", "beta", "gamma"}; !equalStrings(seen, want) {
+		t.Fatalf("items = %v, want %v", seen, want)
 	}
-	// Progress observed *before* each item's own work runs reads as the
-	// count already completed (i, not i+1) — the bar must not read full
-	// while the last item is still in flight (evo-rec.md each off-by-one).
-	if want := []int64{0, 1, 2}; !equalInt64s(seenCompleted, want) {
-		t.Fatalf("completed = %v, want %v", seenCompleted, want)
+	snap := g.Snapshot()
+	if len(snap.Tasks) != 3 {
+		t.Fatalf("children = %d, want 3", len(snap.Tasks))
 	}
-	final := task.Snapshot()
-	if final.Progress.Completed != 3 || final.Progress.Total != 3 {
-		t.Fatalf("final progress = %#v, want 3/3 (sealed on normal loop completion)", final.Progress)
+	for _, child := range snap.Tasks {
+		if child.State != evo.Done {
+			t.Fatalf("child %q state = %s, want Done", child.Name, child.State)
+		}
 	}
 }
 
-func TestEach_BreakLeavesProgressAtCompletedCount(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+func TestEach_BreakAfterSubmitStillWaits(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("install")
+	g := out.Group("install")
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	returned := make(chan struct{})
+	go func() {
+		for _, task := range g.Each([]string{"alpha", "beta"}) {
+			task.Define(func() error {
+				close(started)
+				<-release
+				return nil
+			})
+			break
+		}
+		close(returned)
+	}()
+	<-started
+	select {
+	case <-returned:
+		t.Fatal("range returned before the submitted child finished")
+	default:
+	}
+	close(release)
+	<-returned
+	if got := g.Snapshot().Tasks[0].State; got != evo.Done {
+		t.Fatalf("submitted child state = %s, want Done", got)
+	}
+}
+
+func TestEach_BreakLeavesUndefinedChildrenPending(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	t.Cleanup(func() { _ = out.Close() })
+	g := out.Group("install")
 	packages := []string{"alpha", "beta", "gamma", "delta"}
 
-	for pkg := range task.Each(packages) {
+	for pkg, task := range g.Each(packages) {
 		if pkg == "beta" {
 			break
 		}
+		task.Define(func() error { return nil })
 	}
 
-	// beta is index 1 (0-indexed): Progress(1, 4) is set before beta is
-	// yielded — "1 done, beta in flight" — and breaking during beta leaves
-	// it there; the loop never reaches the post-loop seal to 4/4.
-	snap := task.Snapshot()
-	if snap.Progress.Completed != 1 || snap.Progress.Total != 4 {
-		t.Fatalf("progress = %#v, want 1/4 (early break leaves count as-is)", snap.Progress)
+	snap := g.Snapshot()
+	if len(snap.Tasks) != 2 {
+		t.Fatalf("children = %d, want 2 (break during beta still yields beta)", len(snap.Tasks))
 	}
-	if snap.State == evo.Done {
-		t.Fatal("break must not auto-resolve the task")
+	byName := map[string]evo.EntityState{}
+	for _, child := range snap.Tasks {
+		byName[child.Name] = child.State
+	}
+	if byName["alpha"] != evo.Done {
+		t.Fatalf("alpha state = %s, want Done", byName["alpha"])
+	}
+	if byName["beta"] != evo.Pending {
+		t.Fatalf("beta state = %s, want Pending (undefined, not waited)", byName["beta"])
 	}
 }
 
-func TestEach_RetryInsideBodyDoesNotAdvance(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+func TestEach_RetryInsideBodyDoesNotCreateExtraChildren(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("install")
+	g := out.Group("install")
 	packages := []string{"alpha", "beta"}
 
-	for pkg := range task.Each(packages) {
-		before := task.Snapshot().Progress.Completed
-		// Simulate a caller retrying work for the same item without ever
-		// calling task.Progress/Phase itself.
+	for pkg, task := range g.Each(packages) {
 		attempt := func() { _ = pkg }
 		attempt()
 		attempt()
-		attempt()
-		after := task.Snapshot().Progress.Completed
-		if before != after {
-			t.Fatalf("retrying inside the loop body moved progress: %d -> %d", before, after)
-		}
+		task.Define(func() error { return nil })
 	}
 
-	if got := task.Snapshot().Progress.Completed; got != 2 {
-		t.Fatalf("completed = %d, want 2", got)
-	}
-}
-
-func TestEachN_DrivesProgressOnly(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("scan")
-
-	var seenCompleted []int64
-	for i := range task.EachN(3) {
-		seenCompleted = append(seenCompleted, task.Snapshot().Progress.Completed)
-		_ = i
-	}
-
-	if want := []int64{0, 1, 2}; !equalInt64s(seenCompleted, want) {
-		t.Fatalf("completed = %v, want %v", seenCompleted, want)
-	}
-	if task.Snapshot().Phase != "" {
-		t.Fatalf("EachN must not set Phase, got %q", task.Snapshot().Phase)
-	}
-	if final := task.Snapshot().Progress; final.Completed != 3 || final.Total != 3 {
-		t.Fatalf("final progress = %#v, want 3/3 (sealed on normal loop completion)", final)
+	if got := len(g.Snapshot().Tasks); got != 2 {
+		t.Fatalf("children = %d, want 2", got)
 	}
 }
 
 func TestProgress_SealedTotalChangeRecordsMisuse(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(14, 40)
@@ -129,7 +130,7 @@ func TestProgress_SealedTotalChangeRecordsMisuse(t *testing.T) {
 }
 
 func TestProgress_IndeterminateToDeterminateOnce(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Doing("scanning")
@@ -158,18 +159,6 @@ func TestProgress_IndeterminateToDeterminateOnce(t *testing.T) {
 }
 
 func equalStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func equalInt64s(a, b []int64) bool {
 	if len(a) != len(b) {
 		return false
 	}

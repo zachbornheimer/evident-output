@@ -7,39 +7,69 @@ spec) and **Content-Length** framing (some client SDKs).
 **Advertised tool names** use underscores (Grok rejects dotted tool names and then
 registers `tool_count: 0`). Dotted aliases still work on `tools/call`.
 
-| Tool name (tools/list)             | Grok `use_tool` id                                 | Purpose                                    |
-| ---------------------------------- | -------------------------------------------------- | ------------------------------------------ |
-| `evident_output_list_guides`       | `evident-output__evident_output_list_guides`       | Guidance catalog (token-budgeted snippets) |
-| `evident_output_get_guidance`      | `evident-output__evident_output_get_guidance`      | Guidance snippets by id                    |
-| `evident_output_list_sections`     | `evident-output__evident_output_list_sections`     | Full docs corpus table of contents         |
-| `evident_output_get_documentation` | `evident-output__evident_output_get_documentation` | Full doc section body by id                |
-| `evident_output_review`            | `evident-output__evident_output_review`            | Go / transcript / JSON review              |
-| `evident_output_adopt_plan`        | `evident-output__evident_output_adopt_plan`        | Migration plan for a non-evo directory     |
-| `evident_output_preview`           | `evident-output__evident_output_preview`           | Plain profile previews                     |
-| `evident_output_explain`           | `evident-output__evident_output_explain`           | Rule id (`rule_id`)                        |
+| Tool name (tools/list)             | Grok `use_tool` id                                 | Purpose                                      |
+| ---------------------------------- | -------------------------------------------------- | -------------------------------------------- |
+| `evident_output_list_sections`     | `evident-output__evident_output_list_sections`     | Full docs corpus table of contents           |
+| `evident_output_get_documentation` | `evident-output__evident_output_get_documentation` | Full doc section body by id                  |
+| `evident_output_adopt_plan`        | `evident-output__evident_output_adopt_plan`        | Paged migration plan for a non-evo directory |
+| `evident_output_review`            | `evident-output__evident_output_review`            | Go / directory / transcript / JSON review    |
+| `evident_output_preview`           | `evident-output__evident_output_preview`           | Plain profile previews                       |
+| `evident_output_explain`           | `evident-output__evident_output_explain`           | Rule id (`rule_id`)                          |
+| `evident_output_update`            | `evident-output__evident_output_update`            | Reinstall this server to match a go.mod pin  |
 
 `explain` arguments: `{ "rule_id": "DOM-011" }` (not `id`).
 
 `evident_output_list_sections` / `evident_output_get_documentation` serve the full docs
 corpus (this file, `reference.md`, `development.md`, the adoption ladder, and every
-`evident_output_list_guides` entry as `guide/<id>`) so an agent never needs local file
+catalog snippet as `guide/<id>`) so an agent never needs local file
 access to read authoritative docs — call `list_sections` for the table of contents, then
 `get_documentation` with the `id`s you need.
 
-`evident_output_adopt_plan` takes `{ "directory": "..." }`, statically inventories
-`fmt.Print*`/`log.*`/`os.Stdout` writes and manual spinner/progress-bar imports under it,
-and returns findings keyed to the adoption ladder rung each belongs on — see the
+`evident_output_adopt_plan` takes `{ "directory": "...", "cursor": "...", "limit": 40 }`,
+statically inventories `fmt.Print*`/`log.*`/`os.Stdout` writes and manual spinner
+imports under it, and returns one page (`findings`, `rung`, `remaining`, `next_cursor`,
+`next_action`). Re-call with `cursor` until `next_action` is `clean`. See the
 adoption workflow in [`../skills/cli-output/SKILL.md`](../skills/cli-output/SKILL.md).
 
 Call `evident_output_review` again after applying its suggested fixes — the response's
 `next_action` field says `clean` at zero findings or tells you to re-run; loop until clean.
+When review reports `update_needed`, call `evident_output_update` (or
+`evident-output-mcp update --directory <repo>`) then restart the MCP host before
+treating review as done.
+
+`evident_output_update` takes `{ "version": "v0.4.6" }` XOR `{ "directory": "<repo>" }`.
+Directory walks up to `go.mod` and installs that pin (or `./cmd/evident-output-mcp`
+from this module / a path replace). Never `GOBIN=$HOME/.local/bin` — install lands in
+`$(go env GOPATH)/bin` and is symlinked into `~/.local/bin`.
+
+### 0.2 → 0.4 (do not copy v0.2 spellings)
+
+| Gone                                                                                                                                                     | Use                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `evo.New`                                                                                                                                                | `evo.Init`                                                                                                 |
+| `out.Item`                                                                                                                                               | `out.Task`                                                                                                 |
+| `out.Plan` / `out.Changes`                                                                                                                               | Task mutation verbs (`Delete`/`Create`/`Record`/…)                                                         |
+| `Capture`                                                                                                                                                | `task.Evidence()`                                                                                          |
+| `item.Evidence()`                                                                                                                                        | `task.Evidence()`                                                                                          |
+| `Config.Options` / `[]evo.Option{...}` / `evo.To` / `evo.Plain` / `evo.NoColor` / `evo.Stdin` / `evo.DryRun` / `evo.VisibilityDelay` / `evo.Diagnostics` | Config fields (`Stdout`, `Plain`, `Color: evo.ColorNever`, `Stdin`, `DryRun`, `VisibilityDelay`, `Stderr`) |
+| positional quantity-first mutation verbs                                                                                                                 | `Delete(object, fn)` / `evo.Affected(n)` (same for Remove/Add/Create/Update/Push/Write)                    |
+| retired independent-collection constructor                                                                                                               | `evo.Group`                                                                                                |
+| `.Skip(`                                                                                                                                                 | `.Skipped(`                                                                                                |
+| `evo.ID` / `evo.StartPhase`                                                                                                                              | Task name only; `.Doing(...)` for the first phase                                                          |
+| `evo.MainWith`                                                                                                                                           | `evo.Main` / `Output.Run`                                                                                  |
+
+The librarian case study is a v0.2.9 snapshot. Review reports API-032 on the deleted constructors.
 
 ## Install the binary (pinned)
 
 ```bash
-GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 "$HOME/.local/bin/evident-output-mcp" --version
 ```
+
+After bumping evo in a repo: `evident-output-mcp update --directory <repo>` then restart the host.
 
 The pinned tag is kept in sync by `mise run sync-release-pins`. A
 client-specific copy-paste block lives under
@@ -53,14 +83,14 @@ it). Bare `evident-output-mcp` fails when the agent process PATH omits `~/.local
 ```bash
 # Process-level handshake
 grok mcp doctor evident-output --json
-# expect: healthy=true, "8 tools discovered", protocol 2025-06-18
+# expect: healthy=true, "7 tools discovered", protocol 2025-06-18
 
 # Fresh agent process (same attach path as the TUI); use any trusted cwd:
-grok -p 'Call use_tool on evident-output__evident_output_list_guides with {}. Reply CONNECTED and the text field, or FAILED.' \
+grok -p 'Call use_tool on evident-output__evident_output_list_sections with {}. Reply CONNECTED and the text field, or FAILED.' \
   --output-format plain \
   --max-turns 5 \
   --always-approve
-# expect: CONNECTED / "5 guides"
+# expect: CONNECTED / "N sections"
 ```
 
 If doctor is green but headless says FAILED, check session `events.jsonl` for
@@ -114,7 +144,8 @@ See [`../integrations/grok/README.md`](../integrations/grok/README.md).
 "$HOME/.local/bin/evident-output-mcp" config --client codex
 ```
 
-Review kinds for `evident_output_review`: `go` (default), `transcript`, `json` / `structured`.
+Review kinds for `evident_output_review`: `go` (default), `directory` (absolute local
+path via `directory`), `transcript`, `json` / `structured`, `package`.
 
 `file` and `files` (for `kind: "package"`) each accept either inline content
 via `source`/the map value, or a readable local absolute path — the server

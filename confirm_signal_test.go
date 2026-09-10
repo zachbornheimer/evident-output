@@ -30,7 +30,9 @@ func TestConfirm_SIGINT_CancelsGateNotDeclined(t *testing.T) {
 	// No Plain()/NonInteractive(): Confirm must reach the prompt-and-wait path,
 	// not the policy-block path, so the pipe read is actually pending when
 	// SIGINT arrives.
-	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Stdin(r)}}))
+	restore := evo.MarkWriterAsCharDevice(&buf)
+	t.Cleanup(restore)
+	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Stdin: r, Color: evo.ColorNever}))
 
 	started := make(chan struct{})
 	go func() {

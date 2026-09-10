@@ -10,13 +10,13 @@ import (
 )
 
 func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	tasks := out.DisplayGroup("batch")
+	tasks := out.Group("batch")
 	const n = 50
 	children := make([]*evo.TaskHandle, n)
 	for i := 0; i < n; i++ {
-		children[i] = tasks.Task("t")
+		children[i] = tasks.Task(fmt.Sprintf("t-%d", i))
 	}
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
@@ -37,11 +37,11 @@ func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
 }
 
 func TestCON012_ConcurrentItemOK(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	items := make([]*evo.TaskHandle, 20)
 	for i := range items {
-		items[i] = out.Task("x", evo.ID(fmt.Sprintf("x%d", i)))
+		items[i] = out.Task(string(rune('a' + i)))
 	}
 	var wg sync.WaitGroup
 	for _, it := range items {

@@ -12,7 +12,7 @@
 //	    evo.Println("Reading configuration")
 //	    evo.Task("working tree").Done()
 //	    t := evo.Task("fetch")
-//	    output := t.Evidence()
+//	    output := t.evidence()
 //	    // run.Run(ctx, "git", args, output); t.Fail(..., output.DetailTail()) on error
 //	    return nil // Block is a presentation outcome, not a Go error
 //	}
@@ -26,18 +26,14 @@
 //     (Add/Delete/Create/Update/Remove/Write/Push/Record/RecordName) shows a spinner while running —
 //     the verb picks [planned] vs [changed] from Config.DryRun; no call site ever flips its own tense.
 //     name is a printf format whenever args follow it (evo.Task("build %s", ref)); no args
-//     leaves name untouched.
-//  4. evo.Task(name).Each(items) for loop progress (absolute, never double-counted).
-//     Each takes []string (the item name becomes the live doing-text); for any other slice
-//     type, drive the same absolute progress with EachN(len(items)) — no []string copy
-//     needed just to get a progress bar.
-//     .Writer() as cmd.Stdout so a talkative child's last line becomes the live doing-text;
-//     Task.Run(cmd) wires an *exec.Cmd through that same capture/doing-text plumbing in one call
-//     and hands back the subprocess error verbatim for the caller to resolve. An item that
-//     fails inside the loop body resolves on the loop's own task handle (task.Fail(...); break)
-//     — never a second evo.Task declared per item — leaving Progress sealed at the count
-//     already reached (release-gate round 6 finding 7).
-//  5. evo.Task(name).Skipped(evo.Reason("..."), name) / .Kept(evo.Reason("..."), name) —
+//     leaves name untouched. Define(fn) or a mutation verb submits work; Done is only for
+//     already-resolved work with no callback.
+//  4. evo.Group(name).Each(items) / evo.Sequence(name).Each(items) for collection progress.
+//     Each item is an atomic Task; Define or a mutation verb submits it. The range waits for
+//     submitted work before control proceeds. cmd.Stdout = task.Writer() so a talkative child's
+//     last line becomes the live doing-text. A failed item Fails that child Task — not a second
+//     Task declared inside the loop body for the same item.
+//  5. evo.Task(name).Skipped(evo.Reason("...")) / .Kept(evo.Reason("...")) —
 //     taxonomy counted and summed, never a bare "skipped N". evo.Reason(name) is a
 //     get-or-create lookup on the default instance: the same string at every call site
 //     merges into one bucket, so an inline evo.Reason("protected") is always legal —
@@ -74,13 +70,12 @@
 //     from stdlib slog.Level — SlogHandler translates between the two internally, but
 //     Config.Debug.Level itself never takes a slog.Level value. LevelUnset (the zero value)
 //     resolves to LevelInfo; LevelTrace/LevelDebug are the two levels that surface Debug
-//     journal lines. Package-level evo.SlogHandler() journals to the default instance,
+//     journal lines. Package-level evo.SlogHandlerForTest() journals to the default instance,
 //     the same default-instance sugar evo.Task/evo.Verbose already offer.
 //
-// Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Sequence (+ ID), Task.Evidence,
-// Task.Each / Task.Writer / Task.Run, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
-// evo.Confirm, evo.Reason, Changes/Plan (tooling call sites, see below), slog
-// via SlogHandler (level from Config.Debug.Level).
+// Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Group/evo.Sequence,
+// Task.Define / mutation verbs / Task.Writer, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
+// evo.Confirm, evo.Reason, slog via SlogHandler (level from Config.Debug.Level).
 //
 // Advanced surface, for testing and tooling call sites that need a hosted instance
 // instead of the package-level default: Config.Isolated returns an independent *Output
@@ -88,5 +83,5 @@
 // hosted counterpart of Main's run func() error, called on the *Output itself instead
 // of the default instance); Config.Options is the raw-Option escape hatch for exact writer/
 // terminal/clock wiring. Plan/Changes for the would/did split without a Task, session
-// Evidence, terminal drivers, and testkit.
+// evidence, terminal drivers, and testkit.
 package evo
