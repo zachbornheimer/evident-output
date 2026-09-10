@@ -190,14 +190,25 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	}
 }
 
-// collapsesIntoOnlyChild reports whether a group's header row is pure
-// redundancy over the one row beneath it, so both renderers agree on when
-// the header disappears. A caller's own Summary is the exception: it is the
-// group's answer ("nothing to clean") and no child row can carry it, so a
-// group that has one keeps its row — dropping it deleted both the subject's
-// name and its answer from the transcript.
+// collapsesIntoOnlyChild reports whether a one-child group may render as
+// just that child's row. A caller's own Summary is never collapsible: it is
+// the group's answer ("nothing to clean") and no child row can carry it.
+//
+// The live region collapses on this alone — it is a transient frame the
+// reader watches in context, and a two-line header over one moving row is
+// noise. The durable transcript has to stand on its own, so it adds
+// keepsGroupName; see collapsesIntoOnlyChildDurably.
 func collapsesIntoOnlyChild(col core.TasksSnapshot) bool {
 	return !col.Sequential && col.Summary == "" && len(col.Tasks) == 1 && len(col.Collections) == 0
+}
+
+// collapsesIntoOnlyChildDurably is the transcript's stricter rule: the
+// header also carries the group's own name, which a differently-named child
+// cannot stand in for. Collapsing on count alone turned three sibling
+// subjects that each failed before declaring any collection into three
+// indistinguishable `classify` rows.
+func collapsesIntoOnlyChildDurably(col core.TasksSnapshot) bool {
+	return collapsesIntoOnlyChild(col) && col.Tasks[0].Name == col.Name
 }
 
 func partitionEachChildren(tasks []core.TaskSnapshot) (fromEach, explicit []core.TaskSnapshot) {

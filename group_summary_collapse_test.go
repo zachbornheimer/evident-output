@@ -8,47 +8,51 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// A Group whose collection turned out to be empty carries the answer on
-// itself — `✓ branches  nothing to clean` — while its one explicit child
-// carries the evidence (`✓ classify  146 tips`). Collapsing the group into
-// that single child, which the one-child rule did unconditionally, deleted
-// both the subject's name and the caller's Summary from the transcript: the
-// reader saw a bare `✓ classify  146 tips` and never learned which subject
-// had nothing to do (evo-rec spec, "nothing to do").
-//
-// The collapse is still right when the group has no Summary: then the child
-// row says everything the header would have.
+// A group's header row carries two things its child rows cannot: the
+// group's own name, and the caller's Summary. The one-child collapse fired
+// on count alone, so a subject whose collection turned out empty —
+// `✓ branches  nothing to clean` over one `✓ classify  146 tips` child —
+// rendered as a bare `✓ classify  146 tips`, and the reader never learned
+// which subject had nothing to do (evo-rec spec, "nothing to do").
 func TestGroup_SummaryKeepsTheGroupRowOverASingleExplicitChild(t *testing.T) {
-	transcript := renderCleanSubject(t, "nothing to clean")
+	transcript := renderSubject(t, "branches", "classify", "nothing to clean")
+
+	for _, want := range []string{"branches", "nothing to clean", "146 tips"} {
+		if !strings.Contains(transcript, want) {
+			t.Fatalf("%q is gone from the transcript:\n%s", want, transcript)
+		}
+	}
+}
+
+// The same lossy collapse hid the subject name on every failure path: three
+// sibling subjects that all failed before declaring any collection rendered
+// as three identical `classify` rows with no way to tell them apart.
+func TestGroup_DifferentlyNamedChildKeepsTheGroupRow(t *testing.T) {
+	transcript := renderSubject(t, "branches", "classify", "")
 
 	if !strings.Contains(transcript, "branches") {
 		t.Fatalf("group name is gone from the transcript:\n%s", transcript)
 	}
-	if !strings.Contains(transcript, "nothing to clean") {
-		t.Fatalf("group Summary is gone from the transcript:\n%s", transcript)
-	}
 	if !strings.Contains(transcript, "146 tips") {
 		t.Fatalf("explicit child is gone from the transcript:\n%s", transcript)
 	}
 }
 
-func TestGroup_NoSummaryStillCollapsesIntoItsSingleExplicitChild(t *testing.T) {
-	transcript := renderCleanSubject(t, "")
+// A header that would merely repeat its only child is still redundant.
+func TestGroup_ChildRepeatingTheGroupNameStillCollapses(t *testing.T) {
+	transcript := renderSubject(t, "branches", "branches", "")
 
-	if strings.Contains(transcript, "branches") {
-		t.Fatalf("a summary-less group must not add a redundant header row:\n%s", transcript)
-	}
-	if !strings.Contains(transcript, "146 tips") {
-		t.Fatalf("explicit child is gone from the transcript:\n%s", transcript)
+	if strings.Count(transcript, "branches") != 1 {
+		t.Fatalf("a header repeating its only child must not render twice:\n%s", transcript)
 	}
 }
 
-func renderCleanSubject(t *testing.T, summary string) string {
+func renderSubject(t *testing.T, groupName, childName, summary string) string {
 	t.Helper()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "zq", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})
-	group := out.Group("branches")
-	group.Task("classify").Doing("classifying tips").Done("146 tips")
+	group := out.Group(groupName)
+	group.Task(childName).Doing("classifying tips").Done("146 tips")
 	if summary != "" {
 		group.Summary(summary)
 	}
