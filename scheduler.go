@@ -109,6 +109,12 @@ func (o *Output) kick() {
 func (o *Output) takeEligible() (st *taskState, fn func() error, mut *mutationSpec) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.schedCancelled {
+		// After an interrupt the queue is abandoned, not drained: nothing
+		// new starts, so the run stops at the ^C instead of running to
+		// completion behind one cancelled row.
+		return nil, nil, nil
+	}
 	max := o.concurrencyCeilingLocked()
 	if o.schedInflight >= max {
 		return nil, nil, nil
@@ -301,7 +307,7 @@ func (o *Output) claimForWaiter(taskID string) (st *taskState, fn func() error, 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	cand := o.taskByRef[taskID]
-	if cand == nil || !cand.submitted || cand.runningWork || core.IsTerminalTask(cand.state) {
+	if o.schedCancelled || cand == nil || !cand.submitted || cand.runningWork || core.IsTerminalTask(cand.state) {
 		return nil, nil, nil, false
 	}
 	if !o.eligibleLocked(cand) {

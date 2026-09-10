@@ -1,6 +1,7 @@
 package evo
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -451,6 +452,16 @@ func (t *TaskHandle) failScheduled(summary string) {
 // one path that may declare a submitted task successful (see finish).
 func (t *TaskHandle) doneScheduled() {
 	t.resolveScheduled(Done, "", nil)
+}
+
+// Context reports the cancellation signal this task's work runs under — the
+// run's own (see Output.Context), so a Define or mutation-verb callback
+// doing I/O selects on it and stops when the run is interrupted.
+func (t *TaskHandle) Context() context.Context {
+	if t == nil {
+		return context.Background()
+	}
+	return t.out.Context()
 }
 
 // Snapshot returns the task snapshot.
