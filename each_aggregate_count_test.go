@@ -126,4 +126,40 @@ func TestLive_AggregateCountsEachChildrenOnly(t *testing.T) {
 	}
 }
 
+// TestEach_TotalSealedBeforeFirstChildResolves is the red-first proof that
+// an Each collection's denominator is len(items) from the first paint, not
+// a total that grows as children are yielded. After the first Done the
+// live frame already shows 1/5, never 1/1 then 5/5.
+func TestEach_TotalSealedBeforeFirstChildResolves(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
+	out := evo.Init(evo.Config{
+		Stdout: io.Discard, Stderr: io.Discard, Isolated: true,
+		Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever,
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	names := itemNames("branch", 5)
+	resolved := 0
+	for _, task := range out.Group("branches").Each(names) {
+		if resolved == 0 {
+			got := collapse(screen.LatestLiveText())
+			if !strings.Contains(got, "0/5") {
+				t.Fatalf("first live frame must already use N=5, got:\n%s", screen.LatestLiveText())
+			}
+			if strings.Contains(got, "/1") {
+				t.Fatalf("total must not start at 1:\n%s", screen.LatestLiveText())
+			}
+		}
+		task.Done()
+		resolved++
+		if resolved == 1 {
+			got := collapse(screen.LatestLiveText())
+			if !strings.Contains(got, "1/5") {
+				t.Fatalf("after the first Done the total is still 5, got:\n%s", screen.LatestLiveText())
+			}
+		}
+	}
+}
+
 func collapse(s string) string { return strings.Join(strings.Fields(s), " ") }

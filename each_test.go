@@ -80,8 +80,8 @@ func TestEach_BreakLeavesUndefinedChildrenPending(t *testing.T) {
 	}
 
 	snap := g.Snapshot()
-	if len(snap.Tasks) != 2 {
-		t.Fatalf("children = %d, want 2 (break during beta still yields beta)", len(snap.Tasks))
+	if len(snap.Tasks) != 4 {
+		t.Fatalf("children = %d, want 4 (Each declares every item before the first yield)", len(snap.Tasks))
 	}
 	byName := map[string]evo.EntityState{}
 	for _, child := range snap.Tasks {
@@ -90,8 +90,10 @@ func TestEach_BreakLeavesUndefinedChildrenPending(t *testing.T) {
 	if byName["alpha"] != evo.Done {
 		t.Fatalf("alpha state = %s, want Done", byName["alpha"])
 	}
-	if byName["beta"] != evo.Pending {
-		t.Fatalf("beta state = %s, want Pending (undefined, not waited)", byName["beta"])
+	for _, name := range []string{"beta", "gamma", "delta"} {
+		if byName[name] != evo.Pending {
+			t.Fatalf("%s state = %s, want Pending (undefined, not waited)", name, byName[name])
+		}
 	}
 }
 

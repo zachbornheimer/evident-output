@@ -14,9 +14,13 @@ func eachChildren(out *Output, groupID string, items []string) iter.Seq2[string,
 		if !out.sealEachTotal(groupID) {
 			return
 		}
+		tasks := out.addEachChildren(groupID, items)
 		var wait []*TaskHandle
-		for _, item := range items {
-			task := out.addEachChild(groupID, item)
+		for i, item := range items {
+			if i >= len(tasks) {
+				break
+			}
+			task := tasks[i]
 			cont := yield(item, task)
 			if task.wasSubmitted() {
 				wait = append(wait, task)
@@ -64,12 +68,25 @@ func (o *Output) sealEachTotal(groupID string) bool {
 	return true
 }
 
-func (o *Output) addEachChild(groupID, name string) *TaskHandle {
+// addEachChildren declares every item as a child under one lock, then
+// paints once, so the first live frame already shows 0/N. Yielding one
+// child at a time used to grow the denominator as the loop ran
+// (`141/144` becoming `145/145`).
+func (o *Output) addEachChildren(groupID string, items []string) []*TaskHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	col := o.tasksByRef[groupID]
 	if col == nil {
-		return &TaskHandle{out: o, id: o.nextID("task")}
+		handles := make([]*TaskHandle, len(items))
+		for i := range items {
+			handles[i] = &TaskHandle{out: o, id: o.nextID("task")}
+		}
+		return handles
 	}
-	return o.addTaskLocked(txt.Text(name), col, "", true)
+	handles := make([]*TaskHandle, 0, len(items))
+	for _, name := range items {
+		handles = append(handles, o.declareTaskLocked(txt.Text(name), col, "", true))
+	}
+	o.signalLiveLocked(true)
+	return handles
 }

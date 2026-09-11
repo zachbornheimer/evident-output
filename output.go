@@ -676,6 +676,17 @@ func ledgerSubjectFor(st *taskState) string {
 }
 
 func (o *Output) addTaskLocked(name string, col *tasksState, key string, fromEach bool) *TaskHandle {
+	h := o.declareTaskLocked(name, col, key, fromEach)
+	if _, ok := o.taskByRef[h.id]; ok {
+		o.signalLiveLocked(true)
+	}
+	return h
+}
+
+// declareTaskLocked records a child without painting. Each uses this to
+// declare every item before the first yield so the first live frame already
+// shows 0/N rather than growing 0/1, 0/2, … as children appear.
+func (o *Output) declareTaskLocked(name string, col *tasksState, key string, fromEach bool) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return &TaskHandle{out: o, id: o.nextID("task")}
@@ -711,7 +722,6 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string, fromEac
 	o.taskByRef[st.id] = st
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
-	o.signalLiveLocked(true)
 	return h
 }
 
