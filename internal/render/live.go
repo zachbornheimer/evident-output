@@ -88,6 +88,9 @@ func FitLiveRegion(text string, columns int) string {
 	if columns <= 0 {
 		columns = defaultWidth
 	}
+	if liveRegionFitsColumns(text, columns) {
+		return text
+	}
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
 		lines[i] = txt.TruncateVisible(line, columns)
@@ -95,7 +98,39 @@ func FitLiveRegion(text string, columns int) string {
 	return strings.Join(lines, "\n")
 }
 
+// liveRegionFitsColumns reports whether every line of text already fits
+// within columns, without allocating a Split slice.
+func liveRegionFitsColumns(text string, columns int) bool {
+	start := 0
+	for i := 0; i < len(text); i++ {
+		if text[i] != '\n' {
+			continue
+		}
+		if txt.VisibleCells(text[start:i]) > columns {
+			return false
+		}
+		start = i + 1
+	}
+	return txt.VisibleCells(text[start:]) <= columns
+}
+
 func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	fromEach, explicit := partitionEachChildren(col.Tasks)
+	if len(fromEach) > 0 {
+		writeLiveEachAggregate(b, col, fromEach, explicit, height, width, spin, color, now, profile)
+		return
+	}
+	if collapsesIntoOnlyChild(col) {
+		writeLiveTaskLine(b, col.Tasks[0], 0, width, spin, color, now, profile)
+		return
+	}
+	if promotesLoneChildOntoHeader(col) {
+		unit := liveTaskUnit(col.Tasks[0], 0, width, spin, color, now, profile)
+		unit.Name = col.Name + "  " + unit.Name
+		b.WriteString(unit.Render(""))
+		b.WriteByte('\n')
+		return
+	}
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == core.Done || t.State == core.Skipped {
@@ -160,6 +195,167 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
+}
+
+// hasOnlyChild reports whether a group's whole visible content is one
+// explicitly declared child: no Each aggregate, no nested collection, and
+// no Summary of its own. A caller's own Summary is never collapsible — it
+// is the group's answer ("nothing to clean") and no child row can carry it.
+func hasOnlyChild(col core.TasksSnapshot) bool {
+	return !col.Sequential && col.Summary == "" && len(col.Tasks) == 1 && len(col.Collections) == 0
+}
+
+// collapsesIntoOnlyChild reports whether a one-child group may render as
+// just that child's row — which requires the child to answer to the group's
+// own name, because a differently named child cannot stand in for the
+// subject. Collapsing on count alone turned three sibling subjects that
+// each declared one `classify` child into three indistinguishable
+// `classify` rows naming no subject at all, for the whole classify phase.
+// Live and durable share this rule: a transient frame the reader watches in
+// context still has to say which subject it is about.
+func collapsesIntoOnlyChild(col core.TasksSnapshot) bool {
+	return hasOnlyChild(col) && col.Tasks[0].Name == col.Name
+}
+
+// promotesLoneChildOntoHeader reports whether a group's one differently
+// named child is still in flight (Running or Pending). The live frame then
+// keeps both names on a single row — `<spin> worktrees  classify  [██░░]
+// 24/111  <path> — 12s` while it runs, `○ branches  classify  waiting`
+// while it is blocked — rather than spending a header line on a count of
+// one (`0/1 complete — 18s`) and an indented line on the only child. The
+// child's evidence rides the header; the subject survives; a blocked group
+// does not spin. Done/Failed/Skipped children still take the header+child
+// shape when they need their own evidence.
+func promotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
+	if !hasOnlyChild(col) || col.Tasks[0].Name == col.Name {
+		return false
+	}
+	switch col.Tasks[0].State {
+	case core.Running, core.Pending:
+		return true
+	default:
+		return false
+	}
+}
+
+func partitionEachChildren(tasks []core.TaskSnapshot) (fromEach, explicit []core.TaskSnapshot) {
+	for _, t := range tasks {
+		if t.FromEach() {
+			fromEach = append(fromEach, t)
+		} else {
+			explicit = append(explicit, t)
+		}
+	}
+	return fromEach, explicit
+}
+
+// EachAggregateCount derives a collection's completed/total from its
+// Each-created atomic children alone — the one denominator both the live
+// frame and the durable row read, so the two can never disagree. An
+// explicitly declared child stays individually visible on its own row and
+// never enters the count: `✓ branches  146/146` on a 145-branch repo was the
+// group's own "classify tips" task counting itself as a branch.
+func EachAggregateCount(fromEach []core.TaskSnapshot) (done, total int) {
+	for _, t := range fromEach {
+		if t.State == core.Done || t.State == core.Skipped {
+			done++
+		}
+	}
+	return done, len(fromEach)
+}
+
+// CountNotStarted reports how many children never began — the collection's
+// silent majority after an early termination. They are counted, never named:
+// a thousand names is not evidence, one number is.
+func CountNotStarted(tasks []core.TaskSnapshot) int {
+	n := 0
+	for _, t := range tasks {
+		if t.State == core.NotStarted {
+			n++
+		}
+	}
+	return n
+}
+
+func eachChildNeedsSurface(t core.TaskSnapshot) bool {
+	if t.State == core.Failed || t.State == core.Blocked || t.State == core.Cancelled {
+		return true
+	}
+	return len(t.Warnings) > 0 || len(t.Problems) > 0
+}
+
+func currentEachItemName(fromEach []core.TaskSnapshot) string {
+	for _, t := range fromEach {
+		if t.State == core.Running {
+			return t.Name
+		}
+	}
+	for _, t := range fromEach {
+		if t.State == core.Pending {
+			return t.Name
+		}
+	}
+	return ""
+}
+
+func collectEachTaxonomy(fromEach []core.TaskSnapshot) (skipped, kept []core.TaxonomyRecord) {
+	for _, t := range fromEach {
+		skipped = append(skipped, t.Skipped...)
+		kept = append(kept, t.Kept...)
+	}
+	return skipped, kept
+}
+
+func writeLiveEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach, explicit []core.TaskSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	done, total := EachAggregateCount(fromEach)
+	unresolved := false
+	for _, t := range col.Tasks {
+		if t.State == core.Running || t.State == core.Pending {
+			unresolved = true
+			break
+		}
+	}
+	headerState := col.State
+	glyph := TaskGlyph(headerState, profile)
+	if unresolved {
+		headerState = core.Running
+		glyph = spin
+	}
+	detail := fmt.Sprintf("%d/%d", done, total)
+	if unresolved {
+		if cur := currentEachItemName(fromEach); cur != "" {
+			detail += "  " + cur
+		}
+	}
+	unit := DisplayUnit{
+		Glyph:  txt.StyleGlyph(glyph, StateColor(headerState), color),
+		Name:   col.Name,
+		Detail: detail,
+	}
+	if unresolved {
+		unit.Elapsed = heartbeatSuffix(now, earliestLiveFirstSeen(col))
+		if unit.Elapsed != "" {
+			unit.Detail += " " + strings.TrimSpace(unit.Elapsed)
+		}
+	}
+	b.WriteString(unit.Render(""))
+	b.WriteByte('\n')
+	for _, t := range fromEach {
+		if eachChildNeedsSurface(t) {
+			writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
+		}
+	}
+	for _, t := range explicit {
+		writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
+	}
+	for _, child := range col.Collections {
+		var nested strings.Builder
+		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
+		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+			fmt.Fprintf(b, "   %s\n", line)
+		}
+	}
+	_ = height
 }
 
 func anyChildRunning(col core.TasksSnapshot) bool {
@@ -278,12 +474,24 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 	return selected, len(tasks) - len(selected)
 }
 
-// writeLiveTaskLine composes one task row's DisplayUnit (P3's uniform row
-// model) and renders it. Every case below is a slot-filling policy — which
-// fields get populated for this state/progress/indent combination — not a
-// bespoke format string; DisplayUnit.Render owns the one shared line
-// grammar every case shares.
+// writeLiveTaskLine renders one task row at the given indent.
 func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	pad := ""
+	if indent > 0 {
+		pad = "   "
+	}
+	b.WriteString(liveTaskUnit(t, indent, width, spin, color, now, profile).Render(pad))
+	b.WriteByte('\n')
+}
+
+// liveTaskUnit composes one task row's DisplayUnit (P3's uniform row
+// model). Every case below is a slot-filling policy — which fields get
+// populated for this state/progress/indent combination — not a bespoke
+// format string; DisplayUnit.Render owns the one shared line grammar every
+// case shares. Returning the unit rather than writing it lets a caller that
+// owns a richer row (a group header promoting its only Running child) reuse
+// the whole policy and re-label just the name slot.
+func liveTaskUnit(t core.TaskSnapshot, indent, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) DisplayUnit {
 	glyph := TaskGlyph(t.State, profile)
 	if t.State == core.Running {
 		glyph = spin
@@ -325,10 +533,9 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 		}
 		unit.Elapsed = heartbeatSuffix(now, activitySince(t))
 		if t.Phase != "" {
-			// Default intensity: the current phase is diagnostic evidence
-			// while progress stalls, not a subordinate row (evo-rec.md
-			// "Color and txt.Style demotions").
-			detail = detail + "  " + t.Phase + unit.Elapsed
+			// Muted current: N/M is the diagnostic; the current-name/Phase
+			// slot is subordinate (evo-rec.md DURING `:. name  N/M  muted-current`).
+			detail = detail + "  " + txt.Dim(t.Phase, color) + unit.Elapsed
 		} else {
 			// P5: no Phase text yet — still age honestly past elapsedAfter.
 			detail += unit.Elapsed
@@ -344,17 +551,18 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 			phase = "working…"
 		}
 		unit.Elapsed = heartbeatSuffix(now, activitySince(t))
-		unit.Detail = phase + unit.Elapsed
+		unit.Detail = txt.Dim(phase, color) + unit.Elapsed
 	case t.State == core.Running && t.Phase != "":
-		unit.Detail = t.Phase
+		unit.Detail = txt.Dim(t.Phase, color)
 	case t.State == core.Pending:
-		// A core.Pending row left on screen past elapsedAfter is exactly as
-		// static as a stalled core.Running one — same heartbeat, txt.Dim (subordinate:
-		// nothing is happening yet) rather than the diagnostic-intensity
-		// phase text a core.Running row gets.
-		if hb := heartbeatSuffix(now, activitySince(t)); hb != "" {
-			unit.Elapsed = hb
-			unit.Detail = txt.Dim("waiting"+hb, color)
+		// A core.Pending row left on screen past elapsedAfter says so, in
+		// txt.Dim (subordinate: nothing is happening yet) rather than the
+		// diagnostic-intensity phase text a core.Running row gets. It
+		// carries no elapsed suffix: a queued row accumulates no work time
+		// (dialect Heartbeat rule), and three `waiting — 12s` siblings read
+		// as three stalled jobs rather than one queue.
+		if heartbeatSuffix(now, activitySince(t)) != "" {
+			unit.Detail = txt.Dim("waiting", color)
 		}
 	case t.State == core.Failed:
 		msg := t.Summary
@@ -385,12 +593,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 		unit.Detail = txt.Dim(msg, color)
 	}
 
-	pad := ""
-	if indent > 0 {
-		pad = "   "
-	}
-	b.WriteString(unit.Render(pad))
-	b.WriteByte('\n')
+	return unit
 }
 
 // progressBar returns a fixed-width ASCII bar for completed/total.

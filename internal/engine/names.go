@@ -13,6 +13,6 @@ const DefaultVisibleNames = txt.DefaultVisibleNames
 // profile is variadic so the simplest call — TruncateNames(names, visible) —
 // stays correct: an omitted profile renders the Unicode overflow glyph; a
 // caller that has already resolved a GlyphProfile passes it explicitly.
-func TruncateNames(names []string, visible int, profile ...GlyphProfile) string {
-	return txt.TruncateNames(names, visible, profile...)
+func TruncateNames(names []string, visible int) string {
+	return txt.TruncateNames(names, visible)
 }

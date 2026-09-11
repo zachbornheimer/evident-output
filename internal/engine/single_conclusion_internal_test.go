@@ -12,12 +12,12 @@ import (
 // TestConfigToOptions_DefaultTTYMarksSharedPrimaryTerminal pins the
 // construction-time plumbing: when Config's ordinary default-wiring builds
 // a live Terminal around the same writer as primary (the real-TTY,
-// no-explicit-To()/AlsoWrite() path in evo.Init(evo.Config{Title: ...})),
+// no-explicit-to()/alsoWrite() path in evo.Init(evo.Config{Title: ...})),
 // configToOptions must record that identity so Finish can skip the
 // dual-stream write, instead of an fd comparison happening later at Finish.
 func TestConfigToOptions_DefaultTTYMarksSharedPrimaryTerminal(t *testing.T) {
 	// /dev/null is a real *os.File backed by a character device, so
-	// IsCharDevice(c.Stdout) is true and configToOptions takes the same
+	// isCharDevice(c.Stdout) is true and configToOptions takes the same
 	// "wantLive" auto-terminal branch a real interactive TTY would —
 	// without requiring a pty in this test environment.
 	tty, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
@@ -55,11 +55,11 @@ func TestFinish_SharedPrimaryTerminalRendersConclusionOnce(t *testing.T) {
 	var shared bytes.Buffer
 	drv := terminal.NewANSI(&shared, terminal.WithInteractive(true), terminal.WithSize(80, 24))
 	out := newOutput("shared-writer",
-		To(&shared),
-		Terminal(drv),
+		to(&shared),
+		withTerminal(drv),
 		withPrimarySharesTerminal(),
-		VisibilityDelay(0),
-		NoColor(),
+		visibilityDelay(0),
+		withNoColor(),
 	)
 	t.Cleanup(func() { _ = out.Close() })
 
@@ -84,10 +84,10 @@ func TestFinish_DistinctPrimaryAndTerminalKeepBothConclusions(t *testing.T) {
 	var primary, screenBuf bytes.Buffer
 	drv := terminal.NewANSI(&screenBuf, terminal.WithInteractive(true), terminal.WithSize(80, 24))
 	out := newOutput("distinct-writers",
-		To(&primary),
-		Terminal(drv),
-		VisibilityDelay(0),
-		NoColor(),
+		to(&primary),
+		withTerminal(drv),
+		visibilityDelay(0),
+		withNoColor(),
 	)
 	t.Cleanup(func() { _ = out.Close() })
 

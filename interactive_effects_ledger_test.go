@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
@@ -20,14 +21,11 @@ import (
 func TestInteractive_DryRunDeleteReachesLiveTerminalLedger(t *testing.T) {
 	var screen bytes.Buffer
 	drv := terminal.NewANSI(&screen, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(drv), evo.VisibilityDelay(0), evo.NoColor(), evo.DryRun(),
-	}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: drv, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
-	_ = task.Delete("stale local branch", nil, evo.Affected(3))
-	task.Done()
+	task.Delete("stale local branch", func() error { return nil }, evo.Affected(3))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
@@ -48,14 +46,11 @@ func TestInteractive_DryRunDeleteReachesLiveTerminalLedger(t *testing.T) {
 func TestInteractive_ChangesDeleteReachesLiveTerminalLedger(t *testing.T) {
 	var screen bytes.Buffer
 	drv := terminal.NewANSI(&screen, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(drv), evo.VisibilityDelay(0), evo.NoColor(),
-	}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: drv, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
-	_ = task.Delete("stale local branch", nil, evo.Affected(3))
-	task.Done()
+	task.Delete("stale local branch", func() error { return nil }, evo.Affected(3))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)

@@ -1,51 +1,92 @@
 package engine
 
-import "iter"
+import (
+	"iter"
 
-// Each iterates items, driving absolute Progress(i, len(items)) and a phase
-// default of item before each item is yielded — the bar reads "items
-// completed so far", not "items completed including the one still
-// running", so it never shows full while the last item is in flight. Evo
-// owns the counter: because progress is set from the loop index rather
-// than a hand-maintained counter, re-running work for an item inside the
-// loop body cannot double-count or move the bar backward — only advancing
-// to the next item does. Normal completion of the loop seals progress at
-// total/total.
-//
-// The item-name phase is a courtesy default, not a declared phase: if the
-// loop body calls Phase itself before the next paint, that call's own text
-// is what streams (in plain mode) — the bare item name never forces its
-// own redundant durable line first (beginner-10).
-//
-// Breaking out of the loop early leaves progress at the count already
-// reached; the task is not auto-resolved (call Done/Fail/etc. explicitly).
-func (t *TaskHandle) Each(items []string) iter.Seq[string] {
-	total := len(items)
-	return func(yield func(string) bool) {
+	txt "github.com/zachbornheimer/evident-output/internal/text"
+)
+
+func eachChildren(out *Output, groupID string, items []string) iter.Seq2[string, *TaskHandle] {
+	return func(yield func(string, *TaskHandle) bool) {
+		if out == nil {
+			return
+		}
+		if !out.sealEachTotal(groupID) {
+			return
+		}
+		tasks := out.addEachChildren(groupID, items)
+		var wait []*TaskHandle
 		for i, item := range items {
-			t.Progress(i, total)
-			t.setLiveOnlyPhase(item)
-			if !yield(item) {
-				return
+			if i >= len(tasks) {
+				break
+			}
+			task := tasks[i]
+			cont := yield(item, task)
+			if task.wasSubmitted() {
+				wait = append(wait, task)
+			}
+			if !cont {
+				break
 			}
 		}
-		t.Progress(total, total)
+		for _, task := range wait {
+			task.waitSubmitted()
+		}
 	}
 }
 
-// EachN iterates a count-only loop with no item names, driving absolute
-// Progress(i, n) before each index is yielded — see Each for why the bar
-// reads the count completed so far rather than including the in-flight
-// item. Use Each when items have names worth showing as the phase. Normal
-// completion of the loop seals progress at n/n.
-func (t *TaskHandle) EachN(n int) iter.Seq[int] {
-	return func(yield func(int) bool) {
-		for i := 0; i < n; i++ {
-			t.Progress(i, n)
-			if !yield(i) {
-				return
-			}
-		}
-		t.Progress(n, n)
+// sealEachTotal claims a collection's one Each denominator and reports
+// whether this call may declare children. A collection derives its
+// completed/total from its Each children, so a second Each changes a total
+// the reader has already been shown: one subject declared its delete Each,
+// rendered `✓ branches  25/25`, then declared its kept Each and rendered
+// `✓ branches  145/145` a second later. The dialect forbids exactly that
+// ("a sealed total never changes ... Never 14/40 -> 14/53"), so the second
+// call is recorded misuse and yields nothing rather than re-opening a
+// number the reader already trusted.
+//
+// Only Each seals. Declaring explicitly named children one at a time
+// (group.Task("lint"), group.Task("test")) is the ordinary Group shape and
+// is untouched — those children are semantically named work, not items of a
+// counted collection, and never enter the denominator.
+//
+// The caller's correct spelling for a partitioned collection is one Each
+// over every item, resolving each child as deleted or kept, which is also
+// what makes the taxonomy partition sum.
+func (o *Output) sealEachTotal(groupID string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	col := o.tasksByRef[groupID]
+	if col == nil {
+		return false
 	}
+	if col.eachSealed {
+		o.recordMisuseFor(col.name, ErrAlreadyResolved)
+		return false
+	}
+	col.eachSealed = true
+	return true
+}
+
+// addEachChildren declares every item as a child under one lock, then
+// paints once, so the first live frame already shows 0/N. Yielding one
+// child at a time used to grow the denominator as the loop ran
+// (`141/144` becoming `145/145`).
+func (o *Output) addEachChildren(groupID string, items []string) []*TaskHandle {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	col := o.tasksByRef[groupID]
+	if col == nil {
+		handles := make([]*TaskHandle, len(items))
+		for i := range items {
+			handles[i] = &TaskHandle{out: o, id: o.nextID("task")}
+		}
+		return handles
+	}
+	handles := make([]*TaskHandle, 0, len(items))
+	for _, name := range items {
+		handles = append(handles, o.declareTaskLocked(txt.Text(name), col, "", true))
+	}
+	o.signalLiveLocked(true)
+	return handles
 }

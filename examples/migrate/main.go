@@ -20,17 +20,11 @@ func main() {
 	fail := flag.Bool("fail", false, "with --apply, simulate backup failure")
 	flag.Parse()
 
-	opts := []evo.Option{evo.Title("schema migration")}
-	if !*apply {
-		opts = append(opts, evo.DryRun())
-	}
-	out := evo.Init(evo.Config{Options: opts})
+	evo.Init(evo.Config{Title: "schema migration", DryRun: !*apply})
 	evo.Main(func() error {
 		backup := evo.Task("backup")
 		backup.Doing("snapshotting production")
 		if *apply && *fail {
-			// Detail is stable user guidance (presentation); the raw SDK error
-			// would go into Failf's trailing %w if this call site returned it.
 			backup.Fail(
 				"backup failed",
 				evo.Detail("check the backup destination and credentials"),
@@ -43,17 +37,10 @@ func main() {
 		migration.Doing("applying schema changes")
 		migration.Done("applied")
 
-		database := out.Task("database")
-		if err := database.Add("column users.email_verified", addEmailVerifiedColumn); err != nil {
-			return database.Failf("add column: %w", err)
-		}
-		if err := database.Create("index idx_users_email", createEmailIndex); err != nil {
-			return database.Failf("create index: %w", err)
-		}
-		if err := database.Write("migrations/20260727_email_verified.sql", writeMigrationFile); err != nil {
-			return database.Failf("write migration file: %w", err)
-		}
-		database.Done()
+		schema := evo.Sequence("schema")
+		schema.Task("email column").Create("column users.email_verified", addEmailVerifiedColumn)
+		schema.Task("email index").Create("index idx_users_email", createEmailIndex)
+		schema.Task("migration file").Write("migrations/20260727_email_verified.sql", writeMigrationFile)
 		return nil
 	})
 }

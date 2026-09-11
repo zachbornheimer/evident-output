@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -27,10 +28,10 @@ func TestLive_SpinnerGlyphAdvancesWithClock(t *testing.T) {
 		t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		d: 80 * time.Millisecond, // one spinner frame per Now()
 	}
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.VisibilityDelay(0), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	g := out.DisplayGroup("work")
+	g := out.Group("work")
 	indeterminate := g.Task("verify")
 	bar := g.Task("scan")
 

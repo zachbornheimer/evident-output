@@ -55,6 +55,8 @@ func TestPluralize_RegularAndIrregularNouns(t *testing.T) {
 		{2, "worktree", "worktrees"},
 		{0, "worktree", "worktrees"},
 		{2, "branch", "branches"},
+		{2, "branches", "branches"},
+		{12, "local branches", "local branches"},
 		{2, "box", "boxes"},
 		{2, "buzz", "buzzes"},
 		{2, "batch", "batches"},

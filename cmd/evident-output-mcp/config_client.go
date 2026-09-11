@@ -54,9 +54,9 @@ func printConfigHelp() {
 	fmt.Fprint(os.Stderr, "  gemini        Gemini CLI settings snippet\n")
 	fmt.Fprint(os.Stderr, "  grok          Grok ~/.grok/config.toml or project .grok/config.toml\n")
 	fmt.Fprint(os.Stderr, "  opencode      OpenCode MCP config snippet\n\n")
-	fmt.Fprint(os.Stderr, "Preferred install (pin a release tag — not @latest):\n")
-	fmt.Fprintf(os.Stderr, "  GOBIN=\"$HOME/.local/bin\" go install \\\n    github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@%s\n\n", Version)
-	fmt.Fprint(os.Stderr, "Then ensure the binary is on PATH as \"evident-output-mcp\".\n")
+	fmt.Fprint(os.Stderr, "Preferred install (pin a release tag — not @latest; never GOBIN=$HOME/.local/bin):\n")
+	fmt.Fprintf(os.Stderr, "  go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@%s\n  mkdir -p \"$HOME/.local/bin\"\n  ln -sfn \"$(go env GOPATH)/bin/evident-output-mcp\" \"$HOME/.local/bin/evident-output-mcp\"\n\n", Version)
+	fmt.Fprint(os.Stderr, "After bumping evo: evident-output-mcp update --directory <repo> then restart the host.\n")
 }
 
 func clientConfig(client string) (string, error) {
@@ -70,9 +70,11 @@ func clientConfig(client string) (string, error) {
 		return fmt.Sprintf(`# Grok Build — prefer user scope ($HOME/.grok/config.toml).
 # Absolute path required: Grok's process PATH often omits $HOME/.local/bin.
 #
-# Install (pin release — not @latest):
-#   GOBIN="$HOME/.local/bin" go install \
-#     github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@%s
+# Install (pin release — not @latest; never GOBIN=$HOME/.local/bin):
+#   go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@%s
+#   mkdir -p "$HOME/.local/bin"
+#   ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
+# After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
 # Register: grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 #
 # Verify: grok mcp doctor evident-output --json
@@ -95,7 +97,9 @@ startup_timeout_sec = 30
 `, nil
 	case "codex":
 		return fmt.Sprintf(`# Codex MCP (stdio)
-# Install: GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@%s
+# Install: go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@%s
+#   ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
+# After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
 
 [mcp_servers.evident-output]
 command = "${HOME}/.local/bin/evident-output-mcp"

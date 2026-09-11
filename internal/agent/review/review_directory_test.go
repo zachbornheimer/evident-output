@@ -45,3 +45,27 @@ func f(out *evo.Output) { out.Changes("b") }
 		t.Fatalf("directory review must merge both files, got %+v", res.Findings)
 	}
 }
+
+func TestGoDirectory_FillsPinFromGoMod(t *testing.T) {
+	dir := t.TempDir()
+	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output v0.4.6\nreplace github.com/zachbornheimer/evident-output => ./evo\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "evo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := review.GoDirectory(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ModuleVersion != "v0.4.6" || res.DesiredVersion != "v0.4.6" {
+		t.Fatalf("pin fields: %+v", res)
+	}
+	if res.ReplacePath != filepath.Join(dir, "evo") {
+		t.Fatalf("ReplacePath=%q", res.ReplacePath)
+	}
+}

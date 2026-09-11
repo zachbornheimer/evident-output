@@ -17,17 +17,16 @@ import (
 // to one error.
 func TestFinish_MisuseSentinel_RendersHintNotRawSentinelText(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Task("a", evo.ID("dup"))
-	out.Task("b", evo.ID("dup")) // reusing the same evo.ID under a different name is a real conflict
+	out.Task("a").Delete("branch", func() error { return nil }, evo.Affected(-1))
 
 	_ = out.Finish()
 	rendered := buf.String()
-	if strings.Contains(rendered, "evo: duplicate entity key") {
+	if strings.Contains(rendered, "evo: invalid config") {
 		t.Fatalf("raw sentinel jargon leaked into the user stream:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "evo.ID") {
-		t.Fatalf("want a corrective hint naming evo.ID, got:\n%s", rendered)
+	if !strings.Contains(rendered, "pass a string") {
+		t.Fatalf("want a corrective hint, got:\n%s", rendered)
 	}
 }

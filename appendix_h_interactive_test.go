@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -21,22 +22,19 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(screen),
-		evo.Clock(clock),
-		evo.VisibilityDelay(150 * time.Millisecond),
-	}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(150 * time.Millisecond)})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
+	dependencies.Doing("installing")
 	dependencies.Done("installed %d packages", 18)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := screen.LiveFrameCount(); got != 0 {
-		t.Fatalf("live frames = %d, want 0", got)
+	if got := screen.LiveFrameCount(); got == 0 {
+		t.Fatal("instant Done must still paint a running frame before the check")
 	}
 	// A task resolved before the live region ever became visible commits its
 	// row durably at resolution time (release-gate round 5 finding 3) rather
@@ -61,30 +59,20 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	)
 
 	// FixedClock freezes spinner glyphs for stable operation expectations.
-	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.DebugLevel(evo.LevelDebug),
-		evo.NoColor(), // assert exact final text without SGR
-		evo.Clock(fixed),
-	}})
+	fixed := evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	discard := io.Discard
+	out := evo.Init(evo.Config{Isolated: true, Clock: fixed, Terminal: screen, Stdout: discard, Stderr: discard, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("dependencies")
 	task.Doing("resolving packages")
-	out.Debug("package index loaded", evo.Field{Key: "packages", Value: 18})
+	out.DebugForTest("package index loaded", evo.Field{Key: "packages", Value: 18})
 	task.Done("installed %d packages", 18)
 	_ = out.Finish()
 
 	// History mode: timestamp (FixedClock) + bracketed level above live region.
-	// The task first paints Pending ("○", no spinner — evo-rec.md "new tasks
-	// declare as Pending"); Phase() is the first evidence that promotes it
-	// to Running and draws the spinner frame. Since release-gate round 5
-	// finding 3, Done commits the resolved row durably at resolution time
-	// (commitResolvedTaskLocked) instead of waiting for WriteFinal — the row
-	// clears the live spinner and streams durably, and WriteFinal is left
-	// with nothing further to say (the lone task already told the whole
-	// story, so the standalone conclusion is suppressed too).
+	// Declare is Pending (○). Doing starts submitted evidence so the row
+	// spins. Done commits the resolved row durably at resolution time.
 	want := []testkit.Operation{
 		testkit.DrawLive("○ dependencies"),
 		testkit.DrawLive("⠋ dependencies  resolving packages"),
@@ -108,11 +96,11 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 		testkit.NoColor(),
 	)
 
-	fixed := evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(fixed), evo.NoColor()}})
+	fixed := evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: fixed, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.DisplayGroup("dependencies")
+	dependencies := out.Group("dependencies")
 	react := dependencies.Task("react")
 	esbuild := dependencies.Task("esbuild")
 	sharp := dependencies.Task("sharp")
@@ -152,10 +140,10 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		testkit.NoColor(),
 	)
 
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.DisplayGroup("dependencies")
+	dependencies := out.Group("dependencies")
 	for n := 0; n < 120; n++ {
 		task := dependencies.Task(fmt.Sprintf("package-%03d", n))
 		switch n {
@@ -192,11 +180,7 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.Clock(clock),
-		evo.MaxFrameRate(30),
-	}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
 	t.Cleanup(func() { _ = out.Close() })
 
 	download := out.Task("download")
@@ -227,11 +211,7 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 		testkit.Interactive(),
 		testkit.Width(columns),
 	)
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(screen),
-		evo.VisibilityDelay(0),
-		evo.Clock(evo.FixedClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}),
-	}})
+	out := evo.Init(evo.Config{Isolated: true, Clock: evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("goimports check")

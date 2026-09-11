@@ -14,13 +14,13 @@ import (
 // told an honest, complete story already — the easiest path (forgetting
 // Done) becomes correct instead of a surprising Cancelled/NotStarted plus a
 // silent exit-code flip to failure. This is exactly the README quickstart's
-// `evo.Task("cleanup").Delete("stale local branch", nil, evo.Affected(2))` shape with no
+// `evo.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(2))` shape with no
 // following Done.
 func TestFinish_UnresolvedTaskWithRecordedEffect_AutoResolvesDone(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(2))
+	out.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(2))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (recorded effect should auto-resolve Done)", err)
@@ -47,10 +47,10 @@ func TestFinish_UnresolvedTaskWithRecordedEffect_AutoResolvesDone(t *testing.T) 
 // honest, sentinel-specific hint — this pins the new line instead.
 func TestFinish_RemainingMisuse_RendersTaskLine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	out.Task("branches").Block("local-only branch")
-	_ = out.Task("branches").Delete("stale local branch", nil, evo.Affected(2)) // already resolved — misuse
+	out.Task("branches").Delete("stale local branch", func() error { return nil }, evo.Affected(2)) // already resolved — misuse
 
 	if err := out.Finish(); err == nil {
 		t.Fatal("Finish() = nil, want the recorded misuse")

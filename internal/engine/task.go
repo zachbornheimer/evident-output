@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -36,22 +37,36 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 		return t
 	}
 	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
 		return t
 	}
 	t.out.setPhaseLocked(st, text)
 	return t
 }
 
+// resolvedByInterrupt reports whether this state was reached by the
+// interrupt sweep rather than by the caller. Narrating such a row is not
+// misuse: cancellation resolves it underneath whoever was reporting on it,
+// and a worker already inside its per-item step had no way to prevent the
+// one straggling update that follows. Blaming the caller for the interrupt's
+// own timing put a misuse warning at the top of every interrupted ledger.
+func resolvedByInterrupt(state EntityState) bool {
+	return state == Cancelled || state == NotStarted
+}
+
 // setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
 // — the shared entry point for every phase source that is NOT the caller's
-// own narrated beat: Each's per-item courtesy default, and PhaseWriter's (and
-// through it, Task.Run's) per-line mirror of a talkative child's raw output.
-// Off-TTY, an explicit TaskHandle.Phase call still forces its own durable row
-// (the P10 contract: the one line the caller asked to see); this path never
-// does — a child's full output already has one durable home, the Evidence
-// ring (and its failure-path DetailTail), so a row per mirrored line would
-// just repeat it (release-gate round 9 finding 4).
+// own narrated beat: Each's per-item courtesy default, PhaseWriter's (and
+// through it, Task.Run's) per-line mirror of a talkative child's raw output,
+// and Step's current-item name. Off-TTY, an explicit TaskHandle.Doing call
+// still forces its own durable row (the P10 contract: the one line the
+// caller asked to see); this path never does — a child's full output already
+// has one durable home, the evidence ring (and its failure-path DetailTail),
+// so a row per mirrored line would just repeat it (release-gate round 9
+// finding 4). Step is the same shape: Isolated+Plain must not stream a
+// durable line per unique item name.
 func (t *TaskHandle) setLiveOnlyPhase(text string) {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
@@ -64,7 +79,9 @@ func (t *TaskHandle) setLiveOnlyPhase(text string) {
 		return
 	}
 	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
 		return
 	}
 	t.out.setLiveOnlyPhaseLocked(st, text)
@@ -98,10 +115,16 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // call's own emission carries the current text once, instead of the reader
 // seeing the item name and the body's phase as two separate redundant lines
 // (beginner-10). A talkative child's mirrored output line is the same
-// shape: the Evidence ring is its one durable home, not a plain-mode row
+// shape: the evidence ring is its one durable home, not a plain-mode row
 // per line (release-gate round 9 finding 4).
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
-	st.phase = txt.Text(text)
+	text = txt.Text(text)
+	// Identical live-only phase is a no-op: Writer leftover/repeated lines
+	// must not bump, emit task.phase_changed, or force a live paint.
+	if text == st.phase {
+		return
+	}
+	st.phase = text
 	st.activityAt = o.cfg.clock.Now()
 	if st.state == Pending {
 		o.promoteRunningLocked(st)
@@ -138,7 +161,9 @@ func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *Tas
 		return t
 	}
 	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
 		return t
 	}
 	t.applyProgressLocked(st, completed, total, kind)
@@ -191,10 +216,13 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	return true
 }
 
-// Step sets absolute progress and phase text together under one lock
-// acquisition, so a concurrent worker can never observe one goroutine's
-// count paired with another goroutine's phase name — the exact interleaving
-// two separate Progress(...) + Phase(...) calls (two separate locks) allow.
+// Step sets absolute progress and the current item name together under
+// one lock, so a concurrent worker can never observe one goroutine's
+// count paired with another goroutine's name — the exact interleaving
+// two separate Progress(...) + Doing(...) calls (two separate locks) allow.
+// The name is live-only: Isolated+Plain does not stream a durable phase
+// line per unique name (thinned progress milestones still emit). Doing
+// remains the durable narrated-beat path.
 func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
@@ -207,11 +235,13 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 		return t
 	}
 	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
 		return t
 	}
 	if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
-		t.out.setPhaseLocked(st, name)
+		t.out.setLiveOnlyPhaseLocked(st, name)
 	}
 	return t
 }
@@ -223,13 +253,13 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 // leaves text untouched" rule that keeps a literal "%" safe. A non-string
 // first argument is misuse (ErrInvalidConfig): Done's format position is
 // still meant to be a caller-written string, not an accidental value.
-func (t *TaskHandle) Done(args ...any) *TaskHandle {
+func (t *TaskHandle) Done(args ...any) {
 	summary, ok := formatSummaryArgs(args)
 	if !ok {
 		t.out.recordMisuse(ErrInvalidConfig)
-		return t
+		return
 	}
-	return t.finish(Done, txt.Text(summary), nil)
+	t.finish(Done, txt.Text(summary), nil)
 }
 
 // formatSummaryArgs implements Done/Unchanged's no-args/literal/printf-
@@ -262,9 +292,8 @@ func formatSummaryArgs(args []any) (summary string, ok bool) {
 // printf format when fmt args are present — one text spelling shared with
 // Done/Task/Group/Reason (C6); evo.Detail(...) and other ProblemOptions may
 // be mixed into args in any position and still apply.
-func (t *TaskHandle) Warn(summary string, args ...any) {
-	formatted, opts := formatWarnArgs(summary, args)
-	p := applyProblemOptions(txt.Text(formatted), opts)
+func (t *TaskHandle) Warn(summary string) {
+	p := applyProblemOptions(txt.Text(summary), nil)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -342,8 +371,8 @@ func (t *TaskHandle) Failf(format string, args ...any) *Failure {
 	return newFailure(t, err)
 }
 
-// attachRetainedEvidenceTail attaches the task's own retained Evidence
-// (task.Run(cmd)/PhaseWriter/Evidence() capture) as the Problem's
+// attachRetainedEvidenceTail attaches the task's own retained evidence
+// (task.run(cmd)/PhaseWriter/evidence() capture) as the Problem's
 // EvidenceTail, the same precedence Evidence.DetailTail() already
 // documents: an existing Detail line — here, Failf/Blockf's own
 // wrapped-error text — still renders as the primary line, and the retained
@@ -356,7 +385,7 @@ func (t *TaskHandle) attachRetainedEvidenceTail(p *Problem) {
 	if t == nil {
 		return
 	}
-	t.Evidence().DetailTail().applyProblem(p)
+	t.evidence().DetailTail().applyProblem(p)
 }
 
 // Block resolves the task as blocked. This is a statement, not a fluent
@@ -386,14 +415,14 @@ func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
 }
 
 // Cancel resolves the task as cancelled.
-func (t *TaskHandle) Cancel(reason string) *TaskHandle {
-	return t.finish(Cancelled, txt.Text(reason), nil)
+func (t *TaskHandle) Cancel(reason string) {
+	t.finish(Cancelled, txt.Text(reason), nil)
 }
 
 // Skip resolves the task as skipped. reason is a printf format when args are
 // present (fmt.Sprintf semantics) — one text spelling shared with
 // Done/Task/Group/Reason/Phase (C6; release-gate round 6 finding 4).
-func (t *TaskHandle) Skip(reason string, args ...any) *TaskHandle {
+func (t *TaskHandle) skip(reason string, args ...any) *TaskHandle {
 	if len(args) > 0 {
 		reason = fmt.Sprintf(reason, args...)
 	}
@@ -430,8 +459,32 @@ func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle 
 // Confirm's PolicyFlag / I2's Failf fallback: Config.Title when set, else
 // the binary's own basename. Use NextCommand instead when the remedy is a
 // different (foreign) tool.
-func (t *TaskHandle) NextSelf(args ...string) *TaskHandle {
+func (t *TaskHandle) nextSelf(args ...string) *TaskHandle {
 	return t.NextCommand(t.out.policySourceName(), args...)
+}
+
+// failScheduled resolves the task Failed on the scheduler's authority,
+// carrying the callback's error text as the row summary — Fail's shape,
+// without Fail's caller-side submitted-task guard.
+func (t *TaskHandle) failScheduled(summary string) {
+	p := applyProblemOptions(txt.Text(summary), nil)
+	t.resolveScheduled(Failed, txt.Text(summary), []Problem{p})
+}
+
+// doneScheduled resolves the task Done on the scheduler's authority — the
+// one path that may declare a submitted task successful (see finish).
+func (t *TaskHandle) doneScheduled() {
+	t.resolveScheduled(Done, "", nil)
+}
+
+// Context reports the cancellation signal this task's work runs under — the
+// run's own (see Output.Context), so a Define or mutation-verb callback
+// doing I/O selects on it and stops when the run is interrupted.
+func (t *TaskHandle) Context() context.Context {
+	if t == nil {
+		return context.Background()
+	}
+	return t.out.Context()
 }
 
 // Snapshot returns the task snapshot.
@@ -445,7 +498,80 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 	return st.snapshot()
 }
 
+// finish is the caller-facing resolution path — every terminal verb
+// (Done/Fail/Block/Cancel/Skip) a program writes by hand.
+//
+// Once a task is submitted, the scheduler owns the verdict on its work: only
+// the callback's own return value says whether the work succeeded. So a
+// hand-written Done/Skipped on a submitted task is a *proposal*, not a
+// resolution — it is held until the callback returns and then either
+// ratified (the work did succeed; the caller's own summary is what renders,
+// which is how a callback declares "✓ branches  8 deleted") or rejected as
+// ErrAlreadyResolved misuse, with the observed failure taking the row (P2:
+// `task.Delete(obj, fn); task.Done()` can no longer launder an error into a
+// green row). Nothing ratifies its own completion.
+//
+// Bad news needs no ratification: Fail/Block/Cancel state an outcome the
+// caller already knows and can only make the row worse, so they resolve
+// immediately — that is how a callback reports its own failure (P13, where
+// the scheduler must then not resolve it a second time) and how an interrupt
+// cancels a running row.
 func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
+	return t.resolve(state, summary, problems, byCaller)
+}
+
+// resolveScheduled is the scheduler's own resolution path, called only from
+// executeWork once the callback has returned. It is the sole authority that
+// may declare a submitted task successful.
+func (t *TaskHandle) resolveScheduled(state EntityState, summary string, problems []Problem) {
+	t.resolve(state, summary, problems, byScheduler)
+}
+
+// resolutionAuthority names who is resolving a task — the program that wrote
+// the terminal verb, or the scheduler reporting what the callback returned.
+type resolutionAuthority int
+
+const (
+	byCaller resolutionAuthority = iota
+	byScheduler
+)
+
+// proposedOutcome is a caller's unratified success claim on a submitted
+// task, held until the callback's return value confirms or contradicts it.
+type proposedOutcome struct {
+	state    EntityState
+	summary  string
+	problems []Problem
+}
+
+// declaresSuccess reports whether state claims the work went well — the
+// class of claim only the scheduler's observation can ratify.
+func declaresSuccess(state EntityState) bool {
+	return state == Done || state == Skipped
+}
+
+// deniesItsOwnEffect reports whether this resolution is a mutation callback
+// disowning the work it was given: `task.Create("module", fn)` whose fn
+// calls Skipped or Fail and then returns nil rendered both `! skipped 1
+// (install failed)` and `[changed] broken  created 1 module` — the ledger
+// counting the package the installer had just rejected. A nil return after
+// the row said "skipped" means "I handled it", not "I did it".
+//
+// Only the callback's own verdict counts. A later Fail from the program
+// (`task.Delete(obj, fn)` then `task.Fail(...)`) and an interrupt that
+// cancels a running mutation row both describe work that really happened,
+// and both still owe the reader `! already mutated: …`. The separator is
+// the resolving goroutine's own stack: callbackDepth is non-zero only
+// inside a task callback, which is precisely "the row resolved itself".
+func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAuthority) bool {
+	if st.mutation == nil || !st.runningWork || authority != byCaller || state == Done {
+		return false
+	}
+	return callbackDepth() > 0
+}
+
+func (t *TaskHandle) resolve(state EntityState, summary string, problems []Problem, authority resolutionAuthority) *TaskHandle {
+	t.out.holdRunningPaint(t.id)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -460,6 +586,13 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 		t.out.recordAlreadyResolvedLocked(st.name, summary)
 		return t
 	}
+	if deniesItsOwnEffect(st, state, authority) {
+		st.effectDenied = true
+	}
+	if st.submitted && authority == byCaller && declaresSuccess(state) {
+		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
+		return t
+	}
 	st.state = state
 	st.phase = "" // Done clears active phase
 	if summary != "" {
@@ -468,7 +601,7 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 	if len(problems) > 0 {
 		// Fail/Block with a non-empty evidence ring and no explicit Detail or
 		// EvidenceTail auto-attach the capture tail (beginner-2) — the
-		// evidence a caller already gathered via Evidence()/PhaseWriter() is
+		// evidence a caller already gathered via evidence()/PhaseWriter() is
 		// exactly the detail a Fail/Block row needs, so DetailTail is no
 		// longer an opt-in step a caller has to remember. Skipping when
 		// EvidenceTail is already set (an explicit DetailTail() ran as a
@@ -504,5 +637,6 @@ func (t *TaskHandle) finish(state EntityState, summary string, problems []Proble
 		// other task in the run to finish (see commitNamedEffectsLocked).
 		t.out.commitNamedEffectsLocked(st.name)
 	}
+	st.closeDoneLocked()
 	return t
 }

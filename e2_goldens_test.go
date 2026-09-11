@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ import (
 // now under its P3 name.
 func TestE2P3_SequenceCascade_FailureNotStartsLaterSiblings(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Sequence("python")
@@ -54,7 +55,7 @@ func TestE2P3_SequenceCascade_FailureNotStartsLaterSiblings(t *testing.T) {
 // Sequence via .Sequence(name) still cascades within itself, and its
 // failure surfaces at the root container's own derived header state.
 func TestE2P3_SequenceCascade_NestedSequenceFailurePropagatesToRootHeader(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&bytes.Buffer{}), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &bytes.Buffer{}, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	root := out.Sequence("release")
@@ -87,10 +88,10 @@ func TestE2P3_SequenceCascade_NestedSequenceFailurePropagatesToRootHeader(t *tes
 func TestE2P4_DisplayGroupTwoSpinnerFrame(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	jobs := out.DisplayGroup("dependencies")
+	jobs := out.Group("dependencies")
 	a := jobs.Task("discover")
 	b := jobs.Task("verify")
 
@@ -140,11 +141,12 @@ func TestE2P4_DisplayGroupTwoSpinnerFrame(t *testing.T) {
 func TestE2P5_FiveSecondTimer_ContainerHeaderAgesPastThreshold(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	jobs := out.DisplayGroup("dependencies")
+	jobs := out.Group("dependencies")
 	install := jobs.Task("install")
+	jobs.Task("link")
 	ticker := out.Task("ticker")
 
 	install.Doing("installing")
@@ -178,7 +180,7 @@ func TestE2P5_FiveSecondTimer_ContainerHeaderAgesPastThreshold(t *testing.T) {
 func TestE2_DisplayUnitRefactor_StandaloneTaskRenderingByteParity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	build := out.Task("build")

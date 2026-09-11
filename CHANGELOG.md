@@ -10,26 +10,32 @@ below rather than deferred to a major version.
 
 ### Added
 
-- **`EVO_OUTPUT`** presentation projection (`human`/`plain`/`json`/`jsonl`/`stream-json`),
-  plus `EVO_COLOR`, `EVO_VERBOSE`, `EVO_DEBUG`. Independent of `Format` (stream
-  routing). `FormatData` plus `stream-json` writes EventJSON to stderr; stdout
-  stays the domain payload. `stream-json` emits one line at each journal append.
-- **`adopt_plan` paging:** cursor, 40-finding pages, `cmd/` first, skip `*_test.go`,
-  facades as the page when present. CLI `evident-output adopt [--cursor=] <dir>`.
-- **`review` `kind=directory`** and CLI `review <dir>`.
-- **API-032** for `Plan`/`Changes` (removed in v0.4).
+- **Group / Sequence / Each:** independent vs ordered collections.
+  `Group(name).Each(items)` and `Sequence(name).Each(items)` yield a child Task
+  per item; Define or a mutation verb submits the work. The first Each call
+  seals the collection total.
+- **Task.Define / Task.Wait:** Define submits work to the scheduler; Wait
+  answers a waiter instead of hanging.
+- **Preview:** `Config.Preview` is the plan before a confirm gate — same
+  skipped callbacks and `[planned]` ledger as DryRun, announced with the
+  caller's Subject instead of a `[dry-run]` tag.
+- **Task.Step(completed, total, name):** count plus live-only item name under
+  one lock.
 
 ### Changed
 
-- MCP `tools/list` advertises six tools (`list_sections`, `get_documentation`,
-  `adopt_plan`, `review`, `preview`, `explain`). `list_guides`/`get_guidance`
-  remain `tools/call` aliases.
+- Mutation verbs are object-first: `Delete(object, fn, opts...)` with
+  `evo.Affected(n)` for quantity. Task is name-only: `Task(name string)`.
+- Child-process chatter uses `task.Writer()`, not Evidence().
+- Public `Output` / `TaskHandle` / `GroupHandle` / `SequenceHandle` are
+  wrappers, not `engine` aliases — test helpers stay off `go doc`.
+- `MainWith` / `ID` / `StartPhase` remain exported as superseded (Task name
+  only; `Main` / `Output.Run`).
 
 ### Fixed
 
-- Facade detection no longer treats `fmt.Fprint(os.Stderr)` inside an arbitrary
-  method as an output facade; `io.Writer` fields that methods write through
-  still count.
+- `Config.Options` plus `Preview` now matches ordinary `Config{Preview: true}`:
+  dry-run tense, planned header, callbacks do not run.
 
 ## [0.4.6] — RecordName streams at task resolution
 

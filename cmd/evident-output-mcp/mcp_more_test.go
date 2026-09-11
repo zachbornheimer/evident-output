@@ -18,7 +18,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func f() {
-  out := evo.Init(evo.Config{Options: []evo.Option{}})
+  out := evo.Init(evo.Config{})
   t := out.Task("x")
   t.Start()
   fmt.Printf("x")
@@ -30,8 +30,7 @@ func f() {
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"source":` + string(b) + `,"file":"x.go"}}}`,
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"evident_output_preview","arguments":{"subject":"demo","item":"status","state":"blocked"}}}`,
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"evident_output_get_guidance","arguments":{"ids":["common-api","nope"]}}}`,
-	}, "\n") + "\n"
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"evident_output_get_guidance","arguments":{"ids":["common-api","nope"]}}}`}, "\n") + "\n"
 
 	cmd := exec.Command(bin)
 	cmd.Stdin = strings.NewReader(in)
@@ -57,8 +56,7 @@ func TestMCP_ResourceRead(t *testing.T) {
 	bin := buildMCP(t)
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"evident-output://guides/common-api"}}`,
-	}, "\n") + "\n"
+		`{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"evident-output://guides/common-api"}}`}, "\n") + "\n"
 	cmd := exec.Command(bin)
 	cmd.Stdin = strings.NewReader(in)
 	var stdout bytes.Buffer

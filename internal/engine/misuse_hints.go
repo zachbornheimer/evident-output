@@ -48,9 +48,11 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 	case errors.Is(err, ErrReasonWrongTask):
 		return "a Reason built with OnTask only attaches to that named task"
 	case errors.Is(err, ErrConcurrentRunning):
-		return "only one child of a Sequence runs at a time; use DisplayGroup for independent children"
+		return "only one child of a Sequence runs at a time; use Group for independent children"
 	case errors.Is(err, ErrDryRunDeclaredLate):
 		return "call DeclareDryRun before any Task/Print/Confirm row streams"
+	case errors.Is(err, ErrWaitDeadlock):
+		return fmt.Sprintf("nothing left in the run can resolve %s; a task cannot wait on itself or on a task waiting on it", subject)
 	case errors.Is(err, ErrTerminalWithoutSink):
 		return "pass evo.To(w) alongside evo.Terminal(driver), or use a driver whose Sink() reports its writer"
 	default:

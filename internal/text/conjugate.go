@@ -65,6 +65,11 @@ func Pluralize(quantity int64, singular string) string {
 	if !isPluralizableWord(singular) {
 		return singular
 	}
+	if IsPlural(singular) {
+		// Already plural ("local branches", "children", "logs"). Do not emit
+		// "brancheses", "childrens", or "logses".
+		return singular
+	}
 	switch {
 	case strings.HasSuffix(singular, "y") && !endsInVowelPlusY(singular):
 		return singular[:len(singular)-1] + "ies"
@@ -74,6 +79,48 @@ func Pluralize(quantity int64, singular string) string {
 	default:
 		return singular + "s"
 	}
+}
+
+// singularEndingsThatLookPlural lists the trailing letter pairs that make an
+// ordinary singular noun end in "s" — "class", "status", "analysis". Without
+// them the "ends in s ⇒ plural" rule would call every one of these plural.
+var singularEndingsThatLookPlural = []string{"ss", "us", "is"}
+
+// IsPlural reports whether noun is already the plural spelling of a countable
+// English noun — the check behind both halves of the object-plurality
+// contract: Pluralize must leave such a word alone at any quantity, and a
+// mutation verb must reject one (its object is singular; the ledger
+// pluralizes from the quantity). irregularPlural stays the single table: its
+// values are the known irregular plurals, and its keys are singulars the
+// suffix rules below would otherwise misread.
+func IsPlural(noun string) bool {
+	if noun == "" {
+		return false
+	}
+	for singular, plural := range irregularPlural {
+		if noun == plural {
+			return true
+		}
+		if noun == singular {
+			return false
+		}
+	}
+	if !isPluralizableWord(noun) {
+		return false
+	}
+	head := noun
+	if i := strings.LastIndex(noun, " "); i >= 0 {
+		head = noun[i+1:]
+	}
+	if !strings.HasSuffix(head, "s") {
+		return false
+	}
+	for _, ending := range singularEndingsThatLookPlural {
+		if strings.HasSuffix(head, ending) {
+			return false
+		}
+	}
+	return true
 }
 
 // isPluralizableWord reports whether singular reads as ordinary English

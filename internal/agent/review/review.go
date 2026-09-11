@@ -41,10 +41,24 @@ type Result struct {
 	// never partial merely because evo is imported — partial+recheck=false
 	// confuses agents into ignoring a shippable result.
 	Partial bool `json:"partial,omitempty"`
+	// DesiredVersion is the pin the caller asked review to compare against
+	// (MCP desired_version, or the directory go.mod pin when omitted).
+	DesiredVersion string `json:"desired_version,omitempty"`
+	// ModuleVersion is the evident-output require in the reviewed go.mod.
+	ModuleVersion string `json:"module_version,omitempty"`
+	// ReplacePath is a filesystem replace for evident-output, if any.
+	ReplacePath string `json:"replace_path,omitempty"`
 }
 
-// GoSource reviews Go source for evo misuse patterns (AST + textual).
+// GoSource reviews Go source for evo misuse patterns (AST + textual)
+// against the current rec dialect.
 func GoSource(filename, src string) Result {
+	return GoSourceAt(filename, src, "")
+}
+
+// GoSourceAt reviews src as it would be written for desiredVersion
+// (empty means the current rec dialect).
+func GoSourceAt(filename, src, desiredVersion string) Result {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
 	if err != nil {
@@ -107,11 +121,11 @@ func GoSource(filename, src string) Result {
 			findings = append(findings, Finding{
 				RuleID:     "API-026",
 				Severity:   "error",
-				Message:    "forbidden execution helper ." + name + "( — evo is presentation-only; keep schedulers/retries in application code",
+				Message:    "forbidden execution helper ." + name + "( — callers do not invent RunAll/Map/Retry; use Group/Sequence/Define/Each/After",
 				File:       filename,
 				Line:       pos.Line,
 				Column:     pos.Column,
-				Suggestion: "move the ." + name + "( loop/retry/timeout into application code; resolve Task/Item outcomes only",
+				Suggestion: "replace ." + name + "( with Group.Each/Define/After or keep the loop in application code",
 			})
 		}
 
@@ -220,9 +234,9 @@ func GoSource(filename, src string) Result {
 		// Progress instead (evo-rec.md "Progress invariants").
 		if hasEvo && name == "Advance" && isLikelyEvoReceiver(sel.X) {
 			recv := exprDottedName(sel.X)
-			suggestion := "prefer " + recv + ".Each(...) for loop progress or " + recv + ".Progress(completed, total) for an absolute count"
+			suggestion := "prefer Group(...).Each(items)/Sequence(...).Each(items) with " + recv + ".Define(fn) for loop progress, or " + recv + ".Progress(completed, total) for an absolute count"
 			if recv == "" {
-				suggestion = "prefer Each(...) for loop progress or Progress(completed, total) for an absolute count"
+				suggestion = "prefer Group(...).Each(items)/Sequence(...).Each(items) with task.Define(fn) for loop progress, or Progress(completed, total) for an absolute count"
 			}
 			findings = append(findings, Finding{
 				RuleID:     "PROG-001",
@@ -293,7 +307,7 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectUnboundedSliceIntoNarration(filename, src)...)
 	}
 
-	// API-030: Task/DisplayGroup.Task declared inside a goroutine or g.Go closure
+	// API-030: Task/Group.Task declared inside a goroutine or g.Go closure
 	// races task creation with rendering (evo-rec.md "predeclare Tasks").
 	if hasEvo {
 		findings = append(findings, detectTaskDeclaredInsideFanOut(filename, src)...)
@@ -326,10 +340,11 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectPlaceholderDoing(filename, src)...)
 	}
 
-	// API-032: every superseded spelling (evo.New/MainWith in main, Cause,
-	// Capture) gets a derived fix, not a lecture.
+	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
+	// rec-surface Options/To/Plain/Affected/old Delete/Skip/MainWith) gets a
+	// derived fix, not a lecture.
 	if hasEvo {
-		findings = append(findings, detectDeprecatedSpellings(filename, src)...)
+		findings = append(findings, detectDeprecatedSpellings(filename, src, desiredVersion)...)
 	}
 
 	// API-033: an entity's own name reused verbatim as its skip/verb argument.
@@ -357,7 +372,7 @@ func GoSource(filename, src string) Result {
 	}
 
 	// API-038: fmt.Sprintf(...) passed to a printf-variadic evo method
-	// (Task/DisplayGroup/Sequence/Summary/Done/Warn/Doing/Skip/Failf) should
+	// (Task/Group/Sequence/Summary/Done/Warn/Doing/Skip/Failf) should
 	// flatten into that method's own format + args.
 	if hasEvo {
 		findings = append(findings, detectSprintfIntoVariadicVerb(filename, src)...)
@@ -401,6 +416,60 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectCrammedSummary(filename, src)...)
 	}
 
+	// FP-005: Task created and Done with no Doing/Progress/Writer window.
+	if hasEvo {
+		findings = append(findings, detectInstantDone(filename, f, fset)...)
+	}
+
+	// FP-006: Doing(...) immediately followed by Done(...) with no
+	// Define/mutation verb submitting work between them (theater).
+	if hasEvo {
+		findings = append(findings, detectDoingDoneTheater(filename, f, fset)...)
+	}
+
+	// API-040: Failf/Fail inside a Define/mutation callback whose result
+	// reaches that same callback — double-resolves the task.
+	if hasEvo {
+		findings = append(findings, detectFailInResolvedCallback(filename, f, fset)...)
+	}
+
+	// API-041: goroutine/fan-out closure resolves a predeclared Task with
+	// no Define inside it.
+	if hasEvo {
+		findings = append(findings, detectGoroutineResolvesPredeclaredTask(filename, src)...)
+	}
+
+	// API-042: mutation verb with a nil or no-op callback.
+	if hasEvo {
+		findings = append(findings, detectNoOpMutationCallback(filename, f, fset)...)
+	}
+
+	// API-043: plural object literal on a mutation verb.
+	if hasEvo {
+		findings = append(findings, detectPluralMutationObject(filename, f, fset)...)
+	}
+
+	// API-044: channel-wait wrapper around Define.
+	if hasEvo {
+		findings = append(findings, detectChannelWaitWrapperAroundDefine(filename, src)...)
+	}
+
+	// TAX-003: inline evo.Reason("...") literal, or a reason that restates
+	// its own verb.
+	if hasEvo {
+		findings = append(findings, detectInlineReasonLiteral(filename, f, fset)...)
+	}
+
+	// API-027: Done/Fail/Progress on Group/Sequence (name-match).
+	if hasEvo {
+		findings = append(findings, detectCollectionLeafMisuse(filename, f, fset)...)
+	}
+
+	// API-039: Group that only ever has one child in source.
+	if hasEvo {
+		findings = append(findings, detectSingletonGroup(filename, f, fset)...)
+	}
+
 	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
@@ -423,6 +492,7 @@ func GoSource(filename, src string) Result {
 		Findings:        dedupe(findings),
 		RecheckRequired: hasRequired(findings),
 		Partial:         false,
+		DesiredVersion:  desiredVersion,
 	}
 }
 
@@ -495,7 +565,7 @@ func GoPackage(files map[string]string) Result {
 	}
 	_, err := conf.Check(pkgName, fset, parsed, info)
 	typed := err == nil || info != nil
-	// Cross-file: detect DisplayGroup/Sequence collection leaf misuse with type info when available.
+	// Cross-file: detect Group/Sequence collection leaf misuse with type info when available.
 	for _, f := range parsed {
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
@@ -506,10 +576,10 @@ func GoPackage(files map[string]string) Result {
 			if !ok {
 				return true
 			}
-			// If receiver type name is DisplayGroup/Sequence (package-local), leaf Done/Fail is misuse.
+			// If receiver type name is Group/Sequence (package-local), leaf Done/Fail is misuse.
 			if tv, ok := info.Types[sel.X]; ok && tv.Type != nil {
 				tn := tv.Type.String()
-				if (strings.Contains(tn, "DisplayGroup") || strings.Contains(tn, "SequenceHandle")) && (sel.Sel.Name == "Done" || sel.Sel.Name == "Fail" || sel.Sel.Name == "Progress") {
+				if (strings.Contains(tn, "GroupHandle") || strings.Contains(tn, "SequenceHandle")) && (sel.Sel.Name == "Done" || sel.Sel.Name == "Fail" || sel.Sel.Name == "Progress") {
 					pos := fset.Position(n.Pos())
 					all = append(all, Finding{
 						RuleID:   "API-027",
@@ -609,7 +679,7 @@ func StructuredDocument(filename string, raw []byte) Result {
 
 // isFormatMethod names the surviving *f methods (C6: Donef/Summaryf/Itemf/
 // Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf are deleted — Done/Summary/
-// Task/DisplayGroup/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now,
+// Task/Group/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now,
 // so there is nothing left in that family to flag). Failf/Blockf survive
 // for their distinct %w+*Failure semantics, but a call with no directive at
 // all is still the same ceremony API-028 warns about.
@@ -832,10 +902,10 @@ func isEvoExecutionReceiver(x ast.Expr) bool {
 		// Bare unknown.Map(...) — prefer miss over false positive (trust in review).
 		return false
 	case *ast.CallExpr:
-		// out.DisplayGroup("x").Map / out.Task("x").Retry
+		// out.Group("x").Map / out.Task("x").Retry
 		if s, ok := v.Fun.(*ast.SelectorExpr); ok {
 			switch s.Sel.Name {
-			case "DisplayGroup", "Sequence", "Task", "Item", "Changes", "Plan", "For", "New", "Main", "MainWith", "Init":
+			case "Group", "Sequence", "Task", "Item", "Changes", "Plan", "For", "New", "Main", "MainWith", "Init":
 				return true
 			}
 			return isEvoExecutionReceiver(s.X)
@@ -862,8 +932,10 @@ func isLikelyEvoReceiver(x ast.Expr) bool {
 		if knownNonEvoPackages[v.Name] {
 			return false
 		}
-		// Flag bare Start on any non-package ident (t.Start, it.Start, item.Start).
-		// Package.Start is rare; if package is evo, flag.
+		switch v.Name {
+		case "command", "cmd", "child", "process", "watcher", "harness", "grandchild", "proc", "pty":
+			return false
+		}
 		return true
 	case *ast.CallExpr:
 		return true // out.Item("x").Start()
@@ -1066,7 +1138,7 @@ func detectTTYPassthroughWithoutSuspend(filename, src string) []Finding {
 	if !hasPassthrough {
 		return nil
 	}
-	if strings.Contains(src, ".Suspend(") {
+	if strings.Contains(src, ".Writer()") || strings.Contains(src, "task.Run(") {
 		return nil
 	}
 	line := 1
@@ -1080,10 +1152,10 @@ func detectTTYPassthroughWithoutSuspend(filename, src string) []Finding {
 	return []Finding{{
 		RuleID:     "TERM-015",
 		Severity:   "warning",
-		Message:    "tty-passthrough child (Stdout/Stderr inherited) without a surrounding out.Suspend(...) call; the child's own UI can glue onto the live spinner (evo-rec.md #7b)",
+		Message:    "tty-passthrough child (Stdout/Stderr inherited); capture it with task.Writer() so the live row keeps moving",
 		File:       filename,
 		Line:       line,
-		Suggestion: "wrap the call with out.Suspend(func() error { return cmd.Run() })",
+		Suggestion: "cmd.Stdout = task.Writer(); cmd.Stderr = task.Writer()",
 	}}
 }
 
@@ -1120,7 +1192,7 @@ var firstPaintIOMarkers = []string{
 var firstPaintInitMarkers = []string{"evo.Init("}
 
 // firstPaintEntityMarkers declare the first presentation entity.
-var firstPaintEntityMarkers = []string{".Task(", ".DisplayGroup(", ".Sequence(", ".Item("}
+var firstPaintEntityMarkers = []string{".Task(", ".Group(", ".Sequence(", ".Item("}
 
 // detectFirstPaintGaps flags heavy I/O that runs ahead of evo's init call
 // (FP-001: nothing is armed yet, so nothing can paint) or between init and
@@ -1306,7 +1378,7 @@ func detectUnboundedSliceIntoNarration(filename, src string) []Finding {
 // a bare goroutine, or a closure handed to an errgroup-style .Go(func...).
 var fanOutClosureMarkers = []string{"go func(", ".Go(func("}
 
-// detectTaskDeclaredInsideFanOut flags out.Task/DisplayGroup.Task called inside a
+// detectTaskDeclaredInsideFanOut flags out.Task/Group.Task called inside a
 // goroutine or g.Go closure — declaring the Task there races task creation
 // with rendering and produces the unordered multi-spinner defect evo-rec.md
 // "predeclare children; present one Running" forbids.
@@ -1504,131 +1576,146 @@ var becauseCallPattern = regexp.MustCompile(`\.Because\(`)
 var okCallPattern = regexp.MustCompile(`(\w+)\.OK\(\)`)
 
 // detectDeprecatedSpellings is API-032: it catches every superseded spelling
-// with a fix, not a lecture — evo.New (evo.Init is the sole constructor
-// since the item/task fold; evo.MainWith itself is current again as of
-// v0.4.0, paired with Init(Config{Isolated: true}), not New), Item/.OK/
-// .Because (Item folded into Task: Item(name).OK().Because(text) is now
-// Task(name).Done(text)), evo.Cause (Failf/Blockf's trailing %w since
-// Fail/Block are statement-form), and Capture (renamed to Evidence).
-func detectDeprecatedSpellings(filename, src string) []Finding {
+// with a fix, not a lecture — evo.New (evo.Init is the sole constructor;
+// evo.MainWith is unexported — ordinary main uses evo.Main, Isolated
+// instances use Output.Run), Item/.OK/.Because (Item folded into Task:
+// Item(name).OK().Because(text) is now Task(name).Done(text)), evo.Cause
+// (Failf/Blockf's trailing %w since Fail/Block are statement-form), Capture
+// (renamed to Evidence), and the rec-surface spellings (Config.Options,
+// Option funcs, quantity-first mutation verbs, Skip, ID, StartPhase).
+func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 	var findings []Finding
+	if dialectAtLeast(desiredVersion, dialectFold) {
 
-	if body, offset := firstFuncBody(src, "main"); offset >= 0 {
-		if idx := strings.Index(body, "evo.New("); idx >= 0 {
+		if body, offset := firstFuncBody(src, "main"); offset >= 0 {
+			if idx := strings.Index(body, "evo.New("); idx >= 0 {
+				findings = append(findings, Finding{
+					RuleID:     "API-032",
+					Severity:   "warning",
+					Message:    "evo.New was removed with the item/task fold; evo.Init is the sole constructor",
+					File:       filename,
+					Line:       lineAt(src, offset+idx),
+					Suggestion: "replace evo.New(cfg) with evo.Init(cfg) (Isolated: true for a hosted instance; evo.Main(run) in ordinary main, out.Run(run) when holding *Output)",
+				})
+			}
+		}
+
+		for _, m := range itemCallPattern.FindAllStringSubmatchIndex(src, -1) {
+			recv := src[m[2]:m[3]]
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
 				Severity:   "warning",
-				Message:    "evo.New was removed with the item/task fold; evo.Init is the sole constructor",
+				Message:    "Item folded into Task — Item was removed",
 				File:       filename,
-				Line:       lineAt(src, offset+idx),
-				Suggestion: "replace evo.New(cfg) with evo.Init(cfg, Config{Isolated: true}) then evo.MainWith(out, run) (no os.Exit wrapper — it exits itself)",
+				Line:       lineAt(src, m[0]),
+				Suggestion: "replace " + recv + ".Item(...) with " + recv + ".Task(...)",
 			})
 		}
-	}
 
-	for _, m := range itemCallPattern.FindAllStringSubmatchIndex(src, -1) {
-		recv := src[m[2]:m[3]]
-		findings = append(findings, Finding{
-			RuleID:     "API-032",
-			Severity:   "warning",
-			Message:    "Item folded into Task — Item was removed",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: "replace " + recv + ".Item(...) with " + recv + ".Task(...)",
-		})
-	}
-
-	for _, m := range planCallPattern.FindAllStringSubmatchIndex(src, -1) {
-		recv := src[m[2]:m[3]]
-		findings = append(findings, Finding{
-			RuleID:     "API-032",
-			Severity:   "warning",
-			Message:    "Plan was removed in v0.4 — use Task mutation verbs",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: "replace " + recv + ".Plan(...) with Task mutation verbs (Delete/Create/Record/...), not a new Plan API",
-		})
-	}
-
-	for _, m := range changesCallPattern.FindAllStringSubmatchIndex(src, -1) {
-		recv := src[m[2]:m[3]]
-		findings = append(findings, Finding{
-			RuleID:     "API-032",
-			Severity:   "warning",
-			Message:    "Changes was removed in v0.4 — use Task mutation verbs",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: "replace " + recv + ".Changes(...) with Task mutation verbs (Delete/Create/Record/...), not a new Changes API",
-		})
-	}
-
-	for _, m := range okCallPattern.FindAllStringSubmatchIndex(src, -1) {
-		recv := src[m[2]:m[3]]
-		findings = append(findings, Finding{
-			RuleID:     "API-032",
-			Severity:   "warning",
-			Message:    "OK was retired with Item — Task's spelling for the same outcome is Done",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: "replace " + recv + ".OK() with " + recv + ".Done()",
-		})
-	}
-
-	for _, m := range becauseCallPattern.FindAllStringIndex(src, -1) {
-		findings = append(findings, Finding{
-			RuleID:     "API-032",
-			Severity:   "warning",
-			Message:    "Because was retired with Item — its text is now the resolving verb's own argument",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: `replace OK().Because("text") with Done("text") (or fold into Warn/Block/Fail's summary)`,
-		})
-	}
-
-	// derivedCauseSpans marks the byte range of every evo.Cause( occurrence
-	// already covered by a derived Failf/Blockf suggestion below, so the
-	// generic fallback pass doesn't double-report the same call site.
-	derivedCauseSpans := make([]int, 0)
-	for _, m := range causeOptionPattern.FindAllStringSubmatchIndex(src, -1) {
-		recv, verb, summary, cause := src[m[2]:m[3]], src[m[4]:m[5]], src[m[6]:m[7]], src[m[8]:m[9]]
-		if idx := strings.Index(src[m[0]:m[1]], "evo.Cause("); idx >= 0 {
-			derivedCauseSpans = append(derivedCauseSpans, m[0]+idx)
+		for _, m := range planCallPattern.FindAllStringSubmatchIndex(src, -1) {
+			recv := src[m[2]:m[3]]
+			if !isEvoSurfaceRecv(recv) {
+				continue
+			}
+			findings = append(findings, Finding{
+				RuleID:     "API-032",
+				Severity:   "warning",
+				Message:    "Plan was removed in v0.4 — use Task mutation verbs",
+				File:       filename,
+				Line:       lineAt(src, m[0]),
+				Suggestion: "replace " + recv + ".Plan(...) with Task mutation verbs (Delete/Create/Record/...), not a new Plan API",
+			})
 		}
-		findings = append(findings, Finding{
-			RuleID:     "API-032",
-			Severity:   "warning",
-			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use " + verb + "f's trailing %w",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: fmt.Sprintf(`%s.%sf(%q, %s)`, recv, verb, summary+": %w", cause),
-		})
-	}
-	for _, m := range bareCausePattern.FindAllStringIndex(src, -1) {
-		if slices.Contains(derivedCauseSpans, m[0]) {
-			continue
+
+		for _, m := range changesCallPattern.FindAllStringSubmatchIndex(src, -1) {
+			recv := src[m[2]:m[3]]
+			if !isEvoSurfaceRecv(recv) {
+				continue
+			}
+			findings = append(findings, Finding{
+				RuleID:     "API-032",
+				Severity:   "warning",
+				Message:    "Changes was removed in v0.4 — use Task mutation verbs",
+				File:       filename,
+				Line:       lineAt(src, m[0]),
+				Suggestion: "replace " + recv + ".Changes(...) with Task mutation verbs (Delete/Create/Record/...), not a new Changes API",
+			})
 		}
-		findings = append(findings, Finding{
-			RuleID:     "API-032",
-			Severity:   "warning",
-			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use Failf/Blockf's trailing %w",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: `replace evo.Cause(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,
-		})
-	}
 
-	for _, m := range captureCallPattern.FindAllStringSubmatchIndex(src, -1) {
-		recv := src[m[2]:m[3]]
-		findings = append(findings, Finding{
-			RuleID:     "API-032",
-			Severity:   "warning",
-			Message:    "Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: "replace " + recv + ".Capture(...) with " + recv + ".Evidence(...)",
-		})
-	}
+		for _, m := range okCallPattern.FindAllStringSubmatchIndex(src, -1) {
+			recv := src[m[2]:m[3]]
+			findings = append(findings, Finding{
+				RuleID:     "API-032",
+				Severity:   "warning",
+				Message:    "OK was retired with Item — Task's spelling for the same outcome is Done",
+				File:       filename,
+				Line:       lineAt(src, m[0]),
+				Suggestion: "replace " + recv + ".OK() with " + recv + ".Done()",
+			})
+		}
 
+		for _, m := range becauseCallPattern.FindAllStringIndex(src, -1) {
+			findings = append(findings, Finding{
+				RuleID:     "API-032",
+				Severity:   "warning",
+				Message:    "Because was retired with Item — its text is now the resolving verb's own argument",
+				File:       filename,
+				Line:       lineAt(src, m[0]),
+				Suggestion: `replace OK().Because("text") with Done("text") (or fold into Warn/Block/Fail's summary)`,
+			})
+		}
+
+		// derivedCauseSpans marks the byte range of every evo.Cause( occurrence
+		// already covered by a derived Failf/Blockf suggestion below, so the
+		// generic fallback pass doesn't double-report the same call site.
+		derivedCauseSpans := make([]int, 0)
+		for _, m := range causeOptionPattern.FindAllStringSubmatchIndex(src, -1) {
+			recv, verb, summary, cause := src[m[2]:m[3]], src[m[4]:m[5]], src[m[6]:m[7]], src[m[8]:m[9]]
+			if idx := strings.Index(src[m[0]:m[1]], "evo.Cause("); idx >= 0 {
+				derivedCauseSpans = append(derivedCauseSpans, m[0]+idx)
+			}
+			findings = append(findings, Finding{
+				RuleID:     "API-032",
+				Severity:   "warning",
+				Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use " + verb + "f's trailing %w",
+				File:       filename,
+				Line:       lineAt(src, m[0]),
+				Suggestion: fmt.Sprintf(`%s.%sf(%q, %s)`, recv, verb, summary+": %w", cause),
+			})
+		}
+		for _, m := range bareCausePattern.FindAllStringIndex(src, -1) {
+			if slices.Contains(derivedCauseSpans, m[0]) {
+				continue
+			}
+			findings = append(findings, Finding{
+				RuleID:     "API-032",
+				Severity:   "warning",
+				Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use Failf/Blockf's trailing %w",
+				File:       filename,
+				Line:       lineAt(src, m[0]),
+				Suggestion: `replace evo.Cause(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,
+			})
+		}
+
+		for _, m := range captureCallPattern.FindAllStringSubmatchIndex(src, -1) {
+			recv := src[m[2]:m[3]]
+			if !isEvoSurfaceRecv(recv) {
+				continue
+			}
+			findings = append(findings, Finding{
+				RuleID:     "API-032",
+				Severity:   "warning",
+				Message:    "Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr",
+				File:       filename,
+				Line:       lineAt(src, m[0]),
+				Suggestion: "replace " + recv + ".Capture(...) with " + recv + ".Evidence(...)",
+			})
+		}
+
+	}
+	if dialectAtLeast(desiredVersion, dialectRec) {
+		findings = append(findings, detectSupersededRecSurface(filename, src)...)
+	}
 	return findings
 }
 
@@ -1807,11 +1894,11 @@ func detectSprintfInVerb(filename, src string) []Finding {
 }
 
 // printfVariadicVerbPattern matches a call to one of evo's own printf-
-// variadic entity/status methods — Task/DisplayGroup/Sequence/Summary/Done/
+// variadic entity/status methods — Task/Group/Sequence/Summary/Done/
 // Warn/Doing/Skip/Failf all already take (format string, args ...any)
 // directly (P1/P2, C6: the separate *f siblings for these were deleted) —
 // with fmt.Sprintf as (the start of) its argument list.
-var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Task|DisplayGroup|Sequence|Summary|Done|Warn|Doing|Skip|Failf)\(\s*fmt\.Sprintf\(`)
+var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Done|Doing|Failf)\(\s*fmt\.Sprintf\(`)
 
 // detectSprintfIntoVariadicVerb is API-038: fmt.Sprintf(...) passed to a
 // method that is already printf-variadic itself is ceremony that also hides
@@ -1884,6 +1971,9 @@ func detectWrapperMethod(filename, src string) []Finding {
 		if call == nil {
 			continue
 		}
+		if composesItsArgument(stmt) {
+			continue
+		}
 		findings = append(findings, Finding{
 			RuleID:     "API-037",
 			Severity:   "warning",
@@ -1894,6 +1984,19 @@ func detectWrapperMethod(filename, src string) []Finding {
 		})
 	}
 	return findings
+}
+
+// nestedCallArgumentPattern matches a call appearing inside the verb's own
+// argument list — `fmt.Sprintf(...)`, `humanize(...)` — anywhere after the
+// verb's opening parenthesis.
+var nestedCallArgumentPattern = regexp.MustCompile(`\([^()]*[\w.]+\(`)
+
+// composesItsArgument reports whether the wrapped verb's argument is built
+// by the wrapper rather than passed straight through. Such a method is not a
+// bare passthrough: a caller cannot inline the verb without copying the
+// composition, so the name and the stack frame are earning their place.
+func composesItsArgument(stmt string) bool {
+	return nestedCallArgumentPattern.MatchString(stmt)
 }
 
 // singleStatementBody returns the sole non-blank, non-comment line of inner,

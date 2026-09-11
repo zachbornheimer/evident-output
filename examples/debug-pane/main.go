@@ -1,4 +1,4 @@
-// Command debug-pane demos rolling slog-text viewport.
+// Command debug-pane demos a sequential audit with an optional blocker.
 //
 //	go run ./examples/debug-pane/
 //	go run ./examples/debug-pane/ --fail
@@ -6,7 +6,6 @@ package main
 
 import (
 	"flag"
-	"log/slog"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -14,8 +13,7 @@ import (
 
 func main() {
 	fast := flag.Bool("fast", false, "shorter sleeps")
-	fail := flag.Bool("fail", false, "find a blocker (task Done + item Block)")
-	preserve := flag.Bool("preserve", false, "always keep diagnostic tail")
+	fail := flag.Bool("fail", false, "find a blocker")
 	flag.Parse()
 
 	step := 100 * time.Millisecond
@@ -23,42 +21,19 @@ func main() {
 		step = 20 * time.Millisecond
 	}
 
-	newest := true
-	cfg := evo.DefaultConfig()
-	cfg.Title = "branch audit"
-	cfg.Debug = evo.DebugConfig{
-		Level:          evo.LevelDebug,
-		View:           evo.DebugPresentationPane,
-		PaneHeight:     4,
-		NewestFirst:    &newest,
-		PreserveAlways: *preserve,
-	}
-	out := evo.Init(cfg)
-	log := slog.New(out.SlogHandler())
-
+	evo.Init(evo.Config{Title: "branch audit"})
 	evo.Main(func() error {
 		jobs := evo.Sequence("audit")
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
 
 		scan.Doing("enumerating")
-		log.Debug("enumerated local branches", "count", 7)
 		time.Sleep(step)
-		log.Debug("fetched remote metadata", "remote", "origin")
-		time.Sleep(step)
-		scan.Done("%d branches", 7)
+		scan.Done("7 branches")
 
 		compare.Doing("diffing")
-		blockers := 0
-		if *fail {
-			blockers = 1
-		}
-		log.Debug("branch comparison completed", "blockers", blockers)
-		time.Sleep(step)
-		log.Debug("policy check", "rule", "no-local-only")
 		time.Sleep(step)
 		if *fail {
-			// Comparison succeeded and found a domain blocker — not an operation failure.
 			compare.Done("1 blocker found")
 			evo.Task("branches").Block("feat/sdk-full-consolidation is local-only")
 		} else {

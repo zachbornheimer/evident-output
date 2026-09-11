@@ -15,7 +15,7 @@ func TestVisibilityNormal_PrefixedConsistently(t *testing.T) {
 	if evo.VisibilityNormal != 0 {
 		t.Fatalf("VisibilityNormal = %v, want the zero value", evo.VisibilityNormal)
 	}
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.At(evo.VisibilityNormal).Println("hello")
+	out.AtForTest(evo.VisibilityNormal).Println("hello")
 }

@@ -97,8 +97,8 @@ Advanced capabilities may exist without appearing in ordinary examples.
 ### Lead sheet (ordinary)
 
 ```text
-Init(Config) → Main → Print/Verbose → Task/Sequence/DisplayGroup
-→ Capture on Task → mutation verbs (Delete/Create/Update/…) → slog → ResultWriter
+Init(Config) → Main → Print/Verbose → Task/Sequence/Group
+→ task.Writer() → mutation verbs (Delete/Create/Update/…) → slog → ResultWriter
 ```
 
 ---

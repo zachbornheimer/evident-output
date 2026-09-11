@@ -6,8 +6,11 @@ run = [
 ]
 
 [tasks.build]
-description = "Verify packages compile"
-run = "go build ./..."
+description = "Verify packages compile; stamp evident-output-mcp's --version so a stale host can never read the literal string 'dev'"
+run = [
+  "go build ./...",
+  "go build -ldflags \"-X main.Version=$(git describe --tags --always --dirty)\" -o /dev/null ./cmd/evident-output-mcp",
+]
 
 [tasks.lint]
 description = "Format check, vet; trunk daemonless when hermetic tools work"

@@ -5,12 +5,22 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/modpin"
 )
 
 // GoDirectory walks dir for Go source and merges per-file GoSource findings.
 // Tests are included (review of evo usage in tests is valid). vendor/,
 // testdata/, dot-directories, and generated files are skipped.
 func GoDirectory(dir string) (Result, error) {
+	return GoDirectoryAt(dir, "")
+}
+
+// GoDirectoryAt walks dir like GoDirectory, linting as desiredVersion
+// (empty uses detectorVersion of the go.mod pin).
+func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
+	pin := pinFromDir(dir)
+	ver := detectorVersion(desiredVersion, pin.Version, pin.ReplacePath)
 	var all []Finding
 	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -29,7 +39,7 @@ func GoDirectory(dir string) (Result, error) {
 		if generatedHeader(src) {
 			return nil
 		}
-		r := GoSource(path, string(src))
+		r := GoSourceAt(path, string(src), ver)
 		all = append(all, r.Findings...)
 		return nil
 	})
@@ -37,10 +47,36 @@ func GoDirectory(dir string) (Result, error) {
 		return Result{}, fmt.Errorf("review directory %s: %w", dir, walkErr)
 	}
 	all = dedupe(all)
+	reported := desiredVersion
+	if reported == "" {
+		reported = pin.Version
+	}
 	return Result{
 		Findings:        all,
 		RecheckRequired: hasRequired(all),
+		DesiredVersion:  reported,
+		ModuleVersion:   pin.Version,
+		ReplacePath:     pin.ReplacePath,
 	}, nil
+}
+
+func pinFromDir(start string) modpin.Pin {
+	dir := start
+	for {
+		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+		if err == nil {
+			pin, err := modpin.Parse(string(data), dir)
+			if err != nil {
+				return modpin.Pin{}
+			}
+			return pin
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return modpin.Pin{}
+		}
+		dir = parent
+	}
 }
 
 func skipUnreviewed(d os.DirEntry) error {

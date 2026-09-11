@@ -29,10 +29,16 @@ type Snapshot struct {
 	Actions    []Action
 	Conclusion *Conclusion
 	Timestamp  time.Time
-	// DryRun mirrors Config.DryRun: the run's mutation verbs are Plan-only
-	// (never Changes). The plain/final projection uses this to open with an
-	// unmissable marker line — no caller decides whether to announce it.
+	// DryRun is the run's planned tense — mutation verbs are Plan-only,
+	// never Changes — set by Config.DryRun and Config.Preview alike. The
+	// plain/final projection uses this to open with an unmissable header
+	// line; no caller decides whether to announce it.
 	DryRun bool
+	// Preview mirrors Config.Preview: the planned tense above is a preview
+	// before a confirm gate, so the header is the subject alone rather than
+	// "[dry-run] <subject>". A preview that announced itself as a dry run
+	// would promise nothing will happen and then ask permission to apply.
+	Preview bool
 	// DryRunSubject is Config.Subject's text, carried separately from the
 	// Title-derived Subject field above, so the dry-run marker can merge it
 	// onto its own single line ("[dry-run] <subject>",
@@ -101,15 +107,19 @@ type TaskSnapshot struct {
 	// presentation-internal bookkeeping (coalescing), never part of the
 	// public snapshot contract. Set via NewTaskSnapshot, read via Synthetic.
 	synthetic bool
+	// fromEach marks a child created by Group/Sequence.Each. Presentation
+	// aggregates these onto the parent row; JSON still lists every child.
+	fromEach bool
 }
 
 // NewTaskSnapshot returns base with its presentation-internal bookkeeping
 // fields set — the only way to populate them from outside this package
 // (they are deliberately unexported: never part of the public snapshot
 // contract). Called once, by the root package's taskState.snapshot().
-func NewTaskSnapshot(base TaskSnapshot, liveFirstSeenAt time.Time, synthetic bool) TaskSnapshot {
+func NewTaskSnapshot(base TaskSnapshot, liveFirstSeenAt time.Time, synthetic, fromEach bool) TaskSnapshot {
 	base.liveFirstSeenAt = liveFirstSeenAt
 	base.synthetic = synthetic
+	base.fromEach = fromEach
 	return base
 }
 
@@ -121,6 +131,9 @@ func (t TaskSnapshot) LiveFirstSeenAt() time.Time { return t.liveFirstSeenAt }
 // output-level outcome (Output.Failf/Cancel) rather than the caller having
 // declared it.
 func (t TaskSnapshot) Synthetic() bool { return t.synthetic }
+
+// FromEach reports whether this Task was created by Group/Sequence.Each.
+func (t TaskSnapshot) FromEach() bool { return t.fromEach }
 
 // TaxonomyRecord is one accumulated (reason, name) disposition entry —
 // recorded by TaskHandle.Skipped or TaskHandle.Kept, never assembled by hand.

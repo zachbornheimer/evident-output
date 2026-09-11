@@ -14,9 +14,9 @@ import (
 // block) since that's the only path that writes the prompt at all.
 func TestConfirm_Detail_RendersContextLines(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("y\n")),
-	}})
+	restore := evo.MarkWriterAsCharDevice(&buf)
+	t.Cleanup(restore)
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Stdin: strings.NewReader("y\n"), Color: evo.ColorNever})
 
 	out.Confirm("delete origin/production-hotfix?",
 		evo.ConfirmDetail("host: prod-db-1", "affects: 3 downstream services"))
@@ -33,9 +33,7 @@ func TestConfirm_Detail_RendersContextLines(t *testing.T) {
 // PolicyHint(os.Args[0], flag).
 func TestConfirm_PolicyFlag_FillsExecutableFromTitle(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.To(&buf), evo.NoColor(), evo.Plain(), evo.Title("clean-repo"),
-	}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "clean-repo", Color: evo.ColorNever, Plain: true})
 
 	out.Confirm("delete 8 stale local branches?", evo.PolicyFlag("--apply"))
 

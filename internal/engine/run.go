@@ -21,7 +21,7 @@ var (
 // exitProcess abstracts os.Exit (facade rule, mirroring notifySignals above)
 // so Main/MainWith's process-terminating behavior is the only thing that
 // isn't unit-testable in isolation — Run/evo.Run stay pure functions that
-// return a code and never exit, and API-018 ("library does not call
+// return a code and never exit, and aPI-018 ("library does not call
 // os.Exit") is restated as "only through this facade, only from Main/MainWith".
 var exitProcess = os.Exit
 
@@ -92,7 +92,7 @@ func Run(run func() error) int {
 // Main runs a CLI presentation lifecycle against the package-level default
 // instance (see Init) and exits the process with the resulting code via the
 // exitProcess facade — the library still never calls os.Exit directly
-// (API-018); Main is the sole sanctioned path to it.
+// (aPI-018); Main is the sole sanctioned path to it.
 //
 //	func main() {
 //	    evo.Init(evo.Config{Title: "tool"})
@@ -115,7 +115,7 @@ func Main(run func() error) {
 //	    out := evo.Init(evo.Config{Title: "tool", Isolated: true})
 //	    evo.MainWith(out, run)
 //	}
-func MainWith(out *Output, run func(*Output) error) {
+func mainWith(out *Output, run func(*Output) error) {
 	exitProcess(out.Run(run))
 }
 
@@ -142,7 +142,7 @@ func runInterruptible(out *Output, run func(*Output) error) int {
 	case runErr := <-done:
 		return concludeRun(out, runErr)
 	case <-sigCh:
-		out.cancelActive("interrupted")
+		out.interrupt("interrupted")
 		select {
 		case <-done:
 			return concludeCancelled(out)

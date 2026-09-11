@@ -19,7 +19,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func f() {
-  out := evo.Init(evo.Config{Options: []evo.Option{}})
+  out := evo.Init(evo.Config{})
   t := out.Task("x")
   t.Start()
   fmt.Printf("hi")

@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -10,10 +11,10 @@ import (
 
 func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	g := out.DisplayGroup("work")
+	g := out.Group("work")
 	units := g.Task("scan")
 	bytes := g.Task("fetch")
 	spin := g.Task("verify")
@@ -39,13 +40,12 @@ func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 }
 
 // TestLive_DeterminateProgressPhaseIsDefaultIntensity is red-first against
-// evo-rec.md's "Color and style demotions": the in-flight phase is the
-// diagnostic signal while progress stalls, so it renders at default
-// intensity — dim is reserved for genuinely subordinate rows (pending, not
-// started, evidence, overflow), never the current item.
+// evo-rec.md's DURING shape `:. name  N/M  muted-current`: the N/M count is
+// the diagnostic; the current-name/Phase slot is subordinate, so it renders
+// muted (txt.Dim) while 3/10 stays default intensity.
 func TestLive_DeterminateProgressPhaseIsDefaultIntensity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24))
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorAlways})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("scan")
@@ -53,9 +53,8 @@ func TestLive_DeterminateProgressPhaseIsDefaultIntensity(t *testing.T) {
 	task.Doing("reading manifest")
 
 	got := screen.LatestLiveText()
-	dimmedPhase := "\x1b[2mreading manifest\x1b[0m"
-	if strings.Contains(got, dimmedPhase) {
-		t.Fatalf("phase must not be dimmed while the task is running:\n%q", got)
+	if !strings.Contains(got, "\x1b[2mreading manifest") {
+		t.Fatalf("phase must be dimmed while the task is running:\n%q", got)
 	}
 	if !strings.Contains(got, "reading manifest") {
 		t.Fatalf("expected phase text present:\n%q", got)

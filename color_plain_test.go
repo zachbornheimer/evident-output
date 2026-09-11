@@ -15,7 +15,7 @@ import (
 // attention color still lives (writeNestedTaskWarnings).
 func TestPlain_ColorOnByDefault(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Plain: true, Color: evo.ColorAlways})
 	out.Task("ok").Done()
 	out.Task("bad").Fail("x")
 	warn := out.Task("warn")
@@ -42,7 +42,7 @@ func TestPlain_ColorOnByDefault(t *testing.T) {
 
 func TestPlain_NoColorSuppressesSGR(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
 	out.Task("ok").Done()
 	out.Task("bad").Fail("x")
 	if err := out.Finish(); err != nil {

@@ -10,6 +10,13 @@ import (
 	"testing"
 )
 
+func TestMain(m *testing.M) {
+	if err := os.Setenv("EVO_MCP_NO_AUTO_UPDATE", "1"); err != nil {
+		panic(err)
+	}
+	os.Exit(m.Run())
+}
+
 func TestMCP_InitializeAndToolsListStdoutPurity(t *testing.T) {
 	bin := buildMCP(t)
 	in := strings.Join([]string{

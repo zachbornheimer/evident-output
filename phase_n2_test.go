@@ -21,9 +21,9 @@ import (
 // caller-assembled string.
 func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	_ = branches.Delete("local branch", nil, evo.Affected(8))
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(8))
 	branches.Done()
 	out.Cancel("interrupted")
 	if err := out.Finish(); err != nil {
@@ -41,7 +41,7 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 // no attention. Partial truth still holds: there is simply nothing to report.
 func TestConclusion_AlreadyMutated_CancelledEmptyLedger(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	out.Task("scan").Doing("scanning")
 	out.Cancel("interrupted")
 	if err := out.Finish(); err != nil {
@@ -57,9 +57,9 @@ func TestConclusion_AlreadyMutated_CancelledEmptyLedger(t *testing.T) {
 // on a Failed conclusion, not only Cancelled.
 func TestConclusion_AlreadyMutated_Failed(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	remotes := out.Task("remotes")
-	_ = remotes.Delete("origin tip", nil, evo.Affected(1))
+	remotes.Delete("origin tip", func() error { return nil }, evo.Affected(1))
 	remotes.Fail("authentication failed")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -74,9 +74,9 @@ func TestConclusion_AlreadyMutated_Failed(t *testing.T) {
 // specific to abnormal termination — a normal Done run never renders it.
 func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	_ = branches.Delete("local branch", nil, evo.Affected(8))
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(8))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 // bounded-rows overflow this test proves needs 500 distinct rows to exercise.
 func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
 	const total = 500
 	for i := 0; i < total; i++ {
@@ -123,8 +123,10 @@ func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 // profile-aware glyph (→ Unicode, > ASCII) rather than a color-only cue.
 func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var uniBuf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&uniBuf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsUnicode)}})
-	out.Task("done").Done().Next(evo.Label("repo-retire --retire demo"))
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &uniBuf, Glyphs: evo.GlyphsUnicode, Color: evo.ColorNever, Plain: true})
+	done := out.Task("done")
+	done.Done()
+	done.Next(evo.Label("repo-retire --retire demo"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -133,8 +135,10 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 	}
 
 	var asciiBuf strings.Builder
-	out2 := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&asciiBuf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}})
-	out2.Task("done").Done().Next(evo.Label("repo-retire --retire demo"))
+	out2 := evo.Init(evo.Config{Isolated: true, Stdout: &asciiBuf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
+	done2 := out2.Task("done")
+	done2.Done()
+	done2.Next(evo.Label("repo-retire --retire demo"))
 	if err := out2.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +152,7 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 // would mojibake on a non-UTF-8 terminal.
 func TestWriteProblem_EvidenceGlyph_ASCII(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Glyphs(evo.GlyphsASCII)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
 	out.Task("branches").Fail("cannot lock ref", evo.Detail("another git process seems to be running"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -167,7 +171,9 @@ func TestWriteProblem_EvidenceGlyph_ASCII(t *testing.T) {
 // that would stay Unicode-only regardless of the configured profile.
 func TestConfirm_ASCIIProfile_PromptGlyph(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Stdin(strings.NewReader("y\n")), evo.Glyphs(evo.GlyphsASCII), evo.NoColor()}})
+	restore := evo.MarkWriterAsCharDevice(&buf)
+	t.Cleanup(restore)
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Stdin: strings.NewReader("y\n"), Glyphs: evo.GlyphsASCII, Color: evo.ColorNever})
 	if ok := out.Confirm("proceed?"); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}

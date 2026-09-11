@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/modpin"
 )
 
 // repoMeta is the intro-line context for one scanned repo.
@@ -31,44 +33,11 @@ func versionClause(root string) string {
 	if err != nil {
 		return "evident-output not in go.mod"
 	}
-	ver := requireVersion(string(data), evoModulePath)
+	ver := modpin.RequireVersion(string(data), evoModulePath)
 	if ver == "" {
 		return "evident-output not in go.mod"
 	}
 	return "evident-output " + ver
-}
-
-// requireVersion finds modulePath's version in go.mod source, honoring both
-// the single-line ("require path v1.2.3") and block ("require (\n\tpath
-// v1.2.3\n)") forms. It returns "" when modulePath is not required.
-func requireVersion(goMod, modulePath string) string {
-	inBlock := false
-	for _, line := range strings.Split(goMod, "\n") {
-		trimmed := strings.TrimSpace(line)
-		switch {
-		case strings.HasPrefix(trimmed, "require ("):
-			inBlock = true
-			continue
-		case inBlock && trimmed == ")":
-			inBlock = false
-			continue
-		}
-
-		var rest string
-		switch {
-		case inBlock:
-			rest = trimmed
-		case strings.HasPrefix(trimmed, "require "):
-			rest = strings.TrimPrefix(trimmed, "require ")
-		default:
-			continue
-		}
-		fields := strings.Fields(rest)
-		if len(fields) >= 2 && fields[0] == modulePath {
-			return fields[1]
-		}
-	}
-	return ""
 }
 
 // gitBranchAndSHA reports root's current branch and short commit SHA via

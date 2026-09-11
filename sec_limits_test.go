@@ -12,7 +12,7 @@ import (
 )
 
 func TestSEC003_MaxEntitiesEnforced(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.MaxEntities(3)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEntities: 3})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("a").Done()
 	out.Task("b").Done()
@@ -24,7 +24,7 @@ func TestSEC003_MaxEntitiesEnforced(t *testing.T) {
 }
 
 func TestSEC005_ProgressOverflowRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	// Valid absolute max equal values.
@@ -44,7 +44,7 @@ func TestSEC005_ProgressOverflowRejected(t *testing.T) {
 }
 
 func TestSEC007_DestructiveActionFlag(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	a := evo.Action{
 		Label:       "delete everything",
@@ -77,9 +77,9 @@ func TestSEC007_DestructiveActionFlag(t *testing.T) {
 
 func TestSEC002_SensitiveFieldRedactedInDebug(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.DebugLevel(evo.LevelDebug)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Debug("auth", evo.Field{Key: "token", Value: "super-secret", Sensitive: true})
+	out.DebugForTest("auth", evo.Field{Key: "token", Value: "super-secret", Sensitive: true})
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "super-secret") {
 		t.Fatal("secret leaked")
@@ -98,17 +98,17 @@ func TestSEC011_BidiControlsStripped(t *testing.T) {
 }
 
 func TestDOM005_DuplicateKeyRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("one", evo.ID("k"))
-	out.Task("two", evo.ID("k"))
+	out.TaskIdentified("one", "k")
+	out.TaskIdentified("two", "k")
 	if !errors.Is(out.Err(), evo.ErrDuplicateKey) {
 		t.Fatalf("err=%v", out.Err())
 	}
 }
 
 func TestDOM024_TotalDecreaseBelowCompletedRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(5, 10)

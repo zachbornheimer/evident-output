@@ -54,20 +54,14 @@ t.Doing("walking")`,
 			ID:        "API-026",
 			Category:  "API",
 			Severity:  "error",
-			Invariant: "evo has no execution helpers (RunAll/Map/Retry/Parallel/Timeout)",
-			Why:       "Presentation library must not grow schedulers. Substring detection false-positives on strings.Map; review uses AST on evo receivers only.",
-			BadCode: `out.DisplayGroup("jobs").Map(func() {})
+			Invariant: "caller-invented RunAll/Map/Retry/Parallel/Timeout are forbidden on evo receivers; Group/Sequence/Define/Each/After are not",
+			Why:       "Evo owns scheduling through Group, Sequence, Define, Each, and After. Callers must not invent RunAll/Map/Retry/Parallel/Timeout on evo receivers. Substring detection false-positives on strings.Map; review uses AST on evo receivers only.",
+			BadCode: `out.Group("jobs").Map(func() {})
 out.Task("x").Retry(3)`,
-			GoodCode: `// application owns execution
-for _, j := range jobs {
-  t := out.Task(j.Name)
-  if err := j.Run(); err != nil {
-    t.Fail(err.Error())
-    continue
-  }
-  t.Done()
+			GoodCode: `for path, task := range evo.Group("worktrees").Each(paths) {
+  task.Define(func() error { return check(path) })
 }`,
-			Remediation:     "Keep loops/retries/timeouts in application code; resolve Task outcomes only",
+			Remediation:     "Use Group.Each/Define/After; do not add RunAll/Map/Retry on evo types",
 			RelatedGuidance: []string{"common-api", "tasks"},
 			VerificationIDs: []string{"API-026"},
 			Since:           "0.1.0",
@@ -77,14 +71,14 @@ for _, j := range jobs {
 			ID:        "API-027",
 			Category:  "API",
 			Severity:  "error",
-			Invariant: "Task cannot contain children; DisplayGroup/Sequence have no leaf lifecycle",
-			Why:       "Collection state is derived from children; calling Done/Fail on DisplayGroup/Sequence invents false authority.",
-			BadCode: `g := out.DisplayGroup("deps")
+			Invariant: "Task cannot contain children; Group/Sequence have no leaf lifecycle",
+			Why:       "Collection state is derived from children; calling Done/Fail on Group/Sequence invents false authority.",
+			BadCode: `g := out.Group("deps")
 g.Done() // forbidden`,
-			GoodCode: `g := out.DisplayGroup("deps")
+			GoodCode: `g := out.Group("deps")
 g.Task("a").Done()
 g.Task("b").Done()`,
-			Remediation:     "Use DisplayGroup.Task/Sequence.Task for children; never Done/Fail/Progress on the collection",
+			Remediation:     "Use Group.Task/Sequence.Task for children; never Done/Fail/Progress on the collection",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-027", "DOM-016"},
 			Since:           "0.1.0",
@@ -114,32 +108,30 @@ out.Printf("progress %d\n", n)
 			ID:        "STREAM-004",
 			Category:  "STREAM",
 			Severity:  "warning",
-			Invariant: "one task wires exactly one subprocess capture path: Task.Run, not a hand-rolled Evidence()+Writer() pair",
-			Why: "Task.Run already tees cmd.Stdout/cmd.Stderr through Evidence and Writer together. Wiring both by " +
+			Invariant: "one task wires subprocess capture through Writer, not a hand-rolled Evidence() pair",
+			Why: "Task.Writer tees cmd.Stdout/cmd.Stderr into the live doing-text and the evidence ring. Wiring a separate Evidence handle by " +
 				"hand on the same task is easy to get half-right — evidence for the rule: four hand-rolled subprocess " +
 				"wirings this pattern replaced starved the capture (two with no fallback: dead port-in-use detection, " +
 				"empty DetailTail on failure).",
 			BadCode: `proof := task.Evidence()
-cmd.Stdout = task.Writer()
+cmd.Stdout = proof
 cmd.Stderr = proof
 if err := cmd.Run(); err != nil {
   return task.Failf("build failed: %w", err)
 }`,
-			GoodCode: `if err := task.Run(cmd); err != nil {
+			GoodCode: `cmd.Stdout = task.Writer()
+cmd.Stderr = task.Writer()
+if err := cmd.Run(); err != nil {
   return task.Failf("build failed: %w", err)
-}
-task.Done()`,
-			Remediation:     "Replace the hand-rolled Evidence()/Writer() pair with task.Run(cmd); reach for Evidence() alone only when the caller isn't running an *exec.Cmd",
+}`,
+			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer(); do not call unexported Task.Run or Evidence from application code",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"STREAM-004"},
 			Since:           "0.2.17",
 			Certainty:       "heuristic",
-			// No cheap, honest static detector: telling a Task.Run-shaped
-			// wiring apart from a legitimately mixed capture (e.g. Stdout
-			// through Writer, Stderr captured separately for a
-			// different reason) needs dataflow analysis the AST pass does
-			// not do. Guidance-only; see the "streams" catalog guide and
-			// Task.Run's own doc comment for the teaching example.
+			// No cheap, honest static detector: telling Writer-shaped
+			// wiring apart from a legitimately mixed capture needs
+			// dataflow analysis the AST pass does not do. Guidance-only.
 			Detection: "guidance",
 		},
 		{
@@ -149,12 +141,12 @@ task.Done()`,
 			Invariant: "Failf/Blockf require a format directive — every other *f method is deleted",
 			Why: "Failf(\"boom\") with no directive at all is ceremony; Fail(\"boom\") is the intent. " +
 				"C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf entirely — " +
-				"Done/Summary/Task/DisplayGroup/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now, " +
+				"Done/Summary/Task/Group/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now, " +
 				"so there is nothing left in that family to flag; Failf/Blockf survive for their %w+*Failure semantics.",
 			BadCode: `task.Failf("boom")`,
 			GoodCode: `task.Fail("boom")
 task.Failf("boom: %w", err)`,
-			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Done/Summary/Task/DisplayGroup/Sequence/Changes/Plan/Warn/Reason take printf args directly",
+			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Done/Summary/Task/Group/Sequence/Changes/Plan/Warn/Reason take printf args directly",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",
@@ -164,15 +156,16 @@ task.Failf("boom: %w", err)`,
 			ID:        "API-029",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "subprocess evidence uses Task.Evidence, not DebugWriter",
-			Why:       "DebugWriter is filtered by DebugLevel and is the wrong dialect for failure Detail tails.",
+			Invariant: "subprocess evidence uses Task.Writer, not DebugWriter",
+			Why:       "DebugWriter is filtered by DebugLevel and is the wrong dialect for failure evidence.",
 			BadCode: `dbg := out.DebugWriter()
 run.Run(ctx, "brew", args, dbg)`,
-			GoodCode: `proof := task.Evidence()
-if err := run.Run(ctx, "brew", args, proof); err != nil {
-	return task.Failf("brew failed: %w", err) // wrapped error renders as an evidence line
+			GoodCode: `cmd.Stdout = task.Writer()
+cmd.Stderr = task.Writer()
+if err := cmd.Run(); err != nil {
+	return task.Failf("brew failed: %w", err)
 }`,
-			Remediation:     "Use task.Evidence() (or task.Run for an *exec.Cmd) + Failf's trailing %w",
+			Remediation:     "Use cmd.Stdout = task.Writer() + Failf's trailing %w",
 			RelatedGuidance: []string{"streams", "tasks"},
 			VerificationIDs: []string{"API-029"},
 			Since:           "0.2.0",
@@ -416,17 +409,19 @@ go func() { <-c; task.Cancel("interrupted") }()
 			ID:        "TERM-015",
 			Category:  "TERM",
 			Severity:  "warning",
-			Invariant: "tty-passthrough child processes run inside out.Suspend",
-			Why:       "A child that paints its own UI on the shared terminal collides with the parent's live spinner; no in-process fix helps once the child owns stdout/stderr directly (evo-rec.md \"#7b\").",
+			Invariant: "child processes run through Task.Writer, never inherited stdout",
+			Why:       "A child that inherits os.Stdout paints on the same TTY as the live row. Capture it so the spinner keeps moving and the child's lines become Doing. Turning the spinner off is not a product state.",
 			BadCode: `cmd := exec.Command("zq", "setup")
 cmd.Stdout = os.Stdout
 cmd.Stderr = os.Stderr
 cmd.Run()`,
-			GoodCode: `cmd := exec.Command("zq", "setup")
-cmd.Stdout = os.Stdout
-cmd.Stderr = os.Stderr
-out.Suspend(func() error { return cmd.Run() })`,
-			Remediation:     "Wrap tty-passthrough child execution in out.Suspend(fn); captured children (Writer/Capture) don't need it",
+			GoodCode: `cmd := exec.Command("go", "build", "./...")
+cmd.Stdout = task.Writer()
+cmd.Stderr = task.Writer()
+if err := cmd.Run(); err != nil {
+    return task.Failf("build failed: %w", err)
+}`,
+			Remediation:     "Use cmd.Stdout = task.Writer(); do not inherit os.Stdout and do not clear the live region",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-015"},
 			Since:           "0.6.0",
@@ -536,7 +531,7 @@ task.Doing(evo.TruncateNames(reasons, 8))`,
 			ID:        "API-030",
 			Category:  "API",
 			Severity:  "error",
-			Invariant: "Task/DisplayGroup.Task is predeclared before fan-out, never called inside the worker closure",
+			Invariant: "Task/Group.Task is predeclared before fan-out, never called inside the worker closure",
 			Why:       "Declaring a Task inside a goroutine or g.Go closure races task creation with rendering and produces the exact unordered five-spinner defect evo-rec.md \"sequential presentation\" forbids.",
 			BadCode: `for _, j := range jobs {
   go func(j Job) {
@@ -551,7 +546,7 @@ for i, j := range jobs {
 for i, j := range jobs {
   go func(i int, j Job) { tasks[i].Done() }(i, j)
 }`,
-			Remediation:     "Call out.Task/DisplayGroup.Task for every child before starting any goroutine; pass the handle in",
+			Remediation:     "Call out.Task/Group.Task for every child before starting any goroutine; pass the handle in",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-030"},
 			Since:           "0.7.0",
@@ -579,29 +574,30 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			ID:        "API-032",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "evo.New (removed with the item/task fold), Item/.OK/.Because (folded into Task/.Done), Cause, and Capture are superseded spellings; evo.MainWith(out, run) is current again (v0.4.0) as the Isolated-instance lifecycle — it exits itself, so it is never wrapped in os.Exit",
-			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New was deleted, not merely advanced; MainWith returned to pair with Isolated *Output but now exits via evo's own facade instead of returning an int for the caller to pass to os.Exit); Item folded into Task — one entity, one constructor; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr.",
+			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, Capture, Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), positional quantity-first mutation verbs, the retired independent-collection constructor, Skip, evo.ID, evo.StartPhase, evo.MainWith",
+			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were deleted; Isolated *Output uses Output.Run); Config fields replaced Option funcs; mutation verbs take (object, fn) with optional Affected(n), not a positional quantity then object; the independent collection constructor is Group; Item folded into Task; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr; Skip is Skipped; ID/StartPhase are unexported (Task takes only the name; Doing sets the first phase).",
 			BadCode: `func main() {
-	out := evo.New(evo.Config{Title: "tool"})
-	os.Exit(evo.MainWith(out, run)) // New is gone; MainWith no longer returns an int
+	out := evo.New(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
+	os.Exit(evo.MainWith(out, run))
 }
 func run(out *evo.Output) error {
-	output := out.Item("x").Capture()
-	out.Item("x").OK()
-	out.Item("y").OK().Because("no incumbent configuration found")
+	task := out.Task("branches", evo.StartPhase("classifying tips"))
+	task.Delete(n, "local tip")
+	task.Skip("skipped")
 	return out.Task("z").Fail("failed", evo.Cause(err))
 }`,
 			GoodCode: `func main() {
-	out := evo.Init(evo.Config{Title: "tool", Isolated: true})
-	evo.MainWith(out, run) // exits itself; Output.Run(run) if the caller needs the code without exiting
+	evo.Init(evo.Config{Title: "tool", Stdout: &buf, Plain: true})
+	evo.Main(run)
 }
-func run(out *evo.Output) error {
-	proof := out.Task("x").Evidence()
-	out.Task("x").Done()
-	out.Task("y").Done("no incumbent configuration found")
-	return out.Task("z").Failf("failed: %w", err)
+func run() error {
+	task := evo.Task("branches")
+	task.Doing("classifying tips")
+	task.Delete("local tip", func() error { return remove() }, evo.Affected(n))
+	task.Skipped(reason)
+	return evo.Task("z").Failf("failed: %w", err)
 }`,
-			Remediation:     "Replace evo.New with evo.Init(Config{Isolated: true}); drop os.Exit around evo.MainWith (it exits itself) — or call Output.Run for the code without exiting; replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with .Evidence()",
+			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace positional quantity-first mutation verbs with Delete(object, fn, evo.Affected(n)); replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer()",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
@@ -615,7 +611,7 @@ func run(out *evo.Output) error {
 			Why:       "out.Task(note).Skip(note) tells the reader nothing a bare \"skipped 1 (note)\" wouldn't already — the name and the reason/verb argument are the identical expression, so the second one carries zero new information.",
 			BadCode:   `out.Task(note).Skip(note)`,
 			GoodCode: `item := out.Task("branch check")
-item.Skip(note)`,
+item.Skipped(reason)`,
 			Remediation:     "Give the entity a real label distinct from the reason/verb text it also carries",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-033"},
@@ -775,11 +771,10 @@ t.Doing("walking")`,
 			BadCode: `for range items {
   t.Progress(1, total) // resets to 1 every call instead of incrementing
 }`,
-			GoodCode: `for range t.Each(items) {
-  // t.Each owns absolute Progress(i, len(items)) — a retry can never
-  // double-count or move the bar backward.
+			GoodCode: `for path, task := range evo.Group("items").Each(items) {
+  task.Define(func() error { return work(path) })
 }`,
-			Remediation:     "Use Task.Each(items)/EachN(n) to own absolute loop progress instead of hand-driving Progress from a loop index",
+			Remediation:     "Use Group.Each(items) or Sequence.Each(items) so each item is an atomic Task; do not hand-drive Progress from a loop index, and do not call Task.Each",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"DOM-017"},
 			Since:           "0.1.0",
@@ -926,10 +921,12 @@ task.Doing(strings.Join(quoted, " "))`,
 if err := cmd.Run(); err != nil {
   task.Block("policy check failed")
 }`,
-			GoodCode: `if err := task.Run(cmd); err != nil {
+			GoodCode: `cmd.Stdout = task.Writer()
+cmd.Stderr = task.Writer()
+if err := cmd.Run(); err != nil {
   return task.Blockf("policy check failed: %w", err).NextCommand("git", "status")
 }`,
-			Remediation:     "Wire the checked command's output through task.Evidence() (or task.Run) instead of io.Discard, so Block/Fail can attach DetailTail",
+			Remediation:     "Wire the checked command's output through task.Writer() instead of io.Discard, so Block/Fail can attach evidence",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"API-035"},
 			Since:           "0.2.17",
@@ -1047,7 +1044,7 @@ t = out.Task("build")`,
 			Category:  "API",
 			Severity:  "warning",
 			Invariant: "fmt.Sprintf(...) is never passed to a method that is already printf-variadic itself",
-			Why: "Task/DisplayGroup/Sequence/Summary/Done/Warn/Doing/Skip/Failf all already accept " +
+			Why: "Task/Group/Sequence/Summary/Done/Warn/Doing/Skip/Failf all already accept " +
 				"(format string, args ...any) directly (P1/P2, C6: their separate *f siblings — Warnf included — " +
 				"were deleted) — wrapping the call in fmt.Sprintf is ceremony that also hides the real arguments " +
 				"from evo's own formatting.",
@@ -1057,6 +1054,58 @@ t = out.Task("build")`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-038"},
 			Since:           "0.4.1",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "FP-005",
+			Category:  "FP",
+			Severity:  "warning",
+			Invariant: "a Task that will complete submits its work through Define or a mutation verb — never created already Done",
+			Why:       "A tool row that first appears as ✓ looks like a lie: the work happened off-screen. Narrating with Doing before an unrelated Done is the same lie with extra steps (FP-006); the real fix is to let evo run the work via Define or a mutation verb.",
+			BadCode:   `out.Task("go@1.25.11").Done(path)`,
+			GoodCode: `t := out.Task("go@1.25.11")
+t.Define(func() error {
+  return resolve(path)
+})`,
+			Remediation:     "Call Define(func() error { ... }) or the matching mutation verb (Create/Delete/Update/...) so evo decides when the row resolves, instead of resolving with Done alone",
+			RelatedGuidance: []string{"first-paint", "tasks"},
+			VerificationIDs: []string{"FP-005"},
+			Since:           "0.4.7",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "FP-006",
+			Category:  "FP",
+			Severity:  "error",
+			Invariant: "Doing narrates work in flight; a Done that immediately follows it with no Define/mutation verb submitting work between them is theater over work that already happened off-row",
+			Why:       "`.Doing(\"fixing\").Done(...)` after the fix already ran (zq fix.go:58,265) makes the row narrate a job it never actually gave to evo; FP-005's old suggestion (\"Doing before Done\") prescribed exactly this theater instead of naming Define/a verb.",
+			BadCode:   `a.out.Task("file integrity").Doing("fixing").Done("%d files changed", fixed)`,
+			GoodCode: `t := a.out.Task("file integrity")
+t.Define(func() error {
+  var err error
+  fixed, err = quality.Fix(a.services.FS, root, files)
+  return err
+})`,
+			Remediation:     "Replace Doing(...).Done(...) with Define(func() error { ... }) or the matching mutation verb so evo — not the caller — decides when the row resolves",
+			RelatedGuidance: []string{"first-paint", "tasks"},
+			VerificationIDs: []string{"FP-006"},
+			Since:           "0.4.7",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "API-039",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a Group with exactly one child is a lone Task",
+			Why:       "A 1-child group paints a 0/1 complete header over a single row and steals the command name. Use Task, or add more children.",
+			BadCode: `jobs := out.Group("run")
+jobs.Task("install:fresh-start")`,
+			GoodCode: `t := out.Task("install:fresh-start")
+t.Doing("running install:fresh-start")`,
+			Remediation:     "Replace the 1-child Group with a lone Task",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-039"},
+			Since:           "0.4.7",
 			Certainty:       "deterministic",
 		},
 		{
@@ -1076,6 +1125,123 @@ t = out.Task("build")`,
 			// mistake" from "this Fail is a genuine evaluation failure" needs
 			// the caller's own domain judgment, not a source-level pattern.
 			Detection: "guidance",
+		},
+		{
+			ID:        "API-040",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "Failf/Blockf inside a Define or mutation callback whose return value reaches that same callback resolves the task twice",
+			Why:       "Define's own contract is \"a non-nil return fails the task\"; calling Failf/Fail on the same task and then also returning that error double-resolves it — the row is correct but a spurious second misuse line appears, and zq's taskAlreadyResolved guard exists only to paper over this (app.go:162-167).",
+			BadCode: `task.Define(func() error {
+  if err := a.executeCommand(ctx, root, task, item); err != nil {
+    return task.Failf("resolve %s: %w", item.Name, err)
+  }
+  return nil
+})`,
+			GoodCode: `task.Define(func() error {
+  if err := a.executeCommand(ctx, root, task, item); err != nil {
+    return err // Define's own non-nil-return-fails-the-task resolves it once
+  }
+  return nil
+})`,
+			Remediation:     "Inside a Define/mutation callback, return the error and let Define resolve the task; do not call Failf/Fail on the same task first",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-040"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-041",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a goroutine/fan-out closure resolves a predeclared Task (Doing/Done/Fail/Progress) only through Define; a bare go func/.Go(func with no Define races the scheduler",
+			Why:       "`go func(){ task.Doing(\"x\"); task.Done() }()` over a predeclared Task compiles and renders identically to scheduled work (zq axis-11 P1) — nothing tells the author evo never scheduled it, so the row and the actual concurrency model silently disagree.",
+			BadCode: `t := out.Task("a")
+go func() {
+  t.Doing("working")
+  t.Done()
+}()`,
+			GoodCode: `for name, t := range out.Group("work").Each([]string{"a"}) {
+  t.Define(func() error { return doWork(name) })
+}`,
+			Remediation:     "Predeclare with Group(...).Each(items) or Group.Task(...), then call task.Define(func() error { ... }) instead of a bare goroutine",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-041"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-042",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a mutation verb's callback does the work; nil or a no-op callback is theater over work that ran elsewhere",
+			Why:       "`Create(\"module\", nil)` (README.md:39) and `Create(\"module\", func() error { return installedPythonModuleCount(name, n) })` (zq setup_python.go:172-181, where the named func only validates a count) both let the bulk work already run outside the callback, then hand the verb an empty gesture.",
+			BadCode: `task.Create("module", nil, evo.Affected(n))
+task.Create("module", func() error { return installedPythonModuleCount(name, n) }, evo.Affected(n))`,
+			GoodCode: `task.Create("module", func() error {
+  return invokeUV(ctx, root, packages)
+}, evo.Affected(n))
+// or, when the work already ran:
+task.Record("create", n, "module")`,
+			Remediation:     "Move the real work into the callback, or use Record(verb, n, object) when the work already happened",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-042"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:              "API-043",
+			Category:        "API",
+			Severity:        "warning",
+			Invariant:       "a mutation verb's object literal names the singular; evo pluralizes it via Affected(n)",
+			Why:             "`Delete(\"worktrees\", fn, evo.Affected(1))` renders \"deleted 1 worktrees\" (zq axis-14 P17) because Pluralize treats an already-plural literal as unchanged; the object argument must stay singular so pluralization has one job.",
+			BadCode:         `task.Delete("worktrees", fn, evo.Affected(1))`,
+			GoodCode:        `task.Delete("worktree", fn, evo.Affected(1))`,
+			Remediation:     "Pass the singular noun as the object literal; let Affected(n) drive pluralization",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-043"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-044",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a caller waiting for a Define result on this stack uses task.Wait(); a hand-rolled channel wrapper around Define hangs when the task is already terminal",
+			Why:       "zq's defineAndWait (setup_python.go:190-210) — make(chan error, 1) + Define + <-done — hangs when the task is already terminal before Define runs (submitWork never calls fn) and deadlocks when nested under MaxConcurrency:1 (axis-3, axis-15, P15/P16 confirmed).",
+			BadCode: `done := make(chan error, 1)
+task.Define(func() error {
+  err := fn()
+  done <- err
+  return err
+})
+return <-done`,
+			GoodCode: `task.Define(fn)
+return task.Wait()`,
+			Remediation:     "Replace the make(chan error)/Define/<-done wrapper with task.Define(fn); task.Wait()",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-044"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
+			// Wait is being added to the public API in parallel with this
+			// rule; this entry documents the spelling the MCP now teaches.
+		},
+		{
+			ID:        "TAX-003",
+			Category:  "TAX",
+			Severity:  "warning",
+			Invariant: "a reason used more than as a one-off literal is a compile-time name; a reason names why, not the verb it accompanies",
+			Why:       "evo.Reason(\"x\") is legal inline (duplicate strings merge into one bucket), but an inline literal can typo apart into two buckets across call sites, and a reason that only restates the verb (`Skipped(evo.Reason(\"skipped\"))`, zq cmd/zq-build/main.go:81) tells the user nothing they didn't already know from the glyph.",
+			BadCode: `task.Skipped(evo.Reason("skipped"))
+task.Kept(evo.Reason("protected"))`,
+			GoodCode: `var reasonProtected = evo.Reason("protected")
+task.Skipped(evo.Reason("timeout"))
+task.Kept(reasonProtected)`,
+			Remediation:     "Lift a repeated reason to a package-level var so it is a compile-time name; name why the item skipped/was kept, not the verb itself",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"TAX-003"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
 		},
 	}
 }

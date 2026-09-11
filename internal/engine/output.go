@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -80,9 +81,35 @@ type Output struct {
 	// namedReasons backs get-or-create identity for evo.Reason: repeated calls
 	// with the same name (inline or lifted to a var) merge into one bucket.
 	namedReasons map[string]TaxonomyReason
-	// namedGroups backs get-or-create identity for evo.Group: repeated calls
-	// with the same name return the one Group instead of a duplicate section.
+	// namedGroups backs get-or-create identity for evo.Sequence.
 	namedGroups map[string]*SequenceHandle
+	// namedGroupHandles backs get-or-create identity for evo.Group.
+	namedGroupHandles map[string]*GroupHandle
+
+	// ctx is the run's own cancellation signal — the thing a callback doing
+	// I/O selects on. cancelRun trips it on interrupt and on Close, so no
+	// callback can outlive the run that owns it.
+	ctx       context.Context
+	cancelRun context.CancelFunc
+	// schedCancelled stops the scheduler dispatching anything new: after an
+	// interrupt the queue is abandoned, not drained.
+	schedCancelled bool
+
+	schedWG          sync.WaitGroup
+	schedInflight    int
+	schedMaxObserved int
+	schedStartOrder  []string
+	schedDraining    bool
+
+	// schedExecuting counts task callbacks currently running, pooled and
+	// donated alike — schedInflight counts only the pooled slots, so it
+	// cannot answer "is any callback still moving?".
+	schedExecuting int
+	// schedWaits holds one ticket per goroutine parked in TaskHandle.Wait.
+	// Together with schedExecuting it decides whether the run can still
+	// progress, and it is how a wait that never can be satisfied is
+	// released instead of hanging Finish (see releaseUnsatisfiableWaits).
+	schedWaits map[*waitTicket]struct{}
 
 	// confirmAbort holds one abort channel per pending Confirm gate, keyed by
 	// item id, so cancelActive can unblock Confirm's stdin read and resolve
@@ -154,7 +181,7 @@ type taskState struct {
 	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
 	// so child-process evidence recorded via either path lands in one ring and
 	// DetailTail sees it after Fail.
-	evidence *Evidence
+	evidence *evidence
 
 	// skipped/kept hold disposition taxonomy accumulated by Skipped/Kept —
 	// the model that "! skipped N (...)" / "! kept N (...)" are derived from
@@ -186,6 +213,25 @@ type taskState struct {
 	// warnings has at warning severity.
 	facts []FactRecord
 
+	fromEach    bool
+	submitted   bool
+	runningWork bool
+	workFn      func() error
+	mutation    *mutationSpec
+	// effectDenied records that this task's own mutation callback resolved
+	// the row as something other than Done, so the effect it was given must
+	// not reach the ledger (see deniesItsOwnEffect).
+	effectDenied bool
+	preds        []predecessor
+	// workErr is the callback's own return value, kept so TaskHandle.Wait
+	// returns exactly what the work returned rather than a state guess.
+	workErr error
+	// proposed holds a caller's unratified success claim on a submitted task
+	// until the callback's return value confirms or contradicts it.
+	proposed *proposedOutcome
+	doneOnce sync.Once
+	doneCh   chan struct{}
+
 	// Plain/non-interactive progressive-streaming bookkeeping for a still-
 	// Running standalone task (P10: CI logs must not stay silent until
 	// Finish; beginner-8: a durable line per progress increment, thinned to
@@ -205,20 +251,25 @@ type tasksState struct {
 	summary     string
 	tasks       []*taskState
 	declaration int
-	handle      *DisplayGroup
+	handle      *GroupHandle
 
 	// namedTasks backs get-or-create identity for Sequence.Task: repeated
 	// calls with the same name inside this sequence return the one child
 	// TaskHandle.
 	namedTasks map[string]*TaskHandle
 
-	// sequential marks a collection whose children are declared as a
-	// sequence of steps (Sequence), where the "one Running child" heart
-	// contract (evo-rec.md) applies. A plain DisplayGroup collection
-	// documents its children as independent — worker-pool fan-out is a
-	// supported, concurrency-safe pattern there, so promoteRunningLocked
-	// does not police it.
+	// sequential marks a Sequence: children are chained in declaration
+	// order. A Group's children are independent and may overlap.
 	sequential bool
+
+	// eachSealed records that this collection's one Each denominator has
+	// been claimed. A collection derives completed/total from its Each
+	// children, so a second Each would change a total the reader has
+	// already been shown — `✓ branches  25/25` becoming `✓ branches
+	// 145/145` a second later. The dialect makes that unrepresentable
+	// rather than discouraged: a sealed total never changes, the same way
+	// indeterminate -> determinate is allowed once.
+	eachSealed bool
 
 	// children holds nested containers declared via Sequence.Sequence,
 	// Sequence.DisplayGroup, DisplayGroup.Sequence, or
@@ -269,12 +320,12 @@ type planState struct {
 func newOutput(subject string, options ...Option) *Output {
 	cfg := config{
 		subject:         subject,
-		clock:           SystemClock{},
+		clock:           systemClock{},
 		visibilityDelay: defaultVisibilityDelay,
 		maxFrameRate:    defaultMaxFrameRate,
 		width:           defaultWidth,
 		debugLevel:      LevelInfo,
-		redactor:        NoopRedactor{},
+		redactor:        noopRedactor{},
 		maxEntities:     defaultMaxEntities,
 		verbosity:       VerbosityNormal,
 	}
@@ -283,7 +334,7 @@ func newOutput(subject string, options ...Option) *Output {
 			opt.apply(&cfg)
 		}
 	}
-	// A Terminal driver supplied without To() must still land its
+	// A Terminal driver supplied without to() must still land its
 	// non-interactive/residual projection somewhere (release-gate round 8
 	// finding 2): default primary to the driver's own Sink() when it
 	// reports one. A driver that explicitly reports no fixed sink (nil —
@@ -292,8 +343,8 @@ func newOutput(subject string, options ...Option) *Output {
 	// all is misuse, recorded below once o exists.
 	//
 	// Whenever the driver's sink IS the primary writer — whether that's this
-	// same defaulting, or an explicit To()/Diagnostics() (Options path) or
-	// Config's own To(c.Stdout)/To(c.Stderr) wiring (Config.Terminal path,
+	// same defaulting, or an explicit to()/withDiagnostics() (Options path) or
+	// Config's own to(c.Stdout)/to(c.Stderr) wiring (Config.Terminal path,
 	// via configToOptions) that happens to coincide — the driver already
 	// rendered the conclusion there once; Finish's dual-write branch must
 	// not render it there again (release-gate round 9 finding 1).
@@ -316,13 +367,13 @@ func newOutput(subject string, options ...Option) *Output {
 			// their own copy by design, not a duplicate.
 		}
 	}
-	// An Options build that installs neither To() nor a Terminal sink must
+	// An Options build that installs neither to() nor a Terminal sink must
 	// still land its residual/conclusion projection somewhere — before this,
 	// primary stayed nil and Finish silently wrote zero bytes, even on a
 	// Fail (exit 2 with no evidence of why). Default to os.Stdout, matching
 	// the non-Options default, and apply the same TTY/color inference the
 	// non-Options path applies to that stream: never override an explicit
-	// NoColor(), only ever strengthen it, so a defaulted destination piped
+	// withNoColor(), only ever strengthen it, so a defaulted destination piped
 	// to a file never leaks raw ANSI into it (release-gate round 9 findings
 	// 2 and 5).
 	if cfg.terminal == nil && cfg.primary == nil {
@@ -338,12 +389,15 @@ func newOutput(subject string, options ...Option) *Output {
 		cfg.maxEvents = defaultMaxEvents
 	}
 	resolveGlyphProfileLocked(&cfg)
+	runCtx, cancelRun := context.WithCancel(context.Background())
 	o := &Output{
 		cfg:        cfg,
 		outputID:   "out_1",
 		taskByRef:  make(map[string]*taskState),
 		tasksByRef: make(map[string]*tasksState),
 		keys:       make(map[string]struct{}),
+		ctx:        runCtx,
+		cancelRun:  cancelRun,
 	}
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.nextID("out")
@@ -356,7 +410,7 @@ func newOutput(subject string, options ...Option) *Output {
 		// caller path can finish a DryRun-configured Output without this
 		// line having appeared first (evo-rec.md Problem 1). Safe to write
 		// unlocked — o has not yet been returned to the caller.
-		o.emitDryRunMarkerLocked()
+		o.emitPlannedHeaderLocked()
 	}
 	return o
 }
@@ -368,7 +422,7 @@ func newOutput(subject string, options ...Option) *Output {
 // caller decides (e.g. from a flag parsed after Init) and calls this
 // explicitly, before any Task/Print/Confirm call. A no-op when the run is
 // already dry-run.
-func (o *Output) DeclareDryRun() {
+func (o *Output) declareDryRun() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -383,15 +437,15 @@ func (o *Output) DeclareDryRun() {
 		return
 	}
 	o.cfg.dryRun = true
-	o.emitDryRunMarkerLocked()
+	o.emitPlannedHeaderLocked()
 }
 
-// emitDryRunMarkerLocked writes the "[dry-run] no changes will be made"
-// announcement immediately, once, through the same durable-write path
+// emitPlannedHeaderLocked writes the planned run's opening announcement
+// immediately, once, through the same durable-write path
 // (writeDurableTextLocked) every other library-owned line uses.
-func (o *Output) emitDryRunMarkerLocked() {
+func (o *Output) emitPlannedHeaderLocked() {
 	var b strings.Builder
-	render.WriteDryRunMarker(&b, !o.cfg.noColor, o.cfg.dryRunHeaderText)
+	render.WritePlannedHeader(&b, !o.cfg.noColor, o.cfg.preview, o.cfg.dryRunHeaderText)
 	o.writeDurableTextLocked(b.String())
 }
 
@@ -514,27 +568,6 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 	st.state = Running
 }
 
-// promoteRunningForActivity is mutate's activity-driven promotion hook (P5
-// concurrency truth): a mutation-verb callback about to run counts as the
-// task's first unit of evidence, exactly like a Phase/Progress call, so a
-// long-running Delete/Update/etc. callback renders as Running rather than
-// sitting on a Pending row that looks idle. A no-op for a task that is not
-// Pending (already Running, or already resolved — mutate's own ensureOpen/
-// terminal checks handle that case).
-func (o *Output) promoteRunningForActivity(taskID string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskByRef[taskID]
-	if st == nil || st.state != Pending {
-		return
-	}
-	st.activityAt = o.cfg.clock.Now()
-	o.promoteRunningLocked(st)
-	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "task.activity", EntityID: st.id})
-	o.signalLiveLocked(true)
-}
-
 func (o *Output) ensureOpen() error {
 	if o.closed || o.finishing || o.finished {
 		return ErrClosed
@@ -561,9 +594,8 @@ func (o *Output) ensureEntityRoomLocked() error {
 // key. name is a printf format when args are present (fmt.Sprintf
 // semantics) — evo.ID (or any other EntityOption) may be mixed into args in
 // any position and still applies.
-func (o *Output) Task(name string, args ...any) *TaskHandle {
-	formatted, opts := formatEntityName(name, args)
-	return o.taskScoped(formatted, "", opts...)
+func (o *Output) Task(name string) *TaskHandle {
+	return o.taskScoped(name, "")
 }
 
 // taskScoped is the get-or-create identity behind Output.Task and Scope.Task:
@@ -596,7 +628,7 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 		return existing
 	}
 
-	h := o.addTaskLocked(clean, nil, key)
+	h := o.addTaskLocked(clean, nil, key, false)
 	if o.namedTasks == nil {
 		o.namedTasks = make(map[string]*TaskHandle)
 	}
@@ -617,7 +649,44 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 	return h
 }
 
-func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHandle {
+// declaredTaskState is Pending until the scheduler starts the Task.
+func declaredTaskState(col *tasksState) EntityState {
+	_ = col
+	return Pending
+}
+
+// ledgerSubjectFor names the subject an effect belongs to. An explicitly
+// declared task is semantically named work and owns its own ledger line. An
+// Each child does not: it is one item of a collection, and the collection is
+// the subject the plan is about. Cleaning 33 branches recorded 33 separate
+// `[planned] feat/old-03  delete 1 local tip` rows, one per item name and
+// unbounded, where the dialect's own Recommended UI for that run shows one:
+// `[planned] branches  delete 33 local tips`.
+//
+// Attributing at the record site rather than folding rows in the renderer is
+// what makes the rest fall out: the existing identical-record merge does the
+// tally, and a caller that does want item names gets them through RecordName
+// under the collection's subject, inside the same bounded viewport and
+// `… +N more (not shown)` overflow every other subject has.
+func ledgerSubjectFor(st *taskState) string {
+	if st.fromEach && st.collection != nil {
+		return st.collection.name
+	}
+	return st.name
+}
+
+func (o *Output) addTaskLocked(name string, col *tasksState, key string, fromEach bool) *TaskHandle {
+	h := o.declareTaskLocked(name, col, key, fromEach)
+	if _, ok := o.taskByRef[h.id]; ok {
+		o.signalLiveLocked(true)
+	}
+	return h
+}
+
+// declareTaskLocked records a child without painting. Each uses this to
+// declare every item before the first yield so the first live frame already
+// shows 0/N rather than growing 0/1, 0/2, … as children appear.
+func (o *Output) declareTaskLocked(name string, col *tasksState, key string, fromEach bool) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return &TaskHandle{out: o, id: o.nextID("task")}
@@ -637,10 +706,12 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHa
 		id:          o.nextID("task"),
 		key:         key,
 		name:        name,
-		state:       Pending,
+		state:       declaredTaskState(col),
 		progress:    Progress{Kind: Indeterminate},
 		collection:  col,
 		declaration: o.nextDecl(),
+		doneCh:      make(chan struct{}),
+		fromEach:    fromEach,
 	}
 	h := &TaskHandle{out: o, id: st.id}
 	st.handle = h
@@ -651,7 +722,6 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHa
 	o.taskByRef[st.id] = st
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
-	o.signalLiveLocked(true)
 	return h
 }
 
@@ -706,30 +776,78 @@ func (o *Output) changesGetOrCreate(subject string) *changeLedger {
 // its answer is pending, the generic Pending-task fallback would otherwise
 // resolve it to Cancelled without ever closing that channel, leaving
 // readConfirmLine blocked forever.
+// interrupt stops the run at the first signal, in the one order that leaves
+// the ledger honest: the scheduler is closed to new work, every row is put
+// into the state the reader must see, and only then is the run's context
+// cancelled to release the callbacks still in flight. Cancelling first would
+// race a finishing callback into a ✓ row after the ^C.
+func (o *Output) interrupt(reason string) {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	o.schedCancelled = true
+	cancelRun := o.cancelRun
+	o.mu.Unlock()
+
+	o.cancelActive(reason)
+	o.abandonQueuedWork()
+
+	if cancelRun != nil {
+		cancelRun()
+	}
+}
+
+// abandonQueuedWork resolves every task that had not begun as NotStarted —
+// the interrupt's answer to "and what about the rest?", which the reader
+// would otherwise never get.
+//
+// Submitted or not: a task the caller declared and never Defined is work the
+// interrupt took away just as surely as one sitting in the scheduler's
+// queue. Sweeping only the submitted ones left a declared row Pending, and
+// Finish then charged the caller with ErrUnresolvedTask and told them to
+// "call Done, Fail, Block, Skipped, or a mutation verb on this task" about a
+// run the user had just cancelled.
+func (o *Output) abandonQueuedWork() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, st := range o.tasks {
+		if st.runningWork || core.IsTerminalTask(st.state) {
+			continue
+		}
+		o.markNotStartedLocked(st)
+	}
+}
+
 func (o *Output) cancelActive(reason string) {
 	o.mu.Lock()
 	if o.cancelPendingConfirmLocked(reason) {
 		o.mu.Unlock()
 		return
 	}
-	var active *TaskHandle
+	running := make([]*TaskHandle, 0, len(o.tasks))
 	for _, t := range o.tasks {
 		if t.state == Running {
-			active = t.handle
-			break
+			running = append(running, t.handle)
 		}
 	}
-	if active == nil {
-		// Nothing has reached Running yet: the earliest-declared Pending
-		// task is the one about to run next (evo-rec.md "one Running
-		// child" — pending siblings are named and idle, waiting their
-		// turn), so an interrupt before any evidence still cancels that
-		// task rather than falling through to Output-level cancel.
-		for _, t := range o.tasks {
-			if t.state == Pending {
-				active = t.handle
-				break
-			}
+	if len(running) > 0 {
+		o.mu.Unlock()
+		for _, t := range running {
+			t.Cancel(reason)
+		}
+		return
+	}
+	// Nothing has reached Running yet: the earliest-declared Pending task is
+	// the one about to run next (evo-rec.md "one Running child" — pending
+	// siblings are named and idle, waiting their turn), so an interrupt
+	// before any evidence still cancels that task rather than falling
+	// through to Output-level cancel.
+	var active *TaskHandle
+	for _, t := range o.tasks {
+		if t.state == Pending {
+			active = t.handle
+			break
 		}
 	}
 	if active != nil {
@@ -761,26 +879,27 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	return false
 }
 
-// DisplayGroup declares a collection of independent child tasks: state is
-// fully derived from children, glyph and header only, no ordering assumed
-// (worker-pool fan-out is a supported, concurrency-safe pattern here — see
-// Sequence for the ordered alternative). name is a printf format when args
-// are present (fmt.Sprintf semantics) — one text spelling shared with
-// Task/Sequence/Reason (C6); no args leaves name untouched.
-func (o *Output) DisplayGroup(name string, args ...any) *DisplayGroup {
-	if len(args) > 0 {
-		name = fmt.Sprintf(name, args...)
-	}
+// Group declares (or, for a repeated name, returns) a collection of
+// independent child tasks. Eligible children may overlap through the
+// scheduler. name is a printf format when args are present.
+func (o *Output) Group(name string) *GroupHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if g, ok := o.namedGroupHandles[name]; ok {
+		return g
+	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &DisplayGroup{out: o, id: o.nextID("tasks")}
+		return &GroupHandle{out: o, id: o.nextID("tasks")}
 	}
 	st := o.declareContainerLocked(name, false)
 	o.collections = append(o.collections, st)
-	h := &DisplayGroup{out: o, id: st.id}
+	h := &GroupHandle{out: o, id: st.id}
 	st.handle = h
+	if o.namedGroupHandles == nil {
+		o.namedGroupHandles = make(map[string]*GroupHandle)
+	}
+	o.namedGroupHandles[name] = h
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
 	return h
@@ -792,10 +911,7 @@ func (o *Output) DisplayGroup(name string, args ...any) *DisplayGroup {
 // cancelled. A second evo.Sequence("python") call returns the same Sequence,
 // mirroring Task's get-or-create identity. name is a printf format when args
 // are present (fmt.Sprintf semantics); no args leaves name untouched.
-func (o *Output) Sequence(name string, args ...any) *SequenceHandle {
-	if len(args) > 0 {
-		name = fmt.Sprintf(name, args...)
-	}
+func (o *Output) Sequence(name string) *SequenceHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if g, ok := o.namedGroups[name]; ok {
@@ -803,11 +919,11 @@ func (o *Output) Sequence(name string, args ...any) *SequenceHandle {
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &SequenceHandle{tasks: &DisplayGroup{out: o, id: o.nextID("tasks")}}
+		return &SequenceHandle{tasks: &GroupHandle{out: o, id: o.nextID("tasks")}}
 	}
 	st := o.declareContainerLocked(name, true)
 	o.collections = append(o.collections, st)
-	h := &DisplayGroup{out: o, id: st.id}
+	h := &GroupHandle{out: o, id: st.id}
 	st.handle = h
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
@@ -820,8 +936,7 @@ func (o *Output) Sequence(name string, args ...any) *SequenceHandle {
 }
 
 // declareContainerLocked allocates a new top-level tasksState — the shared
-// body behind DisplayGroup and Sequence, which differ only in the sequential
-// flag (the "one Running child" cascade contract belongs to Sequence alone).
+// body behind Group and Sequence, which differ only in the sequential flag.
 func (o *Output) declareContainerLocked(name string, sequential bool) *tasksState {
 	st := &tasksState{
 		id:          o.nextID("tasks"),
@@ -833,19 +948,11 @@ func (o *Output) declareContainerLocked(name string, sequential bool) *tasksStat
 	return st
 }
 
-// childContainerGetOrCreateLocked declares (DisplayGroup) or get-or-creates
-// (Sequence) a nested container under parent — the identity behind
-// DisplayGroup.Sequence/DisplayGroup.DisplayGroup and Sequence.Sequence/
-// Sequence.DisplayGroup's recursive nesting (P3). A DisplayGroup child is
-// always fresh (fan-out, no caller identity contract, mirrors
-// Output.DisplayGroup); a Sequence child is get-or-create scoped to this one
-// parent (P10: container path + name is the identity, so the same label
-// under a different parent never collides).
+// childContainerGetOrCreateLocked get-or-creates a nested container under
+// parent, scoped to this one parent (path + name is the identity).
 func (o *Output) childContainerGetOrCreateLocked(parent *tasksState, name string, sequential bool) *tasksState {
-	if sequential {
-		if existing, ok := parent.namedChildren[name]; ok {
-			return existing
-		}
+	if existing, ok := parent.namedChildren[name]; ok {
+		return existing
 	}
 	st := &tasksState{
 		id:          o.nextID("tasks"),
@@ -855,12 +962,10 @@ func (o *Output) childContainerGetOrCreateLocked(parent *tasksState, name string
 	}
 	o.tasksByRef[st.id] = st
 	parent.children = append(parent.children, st)
-	if sequential {
-		if parent.namedChildren == nil {
-			parent.namedChildren = make(map[string]*tasksState)
-		}
-		parent.namedChildren[name] = st
+	if parent.namedChildren == nil {
+		parent.namedChildren = make(map[string]*tasksState)
 	}
+	parent.namedChildren[name] = st
 	return st
 }
 
@@ -879,7 +984,7 @@ func (o *Output) groupTaskGetOrCreate(groupID, name string, opts ...EntityOption
 		return existing
 	}
 	eo := applyEntityOptions(opts)
-	h := o.addTaskLocked(txt.Text(name), col, eo.key)
+	h := o.addTaskLocked(txt.Text(name), col, eo.key, false)
 	if col.namedTasks == nil {
 		col.namedTasks = make(map[string]*TaskHandle)
 	}
@@ -890,7 +995,7 @@ func (o *Output) groupTaskGetOrCreate(groupID, name string, opts ...EntityOption
 
 // declareChangeLedgerLocked starts a durable-effects section named subject —
 // the internal counterpart of the deleted public Output.Changes entry point
-// (P1/P13: presentation-decision API, callers reach effects only through
+// (P1/P13: presentation-decision aPI, callers reach effects only through
 // TaskHandle's mutation verbs now). Caller must hold o.mu.
 func (o *Output) declareChangeLedgerLocked(subject string) *changeLedger {
 	if err := o.ensureOpen(); err != nil {
@@ -1029,7 +1134,7 @@ func (o *Output) NextCommand(executable string, args ...string) {
 // When Diagnostics is configured and is a different writer than the primary stream,
 // debug lines go to Diagnostics only (not the human Items/Tasks stream). Use
 // Capture for child-process evidence instead of DebugWriter when you need Fail Detail.
-func (o *Output) Debug(message string, fields ...Field) {
+func (o *Output) debug(message string, fields ...Field) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.emitDebugLocked(message, fields, false)
@@ -1112,8 +1217,8 @@ func (o *Output) projectDebugRecordLocked(rec debugRecord) {
 		// as active so a failing Finish can preserve the diagnostics tail on
 		// the live terminal (§21.3.2) — otherwise the promised failure tail
 		// is unreachable whenever the caller uses two distinct real streams
-		// (the realistic default: Config{Stdout, Stderr} routes To(Stdout),
-		// Diagnostics(Stderr)).
+		// (the realistic default: Config{Stdout, Stderr} routes to(Stdout),
+		// withDiagnostics(Stderr)).
 		if interactive && panePresentation {
 			o.debugPaneActive = true
 		}
@@ -1180,6 +1285,7 @@ func (o *Output) snapshotLocked() Snapshot {
 		Actions:       cloneActions(o.collectActionsLocked()),
 		Timestamp:     o.cfg.clock.Now(),
 		DryRun:        o.cfg.dryRun,
+		Preview:       o.cfg.preview,
 		DryRunSubject: o.cfg.dryRunHeaderText,
 		Warnings:      core.CloneProblems(o.runWarnings),
 		Facts:         core.CloneFacts(o.runFacts),
@@ -1236,7 +1342,7 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Collection:  colID,
 		Declaration: t.declaration,
 	}
-	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic)
+	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic, t.fromEach)
 }
 
 func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
@@ -1281,7 +1387,16 @@ func (g *tasksState) derivedState() EntityState {
 	}
 	var anyRunning, anyFailed, anyCancelled, anyUnresolved bool
 	allDone := true
+	// A NotStarted child normally borrows its group's verdict from the
+	// sibling that failed first, so it contributes nothing of its own. When
+	// every child is NotStarted there is no such sibling — whatever stopped
+	// the run was another subject entirely — and folding to Done rendered a
+	// check over a subject that never ran.
+	allNotStarted := len(g.tasks) > 0 && len(g.children) == 0
 	for _, t := range g.tasks {
+		if t.state != NotStarted {
+			allNotStarted = false
+		}
 		switch t.state {
 		case Running:
 			anyRunning = true
@@ -1295,13 +1410,13 @@ func (g *tasksState) derivedState() EntityState {
 			anyCancelled = true
 		case Done, Skipped:
 		case NotStarted:
-			// Auto-resolved because an earlier sibling already failed/cancelled —
-			// not a source of incompleteness; the group's verdict already comes
-			// from that sibling.
 		default:
 			anyUnresolved = true
 			allDone = false
 		}
+	}
+	if allNotStarted {
+		return NotStarted
 	}
 	for _, child := range g.children {
 		switch child.derivedState() {
@@ -1541,7 +1656,7 @@ func (o *Output) abnormalFinishLocked() bool {
 // way Confirm's own policy hint renders (TaskHandle.Next), replacing the raw
 // "misuse: <name>: evo: ..." sentinel text that told the reader nothing
 // about what to do next (release-gate finding 3).
-const unresolvedTaskHint = "call Done, Fail, Block, Skip, or a mutation verb on this task"
+const unresolvedTaskHint = "call Done, Fail, Block, Skipped, or a mutation verb on this task"
 
 // attachUnresolvedTaskHintLocked attaches unresolvedTaskHint to t directly.
 // It cannot go through TaskHandle.Next, which refuses once Finish has set
@@ -1557,6 +1672,9 @@ func attachUnresolvedTaskHintLocked(t *taskState) {
 // is left untouched — explicit resolution always wins.
 func (o *Output) autoResolveGroupsLocked() {
 	for _, col := range o.collections {
+		if !col.sequential {
+			continue
+		}
 		triggered := false
 		for _, t := range col.tasks {
 			if !triggered {
@@ -1579,6 +1697,7 @@ func (o *Output) autoResolveGroupsLocked() {
 // Finish validates, computes conclusion, emits final projections.
 // Projection I/O runs outside the domain lock (§17.1).
 func (o *Output) Finish() error {
+	o.drainScheduler()
 	o.mu.Lock()
 	if o.finished {
 		err := o.misuse
@@ -1637,6 +1756,12 @@ func (o *Output) Finish() error {
 			continue
 		}
 		resolveUnstartedTaskLocked(t)
+		// A declared-but-never-defined task never started — Each children
+		// the loop did not yield, or work the interrupt took away. That is
+		// the answer, not misuse.
+		if t.state == NotStarted {
+			continue
+		}
 		o.recordMisuseFor(t.name, ErrUnresolvedTask)
 		attachUnresolvedTaskHintLocked(t)
 	}
@@ -1750,8 +1875,29 @@ func (o *Output) Close() error {
 	o.stopSpinnerAnimatorLocked()
 	o.stopResizeWatchLocked()
 	o.closed = true
+	cancelRun := o.cancelRun
 	o.mu.Unlock()
+	if cancelRun != nil {
+		cancelRun()
+	}
 	return nil
+}
+
+// Context reports the run's cancellation signal. It is cancelled when the
+// run is interrupted (SIGINT/SIGTERM) and when the Output closes, so work
+// that does I/O can select on it and stop instead of running on past the ^C
+// that was supposed to end it. A nil Output reports a never-cancelled
+// context so a caller never has to nil-check before selecting.
+func (o *Output) Context() context.Context {
+	if o == nil {
+		return context.Background()
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ctx == nil {
+		return context.Background()
+	}
+	return o.ctx
 }
 
 // Conclusion returns the computed conclusion after Finish.
@@ -1768,7 +1914,7 @@ func (o *Output) Conclusion() Conclusion {
 }
 
 // Events returns a copy of durable events (v0.1 journal).
-func (o *Output) Events() []Event {
+func (o *Output) copyEvents() []Event {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	out := make([]Event, len(o.events))

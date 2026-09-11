@@ -8,12 +8,12 @@ import (
 	"testing"
 )
 
-// assembled so this file itself does not contain the forbidden declaration text.
-var rootOutputStructDecl = regexp.MustCompile(`(?m)^type ` + `Output struct\b`)
+var rootOutputAliasDecl = regexp.MustCompile(`(?m)^type Output = `)
+var rootOutputStructDecl = regexp.MustCompile(`(?m)^type Output struct\b`)
 
-// TestFacade_RootHasNoOutputStruct locks the thin-root contract: the public
-// package is a facade, and Output's struct is declared once in internal/engine.
-func TestFacade_RootHasNoOutputStruct(t *testing.T) {
+// TestFacade_RootOutputIsWrapperNotAlias locks the public surface: Output is
+// declared in evo so engine test helpers cannot leak through a type alias.
+func TestFacade_RootOutputIsWrapperNotAlias(t *testing.T) {
 	root := moduleRoot(t)
 	matches, err := filepath.Glob(filepath.Join(root, "*.go"))
 	if err != nil {
@@ -22,18 +22,27 @@ func TestFacade_RootHasNoOutputStruct(t *testing.T) {
 	if len(matches) == 0 {
 		t.Fatal("no root *.go files")
 	}
-	var hits []string
+	var aliases, structs []string
 	for _, path := range matches {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
 		body, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", filepath.Base(path), err)
 		}
+		if rootOutputAliasDecl.Match(body) {
+			aliases = append(aliases, filepath.Base(path))
+		}
 		if rootOutputStructDecl.Match(body) {
-			hits = append(hits, filepath.Base(path))
+			structs = append(structs, filepath.Base(path))
 		}
 	}
-	if len(hits) > 0 {
-		t.Fatalf("root facade must not declare Output as a struct; found in %s", strings.Join(hits, ", "))
+	if len(aliases) > 0 {
+		t.Fatalf("root Output must be a wrapper, not an alias; found type Output = in %s", strings.Join(aliases, ", "))
+	}
+	if len(structs) == 0 {
+		t.Fatal("root Output must be declared as a struct wrapper")
 	}
 }
 

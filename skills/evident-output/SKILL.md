@@ -17,18 +17,19 @@ license: Apache-2.0
 
 **Pinned release:** `v0.4.6` (never install `@latest` for persistent tooling).
 
-| What                 | Path                                                                                                       |
-| -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Module               | `github.com/zachbornheimer/evident-output`                                                                 |
-| MCP binary target    | `$HOME/.local/bin/evident-output-mcp`                                                                      |
-| MCP install (pinned) | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6` |
+| What                 | Path                                                                                                                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Module               | `github.com/zachbornheimer/evident-output`                                                                                                                                         |
+| MCP binary target    | `$HOME/.local/bin/evident-output-mcp`                                                                                                                                              |
+| MCP install (pinned) | `go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6` then symlink `$(go env GOPATH)/bin/evident-output-mcp` → `$HOME/.local/bin/evident-output-mcp` |
 
 ## Workflow when MCP is connected
 
 1. `evident_output_list_sections` / `evident_output_get_documentation`
-2. Implement with `Init(Config)`, `Print*`, `Task`, `Evidence`, `Main`
+2. Implement with `Init(Config)`, `Print*`, `Task.Define`, `Group.Each`/`Sequence.Each`, mutation callbacks, `Writer()`, `Main`
 3. `evident_output_review` until `recheck_required=false` (loop until its
-   `next_action` field says `clean`)
+   `next_action` field says `clean`). If it reports `update_needed`, call
+   `evident_output_update` then restart the MCP host first.
 4. `evident_output_preview` for profiles
 5. `evident_output_explain` with `rule_id` (not `id`)
 
@@ -41,10 +42,10 @@ On Grok: `evident-output__evident_output_*` (underscores, not dots).
 ## Quick MCP wire-up
 
 ```bash
-GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
-# Or from a local clone of the repo:
-#   go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
+# After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
 
 grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 grok mcp doctor evident-output --json
@@ -60,18 +61,17 @@ grok mcp doctor evident-output --json
 
 ## Rules of thumb
 
-- Presentation only — no schedulers or `RunAll` / `Map` / `Retry` (API-026, AST-only)
+- Evo owns scheduling (`Group`/`Sequence`/`Define`/`Each`/`After`); do not invent `RunAll` / `Map` / `Retry` on evo receivers (API-026, AST-only)
 - Standalone: `evo.Main(run)` (exits the process itself); hosted (`Config.Isolated: true`): `os.Exit(out.Run(run))`, or Finish+Close (host owns `os.Exit`)
-- Entity: Task = gate (resolved directly) or progress (Doing/Progress-driven); mutation verbs (Delete/Create/Update/…) pick `[changed]` vs `[planned]` from `Config.DryRun`
+- Entity: Task = atomic work (`Define`) or a gate resolved directly; `Group.Each` for independent collections; mutation verbs (`Delete(object, fn)`, optional `Affected`) pick `[changed]` vs `[planned]` from `Config.DryRun`
 - Domain effect verbs: use `Record` when stock verbs lie (RULE-001)
 - `Block` = condition found; `Fail` = evaluation failed; `Warn` = optional/soft
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
 - Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
-- Child process chatter → `task.Evidence()` / `item.Evidence()` + `DetailTail()`; prefer
-  `task.Run(cmd)` for an `*exec.Cmd`
+- Child process chatter → `cmd.Stdout = task.Writer()` (and stderr)
 - Sanitize is automatic; `Config.Redactor` scrubs the Evidence ring + Debug fields
 - `Fail`/`Block` are statements (no return); `Failf`/`Blockf` return a %w-wrapped error
-- Stable machine keys: `evo.ID(...)`; plugins: `out.Scope("name")` (entities only)
+- Task is name-only: `out.Task("download")`. Child stdio: `cmd.Stdout = task.Writer()`
 - Data commands: `FormatData` + write domain payload to `out.ResultWriter()`
 - Prefer plain labels over `*f` constructors when identity must stay stable
 - Predeclare concurrent Tasks; scale cardinality to product need

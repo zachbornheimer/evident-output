@@ -5,21 +5,24 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // Engine-owned types. Domain model aliases (Snapshot, Problem, Action)
 // stay in their existing files and point at internal/core, not through engine.
 
-type Output = engine.Output
+// Output, TaskHandle, and the other presentation handles are wrappers, not
+// aliases: engine test helpers must not appear in go doc or the rec surface.
+type Output struct{ inner *engine.Output }
+type TaskHandle struct{ inner *engine.TaskHandle }
+type SequenceHandle struct{ inner *engine.SequenceHandle }
+type GroupHandle struct{ inner *engine.GroupHandle }
+type Printer struct{ inner *engine.Printer }
+type Failure struct{ inner *engine.Failure }
+
 type Config = engine.Config
 type Option = engine.Option
-type TaskHandle = engine.TaskHandle
-type SequenceHandle = engine.SequenceHandle
 type Evidence = engine.Evidence
 type EvidenceOption = engine.EvidenceOption
 type EvidenceStream = engine.EvidenceStream
-type Printer = engine.Printer
-type Scope = engine.Scope
-type DisplayGroup = engine.DisplayGroup
 type ConfirmOption = engine.ConfirmOption
 type EntityOption = engine.EntityOption
 type ReasonOption = engine.ReasonOption
-type EffectOption = engine.EffectOption
+type MutationOption = engine.MutationOption
 type DebugPaneOption = engine.DebugPaneOption
 type DebugPresentation = engine.DebugPresentation
 type DebugConfig = engine.DebugConfig
@@ -36,9 +39,11 @@ type LiveSurface = engine.LiveSurface
 type Redactor = engine.Redactor
 type NoopRedactor = engine.NoopRedactor
 type LogRecord = engine.LogRecord
-type Failure = engine.Failure
 type PlainOptions = engine.PlainOptions
-type TaxonomyReason = engine.TaxonomyReason
+
+type TaxonomyReason struct{ inner engine.TaxonomyReason }
+
+func (r TaxonomyReason) Name() string { return r.inner.Name() }
 
 const (
 	ColorAuto   = engine.ColorAuto
@@ -102,4 +107,6 @@ var (
 	ErrConcurrentRunning   = engine.ErrConcurrentRunning
 	ErrDryRunDeclaredLate  = engine.ErrDryRunDeclaredLate
 	ErrTerminalWithoutSink = engine.ErrTerminalWithoutSink
+	ErrNotStarted          = engine.ErrNotStarted
+	ErrWaitDeadlock        = engine.ErrWaitDeadlock
 )

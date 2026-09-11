@@ -19,7 +19,7 @@ import (
 )
 
 func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.MaxEvents(8)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEvents: 8})
 	t.Cleanup(func() { _ = out.Close() })
 	// Flood with line events (non-critical).
 	for i := 0; i < 40; i++ {
@@ -57,7 +57,8 @@ func (f *failWriter) Write(p []byte) (int, error) {
 func TestCON009_MultiRendererOneFailure(t *testing.T) {
 	var good bytes.Buffer
 	bad := &failWriter{}
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("s"), evo.To(bad), evo.AlsoWrite(&good), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: bad, Title: "s", Color: evo.ColorNever, Plain: true})
+	out.AlsoWriteForTest(&good)
 	out.Task("a").Done()
 	err := out.Finish()
 	if err == nil {
@@ -78,12 +79,7 @@ func TestCON009_MultiRendererOneFailure(t *testing.T) {
 func TestCON004_ResizeWhileLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(screen), evo.VisibilityDelay(0),
-		evo.Clock(clock),
-		evo.VisibilityDelay(0),
-		evo.MaxFrameRate(100),
-	}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("work")
 	task.Doing("start")
@@ -99,11 +95,11 @@ func TestCON004_ResizeWhileLive(t *testing.T) {
 
 func TestCON003_LogWhileLiveNoSplit(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Doing("running")
-	out.Debug("durable note")
+	out.DebugForTest("durable note")
 	task.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -130,7 +126,7 @@ func TestTXT014_OSC8ZeroCells(t *testing.T) {
 
 func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("repo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.Width(28)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "repo", Width: 28, Color: evo.ColorNever, Plain: true})
 	out.Task("working tree").Block("dirty", evo.Detail("commit or stash"))
 	out.Task("remote").Done()
 	if err := out.Finish(); err != nil {
@@ -149,10 +145,10 @@ func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 func TestTXT016_LeaderBoundedAndOmittedNarrow(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, cols int) {
-		out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("x"), evo.To(w), evo.Plain(), evo.NoColor(), evo.Width(cols)}})
+		out := evo.Init(evo.Config{Isolated: true, Stdout: w, Title: "x", Width: cols, Color: evo.ColorNever, Plain: true})
 		ch := out.Task("files")
-		_ = ch.Add("a.go", nil, evo.Affected(1))
-		_ = ch.Remove("b.go", nil, evo.Affected(2))
+		ch.Add("a.go", func() error { return nil }, evo.Affected(1))
+		ch.Remove("b.go", func() error { return nil }, evo.Affected(2))
 		_ = out.Finish()
 		_ = out.Close()
 	}
@@ -185,7 +181,7 @@ func TestMCP016_PartialOnlyWhenAnalysisIncomplete(t *testing.T) {
 	// Partial remains for GoPackage typecheck failure / empty input.
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f() { evo.Init(evo.Config{Isolated: true, Options: []evo.Option{}}) }
+func f() { evo.Init(evo.Config{Isolated: true}) }
 `
 	res := review.GoSource("p.go", src)
 	if res.Partial {
@@ -235,9 +231,9 @@ func TestMCP050_TokenBudgetExplicit(t *testing.T) {
 
 func TestMCP025_PreviewDebugInterleave(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("demo"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugLevel(evo.LevelDebug)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
 	out.Task("status").Done()
-	out.Debug("index ok")
+	out.DebugForTest("index ok")
 	_ = out.Finish()
 	profiles := preview.DefaultProfiles(out.Snapshot())
 	if len(profiles) == 0 {
@@ -282,7 +278,7 @@ func TestSEC015_NoAuthOnAnnotations(t *testing.T) {
 
 func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug), evo.VisibilityDelay(0)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	var wg sync.WaitGroup
@@ -296,7 +292,7 @@ func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			out.Debug("tick")
+			out.DebugForTest("tick")
 		}
 	}()
 	wg.Wait()

@@ -15,6 +15,7 @@ registers `tool_count: 0`). Dotted aliases still work on `tools/call`.
 | `evident_output_review`            | `evident-output__evident_output_review`            | Go / directory / transcript / JSON review    |
 | `evident_output_preview`           | `evident-output__evident_output_preview`           | Plain profile previews                       |
 | `evident_output_explain`           | `evident-output__evident_output_explain`           | Rule id (`rule_id`)                          |
+| `evident_output_update`            | `evident-output__evident_output_update`            | Reinstall this server to match a go.mod pin  |
 
 `explain` arguments: `{ "rule_id": "DOM-011" }` (not `id`).
 
@@ -32,25 +33,42 @@ adoption workflow in [`../skills/cli-output/SKILL.md`](../skills/cli-output/SKIL
 
 Call `evident_output_review` again after applying its suggested fixes — the response's
 `next_action` field says `clean` at zero findings or tells you to re-run; loop until clean.
+When review reports `update_needed`, call `evident_output_update` (or
+`evident-output-mcp update --directory <repo>`) then restart the MCP host before
+treating review as done.
+
+`evident_output_update` takes `{ "version": "v0.4.6" }` XOR `{ "directory": "<repo>" }`.
+Directory walks up to `go.mod` and installs that pin (or `./cmd/evident-output-mcp`
+from this module / a path replace). Never `GOBIN=$HOME/.local/bin` — install lands in
+`$(go env GOPATH)/bin` and is symlinked into `~/.local/bin`.
 
 ### 0.2 → 0.4 (do not copy v0.2 spellings)
 
-| Gone                       | Use                                                |
-| -------------------------- | -------------------------------------------------- |
-| `evo.New`                  | `evo.Init`                                         |
-| `out.Item`                 | `out.Task`                                         |
-| `out.Plan` / `out.Changes` | Task mutation verbs (`Delete`/`Create`/`Record`/…) |
-| `Capture`                  | `task.Evidence()`                                  |
-| `item.Evidence()`          | `task.Evidence()`                                  |
+| Gone                                                                                                                                                     | Use                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `evo.New`                                                                                                                                                | `evo.Init`                                                                                                 |
+| `out.Item`                                                                                                                                               | `out.Task`                                                                                                 |
+| `out.Plan` / `out.Changes`                                                                                                                               | Task mutation verbs (`Delete`/`Create`/`Record`/…)                                                         |
+| `Capture` / Evidence on task or item                                                                                                                     | `cmd.Stdout = task.Writer()`                                                                               |
+| `Config.Options` / `[]evo.Option{...}` / `evo.To` / `evo.Plain` / `evo.NoColor` / `evo.Stdin` / `evo.DryRun` / `evo.VisibilityDelay` / `evo.Diagnostics` | Config fields (`Stdout`, `Plain`, `Color: evo.ColorNever`, `Stdin`, `DryRun`, `VisibilityDelay`, `Stderr`) |
+| positional quantity-first mutation verbs                                                                                                                 | `Delete(object, fn)` / `evo.Affected(n)` (same for Remove/Add/Create/Update/Push/Write)                    |
+| retired independent-collection constructor                                                                                                               | `evo.Group`                                                                                                |
+| `.Skip(`                                                                                                                                                 | `.Skipped(`                                                                                                |
+| `evo.ID` / `evo.StartPhase`                                                                                                                              | Task name only; `.Doing(...)` for the first phase                                                          |
+| `evo.MainWith`                                                                                                                                           | `evo.Main` / `Output.Run`                                                                                  |
 
 The librarian case study is a v0.2.9 snapshot. Review reports API-032 on the deleted constructors.
 
 ## Install the binary (pinned)
 
 ```bash
-GOBIN="$HOME/.local/bin" go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 "$HOME/.local/bin/evident-output-mcp" --version
 ```
+
+After bumping evo in a repo: `evident-output-mcp update --directory <repo>` then restart the host.
 
 The pinned tag is kept in sync by `mise run sync-release-pins`. A
 client-specific copy-paste block lives under
@@ -64,7 +82,7 @@ it). Bare `evident-output-mcp` fails when the agent process PATH omits `~/.local
 ```bash
 # Process-level handshake
 grok mcp doctor evident-output --json
-# expect: healthy=true, "6 tools discovered", protocol 2025-06-18
+# expect: healthy=true, "7 tools discovered", protocol 2025-06-18
 
 # Fresh agent process (same attach path as the TUI); use any trusted cwd:
 grok -p 'Call use_tool on evident-output__evident_output_list_sections with {}. Reply CONNECTED and the text field, or FAILED.' \

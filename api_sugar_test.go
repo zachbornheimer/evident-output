@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -15,17 +16,17 @@ import (
 // --- Item 1: printf-variadic entity names ---
 
 func TestAPISugar_TaskNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
-	task := out.Task("build %s #%d", "worker", 3)
+	task := out.Task(fmt.Sprintf("build %s #%d", "worker", 3))
 	if got := task.Snapshot().Name; got != "build worker #3" {
 		t.Fatalf("name = %q, want %q", got, "build worker #3")
 	}
 }
 
 func TestAPISugar_TaskNameUnchangedWithoutArgs(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("100% done")
@@ -36,37 +37,34 @@ func TestAPISugar_TaskNameUnchangedWithoutArgs(t *testing.T) {
 
 func TestAPISugar_TaskGetOrCreateKeysOnFormattedName(t *testing.T) {
 	var buf strings.Builder
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
-	first := evo.Task("branch %s", "main")
-	second := evo.Task("branch %s", "main")
+	first := evo.Task(fmt.Sprintf("branch %s", "main"))
+	second := evo.Task(fmt.Sprintf("branch %s", "main"))
 	if first != second {
 		t.Fatal("expected get-or-create identity on the formatted name")
 	}
-	other := evo.Task("branch %s", "dev")
+	other := evo.Task(fmt.Sprintf("branch %s", "dev"))
 	if other == first {
 		t.Fatal("differently formatted names must not collide")
 	}
 }
 
 func TestAPISugar_ItemOptionSurvivesAmongFormatArgs(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
-	item := out.Task("probe %s", "docker", evo.ID("probe.docker"))
+	item := out.Task(fmt.Sprintf("probe %s", "docker"))
 	if got := item.Snapshot().Name; got != "probe docker" {
 		t.Fatalf("name = %q, want %q", got, "probe docker")
-	}
-	if got := item.Snapshot().Key; got != "probe.docker" {
-		t.Fatalf("key = %q, want %q", got, "probe.docker")
 	}
 }
 
 func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
-	g := out.Sequence("stage %d", 2)
+	g := out.Sequence(fmt.Sprintf("stage %d", 2))
 	if got := g.Snapshot().Name; got == "" || got == "stage %d" {
 		t.Fatalf("group name not formatted: %q", got)
 	}
@@ -78,9 +76,9 @@ func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
 // literal call with the same text would.
 func TestAPISugar_ReasonFormatsAndGetsOrCreates(t *testing.T) {
 	var buf strings.Builder
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
-	first := evo.Reason("stage %d", 2)
+	first := evo.Reason(fmt.Sprintf("stage %d", 2))
 	if got := first.Name(); got != "stage 2" {
 		t.Fatalf("name = %q, want %q", got, "stage 2")
 	}
@@ -91,33 +89,33 @@ func TestAPISugar_ReasonFormatsAndGetsOrCreates(t *testing.T) {
 }
 
 func TestAPISugar_ScopeTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
-	scoped := out.Scope("registry")
-	task := scoped.Task("sync %s", "auth")
+	scoped := out.ScopeForTest("registry")
+	task := scoped.Task(fmt.Sprintf("sync %s", "auth"))
 	if got := task.Snapshot().Name; got != "sync auth" {
 		t.Fatalf("name = %q, want %q", got, "sync auth")
 	}
 }
 
 func TestAPISugar_ScopeItemNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
-	scoped := out.Scope("registry")
-	item := scoped.Task("probe %s", "docker")
+	scoped := out.ScopeForTest("registry")
+	item := scoped.Task(fmt.Sprintf("probe %s", "docker"))
 	if got := item.Snapshot().Name; got != "probe docker" {
 		t.Fatalf("name = %q, want %q", got, "probe docker")
 	}
 }
 
 func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	group := out.Sequence("stages")
-	child := group.Task("stage %d", 2)
+	child := group.Task(fmt.Sprintf("stage %d", 2))
 	if got := child.Snapshot().Name; got != "stage 2" {
 		t.Fatalf("name = %q, want %q", got, "stage 2")
 	}
@@ -126,7 +124,7 @@ func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
 // --- Item 0: Fail/Block are statement-form; Failf/Blockf return %w errors ---
 
 func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
@@ -140,7 +138,7 @@ func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
 }
 
 func TestAPISugar_TaskFailfWrapsAndReturnsError(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
@@ -165,7 +163,7 @@ func TestAPISugar_TaskFailfWrapsAndReturnsError(t *testing.T) {
 // site — `return task.Failf("...: %w", err).Next(...)` — instead of a second
 // statement (the zq clean_repo.go build break this closes).
 func TestAPISugar_TaskFailfNextAttachesRemedy(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
@@ -196,7 +194,7 @@ func TestAPISugar_TaskFailfNextAttachesRemedy(t *testing.T) {
 // TestAPISugar_TaskBlockfNextCommandAttachesRemedy exercises Blockf's
 // matching Next/NextCommand contract.
 func TestAPISugar_TaskBlockfNextCommandAttachesRemedy(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("apply")
@@ -214,10 +212,10 @@ func TestAPISugar_TaskBlockfNextCommandAttachesRemedy(t *testing.T) {
 // collapses declare + first Phase into one call, with no gap where the task
 // sits Pending between two statements.
 func TestAPISugar_StartPhaseDeclaresWithPhaseSet(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
-	task := out.Task("download base image", evo.StartPhase("resolving tag"))
+	task := out.Task("download base image").Doing("resolving tag")
 	snap := task.Snapshot()
 	if snap.Phase != "resolving tag" {
 		t.Fatalf("phase = %q, want %q", snap.Phase, "resolving tag")
@@ -231,11 +229,11 @@ func TestAPISugar_StartPhaseDeclaresWithPhaseSet(t *testing.T) {
 // progress count and phase text together, so both always describe the same
 // unit of work even under concurrent callers.
 func TestAPISugar_StepSetsProgressAndPhaseUnderOneLock(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("sync")
-	task.Step(3, 10, "syncing widget-3")
+	task.StepForTest(3, 10, "syncing widget-3")
 
 	snap := task.Snapshot()
 	if snap.Progress.Completed != 3 || snap.Progress.Total != 10 {
@@ -252,7 +250,7 @@ func TestAPISugar_StepSetsProgressAndPhaseUnderOneLock(t *testing.T) {
 // a mix (the defect two separate Progress+Phase calls under two separate
 // locks allowed).
 func TestAPISugar_StepConcurrentWorkersNeverInterleave(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("sync")
 
@@ -262,7 +260,7 @@ func TestAPISugar_StepConcurrentWorkersNeverInterleave(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			task.Step(i, n, fmt.Sprintf("item-%d", i))
+			task.StepForTest(i, n, fmt.Sprintf("item-%d", i))
 		}(i)
 	}
 	wg.Wait()
@@ -277,8 +275,46 @@ func TestAPISugar_StepConcurrentWorkersNeverInterleave(t *testing.T) {
 	}
 }
 
+// TestStep_IsolatedPlainDoesNotEmitPerNamePhase pins Step's live-only name:
+// Isolated+Plain may stream thinned progress milestones (~10), but must not
+// emit a durable phase line per unique item name. Snapshot.Phase is still
+// the last name (the TTY bar can show the path without flooding the pipe).
+func TestStep_IsolatedPlainDoesNotEmitPerNamePhase(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("sync")
+	const total = 40
+	names := make([]string, total)
+	for i := 1; i <= total; i++ {
+		names[i-1] = fmt.Sprintf("widget-%02d", i)
+		task.StepForTest(i, total, names[i-1])
+	}
+	last := names[total-1]
+	if got := task.Snapshot().Phase; got != last {
+		t.Fatalf("phase = %q, want last Step name %q", got, last)
+	}
+
+	task.Done()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	transcript := buf.String()
+	namedLines := 0
+	for _, name := range names {
+		if strings.Contains(transcript, name) {
+			namedLines++
+		}
+	}
+	if namedLines >= total {
+		t.Fatalf("durable transcript contained %d unique Step names (want < %d; progress milestones are allowed):\n%s", namedLines, total, transcript)
+	}
+}
+
 func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
@@ -292,7 +328,7 @@ func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
 }
 
 func TestAPISugar_ItemBlockfWrapsAndReturnsError(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	item := out.Task("policy gate")
@@ -319,16 +355,16 @@ func TestAPISugar_FailNilHandleIsSafe(t *testing.T) {
 // --- Item 3: task.Run subprocess facade ---
 
 func TestAPISugar_RunCapturesOutputAndUpdatesPhase(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "echo line-one; echo line-two 1>&2")
-	if err := task.Run(cmd); err != nil {
+	if err := task.RunForTest(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
 
-	tail := task.Evidence().Text()
+	tail := task.EvidenceForTest().Text()
 	if !strings.Contains(tail, "line-one") || !strings.Contains(tail, "line-two") {
 		t.Fatalf("capture tail = %q, want both stdout and stderr lines retained", tail)
 	}
@@ -338,12 +374,12 @@ func TestAPISugar_RunCapturesOutputAndUpdatesPhase(t *testing.T) {
 }
 
 func TestAPISugar_RunSetsPhaseFromCommandName(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
 	cmd := exec.Command("/usr/bin/true")
-	if err := task.Run(cmd); err != nil {
+	if err := task.RunForTest(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
 	if got := task.Snapshot().Phase; got != "true" {
@@ -356,12 +392,12 @@ func TestAPISugar_RunSetsPhaseFromCommandName(t *testing.T) {
 // phase — it reads the meaningful command from the wrapper's -c script
 // instead (FP-004 applies to ourselves).
 func TestAPISugar_RunSkipsShellWrapperPhase(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "true")
-	if err := task.Run(cmd); err != nil {
+	if err := task.RunForTest(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
 	if got := task.Snapshot().Phase; got != "true" {
@@ -370,31 +406,31 @@ func TestAPISugar_RunSkipsShellWrapperPhase(t *testing.T) {
 }
 
 func TestAPISugar_RunTeesPreWiredWriters(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
 	var mine strings.Builder
 	cmd := exec.Command("/bin/sh", "-c", "echo hello")
 	cmd.Stdout = &mine
-	if err := task.Run(cmd); err != nil {
+	if err := task.RunForTest(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
 	if !strings.Contains(mine.String(), "hello") {
 		t.Fatalf("pre-wired writer = %q, want it still received output", mine.String())
 	}
-	if !strings.Contains(task.Evidence().Text(), "hello") {
+	if !strings.Contains(task.EvidenceForTest().Text(), "hello") {
 		t.Fatal("expected Run's own capture to also observe teed stdout")
 	}
 }
 
 func TestAPISugar_RunReturnsSubprocessErrorVerbatim(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "exit 3")
-	err := task.Run(cmd)
+	err := task.RunForTest(cmd)
 	if err == nil {
 		t.Fatal("expected non-nil error for a nonzero exit")
 	}
@@ -414,15 +450,15 @@ func (r literalRedactor) RedactString(s string) string {
 }
 
 func TestAPISugar_RunRedactsSecrets(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(io.Discard), evo.Plain(), evo.Redact(literalRedactor{secret: "s3kr3t"})}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Redactor: literalRedactor{secret: "s3kr3t"}, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "echo token=s3kr3t")
-	if err := task.Run(cmd); err != nil {
+	if err := task.RunForTest(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if strings.Contains(task.Evidence().Text(), "s3kr3t") {
-		t.Fatalf("capture tail leaked the redacted secret: %q", task.Evidence().Text())
+	if strings.Contains(task.EvidenceForTest().Text(), "s3kr3t") {
+		t.Fatalf("capture tail leaked the redacted secret: %q", task.EvidenceForTest().Text())
 	}
 }

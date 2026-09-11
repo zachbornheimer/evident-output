@@ -58,20 +58,28 @@ func (c *manualClock) Advance(d time.Duration) {
 
 // TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold is the red-first
 // proof for evo-rec.md Problem 9's static-frame defect: a live region
-// holding only a Pending row (nothing Running) must still grow an elapsed
-// suffix past elapsedAfter AND keep the spinner animator alive — before the
-// fix, heartbeatSuffix required a non-zero ActivityAt (which a never-started
+// holding only a Pending row (nothing Running) must still say it is waiting
+// past elapsedAfter AND keep the spinner animator alive — before the fix,
+// heartbeatSuffix required a non-zero ActivityAt (which a never-started
 // Pending task never has) and needsSpinnerAnimLocked only counted Running,
 // so the frame froze forever. P5 anchors every row to LiveFirstSeenAt
 // instead, so a Pending row ages honestly from the moment it is first
 // painted.
+//
+// Revised: the row's waiting text no longer carries the elapsed suffix this
+// test originally pinned (`waiting — 15s`). The dialect's Heartbeat rule
+// says Pending/NotStarted rows do not accumulate "work time", and the
+// suffix made three queued siblings read as three stalled jobs; the timer
+// now belongs to the Running work and the parent header alone
+// (TestLive_PendingRowHasNoTimer). What this test still owns is the
+// original defect: the row is not silent, and the animator stays alive.
 func TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := newOutput("job", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor())
+	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("goimports") // declared, never touched: stays Pending
+	out.Sequence("steps").Task("goimports") // sequential child stays Pending until its turn
 
 	clock.Advance(15 * time.Second)
 
@@ -81,8 +89,8 @@ func TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold(t *testing.T) {
 	animating := out.needsSpinnerAnimLocked()
 	out.mu.Unlock()
 
-	if !strings.Contains(frame, "waiting — 15s") {
-		t.Fatalf("expected a dim waiting heartbeat on the stale Pending row:\n%s", frame)
+	if !strings.Contains(frame, "waiting") {
+		t.Fatalf("expected a dim waiting marker on the stale Pending row:\n%s", frame)
 	}
 	if !animating {
 		t.Fatal("expected needsSpinnerAnimLocked true while an unresolved Pending row is rendered")
@@ -97,7 +105,7 @@ func TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold(t *testing.T) {
 func TestLiveHeartbeat_RunningNoPhaseZeroTotalAnimates(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := newOutput("job", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor())
+	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("resolve")
@@ -128,10 +136,10 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 	t.Run("mixed done and pending", func(t *testing.T) {
 		drv := &fakeHeartbeatSurface{}
 		clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-		out := newOutput("fix", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor(), Glyphs(GlyphsUnicode))
+		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
 		t.Cleanup(func() { _ = out.Close() })
 
-		grp := out.DisplayGroup("fix")
+		grp := out.Group("fix")
 		grp.Task("a").Done()
 		grp.Task("b").Done()
 		grp.Task("c").Done()
@@ -151,10 +159,10 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 	t.Run("all pending at start", func(t *testing.T) {
 		drv := &fakeHeartbeatSurface{}
 		clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-		out := newOutput("fix", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor(), Glyphs(GlyphsUnicode))
+		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
 		t.Cleanup(func() { _ = out.Close() })
 
-		grp := out.DisplayGroup("fix")
+		grp := out.Group("fix")
 		grp.Task("a")
 		grp.Task("b")
 

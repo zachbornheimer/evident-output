@@ -37,7 +37,7 @@ func TestConfirm_AbortChannelRegisteredBeforePromptWrite(t *testing.T) {
 	defer func() { _ = r.Close() }()
 	defer func() { _ = w.Close() }()
 
-	o := newOutput("", To(spy), NoColor(), Stdin(r))
+	o := newOutput("", to(spy), withNoColor(), stdin(r))
 	spy.out = o
 
 	done := make(chan struct{})

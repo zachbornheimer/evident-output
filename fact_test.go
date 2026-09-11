@@ -14,7 +14,7 @@ import (
 // are work. Facts are information.").
 func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")
@@ -36,7 +36,7 @@ func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 // not resolve the task, so a subsequent Done still succeeds (mirrors
 // TaskHandle.Warn's non-terminal contract).
 func TestTaskFact_NeverResolvesTask(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever})
 	task := out.Task("t")
 	task.Fact("language", "go")
 	task.Done()
@@ -55,7 +55,7 @@ func TestTaskFact_NeverResolvesTask(t *testing.T) {
 // bare evo.Warn and no tasks still concludes StateReady, warned.
 func TestOutputWarn_FeedsWarnedModifierNotHeadline(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	out.Warn("no config file found, using defaults")
 
@@ -82,7 +82,7 @@ func TestOutputWarn_FeedsWarnedModifierNotHeadline(t *testing.T) {
 // as a fire-and-forget durable dim line, distinct from any task.
 func TestOutputFact_RendersDurableDimLine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	out.Fact("language", "go")
 

@@ -7,28 +7,25 @@ Cross-links: [jazz-syntax.md](./jazz-syntax.md) · [presentation-boundary.md](./
 
 ---
 
-## Task / Sequence / DisplayGroup
+## Task / Sequence / Group
 
-One leaf entity, one constructor, plus two structural containers (v0.4.0/P3:
-"grouping does not inherently explain whether children are ordered,
-dependent, concurrent, or merely visually related" — `Tasks`/`Group` are
-deleted; every container is one of the two nouns below). A `Task` answers
+One leaf entity, one constructor, plus two structural containers. A `Task` answers
 both questions "is this state acceptable?" and "how is this work going?" —
 which one depends on how it's used, not on a separate type:
 
-| Noun             | Meaning                                                                                                                                              |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**         | A named condition or unit of work — resolved directly (Done/Warn/Block/Fail/Skip) for a **condition**, or driven through Doing/Progress for **work** |
-| **Sequence**     | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                     |
-| **DisplayGroup** | Presentation-only grouping — no ordering semantics; any number of children may be `Running` at once                                                  |
+| Noun         | Meaning                                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**     | A named condition or unit of work — resolved directly (Done/Warn/Block/Fail/Skip) for a **condition**, or driven through Doing/Progress for **work** |
+| **Sequence** | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                     |
+| **Group**    | Independent collection — no ordering semantics; any number of children may be `Running` at once                                                      |
 
 Both containers derive their state entirely from their children — never
 `.Done()`/`.Fail()` on the container itself (see RULE-002 below).
 
 ```go
-gate := out.Task("working tree", evo.ID("repo.working-tree")) // condition: resolved directly below
-work := out.Task("download", evo.ID("install.download"))      // work: driven through Doing/Progress
-packages := out.DisplayGroup("packages")
+gate := out.Task("working tree") // condition: resolved directly below
+work := out.Task("download")     // work: driven through Doing/Progress
+packages := out.Group("packages")
 ```
 
 (Shipped v0.2.x code spelled the condition shape `Item` — folded into `Task`:
@@ -140,13 +137,13 @@ Evidence attaches **tool-backed proof** (command output tails, etc.) to a Task.
 "Stdout" would lie as a name — it also takes stderr and combined writes; Evidence says what
 it is for.
 
-- Prefer **Evidence on the Task** (ordinary lead sheet), whether it's a condition or work.
-- Prefer **Task.Run(cmd)** for an `*exec.Cmd` — it wires Evidence and Doing text in one call.
-- Evidence is **silent on success** (PHIL-005).
-- Session-level Evidence is studio overdub — not the ordinary example (PHIL-003).
+- Prefer **Writer on the Task** (ordinary lead sheet), whether it's a condition or work.
+- `cmd.Stdout = task.Writer()` (and stderr) wires child chatter into the live doing-text.
+- Retained evidence is **silent on success** (PHIL-005).
 
 ```go
-proof := task.Evidence()
+cmd.Stdout = task.Writer()
+cmd.Stderr = task.Writer()
 ```
 
 Who owns the handle: the entity whose condition or work the evidence explains. Do not Capture “somewhere nearby” for convenience.
@@ -161,13 +158,13 @@ Keep a condition Task when it expresses an independent state or carries severity
 
 - announces that a Plan exists
 - repeats successful Changes
-- restates a Sequence/DisplayGroup’s derived failure
+- restates a Sequence/Group’s derived failure
 - says the command succeeded without adding a condition
 
-A **summary Task** may represent the aggregated condition of work intentionally not modeled as a Sequence/DisplayGroup:
+A **summary Task** may represent the aggregated condition of work intentionally not modeled as a Sequence/Group:
 
 ```go
-placement := out.Task("placement", evo.ID("run.placement"))
+placement := out.Task("placement")
 
 if len(summary.Failures) == 0 {
     placement.Done()
@@ -197,7 +194,7 @@ Declare Tasks in **deterministic semantic order** before starting workers.
 Workers **update** handles; they do not declare presentation order concurrently.
 
 ```go
-jobs := out.DisplayGroup("placement")
+jobs := out.Group("placement")
 tracked := predeclarePlacementTasks(jobs, sortedFiles)
 // then start workers that call tracked[i].Doing / .Bytes / .Done / .Fail
 ```

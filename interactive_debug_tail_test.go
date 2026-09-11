@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -19,13 +20,11 @@ import (
 // diagnostic tail on the interactive final render.
 func TestInteractive_DebugTailReachesLiveTerminal(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(screen), evo.VisibilityDelay(0), evo.NoColor(),
-		evo.DebugLevel(evo.LevelDebug), evo.DebugPane(),
-	}})
+	newest := true
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, PaneHeight: 5, NewestFirst: &newest}, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Debug("diagnostic detail line")
+	out.DebugForTest("diagnostic detail line")
 	out.Task("build").Fail("compile error")
 	_ = out.Finish()
 

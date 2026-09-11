@@ -130,7 +130,7 @@ func TestFlat_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 	}
 }
 
-// TestCapture_StderrOnlyFeedsDetailTail is the P1 contract: Task.Evidence()
+// TestCapture_StderrOnlyFeedsDetailTail is the P1 contract: Task.EvidenceForTest()
 // retains stderr into the evidence ring by default; writing only to Stderr()
 // still populates DetailTail without a separate writer or Mirror.
 func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
@@ -145,7 +145,7 @@ func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("golangci-lint")
-	cap := task.Evidence()
+	cap := task.EvidenceForTest()
 	// Linters commonly write diagnostics only on stderr.
 	_, _ = io.WriteString(cap.Stderr(), "level=warning msg=\"can't process results\"\n")
 	_, _ = io.WriteString(cap.Stderr(), "../tmp/main.go:1:1: File is not properly formatted (gofmt)\n")

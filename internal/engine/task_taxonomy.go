@@ -23,14 +23,16 @@ const (
 // the summary; the aggregation key is untouched by errs. Any errs render as
 // one bounded evidence line under the count row (first cause + "(+N more)"),
 // full list under Verbose.
-func (t *TaskHandle) Skipped(reason TaxonomyReason, name string, errs ...error) {
-	t.recordTaxonomy(reason, name, dispositionSkip, errs)
+func (t *TaskHandle) Skipped(reason TaxonomyReason) {
+	t.recordTaxonomy(reason, "", dispositionSkip, nil)
+	t.finish(Skipped, "", nil)
 }
 
-// Kept accumulates a (reason, name) keep record on the task — same machinery
-// as Skipped, second verb ("!  kept N  (...)").
-func (t *TaskHandle) Kept(reason TaxonomyReason, name string, errs ...error) {
-	t.recordTaxonomy(reason, name, dispositionKeep, errs)
+// Kept records a keep reason on this Task (the Task name is the kept name)
+// and resolves the Task as Done.
+func (t *TaskHandle) Kept(reason TaxonomyReason) {
+	t.recordTaxonomy(reason, "", dispositionKeep, nil)
+	t.finish(Done, "", nil)
 }
 
 func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {
@@ -49,6 +51,9 @@ func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dis
 		return
 	}
 	t.out.enforceReasonConstraintLocked(reason, st.name, verb)
+	if name == "" {
+		name = st.name
+	}
 	rec := TaxonomyRecord{Reason: reason.name, Name: txt.Text(name), Causes: causesFromErrors(errs)}
 	switch verb {
 	case dispositionSkip:

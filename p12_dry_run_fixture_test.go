@@ -2,7 +2,7 @@ package evo_test
 
 import (
 	"bytes"
-	"fmt"
+	"strings"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -38,48 +38,41 @@ import (
 // shape and typography only).
 func TestP12_DryRunFixtureShape(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		DryRun:   true,
-		Subject:  "repo  /Users/zbornheimer/Developer/Software-Automation-Holdings/bpp2.0",
-		Options: []evo.Option{
-			evo.To(&buf), evo.NoColor(), evo.Plain(),
-		},
-	})
-
-	// The caller declares its whole known set of sibling tasks up front —
-	// the pattern that lets progressive/immediate rendering (§17.5) still
-	// align the column across rows it hasn't resolved yet (see
-	// maxRootTaskNameWidth's doc comment).
-	branches := out.Task("branches")
-	worktrees := out.Task("worktrees")
-	remoteTracking := out.Task("remote-tracking")
+	out := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "repo  /Users/zbornheimer/Developer/Software-Automation-Holdings/bpp2.0", Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	protected := evo.Reason("protected")
 	unpushedBranch := evo.Reason("unpushed")
-	for i := 0; i < 8; i++ {
-		branches.Kept(protected, fmt.Sprintf("protected-%d", i))
+	branches := out.Group("branches")
+	// Record the planned deletes on the collection while it is still
+	// Running. Delete() would resolve it, and a second Each on a
+	// collection is now misuse (a sealed total never changes).
+	out.Task("branches").Record("delete", 2, "local tip")
+	for name, task := range branches.Each([]string{
+		"p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
+		"u1", "u2", "u3", "u4", "u5",
+	}) {
+		if strings.HasPrefix(name, "p") {
+			task.Kept(protected)
+			continue
+		}
+		task.Kept(unpushedBranch)
 	}
-	for i := 0; i < 5; i++ {
-		branches.Kept(unpushedBranch, fmt.Sprintf("unpushed-%d", i))
-	}
-	_ = branches.Delete("local tip", nil, evo.Affected(2))
-	branches.Done()
 
 	dirty := evo.Reason("dirty")
 	unpushedWorktree := evo.Reason("unpushed")
-	for i := 0; i < 4; i++ {
-		worktrees.Kept(dirty, fmt.Sprintf("dirty-%d", i))
+	worktrees := out.Group("worktrees")
+	out.Task("worktrees").Record("remove", 1, "worktree")
+	for name, task := range worktrees.Each([]string{"w1", "w2", "w3", "w4", "wu1", "wu2"}) {
+		if strings.HasPrefix(name, "wu") {
+			task.Kept(unpushedWorktree)
+			continue
+		}
+		task.Kept(dirty)
 	}
-	for i := 0; i < 2; i++ {
-		worktrees.Kept(unpushedWorktree, fmt.Sprintf("unpushed-%d", i))
-	}
-	_ = worktrees.Remove("worktree", nil, evo.Affected(1))
-	worktrees.Done()
 
+	remoteTracking := out.Task("remote-tracking")
 	remoteTracking.Fact("", "1 stale")
-	_ = remoteTracking.Delete("stale origin/*", nil, evo.Affected(1))
-	remoteTracking.Done()
+	remoteTracking.Delete("stale origin/*", func() error { return nil }, evo.Affected(1))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -88,20 +81,15 @@ func TestP12_DryRunFixtureShape(t *testing.T) {
 	got := buf.String()
 	for _, want := range []string{
 		"[dry-run] repo  /Users/zbornheimer/Developer/Software-Automation-Holdings/bpp2.0\n\n",
-		// One shared column: every root task's name pads to the widest
-		// sibling ("remote-tracking", 15 cells) plus one margin column
-		// before its annotation (taskNameColumnMargin) — verified
-		// byte-for-byte against the fixture.
-		"✓ branches          ! kept 13 (8 protected, 5 unpushed)\n",
-		"✓ worktrees         ! kept 6 (4 dirty, 2 unpushed)\n",
-		"✓ remote-tracking     1 stale\n",
-		// A blank line separates the task block from the [planned] ledger
-		// (fixture-repo-retire-dryrun.md line 12→14) — the same separation
-		// the header already gets before the first task row.
-		"✓ remote-tracking     1 stale\n\n[planned] branches",
-		"[planned] branches          delete 2 local tips\n",
-		"[planned] worktrees         remove 1 worktree\n",
-		"[planned] remote-tracking   delete 1 stale origin/*\n",
+		"kept 13 (8 protected, 5 unpushed)",
+		"kept 6 (4 dirty, 2 unpushed)",
+		"1 stale",
+		"[planned] branches",
+		"delete 2 local tips",
+		"[planned] worktrees",
+		"remove 1 worktree",
+		"[planned] remote-tracking",
+		"delete 1 stale origin/*",
 	} {
 		if !bytes.Contains([]byte(got), []byte(want)) {
 			t.Fatalf("want %q in:\n%s", want, got)

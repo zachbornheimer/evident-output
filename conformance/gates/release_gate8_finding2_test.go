@@ -32,12 +32,7 @@ func TestTerminalOption_DefaultsPrimaryToDriverSink(t *testing.T) {
 	var sink bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Options: []evo.Option{
-			evo.Terminal(sinkTerminal{w: &sink}),
-			evo.Plain(),
-			evo.NoColor(),
-		},
-	})
+		Terminal: sinkTerminal{w: &sink}, Plain: true, Color: evo.ColorNever})
 
 	out.Task("branches").Done()
 	if err := out.Finish(); err != nil {
@@ -52,29 +47,25 @@ func TestTerminalOption_DefaultsPrimaryToDriverSink(t *testing.T) {
 	}
 }
 
-// TestTerminalOption_WithoutSinkFailsLoudly is the red branch: a driver
-// that cannot report a Sink() and has no To() must never silently render
-// nothing at exit 0 — Init records ErrTerminalWithoutSink misuse instead.
-func TestTerminalOption_WithoutSinkFailsLoudly(t *testing.T) {
+// TestTerminalOption_OpaqueDriverStillRendersOnStdout is the Config-era
+// form of the old "no To() + no Sink()" case. Init always fills Stdout
+// (os.Stdout when unset), so an opaque driver cannot strand the residual
+// projection: an explicit Stdout still receives the task row.
+func TestTerminalOption_OpaqueDriverStillRendersOnStdout(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Options: []evo.Option{
-			evo.Terminal(opaqueTerminal{}),
-			evo.Plain(),
-			evo.NoColor(),
-		},
+		Stdout:   &buf,
+		Terminal: opaqueTerminal{},
+		Plain:    true,
+		Color:    evo.ColorNever,
 	})
 
 	out.Task("branches").Done()
-	if err := out.Finish(); err == nil {
-		t.Fatal("Finish() = nil, want the recorded ErrTerminalWithoutSink misuse to surface")
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish() = %v, want nil when Stdout is configured", err)
 	}
-
-	// Finish's own residual write has nowhere to land (no To(), no Sink()),
-	// so assert against the diagnostic-free contract instead: the run must
-	// not silently conclude clean.
-	if buf.Len() != 0 {
-		t.Fatalf("unconfigured writer received output it was never wired to receive:\n%s", buf.String())
+	if !strings.Contains(buf.String(), "branches") {
+		t.Fatalf("want the task rendered on Stdout, got:\n%s", buf.String())
 	}
 }

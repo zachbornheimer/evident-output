@@ -28,7 +28,7 @@ func (d *recordingLiveDriver) WriteFinal(string) {}
 
 // TestProjectDebugRecord_DualStreamSameTerminalRoutesThroughLiveSequencing
 // reproduces gate-7 finding 1: Config{Stdout, Stderr} — the realistic
-// default construction — routes To(Stdout) and Diagnostics(Stderr), two
+// default construction — routes to(Stdout) and withDiagnostics(Stderr), two
 // distinct io.Writer values. On an interactive shell without redirection,
 // both fds name the SAME physical tty. Before the fix, projectDebugRecordLocked's
 // dual branch (output.go) wrote the debug line straight to Diagnostics with
@@ -46,11 +46,11 @@ func TestProjectDebugRecord_DualStreamSameTerminalRoutesThroughLiveSequencing(t 
 	var diagnostics, primary bytes.Buffer
 
 	o := newOutput("gate7-finding1",
-		To(&primary), Diagnostics(&diagnostics), Terminal(drv),
-		withDiagnosticSharesTerminal(), DebugLevel(LevelDebug))
+		to(&primary), withDiagnostics(&diagnostics), withTerminal(drv),
+		withDiagnosticSharesTerminal(), debugLevel(LevelDebug))
 	t.Cleanup(func() { _ = o.Close() })
 
-	o.Debug("dual stream debug line")
+	o.debug("dual stream debug line")
 
 	var sawSequencedWrite bool
 	for _, c := range drv.calls {

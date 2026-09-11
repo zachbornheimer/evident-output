@@ -10,14 +10,14 @@ import (
 
 // TestDeclareDryRun_BeforeAnyRow_SwitchesMode is I8: a caller who doesn't
 // know DryRun until after Init (e.g. resolved from a flag) can call
-// out.DeclareDryRun() before any other call, and mutation verbs render
+// out.DeclareDryRunForTest() before any other call, and mutation verbs render
 // [planned] exactly as if Config.DryRun had been set at construction.
 func TestDeclareDryRun_BeforeAnyRow_SwitchesMode(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.DeclareDryRun()
-	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(2))
+	out.DeclareDryRunForTest()
+	out.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(2))
 	_ = out.Finish()
 
 	rendered := buf.String()
@@ -34,10 +34,10 @@ func TestDeclareDryRun_BeforeAnyRow_SwitchesMode(t *testing.T) {
 // earlier row cannot retroactively reflect the switch.
 func TestDeclareDryRun_AfterADurableRow_IsMisuse(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	out.Println("Reading configuration")
-	out.DeclareDryRun()
+	out.DeclareDryRunForTest()
 
 	if err := out.Finish(); err == nil {
 		t.Fatal("Finish() = nil, want the recorded misuse")

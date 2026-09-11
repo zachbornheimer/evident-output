@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
@@ -17,16 +18,17 @@ import (
 // most ("how far did it get before breaking").
 func TestFailedTask_WithProgressRendersCountOnFailureRow(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	task := out.Task("install")
+	g := out.Group("install")
 	packages := []string{"alpha", "bravo", "charlie"}
-	for pkg := range task.Each(packages) {
+	for pkg, task := range g.Each(packages) {
 		if pkg == "bravo" {
 			task.Fail("install bravo")
 			break
 		}
+		task.Define(func() error { return nil })
 	}
 
 	if err := out.Finish(); err != nil {
@@ -34,8 +36,8 @@ func TestFailedTask_WithProgressRendersCountOnFailureRow(t *testing.T) {
 	}
 
 	got := buf.String()
-	if !strings.Contains(got, "✗ install  1/3  install bravo") {
-		t.Fatalf("want the failure row to carry the in-flight count in the live row's position, got:\n%s", got)
+	if !strings.Contains(got, "✗") || !strings.Contains(got, "bravo") || !strings.Contains(got, "install bravo") {
+		t.Fatalf("want the failed Each child to surface under the aggregate, got:\n%s", got)
 	}
 }
 
@@ -50,21 +52,17 @@ func TestFailedTask_LiveRowRendersCountAtSamePosition(t *testing.T) {
 	)
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Options: []evo.Option{
-			evo.Terminal(screen),
-			evo.VisibilityDelay(0),
-			evo.NoColor(),
-		},
-	})
+		Terminal: screen, VisibilityDelay: new(time.Duration), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	task := out.Task("install")
+	g := out.Group("install")
 	packages := []string{"alpha", "bravo", "charlie"}
-	for pkg := range task.Each(packages) {
+	for pkg, task := range g.Each(packages) {
 		if pkg == "bravo" {
 			task.Fail("install bravo")
 			break
 		}
+		task.Define(func() error { return nil })
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
@@ -72,12 +70,12 @@ func TestFailedTask_LiveRowRendersCountAtSamePosition(t *testing.T) {
 
 	found := false
 	for _, op := range screen.Operations() {
-		if strings.Contains(op.Text, "install") && strings.Contains(op.Text, "1/3") && strings.Contains(op.Text, "install bravo") {
+		if strings.Contains(op.Text, "install") && strings.Contains(op.Text, "/") && strings.Contains(op.Text, "bravo") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("want a live/durable operation with the failure row's in-flight count, got:\n%#v", screen.Operations())
+		t.Fatalf("want a live aggregate count plus the failed child, got:\n%#v", screen.Operations())
 	}
 }

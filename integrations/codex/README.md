@@ -14,8 +14,9 @@
 
 ```bash
 mkdir -p "$HOME/.local/bin"
-GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
+# After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
 
 "$HOME/.local/bin/evident-output-mcp" config --client codex
 ```
@@ -24,6 +25,6 @@ Paste the printed snippet. Use an absolute command path.
 
 ## Tools
 
-`evident_output_list_sections`, `evident_output_get_documentation`, `evident_output_adopt_plan`, `evident_output_review`, `evident_output_preview`, `evident_output_explain` (underscores).
+`evident_output_list_sections`, `evident_output_get_documentation`, `evident_output_adopt_plan`, `evident_output_review`, `evident_output_preview`, `evident_output_explain`, `evident_output_update` (underscores).
 
 Skill: [`../../skills/cli-output/SKILL.md`](../../skills/cli-output/SKILL.md)

@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -27,7 +28,7 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 	color := !noColor
 
 	if s.DryRun {
-		WriteDryRunMarker(&b, color, s.DryRunSubject)
+		WritePlannedHeader(&b, color, s.Preview, s.DryRunSubject)
 	}
 
 	for _, line := range s.Lines {
@@ -700,6 +701,15 @@ func partitionTaxonomyByReason(records []core.TaxonomyRecord) (map[string][]stri
 // line and erasing the children whose evidence lived only in the live
 // region while it was running.
 func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose bool, profile txt.GlyphProfile) {
+	fromEach, explicit := partitionEachChildren(col.Tasks)
+	if len(fromEach) > 0 {
+		writePlainEachAggregate(b, col, fromEach, explicit, color, verbose, profile)
+		return
+	}
+	if collapsesIntoOnlyChild(col) {
+		WriteTaskAligned(b, col.Tasks[0], maxTaskNameWidth(col.Tasks), color, verbose, profile)
+		return
+	}
 	glyph := txt.StyleGlyph(TaskGlyph(col.State, profile), StateColor(col.State), color)
 	if col.Summary != "" {
 		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, txt.Dim(col.Summary, color))
@@ -719,6 +729,85 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
+}
+
+// eachAggregateDetail is the durable row's answer to "how many?" — the same
+// completed/total the live frame shows (EachAggregateCount), because a bare
+// "✓ fix tools" cannot tell 999/1000 from 1/1000 once the live region is
+// gone. Empty when the caller's own Summary already answers it for a
+// collection that finished; a collection that stopped short still owes the
+// reader the number, summary or not.
+func eachAggregateDetail(col core.TasksSnapshot, fromEach []core.TaskSnapshot) string {
+	done, total := EachAggregateCount(fromEach)
+	if col.Summary != "" && done == total {
+		return ""
+	}
+	return fmt.Sprintf("%d/%d", done, total)
+}
+
+// eachChildrenNeedingSurface returns the Each children that earn a row of
+// their own beneath the aggregate. It is also the measure of the child name
+// column: a collapsed child is not a row, and a row nobody can see must not
+// set the width of the rows they can — padding `✓ classify` out to a
+// 70-character worktree path that never appears reads as a broken table.
+func eachChildrenNeedingSurface(fromEach []core.TaskSnapshot) []core.TaskSnapshot {
+	var surfaced []core.TaskSnapshot
+	for _, t := range fromEach {
+		if eachChildNeedsSurface(t) {
+			surfaced = append(surfaced, t)
+		}
+	}
+	return surfaced
+}
+
+func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach, explicit []core.TaskSnapshot, color, verbose bool, profile txt.GlyphProfile) {
+	glyph := txt.StyleGlyph(TaskGlyph(col.State, profile), StateColor(col.State), color)
+	switch detail := eachAggregateDetail(col, fromEach); {
+	case detail != "" && col.Summary != "":
+		fmt.Fprintf(b, "%s %s  %s  %s\n", glyph, col.Name, detail, txt.Dim(col.Summary, color))
+	case col.Summary != "":
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, txt.Dim(col.Summary, color))
+	default:
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, detail)
+	}
+	skipped, kept := collectEachTaxonomy(fromEach)
+	writeTaxonomy(b, problemTreeIndent, "skipped", skipped, false, verbose, color, profile)
+	writeTaxonomy(b, problemTreeIndent, "kept", kept, false, verbose, color, profile)
+	surfaced := eachChildrenNeedingSurface(fromEach)
+	childNameWidth := maxTaskNameWidth(slices.Concat(surfaced, explicit))
+	for _, t := range surfaced {
+		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
+	}
+	writeNotStartedCount(b, fromEach, color, profile)
+	for _, t := range explicit {
+		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
+	}
+	for _, child := range col.Collections {
+		var nested strings.Builder
+		WriteCollection(&nested, child, color, verbose, profile)
+		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+			fmt.Fprintf(b, "   %s\n", line)
+		}
+	}
+}
+
+// notStartedLabel is the wording a NotStarted row already carries, so the
+// aggregate's count line and an individual row say the same thing. Spelled
+// as a literal here rather than imported (like defaultWidth above) because
+// render must never import the root package — see glyph.go's package doc.
+const notStartedLabel = "not started"
+
+// writeNotStartedCount renders the one line that accounts for the children an
+// early termination left behind ("- 6 not started"). It sits under the
+// surfaced failures because it is the rest of the same sentence: this is what
+// stopped, and this is how much never began.
+func writeNotStartedCount(b *strings.Builder, fromEach []core.TaskSnapshot, color bool, profile txt.GlyphProfile) {
+	n := CountNotStarted(fromEach)
+	if n == 0 {
+		return
+	}
+	glyph := txt.StyleGlyph(TaskGlyph(core.NotStarted, profile), StateColor(core.NotStarted), color)
+	fmt.Fprintf(b, "   %s %s\n", glyph, txt.Dim(fmt.Sprintf("%d %s", n, notStartedLabel), color))
 }
 
 // writeCollectionChild renders one child task row under its parent group:
@@ -966,10 +1055,10 @@ func writeEffectOverflow(b *strings.Builder, omitted int, color bool, profile tx
 // opening line (evo-rec.md core.Problem 1: "a dry run must announce itself").
 const dryRunMarkerText = "no changes will be made"
 
-// writeDryRunMarker emits the unmissable dry-run marker line. It renders
-// once, first, styled like [planned] — a caller cannot opt out or bury it,
-// because every dry-run projection (RenderPlain and Finish's residual) calls
-// this before any other row.
+// WritePlannedHeader emits a planned run's unmissable opening line. It
+// renders once, first — a caller cannot opt out or bury it, because every
+// planned projection (RenderPlain and Finish's residual) calls this before
+// any other row.
 //
 // subject is Config.Subject's text (fixture-repo-retire-dryrun.md's "repo
 // <path>"), merged onto this one line instead of streaming as a second
@@ -977,7 +1066,19 @@ const dryRunMarkerText = "no changes will be made"
 // matching the fixture's "ONE header line ... blank line after". Empty
 // subject falls back to the plain announcement text, unchanged from before
 // Config.Subject existed.
-func WriteDryRunMarker(b *strings.Builder, color bool, subject string) {
+//
+// preview drops the tag entirely: a preview before a confirm gate announces
+// the subject it is about to ask about ("repo <path>"), because telling the
+// user nothing will happen and then asking them to authorize it is the
+// contradiction the dialect's screenshot regression names. A preview with no
+// subject has nothing to announce and writes nothing.
+func WritePlannedHeader(b *strings.Builder, color, preview bool, subject string) {
+	if preview {
+		if subject != "" {
+			fmt.Fprintf(b, "%s\n\n", subject)
+		}
+		return
+	}
 	tag := txt.Style("[dry-run]", effectColor("planned"), color)
 	body := dryRunMarkerText
 	if subject != "" {
@@ -1061,28 +1162,80 @@ func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, col
 	fmt.Fprintf(b, "%s  already mutated: %s\n", glyph, summary)
 }
 
-// summarizeAlreadyMutated derives one compact fragment per non-empty Changes
-// section (e.g. "8 branches deleted"), joined with "; ". ok is false when no
-// section committed any effect, telling the caller to suppress the row.
-func summarizeAlreadyMutated(changes []core.ChangesSnapshot) (string, bool) {
-	var parts []string
-	for _, ch := range changes {
-		if len(ch.Records) == 0 {
-			continue
-		}
-		parts = append(parts, summarizeChangeSection(ch))
+// mutatedEffect is what one committed effect states on the early-termination
+// line: how many, of what, done how — and which tasks did it.
+type mutatedEffect struct {
+	verb string
+	// object is singular and pluralized from total at render time, unless
+	// countable is false — a section whose records name distinct objects
+	// falls back to the section's own subject, which is a name, not a noun.
+	object    string
+	countable bool
+	total     int64
+	owners    []string
+}
+
+func (e mutatedEffect) text() string {
+	object := e.object
+	if e.countable {
+		object = txt.Pluralize(e.total, object)
 	}
-	if len(parts) == 0 {
+	if e.verb == "" {
+		return fmt.Sprintf("%d %s changed", e.total, object)
+	}
+	return fmt.Sprintf("%d %s %s", e.total, object, e.verb)
+}
+
+// summarizeAlreadyMutated derives the "! already mutated: ..." line's
+// content. Sections that committed the same effect are one fragment with one
+// count — "1 module created; 1 module created" told the reader nothing twice
+// (P7). When more than one distinct effect survives, a fragment a single task
+// owns is named, so the reader learns where each effect happened; a run with
+// one effect keeps the unqualified spelling. ok is false when nothing
+// committed, telling the caller to suppress the row.
+func summarizeAlreadyMutated(changes []core.ChangesSnapshot) (string, bool) {
+	effects := aggregateMutatedEffects(changes)
+	if len(effects) == 0 {
 		return "", false
+	}
+	parts := make([]string, 0, len(effects))
+	for _, e := range effects {
+		text := e.text()
+		if len(effects) > 1 && len(e.owners) == 1 {
+			text = e.owners[0] + ": " + text
+		}
+		parts = append(parts, text)
 	}
 	return strings.Join(parts, "; "), true
 }
 
-// summarizeChangeSection sums a section's record quantities (no-qty records
+// aggregateMutatedEffects reduces every non-empty Changes section to its
+// effect and merges the ones that say the same thing, in first-seen order.
+func aggregateMutatedEffects(changes []core.ChangesSnapshot) []mutatedEffect {
+	var effects []mutatedEffect
+	index := map[string]int{}
+	for _, ch := range changes {
+		if len(ch.Records) == 0 {
+			continue
+		}
+		e := changeSectionEffect(ch)
+		key := fmt.Sprintf("%s\x00%s\x00%t", e.verb, e.object, e.countable)
+		if at, ok := index[key]; ok {
+			effects[at].total += e.total
+			effects[at].owners = append(effects[at].owners, e.owners...)
+			continue
+		}
+		index[key] = len(effects)
+		effects = append(effects, e)
+	}
+	return effects
+}
+
+// changeSectionEffect sums a section's record quantities (no-qty records
 // count as 1 each) and reports the shared verb/object when every record
 // agrees, falling back to the section's subject when records name distinct
 // verbs or objects.
-func summarizeChangeSection(ch core.ChangesSnapshot) string {
+func changeSectionEffect(ch core.ChangesSnapshot) mutatedEffect {
 	var total int64
 	verb, mixedVerb := ch.Records[0].Verb, false
 	object, mixedObject := ch.Records[0].Object, false
@@ -1099,18 +1252,14 @@ func summarizeChangeSection(ch core.ChangesSnapshot) string {
 			mixedObject = true
 		}
 	}
+	e := mutatedEffect{verb: verb, object: object, countable: true, total: total, owners: []string{ch.Subject}}
 	if mixedObject {
-		object = ch.Subject
-	} else {
-		// I4: object arrives singular now (mutation verbs take a singular
-		// object); pluralize from the summed quantity here, same as
-		// ledgerObject does per-row.
-		object = txt.Pluralize(total, object)
+		e.object, e.countable = ch.Subject, false
 	}
 	if mixedVerb {
-		return fmt.Sprintf("%d %s changed", total, object)
+		e.verb = ""
 	}
-	return fmt.Sprintf("%d %s %s", total, object, verb)
+	return e
 }
 
 func StateColor(s core.EntityState) string {

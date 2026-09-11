@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"io"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -9,23 +10,15 @@ import (
 )
 
 // TestFinish_InteractiveWithAlsoWrite_MirrorsPlainProjection proves the
-// interactive branch of Finish honors AlsoWrite (X4): option.go promises
-// "each [AlsoWrite] writer receives the plain projection" on Finish, with no
-// carve-out for interactive runs. Before the fix, Finish's interactive path
-// only ever considered cfg.primary for a dual-stream write — an AlsoWrite
-// mirror (e.g. a log file alongside a live terminal) got nothing.
+// interactive branch of Finish honors alsoWrite: each extra writer receives
+// the plain projection on Finish, with no carve-out for interactive runs.
 func TestFinish_InteractiveWithAlsoWrite_MirrorsPlainProjection(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var mirror bytes.Buffer
 
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Terminal(screen),
-		evo.AlsoWrite(&mirror),
-	}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, Color: evo.ColorNever})
+	out.AlsoWriteForTest(&mirror)
 
-	// Two tasks (not one) keep the conclusion band from coalescing into the
-	// single task's own row — residualPlainLocked's writeConclusion call is
-	// guaranteed non-empty, isolating this test to the AlsoWrite fan-out bug.
 	out.Task("dependencies").Fail("dependency graph has a cycle")
 	out.Task("build").Done()
 

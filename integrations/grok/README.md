@@ -19,12 +19,10 @@ Local **stdio** MCP only (no hosted URL).
 ```bash
 mkdir -p "$HOME/.local/bin"
 
-# Module install — pin a release (never @latest):
-GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
-
-# Or from a local clone of this repo:
-#   go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
+# Module install — pin a release (never @latest; never GOBIN=$HOME/.local/bin):
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
+# After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
 
 "$HOME/.local/bin/evident-output-mcp" --version
 ```
@@ -62,7 +60,7 @@ failure even when user-scope `doctor` is green.
 ```bash
 # Process handshake
 grok mcp doctor evident-output --json
-# expect: healthy=true, 6 tools, protocol 2025-06-18
+# expect: healthy=true, 7 tools, protocol 2025-06-18
 
 # Fresh agent process (same attach path as the TUI)
 grok -p 'Call use_tool on evident-output__evident_output_list_sections with {}. Reply CONNECTED and the text field, or FAILED.' \
@@ -78,7 +76,7 @@ In `~/.grok/sessions/…/events.jsonl`:
 
 | Event                                     | Meaning                               |
 | ----------------------------------------- | ------------------------------------- |
-| `mcp_server_connected` + `"tool_count":6` | Good                                  |
+| `mcp_server_connected` + `"tool_count":7` | Good                                  |
 | `mcp_server_connected` + `"tool_count":0` | Tools rejected (use underscore names) |
 | `mcp_server_failed`                       | Spawn/handshake error (path/PATH)     |
 

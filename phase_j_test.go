@@ -15,10 +15,9 @@ import (
 func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
-	_ = branches.Delete("local branches", nil, evo.Affected(12))
-	branches.Done()
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -37,10 +36,9 @@ func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	_ = branches.Delete("local branches", nil, evo.Affected(12))
-	branches.Done()
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -55,11 +53,10 @@ func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 // own (inferConclusion must not fall through to Ready/Changed for DryRun).
 func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	_ = branches.Delete("local branches", nil, evo.Affected(12))
-	branches.Done()
+	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +76,7 @@ func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 // headline planned-not-done.
 func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("scan").Done()
 	if err := out.Finish(); err != nil {
@@ -99,8 +96,8 @@ func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
 func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	g := out.DisplayGroup("pipeline")
+	out := evo.Init(evo.Config{Stdout: &buf, Title: "pipeline", Color: evo.ColorNever, Plain: true})
+	g := out.Group("pipeline")
 	g.Task("branches").Done("14 deleted")
 	g.Task("worktrees").Done("2 removed")
 	if err := out.Finish(); err != nil {
@@ -124,7 +121,7 @@ func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo-retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Title: "repo-retire", Color: evo.ColorNever, Plain: true})
 	out.Task("clean").Done()
 	out.Task("kept").Warn("kept 1")
 	if err := out.Finish(); err != nil {
@@ -148,7 +145,7 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 // Conclusion.Warned still true so the warning stays visible.
 func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("i").Warn("careful")
 	if err := out.Finish(); err != nil {
@@ -175,27 +172,24 @@ func TestConformance_Problem1SuccessBlock(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault mutates process-global state, same as
 	// the existing default-instance tests in taxonomy_test.go.
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Title: "clean", Color: evo.ColorNever, Plain: true}))
 
-	branches := evo.Task("branches")
 	protected := evo.Reason("protected")
 	dirty := evo.Reason("dirty")
 	unpushed := evo.Reason("unpushed")
-	branches.Skipped(protected, "main")
-	branches.Skipped(dirty, "feat/wip-1")
-	branches.Skipped(dirty, "feat/wip-2")
-	branches.Skipped(dirty, "feat/wip-3")
-	branches.Skipped(dirty, "feat/wip-4")
-	branches.Skipped(dirty, "feat/wip-5")
-	branches.Kept(unpushed, "feat/a")
-	branches.Kept(unpushed, "feat/b")
-	branches.Kept(unpushed, "feat/c")
-	_ = branches.Delete("local branches", nil, evo.Affected(14))
-	branches.Done()
+	for name, task := range evo.Group("branches").Each([]string{"p", "d1", "d2", "d3", "d4", "d5", "u1", "u2", "u3"}) {
+		switch name {
+		case "p":
+			task.Skipped(protected)
+		case "u1", "u2", "u3":
+			task.Kept(unpushed)
+		default:
+			task.Skipped(dirty)
+		}
+	}
+	evo.Task("branches").Delete("local branch", func() error { return nil }, evo.Affected(14))
 
-	worktrees := evo.Task("worktrees")
-	_ = worktrees.Remove("worktrees", nil, evo.Affected(2))
-	worktrees.Done()
+	evo.Task("worktrees").Remove("worktree", func() error { return nil }, evo.Affected(2))
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)

@@ -14,7 +14,7 @@ import (
 // spelling left non-printf.
 func TestPhaseAndSkip_ArePrintfVariadic(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
 
 	phased := out.Task("fetch")
 	phased.Doing("resolving %s", "main")
@@ -24,7 +24,7 @@ func TestPhaseAndSkip_ArePrintfVariadic(t *testing.T) {
 	phased.Done()
 
 	skipped := out.Task("prune")
-	skipped.Skip("not needed on %s", "main")
+	skipped.Skipped(evo.Reason("not needed on main"))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
@@ -32,6 +32,6 @@ func TestPhaseAndSkip_ArePrintfVariadic(t *testing.T) {
 
 	got := buf.String()
 	if !strings.Contains(got, "not needed on main") {
-		t.Fatalf("Skip must format its printf args, got:\n%s", got)
+		t.Fatalf("Skipped must render the taxonomy reason, got:\n%s", got)
 	}
 }

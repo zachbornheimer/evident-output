@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -53,7 +54,7 @@ func TestVerbose_HiddenAtNormal(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
 	out.Println("visible")
-	out.At(evo.VisibilityVerbose).Println("hidden detail")
+	out.AtForTest(evo.VisibilityVerbose).Println("hidden detail")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "visible") {
 		t.Fatal("normal missing")
@@ -80,7 +81,7 @@ func TestVerbose_ShownWhenConfigured(t *testing.T) {
 		Stderr:    &buf,
 		Verbosity: evo.VerbosityVerbose,
 	})
-	out.At(evo.VisibilityVerbose).Printf("Cache: %s\n", "/tmp/x")
+	out.AtForTest(evo.VisibilityVerbose).Printf("Cache: %s\n", "/tmp/x")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "Cache: /tmp/x") {
 		t.Fatalf("%s", buf.String())
@@ -117,8 +118,8 @@ func TestPrint_WriterAdapter(t *testing.T) {
 func TestTask_PrintfNames(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Task("repo %s", "x").Done()
-	out.Task("check %d", 1).Done("ok")
+	out.Task(fmt.Sprintf("repo %s", "x")).Done()
+	out.Task(fmt.Sprintf("check %d", 1)).Done("ok")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "repo x") || !strings.Contains(buf.String(), "check 1") {
 		t.Fatal(buf.String())
@@ -138,5 +139,18 @@ func TestEncodeJSON_ContainsTasks(t *testing.T) {
 	}
 	if !strings.Contains(string(b), `"tasks"`) {
 		t.Fatalf("json: %s", b)
+	}
+}
+
+func TestAbout_DeclareDryRun_MergesRepoPath(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+	out.AboutForTest("repo  /Users/zbornheimer/Developer/Zysys/flight")
+	out.DeclareDryRunForTest()
+	got := buf.String()
+	if !strings.Contains(got, "repo  /Users/zbornheimer/Developer/Zysys/flight") {
+		t.Fatalf("dry-run header missing repo path: %q", got)
 	}
 }
