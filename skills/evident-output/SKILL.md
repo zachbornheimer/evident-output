@@ -15,13 +15,13 @@ license: Apache-2.0
 [`skills/cli-output/SKILL.md`](../cli-output/SKILL.md) in
 `https://github.com/zachbornheimer/evident-output`
 
-**Pinned release:** `v0.4.6` (never install `@latest` for persistent tooling).
+**Pinned release:** `v0.5.0` (never install `@latest` for persistent tooling).
 
 | What                 | Path                                                                                                                                                                               |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Module               | `github.com/zachbornheimer/evident-output`                                                                                                                                         |
 | MCP binary target    | `$HOME/.local/bin/evident-output-mcp`                                                                                                                                              |
-| MCP install (pinned) | `go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6` then symlink `$(go env GOPATH)/bin/evident-output-mcp` → `$HOME/.local/bin/evident-output-mcp` |
+| MCP install (pinned) | `go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.5.0` then symlink `$(go env GOPATH)/bin/evident-output-mcp` → `$HOME/.local/bin/evident-output-mcp` |
 
 ## Workflow when MCP is connected
 
@@ -42,7 +42,7 @@ On Grok: `evident-output__evident_output_*` (underscores, not dots).
 ## Quick MCP wire-up
 
 ```bash
-go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.5.0
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 # After bumping evo: evident-output-mcp update --directory <repo> then restart the host.

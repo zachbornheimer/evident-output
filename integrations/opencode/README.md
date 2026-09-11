@@ -1,6 +1,6 @@
 # OpenCode integration — Evident Output
 
-**Pin:** `v0.4.6` (never `@latest` for persistent install).
+**Pin:** `v0.5.0` (never `@latest` for persistent install).
 
 ## Paths
 
@@ -14,7 +14,7 @@
 
 ```bash
 mkdir -p "$HOME/.local/bin"
-go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.5.0
 ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 # After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
 

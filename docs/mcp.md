@@ -62,7 +62,7 @@ The librarian case study is a v0.2.9 snapshot. Review reports API-032 on the del
 ## Install the binary (pinned)
 
 ```bash
-go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.5.0
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 "$HOME/.local/bin/evident-output-mcp" --version
