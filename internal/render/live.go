@@ -124,7 +124,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		writeLiveTaskLine(b, col.Tasks[0], 0, width, spin, color, now, profile)
 		return
 	}
-	if promotesRunningChildOntoHeader(col) {
+	if promotesLoneChildOntoHeader(col) {
 		unit := liveTaskUnit(col.Tasks[0], 0, width, spin, color, now, profile)
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
@@ -217,14 +217,25 @@ func collapsesIntoOnlyChild(col core.TasksSnapshot) bool {
 	return hasOnlyChild(col) && col.Tasks[0].Name == col.Name
 }
 
-// promotesRunningChildOntoHeader reports whether a group's one differently
-// named child is Running, in which case the live frame keeps both names on
-// a single row — `<spin> worktrees  classify  [██░░]  24/111  <path> — 12s`
-// — rather than spending a header line on a count of one and an indented
-// line on the only thing moving. The child's evidence rides the header; the
-// subject survives; the frame stays one line per subject.
-func promotesRunningChildOntoHeader(col core.TasksSnapshot) bool {
-	return hasOnlyChild(col) && col.Tasks[0].Name != col.Name && col.Tasks[0].State == core.Running
+// promotesLoneChildOntoHeader reports whether a group's one differently
+// named child is still in flight (Running or Pending). The live frame then
+// keeps both names on a single row — `<spin> worktrees  classify  [██░░]
+// 24/111  <path> — 12s` while it runs, `○ branches  classify  waiting`
+// while it is blocked — rather than spending a header line on a count of
+// one (`0/1 complete — 18s`) and an indented line on the only child. The
+// child's evidence rides the header; the subject survives; a blocked group
+// does not spin. Done/Failed/Skipped children still take the header+child
+// shape when they need their own evidence.
+func promotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
+	if !hasOnlyChild(col) || col.Tasks[0].Name == col.Name {
+		return false
+	}
+	switch col.Tasks[0].State {
+	case core.Running, core.Pending:
+		return true
+	default:
+		return false
+	}
 }
 
 func partitionEachChildren(tasks []core.TaskSnapshot) (fromEach, explicit []core.TaskSnapshot) {

@@ -73,3 +73,39 @@ func TestLive_PendingRowHasNoTimer(t *testing.T) {
 		t.Fatal("expected needsSpinnerAnimLocked true while an unresolved Pending row is rendered")
 	}
 }
+
+// TestLivePendingClassifyPromotedOntoHeader is the red-first proof that a
+// live group whose only child is a never-started classify task must not
+// paint `0/1 complete` or spin as if work is happening. The pending child
+// rides the header the same way a Running child already does, so the frame
+// is one subject line (`○ branches  classify  waiting`) instead of a count
+// of one plus an indented waiting row.
+func TestLivePendingClassifyPromotedOntoHeader(t *testing.T) {
+	drv := &fakeHeartbeatSurface{}
+	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	out := newOutput("zq", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
+	t.Cleanup(func() { _ = out.Close() })
+
+	out.Group("branches").Task("classify") // Pending; never Doing
+
+	clock.Advance(15 * time.Second)
+
+	out.mu.Lock()
+	out.renderLiveLocked(true)
+	frame := drv.latest()
+	out.mu.Unlock()
+
+	if strings.Contains(frame, "0/1 complete") {
+		t.Fatalf("a one-child Pending group must not paint a 0/1 complete spinner:\n%s", frame)
+	}
+	header := strings.SplitN(strings.TrimRight(frame, "\n"), "\n", 2)[0]
+	if !strings.Contains(header, "branches") {
+		t.Fatalf("want the group name on the header row, got:\n%s", frame)
+	}
+	if !strings.Contains(header, "waiting") && !strings.Contains(header, "classify") {
+		t.Fatalf("want waiting or classify on the header row, got:\n%s", frame)
+	}
+	if strings.Contains(header, " — ") {
+		t.Fatalf("a blocked Pending group must not accumulate work time:\n%s", frame)
+	}
+}

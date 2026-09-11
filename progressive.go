@@ -296,7 +296,7 @@ func shouldEmitPlainProgressLocked(st *taskState) bool {
 // header — three sibling subjects each narrating a child called `classify`
 // produce three `◐ classify  24/111` lines that name nothing. The live
 // region answers the same question the same way; see
-// promotesRunningChildOntoHeader.
+// promotesLoneChildOntoHeader.
 func progressiveRowName(st *taskState) string {
 	if st.collection == nil || st.collection.name == st.name {
 		return st.name
