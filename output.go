@@ -646,6 +646,26 @@ func declaredTaskState(col *tasksState) EntityState {
 	return Pending
 }
 
+// ledgerSubjectFor names the subject an effect belongs to. An explicitly
+// declared task is semantically named work and owns its own ledger line. An
+// Each child does not: it is one item of a collection, and the collection is
+// the subject the plan is about. Cleaning 33 branches recorded 33 separate
+// `[planned] feat/old-03  delete 1 local tip` rows, one per item name and
+// unbounded, where the dialect's own Recommended UI for that run shows one:
+// `[planned] branches  delete 33 local tips`.
+//
+// Attributing at the record site rather than folding rows in the renderer is
+// what makes the rest fall out: the existing identical-record merge does the
+// tally, and a caller that does want item names gets them through RecordName
+// under the collection's subject, inside the same bounded viewport and
+// `… +N more (not shown)` overflow every other subject has.
+func ledgerSubjectFor(st *taskState) string {
+	if st.fromEach && st.collection != nil {
+		return st.collection.name
+	}
+	return st.name
+}
+
 func (o *Output) addTaskLocked(name string, col *tasksState, key string, fromEach bool) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)

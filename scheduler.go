@@ -211,7 +211,7 @@ func (o *Output) executeWork(st *taskState, fn func() error, mut *mutationSpec) 
 	o.mu.Lock()
 	subject := ""
 	if st != nil {
-		subject = st.name
+		subject = ledgerSubjectFor(st)
 	}
 	dryRun := o.cfg.dryRun
 	o.mu.Unlock()

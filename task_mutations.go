@@ -121,8 +121,8 @@ func (t *TaskHandle) RecordName(verb, object string) {
 }
 
 // resolveLedgerTarget resolves the task named by taskID and reports the
-// ledger subject it mutates into (its own name) plus whether this run is a
-// dry run — the shared guard (open, not yet resolved) behind
+// ledger subject it mutates into (see ledgerSubjectFor) plus whether this
+// run is a dry run — the shared guard (open, not yet resolved) behind
 // TaskHandle.mutate, recordMutation, and recordClassification. err is
 // non-nil (already recorded as misuse where the cause is not simply "the
 // task no longer exists") when the caller should record nothing further.
@@ -141,7 +141,7 @@ func (o *Output) resolveLedgerTarget(taskID string) (subject string, dryRun bool
 		o.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return "", false, ErrAlreadyResolved
 	}
-	return st.name, o.cfg.dryRun, nil
+	return ledgerSubjectFor(st), o.cfg.dryRun, nil
 }
 
 // recordMutation resolves the task named by taskID, then forwards verb to
