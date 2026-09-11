@@ -290,18 +290,35 @@ func shouldEmitPlainProgressLocked(st *taskState) bool {
 	return completed/step != st.plainProgressEmitted/step
 }
 
-// emitTaskRunningProgressiveLocked streams a standalone Running task's
-// current phase/progress as a durable line in plain/non-interactive mode
+// progressiveRowName qualifies a streamed plain row with the subject it
+// belongs to. The durable transcript indents a collection's children under
+// their header, but a streamed milestone arrives on its own, far from any
+// header — three sibling subjects each narrating a child called `classify`
+// produce three `◐ classify  24/111` lines that name nothing. The live
+// region answers the same question the same way; see
+// promotesRunningChildOntoHeader.
+func progressiveRowName(st *taskState) string {
+	if st.collection == nil || st.collection.name == st.name {
+		return st.name
+	}
+	return st.collection.name + "  " + st.name
+}
+
+// emitTaskRunningProgressiveLocked streams a Running task's current
+// phase/progress as a durable line in plain/non-interactive mode
 // (evo-rec.md Problem 10: "Phase as static text once, then terminal rows").
 // Interactive mode owns this task's presentation via the live region
 // instead. A phase change streams every time its text changes; a progress
 // update streams at each milestone (shouldEmitPlainProgressLocked) instead
 // of flooding CI logs with every tick or going silent after the first.
+//
+// A child declared inside a collection streams too. Skipping it left a piped
+// run with only its header line for the whole ~70s of work — the dialect's
+// "never silent between the first line and Done" is not conditional on where
+// the Running task happens to sit in the tree, and a collection whose
+// children are explicitly named has no aggregate row streaming in its place.
 func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgressiveTrigger) {
 	if st == nil || st.state != Running {
-		return
-	}
-	if st.collection != nil && !st.fromEach {
 		return
 	}
 	live := o.liveLocked()
@@ -322,8 +339,10 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 		st.plainProgressStarted = true
 		st.plainProgressEmitted = st.progress.Completed
 	}
+	row := st.snapshot()
+	row.Name = progressiveRowName(st)
 	var b strings.Builder
-	render.WriteTask(&b, st.snapshot(), !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
+	render.WriteTask(&b, row, !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
 	if b.Len() == 0 {
 		return
 	}

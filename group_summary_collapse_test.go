@@ -39,12 +39,31 @@ func TestGroup_DifferentlyNamedChildKeepsTheGroupRow(t *testing.T) {
 }
 
 // A header that would merely repeat its only child is still redundant.
+//
+// Measured over the resolved rows only. Plain mode also streams the child's
+// Running milestones while the work is in flight (`◐ branches  classifying
+// tips`), which is a different line answering a different question — "is
+// this still moving?" — and counting it as a duplicated header would trade
+// the dialect's never-silent rule for an accident of string counting.
 func TestGroup_ChildRepeatingTheGroupNameStillCollapses(t *testing.T) {
 	transcript := renderSubject(t, "branches", "branches", "")
 
-	if strings.Count(transcript, "branches") != 1 {
+	if n := strings.Count(resolvedRows(transcript), "branches"); n != 1 {
 		t.Fatalf("a header repeating its only child must not render twice:\n%s", transcript)
 	}
+}
+
+// resolvedRows drops the in-flight milestone lines plain mode streams for
+// Running work, leaving the durable rows a finished transcript is judged on.
+func resolvedRows(transcript string) string {
+	var kept []string
+	for _, line := range strings.Split(transcript, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "◐") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
 }
 
 func renderSubject(t *testing.T, groupName, childName, summary string) string {
