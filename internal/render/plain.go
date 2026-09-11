@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -744,6 +745,21 @@ func eachAggregateDetail(col core.TasksSnapshot, fromEach []core.TaskSnapshot) s
 	return fmt.Sprintf("%d/%d", done, total)
 }
 
+// eachChildrenNeedingSurface returns the Each children that earn a row of
+// their own beneath the aggregate. It is also the measure of the child name
+// column: a collapsed child is not a row, and a row nobody can see must not
+// set the width of the rows they can — padding `✓ classify` out to a
+// 70-character worktree path that never appears reads as a broken table.
+func eachChildrenNeedingSurface(fromEach []core.TaskSnapshot) []core.TaskSnapshot {
+	var surfaced []core.TaskSnapshot
+	for _, t := range fromEach {
+		if eachChildNeedsSurface(t) {
+			surfaced = append(surfaced, t)
+		}
+	}
+	return surfaced
+}
+
 func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach, explicit []core.TaskSnapshot, color, verbose bool, profile txt.GlyphProfile) {
 	glyph := txt.StyleGlyph(TaskGlyph(col.State, profile), StateColor(col.State), color)
 	switch detail := eachAggregateDetail(col, fromEach); {
@@ -757,11 +773,10 @@ func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEac
 	skipped, kept := collectEachTaxonomy(fromEach)
 	writeTaxonomy(b, problemTreeIndent, "skipped", skipped, false, verbose, color, profile)
 	writeTaxonomy(b, problemTreeIndent, "kept", kept, false, verbose, color, profile)
-	childNameWidth := maxTaskNameWidth(col.Tasks)
-	for _, t := range fromEach {
-		if eachChildNeedsSurface(t) {
-			writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
-		}
+	surfaced := eachChildrenNeedingSurface(fromEach)
+	childNameWidth := maxTaskNameWidth(slices.Concat(surfaced, explicit))
+	for _, t := range surfaced {
+		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
 	}
 	writeNotStartedCount(b, fromEach, color, profile)
 	for _, t := range explicit {
