@@ -120,7 +120,7 @@ func TestResultWriter_FormatDataPurity(t *testing.T) {
 	})
 	out.Task("compile").Done()
 	out.Task("link").Done("bin/app")
-	if _, err := io.WriteString(out.ResultWriterForTest(), `{"artifact":"bin/app"}`+"\n"); err != nil {
+	if _, err := io.WriteString(out.ResultWriter(), `{"artifact":"bin/app"}`+"\n"); err != nil {
 		t.Fatal(err)
 	}
 	_ = out.Finish()
@@ -142,7 +142,7 @@ func TestResultWriter_FormatDataPurity(t *testing.T) {
 func TestResultWriter_UnsetIsDiscard(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "h", Stdout: &buf, Stderr: &buf})
-	n, err := out.ResultWriterForTest().Write([]byte("should-not-appear"))
+	n, err := out.ResultWriter().Write([]byte("should-not-appear"))
 	if err != nil {
 		t.Fatal(err)
 	}

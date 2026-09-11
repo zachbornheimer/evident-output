@@ -123,8 +123,6 @@ func (o *Output) DebugWriterForTest() io.WriteCloser { return o.debugWriter() }
 
 func (o *Output) DeclareDryRunForTest() { o.declareDryRun() }
 
-func (o *Output) ResultWriterForTest() io.Writer { return o.resultWriter() }
-
 func (o *Output) AboutForTest(text string) { o.about(text) }
 
 func (o *Output) SubjectForTest(text string) { o.subject(text) }

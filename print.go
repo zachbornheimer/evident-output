@@ -113,8 +113,8 @@ func (o *Output) Writer() io.Writer {
 //
 //	out := evo.Init(evo.Config{Title: "build", Format: evo.FormatData})
 //	// after work succeeds:
-//	_ = json.NewEncoder(out.resultWriter()).Encode(payload)
-func (o *Output) resultWriter() io.Writer {
+//	_ = json.NewEncoder(out.ResultWriter()).Encode(payload)
+func (o *Output) ResultWriter() io.Writer {
 	if o == nil {
 		return io.Discard
 	}

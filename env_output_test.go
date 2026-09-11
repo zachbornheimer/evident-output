@@ -143,7 +143,7 @@ func TestEVOOutput_StreamJSON_FormatDataKeepsPayloadOnStdout(t *testing.T) {
 	})
 	out.Task("scan").Done("ok")
 	const payload = `{"ready":true}`
-	if _, err := io.WriteString(out.ResultWriterForTest(), payload); err != nil {
+	if _, err := io.WriteString(out.ResultWriter(), payload); err != nil {
 		t.Fatal(err)
 	}
 	beforeFinish := stderr.String()

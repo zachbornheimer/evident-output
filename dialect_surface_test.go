@@ -75,6 +75,7 @@ var dialectSurface = map[string][]string{
 		"Print(args ...any)",
 		"Printf(format string, args ...any)",
 		"Println(args ...any)",
+		"ResultWriter()",
 		"Run(run func(*Output) error)",
 		"Sequence(name string)",
 		"Snapshot()",
