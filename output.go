@@ -218,7 +218,11 @@ type taskState struct {
 	runningWork bool
 	workFn      func() error
 	mutation    *mutationSpec
-	preds       []predecessor
+	// effectDenied records that this task's own mutation callback resolved
+	// the row as something other than Done, so the effect it was given must
+	// not reach the ledger (see deniesItsOwnEffect).
+	effectDenied bool
+	preds        []predecessor
 	// workErr is the callback's own return value, kept so TaskHandle.Wait
 	// returns exactly what the work returned rather than a state guess.
 	workErr error

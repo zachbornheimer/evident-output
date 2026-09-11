@@ -545,6 +545,26 @@ func declaresSuccess(state EntityState) bool {
 	return state == Done || state == Skipped
 }
 
+// deniesItsOwnEffect reports whether this resolution is a mutation callback
+// disowning the work it was given: `task.Create("module", fn)` whose fn
+// calls Skipped or Fail and then returns nil rendered both `! skipped 1
+// (install failed)` and `[changed] broken  created 1 module` — the ledger
+// counting the package the installer had just rejected. A nil return after
+// the row said "skipped" means "I handled it", not "I did it".
+//
+// Only the callback's own verdict counts. A later Fail from the program
+// (`task.Delete(obj, fn)` then `task.Fail(...)`) and an interrupt that
+// cancels a running mutation row both describe work that really happened,
+// and both still owe the reader `! already mutated: …`. The separator is
+// the resolving goroutine's own stack: callbackDepth is non-zero only
+// inside a task callback, which is precisely "the row resolved itself".
+func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAuthority) bool {
+	if st.mutation == nil || !st.runningWork || authority != byCaller || state == Done {
+		return false
+	}
+	return callbackDepth() > 0
+}
+
 func (t *TaskHandle) resolve(state EntityState, summary string, problems []Problem, authority resolutionAuthority) *TaskHandle {
 	t.out.holdRunningPaint(t.id)
 	t.out.mu.Lock()
@@ -560,6 +580,9 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	if core.IsTerminalTask(st.state) {
 		t.out.recordAlreadyResolvedLocked(st.name, summary)
 		return t
+	}
+	if deniesItsOwnEffect(st, state, authority) {
+		st.effectDenied = true
 	}
 	if st.submitted && authority == byCaller && declaresSuccess(state) {
 		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}

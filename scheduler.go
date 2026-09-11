@@ -229,8 +229,10 @@ func (o *Output) executeWork(st *taskState, fn func() error, mut *mutationSpec) 
 	o.recordWorkOutcome(st, err)
 	// The effect commits on the callback's success alone, before any
 	// resolution: a task that mutated and then failed still owes the reader
-	// its "! already mutated: ..." line.
-	if err == nil && mut != nil {
+	// its "! already mutated: ..." line. But a callback that stated its own
+	// verdict as anything but Done said the mutation did not happen, and the
+	// ledger must not count what the row itself denies.
+	if err == nil && mut != nil && !o.callbackDeniedTheWork(st) {
 		o.recordResolvedMutation(subject, false, mut.verb, mut.quantity, mut.hasQty, mut.object)
 	}
 	// A callback that resolved its own task (Failf/Fail/Block inside fn, or
@@ -298,6 +300,17 @@ func (o *Output) recordWorkOutcome(st *taskState, err error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	st.workErr = err
+}
+
+// callbackDeniedTheWork reports whether the mutation callback disowned the
+// work it was given — see deniesItsOwnEffect for what earns the flag.
+func (o *Output) callbackDeniedTheWork(st *taskState) bool {
+	if st == nil {
+		return false
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return st.effectDenied
 }
 
 func (o *Output) taskIsTerminal(st *taskState) bool {
