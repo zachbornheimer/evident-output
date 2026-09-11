@@ -37,11 +37,23 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 		return t
 	}
 	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
 		return t
 	}
 	t.out.setPhaseLocked(st, text)
 	return t
+}
+
+// resolvedByInterrupt reports whether this state was reached by the
+// interrupt sweep rather than by the caller. Narrating such a row is not
+// misuse: cancellation resolves it underneath whoever was reporting on it,
+// and a worker already inside its per-item step had no way to prevent the
+// one straggling update that follows. Blaming the caller for the interrupt's
+// own timing put a misuse warning at the top of every interrupted ledger.
+func resolvedByInterrupt(state EntityState) bool {
+	return state == Cancelled || state == NotStarted
 }
 
 // setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
@@ -65,7 +77,9 @@ func (t *TaskHandle) setLiveOnlyPhase(text string) {
 		return
 	}
 	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
 		return
 	}
 	t.out.setLiveOnlyPhaseLocked(st, text)
@@ -145,7 +159,9 @@ func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *Tas
 		return t
 	}
 	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
 		return t
 	}
 	t.applyProgressLocked(st, completed, total, kind)
@@ -214,7 +230,9 @@ func (t *TaskHandle) step(completed, total int, name string) *TaskHandle {
 		return t
 	}
 	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
 		return t
 	}
 	if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
