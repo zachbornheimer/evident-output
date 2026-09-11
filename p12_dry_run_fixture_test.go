@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -42,24 +43,32 @@ func TestP12_DryRunFixtureShape(t *testing.T) {
 	protected := evo.Reason("protected")
 	unpushedBranch := evo.Reason("unpushed")
 	branches := out.Group("branches")
-	for _, task := range branches.Each([]string{"p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"}) {
-		task.Kept(protected)
-	}
-	for _, task := range branches.Each([]string{"u1", "u2", "u3", "u4", "u5"}) {
+	// Record the planned deletes on the collection while it is still
+	// Running. Delete() would resolve it, and a second Each on a
+	// collection is now misuse (a sealed total never changes).
+	out.Task("branches").Record("delete", 2, "local tip")
+	for name, task := range branches.Each([]string{
+		"p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
+		"u1", "u2", "u3", "u4", "u5",
+	}) {
+		if strings.HasPrefix(name, "p") {
+			task.Kept(protected)
+			continue
+		}
 		task.Kept(unpushedBranch)
 	}
-	out.Task("branches").Delete("local tip", func() error { return nil }, evo.Affected(2))
 
 	dirty := evo.Reason("dirty")
 	unpushedWorktree := evo.Reason("unpushed")
 	worktrees := out.Group("worktrees")
-	for _, task := range worktrees.Each([]string{"w1", "w2", "w3", "w4"}) {
+	out.Task("worktrees").Record("remove", 1, "worktree")
+	for name, task := range worktrees.Each([]string{"w1", "w2", "w3", "w4", "wu1", "wu2"}) {
+		if strings.HasPrefix(name, "wu") {
+			task.Kept(unpushedWorktree)
+			continue
+		}
 		task.Kept(dirty)
 	}
-	for _, task := range worktrees.Each([]string{"wu1", "wu2"}) {
-		task.Kept(unpushedWorktree)
-	}
-	out.Task("worktrees").Remove("worktree", func() error { return nil }, evo.Affected(1))
 
 	remoteTracking := out.Task("remote-tracking")
 	remoteTracking.Fact("", "1 stale")
