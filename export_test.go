@@ -55,7 +55,7 @@ func (o *Output) EvidenceForTest(opts ...EvidenceOption) *TestEvidence {
 }
 
 func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
-	return t.step(completed, total, name)
+	return t.Step(completed, total, name)
 }
 
 func (o *Output) DebugForTest(message string, fields ...Field) {

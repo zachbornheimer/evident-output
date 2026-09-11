@@ -58,13 +58,15 @@ func resolvedByInterrupt(state EntityState) bool {
 
 // setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
 // — the shared entry point for every phase source that is NOT the caller's
-// own narrated beat: Each's per-item courtesy default, and PhaseWriter's (and
-// through it, Task.Run's) per-line mirror of a talkative child's raw output.
-// Off-TTY, an explicit TaskHandle.Phase call still forces its own durable row
-// (the P10 contract: the one line the caller asked to see); this path never
-// does — a child's full output already has one durable home, the evidence
-// ring (and its failure-path DetailTail), so a row per mirrored line would
-// just repeat it (release-gate round 9 finding 4).
+// own narrated beat: Each's per-item courtesy default, PhaseWriter's (and
+// through it, Task.Run's) per-line mirror of a talkative child's raw output,
+// and Step's current-item name. Off-TTY, an explicit TaskHandle.Doing call
+// still forces its own durable row (the P10 contract: the one line the
+// caller asked to see); this path never does — a child's full output already
+// has one durable home, the evidence ring (and its failure-path DetailTail),
+// so a row per mirrored line would just repeat it (release-gate round 9
+// finding 4). Step is the same shape: Isolated+Plain must not stream a
+// durable line per unique item name.
 func (t *TaskHandle) setLiveOnlyPhase(text string) {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
@@ -214,11 +216,14 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	return true
 }
 
-// Step sets absolute progress and phase text together under one lock
-// acquisition, so a concurrent worker can never observe one goroutine's
-// count paired with another goroutine's phase name — the exact interleaving
-// two separate Progress(...) + Phase(...) calls (two separate locks) allow.
-func (t *TaskHandle) step(completed, total int, name string) *TaskHandle {
+// Step sets absolute progress and the current item name together under
+// one lock, so a concurrent worker can never observe one goroutine's
+// count paired with another goroutine's name — the exact interleaving
+// two separate Progress(...) + Doing(...) calls (two separate locks) allow.
+// The name is live-only: Isolated+Plain does not stream a durable phase
+// line per unique name (thinned progress milestones still emit). Doing
+// remains the durable narrated-beat path.
+func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -236,7 +241,7 @@ func (t *TaskHandle) step(completed, total int, name string) *TaskHandle {
 		return t
 	}
 	if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
-		t.out.setPhaseLocked(st, name)
+		t.out.setLiveOnlyPhaseLocked(st, name)
 	}
 	return t
 }

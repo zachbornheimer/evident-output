@@ -111,6 +111,7 @@ var dialectSurface = map[string][]string{
 		"Remove(object string, fn func() error, opts ...MutationOption)",
 		"Skipped(reason TaxonomyReason)",
 		"Snapshot()",
+		"Step(completed int, total int, name string)",
 		"Update(object string, fn func() error, opts ...MutationOption)",
 		"Wait()",
 		"Warn(summary string)",
