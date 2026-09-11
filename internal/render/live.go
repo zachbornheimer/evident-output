@@ -124,6 +124,13 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		writeLiveTaskLine(b, col.Tasks[0], 0, width, spin, color, now, profile)
 		return
 	}
+	if promotesRunningChildOntoHeader(col) {
+		unit := liveTaskUnit(col.Tasks[0], 0, width, spin, color, now, profile)
+		unit.Name = col.Name + "  " + unit.Name
+		b.WriteString(unit.Render(""))
+		b.WriteByte('\n')
+		return
+	}
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == core.Done || t.State == core.Skipped {
@@ -190,25 +197,34 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	}
 }
 
-// collapsesIntoOnlyChild reports whether a one-child group may render as
-// just that child's row. A caller's own Summary is never collapsible: it is
-// the group's answer ("nothing to clean") and no child row can carry it.
-//
-// The live region collapses on this alone — it is a transient frame the
-// reader watches in context, and a two-line header over one moving row is
-// noise. The durable transcript has to stand on its own, so it adds
-// keepsGroupName; see collapsesIntoOnlyChildDurably.
-func collapsesIntoOnlyChild(col core.TasksSnapshot) bool {
+// hasOnlyChild reports whether a group's whole visible content is one
+// explicitly declared child: no Each aggregate, no nested collection, and
+// no Summary of its own. A caller's own Summary is never collapsible — it
+// is the group's answer ("nothing to clean") and no child row can carry it.
+func hasOnlyChild(col core.TasksSnapshot) bool {
 	return !col.Sequential && col.Summary == "" && len(col.Tasks) == 1 && len(col.Collections) == 0
 }
 
-// collapsesIntoOnlyChildDurably is the transcript's stricter rule: the
-// header also carries the group's own name, which a differently-named child
-// cannot stand in for. Collapsing on count alone turned three sibling
-// subjects that each failed before declaring any collection into three
-// indistinguishable `classify` rows.
-func collapsesIntoOnlyChildDurably(col core.TasksSnapshot) bool {
-	return collapsesIntoOnlyChild(col) && col.Tasks[0].Name == col.Name
+// collapsesIntoOnlyChild reports whether a one-child group may render as
+// just that child's row — which requires the child to answer to the group's
+// own name, because a differently named child cannot stand in for the
+// subject. Collapsing on count alone turned three sibling subjects that
+// each declared one `classify` child into three indistinguishable
+// `classify` rows naming no subject at all, for the whole classify phase.
+// Live and durable share this rule: a transient frame the reader watches in
+// context still has to say which subject it is about.
+func collapsesIntoOnlyChild(col core.TasksSnapshot) bool {
+	return hasOnlyChild(col) && col.Tasks[0].Name == col.Name
+}
+
+// promotesRunningChildOntoHeader reports whether a group's one differently
+// named child is Running, in which case the live frame keeps both names on
+// a single row — `<spin> worktrees  classify  [██░░]  24/111  <path> — 12s`
+// — rather than spending a header line on a count of one and an indented
+// line on the only thing moving. The child's evidence rides the header; the
+// subject survives; the frame stays one line per subject.
+func promotesRunningChildOntoHeader(col core.TasksSnapshot) bool {
+	return hasOnlyChild(col) && col.Tasks[0].Name != col.Name && col.Tasks[0].State == core.Running
 }
 
 func partitionEachChildren(tasks []core.TaskSnapshot) (fromEach, explicit []core.TaskSnapshot) {
@@ -447,12 +463,24 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 	return selected, len(tasks) - len(selected)
 }
 
-// writeLiveTaskLine composes one task row's DisplayUnit (P3's uniform row
-// model) and renders it. Every case below is a slot-filling policy — which
-// fields get populated for this state/progress/indent combination — not a
-// bespoke format string; DisplayUnit.Render owns the one shared line
-// grammar every case shares.
+// writeLiveTaskLine renders one task row at the given indent.
 func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	pad := ""
+	if indent > 0 {
+		pad = "   "
+	}
+	b.WriteString(liveTaskUnit(t, indent, width, spin, color, now, profile).Render(pad))
+	b.WriteByte('\n')
+}
+
+// liveTaskUnit composes one task row's DisplayUnit (P3's uniform row
+// model). Every case below is a slot-filling policy — which fields get
+// populated for this state/progress/indent combination — not a bespoke
+// format string; DisplayUnit.Render owns the one shared line grammar every
+// case shares. Returning the unit rather than writing it lets a caller that
+// owns a richer row (a group header promoting its only Running child) reuse
+// the whole policy and re-label just the name slot.
+func liveTaskUnit(t core.TaskSnapshot, indent, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) DisplayUnit {
 	glyph := TaskGlyph(t.State, profile)
 	if t.State == core.Running {
 		glyph = spin
@@ -516,13 +544,14 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 	case t.State == core.Running && t.Phase != "":
 		unit.Detail = txt.Dim(t.Phase, color)
 	case t.State == core.Pending:
-		// A core.Pending row left on screen past elapsedAfter is exactly as
-		// static as a stalled core.Running one — same heartbeat, txt.Dim (subordinate:
-		// nothing is happening yet) rather than the diagnostic-intensity
-		// phase text a core.Running row gets.
-		if hb := heartbeatSuffix(now, activitySince(t)); hb != "" {
-			unit.Elapsed = hb
-			unit.Detail = txt.Dim("waiting"+hb, color)
+		// A core.Pending row left on screen past elapsedAfter says so, in
+		// txt.Dim (subordinate: nothing is happening yet) rather than the
+		// diagnostic-intensity phase text a core.Running row gets. It
+		// carries no elapsed suffix: a queued row accumulates no work time
+		// (dialect Heartbeat rule), and three `waiting — 12s` siblings read
+		// as three stalled jobs rather than one queue.
+		if heartbeatSuffix(now, activitySince(t)) != "" {
+			unit.Detail = txt.Dim("waiting", color)
 		}
 	case t.State == core.Failed:
 		msg := t.Summary
@@ -553,12 +582,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 		unit.Detail = txt.Dim(msg, color)
 	}
 
-	pad := ""
-	if indent > 0 {
-		pad = "   "
-	}
-	b.WriteString(unit.Render(pad))
-	b.WriteByte('\n')
+	return unit
 }
 
 // progressBar returns a fixed-width ASCII bar for completed/total.
