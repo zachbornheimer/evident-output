@@ -11,28 +11,34 @@ import (
 // Init is the sole Output constructor. It builds an Output from cfg,
 // installs it as the package-level default, and arms first paint — call
 // once, in main, before any I/O.
-func Init(configs ...Config) *Output { return engine.Init(configs...) }
+func Init(configs ...Config) *Output { return wrapOutput(engine.Init(configs...)) }
 
 // SetDefault installs out as the package-level default Output.
-func SetDefault(out *Output) { engine.SetDefault(out) }
+func SetDefault(out *Output) {
+	if out == nil {
+		engine.SetDefault(nil)
+		return
+	}
+	engine.SetDefault(out.inner)
+}
 
 // Default returns the package-level default Output, lazily creating one
 // with a zero Config the first time it's needed.
-func Default() *Output { return engine.Default() }
+func Default() *Output { return wrapOutput(engine.Default()) }
 
 // Task declares (or, for a repeated name, returns) a Task on the default instance.
-func Task(name string) *TaskHandle { return engine.Task(name) }
+func Task(name string) *TaskHandle { return wrapTask(engine.Task(name)) }
 
 // Sequence declares (or, for a repeated name, returns) a self-managing,
 // ordered task container on the default instance.
 func Sequence(name string) *SequenceHandle {
-	return engine.Sequence(name)
+	return wrapSequence(engine.Sequence(name))
 }
 
-func Group(name string) *GroupHandle { return engine.Group(name) }
+func Group(name string) *GroupHandle { return wrapGroup(engine.Group(name)) }
 
 // Reason returns a get-or-create taxonomy Reason by name on the default instance.
-func Reason(name string) TaxonomyReason { return engine.Reason(name) }
+func Reason(name string) TaxonomyReason { return TaxonomyReason{inner: engine.Reason(name)} }
 
 // Print formats like fmt.Sprint and enqueues human-facing text on the default instance.
 func Print(args ...any) { engine.Print(args...) }
@@ -44,7 +50,7 @@ func Printf(format string, args ...any) { engine.Printf(format, args...) }
 func Println(args ...any) { engine.Println(args...) }
 
 // Verbose returns a Printer scoped to Verbose visibility on the default instance.
-func Verbose() *Printer { return engine.Verbose() }
+func Verbose() *Printer { return wrapPrinter(engine.Verbose()) }
 
 // SlogHandler returns a slog.Handler journaling to the default instance.
 func SlogHandler() slog.Handler { return engine.SlogHandler() }
@@ -56,7 +62,24 @@ func Run(run func() error) int { return engine.Run(run) }
 func Main(run func() error) { engine.Main(run) }
 
 // MainWith executes run against out and os.Exit's with the conclusion code.
-func MainWith(out *Output, run func(*Output) error) { engine.MainWith(out, run) }
+//
+// Superseded by Main (default instance) and Output.Run (hosted instance).
+func MainWith(out *Output, run func(*Output) error) {
+	var inner *engine.Output
+	if out != nil {
+		inner = out.inner
+	}
+	engine.MainWith(inner, func(eng *engine.Output) error {
+		if run == nil {
+			return nil
+		}
+		host := out
+		if host == nil {
+			host = wrapOutput(eng)
+		}
+		return run(host)
+	})
+}
 
 // Confirm asks question on the default instance and returns whether the user accepted.
 func Confirm(question string, opts ...ConfirmOption) bool {
@@ -72,7 +95,7 @@ func PolicyHint(command string, args ...string) ConfirmOption {
 }
 
 func Fact(name, value string)              { engine.Fact(name, value) }
-func Warn(summary string)                   { engine.Warn(summary) }
+func Warn(summary string)                  { engine.Warn(summary) }
 func Delay(d time.Duration) *time.Duration { return engine.Delay(d) }
 func DefaultConfig() Config                { return engine.DefaultConfig() }
 func IsCharDevice(w io.Writer) bool        { return engine.IsCharDevice(w) }
@@ -96,8 +119,12 @@ func OldestFirst() DebugPaneOption         { return engine.OldestFirst() }
 func PaneHeight(lines int) DebugPaneOption { return engine.PaneHeight(lines) }
 func PreserveDebugTail() DebugPaneOption   { return engine.PreserveDebugTail() }
 
-func Affected(n int) MutationOption      { return engine.Affected(n) }
-func ID(id string) EntityOption           { return engine.ID(id) }
+func Affected(n int) MutationOption { return engine.Affected(n) }
+
+// ID sets a stable machine key. Superseded: Task is name-only.
+func ID(id string) EntityOption { return engine.ID(id) }
+
+// StartPhase sets a task's first doing-text at declare time. Superseded: call Doing.
 func StartPhase(text string) EntityOption { return engine.StartPhase(text) }
 func ForSkip() ReasonOption               { return engine.ForSkip() }
 func OnTask(taskName string) ReasonOption { return engine.OnTask(taskName) }

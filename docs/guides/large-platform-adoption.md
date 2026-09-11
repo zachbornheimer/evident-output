@@ -15,10 +15,10 @@ machine contract    → existing -status JSON / ResultWriter / schemas
 1. `Init(Config{Title})` + `Main` or hosted `Output.Run`
 2. Mutation verbs (`Delete`/`Create`/`Update`/…) for dry-run vs live — `Config.DryRun` picks
    `[planned]` vs `[changed]` at the same call site
-3. Task for real gates; `FailedBy`/`BlockedBy` for path-scoped evidence
-4. `task.Evidence()` for subprocesses
-5. `ID` / `Scope` when structured consumers exist
-6. `Config.Redactor` before Evidence/debug retention of secrets
+3. Task for real gates; Fail/Block for path-scoped evidence
+4. `cmd.Stdout = task.Writer()` (and stderr) for subprocesses
+5. Task name only — no `ID` / `Scope` on the ordinary surface
+6. `Config.Redactor` before debug retention of secrets
 
 ## What not to force
 

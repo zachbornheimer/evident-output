@@ -220,10 +220,6 @@ type Config struct {
 
 	// MaxConcurrency is the scheduler ceiling. Zero means GOMAXPROCS.
 	MaxConcurrency int
-
-	// API reserved for HTTP JSON encoding on this Output. Unused this
-	// slice except as a construction field (Init(Config{API: false})).
-	API bool
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.

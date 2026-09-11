@@ -14,9 +14,8 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 5. Skipped / Kept — skip/keep taxonomy (reason + name, never a bare count)
 6. Confirm — the whole ask-decide-resolve gate
 7. ResultWriter or app machine contract (FormatData)
-8. Scope — namespaced IDs only
-9. slog via SlogHandler (Config.Debug.Level)
-10. Advanced: Config.Isolated + Output.Run (hosted instance), terminal drivers, testkit, Suspend
+8. slog via SlogHandler (Config.Debug.Level)
+9. Advanced: Config.Isolated + Output.Run (hosted instance), terminal drivers, testkit, Suspend
 
 Task's mutation verbs (Delete/Create/…) pick [planned] vs [changed] from Config.DryRun on the
 ordinary path — no separate Plan/Changes call site exists to reach for. Quantity is

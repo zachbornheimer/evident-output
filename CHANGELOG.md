@@ -10,31 +10,32 @@ below rather than deferred to a major version.
 
 ### Added
 
-- **MCP `evident_output_update` / `evident-output-mcp update`:** reinstall a matching stdio server after an evo bump (`--version` XOR `--directory`), symlink into `~/.local/bin`, then restart the host. Review reports `module_version` / `replace_path` / `desired_version`; the MCP writer adds `mcp_version` / `update_needed`.
-- **`Output.About`:** names the run (a repo path) without emitting a row, so a later `DeclareDryRun` can merge `[dry-run] repo  /path`. Hosts that Init before they know the path used to drop it.
-- **`evo.NewAPI()` / `EncodeEnvelope` / `EncodeProblem`:** HTTP JSON uses the zyins V1 envelope (`object`, `livemode`, `request_id`, `data`) and RFC 7807 problems with `livemode`. APIDefaults is on for `NewAPI()`; CLI `Init` JSONDocument is unchanged. `idempotency_key` is omitempty only.
-- **FP-005 / API-039:** review flags a Task that is `Done` with no running window, and a DisplayGroup that only ever has one child. Suggestions name `Doing` and a lone `Task`.
-- Declared standalone/DisplayGroup tasks paint **Running** immediately so tool rows spin before they can show complete. A 1-child DisplayGroup collapses to a single live/plain line (no `0/1 complete` header).
-- **`EVO_OUTPUT`** presentation projection (`human`/`plain`/`json`/`jsonl`/`stream-json`),
-  plus `EVO_COLOR`, `EVO_VERBOSE`, `EVO_DEBUG`. Independent of `Format` (stream
-  routing). `FormatData` plus `stream-json` writes EventJSON to stderr; stdout
-  stays the domain payload. `stream-json` emits one line at each journal append.
-- **`adopt_plan` paging:** cursor, 40-finding pages, `cmd/` first, skip `*_test.go`,
-  facades as the page when present. CLI `evident-output adopt [--cursor=] <dir>`.
-- **`review` `kind=directory`** and CLI `review <dir>`.
-- **API-032** for `Plan`/`Changes` (removed in v0.4).
+- **Group / Sequence / Each:** independent vs ordered collections.
+  `Group(name).Each(items)` and `Sequence(name).Each(items)` yield a child Task
+  per item; Define or a mutation verb submits the work. The first Each call
+  seals the collection total.
+- **Task.Define / Task.Wait:** Define submits work to the scheduler; Wait
+  answers a waiter instead of hanging.
+- **Preview:** `Config.Preview` is the plan before a confirm gate — same
+  skipped callbacks and `[planned]` ledger as DryRun, announced with the
+  caller's Subject instead of a `[dry-run]` tag.
+- **Task.Step(completed, total, name):** count plus live-only item name under
+  one lock.
 
 ### Changed
 
-- MCP `tools/list` advertises seven tools (`list_sections`, `get_documentation`,
-  `adopt_plan`, `review`, `preview`, `explain`, `update`). `list_guides`/`get_guidance`
-  remain `tools/call` aliases.
+- Mutation verbs are object-first: `Delete(object, fn, opts...)` with
+  `evo.Affected(n)` for quantity. Task is name-only: `Task(name string)`.
+- Child-process chatter uses `task.Writer()`, not Evidence().
+- Public `Output` / `TaskHandle` / `GroupHandle` / `SequenceHandle` are
+  wrappers, not `engine` aliases — test helpers stay off `go doc`.
+- `MainWith` / `ID` / `StartPhase` remain exported as superseded (Task name
+  only; `Main` / `Output.Run`).
 
 ### Fixed
 
-- Facade detection no longer treats `fmt.Fprint(os.Stderr)` inside an arbitrary
-  method as an output facade; `io.Writer` fields that methods write through
-  still count.
+- `Config.Options` plus `Preview` now matches ordinary `Config{Preview: true}`:
+  dry-run tense, planned header, callbacks do not run.
 
 ## [0.4.6] — RecordName streams at task resolution
 

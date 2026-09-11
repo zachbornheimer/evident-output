@@ -237,7 +237,7 @@ func TestDialectSurface_NoNewAPIConstructor(t *testing.T) {
 		}
 	}
 	if _, ok := got["*API"]; ok {
-		t.Error("*API methods are extra: fold into Output when Config.API is set")
+		t.Error("*API methods are extra: fold into Output")
 	}
 }
 
@@ -268,17 +268,6 @@ func TestDialectSurface_SuspendIsExported(t *testing.T) {
 	}
 }
 
-func TestDialectSurface_ConfigHasAPI(t *testing.T) {
-	cfg := DefaultConfig()
-	if cfg.API {
-		t.Fatal("DefaultConfig.API should be false")
-	}
-	cfg.API = true
-	if !cfg.API {
-		t.Fatal("Config.API is not a settable bool")
-	}
-}
-
 func exportedFuncsByRecv(t *testing.T) map[string][]string {
 	t.Helper()
 	wd, err := os.Getwd()
@@ -288,9 +277,6 @@ func exportedFuncsByRecv(t *testing.T) map[string][]string {
 	out := make(map[string][]string)
 	seen := make(map[string]map[string]struct{})
 	collectExportedFuncs(t, wd, "evo", true, out, seen)
-	// Type aliases (Output = engine.Output) carry engine methods into the
-	// public package. Scan engine for those methods; skip test-only helpers.
-	collectExportedFuncs(t, filepath.Join(wd, "internal", "engine"), "engine", false, out, seen)
 	for recv := range out {
 		sort.Strings(out[recv])
 	}
@@ -321,9 +307,6 @@ func collectExportedFuncs(t *testing.T, dir, pkg string, includePkg bool, out ma
 			if !ok || !fn.Name.IsExported() {
 				continue
 			}
-			if dialectTestHelper(fn.Name.Name) {
-				continue
-			}
 			recv := "pkg"
 			if fn.Recv != nil && len(fn.Recv.List) > 0 {
 				recv = typeName(fn.Recv.List[0].Type)
@@ -343,18 +326,6 @@ func collectExportedFuncs(t *testing.T, dir, pkg string, includePkg bool, out ma
 			seen[recv][sig] = struct{}{}
 			out[recv] = append(out[recv], sig)
 		}
-	}
-}
-
-func dialectTestHelper(name string) bool {
-	if strings.HasSuffix(name, "ForTest") {
-		return true
-	}
-	switch name {
-	case "Events", "TaskIdentified", "SchedulerStartOrder", "SchedulerMaxObserved", "ReasonConstrained", "SkippedWithErrs":
-		return true
-	default:
-		return false
 	}
 }
 

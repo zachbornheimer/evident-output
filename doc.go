@@ -12,8 +12,8 @@
 //	    evo.Println("Reading configuration")
 //	    evo.Task("working tree").Done()
 //	    t := evo.Task("fetch")
-//	    output := t.evidence()
-//	    // run.Run(ctx, "git", args, output); t.Fail(..., output.DetailTail()) on error
+//	    cmd.Stdout = t.Writer()
+//	    cmd.Stderr = t.Writer()
 //	    return nil // Block is a presentation outcome, not a Go error
 //	}
 //
@@ -70,7 +70,7 @@
 //     from stdlib slog.Level — SlogHandler translates between the two internally, but
 //     Config.Debug.Level itself never takes a slog.Level value. LevelUnset (the zero value)
 //     resolves to LevelInfo; LevelTrace/LevelDebug are the two levels that surface Debug
-//     journal lines. Package-level evo.SlogHandlerForTest() journals to the default instance,
+//     journal lines. Package-level evo.SlogHandler() journals to the default instance,
 //     the same default-instance sugar evo.Task/evo.Verbose already offer.
 //
 // Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Group/evo.Sequence,

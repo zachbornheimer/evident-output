@@ -1,4 +1,4 @@
-.: public evo package — type aliases and one-line wrappers over internal/engine
+.: public evo package — Output/TaskHandle wrappers and one-line re-exports over internal/engine
 internal/engine: presentation engine (Output, tasks, confirm, evidence, print, run)
 internal/core: domain types (Snapshot, Problem, Action, Event, state, conclusion)
 internal/render: human, JSON, and live projection (one package; they share DisplayUnit)

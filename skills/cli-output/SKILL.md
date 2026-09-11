@@ -99,7 +99,7 @@ evo.Init(Config) → Print/Printf/Println → Verbose()
 → slog via SlogHandler → evo.Main(run)
 ```
 
-Prefer **contracts over sugar**: plain `Task` labels first; `evo.ID` when machine keys matter; `Taskf` only when the label must embed a value.
+Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
 
 ## Entrypoint
 
@@ -133,8 +133,9 @@ Secrets: set `Config.Redactor`.
 
 | Need        | Use                                                   |
 | ----------- | ----------------------------------------------------- |
-| Stable key  | `out.Task("download", evo.ID("build.base"))`          |
-| Namespace   | `out.Scope("registry").Task("auth", evo.ID("creds"))` |
+| Named work  | `out.Task("download")`                                |
+| Collection  | `out.Group("packages").Each(items)`                   |
+| Child stdio | `cmd.Stdout = task.Writer()` (and stderr)             |
 | Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr) |
 
 ## Severity

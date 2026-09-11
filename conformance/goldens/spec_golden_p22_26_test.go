@@ -516,9 +516,11 @@ func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 // with an interactive terminal wired to stderr so live frames are
 // observable, mirroring configToOptions' own wiring for a real TTY stderr
 // (construct.go: Format=FormatData + Terminal set uses the caller's
-// Terminal for the live region on the stderr side).
+// Terminal for the live region on the stderr side). Isolated so a parallel
+// goldens Init cannot install this Output as Default and Finish its pending
+// scan out from under Progress.
 func newDataFormatOutput(screen *testkit.Screen, presentation, payload *bytes.Buffer) *evo.Output {
-	return evo.Init(evo.Config{Title: "scan", Stdout: presentation, Stderr: presentation, Format: evo.FormatData, Result: payload, Terminal: screen, VisibilityDelay: new(time.Duration), MaxFrameRate: 1_000_000, Color: evo.ColorNever})
+	return evo.Init(evo.Config{Isolated: true, Title: "scan", Stdout: presentation, Stderr: presentation, Format: evo.FormatData, Result: payload, Terminal: screen, VisibilityDelay: new(time.Duration), MaxFrameRate: 1_000_000, Color: evo.ColorNever})
 }
 
 // TestSpecP24_DataFormat_Step1 covers evo-rec.md Problem 24's step1 block:
