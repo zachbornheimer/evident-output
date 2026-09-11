@@ -759,14 +759,21 @@ func (o *Output) interrupt(reason string) {
 	}
 }
 
-// abandonQueuedWork resolves every task the scheduler had accepted but not
-// started as NotStarted — the interrupt's answer to "and what about the
-// rest?", which the reader would otherwise never get.
+// abandonQueuedWork resolves every task that had not begun as NotStarted —
+// the interrupt's answer to "and what about the rest?", which the reader
+// would otherwise never get.
+//
+// Submitted or not: a task the caller declared and never Defined is work the
+// interrupt took away just as surely as one sitting in the scheduler's
+// queue. Sweeping only the submitted ones left a declared row Pending, and
+// Finish then charged the caller with ErrUnresolvedTask and told them to
+// "call Done, Fail, Block, Skipped, or a mutation verb on this task" about a
+// run the user had just cancelled.
 func (o *Output) abandonQueuedWork() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, st := range o.tasks {
-		if !st.submitted || st.runningWork || core.IsTerminalTask(st.state) {
+		if st.runningWork || core.IsTerminalTask(st.state) {
 			continue
 		}
 		o.markNotStartedLocked(st)
