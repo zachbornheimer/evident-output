@@ -37,7 +37,7 @@ func Init(cfg Config) *Output {
 		SetDefault(out)
 		out.arm()
 	}
-	if cfg.Subject != "" && !cfg.DryRun {
+	if cfg.Subject != "" && !cfg.DryRun && !cfg.Preview {
 		out.Println(cfg.Subject)
 	}
 	return out

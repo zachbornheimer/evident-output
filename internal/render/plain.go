@@ -28,7 +28,7 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 	color := !noColor
 
 	if s.DryRun {
-		WriteDryRunMarker(&b, color, s.DryRunSubject)
+		WritePlannedHeader(&b, color, s.Preview, s.DryRunSubject)
 	}
 
 	for _, line := range s.Lines {
@@ -1055,10 +1055,10 @@ func writeEffectOverflow(b *strings.Builder, omitted int, color bool, profile tx
 // opening line (evo-rec.md core.Problem 1: "a dry run must announce itself").
 const dryRunMarkerText = "no changes will be made"
 
-// writeDryRunMarker emits the unmissable dry-run marker line. It renders
-// once, first, styled like [planned] — a caller cannot opt out or bury it,
-// because every dry-run projection (RenderPlain and Finish's residual) calls
-// this before any other row.
+// WritePlannedHeader emits a planned run's unmissable opening line. It
+// renders once, first — a caller cannot opt out or bury it, because every
+// planned projection (RenderPlain and Finish's residual) calls this before
+// any other row.
 //
 // subject is Config.Subject's text (fixture-repo-retire-dryrun.md's "repo
 // <path>"), merged onto this one line instead of streaming as a second
@@ -1066,7 +1066,19 @@ const dryRunMarkerText = "no changes will be made"
 // matching the fixture's "ONE header line ... blank line after". Empty
 // subject falls back to the plain announcement text, unchanged from before
 // Config.Subject existed.
-func WriteDryRunMarker(b *strings.Builder, color bool, subject string) {
+//
+// preview drops the tag entirely: a preview before a confirm gate announces
+// the subject it is about to ask about ("repo <path>"), because telling the
+// user nothing will happen and then asking them to authorize it is the
+// contradiction the dialect's screenshot regression names. A preview with no
+// subject has nothing to announce and writes nothing.
+func WritePlannedHeader(b *strings.Builder, color, preview bool, subject string) {
+	if preview {
+		if subject != "" {
+			fmt.Fprintf(b, "%s\n\n", subject)
+		}
+		return
+	}
 	tag := txt.Style("[dry-run]", effectColor("planned"), color)
 	body := dryRunMarkerText
 	if subject != "" {

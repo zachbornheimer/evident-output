@@ -29,10 +29,16 @@ type Snapshot struct {
 	Actions    []Action
 	Conclusion *Conclusion
 	Timestamp  time.Time
-	// DryRun mirrors Config.DryRun: the run's mutation verbs are Plan-only
-	// (never Changes). The plain/final projection uses this to open with an
-	// unmissable marker line — no caller decides whether to announce it.
+	// DryRun is the run's planned tense — mutation verbs are Plan-only,
+	// never Changes — set by Config.DryRun and Config.Preview alike. The
+	// plain/final projection uses this to open with an unmissable header
+	// line; no caller decides whether to announce it.
 	DryRun bool
+	// Preview mirrors Config.Preview: the planned tense above is a preview
+	// before a confirm gate, so the header is the subject alone rather than
+	// "[dry-run] <subject>". A preview that announced itself as a dry run
+	// would promise nothing will happen and then ask permission to apply.
+	Preview bool
 	// DryRunSubject is Config.Subject's text, carried separately from the
 	// Title-derived Subject field above, so the dry-run marker can merge it
 	// onto its own single line ("[dry-run] <subject>",

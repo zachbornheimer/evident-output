@@ -401,7 +401,7 @@ func newOutput(subject string, options ...Option) *Output {
 		// caller path can finish a DryRun-configured Output without this
 		// line having appeared first (evo-rec.md Problem 1). Safe to write
 		// unlocked — o has not yet been returned to the caller.
-		o.emitDryRunMarkerLocked()
+		o.emitPlannedHeaderLocked()
 	}
 	return o
 }
@@ -428,15 +428,15 @@ func (o *Output) declareDryRun() {
 		return
 	}
 	o.cfg.dryRun = true
-	o.emitDryRunMarkerLocked()
+	o.emitPlannedHeaderLocked()
 }
 
-// emitDryRunMarkerLocked writes the "[dry-run] no changes will be made"
-// announcement immediately, once, through the same durable-write path
+// emitPlannedHeaderLocked writes the planned run's opening announcement
+// immediately, once, through the same durable-write path
 // (writeDurableTextLocked) every other library-owned line uses.
-func (o *Output) emitDryRunMarkerLocked() {
+func (o *Output) emitPlannedHeaderLocked() {
 	var b strings.Builder
-	render.WriteDryRunMarker(&b, !o.cfg.noColor, o.cfg.dryRunHeaderText)
+	render.WritePlannedHeader(&b, !o.cfg.noColor, o.cfg.preview, o.cfg.dryRunHeaderText)
 	o.writeDurableTextLocked(b.String())
 }
 
@@ -1246,6 +1246,7 @@ func (o *Output) snapshotLocked() Snapshot {
 		Actions:       cloneActions(o.collectActionsLocked()),
 		Timestamp:     o.cfg.clock.Now(),
 		DryRun:        o.cfg.dryRun,
+		Preview:       o.cfg.preview,
 		DryRunSubject: o.cfg.dryRunHeaderText,
 		Warnings:      core.CloneProblems(o.runWarnings),
 		Facts:         core.CloneFacts(o.runFacts),

@@ -41,8 +41,16 @@ type config struct {
 	// Zero means use ExitFailed (2).
 	failedExitCode int
 	// dryRun selects mutation-verb tense: true renders TaskHandle mutation
-	// verbs as [planned]/imperative, false as [changed]/past tense.
+	// verbs as [planned]/imperative, false as [changed]/past tense. Both
+	// Config.DryRun and Config.Preview set it — they are one tense with two
+	// announcements (see preview below).
 	dryRun bool
+	// preview says the planned tense above is a preview before a confirm
+	// gate, not a dry run, so the opening header is the caller's subject
+	// alone ("repo <path>") rather than "[dry-run] <subject>". A preview is
+	// about to ask permission; labelling it a dry run tells the user nothing
+	// will happen and then asks them to authorize it.
+	preview bool
 	// glyphs selects the state-glyph vocabulary (GlyphsAuto resolved at
 	// construction to GlyphsUnicode or GlyphsASCII; see glyph.go).
 	glyphs GlyphProfile
@@ -162,6 +170,14 @@ func dryRun() Option {
 // Output.Subject stay the caller's only entry points.
 func dryRunHeader(text string) Option {
 	return optionFunc(func(c *config) { c.dryRunHeaderText = text })
+}
+
+// preview declares the planned tense a preview before a confirm gate rather
+// than a dry run — same skipped callbacks and same [planned] ledger, header
+// without the tag. Set via Config.Preview; this Option is construction
+// plumbing only.
+func preview() Option {
+	return optionFunc(func(c *config) { c.preview = true })
 }
 
 // Stdin injects the reader Confirm reads answers from (facade rule — no

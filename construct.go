@@ -191,6 +191,20 @@ type Config struct {
 	// its own tense.
 	DryRun bool
 
+	// Preview declares this run a preview before a confirm gate: the same
+	// planned tense as DryRun — mutation callbacks never run and every
+	// TaskHandle mutation verb renders as a [planned] row with the
+	// imperative verb — announced with the caller's own Config.Subject
+	// ("repo <path>") instead of the "[dry-run] <subject>" header, and with
+	// the same redundant-band suppression on a pure planned verdict.
+	//
+	// A preview is about to ask permission. Labelling it a dry run tells the
+	// user nothing will happen and then asks them to authorize it; the
+	// dialect's screenshot regression names that exact contradiction. Use
+	// DryRun for `--dry-run`, which really does stop; Preview for the plan a
+	// confirm gate is about to act on.
+	Preview bool
+
 	// Isolated returns an independent Output that never touches package
 	// state: it is not installed as the package-level default and does not
 	// arm first paint. Use for parallel tests and embedders that hold their
@@ -463,11 +477,14 @@ func configToOptions(c Config) []Option {
 	if c.FailedExitCode != 0 {
 		opts = append(opts, withFailedExitCode(c.FailedExitCode))
 	}
-	if c.DryRun {
+	if c.DryRun || c.Preview {
 		opts = append(opts, dryRun())
 		if c.Subject != "" {
 			opts = append(opts, dryRunHeader(c.Subject))
 		}
+	}
+	if c.Preview {
+		opts = append(opts, preview())
 	}
 	opts = append(opts, glyphs(c.Glyphs))
 	return opts
