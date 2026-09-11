@@ -1,0 +1,642 @@
+package engine
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
+)
+
+// TaskHandle is a handle for one operation with phases or progress.
+type TaskHandle struct {
+	out *Output
+	id  string
+}
+
+// Doing sets the active current-step live text and starts the task if
+// pending — replaces the previous text, promotes the task to Running, and
+// becomes a durable line per step off-TTY. text is a printf format when args
+// are present (fmt.Sprintf semantics) — one text spelling shared with
+// Done/Task/Group/Reason/Skip (C6; release-gate round 6 finding 4: Confirm's
+// question is the one true non-printf exception now). Named Doing, not
+// Phase (P6/rename): "phase" stays the name of the run-level section header
+// (StartPhase), a different concept from a task's own narrated step.
+func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
+	if len(args) > 0 {
+		text = fmt.Sprintf(text, args...)
+	}
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return t
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return t
+	}
+	if core.IsTerminalTask(st.state) {
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
+		return t
+	}
+	t.out.setPhaseLocked(st, text)
+	return t
+}
+
+// resolvedByInterrupt reports whether this state was reached by the
+// interrupt sweep rather than by the caller. Narrating such a row is not
+// misuse: cancellation resolves it underneath whoever was reporting on it,
+// and a worker already inside its per-item step had no way to prevent the
+// one straggling update that follows. Blaming the caller for the interrupt's
+// own timing put a misuse warning at the top of every interrupted ledger.
+func resolvedByInterrupt(state EntityState) bool {
+	return state == Cancelled || state == NotStarted
+}
+
+// setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
+// — the shared entry point for every phase source that is NOT the caller's
+// own narrated beat: Each's per-item courtesy default, PhaseWriter's (and
+// through it, Task.Run's) per-line mirror of a talkative child's raw output,
+// and Step's current-item name. Off-TTY, an explicit TaskHandle.Doing call
+// still forces its own durable row (the P10 contract: the one line the
+// caller asked to see); this path never does — a child's full output already
+// has one durable home, the evidence ring (and its failure-path DetailTail),
+// so a row per mirrored line would just repeat it (release-gate round 9
+// finding 4). Step is the same shape: Isolated+Plain must not stream a
+// durable line per unique item name.
+func (t *TaskHandle) setLiveOnlyPhase(text string) {
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return
+	}
+	if core.IsTerminalTask(st.state) {
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
+		return
+	}
+	t.out.setLiveOnlyPhaseLocked(st, text)
+}
+
+// setPhaseLocked is Phase's locked body, factored out so a caller already
+// holding o.mu (evo.StartPhase's declare-time phase set in taskScoped) can
+// apply it without a nested lock. Callers must have already checked
+// ensureOpen/isTerminalTask.
+func (o *Output) setPhaseLocked(st *taskState, text string) {
+	st.phase = txt.Text(text)
+	st.activityAt = o.cfg.clock.Now()
+	if st.state == Pending {
+		o.promoteRunningLocked(st)
+		if st.progress.Kind == "" {
+			st.progress.Kind = Indeterminate
+		}
+	}
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
+	o.signalLiveLocked(true)
+	o.emitTaskRunningProgressiveLocked(st, triggerPhase)
+}
+
+// setLiveOnlyPhaseLocked is the shared locked body behind every phase
+// source that is not the caller's own narrated beat (see setLiveOnlyPhase):
+// the same state transition as setPhaseLocked (promotion, activity clock,
+// live redraw signal), but it never forces its own durable line in plain
+// mode. Each's bare item name is a courtesy default, not a caller-declared
+// phase — if the loop body sets its own Phase before the next paint, that
+// call's own emission carries the current text once, instead of the reader
+// seeing the item name and the body's phase as two separate redundant lines
+// (beginner-10). A talkative child's mirrored output line is the same
+// shape: the evidence ring is its one durable home, not a plain-mode row
+// per line (release-gate round 9 finding 4).
+func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
+	text = txt.Text(text)
+	// Identical live-only phase is a no-op: Writer leftover/repeated lines
+	// must not bump, emit task.phase_changed, or force a live paint.
+	if text == st.phase {
+		return
+	}
+	st.phase = text
+	st.activityAt = o.cfg.clock.Now()
+	if st.state == Pending {
+		o.promoteRunningLocked(st)
+		if st.progress.Kind == "" {
+			st.progress.Kind = Indeterminate
+		}
+	}
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
+	o.signalLiveLocked(true)
+}
+
+// Progress sets absolute completed/total count progress.
+// Counts use int (collection lengths, indices). For byte quantities use Bytes.
+// Prefer absolute Progress over Advance so retries cannot double-count.
+func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
+	return t.setProgress(int64(completed), int64(total), Determinate)
+}
+
+// Bytes sets absolute byte progress (units and rate formatting).
+func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
+	return t.setProgress(completed, total, BytesKind)
+}
+
+func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *TaskHandle {
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return t
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return t
+	}
+	if core.IsTerminalTask(st.state) {
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
+		return t
+	}
+	t.applyProgressLocked(st, completed, total, kind)
+	return t
+}
+
+// applyProgressLocked reports whether the update was applied — false means a
+// guard (invalid values, regression, sealed-total mismatch) rejected it and
+// recorded misuse instead, letting a caller like Step skip a paired update
+// (e.g. Phase) that would otherwise describe a progress change that never
+// happened.
+func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, kind ProgressKind) bool {
+	if completed < 0 || total < 0 {
+		t.out.recordMisuse(ErrInvalidProgress)
+		return false
+	}
+	if total == 0 && completed != 0 {
+		t.out.recordMisuse(ErrInvalidProgress)
+		return false
+	}
+	if completed > total && total > 0 {
+		t.out.recordMisuse(ErrInvalidProgress)
+		return false
+	}
+	// Regression and sealing guards apply only while re-reporting the same
+	// measurement kind (Determinate or Bytes); switching kind (e.g. Progress
+	// then Bytes) is a deliberate re-declaration and resets both freely.
+	if st.state == Running && st.progress.Kind != Indeterminate && st.progress.Total > 0 && kind == st.progress.Kind {
+		if completed < st.progress.Completed {
+			t.out.recordMisuse(ErrProgressRegression)
+			return false
+		}
+		// Sealed total: once a nonzero total is reported for this kind, it
+		// cannot change. Retry-safety depends on the denominator staying put.
+		if total != st.progress.Total {
+			t.out.recordMisuse(ErrInvalidProgress)
+			return false
+		}
+	}
+	st.progress = Progress{Kind: kind, Completed: completed, Total: total}
+	st.activityAt = t.out.cfg.clock.Now()
+	if st.state == Pending {
+		t.out.promoteRunningLocked(st)
+	}
+	t.out.bumpLocked()
+	t.out.appendEventLocked(Event{Type: "task.progress_changed", EntityID: t.id})
+	// Progress is high-frequency: coalesce unless first frame.
+	t.out.signalLiveLocked(false)
+	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
+	return true
+}
+
+// Step sets absolute progress and the current item name together under
+// one lock, so a concurrent worker can never observe one goroutine's
+// count paired with another goroutine's name — the exact interleaving
+// two separate Progress(...) + Doing(...) calls (two separate locks) allow.
+// The name is live-only: Isolated+Plain does not stream a durable phase
+// line per unique name (thinned progress milestones still emit). Doing
+// remains the durable narrated-beat path.
+func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return t
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return t
+	}
+	if core.IsTerminalTask(st.state) {
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
+		return t
+	}
+	if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
+		t.out.setLiveOnlyPhaseLocked(st, name)
+	}
+	return t
+}
+
+// Done resolves the task successfully, with no summary (Done()), a literal
+// one (Done("modules cached")), or a printf-formatted one
+// (Done("%d packages", 18), fmt.Sprintf semantics) — one text spelling
+// shared with Task/Group/Reason/Warn (C6), including the same "no args
+// leaves text untouched" rule that keeps a literal "%" safe. A non-string
+// first argument is misuse (ErrInvalidConfig): Done's format position is
+// still meant to be a caller-written string, not an accidental value.
+func (t *TaskHandle) Done(args ...any) {
+	summary, ok := formatSummaryArgs(args)
+	if !ok {
+		t.out.recordMisuse(ErrInvalidConfig)
+		return
+	}
+	t.finish(Done, txt.Text(summary), nil)
+}
+
+// formatSummaryArgs implements Done/Unchanged's no-args/literal/printf-
+// formatted shape (C6): zero args is no summary; one string arg is a
+// literal (never passed through Sprintf, so a caller's own "%" stays
+// intact); two or more requires args[0] to be a printf format string,
+// applied to the rest via fmt.Sprintf. ok is false only when a non-string
+// first argument is given — a genuine caller mistake, not a valid shape.
+func formatSummaryArgs(args []any) (summary string, ok bool) {
+	if len(args) == 0 {
+		return "", true
+	}
+	format, isString := args[0].(string)
+	if !isString {
+		return "", false
+	}
+	if len(args) == 1 {
+		return format, true
+	}
+	return fmt.Sprintf(format, args[1:]...), true
+}
+
+// Warn accumulates a warning annotation on the task. This is a statement,
+// not a fluent chain — Warn returns nothing, so a bare `task.Warn("summary")`
+// is errcheck-clean, matching Fail/Block (beginner-9: doc.go's no-fluent
+// promise). Unlike Fail/Block, Warn does not resolve the task (13-problem
+// doc P2: "warnings annotate lifecycle; they do not replace it") — call it
+// any number of times before the task's terminal verb. A warned task that
+// never reaches a terminal verb auto-resolves Done at Finish. summary is a
+// printf format when fmt args are present — one text spelling shared with
+// Done/Task/Group/Reason (C6); evo.Detail(...) and other ProblemOptions may
+// be mixed into args in any position and still apply.
+func (t *TaskHandle) Warn(summary string) {
+	p := applyProblemOptions(txt.Text(summary), nil)
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return
+	}
+	if core.IsTerminalTask(st.state) {
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		return
+	}
+	st.warnings = append(st.warnings, p)
+	t.out.bumpLocked()
+	t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
+	t.out.signalLiveLocked(true)
+}
+
+// Fact accumulates a discovered name/value annotation on the task — info
+// severity, Warn's non-terminal sibling (user-13-problems.md Problem 8:
+// "Tasks are work. Facts are information."). Renders as a dim "name  value"
+// line, inline when it is the task's only annotation, nested otherwise.
+// Like Warn, this is a statement (no return value) and never resolves the
+// task — call it any number of times before the task's terminal verb.
+func (t *TaskHandle) Fact(name, value string) {
+	f := core.SanitizeFact(FactRecord{Name: txt.Text(name), Value: txt.Text(value)})
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return
+	}
+	if core.IsTerminalTask(st.state) {
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		return
+	}
+	st.facts = append(st.facts, f)
+	t.out.bumpLocked()
+	t.out.signalLiveLocked(true)
+}
+
+// Fail resolves the task as failed. This is a statement, not a fluent
+// chain — Fail returns nothing, so a bare `task.Fail("summary")` is
+// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use Failf
+// to build and return a %w-wrapped error in one line.
+func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
+	p := applyProblemOptions(txt.Text(summary), options)
+	if t != nil {
+		t.finish(Failed, txt.Text(summary), []Problem{p})
+	}
+}
+
+// Failf resolves the task as failed with a formatted summary and returns a
+// *Failure so a call site can `return` it directly:
+// `return task.Failf("validate policy manifest: %w", err)`, and attach a
+// remedy in the same statement: `.Next(evo.Label("..."))`. fmt.Errorf
+// semantics: %w wraps its argument so errors.Is/As still reach it. See
+// splitWrappedMessage for how a trailing ": %w"/", %w" splits the formatted
+// text into the rendered summary and evidence line.
+func (t *TaskHandle) Failf(format string, args ...any) *Failure {
+	err := fmt.Errorf(format, args...)
+	summary, evidence := core.SplitWrappedMessage(format, err)
+	problem := Problem{Summary: summary, Detail: evidence}
+	t.attachRetainedEvidenceTail(&problem)
+	p := core.SanitizeProblem(problem)
+	if t != nil {
+		t.finish(Failed, summary, []Problem{p})
+	}
+	return newFailure(t, err)
+}
+
+// attachRetainedEvidenceTail attaches the task's own retained evidence
+// (task.run(cmd)/PhaseWriter/evidence() capture) as the Problem's
+// EvidenceTail, the same precedence Evidence.DetailTail() already
+// documents: an existing Detail line — here, Failf/Blockf's own
+// wrapped-error text — still renders as the primary line, and the retained
+// evidence appends underneath rather than being silently dropped
+// (beginner-gate-2 finding 3). Failf/Blockf accept no ProblemOptions, so
+// this is the only way their call sites ever see the proof task.Run already
+// captured; a bare Fail/Block with no Detail still gets its own auto-attach
+// from finishTagged, unaffected by this.
+func (t *TaskHandle) attachRetainedEvidenceTail(p *Problem) {
+	if t == nil {
+		return
+	}
+	t.evidence().DetailTail().applyProblem(p)
+}
+
+// Block resolves the task as blocked. This is a statement, not a fluent
+// chain — Block returns nothing, so a bare `task.Block("summary")` is
+// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use
+// Blockf to build and return a %w-wrapped error in one line.
+func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
+	p := applyProblemOptions(txt.Text(summary), options)
+	if t != nil {
+		t.finish(Blocked, txt.Text(summary), []Problem{p})
+	}
+}
+
+// Blockf resolves the task as blocked with a formatted summary and returns a
+// *Failure exactly like Failf — see Failf for the fmt.Errorf %w,
+// summary/evidence split, and Next/NextCommand remedy-attachment contract.
+func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
+	err := fmt.Errorf(format, args...)
+	summary, evidence := core.SplitWrappedMessage(format, err)
+	problem := Problem{Summary: summary, Detail: evidence}
+	t.attachRetainedEvidenceTail(&problem)
+	p := core.SanitizeProblem(problem)
+	if t != nil {
+		t.finish(Blocked, summary, []Problem{p})
+	}
+	return newFailure(t, err)
+}
+
+// Cancel resolves the task as cancelled.
+func (t *TaskHandle) Cancel(reason string) {
+	t.finish(Cancelled, txt.Text(reason), nil)
+}
+
+// Skip resolves the task as skipped. reason is a printf format when args are
+// present (fmt.Sprintf semantics) — one text spelling shared with
+// Done/Task/Group/Reason/Phase (C6; release-gate round 6 finding 4).
+func (t *TaskHandle) skip(reason string, args ...any) *TaskHandle {
+	if len(args) > 0 {
+		reason = fmt.Sprintf(reason, args...)
+	}
+	return t.finish(Skipped, txt.Text(reason), nil)
+}
+
+// Next attaches actions.
+func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return t
+	}
+	if t.out.finishing || t.out.finished || t.out.closed {
+		t.out.recordMisuse(ErrClosed)
+		return t
+	}
+	st.actions = append(st.actions, cloneActions(actions)...)
+	t.out.bumpLocked()
+	return t
+}
+
+// NextCommand attaches a command action. args names a foreign tool's own
+// executable explicitly — the common case, since most remedies point at a
+// different tool than the one running right now.
+func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle {
+	return t.Next(Command(executable, args...))
+}
+
+// NextSelf attaches a command action that re-runs the caller's own binary
+// with args — a self-referencing remedy ("rerun with --apply") that doesn't
+// restate which binary to run (I6). Uses the same identity source as
+// Confirm's PolicyFlag / I2's Failf fallback: Config.Title when set, else
+// the binary's own basename. Use NextCommand instead when the remedy is a
+// different (foreign) tool.
+func (t *TaskHandle) nextSelf(args ...string) *TaskHandle {
+	return t.NextCommand(t.out.policySourceName(), args...)
+}
+
+// failScheduled resolves the task Failed on the scheduler's authority,
+// carrying the callback's error text as the row summary — Fail's shape,
+// without Fail's caller-side submitted-task guard.
+func (t *TaskHandle) failScheduled(summary string) {
+	p := applyProblemOptions(txt.Text(summary), nil)
+	t.resolveScheduled(Failed, txt.Text(summary), []Problem{p})
+}
+
+// doneScheduled resolves the task Done on the scheduler's authority — the
+// one path that may declare a submitted task successful (see finish).
+func (t *TaskHandle) doneScheduled() {
+	t.resolveScheduled(Done, "", nil)
+}
+
+// Context reports the cancellation signal this task's work runs under — the
+// run's own (see Output.Context), so a Define or mutation-verb callback
+// doing I/O selects on it and stops when the run is interrupted.
+func (t *TaskHandle) Context() context.Context {
+	if t == nil {
+		return context.Background()
+	}
+	return t.out.Context()
+}
+
+// Snapshot returns the task snapshot.
+func (t *TaskHandle) Snapshot() TaskSnapshot {
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return TaskSnapshot{ID: t.id, State: Pending, Progress: Progress{Kind: Indeterminate}}
+	}
+	return st.snapshot()
+}
+
+// finish is the caller-facing resolution path — every terminal verb
+// (Done/Fail/Block/Cancel/Skip) a program writes by hand.
+//
+// Once a task is submitted, the scheduler owns the verdict on its work: only
+// the callback's own return value says whether the work succeeded. So a
+// hand-written Done/Skipped on a submitted task is a *proposal*, not a
+// resolution — it is held until the callback returns and then either
+// ratified (the work did succeed; the caller's own summary is what renders,
+// which is how a callback declares "✓ branches  8 deleted") or rejected as
+// ErrAlreadyResolved misuse, with the observed failure taking the row (P2:
+// `task.Delete(obj, fn); task.Done()` can no longer launder an error into a
+// green row). Nothing ratifies its own completion.
+//
+// Bad news needs no ratification: Fail/Block/Cancel state an outcome the
+// caller already knows and can only make the row worse, so they resolve
+// immediately — that is how a callback reports its own failure (P13, where
+// the scheduler must then not resolve it a second time) and how an interrupt
+// cancels a running row.
+func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
+	return t.resolve(state, summary, problems, byCaller)
+}
+
+// resolveScheduled is the scheduler's own resolution path, called only from
+// executeWork once the callback has returned. It is the sole authority that
+// may declare a submitted task successful.
+func (t *TaskHandle) resolveScheduled(state EntityState, summary string, problems []Problem) {
+	t.resolve(state, summary, problems, byScheduler)
+}
+
+// resolutionAuthority names who is resolving a task — the program that wrote
+// the terminal verb, or the scheduler reporting what the callback returned.
+type resolutionAuthority int
+
+const (
+	byCaller resolutionAuthority = iota
+	byScheduler
+)
+
+// proposedOutcome is a caller's unratified success claim on a submitted
+// task, held until the callback's return value confirms or contradicts it.
+type proposedOutcome struct {
+	state    EntityState
+	summary  string
+	problems []Problem
+}
+
+// declaresSuccess reports whether state claims the work went well — the
+// class of claim only the scheduler's observation can ratify.
+func declaresSuccess(state EntityState) bool {
+	return state == Done || state == Skipped
+}
+
+// deniesItsOwnEffect reports whether this resolution is a mutation callback
+// disowning the work it was given: `task.Create("module", fn)` whose fn
+// calls Skipped or Fail and then returns nil rendered both `! skipped 1
+// (install failed)` and `[changed] broken  created 1 module` — the ledger
+// counting the package the installer had just rejected. A nil return after
+// the row said "skipped" means "I handled it", not "I did it".
+//
+// Only the callback's own verdict counts. A later Fail from the program
+// (`task.Delete(obj, fn)` then `task.Fail(...)`) and an interrupt that
+// cancels a running mutation row both describe work that really happened,
+// and both still owe the reader `! already mutated: …`. The separator is
+// the resolving goroutine's own stack: callbackDepth is non-zero only
+// inside a task callback, which is precisely "the row resolved itself".
+func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAuthority) bool {
+	if st.mutation == nil || !st.runningWork || authority != byCaller || state == Done {
+		return false
+	}
+	return callbackDepth() > 0
+}
+
+func (t *TaskHandle) resolve(state EntityState, summary string, problems []Problem, authority resolutionAuthority) *TaskHandle {
+	t.out.holdRunningPaint(t.id)
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return t
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return t
+	}
+	if core.IsTerminalTask(st.state) {
+		t.out.recordAlreadyResolvedLocked(st.name, summary)
+		return t
+	}
+	if deniesItsOwnEffect(st, state, authority) {
+		st.effectDenied = true
+	}
+	if st.submitted && authority == byCaller && declaresSuccess(state) {
+		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
+		return t
+	}
+	st.state = state
+	st.phase = "" // Done clears active phase
+	if summary != "" {
+		st.summary = txt.Text(summary)
+	}
+	if len(problems) > 0 {
+		// Fail/Block with a non-empty evidence ring and no explicit Detail or
+		// EvidenceTail auto-attach the capture tail (beginner-2) — the
+		// evidence a caller already gathered via evidence()/PhaseWriter() is
+		// exactly the detail a Fail/Block row needs, so DetailTail is no
+		// longer an opt-in step a caller has to remember. Skipping when
+		// EvidenceTail is already set (an explicit DetailTail() ran as a
+		// ProblemOption before finishTagged's lock was taken) avoids a
+		// duplicate render and, more importantly, avoids re-entering
+		// st.evidence.detailText — which, for a pending (unterminated-line)
+		// tail, calls back into this Output's redactor lock — while this
+		// method already holds that same lock.
+		if (state == Failed || state == Blocked) && st.evidence != nil && !st.evidence.Empty() {
+			for i := range problems {
+				if problems[i].Detail == "" && problems[i].EvidenceTail == "" {
+					problems[i].Detail = st.evidence.detailText()
+				}
+			}
+		}
+		// storeProblems: shared CSI-safe path (identical to Item).
+		st.problems = core.StoreProblems(problems)
+	}
+	t.out.bumpLocked()
+	t.out.appendEventLocked(Event{Type: "task." + string(state), EntityID: t.id})
+	// Terminal outcomes: update live ledger for collections (H.20/H.21). A
+	// standalone task commits its own row to durable scrollback right now,
+	// interactive or not, so a later Printf/Println/Confirm can never race
+	// above already-resolved work (P2 / residual order contract;
+	// release-gate round 5 finding 3 — see commitResolvedTaskLocked).
+	if st.collection != nil {
+		t.out.signalLiveLocked(true)
+	} else {
+		t.out.commitResolvedTaskLocked(st.id)
+		// A resolving standalone task's own named (RecordName) Plan/Changes
+		// rows stream right now too — under this task's own block, the
+		// instant its work is known-final, rather than waiting for every
+		// other task in the run to finish (see commitNamedEffectsLocked).
+		t.out.commitNamedEffectsLocked(st.name)
+	}
+	st.closeDoneLocked()
+	return t
+}

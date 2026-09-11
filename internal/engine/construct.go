@@ -1,0 +1,513 @@
+package engine
+
+import (
+	"io"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/zachbornheimer/evident-output/terminal"
+)
+
+// processArgv0 is the facade over os.Args[0] (facade rule: no direct
+// os.Args read anywhere else) — a var so tests can inject a fixed value
+// instead of depending on the real test binary's path.
+var processArgv0 = func() string {
+	if len(os.Args) == 0 {
+		return ""
+	}
+	return os.Args[0]
+}
+
+// identityFallbackName is the executable's own basename, used only when an
+// output-level outcome (Output.Failf/Cancel) has no named task and no
+// explicit Config.Title to identify it with — replacing the generic literal
+// "command" with the caller's actual binary name (I2). This is deliberately
+// NOT plumbed into Snapshot.Subject / the conclusion band's Subject: Config.
+// Title stays the only way to set that, and many existing goldens depend on
+// the "no Subject configured" fallback (bare state name) staying exactly as
+// it is. Separately, when a DryRun run's Config.Subject header rendered and
+// the derived verdict settled on a pure StatePlanned (no failed/blocked/
+// warned/partial/cancelled), the trailing conclusion band itself is
+// suppressed as redundant with that header — see
+// render.ShouldSuppressStandaloneConclusion and evo-rec.md's dry-run
+// section.
+func identityFallbackName() string {
+	if base := filepath.Base(processArgv0()); base != "." && base != string(filepath.Separator) {
+		return base
+	}
+	return "command"
+}
+
+// ColorMode selects color policy. The zero value is automatic.
+type ColorMode int
+
+const (
+	// ColorAuto uses TTY detection and honors NO_COLOR.
+	ColorAuto ColorMode = iota
+	// ColorAlways forces semantic color even off a TTY.
+	ColorAlways
+	// ColorNever disables color.
+	ColorNever
+)
+
+// Format selects the overall projection mode. Zero is ordinary human output.
+type Format int
+
+const (
+	// FormatHuman is ordinary human (and optional interactive) presentation.
+	FormatHuman Format = iota
+	// FormatData reserves stdout for the application's domain payload; Evo
+	// human presentation goes to stderr (data-command mode).
+	FormatData
+	// FormatExternal disables inline rendering (snapshots only).
+	FormatExternal
+)
+
+// Verbosity selects which message visibilities are projected to the human stream.
+// Zero is normal (non-verbose) human detail.
+type Verbosity int
+
+const (
+	// VerbosityNormal projects Normal-visibility messages only.
+	VerbosityNormal Verbosity = iota
+	// VerbosityVerbose also projects Verbose-visibility messages. It also
+	// expands each TaskHandle.Skipped/Kept taxonomy row from its default
+	// aggregated "! skipped N (reason1, reason2)" count into one named line
+	// per reason ("reason: name1, name2, ..."). The names themselves are
+	// never lost at VerbosityNormal — they are always present on the Go
+	// TaskSnapshot.Skipped/Kept fields (returned by Output.Snapshot and
+	// TaskHandle.Snapshot); VerbosityVerbose only changes whether the plain
+	// human render surfaces them. The wire JSONDocument (JSONTask) does not
+	// currently carry Skipped/Kept at all — read the Go snapshot directly to
+	// get the names programmatically.
+	VerbosityVerbose
+)
+
+// DebugConfig configures the debug journal presentation.
+type DebugConfig struct {
+	// Level is the minimum debug journal level. Zero (LevelUnset) resolves to
+	// LevelInfo. Use LevelTrace or LevelDebug to surface Debug/Capture mirrors.
+	Level LogLevel
+	// View selects history vs pane presentation (default History).
+	View DebugPresentation
+	// PaneHeight is used when View is DebugPresentationPane (default 5).
+	PaneHeight int
+	// NewestFirst orders the pane (default true when zero-config pane).
+	NewestFirst *bool
+	// PreserveAlways forces a diagnostic tail on every Finish in pane mode.
+	PreserveAlways bool
+	// AddSource resolves each record's call site to a source=file.go:line
+	// field on human/pane/history rendering (slog.HandlerOptions.AddSource
+	// semantics). Off by default: the raw program counter is always kept on
+	// LogRecord.PC for machine consumers, but a human debug line never shows
+	// a bare pc=<uintptr> unless this is set.
+	AddSource bool
+}
+
+// Config is the sole application-facing construction surface.
+//
+// Zero values mean automatic/default behavior. Use DefaultConfig() when you
+// need a mutable baseline for advanced fields.
+//
+//	out := evo.Init()
+//	out := evo.Init(evo.Config{Title: "bpp-csharp"})
+//	cfg := evo.DefaultConfig(); cfg.Title = "x"; out := evo.Init(cfg)
+type Config struct {
+	// Title is the subject shown in the conclusion (formerly For's argument).
+	Title string
+
+	// Subject is an optional durable line rendered once, immediately, right
+	// under the title — a repo path, a target host, the thing every
+	// projection needs the reader to see up front. Set it once in Config
+	// instead of calling out.Println(root) (or whatever the identifying
+	// value is) at every projection/command that needs to show it.
+	//
+	// When the subject text isn't known until after Init (e.g. resolved
+	// from a flag parsed later, but still before any other I/O), call
+	// Output.subject(text) instead — same one-shot durable-line semantics,
+	// as a post-construction setter (I3).
+	Subject string
+
+	// Stdout is the ordinary human stream (default os.Stdout).
+	// In FormatData mode, Stdout is reserved for domain payload via ResultWriter;
+	// human presentation moves to Stderr.
+	Stdout io.Writer
+	// Stderr owns diagnostics by default (default os.Stderr).
+	Stderr io.Writer
+	// Result is an optional domain-payload writer. When nil and Format is
+	// FormatData, ResultWriter returns Stdout. Presentation never writes here.
+	Result io.Writer
+	// Stdin is the facade Confirm reads one answer line from (default os.Stdin).
+	Stdin io.Reader
+
+	// Verbosity gates Verbose() print messages (default VerbosityNormal).
+	Verbosity Verbosity
+	// Color policy (default ColorAuto).
+	Color ColorMode
+	// Format projection mode (default FormatHuman). Stream routing only —
+	// FormatData does not mean JSON. Presentation encoding is Projection.
+	Format Format
+	// Projection selects presentation encoding (human, plain, json, jsonl,
+	// stream-json). Zero is unspecified: Init applies EVO_OUTPUT when set,
+	// otherwise human TTY/plain inference. Independent of Format.
+	Projection Projection
+
+	// Debug configures the debug journal.
+	Debug DebugConfig
+
+	// Advanced (optional) — zero values inherit safe defaults.
+	Clock    TimeSource
+	Redactor Redactor
+	Terminal TerminalDriver
+	Strict   bool
+	Width    int
+	// VisibilityDelay is the wait before the first live paint.
+	// nil means default (80ms). Non-nil is exact, including 0 for immediate.
+	// Use evo.Delay(d) to set a value from a duration literal.
+	VisibilityDelay *time.Duration
+	MaxFrameRate    int
+	MaxEntities     int
+	MaxEvents       int
+	// Plain disables live interactive frames, on a TTY or off (C3: replaces
+	// the former separate ForcePlain and NonInteractive fields — every read
+	// site combined them with OR, so there was never a distinct behavior
+	// between the two to preserve).
+	Plain bool
+
+	// Glyphs selects the state-glyph vocabulary (default GlyphsAuto: Unicode
+	// off a TTY or on a UTF-8 locale, ASCII on a non-UTF-8 interactive TTY).
+	Glyphs GlyphProfile
+
+	// FailedExitCode is the process exit code when the conclusion is failed.
+	// Zero means use ExitFailed (2). Set to 1 for conventional CLI tools that
+	// treat any non-zero failure as exit 1 (e.g. quality gates / git hooks).
+	FailedExitCode int
+
+	// DryRun declares this run a dry run once, for the whole process: every
+	// TaskHandle mutation verb (Delete, Create, Update, Remove, Write, Push,
+	// Record, RecordName) renders as a [planned] row with the imperative verb
+	// instead of a [changed] row with the past-tense verb. No call site writes
+	// its own tense.
+	DryRun bool
+
+	// Preview declares this run a preview before a confirm gate: the same
+	// planned tense as DryRun — mutation callbacks never run and every
+	// TaskHandle mutation verb renders as a [planned] row with the
+	// imperative verb — announced with the caller's own Config.Subject
+	// ("repo <path>") instead of the "[dry-run] <subject>" header, and with
+	// the same redundant-band suppression on a pure planned verdict.
+	//
+	// A preview is about to ask permission. Labelling it a dry run tells the
+	// user nothing will happen and then asks them to authorize it; the
+	// dialect's screenshot regression names that exact contradiction. Use
+	// DryRun for `--dry-run`, which really does stop; Preview for the plan a
+	// confirm gate is about to act on.
+	Preview bool
+
+	// Isolated returns an independent Output that never touches package
+	// state: it is not installed as the package-level default and does not
+	// arm first paint. Use for parallel tests and embedders that hold their
+	// own *Output instead of going through Default()/Task()/Print() et al.
+	// This is the one and only opt-out from default installation — it
+	// applies identically whether or not Options is also set.
+	Isolated bool
+
+	// Options is the advanced, raw Option escape hatch for tests and
+	// specialized embedding. When set, every other Config field except
+	// Title, DryRun, Preview, and Subject is ignored.
+	Options []Option
+
+	// MaxConcurrency is the scheduler ceiling. Zero means GOMAXPROCS.
+	MaxConcurrency int
+
+	// API reserved for HTTP JSON encoding on this Output. Unused this
+	// slice except as a construction field (Init(Config{API: false})).
+	API bool
+}
+
+// Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
+//
+//	cfg.VisibilityDelay = evo.Delay(0)                      // immediate
+//	cfg.VisibilityDelay = evo.Delay(80 * time.Millisecond) // explicit default
+func Delay(d time.Duration) *time.Duration {
+	return &d
+}
+
+// DefaultConfig returns a fresh ordinary CLI configuration.
+// Mutating the result does not affect later DefaultConfig() calls.
+func DefaultConfig() Config {
+	return Config{
+		// Stdout/Stderr filled at resolve time so tests can still pass buffers
+		// without forcing os.Stdout into DefaultConfig equality checks.
+		Debug: DebugConfig{
+			Level: LevelInfo,
+			View:  DebugPresentationHistory,
+		},
+		Width:           defaultWidth,
+		VisibilityDelay: Delay(defaultVisibilityDelay),
+		MaxFrameRate:    defaultMaxFrameRate,
+		MaxEntities:     defaultMaxEntities,
+		MaxEvents:       defaultMaxEvents,
+	}
+}
+
+// resolveConfig fills zero-value fields with ordinary CLI defaults.
+func resolveConfig(c Config) Config {
+	base := DefaultConfig()
+	if c.Stdout == nil {
+		c.Stdout = os.Stdout
+	}
+	if c.Stderr == nil {
+		c.Stderr = os.Stderr
+	}
+	if c.Stdin == nil {
+		c.Stdin = os.Stdin
+	}
+	// LevelUnset (zero) → LevelInfo. LevelTrace is non-zero and selectable via Config.
+	if c.Debug.Level == LevelUnset {
+		c.Debug.Level = LevelInfo
+	}
+	if c.Width <= 0 {
+		c.Width = base.Width
+	}
+	// nil = unspecified → default; non-nil (including 0) is intentional.
+	if c.VisibilityDelay == nil {
+		c.VisibilityDelay = Delay(defaultVisibilityDelay)
+	}
+	if c.MaxFrameRate <= 0 {
+		c.MaxFrameRate = base.MaxFrameRate
+	}
+	if c.MaxEntities <= 0 {
+		c.MaxEntities = base.MaxEntities
+	}
+	if c.MaxEvents <= 0 {
+		c.MaxEvents = base.MaxEvents
+	}
+	if c.Clock == nil {
+		c.Clock = systemClock{}
+	}
+	if c.Redactor == nil {
+		c.Redactor = noopRedactor{}
+	}
+	return c
+}
+
+func newFromConfig(c Config) *Output {
+	opts := configToOptions(c)
+	return newOutput(c.Title, opts...)
+}
+
+func configToOptions(c Config) []Option {
+	var opts []Option
+
+	// Stream routing
+	switch c.Format {
+	case FormatData:
+		// Human presentation on stderr; domain payload on Result (default Stdout).
+		opts = append(opts, to(c.Stderr), withDiagnostics(c.Stderr), dataProjection())
+		resultW := c.Result
+		if resultW == nil {
+			resultW = c.Stdout
+		}
+		opts = append(opts, resultStream(resultW))
+	case FormatExternal:
+		opts = append(opts, to(c.Stdout), withDiagnostics(c.Stderr), externalProjection())
+		if c.Result != nil {
+			opts = append(opts, resultStream(c.Result))
+		}
+	default:
+		opts = append(opts, to(c.Stdout), withDiagnostics(c.Stderr))
+		if c.Result != nil {
+			opts = append(opts, resultStream(c.Result))
+		}
+	}
+
+	// Color / TTY
+	noColor := false
+	switch c.Color {
+	case ColorNever:
+		noColor = true
+	case ColorAlways:
+		// keep color
+	default: // ColorAuto
+		if lookupEnv(envKeyNoColor) != "" {
+			noColor = true
+		}
+		if !writerIsCharDevice(c.Stdout) && c.Format != FormatData {
+			// Off-TTY human primary: no CSI.
+			noColor = true
+		}
+		if c.Format == FormatData && !writerIsCharDevice(c.Stderr) {
+			noColor = true
+		}
+	}
+	if noColor {
+		opts = append(opts, withNoColor())
+	}
+
+	// Interactive live region only on a real TTY and human format.
+	wantLive := !c.Plain && c.Format == FormatHuman
+	liveWriter := c.Stdout
+	if c.Format == FormatData {
+		liveWriter = c.Stderr
+		wantLive = !c.Plain && writerIsCharDevice(c.Stderr)
+	} else {
+		wantLive = wantLive && writerIsCharDevice(c.Stdout)
+	}
+	switch {
+	case c.Terminal != nil:
+		opts = append(opts, withTerminal(c.Terminal))
+		// A caller-supplied driver (Config.Terminal or the Options path) may
+		// still write to one of the two streams Config already wired up —
+		// DETECT that via the driver's own Sink() rather than requiring the
+		// caller to say so, closing the examples/terminal-driver double-band
+		// gap (X3). Round 8 only compared against the format's primary
+		// writer; a driver aimed at the OTHER configured stream (e.g.
+		// Stderr while primary defaults to Stdout — every doc/example)
+		// still owns rendering there and must not also be duplicated onto
+		// primary, so both configured streams count (release-gate round 9
+		// finding 1).
+		if sr, ok := c.Terminal.(sinkReporter); ok {
+			if sink := sr.Sink(); sink != nil {
+				switch sink {
+				case c.Stdout, c.Stderr:
+					opts = append(opts, withPrimarySharesTerminal())
+				default:
+					// Driver targets a third stream (e.g. a log file) that is
+					// neither configured stream. Config exposes no separate
+					// to() a caller could use to request an intentional
+					// second copy, so route primary there instead of leaving
+					// it on c.Stdout by default (finding-2 symmetry) —
+					// otherwise nothing would ever fan the driver's own
+					// conclusion band out to a plain/non-interactive mirror.
+					opts = append(opts, to(sink))
+				}
+			}
+		}
+		if sr, ok := c.Terminal.(sinkReporter); ok && sameTerminalDevice(sr.Sink(), c.Stderr) {
+			opts = append(opts, withDiagnosticSharesTerminal())
+		}
+	case wantLive:
+		width, height := c.Width, 24
+		if width <= 0 {
+			width = defaultWidth
+		}
+		// Prefer real terminal dimensions when liveWriter is a TTY *os.File.
+		if f, ok := liveWriter.(*os.File); ok {
+			if tw, th, ok := terminal.Size(f); ok {
+				// Caller Width>0 is a deterministic override; otherwise use real cols.
+				if c.Width <= 0 || c.Width == defaultWidth {
+					width = tw
+				}
+				height = th
+			} else {
+				// TTY without ioctl size (pty, ssh, `timeout`): keep live
+				// with default geometry so a spinner still appears.
+				height = 24
+			}
+		}
+		if wantLive {
+			ansiOpts := []terminal.Option{
+				terminal.WithInteractive(true),
+				terminal.WithSize(width, height),
+			}
+			// Re-query geometry on each live redraw (resize-aware path).
+			if f, ok := liveWriter.(*os.File); ok {
+				ansiOpts = append(ansiOpts, terminal.WithSizeFile(f))
+			}
+			opts = append(opts, withTerminal(terminal.NewANSI(liveWriter, ansiOpts...)))
+			opts = append(opts, withWidth(width))
+			// liveWriter is the same stream to() was already given above
+			// (c.Stdout, or c.Stderr in FormatData) — the terminal and
+			// primary are one physical destination, so Finish must not
+			// dual-write the conclusion band a second time.
+			opts = append(opts, withPrimarySharesTerminal())
+			// withDiagnostics(c.Stderr) is a distinct io.Writer from liveWriter
+			// in the realistic default (to(Stdout), withDiagnostics(Stderr)),
+			// but on an interactive shell without redirection both fds name
+			// the same controlling tty — detect that here so Debug routes
+			// through live-aware sequencing instead of a raw dual-stream
+			// write (gate-7 finding 1).
+			if sameTerminalDevice(liveWriter, c.Stderr) {
+				opts = append(opts, withDiagnosticSharesTerminal())
+			}
+		} else {
+			opts = append(opts, plain())
+		}
+	default:
+		opts = append(opts, plain())
+	}
+	if c.Plain || c.Projection.forcesPlain() {
+		opts = append(opts, plain())
+	}
+	opts = append(opts, withProjection(c.Projection))
+
+	if c.Stdin != nil {
+		opts = append(opts, stdin(c.Stdin))
+	}
+	opts = append(opts, withClock(c.Clock), redact(c.Redactor), withWidth(c.Width))
+	visDelay := defaultVisibilityDelay
+	if c.VisibilityDelay != nil {
+		visDelay = *c.VisibilityDelay
+	}
+	opts = append(opts, visibilityDelay(visDelay), maxFrameRate(c.MaxFrameRate))
+	opts = append(opts, maxEntities(c.MaxEntities), maxEvents(c.MaxEvents))
+	opts = append(opts, maxConcurrency(c.MaxConcurrency))
+	opts = append(opts, debugLevel(c.Debug.Level))
+	if c.Debug.AddSource {
+		opts = append(opts, debugAddSource())
+	}
+	if c.Debug.View == DebugPresentationPane {
+		var paneOpts []DebugPaneOption
+		if c.Debug.PaneHeight > 0 {
+			paneOpts = append(paneOpts, paneHeight(c.Debug.PaneHeight))
+		}
+		if c.Debug.NewestFirst != nil {
+			if *c.Debug.NewestFirst {
+				paneOpts = append(paneOpts, newestFirst())
+			} else {
+				paneOpts = append(paneOpts, oldestFirst())
+			}
+		}
+		if c.Debug.PreserveAlways {
+			paneOpts = append(paneOpts, preserveDebugTail())
+		}
+		opts = append(opts, debugPane(paneOpts...))
+	} else {
+		opts = append(opts, debugHistory())
+	}
+	if c.Strict {
+		opts = append(opts, strict())
+	}
+	opts = append(opts, withVerbosity(c.Verbosity))
+	if c.FailedExitCode != 0 {
+		opts = append(opts, withFailedExitCode(c.FailedExitCode))
+	}
+	if c.DryRun || c.Preview {
+		opts = append(opts, dryRun())
+		if c.Subject != "" {
+			opts = append(opts, dryRunHeader(c.Subject))
+		}
+	}
+	if c.Preview {
+		opts = append(opts, preview())
+	}
+	opts = append(opts, Glyphs(c.Glyphs))
+	return opts
+}
+
+// withVerbosity stores verbosity on the internal config.
+func withVerbosity(v Verbosity) Option {
+	return optionFunc(func(c *config) { c.verbosity = v })
+}
+
+// withFailedExitCode stores a non-default failed conclusion exit code.
+func withFailedExitCode(code int) Option {
+	return optionFunc(func(c *config) { c.failedExitCode = code })
+}
+
+// Title sets the conclusion subject for Config.Options's raw Option path.
+func Title(subject string) Option {
+	return optionFunc(func(c *config) { c.subject = subject })
+}

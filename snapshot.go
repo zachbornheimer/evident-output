@@ -32,3 +32,6 @@ type PlanSnapshot = core.PlanSnapshot
 
 // EffectRecord is one semantic change or plan row.
 type EffectRecord = core.EffectRecord
+
+// MessageSnapshot is one logical user-facing message in the canonical model.
+type MessageSnapshot = core.MessageSnapshot

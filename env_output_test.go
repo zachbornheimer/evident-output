@@ -48,7 +48,7 @@ func TestEVOOutput_Plain_NoLiveRegionOnTTYShapedWriter(t *testing.T) {
 	out := isolatedInit(t, evo.Config{
 		Stdout:          &buf,
 		Stderr:          &buf,
-		VisibilityDelay: evo.DelayForTest(0),
+		VisibilityDelay: evo.Delay(0),
 	})
 	out.Task("scan").Doing("walk").Done("ok")
 	_ = out.Finish()
@@ -183,7 +183,7 @@ func TestEVOOutput_HumanDoesNotOverrideExplicitPlain(t *testing.T) {
 		Plain:           true,
 		Stdout:          &buf,
 		Stderr:          &buf,
-		VisibilityDelay: evo.DelayForTest(0),
+		VisibilityDelay: evo.Delay(0),
 	})
 	out.Task("scan").Doing("walk").Done("ok")
 	_ = out.Finish()

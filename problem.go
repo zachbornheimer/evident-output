@@ -2,6 +2,7 @@ package evo
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
 // Problem is structured evidence explaining a negative item or task outcome.
@@ -17,8 +18,8 @@ type SourceLocation = core.SourceLocation
 
 // Attachment is an additional label/value problem attachment.
 //
-// Named Attachment (not evidence) because evidence names the retained
-// process-output sink (see evidence in capture.go) — this is a single
+// Named Attachment (not Evidence) because Evidence names the retained
+// process-output sink (see Evidence in capture.go) — this is a single
 // labeled fact attached to a Problem, a different concept from that sink.
 type Attachment = core.Attachment
 
@@ -26,67 +27,31 @@ type Attachment = core.Attachment
 type Field = core.Field
 
 // ProblemOption configures a problem constructed by Block/Warn/Fail helpers.
-type ProblemOption interface {
-	applyProblem(*Problem)
-}
-
-type problemOptionFunc func(*Problem)
-
-func (f problemOptionFunc) applyProblem(p *Problem) { f(p) }
+type ProblemOption = engine.ProblemOption
 
 // Detail sets user-visible detail text (strings only).
-func Detail(text string) ProblemOption {
-	return problemOptionFunc(func(p *Problem) { p.Detail = text })
-}
+func Detail(text string) ProblemOption { return engine.Detail(text) }
 
 // Code sets a stable problem code.
-func Code(value string) ProblemOption {
-	return problemOptionFunc(func(p *Problem) { p.Code = value })
-}
+func Code(value string) ProblemOption { return engine.Code(value) }
 
 // On sets the problem subject.
-func On(subject string) ProblemOption {
-	return problemOptionFunc(func(p *Problem) { p.Subject = subject })
-}
+func On(subject string) ProblemOption { return engine.On(subject) }
 
 // Count sets a quantity and optional unit.
-func Count(value int64, unit ...string) ProblemOption {
-	return problemOptionFunc(func(p *Problem) {
-		p.Count = value
-		if len(unit) > 0 {
-			p.Unit = unit[0]
-		}
-	})
-}
+func Count(value int64, unit ...string) ProblemOption { return engine.Count(value, unit...) }
 
 // Location sets a source location on a Problem (renamed from At — C5: a
 // free-function At collided in name, though not in call syntax, with
-// Output.at(visibility), confusing autocomplete and readers alike).
+// Output.At(visibility), confusing autocomplete and readers alike).
 func Location(path string, line, column int) ProblemOption {
-	return problemOptionFunc(func(p *Problem) {
-		p.Location = &SourceLocation{Path: path, Line: line, Column: column}
-	})
+	return engine.Location(path, line, column)
 }
 
 // Next attaches actions to a problem.
-func Next(action Action) ProblemOption {
-	return problemOptionFunc(func(p *Problem) {
-		p.Actions = append(p.Actions, action)
-	})
-}
+func Next(action Action) ProblemOption { return engine.Next(action) }
 
 // NextCommand attaches a recommended command action.
 func NextCommand(executable string, args ...string) ProblemOption {
-	return Next(Command(executable, args...))
-}
-
-func applyProblemOptions(summary string, opts []ProblemOption) Problem {
-	p := Problem{Summary: summary}
-	for _, opt := range opts {
-		if opt != nil {
-			opt.applyProblem(&p)
-		}
-	}
-	// Single CSI/control neutralization boundary for every construction path.
-	return core.SanitizeProblem(p)
+	return engine.NextCommand(executable, args...)
 }

@@ -22,41 +22,84 @@ import (
 var dialectSurface = map[string][]string{
 	"pkg": {
 		"Affected(n int)",
+		"AlsoWrite(w io.Writer)",
 		"AssumeYes(v bool)",
+		"Clock(ts TimeSource)",
 		"Code(value string)",
 		"Command(executable string, args ...string)",
 		"Confirm(question string, opts ...ConfirmOption)",
 		"ConfirmDetail(lines ...string)",
 		"Count(value int64, unit ...string)",
+		"DataProjection()",
+		"DebugAddSource()",
+		"DebugHistory()",
+		"DebugLevel(level LogLevel)",
+		"DebugPane(opts ...DebugPaneOption)",
 		"Default()",
 		"DefaultConfig()",
+		"Delay(d time.Duration)",
 		"Destructive()",
 		"Detail(text string)",
+		"Diagnostics(w io.Writer)",
+		"DryRun()",
+		"EncodeEventJSON(e Event)",
+		"EncodeJSON(s Snapshot)",
+		"EncodeJSONL(events []Event)",
+		"ExternalProjection()",
 		"Fact(name string, value string)",
 		"ForSkip()",
+		"Glyphs(p GlyphProfile)",
 		"Group(name string)",
-		"Init(cfg Config)",
+		"ID(id string)",
+		"Init(configs ...Config)",
+		"IsCharDevice(w io.Writer)",
+		"KeepLastLines(n int)",
 		"Label(text string)",
 		"Location(path string, line int, column int)",
 		"Main(run func() error)",
+		"MainWith(out *Output, run func(*Output) error)",
+		"MaxEntities(n int)",
+		"MaxEvents(n int)",
+		"MaxEvidenceBytes(n int)",
+		"MaxFrameRate(framesPerSecond int)",
+		"MirrorToDebug()",
+		"MirrorToDiagnostics()",
+		"NewestFirst()",
 		"Next(action Action)",
 		"NextCommand(executable string, args ...string)",
+		"NoColor()",
+		"OldestFirst()",
 		"On(subject string)",
 		"OnTask(taskName string)",
+		"PaneHeight(lines int)",
+		"Plain()",
 		"Pluralize(quantity int64, singular string)",
 		"PolicyFlag(flag string)",
 		"PolicyHint(command string, args ...string)",
+		"PreserveDebugTail()",
 		"Print(args ...any)",
 		"Printf(format string, args ...any)",
 		"Println(args ...any)",
 		"Reason(name string)",
+		"Redact(r Redactor)",
+		"RenderPlain(s Snapshot, opts PlainOptions)",
+		"ResultStream(w io.Writer)",
 		"Run(run func() error)",
 		"Sequence(name string)",
 		"SetDefault(out *Output)",
+		"SlogHandler()",
+		"StartPhase(text string)",
+		"Stdin(r io.Reader)",
+		"Strict()",
 		"Task(name string)",
+		"Terminal(driver TerminalDriver)",
+		"Title(subject string)",
+		"To(w io.Writer)",
 		"TruncateNames(names []string, visible int)",
 		"Verbose()",
+		"VisibilityDelay(delay time.Duration)",
 		"Warn(summary string)",
+		"Width(columns int)",
 	},
 	"*Output": {
 		"Cancel(reason string)",
@@ -238,32 +281,47 @@ func TestDialectSurface_ConfigHasAPI(t *testing.T) {
 
 func exportedFuncsByRecv(t *testing.T) map[string][]string {
 	t.Helper()
-	fset := token.NewFileSet()
 	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	entries, err := os.ReadDir(wd)
 	if err != nil {
 		t.Fatal(err)
 	}
 	out := make(map[string][]string)
 	seen := make(map[string]map[string]struct{})
+	collectExportedFuncs(t, wd, "evo", true, out, seen)
+	// Type aliases (Output = engine.Output) carry engine methods into the
+	// public package. Scan engine for those methods; skip test-only helpers.
+	collectExportedFuncs(t, filepath.Join(wd, "internal", "engine"), "engine", false, out, seen)
+	for recv := range out {
+		sort.Strings(out[recv])
+	}
+	return out
+}
+
+func collectExportedFuncs(t *testing.T, dir, pkg string, includePkg bool, out map[string][]string, seen map[string]map[string]struct{}) {
+	t.Helper()
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("readdir %s: %v", dir, err)
+	}
 	for _, e := range entries {
 		name := e.Name()
 		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		f, err := parser.ParseFile(fset, filepath.Join(wd, name), nil, 0)
+		f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, 0)
 		if err != nil {
 			t.Fatalf("parse %s: %v", name, err)
 		}
-		if f.Name.Name != "evo" {
+		if f.Name.Name != pkg {
 			continue
 		}
 		for _, d := range f.Decls {
 			fn, ok := d.(*ast.FuncDecl)
 			if !ok || !fn.Name.IsExported() {
+				continue
+			}
+			if dialectTestHelper(fn.Name.Name) {
 				continue
 			}
 			recv := "pkg"
@@ -272,6 +330,8 @@ func exportedFuncsByRecv(t *testing.T) map[string][]string {
 				if recv == "" || !exportedType(recv) {
 					continue
 				}
+			} else if !includePkg {
+				continue
 			}
 			sig := fn.Name.Name + paramList(fset, fn.Type.Params)
 			if seen[recv] == nil {
@@ -284,10 +344,18 @@ func exportedFuncsByRecv(t *testing.T) map[string][]string {
 			out[recv] = append(out[recv], sig)
 		}
 	}
-	for recv := range out {
-		sort.Strings(out[recv])
+}
+
+func dialectTestHelper(name string) bool {
+	if strings.HasSuffix(name, "ForTest") {
+		return true
 	}
-	return out
+	switch name {
+	case "Events", "TaskIdentified", "SchedulerStartOrder", "SchedulerMaxObserved", "ReasonConstrained", "SkippedWithErrs":
+		return true
+	default:
+		return false
+	}
 }
 
 func paramList(fset *token.FileSet, fl *ast.FieldList) string {
