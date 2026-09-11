@@ -11,6 +11,9 @@ func eachChildren(out *Output, groupID string, items []string) iter.Seq2[string,
 		if out == nil {
 			return
 		}
+		if !out.sealEachTotal(groupID) {
+			return
+		}
 		var wait []*TaskHandle
 		for _, item := range items {
 			task := out.addEachChild(groupID, item)
@@ -26,6 +29,39 @@ func eachChildren(out *Output, groupID string, items []string) iter.Seq2[string,
 			task.waitSubmitted()
 		}
 	}
+}
+
+// sealEachTotal claims a collection's one Each denominator and reports
+// whether this call may declare children. A collection derives its
+// completed/total from its Each children, so a second Each changes a total
+// the reader has already been shown: one subject declared its delete Each,
+// rendered `✓ branches  25/25`, then declared its kept Each and rendered
+// `✓ branches  145/145` a second later. The dialect forbids exactly that
+// ("a sealed total never changes ... Never 14/40 -> 14/53"), so the second
+// call is recorded misuse and yields nothing rather than re-opening a
+// number the reader already trusted.
+//
+// Only Each seals. Declaring explicitly named children one at a time
+// (group.Task("lint"), group.Task("test")) is the ordinary Group shape and
+// is untouched — those children are semantically named work, not items of a
+// counted collection, and never enter the denominator.
+//
+// The caller's correct spelling for a partitioned collection is one Each
+// over every item, resolving each child as deleted or kept, which is also
+// what makes the taxonomy partition sum.
+func (o *Output) sealEachTotal(groupID string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	col := o.tasksByRef[groupID]
+	if col == nil {
+		return false
+	}
+	if col.eachSealed {
+		o.recordMisuseFor(col.name, ErrAlreadyResolved)
+		return false
+	}
+	col.eachSealed = true
+	return true
 }
 
 func (o *Output) addEachChild(groupID, name string) *TaskHandle {

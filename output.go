@@ -262,6 +262,15 @@ type tasksState struct {
 	// order. A Group's children are independent and may overlap.
 	sequential bool
 
+	// eachSealed records that this collection's one Each denominator has
+	// been claimed. A collection derives completed/total from its Each
+	// children, so a second Each would change a total the reader has
+	// already been shown — `✓ branches  25/25` becoming `✓ branches
+	// 145/145` a second later. The dialect makes that unrepresentable
+	// rather than discouraged: a sealed total never changes, the same way
+	// indeterminate -> determinate is allowed once.
+	eachSealed bool
+
 	// children holds nested containers declared via Sequence.Sequence,
 	// Sequence.DisplayGroup, DisplayGroup.Sequence, or
 	// DisplayGroup.DisplayGroup (P3's "both offer .Task/.Sequence/
