@@ -11,9 +11,10 @@ package evo
 //   - signed tags ship with stale README pins (next patch, never rewrite history)
 //
 // When cutting a release:
-//  1. Set PublishedRelease to the new tag (e.g. "v0.2.11").
-//  2. Run: go run ./scripts/sync-release-pins
-//  3. Run: go test . -run VersionDrift
+//  1. Promote CHANGELOG ## Unreleased → ## [X.Y.Z] (Keep a Changelog).
+//  2. Set PublishedRelease to the new tag (e.g. "v0.2.11").
+//  3. Prefer: mise run test && mise run cut-release
+//     (cut-release syncs pins, stages CHANGELOG, refuses Unreleased drift).
 //  4. Tag that commit; do not move prior tags.
 //
 // version_drift_test.go enforces the portable surface stays synchronized.

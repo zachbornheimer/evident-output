@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cut-release — bump PublishedRelease, sync pins, tag, and push.
+# cut-release — bump PublishedRelease, sync pins, promote CHANGELOG, tag, and push.
 #
 # Prerequisites: implementation is already committed (or will be committed with
 # the pin bump). Prefer:
@@ -8,6 +8,11 @@
 #   mise run test && VERSION=v0.2.12 mise run cut-release
 #
 # Never moves an existing tag. Never force-pushes.
+#
+# CHANGELOG hygiene: ## Unreleased body must be promoted to ## [X.Y.Z] before
+# (or during) the cut. This script stages CHANGELOG.md with the pin commit and
+# refuses to tag if Unreleased still holds release notes while ## [X.Y.Z] is
+# missing (set CUT_RELEASE_ALLOW_CHANGELOG_DRIFT=1 to override).
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -63,6 +68,34 @@ fi
 
 echo "cut-release: ${current} → ${next}"
 
+# --- CHANGELOG hygiene -------------------------------------------------------
+# Bare version for Keep-a-Changelog headings: v0.5.0 → 0.5.0
+bare="${next#v}"
+changelog="CHANGELOG.md"
+if [[ -f "${changelog}" && "${CUT_RELEASE_ALLOW_CHANGELOG_DRIFT:-}" != "1" ]]; then
+  has_heading=0
+  if command grep -Eq "^## \\[${bare}\\]( |$)" "${changelog}"; then
+    has_heading=1
+  fi
+
+  # Non-empty Unreleased body = any non-blank line between ## Unreleased and the next ##
+  unreleased_body="$(awk '
+    /^## Unreleased$/ {p=1; next}
+    /^## / && p {exit}
+    p && NF {print; exit}
+  ' "${changelog}")"
+
+  if [[ "${has_heading}" -eq 0 && -n "${unreleased_body}" ]]; then
+    echo "cut-release: CHANGELOG.md still has Unreleased notes but no ## [${bare}] heading." >&2
+    echo "cut-release: promote ## Unreleased → ## [${bare}] (Keep a Changelog), then re-run." >&2
+    echo "cut-release: override with CUT_RELEASE_ALLOW_CHANGELOG_DRIFT=1 only if intentional." >&2
+    exit 1
+  fi
+  if [[ "${has_heading}" -eq 0 ]]; then
+    echo "cut-release: warning: CHANGELOG.md has no ## [${bare}] heading (Unreleased empty)." >&2
+  fi
+fi
+
 # Bump PublishedRelease in release.go
 tmp="$(mktemp)"
 sed "s/^const PublishedRelease = \"v[^\"]*\"/const PublishedRelease = \"${next}\"/" release.go >"${tmp}"
@@ -74,9 +107,9 @@ go generate ./internal/agent/sections
 go test . -run 'PublishedRelease|VersionDrift' -count=1
 
 msg="${CUT_RELEASE_MESSAGE:-chore(${next}): cut release}"
-git add release.go README.md docs/mcp.md internal/agent/sections/embedded skills integrations 2>/dev/null || true
-# Stage any pin surface the syncer touched
-git add -u README.md docs/mcp.md internal/agent/sections/embedded skills integrations release.go 2>/dev/null || true
+git add release.go README.md docs/mcp.md internal/agent/sections/embedded skills integrations CHANGELOG.md 2>/dev/null || true
+# Stage any pin surface the syncer touched (and CHANGELOG if promoted in-tree)
+git add -u README.md docs/mcp.md internal/agent/sections/embedded skills integrations release.go CHANGELOG.md 2>/dev/null || true
 if [[ -n "$(git status --porcelain)" ]]; then
   git commit -m "${msg}"
 else
