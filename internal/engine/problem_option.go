@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"fmt"
-
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
@@ -59,30 +57,6 @@ func Next(action Action) ProblemOption {
 // NextCommand attaches a recommended command action.
 func NextCommand(executable string, args ...string) ProblemOption {
 	return Next(Command(executable, args...))
-}
-
-// formatWarnArgs splits args into printf format arguments and
-// ProblemOptions, mirroring formatEntityName/formatReasonName's mixed-args
-// extraction (C6: Warn's summary is a printf format when fmt args are
-// present; Detail(...) and other ProblemOptions may be mixed into args
-// in any position and still apply).
-func formatWarnArgs(summary string, args []any) (string, []ProblemOption) {
-	if len(args) == 0 {
-		return summary, nil
-	}
-	var opts []ProblemOption
-	var fmtArgs []any
-	for _, a := range args {
-		if opt, ok := a.(ProblemOption); ok {
-			opts = append(opts, opt)
-			continue
-		}
-		fmtArgs = append(fmtArgs, a)
-	}
-	if len(fmtArgs) == 0 {
-		return summary, opts
-	}
-	return fmt.Sprintf(summary, fmtArgs...), opts
 }
 
 func applyProblemOptions(summary string, opts []ProblemOption) Problem {
