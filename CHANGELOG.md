@@ -8,6 +8,8 @@ below rather than deferred to a major version.
 
 ## Unreleased
 
+## [0.5.0] — Group/Sequence/Each, Preview, object-first mutations
+
 ### Added
 
 - **Group / Sequence / Each:** independent vs ordered collections.
