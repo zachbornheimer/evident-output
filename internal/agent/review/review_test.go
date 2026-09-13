@@ -1032,6 +1032,59 @@ func main() {
 	}
 }
 
+func TestFP002_InventoryBetweenIsolatedInitAndTask(t *testing.T) {
+	bad := `package app
+import evo "github.com/zachbornheimer/evident-output"
+func previewPurge() error {
+  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
+  defer planning.Close()
+  rep, err := purge.Inventory(ctx, opt)
+  _ = rep
+  return err
+}
+`
+	res := review.GoSource("purge.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID != "FP-002" {
+			continue
+		}
+		found = true
+		if f.Line == 0 {
+			t.Error("FP-002 missing line")
+		}
+		for _, want := range []string{"Task", "Group", "Sequence", "Inventory"} {
+			if !strings.Contains(f.Suggestion, want) {
+				t.Fatalf("FP-002 suggestion must name Task/Group/Sequence before Inventory, got %q", f.Suggestion)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected FP-002 on Isolated Init then Inventory (zq purge canary): %+v", res.Findings)
+	}
+}
+
+func TestFP002_NoFalsePositiveWhenTaskBeforeInventory(t *testing.T) {
+	good := `package app
+import evo "github.com/zachbornheimer/evident-output"
+func previewPurge() error {
+  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
+  defer planning.Close()
+  inv := planning.Task("inventory")
+  inv.Doing("walking worktrees")
+  rep, err := purge.Inventory(ctx, opt)
+  _ = rep
+  return err
+}
+`
+	res := review.GoSource("purge.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "FP-002" {
+			t.Fatalf("false positive FP-002 when Task is declared before Inventory: %+v", res.Findings)
+		}
+	}
+}
+
 func TestFP002_HeavyIOBetweenInitAndFirstEntity(t *testing.T) {
 	bad := `package main
 import (

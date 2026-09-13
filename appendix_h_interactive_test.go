@@ -74,6 +74,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	// Declare is Pending (○). Doing starts submitted evidence so the row
 	// spins. Done commits the resolved row durably at resolution time.
 	want := []testkit.Operation{
+		testkit.DrawLive("⠋  starting"),
 		testkit.DrawLive("○ dependencies"),
 		testkit.DrawLive("⠋ dependencies  resolving packages"),
 		testkit.ClearLive(),
@@ -228,8 +229,8 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 			}
 		}
 	}
-	if frames := screen.LiveFrameCount(); frames != 3 {
-		t.Fatalf("live frames=%d, want 3", frames)
+	if frames := screen.LiveFrameCount(); frames != 4 {
+		t.Fatalf("live frames=%d, want 4 (armed title + three doing frames)", frames)
 	}
 	if got := txt.StripANSI(screen.LatestLiveText()); !strings.HasSuffix(got, "…") {
 		t.Fatalf("truncated live line must signal omitted text:\n%s", got)

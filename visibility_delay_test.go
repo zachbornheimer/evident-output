@@ -15,9 +15,14 @@ func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(150 * time.Millisecond), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
+	armed := screen.LiveFrameCount()
+	if armed == 0 {
+		t.Fatal("Isolated Init must still first-paint; VisibilityDelay does not hide the armed title")
+	}
+
 	task := out.Task("download")
-	if got := screen.LiveFrameCount(); got != 0 {
-		t.Fatal("pending declare must be withheld until VisibilityDelay elapses")
+	if got := screen.LiveFrameCount(); got != armed {
+		t.Fatal("pending declare must not add a live frame until VisibilityDelay elapses")
 	}
 
 	clock.Advance(150 * time.Millisecond)

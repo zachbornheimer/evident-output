@@ -24,11 +24,8 @@ var (
 //
 // evo.Init(evo.Config{}) (or evo.Init(evo.DefaultConfig())) builds an
 // ordinary default instance. Config.Isolated returns an independent
-// instance that never touches package state.
-//
-// Config.Isolated returns an independent instance that skips both steps —
-// it never touches package state (parallel tests, embedders holding their
-// own *Output).
+// instance that is not installed as the package default. First paint still
+// arms — Isolated is not a blank-terminal exemption.
 //
 // When Options is empty, Init fills still-zero Config fields from EVO_OUTPUT,
 // EVO_COLOR, EVO_VERBOSE, EVO_DEBUG, and NO_COLOR before TTY inference.
@@ -67,23 +64,25 @@ func Init(configs ...Config) *Output {
 			opts = append(append([]Option{}, opts...), preview())
 		}
 		out := newOutput(cfg.Title, opts...)
-		if !cfg.Isolated {
-			SetDefault(out)
-			out.arm()
-		}
-		if cfg.Subject != "" && !cfg.DryRun && !cfg.Preview {
-			out.Println(cfg.Subject)
-		}
-		return out
+		return finishInit(out, cfg, cfg.Facts)
 	}
 	resolved := resolveConfig(cfg)
 	out := newFromConfig(resolved)
+	return finishInit(out, cfg, resolved.Facts)
+}
+
+// finishInit applies the package-default install (unless Isolated) and the
+// first-paint invariant. Isolated skips SetDefault only.
+func finishInit(out *Output, cfg Config, facts []FactRecord) *Output {
 	if !cfg.Isolated {
 		SetDefault(out)
-		out.arm()
 	}
+	out.arm()
 	if cfg.Subject != "" && !cfg.DryRun && !cfg.Preview {
 		out.Println(cfg.Subject)
+	}
+	for _, fact := range facts {
+		out.Fact(fact.Name, fact.Value)
 	}
 	return out
 }
