@@ -1181,11 +1181,13 @@ func detectHandRolledConfirm(filename, src string) []Finding {
 	}}
 }
 
-// firstPaintIOMarkers are stdlib calls heavy enough to blank the terminal
-// for a visible interval when run ahead of the first paint.
+// firstPaintIOMarkers are calls heavy enough to blank the terminal for a
+// visible interval when run ahead of the first paint. Domain inventory
+// (purge.Inventory) is the canary that stdlib-only markers missed.
 var firstPaintIOMarkers = []string{
 	"os.ReadFile(", "os.ReadDir(", "os.Open(", "filepath.Walk(",
-	"exec.Command(", "http.Get(", "net.Dial(",
+	"filepath.WalkDir(", "exec.Command(", "http.Get(", "net.Dial(",
+	".Inventory(",
 }
 
 // firstPaintInitMarkers arm the display (evo-rec.md "First paint").
@@ -1196,20 +1198,29 @@ var firstPaintEntityMarkers = []string{".Task(", ".Group(", ".Sequence(", ".Item
 
 // detectFirstPaintGaps flags heavy I/O that runs ahead of evo's init call
 // (FP-001: nothing is armed yet, so nothing can paint) or between init and
-// the first declared Task/Item/Sequence (FP-002: armed but still blank) inside
-// main/run — the two orderings evo-rec.md "First paint" calls out by name.
-// Best-effort: scoped to main/run bodies to avoid flagging unrelated helper
-// functions that happen to call these stdlib APIs.
+// the first declared Task/Group/Sequence (FP-002: armed but still blank).
+// Every function that calls evo.Init is in scope — Isolated nested inits
+// (previewPurge) are the pit-of-success miss, not only main/run.
 func detectFirstPaintGaps(filename, src string) []Finding {
-	body, offset := firstFuncBody(src, "main", "run")
-	if offset < 0 {
-		return nil
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		if earliestIndex(fn.body, firstPaintInitMarkers) < 0 && !strings.Contains(fn.body, "evo.New(") {
+			continue
+		}
+		findings = append(findings, firstPaintGapsInBody(filename, src, fn.body, fn.offset)...)
 	}
+	return findings
+}
+
+func firstPaintGapsInBody(filename, src, body string, offset int) []Finding {
 	ioIdx, ioMarker := earliestMarker(body, firstPaintIOMarkers)
 	if ioIdx < 0 {
 		return nil
 	}
 	initIdx := earliestIndex(body, firstPaintInitMarkers)
+	if initIdx < 0 {
+		initIdx = earliestIndex(body, []string{"evo.New("})
+	}
 	var findings []Finding
 	if initIdx < 0 || ioIdx < initIdx {
 		findings = append(findings, Finding{
@@ -1227,10 +1238,10 @@ func detectFirstPaintGaps(filename, src string) []Finding {
 		findings = append(findings, Finding{
 			RuleID:     "FP-002",
 			Severity:   "warning",
-			Message:    "heavy I/O runs between evo.Init/New and the first Task/Item/Sequence; declare the first entity before this I/O",
+			Message:    "heavy I/O runs between evo.Init/New and the first Task/Group/Sequence; declare the first entity before this I/O",
 			File:       filename,
 			Line:       lineAt(src, offset+ioIdx),
-			Suggestion: "declare the first Task/Item/Sequence before " + ioMarker + "...)",
+			Suggestion: "declare the first Task/Group/Sequence before " + ioMarker + "...)",
 		})
 	}
 	return findings

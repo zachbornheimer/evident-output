@@ -135,6 +135,47 @@ func TestInit_ArmsFirstPaintBeforeAnyEntity(t *testing.T) {
 	}
 }
 
+// Isolated means "not the package default", not "skip first paint". Nested
+// Isolated inits (zq purge/prune preview) used to emit [dry-run] and then
+// freeze while Inventory ran — Isolated must still arm.
+func TestInit_IsolatedDryRunArmsAndEmitsConstructionFacts(t *testing.T) {
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.Init(evo.Config{
+		Title:           "zq",
+		Subject:         "zq purge",
+		Isolated:        true,
+		DryRun:          true,
+		Facts:           []evo.FactRecord{{Name: "scan roots", Value: "~/Developer"}},
+		Stdout:          io.Discard,
+		Stderr:          io.Discard,
+		Terminal:        screen,
+		Color:           evo.ColorNever,
+		VisibilityDelay: evo.DelayForTest(0),
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	if got := screen.LiveFrameCount(); got == 0 {
+		t.Fatal("Isolated Init must paint a live frame before any Task; Isolated is not a first-paint exemption")
+	}
+	if live := screen.LatestLiveText(); !strings.Contains(live, "zq") {
+		t.Fatalf("armed title missing subject, live=%q", live)
+	}
+	snap := out.Snapshot()
+	if !snap.DryRun {
+		t.Fatal("DryRun must be on the snapshot")
+	}
+	if len(snap.Facts) != 1 || snap.Facts[0].Name != "scan roots" || snap.Facts[0].Value != "~/Developer" {
+		t.Fatalf("construction Facts missing from snapshot: %+v", snap.Facts)
+	}
+	persisted := screen.PersistedText()
+	if !strings.Contains(persisted, "[dry-run]") {
+		t.Fatalf("dry-run header missing from persisted text:\n%s", persisted)
+	}
+	if !strings.Contains(persisted, "scan roots") || !strings.Contains(persisted, "~/Developer") {
+		t.Fatalf("construction Facts must persist with the header:\n%s", persisted)
+	}
+}
+
 // TestDefault_LazyInitNeverPanics runs in a fresh subprocess so defaultOut is
 // unset at the top of the run — package funcs before Init must still work.
 func TestDefault_LazyInitNeverPanics(t *testing.T) {
