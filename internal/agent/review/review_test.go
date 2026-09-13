@@ -1164,6 +1164,26 @@ func previewPurge() error {
 	}
 }
 
+func TestFP002_NoFalsePositiveWhenEntityIsInRangeHeader(t *testing.T) {
+	good := `package app
+import evo "github.com/zachbornheimer/evident-output"
+func previewPurge(paths []string) error {
+  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
+  defer planning.Close()
+  for path, task := range evo.Group("worktrees").Each(paths) {
+    task.Define(func() error { return check(path) })
+  }
+  return nil
+}
+`
+	res := review.GoSource("purge.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "FP-002" {
+			t.Fatalf("false positive FP-002 when Group/Each sits in the range header: %+v", res.Findings)
+		}
+	}
+}
+
 func TestFP002_NoFalsePositiveWhenTaskBeforeLoop(t *testing.T) {
 	good := `package app
 import evo "github.com/zachbornheimer/evident-output"

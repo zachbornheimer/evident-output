@@ -197,6 +197,18 @@ func previewPurge() error {
 }
 `
 
+const isolatedInitGroupEachRange = `package app
+import evo "github.com/zachbornheimer/evident-output"
+func previewPurge(paths []string) error {
+  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
+  defer planning.Close()
+  for path, task := range evo.Group("worktrees").Each(paths) {
+    task.Define(func() error { return check(path) })
+  }
+  return nil
+}
+`
+
 const evoCallSoup = `package app
 import (
   "fmt"
@@ -263,6 +275,13 @@ func TestReview_TaskBeforeRangeIsNotFP002(t *testing.T) {
 	out := mcpReviewSource(t, isolatedInitTaskThenRange)
 	if strings.Contains(out, "FP-002") {
 		t.Fatalf("false positive FP-002 when Task is declared before the loop: %s", out)
+	}
+}
+
+func TestReview_GroupEachInRangeHeaderIsNotFP002(t *testing.T) {
+	out := mcpReviewSource(t, isolatedInitGroupEachRange)
+	if strings.Contains(out, "FP-002") {
+		t.Fatalf("false positive FP-002 when Group/Each sits in the range header: %s", out)
 	}
 }
 

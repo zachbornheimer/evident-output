@@ -1258,7 +1258,9 @@ func firstPaintGapsInBody(filename, src, body string, offset int) []Finding {
 
 // detectFirstPaintLoops flags a for/range between evo.Init/New and the
 // first Task/Group/Sequence/Item. AST only — a textual "for " match
-// false-positives on strings like "waiting for inventory".
+// false-positives on strings like "waiting for inventory". A loop whose
+// range/init header itself declares that first entity (rec-dialect
+// `for _, t := range evo.Group(...).Each(...)`) is the declare site, not a gap.
 func detectFirstPaintLoops(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -1282,8 +1284,9 @@ func firstPaintLoopsInBody(filename string, fset *token.FileSet, body *ast.Block
 	initOffset := -1
 	entityOffset := -1
 	type loopHit struct {
-		offset int
-		line   int
+		offset    int
+		headerEnd int
+		line      int
 	}
 	var loops []loopHit
 	for _, stmt := range body.List {
@@ -1310,7 +1313,11 @@ func firstPaintLoopsInBody(filename string, fset *token.FileSet, body *ast.Block
 				}
 			case *ast.ForStmt, *ast.RangeStmt:
 				pos := fset.Position(n.Pos())
-				loops = append(loops, loopHit{offset: pos.Offset, line: pos.Line})
+				loops = append(loops, loopHit{
+					offset:    pos.Offset,
+					headerEnd: loopHeaderEndOffset(n, fset),
+					line:      pos.Line,
+				})
 			}
 			return true
 		})
@@ -1326,6 +1333,9 @@ func firstPaintLoopsInBody(filename string, fset *token.FileSet, body *ast.Block
 		if entityOffset >= 0 && loop.offset >= entityOffset {
 			continue
 		}
+		if entityOffset >= 0 && entityOffset >= loop.offset && entityOffset < loop.headerEnd {
+			continue
+		}
 		findings = append(findings, Finding{
 			RuleID:     "FP-002",
 			Severity:   "warning",
@@ -1336,6 +1346,20 @@ func firstPaintLoopsInBody(filename string, fset *token.FileSet, body *ast.Block
 		})
 	}
 	return findings
+}
+
+func loopHeaderEndOffset(n ast.Node, fset *token.FileSet) int {
+	var body *ast.BlockStmt
+	switch x := n.(type) {
+	case *ast.RangeStmt:
+		body = x.Body
+	case *ast.ForStmt:
+		body = x.Body
+	}
+	if body != nil {
+		return fset.Position(body.Pos()).Offset
+	}
+	return fset.Position(n.End()).Offset
 }
 
 func isFirstPaintInitCall(call *ast.CallExpr) bool {
