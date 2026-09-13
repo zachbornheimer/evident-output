@@ -299,6 +299,23 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "CALL-001",
+			Category:  "CALL",
+			Severity:  "warning",
+			Invariant: "evo.Init/Task/Group arguments are named values, never inline make/new",
+			Why:       "Inline make() or new() inside an evo construct call hides the value the call site is passing. Extract a named local before the call so the argument list stays readable and reviewable.",
+			BadCode: `out := evo.Init(evo.Config{Facts: make([]evo.Fact, 0)})
+_ = out.Task("scan")`,
+			GoodCode: `facts := make([]evo.Fact, 0)
+out := evo.Init(evo.Config{Facts: facts})
+_ = out.Task("scan")`,
+			Remediation:     "Extract make/new to a named local before the evo.Init/Task/Group call",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"CALL-001"},
+			Since:           "0.5.1",
+			Certainty:       "deterministic",
+		},
+		{
 			ID:        "FP-003",
 			Category:  "FP",
 			Severity:  "warning",

@@ -49,6 +49,22 @@ func TestMCP027_ExplainAPI006Examples(t *testing.T) {
 	t.Fatalf("verification_ids missing MCP-012/API-006: %v", r.VerificationIDs)
 }
 
+func TestExplainCALL001(t *testing.T) {
+	r, ok := rules.Explain("CALL-001")
+	if !ok {
+		t.Fatal("CALL-001 missing")
+	}
+	if r.Invariant == "" || r.Why == "" || r.BadCode == "" || r.GoodCode == "" || r.Remediation == "" {
+		t.Fatalf("CALL-001 incomplete payload: %+v", r)
+	}
+	if !strings.Contains(r.BadCode, "make(") {
+		t.Fatalf("CALL-001 BadCode must show inline make, got %q", r.BadCode)
+	}
+	if strings.Contains(r.GoodCode, "make([]evo.Fact, 0)}") || strings.Contains(r.GoodCode, "Facts: make(") {
+		t.Fatalf("CALL-001 GoodCode must extract make to a named local, got %q", r.GoodCode)
+	}
+}
+
 func TestExplainFirstPaintRules(t *testing.T) {
 	for _, id := range []string{"FP-001", "FP-002", "FP-003", "FP-005"} {
 		r, ok := rules.Explain(id)

@@ -288,6 +288,12 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectSilentPreTaskLoops(filename, src)...)
 	}
 
+	// CALL-001: make/new inline inside evo.Init/Task/Group arguments; a
+	// named local extracted before the call is the clean form.
+	if hasEvo {
+		findings = append(findings, detectInlineConstructAtEvoCall(filename, fset, f)...)
+	}
+
 	// FP-003: a task's only Doing call precedes a subprocess run with no
 	// further Doing/Progress/Writer — the spinner keeps spinning over a
 	// silent child with no way to tell slow from hung.
