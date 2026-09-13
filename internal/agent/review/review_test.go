@@ -1112,6 +1112,194 @@ func main() {
 	}
 }
 
+func TestFP002_LoopBetweenIsolatedInitAndTask(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+	}{
+		{"range", `package app
+import evo "github.com/zachbornheimer/evident-output"
+func previewPurge() error {
+  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
+  defer planning.Close()
+  for _, w := range worktrees {
+    _ = w
+  }
+  inv := planning.Task("inventory")
+  inv.Doing("walking worktrees")
+  return nil
+}
+`},
+		{"for", `package app
+import evo "github.com/zachbornheimer/evident-output"
+func previewPurge() error {
+  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
+  defer planning.Close()
+  for i := 0; i < len(worktrees); i++ {
+    _ = worktrees[i]
+  }
+  inv := planning.Task("inventory")
+  inv.Doing("walking worktrees")
+  return nil
+}
+`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := review.GoSource("purge.go", tt.src)
+			var found bool
+			for _, f := range res.Findings {
+				if f.RuleID != "FP-002" {
+					continue
+				}
+				found = true
+				if f.Line == 0 {
+					t.Error("FP-002 missing line")
+				}
+			}
+			if !found {
+				t.Fatalf("expected FP-002 on Isolated Init then %s loop before Task: %+v", tt.name, res.Findings)
+			}
+		})
+	}
+}
+
+func TestFP002_NoFalsePositiveWhenTaskBeforeLoop(t *testing.T) {
+	good := `package app
+import evo "github.com/zachbornheimer/evident-output"
+func previewPurge() error {
+  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
+  defer planning.Close()
+  inv := planning.Task("inventory")
+  inv.Doing("walking worktrees")
+  for _, w := range worktrees {
+    _ = w
+  }
+  return nil
+}
+`
+	res := review.GoSource("purge.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "FP-002" {
+			t.Fatalf("false positive FP-002 when Task is declared before the loop: %+v", res.Findings)
+		}
+	}
+}
+
+func TestFP002_NoFalsePositiveOnForInStringBetweenInitAndTask(t *testing.T) {
+	good := `package app
+import evo "github.com/zachbornheimer/evident-output"
+func previewPurge() error {
+  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
+  defer planning.Close()
+  msg := "waiting for inventory"
+  inv := planning.Task("inventory")
+  inv.Doing(msg)
+  return nil
+}
+`
+	res := review.GoSource("purge.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "FP-002" {
+			t.Fatalf("false positive FP-002 on 'for ' inside a string: %+v", res.Findings)
+		}
+	}
+}
+
+func TestAPI045_MultiArgCallSoupAtEvoCallSite(t *testing.T) {
+	bad := `package app
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(out *evo.Output, a, b, c string) {
+  out.Task(fmt.Sprintf("%s-%s-%s", a, b, c))
+}
+`
+	res := review.GoSource("soup.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID != "API-045" {
+			continue
+		}
+		found = true
+		if f.Line == 0 {
+			t.Error("API-045 missing line")
+		}
+		if f.Suggestion == "" {
+			t.Error("API-045 missing suggestion")
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-045 on multi-arg call soup at Task: %+v", res.Findings)
+	}
+}
+
+func TestAPI045_InlineMakeNewAtEvoCallSite(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+	}{
+		{"make", `package app
+import evo "github.com/zachbornheimer/evident-output"
+func run(g *evo.GroupHandle, n int) {
+  for _, t := range g.Each(make([]string, n)) {
+    _ = t
+  }
+}
+`},
+		{"new", `package app
+import evo "github.com/zachbornheimer/evident-output"
+func run() {
+  evo.Init(evo.Config{Title: "t", Stderr: new(bytes.Buffer)})
+}
+`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := review.GoSource("inline.go", tt.src)
+			var found bool
+			for _, f := range res.Findings {
+				if f.RuleID != "API-045" {
+					continue
+				}
+				found = true
+				if f.Line == 0 {
+					t.Error("API-045 missing line")
+				}
+			}
+			if !found {
+				t.Fatalf("expected API-045 on inline %s at evo call site: %+v", tt.name, res.Findings)
+			}
+		})
+	}
+}
+
+func TestAPI045_NamedLocalBeforeCallIsClean(t *testing.T) {
+	good := `package app
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(out *evo.Output, a, b, c string, n int, g *evo.GroupHandle) {
+  name := fmt.Sprintf("%s-%s-%s", a, b, c)
+  out.Task(name)
+  items := make([]string, n)
+  for _, t := range g.Each(items) {
+    _ = t
+  }
+  buf := new(bytes.Buffer)
+  evo.Init(evo.Config{Title: "t", Stderr: buf})
+}
+`
+	res := review.GoSource("clean.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-045" {
+			t.Fatalf("false positive API-045 when named locals are extracted before the call: %+v", res.Findings)
+		}
+	}
+}
+
 func TestFP003_PhaseSetOnceBeforeSilentSubprocess(t *testing.T) {
 	bad := `package p
 import evo "github.com/zachbornheimer/evident-output"

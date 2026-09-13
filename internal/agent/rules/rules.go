@@ -248,7 +248,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Category:  "FP",
 			Severity:  "warning",
 			Invariant: "no I/O before the first entity is declared",
-			Why:       "Declare-before-compute is what makes FP-001 achievable; I/O ahead of the first Task/Item/Sequence reintroduces the blank window.",
+			Why:       "Declare-before-compute is what makes FP-001 achievable; I/O or a for/range loop ahead of the first Task/Item/Sequence reintroduces the blank window.",
 			BadCode: `func main() {
   evo.Init(evo.Config{Title: "tool"})
   data, _ := os.ReadFile("config.toml") // I/O before any Task/Item/Sequence
@@ -260,7 +260,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
   scan.Doing("reading config")
   data, _ := os.ReadFile("config.toml")
 }`,
-			Remediation:     "Move the first Task/Item/Sequence declaration ahead of the first read/open/dial in main or run",
+			Remediation:     "Move the first Task/Item/Sequence declaration ahead of the first read/open/dial/loop in main or run",
 			RelatedGuidance: []string{"first-paint"},
 			VerificationIDs: []string{"FP-002"},
 			Since:           "0.3.0",
@@ -1225,6 +1225,28 @@ return task.Wait()`,
 			Certainty:       "heuristic",
 			// Wait is being added to the public API in parallel with this
 			// rule; this entry documents the spelling the MCP now teaches.
+		},
+		{
+			ID:        "API-045",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "evo Init/Task/Group/Sequence/Each arguments are named locals, not inline make/new or nested multi-arg calls",
+			Why:       "Work stuffed into the declare site (make/new, fmt.Sprintf with extra args, filter(a, b)) hides pre-output computation the way I/O between Init and the first Task does; a named local makes the call a declaration again.",
+			BadCode: `out.Task(fmt.Sprintf("%s-%s-%s", a, b, c))
+for _, t := range g.Each(make([]string, n)) {
+  _ = t
+}`,
+			GoodCode: `name := fmt.Sprintf("%s-%s-%s", a, b, c)
+out.Task(name)
+items := make([]string, n)
+for _, t := range g.Each(items) {
+  _ = t
+}`,
+			Remediation:     "Extract the nested call or make/new to a named local and pass that identifier to Init/Task/Group/Sequence/Each",
+			RelatedGuidance: []string{"first-paint", "common-api"},
+			VerificationIDs: []string{"API-045"},
+			Since:           "0.4.7",
+			Certainty:       "heuristic",
 		},
 		{
 			ID:        "TAX-003",

@@ -276,9 +276,18 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 
 	// FP-001/FP-002: heavy I/O ahead of evo.Init/New (FP-001) or between
 	// init and the first declared entity (FP-002) reopens the blank-terminal
-	// window evo-rec.md "First paint" exists to close.
+	// window evo-rec.md "First paint" exists to close. A for/range in that
+	// same window is the same class — silent work while the live line is
+	// still title-only.
 	if hasEvo {
 		findings = append(findings, detectFirstPaintGaps(filename, src)...)
+		findings = append(findings, detectFirstPaintLoops(filename, f, fset)...)
+	}
+
+	// API-045: Init/Task/Group/Sequence/Each arguments are named locals,
+	// not inline make/new or nested multi-arg calls stuffed into the site.
+	if hasEvo {
+		findings = append(findings, detectInlineEvoCallWork(filename, f, fset)...)
 	}
 
 	// FP-003: a task's only Doing call precedes a subprocess run with no
@@ -1245,6 +1254,212 @@ func firstPaintGapsInBody(filename, src, body string, offset int) []Finding {
 		})
 	}
 	return findings
+}
+
+// detectFirstPaintLoops flags a for/range between evo.Init/New and the
+// first Task/Group/Sequence/Item. AST only — a textual "for " match
+// false-positives on strings like "waiting for inventory".
+func detectFirstPaintLoops(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		var body *ast.BlockStmt
+		switch fn := n.(type) {
+		case *ast.FuncDecl:
+			body = fn.Body
+		case *ast.FuncLit:
+			body = fn.Body
+		}
+		if body == nil {
+			return true
+		}
+		findings = append(findings, firstPaintLoopsInBody(filename, fset, body)...)
+		return true
+	})
+	return findings
+}
+
+func firstPaintLoopsInBody(filename string, fset *token.FileSet, body *ast.BlockStmt) []Finding {
+	initOffset := -1
+	entityOffset := -1
+	type loopHit struct {
+		offset int
+		line   int
+	}
+	var loops []loopHit
+	for _, stmt := range body.List {
+		ast.Inspect(stmt, func(n ast.Node) bool {
+			if n == nil {
+				return false
+			}
+			if _, ok := n.(*ast.FuncLit); ok {
+				return false
+			}
+			switch x := n.(type) {
+			case *ast.CallExpr:
+				if isFirstPaintInitCall(x) {
+					off := fset.Position(x.Pos()).Offset
+					if initOffset < 0 || off < initOffset {
+						initOffset = off
+					}
+				}
+				if isFirstPaintEntityCall(x) {
+					off := fset.Position(x.Pos()).Offset
+					if entityOffset < 0 || off < entityOffset {
+						entityOffset = off
+					}
+				}
+			case *ast.ForStmt, *ast.RangeStmt:
+				pos := fset.Position(n.Pos())
+				loops = append(loops, loopHit{offset: pos.Offset, line: pos.Line})
+			}
+			return true
+		})
+	}
+	if initOffset < 0 {
+		return nil
+	}
+	var findings []Finding
+	for _, loop := range loops {
+		if loop.offset <= initOffset {
+			continue
+		}
+		if entityOffset >= 0 && loop.offset >= entityOffset {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "FP-002",
+			Severity:   "warning",
+			Message:    "a for/range loop runs between evo.Init/New and the first Task/Group/Sequence; declare the first entity before this loop",
+			File:       filename,
+			Line:       loop.line,
+			Suggestion: "declare the first Task/Group/Sequence before this loop",
+		})
+	}
+	return findings
+}
+
+func isFirstPaintInitCall(call *ast.CallExpr) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	if !ok || id.Name != "evo" {
+		return false
+	}
+	return sel.Sel.Name == "Init" || sel.Sel.Name == "New"
+}
+
+func isFirstPaintEntityCall(call *ast.CallExpr) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	switch sel.Sel.Name {
+	case "Task", "Group", "Sequence", "Item":
+		return true
+	}
+	return false
+}
+
+var evoDeclareNames = map[string]bool{
+	"Init": true, "Task": true, "Group": true, "Sequence": true, "Each": true,
+}
+
+// detectInlineEvoCallWork is API-045: evo Init/Task/Group/Sequence/Each
+// arguments must be named locals. Inline make/new or a nested call with
+// two or more arguments hides work at the declare site.
+func detectInlineEvoCallWork(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if !evoDeclareNames[sel.Sel.Name] || !isLikelyEvoReceiver(sel.X) {
+			return true
+		}
+		kind, hit := inlineWorkInArgs(call.Args)
+		if !hit {
+			return true
+		}
+		pos := fset.Position(call.Pos())
+		findings = append(findings, Finding{
+			RuleID:     "API-045",
+			Severity:   "warning",
+			Message:    "inline " + kind + " at evo ." + sel.Sel.Name + "( argument; extract a named local before the call",
+			File:       filename,
+			Line:       pos.Line,
+			Column:     pos.Column,
+			Suggestion: "extract the " + kind + " to a named local and pass that identifier to ." + sel.Sel.Name + "(",
+		})
+		return true
+	})
+	return findings
+}
+
+func inlineWorkInArgs(args []ast.Expr) (kind string, ok bool) {
+	var sawMakeNew, sawSoup bool
+	var walk func(ast.Expr)
+	walk = func(e ast.Expr) {
+		if e == nil {
+			return
+		}
+		switch x := e.(type) {
+		case *ast.FuncLit:
+			return
+		case *ast.CallExpr:
+			if id, isIdent := x.Fun.(*ast.Ident); isIdent && (id.Name == "make" || id.Name == "new") {
+				sawMakeNew = true
+			} else if len(x.Args) >= 2 {
+				sawSoup = true
+			}
+			for _, a := range x.Args {
+				walk(a)
+			}
+		case *ast.CompositeLit:
+			for _, elt := range x.Elts {
+				if kv, isKV := elt.(*ast.KeyValueExpr); isKV {
+					walk(kv.Value)
+				} else {
+					walk(elt)
+				}
+			}
+		case *ast.ParenExpr:
+			walk(x.X)
+		case *ast.UnaryExpr:
+			walk(x.X)
+		case *ast.StarExpr:
+			walk(x.X)
+		case *ast.BinaryExpr:
+			walk(x.X)
+			walk(x.Y)
+		case *ast.KeyValueExpr:
+			walk(x.Value)
+		case *ast.SliceExpr:
+			walk(x.X)
+			walk(x.Low)
+			walk(x.High)
+			walk(x.Max)
+		case *ast.IndexExpr:
+			walk(x.X)
+			walk(x.Index)
+		}
+	}
+	for _, a := range args {
+		walk(a)
+	}
+	switch {
+	case sawMakeNew:
+		return "make/new", true
+	case sawSoup:
+		return "nested multi-arg call", true
+	}
+	return "", false
 }
 
 // detectStaleDoingBeforeSubprocess flags a task whose only Doing call sits
