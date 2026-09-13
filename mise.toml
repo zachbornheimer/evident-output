@@ -90,3 +90,8 @@ run = "bash tools/scripts/run-examples.sh"
 [tasks.ci]
 description = "Full gate: lint + test + scan + conformance + traceability"
 depends = ["lint", "test", "scan", "conformance", "traceability"]
+
+[tasks.test-evo]
+description = "Capture timed PNG/TXT frames of a command in a real tmux PTY. Flags AFTER the task name. Requires --start-dir, exactly one of --timeout-ms/--timeout-s, exactly one of --screenshot-interval-ms/--screenshot-interval-s, then -- CMD"
+run = "python3 ./scripts/test-evo.py"
+

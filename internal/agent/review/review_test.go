@@ -2038,3 +2038,85 @@ func TestDOM020_GuidanceOnlyResolvesButIsNeverEmitted(t *testing.T) {
 		t.Fatalf("Detection = %q, want %q", r.Detection, "guidance")
 	}
 }
+
+func TestLOOP001_SilentForRangeBeforeTask(t *testing.T) {
+	bad := `package app
+import (
+  "path/filepath"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func previewPurge(roots []string) error {
+  out := evo.Init(evo.Config{Isolated: true, DryRun: true})
+  defer out.Close()
+  for _, root := range roots {
+    _ = filepath.WalkDir(root, func(string, fs.DirEntry, error) error { return nil })
+  }
+  out.Task("inventory").Done()
+  return nil
+}
+`
+	res := review.GoSource("purge_loop.go", bad)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "LOOP-001" {
+			found = true
+			if f.Line == 0 {
+				t.Error("LOOP-001 missing line")
+			}
+			if !strings.Contains(f.Suggestion, "Define") && !strings.Contains(f.Suggestion, "Each") {
+				t.Fatalf("LOOP-001 suggestion must name Define/Each, got %q", f.Suggestion)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected LOOP-001 on for/range WalkDir before Task: %+v", res.Findings)
+	}
+}
+
+func TestLOOP001_NoFalsePositiveWhenLoopInsideDefine(t *testing.T) {
+	good := `package app
+import (
+  "path/filepath"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func previewPurge(roots []string) error {
+  out := evo.Init(evo.Config{Isolated: true, DryRun: true})
+  defer out.Close()
+  inv := out.Task("inventory")
+  inv.Doing("walking worktrees")
+  inv.Define(func() error {
+    for _, root := range roots {
+      if err := filepath.WalkDir(root, func(string, fs.DirEntry, error) error { return nil }); err != nil {
+        return err
+      }
+    }
+    return nil
+  })
+  return nil
+}
+`
+	res := review.GoSource("purge_loop_ok.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "LOOP-001" {
+			t.Fatalf("false positive LOOP-001 when loop is inside Define: %+v", res.Findings)
+		}
+	}
+}
+
+func TestLOOP001_NoFalsePositiveOnGroupEach(t *testing.T) {
+	good := `package app
+import evo "github.com/zachbornheimer/evident-output"
+func scan(paths []string) {
+  out := evo.Init(evo.Config{Title: "zq"})
+  for path, task := range out.Group("worktrees").Each(paths) {
+    task.Define(func() error { return filepath.WalkDir(path, nil) })
+  }
+}
+`
+	res := review.GoSource("each_ok.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "LOOP-001" {
+			t.Fatalf("false positive LOOP-001 on Group.Each: %+v", res.Findings)
+		}
+	}
+}

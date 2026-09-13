@@ -267,6 +267,38 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "LOOP-001",
+			Category:  "LOOP",
+			Severity:  "error",
+			Invariant: "real work loops live only inside a task definition — never before Task/Group/Sequence",
+			Why:       "A for/range that walks disk (or otherwise does the job) before any Task leaves the consumer UI blank: the purge/prune silent-pre-output FAIL class. Group.Each / Task.Define make the good path the only path.",
+			BadCode: `func previewPurge() {
+  out := evo.Init(evo.Config{Isolated: true, DryRun: true})
+  for _, root := range roots {
+    filepath.WalkDir(root, walk) // silent pre-Task loop
+  }
+  out.Task("inventory").Done()
+}`,
+			GoodCode: `func previewPurge() {
+  out := evo.Init(evo.Config{Isolated: true, DryRun: true, Facts: rootFacts})
+  inv := out.Task("inventory")
+  inv.Doing("walking worktrees")
+  inv.Define(func() error {
+    for _, root := range roots {
+      if err := filepath.WalkDir(root, walk); err != nil {
+        return err
+      }
+    }
+    return nil
+  })
+}`,
+			Remediation:     "Declare Task/Group/Sequence first; put the loop inside Task.Define or range Group/Sequence.Each so every iteration is visible work",
+			RelatedGuidance: []string{"first-paint", "tasks"},
+			VerificationIDs: []string{"LOOP-001"},
+			Since:           "0.5.1",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "FP-003",
 			Category:  "FP",
 			Severity:  "warning",
