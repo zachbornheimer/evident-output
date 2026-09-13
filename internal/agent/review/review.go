@@ -251,6 +251,11 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		return true
 	})
 
+	// LAYOUT-001/LAYOUT-002: cobra command naming and folder ownership.
+	// These fire without an evo import — the fixtures are cobra command files.
+	findings = append(findings, detectDualCommandNaming(filename, fset, f)...)
+	findings = append(findings, detectCommandInWrongFolder(filename, fset, f)...)
+
 	// SIG-001: a hand-rolled signal.Notify in a file that never calls Cancel
 	// reintroduces the exact bug evo.Main already closes — the visual ledger
 	// and the exit code can disagree because the signal path never reconciles
