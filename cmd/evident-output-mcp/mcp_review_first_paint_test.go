@@ -48,7 +48,7 @@ func previewPurge() error {
 	}
 }
 
-func TestReview_IsolatedInitThenWalkDirLoopReturnsLOOP001OrFP002(t *testing.T) {
+func TestReview_IsolatedInitThenWalkDirLoopReturnsLOOP001(t *testing.T) {
 	src := `package app
 import (
   "path/filepath"
@@ -65,8 +65,8 @@ func previewPurge(roots []string) error {
 }
 `
 	out := reviewGoFileViaMCP(t, src)
-	if !strings.Contains(out, "LOOP-001") && !strings.Contains(out, "FP-002") {
-		t.Fatalf("expected LOOP-001 or FP-002 on Isolated Init then for/range WalkDir: %s", out)
+	if !strings.Contains(out, "LOOP-001") {
+		t.Fatalf("expected LOOP-001 on Isolated Init then for/range WalkDir (FP-002 is not a substitute): %s", out)
 	}
 }
 

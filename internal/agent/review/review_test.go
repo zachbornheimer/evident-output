@@ -2097,8 +2097,8 @@ func previewPurge(roots []string) error {
 `
 	res := review.GoSource("purge_loop_ok.go", good)
 	for _, f := range res.Findings {
-		if f.RuleID == "LOOP-001" {
-			t.Fatalf("false positive LOOP-001 when loop is inside Define: %+v", res.Findings)
+		if f.RuleID == "LOOP-001" || f.RuleID == "FP-002" {
+			t.Fatalf("false positive %s when Task/Doing/Define runs before the loop: %+v", f.RuleID, res.Findings)
 		}
 	}
 }
