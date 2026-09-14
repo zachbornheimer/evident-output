@@ -742,7 +742,11 @@ func eachAggregateDetail(col core.TasksSnapshot, fromEach []core.TaskSnapshot) s
 	if col.Summary != "" && done == total {
 		return ""
 	}
-	return fmt.Sprintf("%d/%d", done, total)
+	detail := fmt.Sprintf("%d/%d", done, total)
+	if failed := eachFailedCount(fromEach); failed > 0 {
+		detail += eachFailedCountSeparator + fmt.Sprintf("%d failed", failed)
+	}
+	return detail
 }
 
 // eachChildrenNeedingSurface returns the Each children that earn a row of
@@ -773,11 +777,18 @@ func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEac
 	skipped, kept := collectEachTaxonomy(fromEach)
 	writeTaxonomy(b, problemTreeIndent, "skipped", skipped, false, verbose, color, profile)
 	writeTaxonomy(b, problemTreeIndent, "kept", kept, false, verbose, color, profile)
-	surfaced := eachChildrenNeedingSurface(fromEach)
+	var surfaced []core.TaskSnapshot
+	var omitted int
+	if verbose {
+		surfaced = eachChildrenNeedingSurface(fromEach)
+	} else {
+		surfaced, omitted = selectEachAttentionChildren(fromEach, eachAttentionTTYMax)
+	}
 	childNameWidth := maxTaskNameWidth(slices.Concat(surfaced, explicit))
 	for _, t := range surfaced {
 		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
 	}
+	writeEachOmission(b, omitted, color, profile)
 	writeNotStartedCount(b, fromEach, color, profile)
 	for _, t := range explicit {
 		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)

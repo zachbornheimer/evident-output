@@ -129,6 +129,12 @@ type Config struct {
 	// as a post-construction setter (I3).
 	Subject string
 
+	// Facts are run-scoped name/value lines painted with the header, before
+	// any Task. Use them for values known at construction (scan roots, the
+	// repo path). Discovery that happens during work belongs on the Task
+	// that learned it (task.Fact), not here.
+	Facts []FactRecord
+
 	// Stdout is the ordinary human stream (default os.Stdout).
 	// In FormatData mode, Stdout is reserved for domain payload via ResultWriter;
 	// human presentation moves to Stderr.
@@ -205,10 +211,10 @@ type Config struct {
 	// confirm gate is about to act on.
 	Preview bool
 
-	// Isolated returns an independent Output that never touches package
-	// state: it is not installed as the package-level default and does not
-	// arm first paint. Use for parallel tests and embedders that hold their
-	// own *Output instead of going through Default()/Task()/Print() et al.
+	// Isolated returns an independent Output that is not installed as the
+	// package-level default. First paint still arms — Isolated is not a
+	// blank-terminal exemption. Use for parallel tests and embedders that
+	// hold their own *Output instead of going through Default()/Task().
 	// This is the one and only opt-out from default installation — it
 	// applies identically whether or not Options is also set.
 	Isolated bool

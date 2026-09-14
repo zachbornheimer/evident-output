@@ -49,6 +49,51 @@ func TestMCP027_ExplainAPI006Examples(t *testing.T) {
 	t.Fatalf("verification_ids missing MCP-012/API-006: %v", r.VerificationIDs)
 }
 
+func TestExplainLAYOUT001AndLAYOUT002(t *testing.T) {
+	for _, id := range []string{"LAYOUT-001", "LAYOUT-002"} {
+		r, ok := rules.Explain(id)
+		if !ok {
+			t.Fatalf("%s missing", id)
+		}
+		if r.Invariant == "" || r.Why == "" || r.BadCode == "" || r.GoodCode == "" || r.Remediation == "" {
+			t.Fatalf("%s incomplete payload: %+v", id, r)
+		}
+		if r.Detection == "guidance" {
+			t.Fatalf("%s must have a live detector, not Detection=guidance", id)
+		}
+	}
+	dual, _ := rules.Explain("LAYOUT-001")
+	if !strings.Contains(dual.BadCode, "clean_repo") && !strings.Contains(dual.BadCode, "cleanRepo") {
+		t.Fatalf("LAYOUT-001 BadCode must show leftover clean_repo/cleanRepo naming, got %q", dual.BadCode)
+	}
+	if !strings.Contains(dual.GoodCode, "Aliases") || !strings.Contains(dual.GoodCode, "clean-repo") {
+		t.Fatalf("LAYOUT-001 GoodCode must show Aliases clean-repo on prune, got %q", dual.GoodCode)
+	}
+	folder, _ := rules.Explain("LAYOUT-002")
+	if !strings.Contains(folder.BadCode, "internal/app") {
+		t.Fatalf("LAYOUT-002 BadCode must show internal/app, got %q", folder.BadCode)
+	}
+	if !strings.Contains(folder.GoodCode, "internal/purge") && !strings.Contains(folder.GoodCode, "purge.Command") {
+		t.Fatalf("LAYOUT-002 GoodCode must own RunE under internal/purge or thin-delegate Command(), got %q", folder.GoodCode)
+	}
+}
+
+func TestExplainCALL001(t *testing.T) {
+	r, ok := rules.Explain("CALL-001")
+	if !ok {
+		t.Fatal("CALL-001 missing")
+	}
+	if r.Invariant == "" || r.Why == "" || r.BadCode == "" || r.GoodCode == "" || r.Remediation == "" {
+		t.Fatalf("CALL-001 incomplete payload: %+v", r)
+	}
+	if !strings.Contains(r.BadCode, "make(") {
+		t.Fatalf("CALL-001 BadCode must show inline make, got %q", r.BadCode)
+	}
+	if strings.Contains(r.GoodCode, "make([]evo.Fact, 0)}") || strings.Contains(r.GoodCode, "Facts: make(") {
+		t.Fatalf("CALL-001 GoodCode must extract make to a named local, got %q", r.GoodCode)
+	}
+}
+
 func TestExplainFirstPaintRules(t *testing.T) {
 	for _, id := range []string{"FP-001", "FP-002", "FP-003", "FP-005"} {
 		r, ok := rules.Explain(id)

@@ -284,6 +284,42 @@ func eachChildNeedsSurface(t core.TaskSnapshot) bool {
 	return len(t.Warnings) > 0 || len(t.Problems) > 0
 }
 
+// eachAttentionTTYMax is the TTY budget for homogeneous Each attention
+// children. Height still bounds the live region and explicit Task children;
+// Each Failures stay at one row plus an omission line.
+const eachAttentionTTYMax = 1
+
+const eachFailedCountSeparator = " · "
+
+// selectEachAttentionChildren ranks Each children that need surface and
+// keeps at most max of them.
+func selectEachAttentionChildren(fromEach []core.TaskSnapshot, max int) (selected []core.TaskSnapshot, omitted int) {
+	var attention []core.TaskSnapshot
+	for _, t := range fromEach {
+		if eachChildNeedsSurface(t) {
+			attention = append(attention, t)
+		}
+	}
+	return selectLiveChildren(attention, max)
+}
+
+func eachFailedCount(fromEach []core.TaskSnapshot) int {
+	n := 0
+	for _, t := range fromEach {
+		if t.State == core.Failed {
+			n++
+		}
+	}
+	return n
+}
+
+func writeEachOmission(b *strings.Builder, omitted int, color bool, profile txt.GlyphProfile) {
+	if omitted <= 0 {
+		return
+	}
+	fmt.Fprintf(b, "   %s  %d not shown\n", txt.Dim(txt.GlyphOverflow.Render(profile), color), omitted)
+}
+
 func currentEachItemName(fromEach []core.TaskSnapshot) string {
 	for _, t := range fromEach {
 		if t.State == core.Running {
@@ -326,6 +362,8 @@ func writeLiveEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach
 		if cur := currentEachItemName(fromEach); cur != "" {
 			detail += "  " + cur
 		}
+	} else if failed := eachFailedCount(fromEach); failed > 0 {
+		detail += eachFailedCountSeparator + fmt.Sprintf("%d failed", failed)
 	}
 	unit := DisplayUnit{
 		Glyph:  txt.StyleGlyph(glyph, StateColor(headerState), color),
@@ -340,11 +378,11 @@ func writeLiveEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach
 	}
 	b.WriteString(unit.Render(""))
 	b.WriteByte('\n')
-	for _, t := range fromEach {
-		if eachChildNeedsSurface(t) {
-			writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
-		}
+	selected, omitted := selectEachAttentionChildren(fromEach, eachAttentionTTYMax)
+	for _, t := range selected {
+		writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
 	}
+	writeEachOmission(b, omitted, color, profile)
 	for _, t := range explicit {
 		writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
 	}
@@ -355,7 +393,6 @@ func writeLiveEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
-	_ = height
 }
 
 func anyChildRunning(col core.TasksSnapshot) bool {

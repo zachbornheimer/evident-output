@@ -267,6 +267,100 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "LOOP-001",
+			Category:  "LOOP",
+			Severity:  "error",
+			Invariant: "real work loops live only inside a task definition — never before Task/Group/Sequence",
+			Why:       "A for/range that walks disk (or otherwise does the job) before any Task leaves the consumer UI blank: the purge/prune silent-pre-output FAIL class. Group.Each / Task.Define make the good path the only path.",
+			BadCode: `func previewPurge() {
+  out := evo.Init(evo.Config{Isolated: true, DryRun: true})
+  for _, root := range roots {
+    filepath.WalkDir(root, walk) // silent pre-Task loop
+  }
+  out.Task("inventory").Done()
+}`,
+			GoodCode: `func previewPurge() {
+  out := evo.Init(evo.Config{Isolated: true, DryRun: true, Facts: rootFacts})
+  inv := out.Task("inventory")
+  inv.Doing("walking worktrees")
+  inv.Define(func() error {
+    for _, root := range roots {
+      if err := filepath.WalkDir(root, walk); err != nil {
+        return err
+      }
+    }
+    return nil
+  })
+}`,
+			Remediation:     "Declare Task/Group/Sequence first; put the loop inside Task.Define or range Group/Sequence.Each so every iteration is visible work",
+			RelatedGuidance: []string{"first-paint", "tasks"},
+			VerificationIDs: []string{"LOOP-001"},
+			Since:           "0.5.1",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "CALL-001",
+			Category:  "CALL",
+			Severity:  "warning",
+			Invariant: "evo.Init/Task/Group arguments are named values, never inline make/new",
+			Why:       "Inline make() or new() inside an evo construct call hides the value the call site is passing. Extract a named local before the call so the argument list stays readable and reviewable.",
+			BadCode: `out := evo.Init(evo.Config{Facts: make([]evo.Fact, 0)})
+_ = out.Task("scan")`,
+			GoodCode: `facts := make([]evo.Fact, 0)
+out := evo.Init(evo.Config{Facts: facts})
+_ = out.Task("scan")`,
+			Remediation:     "Extract make/new to a named local before the evo.Init/Task/Group call",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"CALL-001"},
+			Since:           "0.5.1",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "LAYOUT-001",
+			Category:  "LAYOUT",
+			Severity:  "warning",
+			Invariant: "a cobra command's file and identifiers match Use; leftover clean-repo naming is not a second primary name",
+			Why:       "A file named clean_repo.go, or an identifier such as cleanRepoCommandName = \"prune\", that registers cobra Use \"prune\" keeps two names for one command. Reviewers and agents cannot tell which is canonical.",
+			BadCode: `// file: clean_repo.go
+const cleanRepoCommandName = "prune"
+cmd := &cobra.Command{Use: cleanRepoCommandName}`,
+			GoodCode: `// file: prune.go (package prune)
+cmd := &cobra.Command{
+  Use: "prune",
+  Aliases: []string{"clean-repo"},
+}`,
+			Remediation:     "Name the file and identifiers after cobra Use (prune/purge); keep clean-repo only as Aliases",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"LAYOUT-001"},
+			Since:           "0.5.1",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "LAYOUT-002",
+			Category:  "LAYOUT",
+			Severity:  "warning",
+			Invariant: "cobra Use purge/prune RunE lives in internal/<cmd>/, not internal/app/",
+			Why:       "A real RunE body under internal/app/ hides the command behind a catch-all folder. The owning package is internal/purge or internal/prune; app may only return that Command().",
+			BadCode: `// file: internal/app/purge.go
+cmd := &cobra.Command{
+  Use: "purge",
+  RunE: func(cmd *cobra.Command, args []string) error {
+    return walkAndPurge()
+  },
+}`,
+			GoodCode: `// file: internal/purge/purge.go owns RunE
+func Command() *cobra.Command {
+  return &cobra.Command{Use: "purge", RunE: run}
+}
+// file: internal/app/app.go — thin delegate
+func purgeCommand() *cobra.Command { return purge.Command() }`,
+			Remediation:     "Move the RunE body into internal/purge or internal/prune; leave a one-return *.Command() delegate in internal/app",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"LAYOUT-002"},
+			Since:           "0.5.1",
+			Certainty:       "deterministic",
+		},
+		{
 			ID:        "FP-003",
 			Category:  "FP",
 			Severity:  "warning",

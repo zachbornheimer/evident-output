@@ -251,6 +251,11 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		return true
 	})
 
+	// LAYOUT-001/LAYOUT-002: cobra command naming and folder ownership.
+	// These fire without an evo import — the fixtures are cobra command files.
+	findings = append(findings, detectDualCommandNaming(filename, fset, f)...)
+	findings = append(findings, detectCommandInWrongFolder(filename, fset, f)...)
+
 	// SIG-001: a hand-rolled signal.Notify in a file that never calls Cancel
 	// reintroduces the exact bug evo.Main already closes — the visual ledger
 	// and the exit code can disagree because the signal path never reconciles
@@ -279,6 +284,19 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// window evo-rec.md "First paint" exists to close.
 	if hasEvo {
 		findings = append(findings, detectFirstPaintGaps(filename, src)...)
+	}
+
+	// LOOP-001: a work loop (for/range with I/O) before any Task/Group/Sequence
+	// is the purge/prune silent-pre-output class — real work must live inside
+	// the task definition (Define/Each), not before entity creation.
+	if hasEvo {
+		findings = append(findings, detectSilentPreTaskLoops(filename, src)...)
+	}
+
+	// CALL-001: make/new inline inside evo.Init/Task/Group arguments; a
+	// named local extracted before the call is the clean form.
+	if hasEvo {
+		findings = append(findings, detectInlineConstructAtEvoCall(filename, fset, f)...)
 	}
 
 	// FP-003: a task's only Doing call precedes a subprocess run with no
@@ -1181,11 +1199,13 @@ func detectHandRolledConfirm(filename, src string) []Finding {
 	}}
 }
 
-// firstPaintIOMarkers are stdlib calls heavy enough to blank the terminal
-// for a visible interval when run ahead of the first paint.
+// firstPaintIOMarkers are calls heavy enough to blank the terminal for a
+// visible interval when run ahead of the first paint. Domain inventory
+// (purge.Inventory) is the canary that stdlib-only markers missed.
 var firstPaintIOMarkers = []string{
 	"os.ReadFile(", "os.ReadDir(", "os.Open(", "filepath.Walk(",
-	"exec.Command(", "http.Get(", "net.Dial(",
+	"filepath.WalkDir(", "exec.Command(", "http.Get(", "net.Dial(",
+	".Inventory(",
 }
 
 // firstPaintInitMarkers arm the display (evo-rec.md "First paint").
@@ -1196,20 +1216,29 @@ var firstPaintEntityMarkers = []string{".Task(", ".Group(", ".Sequence(", ".Item
 
 // detectFirstPaintGaps flags heavy I/O that runs ahead of evo's init call
 // (FP-001: nothing is armed yet, so nothing can paint) or between init and
-// the first declared Task/Item/Sequence (FP-002: armed but still blank) inside
-// main/run — the two orderings evo-rec.md "First paint" calls out by name.
-// Best-effort: scoped to main/run bodies to avoid flagging unrelated helper
-// functions that happen to call these stdlib APIs.
+// the first declared Task/Group/Sequence (FP-002: armed but still blank).
+// Every function that calls evo.Init is in scope — Isolated nested inits
+// (previewPurge) are the pit-of-success miss, not only main/run.
 func detectFirstPaintGaps(filename, src string) []Finding {
-	body, offset := firstFuncBody(src, "main", "run")
-	if offset < 0 {
-		return nil
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		if earliestIndex(fn.body, firstPaintInitMarkers) < 0 && !strings.Contains(fn.body, "evo.New(") {
+			continue
+		}
+		findings = append(findings, firstPaintGapsInBody(filename, src, fn.body, fn.offset)...)
 	}
+	return findings
+}
+
+func firstPaintGapsInBody(filename, src, body string, offset int) []Finding {
 	ioIdx, ioMarker := earliestMarker(body, firstPaintIOMarkers)
 	if ioIdx < 0 {
 		return nil
 	}
 	initIdx := earliestIndex(body, firstPaintInitMarkers)
+	if initIdx < 0 {
+		initIdx = earliestIndex(body, []string{"evo.New("})
+	}
 	var findings []Finding
 	if initIdx < 0 || ioIdx < initIdx {
 		findings = append(findings, Finding{
@@ -1227,10 +1256,10 @@ func detectFirstPaintGaps(filename, src string) []Finding {
 		findings = append(findings, Finding{
 			RuleID:     "FP-002",
 			Severity:   "warning",
-			Message:    "heavy I/O runs between evo.Init/New and the first Task/Item/Sequence; declare the first entity before this I/O",
+			Message:    "heavy I/O runs between evo.Init/New and the first Task/Group/Sequence; declare the first entity before this I/O",
 			File:       filename,
 			Line:       lineAt(src, offset+ioIdx),
-			Suggestion: "declare the first Task/Item/Sequence before " + ioMarker + "...)",
+			Suggestion: "declare the first Task/Group/Sequence before " + ioMarker + "...)",
 		})
 	}
 	return findings
@@ -1239,6 +1268,70 @@ func detectFirstPaintGaps(filename, src string) []Finding {
 // detectStaleDoingBeforeSubprocess flags a task whose only Doing call sits
 // ahead of a subprocess run with no further Doing/Progress/Writer — the
 // spinner keeps animating over a silent child (evo-rec.md "FP-003").
+// detectSilentPreTaskLoops flags a for/range work loop that runs after
+// evo.Init/New but before the first Task/Group/Sequence. That is the
+// purge/prune FAIL class: scanning looks dead because the loop never
+// lived inside a task definition.
+func detectSilentPreTaskLoops(filename, src string) []Finding {
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		if earliestIndex(fn.body, firstPaintInitMarkers) < 0 && !strings.Contains(fn.body, "evo.New(") {
+			continue
+		}
+		findings = append(findings, silentPreTaskLoopsInBody(filename, src, fn.body, fn.offset)...)
+	}
+	return findings
+}
+
+func silentPreTaskLoopsInBody(filename, src, body string, offset int) []Finding {
+	initIdx := earliestIndex(body, firstPaintInitMarkers)
+	if initIdx < 0 {
+		initIdx = earliestIndex(body, []string{"evo.New("})
+	}
+	if initIdx < 0 {
+		return nil
+	}
+	entityIdx := earliestIndex(body, firstPaintEntityMarkers)
+	searchEnd := len(body)
+	if entityIdx >= 0 {
+		searchEnd = entityIdx
+	}
+	window := body[initIdx:searchEnd]
+	loopIdx := strings.Index(window, "for ")
+	if loopIdx < 0 {
+		return nil
+	}
+	// Require range + an I/O marker so tiny in-memory for-loops are not flagged.
+	loopTail := window[loopIdx:]
+	if !strings.Contains(loopTail, " range ") {
+		return nil
+	}
+	ioIdx, ioMarker := earliestMarker(loopTail, firstPaintIOMarkers)
+	if ioIdx < 0 {
+		// Also treat bare multi-iteration domain walks as work when they call
+		// known walk helpers without the stdlib marker spelling.
+		for _, walk := range []string{"FindWorktree", "FindCache", "ListWorktree", "WalkDir", "Walk("} {
+			if strings.Contains(loopTail, walk) {
+				ioMarker = walk
+				ioIdx = strings.Index(loopTail, walk)
+				break
+			}
+		}
+	}
+	if ioIdx < 0 {
+		return nil
+	}
+	abs := offset + initIdx + loopIdx
+	return []Finding{{
+		RuleID:     "LOOP-001",
+		Severity:   "error",
+		Message:    "work loop runs before any Task/Group/Sequence; silent pre-output loops are a pit-of-success FAIL — put the loop inside Task.Define or Group/Sequence.Each",
+		File:       filename,
+		Line:       lineAt(src, abs),
+		Suggestion: "declare Task/Group/Sequence first, then run the loop inside task.Define(...) or for x, task := range group.Each(items) { task.Define(...) }; move " + ioMarker + " into the task body",
+	}}
+}
+
 func detectStaleDoingBeforeSubprocess(filename, src string) []Finding {
 	var findings []Finding
 	for _, fn := range allFuncBodies(src) {
