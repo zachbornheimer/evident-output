@@ -47,6 +47,13 @@ func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	if code != evo.ExitFailed {
 		t.Fatalf("exit %d, want %d", code, evo.ExitFailed)
 	}
+	got := buf.String()
+	if !strings.Contains(got, "app boom") {
+		t.Fatalf("failure summary must include the application error:\n%s", got)
+	}
+	if strings.Contains(got, "command failed") {
+		t.Fatalf("failure summary must not replace the application error with a synthetic label:\n%s", got)
+	}
 }
 
 func TestMainWith_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
