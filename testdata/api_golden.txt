@@ -81,6 +81,7 @@ func EncodeEventJSON(e Event)  []byte,  error
 func EncodeJSON(s Snapshot)  []byte,  error
 func EncodeJSONL(events []Event)  []byte,  error
 func Fact(name, value string)
+func File(ctx context.Context, spec FileSpec)  error
 func IsCharDevice(w io.Writer)  bool
 func Main(run RunFunc)  int
 func Pluralize(quantity int64, singular string)  string
@@ -117,6 +118,9 @@ type EvidenceStream
 type FactRecord
 type Failure
 type Field
+type FileSpec
+type Fingerprint
+type FingerprintValue
 type FixedClock
 type Format
 type GlyphProfile
@@ -186,6 +190,10 @@ value ErrConcurrentRunning
 value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName
+value ErrFilePathIsSymlink
+value ErrFilePathTypeMismatch
+value ErrFileSpecMissingPath
+value ErrFileUnmanagedContentsMissing
 value ErrInvalidConfig
 value ErrInvalidProgress
 value ErrKeyAfterDefine

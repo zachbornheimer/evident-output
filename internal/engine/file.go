@@ -70,7 +70,18 @@ func (o *Output) reconcileFile(ctx context.Context, spec FileSpec) error {
 		return ErrFileSpecMissingPath
 	}
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("evo: File %q: %w", spec.Path, err)
+		wrapped := fmt.Errorf("evo: File %q: %w", spec.Path, err)
+		// A cancelled Run must never look like it silently succeeded: File
+		// refusing a promised mutation because its context is already done
+		// is exactly the kind of caller-visible outcome Output.Err() exists
+		// to surface (the same first-recorded-issue channel Key/duplicate/
+		// limit misuse already reports through). recordMisuse assumes its
+		// caller already holds o.mu (every other call site in this package
+		// is itself already inside a locked section).
+		o.mu.Lock()
+		o.recordMisuse(wrapped)
+		o.mu.Unlock()
+		return wrapped
 	}
 
 	path := o.resolveWorkspacePath(spec.Path)
