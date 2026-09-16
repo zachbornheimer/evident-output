@@ -194,7 +194,7 @@ func f() {
   slug := strings.Map(func(r rune) rune { return r }, "ABC")
   out := evo.Init(evo.Config{Title: "x"})
   t := out.Task(slug)
-  t.Define(func() error {
+  t.Define(func(ctx context.Context) error {
     return nil
   })
   _ = out.Finish()
@@ -257,12 +257,12 @@ func TestAPI026_DoesNotFlagGroupEachDefineAfter(t *testing.T) {
 import evo "github.com/zachbornheimer/evident-output"
 func f(paths []string, worktrees, branches *evo.GroupHandle) {
   for path, task := range evo.Group("worktrees").Each(paths) {
-    task.Define(func() error { return nil })
+    task.Define(func(ctx context.Context) error { return nil })
   }
   for path, task := range evo.Sequence("setup").Each(paths) {
-    task.Define(func() error { return nil })
+    task.Define(func(ctx context.Context) error { return nil })
   }
-  evo.Task("fetch").After(worktrees, branches).Define(func() error { return nil })
+  evo.Task("fetch").After(worktrees, branches).Define(func(ctx context.Context) error { return nil })
 }
 `
 	res := review.GoSource("ok.go", src)
@@ -305,7 +305,7 @@ func main() {
 func run() error {
   paths := []string{"a", "b"}
   for path, task := range evo.Group("worktrees").Each(paths) {
-    task.Define(func() error { return check(path) })
+    task.Define(func(ctx context.Context) error { return check(path) })
   }
   return nil
 }
@@ -2084,7 +2084,7 @@ func previewPurge(roots []string) error {
   defer out.Close()
   inv := out.Task("inventory")
   inv.Doing("walking worktrees")
-  inv.Define(func() error {
+  inv.Define(func(ctx context.Context) error {
     for _, root := range roots {
       if err := filepath.WalkDir(root, func(string, fs.DirEntry, error) error { return nil }); err != nil {
         return err
@@ -2109,7 +2109,7 @@ import evo "github.com/zachbornheimer/evident-output"
 func scan(paths []string) {
   out := evo.Init(evo.Config{Title: "zq"})
   for path, task := range out.Group("worktrees").Each(paths) {
-    task.Define(func() error { return filepath.WalkDir(path, nil) })
+    task.Define(func(ctx context.Context) error { return filepath.WalkDir(path, nil) })
   }
 }
 `

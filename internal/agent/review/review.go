@@ -212,18 +212,19 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 			})
 		}
 
-		// API-018: os.Exit without presentation exit-code (Main/MainWith / Conclusion.ExitCode is OK)
+		// API-018: os.Exit without presentation exit-code (os.Exit(evo.Main(run)),
+		// evo.MainWith(out, run), or os.Exit(...ExitCode()) is OK)
 		if hasEvo {
 			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "os" && name == "Exit" {
 				if !isPresentationExitArg(call, runCodeVars) {
 					findings = append(findings, Finding{
 						RuleID:     "API-018",
 						Severity:   "warning",
-						Message:    "os.Exit in evo-using code; prefer evo.Main(run) / evo.MainWith(out, run) (they exit themselves) or os.Exit(evo.Run(run).../Conclusion().ExitCode)",
+						Message:    "os.Exit in evo-using code; prefer os.Exit(evo.Main(run)) / evo.MainWith(out, run) (which exits itself) or os.Exit(evo.Run(run).../Conclusion().ExitCode)",
 						File:       filename,
 						Line:       pos.Line,
 						Column:     pos.Column,
-						Suggestion: "replace os.Exit(...) with evo.Main(run) (no os.Exit wrapper — Main exits itself) where run returns error",
+						Suggestion: "wrap evo.Main(run) in os.Exit (os.Exit(evo.Main(run))) where run(ctx) returns error — Main derives the code but does not exit itself",
 					})
 				}
 			}
@@ -966,13 +967,15 @@ func isLikelyEvoReceiver(x ast.Expr) bool {
 	}
 }
 
-// isPresentationExitArg is true for os.Exit(evo.Run(...)), os.Exit(out.Run(...)),
-// os.Exit(...ExitCode), and os.Exit(xe) where xe is a runCodeVars identifier
-// — the exit-code-fidelity pattern (docs/guides/exit-code-fidelity.md) that
-// captures evo.Run's code, branches to override it with a child process's
-// own exit code, and only then calls os.Exit. All of these return a code
-// rather than exit themselves. evo.Main/evo.MainWith exit via their own
-// facade (P6) and are never wrapped in os.Exit — wrapping them is flagged,
+// isPresentationExitArg is true for os.Exit(evo.Main(...)) (v0.6: the
+// canonical entrypoint — Main derives the code but does not exit itself),
+// os.Exit(evo.Run(...)), os.Exit(out.Run(...)), os.Exit(...ExitCode), and
+// os.Exit(xe) where xe is a runCodeVars identifier — the latter three also
+// cover the exit-code-fidelity pattern (docs/guides/exit-code-fidelity.md)
+// that captures evo.Run's code, branches to override it with a child
+// process's own exit code, and only then calls os.Exit. All of these return
+// a code rather than exit themselves. evo.MainWith alone exits via its own
+// facade (P6) and is never wrapped in os.Exit — wrapping it is flagged,
 // not allowed here.
 func isPresentationExitArg(call *ast.CallExpr, runCodeVars map[string]bool) bool {
 	if len(call.Args) != 1 {
@@ -1018,8 +1021,10 @@ func runExitCodeVars(f *ast.File) map[string]bool {
 	return vars
 }
 
-// isRunExitCodeCall is true for evo.Run(...), out.Run(...), and any
-// ....ExitCode() call — the call shapes runExitCodeVars looks for on an
+// isRunExitCodeCall is true for evo.Run(...), out.Run(...), evo.Main(...)
+// (v0.6: Main itself returns the derived code — os.Exit(evo.Main(run)) is
+// the canonical entrypoint, not a wrapper flagged as double-exiting), and
+// any ....ExitCode() call — the call shapes runExitCodeVars looks for on an
 // assignment's right-hand side.
 func isRunExitCodeCall(expr ast.Expr) bool {
 	call, ok := expr.(*ast.CallExpr)
@@ -1028,11 +1033,11 @@ func isRunExitCodeCall(expr ast.Expr) bool {
 	}
 	if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
 		switch sel.Sel.Name {
-		case "Run", "ExitCode":
+		case "Run", "Main", "ExitCode":
 			return true
 		}
 	}
-	if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "Run" {
+	if id, ok := call.Fun.(*ast.Ident); ok && (id.Name == "Run" || id.Name == "Main") {
 		return true
 	}
 	return false
@@ -1135,10 +1140,10 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 	return []Finding{{
 		RuleID:     "SIG-001",
 		Severity:   "warning",
-		Message:    "signal.Notify without a Cancel call in this file; prefer evo.Main/evo.MainWith, which already wires SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
+		Message:    "signal.Notify without a Cancel call in this file; prefer evo.Main/evo.MainWith, which already wire SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
 		File:       filename,
 		Line:       line,
-		Suggestion: "replace the signal-handling goroutine with evo.Main(run) / evo.MainWith(out, run), or call task.Cancel(reason) from it",
+		Suggestion: "replace the signal-handling goroutine with os.Exit(evo.Main(run)) / evo.MainWith(out, run), or call task.Cancel(reason) from it",
 	}}
 }
 
@@ -1688,7 +1693,7 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 					Message:    "evo.New was removed with the item/task fold; evo.Init is the sole constructor",
 					File:       filename,
 					Line:       lineAt(src, offset+idx),
-					Suggestion: "replace evo.New(cfg) with evo.Init(cfg) (Isolated: true for a hosted instance; evo.Main(run) in ordinary main, out.Run(run) when holding *Output)",
+					Suggestion: "replace evo.New(cfg) with evo.Init(cfg) (Isolated: true for a hosted instance; os.Exit(evo.Main(run)) in ordinary main, out.Run(ctx, run).ExitCode() when holding *Output)",
 				})
 			}
 		}
