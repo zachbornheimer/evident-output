@@ -98,12 +98,12 @@ json.NewEncoder(out.ResultWriter()).Encode(result)
 
 ```go
 func main() {
-    out := evo.Init(evo.Config{Title: "install", Isolated: true})
-    evo.MainWith(out, run)
+    evo.Init(evo.Config{Title: "install"})
+    os.Exit(evo.Main(run))
 }
 ```
 
-`Main`/`MainWith` are ordinary convenience for standalone tools, **not** a second product category and **not** a framework — both exit the process themselves via an injectable facade.
+`Main` is ordinary convenience for standalone tools, **not** a second product category and **not** a framework — it exits the process itself via an injectable facade. (`MainWith`, the pre-1.0 counterpart for an `Isolated` `*Output`, was removed in 1.0 — an `Isolated` instance now calls its own `Output.Run` instead, shown below.)
 
 Lifecycle (authoritative; matches `run.go`):
 
@@ -114,7 +114,7 @@ run → reconcile run error into Fail if nothing already failed → Finish → C
 ### Hosted command boundary
 
 Frameworks and larger hosts own process death. They may own lifecycle explicitly by calling
-`Output.Run` — the non-exiting counterpart `Main`/`MainWith` are both built on — instead of
+`Output.Run` — the non-exiting counterpart `Main` is built on — instead of
 reconciling the run error and calling Finish/Close by hand.
 
 ```go

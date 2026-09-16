@@ -212,15 +212,15 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 			})
 		}
 
-		// API-018: os.Exit without presentation exit-code (os.Exit(evo.Main(run)),
-		// evo.MainWith(out, run), or os.Exit(...ExitCode()) is OK)
+		// API-018: os.Exit without presentation exit-code (os.Exit(evo.Main(run))
+		// or os.Exit(...ExitCode()) is OK; evo.MainWith was removed in 1.0)
 		if hasEvo {
 			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "os" && name == "Exit" {
 				if !isPresentationExitArg(call, runCodeVars) {
 					findings = append(findings, Finding{
 						RuleID:     "API-018",
 						Severity:   "warning",
-						Message:    "os.Exit in evo-using code; prefer os.Exit(evo.Main(run)) / evo.MainWith(out, run) (which exits itself) or os.Exit(evo.Run(run).../Conclusion().ExitCode)",
+						Message:    "os.Exit in evo-using code; prefer os.Exit(evo.Main(run)) or os.Exit(evo.Run(run).../Conclusion().ExitCode) (evo.MainWith was removed in 1.0)",
 						File:       filename,
 						Line:       pos.Line,
 						Column:     pos.Column,
@@ -231,18 +231,20 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		}
 
 		// PROG-001: Advance is a delta counter that double-counts on retries;
-		// conservative flag on any use so callers reach for Each/absolute
-		// Progress instead (evo-rec.md "Progress invariants").
+		// conservative flag on any use so callers reach for one Task per
+		// item/absolute Progress instead (evo-rec.md "Progress invariants";
+		// Group.Each/Sequence.Each, the pre-1.0 spelling of "one Task per
+		// item", were removed in 1.0).
 		if hasEvo && name == "Advance" && isLikelyEvoReceiver(sel.X) {
 			recv := exprDottedName(sel.X)
-			suggestion := "prefer Group(...).Each(items)/Sequence(...).Each(items) with " + recv + ".Define(fn) for loop progress, or " + recv + ".Progress(completed, total) for an absolute count"
+			suggestion := "prefer a named Task per item under Group(...)/Sequence(...) with " + recv + ".Define(fn) for loop progress, or " + recv + ".Progress(completed, total) for an absolute count"
 			if recv == "" {
-				suggestion = "prefer Group(...).Each(items)/Sequence(...).Each(items) with task.Define(fn) for loop progress, or Progress(completed, total) for an absolute count"
+				suggestion = "prefer a named Task per item under Group(...)/Sequence(...) with task.Define(fn) for loop progress, or Progress(completed, total) for an absolute count"
 			}
 			findings = append(findings, Finding{
 				RuleID:     "PROG-001",
 				Severity:   "error",
-				Message:    "Advance is a delta counter that double-counts on retries; prefer Each for loop progress or absolute Progress(completed, total)",
+				Message:    "Advance is a delta counter that double-counts on retries; prefer one Task per item for loop progress or absolute Progress(completed, total)",
 				File:       filename,
 				Line:       pos.Line,
 				Column:     pos.Column,
@@ -360,8 +362,7 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	}
 
 	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
-	// rec-surface Options/To/Plain/Affected/old Delete/Skip/MainWith) gets a
-	// derived fix, not a lecture.
+	// rec-surface Options/To/Plain/Affected/old Delete/Skip/MainWith (removed in 1.0)) gets a derived fix, not a lecture.
 	if hasEvo {
 		findings = append(findings, detectDeprecatedSpellings(filename, src, desiredVersion)...)
 	}
@@ -924,7 +925,7 @@ func isEvoExecutionReceiver(x ast.Expr) bool {
 		// out.Group("x").Map / out.Task("x").Retry
 		if s, ok := v.Fun.(*ast.SelectorExpr); ok {
 			switch s.Sel.Name {
-			case "Group", "Sequence", "Task", "Item", "Changes", "Plan", "For", "New", "Main", "MainWith", "Init":
+			case "Group", "Sequence", "Task", "Item", "Changes", "Plan", "For", "New", "Main", "MainWith" /* removed in 1.0; still recognized so old call sites are still caught */, "Init":
 				return true
 			}
 			return isEvoExecutionReceiver(s.X)
@@ -974,9 +975,7 @@ func isLikelyEvoReceiver(x ast.Expr) bool {
 // cover the exit-code-fidelity pattern (docs/guides/exit-code-fidelity.md)
 // that captures evo.Run's code, branches to override it with a child
 // process's own exit code, and only then calls os.Exit. All of these return
-// a code rather than exit themselves. evo.MainWith alone exits via its own
-// facade (P6) and is never wrapped in os.Exit — wrapping it is flagged,
-// not allowed here.
+// a code rather than exit themselves. Pre-1.0, evo.MainWith alone exited via its own facade (P6) and was never wrapped in os.Exit; MainWith was removed in 1.0, so an Isolated instance now reaches this same os.Exit(...ExitCode) shape through Output.Run instead.
 func isPresentationExitArg(call *ast.CallExpr, runCodeVars map[string]bool) bool {
 	if len(call.Args) != 1 {
 		return false
@@ -1122,10 +1121,10 @@ func detectBlockedAsError(filename, src string) []Finding {
 }
 
 // detectSignalNotifyWithoutCancel flags signal.Notify in an evo-using file
-// that never calls Cancel — evo.Main/MainWith already wires SIGINT/SIGTERM
+// that never calls Cancel — evo.Main/Output.Run already wires SIGINT/SIGTERM
 // into Cancel on the active task so the ■ glyph and the process exit code
 // (130) can never disagree; a hand-rolled signal.Notify that skips Cancel
-// reopens that gap (evo-rec.md "Interrupts").
+// reopens that gap (evo-rec.md "Interrupts"). (evo.MainWith, which wired the same thing for an Isolated *Output, was removed in 1.0 in favor of Output.Run.)
 func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 	if !strings.Contains(src, "signal.Notify(") {
 		return nil
@@ -1140,10 +1139,10 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 	return []Finding{{
 		RuleID:     "SIG-001",
 		Severity:   "warning",
-		Message:    "signal.Notify without a Cancel call in this file; prefer evo.Main/evo.MainWith, which already wire SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
+		Message:    "signal.Notify without a Cancel call in this file; prefer evo.Main/Output.Run, which already wire SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
 		File:       filename,
 		Line:       line,
-		Suggestion: "replace the signal-handling goroutine with os.Exit(evo.Main(run)) / evo.MainWith(out, run), or call task.Cancel(reason) from it",
+		Suggestion: "replace the signal-handling goroutine with os.Exit(evo.Main(run)) or out.Run(ctx, run), or call task.Cancel(reason) from it",
 	}}
 }
 
@@ -1330,10 +1329,10 @@ func silentPreTaskLoopsInBody(filename, src, body string, offset int) []Finding 
 	return []Finding{{
 		RuleID:     "LOOP-001",
 		Severity:   "error",
-		Message:    "work loop runs before any Task/Group/Sequence; silent pre-output loops are a pit-of-success FAIL — put the loop inside Task.Define or Group/Sequence.Each",
+		Message:    "work loop runs before any Task/Group/Sequence; silent pre-output loops are a pit-of-success FAIL — put the loop inside Task.Define, or declare Group/Sequence first and give each item its own named Task",
 		File:       filename,
 		Line:       lineAt(src, abs),
-		Suggestion: "declare Task/Group/Sequence first, then run the loop inside task.Define(...) or for x, task := range group.Each(items) { task.Define(...) }; move " + ioMarker + " into the task body",
+		Suggestion: "declare Task/Group/Sequence first, then run the loop inside task.Define(...) or for _, x := range items { group.Task(x).Define(...) }; move " + ioMarker + " into the task body",
 	}}
 }
 
@@ -1675,7 +1674,7 @@ var okCallPattern = regexp.MustCompile(`(\w+)\.OK\(\)`)
 
 // detectDeprecatedSpellings is API-032: it catches every superseded spelling
 // with a fix, not a lecture — evo.New (evo.Init is the sole constructor;
-// evo.MainWith is unexported — ordinary main uses evo.Main, Isolated
+// evo.MainWith was removed in 1.0 — ordinary main uses evo.Main, Isolated
 // instances use Output.Run), Item/.OK/.Because (Item folded into Task:
 // Item(name).OK().Because(text) is now Task(name).Done(text)), evo.Cause
 // (Failf/Blockf's trailing %w since Fail/Block are statement-form), Capture

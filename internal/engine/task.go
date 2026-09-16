@@ -651,5 +651,15 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		t.out.commitManifestTaskLocked(runCtx, t.id)
 	}
 	st.closeDoneLocked()
+	// §48: a failed predecessor makes its dependents NotStarted,
+	// deterministically. This must settle here, under the same lock this
+	// resolution already holds — not only later, from kick()'s post-return
+	// cascade — or a dependent already parked in Wait stays parked for as
+	// long as this task's own callback goroutine takes to actually return
+	// the Go call, and a heuristic release (progressPossibleLocked) can be
+	// fooled by unrelated work still executing elsewhere in the run.
+	if predecessorFailed(state) {
+		t.out.cascadeIneligibleLocked()
+	}
 	return t
 }

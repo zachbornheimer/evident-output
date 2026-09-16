@@ -3,8 +3,10 @@
 ## Predeclare (RULE-004)
 
 ```go
-for path, task := range out.Group("placement").Each(paths) {
-    task.Define(func() error { return place(path) })
+placement := out.Group("placement")
+for _, path := range paths {
+    path := path
+    placement.Task(path).Define(func() error { return place(path) })
 }
 ```
 

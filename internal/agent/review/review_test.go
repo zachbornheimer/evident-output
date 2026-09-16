@@ -252,15 +252,19 @@ func f() {
 	}
 }
 
-func TestAPI026_DoesNotFlagGroupEachDefineAfter(t *testing.T) {
+func TestAPI026_DoesNotFlagGroupTaskDefineAfter(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(paths []string, worktrees, branches *evo.GroupHandle) {
-  for path, task := range evo.Group("worktrees").Each(paths) {
-    task.Define(func(ctx context.Context) error { return nil })
+  work := evo.Group("worktrees")
+  for _, path := range paths {
+    path := path
+    work.Task(path).Define(func(ctx context.Context) error { return nil })
   }
-  for path, task := range evo.Sequence("setup").Each(paths) {
-    task.Define(func(ctx context.Context) error { return nil })
+  setup := evo.Sequence("setup")
+  for _, path := range paths {
+    path := path
+    setup.Task(path).Define(func(ctx context.Context) error { return nil })
   }
   evo.Task("fetch").After(worktrees, branches).Define(func(ctx context.Context) error { return nil })
 }
@@ -268,7 +272,7 @@ func f(paths []string, worktrees, branches *evo.GroupHandle) {
 	res := review.GoSource("ok.go", src)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-026" {
-			t.Fatalf("API-026 must not flag Group/Sequence/Define/Each/After: %+v", res.Findings)
+			t.Fatalf("API-026 must not flag Group/Sequence/Task/Define/After: %+v", res.Findings)
 		}
 	}
 }
@@ -295,7 +299,7 @@ func f(out *evo.Output) {
 	}
 }
 
-func TestBeginnerGroupEachDefine_NoDialectFindings(t *testing.T) {
+func TestBeginnerGroupTaskDefine_NoDialectFindings(t *testing.T) {
 	src := `package main
 import evo "github.com/zachbornheimer/evident-output"
 func main() {
@@ -304,8 +308,10 @@ func main() {
 }
 func run() error {
   paths := []string{"a", "b"}
-  for path, task := range evo.Group("worktrees").Each(paths) {
-    task.Define(func(ctx context.Context) error { return check(path) })
+  worktrees := evo.Group("worktrees")
+  for _, path := range paths {
+    path := path
+    worktrees.Task(path).Define(func(ctx context.Context) error { return check(path) })
   }
   return nil
 }
@@ -313,7 +319,7 @@ func check(path string) error { return nil }
 `
 	res := review.GoSource("beginner.go", src)
 	if res.RecheckRequired {
-		t.Fatalf("beginner Group.Each+Define must have recheck_required=false, got %+v", res.Findings)
+		t.Fatalf("beginner Group.Task+Define must have recheck_required=false, got %+v", res.Findings)
 	}
 	for _, f := range res.Findings {
 		switch f.RuleID {
@@ -1463,34 +1469,33 @@ func findAPI032(res review.Result) []review.Finding {
 }
 
 func TestAPI032_NewInMain(t *testing.T) {
-	// evo.New and evo.MainWith are both superseded: Init is the constructor,
-	// Main/Output.Run are the lifecycle. Flagging MainWith is required.
+	// evo.New and evo.MainWith are both superseded (both removed in 1.0): Init is the constructor, Main/Output.Run are the lifecycle. Flagging a MainWith call site is required.
 	src := `package main
 import evo "github.com/zachbornheimer/evident-output"
 func main() {
   out := evo.New(evo.Config{Title: "t"})
-  evo.MainWith(out, run)
+  evo.MainWith(out, run) // removed in 1.0 — fixture pins the detector still catches it
 }
 `
 	res := review.GoSource("main.go", src)
 	found := findAPI032(res)
-	var sawNew, sawMainWith bool
+	var sawNew, sawMainWith bool // sawMainWith: MainWith was removed in 1.0
 	for _, f := range found {
 		if strings.Contains(f.Message, "evo.New") || strings.Contains(f.Suggestion, "evo.New") {
 			sawNew = true
 		}
-		if strings.Contains(f.Message, "MainWith") || strings.Contains(f.Suggestion, "MainWith") {
-			sawMainWith = true
+		if strings.Contains(f.Message, "MainWith") || strings.Contains(f.Suggestion, "MainWith") { // removed in 1.0
+			sawMainWith = true // MainWith: removed in 1.0
 			if !strings.Contains(f.Suggestion, "out.Run(run)") {
-				t.Errorf("MainWith suggestion must name out.Run(run), got %q", f.Suggestion)
+				t.Errorf("MainWith (removed in 1.0) suggestion must name out.Run(run), got %q", f.Suggestion)
 			}
 		}
 	}
 	if !sawNew {
 		t.Fatalf("expected API-032 finding for evo.New in main, got %+v", found)
 	}
-	if !sawMainWith {
-		t.Fatalf("expected API-032 finding for evo.MainWith, got %+v", found)
+	if !sawMainWith { // MainWith: removed in 1.0
+		t.Fatalf("expected API-032 finding for evo.MainWith (removed in 1.0), got %+v", found)
 	}
 }
 
@@ -2103,20 +2108,22 @@ func previewPurge(roots []string) error {
 	}
 }
 
-func TestLOOP001_NoFalsePositiveOnGroupEach(t *testing.T) {
+func TestLOOP001_NoFalsePositiveOnGroupTaskPerItem(t *testing.T) {
 	good := `package app
 import evo "github.com/zachbornheimer/evident-output"
 func scan(paths []string) {
   out := evo.Init(evo.Config{Title: "zq"})
-  for path, task := range out.Group("worktrees").Each(paths) {
-    task.Define(func(ctx context.Context) error { return filepath.WalkDir(path, nil) })
+  worktrees := out.Group("worktrees")
+  for _, path := range paths {
+    path := path
+    worktrees.Task(path).Define(func(ctx context.Context) error { return filepath.WalkDir(path, nil) })
   }
 }
 `
-	res := review.GoSource("each_ok.go", good)
+	res := review.GoSource("group_task_ok.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "LOOP-001" {
-			t.Fatalf("false positive LOOP-001 on Group.Each: %+v", res.Findings)
+			t.Fatalf("false positive LOOP-001 on Group + one Task per item: %+v", res.Findings)
 		}
 	}
 }

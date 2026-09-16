@@ -317,7 +317,7 @@ func detectGoroutineResolvesPredeclaredTask(filename, src string) []Finding {
 					Message:    "goroutine/fan-out closure resolves a predeclared Task (Doing/Done/Fail/Progress) with no Define; evo never received this work to schedule",
 					File:       filename,
 					Line:       lineAt(src, start),
-					Suggestion: "predeclare with Group(...).Each(items) or Group.Task(...), then call task.Define(func() error { ... }) instead of a bare goroutine",
+					Suggestion: "predeclare with Group.Task(...) (one named Task per item), then call task.Define(func() error { ... }) instead of a bare goroutine",
 				})
 			}
 			i = start + len(body)

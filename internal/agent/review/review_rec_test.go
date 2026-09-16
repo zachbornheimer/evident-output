@@ -46,12 +46,12 @@ func f(task *evo.TaskHandle, n int) {
 	}
 }
 
-func TestAPI032_OldRemoveSkipStartPhaseMainWith(t *testing.T) {
+func TestAPI032_OldRemoveSkipStartPhaseMainWith(t *testing.T) { // MainWith: removed in 1.0, still detected as a fixture of old code
 	src := `package main
 import evo "github.com/zachbornheimer/evident-output"
 func main() {
 	out := evo.Init(evo.Config{Title: "t", Isolated: true})
-	evo.MainWith(out, run)
+	evo.MainWith(out, run) // MainWith: removed in 1.0, fixture pins the detector still catches old call sites
 }
 func run(out *evo.Output) error {
 	task := out.Task("worktrees", evo.StartPhase("scanning worktrees"))
@@ -79,7 +79,7 @@ func run(out *evo.Output) error {
 		}
 	}
 	if len(found) == 0 {
-		t.Fatalf("want API-032 for Remove/Skip/StartPhase/MainWith/Task-printf, got none")
+		t.Fatalf("want API-032 for Remove/Skip/StartPhase/MainWith (removed in 1.0)/Task-printf, got none")
 	}
 }
 
