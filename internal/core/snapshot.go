@@ -62,8 +62,11 @@ type Snapshot struct {
 
 // TaskSnapshot is an immutable task view.
 type TaskSnapshot struct {
-	ID    string
-	Key   string // optional stable machine key (evo.ID); empty when unset
+	ID string
+	// Key is the §3.1 stable machine identity: the default kind+parent-key+
+	// normalized-name derivation, or an explicit evo.ID/TaskHandle.Key
+	// override. Always populated once the task is declared.
+	Key   string
 	Name  string
 	State EntityState
 	Phase string
@@ -102,6 +105,12 @@ type TaskSnapshot struct {
 	Kept        []TaxonomyRecord
 	Collection  string
 	Declaration int
+	// Resolution names why this Task settled successfully (§29/§30): empty
+	// until it does. See Resolution's own doc for the three reasons.
+	Resolution Resolution
+	// Evidence preserves both Verify observation phases this Task recorded,
+	// if any (§30) — the zero value when Verify was never called.
+	Evidence TaskEvidence
 	// synthetic marks a task the library invented to carry an output-level
 	// outcome (Output.Failf/Cancel) rather than one the caller declared —
 	// presentation-internal bookkeeping (coalescing), never part of the
@@ -150,7 +159,13 @@ type TaxonomyRecord struct {
 // TasksSnapshot is an immutable collection view (evo.DisplayGroup or
 // evo.Sequence).
 type TasksSnapshot struct {
-	ID      string
+	ID string
+	// Key is the §3.1 stable machine identity for this Group/Sequence: the
+	// default kind+parent-key+normalized-name derivation, or an explicit
+	// override. Always populated — Group/Sequence keys are recorded even
+	// though the container itself carries no persisted operation state,
+	// because Task parent identity and manifest graph edges depend on them.
+	Key     string
 	Name    string
 	State   EntityState
 	Summary string

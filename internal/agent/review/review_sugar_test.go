@@ -18,7 +18,7 @@ const instantDoneToolFixedSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
 func bind(out *evo.Output, path string) {
   t := out.Task("go@1.25.11")
-  t.Define(func() error {
+  t.Define(func(ctx context.Context) error {
     return resolve(path)
   })
 }

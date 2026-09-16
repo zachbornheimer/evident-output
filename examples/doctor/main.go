@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -39,7 +40,7 @@ func main() {
 	// evo.Run (not Main) here: this entrypoint needs the exit code before it
 	// exits, so it can print the --json snapshot first — Main's immediate
 	// os.Exit would skip that.
-	code := evo.Run(func() error {
+	result := evo.Run(context.Background(), func(ctx context.Context) error {
 		// Only audible when --verbose (or VerbosityVerbose config).
 		evo.Verbose().Printf("Strict policy: %t\n", *strict)
 		evo.Verbose().Printf("Probe interval: %s\n", step)
@@ -80,5 +81,5 @@ func main() {
 		}
 		_, _ = fmt.Fprintln(os.Stdout, string(b))
 	}
-	os.Exit(code)
+	os.Exit(result.ExitCode())
 }

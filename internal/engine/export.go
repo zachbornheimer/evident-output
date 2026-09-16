@@ -49,7 +49,6 @@ func StartPhase(text string) EntityOption {
 func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	return renderPlain(s, opts)
 }
-func MainWith(out *Output, run func(*Output) error) { mainWith(out, run) }
 
 type Evidence = evidence
 type Scope = scope

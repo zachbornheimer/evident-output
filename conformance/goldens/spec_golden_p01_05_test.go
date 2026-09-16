@@ -2,6 +2,7 @@ package goldens_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -35,9 +36,8 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	}, evo.Affected(8))
 	worktrees := out.Group("worktrees")
 	protected := evo.Reason("protected")
-	for name, task := range worktrees.Each(eachSkipNames("skip", 6)) {
-		_ = name
-		task.Skipped(protected)
+	for _, name := range eachSkipNames("skip", 6) {
+		worktrees.Task(name).Skipped(protected)
 	}
 	worktrees.Task("remove").Fail("remove failed", evo.Detail("path locked: ../.worktrees/app-sah-1"))
 	if err := out.Finish(); err != nil {
@@ -48,17 +48,22 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	// The spec's bare "!  skipped 6" is a shorthand illustration; the real
 	// taxonomy line is always derived with a reason partition
 	// (task_taxonomy.go: "the taxonomy line... is derived from every
-	// accumulated record at render time"), so it renders "skipped 6
-	// (protected)" — a superset of the spec's count, never a contradiction.
+	// accumulated record at render time"). Each's own collection-level
+	// rollup summing that partition across many same-shaped children
+	// (collectEachTaxonomy) was removed with Each in 1.0 (§3.1: get-or-create
+	// reliance is unsound); each plain Group child now renders its own
+	// "skipped 1 (protected)" line individually.
 	for _, want := range []string{
 		"✓ branches 8 deleted",
 		"✗ worktrees",
 		"remove failed",
-		"path locked: ../.worktrees/app-sah-1",
-		"skipped 6 (protected)"} {
+		"path locked: ../.worktrees/app-sah-1"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
+	}
+	if n := strings.Count(collapsed, "skipped 1 (protected)"); n != 6 {
+		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
 	}
 }
 
@@ -77,9 +82,8 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	g := out.Group("branches")
 	g.Task("deleted").Delete("branch", func() error { return nil }, evo.Affected(8))
 	protected := evo.Reason("protected")
-	for name, task := range g.Each(eachSkipNames("skip", 6)) {
-		_ = name
-		task.Skipped(protected)
+	for _, name := range eachSkipNames("skip", 6) {
+		g.Task(name).Skipped(protected)
 	}
 	g.Task("feat/x").Fail("git: cannot lock ref 'refs/heads/feat/x'", evo.Detail("another git process seems to be running"))
 	if err := out.Finish(); err != nil {
@@ -91,15 +95,19 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	// reachable literal — the real taxonomy line always carries a mechanical
 	// reason partition instead (see the Failure cell above), which still
 	// proves the same underlying contract: the skip count survives the
-	// error, uncorrupted.
+	// error, uncorrupted. Each's own cross-child rollup (collectEachTaxonomy)
+	// was removed with Each in 1.0 (§3.1) — each plain Group child renders
+	// its own line, asserted by count below.
 	for _, want := range []string{
 		"8 branches deleted",
 		"git: cannot lock ref 'refs/heads/feat/x'",
-		"another git process seems to be running",
-		"skipped 6 (protected)"} {
+		"another git process seems to be running"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
+	}
+	if n := strings.Count(collapsed, "skipped 1 (protected)"); n != 6 {
+		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
 	}
 }
 
@@ -415,13 +423,11 @@ func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "python", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
-	setup.Task("scan").Define(func() error { return nil })
-	setup.Task("venv").Define(func() error { return nil })
+	setup.Task("scan").Define(func(ctx context.Context) error { return nil })
+	setup.Task("venv").Define(func(ctx context.Context) error { return nil })
 	optional := evo.Reason("optional extras")
-	for name, task := range setup.Each([]string{"extra-0", "extra-1"}) {
-		_ = name
-		task.Skipped(optional)
-	}
+	setup.Task("extra-0").Skipped(optional)
+	setup.Task("extra-1").Skipped(optional)
 	setup.Task("install").Fail("uv pip install failed", evo.Detail("Could not find a version that satisfies requests==99.0"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -432,11 +438,16 @@ func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 		"✓ scan",
 		"✓ venv",
 		"✗ install uv pip install failed",
-		"skipped 2 (optional extras)",
 		"Could not find a version that satisfies requests==99.0"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
+	}
+	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 2
+	// (optional extras)") was removed with Each in 1.0 (§3.1) — each plain
+	// Sequence child renders its own line.
+	if n := strings.Count(collapsed, "skipped 1 (optional extras)"); n != 2 {
+		t.Fatalf("want 2 individual skipped-taxonomy lines, got %d:\n%s", n, got)
 	}
 }
 
@@ -455,8 +466,8 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "python", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
-	setup.Task("scan").Define(func() error { return nil })
-	setup.Task("venv").Define(func() error { return nil })
+	setup.Task("scan").Define(func(ctx context.Context) error { return nil })
+	setup.Task("venv").Define(func(ctx context.Context) error { return nil })
 	install := setup.Task("install")
 	install.Record("create", 1, ".venv")
 	install.Progress(6, 14)

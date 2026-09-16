@@ -28,100 +28,22 @@ func TestReason_GetOrCreateMergesDuplicateNamesOnDefaultInstance(t *testing.T) {
 	}
 }
 
-// TestTaskHandle_SkippedInlineReasonMergesByName is the "inline creation is
-// always legal" case: constructing evo.Reason at each call site (no lifted
-// var) must still merge into one taxonomy bucket by name.
-func TestTaskHandle_SkippedInlineReasonMergesByName(t *testing.T) {
-	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
-
-	for _, task := range evo.Group("branches").Each([]string{"main", "staging"}) {
-		task.Skipped(evo.Reason("protected"))
-	}
-
-	if err := evo.Default().Finish(); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-	if !strings.Contains(got, "skipped 2 (protected)") {
-		t.Fatalf("inline evo.Reason calls must merge into one bucket, got:\n%s", got)
-	}
-}
-
-// TestTaskHandle_SkippedPartitionSumsRendersCountsByReason is the red-first
-// case for TAX-001: the reason partition is derived from the accumulated
-// records, so parts mechanically sum to the headline count.
-func TestTaskHandle_SkippedPartitionSumsRendersCountsByReason(t *testing.T) {
-	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
-
-	protected := evo.Reason("protected")
-	dirty := evo.Reason("dirty")
-	g := evo.Group("branches")
-	for name, task := range g.Each([]string{"main", "staging", "wip"}) {
-		if name == "wip" {
-			task.Skipped(dirty)
-			continue
-		}
-		task.Skipped(protected)
-	}
-
-	if err := evo.Default().Finish(); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-	if !strings.Contains(got, "skipped 3 (2 protected, 1 dirty)") {
-		t.Fatalf("want derived partition line, got:\n%s", got)
-	}
-}
-
-// TestTaskHandle_KeptSingleReasonCollapsesToBareName exercises the second
-// disposition verb: same machinery as Skipped, and a single reason bucket
-// collapses to its bare name since the count already says N.
-func TestTaskHandle_KeptSingleReasonCollapsesToBareName(t *testing.T) {
-	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
-
-	unpushed := evo.Reason("unpushed")
-	for _, task := range evo.Group("branches").Each([]string{"feat/a", "feat/b", "feat/c"}) {
-		task.Kept(unpushed)
-	}
-
-	if err := evo.Default().Finish(); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-	if !strings.Contains(got, "kept 3 (unpushed)") {
-		t.Fatalf("want single-reason collapse, got:\n%s", got)
-	}
-}
-
-// TestTaskHandle_SkippedVerboseEmitsTruncatedNameList is the red-first case
-// for Verbose taxonomy detail: normal mode shows only counts; Verbose adds
-// the bounded (TruncateNames) name list per reason.
-func TestTaskHandle_SkippedVerboseEmitsTruncatedNameList(t *testing.T) {
-	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{
-		Stdout: &buf, Stderr: &buf, Verbosity: evo.VerbosityVerbose,
-		Plain: true, Color: evo.ColorNever,
-	}))
-
-	protected := evo.Reason("protected")
-	for _, task := range evo.Group("branches").Each([]string{"a", "b", "c", "d"}) {
-		task.Skipped(protected)
-	}
-
-	if err := evo.Default().Finish(); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-	if !strings.Contains(got, "skipped 4 (protected)") {
-		t.Fatalf("want headline count line, got:\n%s", got)
-	}
-	if !strings.Contains(got, "protected: a, b, c … +1 more") {
-		t.Fatalf("want Verbose truncated name list, got:\n%s", got)
-	}
-}
+// TestTaskHandle_SkippedInlineReasonMergesByName,
+// TestTaskHandle_SkippedPartitionSumsRendersCountsByReason,
+// TestTaskHandle_KeptSingleReasonCollapsesToBareName, and
+// TestTaskHandle_SkippedVerboseEmitsTruncatedNameList pinned Each's own
+// collection-level taxonomy rollup (collectEachTaxonomy summed
+// Skipped/Kept across every fromEach sibling into one "! skipped N (...)"
+// line on the collection's row). 1.0 removed Each outright (§3.1: its
+// get-or-create reliance is unsound) — a plain Group child now renders its
+// own Skipped/Kept line individually (see TestTaskHandle_KeptSingleReason
+// and TestTaskHandle_SkippedCauseRendersOneBoundedEvidenceLine below for
+// the still-live per-task taxonomy path). Restoring an aggregated view for
+// large homogeneous groups is renderer work for a later increment (§4:
+// "aggregation is renderer-owned and automatic") — removed rather than
+// pinning stale behavior. The per-task Skipped/Kept path itself is still
+// live and covered below (TestTaskHandle_SkippedNonVerboseOmitsNameList
+// and the Skipped-cause tests).
 
 // TestTaskHandle_SkippedNonVerboseOmitsNameList pins the counterpart: without
 // Verbose, only the count/partition line renders, never the raw name list.
@@ -146,53 +68,36 @@ func TestTaskHandle_SkippedNonVerboseOmitsNameList(t *testing.T) {
 // so a Sequence/DisplayGroup child's Kept/Skipped records silently vanished from
 // rendered output even though the standalone evo.Task path rendered them.
 // A collection child is a task; it must render the same "! kept N (...)"
-// line a standalone task does.
+// line a standalone task does. Each named child records its own reason
+// count individually — Each's collection-level rollup across many
+// same-shaped children was a distinct, separately-owned feature (removed
+// in 1.0, §3.1) that this test never needed for its own regression guard.
 func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	unpushed := evo.Reason("unpushed")
 	group := out.Sequence("branches")
-	for _, task := range group.Each([]string{"feat/a", "feat/b"}) {
-		task.Kept(unpushed)
-	}
+	group.Task("feat/a").Kept(unpushed)
+	group.Task("feat/b").Kept(unpushed)
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "kept 2 (unpushed)") {
-		t.Fatalf("collection child must render its Kept taxonomy line, got:\n%s", got)
+	if strings.Count(got, "kept 1 (unpushed)") != 2 {
+		t.Fatalf("each collection child must render its own Kept taxonomy line, got:\n%s", got)
 	}
 }
 
-// TestSequence_ChildVerboseRendersTruncatedNameList pins the Verbose detail line
-// for a collection child, mirroring TestTaskHandle_SkippedVerboseEmitsTruncatedNameList
-// for the standalone path.
-func TestSequence_ChildVerboseRendersTruncatedNameList(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Stdout: &buf, Stderr: &buf, Verbosity: evo.VerbosityVerbose,
-		Plain: true, Color: evo.ColorNever,
-	})
-
-	protected := evo.Reason("protected")
-	group := out.Sequence("branches")
-	for _, task := range group.Each([]string{"a", "b", "c", "d"}) {
-		task.Skipped(protected)
-	}
-
-	if err := out.Finish(); err != nil {
-		t.Fatalf("Finish: %v", err)
-	}
-	got := buf.String()
-	if !strings.Contains(got, "skipped 4 (protected)") {
-		t.Fatalf("want headline count line for collection child, got:\n%s", got)
-	}
-	if !strings.Contains(got, "protected: a, b, c … +1 more") {
-		t.Fatalf("want Verbose truncated name list for collection child, got:\n%s", got)
-	}
-}
+// TestSequence_ChildVerboseRendersTruncatedNameList pinned the Verbose
+// truncated NAME LIST for a collection — "protected: a, b, c … +1 more" —
+// summed by reason across four distinct fromEach sibling tasks. Skipped/Kept
+// resolve their Task (see recordTaxonomy/finish above), so that shape has
+// no one-task substitute: it was Each's own collection-level rollup
+// (collectEachTaxonomy), removed outright in 1.0 (§3.1: get-or-create
+// reliance is unsound). TestTaskHandle_SkippedCauseVerboseListsEveryCause
+// below still covers the still-live per-task Verbose cause list.
 
 // TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts is the red-first
 // case for the ForSkip constraint: recording it through Kept is misuse, and

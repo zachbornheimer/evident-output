@@ -5,7 +5,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"os"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -22,7 +24,7 @@ func main() {
 	}
 
 	evo.Init(evo.Config{Title: "branch audit"})
-	evo.Main(func() error {
+	os.Exit(evo.Main(func(ctx context.Context) error {
 		jobs := evo.Sequence("audit")
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
@@ -41,5 +43,5 @@ func main() {
 			evo.Task("branches").Done()
 		}
 		return nil
-	})
+	}))
 }

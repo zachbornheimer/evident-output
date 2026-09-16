@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"strings"
@@ -23,18 +24,18 @@ func TestWait_NotStartedDependencyIsAnError(t *testing.T) {
 	out := isolatedScheduler(t, 1, &buf, false)
 
 	gate := out.Task("gate")
-	gate.Define(func() error { return errProbe })
+	gate.Define(func(ctx context.Context) error { return errProbe })
 
 	blocked := out.Task("blocked").After(gate)
 	var blockedRan atomic.Bool
-	blocked.Define(func() error {
+	blocked.Define(func(ctx context.Context) error {
 		blockedRan.Store(true)
 		return nil
 	})
 
 	var waitErr error
 	waiter := out.Task("waiter")
-	waiter.Define(func() error {
+	waiter.Define(func(ctx context.Context) error {
 		waitErr = blocked.Wait()
 		return waitErr
 	})
@@ -77,7 +78,7 @@ func TestWait_ReleasesSlotWhileBlocked(t *testing.T) {
 	waiterHoldsTheSlot := make(chan struct{})
 	chainQueued := make(chan struct{})
 	var waitErr error
-	waiter.Define(func() error {
+	waiter.Define(func(ctx context.Context) error {
 		close(waiterHoldsTheSlot)
 		<-chainQueued
 		waitErr = locked.Wait()
@@ -85,8 +86,8 @@ func TestWait_ReleasesSlotWhileBlocked(t *testing.T) {
 	})
 
 	<-waiterHoldsTheSlot
-	unlock.Define(func() error { return nil })
-	locked.Define(func() error { return nil })
+	unlock.Define(func(ctx context.Context) error { return nil })
+	locked.Define(func(ctx context.Context) error { return nil })
 	close(chainQueued)
 
 	withinBudget(t, "Finish at MaxConcurrency 1 with a blocked waiter", func() {
@@ -122,7 +123,7 @@ func TestWait_OnSelfIsMisuse(t *testing.T) {
 	var waitErr error
 	task := out.Task("mirror")
 	withinBudget(t, "a callback waiting on its own task", func() {
-		task.Define(func() error {
+		task.Define(func(ctx context.Context) error {
 			waitErr = task.Wait()
 			return waitErr
 		})
@@ -160,12 +161,12 @@ func TestWait_MutualCycleIsMisuse(t *testing.T) {
 	// no callback yet returns at once, and would test nothing.
 	bothQueued := make(chan struct{})
 	var firstErr, secondErr error
-	first.Define(func() error {
+	first.Define(func(ctx context.Context) error {
 		<-bothQueued
 		firstErr = second.Wait()
 		return firstErr
 	})
-	second.Define(func() error {
+	second.Define(func(ctx context.Context) error {
 		<-bothQueued
 		secondErr = first.Wait()
 		return secondErr
@@ -200,7 +201,7 @@ func TestWait_FromOutsideAnyCallbackStillBlocks(t *testing.T) {
 	release := make(chan struct{})
 	var ran atomic.Bool
 	task := out.Task("slow")
-	task.Define(func() error {
+	task.Define(func(ctx context.Context) error {
 		close(running)
 		<-release
 		ran.Store(true)

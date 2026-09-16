@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -189,23 +190,29 @@ func TestSequence_SequentialBytesProgressFinishesClean(t *testing.T) {
 	}
 }
 
-// TestSequence_PackageLevelGetOrCreate mirrors evo.Task's identity contract:
-// evo.Sequence(name) called twice returns the same handle, and Sequence.Task(name)
-// called twice within one group returns the same child.
-func TestSequence_PackageLevelGetOrCreate(t *testing.T) {
+// TestSequence_PackageLevelRepeatIsDuplicateSibling mirrors evo.Task's
+// identity contract (§3.1): evo.Sequence(name) called twice, and
+// Sequence.Task(name) called twice within one sequence, are duplicate
+// sibling declarations — each second call reports a distinct, orphaned
+// handle instead of silently merging into the first.
+func TestSequence_PackageLevelRepeatIsDuplicateSibling(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	evo.SetDefault(out)
 	t.Cleanup(func() { _ = evo.Default().Close() })
 
 	g1 := evo.Sequence("python")
 	g2 := evo.Sequence("python")
-	if g1 != g2 {
-		t.Fatal("evo.Sequence(name) called twice returned different handles")
+	if g1 == g2 {
+		t.Fatal("evo.Sequence(name) called twice must return distinct handles")
+	}
+	if !errors.Is(out.Err(), evo.ErrDuplicateSiblingName) {
+		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.Err())
 	}
 
 	t1 := g1.Task("venv")
-	t2 := g2.Task("venv")
-	if t1 != t2 {
-		t.Fatal("Sequence.Task(name) called twice returned different handles")
+	t2 := g1.Task("venv")
+	if t1 == t2 {
+		t.Fatal("Sequence.Task(name) called twice must return distinct handles")
 	}
 }
