@@ -76,6 +76,11 @@ func TestEVOVERIFY001_ReadOnlyVerify_StaysSilent(t *testing.T) {
 	assertNoFinding(t, res, "EVO-VERIFY-001")
 }
 
+func TestEVOVERIFY001_AmbiguouslyNamedHandle_StillFires(t *testing.T) {
+	res := review.GoSource("verify_001_bad_ambiguous_name.go", readFixture(t, "verify_001_bad_ambiguous_name.go"))
+	assertFinding(t, res, "EVO-VERIFY-001")
+}
+
 func TestEVODRYRUN001_RawMutationInDefine_Fires(t *testing.T) {
 	res := review.GoSource("dryrun_001_bad.go", readFixture(t, "dryrun_001_bad.go"))
 	f := assertFinding(t, res, "EVO-DRYRUN-001")
@@ -129,6 +134,11 @@ func TestEVODAG002_SingleExceptionalAfterEdge_StaysSilent(t *testing.T) {
 func TestEVODAG002_UnrelatedNonEvoAfterChain_StaysSilent(t *testing.T) {
 	res := review.GoSource("dag_002_unrelated_after_chain.go", readFixture(t, "dag_002_unrelated_after_chain.go"))
 	assertNoFinding(t, res, "EVO-DAG-002")
+}
+
+func TestEVODAG002_AmbiguouslyNamedHandles_StillFires(t *testing.T) {
+	res := review.GoSource("dag_002_bad_ambiguous_name.go", readFixture(t, "dag_002_bad_ambiguous_name.go"))
+	assertFinding(t, res, "EVO-DAG-002")
 }
 
 func TestEVODAG003_ProducerConsumerWithNoOrdering_Fires(t *testing.T) {

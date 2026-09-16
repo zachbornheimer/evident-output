@@ -68,10 +68,12 @@ func firstRawMutationCall(node ast.Node) (pos token.Pos, name string, found bool
 }
 
 // funcLitArgAt returns call's argN as a *ast.FuncLit when the call is a
-// method (sel.X is the receiver) with exactly argCount arguments, else ok=false.
-func funcLitArgAt(call *ast.CallExpr, method string, argCount, argN int) (*ast.SelectorExpr, *ast.FuncLit, bool) {
+// method (sel.X is the receiver) with exactly argCount arguments, else
+// ok=false. disproven is evoDisprovenVars(file) — pass the same set the
+// caller already computed once per file.
+func funcLitArgAt(call *ast.CallExpr, method string, argCount, argN int, disproven map[string]bool) (*ast.SelectorExpr, *ast.FuncLit, bool) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || sel.Sel.Name != method || len(call.Args) != argCount || !isLikelyEvoReceiver(sel.X) {
+	if !ok || sel.Sel.Name != method || len(call.Args) != argCount || !isLikelyEvoTaskReceiver(sel.X, disproven) {
 		return nil, nil, false
 	}
 	fl, ok := call.Args[argN].(*ast.FuncLit)
@@ -81,6 +83,97 @@ func funcLitArgAt(call *ast.CallExpr, method string, argCount, argN int) (*ast.S
 	return sel, fl, true
 }
 
+// isLikelyEvoTaskReceiver is isLikelyEvoReceiver's known-package check
+// without the Start-only ambiguous-name exclusion (see isLikelyEvoReceiver's
+// doc comment) — used by the deterministic EVO-EVIDENCE-001/VERIFY-001/
+// DRYRUN-001/DAG-002/DAG-003 detectors. Their gating method names (Evidence,
+// Verify, Define, After) are Evo-specific enough that excluding a variable
+// by name alone (e.g. "process", "child") would silently miss a real
+// *evo.TaskHandle sharing that name; disproven instead names identifiers
+// this file can structurally prove are not Evo (spec §57).
+func isLikelyEvoTaskReceiver(x ast.Expr, disproven map[string]bool) bool {
+	switch v := x.(type) {
+	case *ast.Ident:
+		if knownNonEvoPackages[v.Name] || disproven[v.Name] {
+			return false
+		}
+		return true
+	case *ast.CallExpr:
+		return true // seq.Task("x").Define(...)
+	case *ast.SelectorExpr:
+		return isLikelyEvoTaskReceiver(v.X, disproven)
+	case *ast.ParenExpr:
+		return isLikelyEvoTaskReceiver(v.X, disproven)
+	default:
+		return true
+	}
+}
+
+// evoLocalStructNames collects every struct type this file declares — Evo
+// never hands back a locally-declared struct, so a variable proven to hold
+// one of these is proven not to be an Evo handle (spec §57).
+func evoLocalStructNames(file *ast.File) map[string]bool {
+	names := map[string]bool{}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			ts, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+			if _, isStruct := ts.Type.(*ast.StructType); isStruct {
+				names[ts.Name.Name] = true
+			}
+		}
+	}
+	return names
+}
+
+// evoDisprovenVars collects every identifier this file assigns from a
+// composite literal (bare or address-of) of one of its own locally-declared
+// struct types — structural proof the identifier cannot hold a real Evo
+// handle no matter what it is named, replacing a name-based guess with a
+// fact the AST already states (spec §57).
+func evoDisprovenVars(file *ast.File) map[string]bool {
+	localStructs := evoLocalStructNames(file)
+	disproven := map[string]bool{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for i, rhs := range assign.Rhs {
+			if i >= len(assign.Lhs) {
+				continue
+			}
+			lhs, ok := assign.Lhs[i].(*ast.Ident)
+			if !ok || !isLocalStructLiteral(rhs, localStructs) {
+				continue
+			}
+			disproven[lhs.Name] = true
+		}
+		return true
+	})
+	return disproven
+}
+
+// isLocalStructLiteral reports whether e is `LocalType{...}` or
+// `&LocalType{...}` for a type name present in localStructs.
+func isLocalStructLiteral(e ast.Expr, localStructs map[string]bool) bool {
+	if u, ok := e.(*ast.UnaryExpr); ok && u.Op == token.AND {
+		e = u.X
+	}
+	cl, ok := e.(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+	id, ok := cl.Type.(*ast.Ident)
+	return ok && localStructs[id.Name]
+}
+
 // ===== EVO-EVIDENCE-001: a legacy named task.Evidence("name", func() error
 // { ... }) callback performs a raw mutation. Evidence is superseded as a
 // boolean current-state conclusion; it was never the place mutation happens
@@ -88,12 +181,13 @@ func funcLitArgAt(call *ast.CallExpr, method string, argCount, argN int) (*ast.S
 
 func detectMutatingLegacyEvidence(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
+	disproven := evoDisprovenVars(file)
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
-		sel, fl, ok := funcLitArgAt(call, "Evidence", 2, 1)
+		sel, fl, ok := funcLitArgAt(call, "Evidence", 2, 1, disproven)
 		if !ok {
 			return true
 		}
@@ -124,12 +218,13 @@ func detectMutatingLegacyEvidence(filename string, file *ast.File, fset *token.F
 
 func detectMutatingVerify(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
+	disproven := evoDisprovenVars(file)
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
-		sel, fl, ok := funcLitArgAt(call, "Verify", 1, 0)
+		sel, fl, ok := funcLitArgAt(call, "Verify", 1, 0, disproven)
 		if !ok {
 			return true
 		}
@@ -161,12 +256,13 @@ func detectMutatingVerify(filename string, file *ast.File, fset *token.FileSet) 
 
 func detectRawMutationInDefine(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
+	disproven := evoDisprovenVars(file)
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
-		sel, fl, ok := funcLitArgAt(call, "Define", 1, 0)
+		sel, fl, ok := funcLitArgAt(call, "Define", 1, 0, disproven)
 		if !ok {
 			return true
 		}

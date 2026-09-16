@@ -56,6 +56,7 @@ type afterEdge struct {
 }
 
 func collectAfterEdges(file *ast.File) []afterEdge {
+	disproven := evoDisprovenVars(file)
 	var edges []afterEdge
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -63,7 +64,7 @@ func collectAfterEdges(file *ast.File) []afterEdge {
 			return true
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "After" || len(call.Args) != 1 || !isLikelyEvoReceiver(sel.X) {
+		if !ok || sel.Sel.Name != "After" || len(call.Args) != 1 || !isLikelyEvoTaskReceiver(sel.X, disproven) {
 			return true
 		}
 		child := exprDottedName(sel.X)
@@ -139,12 +140,13 @@ var resourceReadCallNames = map[string]bool{
 }
 
 func collectResourceEdges(file *ast.File, evoPkg string) (produces, consumes []resourceEdge) {
+	disproven := evoDisprovenVars(file)
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
-		_, fl, ok := funcLitArgAt(call, "Define", 1, 0)
+		_, fl, ok := funcLitArgAt(call, "Define", 1, 0, disproven)
 		if !ok {
 			return true
 		}
