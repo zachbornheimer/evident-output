@@ -1,0 +1,252 @@
+func (Failure) Error()  string
+func (Failure) Next(actions ...Action)  *Failure
+func (Failure) NextCommand(executable string, args ...string)  *Failure
+func (Failure) Unwrap()  error
+func (GroupHandle) Group(name string)  *GroupHandle
+func (GroupHandle) Sequence(name string)  *SequenceHandle
+func (GroupHandle) Snapshot()  TasksSnapshot
+func (GroupHandle) Summary(text string)  *GroupHandle
+func (GroupHandle) Task(name string)  *TaskHandle
+func (Output) Cancel(reason string)
+func (Output) Close()  error
+func (Output) Conclusion()  Conclusion
+func (Output) Confirm(question string, opts ...ConfirmOption)  bool
+func (Output) Context()  context.Context
+func (Output) Err()  error
+func (Output) Fact(name, value string)
+func (Output) Fail(summary string, options ...ProblemOption)
+func (Output) Failf(format string, args ...any)
+func (Output) Finish()  error
+func (Output) Group(name string)  *GroupHandle
+func (Output) Next(actions ...Action)
+func (Output) NextCommand(executable string, args ...string)
+func (Output) Print(args ...any)
+func (Output) Printf(format string, args ...any)
+func (Output) Println(args ...any)
+func (Output) ResultWriter()  io.Writer
+func (Output) Run(ctx context.Context, run RunFunc)  Result
+func (Output) Sequence(name string)  *SequenceHandle
+func (Output) Snapshot()  Snapshot
+func (Output) Suspend(fn func() error)  error
+func (Output) Task(name string)  *TaskHandle
+func (Output) Warn(summary string)
+func (Output) Writer()  io.Writer
+func (Printer) Print(args ...any)
+func (Printer) Printf(format string, args ...any)
+func (Printer) Println(args ...any)
+func (Printer) Writer()  io.Writer
+func (SequenceHandle) Group(name string)  *GroupHandle
+func (SequenceHandle) Sequence(name string)  *SequenceHandle
+func (SequenceHandle) Snapshot()  TasksSnapshot
+func (SequenceHandle) Summary(text string)  *SequenceHandle
+func (SequenceHandle) Task(name string)  *TaskHandle
+func (TaskHandle) Add(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) After(preds ...any)  *TaskHandle
+func (TaskHandle) Block(summary string, options ...ProblemOption)
+func (TaskHandle) Blockf(format string, args ...any)  *Failure
+func (TaskHandle) Bytes(completed, total int64)  *TaskHandle
+func (TaskHandle) Cancel(reason string)
+func (TaskHandle) Context()  context.Context
+func (TaskHandle) Create(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) Define(fn func(context.Context) error)
+func (TaskHandle) Delete(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
+func (TaskHandle) Done(args ...any)
+func (TaskHandle) Fact(name, value string)
+func (TaskHandle) Fail(summary string, options ...ProblemOption)
+func (TaskHandle) Failf(format string, args ...any)  *Failure
+func (TaskHandle) Kept(reason TaxonomyReason)
+func (TaskHandle) Key(key string)  *TaskHandle
+func (TaskHandle) Next(actions ...Action)  *TaskHandle
+func (TaskHandle) NextCommand(executable string, args ...string)  *TaskHandle
+func (TaskHandle) Progress(completed, total int)  *TaskHandle
+func (TaskHandle) Push(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) Record(verb string, quantity int, object string)
+func (TaskHandle) RecordLabel(label string, quantity int, object string)
+func (TaskHandle) RecordName(verb, object string)
+func (TaskHandle) Remove(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) Skipped(reason TaxonomyReason)
+func (TaskHandle) Snapshot()  TaskSnapshot
+func (TaskHandle) Step(completed, total int, name string)  *TaskHandle
+func (TaskHandle) Update(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
+func (TaskHandle) Wait()  error
+func (TaskHandle) Warn(summary string)
+func (TaskHandle) Write(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) Writer()  io.Writer
+func (TaxonomyReason) Name()  string
+func Confirm(question string, opts ...ConfirmOption)  bool
+func Delay(d time.Duration)  *time.Duration
+func EncodeEventJSON(e Event)  []byte,  error
+func EncodeJSON(s Snapshot)  []byte,  error
+func EncodeJSONL(events []Event)  []byte,  error
+func Fact(name, value string)
+func IsCharDevice(w io.Writer)  bool
+func Main(run RunFunc)  int
+func Pluralize(quantity int64, singular string)  string
+func Print(args ...any)
+func Printf(format string, args ...any)
+func Println(args ...any)
+func RenderPlain(s Snapshot, opts PlainOptions)  []byte,  error
+func SetDefault(out *Output)
+func SlogHandler()  slog.Handler
+func TruncateNames(names []string, visible int)  string
+func Warn(summary string)
+type Action
+type Attachment
+type ChangesSnapshot
+type ColorMode
+type CommandSpec
+type Conclusion
+type ConclusionJSON
+type ConclusionState
+type Config
+type ConfirmOption
+type DebugConfig
+type DebugPaneOption
+type DebugPresentation
+type EffectRecord
+type EntityOption
+type EntityState
+type Event
+type EventJSON
+type Evidence
+type EvidenceOption
+type EvidencePhase
+type EvidenceStream
+type FactRecord
+type Failure
+type Field
+type FixedClock
+type Format
+type GlyphProfile
+type GroupHandle
+type JSONAction
+type JSONChanges
+type JSONCollection
+type JSONCommand
+type JSONDocument
+type JSONEffectRecord
+type JSONMessage
+type JSONOutputMeta
+type JSONPlan
+type JSONProblem
+type JSONProgress
+type JSONTask
+type LiveSurface
+type LogLevel
+type LogRecord
+type MessageSnapshot
+type MutationOption
+type NoopRedactor
+type Option
+type Output
+type PlainOptions
+type PlanSnapshot
+type Printer
+type Problem
+type ProblemOption
+type Progress
+type ProgressKind
+type Projection
+type ReasonOption
+type Redactor
+type Resolution
+type Result
+type RunFunc
+type SequenceHandle
+type Snapshot
+type SourceLocation
+type SystemClock
+type TaskEvidence
+type TaskHandle
+type TaskSnapshot
+type TasksSnapshot
+type TaxonomyReason
+type TaxonomyRecord
+type TerminalDriver
+type TimeSource
+type Verbosity
+type Visibility
+value Blocked
+value BytesKind
+value Cancelled
+value ColorAlways
+value ColorAuto
+value ColorNever
+value DebugPresentationHistory
+value DebugPresentationPane
+value DefaultVisibleNames
+value Determinate
+value Done
+value Empty
+value ErrAlreadyResolved
+value ErrClosed
+value ErrConcurrentRunning
+value ErrDryRunDeclaredLate
+value ErrDuplicateKey
+value ErrDuplicateSiblingName
+value ErrInvalidConfig
+value ErrInvalidProgress
+value ErrKeyAfterDefine
+value ErrLimitExceeded
+value ErrNoTaskContext
+value ErrNotStarted
+value ErrProgressRegression
+value ErrReasonSkipOnly
+value ErrReasonWrongTask
+value ErrRenderer
+value ErrTaskClosed
+value ErrTerminalWithoutSink
+value ErrUnresolvedTask
+value ErrWaitDeadlock
+value EventSchemaVersion
+value EvidenceStreamCombined
+value EvidenceStreamStderr
+value EvidenceStreamStdout
+value ExitBlocked
+value ExitCancelled
+value ExitFailed
+value ExitOK
+value Failed
+value FormatData
+value FormatExternal
+value FormatHuman
+value GlyphsASCII
+value GlyphsAuto
+value GlyphsUnicode
+value Incomplete
+value Indeterminate
+value JSONSchemaVersion
+value LevelDebug
+value LevelError
+value LevelInfo
+value LevelTrace
+value LevelUnset
+value LevelWarn
+value NotStarted
+value Pending
+value ProblemCodeDuplicateSiblingName
+value ProblemCodeVerificationUnsatisfied
+value ProjectionHuman
+value ProjectionJSON
+value ProjectionJSONL
+value ProjectionPlain
+value ProjectionStreamJSON
+value PublishedRelease
+value ResolutionAlreadySatisfied
+value ResolutionExecuted
+value ResolutionNoWork
+value Running
+value Skipped
+value StateBlocked
+value StateCancelled
+value StateChanged
+value StateFailed
+value StatePlanned
+value StateReady
+value StateWarning
+value VerbosityNormal
+value VerbosityVerbose
+value VisibilityNormal
+value VisibilityVerbose

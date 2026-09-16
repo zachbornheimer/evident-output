@@ -1,12 +1,18 @@
 package evo
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
+
+// RunFunc is the shape of application work handed to Run/Main/Output.Run —
+// a context.Context carries cancellation (wired to SIGINT/SIGTERM by those
+// entrypoints) in place of the pre-v0.6 no-context func() error form.
+type RunFunc = engine.RunFunc
 
 // Init is the sole Output constructor. It builds an Output from cfg,
 // installs it as the package-level default, and arms first paint — call
@@ -26,11 +32,11 @@ func SetDefault(out *Output) {
 // with a zero Config the first time it's needed.
 func Default() *Output { return wrapOutput(engine.Default()) }
 
-// Task declares (or, for a repeated name, returns) a Task on the default instance.
+// Task declares a Task on the default instance.
 func Task(name string) *TaskHandle { return wrapTask(engine.Task(name)) }
 
-// Sequence declares (or, for a repeated name, returns) a self-managing,
-// ordered task container on the default instance.
+// Sequence declares a self-managing, ordered task container on the default
+// instance.
 func Sequence(name string) *SequenceHandle {
 	return wrapSequence(engine.Sequence(name))
 }
@@ -55,31 +61,15 @@ func Verbose() *Printer { return wrapPrinter(engine.Verbose()) }
 // SlogHandler returns a slog.Handler journaling to the default instance.
 func SlogHandler() slog.Handler { return engine.SlogHandler() }
 
-// Run executes run, finishes the default Output, and returns the conclusion exit code.
-func Run(run func() error) int { return engine.Run(run) }
+// Run executes run against the default Output and returns the Result
+// (Conclusion plus the application error, if any); it never exits the
+// process.
+func Run(ctx context.Context, run RunFunc) Result { return engine.Run(ctx, run) }
 
-// Main executes run and os.Exit's with the conclusion code.
-func Main(run func() error) { engine.Main(run) }
-
-// MainWith executes run against out and os.Exit's with the conclusion code.
-//
-// Superseded by Main (default instance) and Output.Run (hosted instance).
-func MainWith(out *Output, run func(*Output) error) {
-	var inner *engine.Output
-	if out != nil {
-		inner = out.inner
-	}
-	engine.MainWith(inner, func(eng *engine.Output) error {
-		if run == nil {
-			return nil
-		}
-		host := out
-		if host == nil {
-			host = wrapOutput(eng)
-		}
-		return run(host)
-	})
-}
+// Main executes run against the default Output and returns the derived exit
+// code; it does not itself call os.Exit — callers write
+// os.Exit(evo.Main(run)).
+func Main(run RunFunc) int { return engine.Main(run) }
 
 // Confirm asks question on the default instance and returns whether the user accepted.
 func Confirm(question string, opts ...ConfirmOption) bool {

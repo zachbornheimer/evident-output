@@ -1,7 +1,6 @@
 package evo
 
 import (
-	"iter"
 	"sync"
 
 	"github.com/zachbornheimer/evident-output/internal/engine"
@@ -107,15 +106,5 @@ func unwrapPred(p any) any {
 		return x.inner
 	default:
 		return p
-	}
-}
-
-func wrapEach(seq iter.Seq2[string, *engine.TaskHandle]) iter.Seq2[string, *TaskHandle] {
-	return func(yield func(string, *TaskHandle) bool) {
-		for item, task := range seq {
-			if !yield(item, wrapTask(task)) {
-				return
-			}
-		}
 	}
 }
