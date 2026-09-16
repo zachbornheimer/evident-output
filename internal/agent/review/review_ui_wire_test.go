@@ -240,3 +240,30 @@ func f() {
 		t.Fatalf("false positive EVO-LIVE-001 on out.Println: %+v", res.Findings)
 	}
 }
+
+// TestGoSource_EvoUI00x_UnrelatedReceiverNotFlagged covers a file that
+// imports evo (so hasEvo is true) but also calls Print/Printf/Println on
+// receivers unrelated to evo's own Task/Output presentation — a stdlib
+// log.Printf and a cobra *cobra.Command's cmd.Println/cmd.Printf. None of
+// these duplicate an evo Fact/Done/Progress call, so EVO-UI-001/002/003
+// must not fire on them merely because their literal text pattern-matches.
+func TestGoSource_EvoUI00x_UnrelatedReceiverNotFlagged(t *testing.T) {
+	src := `package p
+import (
+  "log"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(cmd *cobra.Command) {
+  _ = evo.Init(evo.Config{})
+  log.Printf("go version: %s\n", "1.23.0")
+  cmd.Println("✓ verified")
+  cmd.Printf("%d/%d done\n", 3, 10)
+}
+`
+	res := review.GoSource("x.go", src)
+	for _, id := range []string{"EVO-UI-001", "EVO-UI-002", "EVO-UI-003"} {
+		if hasFinding(res, id) {
+			t.Fatalf("false positive %s on unrelated (log/cmd) receiver: %+v", id, res.Findings)
+		}
+	}
+}
