@@ -82,6 +82,30 @@ func generate(ctx context.Context) ([]byte, error) { return nil, nil }
 	}
 }
 
+// EVO-FILE-001 (freshness-boundary warning) must not fire on a cheap,
+// non-context-taking local helper before the trailing evo.File return —
+// only work that could plausibly be expensive/mutating (a call threaded
+// with ctx) is in scope for the warning (spec §7).
+func TestEVOFILE001_CheapHelperBeforeTrailingFile_NoWarning(t *testing.T) {
+	src := `package p
+import (
+	"context"
+	evo "github.com/zachbornheimer/evident-output"
+)
+func writeConfig(ctx context.Context, path string, data []byte, basis []evo.Fingerprint) error {
+	key := sanitizeKey(path)
+	return evo.File(ctx, evo.FileSpec{Path: key, Contents: data, Mode: 0o644, Basis: basis})
+}
+func sanitizeKey(path string) string { return path }
+`
+	res := review.GoSource("config.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-FILE-001" && f.Severity == "warning" {
+			t.Fatalf("false positive EVO-FILE-001 warning on cheap helper: %+v", f)
+		}
+	}
+}
+
 // EVO-EXEC-001: raw exec.Command guarded by a hand-rolled staleness check
 // duplicates evo.Exec's Basis/Outputs freshness contract (spec §62 "raw
 // exec + manual output hashes → evo.Exec suggestion").

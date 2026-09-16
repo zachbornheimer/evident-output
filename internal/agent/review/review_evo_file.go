@@ -72,6 +72,10 @@ func detectManualFileReconciliation(filename string, file *ast.File, fset *token
 // warning: a callback that calls out to a local function before its
 // trailing evo.File/evo.Exec return already paid that cost — tracking the
 // operation cannot retroactively skip work that already ran (spec §7).
+// Only a call threaded with a ctx argument is in scope: passing context is
+// the idiomatic Go signal for I/O-bound or cancelable work, which is what
+// can plausibly be expensive enough to matter here — a cheap pure helper
+// (formatting a key, deriving a path) never needs one and is not flagged.
 func detectExpensiveWorkBeforeFileOp(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	forEachFuncBody(file, func(body *ast.BlockStmt) {
@@ -93,7 +97,7 @@ func detectExpensiveWorkBeforeFileOp(filename string, file *ast.File, fset *toke
 					continue
 				}
 				callee, ok := call.Fun.(*ast.Ident)
-				if !ok {
+				if !ok || !callThreadsContext(call) {
 					continue
 				}
 				pos := fset.Position(call.Pos())
@@ -110,6 +114,23 @@ func detectExpensiveWorkBeforeFileOp(filename string, file *ast.File, fset *toke
 		}
 	})
 	return findings
+}
+
+// callThreadsContext reports whether call passes a context-named identifier
+// argument ("ctx" or "context") — the idiomatic marker of I/O-bound or
+// cancelable work, and this detector's proxy for "plausibly expensive".
+func callThreadsContext(call *ast.CallExpr) bool {
+	for _, arg := range call.Args {
+		id, ok := arg.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		switch id.Name {
+		case "ctx", "context":
+			return true
+		}
+	}
+	return false
 }
 
 // isEvoOperationCall reports whether expr is a call to evo.File or evo.Exec.
