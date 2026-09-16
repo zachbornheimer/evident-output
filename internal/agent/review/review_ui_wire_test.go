@@ -131,6 +131,30 @@ func f() {
 	}
 }
 
+// TestGoSource_EvoUI003_UnrelatedNOfMShapeNotFlagged covers "%d/%d"-shaped
+// Printf calls that are not progress counts: a score/ratio, and a
+// day/month/year date (three %d verbs, so the first two look like an N/M
+// shape at a glance).
+func TestGoSource_EvoUI003_UnrelatedNOfMShapeNotFlagged(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  out := evo.Init(evo.Config{})
+  t := out.Task("report")
+  fmt.Printf("score: %d/%d\n", 7, 10)
+  fmt.Printf("date: %d/%d/%d\n", 2024, 1, 15)
+  t.Done()
+}
+`
+	res := review.GoSource("x.go", src)
+	if hasFinding(res, "EVO-UI-003") {
+		t.Fatalf("false positive EVO-UI-003 on unrelated N/M-shaped Printf (score/date): %+v", res.Findings)
+	}
+}
+
 func TestGoSource_EvoWire001_MarshalOfInternalSnapshot(t *testing.T) {
 	bad := `package p
 import (

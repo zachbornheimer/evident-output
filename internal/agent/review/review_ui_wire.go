@@ -156,10 +156,29 @@ func detectPassingVerificationPrinted(fset *token.FileSet, f *ast.File, filename
 	return findings
 }
 
-// uiHandBuiltProgressPattern matches a literal that hand-assembles an
-// "N/M" or "N of M" progress count (EVO-UI-003) instead of letting
-// Task.Progress derive it from real state.
+// uiHandBuiltProgressPattern matches a literal's "N/M" or "N of M" shape.
 var uiHandBuiltProgressPattern = regexp.MustCompile(`%d\s*(?:/|of)\s*%d`)
+
+// uiProgressKeywordPattern matches a completion word that anchors the
+// "%d/%d" shape to an actual progress count, distinguishing it from an
+// unrelated "N/M"-shaped value: a ratio, a score, or one pair of a longer
+// date/tuple format (e.g. "%d/%d/%d" for day/month/year, which also
+// contains a bare "%d/%d" substring).
+var uiProgressKeywordPattern = regexp.MustCompile(`(?i)\b(done|complete(?:d)?|remaining|finished|progress|processed|copied|copying|uploading|downloading|files?|tasks?|items?|steps?|records?)\b`)
+
+// isHandBuiltProgressLine reports whether literal reads as a hand-assembled
+// "N/M done" progress line: exactly two %d verbs in the N/M shape, plus a
+// completion word — not a bare "%d/%d" that could be a ratio, a score, or
+// one pair of a three-%d date format.
+func isHandBuiltProgressLine(literal string) bool {
+	if !uiHandBuiltProgressPattern.MatchString(literal) {
+		return false
+	}
+	if strings.Count(literal, "%d") != 2 {
+		return false
+	}
+	return uiProgressKeywordPattern.MatchString(literal)
+}
 
 // detectHandBuiltProgressText flags hand-assembled "N/M done" text on fmt
 // or an evo Task/Output handle, which duplicates counts evo already
@@ -177,7 +196,7 @@ func detectHandBuiltProgressText(fset *token.FileSet, f *ast.File, filename stri
 			return true
 		}
 		literal, ok := printLiteralArg(call)
-		if !ok || !uiHandBuiltProgressPattern.MatchString(literal) {
+		if !ok || !isHandBuiltProgressLine(literal) {
 			return true
 		}
 		pos := fset.Position(n.Pos())
