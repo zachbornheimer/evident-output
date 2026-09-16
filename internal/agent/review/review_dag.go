@@ -203,6 +203,7 @@ func detectMissingProducerConsumerOrdering(filename string, file *ast.File, fset
 	}
 	produces, consumes := collectResourceEdges(file, pkg)
 	edges := collectAfterEdges(file)
+	sequenceOrder := collectSequenceTaskOrder(file, evoSequenceHandleNames(file, pkg))
 
 	var findings []Finding
 	for _, c := range consumes {
@@ -211,6 +212,9 @@ func detectMissingProducerConsumerOrdering(filename string, file *ast.File, fset
 				continue
 			}
 			if hasAfterEdge(edges, c.taskVar, p.taskVar) {
+				continue
+			}
+			if orderedBySequence(sequenceOrder, p.taskVar, c.taskVar) {
 				continue
 			}
 			findings = append(findings, Finding{

@@ -144,6 +144,16 @@ func TestEVODAG003_ProducerConsumerWithAfter_StaysSilent(t *testing.T) {
 	assertNoFinding(t, res, "EVO-DAG-003")
 }
 
+func TestEVODAG003_ProducerConsumerOrderedBySequence_StaysSilent(t *testing.T) {
+	res := review.GoSource("dag_003_sequence_good.go", readFixture(t, "dag_003_sequence_good.go"))
+	assertNoFinding(t, res, "EVO-DAG-003")
+}
+
+func TestEVODAG003_ConsumerBeforeProducerInSequence_Fires(t *testing.T) {
+	res := review.GoSource("dag_003_sequence_wrong_order_bad.go", readFixture(t, "dag_003_sequence_wrong_order_bad.go"))
+	assertFinding(t, res, "EVO-DAG-003")
+}
+
 // §62 baselines: no EVO-* finding on ordinary, current usage.
 
 func evoFindings(res review.Result) []review.Finding {
