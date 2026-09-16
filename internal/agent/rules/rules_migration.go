@@ -41,6 +41,15 @@ func Migrations() []MigrationRow {
 			Notes:  "one FileSpec{Path, Contents, Mode, Basis} call replaces the write/chmod/check boilerplate where semantics match",
 		},
 		{
+			// EVO-EVIDENCE-002 would be spec §57's detector for this shape;
+			// no such rule exists yet, so left uncited rather than claiming
+			// a rule ID that does not resolve.
+			From:  "named Evidence used only for common file state",
+			To:    "derived Evidence from tracked file state",
+			Since: "1.0.0",
+			Notes: "an Evidence entry that only restates a file's own tracked state (path/mode/hash) duplicates evo.File's own record instead of adding new information",
+		},
+		{
 			From:  "manual counters (hand-incremented progress totals)",
 			To:    "Group/Sequence derived progress",
 			Since: "1.0.0",

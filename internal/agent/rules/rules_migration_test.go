@@ -59,6 +59,21 @@ func TestMigrations_CoversMainWithAndEachRemoval(t *testing.T) {
 	}
 }
 
+// spec §59 lists exactly seven version-transition rows; the fourth (named
+// Evidence used only for common file state → derived Evidence from tracked
+// file state) sits between the evo.File row and the manual-counters row and
+// must not be dropped when the table gains 1.0-specific removal rows.
+func TestMigrations_CoversNamedEvidenceForCommonFileState(t *testing.T) {
+	rows := rules.Migrations()
+	for _, row := range rows {
+		if containsAll(row.From, "named Evidence", "common file state") &&
+			containsAll(row.To, "derived Evidence", "tracked file state") {
+			return
+		}
+	}
+	t.Fatal("missing §59 migration row: named Evidence used only for common file state → derived Evidence from tracked file state")
+}
+
 func containsAll(s string, subs ...string) bool {
 	for _, sub := range subs {
 		if !strings.Contains(s, sub) {
