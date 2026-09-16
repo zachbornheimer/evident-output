@@ -1,15 +1,11 @@
 //go:build v06acceptance
 
-// Package pending_test holds increment 2+'s behavioral fixtures: File,
+// Package file_test holds increment 2's behavioral fixtures: File,
 // dry-run-with-File, cancellation-before-mutation, and opaque-callback
-// manifest re-entry (§8, §2.1). None of it exists in this worktree yet
-// (increment 1's blast radius explicitly excludes File/Exec/fingerprints/
-// manifest work) — deliberately red-by-compile under
-// `go test -tags v06acceptance ./conformance/future/behavior/pending`
-// until a later increment implements evo.File/evo.FileSpec. A separate Go
-// package from ../behavior_test.go so this package's compile failure never
-// blocks that one's tests from running.
-package pending_test
+// manifest re-entry (§8, §2.1). Moved out of ../pending (which stays
+// red-by-compile for increment 3's Exec) now that evo.File/evo.FileSpec
+// exist.
+package file_test
 
 import (
 	"context"
