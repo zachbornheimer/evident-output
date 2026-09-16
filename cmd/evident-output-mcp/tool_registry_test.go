@@ -11,6 +11,7 @@ var advertisedToolNames = []string{
 	"evident_output_get_documentation",
 	"evident_output_adopt_plan",
 	"evident_output_review",
+	"evident_output_conformance",
 	"evident_output_preview",
 	"evident_output_explain",
 	"evident_output_update",
@@ -124,7 +125,7 @@ func TestMCP_ToolsListIncludesUpdateWithSchema(t *testing.T) {
 		t.Fatalf("inputSchema missing directory: %v", schema)
 	}
 	listed := listedToolNames(t, out)
-	if len(listed) != 7 {
-		t.Fatalf("advertised %d tools, want 7: %v", len(listed), listed)
+	if len(listed) != len(advertisedToolNames) {
+		t.Fatalf("advertised %d tools, want %d: %v", len(listed), len(advertisedToolNames), listed)
 	}
 }
