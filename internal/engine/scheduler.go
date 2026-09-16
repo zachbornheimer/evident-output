@@ -102,6 +102,13 @@ func (t *TaskHandle) submitWork(fn func() error, mut *mutationSpec) {
 	st.workFn = fn
 	st.mutation = mut
 	o.schedWG.Add(1)
+	// §48: a predecessor that already failed before this task was even
+	// submitted must settle it NotStarted right now, under the same lock —
+	// not wait for a later kick()/waiter to notice. cascadeIneligibleLocked
+	// is a no-op when nothing is permanently blocked (a predecessor still
+	// running is left alone), so this is safe to run unconditionally on
+	// every submission.
+	o.cascadeIneligibleLocked()
 	o.mu.Unlock()
 	o.kick()
 }
