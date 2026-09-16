@@ -28,9 +28,21 @@ type Rule struct {
 	Detection string `json:"detection,omitempty"`
 }
 
-// All returns the v1 rule registry subset. IDs and meanings obey version policy:
-// IDs never rename; deprecations dual-write via Deprecated+Replacement (MCP-028).
+// All returns the full rule registry: the core catalog plus every
+// category split into its own file (rules_file.go, rules_provenance.go, ...)
+// so parallel additions each own one append and never edit this slice
+// literal (MCP-028's IDs-never-rename guarantee applies across all of them).
 func All() []Rule {
+	all := coreRules()
+	all = append(all, fileAndExecRules()...)
+	all = append(all, provenanceRules()...)
+	return all
+}
+
+// coreRules returns the v1 rule registry subset. IDs and meanings obey
+// version policy: IDs never rename; deprecations dual-write via
+// Deprecated+Replacement (MCP-028).
+func coreRules() []Rule {
 	return []Rule{
 		{
 			ID:        "API-006",
