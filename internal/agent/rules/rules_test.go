@@ -175,6 +175,27 @@ func TestAPI027_TeachingNamesGroup(t *testing.T) {
 	}
 }
 
+// TestExplainEvidenceDAGRules proves the six 1.0-era rules (spec §57) have a
+// complete payload and are pinned to the release whose API their Suggestion
+// requires (Verify/evo.File/evo.Exec/Sequence).
+func TestExplainEvidenceDAGRules(t *testing.T) {
+	for _, id := range []string{
+		"EVO-EVIDENCE-001", "EVO-VERIFY-001", "EVO-DRYRUN-001",
+		"EVO-DAG-001", "EVO-DAG-002", "EVO-DAG-003",
+	} {
+		r, ok := rules.Explain(id)
+		if !ok {
+			t.Fatalf("%s missing", id)
+		}
+		if r.Invariant == "" || r.Why == "" || r.BadCode == "" || r.GoodCode == "" || r.Remediation == "" {
+			t.Fatalf("%s incomplete payload: %+v", id, r)
+		}
+		if r.Since != "1.0.0" {
+			t.Fatalf("%s Since = %q, want 1.0.0 (the release its Suggestion requires)", id, r.Since)
+		}
+	}
+}
+
 func TestMCP028_RuleStabilityVersionPolicy(t *testing.T) {
 	ids := rules.IDs()
 	if len(ids) < 5 {

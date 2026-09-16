@@ -1343,6 +1343,127 @@ task.Kept(reasonProtected)`,
 			Since:           "0.4.7",
 			Certainty:       "heuristic",
 		},
+		{
+			ID:        "EVO-EVIDENCE-001",
+			Category:  "EVO",
+			Severity:  "error",
+			Invariant: "a legacy named Evidence callback never performs mutation; Evidence is a boolean current-state conclusion, not a place to do work",
+			Why:       "task.Evidence(\"write\", func() error { return os.WriteFile(...) }) is the pre-1.0 collection-of-named-callbacks shape (spec §2); it is superseded, and naming a mutating callback \"Evidence\" hides a side effect behind a word that now means a read conclusion.",
+			BadCode: `task.Evidence("write", func() error {
+  return os.WriteFile(path, data, 0o644)
+})`,
+			GoodCode: `task.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
+})`,
+			Remediation:     "Move the mutation into Define; add Verify only when the resulting state can be observed directly",
+			RelatedGuidance: []string{"common-api", "evidence"},
+			VerificationIDs: []string{"EVO-EVIDENCE-001"},
+			Since:           "1.0.0",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "EVO-VERIFY-001",
+			Category:  "EVO",
+			Severity:  "error",
+			Invariant: "Verify is read-only; it observes current state and never mutates it",
+			Why:       "Verify may run before Define (to skip it) and again after Define (as a postcondition); a Verify that mutates state changes the very thing it is asked to judge and can never be safely retried or ANDed with another verifier (spec §9.1).",
+			BadCode: `task.Verify(func(ctx context.Context) (bool, error) {
+  os.RemoveAll(staleDir)
+  return true, nil
+})`,
+			GoodCode: `task.Verify(func(ctx context.Context) (bool, error) {
+  return launchAgentRegistered(ctx, label)
+})`,
+			Remediation:     "Move the mutation into Define; keep Verify limited to observation",
+			RelatedGuidance: []string{"common-api", "evidence"},
+			VerificationIDs: []string{"EVO-VERIFY-001"},
+			Since:           "1.0.0",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "EVO-DRYRUN-001",
+			Category:  "EVO",
+			Severity:  "error",
+			Invariant: "a Define callback that promises Evo dry-run safety routes mutation through evo.File, evo.Exec, or a typed mutation verb, never a raw os/exec/db call",
+			Why:       "Evo cannot intercept an arbitrary Go side effect — a raw os.WriteFile, exec.Command, or direct database mutation inside Define runs even in dry-run mode, because the runtime has no way to see or suppress it (spec §32.2).",
+			BadCode: `task.Define(func(ctx context.Context) error {
+  return os.WriteFile(path, data, 0o644)
+})`,
+			GoodCode: `task.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
+})`,
+			Remediation:     "Replace the raw os/exec/db call with evo.File, evo.Exec, or a typed mutation verb",
+			RelatedGuidance: []string{"common-api", "dry-run"},
+			VerificationIDs: []string{"EVO-DRYRUN-001"},
+			Since:           "1.0.0",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "EVO-DAG-001",
+			Category:  "EVO",
+			Severity:  "warning",
+			Invariant: "application code does not create a goroutine merely to make Evo Tasks run in parallel; Group already schedules independent children concurrently",
+			Why:       "a goroutine wrapping a call that itself submits work to Evo's scheduler (.Define) is redundant parallelism the scheduler already provides, and it forfeits Evo's own concurrency limits and cancellation handling (spec §4).",
+			BadCode: `for _, pkg := range pkgs {
+  go func(pkg Package) {
+    task := group.Task(pkg.Name)
+    task.Define(func(ctx context.Context) error { return install(ctx, pkg) })
+  }(pkg)
+}`,
+			GoodCode: `for _, pkg := range pkgs {
+  task := group.Task(pkg.Name)
+  task.Define(func(ctx context.Context) error { return install(ctx, pkg) })
+}`,
+			Remediation:     "Delete the goroutine and call task.Define(...) directly; Group already runs independent Tasks concurrently",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"EVO-DAG-001"},
+			Since:           "1.0.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "EVO-DAG-002",
+			Category:  "EVO",
+			Severity:  "warning",
+			Invariant: "a hand-chained sequence of .After(...) calls is expressed as an evo.Sequence instead",
+			Why:       "After is the exceptional explicit DAG edge (spec §6); a chain of two or more .After(...) calls reproduces exactly the linear ordering Sequence already gives its children automatically, with no exceptional edge left to justify hand-wiring it.",
+			BadCode: `register := seq.Task("register")
+register.After(write)
+start := seq.Task("start")
+start.After(register)`,
+			GoodCode: `seq := evo.Sequence("launch agent")
+write := seq.Task("write plist")
+register := seq.Task("register")
+start := seq.Task("start")`,
+			Remediation:     "Replace the chained .After(...) calls with one evo.Sequence and declare each Task as seq.Task(...) in order",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"EVO-DAG-002"},
+			Since:           "1.0.0",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "EVO-DAG-003",
+			Category:  "EVO",
+			Severity:  "warning",
+			Invariant: "a visible producer/consumer resource relationship between two Tasks has an explicit first-run scheduler edge (Sequence or After)",
+			Why:       "known-producer freshness barriers only delay Evidence evaluation once a manifest already exists; on a first run there is no prior manifest to consult, so an unordered producer/consumer pair can race (spec §11.5, §47's \"first-run producer/consumer ordering still requires Sequence/After\").",
+			BadCode: `producer.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+})
+consumer.Define(func(ctx context.Context) error {
+  _, err := os.ReadFile("config.json")
+  return err
+})`,
+			GoodCode: `consumer.After(producer)
+consumer.Define(func(ctx context.Context) error {
+  _, err := os.ReadFile("config.json")
+  return err
+})`,
+			Remediation:     "Add consumer.After(producer), or declare both Tasks under one evo.Sequence so the producer always runs first",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"EVO-DAG-003"},
+			Since:           "1.0.0",
+			Certainty:       "heuristic",
+		},
 	}
 }
 
