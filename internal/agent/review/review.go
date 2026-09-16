@@ -459,10 +459,10 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectHandBuiltProgressText(fset, f, filename)...)
 	}
 
-	// EVO-WIRE-001: internal Snapshot/Result marshaled directly instead of
-	// through the sanctioned JSON encoder.
+	// EVO-WIRE-001: internal Snapshot marshaled directly instead of through
+	// the sanctioned JSON encoder.
 	if hasEvo {
-		findings = append(findings, detectMarshalOfInternalSnapshot(filename, src)...)
+		findings = append(findings, detectMarshalOfInternalSnapshot(fset, f, filename)...)
 	}
 
 	// EVO-WIRE-003: JSON/JSONL stdout mixed with human presentation.

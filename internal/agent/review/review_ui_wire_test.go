@@ -142,6 +142,30 @@ func f() {
 	}
 }
 
+// TestGoSource_EvoWire001_UnrelatedResultReceiverNotFlagged covers a file
+// that imports evo (so hasEvo is true) but marshals an unrelated type's own
+// .Result() accessor — evo's public API has no .Result() method (Run/
+// Output.Run return a Result value directly), so this must never fire.
+func TestGoSource_EvoWire001_UnrelatedResultReceiverNotFlagged(t *testing.T) {
+	src := `package p
+import (
+  "encoding/json"
+  evo "github.com/zachbornheimer/evident-output"
+)
+type testRun struct{}
+func (r *testRun) Result() string { return "ok" }
+func f(r *testRun) {
+  _ = evo.Init(evo.Config{})
+  b, _ := json.Marshal(r.Result())
+  _ = b
+}
+`
+	res := review.GoSource("x.go", src)
+	if hasFinding(res, "EVO-WIRE-001") {
+		t.Fatalf("false positive EVO-WIRE-001 on an unrelated type's own .Result(): %+v", res.Findings)
+	}
+}
+
 func TestGoSource_EvoWire003_JSONStdoutMixedWithHumanText(t *testing.T) {
 	bad := `package p
 import (

@@ -180,30 +180,54 @@ func detectHandBuiltProgressText(fset *token.FileSet, f *ast.File, filename stri
 	return findings
 }
 
-// wireMarshalSnapshotPattern matches json.Marshal/MarshalIndent called
-// directly on a .Snapshot()/.Result() expression (EVO-WIRE-001) — the
-// internal shape marshaled as if it were the public wire contract.
-var wireMarshalSnapshotPattern = regexp.MustCompile(`json\.(Marshal|MarshalIndent)\(\s*([\w.]+)\.(Snapshot|Result)\(\)`)
-
 // detectMarshalOfInternalSnapshot flags json.Marshal(x.Snapshot()) (or
-// .Result()), which bypasses the sanctioned, versioned JSON encoder and
-// leaks undocumented internal field names/shape to consumers.
-func detectMarshalOfInternalSnapshot(filename, src string) []Finding {
+// MarshalIndent), where x is an evo Task/Output/Group/Sequence handle —
+// this bypasses the sanctioned, versioned JSON encoder and leaks
+// undocumented internal field names/shape to consumers. evo has no
+// .Result() accessor (Run/Output.Run return a Result value directly), so
+// only .Snapshot() is a real evo misuse shape; the receiver check keeps
+// this from firing on an unrelated type's own Snapshot() method.
+func detectMarshalOfInternalSnapshot(fset *token.FileSet, f *ast.File, filename string) []Finding {
 	var findings []Finding
-	for _, m := range wireMarshalSnapshotPattern.FindAllStringSubmatchIndex(src, -1) {
-		fn := src[m[2]:m[3]]
-		recv := src[m[4]:m[5]]
-		method := src[m[6]:m[7]]
-		call := recv + "." + method + "()"
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		pkg, ok := sel.X.(*ast.Ident)
+		if !ok || pkg.Name != "json" || len(call.Args) == 0 {
+			return true
+		}
+		fn := sel.Sel.Name
+		if fn != "Marshal" && fn != "MarshalIndent" {
+			return true
+		}
+		inner, ok := call.Args[0].(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		innerSel, ok := inner.Fun.(*ast.SelectorExpr)
+		if !ok || innerSel.Sel.Name != "Snapshot" || !isLikelyEvoReceiver(innerSel.X) {
+			return true
+		}
+		recv := exprDottedName(innerSel.X)
+		snapshotCall := recv + ".Snapshot()"
+		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "EVO-WIRE-001",
 			Severity:   "error",
-			Message:    "json." + fn + " marshals the internal " + method + " directly; use the sanctioned JSON encoder instead",
+			Message:    "json." + fn + " marshals the internal Snapshot directly; use the sanctioned JSON encoder instead",
 			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: "replace json." + fn + "(" + call + ") with render.EncodeJSON(" + call + ")",
+			Line:       pos.Line,
+			Column:     pos.Column,
+			Suggestion: "replace json." + fn + "(" + snapshotCall + ") with render.EncodeJSON(" + snapshotCall + ")",
 		})
-	}
+		return true
+	})
 	return findings
 }
 
