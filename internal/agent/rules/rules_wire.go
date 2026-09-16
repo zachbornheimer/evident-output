@@ -9,7 +9,7 @@ func wireRules() []Rule {
 			ID:              "EVO-WIRE-001",
 			Category:        "WIRE",
 			Severity:        "error",
-			Invariant:       "the internal Snapshot/Result is never marshaled directly; the sanctioned wire encoder is the only JSON surface",
+			Invariant:       "the internal Snapshot is never marshaled directly; the sanctioned wire encoder is the only JSON surface",
 			Why:             "json.Marshal(out.Snapshot()) serializes internal field layout as if it were the public contract; a future internal-only field addition or rename then silently breaks every consumer, because nothing enforces schema_version or the documented JSONDocument shape.",
 			BadCode:         `b, err := json.Marshal(out.Snapshot())`,
 			GoodCode:        `b, err := render.EncodeJSON(out.Snapshot()) // or the CLI's --json flag, which already routes through this`,

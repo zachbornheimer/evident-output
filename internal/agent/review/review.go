@@ -445,24 +445,24 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 
 	// EVO-UI-001: routine Fact hand-printed as a "label: value" line.
 	if hasEvo {
-		findings = append(findings, detectFactPrintedAsUIText(filename, src)...)
+		findings = append(findings, detectFactPrintedAsUIText(fset, f, filename)...)
 	}
 
 	// EVO-UI-002: passing verification hand-printed on the success path.
 	if hasEvo {
-		findings = append(findings, detectPassingVerificationPrinted(filename, src)...)
+		findings = append(findings, detectPassingVerificationPrinted(fset, f, filename)...)
 	}
 
 	// EVO-UI-003: collection/progress/status text hand-built instead of
 	// derived from Task/Group/Sequence state.
 	if hasEvo {
-		findings = append(findings, detectHandBuiltProgressText(filename, src)...)
+		findings = append(findings, detectHandBuiltProgressText(fset, f, filename)...)
 	}
 
-	// EVO-WIRE-001: internal Snapshot/Result marshaled directly instead of
-	// through the sanctioned JSON encoder.
+	// EVO-WIRE-001: internal Snapshot marshaled directly instead of through
+	// the sanctioned JSON encoder.
 	if hasEvo {
-		findings = append(findings, detectMarshalOfInternalSnapshot(filename, src)...)
+		findings = append(findings, detectMarshalOfInternalSnapshot(fset, f, filename)...)
 	}
 
 	// EVO-WIRE-003: JSON/JSONL stdout mixed with human presentation.
