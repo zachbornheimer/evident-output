@@ -54,14 +54,16 @@ t.Doing("walking")`,
 			ID:        "API-026",
 			Category:  "API",
 			Severity:  "error",
-			Invariant: "caller-invented RunAll/Map/Retry/Parallel/Timeout are forbidden on evo receivers; Group/Sequence/Define/Each/After are not",
-			Why:       "Evo owns scheduling through Group, Sequence, Define, Each, and After. Callers must not invent RunAll/Map/Retry/Parallel/Timeout on evo receivers. Substring detection false-positives on strings.Map; review uses AST on evo receivers only.",
+			Invariant: "caller-invented RunAll/Map/Retry/Parallel/Timeout are forbidden on evo receivers; Group/Sequence/Define/After are not (Group.Each/Sequence.Each were removed in 1.0 — one named Task per item is the current shape)",
+			Why:       "Evo owns scheduling through Group, Sequence, Define, and After. Callers must not invent RunAll/Map/Retry/Parallel/Timeout on evo receivers. Substring detection false-positives on strings.Map; review uses AST on evo receivers only.",
 			BadCode: `out.Group("jobs").Map(func() {})
 out.Task("x").Retry(3)`,
-			GoodCode: `for path, task := range evo.Group("worktrees").Each(paths) {
-  task.Define(func() error { return check(path) })
+			GoodCode: `worktrees := evo.Group("worktrees")
+for _, path := range paths {
+  path := path
+  worktrees.Task(path).Define(func() error { return check(path) })
 }`,
-			Remediation:     "Use Group.Each/Define/After; do not add RunAll/Map/Retry on evo types",
+			Remediation:     "Declare one named Task per item under Group/Sequence, then Define/After; do not add RunAll/Map/Retry on evo types",
 			RelatedGuidance: []string{"common-api", "tasks"},
 			VerificationIDs: []string{"API-026"},
 			Since:           "0.1.0",
@@ -397,14 +399,14 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			ID:        "API-018",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "process exit codes come only from os.Exit(evo.Main(run)), evo.MainWith (which still exits via evo's own os.Exit facade — the library restates, never lifts, API-018), or evo.Run/Output.Run's returned Result.ExitCode()",
+			Invariant: "process exit codes come only from os.Exit(evo.Main(run)), or evo.Run/Output.Run's returned Result.ExitCode() (evo.MainWith, which restated the same os.Exit facade for an Isolated *Output, was removed in 1.0 — see Output.Run)",
 			Why:       "A hand-mapped os.Exit int bypasses the Outcome→exit-code contract; a Blocked run (1) can silently read as success, or a real failure can read as blocked.",
 			BadCode: `if err != nil {
   fmt.Println(err)
   os.Exit(1) // hand-mapped, not fed by evo
 }`,
 			GoodCode:        `os.Exit(evo.Main(run)) // run(ctx) returns error; Conclusion decides 0/1/2/130; Main derives the code, caller exits`,
-			Remediation:     "Route exit through os.Exit(evo.Main(run)) or evo.MainWith (which exits for you), or evo.Run/Output.Run's returned Result.ExitCode() for a caller that needs the code without exiting",
+			Remediation:     "Route exit through os.Exit(evo.Main(run)), or evo.Run/Output.Run's returned Result.ExitCode() for a caller that needs the code without exiting (evo.MainWith was removed in 1.0)",
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"API-018"},
 			Since:           "0.2.0",
@@ -599,7 +601,7 @@ if partial {
   os.Exit(130) // Partial is not interruption
 }`,
 			GoodCode:        `os.Exit(evo.Main(run)) // code derives from Outcome alone: 0 OK / 1 Blocked / 2 Failed / 130 Cancelled; Partial is a completeness modifier only`,
-			Remediation:     "Let evo.Main derive the exit code from Outcome (caller writes os.Exit(evo.Main(run))), or use evo.MainWith which exits for you; never hand-map an int, and never use 130 outside real interruption",
+			Remediation:     "Let evo.Main derive the exit code from Outcome (caller writes os.Exit(evo.Main(run))), or an Isolated instance's Output.Run which returns the same code (evo.MainWith was removed in 1.0); never hand-map an int, and never use 130 outside real interruption",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"CON-001"},
 			Since:           "0.6.0",
@@ -668,11 +670,11 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			ID:        "API-032",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, Capture, Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), positional quantity-first mutation verbs, the retired independent-collection constructor, Skip, evo.ID, evo.StartPhase, evo.MainWith",
-			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were deleted; Isolated *Output uses Output.Run); Config fields replaced Option funcs; mutation verbs take (object, fn) with optional Affected(n), not a positional quantity then object; the independent collection constructor is Group; Item folded into Task; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr; Skip is Skipped; ID/StartPhase are unexported (Task takes only the name; Doing sets the first phase).",
+			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, Capture, Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), positional quantity-first mutation verbs, the retired independent-collection constructor, Skip, evo.ID, evo.StartPhase, evo.MainWith (removed in 1.0)",
+			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were removed in 1.0; Isolated *Output uses Output.Run); Config fields replaced Option funcs; mutation verbs take (object, fn) with optional Affected(n), not a positional quantity then object; the independent collection constructor is Group; Item folded into Task; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr; Skip is Skipped; ID/StartPhase are unexported (Task takes only the name; Doing sets the first phase).",
 			BadCode: `func main() {
 	out := evo.New(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
-	os.Exit(evo.MainWith(out, run))
+	os.Exit(evo.MainWith(out, run)) // MainWith: removed in 1.0
 }
 func run(out *evo.Output) error {
 	task := out.Task("branches", evo.StartPhase("classifying tips"))
@@ -865,10 +867,12 @@ t.Doing("walking")`,
 			BadCode: `for range items {
   t.Progress(1, total) // resets to 1 every call instead of incrementing
 }`,
-			GoodCode: `for path, task := range evo.Group("items").Each(items) {
-  task.Define(func() error { return work(path) })
+			GoodCode: `group := evo.Group("items")
+for _, item := range items {
+  item := item
+  group.Task(item).Define(func() error { return work(item) })
 }`,
-			Remediation:     "Use Group.Each(items) or Sequence.Each(items) so each item is an atomic Task; do not hand-drive Progress from a loop index, and do not call Task.Each",
+			Remediation:     "Declare one named Task per item under Group/Sequence so each item is an atomic Task; do not hand-drive Progress from a loop index (Group.Each/Sequence.Each/Task.Each were removed in 1.0)",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"DOM-017"},
 			Since:           "0.1.0",
@@ -1255,10 +1259,12 @@ go func() {
   t.Doing("working")
   t.Done()
 }()`,
-			GoodCode: `for name, t := range out.Group("work").Each([]string{"a"}) {
-  t.Define(func() error { return doWork(name) })
+			GoodCode: `work := out.Group("work")
+for _, name := range []string{"a"} {
+  name := name
+  work.Task(name).Define(func() error { return doWork(name) })
 }`,
-			Remediation:     "Predeclare with Group(...).Each(items) or Group.Task(...), then call task.Define(func() error { ... }) instead of a bare goroutine",
+			Remediation:     "Predeclare with Group.Task(...) (one named Task per item), then call task.Define(func() error { ... }) instead of a bare goroutine",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-041"},
 			Since:           "0.4.7",

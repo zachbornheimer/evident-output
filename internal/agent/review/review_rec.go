@@ -27,7 +27,8 @@ func (s srcSpan) contains(offset int) bool {
 }
 
 // recSurfaceDetector is API-032's rec-surface pass: Options/To/Plain,
-// positional quantity-first mutation verbs, retired collection constructor, Skip, Task extras, ID/StartPhase, MainWith.
+// positional quantity-first mutation verbs, retired collection constructor,
+// Skip, Task extras, ID/StartPhase, MainWith (removed in 1.0).
 type recSurfaceDetector struct {
 	filename string
 	src      string
@@ -139,7 +140,7 @@ func (d *recSurfaceDetector) inspectCall(call *ast.CallExpr) {
 			d.report(call, "Task takes only the name; extra args (printf, ID, StartPhase) are superseded", sug)
 			d.cover(call)
 		}
-	case isEvoIdent(sel.X, d.pkg) && name == "MainWith":
+	case isEvoIdent(sel.X, d.pkg) && name == "MainWith": // MainWith was removed in 1.0; still detected so old call sites are still caught
 		old := d.nodeSrc(call)
 		outArg, runArg := "out", "run"
 		if len(call.Args) >= 1 {
@@ -148,7 +149,7 @@ func (d *recSurfaceDetector) inspectCall(call *ast.CallExpr) {
 		if len(call.Args) >= 2 {
 			runArg = d.nodeSrc(call.Args[1])
 		}
-		d.report(call, "evo.MainWith is unexported; Isolated instances use Output.Run, ordinary main uses evo.Main",
+		d.report(call, "evo.MainWith was removed in 1.0; Isolated instances use Output.Run, ordinary main uses evo.Main",
 			"replace "+old+" with "+outArg+".Run("+runArg+")")
 		d.cover(call)
 	}

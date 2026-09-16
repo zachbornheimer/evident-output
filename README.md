@@ -40,8 +40,10 @@ func run() error {
         return removeStaleBranches()
     }, evo.Affected(2)) // singular object, ledger renders "2 stale local branches"
 
-    for pkg, task := range evo.Group("install").Each(packages) {
-        task.Define(func() error { return install(pkg) })
+    installs := evo.Group("install")
+    for _, pkg := range packages {
+        pkg := pkg
+        installs.Task(pkg).Define(func() error { return install(pkg) })
     }
     return nil // Block is a presentation outcome, not a Go error
 }

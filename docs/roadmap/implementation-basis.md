@@ -249,7 +249,7 @@ out := evo.New(cfg)
 ```go
 func main() {
     out := evo.New(evo.Config{Title: "install"})
-    os.Exit(evo.MainWith(out, run))
+    os.Exit(evo.MainWith(out, run)) // evo.MainWith was removed in 1.0 — see docs/mcp.md
 }
 ```
 

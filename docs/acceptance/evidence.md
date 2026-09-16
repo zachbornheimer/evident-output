@@ -54,11 +54,7 @@ shipped version for this work is **1.0.0** (breaking release; see
   `result_model_test.go`). After `internal/core/resolution.go` and the
   `taskState`/`runDefine` wiring, all five `result_model_test.go` cases
   pass.
-- **§46 API golden**: proven to catch a real regression, not just to pass
-  vacuously — a temporary `func MainWith() {}` reintroduced into `api.go`
-  failed `TestAPIGolden_PublicSurfaceMatchesCommittedGolden` with
-  `retired API name "MainWith" reappeared in the public surface`, then the
-  revert restored green.
+- **§46 API golden**: proven to catch a real regression, not just to pass vacuously — a temporary `func MainWith() {}` (MainWith was removed in 1.0) reintroduced into `api.go` failed `TestAPIGolden_PublicSurfaceMatchesCommittedGolden` with `retired API name "MainWith" reappeared in the public surface` (removed in 1.0), then the revert restored green.
 
 ## Compatibility note
 

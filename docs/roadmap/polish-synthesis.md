@@ -75,7 +75,7 @@ New(Config) → Main → Print*/Verbose → Item/Task(+ID) → Capture (Task|Ite
 
 ```go
 out := evo.New(evo.Config{Title: "install"})
-os.Exit(evo.MainWith(out, run))
+os.Exit(evo.MainWith(out, run)) // evo.MainWith was removed in 1.0 — see docs/mcp.md
 ```
 
 **Note on Main:** Returning an exit code from a helper is fine; documenting `os.Exit(Main(...))` as the _only_ recipe is slightly framework-shaped for a pure presentation library. Acceptable as ordinary sugar for tiny tools; hosts (Cobra, custom runners) still own process exit. Do not expand Main into a full runner.

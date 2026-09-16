@@ -7,8 +7,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
 )
 
-// PROG-001: the Advance suggestion must never prescribe a nonexistent
-// <task>.Each(...) (evo-dialect-axes-report.md axis 6/12).
+// PROG-001: the Advance suggestion must never prescribe <task>.Each(...) — it no longer exists (removed in 1.0; evo-dialect-axes-report.md axis 6/12).
 
 func TestPROG001_AdvanceSuggestion_NeverNamesTaskEach(t *testing.T) {
 	src := `package p
@@ -199,7 +198,7 @@ func TestAPI041_GoroutineResolvesPredeclaredTask_Fires(t *testing.T) {
 		t.Fatalf("API-041 severity = %q, want error", f.Severity)
 	}
 	if !strings.Contains(f.Suggestion, "Group") || !strings.Contains(f.Suggestion, "Define") {
-		t.Fatalf("API-041 suggestion does not name Group.Each/Define: %q", f.Suggestion)
+		t.Fatalf("API-041 suggestion does not name Group.Task/Define: %q", f.Suggestion)
 	}
 }
 
