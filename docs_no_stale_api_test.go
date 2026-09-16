@@ -16,6 +16,9 @@ import (
 var staleAPISymbols = []string{
 	"MainWith",
 	".Each(",
+	"Group.Each",
+	"Task.Each",
+	"Sequence.Each",
 	"Task.Run",
 	"Task.Go",
 	"DisplayGroup",
@@ -28,9 +31,10 @@ var staleAPISymbols = []string{
 // legitimate within staleAPIWindow lines of this phrase.
 var staleAPIAllowPattern = regexp.MustCompile(`(?i)removed in 1\.0`)
 
-// staleAPIWindow is how many preceding lines (inclusive of the hit line
-// itself) are searched for the allow phrase — enough to cover a heading or
-// lead sentence followed by a fenced before/after code example.
+// staleAPIWindow is how many lines before AND after the hit line (inclusive
+// of the hit line itself) are searched for the allow phrase — enough to
+// cover a heading or lead sentence that precedes, or a trailing clause that
+// follows, a fenced before/after code example.
 const staleAPIWindow = 8
 
 // staleAPIScanRoots are scanned recursively; staleAPIScanFiles are scanned
@@ -119,13 +123,17 @@ func checkNoUnexplainedStaleAPI(t *testing.T, rel, body string) {
 }
 
 // staleAPIAllowedNearby reports whether the allow phrase appears on line i
-// or any of the staleAPIWindow lines before it.
+// or any of the staleAPIWindow lines before or after it.
 func staleAPIAllowedNearby(lines []string, i int) bool {
 	start := i - staleAPIWindow
 	if start < 0 {
 		start = 0
 	}
-	for _, line := range lines[start : i+1] {
+	end := i + staleAPIWindow + 1
+	if end > len(lines) {
+		end = len(lines)
+	}
+	for _, line := range lines[start:end] {
 		if staleAPIAllowPattern.MatchString(line) {
 			return true
 		}
