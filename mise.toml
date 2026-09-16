@@ -36,28 +36,31 @@ run = "go test ./conformance/..."
 
 [tasks.acceptance-v06]
 description = """
-Run the v0.6/1.0 future API and behavior acceptance suite. Increment 1
-(conformance/future/api, conformance/future/behavior) is implemented and
-must pass; increment 2+ (their ./pending subpackages: File/Exec/
-Config.AppID/StateDir) is deliberately red-by-compile and expected nonzero
-until those increments land — this target therefore does not fail CI on
-its own; run acceptance-v06-increment1 for the promotion gate that must
-stay green.
+Run the v0.6/1.0 future API and behavior acceptance suite. Increments 1-2
+(conformance/future/{api,behavior} and their ./file subpackages) are
+implemented and must pass; increment 3+ (api/pending's ExecSpec) is
+deliberately red-by-compile and expected nonzero until Exec lands — this
+target therefore does not fail CI on its own; run acceptance-v06-green for
+the promotion gate that must stay green. There is deliberately no single
+`go test ./conformance/future/...` gate: that wildcard would always fail
+while any increment remains pending, by design (acceptance-v06-pending
+asserts exactly that failure).
 """
-depends = ["acceptance-v06-increment1", "acceptance-v06-pending"]
+depends = ["acceptance-v06-green", "acceptance-v06-pending"]
 
-[tasks.acceptance-v06-increment1]
-description = "Increment 1's future-suite fixtures — must stay green"
+[tasks.acceptance-v06-green]
+description = "Increment 1+2's future-suite fixtures — must stay green"
 run = [
   "go test -tags v06acceptance ./conformance/future/api",
   "go test -tags v06acceptance ./conformance/future/behavior",
+  "go test -tags v06acceptance ./conformance/future/api/file",
+  "go test -tags v06acceptance ./conformance/future/behavior/file",
 ]
 
 [tasks.acceptance-v06-pending]
-description = "Increment 2+'s future-suite fixtures — expected red-by-compile until File/Exec land"
+description = "Increment 3+'s future-suite fixtures — expected red-by-compile until Exec lands"
 run = [
   "go test -tags v06acceptance ./conformance/future/api/pending && exit 1 || true",
-  "go test -tags v06acceptance ./conformance/future/behavior/pending && exit 1 || true",
 ]
 
 [tasks.fuzz]

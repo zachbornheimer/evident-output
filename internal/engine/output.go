@@ -47,6 +47,11 @@ type Output struct {
 	conclusion            *Conclusion
 	live                  *liveEngine
 
+	// workspaceDir is the process working directory, captured once on first
+	// use by File (workspaceDirLocked in file.go) so relative paths resolve
+	// consistently even if the process CWD changes mid-Run (§8.1).
+	workspaceDir string
+
 	tasks       []*taskState
 	collections []*tasksState
 	changes     []*changesState
