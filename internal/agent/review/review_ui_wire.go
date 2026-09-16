@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // isFmtOrEvoPrintReceiver reports whether a Print/Printf/Println call's
@@ -102,10 +103,24 @@ func detectFactPrintedAsUIText(fset *token.FileSet, f *ast.File, filename string
 	return findings
 }
 
-// uiSuccessGlyphPattern matches a literal that contains a hand-picked
-// success glyph or word (EVO-UI-002) — Task.Done already renders the
-// passing state.
-var uiSuccessGlyphPattern = regexp.MustCompile(`(?:✓|(?i:verified|passed))`)
+// isSuccessConfirmationLine reports whether literal reads as a hand-printed
+// completion confirmation — the checkmark glyph, or "verified"/"passed" as
+// the line's leading or trailing word (EVO-UI-002) — rather than ordinary
+// text that merely contains one of those words in passing, e.g. "license
+// verified against upstream, expires in 30 days" or "2 hours passed since
+// the last run".
+func isSuccessConfirmationLine(literal string) bool {
+	if strings.Contains(literal, "✓") {
+		return true
+	}
+	words := strings.Fields(strings.TrimRight(strings.TrimSpace(literal), ".!"))
+	if len(words) == 0 {
+		return false
+	}
+	first := strings.ToLower(words[0])
+	last := strings.ToLower(words[len(words)-1])
+	return first == "verified" || first == "passed" || last == "verified" || last == "passed"
+}
 
 // detectPassingVerificationPrinted flags a hand-printed success/verified
 // line on fmt or an evo Task/Output handle, which duplicates the glyph
@@ -123,7 +138,7 @@ func detectPassingVerificationPrinted(fset *token.FileSet, f *ast.File, filename
 			return true
 		}
 		literal, ok := printLiteralArg(call)
-		if !ok || !uiSuccessGlyphPattern.MatchString(literal) {
+		if !ok || !isSuccessConfirmationLine(literal) {
 			return true
 		}
 		pos := fset.Position(n.Pos())

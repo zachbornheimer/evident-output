@@ -76,6 +76,29 @@ func f() {
 	}
 }
 
+// TestGoSource_EvoUI002_UnrelatedTextNotFlagged covers ordinary informational
+// text that merely contains the substring "verified"/"passed" — not a
+// completion confirmation duplicating task.Done's glyph.
+func TestGoSource_EvoUI002_UnrelatedTextNotFlagged(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  out := evo.Init(evo.Config{})
+  t := out.Task("check")
+  fmt.Println("license verified against upstream, expires in 30 days")
+  fmt.Println("2 hours passed since the last successful run")
+  t.Done()
+}
+`
+	res := review.GoSource("x.go", src)
+	if hasFinding(res, "EVO-UI-002") {
+		t.Fatalf("false positive EVO-UI-002 on ordinary text containing verified/passed: %+v", res.Findings)
+	}
+}
+
 func TestGoSource_EvoUI003_HandBuiltProgressText(t *testing.T) {
 	bad := `package p
 import (
