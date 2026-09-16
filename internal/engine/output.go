@@ -59,31 +59,37 @@ type Output struct {
 	tasksByRef map[string]*tasksState
 	keys       map[string]struct{}
 
-	// namedTasks backs get-or-create identity for Output.Task/Scope.Task
-	// (and, through them, the package-level default-instance facade): a
-	// repeated (scope, name) pair — or a repeated explicit evo.ID reused
-	// under the same name — returns the same handle instead of a duplicate
-	// row. Keyed either "\x00"+scope+"\x00"+name (no explicit ID) or
-	// "key:"+key (explicit evo.ID); see taskScoped and taskNameByKey.
+	// namedTasks records every (scope, name) pair already declared through
+	// Output.Task/Scope.Task (and, through them, the package-level
+	// default-instance facade), so a repeated declaration under the same
+	// pair is recognized as a duplicate sibling name (§3.1) instead of
+	// silently merging two distinct declarations into one identity — 1.0
+	// removed get-or-create for exactly that soundness reason (a merged
+	// identity could later report a false "already satisfied"). Keyed
+	// either "\x00"+scope+"\x00"+name (no explicit key) or "key:"+key
+	// (explicit evo.ID); see taskScoped and taskNameByKey.
 	namedTasks map[string]*TaskHandle
 	// taskNameByKey remembers which display name first claimed an explicit
-	// evo.ID through taskScoped, so a second call under the SAME name gets
-	// the live handle (L1's get-or-create fix) while a second call reusing
-	// the ID under a DIFFERENT name still reports ErrDuplicateKey — a real
-	// identity conflict, not a repeat declaration.
+	// evo.ID through taskScoped: a second call reusing the same ID under any
+	// name — same or different — is a real identity conflict (ErrDuplicateKey),
+	// never a repeat declaration to be merged.
 	taskNameByKey map[string]string
 	// namedPlans/namedChanges back get-or-create identity for TaskHandle
 	// mutation verbs (Delete, Create, ...): repeated mutations on one task
 	// accumulate into the one Plan/Changes section named after the task,
-	// instead of one section per call.
+	// instead of one section per call. Unrelated to Task/Group/Sequence
+	// declaration identity (§3.1) — a ledger section is not a sibling.
 	namedPlans   map[string]*planLedger
 	namedChanges map[string]*changeLedger
 	// namedReasons backs get-or-create identity for evo.Reason: repeated calls
 	// with the same name (inline or lifted to a var) merge into one bucket.
+	// Also unrelated to §3.1 — a taxonomy Reason is not a declared entity.
 	namedReasons map[string]TaxonomyReason
-	// namedGroups backs get-or-create identity for evo.Sequence.
+	// namedGroups records every name already declared through evo.Sequence,
+	// so a repeat is recognized as a duplicate sibling name (§3.1).
 	namedGroups map[string]*SequenceHandle
-	// namedGroupHandles backs get-or-create identity for evo.Group.
+	// namedGroupHandles records every name already declared through
+	// evo.Group, so a repeat is recognized as a duplicate sibling name (§3.1).
 	namedGroupHandles map[string]*GroupHandle
 
 	// ctx is the run's own cancellation signal — the thing a callback doing
@@ -223,6 +229,16 @@ type taskState struct {
 	// not reach the ledger (see deniesItsOwnEffect).
 	effectDenied bool
 	preds        []predecessor
+	// verifiers holds TaskHandle.Verify's registered pre/post-Define
+	// observation checks, ANDed in registration order (§9.1). Must be
+	// registered before Define — see Verify.
+	verifiers []verifierFunc
+	// resolution names why this Task settled successfully (§29/§30);
+	// ResolutionNoWork is the default until Define's own execution wiring
+	// sets it to ResolutionExecuted/ResolutionAlreadySatisfied.
+	resolution Resolution
+	// verifyEvidence preserves both Verify observation phases (§30).
+	verifyEvidence TaskEvidence
 	// workErr is the callback's own return value, kept so TaskHandle.Wait
 	// returns exactly what the work returned rather than a state guess.
 	workErr error
@@ -246,30 +262,26 @@ type taskState struct {
 }
 
 type tasksState struct {
-	id          string
+	id string
+	// key is the §3.1 stable machine identity for this Group/Sequence: the
+	// default kind+parent-key+normalized-name derivation, computed once at
+	// declaration (see declareContainerLocked/declareChildContainerLocked).
+	key         string
 	name        string
 	summary     string
 	tasks       []*taskState
 	declaration int
 	handle      *GroupHandle
 
-	// namedTasks backs get-or-create identity for Sequence.Task: repeated
-	// calls with the same name inside this sequence return the one child
-	// TaskHandle.
+	// namedTasks records every name already declared as a child of this
+	// container through Group.Task/Sequence.Task, so a repeated name is
+	// recognized as a duplicate sibling (§3.1) instead of merging two
+	// distinct declarations into one identity.
 	namedTasks map[string]*TaskHandle
 
 	// sequential marks a Sequence: children are chained in declaration
 	// order. A Group's children are independent and may overlap.
 	sequential bool
-
-	// eachSealed records that this collection's one Each denominator has
-	// been claimed. A collection derives completed/total from its Each
-	// children, so a second Each would change a total the reader has
-	// already been shown — `✓ branches  25/25` becoming `✓ branches
-	// 145/145` a second later. The dialect makes that unrepresentable
-	// rather than discouraged: a sealed total never changes, the same way
-	// indeterminate -> determinate is allowed once.
-	eachSealed bool
 
 	// children holds nested containers declared via Sequence.Sequence,
 	// Sequence.DisplayGroup, DisplayGroup.Sequence, or
@@ -279,10 +291,11 @@ type tasksState struct {
 	// tasks.
 	children []*tasksState
 
-	// namedChildren backs get-or-create identity for a nested Sequence:
-	// mirrors Output.namedGroups, but scoped to this container (P10 —
-	// container path + name is the identity, so the same label under a
-	// different parent is a distinct child).
+	// namedChildren records every name already declared as a nested
+	// Group/Sequence child of this container, mirroring Output.namedGroups
+	// but scoped to this container (container path + name is the identity,
+	// so the same label under a different parent is a distinct child). A
+	// repeated name here is a duplicate sibling (§3.1), not a get-or-create.
 	namedChildren map[string]*tasksState
 }
 
@@ -598,14 +611,15 @@ func (o *Output) Task(name string) *TaskHandle {
 	return o.taskScoped(name, "")
 }
 
-// taskScoped is the get-or-create identity behind Output.Task and Scope.Task:
-// a repeated call with the same (scope, name) pair returns the live handle
-// instead of declaring a duplicate row — the same contract evo.Task already
-// gives the package-level default instance. An explicit evo.ID reused under
-// a different name is still a real identity conflict and reports
-// ErrDuplicateKey (addTaskLocked's own key bookkeeping catches it, since a
-// differing identity never short-circuits through the namedTasks cache
-// below).
+// taskScoped is the declaration path behind Output.Task and Scope.Task. A
+// repeated call with the same (scope, name) pair — or a repeated explicit
+// evo.ID under any name — is a duplicate sibling declaration (§3.1), never a
+// get-or-create: 1.0 removed that idiom because letting two distinct
+// declarations silently merge into one identity would make a false
+// "already satisfied" possible once identity drives manifest reconciliation.
+// A same-name repeat records a Failed task with ProblemCodeDuplicateSiblingName
+// (see failDuplicateSiblingLocked); a reused explicit key still reports
+// ErrDuplicateKey, its own pre-existing identity-conflict error.
 func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandle {
 	eo := applyEntityOptions(opts)
 	clean := txt.Text(name)
@@ -615,20 +629,16 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 	defer o.mu.Unlock()
 
 	if key != "" {
-		if ownerName, ok := o.taskNameByKey[key]; ok {
-			if ownerName == clean {
-				if existing, ok := o.namedTasks["key:"+key]; ok {
-					return existing
-				}
-			}
+		if _, ok := o.taskNameByKey[key]; ok {
 			o.recordMisuse(ErrDuplicateKey)
 			return &TaskHandle{out: o, id: o.nextID("task")}
 		}
-	} else if existing, ok := o.namedTasks["\x00"+scope+"\x00"+clean]; ok {
-		return existing
+	} else if _, ok := o.namedTasks["\x00"+scope+"\x00"+clean]; ok {
+		o.failDuplicateSiblingLocked(nil, kindTask, clean)
+		return &TaskHandle{out: o, id: o.nextID("task")}
 	}
 
-	h := o.addTaskLocked(clean, nil, key, false)
+	h := o.addTaskLocked(clean, nil, key, scope, false)
 	if o.namedTasks == nil {
 		o.namedTasks = make(map[string]*TaskHandle)
 	}
@@ -675,8 +685,8 @@ func ledgerSubjectFor(st *taskState) string {
 	return st.name
 }
 
-func (o *Output) addTaskLocked(name string, col *tasksState, key string, fromEach bool) *TaskHandle {
-	h := o.declareTaskLocked(name, col, key, fromEach)
+func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey string, fromEach bool) *TaskHandle {
+	h := o.declareTaskLocked(name, col, key, parentKey, fromEach)
 	if _, ok := o.taskByRef[h.id]; ok {
 		o.signalLiveLocked(true)
 	}
@@ -686,17 +696,26 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string, fromEac
 // declareTaskLocked records a child without painting. Each uses this to
 // declare every item before the first yield so the first live frame already
 // shows 0/N rather than growing 0/1, 0/2, … as children appear.
-func (o *Output) declareTaskLocked(name string, col *tasksState, key string, fromEach bool) *TaskHandle {
+//
+// When key is empty, the task's §3.1 stable identity defaults to
+// kind+parentKey+normalized-name; an explicit key replaces that derivation
+// entirely and is registered instead. parentKey is the declaring parent's
+// own stable key (a Group/Sequence's key, or the declaration scope for a
+// root-level Task — see Scope).
+func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey string, fromEach bool) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return &TaskHandle{out: o, id: o.nextID("task")}
 	}
-	if key != "" {
-		if _, ok := o.keys[key]; ok {
+	effectiveKey := key
+	if effectiveKey != "" {
+		if _, ok := o.keys[effectiveKey]; ok {
 			o.recordMisuse(ErrDuplicateKey)
 			return &TaskHandle{out: o, id: o.nextID("task")}
 		}
-		o.keys[key] = struct{}{}
+		o.keys[effectiveKey] = struct{}{}
+	} else {
+		effectiveKey = stableKey(kindTask, parentKey, name)
 	}
 	if err := o.ensureEntityRoomLocked(); err != nil {
 		o.recordMisuse(err)
@@ -704,7 +723,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key string, fro
 	}
 	st := &taskState{
 		id:          o.nextID("task"),
-		key:         key,
+		key:         effectiveKey,
 		name:        name,
 		state:       declaredTaskState(col),
 		progress:    Progress{Kind: Indeterminate},
@@ -712,6 +731,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key string, fro
 		declaration: o.nextDecl(),
 		doneCh:      make(chan struct{}),
 		fromEach:    fromEach,
+		resolution:  ResolutionNoWork,
 	}
 	h := &TaskHandle{out: o, id: st.id}
 	st.handle = h
@@ -723,14 +743,6 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key string, fro
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
 	return h
-}
-
-// taskGetOrCreate returns the task previously created under name by this
-// method, or declares a new one — the identity backing the package-level
-// evo.Task(name) facade, where repeated calls must return the same handle
-// instead of the duplicate-key error Task/ID would raise.
-func (o *Output) taskGetOrCreate(name string, opts ...EntityOption) *TaskHandle {
-	return o.taskScoped(name, "", opts...)
 }
 
 // planGetOrCreate returns the Plan previously created under subject by this
@@ -879,14 +891,16 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	return false
 }
 
-// Group declares (or, for a repeated name, returns) a collection of
-// independent child tasks. Eligible children may overlap through the
-// scheduler. name is a printf format when args are present.
+// Group declares a collection of independent child tasks. Eligible children
+// may overlap through the scheduler. A repeated name is a duplicate sibling
+// declaration (§3.1), not a get-or-create — see failDuplicateSiblingLocked.
+// name is a printf format when args are present.
 func (o *Output) Group(name string) *GroupHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if g, ok := o.namedGroupHandles[name]; ok {
-		return g
+	if _, ok := o.namedGroupHandles[name]; ok {
+		o.failDuplicateSiblingLocked(nil, kindGroup, txt.Text(name))
+		return &GroupHandle{out: o, id: o.nextID("tasks")}
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
@@ -905,17 +919,19 @@ func (o *Output) Group(name string) *GroupHandle {
 	return h
 }
 
-// Sequence declares (or, for a repeated name, returns) a self-managing,
-// ordered container — the front door for a sequence of steps that must stop
-// implying "still might run" once a member has already failed or been
-// cancelled. A second evo.Sequence("python") call returns the same Sequence,
-// mirroring Task's get-or-create identity. name is a printf format when args
-// are present (fmt.Sprintf semantics); no args leaves name untouched.
+// Sequence declares a self-managing, ordered container — the front door for
+// a sequence of steps that must stop implying "still might run" once a
+// member has already failed or been cancelled. A repeated
+// evo.Sequence("python") call is a duplicate sibling declaration (§3.1), not
+// a get-or-create — see failDuplicateSiblingLocked. name is a printf format
+// when args are present (fmt.Sprintf semantics); no args leaves name
+// untouched.
 func (o *Output) Sequence(name string) *SequenceHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if g, ok := o.namedGroups[name]; ok {
-		return g
+	if _, ok := o.namedGroups[name]; ok {
+		o.failDuplicateSiblingLocked(nil, kindSequence, txt.Text(name))
+		return &SequenceHandle{tasks: &GroupHandle{out: o, id: o.nextID("tasks")}}
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
@@ -938,9 +954,11 @@ func (o *Output) Sequence(name string) *SequenceHandle {
 // declareContainerLocked allocates a new top-level tasksState — the shared
 // body behind Group and Sequence, which differ only in the sequential flag.
 func (o *Output) declareContainerLocked(name string, sequential bool) *tasksState {
+	clean := txt.Text(name)
 	st := &tasksState{
 		id:          o.nextID("tasks"),
-		name:        txt.Text(name),
+		key:         stableKey(childKindFor(sequential), "", clean),
+		name:        clean,
 		declaration: o.nextDecl(),
 		sequential:  sequential,
 	}
@@ -948,15 +966,31 @@ func (o *Output) declareContainerLocked(name string, sequential bool) *tasksStat
 	return st
 }
 
-// childContainerGetOrCreateLocked get-or-creates a nested container under
-// parent, scoped to this one parent (path + name is the identity).
-func (o *Output) childContainerGetOrCreateLocked(parent *tasksState, name string, sequential bool) *tasksState {
-	if existing, ok := parent.namedChildren[name]; ok {
-		return existing
+// childKindFor names the entity kind a nested container declares, for the
+// duplicate-sibling problem it may need to report.
+func childKindFor(sequential bool) entityKind {
+	if sequential {
+		return kindSequence
+	}
+	return kindGroup
+}
+
+// declareChildContainerLocked declares a nested container under parent,
+// scoped to this one parent (path + name is the identity). A repeated name
+// is a duplicate sibling declaration (§3.1); the caller (GroupHandle/
+// SequenceHandle.Group/Sequence) still receives a usable, if orphaned,
+// handle back.
+func (o *Output) declareChildContainerLocked(parent *tasksState, name string, sequential bool) *tasksState {
+	clean := txt.Text(name)
+	kind := childKindFor(sequential)
+	if _, ok := parent.namedChildren[name]; ok {
+		o.failDuplicateSiblingLocked(parent, kind, clean)
+		return &tasksState{id: o.nextID("tasks"), name: clean, sequential: sequential}
 	}
 	st := &tasksState{
 		id:          o.nextID("tasks"),
-		name:        txt.Text(name),
+		key:         stableKey(kind, parent.key, clean),
+		name:        clean,
 		declaration: o.nextDecl(),
 		sequential:  sequential,
 	}
@@ -969,22 +1003,23 @@ func (o *Output) childContainerGetOrCreateLocked(parent *tasksState, name string
 	return st
 }
 
-// groupTaskGetOrCreate returns the child previously declared under name in
-// the sequence backed by groupID, or declares a new one — the identity
-// behind Sequence.Task's get-or-create contract.
-func (o *Output) groupTaskGetOrCreate(groupID, name string, opts ...EntityOption) *TaskHandle {
+// declareGroupTask declares a child task by name in the container backed by
+// groupID — the identity behind Group.Task/Sequence.Task. A repeated name is
+// a duplicate sibling declaration (§3.1), not a get-or-create.
+func (o *Output) declareGroupTask(groupID, name string, opts ...EntityOption) *TaskHandle {
 	o.mu.Lock()
 	col := o.tasksByRef[groupID]
 	if col == nil {
 		o.mu.Unlock()
 		return &TaskHandle{out: o, id: o.nextID("task")}
 	}
-	if existing, ok := col.namedTasks[name]; ok {
+	if _, ok := col.namedTasks[name]; ok {
+		o.failDuplicateSiblingLocked(col, kindTask, txt.Text(name))
 		o.mu.Unlock()
-		return existing
+		return &TaskHandle{out: o, id: o.nextID("task")}
 	}
 	eo := applyEntityOptions(opts)
-	h := o.addTaskLocked(txt.Text(name), col, eo.key, false)
+	h := o.addTaskLocked(txt.Text(name), col, eo.key, col.key, false)
 	if col.namedTasks == nil {
 		col.namedTasks = make(map[string]*TaskHandle)
 	}
@@ -1341,6 +1376,8 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Kept:        cloneTaxonomy(t.kept),
 		Collection:  colID,
 		Declaration: t.declaration,
+		Resolution:  t.resolution,
+		Evidence:    t.verifyEvidence,
 	}
 	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic, t.fromEach)
 }
@@ -1362,6 +1399,7 @@ func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
 func (g *tasksState) snapshot() TasksSnapshot {
 	ts := TasksSnapshot{
 		ID:          g.id,
+		Key:         g.key,
 		Name:        g.name,
 		State:       g.derivedState(),
 		Summary:     g.displaySummary(),

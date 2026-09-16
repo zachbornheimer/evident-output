@@ -9,6 +9,7 @@ import (
 	"go/printer"
 	"go/token"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -53,17 +54,25 @@ var retiredAPINames = []string{
 func buildAPISurface(t *testing.T, dir string) []string {
 	t.Helper()
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
-		return !strings.HasSuffix(fi.Name(), "_test.go")
-	}, parser.ParseComments)
+	matches, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
-		t.Fatalf("ParseDir(%s): %v", dir, err)
+		t.Fatalf("Glob(%s): %v", dir, err)
 	}
-	astPkg, ok := pkgs["evo"]
-	if !ok {
-		t.Fatalf("package %q not found in %s", "evo", dir)
+	var files []*ast.File
+	for _, name := range matches {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, name, nil, parser.ParseComments)
+		if err != nil {
+			t.Fatalf("ParseFile(%s): %v", name, err)
+		}
+		files = append(files, f)
 	}
-	docPkg := doc.New(astPkg, "./", doc.AllDecls)
+	docPkg, err := doc.NewFromFiles(fset, files, "github.com/zachbornheimer/evident-output", doc.AllDecls)
+	if err != nil {
+		t.Fatalf("NewFromFiles(%s): %v", dir, err)
+	}
 
 	var lines []string
 	for _, typ := range docPkg.Types {
@@ -105,7 +114,11 @@ func buildAPISurface(t *testing.T, dir string) []string {
 // but not a bare *ast.FieldList (it renders empty without the enclosing
 // parens a func literal normally supplies), so this renders field by field.
 func renderParams(fset *token.FileSet, ft *ast.FuncType) string {
-	return "(" + renderFieldList(fset, ft.Params) + ") " + renderFieldList(fset, ft.Results)
+	sig := "(" + renderFieldList(fset, ft.Params) + ")"
+	if results := renderFieldList(fset, ft.Results); results != "" {
+		sig += " " + results
+	}
+	return sig
 }
 
 // renderFieldList renders each field as "name1, name2 Type", comma-joined —

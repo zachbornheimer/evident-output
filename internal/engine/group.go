@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"iter"
-
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -20,7 +18,7 @@ func (g *GroupHandle) Task(name string) *TaskHandle {
 	if g == nil || g.out == nil {
 		return &TaskHandle{}
 	}
-	return g.out.groupTaskGetOrCreate(g.id, name)
+	return g.out.declareGroupTask(g.id, name)
 }
 
 // Sequence declares (or returns) an ordered child container nested here.
@@ -44,7 +42,7 @@ func (g *GroupHandle) declareChild(name string, sequential bool) *GroupHandle {
 	if parent == nil {
 		return &GroupHandle{out: g.out, id: g.out.nextID("tasks")}
 	}
-	child := g.out.childContainerGetOrCreateLocked(parent, name, sequential)
+	child := g.out.declareChildContainerLocked(parent, name, sequential)
 	h := &GroupHandle{out: g.out, id: child.id}
 	child.handle = h
 	g.out.bumpLocked()
@@ -84,13 +82,4 @@ func (g *GroupHandle) Snapshot() TasksSnapshot {
 		return TasksSnapshot{ID: g.id, State: Empty}
 	}
 	return col.snapshot()
-}
-
-// Each yields a child Task per item. Range-end waits only for children that
-// received Define or a mutation verb during the loop.
-func (g *GroupHandle) Each(items []string) iter.Seq2[string, *TaskHandle] {
-	if g == nil || g.out == nil {
-		return func(func(string, *TaskHandle) bool) {}
-	}
-	return eachChildren(g.out, g.id, items)
 }

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -34,12 +35,12 @@ func TestRun_Interrupt_DeclaredButNeverDefinedTaskIsNotMisuse(t *testing.T) {
 	blocking := make(chan struct{})
 	code := make(chan int, 1)
 	go func() {
-		code <- out.Run(func(o *Output) error {
+		code <- out.Run(context.Background(), func(ctx context.Context) error {
 			running.Progress(24, 111)
 			close(blocking)
 			<-running.Context().Done()
 			return running.Context().Err()
-		})
+		}).ExitCode()
 	}()
 
 	<-blocking

@@ -1,7 +1,5 @@
 package engine
 
-import "iter"
-
 // SequenceHandle is the front door for ordered child work: the same
 // scheduler as Group with implicit predecessor edges in declaration order.
 // A failed/blocked/cancelled child makes later siblings NotStarted.
@@ -15,7 +13,7 @@ func (g *SequenceHandle) Task(name string) *TaskHandle {
 	if g == nil || g.tasks == nil {
 		return &TaskHandle{}
 	}
-	return g.tasks.out.groupTaskGetOrCreate(g.tasks.id, name)
+	return g.tasks.out.declareGroupTask(g.tasks.id, name)
 }
 
 // Summary sets a success-oriented sequence summary.
@@ -49,13 +47,4 @@ func (g *SequenceHandle) Group(name string) *GroupHandle {
 		return &GroupHandle{}
 	}
 	return g.tasks.Group(name)
-}
-
-// Each yields a child Task per item in declaration order. Range-end waits
-// only for children that received Define or a mutation verb during the loop.
-func (g *SequenceHandle) Each(items []string) iter.Seq2[string, *TaskHandle] {
-	if g == nil || g.tasks == nil {
-		return func(func(string, *TaskHandle) bool) {}
-	}
-	return g.tasks.Each(items)
 }

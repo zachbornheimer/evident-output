@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -25,12 +26,11 @@ func TestScheduledFail_AutoAttachedEvidenceDoesNotDeadlock(t *testing.T) {
 		var buf bytes.Buffer
 		out := evo.Init(evo.Config{Title: "zq", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})
 		group := out.Group("fix")
-		for _, task := range group.Each([]string{"gofmt"}) {
-			task.Define(func() error {
-				_, _ = task.Writer().Write([]byte("main.go:1:1: needs formatting"))
-				return errors.New("gofmt reported issues")
-			})
-		}
+		task := group.Task("gofmt")
+		task.Define(func(ctx context.Context) error {
+			_, _ = task.Writer().Write([]byte("main.go:1:1: needs formatting"))
+			return errors.New("gofmt reported issues")
+		})
 		_ = out.Finish()
 		_ = out.Close()
 	}()

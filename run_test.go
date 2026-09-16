@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"strings"
@@ -13,10 +14,10 @@ import (
 func TestMainWith_SuccessExitZero(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
-	code := out.Run(func(o *evo.Output) error {
-		o.Task("working tree").Done()
+	code := out.Run(context.Background(), func(ctx context.Context) error {
+		out.Task("working tree").Done()
 		return nil
-	})
+	}).ExitCode()
 	if code != evo.ExitOK {
 		t.Fatalf("exit %d, want %d; out:\n%s", code, evo.ExitOK, buf.String())
 	}
@@ -28,10 +29,10 @@ func TestMainWith_SuccessExitZero(t *testing.T) {
 func TestMainWith_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
-	code := out.Run(func(o *evo.Output) error {
-		o.Task("working tree").Block("dirty")
+	code := out.Run(context.Background(), func(ctx context.Context) error {
+		out.Task("working tree").Block("dirty")
 		return nil
-	})
+	}).ExitCode()
 	if code != evo.ExitBlocked {
 		t.Fatalf("exit %d, want %d", code, evo.ExitBlocked)
 	}
@@ -40,10 +41,10 @@ func TestMainWith_BlockedExitOne(t *testing.T) {
 func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
-	code := out.Run(func(o *evo.Output) error {
-		o.Task("x").Done()
+	code := out.Run(context.Background(), func(ctx context.Context) error {
+		out.Task("x").Done()
 		return errors.New("app boom")
-	})
+	}).ExitCode()
 	if code != evo.ExitFailed {
 		t.Fatalf("exit %d, want %d", code, evo.ExitFailed)
 	}
@@ -59,10 +60,10 @@ func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 func TestMainWith_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "demo", Stdout: &buf, Stderr: &buf})
-	code := out.Run(func(o *evo.Output) error {
-		o.Task("fetch").Fail("network down", evo.Detail("connection refused"))
+	code := out.Run(context.Background(), func(ctx context.Context) error {
+		out.Task("fetch").Fail("network down", evo.Detail("connection refused"))
 		return errors.New("network down")
-	})
+	}).ExitCode()
 	if code != evo.ExitFailed {
 		t.Fatalf("exit %d, want %d", code, evo.ExitFailed)
 	}
@@ -77,7 +78,7 @@ func TestMainWith_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
 
 func TestMainWith_NilOutput(t *testing.T) {
 	var nilOut *evo.Output
-	if code := nilOut.Run(nil); code != evo.ExitFailed {
+	if code := nilOut.Run(context.Background(), nil).ExitCode(); code != evo.ExitFailed {
 		t.Fatalf("exit %d", code)
 	}
 }

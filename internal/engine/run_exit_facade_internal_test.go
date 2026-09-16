@@ -1,44 +1,24 @@
 package engine
 
 import (
-	"errors"
+	"context"
 	"testing"
 )
 
-// TestMain_ExitsThroughExitProcessFacade proves Main's and MainWith's only
-// path to process termination is the exitProcess facade (aPI-018, restated
-// by P6: the library still never calls os.Exit directly — Main/MainWith are
-// the sole sanctioned callers of the facade, and this swaps it for a fake so
-// the test process itself never actually exits).
-func TestMain_ExitsThroughExitProcessFacade(t *testing.T) {
-	prev := exitProcess
-	defer func() { exitProcess = prev }()
-
-	var gotCode int
-	var exited bool
-	exitProcess = func(code int) { gotCode = code; exited = true }
-
+// TestMain_ReturnsCodeWithoutExiting proves Main derives its exit code from
+// Run without calling os.Exit itself (spec §1.1: "Main owns CLI
+// signal-to-cancellation setup and returns the derived exit code; it does
+// not itself call os.Exit") — the caller writes os.Exit(evo.Main(run)).
+// 1.0 removed MainWith (the pre-v0.6 func(*Output) error entrypoint) and
+// its exitProcess facade outright: nothing in the library calls os.Exit
+// anymore, so there is no longer a facade to swap for a fake here.
+func TestMain_ReturnsCodeWithoutExiting(t *testing.T) {
 	SetDefault(Init(Config{Isolated: true}))
-	Main(func() error {
+	code := Main(func(context.Context) error {
 		Task("x").Done()
 		return nil
 	})
-	if !exited {
-		t.Fatal("Main did not exit through exitProcess")
-	}
-	if gotCode != ExitOK {
-		t.Fatalf("Main exited %d, want %d", gotCode, ExitOK)
-	}
-
-	exited, gotCode = false, 0
-	out := Init(Config{Isolated: true})
-	mainWith(out, func(o *Output) error {
-		return errors.New("boom")
-	})
-	if !exited {
-		t.Fatal("MainWith did not exit through exitProcess")
-	}
-	if gotCode != ExitFailed {
-		t.Fatalf("MainWith exited %d, want %d", gotCode, ExitFailed)
+	if code != ExitOK {
+		t.Fatalf("Main returned %d, want %d", code, ExitOK)
 	}
 }

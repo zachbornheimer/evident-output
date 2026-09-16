@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -117,26 +118,23 @@ func TestCON016_ChildOrderPreserved(t *testing.T) {
 	}
 }
 
+// TestCON018_DuplicateChildNames proves §3.1: a repeated Group.Task name
+// under the same parent is a duplicate sibling declaration, not a
+// get-or-create — the second call reports a distinct, Failed handle instead
+// of silently merging into the first.
 func TestCON018_DuplicateChildNames(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Group("g")
 	a := g.Task("same")
 	b := g.Task("same")
-	if a.Snapshot().ID != b.Snapshot().ID {
-		t.Fatal("Group.Task get-or-create must return the same handle for a repeated name")
+	if a.Snapshot().ID == b.Snapshot().ID {
+		t.Fatal("expected a distinct handle for the duplicate declaration")
+	}
+	if !errors.Is(out.Err(), evo.ErrDuplicateSiblingName) {
+		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.Err())
 	}
 	a.Done()
-
-	each := out.Group("each")
-	var ids []string
-	for _, task := range each.Each([]string{"same", "same"}) {
-		ids = append(ids, task.Snapshot().ID)
-		task.Done()
-	}
-	if len(ids) != 2 || ids[0] == ids[1] {
-		t.Fatalf("Each duplicate names must be distinct children, ids=%v", ids)
-	}
 }
 
 func TestCON010_CancelVsDoneRace(t *testing.T) {

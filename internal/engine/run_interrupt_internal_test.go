@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"io"
 	"os"
 	"strings"
@@ -51,19 +52,29 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 	names := []string{"pkg1", "pkg2", "pkg3", "pkg4", "pkg5"}
 	code := make(chan int, 1)
 	go func() {
-		code <- out.Run(func(o *Output) error {
-			for name, task := range group.Each(names) {
-				first := name == names[0]
-				task.Define(func() error {
-					if first {
+		code <- out.Run(context.Background(), func(ctx context.Context) error {
+			var first *TaskHandle
+			for i, name := range names {
+				task := group.Task(name)
+				if i == 0 {
+					first = task
+				}
+				task.Define(func(ctx context.Context) error {
+					if task == first {
 						close(blocking)
 						<-task.Context().Done()
 					}
 					return nil
 				})
 			}
+			// Wait for the first (blocking) child in this same goroutine —
+			// Each used to do this implicitly at range-end for every child
+			// it submitted; a plain Group child (§3.1: Each is retired)
+			// makes that wait explicit, keeping the run callback "in
+			// flight" so the interrupt select below is still parked on it.
+			_ = first.Wait()
 			return nil
-		})
+		}).ExitCode()
 	}()
 
 	<-blocking
@@ -87,8 +98,11 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 	if n := strings.Count(rendered, "■ pkg"); n != 1 {
 		t.Fatalf("want exactly one cancelled child row, got %d:\n%s", n, rendered)
 	}
-	if !strings.Contains(rendered, "4 not started") {
-		t.Fatalf("want the queued children accounted for as not started:\n%s", rendered)
+	// Each's own collapsed "N not started" aggregate (writeNotStartedCount)
+	// keyed off the fromEach marker and was removed with Each (§3.1); a
+	// plain Group child renders its own "not started" row individually.
+	if n := strings.Count(rendered, "not started"); n != 4 {
+		t.Fatalf("want 4 individual not-started child rows, got %d:\n%s", n, rendered)
 	}
 	if strings.Contains(rendered, "✓") {
 		t.Fatalf("nothing may complete after the cancel:\n%s", rendered)
@@ -118,16 +132,16 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 	blocking := make(chan struct{})
 	code := make(chan int, 1)
 	go func() {
-		code <- out.Run(func(o *Output) error {
-			scan.Define(func() error { return nil })
+		code <- out.Run(context.Background(), func(ctx context.Context) error {
+			scan.Define(func(ctx context.Context) error { return nil })
 			venv.Create(".venv directory", func() error {
 				close(blocking)
 				<-venv.Context().Done()
 				return nil
 			})
-			install.Define(func() error { return nil })
+			install.Define(func(ctx context.Context) error { return nil })
 			return install.Wait()
-		})
+		}).ExitCode()
 	}()
 
 	<-blocking

@@ -30,9 +30,8 @@ type waitTicket struct {
 	abort  chan struct{}
 }
 
-func (t *TaskHandle) Define(fn func() error) {
-	t.submitWork(fn, nil)
-}
+// Define lives in verify.go, alongside its Verify-aware execution wiring
+// (runDefine) — both are one concern (§7, §9.1).
 
 func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	if t == nil || t.out == nil {
@@ -918,16 +917,6 @@ func cancelledWaitOutcome(reason string) error {
 		return errWaitCancelled
 	}
 	return fmt.Errorf("%w: %s", errWaitCancelled, reason)
-}
-
-func (t *TaskHandle) wasSubmitted() bool {
-	if t == nil || t.out == nil {
-		return false
-	}
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	return st != nil && st.submitted
 }
 
 // waitSubmitted parks until the task resolves, and reports whether it did.

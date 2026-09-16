@@ -44,7 +44,9 @@ func (t *TaskHandle) Create(object string, fn func() error, opts ...MutationOpti
 	t.impl().Create(object, fn, opts...)
 }
 
-func (t *TaskHandle) Define(fn func() error) { t.impl().Define(fn) }
+// Define freezes this Task's configuration and submits fn to the
+// scheduler — see internal/engine.TaskHandle.Define (§7).
+func (t *TaskHandle) Define(fn func(context.Context) error) { t.impl().Define(fn) }
 
 func (t *TaskHandle) Delete(object string, fn func() error, opts ...MutationOption) {
 	t.impl().Delete(object, fn, opts...)
@@ -68,6 +70,13 @@ func (t *TaskHandle) Failf(format string, args ...any) *Failure {
 }
 
 func (t *TaskHandle) Kept(reason TaxonomyReason) { t.impl().Kept(reason.inner) }
+
+// Key sets an advanced, refactor/rename-stable override for this Task's
+// §3.1 identity — see internal/engine.TaskHandle.Key.
+func (t *TaskHandle) Key(key string) *TaskHandle {
+	t.impl().Key(key)
+	return t
+}
 
 func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
 	t.impl().Next(actions...)
@@ -125,6 +134,13 @@ func (t *TaskHandle) Wait() error {
 		return nil
 	}
 	return t.inner.Wait()
+}
+
+// Verify registers an advanced current-state observation check — see
+// internal/engine.TaskHandle.Verify (§9.1).
+func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {
+	t.impl().Verify(fn)
+	return t
 }
 
 func (t *TaskHandle) Warn(summary string) { t.impl().Warn(summary) }

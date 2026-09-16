@@ -93,20 +93,31 @@ const (
 const DefaultVisibleNames = engine.DefaultVisibleNames
 
 var (
-	ErrClosed              = engine.ErrClosed
-	ErrAlreadyResolved     = engine.ErrAlreadyResolved
-	ErrUnresolvedTask      = engine.ErrUnresolvedTask
-	ErrInvalidProgress     = engine.ErrInvalidProgress
-	ErrProgressRegression  = engine.ErrProgressRegression
-	ErrDuplicateKey        = engine.ErrDuplicateKey
-	ErrInvalidConfig       = engine.ErrInvalidConfig
-	ErrRenderer            = engine.ErrRenderer
-	ErrLimitExceeded       = engine.ErrLimitExceeded
-	ErrReasonSkipOnly      = engine.ErrReasonSkipOnly
-	ErrReasonWrongTask     = engine.ErrReasonWrongTask
-	ErrConcurrentRunning   = engine.ErrConcurrentRunning
-	ErrDryRunDeclaredLate  = engine.ErrDryRunDeclaredLate
-	ErrTerminalWithoutSink = engine.ErrTerminalWithoutSink
-	ErrNotStarted          = engine.ErrNotStarted
-	ErrWaitDeadlock        = engine.ErrWaitDeadlock
+	ErrClosed               = engine.ErrClosed
+	ErrAlreadyResolved      = engine.ErrAlreadyResolved
+	ErrUnresolvedTask       = engine.ErrUnresolvedTask
+	ErrInvalidProgress      = engine.ErrInvalidProgress
+	ErrProgressRegression   = engine.ErrProgressRegression
+	ErrDuplicateKey         = engine.ErrDuplicateKey
+	ErrInvalidConfig        = engine.ErrInvalidConfig
+	ErrRenderer             = engine.ErrRenderer
+	ErrLimitExceeded        = engine.ErrLimitExceeded
+	ErrReasonSkipOnly       = engine.ErrReasonSkipOnly
+	ErrReasonWrongTask      = engine.ErrReasonWrongTask
+	ErrConcurrentRunning    = engine.ErrConcurrentRunning
+	ErrDryRunDeclaredLate   = engine.ErrDryRunDeclaredLate
+	ErrTerminalWithoutSink  = engine.ErrTerminalWithoutSink
+	ErrNotStarted           = engine.ErrNotStarted
+	ErrWaitDeadlock         = engine.ErrWaitDeadlock
+	ErrDuplicateSiblingName = engine.ErrDuplicateSiblingName
+	ErrKeyAfterDefine       = engine.ErrKeyAfterDefine
+	ErrNoTaskContext        = engine.ErrNoTaskContext
+	ErrTaskClosed           = engine.ErrTaskClosed
+)
+
+// Problem codes are stable, machine-readable Problem.Code values a consumer
+// matches on instead of parsing Summary text.
+const (
+	ProblemCodeDuplicateSiblingName    = engine.ProblemCodeDuplicateSiblingName
+	ProblemCodeVerificationUnsatisfied = engine.ProblemCodeVerificationUnsatisfied
 )
