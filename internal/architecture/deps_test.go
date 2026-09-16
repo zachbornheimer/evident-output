@@ -12,17 +12,21 @@ import (
 	"testing"
 )
 
-// allowedDependencyPrefix is the only non-stdlib import root evo may
-// require: the Go team's own extended-stdlib modules. Anything else in
-// go.mod's require block would make evo's build depend on third-party
-// supply chain the module has never needed (it uses golang.org/x/term for
-// terminal size/mode and golang.org/x/sys as term's own transitive need).
+// allowedDependencyPrefix is the one carved-out non-stdlib import root evo
+// may require: the Go team's own extended-stdlib modules. This is a named
+// exception, not a relaxation of "no third-party deps" — evo already
+// depended on golang.org/x/term (terminal size/mode) and its transitive
+// golang.org/x/sys before this gate existed, and the Go team ships these
+// modules as a slower-moving extension of the standard library rather than
+// as ordinary supply chain. Anything outside stdlib and this prefix is a
+// genuine new third-party dependency and fails the gate below.
 const allowedDependencyPrefix = "golang.org/x/"
 
-// TestGoModHasNoThirdPartyRequires fails if go.mod requires any module
-// outside the standard library and golang.org/x/... — a stdlib-grade
-// module's dependency graph must stay auditable by reading one file.
-func TestGoModHasNoThirdPartyRequires(t *testing.T) {
+// TestGoModRequiresOnlyStdlibAndGoTeamModules fails if go.mod requires any
+// module outside the standard library and the golang.org/x/... exception
+// (see allowedDependencyPrefix) — a stdlib-grade module's dependency graph
+// must stay auditable by reading one file.
+func TestGoModRequiresOnlyStdlibAndGoTeamModules(t *testing.T) {
 	modules, err := requiredModules(t, filepath.Join(moduleRoot(t), "go.mod"))
 	if err != nil {
 		t.Fatalf("parse go.mod: %v", err)
