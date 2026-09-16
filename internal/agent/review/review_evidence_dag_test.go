@@ -126,6 +126,11 @@ func TestEVODAG002_SingleExceptionalAfterEdge_StaysSilent(t *testing.T) {
 	assertNoFinding(t, res, "EVO-DAG-002")
 }
 
+func TestEVODAG002_UnrelatedNonEvoAfterChain_StaysSilent(t *testing.T) {
+	res := review.GoSource("dag_002_unrelated_after_chain.go", readFixture(t, "dag_002_unrelated_after_chain.go"))
+	assertNoFinding(t, res, "EVO-DAG-002")
+}
+
 func TestEVODAG003_ProducerConsumerWithNoOrdering_Fires(t *testing.T) {
 	res := review.GoSource("dag_003_bad.go", readFixture(t, "dag_003_bad.go"))
 	f := assertFinding(t, res, "EVO-DAG-003")

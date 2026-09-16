@@ -63,7 +63,7 @@ func collectAfterEdges(file *ast.File) []afterEdge {
 			return true
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "After" || len(call.Args) != 1 {
+		if !ok || sel.Sel.Name != "After" || len(call.Args) != 1 || !isLikelyEvoReceiver(sel.X) {
 			return true
 		}
 		child := exprDottedName(sel.X)
