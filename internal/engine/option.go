@@ -34,6 +34,12 @@ type config struct {
 	maxConcurrency    int
 	extraWriters      []io.Writer
 	verbosity         Verbosity
+	// stateDir/appID mirror Config.StateDir/Config.AppID (spec §11.3):
+	// stateDir, when non-empty, is the exact manifest state directory;
+	// appID overrides the derived application id used in the default
+	// cache-dir manifest path derivation.
+	stateDir string
+	appID    string
 	// stdin is the facade Confirm reads one answer line from (default os.Stdin,
 	// resolved lazily so NewWithOptions callers that skip Stdin still work).
 	stdin io.Reader
@@ -291,6 +297,16 @@ func maxEvents(n int) Option {
 
 func maxConcurrency(n int) Option {
 	return optionFunc(func(c *config) { c.maxConcurrency = n })
+}
+
+// withStateDir mirrors Config.StateDir (spec §11.3).
+func withStateDir(dir string) Option {
+	return optionFunc(func(c *config) { c.stateDir = dir })
+}
+
+// withAppID mirrors Config.AppID (spec §11.3).
+func withAppID(id string) Option {
+	return optionFunc(func(c *config) { c.appID = id })
 }
 
 // AlsoWrite adds an additional human projection writer. On Finish, each writer

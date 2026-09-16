@@ -468,6 +468,7 @@ func configToOptions(c Config) []Option {
 	opts = append(opts, visibilityDelay(visDelay), maxFrameRate(c.MaxFrameRate))
 	opts = append(opts, maxEntities(c.MaxEntities), maxEvents(c.MaxEvents))
 	opts = append(opts, maxConcurrency(c.MaxConcurrency))
+	opts = append(opts, withStateDir(c.StateDir), withAppID(c.AppID))
 	opts = append(opts, debugLevel(c.Debug.Level))
 	if c.Debug.AddSource {
 		opts = append(opts, debugAddSource())

@@ -637,6 +637,19 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		// other task in the run to finish (see commitNamedEffectsLocked).
 		t.out.commitNamedEffectsLocked(st.name)
 	}
+	// The Task manifest commits atomically only once the Task itself settles
+	// Done — never on Failed/Blocked/Cancelled (spec §8.2/§11.3: "a partial
+	// failed operation never receives a success manifest record" and
+	// "cancellation/failure preserves already committed successful Task
+	// records"). A dry run never reaches here with any pending operations,
+	// since File never records one during DryRun.
+	if state == Done {
+		runCtx := t.out.ctx
+		if runCtx == nil {
+			runCtx = context.Background()
+		}
+		t.out.commitManifestTaskLocked(runCtx, t.id)
+	}
 	st.closeDoneLocked()
 	return t
 }
