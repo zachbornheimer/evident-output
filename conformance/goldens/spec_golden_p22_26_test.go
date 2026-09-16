@@ -4,6 +4,7 @@ package goldens_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"strings"
 	"syscall"
@@ -256,11 +257,11 @@ func TestSpecP22_ConfirmGate_EarlyTermination(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		close(started)
 		evo.Confirm("confirm remote delete", evo.Destructive())
 		return nil
-	})
+	}).ExitCode()
 
 	if code != evo.ExitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, screen.PersistedText())
@@ -417,7 +418,7 @@ func TestSpecP23_SignalConclusion_Step2(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		scan.Done()
 		venv.Doing("creating")
 		close(started)
@@ -426,7 +427,7 @@ func TestSpecP23_SignalConclusion_Step2(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
-	})
+	}).ExitCode()
 
 	if code != evo.ExitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
@@ -489,7 +490,7 @@ func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		scan.Done()
 		venv.Record("create", 1, ".venv directory")
 		close(started)
@@ -498,7 +499,7 @@ func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
-	})
+	}).ExitCode()
 
 	if code != evo.ExitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
@@ -694,7 +695,7 @@ func TestSpecP24_DataFormat_EarlyTermination(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		scan.Progress(40, 128)
 		if _, err := payload.Write([]byte(`{"repo":"zq"}` + "\n")); err != nil {
 			return err
@@ -705,7 +706,7 @@ func TestSpecP24_DataFormat_EarlyTermination(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
-	})
+	}).ExitCode()
 
 	if code != evo.ExitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, presentation.String())
@@ -833,7 +834,7 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		branches.Record("delete", 8, "local")
 		branches.Done("8 deleted")
 		worktrees.Record("remove", 0, "worktrees")
@@ -843,7 +844,7 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
-	})
+	}).ExitCode()
 
 	if code != evo.ExitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
@@ -882,25 +883,25 @@ func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 	g.Summary("40 del")
 	protected := evo.Reason("protected")
 	dirty := evo.Reason("dirty")
-	var items []string
-	items = append(items, eachSkipNames("protected", 4)...)
-	items = append(items, eachSkipNames("dirty", 2)...)
-	for name, task := range g.Each(items) {
-		if strings.HasPrefix(name, "protected-") {
-			task.Skipped(protected)
-		} else {
-			task.Skipped(dirty)
-		}
+	for _, name := range eachSkipNames("protected", 4) {
+		g.Task(name).Skipped(protected)
+	}
+	for _, name := range eachSkipNames("dirty", 2) {
+		g.Task(name).Skipped(dirty)
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{"✓ branches 40 del", "! skipped 6"} {
-		if !strings.Contains(collapsed, want) {
-			t.Fatalf("want %q in:\n%s", want, got)
-		}
+	if !strings.Contains(collapsed, "✓ branches 40 del") {
+		t.Fatalf("want %q in:\n%s", "✓ branches 40 del", got)
+	}
+	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6") was
+	// removed with Each in 1.0 (§3.1) — each plain Group child renders its
+	// own line.
+	if n := strings.Count(collapsed, "! skipped 1"); n != 6 {
+		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
 	}
 }
 
@@ -996,7 +997,7 @@ func TestSpecP26_NarrowTerminal_EarlyTermination(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		branches.Record("delete", 15, "local")
 		branches.Done("15 del")
 		worktrees.Record("remove", 0, "worktrees")
@@ -1006,7 +1007,7 @@ func TestSpecP26_NarrowTerminal_EarlyTermination(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
-	})
+	}).ExitCode()
 
 	if code != evo.ExitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())

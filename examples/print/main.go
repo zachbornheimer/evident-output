@@ -4,12 +4,15 @@
 package main
 
 import (
+	"context"
+	"os"
+
 	evo "github.com/zachbornheimer/evident-output"
 )
 
 func main() {
 	evo.Init(evo.Config{Title: "packages"})
-	evo.Main(func() error {
+	os.Exit(evo.Main(func(ctx context.Context) error {
 		// Managed, line-oriented replacement for human-facing fmt.Print*
 		// (not a byte-for-byte fmt drop-in).
 		evo.Println("Reading configuration")
@@ -19,5 +22,5 @@ func main() {
 		evo.Print("\n")
 		evo.Println("Ready")
 		return nil
-	})
+	}))
 }

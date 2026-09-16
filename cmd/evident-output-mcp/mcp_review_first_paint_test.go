@@ -81,7 +81,7 @@ func previewPurge(roots []string) error {
   defer out.Close()
   inv := out.Task("inventory")
   inv.Doing("walking worktrees")
-  inv.Define(func() error {
+  inv.Define(func(ctx context.Context) error {
     for _, root := range roots {
       if err := filepath.WalkDir(root, func(string, fs.DirEntry, error) error { return nil }); err != nil {
         return err

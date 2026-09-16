@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -116,12 +117,12 @@ func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 	}
 }
 
-func TestMainWithRunErrorCannotRenderReady(t *testing.T) {
+func TestRunErrorCannotRenderReady(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "tool", Stdout: &buf, Stderr: &buf, Isolated: true})
-	code := out.Run(func(o *evo.Output) error {
+	code := out.Run(context.Background(), func(ctx context.Context) error {
 		return fmt.Errorf("database unavailable")
-	})
+	}).ExitCode()
 	if code != evo.ExitFailed {
 		t.Fatalf("exit %d, want %d", code, evo.ExitFailed)
 	}
@@ -133,13 +134,14 @@ func TestMainWithRunErrorCannotRenderReady(t *testing.T) {
 	}
 }
 
-func TestMainWithRunErrorOutranksBlockedConclusion(t *testing.T) {
+func TestRunErrorOutranksBlockedConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "tool", Stdout: &buf, Stderr: &buf, Isolated: true})
-	code := out.Run(func(o *evo.Output) error {
+	code := out.Run(context.Background(), func(ctx context.Context) error {
+		o := out
 		o.Task("policy").Block("not permitted")
 		return fmt.Errorf("database connection failed")
-	})
+	}).ExitCode()
 	if code != evo.ExitFailed {
 		t.Fatalf("exit %d, want failed (not blocked-only): %d; out:\n%s", code, evo.ExitFailed, buf.String())
 	}

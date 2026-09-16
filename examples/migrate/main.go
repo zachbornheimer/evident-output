@@ -10,7 +10,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -21,7 +23,7 @@ func main() {
 	flag.Parse()
 
 	evo.Init(evo.Config{Title: "schema migration", DryRun: !*apply})
-	evo.Main(func() error {
+	os.Exit(evo.Main(func(ctx context.Context) error {
 		backup := evo.Task("backup")
 		backup.Doing("snapshotting production")
 		if *apply && *fail {
@@ -42,7 +44,7 @@ func main() {
 		schema.Task("email index").Create("index idx_users_email", createEmailIndex)
 		schema.Task("migration file").Write("migrations/20260727_email_verified.sql", writeMigrationFile)
 		return nil
-	})
+	}))
 }
 
 func addEmailVerifiedColumn() error { return nil }

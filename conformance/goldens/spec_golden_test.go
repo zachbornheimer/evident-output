@@ -2,6 +2,7 @@ package goldens_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -159,10 +160,10 @@ func TestSpecP4_SequentialGroup_Success(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "python", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
-	setup.Task("scan").Define(func() error { return nil })
-	setup.Task("venv").Define(func() error { return nil })
+	setup.Task("scan").Define(func(ctx context.Context) error { return nil })
+	setup.Task("venv").Define(func(ctx context.Context) error { return nil })
 	install := setup.Task("install")
-	install.Define(func() error {
+	install.Define(func(ctx context.Context) error {
 		install.Done("14 modules")
 		return nil
 	})
@@ -190,8 +191,8 @@ func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "python", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
-	setup.Task("scan").Define(func() error { return nil })
-	setup.Task("venv").Define(func() error {
+	setup.Task("scan").Define(func(ctx context.Context) error { return nil })
+	setup.Task("venv").Define(func(ctx context.Context) error {
 		return fmt.Errorf("uv exited 1: No such file or directory")
 	})
 	setup.Task("install")
@@ -545,7 +546,8 @@ func TestSpecP18_RemoteTrackingVsRemoteDelete_Success(t *testing.T) {
 //
 //	[ok] branches   14 deleted
 //	[ok] worktrees  2 removed
-//	[!] skipped 6 (protected, dirty)
+//	[!] skipped 1 (protected)
+//	[!] skipped 1 (dirty)
 func TestSpecP25_ASCIIGlyphFallback_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state,
 	// same as the existing default-instance tests in taxonomy_test.go.
@@ -556,16 +558,11 @@ func TestSpecP25_ASCIIGlyphFallback_Success(t *testing.T) {
 	dirty := evo.Reason("dirty")
 	g := out.Group("branches")
 	g.Summary("14 deleted")
-	for name, task := range g.Each([]string{"protected-0", "dirty-0"}) {
-		switch name {
-		case "protected-0":
-			task.Skipped(protected)
-		default:
-			task.Skipped(dirty)
-		}
-	}
-	g.Task("deleted").Record("delete", 14, "branches")
-	g.Task("deleted").Done("14 deleted")
+	g.Task("protected-0").Skipped(protected)
+	g.Task("dirty-0").Skipped(dirty)
+	deleted := g.Task("deleted")
+	deleted.Record("delete", 14, "branches")
+	deleted.Done("14 deleted")
 	worktrees := out.Task("worktrees")
 	worktrees.Record("remove", 2, "worktrees")
 	worktrees.Done("2 removed")
@@ -573,7 +570,7 @@ func TestSpecP25_ASCIIGlyphFallback_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"[ok] branches  14 deleted", "[ok] worktrees  2 removed", "[!] skipped 2"} {
+	for _, want := range []string{"[ok] branches  14 deleted", "[ok] worktrees  2 removed", "[!] skipped 1 (protected)", "[!] skipped 1 (dirty)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in ASCII-profile output:\n%s", want, got)
 		}
