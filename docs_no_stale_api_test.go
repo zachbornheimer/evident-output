@@ -42,6 +42,7 @@ const staleAPIWindow = 8
 var staleAPIScanRoots = []string{
 	"docs",
 	"internal/agent/sections",
+	"skills",
 }
 
 var staleAPIScanFiles = []string{

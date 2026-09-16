@@ -26,7 +26,7 @@ license: Apache-2.0
 ## Workflow when MCP is connected
 
 1. `evident_output_list_sections` / `evident_output_get_documentation`
-2. Implement with `Init(Config)`, `Print*`, `Task.Define`, `Group.Each`/`Sequence.Each`, mutation callbacks, `Writer()`, `Main`
+2. Implement with `Init(Config)`, `Print*`, `Task.Define`, one Task per item under a `Group`/`Sequence`, mutation callbacks, `Writer()`, `Main`
 3. `evident_output_review` until `recheck_required=false` (loop until its
    `next_action` field says `clean`). If it reports `update_needed`, call
    `evident_output_update` then restart the MCP host first.
@@ -61,9 +61,9 @@ grok mcp doctor evident-output --json
 
 ## Rules of thumb
 
-- Evo owns scheduling (`Group`/`Sequence`/`Define`/`Each`/`After`); do not invent `RunAll` / `Map` / `Retry` on evo receivers (API-026, AST-only)
+- Evo owns scheduling (`Group`/`Sequence`/`Define`/`After`); do not invent `RunAll` / `Map` / `Retry` on evo receivers (API-026, AST-only)
 - Standalone: `evo.Main(run)` (exits the process itself); hosted (`Config.Isolated: true`): `os.Exit(out.Run(run))`, or Finish+Close (host owns `os.Exit`)
-- Entity: Task = atomic work (`Define`) or a gate resolved directly; `Group.Each` for independent collections; mutation verbs (`Delete(object, fn)`, optional `Affected`) pick `[changed]` vs `[planned]` from `Config.DryRun`
+- Entity: Task = atomic work (`Define`) or a gate resolved directly; one Task per item under a `Group` for independent collections; mutation verbs (`Delete(object, fn)`, optional `Affected`) pick `[changed]` vs `[planned]` from `Config.DryRun`
 - Domain effect verbs: use `Record` when stock verbs lie (RULE-001)
 - `Block` = condition found; `Fail` = evaluation failed; `Warn` = optional/soft
 - Absolute `Progress`/`Bytes`; `Advance` for deltas

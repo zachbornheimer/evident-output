@@ -94,7 +94,7 @@ go get github.com/zachbornheimer/evident-output@v1.0.0
 
 ```text
 evo.Init(Config) → Print/Printf/Println → Verbose()
-→ Task.Define / Group.Each / Sequence.Each → task.Writer()
+→ Task.Define / one Task per item under a Group or Sequence → task.Writer()
 → mutation verbs (Delete(object, fn) / Affected; Record when the domain verb differs)
 → slog via SlogHandler → evo.Main(run)
 ```
@@ -131,12 +131,12 @@ Secrets: set `Config.Redactor`.
 
 ## Platform contracts
 
-| Need        | Use                                                   |
-| ----------- | ----------------------------------------------------- |
-| Named work  | `out.Task("download")`                                |
-| Collection  | `out.Group("packages").Each(items)`                   |
-| Child stdio | `cmd.Stdout = task.Writer()` (and stderr)             |
-| Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr) |
+| Need        | Use                                                             |
+| ----------- | --------------------------------------------------------------- |
+| Named work  | `out.Task("download")`                                          |
+| Collection  | `out.Group("packages")`, one `.Task(name).Define(...)` per item |
+| Child stdio | `cmd.Stdout = task.Writer()` (and stderr)                       |
+| Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr)           |
 
 ## Severity
 
@@ -152,4 +152,4 @@ Secrets: set `Config.Redactor`.
 go run github.com/zachbornheimer/evident-output/cmd/evident-output@v1.0.0 review ./path.go
 ```
 
-Until `recheck_required=false`. Rules include API-006 (Start), API-026 (caller RunAll/Map/Retry — not Group/Each/Define), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).
+Until `recheck_required=false`. Rules include API-006 (Start), API-026 (caller RunAll/Map/Retry — not Group/Sequence/Define/After), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).
