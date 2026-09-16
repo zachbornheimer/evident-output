@@ -490,6 +490,18 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectSingletonGroup(filename, f, fset)...)
 	}
 
+	// EVO-FILE-001: manual write/chmod file reconciliation, and expensive
+	// work already run before a trailing evo.File/evo.Exec return.
+	if hasEvo {
+		findings = append(findings, detectManualFileReconciliation(filename, f, fset)...)
+		findings = append(findings, detectExpensiveWorkBeforeFileOp(filename, f, fset)...)
+	}
+
+	// EVO-EXEC-001: raw exec guarded by a hand-rolled freshness check.
+	if hasEvo {
+		findings = append(findings, detectRawExecWithManualFreshness(filename, f, fset)...)
+	}
+
 	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
