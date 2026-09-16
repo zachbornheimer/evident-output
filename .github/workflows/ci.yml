@@ -22,6 +22,10 @@ jobs:
         run: go test -race ./...
       - name: conformance
         run: go test ./conformance/...
+      - name: v0.6/1.0 acceptance (increment 1, must stay green)
+        run: |
+          go test -tags v06acceptance ./conformance/future/api
+          go test -tags v06acceptance ./conformance/future/behavior
       - name: traceability
         run: go run ./tools/scripts/traceability-check
       - name: examples smoke
