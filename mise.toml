@@ -117,8 +117,8 @@ description = "Run example CLIs back-to-back with headers"
 run = "bash tools/scripts/run-examples.sh"
 
 [tasks.ci]
-description = "Full gate: lint + test + scan + conformance + traceability + v0.6/1.0 acceptance increment 1"
-depends = ["lint", "test", "scan", "conformance", "traceability", "acceptance-v06-increment1"]
+description = "Full gate: lint + test + scan + conformance + traceability + v0.6/1.0 acceptance increments 1-2"
+depends = ["lint", "test", "scan", "conformance", "traceability", "acceptance-v06-green"]
 
 [tasks.test-evo]
 description = "Capture timed PNG/TXT frames of a command in a real tmux PTY. Flags AFTER the task name. Requires --start-dir, exactly one of --timeout-ms/--timeout-s, exactly one of --screenshot-interval-ms/--screenshot-interval-s, then -- CMD"
