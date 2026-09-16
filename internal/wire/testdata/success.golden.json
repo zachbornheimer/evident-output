@@ -1,0 +1,50 @@
+{
+  "object": "evo.run",
+  "schema_version": "2.0",
+  "evo_version": "1.0.0",
+  "run_id": "out_1",
+  "started_at": "2026-09-15T20:00:00Z",
+  "finished_at": "2026-09-15T20:00:02.147Z",
+  "duration_ms": 2147,
+  "mode": "apply",
+  "outcome": "ok",
+  "exit_code": 0,
+  "data": {
+    "collections": [],
+    "tasks": [
+      {
+        "id": "task_1",
+        "key": "build",
+        "name": "build",
+        "state": "done",
+        "resolution": "executed",
+        "definition_executed": true,
+        "evidence": {
+          "before": {
+            "evaluated": false
+          },
+          "after": {
+            "evaluated": false
+          }
+        },
+        "progress": null,
+        "activity": null,
+        "timing": {
+          "queued_ms": 0,
+          "running_ms": 0,
+          "total_ms": 0
+        },
+        "verification": [],
+        "tracked_resources": [],
+        "basis": [],
+        "facts": [],
+        "problems": [],
+        "operations": []
+      }
+    ],
+    "facts": [],
+    "problems": [],
+    "effects": [],
+    "actions": []
+  }
+}

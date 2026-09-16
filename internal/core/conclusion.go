@@ -1,5 +1,7 @@
 package core
 
+import "time"
+
 // Conclusion is the multidimensional meaning of a finished command.
 type Conclusion struct {
 	State   ConclusionState
@@ -21,6 +23,24 @@ type Conclusion struct {
 	Plans       []PlanSnapshot
 	Actions     []Action
 	ExitCode    int
+	// RunID identifies the Output instance that produced this Conclusion —
+	// the wire v2 envelope's "run_id" (increment 4, spec §35). Mirrors the
+	// engine's existing per-instance id (Output.outputID); never generated
+	// twice for one run.
+	RunID string
+	// StartedAt/FinishedAt are the run's wall-clock bounds, read through the
+	// engine's Clock facade — the wire v2 envelope's "started_at"/
+	// "finished_at"/derived "duration_ms" (spec §35). Zero until Finish sets
+	// them.
+	StartedAt  time.Time
+	FinishedAt time.Time
+	// DryRun mirrors Snapshot.DryRun — the wire v2 envelope's "mode"
+	// (apply|dry_run, spec §35) has no other source, since Result/Conclusion
+	// alone is WriteJSON's whole contract (spec §53).
+	DryRun bool
+	// Facts mirrors Snapshot.Facts (run-scoped evo.Fact annotations) — the
+	// wire v2 envelope's top-level "data.facts" (spec §35/§36).
+	Facts []Fact
 }
 
 // Default exit codes from architecture §26.
@@ -119,6 +139,8 @@ func InferConclusion(s Snapshot) Conclusion {
 		Changes:     s.Changes,
 		Plans:       s.Plans,
 		Actions:     s.Actions,
+		DryRun:      s.DryRun,
+		Facts:       s.Facts,
 	}
 	// A Changes section with zero records is a bare declaration that never
 	// recorded a mutation — it must not make the run read as Changed

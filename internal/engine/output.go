@@ -22,7 +22,11 @@ type Output struct {
 
 	cfg config
 
-	outputID  string
+	outputID string
+	// startedAt is the wire v2 envelope's run_id-adjacent "started_at"
+	// (spec §35) — captured once at construction through the Clock facade,
+	// read back (never re-derived) at Finish.
+	startedAt time.Time
 	idSeq     uint64
 	declSeq   int
 	version   uint64
@@ -414,6 +418,7 @@ func newOutput(subject string, options ...Option) *Output {
 	}
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.nextID("out")
+	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(Event{Type: "output.started", OutputID: o.outputID})
 	if terminalWithoutSink {
 		o.recordMisuse(ErrTerminalWithoutSink)
@@ -1811,6 +1816,9 @@ func (o *Output) Finish() error {
 	conc := core.InferConclusion(snap)
 	core.FoldLeftoverMisuse(&conc, o.misuse)
 	core.ApplyFailedExitCode(&conc, o.cfg.failedExitCode)
+	conc.RunID = o.outputID
+	conc.StartedAt = o.startedAt
+	conc.FinishedAt = o.cfg.clock.Now()
 	o.conclusion = &conc
 	snap.Conclusion = &conc
 	o.appendEventLocked(Event{

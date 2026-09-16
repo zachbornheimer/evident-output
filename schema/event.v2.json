@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evident-output.dev/schema/v2/event.json",
+  "title": "Evident Output JSONL event v2 (evo.event)",
+  "type": "object",
+  "required": ["object", "schema_version", "seq", "at", "type"],
+  "properties": {
+    "object": { "const": "evo.event" },
+    "schema_version": { "const": "1.0" },
+    "run_id": { "type": "string" },
+    "seq": { "type": "integer", "minimum": 1 },
+    "at": { "type": "string" },
+    "type": { "type": "string" },
+    "entity_id": { "type": "string" },
+    "payload": { "type": "object" }
+  }
+}
