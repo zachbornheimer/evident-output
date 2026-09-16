@@ -1,3 +1,6 @@
+[tools]
+staticcheck = "2026.2.1"
+
 [tasks.setup]
 description = "Bootstrap dev environment"
 run = [
@@ -13,10 +16,11 @@ run = [
 ]
 
 [tasks.lint]
-description = "Format check, vet; trunk daemonless when hermetic tools work"
+description = "Format check, vet, staticcheck; trunk daemonless when hermetic tools work"
 run = [
   "test -z \"$(gofmt -l .)\" || { gofmt -l .; echo 'gofmt: files need formatting'; exit 1; }",
   "go vet ./...",
+  "staticcheck ./...",
   # Trunk is required config-wise (--monitor=false) but hermetic tool installs can
   # fail on host/toolchain skew; never block the gate on trunk install errors.
   "if command -v trunk >/dev/null 2>&1 && [ -f .trunk/trunk.yaml ]; then trunk check --monitor=false --ci || echo 'trunk check skipped (tool install/host skew)'; fi",
