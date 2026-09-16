@@ -16,6 +16,12 @@ const dialectFold = "0.4.0"
 // (Task(name string), Delete(object, fn)/Affected, Config fields not Options).
 const dialectRec = "0.4.7"
 
+// dialectOneZero is the first release whose public surface supports Verify,
+// evo.File, evo.Exec, and Sequence/After — the APIs every EVO-EVIDENCE-001/
+// VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestion recommends. A pin older
+// than this cannot apply those suggestions, so the rules must not fire for it.
+const dialectOneZero = "1.0.0"
+
 // dialectAtLeast reports whether desired is the current dialect (empty) or
 // a pin at/after cutoff. Pre-cutoff pins do not fire that dialect's findings.
 func dialectAtLeast(desired, cutoff string) bool {

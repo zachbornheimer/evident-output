@@ -14,8 +14,10 @@ import (
 // evoDagEvidenceRequiredVersion is the minimum evident-output release whose
 // public API supports every fix these detectors suggest (Verify, evo.File,
 // evo.Exec, Sequence/After) — 1.0.0 also removes Task.Each and MainWith, so
-// no earlier release's dialect matches this guidance (spec §57/§62).
-const evoDagEvidenceRequiredVersion = "1.0.0"
+// no earlier release's dialect matches this guidance (spec §57/§62). Shares
+// dialectOneZero, the same cutoff GoSourceAt gates these detectors on, so
+// the Suggestion's version and the firing version can never drift apart.
+const evoDagEvidenceRequiredVersion = dialectOneZero
 
 // evoRawMutationCallNames are side effects Evo's runtime cannot intercept —
 // a Define/Verify/Evidence callback that promises dry-run safety or

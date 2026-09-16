@@ -196,3 +196,29 @@ func TestEVORules_AfterExceptionalEdge_NoFinding(t *testing.T) {
 		t.Fatalf("exceptional After edge produced EVO-* findings: %+v", got)
 	}
 }
+
+// §57/§62: every EVO-EVIDENCE/VERIFY/DRYRUN/DAG rule's Suggestion requires
+// 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence/After) and carries
+// RequiredVersion "1.0.0" — so none of them may fire for a pin older than
+// 1.0.0, matching detectDeprecatedSpellings' dialectAtLeast gating pattern.
+func TestEVORules_PreOneZeroPin_StaySilent(t *testing.T) {
+	const preOneZero = "0.6.0"
+	cases := []struct {
+		ruleID  string
+		fixture string
+	}{
+		{"EVO-EVIDENCE-001", "evidence_001_bad.go"},
+		{"EVO-VERIFY-001", "verify_001_bad.go"},
+		{"EVO-DRYRUN-001", "dryrun_001_bad.go"},
+		{"EVO-DAG-001", "dag_001_bad.go"},
+		{"EVO-DAG-002", "dag_002_bad.go"},
+		{"EVO-DAG-003", "dag_003_bad.go"},
+	}
+	for _, c := range cases {
+		t.Run(c.ruleID, func(t *testing.T) {
+			src := readFixture(t, c.fixture)
+			res := review.GoSourceAt(c.fixture, src, preOneZero)
+			assertNoFinding(t, res, c.ruleID)
+		})
+	}
+}
