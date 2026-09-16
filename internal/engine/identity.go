@@ -38,12 +38,26 @@ const (
 	ProblemCodeVerificationUnsatisfied = "verification-unsatisfied"
 )
 
+// declaredName is the single normalization every Task/Group/Sequence
+// declaration path must apply to a caller-supplied name before using it for
+// anything identity-related — sibling-dedup lookups and stableKey's own
+// name segment alike. Two call sites normalizing separately (or one
+// normalizing and one keying off the raw string) can disagree: a raw name
+// carrying a control character evident-output strips on presentation
+// (txt.Text) would then dedup-check under a different string than the one
+// its stable key derives from, letting "deploy\x01" and "deploy\x02" both
+// register as distinct siblings of the same rendered name "deploy".
+func declaredName(name string) string {
+	return txt.Text(name)
+}
+
 // stableKey computes §3.1's default identity: entity kind + parent stable
 // key + normalized entity name. The application/workspace manifest
 // namespace already supplies application identity, so it is not duplicated
-// into every key here.
+// into every key here. name must already be declaredName-normalized —
+// every caller in this package normalizes once, at declaration entry.
 func stableKey(kind entityKind, parentKey, name string) string {
-	return fmt.Sprintf("%s:%s/%s", kind, parentKey, txt.Text(name))
+	return fmt.Sprintf("%s:%s/%s", kind, parentKey, name)
 }
 
 // parentKeyOf returns col's own stable key, or "" for a root-level

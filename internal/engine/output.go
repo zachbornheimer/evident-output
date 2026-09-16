@@ -622,7 +622,7 @@ func (o *Output) Task(name string) *TaskHandle {
 // ErrDuplicateKey, its own pre-existing identity-conflict error.
 func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandle {
 	eo := applyEntityOptions(opts)
-	clean := txt.Text(name)
+	clean := declaredName(name)
 	key := qualifyKey(scope, eo.key)
 
 	o.mu.Lock()
@@ -896,24 +896,25 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 // declaration (§3.1), not a get-or-create — see failDuplicateSiblingLocked.
 // name is a printf format when args are present.
 func (o *Output) Group(name string) *GroupHandle {
+	clean := declaredName(name)
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if _, ok := o.namedGroupHandles[name]; ok {
-		o.failDuplicateSiblingLocked(nil, kindGroup, txt.Text(name))
+	if _, ok := o.namedGroupHandles[clean]; ok {
+		o.failDuplicateSiblingLocked(nil, kindGroup, clean)
 		return &GroupHandle{out: o, id: o.nextID("tasks")}
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return &GroupHandle{out: o, id: o.nextID("tasks")}
 	}
-	st := o.declareContainerLocked(name, false)
+	st := o.declareContainerLocked(clean, false)
 	o.collections = append(o.collections, st)
 	h := &GroupHandle{out: o, id: st.id}
 	st.handle = h
 	if o.namedGroupHandles == nil {
 		o.namedGroupHandles = make(map[string]*GroupHandle)
 	}
-	o.namedGroupHandles[name] = h
+	o.namedGroupHandles[clean] = h
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
 	return h
@@ -927,17 +928,18 @@ func (o *Output) Group(name string) *GroupHandle {
 // when args are present (fmt.Sprintf semantics); no args leaves name
 // untouched.
 func (o *Output) Sequence(name string) *SequenceHandle {
+	clean := declaredName(name)
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if _, ok := o.namedGroups[name]; ok {
-		o.failDuplicateSiblingLocked(nil, kindSequence, txt.Text(name))
+	if _, ok := o.namedGroups[clean]; ok {
+		o.failDuplicateSiblingLocked(nil, kindSequence, clean)
 		return &SequenceHandle{tasks: &GroupHandle{out: o, id: o.nextID("tasks")}}
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return &SequenceHandle{tasks: &GroupHandle{out: o, id: o.nextID("tasks")}}
 	}
-	st := o.declareContainerLocked(name, true)
+	st := o.declareContainerLocked(clean, true)
 	o.collections = append(o.collections, st)
 	h := &GroupHandle{out: o, id: st.id}
 	st.handle = h
@@ -947,18 +949,19 @@ func (o *Output) Sequence(name string) *SequenceHandle {
 	if o.namedGroups == nil {
 		o.namedGroups = make(map[string]*SequenceHandle)
 	}
-	o.namedGroups[name] = g
+	o.namedGroups[clean] = g
 	return g
 }
 
 // declareContainerLocked allocates a new top-level tasksState — the shared
 // body behind Group and Sequence, which differ only in the sequential flag.
+// name must already be declaredName-normalized — Group and Sequence
+// normalize once at declaration entry, before their sibling-dedup check.
 func (o *Output) declareContainerLocked(name string, sequential bool) *tasksState {
-	clean := txt.Text(name)
 	st := &tasksState{
 		id:          o.nextID("tasks"),
-		key:         stableKey(childKindFor(sequential), "", clean),
-		name:        clean,
+		key:         stableKey(childKindFor(sequential), "", name),
+		name:        name,
 		declaration: o.nextDecl(),
 		sequential:  sequential,
 	}
@@ -981,9 +984,9 @@ func childKindFor(sequential bool) entityKind {
 // SequenceHandle.Group/Sequence) still receives a usable, if orphaned,
 // handle back.
 func (o *Output) declareChildContainerLocked(parent *tasksState, name string, sequential bool) *tasksState {
-	clean := txt.Text(name)
+	clean := declaredName(name)
 	kind := childKindFor(sequential)
-	if _, ok := parent.namedChildren[name]; ok {
+	if _, ok := parent.namedChildren[clean]; ok {
 		o.failDuplicateSiblingLocked(parent, kind, clean)
 		return &tasksState{id: o.nextID("tasks"), name: clean, sequential: sequential}
 	}
@@ -999,7 +1002,7 @@ func (o *Output) declareChildContainerLocked(parent *tasksState, name string, se
 	if parent.namedChildren == nil {
 		parent.namedChildren = make(map[string]*tasksState)
 	}
-	parent.namedChildren[name] = st
+	parent.namedChildren[clean] = st
 	return st
 }
 
@@ -1007,23 +1010,24 @@ func (o *Output) declareChildContainerLocked(parent *tasksState, name string, se
 // groupID — the identity behind Group.Task/Sequence.Task. A repeated name is
 // a duplicate sibling declaration (§3.1), not a get-or-create.
 func (o *Output) declareGroupTask(groupID, name string, opts ...EntityOption) *TaskHandle {
+	clean := declaredName(name)
 	o.mu.Lock()
 	col := o.tasksByRef[groupID]
 	if col == nil {
 		o.mu.Unlock()
 		return &TaskHandle{out: o, id: o.nextID("task")}
 	}
-	if _, ok := col.namedTasks[name]; ok {
-		o.failDuplicateSiblingLocked(col, kindTask, txt.Text(name))
+	if _, ok := col.namedTasks[clean]; ok {
+		o.failDuplicateSiblingLocked(col, kindTask, clean)
 		o.mu.Unlock()
 		return &TaskHandle{out: o, id: o.nextID("task")}
 	}
 	eo := applyEntityOptions(opts)
-	h := o.addTaskLocked(txt.Text(name), col, eo.key, col.key, false)
+	h := o.addTaskLocked(clean, col, eo.key, col.key, false)
 	if col.namedTasks == nil {
 		col.namedTasks = make(map[string]*TaskHandle)
 	}
-	col.namedTasks[name] = h
+	col.namedTasks[clean] = h
 	o.mu.Unlock()
 	return h
 }
