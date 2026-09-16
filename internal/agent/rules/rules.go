@@ -28,9 +28,34 @@ type Rule struct {
 	Detection string `json:"detection,omitempty"`
 }
 
-// All returns the v1 rule registry subset. IDs and meanings obey version policy:
+// familyRegistry collects rule slices contributed by sibling files in this
+// package (rules_ui.go, rules_wire.go, ...). A family file registers itself
+// from its own init() via registerFamily, so adding a family never requires
+// editing All() itself — parallel family additions land in their own files
+// and merge without touching the same lines.
+var familyRegistry [][]Rule
+
+// registerFamily adds one family's rules to the v1 registry. Call this from
+// a new rules_<family>.go file's init(); never edit All() to add a family.
+func registerFamily(rs []Rule) {
+	familyRegistry = append(familyRegistry, rs)
+}
+
+// All returns the v1 rule registry: the core set below plus every family
+// registered via registerFamily. IDs and meanings obey version policy:
 // IDs never rename; deprecations dual-write via Deprecated+Replacement (MCP-028).
 func All() []Rule {
+	all := append([]Rule(nil), coreRules()...)
+	for _, family := range familyRegistry {
+		all = append(all, family...)
+	}
+	return all
+}
+
+// coreRules is the original v1 rule set (pre-family-registry). New rule
+// families belong in their own rules_<family>.go file registered via
+// registerFamily, not appended here.
+func coreRules() []Rule {
 	return []Rule{
 		{
 			ID:        "API-006",

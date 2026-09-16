@@ -149,6 +149,20 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 							Column:     pos.Column,
 							Suggestion: "replace fmt." + name + "(...) with out.Print/Printf/Println/Verbose",
 						})
+						// EVO-LIVE-001 (spec §57): the same call site, tagged
+						// under the catalog ID that specifically calls out
+						// competing with the live region; fires alongside
+						// STREAM-003 so existing STREAM-003 consumers see no
+						// behavior change.
+						findings = append(findings, Finding{
+							RuleID:     "EVO-LIVE-001",
+							Severity:   "error",
+							Message:    "fmt." + name + " competes with Evo's live rendering and can tear the live-region frame",
+							File:       filename,
+							Line:       pos.Line,
+							Column:     pos.Column,
+							Suggestion: "replace fmt." + name + "(...) with out.Print/Printf/Println/Verbose",
+						})
 					}
 				}
 			}
@@ -212,8 +226,11 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 			})
 		}
 
-		// API-018: os.Exit without presentation exit-code (os.Exit(evo.Main(run))
-		// or os.Exit(...ExitCode()) is OK; evo.MainWith was removed in 1.0)
+		// API-018 / EVO-EXIT-001: os.Exit without presentation exit-code
+		// (os.Exit(evo.Main(run)) or os.Exit(...ExitCode()) is OK;
+		// evo.MainWith was removed in 1.0). EVO-EXIT-001 is the spec §57
+		// catalog ID for this same bypass; both fire together so existing
+		// API-018 consumers see no behavior change.
 		if hasEvo {
 			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "os" && name == "Exit" {
 				if !isPresentationExitArg(call, runCodeVars) {
@@ -225,6 +242,15 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 						Line:       pos.Line,
 						Column:     pos.Column,
 						Suggestion: "wrap evo.Main(run) in os.Exit (os.Exit(evo.Main(run))) where run(ctx) returns error — Main derives the code but does not exit itself",
+					})
+					findings = append(findings, Finding{
+						RuleID:     "EVO-EXIT-001",
+						Severity:   "error",
+						Message:    "os.Exit bypasses the Evo-derived conclusion (evo.MainWith was removed in 1.0)",
+						File:       filename,
+						Line:       pos.Line,
+						Column:     pos.Column,
+						Suggestion: "derive the exit code from evo.Main(run) or a Run result's ExitCode(); never pass a literal or independently computed code to os.Exit",
 					})
 				}
 			}
@@ -415,6 +441,33 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// classification.
 	if hasEvo {
 		findings = append(findings, detectDynamicReason(filename, src)...)
+	}
+
+	// EVO-UI-001: routine Fact hand-printed as a "label: value" line.
+	if hasEvo {
+		findings = append(findings, detectFactPrintedAsUIText(filename, src)...)
+	}
+
+	// EVO-UI-002: passing verification hand-printed on the success path.
+	if hasEvo {
+		findings = append(findings, detectPassingVerificationPrinted(filename, src)...)
+	}
+
+	// EVO-UI-003: collection/progress/status text hand-built instead of
+	// derived from Task/Group/Sequence state.
+	if hasEvo {
+		findings = append(findings, detectHandBuiltProgressText(filename, src)...)
+	}
+
+	// EVO-WIRE-001: internal Snapshot/Result marshaled directly instead of
+	// through the sanctioned JSON encoder.
+	if hasEvo {
+		findings = append(findings, detectMarshalOfInternalSnapshot(filename, src)...)
+	}
+
+	// EVO-WIRE-003: JSON/JSONL stdout mixed with human presentation.
+	if hasEvo {
+		findings = append(findings, detectJSONStdoutMixedWithHumanText(filename, src)...)
 	}
 
 	// TXT-020: an entity name too long, or narrating a transition (into/->)

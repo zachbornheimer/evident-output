@@ -1,0 +1,242 @@
+package review_test
+
+import (
+	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/agent/review"
+)
+
+// hasFinding reports whether res contains a finding for ruleID.
+func hasFinding(res review.Result, ruleID string) bool {
+	for _, f := range res.Findings {
+		if f.RuleID == ruleID {
+			return true
+		}
+	}
+	return false
+}
+
+func TestGoSource_EvoUI001_FactPrintedManually(t *testing.T) {
+	bad := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  out := evo.Init(evo.Config{})
+  t := out.Task("env")
+  t.Printf("go version: %s\n", "1.23.0")
+}
+`
+	res := review.GoSource("x.go", bad)
+	if !hasFinding(res, "EVO-UI-001") {
+		t.Fatalf("expected EVO-UI-001 on manually printed \"label: value\" line: %+v", res.Findings)
+	}
+
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  out := evo.Init(evo.Config{})
+  t := out.Task("env")
+  t.Fact("go version", "1.23.0")
+}
+`
+	res = review.GoSource("x.go", good)
+	if hasFinding(res, "EVO-UI-001") {
+		t.Fatalf("false positive EVO-UI-001 on task.Fact: %+v", res.Findings)
+	}
+}
+
+func TestGoSource_EvoUI002_PassingVerificationPrinted(t *testing.T) {
+	bad := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  out := evo.Init(evo.Config{})
+  t := out.Task("check")
+  fmt.Println("✓ verified")
+  t.Done()
+}
+`
+	res := review.GoSource("x.go", bad)
+	if !hasFinding(res, "EVO-UI-002") {
+		t.Fatalf("expected EVO-UI-002 on manually printed success line: %+v", res.Findings)
+	}
+
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  out := evo.Init(evo.Config{})
+  t := out.Task("check")
+  t.Done()
+}
+`
+	res = review.GoSource("x.go", good)
+	if hasFinding(res, "EVO-UI-002") {
+		t.Fatalf("false positive EVO-UI-002 on plain task.Done: %+v", res.Findings)
+	}
+}
+
+func TestGoSource_EvoUI003_HandBuiltProgressText(t *testing.T) {
+	bad := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  out := evo.Init(evo.Config{})
+  t := out.Task("copy")
+  fmt.Printf("%d/%d done\n", 3, 10)
+  t.Done()
+}
+`
+	res := review.GoSource("x.go", bad)
+	if !hasFinding(res, "EVO-UI-003") {
+		t.Fatalf("expected EVO-UI-003 on hand-built N/M progress text: %+v", res.Findings)
+	}
+
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  out := evo.Init(evo.Config{})
+  t := out.Task("copy")
+  t.Progress(3, 10)
+}
+`
+	res = review.GoSource("x.go", good)
+	if hasFinding(res, "EVO-UI-003") {
+		t.Fatalf("false positive EVO-UI-003 on task.Progress: %+v", res.Findings)
+	}
+}
+
+func TestGoSource_EvoWire001_MarshalOfInternalSnapshot(t *testing.T) {
+	bad := `package p
+import (
+  "encoding/json"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  out := evo.Init(evo.Config{})
+  b, _ := json.Marshal(out.Snapshot())
+  _ = b
+}
+`
+	res := review.GoSource("x.go", bad)
+	if !hasFinding(res, "EVO-WIRE-001") {
+		t.Fatalf("expected EVO-WIRE-001 on json.Marshal(out.Snapshot()): %+v", res.Findings)
+	}
+
+	good := `package p
+import (
+  evo "github.com/zachbornheimer/evident-output"
+  "github.com/zachbornheimer/evident-output/internal/render"
+)
+func f() {
+  out := evo.Init(evo.Config{})
+  b, _ := render.EncodeJSON(out.Snapshot())
+  _ = b
+}
+`
+	res = review.GoSource("x.go", good)
+	if hasFinding(res, "EVO-WIRE-001") {
+		t.Fatalf("false positive EVO-WIRE-001 on render.EncodeJSON: %+v", res.Findings)
+	}
+}
+
+func TestGoSource_EvoWire003_JSONStdoutMixedWithHumanText(t *testing.T) {
+	bad := `package p
+import (
+  "encoding/json"
+  "fmt"
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  out := evo.Init(evo.Config{})
+  doc := out.Snapshot()
+  json.NewEncoder(os.Stdout).Encode(doc)
+  fmt.Println("done")
+}
+`
+	res := review.GoSource("x.go", bad)
+	if !hasFinding(res, "EVO-WIRE-003") {
+		t.Fatalf("expected EVO-WIRE-003 when human text mixes with JSON stdout: %+v", res.Findings)
+	}
+
+	good := `package p
+import (
+  "encoding/json"
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  out := evo.Init(evo.Config{})
+  doc := out.Snapshot()
+  json.NewEncoder(os.Stdout).Encode(doc)
+}
+`
+	res = review.GoSource("x.go", good)
+	if hasFinding(res, "EVO-WIRE-003") {
+		t.Fatalf("false positive EVO-WIRE-003 on JSON-only stdout: %+v", res.Findings)
+	}
+}
+
+func TestGoSource_EvoExit001_OsExitBypassesConclusion(t *testing.T) {
+	bad := `package p
+import (
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  _ = evo.Init(evo.Config{})
+  os.Exit(1)
+}
+`
+	res := review.GoSource("x.go", bad)
+	if !hasFinding(res, "EVO-EXIT-001") {
+		t.Fatalf("expected EVO-EXIT-001 on naked os.Exit(1): %+v", res.Findings)
+	}
+
+	good := `package p
+import (
+  "context"
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  os.Exit(evo.Main(func(ctx context.Context) error { return nil }))
+}
+`
+	res = review.GoSource("x.go", good)
+	if hasFinding(res, "EVO-EXIT-001") {
+		t.Fatalf("false positive EVO-EXIT-001 on os.Exit(evo.Main(run)): %+v", res.Findings)
+	}
+}
+
+func TestGoSource_EvoLive001_PrintCompetesWithLiveRendering(t *testing.T) {
+	bad := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  _ = evo.Init(evo.Config{})
+  fmt.Println("still going...")
+}
+`
+	res := review.GoSource("x.go", bad)
+	if !hasFinding(res, "EVO-LIVE-001") {
+		t.Fatalf("expected EVO-LIVE-001 on fmt.Println alongside evo: %+v", res.Findings)
+	}
+
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  out := evo.Init(evo.Config{})
+  out.Println("still going...")
+}
+`
+	res = review.GoSource("x.go", good)
+	if hasFinding(res, "EVO-LIVE-001") {
+		t.Fatalf("false positive EVO-LIVE-001 on out.Println: %+v", res.Findings)
+	}
+}
