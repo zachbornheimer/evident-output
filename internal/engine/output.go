@@ -1925,6 +1925,38 @@ func (o *Output) Close() error {
 	return nil
 }
 
+// beginRunContext installs ctx (Run/evo.Run's own ctx parameter) as the
+// parent of this run's task scopes, replacing the context.Background()
+// Init installed as a placeholder for Define/Verify calls made before any
+// Run. Every taskScopeHandle context (see withTaskScope) descends from
+// o.Context(), so without this a caller's Run(ctx, ...) cancellation or
+// deadline never reached a running Define/Verify — only the Init-time
+// background context did (task scopes only ever observed SIGINT/Close via
+// cancelRun, never the caller's own ctx or deadline).
+//
+// The previous run context's cancel is invoked here, not left to leak:
+// nothing after this point should still be watching it, and a second Run
+// call — on an Output whose caller reuses it after Close resets fields, or
+// in a test exercising the mechanism directly — must start every new task
+// scope from a fresh, uncancelled context rather than one inheriting a
+// prior run's cancellation. Isolated outputs each hold their own o.ctx, so
+// this never crosses between them.
+func (o *Output) beginRunContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	o.mu.Lock()
+	previousCancel := o.cancelRun
+	o.ctx = runCtx
+	o.cancelRun = cancel
+	o.mu.Unlock()
+	if previousCancel != nil {
+		previousCancel()
+	}
+	return runCtx
+}
+
 // Context reports the run's cancellation signal. It is cancelled when the
 // run is interrupted (SIGINT/SIGTERM) and when the Output closes, so work
 // that does I/O can select on it and stop instead of running on past the ^C

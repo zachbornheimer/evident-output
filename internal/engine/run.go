@@ -103,8 +103,11 @@ func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 	notifySignals(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer stopSignals(sigCh)
 
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// runCtx becomes o.Context() for the duration of this run (see
+	// beginRunContext): every Define/Verify task scope started from here
+	// on descends from the caller's own ctx, not just from run's local
+	// parameter.
+	runCtx := out.beginRunContext(ctx)
 
 	done := make(chan error, 1)
 	go func() {
@@ -119,8 +122,9 @@ func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 	case runErr := <-done:
 		return concludeRun(out, runErr)
 	case <-sigCh:
+		// out.interrupt cancels o.cancelRun, the same cancel beginRunContext
+		// installed above — no separate local cancel is needed.
 		out.interrupt("interrupted")
-		cancel()
 		select {
 		case runErr := <-done:
 			return concludeCancelled(out, runErr)
