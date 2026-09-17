@@ -1,6 +1,7 @@
 package review_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
@@ -54,6 +55,49 @@ func TestConformance_UsesRequestedTargetVersionOverDesired(t *testing.T) {
 	report := review.Conformance(res, "1.0.0")
 	if report.TargetVersion != "1.0.0" {
 		t.Fatalf("target_version = %q, want the explicitly requested 1.0.0", report.TargetVersion)
+	}
+}
+
+// TestConformance_LegacyAPIExampleGetsVersionedMigrationGuidance is spec
+// §62's "legacy API example → versioned migration guidance" fixture: a
+// pre-1.0 call site (`evo.MainWith`, removed in 1.0) reviewed against the
+// 1.0.0 target must carry migration guidance naming the specific
+// replacement (`os.Exit(evo.Main(...))`) — not a generic "this API changed"
+// notice — proving the conformance report's advice is version-specific to
+// the exact removed shape it matched, per rules.Migrations()'s own
+// MainWith row (see TestMigrations_CoversMainWithAndEachRemoval).
+func TestConformance_LegacyAPIExampleGetsVersionedMigrationGuidance(t *testing.T) {
+	src := `package main
+import evo "github.com/zachbornheimer/evident-output"
+func main() {
+	out := evo.Init(evo.Config{Title: "t", Isolated: true})
+	evo.MainWith(out, run)
+}
+func run(out *evo.Output) error {
+	return nil
+}
+`
+	res := review.GoSourceAt("legacy.go", src, "0.5.0")
+	report := review.Conformance(res, "1.0.0")
+	if report.TargetVersion != "1.0.0" {
+		t.Fatalf("target_version = %q, want 1.0.0", report.TargetVersion)
+	}
+	var found *review.ConformanceFinding
+	for i, f := range report.Findings {
+		if strings.Contains(f.Migration, "MainWith") {
+			found = &report.Findings[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected a finding whose migration guidance names MainWith, got: %+v", report.Findings)
+	}
+	// The matched call site is an Isolated Output, so the concrete per-call-site
+	// replacement is out.Run(run) (docs/migration/1.0.md's Isolated-Output
+	// case) — the generic os.Exit(evo.Main(...)) row only applies to an
+	// ordinary main() with no Isolated Output, a different call shape.
+	if !strings.Contains(found.Migration, "out.Run") {
+		t.Fatalf("migration guidance = %q, want the specific out.Run(run) replacement, not a generic notice", found.Migration)
 	}
 }
 
