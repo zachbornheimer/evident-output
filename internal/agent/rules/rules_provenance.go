@@ -1,13 +1,19 @@
 package rules
 
 // provenanceRules is EVO-PROVENANCE-001 and EVO-PROVENANCE-002 (spec §57):
-// the two rules guarding Basis honesty and manifest-skip honesty. Neither
-// has a cheap static detector that stays free of false positives — reading
-// an omitted file, or skipping on stale provenance, is a semantic judgment
-// about a generator's actual behavior, not an AST shape — so both are
-// Detection: "guidance" and taught by example only (agent/review's
-// regression suite instead proves it never *fabricates* a positive here;
-// see review_evo_provenance_test.go).
+// the two rules guarding Basis honesty and manifest-skip honesty.
+// EVO-PROVENANCE-001 has a narrow, literal-only static detector
+// (review.detectOmittedBasisPath): a string-literal path visibly read or
+// passed as a literal Exec Arg in the same function that builds the
+// Basis, checked against that Basis's own evo.FSPath literals — no
+// variable is ever traced and no Basis entry is ever invented, so it stays
+// free of false positives while catching the exact shape its BadCode
+// documents. EVO-PROVENANCE-002 has no such detector: distinguishing "a
+// callback trusts a prior manifest entry alone" from a legitimate
+// cached-but-reverified check needs call-site intent an AST shape cannot
+// carry, so it stays Detection: "guidance" and taught by example only
+// (agent/review's regression suite proves it never *fabricates* a positive
+// here; see review_evo_file_test.go).
 func provenanceRules() []Rule {
 	return []Rule{
 		omittedBasisRule(),
@@ -45,7 +51,6 @@ func omittedBasisRule() Rule {
 		VerificationIDs: []string{"EVO-PROVENANCE-001"},
 		Since:           "1.0.0",
 		Certainty:       "heuristic",
-		Detection:       "guidance", // no cheap detector: proving a generator "visibly reads" a path means tracing an external process/script, not this file's AST
 	}
 }
 
