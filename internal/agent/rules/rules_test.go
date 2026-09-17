@@ -153,8 +153,8 @@ func TestAPI026_DoesNotBanEvoScheduler(t *testing.T) {
 			t.Fatalf("API-026 must not ban Evo's scheduler: %q", blob)
 		}
 	}
-	if !strings.Contains(r.GoodCode, "Group") || !strings.Contains(r.GoodCode, "Each") || !strings.Contains(r.GoodCode, "Define") {
-		t.Fatalf("API-026 GoodCode must teach Group.Each+Define, got %q", r.GoodCode)
+	if !strings.Contains(r.GoodCode, "Group") || !strings.Contains(r.GoodCode, "Task") || !strings.Contains(r.GoodCode, "Define") {
+		t.Fatalf("API-026 GoodCode must teach Group.Task+Define, got %q", r.GoodCode)
 	}
 	if !strings.Contains(r.BadCode, "Map") && !strings.Contains(r.BadCode, "Retry") {
 		t.Fatalf("API-026 BadCode must still show Map/Retry, got %q", r.BadCode)

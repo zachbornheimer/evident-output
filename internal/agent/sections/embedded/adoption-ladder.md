@@ -9,8 +9,9 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 2. Print / Printf / Println / Verbose
 3. Task.Define — one atomic operation; mutation verbs (Delete/Create/Update/…) are the
    dry-run-aware equivalent of Define
-4. Group.Each / Sequence.Each — independent vs ordered collections; After for a DAG edge
-   nesting cannot express
+4. Group / Sequence — independent vs ordered collections, one named Task per item
+   (`Group.Each`/`Sequence.Each` were removed in 1.0); After for a DAG edge nesting
+   cannot express
 5. Skipped / Kept — skip/keep taxonomy (reason + name, never a bare count)
 6. Confirm — the whole ask-decide-resolve gate
 7. ResultWriter or app machine contract (FormatData)
@@ -31,8 +32,10 @@ func main() {
 }
 
 func run() error {
-    for path, task := range evo.Group("worktrees").Each(items) {
-        task.Define(func() error { return check(path) })
+    worktrees := evo.Group("worktrees")
+    for _, path := range items {
+        path := path
+        worktrees.Task(path).Define(func() error { return check(path) })
     }
     return nil
 }

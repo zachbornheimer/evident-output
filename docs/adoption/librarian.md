@@ -32,11 +32,11 @@ present.go     → Plan | Changes + optional FailedBy Item
 Construction:
 
 ```go
-out := evo.New(evo.Config{
+out := evo.New(evo.Config{ // evo.New; MainWith below — both removed in 1.0, see docs/mcp.md
     Title: "librarian",
     Debug: evo.DebugConfig{Level: evo.LevelWarn},
 })
-os.Exit(evo.MainWith(out, run))
+os.Exit(evo.MainWith(out, run)) // removed in 1.0 — current equivalent: os.Exit(out.Run(ctx, run).ExitCode())
 ```
 
 ## Mechanical changes

@@ -41,11 +41,12 @@ func All() []Guide {
   2) task.Delete("worktree", fn, evo.Affected(n)) (also Add/Create/Update/Remove/Write/Push) — the
      callback is the work; Affected is optional quantity. Config.DryRun picks
      [planned] vs [changed]; no call site ever flips its own tense or chooses Changed/Ready/Planned.
-  3) for path, task := range evo.Group("worktrees").Each(paths) { task.Define(...) } for
-     independent collections; Sequence.Each for ordered ones; .Writer() as cmd.Stdout so a
-     talkative child's last line becomes the live doing-text.
+  3) worktrees := evo.Group("worktrees"); for _, path := range paths { worktrees.Task(path).Define(...) }
+     for independent collections; evo.Sequence for ordered ones (same one-Task-per-item shape;
+     Group.Each/Sequence.Each were removed in 1.0); .Writer() as cmd.Stdout so a talkative
+     child's last line becomes the live doing-text.
   4) evo.Task(name).Skipped(reason) / .Kept(reason) — taxonomy counted and summed, never a bare
-     "skipped N". The item name is the Task name (Each child).
+     "skipped N". The item name is the Task name (a named Group/Sequence child).
   5) evo.Confirm(question, ...) — owns the whole gate (prompt, quiesce, ⊘/OK resolution, exit code).
 
 Types: TaskHandle (work with Doing/Progress/mutations/taxonomy, or a fact-check gate resolved directly with no
@@ -93,8 +94,8 @@ suffix ("pushing feat/a — 5s") 5s after it is first actually painted in the li
 by Doing/Progress activity, so a stale spinner is never indistinguishable from progress and a queued row ages
 honestly even if nothing ever touches it.
 
-Loops: prefer evo.Group(name).Each(items) (or Sequence.Each) over a hand-maintained counter — Each-created
-children aggregate on the parent and Define/mutation verbs submit the work. On manual retry, set
+Loops: prefer one named Task per item under evo.Group(name) (or Sequence) over a hand-maintained counter
+(Group.Each/Sequence.Each were removed in 1.0) — Define/mutation verbs submit each item's work. On manual retry, set
 Progress to the true completed count directly — there is no relative/delta counter to misuse (C7: Advance deleted).
 
 Sealed-total invariant: indeterminate → determinate happens once; after a total is sealed it never changes, and
@@ -134,9 +135,7 @@ Ordinary dual-stream: evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr})
 FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr; a failed
 data command emits no partial payload by default.
 
-Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(run))), evo.MainWith (which still exits the
-process itself), or evo.Run/Output.Run's returned Result.ExitCode() for a caller that needs the Conclusion and
-application error, not just the code: run(ctx) returns error, nothing else picks the code. Never hand-map an int
+Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(run))), or evo.Run/Output.Run's returned Result.ExitCode() for a caller that needs the Conclusion and application error, not just the code (evo.MainWith was removed in 1.0 — an Isolated *Output now calls its own Output.Run instead): run(ctx) returns error, nothing else picks the code. Never hand-map an int
 to os.Exit — that is exactly how a Blocked run (1) gets silently read as success, or a real
 failure reads as blocked. SIGINT/SIGTERM already route through Main into Cancel on the active task, so the
 ledger's ■ and the process exit code (130) can never disagree; a caller-written signal.Notify handler that
