@@ -106,6 +106,19 @@ func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 	_ = out.Finish()
 }
 
+// TestHeartbeat_AbsentInPlainProjection guards P5's *per-row elapsed
+// suffix* ("pushing feat/a — 5s", the live region's own timer decoration):
+// plain/durable output must never attach it to a task's own narrated phase
+// text, because a scrollback line is not periodically repainted the way a
+// live row is, so an inline elapsed suffix would just be a wrong, frozen
+// number the moment it was written.
+//
+// This is a different mechanism from spec §40's own plain-mode durable
+// heartbeat (internal/engine/plain_heartbeat.go), which is a distinct,
+// separate "• push  — 30s" line, not a suffix on the task's own row — a
+// silent task advancing past plainHeartbeatInterval (30s) is expected to
+// print exactly that line, so this test's 90s advance intentionally checks
+// for the old per-row suffix shape only, not a blanket absence of "—".
 func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 	var buf strings.Builder
 	clock := testkit.NewClock()
@@ -118,7 +131,7 @@ func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(buf.String(), "—") {
-		t.Fatalf("plain projection must never show a heartbeat suffix:\n%s", buf.String())
+	if strings.Contains(buf.String(), "pushing feat/a — ") {
+		t.Fatalf("plain projection must never attach the live per-row elapsed suffix to a task's own phase line:\n%s", buf.String())
 	}
 }

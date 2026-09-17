@@ -188,6 +188,19 @@ type taskState struct {
 	// including a Pending task, which never calls Phase/Progress.
 	liveFirstSeenAt time.Time
 
+	// heartbeatRunningAt is the domain-clock time this task was promoted to
+	// Running (see armPlainHeartbeatLocked in plain_heartbeat.go) — the §40
+	// plain-mode durable heartbeat's elapsed anchor, mirroring liveFirstSeenAt's
+	// role for the live renderer's elapsed suffix. Zero means no heartbeat is
+	// armed for this task (interactive live presentation, or a TimeSource
+	// that cannot schedule).
+	heartbeatRunningAt time.Time
+	// heartbeatDue is when the next plain-mode heartbeat check should
+	// actually emit a line, pushed forward by any real durable emission
+	// (deferPlainHeartbeatLocked) so a task that is genuinely narrating its
+	// own progress never also gets a redundant heartbeat row.
+	heartbeatDue time.Time
+
 	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
 	// so child-process evidence recorded via either path lands in one ring and
 	// DetailTail sees it after Fail.
@@ -584,6 +597,7 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 		}
 	}
 	st.state = Running
+	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
 }
 
 func (o *Output) ensureOpen() error {
