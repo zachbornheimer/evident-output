@@ -94,6 +94,13 @@ type evidence struct {
 	// stream is set only on side writers returned by Stdout/Stderr.
 	stream EvidenceStream
 	parent *evidence
+
+	// onLine, when set, receives each completed line's sanitized/redacted
+	// text (spec §23: "each complete non-empty line becomes the task's
+	// current activity") — Exec wires it to TaskHandle.Doing so a running
+	// child's own output narrates progress without evidence needing to know
+	// what a Task is.
+	onLine func(text string)
 }
 
 // EvidenceOption configures Evidence.
@@ -134,6 +141,13 @@ func mirrorToDiagnostics() EvidenceOption {
 // Default is off.
 func mirrorToDebug() EvidenceOption {
 	return captureOptionFunc(func(c *evidence) { c.mirrorDebug = true })
+}
+
+// activityFeed reports each completed, sanitized/redacted line to fn (spec
+// §23) — used only by Exec, which owns turning that line into the Task's
+// current Doing activity. evidence itself stays presentation-agnostic.
+func activityFeed(fn func(text string)) EvidenceOption {
+	return captureOptionFunc(func(c *evidence) { c.onLine = fn })
 }
 
 // evidence returns the retained/redacted writer bound to this Task,
@@ -454,6 +468,10 @@ func (c *evidence) flushPendingLocked(stream EvidenceStream) {
 		c.truncated = true
 		c.nbytes -= len(c.lines[0].Text) + 1
 		c.lines = c.lines[1:]
+	}
+
+	if c.onLine != nil {
+		c.onLine(line)
 	}
 
 	if c.out == nil {

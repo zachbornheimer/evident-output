@@ -23,6 +23,7 @@ func MaxFrameRate(framesPerSecond int) Option    { return engine.MaxFrameRate(fr
 func NoColor() Option                            { return engine.NoColor() }
 func Plain() Option                              { return engine.Plain() }
 func Redact(r Redactor) Option                   { return engine.Redact(r) }
+func Runner(r ProcessRunner) Option              { return engine.Runner(r) }
 func ResultStream(w io.Writer) Option            { return engine.ResultStream(w) }
 func Stdin(r io.Reader) Option                   { return engine.Stdin(r) }
 func Strict() Option                             { return engine.Strict() }

@@ -80,6 +80,7 @@ func Delay(d time.Duration)  *time.Duration
 func EncodeEventJSON(e Event)  []byte,  error
 func EncodeJSON(s Snapshot)  []byte,  error
 func EncodeJSONL(events []Event)  []byte,  error
+func Exec(ctx context.Context, spec ExecSpec)  error
 func Fact(name, value string)
 func File(ctx context.Context, spec FileSpec)  error
 func IsCharDevice(w io.Writer)  bool
@@ -115,6 +116,7 @@ type Evidence
 type EvidenceOption
 type EvidencePhase
 type EvidenceStream
+type ExecSpec
 type FactRecord
 type Failure
 type Field
@@ -150,6 +152,9 @@ type PlanSnapshot
 type Printer
 type Problem
 type ProblemOption
+type ProcessCommand
+type ProcessOutcome
+type ProcessRunner
 type Progress
 type ProgressKind
 type Projection
@@ -190,6 +195,10 @@ value ErrConcurrentRunning
 value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName
+value ErrExecExecutableNotFound
+value ErrExecNonzeroExit
+value ErrExecOutputMissingAfterSuccess
+value ErrExecSpecMissingExecutable
 value ErrFilePathIsSymlink
 value ErrFilePathTypeMismatch
 value ErrFileSpecMissingPath
