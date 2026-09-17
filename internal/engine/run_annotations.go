@@ -3,6 +3,7 @@ package engine
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // Fact records a discovered name/value annotation on the default instance's
@@ -31,6 +32,7 @@ func (o *Output) Fact(name, value string) {
 	}
 	o.runFacts = append(o.runFacts, f)
 	o.bumpLocked()
+	o.emitWireEventLocked(wire.EventFactRecorded, "", map[string]any{"name": f.Name, "value": f.Value})
 	o.writeDurableTextLocked(txt.Dim(f.Name+"  "+f.Value, !o.cfg.noColor) + "\n")
 }
 
@@ -61,6 +63,7 @@ func (o *Output) Warn(summary string) {
 	o.runWarnings = append(o.runWarnings, p)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "run.warned", OutputID: o.outputID})
+	o.emitWireEventLocked(wire.EventWarningRecorded, "", map[string]any{"summary": p.Summary})
 	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(o.cfg.glyphs), txt.SGRYellow, !o.cfg.noColor)
 	o.writeDurableTextLocked(glyph + " " + p.Summary + "\n")
 }

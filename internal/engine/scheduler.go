@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 type mutationSpec struct {
@@ -165,6 +166,7 @@ func (o *Output) takeEligible() (st *taskState, fn func() error, mut *mutationSp
 		if o.schedInflight >= max {
 			return nil, nil, nil
 		}
+		o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
 		cand.runningWork = true
 		o.schedInflight++
 		o.schedExecuting++
@@ -216,14 +218,16 @@ func (o *Output) runWork(st *taskState, fn func() error, mut *mutationSpec) {
 func (o *Output) executeWork(st *taskState, fn func() error, mut *mutationSpec) {
 	o.mu.Lock()
 	subject := ""
+	taskID := ""
 	if st != nil {
 		subject = ledgerSubjectFor(st)
+		taskID = st.id
 	}
 	dryRun := o.cfg.dryRun
 	o.mu.Unlock()
 
 	if mut != nil && dryRun {
-		o.recordResolvedMutation(subject, true, mut.verb, mut.quantity, mut.hasQty, mut.object)
+		o.recordResolvedMutation(taskID, subject, true, mut.verb, mut.quantity, mut.hasQty, mut.object)
 		o.recordWorkOutcome(st, nil)
 		o.resolveObserved(st, nil)
 		return
@@ -239,7 +243,7 @@ func (o *Output) executeWork(st *taskState, fn func() error, mut *mutationSpec) 
 	// verdict as anything but Done said the mutation did not happen, and the
 	// ledger must not count what the row itself denies.
 	if err == nil && mut != nil && !o.callbackDeniedTheWork(st) {
-		o.recordResolvedMutation(subject, false, mut.verb, mut.quantity, mut.hasQty, mut.object)
+		o.recordResolvedMutation(taskID, subject, false, mut.verb, mut.quantity, mut.hasQty, mut.object)
 	}
 	// A callback that resolved its own task (Failf/Fail/Block inside fn, or
 	// an interrupt that cancelled the row) already stated one outcome. The

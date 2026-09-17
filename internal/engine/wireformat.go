@@ -47,23 +47,27 @@ func writeWireRunLocked(w io.Writer, conc Conclusion) error {
 
 // writeWireEventLocked encodes e as one "evo.event" JSONL line and writes
 // it to w — the FormatJSONL counterpart of writeStreamJSONLocked's legacy
-// "0.3" stream-json line, called from the same appendEventLocked hook.
-// Best-effort like writeStreamJSONLocked: a mid-run event write failure
-// does not abort the run (spec §32.2's "Earlier valid lines remain valid if
-// a later write fails; the Run then fails" is Finish's job, via the final
-// run.finished write below going through writeWireRunLocked's error path
-// instead).
-func writeWireEventLocked(w io.Writer, e Event) {
+// "0.3" stream-json line, called from emitWireEventLocked
+// (structured_events.go). A write failure here does not stop the stream —
+// earlier lines already written stay valid (spec §32.2: "Earlier valid
+// lines remain valid if a later write fails") — but it is returned so the
+// caller can latch it as this Run's first wire-write failure and fail the
+// Run at Finish (spec §32.2: "... the Run then fails"), instead of the
+// error silently vanishing.
+func writeWireEventLocked(w io.Writer, e Event) error {
 	if w == nil {
-		return
+		return nil
 	}
 	row, err := wire.EncodeEvent(e)
 	if err != nil {
-		return
+		return fmt.Errorf("%w: %v", ErrRenderer, err)
 	}
 	row = append(row, '\n')
-	_, _ = w.Write(row)
+	if _, err := w.Write(row); err != nil {
+		return fmt.Errorf("%w: %v", ErrRenderer, err)
+	}
 	if f, ok := w.(flusher); ok {
 		_ = f.Flush()
 	}
+	return nil
 }

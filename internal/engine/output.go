@@ -15,6 +15,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // Output is the aggregate root for one command's presentation lifecycle.
@@ -64,6 +65,13 @@ type Output struct {
 	lines       []string
 	actions     []Action
 	events      []Event
+
+	// wireSeq/wireEventErr back the §38 "evo.event" JSONL stream
+	// (structured_events.go's emitWireEventLocked) — a counter and
+	// first-write-failure latch independent of the legacy events journal
+	// above.
+	wireSeq      uint64
+	wireEventErr error
 
 	taskByRef  map[string]*taskState
 	tasksByRef map[string]*tasksState
@@ -471,6 +479,7 @@ func newOutput(subject string, options ...Option) *Output {
 	o.outputID = o.nextID("out")
 	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(Event{Type: "output.started", OutputID: o.outputID})
+	o.emitWireEventLocked(wire.EventRunStarted, "", nil)
 	if terminalWithoutSink {
 		o.recordMisuse(ErrTerminalWithoutSink)
 	}
@@ -636,6 +645,10 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 	}
 	st.state = Running
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
+	// Every promoteRunningLocked call site already guards on st.state ==
+	// Pending before calling it, and this line immediately advances past
+	// Pending — so task.started fires exactly once per task's lifetime.
+	o.emitWireEventLocked(wire.EventTaskStarted, st.id, nil)
 }
 
 func (o *Output) ensureOpen() error {
@@ -799,6 +812,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 	o.taskByRef[st.id] = st
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
+	o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": name})
 	return h
 }
 
@@ -974,6 +988,7 @@ func (o *Output) Group(name string) *GroupHandle {
 	o.namedGroupHandles[clean] = h
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
+	o.emitCollectionDeclaredLocked(st, "")
 	return h
 }
 
@@ -1002,6 +1017,7 @@ func (o *Output) Sequence(name string) *SequenceHandle {
 	st.handle = h
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
+	o.emitCollectionDeclaredLocked(st, "")
 	g := &SequenceHandle{tasks: h}
 	if o.namedGroups == nil {
 		o.namedGroups = make(map[string]*SequenceHandle)
@@ -1060,6 +1076,7 @@ func (o *Output) declareChildContainerLocked(parent *tasksState, name string, se
 		parent.namedChildren = make(map[string]*tasksState)
 	}
 	parent.namedChildren[clean] = st
+	o.emitCollectionDeclaredLocked(st, parent.id)
 	return st
 }
 
@@ -1639,9 +1656,6 @@ func (o *Output) appendEventLocked(e Event) {
 	if o.cfg.projection == ProjectionStreamJSON {
 		o.writeStreamJSONLocked(e)
 	}
-	if o.cfg.wireFormat == FormatJSONL {
-		writeWireEventLocked(o.cfg.wireStream, e)
-	}
 }
 
 func (o *Output) writeStreamJSONLocked(e Event) {
@@ -1884,6 +1898,13 @@ func (o *Output) Finish() error {
 		Type:  "output.finished",
 		State: string(conc.State),
 	})
+	// run.finished (spec §38) fires on every path through Finish, including
+	// failure and cancel — conc.State already reflects whichever outcome
+	// this run reached, the same single choke point output.finished uses.
+	o.emitWireEventLocked(wire.EventRunFinished, "", map[string]any{
+		"outcome":   wireRunOutcome(conc.State),
+		"exit_code": conc.ExitCode,
+	})
 	writer := o.cfg.primary
 	cfg := o.cfg
 	misuse := o.misuse
@@ -1903,6 +1924,17 @@ func (o *Output) Finish() error {
 			} else {
 				misuse = errors.Join(misuse, err)
 			}
+		}
+	}
+
+	// A mid-run "evo.event" JSONL write failure (spec §32.2) surfaces here,
+	// after run.finished (below) has had its own chance to set/extend it —
+	// earlier lines stay valid; this Run still fails.
+	if o.wireEventErr != nil {
+		if misuse == nil {
+			misuse = o.wireEventErr
+		} else {
+			misuse = errors.Join(misuse, o.wireEventErr)
 		}
 	}
 
