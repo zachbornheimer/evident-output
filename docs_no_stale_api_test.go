@@ -47,6 +47,7 @@ var staleAPIScanRoots = []string{
 
 var staleAPIScanFiles = []string{
 	"README.md",
+	"AGENTS.md",
 	"doc.go",
 }
 
