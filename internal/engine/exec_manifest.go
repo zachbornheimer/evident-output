@@ -9,6 +9,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // execBasisRecords fingerprints spec.Basis for one Exec call (spec §11.1,
@@ -81,34 +82,45 @@ func sortedEnvKeys(env map[string]string) []string {
 	return keys
 }
 
+// freshnessReasonNoOutputsDeclared is execOperationCurrent's own "not
+// current" reason (spec §8.4: "No Outputs → always run") — distinct from
+// fileOperationCurrent's freshnessReasonNoPriorRecord, since here there is
+// no prior-record comparison to make at all; Exec has nothing observable to
+// prove a prior run's effect still holds.
+const freshnessReasonNoOutputsDeclared = "no_outputs_declared"
+
 // execOperationCurrent reports whether prior still matches this call's
 // definition, Basis, and every declared output's current on-disk digest
-// (spec §11.4/§11.5). An ExecSpec with no declared Outputs is never current
-// — spec §8.4: "No Outputs → always run", since Evo has nothing observable
-// to prove the prior run's effect still holds.
-func execOperationCurrent(ctx context.Context, prior manifest.OperationRecord, hasPrior bool, defFingerprint string, basis []manifest.BasisRecord, sortedOutputs []string) (bool, error) {
+// (spec §11.4/§11.5), mirroring fileOperationCurrent's reason categories
+// (spec §38: Basis drift, definition drift, and tracked output drift must
+// be distinguishable events) so Exec's operation.started/skipped_current
+// payloads carry the same "reason" vocabulary File's do.
+func execOperationCurrent(ctx context.Context, prior manifest.OperationRecord, hasPrior bool, defFingerprint string, basis []manifest.BasisRecord, sortedOutputs []string) (isCurrent bool, reason string, err error) {
 	if len(sortedOutputs) == 0 {
-		return false, nil
+		return false, freshnessReasonNoOutputsDeclared, nil
 	}
-	if !hasPrior || prior.DefinitionFingerprint != defFingerprint || len(prior.Outputs) != len(sortedOutputs) {
-		return false, nil
+	if !hasPrior || len(prior.Outputs) != len(sortedOutputs) {
+		return false, freshnessReasonNoPriorRecord, nil
 	}
 	if !basisRecordsEqual(prior.Basis, basis) {
-		return false, nil
+		return false, freshnessReasonBasisDrift, nil
+	}
+	if prior.DefinitionFingerprint != defFingerprint {
+		return false, freshnessReasonDefinitionDrift, nil
 	}
 	for i, out := range sortedOutputs {
 		if prior.Outputs[i].Path != out {
-			return false, nil
+			return false, freshnessReasonTrackedDrift, nil
 		}
-		digest, err := pathOutputDigest(ctx, out)
-		if err != nil {
-			return false, err
+		digest, digestErr := pathOutputDigest(ctx, out)
+		if digestErr != nil {
+			return false, "", digestErr
 		}
 		if prior.Outputs[i].Digest != digest {
-			return false, nil
+			return false, freshnessReasonTrackedDrift, nil
 		}
 	}
-	return true, nil
+	return true, freshnessReasonCurrent, nil
 }
 
 // execConsultManifest resolves this Exec call's prior operation record (if
@@ -116,21 +128,26 @@ func execOperationCurrent(ctx context.Context, prior manifest.OperationRecord, h
 // mirroring fileConsultManifest's shape. prior/defFingerprint/basis are
 // always returned so the caller can forward a current hit unchanged, or
 // carry the fresh definition into the post-spawn success record.
-func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (current bool, prior manifest.OperationRecord, defFingerprint string, basis []manifest.BasisRecord, err error) {
+func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (current bool, prior manifest.OperationRecord, defFingerprint, reason string, basis []manifest.BasisRecord, err error) {
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
-		return false, manifest.OperationRecord{}, "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, openErr)
+		return false, manifest.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, openErr)
 	}
 	o.emitManifestWarningOnce(store.Warning())
 
 	basis, err = o.execBasisRecords(ctx, spec.Basis)
 	if err != nil {
-		return false, manifest.OperationRecord{}, "", nil, err
+		return false, manifest.OperationRecord{}, "", "", nil, err
 	}
+	o.mu.Lock()
+	o.emitWireEventLocked(wire.EventBasisFingerprinted, taskID, map[string]any{
+		"kind": "exec", "executable": spec.Executable, "count": len(basis),
+	})
+	o.mu.Unlock()
 
 	executableDigest, digestErr := pathOutputDigest(ctx, target.ExecutablePath)
 	if digestErr != nil {
-		return false, manifest.OperationRecord{}, "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, digestErr)
+		return false, manifest.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, digestErr)
 	}
 	defFingerprint = execDefinitionFingerprint(executableDigest, spec.Args, target.Dir, spec.Env, basis, target.Outputs)
 
@@ -138,15 +155,15 @@ func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec Ex
 	key, ord, ok := o.taskManifestKeyLocked(taskID)
 	o.mu.Unlock()
 	if !ok {
-		return false, manifest.OperationRecord{}, "", nil, ErrNoTaskContext
+		return false, manifest.OperationRecord{}, "", "", nil, ErrNoTaskContext
 	}
 
 	priorRecord, hasPrior := store.Operation(key, ord)
-	isCurrent, checkErr := execOperationCurrent(ctx, priorRecord, hasPrior, defFingerprint, basis, target.Outputs)
+	isCurrent, reason, checkErr := execOperationCurrent(ctx, priorRecord, hasPrior, defFingerprint, basis, target.Outputs)
 	if checkErr != nil {
-		return false, manifest.OperationRecord{}, "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, checkErr)
+		return false, manifest.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, checkErr)
 	}
-	return isCurrent, priorRecord, defFingerprint, basis, nil
+	return isCurrent, priorRecord, defFingerprint, reason, basis, nil
 }
 
 // resolveExecOutputs resolves every declared Output against dir (spec

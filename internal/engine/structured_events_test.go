@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -230,6 +231,109 @@ func TestWireEvents_FileOperationStartedAndFinished(t *testing.T) {
 	}
 	if indexOfType(events, wire.EventManifestTaskCommitted) == -1 {
 		t.Fatalf("manifest.task_committed must fire once the Task settles Done, got: %v", types)
+	}
+}
+
+// TestWireEvents_ExecOperationStartedAndFinished proves Exec emits the same
+// §38 operation family File does: basis.fingerprinted ahead of the
+// freshness check, operation.started naming why the manifest considered
+// this not current, tracked_resource.observed for the declared Output,
+// operation.finished changed=true, and manifest.task_committed once the
+// Task settles.
+func TestWireEvents_ExecOperationStartedAndFinished(t *testing.T) {
+	dir := t.TempDir()
+	tool := execFixture(t, dir, "tool", "v1")
+	outPath := filepath.Join(dir, "out.txt")
+	runner := &scriptedRunner{exitCode: 0}
+
+	var stdout nopFlushWriter
+	out := Init(Config{
+		Isolated: true, StateDir: t.TempDir(), ProcessRunner: runner,
+		Format: FormatJSONL, Stdout: &stdout,
+	})
+	spec := ExecSpec{Executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
+	runner.onRun = func() {
+		if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := runExecTask(t, out, "build", spec); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	types := wireEventTypes(events)
+	basisIdx := indexOfType(events, wire.EventBasisFingerprinted)
+	startIdx := indexOfType(events, wire.EventOperationStarted)
+	trackedIdx := indexOfType(events, wire.EventTrackedResourceObserved)
+	finishIdx := indexOfType(events, wire.EventOperationFinished)
+	committedIdx := indexOfType(events, wire.EventManifestTaskCommitted)
+	if basisIdx == -1 || startIdx == -1 || trackedIdx == -1 || finishIdx == -1 || committedIdx == -1 {
+		t.Fatalf("expected basis.fingerprinted, operation.started, tracked_resource.observed, operation.finished, manifest.task_committed all present, got: %v", types)
+	}
+	if basisIdx >= startIdx || startIdx >= trackedIdx || trackedIdx >= finishIdx || finishIdx >= committedIdx {
+		t.Fatalf("expected basis.fingerprinted < operation.started < tracked_resource.observed < operation.finished < manifest.task_committed, got: %v", types)
+	}
+	if reason := events[startIdx].Payload["reason"]; reason != freshnessReasonNoPriorRecord {
+		t.Fatalf("operation.started reason = %v, want %q", reason, freshnessReasonNoPriorRecord)
+	}
+	if changed := events[finishIdx].Payload["changed"]; changed != true {
+		t.Fatalf("operation.finished changed = %v, want true", changed)
+	}
+}
+
+// TestWireEvents_ExecOperationSkippedCurrent proves the freshness fast path:
+// a second Run sharing one manifest Store hits execOperationCurrent and
+// emits operation.skipped_current instead of operation.started, with no
+// live tracked_resource.observed (no re-inspection occurred).
+func TestWireEvents_ExecOperationSkippedCurrent(t *testing.T) {
+	state := t.TempDir()
+	dir := t.TempDir()
+	tool := execFixture(t, dir, "tool", "v1")
+	outPath := filepath.Join(dir, "out.txt")
+	spec := ExecSpec{Executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
+
+	first := Init(Config{Isolated: true, StateDir: state, ProcessRunner: &scriptedRunner{exitCode: 0}})
+	if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runExecTask(t, first, "build", spec); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	_ = first.Close()
+
+	var stdout nopFlushWriter
+	second := Init(Config{
+		Isolated: true, StateDir: state, ProcessRunner: &scriptedRunner{exitCode: 0},
+		Format: FormatJSONL, Stdout: &stdout,
+	})
+	if err := runExecTask(t, second, "build", spec); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	if err := second.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	types := wireEventTypes(events)
+	skipIdx := indexOfType(events, wire.EventOperationSkippedCurrent)
+	if skipIdx == -1 {
+		t.Fatalf("operation.skipped_current must fire on the freshness fast path, got: %v", types)
+	}
+	if reason := events[skipIdx].Payload["reason"]; reason != freshnessReasonCurrent {
+		t.Fatalf("operation.skipped_current reason = %v, want %q", reason, freshnessReasonCurrent)
+	}
+	if idx := indexOfType(events, wire.EventOperationStarted); idx != -1 {
+		t.Fatalf("operation.started must not also fire for a skipped-current call, got: %v", types)
+	}
+	if idx := indexOfType(events, wire.EventTrackedResourceObserved); idx != -1 {
+		t.Fatalf("tracked_resource.observed must not fire when no live inspection occurred, got: %v", types)
+	}
+	if indexOfType(events, wire.EventBasisFingerprinted) == -1 {
+		t.Fatalf("basis.fingerprinted must still fire (computed ahead of the freshness check), got: %v", types)
 	}
 }
 

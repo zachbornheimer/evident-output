@@ -10,6 +10,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // ExecSpec declares one managed-state subprocess invocation (spec §8.4).
@@ -140,11 +141,16 @@ func (o *Output) recordCancelledExec(ctx context.Context, spec ExecSpec) error {
 // Effect), or stale (spawn, carrying the fresh definition/Basis the caller
 // commits after a successful run).
 func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (execEvaluation, error) {
-	current, prior, defFingerprint, basis, consultErr := o.execConsultManifest(ctx, taskID, spec, target)
+	current, prior, defFingerprint, reason, basis, consultErr := o.execConsultManifest(ctx, taskID, spec, target)
 	if consultErr != nil {
 		return execEvaluation{}, consultErr
 	}
 	if current {
+		o.mu.Lock()
+		o.emitWireEventLocked(wire.EventOperationSkippedCurrent, taskID, map[string]any{
+			"kind": "exec", "executable": spec.Executable, "reason": reason,
+		})
+		o.mu.Unlock()
 		if !o.DryRun() {
 			o.mu.Lock()
 			o.appendManifestOperationLocked(taskID, prior)
@@ -152,8 +158,18 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 		}
 		return execEvaluation{Skip: true}, nil
 	}
+	o.mu.Lock()
+	o.emitWireEventLocked(wire.EventOperationStarted, taskID, map[string]any{
+		"kind": "exec", "executable": spec.Executable, "reason": reason,
+	})
+	o.mu.Unlock()
 	if o.DryRun() {
 		o.recordExecEffect(taskID, spec.Executable)
+		o.mu.Lock()
+		o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
+			"kind": "exec", "executable": spec.Executable, "changed": true,
+		})
+		o.mu.Unlock()
 		return execEvaluation{Skip: true}, nil
 	}
 	return execEvaluation{DefinitionFingerprint: defFingerprint, Basis: basis}, nil
@@ -171,7 +187,7 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 		return fmt.Errorf("%w (exit %d): %s", ErrExecNonzeroExit, outcome.ExitCode, spec.Executable)
 	}
 
-	outputRecords, verifyErr := verifiedExecOutputs(ctx, target.Outputs)
+	outputRecords, verifyErr := o.observeVerifiedExecOutputs(ctx, taskID, target.Outputs)
 	if verifyErr != nil {
 		return fmt.Errorf("evo: Exec %q: %w", spec.Executable, verifyErr)
 	}
@@ -185,8 +201,27 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 	}
 	o.mu.Lock()
 	o.appendManifestOperationLocked(taskID, rec)
+	o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
+		"kind": "exec", "executable": spec.Executable, "changed": true,
+	})
 	o.mu.Unlock()
 	return nil
+}
+
+// observeVerifiedExecOutputs wraps verifiedExecOutputs with one
+// tracked_resource.observed event per declared output (spec §38), mirroring
+// File's single tracked_resource.observed for its one managed path — Exec
+// has as many tracked resources as it has declared Outputs.
+func (o *Output) observeVerifiedExecOutputs(ctx context.Context, taskID string, outputs []string) ([]manifest.OutputRecord, error) {
+	for _, out := range outputs {
+		_, statErr := os.Stat(out)
+		o.mu.Lock()
+		o.emitWireEventLocked(wire.EventTrackedResourceObserved, taskID, map[string]any{
+			"kind": "exec-output", "path": out, "exists": statErr == nil,
+		})
+		o.mu.Unlock()
+	}
+	return verifiedExecOutputs(ctx, outputs)
 }
 
 // resolveExecutable resolves ExecSpec.Executable to an absolute path: a
