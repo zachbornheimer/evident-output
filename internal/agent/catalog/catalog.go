@@ -195,6 +195,26 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			TokenEstimate: 110,
 		},
 		{
+			ID:       "evo-file-exec",
+			Title:    "evo.File and evo.Exec: declarative tracked operations",
+			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile"},
+			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs"},
+			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001"},
+			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) replaces hand-rolled os.WriteFile +
+os.Chmod + a manual existence/hash check: it writes only on drift and no-ops when Path/Contents/Mode already
+match, with dry-run safety the hand-rolled version never had (EVO-FILE-001).
+
+evo.Exec(ctx, evo.ExecSpec{Executable, Args, Basis, Outputs}) is the same declarative shape for an external
+process: it replaces os/exec.Command paired with a hand-written stat/hash/mtime freshness check, and no-ops
+when the declared Outputs are already current against Basis (EVO-EXEC-001). Outputs are the paths the process
+itself produces — never add them to Basis, and never flag a literal Exec Arg that already names a declared
+Output or the call's own Executable as an omitted input (EVO-PROVENANCE-001, see the provenance guide).
+
+Both share one freshness contract: Basis lists every additional Fingerprint input (evo.FSPath/evo.Value/evo.App)
+whose change should invalidate the current result — call it inside task.Define, from a ctx that Define supplies.`,
+			TokenEstimate: 220,
+		},
+		{
 			ID:       "provenance",
 			Title:    "Basis honesty and manifest-skip honesty",
 			UseCases: []string{"basis", "freshness", "manifest", "skip", "already-satisfied"},

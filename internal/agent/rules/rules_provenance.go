@@ -49,7 +49,7 @@ func omittedBasisRule() Rule {
 	Outputs: []string{"build/out.bin"},
 })`,
 		Remediation:     "Add every file/value the generator actually reads to Basis; do not invent a Basis entry the source does not justify (§58) — trace the generator's real inputs instead",
-		RelatedGuidance: []string{"provenance", "evo-exec", "evo-file"},
+		RelatedGuidance: []string{"provenance", "evo-file-exec"},
 		VerificationIDs: []string{"EVO-PROVENANCE-001"},
 		Since:           "1.0.0",
 		Certainty:       "heuristic",
@@ -76,7 +76,7 @@ func opaqueManifestSkipRule() Rule {
 	}) == nil, nil
 })`,
 		Remediation:     "Replace a manifest-only skip with a live pre-definition Verify (or a tracked evo.File/evo.Exec check) that proves the current state, not the recorded one",
-		RelatedGuidance: []string{"provenance", "evidence"},
+		RelatedGuidance: []string{"provenance", "evidence-provenance"},
 		VerificationIDs: []string{"EVO-PROVENANCE-002"},
 		Since:           "1.0.0",
 		Certainty:       "heuristic",

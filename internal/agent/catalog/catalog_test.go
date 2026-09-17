@@ -86,6 +86,25 @@ func TestCatalogRuleIDsResolve(t *testing.T) {
 	}
 }
 
+// TestRuleRelatedGuidanceResolves is TestCatalogRuleIDsResolve's mirror: a
+// rule that points RelatedGuidance at a catalog guide ID must find a guide
+// that actually exists. A dead RelatedGuidance ID is the same dead end for
+// an agent following the reference the other direction — it silently drops
+// the guide instead of surfacing it, and nothing else catches the typo.
+func TestRuleRelatedGuidanceResolves(t *testing.T) {
+	guideIDs := map[string]bool{}
+	for _, g := range catalog.All() {
+		guideIDs[g.ID] = true
+	}
+	for _, r := range rules.All() {
+		for _, id := range r.RelatedGuidance {
+			if !guideIDs[id] {
+				t.Errorf("rule %s RelatedGuidance references guide %q, which catalog.All() does not define", r.ID, id)
+			}
+		}
+	}
+}
+
 // TestGuidesCoverPhaseQAdditions pins evo-rec.md work order item F: the
 // guidance catalog must teach bounded Because/Detail text, predeclare-
 // before-fan-out, Task.Writer over hand-rolled writers (PhaseWriter's
