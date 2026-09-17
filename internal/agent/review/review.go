@@ -30,6 +30,10 @@ type Finding struct {
 	// hand-rolled composition. Empty when no substitution is cheap to
 	// derive; the rule's GoodCode remains the fallback teaching example.
 	Suggestion string `json:"suggestion,omitempty"`
+	// RequiredVersion is the minimum evident-output release the Suggestion's
+	// API requires (e.g. "1.0.0" for Verify/evo.File/evo.Exec/Sequence).
+	// Empty means the suggestion is valid at any supported version.
+	RequiredVersion string `json:"required_version,omitempty"`
 }
 
 // Result is a review response.
@@ -478,6 +482,45 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// its own verb.
 	if hasEvo {
 		findings = append(findings, detectInlineReasonLiteral(filename, f, fset)...)
+	}
+
+	// The EVO-EVIDENCE-001/VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestions
+	// all recommend 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence);
+	// a pin older than that cannot apply them, so none of these six may fire
+	// for it — mirroring detectDeprecatedSpellings' dialectAtLeast gating.
+	hasEvoAtOneZero := hasEvo && dialectAtLeast(desiredVersion, dialectOneZero)
+
+	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)
+	}
+
+	// EVO-VERIFY-001: Verify callback performs a raw mutation; Verify must
+	// be read-only.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectMutatingVerify(filename, f, fset)...)
+	}
+
+	// EVO-DRYRUN-001: Define callback raw-calls a side effect Evo's runtime
+	// cannot intercept, breaking the dry-run guarantee.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectRawMutationInDefine(filename, f, fset)...)
+	}
+
+	// EVO-DAG-001: a goroutine exists only to make Evo Tasks parallel.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectGoroutineWrappingDefine(filename, src)...)
+	}
+
+	// EVO-DAG-002: a chained .After(...) reproduces evo.Sequence.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectAfterChainDuplicatesSequence(filename, f, fset)...)
+	}
+
+	// EVO-DAG-003: a visible producer/consumer relationship has no
+	// first-run scheduler ordering.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectMissingProducerConsumerOrdering(filename, f, fset)...)
 	}
 
 	// API-027: Done/Fail/Progress on Group/Sequence (name-match).
