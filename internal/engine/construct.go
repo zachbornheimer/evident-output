@@ -226,6 +226,18 @@ type Config struct {
 
 	// MaxConcurrency is the scheduler ceiling. Zero means GOMAXPROCS.
 	MaxConcurrency int
+
+	// StateDir, when non-empty, is the exact manifest state directory File's
+	// reconciliation history is read from and committed to
+	// (<StateDir>/manifest-v1.json) — bypassing the default
+	// os.UserCacheDir()/evident-output/<app-id>/<workspace-hash>/ derivation
+	// entirely (spec §11.3). Tests set this to t.TempDir() for isolation.
+	StateDir string
+
+	// AppID overrides the derived application id (main-module path plus
+	// executable basename) used in the default manifest cache path.
+	// Ignored when StateDir is set.
+	AppID string
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
@@ -456,6 +468,7 @@ func configToOptions(c Config) []Option {
 	opts = append(opts, visibilityDelay(visDelay), maxFrameRate(c.MaxFrameRate))
 	opts = append(opts, maxEntities(c.MaxEntities), maxEvents(c.MaxEvents))
 	opts = append(opts, maxConcurrency(c.MaxConcurrency))
+	opts = append(opts, withStateDir(c.StateDir), withAppID(c.AppID))
 	opts = append(opts, debugLevel(c.Debug.Level))
 	if c.Debug.AddSource {
 		opts = append(opts, debugAddSource())

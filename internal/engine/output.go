@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
@@ -46,6 +47,11 @@ type Output struct {
 	misuseRejectedSummary string
 	conclusion            *Conclusion
 	live                  *liveEngine
+
+	// workspaceDir is the process working directory, captured once on first
+	// use by File (workspaceDirLocked in file.go) so relative paths resolve
+	// consistently even if the process CWD changes mid-Run (§8.1).
+	workspaceDir string
 
 	tasks       []*taskState
 	collections []*tasksState
@@ -154,6 +160,24 @@ type Output struct {
 	// task.
 	runWarnings []Problem
 	runFacts    []FactRecord
+
+	// manifestStore is this Run's exclusive handle on the reconciliation
+	// manifest (spec §11.3), opened lazily by the first evo.File call
+	// (manifestFor) the same way workspaceDir is captured lazily on first
+	// use. manifestOpenErr/manifestOpened distinguish "not yet opened" from
+	// "opened and failed" so a later call does not retry a failed open.
+	manifestStore         *manifest.Store
+	manifestOpened        bool
+	manifestOpenErr       error
+	manifestWarningIssued bool
+	// manifestApp is this Run's application record, computed once and
+	// reused on every Task commit (spec §11.2/§11.3).
+	manifestApp     manifest.ApplicationRecord
+	manifestAppDone bool
+	// manifestClaims records which Task first claimed each canonical File
+	// output path in this Run (spec §11.4/§8.3): a second Task claiming the
+	// same path is a producer conflict.
+	manifestClaims map[string]string
 }
 
 type taskState struct {
@@ -259,6 +283,13 @@ type taskState struct {
 	plainPhaseEmitted    string
 	plainProgressStarted bool
 	plainProgressEmitted int64
+
+	// manifestOps accumulates this Task's tracked operation records for the
+	// current Run (spec §11.3-11.5): one entry per evo.File/evo.Exec call
+	// that participated in manifest tracking, appended in call order (the
+	// same order manifest.Store.Operation's ordinal indexes into). Never
+	// populated during dry-run — dry-run commits nothing (§8.2).
+	manifestOps []manifest.OperationRecord
 }
 
 type tasksState struct {
@@ -1918,9 +1949,16 @@ func (o *Output) Close() error {
 	o.stopResizeWatchLocked()
 	o.closed = true
 	cancelRun := o.cancelRun
+	manifestStore := o.manifestStore
 	o.mu.Unlock()
 	if cancelRun != nil {
 		cancelRun()
+	}
+	if manifestStore != nil {
+		// Releases this Run's exclusive manifest lock (spec §11.3). Already
+		// committed Task records on disk are unaffected — Close never rolls
+		// anything back.
+		_ = manifestStore.Close()
 	}
 	return nil
 }
