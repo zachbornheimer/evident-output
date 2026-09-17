@@ -10,6 +10,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // ErrFileConflictingProducer is returned when two Tasks in one Run both
@@ -109,7 +110,11 @@ func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 		return
 	}
 	task := manifest.TaskRecord{Key: st.key, Operations: append([]manifest.OperationRecord(nil), st.manifestOps...)}
-	_ = o.manifestStore.CommitTask(ctx, o.manifestApp, task)
+	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err == nil {
+		o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
+			"operations": len(task.Operations),
+		})
+	}
 }
 
 // fileBasisRecords fingerprints every entry in basis (spec §11.1) and
@@ -182,24 +187,47 @@ func fileOutputDigest(ctx context.Context, path string) (string, error) {
 	return hex.EncodeToString(v.Digest[:]), nil
 }
 
+// Reasons fileOperationCurrent reports for a "not current" verdict (spec
+// §38: events must distinguish Basis drift from tracked output drift from
+// no prior record at all).
+const (
+	freshnessReasonNoPriorRecord   = "no_prior_record"
+	freshnessReasonBasisDrift      = "basis_drift"
+	freshnessReasonDefinitionDrift = "definition_changed"
+	freshnessReasonTrackedDrift    = "tracked_output_drift"
+	freshnessReasonCurrent         = "current"
+)
+
 // fileOperationCurrent reports whether prior (the previously committed
 // operation record for this Task's Nth File call, if any) still matches:
-// the operation definition itself, every Basis digest, and the tracked
+// every Basis digest, the operation definition itself, and the tracked
 // output's current on-disk digest (spec §8.2/§11.4/§11.5). A prior record's
-// absence, a definition/Basis mismatch, or output drift (edited outside
-// Evo) are all "not current" — never an error on their own.
-func fileOperationCurrent(ctx context.Context, prior manifest.OperationRecord, hasPrior bool, defFingerprint string, basis []manifest.BasisRecord, path string) (bool, error) {
-	if !hasPrior || prior.DefinitionFingerprint != defFingerprint || len(prior.Outputs) != 1 {
-		return false, nil
+// absence, a Basis/definition mismatch, or output drift (edited outside
+// Evo) are all "not current" — never an error on their own. reason names
+// which of those applied, or freshnessReasonCurrent when isCurrent is true.
+// Basis is checked ahead of the combined DefinitionFingerprint (which
+// itself already hashes Basis in, see fileDefinitionFingerprint) so a
+// Basis-only change reports freshnessReasonBasisDrift rather than being
+// folded into the more generic definition mismatch (spec §38: "Basis
+// drift" and "tracked output drift" must be distinguishable events).
+func fileOperationCurrent(ctx context.Context, prior manifest.OperationRecord, hasPrior bool, defFingerprint string, basis []manifest.BasisRecord, path string) (isCurrent bool, reason string, err error) {
+	if !hasPrior || len(prior.Outputs) != 1 {
+		return false, freshnessReasonNoPriorRecord, nil
 	}
 	if !basisRecordsEqual(prior.Basis, basis) {
-		return false, nil
+		return false, freshnessReasonBasisDrift, nil
+	}
+	if prior.DefinitionFingerprint != defFingerprint {
+		return false, freshnessReasonDefinitionDrift, nil
 	}
 	liveDigest, err := fileOutputDigest(ctx, path)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
-	return prior.Outputs[0].Digest == liveDigest, nil
+	if prior.Outputs[0].Digest != liveDigest {
+		return false, freshnessReasonTrackedDrift, nil
+	}
+	return true, freshnessReasonCurrent, nil
 }
 
 // basisRecordsEqual compares two already-canonicalized Basis slices

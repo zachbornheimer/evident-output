@@ -3,9 +3,11 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // verifierFunc is one Verify observation check (§9.1): true means the
@@ -106,7 +108,7 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 	scope := &taskScopeHandle{out: o, taskID: t.id}
 
 	if len(verifiers) > 0 {
-		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), verifiers)
+		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), o, t.id, verifiers)
 		if obsErr != nil {
 			o.recordEvidencePhase(t.id, evidencePhaseBefore, true, false)
 			t.failScheduled(obsErr.Error())
@@ -120,16 +122,20 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 		}
 	}
 
+	o.mu.Lock()
+	o.emitWireEventLocked(wire.EventDefinitionStarted, t.id, nil)
+	o.mu.Unlock()
 	callbackErr := fn(withTaskScope(o.Context(), scope))
 	o.mu.Lock()
 	closeTaskScopeLocked(scope)
+	o.emitWireEventLocked(wire.EventDefinitionFinished, t.id, map[string]any{"failed": callbackErr != nil})
 	o.mu.Unlock()
 	if callbackErr != nil {
 		return passthroughCallbackOutcome(callbackErr)
 	}
 
 	if len(verifiers) > 0 {
-		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), verifiers)
+		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), o, t.id, verifiers)
 		if obsErr != nil {
 			o.recordEvidencePhase(t.id, evidencePhaseAfter, true, false)
 			t.failScheduled(obsErr.Error())
@@ -167,6 +173,12 @@ func (o *Output) recordOperationsEvidence(taskID string) {
 		return
 	}
 	st.verifyEvidence.After = EvidencePhase{Evaluated: true, Satisfied: true, Source: operationsEvidenceSource}
+	o.emitWireEventLocked(wire.EventEvidenceEvaluated, taskID, map[string]any{
+		"phase":     "after_definition",
+		"evaluated": true,
+		"satisfied": true,
+		"source":    operationsEvidenceSource,
+	})
 }
 
 // passthroughCallbackOutcome hands a Define callback's (or a Verify
@@ -185,11 +197,19 @@ func passthroughCallbackOutcome(err error) error {
 
 // evaluateVerifiers runs every verifier in registration order, ANDing their
 // results, and stops at the first observation error (§9.1: an observation
-// failure is distinct from a false result and takes priority).
-func evaluateVerifiers(ctx context.Context, verifiers []verifierFunc) (allSatisfied bool, err error) {
+// failure is distinct from a false result and takes priority). Each
+// verifier's own outcome is emitted as verification.observed (spec §38),
+// named by its registration order since Verify registers anonymous funcs.
+func evaluateVerifiers(ctx context.Context, o *Output, taskID string, verifiers []verifierFunc) (allSatisfied bool, err error) {
 	allSatisfied = true
-	for _, v := range verifiers {
+	for i, v := range verifiers {
 		ok, verifyErr := v(ctx)
+		o.mu.Lock()
+		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, map[string]any{
+			"name":   fmt.Sprintf("verify_%d", i),
+			"status": verificationStatus(ok, verifyErr),
+		})
+		o.mu.Unlock()
 		if verifyErr != nil {
 			return false, verifyErr
 		}
@@ -198,6 +218,19 @@ func evaluateVerifiers(ctx context.Context, verifiers []verifierFunc) (allSatisf
 		}
 	}
 	return allSatisfied, nil
+}
+
+// verificationStatus maps one verifier's outcome to the §36 verification
+// status vocabulary (wire.VerificationSatisfied/Unsatisfied/Error).
+func verificationStatus(ok bool, err error) string {
+	switch {
+	case err != nil:
+		return wire.VerificationError
+	case ok:
+		return wire.VerificationSatisfied
+	default:
+		return wire.VerificationUnsatisfied
+	}
 }
 
 // evidencePhaseName selects which of a Task's two Verify observation phases
@@ -230,6 +263,21 @@ func (o *Output) recordEvidencePhase(taskID string, phase evidencePhaseName, eva
 	case evidencePhaseAfter:
 		st.verifyEvidence.After = recorded
 	}
+	o.emitWireEventLocked(wire.EventEvidenceEvaluated, taskID, map[string]any{
+		"phase":     evidencePhaseWireName(phase),
+		"evaluated": evaluated,
+		"satisfied": satisfied,
+		"source":    recorded.Source,
+	})
+}
+
+// evidencePhaseWireName maps an evidencePhaseName to the §38 payload's
+// "phase" literal (spec §38 example: "phase": "after_definition").
+func evidencePhaseWireName(phase evidencePhaseName) string {
+	if phase == evidencePhaseAfter {
+		return "after_definition"
+	}
+	return "before_definition"
 }
 
 // setResolution stores why a Task settled successfully (§29/§30).

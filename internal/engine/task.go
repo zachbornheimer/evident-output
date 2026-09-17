@@ -6,6 +6,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // TaskHandle is a handle for one operation with phases or progress.
@@ -311,6 +312,7 @@ func (t *TaskHandle) Warn(summary string) {
 	st.warnings = append(st.warnings, p)
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
+	t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, map[string]any{"summary": p.Summary})
 	t.out.signalLiveLocked(true)
 }
 
@@ -338,6 +340,7 @@ func (t *TaskHandle) Fact(name, value string) {
 	}
 	st.facts = append(st.facts, f)
 	t.out.bumpLocked()
+	t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, map[string]any{"name": f.Name, "value": f.Value})
 	t.out.signalLiveLocked(true)
 }
 
@@ -622,6 +625,10 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task." + string(state), EntityID: t.id})
+	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, map[string]any{
+		"state":      string(state),
+		"resolution": string(st.resolution),
+	})
 	// Terminal outcomes: update live ledger for collections (H.20/H.21). A
 	// standalone task commits its own row to durable scrollback right now,
 	// interactive or not, so a later Printf/Println/Confirm can never race

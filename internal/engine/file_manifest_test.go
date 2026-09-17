@@ -97,12 +97,15 @@ func TestFileManifestBasisDriftForcesReconciliation(t *testing.T) {
 	}
 
 	spec2 := FileSpec{Path: path, Contents: []byte("desired"), Basis: []fingerprint.Fingerprint{fingerprint.Value("input", 2)}}
-	current, prior, checkErr := second.fileConsultManifest(context.Background(), task.id, spec2, second.resolveWorkspacePath(path))
+	current, prior, reason, checkErr := second.fileConsultManifest(context.Background(), task.id, spec2, second.resolveWorkspacePath(path))
 	if checkErr != nil {
 		t.Fatalf("consult manifest: %v", checkErr)
 	}
 	if current {
 		t.Fatal("Basis drift must not report the operation as current")
+	}
+	if reason != freshnessReasonBasisDrift {
+		t.Fatalf("freshness reason = %q, want %q (spec §38: Basis drift must be distinguishable)", reason, freshnessReasonBasisDrift)
 	}
 	if prior.DefinitionFingerprint != priorBefore.DefinitionFingerprint {
 		t.Fatalf("prior record fingerprint mismatch: got %q want %q", prior.DefinitionFingerprint, priorBefore.DefinitionFingerprint)

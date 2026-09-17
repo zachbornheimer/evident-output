@@ -3,6 +3,7 @@ package engine
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // Mutation verbs define dry-run-aware work and submit it. object is a
@@ -154,7 +155,7 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 	if err != nil {
 		return
 	}
-	o.recordResolvedMutation(subject, dryRun, verb, quantity, hasQty, object)
+	o.recordResolvedMutation(taskID, subject, dryRun, verb, quantity, hasQty, object)
 }
 
 // recordResolvedMutation records verb/quantity/object into subject's Plan
@@ -170,7 +171,7 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 // keeps declaring its intended verb so an empty Record section still renders
 // evo-rec.md Problem 18's "nothing to <verb> <subject>" empty-section
 // grammar.
-func (o *Output) recordResolvedMutation(subject string, dryRun bool, verb string, quantity int64, hasQty bool, object string) {
+func (o *Output) recordResolvedMutation(taskID, subject string, dryRun bool, verb string, quantity int64, hasQty bool, object string) {
 	if dryRun {
 		sec := o.planGetOrCreate(subject)
 		// Declare with the caller's imperative verb before Record runs, so a
@@ -182,6 +183,9 @@ func (o *Output) recordResolvedMutation(subject string, dryRun bool, verb string
 		} else {
 			sec.recordNoQty(verb, object)
 		}
+		o.mu.Lock()
+		o.emitWireEventLocked(wire.EventEffectPlanned, taskID, map[string]any{"verb": verb, "object": object})
+		o.mu.Unlock()
 		return
 	}
 	sec := o.changesGetOrCreate(subject)
@@ -192,6 +196,9 @@ func (o *Output) recordResolvedMutation(subject string, dryRun bool, verb string
 	} else {
 		sec.recordNoQty(pastTense, object)
 	}
+	o.mu.Lock()
+	o.emitWireEventLocked(wire.EventEffectCommitted, taskID, map[string]any{"verb": pastTense, "object": object})
+	o.mu.Unlock()
 }
 
 // recordClassification resolves the task named by taskID, then records

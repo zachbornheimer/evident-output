@@ -11,6 +11,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // getwd is the facade File's relative-path resolution reads the process's
@@ -97,7 +98,7 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 	}
 
 	if contentsManaged {
-		current, prior, err := o.fileConsultManifest(ctx, taskID, spec, path)
+		current, prior, reason, err := o.fileConsultManifest(ctx, taskID, spec, path)
 		if err != nil {
 			return err
 		}
@@ -106,7 +107,15 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 			// proves this operation is current, so no live inspection, no
 			// write syscall, and no Effect — an unchanged File is silent on
 			// its second Run. The prior record still carries forward so a
-			// later Task settle recommits identical state.
+			// later Task settle recommits identical state. This is the
+			// "nested operation skipped as current"/"upstream revalidated
+			// with identical output" case (spec §38), distinct from a whole
+			// Task skipped by a pre-definition Verify (evidence.evaluated).
+			o.mu.Lock()
+			o.emitWireEventLocked(wire.EventOperationSkippedCurrent, taskID, map[string]any{
+				"kind": "file", "path": path, "reason": reason,
+			})
+			o.mu.Unlock()
 			if !o.DryRun() {
 				o.mu.Lock()
 				o.appendManifestOperationLocked(taskID, prior)
@@ -114,6 +123,15 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 			}
 			return nil
 		}
+		o.mu.Lock()
+		o.emitWireEventLocked(wire.EventOperationStarted, taskID, map[string]any{
+			"kind": "file", "path": path, "reason": reason,
+		})
+		o.mu.Unlock()
+	} else {
+		o.mu.Lock()
+		o.emitWireEventLocked(wire.EventOperationStarted, taskID, map[string]any{"kind": "file", "path": path})
+		o.mu.Unlock()
 	}
 
 	info, statErr := os.Lstat(path)
@@ -128,6 +146,11 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 		return fmt.Errorf("evo: File inspect %q: %w", path, statErr)
 	}
 	exists := statErr == nil
+	o.mu.Lock()
+	o.emitWireEventLocked(wire.EventTrackedResourceObserved, taskID, map[string]any{
+		"kind": "file", "path": path, "exists": exists,
+	})
+	o.mu.Unlock()
 
 	if !exists && !contentsManaged {
 		return fmt.Errorf("%w: %s", ErrFileUnmanagedContentsMissing, path)
@@ -146,6 +169,9 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 		if mutates {
 			o.recordFileEffect(taskID, spec.Path)
 		}
+		o.mu.Lock()
+		o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{"kind": "file", "path": path, "changed": mutates})
+		o.mu.Unlock()
 		return nil
 	}
 
@@ -169,6 +195,9 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 			return err
 		}
 	}
+	o.mu.Lock()
+	o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{"kind": "file", "path": path, "changed": mutates})
+	o.mu.Unlock()
 	return nil
 }
 
@@ -180,35 +209,41 @@ func (o *Output) recordFileEffect(taskID, displayPath string) {
 }
 
 // fileConsultManifest resolves this File call's prior operation record (if
-// any) and reports whether it is still current (spec §11.4/§11.5). prior is
-// always returned so the caller can carry it forward unchanged on a current
-// hit.
-func (o *Output) fileConsultManifest(ctx context.Context, taskID string, spec FileSpec, path string) (current bool, prior manifest.OperationRecord, err error) {
+// any) and reports whether it is still current (spec §11.4/§11.5), plus the
+// freshness reason (spec §38: "Basis drift" vs "tracked output drift" vs no
+// prior record must be distinguishable). prior is always returned so the
+// caller can carry it forward unchanged on a current hit.
+func (o *Output) fileConsultManifest(ctx context.Context, taskID string, spec FileSpec, path string) (current bool, prior manifest.OperationRecord, reason string, err error) {
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
-		return false, manifest.OperationRecord{}, fmt.Errorf("evo: File %q: %w", path, openErr)
+		return false, manifest.OperationRecord{}, "", fmt.Errorf("evo: File %q: %w", path, openErr)
 	}
 	o.emitManifestWarningOnce(store.Warning())
 
 	basis, err := fileBasisRecords(ctx, spec.Basis)
 	if err != nil {
-		return false, manifest.OperationRecord{}, err
+		return false, manifest.OperationRecord{}, "", err
 	}
+	o.mu.Lock()
+	o.emitWireEventLocked(wire.EventBasisFingerprinted, taskID, map[string]any{
+		"path": path, "count": len(basis),
+	})
+	o.mu.Unlock()
 	defFingerprint := fileDefinitionFingerprint(path, true, spec.Contents, uint32(spec.Mode), basis)
 
 	o.mu.Lock()
 	key, ord, ok := o.taskManifestKeyLocked(taskID)
 	o.mu.Unlock()
 	if !ok {
-		return false, manifest.OperationRecord{}, ErrNoTaskContext
+		return false, manifest.OperationRecord{}, "", ErrNoTaskContext
 	}
 
 	priorRecord, hasPrior := store.Operation(key, ord)
-	isCurrent, checkErr := fileOperationCurrent(ctx, priorRecord, hasPrior, defFingerprint, basis, path)
+	isCurrent, freshnessReason, checkErr := fileOperationCurrent(ctx, priorRecord, hasPrior, defFingerprint, basis, path)
 	if checkErr != nil {
-		return false, manifest.OperationRecord{}, fmt.Errorf("evo: File %q: %w", path, checkErr)
+		return false, manifest.OperationRecord{}, "", fmt.Errorf("evo: File %q: %w", path, checkErr)
 	}
-	return isCurrent, priorRecord, nil
+	return isCurrent, priorRecord, freshnessReason, nil
 }
 
 // fileRecordOperation persists this File call's freshly observed operation
