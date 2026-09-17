@@ -80,6 +80,10 @@ run = [
 description = "Verify every §31 ID is listed in TRACEABILITY"
 run = "go run ./tools/scripts/traceability-check"
 
+[tasks.bisectability]
+description = "Prove every first-parent commit since BASE (default codex/v06-acceptance) builds on its own — run before merging a multi-commit integration branch"
+run = "go run ./tools/scripts/bisectability-check"
+
 [tasks.evo-usage-audit]
 description = "Markdown evo usage inventory for another Go repo (evo-usage-audit <repo-path> [--output FILE]); put flags AFTER the task name — a flag before it is swallowed by mise's own -o/--output"
 run = "go run ./tools/scripts/evo-usage-audit"
