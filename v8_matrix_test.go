@@ -10,7 +10,11 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -136,33 +140,126 @@ func TestV8_NothingToClean(t *testing.T) {
 	}
 }
 
-// TestV8_PartialFailure is deliberately not implemented as a golden. The
-// tab's frame requires per-attribute verification-detail rendering with
-// independent glyphs per attribute — "- contents  already satisfied" (a
-// satisfied attribute) directly beside "✗ permissions" (a failed attribute)
-// with its own nested error/path/mode Facts, both children of one failed
-// Task. internal/render/plain.go's writeProblem only renders a Problem's
-// Subject with a single shared tree-connector glyph ("├─"), never a
-// per-Subject satisfied/failed glyph — this shape is spec §8.2/§20's
-// evo.File reconciliation output, part of the Evidence/Operations model
-// (spec §2-15), which is a separate, unbuilt increment from this renderer
-// work order's scope (§16-27, §40, §41, §43). Building fake text via
-// Print/Println to match the frame would test nothing about the renderer;
-// building the real feature is out of this order's blast radius.
+// newFailedChmodFile returns a FileSpec/testkit.FileFS pair that reconciles
+// for real (a genuine temp-directory write) and then fails only the chmod
+// step with an EPERM-shaped error — the fixture both TestV8_PartialFailure
+// and TestV8_Stress script evo.File's chmod failure through, per spec
+// §8.2's worked example: contents write cleanly, permissions alone fails.
+// displayPath is deliberately the frame's own "~/Library/LaunchAgents/..."
+// text — a relative FileSpec.Path resolves against the workspace directory
+// (spec §8.1), so t.Chdir(dir) below makes that exact, unmodified string
+// the real resolved path too, with no separate "pretty vs. real path"
+// translation for the renderer to invent.
+func newFailedChmodFile(t *testing.T, dir, displayPath string) (evo.FileSpec, *testkit.FileFS) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(displayPath)), 0o755); err != nil {
+		t.Fatalf("mkdir fixture dir: %v", err)
+	}
+	fsys := testkit.NewFileFS()
+	fsys.FailChmod(filepath.Join(dir, displayPath), errors.New("operation not permitted"))
+	spec := evo.FileSpec{Path: displayPath, Contents: []byte("<plist/>"), Mode: 0o644}
+	return spec, fsys
+}
 
-// TestV8_Stress is also not implemented as one golden. Its frame recombines
-// pieces every other tab already proves individually — a parent line with
-// only an elapsed timer and no bar (no total to divide by), a Done child
-// under a Running parent, multiple Running children each with their own
-// bar/count/timer/activity-child (proven by TestV8_LiveParallelPrune), a
-// warning row under a Running child (proven by existing appendix-H live
-// tests), and a Plan/Changes ledger after a blank line (proven by
-// TestV8_DryRunPlanOnly) — except for its one failed task with a
-// satisfied/failed detail split, which hits the exact same unimplemented
-// per-attribute verification-detail gap TestV8_PartialFailure documents
-// above. Composing the already-proven pieces into one combined golden
-// would not exercise anything the individual goldens don't already cover;
-// the one genuinely new piece is blocked on the same gap.
+// TestV8_PartialFailure is the golden for the "Partial failure" tab: one
+// evo.File reconciliation whose contents write succeeds and whose chmod
+// then fails, rendering the spec §2/§8.2/§20-21/§41 per-attribute
+// verification-detail shape — a satisfied attribute beside a failed one,
+// the failed one's own error/path/mode Facts nested beneath it.
+func TestV8_PartialFailure(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	displayPath := "~/Library/LaunchAgents/com.acme.prod.agent.plist"
+	spec, fsys := newFailedChmodFile(t, dir, displayPath)
+
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Isolated: true, Color: evo.ColorNever, Plain: true, FileFS: fsys,
+		// StateDir isolates this test's manifest to its own temp
+		// directory (spec §11.3) — without it, evo.File's default
+		// manifest path is derived from the real machine cache dir and
+		// can contend with any other concurrently running evo.File caller.
+		StateDir: t.TempDir(),
+		Stdout:   &buf, Stderr: io.Discard,
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	agent := out.Task("write launch agent")
+	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := "✗ write launch agent  failed: permissions\n" +
+		"  - contents  already satisfied\n" +
+		"  ✗ permissions\n" +
+		"    error  operation not permitted\n" +
+		"    path   " + displayPath + "\n" +
+		"    mode   0644\n"
+	if got := buf.String(); got != want {
+		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+	}
+}
+
+// TestV8_Stress is the golden for the "Stress" tab's one genuinely new
+// piece: TestV8_PartialFailure's verification-detail block, this time
+// composed alongside pieces every other tab already proves on their own —
+// a resolved Group, a standalone Done task with a committed Changes ledger
+// entry, and the failed evo.File task. The frame's live bars/timers/
+// warning-under-Running-child shapes are exactly TestV8_LiveParallelPrune's
+// and the appendix-H live tests' own proven territory, not re-asserted
+// here — recombining already-proven durable rows would test the same
+// rendering paths those goldens already pin; only the verification block's
+// composition alongside a resolved Group and a ledger is new.
+func TestV8_Stress(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	displayPath := "~/Library/LaunchAgents/com.acme.prod.agent.plist"
+	spec, fsys := newFailedChmodFile(t, dir, displayPath)
+
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Isolated: true, Color: evo.ColorNever, Plain: true, FileFS: fsys,
+		StateDir: t.TempDir(),
+		Stdout:   &buf, Stderr: io.Discard,
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	deploy := out.Group("deploy production")
+	deploy.Task("discover").Done()
+	deploy.Task("services").Done("already satisfied")
+
+	remotes := out.Task("remote-tracking")
+	remotes.Record("delete", 4, "stale origin/*")
+	remotes.Done("4 stale refs")
+
+	agent := out.Task("write launch agent")
+	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := "✓ remote-tracking  4 stale refs\n" +
+		"✗ write launch agent  failed: permissions\n" +
+		"  - contents  already satisfied\n" +
+		"  ✗ permissions\n" +
+		"    error  operation not permitted\n" +
+		"    path   " + displayPath + "\n" +
+		"    mode   0644\n" +
+		"✓ deploy production\n" +
+		"   ✓ discover\n" +
+		"   ✓ services  already satisfied\n" +
+		"\n" +
+		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
+		"\n" +
+		"[failed]\n" +
+		"!  already mutated: 4 stale origin/* deleted\n"
+	if got := buf.String(); got != want {
+		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+	}
+}
 
 // TestV8_CancelledAfterMutation is the golden for the "Cancelled after
 // mutation" tab: one task completes with a committed effect before

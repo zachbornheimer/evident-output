@@ -187,6 +187,7 @@ type ExecSpec
 type FactRecord
 type Failure
 type Field
+type FileFS
 type FileSpec
 type Fingerprint
 type FingerprintValue
