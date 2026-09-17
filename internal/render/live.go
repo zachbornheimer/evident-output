@@ -66,10 +66,31 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, color bool, p
 	for _, col := range s.Collections {
 		writeLiveCollection(&b, col, height, width, spin, color, now, profile)
 	}
+	nameWidth := maxRootTaskNameWidth(s.Tasks)
 	for _, t := range s.Tasks {
-		writeLiveTaskLine(&b, t, 0, width, spin, color, now, profile)
+		writeLiveTaskLine(&b, t, 0, nameWidth, width, spin, color, now, profile)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// maxRootTaskNameWidth is the live renderer's own sibling-column-alignment
+// width — mirroring the durable/plain projection's identically-named helper
+// (internal/engine/progressive.go): two or more concurrently-declared
+// standalone (non-collection) root tasks share a name column ("branches" /
+// "worktrees" / "remote-tracking" padded to "remote-tracking"'s width, spec
+// §23's live parallel example), same as a Group's own children already do.
+// A single standalone task is never padded (nothing to align against).
+func maxRootTaskNameWidth(tasks []core.TaskSnapshot) int {
+	if len(tasks) < 2 {
+		return 0
+	}
+	width := 0
+	for _, t := range tasks {
+		if n := len([]rune(t.Name)); n > width {
+			width = n
+		}
+	}
+	return width
 }
 
 // renderArmedTitleLine is the honest placeholder painted after arm() when the
@@ -121,7 +142,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		return
 	}
 	if collapsesIntoOnlyChild(col) {
-		writeLiveTaskLine(b, col.Tasks[0], 0, width, spin, color, now, profile)
+		writeLiveTaskLine(b, col.Tasks[0], 0, 0, width, spin, color, now, profile)
 		return
 	}
 	if promotesLoneChildOntoHeader(col) {
@@ -179,7 +200,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	}
 	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
 	for _, t := range selected {
-		writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
+		writeLiveTaskLine(b, t, 1, 0, width, spin, color, now, profile)
 	}
 	if omitted > 0 {
 		fmt.Fprintf(b, "   %s  %d not shown\n", txt.Dim(txt.GlyphOverflow.Render(profile), color), omitted)
@@ -380,11 +401,11 @@ func writeLiveEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach
 	b.WriteByte('\n')
 	selected, omitted := selectEachAttentionChildren(fromEach, eachAttentionTTYMax)
 	for _, t := range selected {
-		writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
+		writeLiveTaskLine(b, t, 1, 0, width, spin, color, now, profile)
 	}
 	writeEachOmission(b, omitted, color, profile)
 	for _, t := range explicit {
-		writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
+		writeLiveTaskLine(b, t, 1, 0, width, spin, color, now, profile)
 	}
 	for _, child := range col.Collections {
 		var nested strings.Builder
@@ -500,7 +521,21 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 		r := rank(t)
 		buckets[r] = append(buckets[r], t)
 	}
-	for r := 0; r < 6 && len(selected) < max; r++ {
+	// Once there are more children than fit (the len(tasks) <= max early
+	// return above did not apply), only the attention ranks (0-3: failed,
+	// warning, running, pending) ever fill the budget — never rank 4/5
+	// (routine Done/Skipped/other). A large aggregated Group answers "what
+	// needs my attention" plus the header's own N/total count; padding the
+	// remaining rows with routine "✓ package-NNN" landmarks merely because
+	// there happens to be vertical room left repeats what the header already
+	// said, one row at a time, for a Group large enough that its own
+	// aggregation was already necessary (spec §25: "aggregation is
+	// renderer-owned and automatic" — the same rule Each's
+	// selectEachAttentionChildren already applied before Task.Each was
+	// removed as a public API; an ordinary Group of explicit children gets
+	// no lesser treatment now that Each is gone).
+	const attentionRankCount = 4
+	for r := 0; r < attentionRankCount && len(selected) < max; r++ {
 		for _, t := range buckets[r] {
 			if len(selected) >= max {
 				break
@@ -512,13 +547,63 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 }
 
 // writeLiveTaskLine renders one task row at the given indent.
-func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+//
+// A standalone (indent == 0) Running task with a determinate bar/count AND
+// a current-activity Phase gets the same stable-parent-plus-one-activity-
+// child shape a Group's promoted lone child already has (spec §18/§23:
+// "⠋ install dependencies  [████        ]  14/40  — 7s" / "  ⠋ urllib3"):
+// the parent line owns the bar/count/timer only, and the current activity
+// becomes its own indented spinner line beneath it — so the child can
+// change/truncate independently without moving the timer horizontally, per
+// §18/§24. A nested (indent > 0) row already reaches this shape via its own
+// container-level handling and is unaffected.
+func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
 	pad := ""
 	if indent > 0 {
 		pad = "   "
 	}
-	b.WriteString(liveTaskUnit(t, indent, width, spin, color, now, profile).Render(pad))
+	if splitsStandaloneActivityChild(t, indent) {
+		parent := t
+		parent.Phase = ""
+		unit := liveTaskUnit(parent, indent, width, spin, color, now, profile)
+		padRootName(&unit, indent, nameWidth)
+		b.WriteString(unit.Render(pad))
+		b.WriteByte('\n')
+		child := DisplayUnit{
+			Glyph: txt.StyleGlyph(spin, StateColor(core.Running), color),
+			Name:  t.Phase,
+		}
+		b.WriteString(child.Render("   "))
+		b.WriteByte('\n')
+		return
+	}
+	unit := liveTaskUnit(t, indent, width, spin, color, now, profile)
+	padRootName(&unit, indent, nameWidth)
+	b.WriteString(unit.Render(pad))
 	b.WriteByte('\n')
+}
+
+// padRootName right-pads a standalone (indent == 0) row's name to nameWidth
+// (maxRootTaskNameWidth) — a no-op for a nested child row, which already
+// has its own fixed-width padding from liveTaskUnit, or when there is no
+// shared column to align (nameWidth == 0, a single standalone task).
+func padRootName(unit *DisplayUnit, indent, nameWidth int) {
+	if indent != 0 || nameWidth == 0 {
+		return
+	}
+	unit.Name = txt.PadRight(unit.Name, nameWidth)
+}
+
+// splitsStandaloneActivityChild reports whether t is a standalone
+// (indent == 0) Running task with a determinate progress bar/count AND a
+// current-activity Phase — the one condition writeLiveTaskLine splits into
+// a parent bar/count/timer line plus its own activity-child line.
+func splitsStandaloneActivityChild(t core.TaskSnapshot, indent int) bool {
+	return indent == 0 &&
+		t.State == core.Running &&
+		t.Progress.Kind == core.Determinate &&
+		t.Progress.Total > 0 &&
+		t.Phase != ""
 }
 
 // liveTaskUnit composes one task row's DisplayUnit (P3's uniform row
@@ -648,7 +733,11 @@ func progressBar(completed, total int64, width int) string {
 	if filled > width {
 		filled = width
 	}
-	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", width-filled) + "]"
+	// Empty cells are literal spaces (spec §23: "never shaded/outline
+	// glyphs") — a shaded "░" cell reads as its own semantic state (some
+	// libraries use it for "paused"/"buffered"), which the bar does not
+	// have and must not imply.
+	return "[" + strings.Repeat("█", filled) + strings.Repeat(" ", width-filled) + "]"
 }
 
 func formatBytes(n int64) string {

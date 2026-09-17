@@ -75,6 +75,11 @@ var (
 	// GlyphUnclassified covers states with no distinct row in the vocabulary
 	// table (e.g. Empty); it must stay visually distinct from Pending's "○".
 	GlyphUnclassified = glyphSpec{"·", "."}
+	// GlyphHeartbeat marks the plain/non-interactive §40 durable heartbeat
+	// row ("• <name>  — 30s") — deliberately distinct from GlyphRunning's
+	// "◐" so a heartbeat line is never mistaken for a real Phase/Progress
+	// update; it means only "still Running, nothing new to report."
+	GlyphHeartbeat = glyphSpec{"•", "*"}
 )
 
 // SpinnerPeriod is the wall-clock duration between spinner frame advances.

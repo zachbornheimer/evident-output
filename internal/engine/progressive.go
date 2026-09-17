@@ -347,6 +347,10 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 		return
 	}
 	o.writeDurableTextLocked(b.String())
+	// This line already proved the task is alive; the §40 heartbeat only
+	// needs to cover the silence that follows real narration, not compete
+	// with it (see deferPlainHeartbeatLocked).
+	o.deferPlainHeartbeatLocked(st, o.cfg.clock.Now())
 }
 
 // residualHasTaskRows reports whether the run declared any standalone task or

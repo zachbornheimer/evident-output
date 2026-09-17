@@ -415,14 +415,22 @@ func configToOptions(c Config) []Option {
 		opts = append(opts, withNoColor())
 	}
 
-	// Interactive live region only on a real TTY and human format.
-	wantLive := !c.Plain && c.Format == FormatHuman
+	// Interactive live region only on a real TTY. FormatData and the v2
+	// wire formats (FormatJSON/FormatJSONL) all route human presentation to
+	// Stderr exactly alike (spec §32.1), so the live region belongs on
+	// Stderr for all three — not just FormatData — or a JSON/JSONL CLI run
+	// from an interactive terminal would silently regress to the durable
+	// plain renderer merely because machine output owns Stdout.
+	wantLive := !c.Plain
 	liveWriter := c.Stdout
-	if c.Format == FormatData {
+	switch c.Format {
+	case FormatData, FormatJSON, FormatJSONL:
 		liveWriter = c.Stderr
-		wantLive = !c.Plain && writerIsCharDevice(c.Stderr)
-	} else {
+		wantLive = wantLive && writerIsCharDevice(c.Stderr)
+	case FormatHuman:
 		wantLive = wantLive && writerIsCharDevice(c.Stdout)
+	default:
+		wantLive = false
 	}
 	switch {
 	case c.Terminal != nil:

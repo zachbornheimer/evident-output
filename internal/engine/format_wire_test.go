@@ -147,6 +147,54 @@ func TestFormatJSONL_StdoutStreamsEventLinesStderrHasHuman(t *testing.T) {
 	}
 }
 
+// hasLiveRegion reports whether s carries the ANSI live-region markers
+// terminal.ANSI.WriteLive emits (cursor-hide / erase-line) — the same test
+// used by the root package's env_output_test.go to detect an armed live
+// surface without depending on a real pty.
+func hasLiveRegion(s string) bool {
+	return strings.Contains(s, "\x1b[?25") || strings.Contains(s, "\x1b[2K")
+}
+
+// spec §32.1 routes FormatJSON/FormatJSONL human presentation to Stderr
+// exactly like FormatData — including the interactive live region when
+// Stderr is a TTY. A plain-only stderr (no live region ever, even on an
+// interactive terminal) would silently regress every JSON/JSONL CLI to the
+// durable/plain renderer.
+func TestFormatJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
+	var stdout, stderr nopFlushWriter
+	defer MarkWriterAsCharDevice(&stderr)()
+	out := Init(Config{
+		Isolated: true, Title: "demo", Format: FormatJSON,
+		Stdout: &stdout, Stderr: &stderr, VisibilityDelay: Delay(0),
+	})
+	out.Task("build").Done()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	if !hasLiveRegion(stderr.String()) {
+		t.Fatalf("FormatJSON must open a live region on an interactive stderr:\n%q", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `"object": "evo.run"`) {
+		t.Fatalf("FormatJSON must still write the evo.run document to stdout:\n%s", stdout.String())
+	}
+}
+
+func TestFormatJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
+	var stdout, stderr nopFlushWriter
+	defer MarkWriterAsCharDevice(&stderr)()
+	out := Init(Config{
+		Isolated: true, Title: "demo", Format: FormatJSONL,
+		Stdout: &stdout, Stderr: &stderr, VisibilityDelay: Delay(0),
+	})
+	out.Task("build").Done()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	if !hasLiveRegion(stderr.String()) {
+		t.Fatalf("FormatJSONL must open a live region on an interactive stderr:\n%q", stderr.String())
+	}
+}
+
 func TestFormatJSON_RunReturnsResultUsableByWireEncoder(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	out := Init(Config{
