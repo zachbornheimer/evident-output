@@ -77,6 +77,7 @@ var dialectSurface = map[string][]string{
 		"On(subject string)",
 		"OnTask(taskName string)",
 		"PaneHeight(lines int)",
+		"ParseFormat(s string)",
 		"Plain()",
 		"Pluralize(quantity int64, singular string)",
 		"PolicyFlag(flag string)",
@@ -105,6 +106,7 @@ var dialectSurface = map[string][]string{
 		"VisibilityDelay(delay time.Duration)",
 		"Warn(summary string)",
 		"Width(columns int)",
+		"WriteJSON(w io.Writer, result Result)",
 	},
 	"*Output": {
 		"Cancel(reason string)",

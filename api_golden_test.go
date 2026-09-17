@@ -88,6 +88,16 @@ func buildAPISurface(t *testing.T, dir string) []string {
 				lines = append(lines, "func ("+typ.Name+") "+m.Name+renderParams(fset, m.Decl.Type))
 			}
 		}
+		// go/doc groups a top-level func under its return type's Funcs
+		// (constructor-style grouping) instead of docPkg.Funcs whenever its
+		// first result is that type — e.g. func ParseFormat(string) (Format,
+		// error) lands here, not below. Missing this loop let such a func
+		// join the public surface invisibly to this golden.
+		for _, fn := range typ.Funcs {
+			if ast.IsExported(fn.Name) {
+				lines = append(lines, "func "+fn.Name+renderParams(fset, fn.Decl.Type))
+			}
+		}
 	}
 	for _, fn := range docPkg.Funcs {
 		if ast.IsExported(fn.Name) {
@@ -167,6 +177,12 @@ func exportedStructFields(typ *doc.Type) []string {
 
 func TestAPIGolden_PublicSurfaceMatchesCommittedGolden(t *testing.T) {
 	got := buildAPISurface(t, ".")
+
+	if os.Getenv("UPDATE_API_GOLDEN") == "1" {
+		if err := os.WriteFile(apiGoldenPath, []byte(strings.Join(got, "\n")+"\n"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", apiGoldenPath, err)
+		}
+	}
 
 	for _, retired := range retiredAPINames {
 		for _, line := range got {

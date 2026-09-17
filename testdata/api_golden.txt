@@ -75,25 +75,86 @@ func (TaskHandle) Warn(summary string)
 func (TaskHandle) Write(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
+func Affected(n int)  MutationOption
+func AlsoWrite(w io.Writer)  Option
+func AssumeYes(v bool)  ConfirmOption
+func Clock(ts TimeSource)  Option
+func Code(value string)  ProblemOption
+func Command(executable string, args ...string)  Action
 func Confirm(question string, opts ...ConfirmOption)  bool
+func ConfirmDetail(lines ...string)  ConfirmOption
+func Count(value int64, unit ...string)  ProblemOption
+func DataProjection()  Option
+func DebugAddSource()  Option
+func DebugHistory()  Option
+func DebugLevel(level LogLevel)  Option
+func DebugPane(opts ...DebugPaneOption)  Option
+func Default()  *Output
+func DefaultConfig()  Config
 func Delay(d time.Duration)  *time.Duration
+func Destructive()  ConfirmOption
+func Detail(text string)  ProblemOption
+func Diagnostics(w io.Writer)  Option
+func DryRun()  Option
 func EncodeEventJSON(e Event)  []byte,  error
 func EncodeJSON(s Snapshot)  []byte,  error
 func EncodeJSONL(events []Event)  []byte,  error
-func Exec(ctx context.Context, spec ExecSpec)  error
+func ExternalProjection()  Option
 func Fact(name, value string)
-func File(ctx context.Context, spec FileSpec)  error
+func ForSkip()  ReasonOption
+func Glyphs(p GlyphProfile)  Option
+func Group(name string)  *GroupHandle
+func ID(id string)  EntityOption
+func Init(configs ...Config)  *Output
 func IsCharDevice(w io.Writer)  bool
+func KeepLastLines(n int)  EvidenceOption
+func Label(text string)  Action
+func Location(path string, line, column int)  ProblemOption
 func Main(run RunFunc)  int
+func MaxEntities(n int)  Option
+func MaxEvents(n int)  Option
+func MaxEvidenceBytes(n int)  EvidenceOption
+func MaxFrameRate(framesPerSecond int)  Option
+func MirrorToDebug()  EvidenceOption
+func MirrorToDiagnostics()  EvidenceOption
+func NewestFirst()  DebugPaneOption
+func Next(action Action)  ProblemOption
+func NextCommand(executable string, args ...string)  ProblemOption
+func NoColor()  Option
+func OldestFirst()  DebugPaneOption
+func On(subject string)  ProblemOption
+func OnTask(taskName string)  ReasonOption
+func PaneHeight(lines int)  DebugPaneOption
+func ParseFormat(s string)  Format,  error
+func Plain()  Option
 func Pluralize(quantity int64, singular string)  string
+func PolicyFlag(flag string)  ConfirmOption
+func PolicyHint(command string, args ...string)  ConfirmOption
+func PreserveDebugTail()  DebugPaneOption
 func Print(args ...any)
 func Printf(format string, args ...any)
 func Println(args ...any)
+func Reason(name string)  TaxonomyReason
+func Redact(r Redactor)  Option
 func RenderPlain(s Snapshot, opts PlainOptions)  []byte,  error
+func ResultStream(w io.Writer)  Option
+func Run(ctx context.Context, run RunFunc)  Result
+func Sequence(name string)  *SequenceHandle
 func SetDefault(out *Output)
 func SlogHandler()  slog.Handler
+func StartPhase(text string)  EntityOption
+func Stdin(r io.Reader)  Option
+func Strict()  Option
+func Task(name string)  *TaskHandle
+func Terminal(driver TerminalDriver)  Option
+func Title(subject string)  Option
+func To(w io.Writer)  Option
 func TruncateNames(names []string, visible int)  string
+func Verbose()  *Printer
+func VisibilityDelay(delay time.Duration)  Option
 func Warn(summary string)
+func Width(columns int)  Option
+func WriteJSON(w io.Writer, result Result)  error
 type Action
 type Attachment
 type ChangesSnapshot
@@ -116,13 +177,9 @@ type Evidence
 type EvidenceOption
 type EvidencePhase
 type EvidenceStream
-type ExecSpec
 type FactRecord
 type Failure
 type Field
-type FileSpec
-type Fingerprint
-type FingerprintValue
 type FixedClock
 type Format
 type GlyphProfile
@@ -152,9 +209,6 @@ type PlanSnapshot
 type Printer
 type Problem
 type ProblemOption
-type ProcessCommand
-type ProcessOutcome
-type ProcessRunner
 type Progress
 type ProgressKind
 type Projection
@@ -195,14 +249,6 @@ value ErrConcurrentRunning
 value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName
-value ErrExecExecutableNotFound
-value ErrExecNonzeroExit
-value ErrExecOutputMissingAfterSuccess
-value ErrExecSpecMissingExecutable
-value ErrFilePathIsSymlink
-value ErrFilePathTypeMismatch
-value ErrFileSpecMissingPath
-value ErrFileUnmanagedContentsMissing
 value ErrInvalidConfig
 value ErrInvalidProgress
 value ErrKeyAfterDefine
@@ -229,6 +275,8 @@ value Failed
 value FormatData
 value FormatExternal
 value FormatHuman
+value FormatJSON
+value FormatJSONL
 value GlyphsASCII
 value GlyphsAuto
 value GlyphsUnicode

@@ -23,7 +23,11 @@ type Output struct {
 
 	cfg config
 
-	outputID  string
+	outputID string
+	// startedAt is the wire v2 envelope's run_id-adjacent "started_at"
+	// (spec §35) — captured once at construction through the Clock facade,
+	// read back (never re-derived) at Finish.
+	startedAt time.Time
 	idSeq     uint64
 	declSeq   int
 	version   uint64
@@ -452,6 +456,7 @@ func newOutput(subject string, options ...Option) *Output {
 	}
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.nextID("out")
+	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(Event{Type: "output.started", OutputID: o.outputID})
 	if terminalWithoutSink {
 		o.recordMisuse(ErrTerminalWithoutSink)
@@ -1620,6 +1625,9 @@ func (o *Output) appendEventLocked(e Event) {
 	if o.cfg.projection == ProjectionStreamJSON {
 		o.writeStreamJSONLocked(e)
 	}
+	if o.cfg.wireFormat == FormatJSONL {
+		writeWireEventLocked(o.cfg.wireStream, e)
+	}
 }
 
 func (o *Output) writeStreamJSONLocked(e Event) {
@@ -1853,6 +1861,9 @@ func (o *Output) Finish() error {
 	conc := core.InferConclusion(snap)
 	core.FoldLeftoverMisuse(&conc, o.misuse)
 	core.ApplyFailedExitCode(&conc, o.cfg.failedExitCode)
+	conc.RunID = o.outputID
+	conc.StartedAt = o.startedAt
+	conc.FinishedAt = o.cfg.clock.Now()
 	o.conclusion = &conc
 	snap.Conclusion = &conc
 	o.appendEventLocked(Event{
@@ -1864,6 +1875,22 @@ func (o *Output) Finish() error {
 	misuse := o.misuse
 	o.finished = true
 	o.finishing = false
+
+	// FormatJSON's one final "evo.run" document (spec §32.1) — independent
+	// of the legacy projection.suppressesHuman() branch below, since human
+	// presentation still streams to Stderr for this Format (§32.1: "stderr:
+	// human live/plain presentation ... never mixed into stdout"). A write
+	// failure here is a real Run failure (§32.2), folded into misuse so
+	// every return path below already carries it.
+	if cfg.wireFormat == FormatJSON {
+		if err := writeWireRunLocked(cfg.wireStream, conc); err != nil {
+			if misuse == nil {
+				misuse = err
+			} else {
+				misuse = errors.Join(misuse, err)
+			}
+		}
+	}
 
 	if cfg.projection.suppressesHuman() {
 		var events []Event

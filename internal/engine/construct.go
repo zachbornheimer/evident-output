@@ -1,9 +1,11 @@
 package engine
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/terminal"
@@ -62,7 +64,37 @@ const (
 	FormatData
 	// FormatExternal disables inline rendering (snapshots only).
 	FormatExternal
+	// FormatJSON writes one final v2 "evo.run" document to Stdout at Finish;
+	// human presentation still goes to Stderr, exactly as FormatData routes
+	// it (spec §32.1). Do not infer this from stdout being a pipe — it is
+	// always an explicit top-level choice.
+	FormatJSON
+	// FormatJSONL streams v2 "evo.event" JSON lines to Stdout as they occur,
+	// plus a final run.finished line; human presentation goes to Stderr
+	// (spec §32.1).
+	FormatJSONL
 )
+
+// ParseFormat parses one of "human", "data", "external", "json", "jsonl"
+// (case-insensitive, surrounding whitespace ignored) into a Format — the
+// public entry point a host CLI's own --format/--json flag binds to (spec
+// §32.1). Evo does not parse os.Args itself.
+func ParseFormat(s string) (Format, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "human":
+		return FormatHuman, nil
+	case "data":
+		return FormatData, nil
+	case "external":
+		return FormatExternal, nil
+	case "json":
+		return FormatJSON, nil
+	case "jsonl":
+		return FormatJSONL, nil
+	default:
+		return 0, fmt.Errorf("%w: unknown format %q", ErrInvalidConfig, s)
+	}
+}
 
 // Verbosity selects which message visibilities are projected to the human stream.
 // Zero is normal (non-verbose) human detail.
@@ -338,6 +370,15 @@ func configToOptions(c Config) []Option {
 		if c.Result != nil {
 			opts = append(opts, resultStream(c.Result))
 		}
+	case FormatJSON, FormatJSONL:
+		// Human presentation on stderr, exactly like FormatData; the v2
+		// wire document/event stream is Evo's own write (not the app's
+		// domain payload), so it uses wireStream/wireFormat rather than
+		// Result/resultStream (spec §32.1: "stdout: exactly one final JSON
+		// document"/"stdout: JSON event lines only" — never c.Result, which
+		// stays the FormatData-only escape hatch).
+		opts = append(opts, to(c.Stderr), withDiagnostics(c.Stderr))
+		opts = append(opts, wireFormatOption(c.Format), wireStreamOption(c.Stdout))
 	default:
 		opts = append(opts, to(c.Stdout), withDiagnostics(c.Stderr))
 		if c.Result != nil {
@@ -356,12 +397,18 @@ func configToOptions(c Config) []Option {
 		if lookupEnv(envKeyNoColor) != "" {
 			noColor = true
 		}
-		if !writerIsCharDevice(c.Stdout) && c.Format != FormatData {
-			// Off-TTY human primary: no CSI.
-			noColor = true
-		}
-		if c.Format == FormatData && !writerIsCharDevice(c.Stderr) {
-			noColor = true
+		// Human presentation's primary writer is Stderr for FormatData and
+		// the new FormatJSON/FormatJSONL (§32.1: machine document/events own
+		// Stdout, human still goes to Stderr) — Stdout otherwise.
+		switch c.Format {
+		case FormatData, FormatJSON, FormatJSONL:
+			if !writerIsCharDevice(c.Stderr) {
+				noColor = true
+			}
+		default:
+			if !writerIsCharDevice(c.Stdout) {
+				noColor = true
+			}
 		}
 	}
 	if noColor {

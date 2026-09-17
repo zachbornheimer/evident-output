@@ -68,6 +68,14 @@ func (v *validator) check(path string, schema map[string]any, value any) {
 		}
 		return
 	}
+	// A present-but-JSON-null field satisfies any type (v2's nullable
+	// task.progress/task.activity: "required" means the key must be
+	// present, not that its value is never null — see spec §36's example
+	// document, where "progress": null and "activity": null are the normal
+	// shape for a task that never modeled either).
+	if value == nil {
+		return
+	}
 	wantType, _ := schema["type"].(string)
 	switch wantType {
 	case "object":
