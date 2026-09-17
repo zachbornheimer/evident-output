@@ -273,6 +273,11 @@ type taskState struct {
 	// (P8) — info severity, the same "annotate, never resolve" contract
 	// warnings has at warning severity.
 	facts []FactRecord
+	// verification accumulates every core.VerificationDetail an evo.File/
+	// evo.Exec operation this Task ran recorded (spec §2/§8.2) — attached
+	// before the task resolves, the same "annotate before terminal" timing
+	// facts/warnings already require.
+	verification []core.VerificationDetail
 
 	fromEach    bool
 	submitted   bool
@@ -404,6 +409,7 @@ func newOutput(subject string, options ...Option) *Output {
 		maxEntities:     defaultMaxEntities,
 		verbosity:       VerbosityNormal,
 		processRunner:   osProcessRunner{},
+		fileFS:          osFileFS{},
 	}
 	for _, opt := range options {
 		if opt != nil {
@@ -623,6 +629,20 @@ func (o *Output) recordAlreadyResolvedLocked(name, rejectedSummary string) {
 		o.misuseRejectedSummary = rejectedSummary
 	}
 	o.recordMisuseFor(name, ErrAlreadyResolved)
+}
+
+// attachVerificationLocked appends details onto taskID's own running
+// record — evo.File/evo.Exec's per-attribute reconciliation evidence
+// (spec §2/§8.2), recorded before the task resolves so it is already
+// present by the time Fail/Failf's terminal verb reads the task's state
+// (the same "annotate before terminal" timing Fact/Warn require). A no-op
+// once the task has already resolved or does not exist.
+func (o *Output) attachVerificationLocked(taskID string, details []core.VerificationDetail) {
+	st := o.taskByRef[taskID]
+	if st == nil || core.IsTerminalTask(st.state) {
+		return
+	}
+	st.verification = append(st.verification, core.StoreVerificationDetails(details)...)
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first
@@ -1438,24 +1458,25 @@ func (t *taskState) snapshot() TaskSnapshot {
 		colID = t.collection.id
 	}
 	base := TaskSnapshot{
-		ID:          t.id,
-		Key:         t.key,
-		Name:        t.name,
-		State:       t.state,
-		Phase:       t.phase,
-		ActivityAt:  t.activityAt,
-		Progress:    t.progress,
-		Summary:     t.summary,
-		Problems:    core.CloneProblems(t.problems),
-		Warnings:    core.CloneProblems(t.warnings),
-		Facts:       core.CloneFacts(t.facts),
-		Actions:     cloneActions(t.actions),
-		Skipped:     cloneTaxonomy(t.skipped),
-		Kept:        cloneTaxonomy(t.kept),
-		Collection:  colID,
-		Declaration: t.declaration,
-		Resolution:  t.resolution,
-		Evidence:    t.verifyEvidence,
+		ID:           t.id,
+		Key:          t.key,
+		Name:         t.name,
+		State:        t.state,
+		Phase:        t.phase,
+		ActivityAt:   t.activityAt,
+		Progress:     t.progress,
+		Summary:      t.summary,
+		Problems:     core.CloneProblems(t.problems),
+		Warnings:     core.CloneProblems(t.warnings),
+		Facts:        core.CloneFacts(t.facts),
+		Verification: core.CloneVerificationDetails(t.verification),
+		Actions:      cloneActions(t.actions),
+		Skipped:      cloneTaxonomy(t.skipped),
+		Kept:         cloneTaxonomy(t.kept),
+		Collection:   colID,
+		Declaration:  t.declaration,
+		Resolution:   t.resolution,
+		Evidence:     t.verifyEvidence,
 	}
 	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic, t.fromEach)
 }

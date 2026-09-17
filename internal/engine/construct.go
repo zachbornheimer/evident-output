@@ -275,6 +275,11 @@ type Config struct {
 	// through (spec §8.4). Nil uses the real OS process runner; tests
 	// inject testkit's scripted fake for deterministic Exec coverage.
 	ProcessRunner ProcessRunner
+
+	// FileFS overrides the facade evo.File performs filesystem I/O through
+	// (spec §8.2). Nil uses the real OS filesystem; tests inject a fake to
+	// script a reconciliation outcome (e.g. a chmod failure) deterministically.
+	FileFS FileFS
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
@@ -343,6 +348,9 @@ func resolveConfig(c Config) Config {
 	}
 	if c.ProcessRunner == nil {
 		c.ProcessRunner = osProcessRunner{}
+	}
+	if c.FileFS == nil {
+		c.FileFS = osFileFS{}
 	}
 	return c
 }
@@ -533,6 +541,7 @@ func configToOptions(c Config) []Option {
 	opts = append(opts, maxConcurrency(c.MaxConcurrency))
 	opts = append(opts, withStateDir(c.StateDir), withAppID(c.AppID))
 	opts = append(opts, withProcessRunner(c.ProcessRunner))
+	opts = append(opts, withFileFS(c.FileFS))
 	opts = append(opts, debugLevel(c.Debug.Level))
 	if c.Debug.AddSource {
 		opts = append(opts, debugAddSource())

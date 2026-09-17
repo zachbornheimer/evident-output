@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -49,6 +50,17 @@ var (
 	// ErrFilePathTypeMismatch is returned when Path exists but is a
 	// directory, device, or other non-regular-file type.
 	ErrFilePathTypeMismatch = errors.New("evo: File Path exists as a non-regular-file type")
+	// ErrFilePermissionsFailed is returned when contents already matched
+	// (or were freshly written) but the chmod that would have brought Mode
+	// into line failed. Deliberately terse — "failed: permissions" alone,
+	// not "evo: File %q: ..." — because a Task's Define callback typically
+	// returns this error unwrapped, and its Error() text becomes the
+	// task's own failure headline verbatim (spec §8.2's worked example:
+	// "✗ write plist  failed: permissions"); the operation, path, and
+	// underlying syscall error are the failing VerificationDetail's own
+	// Facts, attached to the task before this error is returned, not
+	// repeated in the headline.
+	ErrFilePermissionsFailed = errors.New("failed: permissions")
 )
 
 // File declares/reconciles one managed-state file resource against spec
@@ -140,7 +152,8 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 		o.mu.Unlock()
 	}
 
-	info, statErr := os.Lstat(path)
+	fsys := o.fileFS()
+	info, statErr := fsys.Lstat(path)
 	switch {
 	case statErr == nil && info.Mode()&fs.ModeSymlink != 0:
 		return fmt.Errorf("%w: %s", ErrFilePathIsSymlink, path)
@@ -162,7 +175,7 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 		return fmt.Errorf("%w: %s", ErrFileUnmanagedContentsMissing, path)
 	}
 
-	needsWrite, err := fileNeedsContentWrite(path, exists, contentsManaged, spec.Contents)
+	needsWrite, err := fileNeedsContentWrite(fsys, path, exists, contentsManaged, spec.Contents)
 	if err != nil {
 		return fmt.Errorf("evo: File inspect %q: %w", path, err)
 	}
@@ -182,15 +195,22 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 	}
 
 	if needsWrite {
-		if err := writeFileAtomic(path, spec.Contents, contentCreateMode(exists, spec.Mode)); err != nil {
+		if err := fsys.WriteAtomic(path, spec.Contents, contentCreateMode(exists, spec.Mode)); err != nil {
 			return fmt.Errorf("evo: File write %q: %w", path, err)
 		}
 	}
 
+	var chmodErr error
 	if modeDiffers {
-		if err := os.Chmod(path, spec.Mode); err != nil {
-			return fmt.Errorf("evo: File %q: contents already satisfied, permissions failed: %w", path, err)
-		}
+		chmodErr = fsys.Chmod(path, spec.Mode)
+	}
+	if details := fileVerificationDetails(contentsManaged, spec.Mode != 0, chmodErr, spec.Path, spec.Mode); len(details) > 0 {
+		o.mu.Lock()
+		o.attachVerificationLocked(taskID, details)
+		o.mu.Unlock()
+	}
+	if chmodErr != nil {
+		return ErrFilePermissionsFailed
 	}
 
 	if mutates {
@@ -289,6 +309,44 @@ func (o *Output) DryRun() bool {
 	return o.cfg.dryRun
 }
 
+// fileFS returns the facade File performs filesystem I/O through — real
+// os calls in ordinary use, a scripted fake under test (facade rule).
+func (o *Output) fileFS() FileFS {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.cfg.fileFS
+}
+
+// fileVerificationDetails builds this reconcile's per-attribute evidence
+// (spec §2/§8.2): one entry per attribute File actually manages, in the
+// order it inspected them. A managed attribute that reconciled cleanly is
+// Satisfied with no Facts; permissions' chmod failure is VerificationError
+// with the Facts spec §8.2's worked example nests under it — the operation
+// (error), the target (path), and the mode that failed to apply.
+func fileVerificationDetails(contentsManaged, modeManaged bool, chmodErr error, displayPath string, mode fs.FileMode) []core.VerificationDetail {
+	var details []core.VerificationDetail
+	if contentsManaged {
+		details = append(details, core.VerificationDetail{Name: "contents", Status: core.VerificationSatisfied})
+	}
+	switch {
+	case !modeManaged:
+		// Mode unmanaged: no "permissions" attribute to report on at all.
+	case chmodErr != nil:
+		details = append(details, core.VerificationDetail{
+			Name:   "permissions",
+			Status: core.VerificationError,
+			Facts: []core.Fact{
+				{Name: "error", Value: chmodErr.Error()},
+				{Name: "path", Value: displayPath},
+				{Name: "mode", Value: fmt.Sprintf("%#o", mode.Perm())},
+			},
+		})
+	default:
+		details = append(details, core.VerificationDetail{Name: "permissions", Status: core.VerificationSatisfied})
+	}
+	return details
+}
+
 // resolveWorkspacePath resolves a possibly-relative FileSpec.Path against
 // the workspace directory captured once for this Output (spec §8.1: "the
 // Run's workspace directory captured once at Run start; changing process
@@ -330,14 +388,14 @@ func (o *Output) workspaceDirLocked() string {
 // the file to match spec: unmanaged Contents never triggers a write; a
 // missing file with managed Contents always does; an existing file needs
 // one only when its current bytes differ from the desired ones.
-func fileNeedsContentWrite(path string, exists, contentsManaged bool, desired []byte) (bool, error) {
+func fileNeedsContentWrite(fsys FileFS, path string, exists, contentsManaged bool, desired []byte) (bool, error) {
 	if !contentsManaged {
 		return false, nil
 	}
 	if !exists {
 		return true, nil
 	}
-	current, err := os.ReadFile(path)
+	current, err := fsys.ReadFile(path)
 	if err != nil {
 		return false, err
 	}

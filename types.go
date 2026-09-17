@@ -43,6 +43,7 @@ type PlainOptions = engine.PlainOptions
 type ProcessRunner = engine.ProcessRunner
 type ProcessCommand = engine.ProcessCommand
 type ProcessOutcome = engine.ProcessOutcome
+type FileFS = engine.FileFS
 
 type TaxonomyReason struct{ inner engine.TaxonomyReason }
 

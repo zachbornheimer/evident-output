@@ -43,6 +43,9 @@ type config struct {
 	// processRunner is the facade evo.Exec spawns child processes through
 	// (spec §8.4). Defaults to osProcessRunner{} in resolveConfig.
 	processRunner ProcessRunner
+	// fileFS is the facade evo.File performs filesystem I/O through (spec
+	// §8.2). Defaults to osFileFS{} in newOutput.
+	fileFS FileFS
 	// stdin is the facade Confirm reads one answer line from (default os.Stdin,
 	// resolved lazily so NewWithOptions callers that skip Stdin still work).
 	stdin io.Reader
@@ -337,6 +340,13 @@ func withAppID(id string) Option {
 // subprocess.
 func withProcessRunner(r ProcessRunner) Option {
 	return optionFunc(func(c *config) { c.processRunner = r })
+}
+
+// withFileFS injects the facade evo.File performs filesystem I/O through
+// (spec §8.2) — testkit installs a fake so a reconciliation outcome (e.g.
+// a chmod failure) is provable without a real disk permission.
+func withFileFS(fsys FileFS) Option {
+	return optionFunc(func(c *config) { c.fileFS = fsys })
 }
 
 // AlsoWrite adds an additional human projection writer. On Finish, each writer

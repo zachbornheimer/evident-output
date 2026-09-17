@@ -96,8 +96,15 @@ type TaskSnapshot struct {
 	// never work of its own. Renders as a dim "name  value" line, inline when
 	// it is the task's only annotation, nested otherwise (same DisplayUnit
 	// annotations-slot placement rule Warnings uses at warning severity).
-	Facts   []Fact
-	Actions []Action
+	Facts []Fact
+	// Verification holds every VerificationDetail an evo.File/evo.Exec
+	// operation this Task ran recorded (spec §2/§8.2/§36) — one entry per
+	// managed attribute, satisfied or not. Rendering shows the full list
+	// once the Task itself failed (so a reader sees which attribute is
+	// isolated from the ones that already held); a succeeded Task's own
+	// satisfied entries surface only under Verbose (spec §49).
+	Verification []VerificationDetail
+	Actions      []Action
 	// Skipped/Kept are the disposition taxonomy accumulated by
 	// TaskHandle.Skipped/Kept — the source the "! skipped N (...)" / "!  kept
 	// N (...)" render lines derive counts and reason partitions from.
