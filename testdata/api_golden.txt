@@ -77,6 +77,7 @@ func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
 func Affected(n int)  MutationOption
 func AlsoWrite(w io.Writer)  Option
+func App()  Fingerprint
 func AssumeYes(v bool)  ConfirmOption
 func Clock(ts TimeSource)  Option
 func Code(value string)  ProblemOption
@@ -99,8 +100,11 @@ func DryRun()  Option
 func EncodeEventJSON(e Event)  []byte,  error
 func EncodeJSON(s Snapshot)  []byte,  error
 func EncodeJSONL(events []Event)  []byte,  error
+func Exec(ctx context.Context, spec ExecSpec)  error
 func ExternalProjection()  Option
+func FSPath(path string)  Fingerprint
 func Fact(name, value string)
+func File(ctx context.Context, spec FileSpec)  error
 func ForSkip()  ReasonOption
 func Glyphs(p GlyphProfile)  Option
 func Group(name string)  *GroupHandle
@@ -139,6 +143,7 @@ func Redact(r Redactor)  Option
 func RenderPlain(s Snapshot, opts PlainOptions)  []byte,  error
 func ResultStream(w io.Writer)  Option
 func Run(ctx context.Context, run RunFunc)  Result
+func Runner(r ProcessRunner)  Option
 func Sequence(name string)  *SequenceHandle
 func SetDefault(out *Output)
 func SlogHandler()  slog.Handler
@@ -150,6 +155,7 @@ func Terminal(driver TerminalDriver)  Option
 func Title(subject string)  Option
 func To(w io.Writer)  Option
 func TruncateNames(names []string, visible int)  string
+func Value(name string, v any)  Fingerprint
 func Verbose()  *Printer
 func VisibilityDelay(delay time.Duration)  Option
 func Warn(summary string)
@@ -177,9 +183,13 @@ type Evidence
 type EvidenceOption
 type EvidencePhase
 type EvidenceStream
+type ExecSpec
 type FactRecord
 type Failure
 type Field
+type FileSpec
+type Fingerprint
+type FingerprintValue
 type FixedClock
 type Format
 type GlyphProfile
@@ -209,6 +219,9 @@ type PlanSnapshot
 type Printer
 type Problem
 type ProblemOption
+type ProcessCommand
+type ProcessOutcome
+type ProcessRunner
 type Progress
 type ProgressKind
 type Projection
@@ -249,6 +262,14 @@ value ErrConcurrentRunning
 value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName
+value ErrExecExecutableNotFound
+value ErrExecNonzeroExit
+value ErrExecOutputMissingAfterSuccess
+value ErrExecSpecMissingExecutable
+value ErrFilePathIsSymlink
+value ErrFilePathTypeMismatch
+value ErrFileSpecMissingPath
+value ErrFileUnmanagedContentsMissing
 value ErrInvalidConfig
 value ErrInvalidProgress
 value ErrKeyAfterDefine
