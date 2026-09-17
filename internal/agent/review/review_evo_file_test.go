@@ -330,6 +330,53 @@ func generate(ctx context.Context) error {
 	}
 }
 
+// An Exec Arg naming a path this same call declares as an Output is not an
+// undeclared input — it is where the child writes, not something the
+// callback reads and must fingerprint. Never flagged, Basis or no Basis.
+func TestEVOPROVENANCE001_LiteralExecArgListedInOutputs_NoFinding(t *testing.T) {
+	src := `package p
+import (
+	"context"
+	evo "github.com/zachbornheimer/evident-output"
+)
+func generate(ctx context.Context) error {
+	return evo.Exec(ctx, evo.ExecSpec{
+		Executable: "python3",
+		Args:       []string{"--out", "report.json"},
+		Basis:      []evo.Fingerprint{},
+		Outputs:    []string{"report.json"},
+	})
+}
+`
+	res := review.GoSource("generate.go", src)
+	if found := findingsByID(res, "EVO-PROVENANCE-001"); len(found) != 0 {
+		t.Fatalf("false positive EVO-PROVENANCE-001 with Exec Arg path present in Outputs: %+v", found)
+	}
+}
+
+// An Exec Arg that repeats the call's own Executable literal (e.g. a
+// subcommand shape re-passing the tool's own name) is not an undeclared
+// input either — it names the program, not a file the callback reads.
+func TestEVOPROVENANCE001_LiteralExecArgEqualsExecutable_NoFinding(t *testing.T) {
+	src := `package p
+import (
+	"context"
+	evo "github.com/zachbornheimer/evident-output"
+)
+func generate(ctx context.Context) error {
+	return evo.Exec(ctx, evo.ExecSpec{
+		Executable: "tool.sh",
+		Args:       []string{"--self", "tool.sh"},
+		Basis:      []evo.Fingerprint{},
+	})
+}
+`
+	res := review.GoSource("generate.go", src)
+	if found := findingsByID(res, "EVO-PROVENANCE-001"); len(found) != 0 {
+		t.Fatalf("false positive EVO-PROVENANCE-001 with Exec Arg equal to Executable: %+v", found)
+	}
+}
+
 // EVO-PROVENANCE-002 has no static detector — distinguishing "trusts a
 // prior manifest alone" from a legitimate cached-but-reverified check needs
 // call-site intent no AST shape carries (rules_provenance.go). This proves

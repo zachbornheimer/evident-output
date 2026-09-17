@@ -46,6 +46,8 @@ func detectOmittedBasisPath(filename string, file *ast.File, fset *token.FileSet
 		var execArgCandidates []basisPathCandidate
 		hasBasisSpec := false
 
+		notInputPaths := map[string]bool{}
+
 		ast.Inspect(body, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok || !isEvoOperationCall(call) {
@@ -63,6 +65,16 @@ func detectOmittedBasisPath(filename string, file *ast.File, fset *token.FileSet
 			for _, p := range fsPathLiterals(basisExpr) {
 				basisPaths[p] = true
 			}
+			// A literal Executable or a declared Output names where the
+			// call writes or what program it runs, never an undeclared
+			// input — exclude both from the omitted-Basis check below so
+			// neither is misread as a file this callback visibly reads.
+			if exe, ok := stringLiteralValue(compositeLitField(spec, "Executable")); ok {
+				notInputPaths[exe] = true
+			}
+			for _, p := range stringLiteralElements(compositeLitField(spec, "Outputs")) {
+				notInputPaths[p] = true
+			}
 			if argsExpr := compositeLitField(spec, "Args"); argsExpr != nil {
 				execArgCandidates = append(execArgCandidates, literalFileArgs(argsExpr)...)
 			}
@@ -73,7 +85,7 @@ func detectOmittedBasisPath(filename string, file *ast.File, fset *token.FileSet
 		}
 
 		for _, c := range execArgCandidates {
-			if basisPaths[c.path] {
+			if basisPaths[c.path] || notInputPaths[c.path] {
 				continue
 			}
 			findings = append(findings, omittedBasisFinding(filename, fset.Position(c.pos), c.path))
@@ -205,6 +217,24 @@ func literalFileReadArg(call *ast.CallExpr) (path string, pos token.Pos, ok bool
 		return "", 0, false
 	}
 	return s, call.Args[0].Pos(), true
+}
+
+// stringLiteralElements extracts every string-literal element of a
+// []string{...} composite literal (e.g. ExecSpec.Outputs); a non-literal
+// element contributes nothing rather than being guessed at. Returns nil if
+// expr is nil or not a composite literal.
+func stringLiteralElements(expr ast.Expr) []string {
+	lit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, elt := range lit.Elts {
+		if s, ok := stringLiteralValue(elt); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // stringLiteralValue unquotes expr if it is a string literal.
