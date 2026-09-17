@@ -165,6 +165,23 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			TokenEstimate: 110,
 		},
 		{
+			ID:       "provenance",
+			Title:    "Basis honesty and manifest-skip honesty",
+			UseCases: []string{"basis", "freshness", "manifest", "skip", "already-satisfied"},
+			Concepts: []string{"Basis", "FSPath", "Fingerprint", "Verify", "Manifest"},
+			Rules:    []string{"EVO-PROVENANCE-001", "EVO-PROVENANCE-002"},
+			Body: `evo.File/evo.Exec no-op when Basis, identity, and outputs are all current — every file or value a generator
+visibly reads belongs in Basis, or the operation's freshness claim is false (EVO-PROVENANCE-001). A generator that
+reads a config file, template, or environment value the call site never adds to Basis silently skips re-running
+after that input changes.
+
+The manifest is a record of what a past run did, not evidence about the current filesystem/process state. A
+Task/operation may only report already-satisfied on proof this run observed, never on provenance an opaque
+callback merely recorded on some earlier run (EVO-PROVENANCE-002) — replace a manifest-only skip with a live
+pre-definition Verify (or a tracked evo.File/evo.Exec check) that proves the current state, not the recorded one.`,
+			TokenEstimate: 160,
+		},
+		{
 			ID:       "interactive",
 			Title:    "Live region and debug",
 			UseCases: []string{"spinner", "debug", "narrow", "confirm", "prompt", "resize", "suspend", "child-ui"},

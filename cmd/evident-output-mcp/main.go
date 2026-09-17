@@ -372,6 +372,15 @@ func toolList() []map[string]any {
 				"files":           map[string]any{"type": "object"},
 				"desired_version": map[string]any{"type": "string"},
 				"deadline_ms":     map[string]any{"type": "integer"}}}},
+		{"name": "evident_output_conformance", "description": "Answer whether a repo's Evo usage is current: what is stale, unsafe, mechanically upgradable, has explicit vs opaque provenance, or needs developer intent. Same inputs as evident_output_review (source/file or kind=directory); returns {target_version, findings[{rule,severity,file,line,summary,migration}]}", "inputSchema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"source":         map[string]any{"type": "string"},
+				"file":           map[string]any{"type": "string"},
+				"directory":      map[string]any{"type": "string"},
+				"kind":           map[string]any{"type": "string"},
+				"target_version": map[string]any{"type": "string"},
+				"deadline_ms":    map[string]any{"type": "integer"}}}},
 		{"name": "evident_output_update", "description": "Install a matching evident-output-mcp binary for a go.mod pin (--directory) or a release tag (--version), then symlink into ~/.local/bin. Requires version XOR directory. After it returns, restart the MCP host.", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -680,6 +689,8 @@ func handleToolCall(id any, req map[string]any) {
 		}
 		applyDesiredVersion(&res, args)
 		writeReviewResult(id, res)
+	case "evident_output_conformance":
+		handleConformanceTool(id, args, &cancelled)
 	case "evident_output_update":
 		handleUpdateTool(id, args)
 	case "evident_output_preview":
@@ -804,6 +815,8 @@ func toolArgAllowlist() map[string]map[string]bool {
 			"ids": true, "max_tokens": true, "deadline_ms": true},
 		"evident_output_review": {
 			"source": true, "file": true, "directory": true, "kind": true, "files": true, "desired_version": true, "deadline_ms": true},
+		"evident_output_conformance": {
+			"source": true, "file": true, "directory": true, "kind": true, "desired_version": true, "target_version": true, "deadline_ms": true},
 		"evident_output_update": {"version": true, "directory": true, "deadline_ms": true},
 		"evident_output_preview": {
 			"subject": true, "item": true, "state": true, "debug": true, "deadline_ms": true},

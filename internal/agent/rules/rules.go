@@ -29,10 +29,11 @@ type Rule struct {
 }
 
 // familyRegistry collects rule slices contributed by sibling files in this
-// package (rules_ui.go, rules_wire.go, ...). A family file registers itself
-// from its own init() via registerFamily, so adding a family never requires
-// editing All() itself — parallel family additions land in their own files
-// and merge without touching the same lines.
+// package (rules_ui.go, rules_wire.go, rules_file.go, rules_provenance.go,
+// ...). A family file registers itself from its own init() via
+// registerFamily, so adding a family never requires editing All() itself —
+// parallel family additions land in their own files and merge without
+// touching the same lines.
 var familyRegistry [][]Rule
 
 // registerFamily adds one family's rules to the v1 registry. Call this from
