@@ -8,7 +8,7 @@ log file, and the exit code always matches what the screen just said.
 ## Install
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.5.2
+go get github.com/zachbornheimer/evident-output@v1.0.0
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
@@ -17,15 +17,18 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 ```go
 import (
+    "context"
+    "os"
+
     evo "github.com/zachbornheimer/evident-output"
 )
 
 func main() {
     evo.Init(evo.Config{Title: "bpp-csharp"}) // first statement — arms first paint before any I/O
-    evo.Main(run) // exits the process itself; evo.Run(run) if you need the code without exiting
+    os.Exit(evo.Main(run)) // exits the process itself; evo.Run(ctx, run) if you need the Result without exiting
 }
 
-func run() error {
+func run(ctx context.Context) error {
     // Start as casually as fmt — then promote to structure when useful.
     evo.Println("Reading configuration")
     evo.Printf("Found %d packages\n", 18)
@@ -43,7 +46,7 @@ func run() error {
     installs := evo.Group("install")
     for _, pkg := range packages {
         pkg := pkg
-        installs.Task(pkg).Define(func() error { return install(pkg) })
+        installs.Task(pkg).Define(func(ctx context.Context) error { return install(pkg) })
     }
     return nil // Block is a presentation outcome, not a Go error
 }
@@ -92,14 +95,15 @@ the state, not a state of their own.
 
 ## Pick the entity
 
-| Shape        | Use when                                                                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | One atomic unit — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skipped`) or work submitted with `Define` / a mutation verb       |
-| **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children; `Group.Each` for homogeneous items    |
-| **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest via `.Sequence`/`.Group` |
+| Shape        | Use when                                                                                                                                                                      |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**     | One atomic unit — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skipped`) or work submitted with `Define` / a mutation verb                                   |
+| **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children; one `group.Task(name).Define(...)` per item for homogeneous items |
+| **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest via `.Sequence`/`.Group`                             |
 
 ## Learn more
 
+- [`docs/migration/1.0.md`](docs/migration/1.0.md) — upgrading from 0.5: every breaking change with before/after code
 - [`docs/reference.md`](docs/reference.md) — construction, config, lifecycle, severity dialect, evidence capture, platform adapters, vocabulary
 - [`docs/development.md`](docs/development.md) — mise commands, conformance suite, examples ladder, CLI, machine output, production ANSI driver, testkit
 - [`docs/mcp.md`](docs/mcp.md) — the `evident-output-mcp` stdio server (Grok, Claude Code, Codex, …)

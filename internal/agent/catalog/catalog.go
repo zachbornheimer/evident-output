@@ -67,7 +67,7 @@ Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) 
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/Each/After are the scheduler); Failf/Blockf need % (API-028; Done/Warn/Task/Sequence/Reason
+Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Failf/Blockf need % (API-028; Done/Warn/Task/Sequence/Reason
 are printf-variadic themselves — there is no separate Donef/Warnf/Taskf/Reasonf); Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
@@ -113,7 +113,8 @@ evo.TruncateNames(names, 8) before it reaches any of those three calls.
 Predeclare before fan-out (API-030): call out.Task/Group.Task for every child before starting any goroutine
 or g.Go closure, then pass the handle in. Declaring the Task inside the closure races task creation with rendering
 and produces the unordered multi-spinner defect Sequence's "one Running child" heart contract forbids.
-Prefer Group.Each+Define over caller goroutines — Evo's scheduler owns overlap.
+Prefer one named Task per item under Group/Sequence, submitted with Define, over caller
+goroutines (Group.Each/Sequence.Each were removed in 1.0) — Evo's scheduler owns overlap.
 
 Facts vs Tasks (v0.4.0/P8): discovered information ("repository /repo", "language go", "config loaded") is not
 work — never fake a checkmark Task to display it. Use task.Fact(name, value) (attached to the Task that
@@ -123,6 +124,35 @@ annotation on the lifecycle, never a replacement for it (a warned-but-unresolved
 Finish). Both flow through the same placement rule: inline on the row when it is the only annotation, nested dim
 lines otherwise.`,
 			TokenEstimate: 320,
+		},
+		{
+			ID:       "evidence-provenance",
+			Title:    "File, Verify, and provenance (spec §55/§56)",
+			UseCases: []string{"file", "idempotent", "provenance", "freshness", "cache", "manifest", "verify", "fingerprint"},
+			Concepts: []string{"File", "FileSpec", "Verify", "Fingerprint", "FSPath", "Value", "App", "Basis"},
+			Body: `Common file state goes through evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) inside
+task.Define — it creates, rewrites on drift, and no-ops when the desired state already matches; ctx must come
+from a Task's Define callback. Do not teach a hand-rolled Evidence callback (a legacy named mutating registration)
+as the normal way to make file work idempotent — evo.File already covers it.
+
+Teach evo.Task("...").Define(fn) first, then Group/Sequence for collections, then evo.File for declarative
+tracked file state, then a Task's Basis of Fingerprint values (evo.FSPath/evo.Value/evo.App) only when freshness
+depends on semantic external inputs File/Exec do not already track, then Task.Verify only for domains Evo cannot
+track automatically. Never lead with manifest internals or renderer controls.
+
+Teach the exact distinction (spec §56) — these are four different claims, not synonyms:
+  - Task.Verify controls whole-Task fast skipping in 1.0: a pre-Define check that, when true, skips Define
+    entirely and resolves ResolutionAlreadySatisfied.
+  - Application fingerprint (evo.App) is definition identity/invalidation metadata, not positive Evidence by
+    itself.
+  - Evo-native operation identity (evo.File's own tracked record) controls operation-level no-op/recompilation
+    once the current invocation is observed.
+  - Basis (a []Fingerprint on FileSpec) explains operation freshness — it does not by itself prove current state.
+  - Evidence is a boolean current-state conclusion; only a true pre-Define Verify skips Define.
+Never claim that discovering evo.File at the end of a callback can skip expensive arbitrary code that already
+ran before it — only a pre-Define Verify can skip Define; File's own freshness check happens after Define starts.
+Never invent a Basis entry the source code does not actually read (EVO-PROVENANCE-001).`,
+			TokenEstimate: 300,
 		},
 		{
 			ID:       "streams",

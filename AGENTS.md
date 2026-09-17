@@ -25,7 +25,8 @@ Call the tools. A passing `go test` is not a review.
 | `npx -y @sveltejs/mcp` (always latest at spawn)                                                    | Spawn-time auto-update from the cwd `go.mod` pin (or path replace). Skip with `EVO_MCP_NO_AUTO_UPDATE`. |
 
 Svelte does not let the model “remember Svelte 4.” We do not let the model
-remember `DisplayGroup` / `Task.Each` / quantity-first `Delete`.
+remember `DisplayGroup` / `Task.Each` (both removed in 1.0) / quantity-first
+`Delete`.
 
 ## Tools (underscores)
 
@@ -141,26 +142,30 @@ evo.Main(run)
 
 evo.Task("check config").Define(checkConfig)
 
-for path, task := range evo.Group("worktrees").Each(paths) {
-    task.Delete("worktree", func() error { return remove(path) })
+worktrees := evo.Group("worktrees")
+for _, path := range paths {
+    path := path
+    worktrees.Task(path).Delete("worktree", func() error { return remove(path) })
 }
 
 evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
 ```
 
-- **Task** is atomic. No `Task.Each`, no `Task.Run` (use `task.Writer()` on
-  `cmd.Stdout`/`Stderr`), no `DisplayGroup` (it is `Group`).
+- **Task** is atomic. No `Task.Each`, no `Task.Run` (both removed in 1.0; use
+  `task.Writer()` on `cmd.Stdout`/`Stderr`), no `DisplayGroup` (removed in
+  1.0; it is `Group`).
 - **Group** = independent children (scheduler may overlap). **Sequence** =
   declaration order, one Running child.
 - **Define** / mutation verbs (`Delete(object, fn)`, optional `Affected(n)`)
   submit work. They do not mean “run this callback synchronously now.”
 - **Done** is only for already-resolved work with no callback.
 - Dry-run skips **mutation** callbacks only. `Define` still runs.
-- Callers do not `errgroup` / `go func` to make evo rows parallel. Predeclare
-  with `Group.Each` or `Group.Task` + `Define` and let evo’s scheduler run them.
-  A domain graph engine (zq mise/gate) may still own _eligibility_; wrap the
-  executor body in `Define` and wait only when you need the result on this
-  stack (`defineAndWait` is that adapter — not a second scheduler).
+- `Group.Each` was removed in 1.0. Callers do not `errgroup` / `go func` to
+  make evo rows parallel either — predeclare one named child `Task` per item
+  under a `Group` + `Define` and let evo’s scheduler run them. A domain graph
+  engine (zq mise/gate) may still own _eligibility_; wrap the executor body in
+  `Define` and wait only when you need the result on this stack
+  (`defineAndWait` is that adapter — not a second scheduler).
 
 ## zq canary (MCP must survive this)
 
@@ -188,7 +193,8 @@ use empty (current rec) because of the path replace.
 These are real dialect defects MCP currently misses. Fix them in the consumer
 anyway; add detectors when they recur:
 
-- `for _, task := range x.Each(` (discards the item name)
+- a per-item `Group`/`Sequence` loop that reuses one `Task` name for every
+  iteration (duplicate sibling declaration, not a get-or-create — §3.1)
 
 Caught as of this MCP build (do not re-add to this list): `errgroup`/`go func`
 driving predeclared evo Tasks (API-041), `Failf`/`Fail` inside a

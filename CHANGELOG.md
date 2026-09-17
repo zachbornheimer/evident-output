@@ -3,10 +3,41 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-This project has not reached 1.0 — pre-1.0 API breaks are called out explicitly
-below rather than deferred to a major version.
 
 ## Unreleased
+
+## [1.0.0] — Define as the scheduling boundary; File/Fingerprint; MainWith and Each removed
+
+See [`docs/migration/1.0.md`](docs/migration/1.0.md) for the full upgrade guide.
+
+### Added
+
+- **`Task.Verify(func(context.Context) (bool, error))`:** a boolean, read-only
+  pre-`Define` check — reporting the desired state already holds skips
+  `Define` entirely and resolves `ResolutionAlreadySatisfied`.
+- **`Task.Key(key string)`:** an advanced, refactor/rename-stable override
+  for a Task's tracked identity, independent of its display name.
+- **`evo.File(ctx, evo.FileSpec{...})`:** declarative managed-state file
+  operations — create, rewrite on drift, no-op when already satisfied.
+- **`evo.Fingerprint` / `evo.FSPath` / `evo.Value` / `evo.App`:** content-
+  identity primitives for a `FileSpec.Basis`.
+- **`Config.AppID` / `Config.StateDir`:** manifest namespace/location overrides.
+
+### Changed
+
+- **`RunFunc` is `func(context.Context) error`:** `evo.Run`, `evo.Main`, and
+  `Output.Run` all pass/derive a `context.Context` into the run callback.
+- **`evo.Run(ctx, run)` / `Output.Run(ctx, run)` return `Result`** (the
+  finished `Conclusion` plus the application error), not a bare exit code.
+  `Result.ExitCode()` replaces the old bare `int`. `evo.Main` is unchanged:
+  it still returns only the derived `int`.
+
+### Removed
+
+- **`evo.MainWith`:** an `Isolated *Output` now calls its own `Output.Run`
+  instead.
+- **`Task.Each` / `Group.Each` / `Sequence.Each`:** declare one named child
+  `Task` per item and submit it with `Define` instead.
 
 ## [0.5.0] — Group/Sequence/Each, Preview, object-first mutations
 

@@ -2,21 +2,25 @@
 
 Order for learning and documentation. Advanced paths are studio notes, not the lead sheet.
 
-## Ladder
+## Ladder (spec §44 order)
 
 ```text
-1. evo.Init(Config) + evo.Main(run) — arms first paint, owns dry-run wording and exit codes
-2. Print / Printf / Println / Verbose
-3. Task.Define — one atomic operation; mutation verbs (Delete/Create/Update/…) are the
-   dry-run-aware equivalent of Define
-4. Group / Sequence — independent vs ordered collections, one named Task per item
+1. Task + Define — one atomic operation; Define(fn func(context.Context) error) is the
+   scheduling and execution boundary. Mutation verbs (Delete/Create/Update/…) are the
+   dry-run-aware equivalent for effects.
+2. Group / Sequence — independent vs ordered collections, one named Task per item
    (`Group.Each`/`Sequence.Each` were removed in 1.0); After for a DAG edge nesting
-   cannot express
-5. Skipped / Kept — skip/keep taxonomy (reason + name, never a bare count)
-6. Confirm — the whole ask-decide-resolve gate
-7. ResultWriter or app machine contract (FormatData)
-8. slog via SlogHandler (Config.Debug.Level)
-9. Advanced: Config.Isolated + Output.Run (hosted instance), terminal drivers, testkit, Suspend
+   cannot express.
+3. evo.File for declarative managed-state file content.
+4. evo.Exec for external work with declared outputs (planned; not yet implemented).
+5. A Task's Basis of Fingerprint values (evo.FSPath/evo.Value/evo.App) when freshness
+   depends on semantic external inputs beyond File/Exec's own tracking.
+6. After for exceptional execution dependencies a Sequence would otherwise express.
+7. Facts / warnings / Effects / dry-run — Task.Fact, Task.Warn, Config.DryRun.
+8. Task.Verify(func(context.Context) (bool, error)) only for domains Evo cannot track
+   automatically — never the default way to make ordinary work idempotent.
+9. Top-level Config.Format / Config.Verbosity — only when the host CLI needs machine or
+   verbose output; never set per Task.
 
 Task's mutation verbs (Delete/Create/…) pick [planned] vs [changed] from Config.DryRun on the
 ordinary path — no separate Plan/Changes call site exists to reach for. Quantity is
@@ -28,14 +32,14 @@ evo.Affected(n) when one atomic operation touches more than one item.
 ```go
 func main() {
     evo.Init(evo.Config{Title: "tool"}) // first statement — arms first paint before any I/O
-    evo.Main(run)                        // exits the process itself
+    os.Exit(evo.Main(run))               // exits the process itself
 }
 
-func run() error {
+func run(ctx context.Context) error {
     worktrees := evo.Group("worktrees")
     for _, path := range items {
         path := path
-        worktrees.Task(path).Define(func() error { return check(path) })
+        worktrees.Task(path).Define(func(ctx context.Context) error { return check(path) })
     }
     return nil
 }
@@ -43,13 +47,14 @@ func run() error {
 
 ## Hosted (framework owns exit)
 
-`out.Run` returns an `int` (the exit code). The host inspects it and exits.
-Do not `return out.Run(run)` from `func main()` — that does not compile.
-`evo.Main` is the process-exit path (row 1), not this one.
+`out.Run(ctx, run)` returns a `Result`; `Result.ExitCode()` is the process exit code.
+The host inspects it and exits. `evo.Main` is the process-exit path (row 1) for an
+ordinary `main()`; `Output.Run` is the hosted counterpart for a `Config.Isolated`
+instance, and never exits the process itself.
 
 ```go
 out := evo.Init(evo.Config{Title: "tool", Isolated: true})
-os.Exit(out.Run(run)) // reconciles a non-nil run error into Fail, then Finish
+os.Exit(out.Run(ctx, run).ExitCode()) // reconciles a non-nil run error into Fail, then Finish
 ```
 
 ## House rules (short)

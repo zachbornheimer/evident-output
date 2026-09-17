@@ -16,7 +16,7 @@ license: Apache-2.0
 Portable skill for understandable CLI presentation. Prefer **Evident Output**
 when available; stay useful when it is not.
 
-**Pinned release:** `v0.5.2` (keep install commands on this pin; never `@latest`).
+**Pinned release:** `v1.0.0` (keep install commands on this pin; never `@latest`).
 
 ## Canonical locations (portable)
 
@@ -27,14 +27,14 @@ when available; stay useful when it is not.
 | **MCP package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp`                                                                                                                  |
 | **CLI package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output`                                                                                                                      |
 | **This skill in-repo**   | `skills/cli-output/SKILL.md`                                                                                                                                                       |
-| **MCP install (module)** | `go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.5.2` then `ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"` |
+| **MCP install (module)** | `go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v1.0.0` then `ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"` |
 
 Host-specific wiring (Grok, Claude Code, Codex, …) lives under `integrations/<host>/` in the repo — not in this skill.
 
 ## Capability fallback
 
 1. **Connected MCP** — tools below
-2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.5.2 …`
+2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v1.0.0 …`
 3. **This skill’s static guidance**
 
 ## MCP tool names (underscores only)
@@ -79,7 +79,7 @@ Trigger phrases: "adopt evident-output", "migrate to evo", "clean up CLI output"
 ## Install library
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.5.2
+go get github.com/zachbornheimer/evident-output@v1.0.0
 ```
 
 ## Philosophy (in-repo)
@@ -94,7 +94,7 @@ go get github.com/zachbornheimer/evident-output@v0.5.2
 
 ```text
 evo.Init(Config) → Print/Printf/Println → Verbose()
-→ Task.Define / Group.Each / Sequence.Each → task.Writer()
+→ Task.Define / one Task per item under a Group or Sequence → task.Writer()
 → mutation verbs (Delete(object, fn) / Affected; Record when the domain verb differs)
 → slog via SlogHandler → evo.Main(run)
 ```
@@ -131,12 +131,12 @@ Secrets: set `Config.Redactor`.
 
 ## Platform contracts
 
-| Need        | Use                                                   |
-| ----------- | ----------------------------------------------------- |
-| Named work  | `out.Task("download")`                                |
-| Collection  | `out.Group("packages").Each(items)`                   |
-| Child stdio | `cmd.Stdout = task.Writer()` (and stderr)             |
-| Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr) |
+| Need        | Use                                                             |
+| ----------- | --------------------------------------------------------------- |
+| Named work  | `out.Task("download")`                                          |
+| Collection  | `out.Group("packages")`, one `.Task(name).Define(...)` per item |
+| Child stdio | `cmd.Stdout = task.Writer()` (and stderr)                       |
+| Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr)           |
 
 ## Severity
 
@@ -149,7 +149,7 @@ Secrets: set `Config.Redactor`.
 ## Review
 
 ```bash
-go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.5.2 review ./path.go
+go run github.com/zachbornheimer/evident-output/cmd/evident-output@v1.0.0 review ./path.go
 ```
 
-Until `recheck_required=false`. Rules include API-006 (Start), API-026 (caller RunAll/Map/Retry — not Group/Each/Define), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).
+Until `recheck_required=false`. Rules include API-006 (Start), API-026 (caller RunAll/Map/Retry — not Group/Sequence/Define/After), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).
