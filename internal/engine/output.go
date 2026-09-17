@@ -174,10 +174,16 @@ type Output struct {
 	// reused on every Task commit (spec §11.2/§11.3).
 	manifestApp     manifest.ApplicationRecord
 	manifestAppDone bool
-	// manifestClaims records which Task first claimed each canonical File
-	// output path in this Run (spec §11.4/§8.3): a second Task claiming the
-	// same path is a producer conflict.
+	// manifestClaims records which Task first claimed each canonical File/
+	// Exec output path in this Run (spec §11.4/§8.3): a second Task
+	// claiming the same path is a producer conflict.
 	manifestClaims map[string]string
+	// outputGates is the freshness barrier (spec §11.6/§64): claiming a
+	// canonical output path opens a gate here; a later operation
+	// consulting that same path as a Basis input waits on it until the
+	// producing operation settles, without the scheduler inferring any
+	// ordering edge from the data relationship itself.
+	outputGates map[string]chan struct{}
 }
 
 type taskState struct {
@@ -372,6 +378,7 @@ func newOutput(subject string, options ...Option) *Output {
 		redactor:        noopRedactor{},
 		maxEntities:     defaultMaxEntities,
 		verbosity:       VerbosityNormal,
+		processRunner:   osProcessRunner{},
 	}
 	for _, opt := range options {
 		if opt != nil {

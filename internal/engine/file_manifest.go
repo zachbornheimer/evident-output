@@ -76,6 +76,7 @@ func (o *Output) claimManifestOutputLocked(taskID, path string) error {
 		return fmt.Errorf("%w: %s", ErrFileConflictingProducer, path)
 	}
 	o.manifestClaims[path] = taskID
+	o.openOutputBarrierLocked(path)
 	return nil
 }
 
@@ -112,16 +113,16 @@ func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 	_ = o.manifestStore.CommitTask(ctx, o.manifestApp, task)
 }
 
-// fileBasisRecords fingerprints every entry in basis (spec §11.1) and
+// basisRecordsFrom fingerprints every entry in basis (spec §11.1) and
 // returns them canonicalized by (Kind, Key) — Basis order is semantically
 // irrelevant (§11.1). A duplicate (Kind, Key) pair is a programmer error
 // (§11.1).
-func fileBasisRecords(ctx context.Context, basis []fingerprint.Fingerprint) ([]manifest.BasisRecord, error) {
+func basisRecordsFrom(ctx context.Context, basis []fingerprint.Fingerprint) ([]manifest.BasisRecord, error) {
 	records := make([]manifest.BasisRecord, 0, len(basis))
 	for _, b := range basis {
 		v, err := b.Fingerprint(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("evo: File Basis: %w", err)
+			return nil, fmt.Errorf("evo: Basis: %w", err)
 		}
 		records = append(records, manifest.BasisRecord{
 			Kind:   string(v.Kind),
@@ -137,7 +138,7 @@ func fileBasisRecords(ctx context.Context, basis []fingerprint.Fingerprint) ([]m
 	})
 	for i := 1; i < len(records); i++ {
 		if records[i].Kind == records[i-1].Kind && records[i].Key == records[i-1].Key {
-			return nil, fmt.Errorf("evo: File Basis: duplicate (kind=%s, key=%s)", records[i].Kind, records[i].Key)
+			return nil, fmt.Errorf("evo: Basis: duplicate (kind=%s, key=%s)", records[i].Kind, records[i].Key)
 		}
 	}
 	return records, nil
@@ -146,7 +147,7 @@ func fileBasisRecords(ctx context.Context, basis []fingerprint.Fingerprint) ([]m
 // fileDefinitionFingerprint computes File's operation definition fingerprint
 // (spec §11.4): canonical path + managed contents digest + managed mode +
 // sorted Basis descriptors. basis must already be canonicalized (see
-// fileBasisRecords) so two equivalent Basis sets always hash identically.
+// basisRecordsFrom) so two equivalent Basis sets always hash identically.
 func fileDefinitionFingerprint(path string, contentsManaged bool, contents []byte, mode uint32, basis []manifest.BasisRecord) string {
 	h := sha256.New()
 	_, _ = h.Write([]byte("evident-output:file:definition:v1\x00"))
@@ -171,13 +172,13 @@ func fileDefinitionFingerprint(path string, contentsManaged bool, contents []byt
 	return "sha256:" + hex.EncodeToString(h.Sum(nil))
 }
 
-// fileOutputDigest fingerprints path's current on-disk content (spec
+// pathOutputDigest fingerprints path's current on-disk content (spec
 // §8.3/§11.1) for storage as, or comparison against, a File operation's
 // tracked output record.
-func fileOutputDigest(ctx context.Context, path string) (string, error) {
+func pathOutputDigest(ctx context.Context, path string) (string, error) {
 	v, err := fingerprint.FSPath(path).Fingerprint(ctx)
 	if err != nil {
-		return "", fmt.Errorf("evo: File output %q: %w", path, err)
+		return "", fmt.Errorf("evo: output %q: %w", path, err)
 	}
 	return hex.EncodeToString(v.Digest[:]), nil
 }
@@ -195,7 +196,7 @@ func fileOperationCurrent(ctx context.Context, prior manifest.OperationRecord, h
 	if !basisRecordsEqual(prior.Basis, basis) {
 		return false, nil
 	}
-	liveDigest, err := fileOutputDigest(ctx, path)
+	liveDigest, err := pathOutputDigest(ctx, path)
 	if err != nil {
 		return false, err
 	}
@@ -203,7 +204,7 @@ func fileOperationCurrent(ctx context.Context, prior manifest.OperationRecord, h
 }
 
 // basisRecordsEqual compares two already-canonicalized Basis slices
-// element-wise (see fileBasisRecords) — canonicalization makes a
+// element-wise (see basisRecordsFrom) — canonicalization makes a
 // straightforward positional comparison correct rather than needing its
 // own set-equality pass.
 func basisRecordsEqual(a, b []manifest.BasisRecord) bool {

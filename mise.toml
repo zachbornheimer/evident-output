@@ -36,31 +36,22 @@ run = "go test ./conformance/..."
 
 [tasks.acceptance-v06]
 description = """
-Run the v0.6/1.0 future API and behavior acceptance suite. Increments 1-2
-(conformance/future/{api,behavior} and their ./file subpackages) are
-implemented and must pass; increment 3+ (api/pending's ExecSpec) is
-deliberately red-by-compile and expected nonzero until Exec lands — this
-target therefore does not fail CI on its own; run acceptance-v06-green for
-the promotion gate that must stay green. There is deliberately no single
-`go test ./conformance/future/...` gate: that wildcard would always fail
-while any increment remains pending, by design (acceptance-v06-pending
-asserts exactly that failure).
+Run the v0.6/1.0 future API and behavior acceptance suite. Increments 1-3
+(conformance/future/{api,behavior} and their ./file and ./exec
+subpackages) are implemented and must pass — this is now a plain alias for
+acceptance-v06-green. Earlier increments carried a separate
+acceptance-v06-pending target for Exec's red-by-compile fixtures; increment
+3 (this one) is the last tranche this future suite carries, so
+./conformance/future/... has no remaining pending package and a single
+`go test -tags v06acceptance ./conformance/future/...` is now a valid green
+gate on its own.
 """
-depends = ["acceptance-v06-green", "acceptance-v06-pending"]
+depends = ["acceptance-v06-green"]
 
 [tasks.acceptance-v06-green]
-description = "Increment 1+2's future-suite fixtures — must stay green"
+description = "The whole v0.6/1.0 future-suite fixture tree — must stay green"
 run = [
-  "go test -tags v06acceptance ./conformance/future/api",
-  "go test -tags v06acceptance ./conformance/future/behavior",
-  "go test -tags v06acceptance ./conformance/future/api/file",
-  "go test -tags v06acceptance ./conformance/future/behavior/file",
-]
-
-[tasks.acceptance-v06-pending]
-description = "Increment 3+'s future-suite fixtures — expected red-by-compile until Exec lands"
-run = [
-  "go test -tags v06acceptance ./conformance/future/api/pending && exit 1 || true",
+  "go test -tags v06acceptance ./conformance/future/...",
 ]
 
 [tasks.fuzz]
@@ -117,7 +108,7 @@ description = "Run example CLIs back-to-back with headers"
 run = "bash tools/scripts/run-examples.sh"
 
 [tasks.ci]
-description = "Full gate: lint + test + scan + conformance + traceability + v0.6/1.0 acceptance (increments 1-2)"
+description = "Full gate: lint + test + scan + conformance + traceability + v0.6/1.0 acceptance (increments 1-3)"
 depends = ["lint", "test", "scan", "conformance", "traceability", "acceptance-v06-green"]
 
 [tasks.test-evo]

@@ -40,6 +40,9 @@ type config struct {
 	// cache-dir manifest path derivation.
 	stateDir string
 	appID    string
+	// processRunner is the facade evo.Exec spawns child processes through
+	// (spec §8.4). Defaults to osProcessRunner{} in resolveConfig.
+	processRunner ProcessRunner
 	// stdin is the facade Confirm reads one answer line from (default os.Stdin,
 	// resolved lazily so NewWithOptions callers that skip Stdin still work).
 	stdin io.Reader
@@ -307,6 +310,14 @@ func withStateDir(dir string) Option {
 // withAppID mirrors Config.AppID (spec §11.3).
 func withAppID(id string) Option {
 	return optionFunc(func(c *config) { c.appID = id })
+}
+
+// withProcessRunner injects the facade evo.Exec spawns every child process
+// through (spec §8.4) — testkit installs a scripted fake so Exec's skip
+// protocol, capture, and cancellation are provable without a real
+// subprocess.
+func withProcessRunner(r ProcessRunner) Option {
+	return optionFunc(func(c *config) { c.processRunner = r })
 }
 
 // AlsoWrite adds an additional human projection writer. On Finish, each writer

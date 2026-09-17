@@ -329,11 +329,82 @@ func TestFileManifestPostDefineEvidenceSourcesFromOperations(t *testing.T) {
 // TestFileBasisRecordsRejectsDuplicateKind proves spec §11.1: duplicate
 // (Kind, Key) Basis pairs within one operation are a programmer error.
 func TestFileBasisRecordsRejectsDuplicateKind(t *testing.T) {
-	_, err := fileBasisRecords(context.Background(), []fingerprint.Fingerprint{
+	_, err := basisRecordsFrom(context.Background(), []fingerprint.Fingerprint{
 		fingerprint.Value("same", 1),
 		fingerprint.Value("same", 2),
 	})
 	if err == nil {
 		t.Fatal("duplicate (kind,key) Basis entries must be rejected")
+	}
+}
+
+// TestFileModeOnlySpecConsultsManifestOnSecondRun proves half of the
+// increment-3 follow-up: a mode-only FileSpec (Contents nil, Mode set) is
+// manifest-managed exactly like a contents-managed one — a second Run with
+// no live filesystem inspection at all still succeeds and leaves the file
+// untouched, the same "current operation" fast path
+// TestFileManifestFreshnessSkipsUnchangedOperation proves for Contents.
+func TestFileModeOnlySpecConsultsManifestOnSecondRun(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(t.TempDir(), "managed.sh")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	spec := FileSpec{Path: path, Mode: 0o755}
+
+	first := Init(Config{Isolated: true, StateDir: state})
+	if err := runFileTask(t, first, "chmod", spec); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	_ = first.Close()
+
+	second := Init(Config{Isolated: true, StateDir: state})
+	t.Cleanup(func() { _ = second.Close() })
+	store, err := second.manifestFor(context.Background())
+	if err != nil {
+		t.Fatalf("open manifest: %v", err)
+	}
+	task := second.Task("chmod")
+	second.mu.Lock()
+	key, _, ok := second.taskManifestKeyLocked(task.id)
+	second.mu.Unlock()
+	if !ok {
+		t.Fatal("expected a declared task")
+	}
+	if _, hasPrior := store.Operation(key, 0); !hasPrior {
+		t.Fatal("a mode-only File must record a manifest operation on its first run")
+	}
+	task.Define(func(ctx context.Context) error { return nil })
+	_ = task.Wait()
+}
+
+// TestFileSkipsChmodWhenModeAlreadyMatches proves the other half: on a live
+// (non-manifest-current) inspection, File issues a chmod syscall only when
+// the on-disk mode actually differs from spec.Mode — not unconditionally
+// whenever Mode is set. chmod always bumps ctime even when it sets the mode
+// to its already-current value, so an untouched ctime is proof the syscall
+// itself was skipped, not merely that its result happened to match.
+func TestFileSkipsChmodWhenModeAlreadyMatches(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "already-0755.sh")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	beforeCtime, ok := ctimeOf(t, path)
+	if !ok {
+		t.Skip("ctime not observable on this platform")
+	}
+
+	// No prior manifest record (fresh StateDir): File falls through to the
+	// live inspection path, where modeDiffers must evaluate false since the
+	// file is already 0o755.
+	out := Init(Config{Isolated: true, StateDir: t.TempDir()})
+	t.Cleanup(func() { _ = out.Close() })
+	if err := runFileTask(t, out, "chmod", FileSpec{Path: path, Mode: 0o755}); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	afterCtime, _ := ctimeOf(t, path)
+	if !afterCtime.Equal(beforeCtime) {
+		t.Fatalf("File chmod'd a path whose mode already matched: ctime before=%v after=%v", beforeCtime, afterCtime)
 	}
 }

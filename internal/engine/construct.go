@@ -238,6 +238,11 @@ type Config struct {
 	// executable basename) used in the default manifest cache path.
 	// Ignored when StateDir is set.
 	AppID string
+
+	// ProcessRunner overrides the facade evo.Exec spawns child processes
+	// through (spec §8.4). Nil uses the real OS process runner; tests
+	// inject testkit's scripted fake for deterministic Exec coverage.
+	ProcessRunner ProcessRunner
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
@@ -303,6 +308,9 @@ func resolveConfig(c Config) Config {
 	}
 	if c.Redactor == nil {
 		c.Redactor = noopRedactor{}
+	}
+	if c.ProcessRunner == nil {
+		c.ProcessRunner = osProcessRunner{}
 	}
 	return c
 }
@@ -469,6 +477,7 @@ func configToOptions(c Config) []Option {
 	opts = append(opts, maxEntities(c.MaxEntities), maxEvents(c.MaxEvents))
 	opts = append(opts, maxConcurrency(c.MaxConcurrency))
 	opts = append(opts, withStateDir(c.StateDir), withAppID(c.AppID))
+	opts = append(opts, withProcessRunner(c.ProcessRunner))
 	opts = append(opts, debugLevel(c.Debug.Level))
 	if c.Debug.AddSource {
 		opts = append(opts, debugAddSource())

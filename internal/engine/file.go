@@ -88,6 +88,11 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 
 	path := o.resolveWorkspacePath(spec.Path)
 	contentsManaged := spec.Contents != nil
+	// A mode-only spec (Contents nil, Mode set) still has a managed
+	// attribute the manifest must track: consulting/recording it lets an
+	// unchanged mode-only File skip re-inspection on a later Run exactly
+	// like a contents-managed one does.
+	manifestManaged := contentsManaged || spec.Mode != 0
 
 	o.mu.Lock()
 	claimErr := o.claimManifestOutputLocked(taskID, path)
@@ -95,8 +100,9 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 	if claimErr != nil {
 		return claimErr
 	}
+	defer o.settleOutputBarrier(path)
 
-	if contentsManaged {
+	if manifestManaged {
 		current, prior, err := o.fileConsultManifest(ctx, taskID, spec, path)
 		if err != nil {
 			return err
@@ -155,7 +161,7 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 		}
 	}
 
-	if spec.Mode != 0 {
+	if modeDiffers {
 		if err := os.Chmod(path, spec.Mode); err != nil {
 			return fmt.Errorf("evo: File %q: contents already satisfied, permissions failed: %w", path, err)
 		}
@@ -164,8 +170,8 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 	if mutates {
 		o.recordFileEffect(taskID, spec.Path)
 	}
-	if contentsManaged {
-		if err := o.fileRecordOperation(ctx, taskID, spec, path); err != nil {
+	if manifestManaged {
+		if err := o.fileRecordOperation(ctx, taskID, spec, path, contentsManaged); err != nil {
 			return err
 		}
 	}
@@ -190,11 +196,12 @@ func (o *Output) fileConsultManifest(ctx context.Context, taskID string, spec Fi
 	}
 	o.emitManifestWarningOnce(store.Warning())
 
-	basis, err := fileBasisRecords(ctx, spec.Basis)
+	basis, err := basisRecordsFrom(ctx, spec.Basis)
 	if err != nil {
 		return false, manifest.OperationRecord{}, err
 	}
-	defFingerprint := fileDefinitionFingerprint(path, true, spec.Contents, uint32(spec.Mode), basis)
+	contentsManaged := spec.Contents != nil
+	defFingerprint := fileDefinitionFingerprint(path, contentsManaged, spec.Contents, uint32(spec.Mode), basis)
 
 	o.mu.Lock()
 	key, ord, ok := o.taskManifestKeyLocked(taskID)
@@ -214,13 +221,13 @@ func (o *Output) fileConsultManifest(ctx context.Context, taskID string, spec Fi
 // fileRecordOperation persists this File call's freshly observed operation
 // state as taskID's next pending manifest record, committed only once the
 // Task itself settles Done (spec §8.2/§11.3).
-func (o *Output) fileRecordOperation(ctx context.Context, taskID string, spec FileSpec, path string) error {
-	basis, err := fileBasisRecords(ctx, spec.Basis)
+func (o *Output) fileRecordOperation(ctx context.Context, taskID string, spec FileSpec, path string, contentsManaged bool) error {
+	basis, err := basisRecordsFrom(ctx, spec.Basis)
 	if err != nil {
 		return err
 	}
-	defFingerprint := fileDefinitionFingerprint(path, true, spec.Contents, uint32(spec.Mode), basis)
-	outputDigest, err := fileOutputDigest(ctx, path)
+	defFingerprint := fileDefinitionFingerprint(path, contentsManaged, spec.Contents, uint32(spec.Mode), basis)
+	outputDigest, err := pathOutputDigest(ctx, path)
 	if err != nil {
 		return fmt.Errorf("evo: File %q: %w", path, err)
 	}
@@ -252,10 +259,19 @@ func (o *Output) DryRun() bool {
 // Run's workspace directory captured once at Run start; changing process
 // CWD later does not retarget an operation").
 func (o *Output) resolveWorkspacePath(path string) string {
+	return resolvePathAgainst(o.workspaceDirLocked(), path)
+}
+
+// resolvePathAgainst resolves path against base: an absolute path is
+// cleaned and returned as-is (base never applies), a relative path
+// (including empty, which resolves to base itself) joins base. Shared by
+// File's workspace-relative Path (resolveWorkspacePath) and Exec's
+// dir-relative Outputs (spec §8.4).
+func resolvePathAgainst(base, path string) string {
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path)
 	}
-	return filepath.Join(o.workspaceDirLocked(), path)
+	return filepath.Join(base, path)
 }
 
 // workspaceDirLocked lazily captures and caches the process working

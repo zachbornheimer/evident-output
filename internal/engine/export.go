@@ -28,6 +28,7 @@ func MaxEntities(n int) Option               { return maxEntities(n) }
 func MaxEvents(n int) Option                 { return maxEvents(n) }
 func AlsoWrite(w io.Writer) Option           { return alsoWrite(w) }
 func Redact(r Redactor) Option               { return redact(r) }
+func Runner(r ProcessRunner) Option          { return withProcessRunner(r) }
 func DataProjection() Option                 { return dataProjection() }
 func ExternalProjection() Option             { return externalProjection() }
 func DebugHistory() Option                   { return debugHistory() }
