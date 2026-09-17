@@ -11,107 +11,10 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// ExampleInit constructs the package-default Output — the sole
-// constructor (spec §1.1). Call it as the first statement in main, before
-// any other I/O, so first paint can arm.
-func ExampleInit() {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "ghost", Stdout: &buf, Stderr: io.Discard, Plain: true})
-	out.Task("working tree").Done()
-	_ = out.Finish()
-	fmt.Print(buf.String())
-	// Output:
-	// ✓ working tree
-	//
-	// [ready]  ghost
-}
-
-// ExampleRun executes run against the default instance and returns the
-// finished Result (Conclusion plus the application error) without exiting
-// the process — the shape a caller composing its own exit path uses.
-func ExampleRun() {
-	var buf bytes.Buffer
-	evo.Init(evo.Config{Title: "ghost", Stdout: &buf, Stderr: io.Discard, Plain: true})
-	result := evo.Run(context.Background(), func(ctx context.Context) error {
-		evo.Task("working tree").Done()
-		return nil
-	})
-	fmt.Print(buf.String())
-	fmt.Println(result.ExitCode())
-	// Output:
-	// ✓ working tree
-	//
-	// [ready]  ghost
-	// 0
-}
-
-// ExampleMain derives the process exit code from run's outcome and returns
-// it; it never calls os.Exit itself, so os.Exit(evo.Main(run)) is the
-// ordinary main() (spec §1.1's CLI shape).
-func ExampleMain() {
-	var buf bytes.Buffer
-	evo.Init(evo.Config{Title: "ghost", Stdout: &buf, Stderr: io.Discard, Plain: true})
-	code := evo.Main(func(ctx context.Context) error {
-		evo.Task("working tree").Done()
-		return nil
-	})
-	fmt.Print(buf.String())
-	fmt.Println(code)
-	// Output:
-	// ✓ working tree
-	//
-	// [ready]  ghost
-	// 0
-}
-
-// ExampleTask resolves one atomic unit directly — a check/gate with no
-// callback, rendered as a fact row the instant it resolves.
-func ExampleTask() {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true})
-	out.Task("working tree").Done()
-	_ = out.Finish()
-	fmt.Print(buf.String())
-	// Output:
-	// ✓ working tree
-}
-
-// ExampleGroup declares an independent collection: one named child Task
-// per item: the scheduler may overlap eligible children, and the Group's
-// own state is derived from them — never resolved directly.
-func ExampleGroup() {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true})
-	installs := out.Group("install")
-	for _, pkg := range []string{"repo-a", "repo-b"} {
-		installs.Task(pkg).Done()
-	}
-	_ = out.Finish()
-	fmt.Print(buf.String())
-	// Output:
-	// ✓ install
-	//    ✓ repo-a
-	//    ✓ repo-b
-}
-
-// ExampleSequence declares an ordered dependency of named children: a
-// failed child auto-resolves later siblings to NotStarted instead of
-// running them.
-func ExampleSequence() {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true})
-	worktrees := out.Sequence("worktrees")
-	for _, path := range []string{"repo-a", "repo-b"} {
-		task := worktrees.Task(path)
-		task.Define(func(ctx context.Context) error { return nil })
-	}
-	_ = out.Finish()
-	fmt.Print(buf.String())
-	// Output:
-	// ✓ worktrees
-	//    ✓ repo-a
-	//    ✓ repo-b
-}
+// ExampleInit, ExampleRun, ExampleMain, ExampleTask, ExampleGroup, and
+// ExampleSequence live in example_runtime_test.go / example_task_test.go /
+// example_group_test.go — the stdlib-audit's per-topic split of what this
+// file used to document inline.
 
 // ExampleTaskHandle_Define submits a Task's atomic work to the scheduler —
 // Define is the scheduling and execution boundary (spec §7): the callback
@@ -192,10 +95,10 @@ func ExampleFile() {
 	// {"ok":true}
 }
 
-// ExampleFact records discovered information — not work — as a durable
+// ExampleTask_Fact records discovered information — not work — as a durable
 // dim line attached to the Task that found it. Fact never resolves the
 // Task and never fakes a checkmark merely to display a value.
-func ExampleFact() {
+func ExampleTaskHandle_Fact() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true})
 	scan := out.Task("remote-tracking")
