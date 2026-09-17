@@ -41,6 +41,20 @@ func FSPath(path string) Fingerprint {
 	return fsPathFingerprint{path: path}
 }
 
+// PathOf reports the filesystem path an FSPath Fingerprint observes, and
+// whether f is an FSPath at all. It exists for the engine package's
+// producer/consumer freshness barrier (spec §11.6): the barrier must key on
+// and wait for a path *before* calling Fingerprint (which reads the file),
+// so it needs the path without performing that read — never for a caller
+// to bypass Fingerprint's own read-only observation.
+func PathOf(f Fingerprint) (path string, ok bool) {
+	p, ok := f.(fsPathFingerprint)
+	if !ok {
+		return "", false
+	}
+	return p.path, true
+}
+
 func (f fsPathFingerprint) Fingerprint(_ context.Context) (FingerprintValue, error) {
 	digest, err := fingerprintPath(activeFS, f.path)
 	if err != nil {
