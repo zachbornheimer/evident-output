@@ -500,7 +500,21 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 		r := rank(t)
 		buckets[r] = append(buckets[r], t)
 	}
-	for r := 0; r < 6 && len(selected) < max; r++ {
+	// Once there are more children than fit (the len(tasks) <= max early
+	// return above did not apply), only the attention ranks (0-3: failed,
+	// warning, running, pending) ever fill the budget — never rank 4/5
+	// (routine Done/Skipped/other). A large aggregated Group answers "what
+	// needs my attention" plus the header's own N/total count; padding the
+	// remaining rows with routine "✓ package-NNN" landmarks merely because
+	// there happens to be vertical room left repeats what the header already
+	// said, one row at a time, for a Group large enough that its own
+	// aggregation was already necessary (spec §25: "aggregation is
+	// renderer-owned and automatic" — the same rule Each's
+	// selectEachAttentionChildren already applied before Task.Each was
+	// removed as a public API; an ordinary Group of explicit children gets
+	// no lesser treatment now that Each is gone).
+	const attentionRankCount = 4
+	for r := 0; r < attentionRankCount && len(selected) < max; r++ {
 		for _, t := range buckets[r] {
 			if len(selected) >= max {
 				break
