@@ -179,6 +179,52 @@ const (
 	problemDetailIndent = "      "
 )
 
+// writeVerificationDetails renders a Task's per-attribute reconciliation
+// outcomes (spec §2, §8.2, §20-21, §41, §49) — evo.File/evo.Exec's third
+// evidence layer, which subconditions were satisfied or failed, not just
+// that the operation as a whole did. A satisfied attribute is a muted "-
+// <name>  already satisfied" line; a failed one keeps its own glyph and
+// nests whatever Facts explain it one level deeper. Every attribute
+// renders once the task itself failed — an isolated failure must never
+// look like every attribute is suspect — and, mirroring Fact/Warning's own
+// visibility rule, the same full list renders under Verbose even when the
+// task succeeded; a clean run says nothing extra by default. indent is the
+// row's own nesting indent (matches the value writeNestedTaskFacts/
+// writeNestedTaskWarnings already use at this call site — "  " for a
+// standalone task, problemTreeIndent for a collection child).
+func writeVerificationDetails(b *strings.Builder, details []core.VerificationDetail, indent string, taskFailed, verbose, color bool, profile txt.GlyphProfile) {
+	if len(details) == 0 || (!taskFailed && !verbose) {
+		return
+	}
+	for _, d := range details {
+		if d.Status == core.VerificationSatisfied {
+			glyph := txt.StyleGlyph(TaskGlyph(core.NotStarted, profile), StateColor(core.NotStarted), color)
+			fmt.Fprintf(b, "%s%s %s\n", indent, glyph, txt.Dim(d.Name+"  already satisfied", color))
+			continue
+		}
+		glyph := txt.StyleGlyph(TaskGlyph(core.Failed, profile), StateColor(core.Failed), color)
+		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, d.Name)
+		writeVerificationFacts(b, d.Facts, indent+"  ")
+	}
+}
+
+// writeVerificationFacts renders one failed VerificationDetail's own Facts
+// (error, path, mode, ...) one level deeper than its "✗ <name>" row, each
+// name padded to the widest name in this detail alone so the values line
+// up in one column (the same PadRight alignment convention taxonomy/effect
+// columns already use).
+func writeVerificationFacts(b *strings.Builder, facts []core.Fact, indent string) {
+	width := 0
+	for _, f := range facts {
+		if w := txt.Cells(f.Name); w > width {
+			width = w
+		}
+	}
+	for _, f := range facts {
+		fmt.Fprintf(b, "%s%s  %s\n", indent, txt.PadRight(f.Name, width), f.Value)
+	}
+}
+
 // writeProblem renders one problem row. emphasize is true for a core.Failed/core.Blocked
 // task's evidence (release-gate round 6 finding 5): the ├─/│/evidence-glyph
 // connectors stay txt.Dim either way — they are decoration — but the evidence
@@ -565,6 +611,7 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, co
 	}
 	writeTaxonomy(b, "", "skipped", t.Skipped, hasInlineTaxonomy && inlineTaxonomyVerb == "skipped", verbose, color, profile)
 	writeTaxonomy(b, "", "kept", t.Kept, hasInlineTaxonomy && inlineTaxonomyVerb == "kept", verbose, color, profile)
+	writeVerificationDetails(b, t.Verification, "  ", t.State == core.Failed, verbose, color, profile)
 	writeNestedTaskWarnings(b, nestedWarnings, "  ", color, profile)
 	writeNestedTaskFacts(b, nestedFacts, "  ", color)
 }
@@ -900,6 +947,7 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int
 	}
 	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, hasInlineTaxonomy && inlineTaxonomyVerb == "skipped", verbose, color, profile)
 	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, hasInlineTaxonomy && inlineTaxonomyVerb == "kept", verbose, color, profile)
+	writeVerificationDetails(b, t.Verification, problemTreeIndent, t.State == core.Failed, verbose, color, profile)
 	writeNestedTaskWarnings(b, nestedWarnings, problemTreeIndent, color, profile)
 	writeNestedTaskFacts(b, nestedFacts, problemTreeIndent, color)
 }
