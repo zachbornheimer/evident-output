@@ -1583,6 +1583,9 @@ func (o *Output) appendEventLocked(e Event) {
 	if o.cfg.projection == ProjectionStreamJSON {
 		o.writeStreamJSONLocked(e)
 	}
+	if o.cfg.wireFormat == FormatJSONL {
+		writeWireEventLocked(o.cfg.wireStream, e)
+	}
 }
 
 func (o *Output) writeStreamJSONLocked(e Event) {
@@ -1830,6 +1833,22 @@ func (o *Output) Finish() error {
 	misuse := o.misuse
 	o.finished = true
 	o.finishing = false
+
+	// FormatJSON's one final "evo.run" document (spec §32.1) — independent
+	// of the legacy projection.suppressesHuman() branch below, since human
+	// presentation still streams to Stderr for this Format (§32.1: "stderr:
+	// human live/plain presentation ... never mixed into stdout"). A write
+	// failure here is a real Run failure (§32.2), folded into misuse so
+	// every return path below already carries it.
+	if cfg.wireFormat == FormatJSON {
+		if err := writeWireRunLocked(cfg.wireStream, conc); err != nil {
+			if misuse == nil {
+				misuse = err
+			} else {
+				misuse = errors.Join(misuse, err)
+			}
+		}
+	}
 
 	if cfg.projection.suppressesHuman() {
 		var events []Event

@@ -83,6 +83,13 @@ type config struct {
 	// fallback text, since by then any Subject has already streamed as its
 	// own line.
 	dryRunHeaderText string
+	// wireFormat is non-zero only for FormatJSON/FormatJSONL (spec §32.1) —
+	// independent of the legacy projection field above, which drives the
+	// pre-existing EVO_OUTPUT-selected "0.4"/"0.3" encoders. wireStream is
+	// where the v2 document/event lines land (Config.Stdout); presentation
+	// keeps going to primary/diagnostic exactly as FormatData routes it.
+	wireFormat Format
+	wireStream io.Writer
 }
 
 type optionFunc func(*config)
@@ -110,6 +117,18 @@ func resultStream(w io.Writer) Option {
 			c.result = w
 		}
 	})
+}
+
+// wireFormatOption selects the v2 machine wire encoder Finish/appendEventLocked
+// write alongside ordinary human presentation (FormatJSON/FormatJSONL only —
+// see configToOptions).
+func wireFormatOption(f Format) Option {
+	return optionFunc(func(c *config) { c.wireFormat = f })
+}
+
+// wireStreamOption sets where the v2 wire encoder writes (Config.Stdout).
+func wireStreamOption(w io.Writer) Option {
+	return optionFunc(func(c *config) { c.wireStream = w })
 }
 
 // Plain forces final-report projection (no live spinner region).

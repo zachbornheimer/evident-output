@@ -55,6 +55,12 @@ const (
 	FormatHuman    = engine.FormatHuman
 	FormatData     = engine.FormatData
 	FormatExternal = engine.FormatExternal
+	// FormatJSON writes one final v2 "evo.run" document to Stdout at
+	// Finish; human presentation still goes to Stderr (spec §32.1).
+	FormatJSON = engine.FormatJSON
+	// FormatJSONL streams v2 "evo.event" JSON lines to Stdout as they
+	// occur, plus a final run.finished line (spec §32.1).
+	FormatJSONL = engine.FormatJSONL
 )
 
 const (
