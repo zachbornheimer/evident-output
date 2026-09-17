@@ -14,9 +14,15 @@ import (
 type verifierFunc func(context.Context) (bool, error)
 
 // verifyEvidenceSource names Verify as the evidence source recorded on a
-// TaskSnapshot's Evidence phases (§30) — the only source this increment
-// produces; File/Exec add their own in a later increment.
+// TaskSnapshot's Evidence phases (§30).
 const verifyEvidenceSource = "verify"
+
+// operationsEvidenceSource names Evo-native tracked operations (evo.File,
+// evo.Exec in a later increment) as the after-Define evidence source (§9.2:
+// "derive post-definition Evidence when modeled proof exists") — used only
+// when the Task registered no explicit Verify, so the two sources never
+// compete for the same phase.
+const operationsEvidenceSource = "operations"
 
 // errVerificationUnsatisfied is runDefine's internal signal that a
 // post-Define Verify observed the desired state was not reached — the task
@@ -134,9 +140,33 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 			t.failScheduledWithCode(ProblemCodeVerificationUnsatisfied, "postcondition not satisfied")
 			return passthroughCallbackOutcome(errVerificationUnsatisfied)
 		}
+	} else {
+		// No explicit Verify: derive post-Define Evidence from Evo-native
+		// tracked operations when Define recorded any (§9.2). Every
+		// operation evo.File appended to manifestOps already re-inspected
+		// and confirmed its own managed attributes before returning success
+		// (§8.2's "re-inspect / verify every managed attribute" step) — a
+		// mismatch there would have made callbackErr non-nil, so reaching
+		// here with a non-empty manifestOps set means every tracked
+		// operation this Define touched is already known current.
+		o.recordOperationsEvidence(t.id)
 	}
 	o.setResolution(t.id, ResolutionExecuted)
 	return nil
+}
+
+// recordOperationsEvidence records the after-Define Evidence phase
+// from tracked operations (§9.2/§30) when taskID recorded at least one —
+// a Task with no Verify and no tracked operation leaves Evidence
+// unevaluated rather than manufacturing a claim (§9.2's closing rule).
+func (o *Output) recordOperationsEvidence(taskID string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	st := o.taskByRef[taskID]
+	if st == nil || len(st.manifestOps) == 0 {
+		return
+	}
+	st.verifyEvidence.After = EvidencePhase{Evaluated: true, Satisfied: true, Source: operationsEvidenceSource}
 }
 
 // passthroughCallbackOutcome hands a Define callback's (or a Verify

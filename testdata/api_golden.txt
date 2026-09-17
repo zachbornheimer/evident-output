@@ -101,6 +101,7 @@ func EncodeJSON(s Snapshot)  []byte,  error
 func EncodeJSONL(events []Event)  []byte,  error
 func ExternalProjection()  Option
 func Fact(name, value string)
+func File(ctx context.Context, spec FileSpec)  error
 func ForSkip()  ReasonOption
 func Glyphs(p GlyphProfile)  Option
 func Group(name string)  *GroupHandle
@@ -180,6 +181,9 @@ type EvidenceStream
 type FactRecord
 type Failure
 type Field
+type FileSpec
+type Fingerprint
+type FingerprintValue
 type FixedClock
 type Format
 type GlyphProfile
@@ -249,6 +253,10 @@ value ErrConcurrentRunning
 value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName
+value ErrFilePathIsSymlink
+value ErrFilePathTypeMismatch
+value ErrFileSpecMissingPath
+value ErrFileUnmanagedContentsMissing
 value ErrInvalidConfig
 value ErrInvalidProgress
 value ErrKeyAfterDefine
