@@ -378,17 +378,12 @@ func TestV8_LiveParallelPrune(t *testing.T) {
 // success + active work" tab: a fully-resolved Group alongside a still-
 // Running standalone task, both visible in the same live frame.
 //
-// One departure the golden does not fix: the frame (and spec §18's own
-// worked example for this exact three-child "launch agent" case) shows no
-// count suffix once every child is Done — "✓ launch agent", not "✓ launch
-// agent  3/3 complete". writeLiveCollection's general header path shows
-// "N/total complete" for every multi-child Group unconditionally; only the
-// one-child collapse case (TestLive_OneChildDisplayGroupIsSingleLine)
-// already omits it. Extending that omission to "every child settled,
-// regardless of count" is a real, spec-aligned fix, but it changes a header
-// format shared by every Group in both live and durable projection — wider
-// blast radius than this session's remaining verification budget covers.
-// Recorded here as a finding rather than guessed at.
+// Matches the frame and spec §18's own worked example for this exact
+// three-child "launch agent" case exactly: once every child has settled, the
+// header carries no count suffix at all ("✓ launch agent", not "✓ launch
+// agent  3/3 complete") — writeLiveCollection only shows "N/total complete"
+// while the group is still unresolved, the same way an unresolved row's
+// count is diagnostic and a resolved row's ✓ glyph already says "done".
 func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
@@ -409,8 +404,8 @@ func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
 	clock.Advance(6 * time.Second)
 	install.Progress(18, 40)
 
-	glyph := firstRune(strings.TrimPrefix(screen.LatestLiveText(), "✓ launch agent  3/3 complete\n   ✓ write plist\n   ✓ register\n   ✓ start\n"))
-	want := "✓ launch agent  3/3 complete\n" +
+	glyph := firstRune(strings.TrimPrefix(screen.LatestLiveText(), "✓ launch agent\n   ✓ write plist\n   ✓ register\n   ✓ start\n"))
+	want := "✓ launch agent\n" +
 		"   ✓ write plist\n" +
 		"   ✓ register\n" +
 		"   ✓ start\n" +

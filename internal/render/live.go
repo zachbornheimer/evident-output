@@ -180,12 +180,17 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	// when this header itself first painted. A container header is the
 	// same DisplayUnit (P3) a task row is, with Detail populated by the
 	// "N/M complete" count instead of a phase/progress payload.
+	//
+	// Once every child has settled (spec §18's own worked example: "✓ launch
+	// agent", no count), the count is redundant with the ✓ glyph itself and
+	// disappears — an unresolved header still needs it to show how far along
+	// the group is.
 	unit := DisplayUnit{
-		Glyph:  txt.StyleGlyph(glyph, StateColor(headerState), color),
-		Name:   col.Name,
-		Detail: fmt.Sprintf("%d/%d complete", done, total),
+		Glyph: txt.StyleGlyph(glyph, StateColor(headerState), color),
+		Name:  col.Name,
 	}
 	if unresolved {
+		unit.Detail = fmt.Sprintf("%d/%d complete", done, total)
 		unit.Elapsed = heartbeatSuffix(now, earliestLiveFirstSeen(col))
 		unit.Detail += unit.Elapsed
 	}
