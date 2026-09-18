@@ -177,3 +177,34 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 		}
 	})
 }
+
+// liveRunningHeartbeat is spec §23.1's interactive Running-frame contract:
+// a visibly different live frame within 100ms of entering Running, and at
+// least every 100ms thereafter, without the app emitting fake Progress.
+const liveRunningHeartbeat = 100 * time.Millisecond
+
+// TestLiveHeartbeat_RunningFrameChangesWithin100ms is the red-first proof
+// that Evo owns the live TTY heartbeat: a Running task with no Progress
+// still paints within 100ms of becoming Running, and the next domain-clock
+// 100ms produces a different frame (spinner glyph or equivalent). The
+// animator must tick off the injected Clock — tests never sleep.
+func TestLiveHeartbeat_RunningFrameChangesWithin100ms(t *testing.T) {
+	drv := &fakeHeartbeatSurface{}
+	clock := newHeartbeatFakeClock()
+	out := newOutput("job", withTerminal(drv), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("resolve")
+	task.Doing("working") // Running; no Progress — Evo must keep the frame alive.
+
+	first := drv.latest()
+	if first == "" {
+		t.Fatal("expected first WriteLive within 100ms of entering Running")
+	}
+
+	clock.Advance(liveRunningHeartbeat)
+	second := drv.latest()
+	if second == first {
+		t.Fatalf("live frame must change within 100ms of Running (spinner glyph or equivalent):\n%s", second)
+	}
+}
