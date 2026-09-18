@@ -346,13 +346,26 @@ func TestV8_AlreadySatisfied(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true, Stdout: &buf, Stderr: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
+	// Spec §19's suffix is ResolutionAlreadySatisfied, produced only by a
+	// pre-Define Verify that already holds — never a caller-written
+	// Done("already satisfied") summary, which would also fire if File/Exec
+	// no-op'd after Define (the case §19 forbids applying the suffix to).
+	alreadySatisfied := func(task *evo.TaskHandle) {
+		t.Helper()
+		task.Verify(func(context.Context) (bool, error) { return true, nil })
+		task.Define(func(context.Context) error {
+			t.Fatal("Define must not run once Verify reports already satisfied")
+			return nil
+		})
+	}
+
 	deploy := out.Group("deploy production")
 	deploy.Task("discover").Done()
-	deploy.Task("prepare hosts").Done("already satisfied")
-	deploy.Task("services").Done("already satisfied")
+	alreadySatisfied(deploy.Task("prepare hosts"))
+	alreadySatisfied(deploy.Task("services"))
 	launchAgent := deploy.Task("write launch agent")
 	launchAgent.Fact("path", "~/Library/LaunchAgents/com.acme.prod.agent.plist")
-	launchAgent.Done("already satisfied")
+	alreadySatisfied(launchAgent)
 	deploy.Task("cleanup").Done("nothing to do")
 
 	if err := out.Finish(); err != nil {
@@ -367,6 +380,80 @@ func TestV8_AlreadySatisfied(t *testing.T) {
 		"   path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
 		"   ✓ cleanup             nothing to do\n"
 	if got := buf.String(); got != want {
+		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+	}
+}
+
+// TestV8_StressLive is the golden for the HTML "Stress case" Replay tab's
+// live shape: a still-running Group with mixed done/running/failed children,
+// a warning on a running child, and a real evo.File permissions failure.
+// Spec wins vs the HTML where they disagree: elapsed only after 5s Running
+// (this golden advances 8s, past that threshold); empty bar cells are
+// spaces; the live region does not invent a [changed]/[planned] ledger
+// unless LiveRegion itself paints one.
+func TestV8_StressLive(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	displayPath := "~/Library/LaunchAgents/com.acme.prod.agent.plist"
+	spec, fsys := newFailedChmodFile(t, dir, displayPath)
+
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	clock := testkit.NewClock()
+	out := evo.Init(evo.Config{
+		Isolated: true, Clock: clock, Terminal: screen, FileFS: fsys,
+		StateDir: t.TempDir(), Stdout: io.Discard, Stderr: io.Discard,
+		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, MaxFrameRate: 1_000_000,
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	deploy := out.Group("deploy production")
+	deploy.Task("discover").Done()
+
+	hosts := deploy.Task("prepare hosts")
+	hosts.Doing("host-031")
+	hosts.Progress(31, 100)
+
+	services := deploy.Task("services")
+	services.Doing("payments-api")
+	services.Progress(14, 40)
+	services.Warn("audit-stream rollout slower than baseline")
+
+	agent := deploy.Task("write launch agent")
+	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
+	if err := agent.Wait(); err == nil {
+		t.Fatal("write launch agent: expected permissions failure")
+	}
+
+	cleanup := deploy.Task("cleanup")
+	cleanup.Doing("feat/cleanup…")
+	cleanup.Progress(7, 18)
+	cleanup.Warn("kept 5 (3 protected, 2 unpushed)")
+
+	clock.Advance(8 * time.Second)
+	cleanup.Progress(7, 18)
+
+	// Departures from the HTML Replay frame, all because the spec (and the
+	// already-tested live renderer) wins:
+	//   - unresolved Group header carries "N/M complete" (spec §18) plus
+	//     elapsed after 5s (spec §24); the HTML shows elapsed only.
+	//   - nested Running children keep bar/count/phase on one row (Phase
+	//     fused, not a second activity child — splitsStandaloneActivityChild
+	//     is indent==0 only); empty bar cells are spaces (spec §23).
+	//   - the File verification block stays durable-only: LiveRegion's
+	//     per-task row budget is the parent line, and the failed parent
+	//     already says "failed: permissions".
+	//   - [changed]/[planned] stay durable-only: LiveRegion does not
+	//     project the effects ledger.
+	glyph := firstRune(screen.LatestLiveText())
+	want := glyph + " deploy production  1/5 complete — 8s\n" +
+		"   ✓ discover\n" +
+		"   " + glyph + " prepare hosts  [███         ]  31/100  host-031 — 8s\n" +
+		"   " + glyph + " services   [████        ]  14/40  payments-api — 8s\n" +
+		"      ! audit-stream rollout slower than baseline\n" +
+		"   ✗ write launch agent  failed: permissions\n" +
+		"   " + glyph + " cleanup    [████        ]  7/18  feat/cleanup… — 8s\n" +
+		"      ! kept 5 (3 protected, 2 unpushed)"
+	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
 }

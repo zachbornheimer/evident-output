@@ -537,6 +537,8 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, co
 	}
 	inlineTaxonomy, inlineTaxonomyVerb, hasInlineTaxonomy := inlineTaskTaxonomy(t)
 	switch {
+	case t.Resolution == core.ResolutionAlreadySatisfied:
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, label, alreadySatisfiedRowDetail(t, color))
 	case t.Summary != "" && t.State == core.Failed:
 		// release-gate round 6 finding 5: a Fail summary is the evidence the
 		// reader most needs — it must never render at the lowest contrast on
@@ -893,6 +895,9 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int
 	case len(t.Problems) > 0:
 		headerSummary = t.Problems[0].Summary
 		fmt.Fprintf(&row, "   %s %s  %s", tg, name, headerSummary)
+	case t.Resolution == core.ResolutionAlreadySatisfied:
+		headerSummary = alreadySatisfiedDetail
+		fmt.Fprintf(&row, "   %s %s  %s", tg, name, alreadySatisfiedRowDetail(t, color))
 	case headerSummary != "":
 		fmt.Fprintf(&row, "   %s %s  %s", tg, name, headerSummary)
 	case hasInlineWarning:

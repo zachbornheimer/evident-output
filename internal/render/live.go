@@ -580,12 +580,18 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 		}
 		b.WriteString(child.Render("   "))
 		b.WriteByte('\n')
-		return
+	} else {
+		unit := liveTaskUnit(t, indent, width, spin, color, now, profile)
+		padRootName(&unit, indent, nameWidth)
+		b.WriteString(unit.Render(pad))
+		b.WriteByte('\n')
 	}
-	unit := liveTaskUnit(t, indent, width, spin, color, now, profile)
-	padRootName(&unit, indent, nameWidth)
-	b.WriteString(unit.Render(pad))
-	b.WriteByte('\n')
+	// Spec §22: warnings must not disappear. Running/Failed rows keep their
+	// diagnostic parent line (bar/count or failure summary) and nest each
+	// warning underneath — Done still inlines a short warning on the ✓ row.
+	if t.State == core.Running || t.State == core.Failed {
+		writeNestedTaskWarnings(b, t.Warnings, pad+"   ", color, profile)
+	}
 }
 
 // padRootName right-pads a standalone (indent == 0) row's name to nameWidth
@@ -638,6 +644,8 @@ func liveTaskUnit(t core.TaskSnapshot, indent, width int, spin string, color boo
 	switch {
 	case t.State == core.Done && t.Progress.Kind == core.BytesKind:
 		unit.Detail = formatBytes(t.Progress.Completed)
+	case t.Resolution == core.ResolutionAlreadySatisfied:
+		unit.Detail = alreadySatisfiedRowDetail(t, color)
 	case t.State == core.Done && t.Summary != "":
 		unit.Detail = txt.Dim(t.Summary, color)
 	case t.State == core.Running && t.Progress.Kind == core.BytesKind && t.Progress.Total > 0:
