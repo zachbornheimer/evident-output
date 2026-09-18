@@ -5,9 +5,10 @@ internal/render: human, JSON, and live projection (one package; they share Displ
 internal/text: glyphs, sanitize, width, conjugate, name truncation
 internal/agent: MCP tools (adopt, review, catalog, preview, sections, harness, rules)
 internal/wireschema: JSON schema validation for the wire documents
+internal/apisurface: public API golden/required/retired contract walk
 terminal: ANSI terminal driver
 testkit: test helpers (clock, screen, output assertions)
-cmd/evident-output: CLI (review, adopt, explain)
+cmd/evident-output: CLI (review, adopt, explain, contract)
 cmd/evident-output-mcp: MCP server
 examples: runnable demos (repo-status, doctor, data-command, …)
 conformance: release gates, goldens, TRACEABILITY

@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/apisurface"
 )
 
 // dialectSurface is the evo-rec.md public function set, plus *f formatted
@@ -426,4 +428,41 @@ func findSig(sigs []string, prefix string) string {
 		return "(absent)"
 	}
 	return strings.Join(match, ", ")
+}
+
+func TestDialectSurface_SubsetOfGoDocSurface(t *testing.T) {
+	live, err := apisurface.Walk(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var missing []string
+	for recv, sigs := range dialectSurface {
+		for _, sig := range sigs {
+			prefix := dialectGoDocPrefix(recv, sig)
+			if !surfaceHasPrefix(live, prefix) {
+				missing = append(missing, recv+" "+sig)
+			}
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		t.Fatalf("dialect methods missing from go/doc surface:\n  %s", strings.Join(missing, "\n  "))
+	}
+}
+
+func dialectGoDocPrefix(recv, sig string) string {
+	name, _, _ := strings.Cut(sig, "(")
+	if recv == "pkg" {
+		return "func " + name + "("
+	}
+	return "func (" + strings.TrimPrefix(recv, "*") + ") " + name + "("
+}
+
+func surfaceHasPrefix(live []string, prefix string) bool {
+	for _, line := range live {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+	return false
 }
