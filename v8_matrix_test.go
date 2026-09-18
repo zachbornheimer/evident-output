@@ -432,13 +432,10 @@ func TestV8_StressLive(t *testing.T) {
 	clock.Advance(8 * time.Second)
 	cleanup.Progress(7, 18)
 
-	// Departures from the HTML Replay frame, all because the spec (and the
-	// already-tested live renderer) wins:
+	// Departures from the HTML Replay frame, all because the spec wins:
 	//   - unresolved Group header carries "N/M complete" (spec §18) plus
 	//     elapsed after 5s (spec §24); the HTML shows elapsed only.
-	//   - nested Running children keep bar/count/phase on one row (Phase
-	//     fused, not a second activity child — splitsStandaloneActivityChild
-	//     is indent==0 only); empty bar cells are spaces (spec §23).
+	//   - empty bar cells are spaces (spec §23).
 	//   - the File verification block stays durable-only: LiveRegion's
 	//     per-task row budget is the parent line, and the failed parent
 	//     already says "failed: permissions".
@@ -447,11 +444,14 @@ func TestV8_StressLive(t *testing.T) {
 	glyph := firstRune(screen.LatestLiveText())
 	want := glyph + " deploy production  1/5 complete — 8s\n" +
 		"   ✓ discover\n" +
-		"   " + glyph + " prepare hosts  [███         ]  31/100  host-031 — 8s\n" +
-		"   " + glyph + " services   [████        ]  14/40  payments-api — 8s\n" +
+		"   " + glyph + " prepare hosts  [███         ]  31/100 — 8s\n" +
+		"      " + glyph + " host-031\n" +
+		"   " + glyph + " services   [████        ]  14/40 — 8s\n" +
+		"      " + glyph + " payments-api\n" +
 		"      ! audit-stream rollout slower than baseline\n" +
 		"   ✗ write launch agent  failed: permissions\n" +
-		"   " + glyph + " cleanup    [████        ]  7/18  feat/cleanup… — 8s\n" +
+		"   " + glyph + " cleanup    [████        ]  7/18 — 8s\n" +
+		"      " + glyph + " feat/cleanup…\n" +
 		"      ! kept 5 (3 protected, 2 unpushed)"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)

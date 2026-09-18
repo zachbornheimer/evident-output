@@ -553,21 +553,19 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 
 // writeLiveTaskLine renders one task row at the given indent.
 //
-// A standalone (indent == 0) Running task with a determinate bar/count AND
-// a current-activity Phase gets the same stable-parent-plus-one-activity-
-// child shape a Group's promoted lone child already has (spec §18/§23:
-// "⠋ install dependencies  [████        ]  14/40  — 7s" / "  ⠋ urllib3"):
+// A Running task with a determinate bar/count AND a current-activity Phase
+// gets spec §23's stable-parent-plus-one-activity-child shape at any
+// indent ("⠋ install dependencies  [████        ]  14/40  — 7s" /
+// "  ⠋ urllib3", and the same pair one level deeper under a Group):
 // the parent line owns the bar/count/timer only, and the current activity
 // becomes its own indented spinner line beneath it — so the child can
-// change/truncate independently without moving the timer horizontally, per
-// §18/§24. A nested (indent > 0) row already reaches this shape via its own
-// container-level handling and is unaffected.
+// change/truncate independently without moving the timer horizontally.
 func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
 	pad := ""
 	if indent > 0 {
 		pad = "   "
 	}
-	if splitsStandaloneActivityChild(t, indent) {
+	if splitsActivityChild(t) {
 		parent := t
 		parent.Phase = ""
 		unit := liveTaskUnit(parent, indent, width, spin, color, now, profile)
@@ -578,7 +576,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 			Glyph: txt.StyleGlyph(spin, StateColor(core.Running), color),
 			Name:  t.Phase,
 		}
-		b.WriteString(child.Render("   "))
+		b.WriteString(child.Render(pad + "   "))
 		b.WriteByte('\n')
 	} else {
 		unit := liveTaskUnit(t, indent, width, spin, color, now, profile)
@@ -605,13 +603,12 @@ func padRootName(unit *DisplayUnit, indent, nameWidth int) {
 	unit.Name = txt.PadRight(unit.Name, nameWidth)
 }
 
-// splitsStandaloneActivityChild reports whether t is a standalone
-// (indent == 0) Running task with a determinate progress bar/count AND a
-// current-activity Phase — the one condition writeLiveTaskLine splits into
-// a parent bar/count/timer line plus its own activity-child line.
-func splitsStandaloneActivityChild(t core.TaskSnapshot, indent int) bool {
-	return indent == 0 &&
-		t.State == core.Running &&
+// splitsActivityChild reports whether t is a Running task with a
+// determinate progress bar/count AND a current-activity Phase — the
+// condition writeLiveTaskLine splits into a parent bar/count/timer line
+// plus its own activity-child line, at any indent (spec §23).
+func splitsActivityChild(t core.TaskSnapshot) bool {
+	return t.State == core.Running &&
 		t.Progress.Kind == core.Determinate &&
 		t.Progress.Total > 0 &&
 		t.Phase != ""
