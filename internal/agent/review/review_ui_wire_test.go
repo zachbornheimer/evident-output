@@ -116,6 +116,11 @@ func f() {
 	if !hasFinding(res, "EVO-UI-003") {
 		t.Fatalf("expected EVO-UI-003 on hand-built N/M progress text: %+v", res.Findings)
 	}
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-UI-003" && f.RequiredVersion != "1.0.0" {
+			t.Fatalf("EVO-UI-003 required_version = %q, want 1.0.0", f.RequiredVersion)
+		}
+	}
 
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output"
@@ -170,6 +175,11 @@ func f() {
 	res := review.GoSource("x.go", bad)
 	if !hasFinding(res, "EVO-WIRE-001") {
 		t.Fatalf("expected EVO-WIRE-001 on json.Marshal(out.Snapshot()): %+v", res.Findings)
+	}
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-WIRE-001" && (f.Line == 0 || f.Suggestion == "" || f.RequiredVersion != "1.0.0") {
+			t.Fatalf("EVO-WIRE-001 missing file/line/migration/version: %+v", f)
+		}
 	}
 
 	good := `package p
@@ -266,6 +276,11 @@ func f() {
 	if !hasFinding(res, "EVO-EXIT-001") {
 		t.Fatalf("expected EVO-EXIT-001 on naked os.Exit(1): %+v", res.Findings)
 	}
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-EXIT-001" && (f.Line == 0 || f.Suggestion == "" || f.RequiredVersion != "1.0.0") {
+			t.Fatalf("EVO-EXIT-001 missing file/line/migration/version: %+v", f)
+		}
+	}
 
 	good := `package p
 import (
@@ -332,9 +347,60 @@ func f(cmd *cobra.Command) {
 }
 `
 	res := review.GoSource("x.go", src)
-	for _, id := range []string{"EVO-UI-001", "EVO-UI-002", "EVO-UI-003"} {
+	for _, id := range []string{"EVO-UI-001", "EVO-UI-002", "EVO-UI-003", "EVO-UI-004"} {
 		if hasFinding(res, id) {
 			t.Fatalf("false positive %s on unrelated (log/cmd) receiver: %+v", id, res.Findings)
 		}
+	}
+}
+
+func TestGoSource_EvoUI004_CallerChosenGlyphColor(t *testing.T) {
+	bad := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(name string) {
+  _ = evo.Init(evo.Config{})
+  fmt.Print("\x1b[32m[OK]\x1b[0m ", name, "\n")
+}
+`
+	res := review.GoSource("x.go", bad)
+	if !hasFinding(res, "EVO-UI-004") {
+		t.Fatalf("expected EVO-UI-004 on caller-chosen glyph/color: %+v", res.Findings)
+	}
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-UI-004" && (f.Line == 0 || f.Suggestion == "" || f.RequiredVersion != "1.0.0") {
+			t.Fatalf("EVO-UI-004 missing file/line/migration/version: %+v", f)
+		}
+	}
+
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  out := evo.Init(evo.Config{})
+  out.Task("check").Done()
+}
+`
+	res = review.GoSource("x.go", good)
+	if hasFinding(res, "EVO-UI-004") {
+		t.Fatalf("false positive EVO-UI-004 on task.Done: %+v", res.Findings)
+	}
+}
+
+func TestGoSource_EvoUI004_OrdinaryTextNotFlagged(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  _ = evo.Init(evo.Config{})
+  fmt.Println("hello")
+}
+`
+	res := review.GoSource("x.go", src)
+	if hasFinding(res, "EVO-UI-004") {
+		t.Fatalf("false positive EVO-UI-004 on ordinary Println: %+v", res.Findings)
 	}
 }

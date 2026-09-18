@@ -79,7 +79,7 @@ failure on its own Task and use Next(evo.Label(...)) for follow-up guidance inst
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
 			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Each", "Define", "Skipped", "Kept"},
-			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039"},
+			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "EVO-STAMP-001", "EVO-STAMP-002", "EVO-FACT-001", "EVO-EFFECT-001", "EVO-UI-003"},
 			Body: `Task is one atomic operation with optional Doing/Progress. Group/Sequence are collections whose state is
 derived from children — never call Done/Fail/Progress on the collection itself (API-027). A Group of
 exactly one explicit child is a lone Task (API-039): the live renderer collapses it to one line, and review flags the
@@ -159,7 +159,7 @@ Never invent a Basis entry the source code does not actually read (EVO-PROVENANC
 			Title:    "Stdout and stderr contracts",
 			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child", "exit-code", "signal"},
 			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData", "Main", "Writer"},
-			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001"},
+			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001", "EVO-WIRE-001", "EVO-EXIT-001", "EVO-UI-004"},
 			Body: `Human UI and logs must not contaminate structured stdout.
 Ordinary dual-stream: evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr}) — Config auto-applies Plain/NoColor off-TTY.
 FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr; a failed

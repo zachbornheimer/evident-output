@@ -19,10 +19,11 @@ type MigrationRow struct {
 func Migrations() []MigrationRow {
 	return []MigrationRow{
 		{
-			From:  "legacy presentation-only Task usage",
-			To:    "scheduled Task/Group/Sequence",
-			Since: "1.0.0",
-			Notes: "a Task used only to print status, with no Define/mutation verb submitting work, becomes a scheduled child of Group/Sequence",
+			From:   "legacy presentation-only Task usage",
+			To:     "scheduled Task/Group/Sequence",
+			RuleID: "EVO-STAMP-001",
+			Since:  "1.0.0",
+			Notes:  "a Task used only to print status, with no Define/mutation verb submitting work, becomes a scheduled child of Group/Sequence",
 		},
 		{
 			// EVO-EVIDENCE-001 is spec §57's detector for this shape; it
@@ -56,13 +57,11 @@ func Migrations() []MigrationRow {
 			Notes: "one Task per item under Group/Sequence gives correct progress without a hand-maintained counter",
 		},
 		{
-			// EVO-WIRE-001 is spec §57's detector for this shape; not yet
-			// implemented in this rule set, so left uncited rather than
-			// claiming a rule ID that does not resolve.
-			From:  "manual JSON struct marshal of Snapshot/Result",
-			To:    "versioned stable encoder (FormatJSON/FormatJSONL)",
-			Since: "1.0.0",
-			Notes: "internal Snapshot/Result types are not public API; the versioned encoder owns the wire schema and its version bump",
+			From:   "manual JSON struct marshal of Snapshot/Result",
+			To:     "versioned stable encoder (FormatJSON/FormatJSONL)",
+			RuleID: "EVO-WIRE-001",
+			Since:  "1.0.0",
+			Notes:  "internal Snapshot/Result types are not public API; the versioned encoder owns the wire schema and its version bump",
 		},
 		{
 			From:  "hand-built skip text (\"skipped: already done\")",

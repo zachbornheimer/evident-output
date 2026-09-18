@@ -201,13 +201,14 @@ func detectHandBuiltProgressText(fset *token.FileSet, f *ast.File, filename stri
 		}
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
-			RuleID:     "EVO-UI-003",
-			Severity:   "warning",
-			Message:    "hand-built \"N/M\" progress text duplicates counts evo already derives from Task/Group state",
-			File:       filename,
-			Line:       pos.Line,
-			Column:     pos.Column,
-			Suggestion: "replace with task.Progress(completed, total) or the owning Group/Sequence summary",
+			RuleID:          "EVO-UI-003",
+			Severity:        "warning",
+			Message:         "hand-built \"N/M\" progress text duplicates counts evo already derives from Task/Group state",
+			File:            filename,
+			Line:            pos.Line,
+			Column:          pos.Column,
+			Suggestion:      "replace with task.Progress(completed, total) or the owning Group/Sequence summary",
+			RequiredVersion: dialectOneZero,
 		})
 		return true
 	})
@@ -252,13 +253,14 @@ func detectMarshalOfInternalSnapshot(fset *token.FileSet, f *ast.File, filename 
 		snapshotCall := recv + ".Snapshot()"
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
-			RuleID:     "EVO-WIRE-001",
-			Severity:   "error",
-			Message:    "json." + fn + " marshals the internal Snapshot directly; use the sanctioned JSON encoder instead",
-			File:       filename,
-			Line:       pos.Line,
-			Column:     pos.Column,
-			Suggestion: "replace json." + fn + "(" + snapshotCall + ") with render.EncodeJSON(" + snapshotCall + ")",
+			RuleID:          "EVO-WIRE-001",
+			Severity:        "error",
+			Message:         "json." + fn + " marshals the internal Snapshot directly; use the sanctioned JSON encoder instead",
+			File:            filename,
+			Line:            pos.Line,
+			Column:          pos.Column,
+			Suggestion:      "replace json." + fn + "(" + snapshotCall + ") with render.EncodeJSON(" + snapshotCall + ")",
+			RequiredVersion: dialectOneZero,
 		})
 		return true
 	})
@@ -292,4 +294,51 @@ func detectJSONStdoutMixedWithHumanText(filename, src string) []Finding {
 		Line:       lineAt(src, loc[0]),
 		Suggestion: "route human presentation to Stderr (evo.FormatData) so stdout carries only the JSON/JSONL payload",
 	}}
+}
+
+// uiCallerStatusTokenPattern matches a caller-invented status token such as
+// [OK]/[FAIL] that evo's renderer already chooses from Task state.
+var uiCallerStatusTokenPattern = regexp.MustCompile(`\[(?:OK|FAIL(?:ED)?|ERROR|WARN(?:ING)?|PASS(?:ED)?|DONE|SUCCESS)\]`)
+
+// isCallerChosenStatusFormat reports whether literal is a hand-picked glyph,
+// ANSI color, or bracketed status word (EVO-UI-004).
+func isCallerChosenStatusFormat(literal string) bool {
+	if strings.ContainsRune(literal, '\x1b') || strings.Contains(literal, `\x1b[`) || strings.Contains(literal, `\033[`) {
+		return true
+	}
+	return uiCallerStatusTokenPattern.MatchString(literal)
+}
+
+// detectCallerChosenGlyphColor flags fmt/evo Print-family calls whose
+// literal chooses glyph, color, or a free-form status token that evo's
+// renderer already derives from Task state (EVO-UI-004).
+func detectCallerChosenGlyphColor(fset *token.FileSet, f *ast.File, filename string) []Finding {
+	var findings []Finding
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !isPrintFamilyMethod(sel.Sel.Name) || !isFmtOrEvoPrintReceiver(sel.X) {
+			return true
+		}
+		literal, ok := printLiteralArg(call)
+		if !ok || !isCallerChosenStatusFormat(literal) {
+			return true
+		}
+		pos := fset.Position(n.Pos())
+		findings = append(findings, Finding{
+			RuleID:          "EVO-UI-004",
+			Severity:        "warning",
+			Message:         "caller chooses glyph/color/status formatting that evo's renderer already derives from Task state",
+			File:            filename,
+			Line:            pos.Line,
+			Column:          pos.Column,
+			Suggestion:      "delete the hand-picked glyph/color; resolve the task through Done/Fail/Warn/Block and let the renderer choose",
+			RequiredVersion: dialectOneZero,
+		})
+		return true
+	})
+	return findings
 }

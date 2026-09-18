@@ -8,11 +8,10 @@ import (
 
 // TestExplainEvoUIWireFamily covers the spec §57 EVO-UI-*/EVO-WIRE-*/
 // EVO-EXIT-*/EVO-LIVE-* rules: every one is registered, has a full payload,
-// and only the two rules with no cheap honest static detector (EVO-UI-004,
-// EVO-WIRE-002 — see their Why comments) are Detection=guidance.
+// and only EVO-WIRE-002 (schema-affecting encoder edits need a two-revision
+// diff) is Detection=guidance.
 func TestExplainEvoUIWireFamily(t *testing.T) {
 	guidanceOnly := map[string]bool{
-		"EVO-UI-004":   true,
 		"EVO-WIRE-002": true,
 	}
 	for _, id := range []string{
