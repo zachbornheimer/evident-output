@@ -56,3 +56,25 @@ func TestWriteLiveTaskLine_GroupChildSplitsActivity(t *testing.T) {
 		t.Fatalf("activity child under a Group child must indent six spaces, got %q", lines[1])
 	}
 }
+
+func TestLiveRegion_ProjectsChangedAndPlannedLedger(t *testing.T) {
+	t.Parallel()
+	snap := core.Snapshot{
+		Tasks: []core.TaskSnapshot{{Name: "work", State: core.Done}},
+		Changes: []core.ChangesSnapshot{{
+			Subject: "branches",
+			Records: []core.EffectRecord{{Verb: "deleted", Quantity: 5, HasQty: true, Object: "local tip"}},
+		}},
+		Plans: []core.PlanSnapshot{{
+			Subject: "remote-tracking",
+			Records: []core.EffectRecord{{Verb: "fetch-prune", Quantity: 12, HasQty: true, Object: "stale origin/*"}},
+		}},
+	}
+	got := LiveRegion(snap, 24, 80, time.Time{}, false, txt.GlyphsUnicode)
+	if !strings.Contains(got, "[changed] branches") || !strings.Contains(got, "deleted 5 local tips") {
+		t.Fatalf("missing [changed] ledger:\n%s", got)
+	}
+	if !strings.Contains(got, "[planned] remote-tracking") || !strings.Contains(got, "fetch-prune 12 stale origin/*") {
+		t.Fatalf("missing [planned] ledger:\n%s", got)
+	}
+}

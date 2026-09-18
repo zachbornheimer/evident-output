@@ -407,7 +407,9 @@ func TestV8_StressLive(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	deploy := out.Group("deploy production")
-	deploy.Task("discover").Done()
+	discover := deploy.Task("discover")
+	discover.Record("delete", 5, "local tip")
+	discover.Done()
 
 	hosts := deploy.Task("prepare hosts")
 	hosts.Doing("host-031")
@@ -428,6 +430,7 @@ func TestV8_StressLive(t *testing.T) {
 	cleanup.Doing("feat/cleanup…")
 	cleanup.Progress(7, 18)
 	cleanup.Warn("kept 5 (3 protected, 2 unpushed)")
+	cleanup.Record("fetch-prune", 12, "stale origin/*")
 
 	clock.Advance(8 * time.Second)
 	cleanup.Progress(7, 18)
@@ -436,11 +439,12 @@ func TestV8_StressLive(t *testing.T) {
 	//   - unresolved Group header carries "N/M complete" (spec §18) plus
 	//     elapsed after 5s (spec §24); the HTML shows elapsed only.
 	//   - empty bar cells are spaces (spec §23).
-	//   - the File verification block stays durable-only: LiveRegion's
-	//     per-task row budget is the parent line, and the failed parent
-	//     already says "failed: permissions".
-	//   - [changed]/[planned] stay durable-only: LiveRegion does not
-	//     project the effects ledger.
+	//   - File verification Facts nest one level under the failed attribute
+	//     (writeVerificationDetails), so path/mode appear under permissions
+	//     rather than sharing the HTML's i2 indent with "error".
+	//   - both Records land in [changed]: Config.DryRun is run-wide, and a
+	//     dry run would skip the chmod failure this golden needs. LiveRegion
+	//     still projects s.Plans as [planned] when a dry-run run has them.
 	glyph := firstRune(screen.LatestLiveText())
 	want := glyph + " deploy production  1/5 complete — 8s\n" +
 		"   ✓ discover\n" +
@@ -450,9 +454,17 @@ func TestV8_StressLive(t *testing.T) {
 		"      " + glyph + " payments-api\n" +
 		"      ! audit-stream rollout slower than baseline\n" +
 		"   ✗ write launch agent  failed: permissions\n" +
+		"      - contents  already satisfied\n" +
+		"      ✗ permissions\n" +
+		"        error  operation not permitted\n" +
+		"        path   " + displayPath + "\n" +
+		"        mode   0644\n" +
 		"   " + glyph + " cleanup    [████        ]  7/18 — 8s\n" +
 		"      " + glyph + " feat/cleanup…\n" +
-		"      ! kept 5 (3 protected, 2 unpushed)"
+		"      ! kept 5 (3 protected, 2 unpushed)\n" +
+		"\n" +
+		"[changed] discover   deleted 5 local tips\n" +
+		"[changed] cleanup    pruned 12 stale origin/*"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

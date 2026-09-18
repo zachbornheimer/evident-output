@@ -70,6 +70,17 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, color bool, p
 	for _, t := range s.Tasks {
 		writeLiveTaskLine(&b, t, 0, nameWidth, width, spin, color, now, profile)
 	}
+	if hasTaskRows(s) && hasEffectSections(s) {
+		b.WriteByte('\n')
+	}
+	changeNameWidth := maxEffectSubjectWidth(s.Changes, func(c core.ChangesSnapshot) string { return c.Subject })
+	for _, ch := range s.Changes {
+		WriteEffects(&b, "changed", ch.Subject, changeNameWidth, ch.Records, ch.IntendedVerb, width, color, profile)
+	}
+	planNameWidth := maxEffectSubjectWidth(s.Plans, func(p core.PlanSnapshot) string { return p.Subject })
+	for _, p := range s.Plans {
+		WriteEffects(&b, "planned", p.Subject, planNameWidth, p.Records, p.IntendedVerb, width, color, profile)
+	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
@@ -589,6 +600,9 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	// warning underneath — Done still inlines a short warning on the ✓ row.
 	if t.State == core.Running || t.State == core.Failed {
 		writeNestedTaskWarnings(b, t.Warnings, pad+"   ", color, profile)
+	}
+	if t.State == core.Failed {
+		writeVerificationDetails(b, t.Verification, pad+"   ", true, false, color, profile)
 	}
 }
 
