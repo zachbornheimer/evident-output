@@ -28,7 +28,7 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 	color := !noColor
 
 	if s.DryRun {
-		WritePlannedHeader(&b, color, s.Preview, s.DryRunSubject)
+		WritePlannedHeader(&b, color, s.Preview, s.DryRunSubject, s.Subject)
 	}
 
 	for _, line := range s.Lines {
@@ -1123,27 +1123,37 @@ const dryRunMarkerText = "no changes will be made"
 // <path>"), merged onto this one line instead of streaming as a second
 // durable line — a blank line separates the header from whatever follows,
 // matching the fixture's "ONE header line ... blank line after". Empty
-// subject falls back to the plain announcement text, unchanged from before
-// Config.Subject existed.
+// subject falls back to title (Config.Title), then to the plain announcement
+// text, so a Title-only dry-run still names the run after coalesce suppresses
+// the trailing [planned] <title> band.
 //
 // preview drops the tag entirely: a preview before a confirm gate announces
 // the subject it is about to ask about ("repo <path>"), because telling the
 // user nothing will happen and then asking them to authorize it is the
 // contradiction the dialect's screenshot regression names. A preview with no
-// subject has nothing to announce and writes nothing.
-func WritePlannedHeader(b *strings.Builder, color, preview bool, subject string) {
+// subject (and no title) has nothing to announce and writes nothing.
+func WritePlannedHeader(b *strings.Builder, color, preview bool, subject, title string) {
+	body := plannedHeaderBody(subject, title)
 	if preview {
-		if subject != "" {
-			fmt.Fprintf(b, "%s\n\n", subject)
+		if body != "" {
+			fmt.Fprintf(b, "%s\n\n", body)
 		}
 		return
 	}
-	tag := txt.Style("[dry-run]", effectColor("planned"), color)
-	body := dryRunMarkerText
-	if subject != "" {
-		body = subject
+	if body == "" {
+		body = dryRunMarkerText
 	}
+	tag := txt.Style("[dry-run]", effectColor("planned"), color)
 	fmt.Fprintf(b, "%s %s\n\n", tag, body)
+}
+
+// plannedHeaderBody is Config.Subject if set, else Config.Title, else empty
+// so WritePlannedHeader can still apply the dry-run announcement default.
+func plannedHeaderBody(subject, title string) string {
+	if subject != "" {
+		return subject
+	}
+	return title
 }
 
 // conclusionPartialModifier is the literal suffix that marks the printed

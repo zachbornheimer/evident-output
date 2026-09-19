@@ -498,7 +498,7 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectCrammedSummary(filename, src)...)
 	}
 
-	// FP-005: Task created and Done with no Doing/Progress/Writer window.
+	// FP-005: Task created and Done with no Define/mutation/Warn/Fact first.
 	if hasEvo {
 		findings = append(findings, detectInstantDone(filename, f, fset)...)
 	}
