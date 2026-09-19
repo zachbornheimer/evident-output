@@ -9,8 +9,10 @@ import (
 // ShouldSuppressStandaloneConclusion implements DEC-COAL-* for human projection.
 //
 // Model and structured JSON always retain independent core.Conclusion + Plan/Changes.
-// Only the trailing human conclusion band may be omitted when it repeats a single
-// effect section with no extra visible information.
+// The trailing human conclusion band is omitted when a planned/changed/ready run
+// already has a non-empty Plan or Changes ledger — including Warned runs, whose
+// warnings already sit on task "!" rows. Failed/blocked/cancelled/partial and
+// Explanation/Actions still keep the band.
 //
 // See docs/decisions/conclusion-coalescing.md.
 func ShouldSuppressStandaloneConclusion(s core.Snapshot) bool {
@@ -23,23 +25,25 @@ func ShouldSuppressStandaloneConclusion(s core.Snapshot) bool {
 		return c.Explanation == "" && len(c.Actions) == 0 && !c.Partial && !c.Cancelled && !c.Warned
 	}
 
-	// Extra visible conclusion dimensions — never suppress. Warned joins
-	// Partial/Cancelled here (P2): a warned-but-otherwise-suppressible run
-	// must not have its "· warned" modifier silently swallowed along with
-	// the band it rides on (the same class of gap release-gate round 8
-	// finding 3 fixed for the non-suppressed case).
-	if c.Explanation != "" || len(c.Actions) > 0 || c.Partial || c.Cancelled || c.Warned {
+	// Extra visible conclusion dimensions — never suppress. Warned still
+	// keeps the band when there is no Plan/Changes ledger: "· warned" is
+	// then the only run-level signal. A non-empty ledger already shows the
+	// work, and task "!" rows already carry the warning, so Warned does
+	// not keep a content-free title band in that case.
+	if c.Explanation != "" || len(c.Actions) > 0 || c.Partial || c.Cancelled {
+		return false
+	}
+	if c.Warned && !hasEffectRecords(s) {
 		return false
 	}
 
 	// DryRun's own subject header already told the complete story
 	// (fixture-repo-retire-dryrun.md: "NO ledger row for tasks/binaries with
 	// no effects"): once WriteDryRunMarker rendered s.DryRunSubject and the
-	// derived verdict settled on a pure StatePlanned (failed/blocked/warned/
-	// partial/cancelled are all already excluded above), a trailing
-	// "[planned]" band repeats information the header plus the per-section
-	// [planned] ledger rows already gave — regardless of how many effect
-	// sections exist, unlike the single-section rule below.
+	// derived verdict settled on StatePlanned (failed/blocked/partial/
+	// cancelled are already excluded above), a trailing "[planned]" band
+	// repeats information the header plus the per-section [planned] ledger
+	// rows already gave — regardless of how many effect sections exist.
 	if s.DryRun && s.DryRunSubject != "" && c.State == core.StatePlanned {
 		return true
 	}
@@ -55,6 +59,10 @@ func ShouldSuppressStandaloneConclusion(s core.Snapshot) bool {
 	default:
 		// failed, blocked, warning, cancelled, partial, …
 		return false
+	}
+
+	if hasEffectRecords(s) {
+		return true
 	}
 
 	nChanges := len(s.Changes)
@@ -89,6 +97,20 @@ func ShouldSuppressStandaloneConclusion(s core.Snapshot) bool {
 
 func semanticResultCount(s core.Snapshot) int {
 	return len(s.Tasks) + len(s.Collections) + len(s.Changes) + len(s.Plans)
+}
+
+func hasEffectRecords(s core.Snapshot) bool {
+	for _, ch := range s.Changes {
+		if len(ch.Records) > 0 {
+			return true
+		}
+	}
+	for _, p := range s.Plans {
+		if len(p.Records) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func shouldSuppressRepeatedCondition(s core.Snapshot, c core.Conclusion) bool {

@@ -36,11 +36,9 @@ import (
 //     Subject string was composed with the word "prune" already implying
 //     dry-run intent to a human reader, not because evo should stop
 //     tagging dry runs.
-//   - a trailing "[planned · warned]" band still appears: existing,
-//     already-tested behavior (TestCoalesce_DryRunWarned_KeepsTrailingConclusion)
-//     deliberately keeps the trailing band whenever a warned task's
-//     modifier would otherwise vanish along with it — true here too, since
-//     inline "! kept" lines are evidence, not a "· warned" outcome marker.
+//   - no trailing "[planned · warned]" band: the three [planned] ledger
+//     rows already carry the mutations, and the task "!" rows already
+//     carry the warnings (TestCoalesce_DryRunWarned_SuppressesTrailingConclusion).
 func TestV8_DryRunPlanOnly(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -85,9 +83,7 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 		"\n" +
 		"[planned] branches          delete 40 local tips\n" +
 		"[planned] worktrees         remove 1 worktree\n" +
-		"[planned] remote-tracking   delete 4 stale origin/*\n" +
-		"\n" +
-		"[planned · warned]\n"
+		"[planned] remote-tracking   delete 4 stale origin/*\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -98,12 +94,12 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 //
 // The frame's closing "prune  nothing to clean" line (no bracket tag, no
 // glyph) is not evo's own conclusion band shape — every other tab's closing
-// band is bracket-tagged ("[dry-run]", "[cancelled]", "[planned · warned]"),
-// and a warned run (branches did warn "kept 1") always keeps its own
-// "· warned" band per the same rule TestV8_DryRunPlanOnly documents. Read
-// as the application's own convenience Println of its "nothing to clean"
-// verdict — layered on top of, not instead of, evo's own standard
-// conclusion band, which the mockup's frame simply did not also transcribe.
+// band is bracket-tagged ("[dry-run]", "[cancelled]", "[ready · warned]").
+// This run has no Plan/Changes ledger, so the warned conclusion band stays:
+// "· warned" is the only run-level signal. Read as the application's own
+// convenience Println of its "nothing to clean" verdict — layered on top
+// of, not instead of, evo's own standard conclusion band, which the
+// mockup's frame simply did not also transcribe.
 func TestV8_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
