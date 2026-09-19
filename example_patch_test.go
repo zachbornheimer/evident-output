@@ -63,3 +63,37 @@ func ExamplePatch() {
 	// hello
 	// there
 }
+
+// ExamplePatchSpec names a unified diff to derive FileSpecs from —
+// constructing it performs no I/O; passing it to Patch is what
+// fingerprints the named sources and returns desired file state.
+func ExamplePatchSpec() {
+	spec := evo.PatchSpec{
+		Diff: []byte("" +
+			"--- a/hello.txt\n" +
+			"+++ b/hello.txt\n" +
+			"@@ -1,2 +1,2 @@\n" +
+			" hello\n" +
+			"-world\n" +
+			"+there\n"),
+		Dir: ".",
+	}
+	fmt.Println(len(spec.Diff) > 0)
+	// Output:
+	// true
+}
+
+// ExamplePatchResult is the desired file state Patch derived in memory —
+// constructing it performs no I/O; callers pass result.Files through to
+// File to commit that state.
+func ExamplePatchResult() {
+	result := evo.PatchResult{
+		Files: []evo.FileSpec{{
+			Path:     "hello.txt",
+			Contents: []byte("hello\nthere\n"),
+		}},
+	}
+	fmt.Println(len(result.Files), result.Files[0].Path)
+	// Output:
+	// 1 hello.txt
+}
