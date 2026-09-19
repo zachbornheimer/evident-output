@@ -630,7 +630,18 @@ func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
 	<-wtStarted
 	<-brStarted
 
+	// One child of each Group has started; siblings may still paint as
+	// pending until the scheduler admits them. Snapshot only after the
+	// live frame shows both Groups with no pending rows.
+	deadline := time.Now().Add(2 * time.Second)
 	got := screen.LatestLiveText()
+	for time.Now().Before(deadline) {
+		if strings.Contains(got, "worktrees") && strings.Contains(got, "branches") && strings.Count(got, "○") == 0 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+		got = screen.LatestLiveText()
+	}
 	if !strings.Contains(got, "worktrees") || !strings.Contains(got, "branches") {
 		t.Fatalf("want both Groups in the live frame, got:\n%s", got)
 	}
