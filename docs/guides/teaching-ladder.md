@@ -5,26 +5,35 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 ## Ladder (spec §44 order)
 
 ```text
-1. Task + Define — one atomic operation; Define(fn func(context.Context) error) is the
-   scheduling and execution boundary. Mutation verbs (Delete/Create/Update/…) are the
-   dry-run-aware equivalent for effects.
-2. Group / Sequence — independent vs ordered collections, one named Task per item
-   (`Group.Each`/`Sequence.Each` were removed in 1.0); After for a DAG edge nesting
-   cannot express.
-3. evo.File for declarative managed-state file content.
-4. evo.Exec for external work with declared outputs (planned; not yet implemented).
-5. A Task's Basis of Fingerprint values (evo.FSPath/evo.Value/evo.App) when freshness
-   depends on semantic external inputs beyond File/Exec's own tracking.
-6. After for exceptional execution dependencies a Sequence would otherwise express.
-7. Facts / warnings / Effects / dry-run — Task.Fact, Task.Warn, Config.DryRun.
-8. Task.Verify(func(context.Context) (bool, error)) only for domains Evo cannot track
-   automatically — never the default way to make ordinary work idempotent.
-9. Top-level Config.Format / Config.Verbosity — only when the host CLI needs machine or
-   verbose output; never set per Task.
+1. Task + Define — one atomic operation with a verb+object name; Define(fn
+   func(context.Context) error) is the scheduling and execution boundary.
+   Define already resolves from the callback — do not call Done after it.
+   Mutation verbs (Delete/Create/Update/…) are the dry-run-aware equivalent
+   for effects.
+2. Group / Sequence — independent vs ordered collections, one named Task per
+   item.
+3. evo.File for declarative managed-state file content (inside Define).
+4. evo.Patch — derive FileSpecs from a unified diff; pass result.Files through
+   to File. Copying only Path/Contents into a new FileSpec drops Patch Basis.
+5. A Task's Basis of Fingerprint values (evo.FSPath/evo.Value/evo.App) when
+   freshness depends on semantic external inputs beyond File/Exec's own
+   tracking.
+6. Facts / problems — Task.Fact, Task.Fail/Block with Detail; never a Task
+   named by a file path just to show the problem.
+7. Effects / dry-run — Config.DryRun, Record, mutation verbs. Planned work is
+   not Done("would add").
+8. evo.Exec for external work with declared outputs (implemented).
+9. After — advanced DAG edge Sequence cannot express. Not a lock, not for
+   same-path File contention, not a caller-owned Wait goroutine.
+10. Task.Verify(func(context.Context) (bool, error)) only for domains Evo cannot
+    track automatically — never the default way to make ordinary work idempotent.
+11. Top-level Config.Format / Config.Verbosity — only when the host CLI needs
+    machine or verbose output; never set per Task.
 
 Task's mutation verbs (Delete/Create/…) pick [planned] vs [changed] from Config.DryRun on the
 ordinary path — no separate Plan/Changes call site exists to reach for. Quantity is
 evo.Affected(n) when one atomic operation touches more than one item.
+Println and Task.Done remain as compatibility; they are not the beginner path.
 ```
 
 ## Standalone (package-level default instance)
