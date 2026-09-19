@@ -55,6 +55,31 @@ func withAppEnvironment(env appEnvironment, fn func()) {
 	fn()
 }
 
+// fakeAppEnvironment is a fixed executable-bytes observation for tests that
+// must simulate an application-fingerprint change without replacing the
+// process binary mid-run.
+type fakeAppEnvironment struct {
+	identity []byte
+}
+
+const fakeAppExecutablePath = "/evident-output/fake-app"
+
+func (f fakeAppEnvironment) Executable() (string, error) { return fakeAppExecutablePath, nil }
+func (f fakeAppEnvironment) ReadFile(path string) ([]byte, error) {
+	if path != fakeAppExecutablePath {
+		return nil, os.ErrNotExist
+	}
+	return append([]byte(nil), f.identity...), nil
+}
+func (f fakeAppEnvironment) ReadBuildInfo() (string, bool) { return "", false }
+
+// WithFakeApp runs fn while App() observes identity as the running
+// executable's bytes, restoring the previous facade afterward. Test-only:
+// production call sites must not set application identity.
+func WithFakeApp(identity string, fn func()) {
+	withAppEnvironment(fakeAppEnvironment{identity: []byte(identity)}, fn)
+}
+
 // appFingerprint implements Fingerprint for App().
 type appFingerprint struct{}
 

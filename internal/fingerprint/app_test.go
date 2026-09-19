@@ -7,7 +7,9 @@ import (
 	"testing"
 )
 
-type fakeAppEnvironment struct {
+// stubAppEnvironment is a fully controllable app facade for white-box cases
+// (unreadable executable, build-ID fallback, unavailable).
+type stubAppEnvironment struct {
 	exePath      string
 	exeErr       error
 	fileContents map[string][]byte
@@ -15,18 +17,18 @@ type fakeAppEnvironment struct {
 	buildOK      bool
 }
 
-func (f fakeAppEnvironment) Executable() (string, error) { return f.exePath, f.exeErr }
-func (f fakeAppEnvironment) ReadFile(path string) ([]byte, error) {
+func (f stubAppEnvironment) Executable() (string, error) { return f.exePath, f.exeErr }
+func (f stubAppEnvironment) ReadFile(path string) ([]byte, error) {
 	b, ok := f.fileContents[path]
 	if !ok {
 		return nil, os.ErrNotExist
 	}
 	return b, nil
 }
-func (f fakeAppEnvironment) ReadBuildInfo() (string, bool) { return f.buildID, f.buildOK }
+func (f stubAppEnvironment) ReadBuildInfo() (string, bool) { return f.buildID, f.buildOK }
 
 func TestAppFingerprintsExecutableBytesWhenReadable(t *testing.T) {
-	env := fakeAppEnvironment{
+	env := stubAppEnvironment{
 		exePath:      "/bin/app",
 		fileContents: map[string][]byte{"/bin/app": []byte("binary-v1")},
 	}
@@ -57,7 +59,7 @@ func TestAppFingerprintsExecutableBytesWhenReadable(t *testing.T) {
 }
 
 func TestAppFallsBackToBuildIDWhenExecutableUnreadable(t *testing.T) {
-	env := fakeAppEnvironment{
+	env := stubAppEnvironment{
 		exeErr:  os.ErrNotExist,
 		buildID: "example.com/mod@deadbeef",
 		buildOK: true,
@@ -76,12 +78,32 @@ func TestAppFallsBackToBuildIDWhenExecutableUnreadable(t *testing.T) {
 }
 
 func TestAppUnavailableIsTypedError(t *testing.T) {
-	env := fakeAppEnvironment{exeErr: os.ErrNotExist, buildOK: false}
+	env := stubAppEnvironment{exeErr: os.ErrNotExist, buildOK: false}
 	var err error
 	withAppEnvironment(env, func() {
 		_, err = App().Fingerprint(context.Background())
 	})
 	if !errors.Is(err, ErrAppFingerprintUnavailable) {
 		t.Fatalf("err = %v, want ErrAppFingerprintUnavailable", err)
+	}
+}
+
+func TestWithFakeAppChangesObservedDigest(t *testing.T) {
+	var first, second FingerprintValue
+	var err error
+	WithFakeApp("app-v1", func() {
+		first, err = App().Fingerprint(context.Background())
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	WithFakeApp("app-v2", func() {
+		second, err = App().Fingerprint(context.Background())
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Digest == second.Digest {
+		t.Fatal("WithFakeApp identities must produce distinct App digests")
 	}
 }

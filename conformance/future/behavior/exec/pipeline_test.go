@@ -219,11 +219,10 @@ func TestV06PipelineCompilePyChangeRespawnsOnlyCompile(t *testing.T) {
 }
 
 // TestV06PipelineUnrelatedFileChangeSpawnsNeitherStage proves a change to a
-// file neither stage declares in Basis or Outputs never disturbs either —
-// only evo.App() in Basis would make an application-binary change relevant
-// (spec §64), which this repo's own test binary identity is not practical
-// to vary within one `go test` process; see docs/acceptance/v0.6.md for
-// that narrowing.
+// file neither stage declares in Basis or Outputs never disturbs either.
+// Application-fingerprint change with/without evo.App() in Basis is covered
+// by TestV06PipelineAppFingerprintChangeWithPreciseBasisSpawnsNeitherStage
+// and TestV06ExecAppFingerprintChangeWithAppBasisRespawns.
 func TestV06PipelineUnrelatedFileChangeSpawnsNeitherStage(t *testing.T) {
 	state := t.TempDir()
 	f := newPipelineFixture(t)
