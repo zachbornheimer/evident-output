@@ -1,6 +1,8 @@
 package review_test
 
 import (
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -33,13 +35,47 @@ func TestEVOSTAMP001_DoneUsedAsPrintf_Fires(t *testing.T) {
 	if !strings.Contains(f.Suggestion, "Define") && !strings.Contains(f.Suggestion, "evo.File") {
 		t.Fatalf("suggestion does not name Define/evo.File: %q", f.Suggestion)
 	}
+	if thenDone.MatchString(f.Suggestion) {
+		t.Fatalf("STAMP-001 suggestion must not prescribe Done after Define: %q", f.Suggestion)
+	}
 }
+
+var thenDone = regexp.MustCompile(`then.{0,80}Done\(\)`)
 
 func TestEVOSTAMP001_DoneAfterFile_StaysSilent(t *testing.T) {
 	res := review.GoSource("stamp_001_good.go", readFixture(t, "stamp_001_good.go"))
 	assertNoFinding(t, res, "EVO-STAMP-001")
 	assertNoFinding(t, res, "EVO-FACT-001")
 	assertNoFinding(t, res, "EVO-EFFECT-001")
+	assertNoFinding(t, res, "EVO-STAMP-003")
+}
+
+func TestEVOSTAMP003_DefineThenDone_Fires(t *testing.T) {
+	res := review.GoSource("stamp_003_bad.go", readFixture(t, "stamp_003_bad.go"))
+	f := assertFinding(t, res, "EVO-STAMP-003")
+	assertFindingShape(t, f, "EVO-STAMP-003")
+	if thenDone.MatchString(f.Suggestion) {
+		t.Fatalf("STAMP-003 suggestion must not tell the caller to add Done: %q", f.Suggestion)
+	}
+	if strings.Contains(strings.ToLower(f.Suggestion), "then") && strings.Contains(f.Suggestion, "Done()") {
+		t.Fatalf("STAMP-003 suggestion must not prescribe then Done(): %q", f.Suggestion)
+	}
+}
+
+func TestEVOSTAMP003_DefineOnly_StaysSilent(t *testing.T) {
+	res := review.GoSource("stamp_003_good.go", readFixture(t, "stamp_003_good.go"))
+	assertNoFinding(t, res, "EVO-STAMP-003")
+	assertNoFinding(t, res, "EVO-STAMP-001")
+}
+
+func TestEVOSTAMP_SourceOmitsThenDonePrescription(t *testing.T) {
+	src, err := os.ReadFile("review_stamp.go")
+	if err != nil {
+		t.Fatalf("read review_stamp.go: %v", err)
+	}
+	if thenDone.Match(src) {
+		t.Fatalf("review_stamp.go still prescribes then Done(); Define already resolves")
+	}
 }
 
 func TestEVOSTAMP002_DuplicateLoopLabel_Fires(t *testing.T) {
@@ -105,6 +141,7 @@ func TestEVOStampFactEffect_PreOneZeroPin_StaySilent(t *testing.T) {
 	}{
 		{"EVO-STAMP-001", "stamp_001_bad.go"},
 		{"EVO-STAMP-002", "stamp_002_bad.go"},
+		{"EVO-STAMP-003", "stamp_003_bad.go"},
 		{"EVO-FACT-001", "fact_001_bad.go"},
 		{"EVO-EFFECT-001", "effect_001_bad.go"},
 	}

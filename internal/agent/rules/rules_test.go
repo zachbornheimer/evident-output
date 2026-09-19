@@ -182,6 +182,8 @@ func TestExplainEvidenceDAGRules(t *testing.T) {
 	for _, id := range []string{
 		"EVO-EVIDENCE-001", "EVO-VERIFY-001", "EVO-DRYRUN-001",
 		"EVO-DAG-001", "EVO-DAG-002", "EVO-DAG-003",
+		"EVO-DAG-004", "EVO-DAG-005", "EVO-DAG-006",
+		"EVO-LIVE-002", "EVO-FILE-002",
 	} {
 		r, ok := rules.Explain(id)
 		if !ok {

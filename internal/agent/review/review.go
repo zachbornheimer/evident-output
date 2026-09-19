@@ -592,6 +592,11 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectDuplicateSiblingTaskLabels(filename, f, fset)...)
 	}
 
+	// EVO-STAMP-003: Define already resolves; Done after it double-resolves.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectDefineThenDone(filename, f, fset)...)
+	}
+
 	// EVO-FACT-001: informational data stamped as fake Task success.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectInformationalDataAsFakeTaskSuccess(filename, f, fset)...)
@@ -600,6 +605,36 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// EVO-EFFECT-001: planned mutation narrated through Done.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectPlannedMutationNarratedThroughDone(filename, f, fset)...)
+	}
+
+	// EVO-STAMP-004: noun-only / fake-phase Task names.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectNounOnlyOrFakePhaseTaskName(filename, f, fset)...)
+	}
+
+	// EVO-FACT-002: file path used as a Task just to show a problem.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectFilePathUsedAsProblemTask(filename, f, fset)...)
+	}
+
+	// EVO-DAG-004: custom writeLocks/readLocks / //fix-schedule/ scheduler.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectCustomSchedulerAroundEvo(filename, f, fset)...)
+	}
+
+	// EVO-DAG-005: goroutine waiting on Task.Wait to sequence Evo work.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectGoroutineWaitingOnTaskWait(filename, f, fset)...)
+	}
+
+	// EVO-DAG-006: After encoding same-path File contention.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectResourceContentionEncodedAsAfter(filename, f, fset)...)
+	}
+
+	// EVO-LIVE-002: time.NewTicker poking Doing/Progress to keep the UI alive.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectAppHeartbeatTicker(filename, f, fset)...)
 	}
 
 	// API-027: Done/Fail/Progress on Group/Sequence (name-match).
@@ -617,6 +652,11 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	if hasEvo {
 		findings = append(findings, detectManualFileReconciliation(filename, f, fset)...)
 		findings = append(findings, detectExpensiveWorkBeforeFileOp(filename, f, fset)...)
+	}
+
+	// EVO-FILE-002: Patch Basis dropped by reconstructing FileSpec.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectPatchBasisDropped(filename, f, fset)...)
 	}
 
 	// EVO-EXEC-001: raw exec guarded by a hand-rolled freshness check.

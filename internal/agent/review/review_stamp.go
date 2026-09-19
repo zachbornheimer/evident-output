@@ -1,6 +1,7 @@
-// Package review — EVO-STAMP-001/002, EVO-FACT-001, EVO-EFFECT-001:
-// Done used as a generic print, a repeated sibling Task label, a fake
-// Task success for information, or a planned mutation narrated as Done.
+// Package review — EVO-STAMP-001/002/003, EVO-FACT-001, EVO-EFFECT-001:
+// Done used as a generic print, a repeated sibling Task label, Define
+// followed by Done (double-resolution), a fake Task success for
+// information, or a planned mutation narrated as Done.
 package review
 
 import (
@@ -123,11 +124,72 @@ func stamp001InBody(filename string, body *ast.BlockStmt, fset *token.FileSet, d
 		findings = append(findings, stampFinding(
 			"EVO-STAMP-001", "warning",
 			"Task.Done is used as a generic print (format-string prose) with no preceding Define/File",
-			"call "+recvHint+".Define(...) or evo.File, then "+recvHint+".Done() with no format args; Done is a resolution, not printf",
+			"call "+recvHint+".Define(func(ctx context.Context) error { return evo.File(ctx, evo.FileSpec{Path: path, Contents: data}) }); Define already resolves from the callback — do not call Done after it",
 			filename, pos,
 		))
 		return true
 	})
+	return findings
+}
+
+// detectDefineThenDone is EVO-STAMP-003: the same named Task handle calls
+// Define and later Done. Define already resolves from the callback
+// outcome; Done after it is double-resolution.
+func detectDefineThenDone(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	disproven := evoDisprovenVars(file)
+	var findings []Finding
+	forEachFuncBody(file, func(body *ast.BlockStmt) {
+		findings = append(findings, stamp003InBody(filename, body, fset, disproven)...)
+	})
+	return findings
+}
+
+func stamp003InBody(filename string, body *ast.BlockStmt, fset *token.FileSet, disproven map[string]bool) []Finding {
+	defines := map[string][]token.Pos{}
+	var dones []struct {
+		recv string
+		pos  token.Pos
+	}
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !isLikelyEvoTaskReceiver(sel.X, disproven) {
+			return true
+		}
+		recv := exprDottedName(sel.X)
+		if recv == "" {
+			return true
+		}
+		switch sel.Sel.Name {
+		case "Define":
+			defines[recv] = append(defines[recv], call.Pos())
+		case "Done":
+			dones = append(dones, struct {
+				recv string
+				pos  token.Pos
+			}{recv: recv, pos: call.Pos()})
+		}
+		return true
+	})
+	var findings []Finding
+	for _, d := range dones {
+		for _, defPos := range defines[d.recv] {
+			if d.pos <= defPos {
+				continue
+			}
+			pos := fset.Position(d.pos)
+			findings = append(findings, stampFinding(
+				"EVO-STAMP-003", "error",
+				"Task.Done after Define on the same handle double-resolves; Define already resolves from the callback outcome",
+				"delete "+d.recv+".Done() — "+d.recv+".Define already resolves the task from the callback outcome",
+				filename, pos,
+			))
+			break
+		}
+	}
 	return findings
 }
 

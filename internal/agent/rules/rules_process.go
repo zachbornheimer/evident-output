@@ -37,6 +37,27 @@ out.Println("still going...") // routed through the same writer the live region 
 			Since:           "1.0.0",
 			Certainty:       "deterministic",
 		},
+		{
+			ID:        "EVO-LIVE-002",
+			Category:  "LIVE",
+			Severity:  "warning",
+			Invariant: "application code does not run a ticker to poke Doing/Progress just to keep the live region alive",
+			Why:       "Evo already heartbeats the live region from elapsed time. A time.NewTicker loop that calls Doing/Progress exists only to keep the spinner moving, fights the live renderer, and hides whether the work is slow or hung.",
+			BadCode: `ticker := time.NewTicker(time.Second)
+for range ticker.C {
+  task.Doing("still working")
+}
+`,
+			GoodCode: `task := out.Task("push branch")
+task.Doing("pushing feat/a")
+task.Define(func(ctx context.Context) error { return push(ctx) })
+`,
+			Remediation:     "Delete the time.NewTicker loop; call task.Doing only when the activity text actually changes",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"EVO-LIVE-002"},
+			Since:           "1.0.0",
+			Certainty:       "heuristic",
+		},
 	}
 }
 

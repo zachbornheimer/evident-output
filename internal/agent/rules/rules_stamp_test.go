@@ -8,7 +8,8 @@ import (
 
 func TestExplainEvoStampFactEffectFamily(t *testing.T) {
 	for _, id := range []string{
-		"EVO-STAMP-001", "EVO-STAMP-002", "EVO-FACT-001", "EVO-EFFECT-001",
+		"EVO-STAMP-001", "EVO-STAMP-002", "EVO-STAMP-003", "EVO-STAMP-004",
+		"EVO-FACT-001", "EVO-FACT-002", "EVO-EFFECT-001",
 	} {
 		r, ok := rules.Explain(id)
 		if !ok {

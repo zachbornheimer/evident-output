@@ -1,6 +1,6 @@
-// Fixture: EVO-STAMP-001 must stay silent. Define + evo.File submits and
-// resolves the work; Done after Define is EVO-STAMP-003, not this rule.
-package stamp001
+// Fixture: EVO-STAMP-003 must stay silent. Define + evo.File already
+// resolves; there is no Done after it.
+package stamp003
 
 import (
 	"context"

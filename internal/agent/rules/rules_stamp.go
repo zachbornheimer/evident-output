@@ -1,8 +1,9 @@
 package rules
 
 // stampRules is the EVO-STAMP-*/EVO-FACT-001/EVO-EFFECT-001 family: Done
-// used as a print, a duplicate sibling label, a fake-success Fact, or a
-// planned mutation narrated as if it already succeeded.
+// used as a print, a duplicate sibling label, Define followed by Done,
+// a fake-success Fact, or a planned mutation narrated as if it already
+// succeeded.
 func stampRules() []Rule {
 	return []Rule{
 		{
@@ -18,7 +19,7 @@ t.Define(func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
 })
 `,
-			Remediation:     "Submit the work with Define or evo.File, then Done() with no format-string prose — or delete the stamp if Define already resolves the task",
+			Remediation:     "Submit the work with Define (or evo.File inside Define). Do not call Done after Define — Define already resolves from the callback",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"EVO-STAMP-001"},
 			Since:           "1.0.0",
@@ -46,6 +47,29 @@ for _, path := range paths {
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "EVO-STAMP-003",
+			Category:  "STAMP",
+			Severity:  "error",
+			Invariant: "Define already resolves the Task from the callback outcome; Done after Define is double-resolution",
+			Why:       "t.Define(fn) submits work and resolves the row from fn's error. A later t.Done() tries to resolve the same handle a second time. MCP suggestions that say Define then Done teach this bug.",
+			BadCode: `t := out.Task("write config")
+t.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
+})
+t.Done()
+`,
+			GoodCode: `t := out.Task("write config")
+t.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
+})
+`,
+			Remediation:     "Delete Done after Define — Define already resolves from the callback. Do not add Done to close the row",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"EVO-STAMP-003"},
+			Since:           "1.0.0",
+			Certainty:       "deterministic",
+		},
+		{
 			ID:        "EVO-FACT-001",
 			Category:  "FACT",
 			Severity:  "warning",
@@ -58,6 +82,41 @@ t.Fact("mapped to", dest)
 			Remediation:     "Replace Done(\"mapped to...\") with task.Fact(name, value) on the Task that discovered the information",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"EVO-FACT-001"},
+			Since:           "1.0.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "EVO-STAMP-004",
+			Category:  "STAMP",
+			Severity:  "warning",
+			Invariant: "Task names are verb+object, never a fake phase or a bare noun",
+			Why:       "Task(\"resolve\"), Task(\"finalize\"), and Task(\"file integrity\") name a phase or a thing, not the work. The row cannot tell a reader what happened, and MCP/agents invent a second Task to \"finalize\" work Define already resolved.",
+			BadCode: `out.Task("resolve")
+out.Task("file integrity").Fail("checksum mismatch")
+`,
+			GoodCode: `t := out.Task("check file integrity")
+t.Define(func(ctx context.Context) error { return check(path) })
+`,
+			Remediation:     "Rename the Task to a verb+object phrase for the actual work (e.g. Task(\"check file integrity\"))",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"EVO-STAMP-004"},
+			Since:           "1.0.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "EVO-FACT-002",
+			Category:  "FACT",
+			Severity:  "warning",
+			Invariant: "a file path is a Fact or problem attachment on the owning Task, never a Task name used to display the path",
+			Why:       "Task(issue.File).Fail paints a row whose name is a path. The work that found the problem already has a Task; the path belongs as Fact(\"file\", issue.File) or a Fail on that owner.",
+			BadCode:   `out.Task(issue.File).Fail("checksum mismatch")`,
+			GoodCode: `t := out.Task("check file integrity")
+t.Fact("file", issue.File)
+t.Fail("checksum mismatch")
+`,
+			Remediation:     "Call owning.Fail(...) and owning.Fact(\"file\", issue.File) on the Task that owns the work; do not declare Task(issue.File)",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"EVO-FACT-002"},
 			Since:           "1.0.0",
 			Certainty:       "heuristic",
 		},

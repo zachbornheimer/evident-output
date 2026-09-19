@@ -191,6 +191,69 @@ func detectRawExecWithManualFreshness(filename string, file *ast.File, fset *tok
 	return findings
 }
 
+// detectPatchBasisDropped is EVO-FILE-002: copying only Path/Contents from
+// a Patch result into a new FileSpec drops the Patch-time Basis snapshot.
+func detectPatchBasisDropped(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
+	var findings []Finding
+	forEachFuncBody(file, func(body *ast.BlockStmt) {
+		if !funcCallsNamed(body, pkg, "Patch") {
+			return
+		}
+		ast.Inspect(body, func(n ast.Node) bool {
+			lit, ok := n.(*ast.CompositeLit)
+			if !ok || !isFileSpecLit(lit, pkg) {
+				return true
+			}
+			fields := compositeKV(lit)
+			pathExpr, hasPath := fields["Path"]
+			contentsExpr, hasContents := fields["Contents"]
+			if !hasPath || !hasContents {
+				return true
+			}
+			if _, hasBasis := fields["Basis"]; hasBasis {
+				return true
+			}
+			if !selectorEndsWith(pathExpr, "Path") || !selectorEndsWith(contentsExpr, "Contents") {
+				return true
+			}
+			pos := fset.Position(lit.Pos())
+			findings = append(findings, Finding{
+				RuleID:          "EVO-FILE-002",
+				Severity:        "error",
+				Message:         "copying Path/Contents into a new FileSpec drops Patch Basis; pass the PatchResult spec through",
+				File:            filename,
+				Line:            pos.Line,
+				Column:          pos.Column,
+				Suggestion:      "pass the PatchResult FileSpec to evo.File(ctx, spec) — do not construct evo.FileSpec{Path: spec.Path, Contents: spec.Contents}",
+				RequiredVersion: dialectOneZero,
+			})
+			return true
+		})
+	})
+	return findings
+}
+
+func funcCallsNamed(body *ast.BlockStmt, pkg, name string) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if calledFuncDotted(call) == pkg+"."+name {
+			found = true
+		}
+		return !found
+	})
+	return found
+}
+
+func selectorEndsWith(e ast.Expr, name string) bool {
+	sel, ok := e.(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == name
+}
+
 // callsFreshnessHelper reports whether cond calls a function whose name
 // hints at a hand-rolled staleness check (see freshnessCheckNameHints).
 func callsFreshnessHelper(cond ast.Expr) bool {
