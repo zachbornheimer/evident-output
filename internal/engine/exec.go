@@ -84,6 +84,9 @@ func Exec(ctx context.Context, spec ExecSpec) error {
 		return err
 	}
 	defer scope.endPublicResource()
+	if err := task.out.recordCancelledExec(ctx, spec); err != nil {
+		return err
+	}
 	holds, err := task.out.execHolds(spec)
 	if err != nil {
 		return err
@@ -133,8 +136,8 @@ func (o *Output) reconcileExec(ctx context.Context, taskID string, spec ExecSpec
 }
 
 // recordCancelledExec reports ctx's error as misuse (spec: a cancelled Run
-// must never look like it silently succeeded) before Exec does anything
-// else — the same guard reconcileFile applies for File.
+// must never look like it silently succeeded) before Exec acquires a path
+// hold or spawns — the same guard recordCancelledFile applies for File.
 func (o *Output) recordCancelledExec(ctx context.Context, spec ExecSpec) error {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		wrapped := fmt.Errorf("evo: Exec %q: %w", spec.Executable, ctxErr)

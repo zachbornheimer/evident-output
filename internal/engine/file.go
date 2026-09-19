@@ -78,6 +78,9 @@ func File(ctx context.Context, spec FileSpec) error {
 		return err
 	}
 	defer scope.endPublicResource()
+	if err := task.out.recordCancelledFile(ctx, spec); err != nil {
+		return err
+	}
 	holds, err := task.out.fileHolds(spec)
 	if err != nil {
 		return err
@@ -88,6 +91,20 @@ func File(ctx context.Context, spec FileSpec) error {
 	}
 	defer drop()
 	return task.out.reconcileFile(ctx, task.id, spec)
+}
+
+// recordCancelledFile reports ctx's error as misuse (spec: a cancelled Run
+// must never look like it silently succeeded) before File acquires a path
+// hold or mutates — the same guard recordCancelledExec applies for Exec.
+func (o *Output) recordCancelledFile(ctx context.Context, spec FileSpec) error {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		wrapped := fmt.Errorf("evo: File %q: %w", spec.Path, ctxErr)
+		o.mu.Lock()
+		o.recordMisuse(wrapped)
+		o.mu.Unlock()
+		return wrapped
+	}
+	return nil
 }
 
 func (spec FileSpec) stalePatchBasis(ctx context.Context) error {
@@ -113,19 +130,8 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 	if spec.Path == "" {
 		return ErrFileSpecMissingPath
 	}
-	if err := ctx.Err(); err != nil {
-		wrapped := fmt.Errorf("evo: File %q: %w", spec.Path, err)
-		// A cancelled Run must never look like it silently succeeded: File
-		// refusing a promised mutation because its context is already done
-		// is exactly the kind of caller-visible outcome Output.Err() exists
-		// to surface (the same first-recorded-issue channel Key/duplicate/
-		// limit misuse already reports through). recordMisuse assumes its
-		// caller already holds o.mu (every other call site in this package
-		// is itself already inside a locked section).
-		o.mu.Lock()
-		o.recordMisuse(wrapped)
-		o.mu.Unlock()
-		return wrapped
+	if err := o.recordCancelledFile(ctx, spec); err != nil {
+		return err
 	}
 
 	path := o.resolveWorkspacePath(spec.Path)
