@@ -356,16 +356,16 @@ func (r secretRedactor) RedactString(s string) string {
 
 // TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput proves
 // spec §11.6/§64's known-producer barrier itself, deterministically: once a
-// producer has claimed a canonical Output (spec: claiming opens the gate
-// immediately, before that operation's spawn even starts), a consumer's
-// concurrent Basis fingerprint on that same path blocks until the producer
+// producer Task has claimed a canonical Output (spec: claiming opens the
+// gate immediately, before that operation's spawn even starts), a consumer
+// Task's Basis fingerprint on that same path waits until the producer
 // settles, then observes its *final* written content — never an
-// intermediate/missing state. Both Exec calls run concurrently from within
-// one Task's Define (taskScope keys off ctx, not goroutine) so the test
-// controls ordering directly instead of racing the scheduler's own Task
-// start order — the scheduler is deliberately not exercised here; a real
-// pipeline still declares After()/Sequence for real ordering, proven
-// end-to-end in conformance/future/behavior/exec's §64 fixtures.
+// intermediate/missing state. The two Exec calls occupy separate Tasks
+// (one public resource each) as Group siblings. The consumer is submitted
+// only after the claim, so awaitOutputBarrier — not a caller goroutine,
+// After edge, or public Lock — sees an open gate rather than a missing
+// one. A real pipeline still declares After()/Sequence for real ordering,
+// proven end-to-end in conformance/future/behavior/exec's §64 fixtures.
 func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.T) {
 	dir := t.TempDir()
 	schemaPath := filepath.Join(dir, "schema.json")
@@ -375,9 +375,10 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 		t.Fatal(err)
 	}
 
+	const finalSchema = "final-schema"
 	gate := make(chan struct{})
 	producerRunner := &scriptedRunner{exitCode: 0, gate: gate, onRun: func() {
-		if err := os.WriteFile(schemaPath, []byte("final-schema"), 0o644); err != nil {
+		if err := os.WriteFile(schemaPath, []byte(finalSchema), 0o644); err != nil {
 			t.Error(err)
 		}
 	}}
@@ -391,34 +392,36 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 	t.Cleanup(func() { _ = out.Close() })
 
 	consumerObservedSchema := make(chan string, 1)
-	producerDone := make(chan struct{})
-	task := out.Task("pipeline")
-	task.Define(func(taskCtx context.Context) error {
-		go func() {
-			defer close(producerDone)
-			_ = Exec(taskCtx, ExecSpec{Executable: normalizeTool, Dir: dir, Outputs: []string{"schema.json"}})
-		}()
+	pipeline := out.Group("pipeline")
+	producer := pipeline.Task("normalize schema")
+	consumer := pipeline.Task("compile schema")
+	producer.Define(func(ctx context.Context) error {
+		return Exec(ctx, ExecSpec{Executable: normalizeTool, Dir: dir, Outputs: []string{"schema.json"}})
+	})
 
-		// Wait for the producer's claim (spec: opened at claim time, before
-		// its spawn) so the consumer's check is guaranteed to find the gate
-		// already open — proving the barrier, not luck, does the blocking.
-		canonPath := out.resolveWorkspacePath(schemaPath)
-		for {
-			out.mu.Lock()
-			_, claimed := out.manifestClaims[canonPath]
-			out.mu.Unlock()
-			if claimed {
-				break
-			}
-			time.Sleep(time.Millisecond)
+	// Wait for the producer's claim (spec: opened at claim time, before
+	// its spawn) so the consumer's Basis check is guaranteed to find the
+	// gate already open — proving the barrier, not luck, does the blocking.
+	// Consumer is declared as a Group sibling but not submitted until the
+	// claim exists; submitting both at once lets the consumer's read hold
+	// win and fingerprint a missing schema.json (no gate yet).
+	canonPath := out.resolveWorkspacePath(schemaPath)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		out.mu.Lock()
+		_, claimed := out.manifestClaims[canonPath]
+		out.mu.Unlock()
+		if claimed {
+			break
 		}
+		if time.Now().After(deadline) {
+			t.Fatal("producer never claimed schema.json")
+		}
+		time.Sleep(time.Millisecond)
+	}
 
-		go func() {
-			time.Sleep(20 * time.Millisecond)
-			close(gate)
-		}()
-
-		err := Exec(taskCtx, ExecSpec{
+	consumer.Define(func(ctx context.Context) error {
+		err := Exec(ctx, ExecSpec{
 			Executable: compileTool, Dir: dir,
 			Basis:   []fingerprint.Fingerprint{fingerprint.FSPath(schemaPath)},
 			Outputs: []string{"compiled.txt"},
@@ -429,14 +432,13 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 		} else {
 			consumerObservedSchema <- ""
 		}
-		<-producerDone
 		return err
 	})
-	_ = task.Wait()
+	close(gate)
 
 	select {
 	case observed := <-consumerObservedSchema:
-		if observed != "final-schema" {
+		if observed != finalSchema {
 			t.Fatalf("consumer observed schema.json = %q, want the producer's final content", observed)
 		}
 	case <-time.After(2 * time.Second):
