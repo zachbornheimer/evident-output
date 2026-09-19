@@ -129,7 +129,9 @@ func TestLiveHeartbeat_RunningNoPhaseZeroTotalAnimates(t *testing.T) {
 // all-Pending-at-start shapes — anyChildPendingActive currently requires
 // t.Phase != "" on top of Pending, so a child that never called Phase (the
 // normal case) never animates the header, and it freezes on the derivedState
-// "-" (Incomplete) glyph instead.
+// "-" (Incomplete) glyph instead. Sequence keeps that header; a
+// non-sequential Group of independently named children flattens to sibling
+// rows (TestLiveHeartbeat_GroupSiblingsRenderAsAlignedParentRows).
 func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testing.T) {
 	spinnerFrame := func(now time.Time) string { return txt.SpinnerGlyph(now, GlyphsUnicode) }
 
@@ -139,11 +141,11 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
 		t.Cleanup(func() { _ = out.Close() })
 
-		grp := out.Group("fix")
-		grp.Task("a").Done()
-		grp.Task("b").Done()
-		grp.Task("c").Done()
-		grp.Task("goimports") // stays Pending
+		seq := out.Sequence("fix")
+		seq.Task("a").Done()
+		seq.Task("b").Done()
+		seq.Task("c").Done()
+		seq.Task("goimports") // stays Pending
 
 		out.mu.Lock()
 		out.renderLiveLocked(true)
@@ -162,9 +164,9 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
 		t.Cleanup(func() { _ = out.Close() })
 
-		grp := out.Group("fix")
-		grp.Task("a")
-		grp.Task("b")
+		seq := out.Sequence("fix")
+		seq.Task("a")
+		seq.Task("b")
 
 		out.mu.Lock()
 		out.renderLiveLocked(true)
@@ -182,6 +184,148 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 // a visibly different live frame within 100ms of entering Running, and at
 // least every 100ms thereafter, without the app emitting fake Progress.
 const liveRunningHeartbeat = 100 * time.Millisecond
+
+// TestLiveHeartbeat_GroupSiblingsRenderAsAlignedParentRows is the red-first
+// proof for spec §23's live parallel prune shape: a non-sequential Group of
+// independently named children is those children as the story — aligned
+// parent rows with determinate progress, a stable timer, and one indented
+// current-activity child — never a "N/M complete" group header that jams
+// Phase onto the parent bar.
+func TestLiveHeartbeat_GroupSiblingsRenderAsAlignedParentRows(t *testing.T) {
+	drv := &fakeHeartbeatSurface{}
+	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	out := newOutput("prune", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
+	t.Cleanup(func() { _ = out.Close() })
+
+	grp := out.Group("prune")
+	branches := grp.Task("branches")
+	worktrees := grp.Task("worktrees")
+	remotes := grp.Task("remote-tracking")
+
+	branches.Step(120, 459, "feat/style-contract")
+	worktrees.Step(70, 294, "eapp-system-style-contract-heading")
+	remotes.Step(1, 4, "origin/old-style")
+
+	clock.Advance(5 * time.Second)
+	out.mu.Lock()
+	out.renderLiveLocked(true)
+	frame := drv.latest()
+	out.mu.Unlock()
+
+	if strings.Contains(frame, "complete") {
+		t.Fatalf("independently named Group siblings must not spend a live header on N/M complete:\n%s", frame)
+	}
+	for _, name := range []string{"branches", "worktrees", "remote-tracking"} {
+		if !strings.Contains(frame, name) {
+			t.Fatalf("want parent name %q in the live frame:\n%s", name, frame)
+		}
+	}
+	for _, count := range []string{"120/459", "70/294", "1/4"} {
+		if !strings.Contains(frame, count) {
+			t.Fatalf("want count %q in the live frame:\n%s", count, frame)
+		}
+	}
+
+	var sawIndentedActivity bool
+	for _, line := range strings.Split(frame, "\n") {
+		if strings.HasPrefix(line, "   ") && strings.Contains(line, "feat/style-contract") {
+			sawIndentedActivity = true
+			if strings.Contains(line, " — ") {
+				t.Fatalf("timer must stay on the parent line, not the activity child:\n%s", frame)
+			}
+		}
+		if strings.Contains(line, "120/459") && !strings.Contains(line, " — ") {
+			t.Fatalf("parent row must keep the elapsed timer:\n%s", frame)
+		}
+	}
+	if !sawIndentedActivity {
+		t.Fatalf("want an indented current-item line under at least one parent:\n%s", frame)
+	}
+}
+
+// TestLiveHeartbeat_GroupKeepsHeaderWithoutTwoDeterminateChildren is the
+// red-first proof that H.20's mixed Group still owns a header: one
+// determinate Bytes child plus one indeterminate Phase child is not the
+// spec §23 prune flatten. The group name and N/M complete stay.
+func TestLiveHeartbeat_GroupKeepsHeaderWithoutTwoDeterminateChildren(t *testing.T) {
+	drv := &fakeHeartbeatSurface{}
+	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
+	t.Cleanup(func() { _ = out.Close() })
+
+	grp := out.Group("dependencies")
+	react := grp.Task("react")
+	esbuild := grp.Task("esbuild")
+	sharp := grp.Task("sharp")
+	sharp.Doing("verifying")
+	esbuild.Bytes(12_400_000, 18_000_000)
+	react.Bytes(8_100_000, 8_100_000)
+	react.Done()
+
+	out.mu.Lock()
+	out.renderLiveLocked(true)
+	frame := drv.latest()
+	out.mu.Unlock()
+
+	header := strings.SplitN(frame, "\n", 2)[0]
+	if !strings.Contains(header, "dependencies") || !strings.Contains(header, "1/3 complete") {
+		t.Fatalf("want the group header with N/M complete, got:\n%s", frame)
+	}
+}
+
+// TestLiveHeartbeat_KeepHeaderWhenIndeterminateSiblingRemains is the
+// red-first proof that two Bytes-running children do not flatten the Group
+// while a third is still phase-only (H.20's live window: react+esbuild
+// have Bytes, sharp is Doing("verifying")). Mixed determinate + phase-only
+// keeps the N/M complete header.
+func TestLiveHeartbeat_KeepHeaderWhenIndeterminateSiblingRemains(t *testing.T) {
+	drv := &fakeHeartbeatSurface{}
+	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
+	t.Cleanup(func() { _ = out.Close() })
+
+	grp := out.Group("dependencies")
+	react := grp.Task("react")
+	esbuild := grp.Task("esbuild")
+	sharp := grp.Task("sharp")
+	react.Bytes(8_100_000, 8_100_000)
+	esbuild.Bytes(12_400_000, 18_000_000)
+	sharp.Doing("verifying")
+
+	out.mu.Lock()
+	out.renderLiveLocked(true)
+	frame := drv.latest()
+	out.mu.Unlock()
+
+	if !strings.Contains(frame, "complete") {
+		t.Fatalf("mixed determinate + phase-only Group must keep the N/M complete header:\n%s", frame)
+	}
+}
+
+// TestLiveHeartbeat_SettledGroupKeepsHeader is the red-first proof that a
+// fully resolved Group still wraps its children — V8's "✓ launch agent"
+// shape. Flatten is only for in-flight determinate siblings.
+func TestLiveHeartbeat_SettledGroupKeepsHeader(t *testing.T) {
+	drv := &fakeHeartbeatSurface{}
+	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
+	t.Cleanup(func() { _ = out.Close() })
+
+	agent := out.Group("launch agent")
+	agent.Task("write plist").Done()
+	agent.Task("register").Done()
+	agent.Task("start").Done()
+
+	out.mu.Lock()
+	out.renderLiveLocked(true)
+	frame := drv.latest()
+	out.mu.Unlock()
+
+	header := strings.SplitN(frame, "\n", 2)[0]
+	if !strings.Contains(header, "launch agent") {
+		t.Fatalf("settled Group must keep its header:\n%s", frame)
+	}
+}
 
 // TestLiveHeartbeat_RunningFrameChangesWithin100ms is the red-first proof
 // that Evo owns the live TTY heartbeat: a Running task with no Progress

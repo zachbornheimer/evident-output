@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 	"sync/atomic"
@@ -30,6 +31,13 @@ type waitTicket struct {
 	depth  int
 	abort  chan struct{}
 }
+
+// errWaitFailed is what TaskHandle.Wait returns for a task that resolved
+// Failed without the callback returning an error — Failf/Fail inside Define
+// with `return nil`. The Failf error is not retained on that path; the row
+// summary is. It stays unexported: the failed row already states itself,
+// and the waiter needs "this did not succeed", not a second public name.
+var errWaitFailed = errors.New("evo: awaited task failed")
 
 // Define lives in verify.go, alongside its Verify-aware execution wiring
 // (runDefine) — both are one concern (§7, §9.1).
@@ -865,8 +873,10 @@ func (st *taskState) closeDoneLocked() {
 // immediately rather than blocking on work that will never happen (P15).
 //
 // A task that never ran — an abandoned queue, a predecessor that failed —
-// returns ErrNotStarted rather than nil, and a cancelled one returns its
-// cancellation: Wait never reports success for work that did not happen.
+// returns ErrNotStarted rather than nil, a cancelled one returns its
+// cancellation, and a Failed one returns the callback's error or the Failf
+// summary: Wait never reports success for work that did not happen or that
+// failed.
 //
 // A waiter has stopped doing work, so the concurrency ceiling must not be
 // the reason the task it waits on cannot start (P16). Wait therefore runs
@@ -898,10 +908,12 @@ func (o *Output) unreachableWaitOutcome(taskID string) error {
 }
 
 // waitOutcome is the truth Wait owes its caller: the error the callback
-// returned, or — when the callback never ran at all — the reason it did not.
-// Answering with the zero value of "what the callback returned" is how a
-// waiter came to resolve Done directly above the row admitting the work it
-// awaited never started.
+// returned, or — when the callback never ran at all, or resolved Failed
+// without returning that error (Failf inside Define, then `return nil`) —
+// the reason the work did not succeed. Answering with the zero value of
+// "what the callback returned" is how a waiter came to resolve Done
+// directly above the row admitting the work it awaited never started, or
+// failed.
 func (o *Output) waitOutcome(taskID string) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -915,6 +927,8 @@ func (o *Output) waitOutcome(taskID string) error {
 		return ErrNotStarted
 	case st.state == Cancelled:
 		return cancelledWaitOutcome(st.summary)
+	case st.state == Failed:
+		return failedWaitOutcome(st.summary)
 	default:
 		return nil
 	}
@@ -928,6 +942,16 @@ func cancelledWaitOutcome(reason string) error {
 		return errWaitCancelled
 	}
 	return fmt.Errorf("%w: %s", errWaitCancelled, reason)
+}
+
+// failedWaitOutcome carries the Failf/Fail summary the failed row already
+// shows into the waiter's error, so Wait cannot report success for work
+// that resolved Failed.
+func failedWaitOutcome(reason string) error {
+	if reason == "" {
+		return errWaitFailed
+	}
+	return fmt.Errorf("%w: %s", errWaitFailed, reason)
 }
 
 // waitSubmitted parks until the task resolves, and reports whether it did.

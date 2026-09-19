@@ -238,6 +238,116 @@ func TestWait_FromOutsideAnyCallbackStillBlocks(t *testing.T) {
 	}
 }
 
+// TestWait_FailfInsideDefineIsAnError pins that Wait reports a Failf
+// inside Define as failure. Returning the Failf error already sets workErr;
+// returning nil after Failf used to answer Wait with success, so a waiter
+// resolved Done above a failed child.
+func TestWait_FailfInsideDefineIsAnError(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		callback  func(*evo.TaskHandle) error
+		wantCause error
+	}{
+		{
+			name: "returns Failf error",
+			callback: func(task *evo.TaskHandle) error {
+				return task.Failf("lint failed: %w", errProbe)
+			},
+			wantCause: errProbe,
+		},
+		{
+			name: "returns nil after Failf",
+			callback: func(task *evo.TaskHandle) error {
+				_ = task.Failf("lint failed: %w", errProbe)
+				return nil
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out := isolatedScheduler(t, 1, io.Discard, false)
+			task := out.Task("lint")
+			task.Define(func(ctx context.Context) error {
+				return tc.callback(task)
+			})
+			withinBudget(t, "Finish after Failf inside Define", func() {
+				_ = out.Finish()
+			})
+
+			var waitErr error
+			withinBudget(t, "Wait after Failf inside Define", func() {
+				waitErr = task.Wait()
+			})
+
+			if waitErr == nil {
+				t.Fatal("Wait = nil, want the task's failure")
+			}
+			if tc.wantCause != nil && !errors.Is(waitErr, tc.wantCause) {
+				t.Fatalf("Wait = %v, want errors.Is(..., %v)", waitErr, tc.wantCause)
+			}
+			if !strings.Contains(waitErr.Error(), "lint failed") {
+				t.Fatalf("Wait = %q, want it to carry the Failf summary", waitErr)
+			}
+			if got := task.Snapshot().State; got != evo.Failed {
+				t.Fatalf("task state = %v, want Failed", got)
+			}
+		})
+	}
+}
+
+// TestWait_FailfWakesWaiterBeforeCallbackReturns pins the Failf timing:
+// finish closes doneCh under the same lock that sets Failed, so a parked
+// waiter unparks before executeWork records workErr. Wait must still
+// return the failure — not nil — in that window.
+func TestWait_FailfWakesWaiterBeforeCallbackReturns(t *testing.T) {
+	t.Parallel()
+	out := isolatedScheduler(t, 1, io.Discard, false)
+
+	started := make(chan struct{})
+	releaseFail := make(chan struct{})
+	holdReturn := make(chan struct{})
+	task := out.Task("lint")
+	task.Define(func(ctx context.Context) error {
+		close(started)
+		<-releaseFail
+		_ = task.Failf("lint failed: %w", errProbe)
+		<-holdReturn
+		return nil
+	})
+
+	withinBudget(t, "Failf callback starting", func() {
+		<-started
+	})
+	waited := make(chan error, 1)
+	go func() { waited <- task.Wait() }()
+	select {
+	case err := <-waited:
+		t.Fatalf("Wait returned %v before Failf", err)
+	case <-time.After(waitProbe):
+	}
+
+	close(releaseFail)
+	var waitErr error
+	withinBudget(t, "Wait waking at Failf before the callback returns", func() {
+		waitErr = <-waited
+	})
+	if waitErr == nil {
+		t.Fatal("Wait = nil, want the task's failure")
+	}
+	if !strings.Contains(waitErr.Error(), "lint failed") {
+		t.Fatalf("Wait = %q, want it to carry the Failf summary", waitErr)
+	}
+
+	close(holdReturn)
+	withinBudget(t, "Finish after Failf waiter woke", func() {
+		_ = out.Finish()
+	})
+	if got := task.Snapshot().State; got != evo.Failed {
+		t.Fatalf("task state = %v, want Failed", got)
+	}
+}
+
 // waitProbe is how long a wait that must still be blocking is observed
 // before the test accepts that it is. Short: it costs every run this long,
 // and a deadlock rule that fires at all fires immediately.
