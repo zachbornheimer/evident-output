@@ -11,6 +11,7 @@ func fileAndExecRules() []Rule {
 	return []Rule{
 		fileReconciliationRule(),
 		rawExecFreshnessRule(),
+		patchBasisDroppedRule(),
 	}
 }
 
@@ -70,5 +71,40 @@ func rawExecFreshnessRule() Rule {
 		VerificationIDs: []string{"EVO-EXEC-001"},
 		Since:           "1.0.0",
 		Certainty:       "heuristic",
+	}
+}
+
+func patchBasisDroppedRule() Rule {
+	return Rule{
+		ID:        "EVO-FILE-002",
+		Category:  "EVO",
+		Severity:  "error",
+		Invariant: "a FileSpec derived by Patch is passed through to File; copying Path/Contents drops Patch Basis",
+		Why:       "Patch snapshots source files as Basis on each derived FileSpec. Constructing evo.FileSpec{Path: spec.Path, Contents: spec.Contents} drops that snapshot, so File cannot detect a stale source before writing.",
+		BadCode: `result, err := evo.Patch(ctx, evo.PatchSpec{Diff: diff, Dir: dir})
+if err != nil {
+  return err
+}
+for _, spec := range result.Files {
+  if err := evo.File(ctx, evo.FileSpec{Path: spec.Path, Contents: spec.Contents}); err != nil {
+    return err
+  }
+}
+`,
+		GoodCode: `result, err := evo.Patch(ctx, evo.PatchSpec{Diff: diff, Dir: dir})
+if err != nil {
+  return err
+}
+for _, spec := range result.Files {
+  if err := evo.File(ctx, spec); err != nil {
+    return err
+  }
+}
+`,
+		Remediation:     "Pass the PatchResult FileSpec to evo.File(ctx, spec); do not construct a new FileSpec from Path/Contents",
+		RelatedGuidance: []string{"evo-file-exec", "provenance"},
+		VerificationIDs: []string{"EVO-FILE-002"},
+		Since:           "1.0.0",
+		Certainty:       "deterministic",
 	}
 }

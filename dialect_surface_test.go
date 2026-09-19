@@ -10,9 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/apisurface"
 )
 
 // dialectSurface is the evo-rec.md public function set, plus *f formatted
@@ -31,6 +34,7 @@ var dialectSurface = map[string][]string{
 		"FSPath(path string)",
 		"File(ctx context.Context, spec FileSpec)",
 		"Exec(ctx context.Context, spec ExecSpec)",
+		"Patch(ctx context.Context, spec PatchSpec)",
 		"Runner(r ProcessRunner)",
 		"Value(name string, v any)",
 		"Confirm(question string, opts ...ConfirmOption)",
@@ -407,12 +411,7 @@ func joinOrNone(ss []string) string {
 }
 
 func containsSig(sigs []string, want string) bool {
-	for _, s := range sigs {
-		if s == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(sigs, want)
 }
 
 func findSig(sigs []string, prefix string) string {
@@ -426,4 +425,41 @@ func findSig(sigs []string, prefix string) string {
 		return "(absent)"
 	}
 	return strings.Join(match, ", ")
+}
+
+func TestDialectSurface_SubsetOfGoDocSurface(t *testing.T) {
+	live, err := apisurface.Walk(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var missing []string
+	for recv, sigs := range dialectSurface {
+		for _, sig := range sigs {
+			prefix := dialectGoDocPrefix(recv, sig)
+			if !surfaceHasPrefix(live, prefix) {
+				missing = append(missing, recv+" "+sig)
+			}
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		t.Fatalf("dialect methods missing from go/doc surface:\n  %s", strings.Join(missing, "\n  "))
+	}
+}
+
+func dialectGoDocPrefix(recv, sig string) string {
+	name, _, _ := strings.Cut(sig, "(")
+	if recv == "pkg" {
+		return "func " + name + "("
+	}
+	return "func (" + strings.TrimPrefix(recv, "*") + ") " + name + "("
+}
+
+func surfaceHasPrefix(live []string, prefix string) bool {
+	for _, line := range live {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+	return false
 }

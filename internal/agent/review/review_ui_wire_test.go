@@ -1,6 +1,7 @@
 package review_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
@@ -116,6 +117,11 @@ func f() {
 	if !hasFinding(res, "EVO-UI-003") {
 		t.Fatalf("expected EVO-UI-003 on hand-built N/M progress text: %+v", res.Findings)
 	}
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-UI-003" && f.RequiredVersion != "1.0.0" {
+			t.Fatalf("EVO-UI-003 required_version = %q, want 1.0.0", f.RequiredVersion)
+		}
+	}
 
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output"
@@ -170,6 +176,11 @@ func f() {
 	res := review.GoSource("x.go", bad)
 	if !hasFinding(res, "EVO-WIRE-001") {
 		t.Fatalf("expected EVO-WIRE-001 on json.Marshal(out.Snapshot()): %+v", res.Findings)
+	}
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-WIRE-001" && (f.Line == 0 || f.Suggestion == "" || f.RequiredVersion != "1.0.0") {
+			t.Fatalf("EVO-WIRE-001 missing file/line/migration/version: %+v", f)
+		}
 	}
 
 	good := `package p
@@ -266,6 +277,11 @@ func f() {
 	if !hasFinding(res, "EVO-EXIT-001") {
 		t.Fatalf("expected EVO-EXIT-001 on naked os.Exit(1): %+v", res.Findings)
 	}
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-EXIT-001" && (f.Line == 0 || f.Suggestion == "" || f.RequiredVersion != "1.0.0") {
+			t.Fatalf("EVO-EXIT-001 missing file/line/migration/version: %+v", f)
+		}
+	}
 
 	good := `package p
 import (
@@ -332,9 +348,165 @@ func f(cmd *cobra.Command) {
 }
 `
 	res := review.GoSource("x.go", src)
-	for _, id := range []string{"EVO-UI-001", "EVO-UI-002", "EVO-UI-003"} {
+	for _, id := range []string{"EVO-UI-001", "EVO-UI-002", "EVO-UI-003", "EVO-UI-004"} {
 		if hasFinding(res, id) {
 			t.Fatalf("false positive %s on unrelated (log/cmd) receiver: %+v", id, res.Findings)
 		}
+	}
+}
+
+func TestGoSource_EvoUI004_CallerChosenGlyphColor(t *testing.T) {
+	bad := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(name string) {
+  _ = evo.Init(evo.Config{})
+  fmt.Print("\x1b[32m[OK]\x1b[0m ", name, "\n")
+}
+`
+	res := review.GoSource("x.go", bad)
+	if !hasFinding(res, "EVO-UI-004") {
+		t.Fatalf("expected EVO-UI-004 on caller-chosen glyph/color: %+v", res.Findings)
+	}
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-UI-004" && (f.Line == 0 || f.Suggestion == "" || f.RequiredVersion != "1.0.0") {
+			t.Fatalf("EVO-UI-004 missing file/line/migration/version: %+v", f)
+		}
+	}
+
+	good := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  out := evo.Init(evo.Config{})
+  out.Task("check").Done()
+}
+`
+	res = review.GoSource("x.go", good)
+	if hasFinding(res, "EVO-UI-004") {
+		t.Fatalf("false positive EVO-UI-004 on task.Done: %+v", res.Findings)
+	}
+}
+
+func TestGoSource_EvoUI004_OrdinaryTextNotFlagged(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  _ = evo.Init(evo.Config{})
+  fmt.Println("hello")
+}
+`
+	res := review.GoSource("x.go", src)
+	if hasFinding(res, "EVO-UI-004") {
+		t.Fatalf("false positive EVO-UI-004 on ordinary Println: %+v", res.Findings)
+	}
+}
+
+func TestEVOWIRE001_Fixture_Fires(t *testing.T) {
+	res := review.GoSource("wire_001_bad.go", readFixture(t, "wire_001_bad.go"))
+	f := findingByID(t, res, "EVO-WIRE-001")
+	if f.File == "" || f.Line == 0 || f.Message == "" || f.Suggestion == "" || f.RequiredVersion != "1.0.0" {
+		t.Fatalf("EVO-WIRE-001 missing file/line/why/migration/version: %+v", f)
+	}
+	if !strings.Contains(f.Suggestion, "EncodeJSON") {
+		t.Fatalf("suggestion does not name EncodeJSON: %q", f.Suggestion)
+	}
+}
+
+func TestEVOWIRE001_Fixture_StaysSilent(t *testing.T) {
+	res := review.GoSource("wire_001_good.go", readFixture(t, "wire_001_good.go"))
+	if hasFinding(res, "EVO-WIRE-001") {
+		t.Fatalf("false positive EVO-WIRE-001 on render.EncodeJSON fixture: %+v", res.Findings)
+	}
+}
+
+func TestEVOWIRE001_AssignedSnapshotAndEncoderEncode_Fire(t *testing.T) {
+	src := `package p
+import (
+  "encoding/json"
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f() {
+  out := evo.Init(evo.Config{})
+  snap := out.Snapshot()
+  _, _ = json.Marshal(snap)
+  _ = json.NewEncoder(os.Stdout).Encode(out.Snapshot())
+}
+`
+	res := review.GoSource("x.go", src)
+	if !hasFinding(res, "EVO-WIRE-001") {
+		t.Fatalf("expected EVO-WIRE-001 on assigned Snapshot / Encoder.Encode: %+v", res.Findings)
+	}
+}
+
+func TestEVOWIRE001_EngineSnapshotLiteral_Fires(t *testing.T) {
+	src := `package p
+import (
+  "encoding/json"
+  "github.com/zachbornheimer/evident-output/internal/engine"
+)
+func f(s engine.Snapshot) {
+  _, _ = json.Marshal(s)
+  _, _ = json.Marshal(engine.Snapshot{})
+}
+`
+	res := review.GoSource("x.go", src)
+	if !hasFinding(res, "EVO-WIRE-001") {
+		t.Fatalf("expected EVO-WIRE-001 on engine.Snapshot marshal: %+v", res.Findings)
+	}
+}
+
+func TestEVOEXIT001_Fixture_Fires(t *testing.T) {
+	res := review.GoSource("exit_001_bad.go", readFixture(t, "exit_001_bad.go"))
+	f := findingByID(t, res, "EVO-EXIT-001")
+	if f.File == "" || f.Line == 0 || f.Message == "" || f.Suggestion == "" || f.RequiredVersion != "1.0.0" {
+		t.Fatalf("EVO-EXIT-001 missing file/line/why/migration/version: %+v", f)
+	}
+}
+
+func TestEVOEXIT001_Fixture_StaysSilent(t *testing.T) {
+	res := review.GoSource("exit_001_good.go", readFixture(t, "exit_001_good.go"))
+	if hasFinding(res, "EVO-EXIT-001") {
+		t.Fatalf("false positive EVO-EXIT-001 on os.Exit(evo.Main): %+v", res.Findings)
+	}
+}
+
+func TestEVOUI003_Fixture_Fires(t *testing.T) {
+	res := review.GoSource("ui_003_bad.go", readFixture(t, "ui_003_bad.go"))
+	f := findingByID(t, res, "EVO-UI-003")
+	if f.File == "" || f.Line == 0 || f.Message == "" || f.Suggestion == "" || f.RequiredVersion != "1.0.0" {
+		t.Fatalf("EVO-UI-003 missing file/line/why/migration/version: %+v", f)
+	}
+	if !strings.Contains(f.Suggestion, "Progress") {
+		t.Fatalf("suggestion does not name Progress: %q", f.Suggestion)
+	}
+}
+
+func TestEVOUI003_Fixture_StaysSilent(t *testing.T) {
+	res := review.GoSource("ui_003_good.go", readFixture(t, "ui_003_good.go"))
+	if hasFinding(res, "EVO-UI-003") {
+		t.Fatalf("false positive EVO-UI-003 on task.Progress fixture: %+v", res.Findings)
+	}
+}
+
+func TestEVOUI003_BarePercentProgress_Fires(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(done, total int) {
+  _ = evo.Init(evo.Config{})
+  fmt.Printf("%d/%d\n", done, total)
+}
+`
+	res := review.GoSource("x.go", src)
+	if !hasFinding(res, "EVO-UI-003") {
+		t.Fatalf("expected EVO-UI-003 on bare %%d/%%d progress: %+v", res.Findings)
 	}
 }

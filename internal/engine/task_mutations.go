@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"strings"
+
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -155,7 +157,18 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 	if err != nil {
 		return
 	}
+	if strings.TrimSpace(subject) == "" || contentFreeEffect(verb, object) {
+		o.recordMisuse(ErrInvalidConfig)
+		return
+	}
 	o.recordResolvedMutation(taskID, subject, dryRun, verb, quantity, hasQty, object)
+}
+
+// contentFreeEffect reports a Record/RecordName with no mutation semantics:
+// empty verb and empty object, which would otherwise paint "[changed] <task>"
+// with nothing in the row.
+func contentFreeEffect(verb, object string) bool {
+	return strings.TrimSpace(verb) == "" && strings.TrimSpace(object) == ""
 }
 
 // recordResolvedMutation records verb/quantity/object into subject's Plan

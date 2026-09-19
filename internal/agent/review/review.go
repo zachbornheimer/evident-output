@@ -248,13 +248,14 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 						Suggestion: "wrap evo.Main(run) in os.Exit (os.Exit(evo.Main(run))) where run(ctx) returns error — Main derives the code but does not exit itself",
 					})
 					findings = append(findings, Finding{
-						RuleID:     "EVO-EXIT-001",
-						Severity:   "error",
-						Message:    "os.Exit bypasses the Evo-derived conclusion (evo.MainWith was removed in 1.0)",
-						File:       filename,
-						Line:       pos.Line,
-						Column:     pos.Column,
-						Suggestion: "derive the exit code from evo.Main(run) or a Run result's ExitCode(); never pass a literal or independently computed code to os.Exit",
+						RuleID:          "EVO-EXIT-001",
+						Severity:        "error",
+						Message:         "os.Exit bypasses the Evo-derived conclusion (evo.MainWith was removed in 1.0)",
+						File:            filename,
+						Line:            pos.Line,
+						Column:          pos.Column,
+						Suggestion:      "derive the exit code from evo.Main(run) or a Run result's ExitCode(); never pass a literal or independently computed code to os.Exit",
+						RequiredVersion: dialectOneZero,
 					})
 				}
 			}
@@ -463,11 +464,15 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectHandBuiltProgressText(fset, f, filename)...)
 	}
 
-	// EVO-WIRE-001: internal Snapshot marshaled directly instead of through
-	// the sanctioned JSON encoder.
+	// EVO-UI-004: caller-chosen glyph/color/status formatting.
 	if hasEvo {
-		findings = append(findings, detectMarshalOfInternalSnapshot(fset, f, filename)...)
+		findings = append(findings, detectCallerChosenGlyphColor(fset, f, filename)...)
 	}
+
+	// EVO-WIRE-001: internal Snapshot / engine types marshaled through
+	// encoding/json. Runs even without an evo import so a file that only
+	// pulls in internal/engine still cannot leak runtime layout.
+	findings = append(findings, detectMarshalOfInternalSnapshot(fset, f, filename)...)
 
 	// EVO-WIRE-003: JSON/JSONL stdout mixed with human presentation.
 	if hasEvo {
@@ -493,7 +498,7 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectCrammedSummary(filename, src)...)
 	}
 
-	// FP-005: Task created and Done with no Doing/Progress/Writer window.
+	// FP-005: Task created and Done with no Define/mutation/Warn/Fact first.
 	if hasEvo {
 		findings = append(findings, detectInstantDone(filename, f, fset)...)
 	}
@@ -576,6 +581,62 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectMissingProducerConsumerOrdering(filename, f, fset)...)
 	}
 
+	// EVO-STAMP-001: Task.Done used as a generic printf with no Define/File.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectDoneUsedAsGenericPrint(filename, f, fset)...)
+	}
+
+	// EVO-STAMP-002: duplicate sibling Task labels (same literal, or a
+	// literal inside a loop).
+	if hasEvoAtOneZero {
+		findings = append(findings, detectDuplicateSiblingTaskLabels(filename, f, fset)...)
+	}
+
+	// EVO-STAMP-003: Define already resolves; Done after it double-resolves.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectDefineThenDone(filename, f, fset)...)
+	}
+
+	// EVO-FACT-001: informational data stamped as fake Task success.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectInformationalDataAsFakeTaskSuccess(filename, f, fset)...)
+	}
+
+	// EVO-EFFECT-001: planned mutation narrated through Done.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectPlannedMutationNarratedThroughDone(filename, f, fset)...)
+	}
+
+	// EVO-STAMP-004: noun-only / fake-phase Task names.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectNounOnlyOrFakePhaseTaskName(filename, f, fset)...)
+	}
+
+	// EVO-FACT-002: file path used as a Task just to show a problem.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectFilePathUsedAsProblemTask(filename, f, fset)...)
+	}
+
+	// EVO-DAG-004: custom writeLocks/readLocks / //fix-schedule/ scheduler.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectCustomSchedulerAroundEvo(filename, f, fset)...)
+	}
+
+	// EVO-DAG-005: goroutine waiting on Task.Wait to sequence Evo work.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectGoroutineWaitingOnTaskWait(filename, f, fset)...)
+	}
+
+	// EVO-DAG-006: After encoding same-path File contention.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectResourceContentionEncodedAsAfter(filename, f, fset)...)
+	}
+
+	// EVO-LIVE-002: time.NewTicker poking Doing/Progress to keep the UI alive.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectAppHeartbeatTicker(filename, f, fset)...)
+	}
+
 	// API-027: Done/Fail/Progress on Group/Sequence (name-match).
 	if hasEvo {
 		findings = append(findings, detectCollectionLeafMisuse(filename, f, fset)...)
@@ -591,6 +652,11 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	if hasEvo {
 		findings = append(findings, detectManualFileReconciliation(filename, f, fset)...)
 		findings = append(findings, detectExpensiveWorkBeforeFileOp(filename, f, fset)...)
+	}
+
+	// EVO-FILE-002: Patch Basis dropped by reconstructing FileSpec.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectPatchBasisDropped(filename, f, fset)...)
 	}
 
 	// EVO-EXEC-001: raw exec guarded by a hand-rolled freshness check.
@@ -1247,8 +1313,8 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 		return nil
 	}
 	line := 1
-	if idx := strings.Index(src, "signal.Notify("); idx >= 0 {
-		line += strings.Count(src[:idx], "\n")
+	if before, _, ok := strings.Cut(src, "signal.Notify("); ok {
+		line += strings.Count(before, "\n")
 	}
 	return []Finding{{
 		RuleID:     "SIG-001",
@@ -2215,7 +2281,7 @@ func composesItsArgument(stmt string) bool {
 func singleStatementBody(inner string) string {
 	var stmt string
 	count := 0
-	for _, l := range strings.Split(inner, "\n") {
+	for l := range strings.SplitSeq(inner, "\n") {
 		t := strings.TrimSpace(l)
 		if t == "" || strings.HasPrefix(t, "//") {
 			continue

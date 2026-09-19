@@ -53,6 +53,7 @@ type liveEngine struct {
 	animMu      sync.Mutex
 	animRunning bool
 	animStop    chan struct{}
+	animCancel  func()
 
 	// resizeArmed is true when SIGWINCH watch is registered on the surface.
 	resizeArmed bool
@@ -251,6 +252,10 @@ func (o *Output) needsSpinnerAnimLocked() bool {
 // ensureSpinnerAnimatorLocked starts a background tick that re-renders the live
 // region so indeterminate spinners advance without waiting for Progress calls,
 // and that promotes visibility once VisibilityDelay elapses.
+//
+// When the injected clock implements Scheduler, ticks arm via AfterFunc so
+// tests can Advance the domain clock instead of sleeping. Clocks that
+// cannot schedule keep the wall ticker so goldens stay frozen.
 func (o *Output) ensureSpinnerAnimatorLocked() {
 	if o.live == nil || o.finished || o.closed {
 		return
@@ -265,6 +270,10 @@ func (o *Output) ensureSpinnerAnimatorLocked() {
 		o.stopSpinnerAnimatorLocked()
 		return
 	}
+	if sched, ok := o.cfg.clock.(Scheduler); ok {
+		o.armScheduledSpinnerLocked(sched)
+		return
+	}
 	o.live.animMu.Lock()
 	if o.live.animRunning {
 		o.live.animMu.Unlock()
@@ -277,16 +286,48 @@ func (o *Output) ensureSpinnerAnimatorLocked() {
 	go o.spinnerAnimateLoop(stop)
 }
 
+func (o *Output) armScheduledSpinnerLocked(sched Scheduler) {
+	o.live.animMu.Lock()
+	if o.live.animRunning {
+		o.live.animMu.Unlock()
+		return
+	}
+	o.live.animRunning = true
+	o.live.animMu.Unlock()
+	o.scheduleSpinnerTick(sched)
+}
+
+func (o *Output) scheduleSpinnerTick(sched Scheduler) {
+	cancel := sched.AfterFunc(txt.SpinnerPeriod, func() { o.onSpinnerTick(sched) })
+	o.live.animMu.Lock()
+	o.live.animCancel = cancel
+	o.live.animMu.Unlock()
+}
+
+func (o *Output) onSpinnerTick(sched Scheduler) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if !o.advanceSpinnerFrameLocked() {
+		o.stopSpinnerAnimatorLocked()
+		return
+	}
+	o.scheduleSpinnerTick(sched)
+}
+
 func (o *Output) stopSpinnerAnimatorLocked() {
 	if o.live == nil {
 		return
 	}
 	o.live.animMu.Lock()
-	if o.live.animRunning && o.live.animStop != nil {
+	if o.live.animCancel != nil {
+		o.live.animCancel()
+		o.live.animCancel = nil
+	}
+	if o.live.animStop != nil {
 		close(o.live.animStop)
 		o.live.animStop = nil
-		o.live.animRunning = false
 	}
+	o.live.animRunning = false
 	o.live.animMu.Unlock()
 }
 
@@ -324,9 +365,8 @@ func (o *Output) stopResizeWatchLocked() {
 }
 
 func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
-	// Real wall ticker: spinner cadence is independent of the domain clock and
-	// of Progress/Phase call rate. Domain clock still selects the glyph frame
-	// (fixedClock freezes animation for golden tests).
+	// Wall ticker fallback for clocks that are not a Scheduler. Domain clock
+	// still selects the glyph frame (fixedClock freezes animation for goldens).
 	t := time.NewTicker(txt.SpinnerPeriod)
 	defer t.Stop()
 	for {
@@ -335,38 +375,42 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 			return
 		case <-t.C:
 			o.mu.Lock()
-			if o.closed || o.finished || o.live == nil {
+			keep := o.advanceSpinnerFrameLocked()
+			if !keep {
 				o.stopSpinnerAnimatorLocked()
-				o.mu.Unlock()
-				return
 			}
-			// Promote visibility after VisibilityDelay using domain clock.
-			if o.live.waitingDelay && o.hasLiveActivityLocked() {
-				delay := o.cfg.visibilityDelay
-				now := o.cfg.clock.Now()
-				if delay <= 0 || now.Sub(o.live.activitySince) >= delay {
-					o.live.visible = true
-					o.live.waitingDelay = false
-					o.renderLiveLocked(true)
-				}
-				o.mu.Unlock()
-				continue
-			}
-			if !o.live.visible {
-				o.stopSpinnerAnimatorLocked()
-				o.mu.Unlock()
-				return
-			}
-			if !o.needsSpinnerAnimLocked() {
-				o.stopSpinnerAnimatorLocked()
-				o.mu.Unlock()
-				return
-			}
-			// Force redraw so time-based spinner glyphs advance.
-			o.renderLiveLocked(true)
 			o.mu.Unlock()
+			if !keep {
+				return
+			}
 		}
 	}
+}
+
+// advanceSpinnerFrameLocked paints one spinner/heartbeat frame. It reports
+// whether the animator should keep ticking. Caller holds o.mu.
+func (o *Output) advanceSpinnerFrameLocked() bool {
+	if o.closed || o.finished || o.live == nil {
+		return false
+	}
+	if o.live.waitingDelay && o.hasLiveActivityLocked() {
+		delay := o.cfg.visibilityDelay
+		now := o.cfg.clock.Now()
+		if delay <= 0 || now.Sub(o.live.activitySince) >= delay {
+			o.live.visible = true
+			o.live.waitingDelay = false
+			o.renderLiveLocked(true)
+		}
+		return true
+	}
+	if !o.live.visible {
+		return false
+	}
+	if !o.needsSpinnerAnimLocked() {
+		return false
+	}
+	o.renderLiveLocked(true)
+	return true
 }
 
 // stampLiveFirstSeenLocked anchors each unresolved task's heartbeat clock to
@@ -450,10 +494,7 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 		if paneRows < 0 {
 			paneRows = 0
 		}
-		bodyHeight = height - paneRows
-		if bodyHeight < 1 {
-			bodyHeight = 1
-		}
+		bodyHeight = max(height-paneRows, 1)
 	}
 	body := render.LiveRegion(o.liveTickerSnapshotLocked(), bodyHeight, width, now, color, profile)
 	if body == "" && o.armedTitleLiveLocked() {

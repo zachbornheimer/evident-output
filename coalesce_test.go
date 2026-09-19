@@ -76,11 +76,10 @@ func TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion(t *testin
 	}
 }
 
-// TestCoalesce_DryRunWarned_KeepsTrailingConclusion proves the suppression
-// above does not overreach: a dry-run header plus a warned task still needs
-// the trailing band to carry the "· warned" modifier, since the header and
-// per-section ledger rows never show it.
-func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
+// TestCoalesce_DryRunWarned_SuppressesTrailingConclusion: a Plan ledger
+// already shows the work and the task "!" row already carries the warning,
+// so a trailing "[planned · warned]" title band is content-free.
+func TestCoalesce_DryRunWarned_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "repo  /demo", Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
@@ -94,8 +93,11 @@ func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
 	}
 
 	got := buf.String()
-	if !strings.Contains(got, "[planned · warned]") {
-		t.Fatalf("warned dry-run must keep its trailing band:\n%s", got)
+	if !strings.Contains(got, "[planned] branches") {
+		t.Fatalf("want the plan ledger:\n%s", got)
+	}
+	if strings.Contains(got, "[planned · warned]") {
+		t.Fatalf("warned dry-run with a plan ledger must not print a title band:\n%s", got)
 	}
 }
 
@@ -118,7 +120,7 @@ func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	}
 }
 
-func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
+func TestCoalesce_MultipleChanges_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "tool", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
@@ -128,13 +130,16 @@ func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	// Two section headers + trailing conclusion.
-	if strings.Count(buf.String(), "[changed]") < 3 {
-		t.Fatalf("want multi-section + conclusion:\n%s", buf.String())
+	got := buf.String()
+	if strings.Count(got, "[changed]") != 2 {
+		t.Fatalf("want two section headers and no title band:\n%s", got)
+	}
+	if strings.Contains(got, "[changed]  tool") {
+		t.Fatalf("multi-section ledger must not repeat the title:\n%s", got)
 	}
 }
 
-func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
+func TestCoalesce_SubjectMismatch_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "tool", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
@@ -143,8 +148,12 @@ func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Count(buf.String(), "[changed]") < 2 {
-		t.Fatalf("mismatch should keep conclusion:\n%s", buf.String())
+	got := buf.String()
+	if strings.Count(got, "[changed]") != 1 {
+		t.Fatalf("want the ledger row only, not a title band:\n%s", got)
+	}
+	if strings.Contains(got, "[changed]  tool") {
+		t.Fatalf("a content-free title band must not follow the ledger:\n%s", got)
 	}
 }
 

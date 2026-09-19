@@ -8,9 +8,9 @@ import "context"
 type taskScopeContextKey struct{}
 
 // taskScopeHandle is one Define execution's task scope: which Task owns it,
-// and whether that execution has already returned. File/Exec (next
-// increment) read this through taskScope to refuse work outside a callback
-// or after it closed (§7.1).
+// and whether that execution has already returned. File/Patch/Exec read
+// this through taskScope to refuse work outside a callback or after it
+// closed (§7.1).
 type taskScopeHandle struct {
 	out    *Output
 	taskID string
@@ -18,10 +18,14 @@ type taskScopeHandle struct {
 	// returned. A context captured during the callback and reused after is
 	// exactly the misuse ErrTaskClosed reports.
 	closed bool
+	// resourceHeld is true while this callback occupies one public Evo
+	// resource (File, Patch, or Exec). A second occupancy on the same ctx
+	// returns ErrNestedResource.
+	resourceHeld bool
 }
 
 // withTaskScope derives a context carrying scope, for the Define callback
-// (and, in a later increment, evo.File/evo.Exec) to read back via taskScope.
+// (and File/Patch/Exec) to read back via taskScope.
 func withTaskScope(ctx context.Context, scope *taskScopeHandle) context.Context {
 	return context.WithValue(ctx, taskScopeContextKey{}, scope)
 }
@@ -35,7 +39,7 @@ func closeTaskScopeLocked(scope *taskScopeHandle) {
 	}
 }
 
-// taskScope returns the Task ctx's Define callback is running under.
+// taskScopeFrom returns the Define-callback scope ctx carries.
 //
 //   - ErrNoTaskContext: ctx carries no task scope at all — it did not come
 //     from a Define callback (a bare context.Background(), or one from
@@ -43,8 +47,7 @@ func closeTaskScopeLocked(scope *taskScopeHandle) {
 //   - ErrTaskClosed: ctx carries a scope, but its Define callback has
 //     already returned — the context was captured during the callback and
 //     used again afterward.
-//   - otherwise: the Running Task the callback is (or was) executing.
-func taskScope(ctx context.Context) (*TaskHandle, error) {
+func taskScopeFrom(ctx context.Context) (*taskScopeHandle, error) {
 	if ctx == nil {
 		return nil, ErrNoTaskContext
 	}
@@ -58,5 +61,44 @@ func taskScope(ctx context.Context) (*TaskHandle, error) {
 	if closed {
 		return nil, ErrTaskClosed
 	}
+	return scope, nil
+}
+
+// taskScope returns the Task ctx's Define callback is running under.
+func taskScope(ctx context.Context) (*TaskHandle, error) {
+	scope, err := taskScopeFrom(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return &TaskHandle{out: scope.out, id: scope.taskID}, nil
+}
+
+func (s *taskScopeHandle) beginPublicResource() error {
+	s.out.mu.Lock()
+	defer s.out.mu.Unlock()
+	if s.closed {
+		return ErrTaskClosed
+	}
+	if s.resourceHeld {
+		return ErrNestedResource
+	}
+	s.resourceHeld = true
+	return nil
+}
+
+func (s *taskScopeHandle) endPublicResource() {
+	s.out.mu.Lock()
+	defer s.out.mu.Unlock()
+	s.resourceHeld = false
+}
+
+func beginPublicResource(ctx context.Context) (*taskScopeHandle, *TaskHandle, error) {
+	scope, err := taskScopeFrom(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := scope.beginPublicResource(); err != nil {
+		return nil, nil, err
+	}
+	return scope, &TaskHandle{out: scope.out, id: scope.taskID}, nil
 }

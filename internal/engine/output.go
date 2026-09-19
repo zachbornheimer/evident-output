@@ -529,7 +529,7 @@ func (o *Output) declareDryRun() {
 // (writeDurableTextLocked) every other library-owned line uses.
 func (o *Output) emitPlannedHeaderLocked() {
 	var b strings.Builder
-	render.WritePlannedHeader(&b, !o.cfg.noColor, o.cfg.preview, o.cfg.dryRunHeaderText)
+	render.WritePlannedHeader(&b, !o.cfg.noColor, o.cfg.preview, o.cfg.dryRunHeaderText, o.cfg.subject)
 	o.writeDurableTextLocked(b.String())
 }
 

@@ -79,10 +79,23 @@ type execEvaluation struct {
 // reports them (already fully descriptive sentinels — wrapping would add
 // nothing and would break a bare errors.Is check on either).
 func Exec(ctx context.Context, spec ExecSpec) error {
-	task, scopeErr := taskScope(ctx)
-	if scopeErr != nil {
-		return scopeErr
+	scope, task, err := beginPublicResource(ctx)
+	if err != nil {
+		return err
 	}
+	defer scope.endPublicResource()
+	if err := task.out.recordCancelledExec(ctx, spec); err != nil {
+		return err
+	}
+	holds, err := task.out.execHolds(spec)
+	if err != nil {
+		return err
+	}
+	drop, err := processResources.acquire(ctx, task, holds)
+	if err != nil {
+		return err
+	}
+	defer drop()
 	return task.out.reconcileExec(ctx, task.id, spec)
 }
 
@@ -123,8 +136,8 @@ func (o *Output) reconcileExec(ctx context.Context, taskID string, spec ExecSpec
 }
 
 // recordCancelledExec reports ctx's error as misuse (spec: a cancelled Run
-// must never look like it silently succeeded) before Exec does anything
-// else — the same guard reconcileFile applies for File.
+// must never look like it silently succeeded) before Exec acquires a path
+// hold or spawns — the same guard recordCancelledFile applies for File.
 func (o *Output) recordCancelledExec(ctx context.Context, spec ExecSpec) error {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		wrapped := fmt.Errorf("evo: Exec %q: %w", spec.Executable, ctxErr)

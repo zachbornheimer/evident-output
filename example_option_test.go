@@ -127,8 +127,6 @@ func ExampleDryRun() {
 	// ✓ prune branches
 	//
 	// [planned] prune branches  delete 3 stale branches
-	//
-	// [planned]
 }
 
 // ExampleExternalProjection disables inline rendering entirely — only

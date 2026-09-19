@@ -155,6 +155,74 @@ func TestGoSource_FP005SuggestionNamesDefine(t *testing.T) {
 	}
 }
 
+func TestGoSource_WarnOrFactBeforeDone_IsNotInstantDone(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		src       string
+		wantFP005 bool
+	}{
+		{
+			name: "warn-then-done",
+			src: `package p
+import evo "github.com/zachbornheimer/evident-output"
+func check(out *evo.Output) {
+  t := out.Task("hooksPath")
+  t.Warn("not set")
+  t.Done()
+}
+`,
+			wantFP005: false,
+		},
+		{
+			name: "fact-then-done",
+			src: `package p
+import evo "github.com/zachbornheimer/evident-output"
+func check(out *evo.Output) {
+  t := out.Task("colima")
+  t.Fact("status", "running")
+  t.Done()
+}
+`,
+			wantFP005: false,
+		},
+		{
+			name: "bare-task-done",
+			src: `package p
+import evo "github.com/zachbornheimer/evident-output"
+func check(out *evo.Output) {
+  out.Task("x").Done()
+}
+`,
+			wantFP005: true,
+		},
+		{
+			name: "assigned-done-without-observation",
+			src: `package p
+import evo "github.com/zachbornheimer/evident-output"
+func check(out *evo.Output) {
+  t := out.Task("x")
+  t.Done()
+}
+`,
+			wantFP005: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			res := review.GoSource("obs.go", tc.src)
+			got := false
+			for _, f := range res.Findings {
+				if f.RuleID == "FP-005" {
+					got = true
+					break
+				}
+			}
+			if got != tc.wantFP005 {
+				t.Fatalf("FP-005 present=%v want=%v findings=%#v", got, tc.wantFP005, res.Findings)
+			}
+		})
+	}
+}
+
 func TestGoSource_API039SuggestionNamesLoneTask(t *testing.T) {
 	res := review.GoSource("run.go", singletonGroupSrc)
 	f := findingByID(t, res, "API-039")

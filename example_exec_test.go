@@ -68,8 +68,6 @@ func ExampleExec() {
 	// Output:
 	// ✓ generate
 	// [changed] generate  ran /usr/bin/tool
-	//
-	// [changed]
 }
 
 // ExampleProcessCommand is the resolved shape evo.Exec passes to a

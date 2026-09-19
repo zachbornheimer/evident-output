@@ -5,9 +5,11 @@ import (
 	"go/token"
 )
 
+// Methods that mean the handle recorded work or an observation before Done.
+// Warn/Fact are not work windows; they still make Done a resolution, not a stamp.
 var taskWindowMethods = map[string]bool{
 	"Doing": true, "Progress": true, "Writer": true, "Bytes": true,
-	"Define": true,
+	"Define": true, "Warn": true, "Fact": true,
 }
 
 func detectInstantDone(filename string, file *ast.File, fset *token.FileSet) []Finding {

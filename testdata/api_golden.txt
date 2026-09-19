@@ -130,6 +130,7 @@ func On(subject string)  ProblemOption
 func OnTask(taskName string)  ReasonOption
 func PaneHeight(lines int)  DebugPaneOption
 func ParseFormat(s string)  Format,  error
+func Patch(ctx context.Context, spec PatchSpec)  PatchResult,  error
 func Plain()  Option
 func Pluralize(quantity int64, singular string)  string
 func PolicyFlag(flag string)  ConfirmOption
@@ -215,6 +216,8 @@ type MutationOption
 type NoopRedactor
 type Option
 type Output
+type PatchResult
+type PatchSpec
 type PlainOptions
 type PlanSnapshot
 type Printer
@@ -275,12 +278,18 @@ value ErrInvalidConfig
 value ErrInvalidProgress
 value ErrKeyAfterDefine
 value ErrLimitExceeded
+value ErrNestedResource
 value ErrNoTaskContext
 value ErrNotStarted
+value ErrPatchBinary
+value ErrPatchDelete
+value ErrPatchMalformed
+value ErrPatchRename
 value ErrProgressRegression
 value ErrReasonSkipOnly
 value ErrReasonWrongTask
 value ErrRenderer
+value ErrStaleBasis
 value ErrTaskClosed
 value ErrTerminalWithoutSink
 value ErrUnresolvedTask

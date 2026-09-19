@@ -35,6 +35,9 @@ type FileSpec struct {
 	// this operation's prior record even when Contents/Mode alone would
 	// look unchanged (spec §11.4).
 	Basis []fingerprint.Fingerprint
+	// patchBasis is the Patch-time snapshot File re-checks before mutating.
+	// A composite literal FileSpec{Path, Contents} drops it by construction.
+	patchBasis []fingerprint.FingerprintValue
 }
 
 // File-specific misuse/usage errors (spec §8.1).
@@ -70,11 +73,54 @@ var (
 // Task's Define callback (see taskScope) — File returns ErrNoTaskContext or
 // ErrTaskClosed otherwise.
 func File(ctx context.Context, spec FileSpec) error {
-	task, err := taskScope(ctx)
+	scope, task, err := beginPublicResource(ctx)
 	if err != nil {
 		return err
 	}
+	defer scope.endPublicResource()
+	if err := task.out.recordCancelledFile(ctx, spec); err != nil {
+		return err
+	}
+	holds, err := task.out.fileHolds(spec)
+	if err != nil {
+		return err
+	}
+	drop, err := processResources.acquire(ctx, task, holds)
+	if err != nil {
+		return err
+	}
+	defer drop()
 	return task.out.reconcileFile(ctx, task.id, spec)
+}
+
+// recordCancelledFile reports ctx's error as misuse (spec: a cancelled Run
+// must never look like it silently succeeded) before File acquires a path
+// hold or mutates — the same guard recordCancelledExec applies for Exec.
+func (o *Output) recordCancelledFile(ctx context.Context, spec FileSpec) error {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		wrapped := fmt.Errorf("evo: File %q: %w", spec.Path, ctxErr)
+		o.mu.Lock()
+		o.recordMisuse(wrapped)
+		o.mu.Unlock()
+		return wrapped
+	}
+	return nil
+}
+
+func (spec FileSpec) stalePatchBasis(ctx context.Context) error {
+	if len(spec.patchBasis) == 0 {
+		return nil
+	}
+	for _, snap := range spec.patchBasis {
+		live, err := fingerprint.FSPath(snap.Key).Fingerprint(ctx)
+		if err != nil {
+			return fmt.Errorf("evo: File %q: %w", spec.Path, err)
+		}
+		if live.Digest != snap.Digest {
+			return fmt.Errorf("%w: %s", ErrStaleBasis, snap.Key)
+		}
+	}
+	return nil
 }
 
 // reconcileFile is File's implementation, an Output method so it can read
@@ -84,19 +130,8 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 	if spec.Path == "" {
 		return ErrFileSpecMissingPath
 	}
-	if err := ctx.Err(); err != nil {
-		wrapped := fmt.Errorf("evo: File %q: %w", spec.Path, err)
-		// A cancelled Run must never look like it silently succeeded: File
-		// refusing a promised mutation because its context is already done
-		// is exactly the kind of caller-visible outcome Output.Err() exists
-		// to surface (the same first-recorded-issue channel Key/duplicate/
-		// limit misuse already reports through). recordMisuse assumes its
-		// caller already holds o.mu (every other call site in this package
-		// is itself already inside a locked section).
-		o.mu.Lock()
-		o.recordMisuse(wrapped)
-		o.mu.Unlock()
-		return wrapped
+	if err := o.recordCancelledFile(ctx, spec); err != nil {
+		return err
 	}
 
 	path := o.resolveWorkspacePath(spec.Path)
@@ -181,6 +216,11 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 	}
 	modeDiffers := spec.Mode != 0 && (!exists || info.Mode().Perm() != spec.Mode.Perm())
 	mutates := needsWrite || modeDiffers
+	if mutates {
+		if staleErr := spec.stalePatchBasis(ctx); staleErr != nil {
+			return staleErr
+		}
+	}
 
 	if o.DryRun() {
 		// Planning only: every check above already ran read-only; no

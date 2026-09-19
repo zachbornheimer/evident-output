@@ -152,6 +152,10 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		b.WriteByte('\n')
 		return
 	}
+	if flattensLiveSiblingTasks(col) {
+		writeLiveSiblingTasks(b, col, height, width, spin, color, now, profile)
+		return
+	}
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == core.Done || t.State == core.Skipped {
@@ -261,6 +265,64 @@ func promotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// flattensLiveSiblingTasks reports whether a Group's children should render
+// as aligned root-level rows instead of under an "N/M complete" header.
+// Spec §23's live parallel prune is the one case: the Group is still
+// unresolved, and every in-flight child carries determinate progress (count
+// or bytes). Mixed determinate + phase-only (H.20: Bytes siblings plus
+// Doing("verifying")) keeps the header, as does a fully settled Group.
+// Sequence, Each, one-child collapse/promote, and a caller's own Summary
+// stay on the header path.
+func flattensLiveSiblingTasks(col core.TasksSnapshot) bool {
+	if col.Sequential || col.Summary != "" || len(col.Tasks) < 2 || len(col.Collections) != 0 {
+		return false
+	}
+	inFlight := 0
+	for _, t := range col.Tasks {
+		if t.State != core.Running && t.State != core.Pending {
+			continue
+		}
+		inFlight++
+		if !inFlightDeterminateProgress(t) {
+			return false
+		}
+	}
+	return inFlight > 0
+}
+
+// inFlightDeterminateProgress reports whether t is still running or pending
+// with a countable bar of its own — Kind Determinate or Bytes, Total > 0.
+func inFlightDeterminateProgress(t core.TaskSnapshot) bool {
+	if t.State != core.Running && t.State != core.Pending {
+		return false
+	}
+	switch t.Progress.Kind {
+	case core.Determinate, core.BytesKind:
+		return t.Progress.Total > 0
+	default:
+		return false
+	}
+}
+
+// writeLiveSiblingTasks paints a flattened Group's children as aligned
+// root-level rows — same name-column padding maxRootTaskNameWidth already
+// documents for "branches" / "worktrees" / "remote-tracking". Height still
+// bounds which children surface; omission is a count, never a header.
+func writeLiveSiblingTasks(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	nameWidth := maxRootTaskNameWidth(col.Tasks)
+	maxChildRows := height - 1 // possible omission line
+	if maxChildRows < 1 {
+		maxChildRows = 1
+	}
+	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
+	for _, t := range selected {
+		writeLiveTaskLine(b, t, 0, nameWidth, width, spin, color, now, profile)
+	}
+	if omitted > 0 {
+		fmt.Fprintf(b, "%s%s  %d not shown\n", liveChildIndent, txt.Dim(txt.GlyphOverflow.Render(profile), color), omitted)
 	}
 }
 
@@ -551,23 +613,23 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 	return selected, len(tasks) - len(selected)
 }
 
+// liveChildIndent is the one indent a live child row (collection child or
+// current-activity Phase) sits at relative to its parent.
+const liveChildIndent = "   "
+
 // writeLiveTaskLine renders one task row at the given indent.
 //
-// A standalone (indent == 0) Running task with a determinate bar/count AND
-// a current-activity Phase gets the same stable-parent-plus-one-activity-
-// child shape a Group's promoted lone child already has (spec §18/§23:
+// A Running task with a determinate bar/count AND a current-activity Phase
+// gets the stable-parent-plus-one-activity-child shape (spec §18/§23:
 // "⠋ install dependencies  [████        ]  14/40  — 7s" / "  ⠋ urllib3"):
 // the parent line owns the bar/count/timer only, and the current activity
 // becomes its own indented spinner line beneath it — so the child can
 // change/truncate independently without moving the timer horizontally, per
-// §18/§24. A nested (indent > 0) row already reaches this shape via its own
-// container-level handling and is unaffected.
+// §18/§24. Flattened Group siblings reach this at indent 0; a Sequence
+// child reaches it nested under the sequence header.
 func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
-	pad := ""
-	if indent > 0 {
-		pad = "   "
-	}
-	if splitsStandaloneActivityChild(t, indent) {
+	pad := strings.Repeat(liveChildIndent, indent)
+	if splitsActivityChild(t) {
 		parent := t
 		parent.Phase = ""
 		unit := liveTaskUnit(parent, indent, width, spin, color, now, profile)
@@ -578,7 +640,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 			Glyph: txt.StyleGlyph(spin, StateColor(core.Running), color),
 			Name:  t.Phase,
 		}
-		b.WriteString(child.Render("   "))
+		b.WriteString(child.Render(pad + liveChildIndent))
 		b.WriteByte('\n')
 		return
 	}
@@ -599,13 +661,13 @@ func padRootName(unit *DisplayUnit, indent, nameWidth int) {
 	unit.Name = txt.PadRight(unit.Name, nameWidth)
 }
 
-// splitsStandaloneActivityChild reports whether t is a standalone
-// (indent == 0) Running task with a determinate progress bar/count AND a
-// current-activity Phase — the one condition writeLiveTaskLine splits into
-// a parent bar/count/timer line plus its own activity-child line.
-func splitsStandaloneActivityChild(t core.TaskSnapshot, indent int) bool {
-	return indent == 0 &&
-		t.State == core.Running &&
+// splitsActivityChild reports whether t is a Running task with a
+// determinate progress bar/count AND a current-activity Phase — the one
+// condition writeLiveTaskLine splits into a parent bar/count/timer line
+// plus its own activity-child line, including a Group sibling flattened
+// to root indent.
+func splitsActivityChild(t core.TaskSnapshot) bool {
+	return t.State == core.Running &&
 		t.Progress.Kind == core.Determinate &&
 		t.Progress.Total > 0 &&
 		t.Phase != ""
