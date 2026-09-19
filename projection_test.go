@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"strings"
@@ -53,11 +54,14 @@ const (
 	sameRunEffectVerb   = "write"
 	sameRunEffectObject = "binary"
 	sameRunEffectQty    = 1
+	sameRunWireObject   = "evo.run"
+	sameRunWireSchema   = "2.0"
 )
 
 // TestProjection_SameRunFactsEffectsConclusion proves one Isolated Init's
-// Snapshot is the source of truth for plain stdout, EncodeJSON, and
-// EncodeJSONL: Facts, Effects, and Conclusion match across those projections.
+// Snapshot is the source of truth across projections: plain stdout,
+// EncodeJSON (schema 0.4, fact-free by design), EncodeJSONL, and WriteJSON
+// (schema 2.0 evo.run, which carries data.facts).
 func TestProjection_SameRunFactsEffectsConclusion(t *testing.T) {
 	var stdout bytes.Buffer
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
@@ -72,21 +76,24 @@ func TestProjection_SameRunFactsEffectsConclusion(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
-	pkgs := out.Group(sameRunGroupName)
-	fetch := pkgs.Task(sameRunTaskFetch)
-	store := pkgs.Task(sameRunTaskStore)
-	fetch.Record(sameRunEffectVerb, sameRunEffectQty, sameRunEffectObject)
-	fetch.Done()
-	store.Done()
-	out.Fact(sameRunFactName, sameRunFactValue)
-	out.Warn(sameRunWarn)
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
+	result := out.Run(context.Background(), func(context.Context) error {
+		pkgs := out.Group(sameRunGroupName)
+		fetch := pkgs.Task(sameRunTaskFetch)
+		store := pkgs.Task(sameRunTaskStore)
+		fetch.Record(sameRunEffectVerb, sameRunEffectQty, sameRunEffectObject)
+		fetch.Done()
+		store.Done()
+		out.Fact(sameRunFactName, sameRunFactValue)
+		out.Warn(sameRunWarn)
+		return nil
+	})
+	if result.Err != nil {
+		t.Fatalf("Run: %v", result.Err)
 	}
 
 	snap := out.Snapshot()
 	if snap.Conclusion == nil {
-		t.Fatal("Finish left Snapshot.Conclusion nil")
+		t.Fatal("Run left Snapshot.Conclusion nil")
 	}
 	assertSameRunSnapshot(t, snap)
 
@@ -95,6 +102,13 @@ func TestProjection_SameRunFactsEffectsConclusion(t *testing.T) {
 		t.Fatalf("EncodeJSON: %v", err)
 	}
 	assertJSONMatchesSnapshot(t, doc, snap)
+	assertEncodeJSONHasNoFacts(t, doc)
+
+	var runJSON bytes.Buffer
+	if err := evo.WriteJSON(&runJSON, result); err != nil {
+		t.Fatalf("WriteJSON: %v", err)
+	}
+	assertWriteJSONFactsMatchSnapshot(t, runJSON.Bytes(), snap)
 
 	raw, err := evo.EncodeJSONL(out.Events())
 	if err != nil {
@@ -163,35 +177,63 @@ func assertJSONMatchesSnapshot(t *testing.T, raw []byte, snap evo.Snapshot) {
 			}
 		}
 	}
-	assertJSONFactsMatchSnapshot(t, raw, snap)
 }
 
-func assertJSONFactsMatchSnapshot(t *testing.T, raw []byte, snap evo.Snapshot) {
+// assertEncodeJSONHasNoFacts locks schema 0.4: EncodeJSON must stay on
+// JSONSchemaVersion and must not grow a facts field (Facts live on the 2.0
+// evo.run envelope via WriteJSON).
+func assertEncodeJSONHasNoFacts(t *testing.T, raw []byte) {
 	t.Helper()
 	var tree map[string]any
 	if err := json.Unmarshal(raw, &tree); err != nil {
 		t.Fatalf("EncodeJSON tree: %v\n%s", err, raw)
 	}
-	encoded, ok := tree["facts"]
-	if !ok {
-		return
+	schema, _ := tree["schema_version"].(string)
+	if schema != evo.JSONSchemaVersion {
+		t.Fatalf("EncodeJSON schema_version = %q, want %q\n%s", schema, evo.JSONSchemaVersion, raw)
 	}
-	got, err := json.Marshal(encoded)
-	if err != nil {
-		t.Fatalf("facts marshal: %v", err)
+	if _, ok := tree["facts"]; ok {
+		t.Fatalf("EncodeJSON schema %s must not carry facts:\n%s", schema, raw)
 	}
-	var facts []evo.FactRecord
-	if err := json.Unmarshal(got, &facts); err != nil {
-		t.Fatalf("facts unmarshal: %v\n%s", err, got)
+	t.Logf("EncodeJSON schema %s has no facts field", schema)
+}
+
+// assertWriteJSONFactsMatchSnapshot requires the 2.0 evo.run document's
+// data.facts to be present, non-empty, and match Snapshot.Facts — no skip.
+func assertWriteJSONFactsMatchSnapshot(t *testing.T, raw []byte, snap evo.Snapshot) {
+	t.Helper()
+	var doc struct {
+		Object        string `json:"object"`
+		SchemaVersion string `json:"schema_version"`
+		Data          struct {
+			Facts []struct {
+				Name  string `json:"name"`
+				Value string `json:"value"`
+			} `json:"facts"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("WriteJSON unmarshal: %v\n%s", err, raw)
+	}
+	if doc.Object != sameRunWireObject {
+		t.Fatalf("WriteJSON object = %q, want %s\n%s", doc.Object, sameRunWireObject, raw)
+	}
+	if doc.SchemaVersion != sameRunWireSchema {
+		t.Fatalf("WriteJSON schema_version = %q, want %s\n%s", doc.SchemaVersion, sameRunWireSchema, raw)
+	}
+	facts := doc.Data.Facts
+	if len(facts) == 0 {
+		t.Fatalf("WriteJSON data.facts missing or empty while Snapshot.Facts=%+v\n%s", snap.Facts, raw)
 	}
 	if len(facts) != len(snap.Facts) {
-		t.Fatalf("json facts = %+v, snapshot = %+v", facts, snap.Facts)
+		t.Fatalf("WriteJSON data.facts = %+v, snapshot = %+v\n%s", facts, snap.Facts, raw)
 	}
 	for i, f := range snap.Facts {
 		if facts[i].Name != f.Name || facts[i].Value != f.Value {
-			t.Fatalf("json fact[%d] = %+v, snapshot = %+v", i, facts[i], f)
+			t.Fatalf("WriteJSON data.facts[%d] = %+v, snapshot = %+v\n%s", i, facts[i], f, raw)
 		}
 	}
+	t.Logf("WriteJSON %s data.facts asserted: %s=%s", sameRunWireSchema, facts[0].Name, facts[0].Value)
 }
 
 func assertJSONLMatchesSnapshot(t *testing.T, raw []byte, snap evo.Snapshot, events []evo.Event) {
