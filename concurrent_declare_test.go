@@ -17,12 +17,12 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 	jobs := out.Group("placement")
 	const n = 20
 	tasks := make([]*evo.TaskHandle, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		tasks[i] = jobs.Task(fmt.Sprintf("file-%02d", i))
 	}
 
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
+	for i := range n {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -57,7 +57,7 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 	if len(names) < n {
 		t.Fatalf("expected >= %d task names, got %v", n, names)
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		want := fmt.Sprintf("file-%02d", i)
 		if names[i] != want {
 			t.Fatalf("order[%d] = %q, want %q (full=%v)", i, names[i], want, names)

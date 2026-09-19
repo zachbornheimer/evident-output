@@ -130,12 +130,10 @@ func TestCON011_SequenceIncreasing(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 50 {
+		wg.Go(func() {
 			out.Task("x").Done()
-		}()
+		})
 	}
 	wg.Wait()
 	_ = out.Finish()
@@ -153,9 +151,7 @@ func TestCON013_SnapshotConsistentUnderLoad(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case <-stop:
@@ -164,8 +160,8 @@ func TestCON013_SnapshotConsistentUnderLoad(t *testing.T) {
 				out.Task("x").Done()
 			}
 		}
-	}()
-	for i := 0; i < 100; i++ {
+	})
+	for range 100 {
 		_ = out.Snapshot()
 	}
 	close(stop)
@@ -222,7 +218,7 @@ func TestTERM020_CompletedCollapseUnderPressure(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Group("g")
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		g.Task("t").Done()
 	}
 	g.Task("fail").Fail("x")

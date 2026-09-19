@@ -98,7 +98,7 @@ func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
 	const total = 500
-	for i := 0; i < total; i++ {
+	for i := range total {
 		branches.RecordName("delete", fmt.Sprintf("feat/branch-%d", i))
 	}
 	branches.Done()

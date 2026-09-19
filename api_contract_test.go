@@ -72,7 +72,7 @@ func TestAPIContract_RequiredFileListsSpecFloor(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := map[string]struct{}{}
-	for _, line := range strings.Split(strings.TrimRight(string(raw), "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimRight(string(raw), "\n"), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

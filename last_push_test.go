@@ -168,7 +168,7 @@ func TestLOG003_FieldOrderStable(t *testing.T) {
 func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
 	t.Cleanup(func() { _ = out.Close() })
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		out.DebugForTest("x")
 	}
 	_ = out.Finish()

@@ -15,11 +15,11 @@ func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
 	tasks := out.Group("batch")
 	const n = 50
 	children := make([]*evo.TaskHandle, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		children[i] = tasks.Task(fmt.Sprintf("t-%d", i))
 	}
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
+	for i := range n {
 		wg.Add(1)
 		go func(task *evo.TaskHandle) {
 			defer wg.Done()

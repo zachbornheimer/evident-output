@@ -27,14 +27,14 @@ func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	task.Done()
 	_ = out.Finish()
 
-	var durable string
+	var durable strings.Builder
 	for _, op := range screen.Operations() {
 		if op.Kind == "durable" {
-			durable += op.Text
+			durable.WriteString(op.Text)
 		}
 	}
-	if !strings.Contains(durable, "12:04:18.219 [DEBUG] opened repository  path=/work/repo") {
-		t.Fatalf("history line missing or wrong format:\nops=%#v\ndurable=%q", screen.Operations(), durable)
+	if !strings.Contains(durable.String(), "12:04:18.219 [DEBUG] opened repository  path=/work/repo") {
+		t.Fatalf("history line missing or wrong format:\nops=%#v\ndurable=%q", screen.Operations(), durable.String())
 	}
 	// Success: no diagnostic tail section in final.
 	if strings.Contains(screen.FinalText(), "── diagnostics") {

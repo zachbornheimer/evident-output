@@ -344,7 +344,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := 0
-	for _, line := range strings.Split(strings.TrimSpace(string(lines)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(lines)), "\n") {
 		if line == "" {
 			continue
 		}

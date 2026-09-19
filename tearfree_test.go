@@ -83,7 +83,7 @@ func TestDurableWrite_TearFreeUnderConcurrentProgress(t *testing.T) {
 	}()
 	go func() {
 		defer wg.Done()
-		for i := 0; i < iterations/10; i++ {
+		for i := range iterations / 10 {
 			out.Println(fmt.Sprintf("note %d", i))
 		}
 	}()

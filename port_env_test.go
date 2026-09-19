@@ -53,7 +53,7 @@ func TestTERM012_SmallHeightBudget(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
 	t.Cleanup(func() { _ = out.Close() })
 	col := out.Group("g")
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		col.Task("t").Doing("p")
 	}
 	got := screen.LatestLiveText()

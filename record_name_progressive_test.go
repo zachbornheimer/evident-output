@@ -102,7 +102,7 @@ func TestRecordName_CapsPerTaskRowsWithExactOverflow(t *testing.T) {
 
 	branches := out.Task("branches")
 	const total = 500
-	for i := 0; i < total; i++ {
+	for i := range total {
 		branches.RecordName("delete", fmt.Sprintf("feat/branch-%d", i))
 	}
 	branches.Done()

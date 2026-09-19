@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -409,12 +410,7 @@ func joinOrNone(ss []string) string {
 }
 
 func containsSig(sigs []string, want string) bool {
-	for _, s := range sigs {
-		if s == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(sigs, want)
 }
 
 func findSig(sigs []string, prefix string) string {

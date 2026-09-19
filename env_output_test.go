@@ -91,7 +91,7 @@ func TestEVOOutput_JSONL_FinishWritesEventLines(t *testing.T) {
 		t.Fatal("jsonl Finish wrote nothing")
 	}
 	var sawTaskDone bool
-	for _, line := range strings.Split(got, "\n") {
+	for line := range strings.SplitSeq(got, "\n") {
 		var ev evo.EventJSON
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			t.Fatalf("jsonl line is not EventJSON: %v\n%s", err, line)
@@ -118,7 +118,7 @@ func TestEVOOutput_StreamJSON_TaskDoneEmitsEventJSONBeforeFinish(t *testing.T) {
 		t.Fatal("stream-json wrote nothing at Task.Done")
 	}
 	var sawTaskDone bool
-	for _, line := range strings.Split(got, "\n") {
+	for line := range strings.SplitSeq(got, "\n") {
 		var ev evo.EventJSON
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			t.Fatalf("stream-json line before Finish is not EventJSON: %v\n%s", err, line)
@@ -151,7 +151,7 @@ func TestEVOOutput_StreamJSON_FormatDataKeepsPayloadOnStdout(t *testing.T) {
 		t.Fatal("FormatData+stream-json must write EventJSON to stderr at Task.Done")
 	}
 	var sawTaskDone bool
-	for _, line := range strings.Split(strings.TrimSpace(beforeFinish), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(beforeFinish), "\n") {
 		var ev evo.EventJSON
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			t.Fatalf("stderr JSONL is not EventJSON: %v\n%s", err, line)

@@ -130,7 +130,6 @@ func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 		"write":  "wrote",
 	}
 	for imperative, want := range cases {
-		imperative, want := imperative, want
 		t.Run(imperative, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer

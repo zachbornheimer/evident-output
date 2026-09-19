@@ -104,7 +104,7 @@ func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("x")
 	output := task.EvidenceForTest(evo.KeepLastLines(3))
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		_, _ = fmt.Fprintf(output, "line-%d\n", i)
 	}
 	_ = output.Close()

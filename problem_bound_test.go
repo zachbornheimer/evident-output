@@ -15,7 +15,7 @@ import (
 // (§25 model) rather than a deprecated bulk-attach verb.
 func TestHumanProblemList_IsBounded(t *testing.T) {
 	problems := make([]evo.Problem, 0, 8)
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		problems = append(problems, evo.Problem{
 			Subject: fmt.Sprintf("path-%d", i),
 			Summary: "failed",

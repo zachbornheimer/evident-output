@@ -57,7 +57,7 @@ func TestGroup_ChildRepeatingTheGroupNameStillCollapses(t *testing.T) {
 // Running work, leaving the durable rows a finished transcript is judged on.
 func resolvedRows(transcript string) string {
 	var kept []string
-	for _, line := range strings.Split(transcript, "\n") {
+	for line := range strings.SplitSeq(transcript, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "◐") {
 			continue
 		}
