@@ -79,10 +79,20 @@ type execEvaluation struct {
 // reports them (already fully descriptive sentinels — wrapping would add
 // nothing and would break a bare errors.Is check on either).
 func Exec(ctx context.Context, spec ExecSpec) error {
-	task, scopeErr := taskScope(ctx)
-	if scopeErr != nil {
-		return scopeErr
+	scope, task, err := beginPublicResource(ctx)
+	if err != nil {
+		return err
 	}
+	defer scope.endPublicResource()
+	holds, err := task.out.execHolds(spec)
+	if err != nil {
+		return err
+	}
+	drop, err := processResources.acquire(ctx, task, holds)
+	if err != nil {
+		return err
+	}
+	defer drop()
 	return task.out.reconcileExec(ctx, task.id, spec)
 }
 

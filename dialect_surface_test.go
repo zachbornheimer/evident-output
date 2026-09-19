@@ -34,6 +34,7 @@ var dialectSurface = map[string][]string{
 		"FSPath(path string)",
 		"File(ctx context.Context, spec FileSpec)",
 		"Exec(ctx context.Context, spec ExecSpec)",
+		"Patch(ctx context.Context, spec PatchSpec)",
 		"Runner(r ProcessRunner)",
 		"Value(name string, v any)",
 		"Confirm(question string, opts ...ConfirmOption)",

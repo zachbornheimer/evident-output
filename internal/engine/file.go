@@ -35,6 +35,9 @@ type FileSpec struct {
 	// this operation's prior record even when Contents/Mode alone would
 	// look unchanged (spec §11.4).
 	Basis []fingerprint.Fingerprint
+	// patchBasis is the Patch-time snapshot File re-checks before mutating.
+	// A composite literal FileSpec{Path, Contents} drops it by construction.
+	patchBasis []fingerprint.FingerprintValue
 }
 
 // File-specific misuse/usage errors (spec §8.1).
@@ -70,11 +73,37 @@ var (
 // Task's Define callback (see taskScope) — File returns ErrNoTaskContext or
 // ErrTaskClosed otherwise.
 func File(ctx context.Context, spec FileSpec) error {
-	task, err := taskScope(ctx)
+	scope, task, err := beginPublicResource(ctx)
 	if err != nil {
 		return err
 	}
+	defer scope.endPublicResource()
+	holds, err := task.out.fileHolds(spec)
+	if err != nil {
+		return err
+	}
+	drop, err := processResources.acquire(ctx, task, holds)
+	if err != nil {
+		return err
+	}
+	defer drop()
 	return task.out.reconcileFile(ctx, task.id, spec)
+}
+
+func (spec FileSpec) stalePatchBasis(ctx context.Context) error {
+	if len(spec.patchBasis) == 0 {
+		return nil
+	}
+	for _, snap := range spec.patchBasis {
+		live, err := fingerprint.FSPath(snap.Key).Fingerprint(ctx)
+		if err != nil {
+			return fmt.Errorf("evo: File %q: %w", spec.Path, err)
+		}
+		if live.Digest != snap.Digest {
+			return fmt.Errorf("%w: %s", ErrStaleBasis, snap.Key)
+		}
+	}
+	return nil
 }
 
 // reconcileFile is File's implementation, an Output method so it can read
@@ -181,6 +210,11 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 	}
 	modeDiffers := spec.Mode != 0 && (!exists || info.Mode().Perm() != spec.Mode.Perm())
 	mutates := needsWrite || modeDiffers
+	if mutates {
+		if staleErr := spec.stalePatchBasis(ctx); staleErr != nil {
+			return staleErr
+		}
+	}
 
 	if o.DryRun() {
 		// Planning only: every check above already ran read-only; no

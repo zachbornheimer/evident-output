@@ -14,3 +14,9 @@ Verify
 func (TaskHandle) After
 FileSpec
 ExecSpec
+Patch
+PatchSpec
+PatchResult
+Fingerprint
+Value
+App

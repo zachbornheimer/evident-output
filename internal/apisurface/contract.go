@@ -25,6 +25,9 @@ var RetiredNames = []string{
 	"Sequence.Fail",
 	"TaskConfig",
 	"MainWith",
+	"IsLocked", "ReadLock", "WriteLock", "MultiLock",
+	"TransactionBuilder", "ApplyPatch", "File.Patch",
+	"Unlock", "Converge",
 }
 
 // Report is the four-bucket result of Check. Empty buckets mean that

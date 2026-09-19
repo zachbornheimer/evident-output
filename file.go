@@ -20,10 +20,13 @@ type FileSpec = engine.FileSpec
 // ErrTaskClosed.
 func File(ctx context.Context, spec FileSpec) error { return engine.File(ctx, spec) }
 
-// File-specific usage errors (spec §8.1).
+// File-specific usage errors (spec §8.1) plus the resource-admission
+// sentinels File, Patch, and Exec share.
 var (
 	ErrFileSpecMissingPath          = engine.ErrFileSpecMissingPath
 	ErrFileUnmanagedContentsMissing = engine.ErrFileUnmanagedContentsMissing
 	ErrFilePathIsSymlink            = engine.ErrFilePathIsSymlink
 	ErrFilePathTypeMismatch         = engine.ErrFilePathTypeMismatch
+	ErrNestedResource               = engine.ErrNestedResource
+	ErrStaleBasis                   = engine.ErrStaleBasis
 )
