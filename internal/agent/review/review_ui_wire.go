@@ -166,18 +166,33 @@ var uiHandBuiltProgressPattern = regexp.MustCompile(`%d\s*(?:/|of)\s*%d`)
 // contains a bare "%d/%d" substring).
 var uiProgressKeywordPattern = regexp.MustCompile(`(?i)\b(done|complete(?:d)?|remaining|finished|progress|processed|copied|copying|uploading|downloading|files?|tasks?|items?|steps?|records?)\b`)
 
+// uiLiteralFractionPattern matches a concrete "14/40" fraction.
+// uiLiteralDatePattern rejects day/month/year. uiNotProgressLabelPattern
+// rejects a labeled score/ratio/date so those stay silent.
+var (
+	uiLiteralFractionPattern  = regexp.MustCompile(`\b\d{1,4}/\d{1,4}\b`)
+	uiLiteralDatePattern      = regexp.MustCompile(`\b\d{1,4}/\d{1,4}/\d{1,4}\b`)
+	uiNotProgressLabelPattern = regexp.MustCompile(`(?i)\b(score|ratio|average|avg|date)\b`)
+)
+
 // isHandBuiltProgressLine reports whether literal reads as a hand-assembled
-// "N/M done" progress line: exactly two %d verbs in the N/M shape, plus a
-// completion word — not a bare "%d/%d" that could be a ratio, a score, or
-// one pair of a three-%d date format.
+// progress fraction: "14/40", a bare "%d/%d", or "%d/%d done" — not a
+// labeled score/ratio or a three-part date.
 func isHandBuiltProgressLine(literal string) bool {
-	if !uiHandBuiltProgressPattern.MatchString(literal) {
+	if uiNotProgressLabelPattern.MatchString(literal) || uiLiteralDatePattern.MatchString(literal) {
 		return false
 	}
-	if strings.Count(literal, "%d") != 2 {
-		return false
+	if uiHandBuiltProgressPattern.MatchString(literal) {
+		n := strings.Count(literal, "%d")
+		if n == 2 && uiProgressKeywordPattern.MatchString(literal) {
+			return true
+		}
+		trimmed := strings.TrimSpace(strings.ReplaceAll(literal, "\n", ""))
+		if n == 2 && (trimmed == "%d/%d" || trimmed == "%d of %d") {
+			return true
+		}
 	}
-	return uiProgressKeywordPattern.MatchString(literal)
+	return uiLiteralFractionPattern.MatchString(literal)
 }
 
 // detectHandBuiltProgressText flags hand-assembled "N/M done" text on fmt
@@ -215,56 +230,205 @@ func detectHandBuiltProgressText(fset *token.FileSet, f *ast.File, filename stri
 	return findings
 }
 
-// detectMarshalOfInternalSnapshot flags json.Marshal(x.Snapshot()) (or
-// MarshalIndent), where x is an evo Task/Output/Group/Sequence handle —
-// this bypasses the sanctioned, versioned JSON encoder and leaks
-// undocumented internal field names/shape to consumers. evo has no
-// .Result() accessor (Run/Output.Run return a Result value directly), so
-// only .Snapshot() is a real evo misuse shape; the receiver check keeps
-// this from firing on an unrelated type's own Snapshot() method.
+// detectMarshalOfInternalSnapshot flags encoding/json marshaling of evo
+// Snapshot / internal engine types (json.Marshal(out.Snapshot()),
+// json.Marshal(snap) after snap := out.Snapshot(), json.NewEncoder.Encode
+// of the same, or json.Marshal of an engine/core composite). That bypasses
+// the sanctioned, versioned encoder and leaks undocumented field layout.
 func detectMarshalOfInternalSnapshot(fset *token.FileSet, f *ast.File, filename string) []Finding {
+	snapshotVars := collectSnapshotVars(f)
+	engineAliases := engineImportAliases(f)
+	engineVars := collectEngineVars(f, engineAliases)
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
+		arg, fn, ok := jsonEncodeArg(call)
+		if !ok || !isInternalRuntimeJSONArg(arg, snapshotVars, engineVars, engineAliases) {
 			return true
 		}
-		pkg, ok := sel.X.(*ast.Ident)
-		if !ok || pkg.Name != "json" || len(call.Args) == 0 {
-			return true
+		argText := exprDottedNameOrDefault(arg, "snapshot")
+		if isSnapshotCall(arg) {
+			recv := ""
+			if sel, ok := arg.(*ast.CallExpr); ok {
+				if s, ok := sel.Fun.(*ast.SelectorExpr); ok {
+					recv = exprDottedName(s.X)
+				}
+			}
+			if recv != "" {
+				argText = recv + ".Snapshot()"
+			}
 		}
-		fn := sel.Sel.Name
-		if fn != "Marshal" && fn != "MarshalIndent" {
-			return true
-		}
-		inner, ok := call.Args[0].(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		innerSel, ok := inner.Fun.(*ast.SelectorExpr)
-		if !ok || innerSel.Sel.Name != "Snapshot" || !isLikelyEvoReceiver(innerSel.X) {
-			return true
-		}
-		recv := exprDottedName(innerSel.X)
-		snapshotCall := recv + ".Snapshot()"
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
 			RuleID:          "EVO-WIRE-001",
 			Severity:        "error",
-			Message:         "json." + fn + " marshals the internal Snapshot directly; use the sanctioned JSON encoder instead",
+			Message:         "json." + fn + " marshals internal Snapshot/runtime state as if it were public API; use the sanctioned JSON encoder instead",
 			File:            filename,
 			Line:            pos.Line,
 			Column:          pos.Column,
-			Suggestion:      "replace json." + fn + "(" + snapshotCall + ") with render.EncodeJSON(" + snapshotCall + ")",
+			Suggestion:      "replace json." + fn + "(" + argText + ") with render.EncodeJSON(" + argText + ")",
 			RequiredVersion: dialectOneZero,
 		})
 		return true
 	})
 	return findings
+}
+
+func collectSnapshotVars(file *ast.File) map[string]bool {
+	vars := map[string]bool{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for i, rhs := range assign.Rhs {
+			if i >= len(assign.Lhs) {
+				continue
+			}
+			id, ok := assign.Lhs[i].(*ast.Ident)
+			if !ok {
+				continue
+			}
+			if isSnapshotCall(rhs) {
+				vars[id.Name] = true
+			}
+		}
+		return true
+	})
+	return vars
+}
+
+func isSnapshotCall(e ast.Expr) bool {
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == "Snapshot" && isLikelyEvoReceiver(sel.X)
+}
+
+func engineImportAliases(file *ast.File) map[string]bool {
+	aliases := map[string]bool{}
+	for _, imp := range file.Imports {
+		path := strings.Trim(imp.Path.Value, `"`)
+		if !strings.Contains(path, "evident-output/internal/engine") && !strings.Contains(path, "evident-output/internal/core") {
+			continue
+		}
+		if imp.Name != nil && imp.Name.Name != "." && imp.Name.Name != "_" {
+			aliases[imp.Name.Name] = true
+			continue
+		}
+		if strings.HasSuffix(path, "/engine") {
+			aliases["engine"] = true
+		} else {
+			aliases["core"] = true
+		}
+	}
+	return aliases
+}
+
+func isEngineTypeExpr(e ast.Expr, aliases map[string]bool) bool {
+	switch v := e.(type) {
+	case *ast.CompositeLit:
+		return isEngineTypeExpr(v.Type, aliases)
+	case *ast.UnaryExpr:
+		return isEngineTypeExpr(v.X, aliases)
+	case *ast.StarExpr:
+		return isEngineTypeExpr(v.X, aliases)
+	case *ast.CallExpr:
+		return isEngineTypeExpr(v.Fun, aliases)
+	case *ast.SelectorExpr:
+		id, ok := v.X.(*ast.Ident)
+		return ok && aliases[id.Name]
+	default:
+		return false
+	}
+}
+
+func collectEngineVars(file *ast.File, aliases map[string]bool) map[string]bool {
+	vars := map[string]bool{}
+	if len(aliases) == 0 {
+		return vars
+	}
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch v := n.(type) {
+		case *ast.FuncDecl:
+			if v.Type == nil || v.Type.Params == nil {
+				return true
+			}
+			for _, field := range v.Type.Params.List {
+				if !isEngineTypeExpr(field.Type, aliases) {
+					continue
+				}
+				for _, name := range field.Names {
+					vars[name.Name] = true
+				}
+			}
+		case *ast.AssignStmt:
+			for i, rhs := range v.Rhs {
+				if i >= len(v.Lhs) {
+					continue
+				}
+				id, ok := v.Lhs[i].(*ast.Ident)
+				if !ok {
+					continue
+				}
+				if isEngineTypeExpr(rhs, aliases) {
+					vars[id.Name] = true
+				}
+			}
+		case *ast.ValueSpec:
+			if isEngineTypeExpr(v.Type, aliases) {
+				for _, name := range v.Names {
+					vars[name.Name] = true
+				}
+			}
+		}
+		return true
+	})
+	return vars
+}
+
+func isInternalRuntimeJSONArg(arg ast.Expr, snapshotVars, engineVars, engineAliases map[string]bool) bool {
+	if isSnapshotCall(arg) {
+		return true
+	}
+	if id, ok := arg.(*ast.Ident); ok && (snapshotVars[id.Name] || engineVars[id.Name]) {
+		return true
+	}
+	return isEngineTypeExpr(arg, engineAliases)
+}
+
+func jsonEncodeArg(call *ast.CallExpr) (arg ast.Expr, fn string, ok bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || len(call.Args) == 0 {
+		return nil, "", false
+	}
+	if id, ok := sel.X.(*ast.Ident); ok && id.Name == "json" {
+		switch sel.Sel.Name {
+		case "Marshal", "MarshalIndent":
+			return call.Args[0], sel.Sel.Name, true
+		}
+	}
+	if sel.Sel.Name != "Encode" {
+		return nil, "", false
+	}
+	inner, ok := sel.X.(*ast.CallExpr)
+	if !ok {
+		return nil, "", false
+	}
+	innerSel, ok := inner.Fun.(*ast.SelectorExpr)
+	if !ok || innerSel.Sel.Name != "NewEncoder" {
+		return nil, "", false
+	}
+	pkg, ok := innerSel.X.(*ast.Ident)
+	if !ok || pkg.Name != "json" {
+		return nil, "", false
+	}
+	return call.Args[0], "NewEncoder.Encode", true
 }
 
 // jsonEncoderToStdoutPattern matches the canonical JSON/JSONL-to-stdout

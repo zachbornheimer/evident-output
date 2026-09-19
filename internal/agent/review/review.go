@@ -469,11 +469,10 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectCallerChosenGlyphColor(fset, f, filename)...)
 	}
 
-	// EVO-WIRE-001: internal Snapshot marshaled directly instead of through
-	// the sanctioned JSON encoder.
-	if hasEvo {
-		findings = append(findings, detectMarshalOfInternalSnapshot(fset, f, filename)...)
-	}
+	// EVO-WIRE-001: internal Snapshot / engine types marshaled through
+	// encoding/json. Runs even without an evo import so a file that only
+	// pulls in internal/engine still cannot leak runtime layout.
+	findings = append(findings, detectMarshalOfInternalSnapshot(fset, f, filename)...)
 
 	// EVO-WIRE-003: JSON/JSONL stdout mixed with human presentation.
 	if hasEvo {
