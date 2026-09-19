@@ -581,73 +581,119 @@ func TestSpecP26_LiveFrame_ResizeMidRun_DropsToCompactDialect(t *testing.T) {
 }
 
 // TestSpecConcurrentGroups_BothRunning covers the dialect's concurrent
-// Group live check: two sibling Groups both Running, each collapsed to one
-// aggregate spinner row.
+// Group live check: two sibling Groups overlap (both live/Running in the
+// same frame, each with at least one Running child). The scheduler ceiling
+// is MaxConcurrency or else GOMAXPROCS; extra children stay pending (○)
+// until a slot frees, which is correct. This test does not require every
+// descendant Running, and does not require zero ○.
 func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutput(screen)
+	out := newLiveScreenOutputCfg(screen, evo.Config{MaxConcurrency: concurrentGroupOverlapCeiling})
 	t.Cleanup(func() { _ = out.Close() })
 
-	worktrees := out.Group("worktrees")
-	branches := out.Group("branches")
+	worktrees := out.Group(concurrentWorktreesGroup)
+	branches := out.Group(concurrentBranchesGroup)
 	wtStarted := make(chan struct{})
 	brStarted := make(chan struct{})
 	release := make(chan struct{})
-	wtDone := make(chan struct{})
-	brDone := make(chan struct{})
-	defer func() { <-wtDone; <-brDone }()
 	defer close(release)
 
-	go func() {
-		defer close(wtDone)
-		for _, name := range []string{"wt-a", "wt-b", "wt-c"} {
-			worktrees.Task(name).Define(func(ctx context.Context) error {
-				select {
-				case <-wtStarted:
-				default:
-					close(wtStarted)
-				}
-				<-release
-				return nil
-			})
-		}
-	}()
-	go func() {
-		defer close(brDone)
-		for _, name := range []string{"br-a", "br-b", "br-c"} {
-			branches.Task(name).Define(func(ctx context.Context) error {
-				select {
-				case <-brStarted:
-				default:
-					close(brStarted)
-				}
-				<-release
-				return nil
-			})
-		}
-	}()
+	// Admit one child from each Group first so a ceiling of 2 overlaps them
+	// instead of filling both slots from one Group.
+	worktrees.Task(concurrentWorktreeSeed).Define(holdUntilRelease(wtStarted, release))
+	branches.Task(concurrentBranchSeed).Define(holdUntilRelease(brStarted, release))
 	<-wtStarted
 	<-brStarted
+	if !collectionHasRunningChild(worktrees.Snapshot()) || !collectionHasRunningChild(branches.Snapshot()) {
+		t.Fatalf("want both Groups to have a Running child after seed Define, worktrees=%s branches=%s",
+			worktrees.Snapshot().State, branches.Snapshot().State)
+	}
 
-	// One child of each Group has started; siblings may still paint as
-	// pending until the scheduler admits them. Snapshot only after the
-	// live frame shows both Groups with no pending rows.
-	deadline := time.Now().Add(2 * time.Second)
+	for _, name := range concurrentWorktreeQueued {
+		worktrees.Task(name).Define(holdUntilRelease(wtStarted, release))
+	}
+	for _, name := range concurrentBranchQueued {
+		branches.Task(name).Define(holdUntilRelease(brStarted, release))
+	}
+
+	deadline := time.Now().Add(concurrentGroupOverlapWait)
 	got := screen.LatestLiveText()
 	for time.Now().Before(deadline) {
-		if strings.Contains(got, "worktrees") && strings.Contains(got, "branches") && strings.Count(got, "○") == 0 {
+		if siblingGroupsOverlapInFrame(got) {
 			break
 		}
-		time.Sleep(time.Millisecond)
+		time.Sleep(concurrentGroupOverlapPoll)
 		got = screen.LatestLiveText()
 	}
-	if !strings.Contains(got, "worktrees") || !strings.Contains(got, "branches") {
-		t.Fatalf("want both Groups in the live frame, got:\n%s", got)
+	if !siblingGroupsOverlapInFrame(got) {
+		t.Fatalf("want overlapping sibling Groups (one Running child in %s and one in %s); pending ○ under the concurrency ceiling is allowed, got:\n%s",
+			concurrentWorktreesGroup, concurrentBranchesGroup, got)
 	}
-	if strings.Count(got, "○") > 0 {
-		t.Fatalf("concurrent Groups should both be Running, not pending, got:\n%s", got)
+}
+
+const (
+	concurrentGroupOverlapCeiling = 2
+	concurrentWorktreesGroup      = "worktrees"
+	concurrentBranchesGroup       = "branches"
+	concurrentWorktreeSeed        = "wt-a"
+	concurrentBranchSeed          = "br-a"
+	livePendingGlyph              = "○"
+	concurrentGroupOverlapWait    = 2 * time.Second
+	concurrentGroupOverlapPoll    = time.Millisecond
+)
+
+var (
+	concurrentWorktreeQueued     = []string{"wt-b", "wt-c"}
+	concurrentBranchQueued       = []string{"br-b", "br-c"}
+	concurrentWorktreeChildNames = append([]string{concurrentWorktreeSeed}, concurrentWorktreeQueued...)
+	concurrentBranchChildNames   = append([]string{concurrentBranchSeed}, concurrentBranchQueued...)
+)
+
+func holdUntilRelease(started chan struct{}, release <-chan struct{}) func(context.Context) error {
+	return func(context.Context) error {
+		select {
+		case <-started:
+		default:
+			close(started)
+		}
+		<-release
+		return nil
 	}
+}
+
+func collectionHasRunningChild(snap evo.TasksSnapshot) bool {
+	for _, child := range snap.Tasks {
+		if child.State == evo.Running {
+			return true
+		}
+	}
+	return false
+}
+
+func siblingGroupsOverlapInFrame(frame string) bool {
+	return strings.Contains(frame, concurrentWorktreesGroup) &&
+		strings.Contains(frame, concurrentBranchesGroup) &&
+		liveGroupHasRunningChild(frame, concurrentWorktreeChildNames) &&
+		liveGroupHasRunningChild(frame, concurrentBranchChildNames)
+}
+
+func liveGroupHasRunningChild(frame string, childNames []string) bool {
+	for _, name := range childNames {
+		if liveChildRunning(frame, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func liveChildRunning(frame, childName string) bool {
+	for _, line := range strings.Split(frame, "\n") {
+		if strings.Contains(line, childName) && !strings.Contains(line, livePendingGlyph) {
+			return true
+		}
+	}
+	return false
 }
 
 // TestSpecEach_OneItemNoRedundantChild pinned Each's own one-item collapse
