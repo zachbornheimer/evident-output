@@ -146,7 +146,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Group("dependencies")
-	for n := 0; n < 120; n++ {
+	for n := range 120 {
 		task := dependencies.Task(fmt.Sprintf("package-%03d", n))
 		switch n {
 		case 7:
@@ -224,7 +224,7 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 		if operation.Kind != "live" {
 			continue
 		}
-		for _, line := range strings.Split(operation.Text, "\n") {
+		for line := range strings.SplitSeq(operation.Text, "\n") {
 			if cells := txt.VisibleCells(line); cells > columns {
 				t.Fatalf("live line uses %d cells, terminal has %d:\n%s", cells, columns, operation.Text)
 			}
