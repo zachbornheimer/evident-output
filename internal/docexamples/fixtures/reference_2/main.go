@@ -1,27 +1,28 @@
-// Package main compiles docs/reference.md's "docker daemon" fence
-// (tool-backed condition, resolved directly) verbatim. See
+// Package main compiles docs/reference.md's "brew packages" fence (child
+// processes / tool-backed gates section) verbatim. See
 // TestDocFencesMatchFixtures. Never run.
 package main
 
 import (
-	"errors"
+	"os/exec"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func pingDocker() error { return errors.New("daemon unreachable") }
-
-func doWork() {
+func doWork() error {
 	out := evo.Init(evo.Config{Isolated: true})
 
 	// docexamples:snippet start
-	docker := out.Task("docker daemon")
-	if err := pingDocker(); err != nil {
-		docker.Failf("could not inspect the daemon: %w", err)
-	} else {
-		docker.Done()
+	upgrade := out.Task("brew packages")
+	cmd := exec.Command("brew", "upgrade", "--formula")
+	cmd.Stdout = upgrade.Writer()
+	cmd.Stderr = upgrade.Writer()
+	if err := cmd.Run(); err != nil {
+		return upgrade.Failf("brew upgrade failed: %w", err)
 	}
 	// docexamples:snippet end
+
+	return nil
 }
 
-func main() { doWork() }
+func main() { _ = doWork() }

@@ -1,28 +1,36 @@
-// Package main compiles docs/reference.md's "brew packages" fence (child
-// processes / tool-backed gates section) verbatim. See
+// Package main compiles docs/reference.md's "file integrity" fence (one
+// check Task, many Problems section) verbatim. See
 // TestDocFencesMatchFixtures. Never run.
 package main
 
 import (
-	"os/exec"
+	"context"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func doWork() error {
-	out := evo.Init(evo.Config{Isolated: true})
-
-	// docexamples:snippet start
-	upgrade := out.Task("brew packages")
-	cmd := exec.Command("brew", "upgrade", "--formula")
-	cmd.Stdout = upgrade.Writer()
-	cmd.Stderr = upgrade.Writer()
-	if err := cmd.Run(); err != nil {
-		return upgrade.Failf("brew upgrade failed: %w", err)
-	}
-	// docexamples:snippet end
-
-	return nil
+type fileIssue struct {
+	Summary string
+	Path    string
+	Code    string
+	Line    int
 }
 
-func main() { _ = doWork() }
+func doWork() {
+	out := evo.Init(evo.Config{Isolated: true})
+	issues := []fileIssue{}
+
+	// docexamples:snippet start
+	task := out.Task("file integrity")
+	for _, issue := range issues {
+		task.Problem(issue.Summary,
+			evo.On(issue.Path),
+			evo.Code(issue.Code),
+			evo.Location(issue.Path, issue.Line, 0),
+		)
+	}
+	task.Define(func(context.Context) error { return nil })
+	// docexamples:snippet end
+}
+
+func main() { doWork() }

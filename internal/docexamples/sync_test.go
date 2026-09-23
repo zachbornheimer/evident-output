@@ -25,6 +25,7 @@ var docFixtures = []docexamples.DocFixture{
 
 	{Doc: "docs/reference.md", FenceIndex: 0, Fixture: "fixtures/reference_1"},
 	{Doc: "docs/reference.md", FenceIndex: 1, Fixture: "fixtures/reference_2"},
+	{Doc: "docs/reference.md", FenceIndex: 2, Fixture: "fixtures/reference_3"},
 
 	{Doc: "docs/development.md", FenceIndex: 0, Fixture: "fixtures/development_1"},
 	{Doc: "docs/development.md", FenceIndex: 1, Fixture: "fixtures/development_2"},
