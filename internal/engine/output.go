@@ -1662,6 +1662,20 @@ func (o *Output) collectActionsLocked() []Action {
 	add(o.actions)
 	for _, t := range o.tasks {
 		add(t.actions)
+		// ZYS-848: a remedy attached via evo.Next(...) to an individual
+		// Problem/warning (task.Problem(msg, evo.Next(...)),
+		// task.Fail(msg, evo.Next(...))) must reach the run's own Next
+		// steps the same way a task-level Next(...) call already does —
+		// otherwise a remedy on one of several accumulated Problems is
+		// invisible everywhere: writeProblem never renders p.Actions
+		// inline (it is evidence, not a decision), and without this loop
+		// it was silently dropped from the Conclusion's Next list too.
+		for _, p := range t.problems {
+			add(p.Actions)
+		}
+		for _, w := range t.warnings {
+			add(w.Actions)
+		}
 	}
 	return out
 }
