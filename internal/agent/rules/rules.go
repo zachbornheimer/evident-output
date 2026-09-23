@@ -1390,6 +1390,30 @@ prep.Task("stabilize Go source").Define(stabilizeGo)`,
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-050",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a Task named for a generic phase/category (fix/check/classify/resolve/finalize) performs one independently meaningful action, not several sequenced behind one row",
+			Why:       "Task(\"fix\") (zq internal/app/app.go:80's a.task(\"fix\", ...) command family, ZYS-937) that sequences two or more independently erroring steps in its own Define callback exists primarily to own child-looking work or force a row — API-045 flags the bare word on sight, but the callback's own shape is the structural proof: each guarded step could fail, wait, and report independently, so each deserves its own Task under a Group.",
+			BadCode: `out.Task("fix").Define(func(ctx context.Context) error {
+  if err := fixGoImports(); err != nil {
+    return err
+  }
+  if err := fixGoFormatting(); err != nil {
+    return err
+  }
+  return nil
+})`,
+			GoodCode: `fixGroup := out.Group("fix")
+fixGroup.Task("fix Go imports").Define(func(ctx context.Context) error { return fixGoImports() })
+fixGroup.Task("fix Go formatting").Define(func(ctx context.Context) error { return fixGoFormatting() })`,
+			Remediation:     "Replace a generic phase/category Task that sequences several independently erroring steps with a Group carrying one verb+object child Task per step",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-050"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "API-047",
 			Category:  "API",
 			Severity:  "error",
