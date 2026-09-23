@@ -600,6 +600,14 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectFlattenedDiagnosticsLoop(filename, src)...)
 	}
 
+	// API-053: a filesystem mutator call hidden inside an evo.Effect
+	// callback — Effect is the opaque-mutation escape hatch, not a second
+	// file-write API; File/Patch->Files are 1.1.0-only (ZYS-851 Decisions),
+	// so a pin older than that cannot apply this rule's suggested fix.
+	if hasEvoAtOneOne {
+		findings = append(findings, detectFileWriteInEffectCallback(filename, f, fset)...)
+	}
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)
