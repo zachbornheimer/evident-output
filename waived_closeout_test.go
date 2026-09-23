@@ -22,7 +22,7 @@ func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEvents: 8})
 	t.Cleanup(func() { _ = out.Close() })
 	// Flood with line events (non-critical).
-	for i := 0; i < 40; i++ {
+	for range 40 {
 		out.Println("noise")
 	}
 	out.Task("done").Done()
@@ -217,11 +217,11 @@ func TestMCP050_TokenBudgetExplicit(t *testing.T) {
 	if len(out) == 0 {
 		t.Fatal("expected at least stub guide")
 	}
-	joined := ""
+	var joined strings.Builder
 	for _, g := range out {
-		joined += g.Body
+		joined.WriteString(g.Body)
 	}
-	if !strings.Contains(joined, "truncated") && !strings.Contains(joined, "token_budget") {
+	if !strings.Contains(joined.String(), "truncated") && !strings.Contains(joined.String(), "token_budget") {
 		// may truncate mid-list without body marker if budget ends between guides
 		if len(out) >= len(guides) {
 			t.Fatalf("no truncation signal: %+v", out)
@@ -285,13 +285,13 @@ func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 50; i++ {
+		for i := range 50 {
 			task.Progress(i, 50)
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			out.DebugForTest("tick")
 		}
 	}()

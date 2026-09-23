@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -31,6 +32,7 @@ var dialectSurface = map[string][]string{
 		"FSPath(path string)",
 		"File(ctx context.Context, spec FileSpec)",
 		"Exec(ctx context.Context, spec ExecSpec)",
+		"Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)",
 		"Runner(r ProcessRunner)",
 		"Value(name string, v any)",
 		"Confirm(question string, opts ...ConfirmOption)",
@@ -407,12 +409,7 @@ func joinOrNone(ss []string) string {
 }
 
 func containsSig(sigs []string, want string) bool {
-	for _, s := range sigs {
-		if s == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(sigs, want)
 }
 
 func findSig(sigs []string, prefix string) string {

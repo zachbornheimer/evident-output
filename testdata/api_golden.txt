@@ -97,6 +97,7 @@ func Destructive()  ConfirmOption
 func Detail(text string)  ProblemOption
 func Diagnostics(w io.Writer)  Option
 func DryRun()  Option
+func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)  error
 func EncodeEventJSON(e Event)  []byte,  error
 func EncodeJSON(s Snapshot)  []byte,  error
 func EncodeJSONL(events []Event)  []byte,  error
@@ -175,6 +176,8 @@ type DebugConfig
 type DebugPaneOption
 type DebugPresentation
 type EffectRecord
+type EffectSpec
+type EffectVerb
 type EntityOption
 type EntityState
 type Event
@@ -229,6 +232,7 @@ type Projection
 type ReasonOption
 type Redactor
 type Resolution
+type Resource
 type Result
 type RunFunc
 type SequenceHandle
@@ -256,6 +260,12 @@ value DebugPresentationPane
 value DefaultVisibleNames
 value Determinate
 value Done
+value EffectAdd
+value EffectCreate
+value EffectDelete
+value EffectPush
+value EffectRemove
+value EffectUpdate
 value Empty
 value ErrAlreadyResolved
 value ErrClosed
@@ -263,6 +273,10 @@ value ErrConcurrentRunning
 value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName
+value ErrEffectCallbackMissing
+value ErrEffectObjectMissing
+value ErrEffectQuantityNotPositive
+value ErrEffectVerbInvalid
 value ErrExecExecutableNotFound
 value ErrExecNonzeroExit
 value ErrExecOutputMissingAfterSuccess
