@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -154,6 +155,7 @@ var dialectSurface = map[string][]string{
 		"Kept(reason TaxonomyReason)",
 		"Next(actions ...Action)",
 		"NextCommand(executable string, args ...string)",
+		"Problem(summary string, options ...ProblemOption)",
 		"Progress(completed int, total int)",
 		"Push(object string, fn func() error, opts ...MutationOption)",
 		"Record(verb string, quantity int, object string)",
@@ -166,7 +168,7 @@ var dialectSurface = map[string][]string{
 		"Update(object string, fn func() error, opts ...MutationOption)",
 		"Verify(fn func(context.Context) (bool, error))",
 		"Wait()",
-		"Warn(summary string)",
+		"Warn(summary string, options ...ProblemOption)",
 		"Write(object string, fn func() error, opts ...MutationOption)",
 		"Writer()",
 	},
@@ -407,12 +409,7 @@ func joinOrNone(ss []string) string {
 }
 
 func containsSig(sigs []string, want string) bool {
-	for _, s := range sigs {
-		if s == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(sigs, want)
 }
 
 func findSig(sigs []string, prefix string) string {

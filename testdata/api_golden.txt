@@ -59,6 +59,7 @@ func (TaskHandle) Kept(reason TaxonomyReason)
 func (TaskHandle) Key(key string)  *TaskHandle
 func (TaskHandle) Next(actions ...Action)  *TaskHandle
 func (TaskHandle) NextCommand(executable string, args ...string)  *TaskHandle
+func (TaskHandle) Problem(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Progress(completed, total int)  *TaskHandle
 func (TaskHandle) Push(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Record(verb string, quantity int, object string)
@@ -71,7 +72,7 @@ func (TaskHandle) Step(completed, total int, name string)  *TaskHandle
 func (TaskHandle) Update(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
-func (TaskHandle) Warn(summary string)
+func (TaskHandle) Warn(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Write(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
