@@ -561,6 +561,13 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectSubjectOnlyOrContainerTaskName(filename, f, fset)...)
 	}
 
+	// API-049: a generic phase/category-named Task (fix/check/classify/
+	// resolve/finalize) sequences 2+ independently erroring steps in its own
+	// Define callback — structural evidence it owns child-looking work.
+	if hasEvo {
+		findings = append(findings, detectPhaseTaskOwningChildWork(filename, f, fset)...)
+	}
+
 	// The EVO-EVIDENCE-001/VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestions
 	// all recommend 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence);
 	// a pin older than that cannot apply them, so none of these six may fire

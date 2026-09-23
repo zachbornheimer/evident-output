@@ -613,6 +613,145 @@ func run(task *evo.TaskHandle) {
 	}
 }
 
+// API-049: a Task whose literal name is a generic phase/category word
+// (fix/check/classify/resolve/finalize — ZYS-937) sequences two or more
+// independently erroring steps in its own Define callback instead of
+// performing one action itself — it exists primarily to own child-looking
+// work or force a row (zq's own fix/check command family,
+// internal/app/app.go:80's a.task("fix", ...)).
+
+const phaseTaskOwningChildWorkSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("fix").Define(func(ctx context.Context) error {
+    if err := fixGoImports(); err != nil {
+      return err
+    }
+    if err := fixGoFormatting(); err != nil {
+      return err
+    }
+    return nil
+  })
+}
+func fixGoImports() error { return nil }
+func fixGoFormatting() error { return nil }
+`
+
+func TestAPI049_PhaseTaskOwningChildWork_Fires(t *testing.T) {
+	res := review.GoSource("fix.go", phaseTaskOwningChildWorkSrc)
+	f := findingByID(t, res, "API-049")
+	if f.Severity != "warning" {
+		t.Fatalf("API-049 severity = %q, want warning", f.Severity)
+	}
+	if !strings.Contains(f.Message, "own child-looking work") {
+		t.Fatalf("API-049 message does not name the semantic distinction: %q", f.Message)
+	}
+	if !strings.Contains(f.Suggestion, "Group(") {
+		t.Fatalf("API-049 suggestion does not name the corrected Group(...) shape: %q", f.Suggestion)
+	}
+}
+
+// The same shape, declared through a var instead of a chained call, must
+// fire identically — API-049 tracks the Task("word")/.Define(...) pairing
+// through a local variable, not only a single chained expression.
+const phaseTaskOwningChildWorkViaVarSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  t := out.Task("check")
+  t.Define(func(ctx context.Context) error {
+    if err := checkMergeMarkers(); err != nil {
+      return err
+    }
+    if err := checkSymlinks(); err != nil {
+      return err
+    }
+    return nil
+  })
+}
+func checkMergeMarkers() error { return nil }
+func checkSymlinks() error { return nil }
+`
+
+func TestAPI049_PhaseTaskOwningChildWorkViaVar_Fires(t *testing.T) {
+	res := review.GoSource("check.go", phaseTaskOwningChildWorkViaVarSrc)
+	findingByID(t, res, "API-049")
+}
+
+const phaseTaskSingleStepSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("check").Define(func(ctx context.Context) error {
+    if err := verify(); err != nil {
+      return err
+    }
+    return nil
+  })
+}
+func verify() error { return nil }
+`
+
+func TestAPI049_PhaseTaskSingleStep_StaysSilent(t *testing.T) {
+	// One guarded step under a generic phase name is still one action, not
+	// a container hiding several — API-049 only fires on 2+ steps.
+	res := review.GoSource("check_single.go", phaseTaskSingleStepSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-049" {
+			t.Fatalf("false positive API-049 on a single guarded step: %+v", f)
+		}
+	}
+}
+
+const verbObjectTaskMultiStepSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("stabilize Go source").Define(func(ctx context.Context) error {
+    if err := fixGoImports(); err != nil {
+      return err
+    }
+    if err := fixGoFormatting(); err != nil {
+      return err
+    }
+    return nil
+  })
+}
+func fixGoImports() error { return nil }
+func fixGoFormatting() error { return nil }
+`
+
+func TestAPI049_VerbObjectTaskMultiStep_StaysSilent(t *testing.T) {
+	// Several steps under a real verb+object name are not a phase/category
+	// label, so this is not API-049's shape.
+	res := review.GoSource("stabilize.go", verbObjectTaskMultiStepSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-049" {
+			t.Fatalf("false positive API-049 on a verb+object Task name: %+v", f)
+		}
+	}
+}
+
+const phaseTaskRemediatedSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  fixGroup := out.Group("fix")
+  fixGroup.Task("fix Go imports").Define(func(ctx context.Context) error { return fixGoImports() })
+  fixGroup.Task("fix Go formatting").Define(func(ctx context.Context) error { return fixGoFormatting() })
+}
+func fixGoImports() error { return nil }
+func fixGoFormatting() error { return nil }
+`
+
+func TestAPI049_Remediated_StaysSilent(t *testing.T) {
+	// Recheck proof: the Group + verb+object children form from
+	// phaseTaskOwningChildWorkSrc's own remediation no longer matches
+	// API-049's Task("word").Define(...) shape.
+	res := review.GoSource("fix_remediated.go", phaseTaskRemediatedSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-049" {
+			t.Fatalf("API-049 still fires after remediation: %+v", f)
+		}
+	}
+}
+
 // API-047: a Task/Group/Sequence declaration reuses a sibling literal name
 // already used by a different entity kind under the same parent (ZYS-944).
 // Same-kind reuse already fails fast at runtime

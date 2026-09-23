@@ -590,6 +590,228 @@ func detectChannelWaitWrapperAroundDefine(filename, src string) []Finding {
 	return findings
 }
 
+// ===== API-049: a Task whose literal name is a generic phase/category word
+// (fix/check/classify/resolve/finalize — ZYS-937) sequences two or more
+// independently erroring steps in its own Define callback instead of
+// performing one action itself. API-045 already flags the bare word on
+// sight; this rule adds the structural half of the same distinction — it
+// only fires once the callback shows the actual evidence of owning several
+// children (zq's own fix/check command family, internal/app/app.go:80's
+// a.task("fix", ...)), so it stays silent on a single guarded step under
+// the same name and on any multi-step name that already reads as a real
+// verb+object action.
+
+// taskPhaseCategoryWords are the generic phase/category labels ZYS-937
+// names as suspect: a Task by this name that sequences several independent
+// operations is a container wearing one Task's clothes, not one action.
+var taskPhaseCategoryWords = map[string]bool{
+	"fix": true, "check": true, "classify": true, "resolve": true, "finalize": true,
+}
+
+// phaseTaskCallInfo reports whether call is an evo Task("word") call whose
+// literal name is a generic phase/category word, returning the matched
+// (original-case) word and the call's source position.
+func phaseTaskCallInfo(call *ast.CallExpr, fset *token.FileSet) (word string, pos token.Position, ok bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Task" || !isLikelyEvoReceiver(sel.X) || len(call.Args) < 1 {
+		return "", token.Position{}, false
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", token.Position{}, false
+	}
+	text, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return "", token.Position{}, false
+	}
+	if !taskPhaseCategoryWords[strings.ToLower(strings.TrimSpace(text))] {
+		return "", token.Position{}, false
+	}
+	return text, fset.Position(call.Pos()), true
+}
+
+// detectPhaseTaskOwningChildWork covers two shapes: a chained
+// X.Task("word").Define(func(){...}) expression, and the same pairing split
+// across a local variable (t := X.Task("word") ... t.Define(func(){...})
+// later in the same function body) — no cross-function data flow, matching
+// this package's other same-block tracking detectors (scanDoingDoneAdjacent).
+func detectPhaseTaskOwningChildWork(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) < 1 {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Define" {
+			return true
+		}
+		taskCall, ok := sel.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		word, pos, ok := phaseTaskCallInfo(taskCall, fset)
+		if !ok {
+			return true
+		}
+		fl, ok := call.Args[0].(*ast.FuncLit)
+		if !ok {
+			return true
+		}
+		if f := phaseTaskDefineFinding(filename, pos, word, fl); f != nil {
+			findings = append(findings, *f)
+		}
+		return true
+	})
+	ast.Inspect(file, func(n ast.Node) bool {
+		fn, ok := n.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			return true
+		}
+		findings = append(findings, scanPhaseTaskVarDefines(filename, fn.Body, fset)...)
+		return false
+	})
+	return findings
+}
+
+// scanPhaseTaskVarDefines walks block's top-level statements tracking
+// `v := recv.Task("word")` assignments where word matches
+// taskPhaseCategoryWords, then matches the next `v.Define(func(){...})`
+// statement against that pending declaration.
+func scanPhaseTaskVarDefines(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
+	var findings []Finding
+	type pendingTask struct {
+		word string
+		pos  token.Position
+	}
+	pending := map[string]pendingTask{}
+	for _, stmt := range block.List {
+		switch s := stmt.(type) {
+		case *ast.AssignStmt:
+			if len(s.Lhs) != 1 || len(s.Rhs) != 1 {
+				continue
+			}
+			id, ok := s.Lhs[0].(*ast.Ident)
+			if !ok {
+				continue
+			}
+			call, ok := s.Rhs[0].(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+			if word, pos, ok := phaseTaskCallInfo(call, fset); ok {
+				pending[id.Name] = pendingTask{word, pos}
+			}
+		case *ast.ExprStmt:
+			call, ok := s.X.(*ast.CallExpr)
+			if !ok || len(call.Args) < 1 {
+				continue
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "Define" {
+				continue
+			}
+			recvID, ok := sel.X.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			info, tracked := pending[recvID.Name]
+			if !tracked {
+				continue
+			}
+			delete(pending, recvID.Name)
+			fl, ok := call.Args[0].(*ast.FuncLit)
+			if !ok {
+				continue
+			}
+			if f := phaseTaskDefineFinding(filename, info.pos, info.word, fl); f != nil {
+				findings = append(findings, *f)
+			}
+		}
+	}
+	return findings
+}
+
+// phaseTaskDefineFinding inspects a Define callback's top-level statements
+// for 2+ independently erroring steps — the structural evidence that a
+// generic phase-named Task (fix/check/classify/resolve/finalize) exists
+// primarily to own child-looking work or force a row, rather than perform
+// one action itself.
+func phaseTaskDefineFinding(filename string, pos token.Position, word string, fl *ast.FuncLit) *Finding {
+	steps := countGuardedCallSteps(fl.Body)
+	if steps < 2 {
+		return nil
+	}
+	return &Finding{
+		RuleID:   "API-049",
+		Severity: "warning",
+		Message: "Task(" + strconv.Quote(word) + ") sequences " + strconv.Itoa(steps) +
+			" independently erroring steps in its own Define callback; it exists primarily to own child-looking work, not to perform one action itself",
+		File:   filename,
+		Line:   pos.Line,
+		Column: pos.Column,
+		Suggestion: "replace Task(" + strconv.Quote(word) + ") with Group(" + strconv.Quote(word) +
+			") and give each independently erroring step its own verb+object child Task, e.g. group := out.Group(" + strconv.Quote(word) +
+			"); group.Task(\"...\").Define(func(ctx context.Context) error { ... })",
+	}
+}
+
+// countGuardedCallSteps counts block's top-level statements shaped like one
+// independent unit of work immediately followed by its own error check —
+// `if err := f(...); err != nil { return err }` or `err = f(...)` directly
+// followed by `if err != nil { return err }`. It never descends into nested
+// control flow or a nested FuncLit, so it only counts steps sequenced
+// directly in the callback body, never ones buried inside a loop/branch.
+func countGuardedCallSteps(body *ast.BlockStmt) int {
+	if body == nil {
+		return 0
+	}
+	steps := 0
+	stmts := body.List
+	for i := range stmts {
+		switch s := stmts[i].(type) {
+		case *ast.IfStmt:
+			if s.Init != nil && isCallAssign(s.Init) && isErrNeqNilCond(s.Cond) {
+				steps++
+			}
+		case *ast.AssignStmt:
+			if !isCallAssign(s) || i+1 >= len(stmts) {
+				continue
+			}
+			next, ok := stmts[i+1].(*ast.IfStmt)
+			if ok && next.Init == nil && isErrNeqNilCond(next.Cond) {
+				steps++
+			}
+		}
+	}
+	return steps
+}
+
+// isCallAssign reports whether s is a single-value assignment/definition
+// (`err := f(...)` or `err = f(...)`) whose right side is a call.
+func isCallAssign(s ast.Stmt) bool {
+	assign, ok := s.(*ast.AssignStmt)
+	if !ok || len(assign.Rhs) != 1 {
+		return false
+	}
+	_, ok = assign.Rhs[0].(*ast.CallExpr)
+	return ok
+}
+
+// isErrNeqNilCond reports whether cond is the bare `err != nil` guard.
+func isErrNeqNilCond(cond ast.Expr) bool {
+	be, ok := cond.(*ast.BinaryExpr)
+	if !ok || be.Op != token.NEQ {
+		return false
+	}
+	id, ok := be.X.(*ast.Ident)
+	if !ok || id.Name != "err" {
+		return false
+	}
+	nilIdent, ok := be.Y.(*ast.Ident)
+	return ok && nilIdent.Name == "nil"
+}
+
 // ===== API-047: a Task/Group/Sequence declaration reuses a sibling literal
 // name already used, under the same parent handle, by a different entity
 // kind. §3.1's default stable key folds kind into the key
