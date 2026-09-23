@@ -1527,6 +1527,34 @@ return jobs.Wait()`,
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-053",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a child.After(parent) edge exists to declare a real semantic dependency; it is never kept only to avoid a data race that File/FSResource/LogicalResource's own automatic resource claim (ZYS-840) already serializes",
+			Why:       "Before ZYS-840, two Tasks writing the same file/shared state had no automatic exclusion, so pinning one After the other was the only way to avoid a race, and the reason usually shows up as a comment (\"same file\", \"avoid race\", \"exclusive access\") next to the edge. Now that File/FSResource/LogicalResource auto-claim and serialize any overlapping write, that edge no longer does anything a resource claim doesn't already do — it only couples two Tasks' scheduling that would otherwise run concurrently, which costs wall-clock time and reads as a real dependency to the next person who touches the DAG.",
+			BadCode: `configTask.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+})
+cacheTask.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: warm})
+})
+// same file — avoid concurrent write race
+cacheTask.After(configTask)`,
+			GoodCode: `configTask.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+})
+cacheTask.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: warm})
+})
+// no .After: File already claims "config.json" for writing and
+// serializes the overlap`,
+			Remediation:     "Delete the .After(...) edge; keep the overlapping File/FSResource/LogicalResource claim, which already waits out the conflict. Keep .After only where one Task's output is a real input the other's Define reads.",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-053"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",
