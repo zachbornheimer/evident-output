@@ -42,7 +42,7 @@ func runExecTask(out *evo.Output, name string, spec evo.ExecSpec) error {
 	var execErr error
 	task := out.Task(name)
 	task.Define(func(ctx context.Context) error {
-		execErr = evo.Exec(ctx, spec)
+		_, execErr = evo.Exec(ctx, spec)
 		return execErr
 	})
 	_ = task.Wait()
@@ -137,7 +137,10 @@ func TestV06ExecCancellationKillsProcess(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	out.Run(ctx, func(context.Context) error {
 		task := out.Task("cancelled")
-		task.Define(func(taskCtx context.Context) error { return evo.Exec(taskCtx, evo.ExecSpec{Executable: tool}) })
+		task.Define(func(taskCtx context.Context) error {
+			_, err := evo.Exec(taskCtx, evo.ExecSpec{Executable: tool})
+			return err
+		})
 		return nil
 	})
 	if out.Err() == nil {
@@ -160,7 +163,7 @@ func TestV06ExecCapturedLineBecomesActivityAndRedactsSecrets(t *testing.T) {
 	task := out.Task("narrated")
 	var phaseDuringRun string
 	task.Define(func(ctx context.Context) error {
-		err := evo.Exec(ctx, evo.ExecSpec{Executable: tool})
+		_, err := evo.Exec(ctx, evo.ExecSpec{Executable: tool})
 		phaseDuringRun = task.Snapshot().Phase
 		return err
 	})

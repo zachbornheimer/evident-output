@@ -15,7 +15,9 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-var _ = func() func(context.Context, evo.ExecSpec) error { return evo.Exec }
+var _ = func() func(context.Context, evo.ExecSpec) (evo.ExecResult, error) { return evo.Exec }
+
+var _ = func() func(evo.ProcessRunner) evo.Option { return evo.Runner }
 
 type noopRunner struct{}
 
@@ -24,7 +26,7 @@ func (noopRunner) Run(context.Context, evo.ProcessCommand) (evo.ProcessOutcome, 
 }
 
 func TestV06ExecAPITypesCompile(t *testing.T) {
-	var _ evo.ExecSpec = evo.ExecSpec{
+	_ = evo.ExecSpec{
 		Executable: "tool",
 		Args:       []string{"arg"},
 		Dir:        "workdir",
@@ -32,6 +34,6 @@ func TestV06ExecAPITypesCompile(t *testing.T) {
 		Basis:      []evo.Fingerprint{evo.FSPath("in")},
 		Outputs:    []string{"out"},
 	}
-	var _ evo.Config = evo.Config{ProcessRunner: noopRunner{}}
-	var _ evo.Option = evo.Runner(noopRunner{})
+	_ = evo.Config{ProcessRunner: noopRunner{}}
+	_ = evo.Runner(noopRunner{})
 }
