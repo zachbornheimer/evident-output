@@ -1446,6 +1446,32 @@ remote.After(branches).Define(func(ctx context.Context) error { return nil })`,
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-050",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a real check Task owns zero, one, or many structured Problems before it resolves once; findings are never flattened into one joined error string, and a finding is never given its own fake Task",
+			Why:       "Without TaskHandle.Problem, a caller with several structured findings has only two theater shapes: `errors.New(strings.Join(lines, \"\\n\"))` collapses every finding's own location/code/detail into one string at the Evo boundary (zq's blockStagedGolangciFindings), or `group.Task(f.File).Fail(f.Message)` inside a loop spawns one Task per finding that is never independently schedulable or awaited (zq's reportFileIntegrityIssues) — both destroy the one-Task-many-findings model ZYS-848 built Problem for.",
+			BadCode: `var lines []string
+for _, f := range findings {
+  lines = append(lines, formatFinding(f))
+}
+return errors.New(strings.Join(lines, "\n"))`,
+			GoodCode: `task := out.Task("file integrity")
+for _, issue := range issues {
+  task.Problem(issue.Summary,
+    evo.On(issue.Path),
+    evo.Code(issue.Code),
+    evo.Location(issue.Path, issue.Line, 0),
+  )
+}
+task.Define(func(context.Context) error { return nil })`,
+			Remediation:     "Replace the joined-error loop or the per-finding Task(...).Fail(...) loop with one owning Task that calls task.Problem(summary, opts...) once per finding; let Define resolve the Task Failed once if any Problem was accumulated",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-050"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",

@@ -582,6 +582,17 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectDefineDiscardsSchedulerContext(filename, f, fset)...)
 	}
 
+	// API-050: a loop flattens structured findings into one joined error,
+	// or creates one fake Task per finding, instead of accumulating them
+	// with TaskHandle.Problem. Problem's multi-finding accumulation
+	// (ZYS-848 Decisions 2026-09-23) is 1.1.0-only, so a pin older than
+	// that cannot apply this rule's suggested fix.
+	hasEvoAtOneOne := hasEvo && dialectAtLeast(desiredVersion, dialectOneOne)
+	if hasEvoAtOneOne {
+		findings = append(findings, detectPerFindingFakeTask(filename, f, fset)...)
+		findings = append(findings, detectFlattenedDiagnosticsLoop(filename, src)...)
+	}
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)
