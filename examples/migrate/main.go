@@ -41,11 +41,16 @@ func main() {
 		migration.Done("applied")
 
 		schema := evo.Sequence("schema")
+		db := &database{}
 		schema.Task("email column").Define(func(ctx context.Context) error {
-			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "column", Quantity: 1}, addEmailVerifiedColumn)
+			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "column", Quantity: 1}, func(ctx context.Context) error {
+				return db.ExecContext(ctx, addColumnDDL)
+			})
 		})
 		schema.Task("email index").Define(func(ctx context.Context) error {
-			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "index", Quantity: 1}, createEmailIndex)
+			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "index", Quantity: 1}, func(ctx context.Context) error {
+				return db.ExecContext(ctx, createIndexDDL)
+			})
 		})
 		schema.Task("migration file").Define(func(ctx context.Context) error {
 			return evo.File(ctx, evo.FileSpec{Path: migrationPath, Contents: []byte(migrationSQL), Mode: 0o644})
@@ -55,12 +60,18 @@ func main() {
 }
 
 const (
-	migrationPath = "20260727_email_verified.sql"
-	migrationSQL  = "ALTER TABLE users ADD COLUMN email_verified boolean NOT NULL DEFAULT false;\n" +
-		"CREATE INDEX idx_users_email ON users (email);\n"
+	addColumnDDL   = "ALTER TABLE users ADD COLUMN email_verified boolean NOT NULL DEFAULT false;"
+	createIndexDDL = "CREATE INDEX idx_users_email ON users (email);"
+	migrationPath  = "20260727_email_verified.sql"
+	migrationSQL   = addColumnDDL + "\n" + createIndexDDL + "\n"
 )
 
-// addEmailVerifiedColumn and createEmailIndex stand in for the database
-// calls a real migration makes; evo cannot model a schema as file state.
-func addEmailVerifiedColumn(context.Context) error { return nil }
-func createEmailIndex(context.Context) error       { return nil }
+// database stands in for the *sql.DB a real migration holds: evo cannot
+// model a schema as desired state, so each DDL statement is an opaque
+// evo.Effect. ExecContext records the statement instead of sending it.
+type database struct{ applied []string }
+
+func (d *database) ExecContext(_ context.Context, stmt string) error {
+	d.applied = append(d.applied, stmt)
+	return nil
+}
