@@ -1390,6 +1390,30 @@ prep.Task("stabilize Go source").Define(stabilizeGo)`,
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-050",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a Task named for a generic phase/category (fix/check/classify/resolve/finalize) performs one independently meaningful action, not several sequenced behind one row",
+			Why:       "Task(\"fix\") (zq internal/app/app.go:80's a.task(\"fix\", ...) command family, ZYS-937) that sequences two or more independently erroring steps in its own Define callback exists primarily to own child-looking work or force a row — API-045 flags the bare word on sight, but the callback's own shape is the structural proof: each guarded step could fail, wait, and report independently, so each deserves its own Task under a Group.",
+			BadCode: `out.Task("fix").Define(func(ctx context.Context) error {
+  if err := fixGoImports(); err != nil {
+    return err
+  }
+  if err := fixGoFormatting(); err != nil {
+    return err
+  }
+  return nil
+})`,
+			GoodCode: `fixGroup := out.Group("fix")
+fixGroup.Task("fix Go imports").Define(func(ctx context.Context) error { return fixGoImports() })
+fixGroup.Task("fix Go formatting").Define(func(ctx context.Context) error { return fixGoFormatting() })`,
+			Remediation:     "Replace a generic phase/category Task that sequences several independently erroring steps with a Group carrying one verb+object child Task per step",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-050"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "API-047",
 			Category:  "API",
 			Severity:  "error",
@@ -1449,6 +1473,63 @@ remote.After(branches).Define(func(ctx context.Context) error { return nil })`,
 			ID:        "API-051",
 			Category:  "API",
 			Severity:  "error",
+			Invariant: "a real check Task owns zero, one, or many structured Problems before it resolves once; findings are never flattened into one joined error string, and a finding is never given its own fake Task",
+			Why:       "Without TaskHandle.Problem, a caller with several structured findings has only two theater shapes: `errors.New(strings.Join(lines, \"\\n\"))` collapses every finding's own location/code/detail into one string at the Evo boundary (zq's blockStagedGolangciFindings), or `group.Task(f.File).Fail(f.Message)` inside a loop spawns one Task per finding that is never independently schedulable or awaited (zq's reportFileIntegrityIssues) — both destroy the one-Task-many-findings model ZYS-848 built Problem for.",
+			BadCode: `var lines []string
+for _, f := range findings {
+  lines = append(lines, formatFinding(f))
+}
+return errors.New(strings.Join(lines, "\n"))`,
+			GoodCode: `task := out.Task("file integrity")
+for _, issue := range issues {
+  task.Problem(issue.Summary,
+    evo.On(issue.Path),
+    evo.Code(issue.Code),
+    evo.Location(issue.Path, issue.Line, 0),
+  )
+}
+task.Define(func(context.Context) error { return nil })`,
+			Remediation:     "Replace the joined-error loop or the per-finding Task(...).Fail(...) loop with one owning Task that calls task.Problem(summary, opts...) once per finding; let Define resolve the Task Failed once if any Problem was accumulated",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-051"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-052",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "the container that owns child Task scheduling also owns waiting for its descendants and deriving their aggregate outcome; a caller does not store child handles merely to loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count failures",
+			Why:       "zq's runParallel (internal/app/app.go) keeps []*evo.TaskHandle, loops task.Wait(), Snapshots the Group, counts failed children, and builds its own \"N of N failed\" error; waitDefinedRunOperations (internal/app/run_execute.go) loops Tasks, special-cases evo.ErrNotStarted, and returns the first remaining error. Both reimplement exactly what GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849) now does natively, including ErrNotStarted-from-a-failed-predecessor suppression and declaration-order error joining.",
+			BadCode: `var handles []*evo.TaskHandle
+for _, item := range items {
+  t := jobs.Task(item.Name)
+  t.Define(func(ctx context.Context) error { return run(item) })
+  handles = append(handles, t)
+}
+failed := 0
+for _, h := range handles {
+  if err := h.Wait(); err != nil {
+    failed++
+  }
+}
+if failed > 0 {
+  return fmt.Errorf("%d of %d failed", failed, len(handles))
+}`,
+			GoodCode: `for _, item := range items {
+  jobs.Task(item.Name).Define(func(ctx context.Context) error { return run(item) })
+}
+return jobs.Wait()`,
+			Remediation:     "Delete the stored-handle slice, the Wait loop, the Snapshot, and the hand-counted aggregate error; call the owning GroupHandle/SequenceHandle's own Wait() after every child is declared",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-052"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-053",
+			Category:  "API",
+			Severity:  "error",
 			Invariant: "a raw os/exec.Cmd wired to an Evo Task's Writer() does not hand-roll bytes.Buffer/io.MultiWriter capture or recognize cancellation by comparing captured output strings; evo.Exec already owns spawning, capture, liveness, sanitized/redacted bounded retention, and context-based cancellation, and returns an inspectable ExecResult",
 			Why:       "zq's run_captured_task.go allocates its own bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter, falls back to Result.Output when live redirection is unavailable, recognizes cancellation by comparing captured output strings, classifies nonzero exit itself, and manually attaches captured evidence through Failf — all of it now redundant with the ExecResult{Ran, ExitCode, Stdout, Stderr, Truncated} that evo.Exec returns (ZYS-850), plus errors.Is(err, evo.ErrExecNonzeroExit) for exit classification.",
 			BadCode: `var buf bytes.Buffer
@@ -1468,7 +1549,7 @@ if errors.Is(err, evo.ErrExecNonzeroExit) {
 return err`,
 			Remediation:     "Delete the raw exec.Cmd, its hand-rolled bytes.Buffer/io.MultiWriter capture, and any output-string cancellation match; call evo.Exec(ctx, spec) and inspect the returned ExecResult (and errors.Is(err, evo.ErrExecNonzeroExit)) instead",
 			RelatedGuidance: []string{"evo-file-exec", "tasks"},
-			VerificationIDs: []string{"API-051"},
+			VerificationIDs: []string{"API-053"},
 			Since:           "1.1.0",
 			Certainty:       "heuristic",
 		},

@@ -39,6 +39,20 @@ func (r fsResource) String() string { return string(spaceFS) + ":" + r.path }
 // String reports the resource as written by the caller, before resolution.
 func (r logicalResource) String() string { return string(spaceLogical) + ":" + r.name }
 
+// Label is r as the caller named it, with no namespace prefix: the path
+// passed to FS or the name passed to Logical. It is what a person reads
+// when a claim on r has to wait.
+func Label(r Resource) string {
+	switch r := r.(type) {
+	case fsResource:
+		return r.path
+	case logicalResource:
+		return strings.TrimSpace(r.name)
+	default:
+		return fmt.Sprint(r)
+	}
+}
+
 // FS names the filesystem path path. A relative path resolves against the
 // acquiring Run's workspace; symlinked ancestors resolve to their targets
 // so an alias shares identity with the real path. Construction performs no

@@ -10,6 +10,11 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // Read claims share; any overlapping pair that includes a write waits.
 // Code already holding a resource that asks for a second one fails with
 // ErrNestedResourceAcquisition instead of risking deadlock.
+//
+// Claims coordinate every Output in one process. Across processes only the
+// manifest lock coordinates, and only for tracked File/Exec state in the
+// same manifest namespace; see "Shared resources and concurrency" in
+// docs/reference.md.
 type Resource = engine.Resource
 
 // FSResource names the filesystem path path. A relative path resolves

@@ -613,6 +613,145 @@ func run(task *evo.TaskHandle) {
 	}
 }
 
+// API-050: a Task whose literal name is a generic phase/category word
+// (fix/check/classify/resolve/finalize — ZYS-937) sequences two or more
+// independently erroring steps in its own Define callback instead of
+// performing one action itself — it exists primarily to own child-looking
+// work or force a row (zq's own fix/check command family,
+// internal/app/app.go:80's a.task("fix", ...)).
+
+const phaseTaskOwningChildWorkSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("fix").Define(func(ctx context.Context) error {
+    if err := fixGoImports(); err != nil {
+      return err
+    }
+    if err := fixGoFormatting(); err != nil {
+      return err
+    }
+    return nil
+  })
+}
+func fixGoImports() error { return nil }
+func fixGoFormatting() error { return nil }
+`
+
+func TestAPI049_PhaseTaskOwningChildWork_Fires(t *testing.T) {
+	res := review.GoSource("fix.go", phaseTaskOwningChildWorkSrc)
+	f := findingByID(t, res, "API-050")
+	if f.Severity != "warning" {
+		t.Fatalf("API-050 severity = %q, want warning", f.Severity)
+	}
+	if !strings.Contains(f.Message, "own child-looking work") {
+		t.Fatalf("API-050 message does not name the semantic distinction: %q", f.Message)
+	}
+	if !strings.Contains(f.Suggestion, "Group(") {
+		t.Fatalf("API-050 suggestion does not name the corrected Group(...) shape: %q", f.Suggestion)
+	}
+}
+
+// The same shape, declared through a var instead of a chained call, must
+// fire identically — API-050 tracks the Task("word")/.Define(...) pairing
+// through a local variable, not only a single chained expression.
+const phaseTaskOwningChildWorkViaVarSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  t := out.Task("check")
+  t.Define(func(ctx context.Context) error {
+    if err := checkMergeMarkers(); err != nil {
+      return err
+    }
+    if err := checkSymlinks(); err != nil {
+      return err
+    }
+    return nil
+  })
+}
+func checkMergeMarkers() error { return nil }
+func checkSymlinks() error { return nil }
+`
+
+func TestAPI049_PhaseTaskOwningChildWorkViaVar_Fires(t *testing.T) {
+	res := review.GoSource("check.go", phaseTaskOwningChildWorkViaVarSrc)
+	findingByID(t, res, "API-050")
+}
+
+const phaseTaskSingleStepSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("check").Define(func(ctx context.Context) error {
+    if err := verify(); err != nil {
+      return err
+    }
+    return nil
+  })
+}
+func verify() error { return nil }
+`
+
+func TestAPI049_PhaseTaskSingleStep_StaysSilent(t *testing.T) {
+	// One guarded step under a generic phase name is still one action, not
+	// a container hiding several — API-050 only fires on 2+ steps.
+	res := review.GoSource("check_single.go", phaseTaskSingleStepSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-050" {
+			t.Fatalf("false positive API-050 on a single guarded step: %+v", f)
+		}
+	}
+}
+
+const verbObjectTaskMultiStepSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("stabilize Go source").Define(func(ctx context.Context) error {
+    if err := fixGoImports(); err != nil {
+      return err
+    }
+    if err := fixGoFormatting(); err != nil {
+      return err
+    }
+    return nil
+  })
+}
+func fixGoImports() error { return nil }
+func fixGoFormatting() error { return nil }
+`
+
+func TestAPI049_VerbObjectTaskMultiStep_StaysSilent(t *testing.T) {
+	// Several steps under a real verb+object name are not a phase/category
+	// label, so this is not API-050's shape.
+	res := review.GoSource("stabilize.go", verbObjectTaskMultiStepSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-050" {
+			t.Fatalf("false positive API-050 on a verb+object Task name: %+v", f)
+		}
+	}
+}
+
+const phaseTaskRemediatedSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  fixGroup := out.Group("fix")
+  fixGroup.Task("fix Go imports").Define(func(ctx context.Context) error { return fixGoImports() })
+  fixGroup.Task("fix Go formatting").Define(func(ctx context.Context) error { return fixGoFormatting() })
+}
+func fixGoImports() error { return nil }
+func fixGoFormatting() error { return nil }
+`
+
+func TestAPI049_Remediated_StaysSilent(t *testing.T) {
+	// Recheck proof: the Group + verb+object children form from
+	// phaseTaskOwningChildWorkSrc's own remediation no longer matches
+	// API-050's Task("word").Define(...) shape.
+	res := review.GoSource("fix_remediated.go", phaseTaskRemediatedSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-050" {
+			t.Fatalf("API-050 still fires after remediation: %+v", f)
+		}
+	}
+}
+
 // API-047: a Task/Group/Sequence declaration reuses a sibling literal name
 // already used by a different entity kind under the same parent (ZYS-944).
 // Same-kind reuse already fails fast at runtime
@@ -960,7 +1099,7 @@ func TestAPI049_LocalCtxShadow_StaysSilent(t *testing.T) {
 	}
 }
 
-// API-051: generic bytes.Buffer/io.MultiWriter/task.Writer plumbing wired
+// API-053: generic bytes.Buffer/io.MultiWriter/task.Writer plumbing wired
 // around a raw os/exec.Cmd to recreate Exec's own capture/liveness, plus
 // string-match cancellation detection, instead of using evo.Exec and
 // inspecting the returned ExecResult (ZYS-942, ZYS-850's ExecResult;
@@ -985,14 +1124,14 @@ func runCapturedTask(task *evo.TaskHandle, cmd *exec.Cmd) error {
 }
 `
 
-func TestAPI051_ManualBufferMultiWriterAroundTaskWriter_Fires(t *testing.T) {
+func TestAPI053_ManualBufferMultiWriterAroundTaskWriter_Fires(t *testing.T) {
 	res := review.GoSource("run_captured_task.go", manualCaptureBufferMultiWriterSrc)
-	f := findingByID(t, res, "API-051")
+	f := findingByID(t, res, "API-053")
 	if f.Severity != "error" {
-		t.Fatalf("API-051 severity = %q, want error", f.Severity)
+		t.Fatalf("API-053 severity = %q, want error", f.Severity)
 	}
 	if !strings.Contains(f.Suggestion, "evo.Exec") || !strings.Contains(f.Suggestion, "ExecResult") {
-		t.Fatalf("API-051 suggestion does not name the Exec/ExecResult fix: %q", f.Suggestion)
+		t.Fatalf("API-053 suggestion does not name the Exec/ExecResult fix: %q", f.Suggestion)
 	}
 }
 
@@ -1015,11 +1154,11 @@ func runChecked(task *evo.TaskHandle, cmd *exec.Cmd) error {
 }
 `
 
-func TestAPI051_StringMatchCancellationAroundTaskWriter_Fires(t *testing.T) {
+func TestAPI053_StringMatchCancellationAroundTaskWriter_Fires(t *testing.T) {
 	res := review.GoSource("run_checked.go", manualCancellationStringMatchSrc)
-	f := findingByID(t, res, "API-051")
+	f := findingByID(t, res, "API-053")
 	if !strings.Contains(f.Suggestion, "ExecResult") {
-		t.Fatalf("API-051 suggestion does not name ExecResult: %q", f.Suggestion)
+		t.Fatalf("API-053 suggestion does not name ExecResult: %q", f.Suggestion)
 	}
 }
 
@@ -1035,11 +1174,11 @@ func runChecked(ctx context.Context, spec evo.ExecSpec) error {
 }
 `
 
-func TestAPI051_EvoExecResultInspection_StaysSilent(t *testing.T) {
+func TestAPI053_EvoExecResultInspection_StaysSilent(t *testing.T) {
 	res := review.GoSource("run_checked.go", evoExecResultInspectionSrc)
 	for _, f := range res.Findings {
-		if f.RuleID == "API-051" {
-			t.Fatalf("false positive API-051 on evo.Exec/ExecResult inspection: %+v", f)
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053 on evo.Exec/ExecResult inspection: %+v", f)
 		}
 	}
 }
@@ -1056,32 +1195,313 @@ func teeToFile(f *os.File) io.Writer {
 }
 `
 
-func TestAPI051_UnrelatedBufferMultiWriterNoTaskWriter_StaysSilent(t *testing.T) {
+func TestAPI053_UnrelatedBufferMultiWriterNoTaskWriter_StaysSilent(t *testing.T) {
 	res := review.GoSource("tee.go", unrelatedBufferMultiWriterNoTaskSrc)
 	for _, f := range res.Findings {
-		if f.RuleID == "API-051" {
-			t.Fatalf("false positive API-051 without any task.Writer()/raw exec.Cmd combination: %+v", f)
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053 without any task.Writer()/raw exec.Cmd combination: %+v", f)
 		}
 	}
 }
 
-func TestAPI051_PreOneOneOnePin_StaysSilent(t *testing.T) {
+func TestAPI053_PreOneOneOnePin_StaysSilent(t *testing.T) {
 	res := review.GoSourceAt("run_captured_task.go", manualCaptureBufferMultiWriterSrc, "1.0.0")
 	for _, f := range res.Findings {
-		if f.RuleID == "API-051" {
-			t.Fatalf("API-051 fired for a pin older than 1.1.0 (ExecResult did not exist yet): %+v", f)
+		if f.RuleID == "API-053" {
+			t.Fatalf("API-053 fired for a pin older than 1.1.0 (ExecResult did not exist yet): %+v", f)
 		}
 	}
 }
 
-func TestAPI051_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+func TestAPI053_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 	res := review.GoSource("run_captured_task.go", manualCaptureBufferMultiWriterSrc)
-	findingByID(t, res, "API-051")
+	findingByID(t, res, "API-053")
 
 	after := review.GoSource("run_checked.go", evoExecResultInspectionSrc)
 	for _, f := range after.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("API-053 still fires after remediation to evo.Exec/ExecResult: %+v", f)
+		}
+	}
+}
+
+const stringLiteralMentionsCmdRunNoRealExecSrc = `package p
+import (
+  "bytes"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func inspectExecResult(task *evo.TaskHandle, res evo.ExecResult) error {
+  // note: not the same as hand-rolling cmd.Run( capture ourselves
+  var buf bytes.Buffer
+  buf.WriteString("cmd.Run( appears only in this comment and string, never as real Go syntax")
+  task.Writer().Write(buf.Bytes())
+  if res.ExitCode != 0 {
+    return evo.ErrExecNonzeroExit
+  }
+  return nil
+}
+`
+
+func TestAPI053_StringLiteralAndCommentMentionCmdRun_StaysSilent(t *testing.T) {
+	res := review.GoSource("inspect.go", stringLiteralMentionsCmdRunNoRealExecSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053: rawExecCmdSignals matched inside a string literal/comment, not real exec.Cmd syntax: %+v", f)
+		}
+	}
+}
+
+// API-051: a loop that flattens structured findings into one joined error
+// string, or spawns one fake Task per finding, instead of accumulating them
+// with TaskHandle.Problem (ZYS-848/ZYS-943, docs/migration/1.1.md
+// "TaskHandle.Problem — a Task can now own many blocking findings").
+
+const flattenedDiagnosticsLoopSrc = `package p
+import (
+  "errors"
+  "strings"
+
+  evo "github.com/zachbornheimer/evident-output"
+)
+func blockStagedGolangciFindings(task *evo.TaskHandle, findings []finding) error {
+  var lines []string
+  for _, f := range findings {
+    lines = append(lines, formatFinding(f))
+  }
+  return errors.New(strings.Join(lines, "\n"))
+}
+type finding struct{}
+func formatFinding(f finding) string { return "" }
+`
+
+func TestAPI051_FlattenedDiagnosticsLoop_Fires(t *testing.T) {
+	res := review.GoSource("hook_findings.go", flattenedDiagnosticsLoopSrc)
+	f := findingByID(t, res, "API-051")
+	if f.Severity != "error" {
+		t.Fatalf("API-051 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "task.Problem") {
+		t.Fatalf("API-051 suggestion does not name task.Problem: %q", f.Suggestion)
+	}
+}
+
+const fakeTaskPerFindingSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func reportFileIntegrityIssues(group *evo.GroupHandle, findings []finding) {
+  for _, f := range findings {
+    group.Task(f.File).Fail(f.Message)
+  }
+}
+type finding struct {
+  File    string
+  Message string
+}
+`
+
+func TestAPI051_FakeTaskPerFinding_Fires(t *testing.T) {
+	res := review.GoSource("hook.go", fakeTaskPerFindingSrc)
+	f := findingByID(t, res, "API-051")
+	if f.Severity != "error" {
+		t.Fatalf("API-051 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "task.Problem") {
+		t.Fatalf("API-051 suggestion does not name task.Problem: %q", f.Suggestion)
+	}
+}
+
+const problemAccumulationSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(out *evo.Output, issues []issue) {
+  task := out.Task("file integrity")
+  for _, issue := range issues {
+    task.Problem(issue.Summary,
+      evo.On(issue.Path),
+      evo.Code(issue.Code),
+      evo.Location(issue.Path, issue.Line, 0),
+    )
+  }
+  task.Define(func(context.Context) error { return nil })
+}
+type issue struct {
+  Summary string
+  Path    string
+  Code    string
+  Line    int
+}
+`
+
+func TestAPI051_ProblemAccumulation_StaysSilent(t *testing.T) {
+	res := review.GoSource("hook_good.go", problemAccumulationSrc)
+	for _, f := range res.Findings {
 		if f.RuleID == "API-051" {
-			t.Fatalf("API-051 still fires after remediation to evo.Exec/ExecResult: %+v", f)
+			t.Fatalf("false positive API-051 on the recommended task.Problem accumulation: %+v", f)
+		}
+	}
+}
+
+const unrelatedJoinedStringSrc = `package p
+import (
+  "log"
+  "strings"
+)
+func summarize(names []string) {
+  var lines []string
+  for _, n := range names {
+    lines = append(lines, n)
+  }
+  log.Println(strings.Join(lines, ", "))
+}
+`
+
+func TestAPI051_UnrelatedJoinedString_StaysSilent(t *testing.T) {
+	res := review.GoSource("summarize.go", unrelatedJoinedStringSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("false positive API-051 on a joined string never wrapped in errors.New/Fail: %+v", f)
+		}
+	}
+}
+
+func TestAPI051_PreOneOnePin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("hook_findings.go", flattenedDiagnosticsLoopSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("API-051 fired for a pin older than 1.1.0 (TaskHandle.Problem accumulation did not exist yet): %+v", f)
+		}
+	}
+	res = review.GoSourceAt("hook.go", fakeTaskPerFindingSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("API-051 fired for a pin older than 1.1.0 (TaskHandle.Problem accumulation did not exist yet): %+v", f)
+		}
+	}
+}
+
+// API-052: a caller stores Group/Sequence child Task handles solely to loop
+// Wait, filter ErrNotStarted, Snapshot the container, count failed children,
+// and synthesize its own aggregate error — GroupHandle.Wait/SequenceHandle.Wait
+// (ZYS-849) now owns exactly this (ZYS-941, zq runParallel/
+// waitDefinedRunOperations evidence).
+
+const callerWaitLoopSnapshotCountSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func runParallel(jobs *evo.GroupHandle, items []string) error {
+  var handles []*evo.TaskHandle
+  for _, item := range items {
+    t := jobs.Task(item)
+    t.Define(func(ctx context.Context) error { return nil })
+    handles = append(handles, t)
+  }
+  failed := 0
+  for _, h := range handles {
+    if err := h.Wait(); err != nil {
+      failed++
+    }
+  }
+  snap := jobs.Snapshot()
+  _ = snap
+  if failed > 0 {
+    return fmt.Errorf("%d of %d failed", failed, len(handles))
+  }
+  return nil
+}
+`
+
+func TestAPI052_CallerWaitLoopSnapshotCount_Fires(t *testing.T) {
+	res := review.GoSource("run_parallel.go", callerWaitLoopSnapshotCountSrc)
+	f := findingByID(t, res, "API-052")
+	if f.Severity != "error" {
+		t.Fatalf("API-052 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "GroupHandle.Wait") && !strings.Contains(f.Suggestion, "jobs.Wait()") {
+		t.Fatalf("API-052 suggestion does not name the container Wait fix: %q", f.Suggestion)
+	}
+}
+
+const callerWaitLoopErrNotStartedSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func waitDefinedRunOperations(tasks []*evo.TaskHandle) error {
+  for _, task := range tasks {
+    err := task.Wait()
+    if errors.Is(err, evo.ErrNotStarted) {
+      continue
+    }
+    if err != nil {
+      return err
+    }
+  }
+  return nil
+}
+`
+
+func TestAPI052_CallerWaitLoopErrNotStartedFilter_Fires(t *testing.T) {
+	res := review.GoSource("run_execute.go", callerWaitLoopErrNotStartedSrc)
+	f := findingByID(t, res, "API-052")
+	if !strings.Contains(f.Suggestion, "SequenceHandle.Wait") && !strings.Contains(f.Suggestion, "GroupHandle.Wait") {
+		t.Fatalf("API-052 suggestion does not name the container Wait surface: %q", f.Suggestion)
+	}
+}
+
+const containerWaitDirectSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func runParallel(jobs *evo.GroupHandle, items []string) error {
+  for _, item := range items {
+    jobs.Task(item).Define(func(ctx context.Context) error { return nil })
+  }
+  return jobs.Wait()
+}
+`
+
+func TestAPI052_ContainerWaitDirectly_StaysSilent(t *testing.T) {
+	res := review.GoSource("run_parallel.go", containerWaitDirectSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-052" {
+			t.Fatalf("false positive API-052 when the caller already uses container.Wait(): %+v", f)
+		}
+	}
+}
+
+const unrelatedForLoopWaitSrc = `package p
+import "os/exec"
+func runAll(cmds []*exec.Cmd) error {
+  for _, c := range cmds {
+    if err := c.Wait(); err != nil {
+      return err
+    }
+  }
+  return nil
+}
+`
+
+func TestAPI052_UnrelatedExecCmdWaitLoop_StaysSilent(t *testing.T) {
+	res := review.GoSource("run_cmds.go", unrelatedForLoopWaitSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-052" {
+			t.Fatalf("false positive API-052 on an unrelated os/exec Cmd.Wait() loop: %+v", f)
+		}
+	}
+}
+
+func TestAPI052_PreOneOneOnePin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("run_parallel.go", callerWaitLoopSnapshotCountSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-052" {
+			t.Fatalf("API-052 fired for a pin older than 1.1.0 (container Wait did not exist yet): %+v", f)
+		}
+	}
+}
+
+func TestAPI052_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+	res := review.GoSource("run_parallel.go", callerWaitLoopSnapshotCountSrc)
+	findingByID(t, res, "API-052")
+
+	after := review.GoSource("run_parallel.go", containerWaitDirectSrc)
+	for _, f := range after.Findings {
+		if f.RuleID == "API-052" {
+			t.Fatalf("API-052 still fires after remediation to container.Wait(): %+v", f)
 		}
 	}
 }

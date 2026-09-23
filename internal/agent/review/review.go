@@ -561,6 +561,13 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectSubjectOnlyOrContainerTaskName(filename, f, fset)...)
 	}
 
+	// API-050: a generic phase/category-named Task (fix/check/classify/
+	// resolve/finalize) sequences 2+ independently erroring steps in its own
+	// Define callback — structural evidence it owns child-looking work.
+	if hasEvo {
+		findings = append(findings, detectPhaseTaskOwningChildWork(filename, f, fset)...)
+	}
+
 	// The EVO-EVIDENCE-001/VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestions
 	// all recommend 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence);
 	// a pin older than that cannot apply them, so none of these six may fire
@@ -580,6 +587,17 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// than that cannot have this shape.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectDefineDiscardsSchedulerContext(filename, f, fset)...)
+	}
+
+	// API-051: a loop flattens structured findings into one joined error,
+	// or creates one fake Task per finding, instead of accumulating them
+	// with TaskHandle.Problem. Problem's multi-finding accumulation
+	// (ZYS-848 Decisions 2026-09-23) is 1.1.0-only, so a pin older than
+	// that cannot apply this rule's suggested fix.
+	hasEvoAtOneOne := hasEvo && dialectAtLeast(desiredVersion, dialectOneOne)
+	if hasEvoAtOneOne {
+		findings = append(findings, detectPerFindingFakeTask(filename, f, fset)...)
+		findings = append(findings, detectFlattenedDiagnosticsLoop(filename, src)...)
 	}
 
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
@@ -617,7 +635,7 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectAfterChainDuplicatesSequence(filename, f, fset)...)
 	}
 
-	// API-051: raw os/exec.Cmd wired to an Evo Task's Writer() reimplements
+	// API-053: raw os/exec.Cmd wired to an Evo Task's Writer() reimplements
 	// Exec's own capture/liveness/cancellation with hand-rolled
 	// bytes.Buffer/io.MultiWriter plumbing or output-string cancellation
 	// matching instead of inspecting the ExecResult evo.Exec now returns
@@ -625,6 +643,15 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// 1.1.0 on, so a pin older than that cannot apply this recommendation.
 	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
 		findings = append(findings, detectManualSubprocessCaptureAroundTask(filename, src)...)
+	}
+
+	// API-052: caller-owned Wait loop over stored Task handles, filtering
+	// ErrNotStarted/snapshotting/hand-counting failures instead of using
+	// GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849). That container
+	// Wait surface only exists from 1.1.0 on, so a pin older than that
+	// cannot apply this recommendation.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
+		findings = append(findings, detectCallerWaitLoopOverContainerChildren(filename, src)...)
 	}
 
 	// EVO-DAG-003: a visible producer/consumer relationship has no

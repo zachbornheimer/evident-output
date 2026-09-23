@@ -8,7 +8,9 @@ package review
 
 import (
 	"go/ast"
+	"go/scanner"
 	"go/token"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -588,6 +590,332 @@ func detectChannelWaitWrapperAroundDefine(filename, src string) []Finding {
 		})
 	}
 	return findings
+}
+
+// ===== API-050: a Task whose literal name is a generic phase/category word
+// (fix/check/classify/resolve/finalize — ZYS-937) sequences two or more
+// independently erroring steps in its own Define callback instead of
+// performing one action itself. API-045 already flags the bare word on
+// sight; this rule adds the structural half of the same distinction — it
+// only fires once the callback shows the actual evidence of owning several
+// children (zq's own fix/check command family, internal/app/app.go:80's
+// a.task("fix", ...)), so it stays silent on a single guarded step under
+// the same name and on any multi-step name that already reads as a real
+// verb+object action.
+
+// taskPhaseCategoryWords are the generic phase/category labels ZYS-937
+// names as suspect: a Task by this name that sequences several independent
+// operations is a container wearing one Task's clothes, not one action.
+var taskPhaseCategoryWords = map[string]bool{
+	"fix": true, "check": true, "classify": true, "resolve": true, "finalize": true,
+}
+
+// phaseTaskCallInfo reports whether call is an evo Task("word") call whose
+// literal name is a generic phase/category word, returning the matched
+// (original-case) word and the call's source position.
+func phaseTaskCallInfo(call *ast.CallExpr, fset *token.FileSet) (word string, pos token.Position, ok bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Task" || !isLikelyEvoReceiver(sel.X) || len(call.Args) < 1 {
+		return "", token.Position{}, false
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", token.Position{}, false
+	}
+	text, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return "", token.Position{}, false
+	}
+	if !taskPhaseCategoryWords[strings.ToLower(strings.TrimSpace(text))] {
+		return "", token.Position{}, false
+	}
+	return text, fset.Position(call.Pos()), true
+}
+
+// detectPhaseTaskOwningChildWork covers two shapes: a chained
+// X.Task("word").Define(func(){...}) expression, and the same pairing split
+// across a local variable (t := X.Task("word") ... t.Define(func(){...})
+// later in the same function body) — no cross-function data flow, matching
+// this package's other same-block tracking detectors (scanDoingDoneAdjacent).
+func detectPhaseTaskOwningChildWork(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) < 1 {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Define" {
+			return true
+		}
+		taskCall, ok := sel.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		word, pos, ok := phaseTaskCallInfo(taskCall, fset)
+		if !ok {
+			return true
+		}
+		fl, ok := call.Args[0].(*ast.FuncLit)
+		if !ok {
+			return true
+		}
+		if f := phaseTaskDefineFinding(filename, pos, word, fl); f != nil {
+			findings = append(findings, *f)
+		}
+		return true
+	})
+	ast.Inspect(file, func(n ast.Node) bool {
+		fn, ok := n.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			return true
+		}
+		findings = append(findings, scanPhaseTaskVarDefines(filename, fn.Body, fset)...)
+		return false
+	})
+	return findings
+}
+
+// scanPhaseTaskVarDefines walks block's top-level statements tracking
+// `v := recv.Task("word")` assignments where word matches
+// taskPhaseCategoryWords, then matches the next `v.Define(func(){...})`
+// statement against that pending declaration.
+func scanPhaseTaskVarDefines(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
+	var findings []Finding
+	type pendingTask struct {
+		word string
+		pos  token.Position
+	}
+	pending := map[string]pendingTask{}
+	for _, stmt := range block.List {
+		switch s := stmt.(type) {
+		case *ast.AssignStmt:
+			if len(s.Lhs) != 1 || len(s.Rhs) != 1 {
+				continue
+			}
+			id, ok := s.Lhs[0].(*ast.Ident)
+			if !ok {
+				continue
+			}
+			call, ok := s.Rhs[0].(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+			if word, pos, ok := phaseTaskCallInfo(call, fset); ok {
+				pending[id.Name] = pendingTask{word, pos}
+			}
+		case *ast.ExprStmt:
+			call, ok := s.X.(*ast.CallExpr)
+			if !ok || len(call.Args) < 1 {
+				continue
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "Define" {
+				continue
+			}
+			recvID, ok := sel.X.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			info, tracked := pending[recvID.Name]
+			if !tracked {
+				continue
+			}
+			delete(pending, recvID.Name)
+			fl, ok := call.Args[0].(*ast.FuncLit)
+			if !ok {
+				continue
+			}
+			if f := phaseTaskDefineFinding(filename, info.pos, info.word, fl); f != nil {
+				findings = append(findings, *f)
+			}
+		}
+	}
+	return findings
+}
+
+// phaseTaskDefineFinding inspects a Define callback's top-level statements
+// for 2+ independently erroring steps — the structural evidence that a
+// generic phase-named Task (fix/check/classify/resolve/finalize) exists
+// primarily to own child-looking work or force a row, rather than perform
+// one action itself.
+func phaseTaskDefineFinding(filename string, pos token.Position, word string, fl *ast.FuncLit) *Finding {
+	steps := countGuardedCallSteps(fl.Body)
+	if steps < 2 {
+		return nil
+	}
+	return &Finding{
+		RuleID:   "API-050",
+		Severity: "warning",
+		Message: "Task(" + strconv.Quote(word) + ") sequences " + strconv.Itoa(steps) +
+			" independently erroring steps in its own Define callback; it exists primarily to own child-looking work, not to perform one action itself",
+		File:   filename,
+		Line:   pos.Line,
+		Column: pos.Column,
+		Suggestion: "replace Task(" + strconv.Quote(word) + ") with Group(" + strconv.Quote(word) +
+			") and give each independently erroring step its own verb+object child Task, e.g. group := out.Group(" + strconv.Quote(word) +
+			"); group.Task(\"...\").Define(func(ctx context.Context) error { ... })",
+	}
+}
+
+// countGuardedCallSteps counts block's top-level statements shaped like one
+// independent unit of work immediately followed by its own error check —
+// `if err := f(...); err != nil { return err }` or `err = f(...)` directly
+// followed by `if err != nil { return err }`. It never descends into nested
+// control flow or a nested FuncLit, so it only counts steps sequenced
+// directly in the callback body, never ones buried inside a loop/branch.
+func countGuardedCallSteps(body *ast.BlockStmt) int {
+	if body == nil {
+		return 0
+	}
+	steps := 0
+	stmts := body.List
+	for i := range stmts {
+		switch s := stmts[i].(type) {
+		case *ast.IfStmt:
+			if s.Init != nil && isCallAssign(s.Init) && isErrNeqNilCond(s.Cond) {
+				steps++
+			}
+		case *ast.AssignStmt:
+			if !isCallAssign(s) || i+1 >= len(stmts) {
+				continue
+			}
+			next, ok := stmts[i+1].(*ast.IfStmt)
+			if ok && next.Init == nil && isErrNeqNilCond(next.Cond) {
+				steps++
+			}
+		}
+	}
+	return steps
+}
+
+// isCallAssign reports whether s is a single-value assignment/definition
+// (`err := f(...)` or `err = f(...)`) whose right side is a call.
+func isCallAssign(s ast.Stmt) bool {
+	assign, ok := s.(*ast.AssignStmt)
+	if !ok || len(assign.Rhs) != 1 {
+		return false
+	}
+	_, ok = assign.Rhs[0].(*ast.CallExpr)
+	return ok
+}
+
+// isErrNeqNilCond reports whether cond is the bare `err != nil` guard.
+func isErrNeqNilCond(cond ast.Expr) bool {
+	be, ok := cond.(*ast.BinaryExpr)
+	if !ok || be.Op != token.NEQ {
+		return false
+	}
+	id, ok := be.X.(*ast.Ident)
+	if !ok || id.Name != "err" {
+		return false
+	}
+	nilIdent, ok := be.Y.(*ast.Ident)
+	return ok && nilIdent.Name == "nil"
+}
+
+// ===== API-052: a caller stores Group/Sequence child Task handles solely to
+// loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count
+// failed children into its own aggregate error — GroupHandle.Wait/
+// SequenceHandle.Wait (ZYS-849) now owns exactly this bookkeeping. zq
+// evidence: internal/app/app.go::runParallel (slice of handles, Wait loop,
+// Snapshot, failed-child count, "N of N failed" error) and
+// internal/app/run_execute.go::waitDefinedRunOperations (Wait loop
+// special-casing evo.ErrNotStarted, first-remaining-error return).
+
+// callerWaitLoopSignals are the tokens that, alongside a for-loop calling
+// .Wait() on a *TaskHandle, corroborate the container-boilerplate shape
+// this rule targets rather than an unrelated Wait() loop (e.g. os/exec's
+// Cmd.Wait()) — the rule requires the loop's function reference TaskHandle
+// at all, plus at least one of these signals anywhere in the same function.
+var callerWaitLoopSignals = []string{"ErrNotStarted", "Snapshot("}
+
+func detectCallerWaitLoopOverContainerChildren(filename, src string) []Finding {
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		// The signature (parameter/receiver types, e.g. "tasks
+		// []*evo.TaskHandle") sits before fn.body's opening brace, so the
+		// TaskHandle/signal check reads the whole declaration, not only
+		// the body statements.
+		funcStart := strings.LastIndex(src[:fn.offset], "func ")
+		if funcStart < 0 {
+			funcStart = fn.offset
+		}
+		wholeFunc := src[funcStart : fn.offset+len(fn.body)]
+		if !strings.Contains(wholeFunc, "TaskHandle") {
+			continue
+		}
+		if !containsAny(wholeFunc, callerWaitLoopSignals) {
+			continue
+		}
+		loop, waitIdx, ok := firstForLoopCallingWait(fn.body)
+		if !ok {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-052",
+			Severity:   "error",
+			Message:    "a caller-owned loop waits on individually stored Task handles, filters ErrNotStarted, snapshots the container, and hand-counts failed children instead of using the container's own Wait",
+			File:       filename,
+			Line:       lineAt(src, fn.offset+loop.offset+waitIdx),
+			Suggestion: "replace the stored-handle Wait loop and hand-counted aggregate error with the owning container's own GroupHandle.Wait()/SequenceHandle.Wait() (e.g. return jobs.Wait())",
+		})
+	}
+	return findings
+}
+
+// containsAny reports whether s contains any of the given substrings.
+func containsAny(s string, substrs []string) bool {
+	for _, sub := range substrs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstForLoopCallingWait finds the first brace-balanced "for" loop in body
+// whose block calls .Wait() directly, best-effort via textual scan (mirrors
+// allFuncBodies' brace-balanced scan for "func"). It returns the loop's own
+// funcBody, the byte offset of ".Wait()" within that loop body, and whether
+// a match was found.
+func firstForLoopCallingWait(body string) (loop funcBody, waitIdx int, ok bool) {
+	scanFrom := 0
+	for {
+		rel := strings.Index(body[scanFrom:], "for ")
+		if rel < 0 {
+			return funcBody{}, 0, false
+		}
+		idx := scanFrom + rel
+		if !precededByStatementBoundary(body, idx) {
+			scanFrom = idx + len("for ")
+			continue
+		}
+		block, start, balanced := balancedBraceBody(body, idx)
+		if !balanced {
+			scanFrom = idx + len("for ")
+			continue
+		}
+		if waitIdx := strings.Index(block, ".Wait()"); waitIdx >= 0 {
+			return funcBody{body: block, offset: start}, waitIdx, true
+		}
+		scanFrom = start + len(block)
+	}
+}
+
+// precededByStatementBoundary reports whether the byte immediately before
+// idx starts a new statement (newline, tab, space, or an opening brace) —
+// filtering an identifier substring like "before " from matching "for ".
+func precededByStatementBoundary(body string, idx int) bool {
+	if idx == 0 {
+		return true
+	}
+	switch body[idx-1] {
+	case '\n', '\t', ' ', '{':
+		return true
+	default:
+		return false
+	}
 }
 
 // ===== API-047: a Task/Group/Sequence declaration reuses a sibling literal
@@ -1468,6 +1796,149 @@ func containerTaskNameFinding(filename string, pos token.Position, text string) 
 	}
 }
 
+// ===== API-051: a loop flattens structured findings into one joined error
+// string, or creates one fake Task per finding and fails it, because the
+// caller has no ergonomic way to retain many structured findings on one Task
+// (zq hook_findings.go's blockStagedGolangciFindings ->
+// errors.New(strings.Join(...)), hook.go's reportFileIntegrityIssues ->
+// Task(file).Fail per finding — the two shapes ZYS-848's Contract names).
+// TaskHandle.Problem (ZYS-848 Decisions 2026-09-23; docs/migration/1.1.md)
+// lets one owning Task accumulate every finding as a structured Problem
+// instead, so this rule cannot recommend its fix for a pin older than 1.1.0.
+
+// detectPerFindingFakeTask flags `<expr>.Task(<x>).Fail(...)` /
+// `.Failf(...)` inside a for/range loop body — a fake Task created only to
+// display one finding, never independently schedulable or awaited.
+func detectPerFindingFakeTask(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		var body *ast.BlockStmt
+		switch s := n.(type) {
+		case *ast.RangeStmt:
+			body = s.Body
+		case *ast.ForStmt:
+			body = s.Body
+		default:
+			return true
+		}
+		if body == nil {
+			return true
+		}
+		ast.Inspect(body, func(n2 ast.Node) bool {
+			call, ok := n2.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || (sel.Sel.Name != "Fail" && sel.Sel.Name != "Failf") {
+				return true
+			}
+			inner, ok := sel.X.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			innerSel, ok := inner.Fun.(*ast.SelectorExpr)
+			if !ok || innerSel.Sel.Name != "Task" {
+				return true
+			}
+			pos := fset.Position(call.Pos())
+			findings = append(findings, Finding{
+				RuleID:   "API-051",
+				Severity: "error",
+				Message:  "loop creates one Task per finding and immediately fails it; a Task should own its independent lifecycle, not stand in for one finding",
+				File:     filename,
+				Line:     pos.Line,
+				Column:   pos.Column,
+				Suggestion: "replace the per-item .Task(...).Fail/Failf(...) with one owning Task that calls " +
+					"task.Problem(summary, evo.Location(path, line, 0), evo.Code(code)) once per finding inside the loop, " +
+					"then Define resolves the Task Failed once if any Problem was accumulated",
+			})
+			return true
+		})
+		return true
+	})
+	return findings
+}
+
+// flattenedDiagnosticsAppend matches `name = append(name, ...)` so the
+// accumulator's own identifier is captured, not guessed — the loop body is
+// already the smallest brace-balanced substring flattenedDiagnosticsLoops
+// hands in, so this never crosses into an unrelated loop's accumulator.
+var flattenedDiagnosticsAppend = regexp.MustCompile(`(\w+)\s*=\s*append\(\s*(\w+)\s*,`)
+
+// flattenedDiagnosticsWrap reports whether rest (the function body's text
+// after the accumulating loop) later wraps strings.Join(name, ...) directly
+// inside errors.New(...), fmt.Errorf(...), or a .Fail/.Failf(...) call — the
+// three shapes that discard every finding's own location/code/detail down
+// to one flattened string.
+func flattenedDiagnosticsWrap(rest, name string) bool {
+	quoted := regexp.QuoteMeta(name)
+	wrap := regexp.MustCompile(
+		`(?:errors\.New|fmt\.Errorf|\.Failf?)\(\s*(?:"[^"]*",\s*)?strings\.Join\(\s*` + quoted + `\s*,`,
+	)
+	return wrap.MatchString(rest)
+}
+
+// detectFlattenedDiagnosticsLoop flags a for/range loop that appends into a
+// slice, followed later in the same function by that slice joined straight
+// into a single wrapped error/failure — the flattened-string shape ZYS-848's
+// Contract calls out (zq's blockStagedGolangciFindings).
+func detectFlattenedDiagnosticsLoop(filename, src string) []Finding {
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		for _, loop := range forLoopBodies(fn.body) {
+			match := flattenedDiagnosticsAppend.FindStringSubmatch(loop.body)
+			if match == nil || match[1] != match[2] {
+				continue
+			}
+			name := match[1]
+			rest := fn.body[loop.offset+len(loop.body):]
+			if !flattenedDiagnosticsWrap(rest, name) {
+				continue
+			}
+			findings = append(findings, Finding{
+				RuleID:   "API-051",
+				Severity: "error",
+				Message: "loop concatenates structured findings into " + name +
+					", later flattened into one joined error string that discards each finding's own location/code/detail",
+				File: filename,
+				Line: lineAt(src, fn.offset+loop.offset),
+				Suggestion: "accumulate each finding with task.Problem(summary, evo.Location(path, line, 0), evo.Code(code)) " +
+					"inside the loop instead of building " + name + " for strings.Join/errors.New",
+			})
+		}
+	}
+	return findings
+}
+
+// loopBody is a for/range loop's brace-balanced body and its byte offset
+// within the enclosing text — the same shape allFuncBodies uses for
+// function bodies, scoped down to one loop.
+type loopBody struct {
+	body   string
+	offset int
+}
+
+// forLoopBodies finds every top-level "for " loop's brace-balanced body in
+// src, mirroring allFuncBodies' "func " scan.
+func forLoopBodies(src string) []loopBody {
+	var out []loopBody
+	for i := 0; i < len(src); {
+		idx := strings.Index(src[i:], "for ")
+		if idx < 0 {
+			break
+		}
+		idx += i
+		if body, start, ok := balancedBraceBody(src, idx); ok {
+			out = append(out, loopBody{body: body, offset: start})
+			i = start + len(body)
+		} else {
+			i = idx + len("for ")
+		}
+	}
+	return out
+}
+
 func exportedReasonName(text string) string {
 	var b strings.Builder
 	upperNext := true
@@ -1489,7 +1960,7 @@ func exportedReasonName(text string) string {
 	return b.String()
 }
 
-// ===== API-051: generic bytes.Buffer/io.MultiWriter/task.Writer plumbing
+// ===== API-053: generic bytes.Buffer/io.MultiWriter/task.Writer plumbing
 // wired around a raw os/exec.Cmd solely to recreate Exec's own capture,
 // liveness, and cancellation classification — or cancellation recognized by
 // comparing captured output strings — when evo.Exec now returns an
@@ -1499,20 +1970,33 @@ func exportedReasonName(text string) string {
 // recognizes cancellation by comparing output strings, and classifies
 // nonzero exit itself instead of inspecting ExecResult/ErrExecNonzeroExit.
 
-// manualSubprocessCaptureSignals are the tokens that, alongside a function
-// wiring a raw os/exec.Cmd's Stdout/Stderr to an Evo Task's own Writer(),
-// corroborate the manual-recapture-of-Exec shape this rule targets: either
-// a hand-rolled buffer/multiwriter combine, or cancellation recognized by
-// matching a captured-output string instead of an error/context check.
-var manualSubprocessCaptureSignals = []string{
+// manualSubprocessCaptureCodeSignals are the code-shape tokens (identifiers/
+// calls, never legitimate inside a string literal or comment) that, beside a
+// function wiring a raw os/exec.Cmd's Stdout/Stderr to an Evo Task's own
+// Writer(), corroborate the manual-recapture-of-Exec shape this rule
+// targets: a hand-rolled buffer/multiwriter combine.
+var manualSubprocessCaptureCodeSignals = []string{
 	"bytes.Buffer", "bytes.NewBuffer", "MultiWriter(",
+}
+
+// manualSubprocessCaptureLiteralSignals are quoted signal text that, unlike
+// manualSubprocessCaptureCodeSignals, is meant to be found as real string
+// literal *content* in the code — the anti-pattern is comparing captured
+// output against exactly this text (a cancellation check written as
+// strings.Contains(out, "signal: killed") instead of an error/context
+// check) — so, unlike the code-shape signals, these are matched against
+// source with only comments masked, not string literals.
+var manualSubprocessCaptureLiteralSignals = []string{
 	`"signal: killed"`, `"signal: interrupt"`, `"context canceled"`,
 }
 
 // rawExecCmdSignals mark that the function drives a raw os/exec.Cmd (as
 // opposed to some unrelated io.Writer plumbing) — required alongside
 // task.Writer() so this rule only fires on code actually reimplementing
-// Exec, not any bytes.Buffer/MultiWriter combination in the codebase.
+// Exec, not any bytes.Buffer/MultiWriter combination in the codebase. Like
+// manualSubprocessCaptureCodeSignals, these are code-shape (an actual
+// method call/type on a real exec.Cmd) and never legitimate as string
+// literal or comment text, so they are matched with both masked out.
 var rawExecCmdSignals = []string{"cmd.Run(", "cmd.Start(", "cmd.Output(", "cmd.CombinedOutput(", "exec.Cmd"}
 
 func detectManualSubprocessCaptureAroundTask(filename, src string) []Finding {
@@ -1523,18 +2007,31 @@ func detectManualSubprocessCaptureAroundTask(filename, src string) []Finding {
 			funcStart = fn.offset
 		}
 		wholeFunc := src[funcStart : fn.offset+len(fn.body)]
-		if !strings.Contains(wholeFunc, ".Writer()") {
+		// codeOnly blanks both comments and string literals so an
+		// identifier-shaped signal (a real method call/type) only matches
+		// when it is actually Go syntax, never text that merely mentions it
+		// inside a log message, doc comment, or unrelated string literal.
+		codeOnly := maskGoLexemes(wholeFunc, true)
+		// literalsVisible blanks only comments, keeping string literal
+		// content intact for signals that are meant to match real string
+		// literal text in the source (the cancellation-string anti-pattern).
+		literalsVisible := maskGoLexemes(wholeFunc, false)
+
+		if !strings.Contains(codeOnly, ".Writer()") {
 			continue
 		}
-		if !containsAnyToken(wholeFunc, rawExecCmdSignals) {
+		if !containsAnyToken(codeOnly, rawExecCmdSignals) {
 			continue
 		}
-		signal, idx := firstContainedToken(wholeFunc, manualSubprocessCaptureSignals)
+		signal, idx := firstContainedToken(codeOnly, manualSubprocessCaptureCodeSignals)
+		if signal == "" {
+			signal, idx = firstContainedToken(literalsVisible, manualSubprocessCaptureLiteralSignals)
+		}
 		if signal == "" {
 			continue
 		}
 		findings = append(findings, Finding{
-			RuleID:   "API-051",
+			RuleID:   "API-053",
 			Severity: "error",
 			Message:  "a raw os/exec.Cmd wired to an Evo Task's Writer() reimplements Exec's own capture/liveness/cancellation with hand-rolled " + signal + " plumbing instead of inspecting the ExecResult evo.Exec already returns",
 			File:     filename,
@@ -1544,6 +2041,42 @@ func detectManualSubprocessCaptureAroundTask(filename, src string) []Finding {
 		})
 	}
 	return findings
+}
+
+// maskGoLexemes returns src with Go comments blanked out (replaced with
+// spaces, newlines preserved) so token matching never fires on identifier-
+// shaped text inside a comment. When alsoMaskStrings is true, string and
+// rune literals are blanked too, for signals that must only match real Go
+// syntax (an actual method call or type), never a mention of that text
+// inside an unrelated string literal. The result has the same byte length
+// and line breaks as src, so a byte offset found in the masked text is a
+// valid offset into src for lineAt.
+func maskGoLexemes(src string, alsoMaskStrings bool) string {
+	fset := token.NewFileSet()
+	file := fset.AddFile("", fset.Base(), len(src))
+	var sc scanner.Scanner
+	sc.Init(file, []byte(src), nil, scanner.ScanComments)
+	out := []byte(src)
+	for {
+		pos, tok, lit := sc.Scan()
+		if tok == token.EOF {
+			break
+		}
+		if tok == token.COMMENT || (alsoMaskStrings && (tok == token.STRING || tok == token.CHAR)) {
+			blankSpan(out, file.Offset(pos), len(lit))
+		}
+	}
+	return string(out)
+}
+
+// blankSpan overwrites b[start:start+length] with spaces, leaving newlines
+// untouched so line numbers computed from the result still match src.
+func blankSpan(b []byte, start, length int) {
+	for i := start; i < start+length && i >= 0 && i < len(b); i++ {
+		if b[i] != '\n' {
+			b[i] = ' '
+		}
+	}
 }
 
 // containsAnyToken reports whether s contains any of the given substrings.
