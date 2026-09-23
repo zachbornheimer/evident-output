@@ -183,18 +183,18 @@ func lineContainsToken(line, token string) bool {
 }
 
 func retiredMatches(line, name string) bool {
-	if strings.Contains(line, name) {
-		return true
-	}
 	typ, meth, ok := strings.Cut(name, ".")
 	if ok {
-		if strings.Contains(line, "func ("+typ+") "+meth) {
+		if strings.Contains(line, name) {
 			return true
 		}
+		return strings.Contains(line, "func ("+typ+") "+meth)
 	}
-	if strings.Contains(name, ".") {
-		return false
-	}
+	// Single-word retired names (DisplayGroup, TaskConfig, MainWith, ...)
+	// must go through the identifier-boundary-safe path only: a raw
+	// substring check here would false-positive against any unrelated,
+	// longer identifier that merely contains the retired name (e.g.
+	// DisplayGroupID contains DisplayGroup).
 	return containsIdent(line, name)
 }
 

@@ -52,6 +52,16 @@ func TestAPIContract_RetiredPresentEvenIfGoldenRewrittenFails(t *testing.T) {
 	}
 }
 
+func TestAPIContract_RetiredSingleWordNameDoesNotFalsePositiveOnSubstringIdent(t *testing.T) {
+	t.Parallel()
+	live := []string{"func Init()", "func DisplayGroupID() string"}
+	golden := []string{"func Init()", "func DisplayGroupID() string"}
+	got := apisurface.Check(live, golden, nil, apisurface.RetiredNames)
+	if !got.OK() {
+		t.Fatalf("DisplayGroupID must not false-positive against retired name DisplayGroup, got retired-present=%v", got.RetiredPresent)
+	}
+}
+
 func TestAPIContract_FileRequirementDoesNotPassOnFileSpecAlone(t *testing.T) {
 	t.Parallel()
 	live := []string{"func Init()", "type FileSpec"}
