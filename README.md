@@ -109,6 +109,6 @@ the state, not a state of their own.
 - [`docs/guides/teaching-ladder.md`](docs/guides/teaching-ladder.md) — the ordinary-surface learning order
 - [`docs/guides/large-platform-adoption.md`](docs/guides/large-platform-adoption.md) — guidance for Docker-/npm-/Homebrew-scale CLIs
 - [`docs/adoption/librarian.md`](docs/adoption/librarian.md) — a real adoption case study, with what was and wasn't validated
-- [`docs/roadmap/implementation-basis.md`](docs/roadmap/implementation-basis.md), [`docs/philosophy/`](docs/philosophy/) — design philosophy
+- [`docs/roadmap/implementation-basis.md`](docs/roadmap/implementation-basis.md), [`docs/philosophy/`](docs/philosophy/) — design philosophy (dated planning notes predating 1.0, not compile-tested code fences — see [`docs/migration/1.0.md`](docs/migration/1.0.md) for what actually ships)
 - [`docs/architecture/COMPLETENESS_MATRIX.md`](docs/architecture/COMPLETENESS_MATRIX.md) — §31 requirement coverage
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — DCO sign-off, red test → green → refactor, small conventional commits

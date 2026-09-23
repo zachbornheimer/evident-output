@@ -3,6 +3,7 @@ package docexamples_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
@@ -20,6 +21,30 @@ import (
 // fence they claim to cover, so a doc edit that forgets its fixture — or a
 // fixture edit that drifts from its doc — fails here instead of shipping
 // aspirational syntax.
+//
+// Scope: every doc the MCP `sections` corpus serves
+// (internal/agent/sections/sections.go: reference.md, development.md,
+// mcp.md, adoption-ladder.md) plus every doc README.md's own "Learn more"
+// list links to as a live usage example — the flagship quickstart, the
+// primary upgrade doc (migration/1.0.md), the teaching ladder, the
+// exit-code guide, and the one adoption case study (adoption/librarian.md).
+// Those are the docs a reader copy-pastes from, so every fence in them is
+// pinned here, TextOnly (see DocFixture's doc comment) where the fence
+// documents removed or elided API on purpose.
+//
+// Deliberately out of scope: docs/roadmap/ and docs/philosophy/ (also
+// linked from README's "Learn more", under "design philosophy"). These are
+// dated planning artifacts (docs/roadmap/implementation-basis.md is
+// pinned to a v0.2.8 baseline, predating 1.0) that mix historical API,
+// rejected proposals, and explicit "Wrong"/"Right" counter-example pairs —
+// a "Wrong" fence is not aspirational syntax that drifted, it is
+// deliberately-non-shipping syntax the doc argues against, and pinning it
+// as TextOnly would misrepresent it as "this used to work" rather than
+// "this was never meant to." docs/guides/cutting-a-release.md already
+// states the norm this follows: "Historical design docs under
+// docs/roadmap/ ... does not rewrite historical ADRs." If a roadmap doc
+// is ever promoted to a living reference (the way migration/1.0.md and
+// librarian.md were), give it docFixtures rows the same way.
 var docFixtures = []docexamples.DocFixture{
 	{Doc: "README.md", FenceIndex: 0, Fixture: "fixtures/readme_quickstart"},
 
@@ -39,6 +64,99 @@ var docFixtures = []docexamples.DocFixture{
 	{Doc: "docs/guides/teaching-ladder.md", FenceIndex: 5, Fixture: "fixtures/teaching_ladder_6"},
 
 	{Doc: "docs/guides/exit-code-fidelity.md", FenceIndex: 0, Fixture: "fixtures/exit_code_fidelity_1"},
+
+	// docs/migration/1.0.md is README.md's primary upgrade doc ("every
+	// breaking change with before/after code") and the doc most likely to
+	// drift given how many signatures changed across 1.0/1.1. Several of
+	// its fences are deliberately "Before (0.5)" snippets that must never
+	// compile again (evo.MainWith, Group.Each, a run() with no ctx) or
+	// elide a real initializer for brevity (the Projection const list) —
+	// those are TextOnly: pinned as exact text via a `//go:build ignore`
+	// fixture file, never fed to `go build`/`go vet`. See DocFixture's
+	// TextOnly doc comment and each such fixture's own header comment.
+	{Doc: "docs/migration/1.0.md", FenceIndex: 0, Fixture: "fixtures/migration_1_0_before_run_no_ctx", TextOnly: true},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 1, Fixture: "fixtures/migration_1_0_run_ctx"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 2, Fixture: "fixtures/migration_1_0_result_type"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 3, Fixture: "fixtures/migration_1_0_before_after_exitcode", TextOnly: true},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 4, Fixture: "fixtures/migration_1_0_before_mainwith", TextOnly: true},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 5, Fixture: "fixtures/migration_1_0_after_isolated_run"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 6, Fixture: "fixtures/migration_1_0_before_each", TextOnly: true},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 7, Fixture: "fixtures/migration_1_0_after_group_define"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 8, Fixture: "fixtures/migration_1_0_verify"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 9, Fixture: "fixtures/migration_1_0_task_key"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 10, Fixture: "fixtures/migration_1_0_duplicate_sibling"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 11, Fixture: "fixtures/migration_1_0_file_spec"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 12, Fixture: "fixtures/migration_1_0_projection_consts", TextOnly: true},
+
+	// docs/adoption/librarian.md is linked from README.md as "a real
+	// adoption case study" — the one case-study doc new adopters are
+	// pointed to. Its one fence documents the pre-1.0 call site
+	// (evo.New/evo.MainWith, both removed in 1.0), so it is TextOnly too.
+	{Doc: "docs/adoption/librarian.md", FenceIndex: 0, Fixture: "fixtures/librarian_before_new_mainwith", TextOnly: true},
+}
+
+// hasBuildIgnoreTag reports whether fixture file src carries the exact
+// `//go:build ignore` constraint as its first non-blank line — the same
+// tag Go's own build system recognizes. It does not attempt general build
+// constraint parsing (no `//go:build linux && !cgo`-style expressions):
+// TextOnly fixtures in this package use exactly one shape, and a fixture
+// author reaching for anything more elaborate should reconsider whether
+// TextOnly is the right tool.
+func hasBuildIgnoreTag(src []byte) bool {
+	for line := range strings.SplitSeq(string(src), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		return trimmed == "//go:build ignore"
+	}
+	return false
+}
+
+// TestHistoricalFixturesMatchTextOnly guards the other half of the
+// TextOnly contract (see DocFixture's doc comment): every fixture file
+// with a `//go:build ignore` tag must belong to a TextOnly DocFixture, and
+// every TextOnly DocFixture's Fixture directory must contain at least one
+// such file. Without this, a TextOnly fixture could lose its ignore tag
+// (silently starting to fail `go build ./...`/`go vet ./...` on pre-1.0
+// API) or a non-TextOnly fixture could gain one (silently dropping out of
+// compile coverage) and TestDocFencesMatchFixtures would never notice —
+// it only compares text, never build tags.
+func TestHistoricalFixturesMatchTextOnly(t *testing.T) {
+	root := repoRoot(t)
+
+	for _, df := range docFixtures {
+		t.Run(df.Doc+"#"+df.Fixture, func(t *testing.T) {
+			fixtureDir := filepath.Join(root, "internal", "docexamples", df.Fixture)
+			entries, err := os.ReadDir(fixtureDir)
+			if err != nil {
+				t.Fatalf("read fixture dir %s: %v", fixtureDir, err)
+			}
+
+			gotIgnoreTagged := false
+			for _, e := range entries {
+				name := e.Name()
+				if e.IsDir() || !strings.HasSuffix(name, ".go") {
+					continue
+				}
+				src, err := os.ReadFile(filepath.Join(fixtureDir, name))
+				if err != nil {
+					t.Fatalf("read %s: %v", name, err)
+				}
+				if hasBuildIgnoreTag(src) {
+					gotIgnoreTagged = true
+					break
+				}
+			}
+
+			if df.TextOnly && !gotIgnoreTagged {
+				t.Errorf("%s is TextOnly but no file in %s carries a `//go:build ignore` tag — it will be fed to go build/go vet", df.Doc, df.Fixture)
+			}
+			if !df.TextOnly && gotIgnoreTagged {
+				t.Errorf("%s is not TextOnly but a file in %s carries a `//go:build ignore` tag — it is silently excluded from go build/go vet coverage", df.Doc, df.Fixture)
+			}
+		})
+	}
 }
 
 // TestDocFencesMatchFixtures is the drift guard: it proves every fixture in

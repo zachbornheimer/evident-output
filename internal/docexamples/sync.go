@@ -48,6 +48,19 @@ type DocFixture struct {
 	// file in the directory, in name order, so either shape works
 	// transparently.
 	Fixture string
+	// TextOnly marks a fence pinned as exact text only, never proven to
+	// compile: a "Before" snippet documenting pre-1.0 API that was removed
+	// (evo.MainWith, Group.Each, evo.New, a signature without ctx) or a
+	// fence that elides a real declaration's initializer for brevity (the
+	// Projection const list). Its Fixture directory's snippet file carries
+	// a `//go:build ignore` tag so `go build ./...`/`go vet ./...` never
+	// try to type-check text that is either gone from the API or was
+	// never complete Go in the first place, alongside a plain buildable
+	// file (conventionally doc.go) so the directory still has a package.
+	// TestHistoricalFixturesMatchTextOnly checks the tag is actually
+	// present when TextOnly is true, and absent when it is false, so a
+	// fixture can't drift out of sync with its own TextOnly flag.
+	TextOnly bool
 }
 
 // SnippetRegion returns the concatenation of every snippetStart/snippetEnd
