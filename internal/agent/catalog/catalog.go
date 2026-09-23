@@ -233,9 +233,9 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 		{
 			ID:       "evo-file-exec",
 			Title:    "evo.File and evo.Exec: declarative tracked operations",
-			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile"},
-			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs"},
-			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001"},
+			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile", "resource", "lock"},
+			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "Effect", "EffectSpec"},
+			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053"},
 			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) replaces hand-rolled os.WriteFile +
 os.Chmod + a manual existence/hash check: it writes only on drift and no-ops when Path/Contents/Mode already
 match, with dry-run safety the hand-rolled version never had (EVO-FILE-001).
@@ -253,8 +253,17 @@ callers that never inspect the result ignore it with "_, err := evo.Exec(ctx, sp
 either way — there is no second raw subprocess API to reach for.
 
 Both share one freshness contract: Basis lists every additional Fingerprint input (evo.FSPath/evo.Value/evo.App)
-whose change should invalidate the current result — call it inside task.Define, from a ctx that Define supplies.`,
-			TokenEstimate: 220,
+whose change should invalidate the current result — call it inside task.Define, from a ctx that Define supplies.
+
+File and file-backed Basis claim their own path automatically; no caller manages a mutex, lock file, or unlock
+lifecycle. For state Evo cannot model as desired file contents (a Git ref deletion, a worktree move, a remote
+push), evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity, Resource}, fn) performs one opaque mutation and,
+when Resource is set (evo.FSResource(path) or evo.LogicalResource(name)), holds it for fn's duration. Generic
+resource access holds at most one Resource at a time: a second evo.File or Resource-claiming evo.Effect call
+made with fn's own held ctx — directly, or through a helper fn hands that ctx to — fails deterministically with
+evo.ErrNestedResourceAcquisition instead of risking deadlock (API-053). Finish and return from the first
+Effect/File before starting a second, or claim one coarser Resource both mutations share.`,
+			TokenEstimate: 280,
 		},
 		{
 			ID:       "provenance",

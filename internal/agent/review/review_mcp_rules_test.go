@@ -1353,3 +1353,137 @@ func TestAPI052_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 		}
 	}
 }
+
+// API-053: nested Evo resource acquisition (ZYS-933/ZYS-840).
+
+const nestedResourceDirectSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
+  spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
+  return evo.Effect(ctx, spec, func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker})
+  })
+}
+`
+
+func TestAPI053_NestedFileInsideEffectResourceHold_Fires(t *testing.T) {
+	res := review.GoSource("worktree.go", nestedResourceDirectSrc)
+	f := findingByID(t, res, "API-053")
+	if f.Severity != "error" {
+		t.Fatalf("API-053 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "coarser Resource") && !strings.Contains(f.Suggestion, "before starting a second") {
+		t.Fatalf("API-053 suggestion does not name the fix: %q", f.Suggestion)
+	}
+}
+
+const nestedResourceIndirectSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
+  spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
+  return evo.Effect(ctx, spec, func(ctx context.Context) error {
+    return writeMarker(ctx, to, marker)
+  })
+}
+func writeMarker(ctx context.Context, path string, contents []byte) error {
+  return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents})
+}
+`
+
+func TestAPI053_NestedFileThroughHelperOneCallAway_Fires(t *testing.T) {
+	res := review.GoSource("worktree.go", nestedResourceIndirectSrc)
+	findingByID(t, res, "API-053")
+}
+
+const nestedResourceEffectInEffectSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func moveTwoWorktrees(ctx context.Context, a, b string) error {
+  outer := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(a)}
+  return evo.Effect(ctx, outer, func(ctx context.Context) error {
+    inner := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(b)}
+    return evo.Effect(ctx, inner, func(ctx context.Context) error { return nil })
+  })
+}
+`
+
+func TestAPI053_NestedEffectInsideEffectResourceHold_Fires(t *testing.T) {
+	res := review.GoSource("worktree.go", nestedResourceEffectInEffectSrc)
+	findingByID(t, res, "API-053")
+}
+
+const sequentialResourceNotNestedSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
+  if err := evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}); err != nil {
+    return err
+  }
+  spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
+  return evo.Effect(ctx, spec, func(ctx context.Context) error {
+    return removeDir(from)
+  })
+}
+`
+
+func TestAPI053_SequentialFileThenEffect_StaysSilent(t *testing.T) {
+	res := review.GoSource("worktree.go", sequentialResourceNotNestedSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053 on sequential (not nested) File then Effect: %+v", f)
+		}
+	}
+}
+
+const effectWithoutResourceSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func cleanCache(ctx context.Context, path string, marker []byte) error {
+  spec := evo.EffectSpec{Object: "cache entry", Verb: evo.EffectDelete}
+  return evo.Effect(ctx, spec, func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: path, Contents: marker})
+  })
+}
+`
+
+func TestAPI053_EffectWithoutResource_StaysSilent(t *testing.T) {
+	res := review.GoSource("cache.go", effectWithoutResourceSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053 when the enclosing Effect never claims a Resource: %+v", f)
+		}
+	}
+}
+
+func TestAPI053_PreOneOneOnePin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("worktree.go", nestedResourceDirectSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("API-053 fired for a pin older than 1.1.0 (EffectSpec.Resource did not exist yet): %+v", f)
+		}
+	}
+}
+
+func TestAPI053_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+	res := review.GoSource("worktree.go", nestedResourceDirectSrc)
+	findingByID(t, res, "API-053")
+
+	after := review.GoSource("worktree.go", sequentialResourceNotNestedSrc)
+	for _, f := range after.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("API-053 still fires after remediation to sequential File then Effect: %+v", f)
+		}
+	}
+}
