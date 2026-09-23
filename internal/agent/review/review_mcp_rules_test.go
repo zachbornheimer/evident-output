@@ -755,7 +755,7 @@ func run(prune *evo.GroupHandle) {
 }
 `
 
-func TestAPI045_RedeclaredTaskLiteralForAfter_Fires(t *testing.T) {
+func TestAPI048_RedeclaredTaskLiteralForAfter_Fires(t *testing.T) {
 	res := review.GoSource("prune.go", redeclaredTaskForAfterSrc)
 	f := findingByID(t, res, "API-048")
 	if f.Severity != "suggestion" {
@@ -778,7 +778,7 @@ func run(prune *evo.GroupHandle) {
 }
 `
 
-func TestAPI045_TypedTaskVar_StaysSilent(t *testing.T) {
+func TestAPI048_TypedTaskVar_StaysSilent(t *testing.T) {
 	res := review.GoSource("prune_good.go", typedTaskVarSrc)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-048" {
@@ -794,7 +794,7 @@ func run(prune *evo.GroupHandle) {
 }
 `
 
-func TestAPI045_TrivialOneOffTask_StaysSilent(t *testing.T) {
+func TestAPI048_TrivialOneOffTask_StaysSilent(t *testing.T) {
 	res := review.GoSource("oneoff.go", oneOffTaskSrc)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-048" {
@@ -811,7 +811,7 @@ func run(a, b *evo.GroupHandle) {
 }
 `
 
-func TestAPI045_SameLabelDifferentGroups_StaysSilent(t *testing.T) {
+func TestAPI048_SameLabelDifferentGroups_StaysSilent(t *testing.T) {
 	res := review.GoSource("two_groups.go", differentGroupsSameLabelSrc)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-048" {
