@@ -590,6 +590,164 @@ func detectChannelWaitWrapperAroundDefine(filename, src string) []Finding {
 	return findings
 }
 
+// ===== API-047: a Task/Group/Sequence declaration reuses a sibling literal
+// name already used, under the same parent handle, by a different entity
+// kind. §3.1's default stable key folds kind into the key
+// (kind:parentKey/name), so out.Task("build") and out.Group("build")
+// register as two distinct runtime identities that share one visible
+// sibling name. failDuplicateSiblingLocked's same-kind check
+// (ProblemCodeDuplicateSiblingName) does not catch this because it only
+// compares within one kind's own name index (ZYS-944).
+
+// siblingEntityKind names the three declarable entity kinds this rule
+// compares across (a package-local mirror of internal/engine's own
+// entityKind — review is a static-analysis package and does not import
+// engine, so it keeps its own copy of this small vocabulary).
+type siblingEntityKind string
+
+const (
+	declKindTask     siblingEntityKind = "task"
+	declKindGroup    siblingEntityKind = "group"
+	declKindSequence siblingEntityKind = "sequence"
+)
+
+// siblingDeclKind reports the siblingEntityKind a Task/Group/Sequence declaration
+// method name declares, or ("", false) for any other method.
+func siblingDeclKind(method string) (kind siblingEntityKind, ok bool) {
+	switch method {
+	case "Task":
+		return declKindTask, true
+	case "Group":
+		return declKindGroup, true
+	case "Sequence":
+		return declKindSequence, true
+	default:
+		return "", false
+	}
+}
+
+// siblingKindDecl is the first declaration scanBlockForCrossKindSiblings saw
+// for one (parent, name) pair: its entity kind and source position, so a
+// later declaration under the same parent and name can be compared and
+// reported against it.
+type siblingKindDecl struct {
+	kind siblingEntityKind
+	pos  token.Position
+}
+
+// detectCrossKindDuplicateSiblingName scans every block independently
+// (never across an if/else branch split, where two kinds sharing a name are
+// legitimately mutually exclusive) for sibling Task/Group/Sequence
+// declarations that reuse one literal name across different kinds under the
+// same parent handle.
+func detectCrossKindDuplicateSiblingName(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		block, ok := n.(*ast.BlockStmt)
+		if !ok {
+			return true
+		}
+		findings = append(findings, scanBlockForCrossKindSiblings(filename, block, fset)...)
+		return true
+	})
+	return findings
+}
+
+// scanBlockForCrossKindSiblings walks block's direct statements without
+// descending into a nested BlockStmt — the outer ast.Inspect in
+// detectCrossKindDuplicateSiblingName visits and scans a nested block on its
+// own, so an if-branch and its else-branch are never compared against each
+// other. A chained declaration (out.Task("build").Define(...)) and an
+// assigned one (work := out.Group("work")) are both reached because the
+// per-statement walk only stops descent at a BlockStmt boundary, never at
+// the statement's own expression shape.
+func scanBlockForCrossKindSiblings(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
+	var findings []Finding
+	seen := map[string]map[string]siblingKindDecl{}
+	for _, stmt := range block.List {
+		ast.Inspect(stmt, func(n ast.Node) bool {
+			if _, ok := n.(*ast.BlockStmt); ok {
+				return false
+			}
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			kind, ok := siblingDeclKind(sel.Sel.Name)
+			if !ok || len(call.Args) != 1 || !isLikelyEvoReceiver(sel.X) {
+				return true
+			}
+			lit, ok := call.Args[0].(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			name, err := strconv.Unquote(lit.Value)
+			if err != nil || name == "" {
+				return true
+			}
+			recv := exprDottedName(sel.X)
+			if recv == "" {
+				return true
+			}
+			if seen[recv] == nil {
+				seen[recv] = map[string]siblingKindDecl{}
+			}
+			prior, ok := seen[recv][name]
+			if !ok {
+				seen[recv][name] = siblingKindDecl{kind: kind, pos: fset.Position(call.Pos())}
+				return true
+			}
+			if prior.kind != kind {
+				pos := fset.Position(call.Pos())
+				findings = append(findings, crossKindDuplicateSiblingFinding(filename, pos, recv, name, prior, kind))
+			}
+			return true
+		})
+	}
+	return findings
+}
+
+// crossKindDuplicateSiblingFinding builds API-047's Finding: recv/name/kind
+// describe the second (flagged) declaration, prior the first one it collides
+// with.
+func crossKindDuplicateSiblingFinding(filename string, pos token.Position, recv, name string, prior siblingKindDecl, kind siblingEntityKind) Finding {
+	method := siblingDeclMethod(kind)
+	priorMethod := siblingDeclMethod(prior.kind)
+	renamed := strconv.Quote(name + " " + strings.ToLower(method))
+	quotedName := strconv.Quote(name)
+	return Finding{
+		RuleID:   "API-047",
+		Severity: "error",
+		Message: recv + "." + method + "(" + quotedName + ") reuses the sibling name already declared as a " + string(prior.kind) +
+			" at line " + strconv.Itoa(prior.pos.Line) + " (" + recv + "." + priorMethod + "(" + quotedName + ")); the same visible name now names two distinct " +
+			string(prior.kind) + "/" + string(kind) + " runtime identities under one parent",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "give " + recv + "." + method + "(" + quotedName + ") its own distinct name, e.g. " + recv + "." + method + "(" + renamed + "), so the two runtime identities that already exist here are no longer visually indistinguishable",
+	}
+}
+
+// siblingDeclMethod is siblingDeclKind's inverse, so a Finding can name the
+// exact method call (out.Group(...), never a bare kind string) the fix
+// should read.
+func siblingDeclMethod(kind siblingEntityKind) string {
+	switch kind {
+	case declKindTask:
+		return "Task"
+	case declKindGroup:
+		return "Group"
+	case declKindSequence:
+		return "Sequence"
+	default:
+		return string(kind)
+	}
+}
+
 // ===== TAX-003: an evo.Reason("literal") used inline as a call argument in
 // non-test source, and a reason that merely restates its verb.
 

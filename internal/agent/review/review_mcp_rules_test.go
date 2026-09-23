@@ -421,3 +421,130 @@ func TestTAX003_TestFile_StaysSilent(t *testing.T) {
 		}
 	}
 }
+
+// API-047: a Task/Group/Sequence declaration reuses a sibling literal name
+// already used by a different entity kind under the same parent (ZYS-944).
+// Same-kind reuse already fails fast at runtime
+// (engine.ProblemCodeDuplicateSiblingName); this rule closes the cross-kind
+// gap statically.
+
+const crossKindDuplicateSiblingSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("build")
+  out.Group("build")
+}
+`
+
+func TestAPI047_CrossKindDuplicateSiblingName_Fires(t *testing.T) {
+	res := review.GoSource("run.go", crossKindDuplicateSiblingSrc)
+	f := findingByID(t, res, "API-047")
+	if f.Severity != "error" {
+		t.Fatalf("API-047 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "out.Group(") {
+		t.Fatalf("API-047 suggestion does not name the corrected out.Group(...) call: %q", f.Suggestion)
+	}
+	if !strings.Contains(f.Message, "task") || !strings.Contains(f.Message, "group") {
+		t.Fatalf("API-047 message does not name both conflicting kinds: %q", f.Message)
+	}
+}
+
+const crossKindDuplicateSiblingNestedSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  work := out.Group("work")
+  work.Task("build")
+  work.Sequence("build")
+}
+`
+
+func TestAPI047_CrossKindDuplicateSiblingName_FiresUnderNestedParent(t *testing.T) {
+	res := review.GoSource("run.go", crossKindDuplicateSiblingNestedSrc)
+	f := findingByID(t, res, "API-047")
+	if !strings.Contains(f.Suggestion, "work.Sequence(") {
+		t.Fatalf("API-047 suggestion does not name the corrected work.Sequence(...) call: %q", f.Suggestion)
+	}
+}
+
+const sameKindDuplicateSiblingSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("build")
+  out.Task("build")
+}
+`
+
+func TestAPI047_SameKindDuplicate_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", sameKindDuplicateSiblingSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-047" {
+			t.Fatalf("API-047 fired for a same-kind duplicate; the runtime's own duplicate-sibling-name failure already covers this: %+v", f)
+		}
+	}
+}
+
+const distinctSiblingNamesSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("build")
+  out.Group("test")
+}
+`
+
+func TestAPI047_DistinctNames_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", distinctSiblingNamesSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-047" {
+			t.Fatalf("false positive API-047 for distinct sibling names: %+v", f)
+		}
+	}
+}
+
+const crossKindDifferentParentsSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  a := out.Group("a")
+  b := out.Group("b")
+  a.Task("build")
+  b.Group("build")
+}
+`
+
+func TestAPI047_CrossKindDifferentParents_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", crossKindDifferentParentsSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-047" {
+			t.Fatalf("false positive API-047 across two distinct parents that merely share a literal child name: %+v", f)
+		}
+	}
+}
+
+const crossKindDuplicateSiblingBranchesSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output, cond bool) {
+  if cond {
+    out.Task("build")
+  } else {
+    out.Group("build")
+  }
+}
+`
+
+func TestAPI047_MutuallyExclusiveBranches_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", crossKindDuplicateSiblingBranchesSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-047" {
+			t.Fatalf("false positive API-047 across mutually exclusive if/else branches: %+v", f)
+		}
+	}
+}
+
+func TestAPI047_PreOneZeroPin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("run.go", crossKindDuplicateSiblingSrc, "0.6.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-047" {
+			t.Fatalf("API-047 fired for a pin older than 1.0.0: %+v", f)
+		}
+	}
+}
