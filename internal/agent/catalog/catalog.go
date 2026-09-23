@@ -83,7 +83,7 @@ failure on its own Task and use Next(evo.Label(...)) for follow-up guidance inst
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
 			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Each", "Define", "Skipped", "Kept"},
-			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "API-045"},
+			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "API-045", "API-051"},
 			Body: `Task is one independently schedulable promise whose outcome is independently meaningful to the user (ZYS-838) —
 not a display row, not a subject label, not a container. A good Task name answers "what will this unit of work
 accomplish or determine?" and usually reads as an action, verb + concrete object ("check file integrity", "format
@@ -140,6 +140,13 @@ or g.Go closure, then pass the handle in. Declaring the Task inside the closure 
 and produces the unordered multi-spinner defect Sequence's "one Running child" heart contract forbids.
 Prefer one named Task per item under Group/Sequence, submitted with Define, over caller
 goroutines (Group.Each/Sequence.Each were removed in 1.0) — Evo's scheduler owns overlap.
+
+One Task, many Problems (API-051, 1.1.0): a check that finds several independent issues owns one Task and
+calls task.Problem(summary, opts...) once per finding — never one Task per finding (Task(file).Fail(...) in a
+loop) and never every finding flattened into one errors.New(strings.Join(...)) string. Problem appends a
+blocking finding without resolving the Task; the Task still resolves exactly once, Failed if Define returns nil
+but at least one Problem was accumulated. Every accumulated Problem survives in Snapshot/JSON/JSONL even when
+human output bounds how many render inline.
 
 Facts vs Tasks (v0.4.0/P8): discovered information ("repository /repo", "language go", "config loaded") is not
 work — never fake a checkmark Task to display it. Use task.Fact(name, value) (attached to the Task that

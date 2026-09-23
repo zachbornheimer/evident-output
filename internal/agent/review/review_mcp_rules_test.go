@@ -1098,3 +1098,132 @@ func TestAPI049_LocalCtxShadow_StaysSilent(t *testing.T) {
 		}
 	}
 }
+
+// API-051: a loop that flattens structured findings into one joined error
+// string, or spawns one fake Task per finding, instead of accumulating them
+// with TaskHandle.Problem (ZYS-848/ZYS-943, docs/migration/1.1.md
+// "TaskHandle.Problem — a Task can now own many blocking findings").
+
+const flattenedDiagnosticsLoopSrc = `package p
+import (
+  "errors"
+  "strings"
+
+  evo "github.com/zachbornheimer/evident-output"
+)
+func blockStagedGolangciFindings(task *evo.TaskHandle, findings []finding) error {
+  var lines []string
+  for _, f := range findings {
+    lines = append(lines, formatFinding(f))
+  }
+  return errors.New(strings.Join(lines, "\n"))
+}
+type finding struct{}
+func formatFinding(f finding) string { return "" }
+`
+
+func TestAPI050_FlattenedDiagnosticsLoop_Fires(t *testing.T) {
+	res := review.GoSource("hook_findings.go", flattenedDiagnosticsLoopSrc)
+	f := findingByID(t, res, "API-051")
+	if f.Severity != "error" {
+		t.Fatalf("API-051 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "task.Problem") {
+		t.Fatalf("API-051 suggestion does not name task.Problem: %q", f.Suggestion)
+	}
+}
+
+const fakeTaskPerFindingSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func reportFileIntegrityIssues(group *evo.GroupHandle, findings []finding) {
+  for _, f := range findings {
+    group.Task(f.File).Fail(f.Message)
+  }
+}
+type finding struct {
+  File    string
+  Message string
+}
+`
+
+func TestAPI050_FakeTaskPerFinding_Fires(t *testing.T) {
+	res := review.GoSource("hook.go", fakeTaskPerFindingSrc)
+	f := findingByID(t, res, "API-051")
+	if f.Severity != "error" {
+		t.Fatalf("API-051 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "task.Problem") {
+		t.Fatalf("API-051 suggestion does not name task.Problem: %q", f.Suggestion)
+	}
+}
+
+const problemAccumulationSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(out *evo.Output, issues []issue) {
+  task := out.Task("file integrity")
+  for _, issue := range issues {
+    task.Problem(issue.Summary,
+      evo.On(issue.Path),
+      evo.Code(issue.Code),
+      evo.Location(issue.Path, issue.Line, 0),
+    )
+  }
+  task.Define(func(context.Context) error { return nil })
+}
+type issue struct {
+  Summary string
+  Path    string
+  Code    string
+  Line    int
+}
+`
+
+func TestAPI050_ProblemAccumulation_StaysSilent(t *testing.T) {
+	res := review.GoSource("hook_good.go", problemAccumulationSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("false positive API-051 on the recommended task.Problem accumulation: %+v", f)
+		}
+	}
+}
+
+const unrelatedJoinedStringSrc = `package p
+import (
+  "log"
+  "strings"
+)
+func summarize(names []string) {
+  var lines []string
+  for _, n := range names {
+    lines = append(lines, n)
+  }
+  log.Println(strings.Join(lines, ", "))
+}
+`
+
+func TestAPI050_UnrelatedJoinedString_StaysSilent(t *testing.T) {
+	res := review.GoSource("summarize.go", unrelatedJoinedStringSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("false positive API-051 on a joined string never wrapped in errors.New/Fail: %+v", f)
+		}
+	}
+}
+
+func TestAPI050_PreOneOnePin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("hook_findings.go", flattenedDiagnosticsLoopSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("API-051 fired for a pin older than 1.1.0 (TaskHandle.Problem accumulation did not exist yet): %+v", f)
+		}
+	}
+	res = review.GoSourceAt("hook.go", fakeTaskPerFindingSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("API-051 fired for a pin older than 1.1.0 (TaskHandle.Problem accumulation did not exist yet): %+v", f)
+		}
+	}
+}
