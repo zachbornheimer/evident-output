@@ -1390,10 +1390,6 @@ prep.Task("stabilize Go source").Define(stabilizeGo)`,
 			Certainty:       "heuristic",
 		},
 		{
-			Since:     "1.1.0",
-			Certainty: "heuristic",
-		},
-		{
 			ID:        "API-047",
 			Category:  "API",
 			Severity:  "error",
