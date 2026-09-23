@@ -906,6 +906,12 @@ func (o *Output) waitOutcome(taskID string) error {
 		return ErrNotStarted
 	case st.state == Cancelled:
 		return cancelledWaitOutcome(st.summary)
+	case st.state == Failed || st.state == Blocked:
+		// The row already failed but its callback has not returned yet (it
+		// resolved itself via Failf/Blockf, which settles the row at once),
+		// or it returned nil after stating its own failure. Either way the
+		// work did not succeed, and Wait must not say it did.
+		return failedWaitOutcome(st.summary)
 	default:
 		return nil
 	}
@@ -919,6 +925,15 @@ func cancelledWaitOutcome(reason string) error {
 		return errWaitCancelled
 	}
 	return fmt.Errorf("%w: %s", errWaitCancelled, reason)
+}
+
+// failedWaitOutcome is cancelledWaitOutcome's counterpart for a row that
+// resolved Failed or Blocked without (yet) a recorded callback error.
+func failedWaitOutcome(summary string) error {
+	if summary == "" {
+		return errWaitFailed
+	}
+	return fmt.Errorf("%w: %s", errWaitFailed, summary)
 }
 
 // waitSubmitted parks until the task resolves, and reports whether it did.
