@@ -136,6 +136,7 @@ func On(subject string)  ProblemOption
 func OnTask(taskName string)  ReasonOption
 func PaneHeight(lines int)  DebugPaneOption
 func ParseFormat(s string)  Format,  error
+func Patch(ctx context.Context, diff []byte)  FileSet,  error
 func Plain()  Option
 func Pluralize(quantity int64, singular string)  string
 func PolicyFlag(flag string)  ConfirmOption
@@ -197,6 +198,7 @@ type FactRecord
 type Failure
 type Field
 type FileFS
+type FileSet
 type FileSpec
 type Fingerprint
 type FingerprintValue
@@ -299,6 +301,12 @@ value ErrLimitExceeded
 value ErrNestedResourceAcquisition
 value ErrNoTaskContext
 value ErrNotStarted
+value ErrPatchBinaryUnsupported
+value ErrPatchDeleteUnsupported
+value ErrPatchDoesNotApply
+value ErrPatchMalformed
+value ErrPatchRenameUnsupported
+value ErrPatchUnsupported
 value ErrProgressRegression
 value ErrReasonSkipOnly
 value ErrReasonWrongTask
