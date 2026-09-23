@@ -554,6 +554,14 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectMutatingVerify(filename, f, fset)...)
 	}
 
+	// API-046: Skipped(evo.Reason("...")) whose reason names an
+	// already-satisfied condition instead of true inapplicability —
+	// ResolutionAlreadySatisfied (via Verify or evo.File/evo.Exec) is
+	// 1.0.0-only, so this recommendation cannot fire for an older pin.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectSkippedForAlreadySatisfied(filename, f, fset)...)
+	}
+
 	// EVO-DRYRUN-001: Define callback raw-calls a side effect Evo's runtime
 	// cannot intercept, breaking the dry-run guarantee.
 	if hasEvoAtOneZero {
@@ -1247,8 +1255,8 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 		return nil
 	}
 	line := 1
-	if idx := strings.Index(src, "signal.Notify("); idx >= 0 {
-		line += strings.Count(src[:idx], "\n")
+	if before, _, ok := strings.Cut(src, "signal.Notify("); ok {
+		line += strings.Count(before, "\n")
 	}
 	return []Finding{{
 		RuleID:     "SIG-001",
@@ -2215,7 +2223,7 @@ func composesItsArgument(stmt string) bool {
 func singleStatementBody(inner string) string {
 	var stmt string
 	count := 0
-	for _, l := range strings.Split(inner, "\n") {
+	for l := range strings.SplitSeq(inner, "\n") {
 		t := strings.TrimSpace(l)
 		if t == "" || strings.HasPrefix(t, "//") {
 			continue
