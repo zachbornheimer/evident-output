@@ -283,10 +283,7 @@ func shouldEmitPlainProgressLocked(st *taskState) bool {
 	if total <= 0 || completed >= total {
 		return true
 	}
-	step := total / plainProgressMilestones
-	if step < 1 {
-		step = 1
-	}
+	step := max(total/plainProgressMilestones, 1)
 	return completed/step != st.plainProgressEmitted/step
 }
 
