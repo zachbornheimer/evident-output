@@ -112,7 +112,10 @@ func ExampleLocation() {
 	// ✗ validate manifest  unknown field
 }
 
-// ExampleNext attaches a recommended next step to a Problem.
+// ExampleNext attaches a recommended next step to a Problem. The remedy
+// reaches the run's own Next-steps line (ZYS-848: a Problem's Next/
+// NextCommand option must survive projection, the same as a task-level
+// TaskHandle.Next call already did) — not just decoration on the row.
 func ExampleNext() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
@@ -121,9 +124,13 @@ func ExampleNext() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ push branch  rejected: non-fast-forward
+	//
+	// [failed]
+	// →  pull --rebase first
 }
 
-// ExampleNextCommand attaches a recommended command action to a Problem.
+// ExampleNextCommand attaches a recommended command action to a Problem —
+// same projection contract as ExampleNext.
 func ExampleNextCommand() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
@@ -132,6 +139,9 @@ func ExampleNextCommand() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ push branch  rejected: non-fast-forward
+	//
+	// [failed]
+	// →  git pull --rebase
 }
 
 // ExampleFailure shows the value TaskHandle.Failf/Blockf return: one

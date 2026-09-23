@@ -269,6 +269,15 @@ type taskState struct {
 	// Finish auto-resolves Done (see hasRecordedEffectLocked's amnesty
 	// siblings in Finish).
 	warnings []Problem
+	// pendingProblems accumulates TaskHandle.Problem's blocking findings
+	// (ZYS-848): unlike warnings, these are blocking evidence that this Task
+	// owns before it terminal-resolves — appending does not itself resolve
+	// the task, but merges into whatever terminal problems list resolve()
+	// finalizes with (mergeAccumulatedProblemsLocked), and a Done resolution
+	// with at least one accumulated Problem is promoted to Failed there. A
+	// Task can own zero, one, or many Problems this way instead of one
+	// caller-invented Task per finding.
+	pendingProblems []Problem
 	// facts accumulates TaskHandle.Fact's discovered-information annotations
 	// (P8) — info severity, the same "annotate, never resolve" contract
 	// warnings has at warning severity.
@@ -1653,6 +1662,20 @@ func (o *Output) collectActionsLocked() []Action {
 	add(o.actions)
 	for _, t := range o.tasks {
 		add(t.actions)
+		// ZYS-848: a remedy attached via evo.Next(...) to an individual
+		// Problem/warning (task.Problem(msg, evo.Next(...)),
+		// task.Fail(msg, evo.Next(...))) must reach the run's own Next
+		// steps the same way a task-level Next(...) call already does —
+		// otherwise a remedy on one of several accumulated Problems is
+		// invisible everywhere: writeProblem never renders p.Actions
+		// inline (it is evidence, not a decision), and without this loop
+		// it was silently dropped from the Conclusion's Next list too.
+		for _, p := range t.problems {
+			add(p.Actions)
+		}
+		for _, w := range t.warnings {
+			add(w.Actions)
+		}
 	}
 	return out
 }

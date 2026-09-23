@@ -7,6 +7,7 @@ func (GroupHandle) Sequence(name string)  *SequenceHandle
 func (GroupHandle) Snapshot()  TasksSnapshot
 func (GroupHandle) Summary(text string)  *GroupHandle
 func (GroupHandle) Task(name string)  *TaskHandle
+func (GroupHandle) Wait()  error
 func (Output) Cancel(reason string)
 func (Output) Close()  error
 func (Output) Conclusion()  Conclusion
@@ -41,6 +42,7 @@ func (SequenceHandle) Sequence(name string)  *SequenceHandle
 func (SequenceHandle) Snapshot()  TasksSnapshot
 func (SequenceHandle) Summary(text string)  *SequenceHandle
 func (SequenceHandle) Task(name string)  *TaskHandle
+func (SequenceHandle) Wait()  error
 func (TaskHandle) Add(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) After(preds ...any)  *TaskHandle
 func (TaskHandle) Block(summary string, options ...ProblemOption)
@@ -49,7 +51,7 @@ func (TaskHandle) Bytes(completed, total int64)  *TaskHandle
 func (TaskHandle) Cancel(reason string)
 func (TaskHandle) Context()  context.Context
 func (TaskHandle) Create(object string, fn func() error, opts ...MutationOption)
-func (TaskHandle) Define(fn func(context.Context) error)
+func (TaskHandle) Define(fn func(context.Context) error)  *TaskHandle
 func (TaskHandle) Delete(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
 func (TaskHandle) Done(args ...any)
@@ -60,6 +62,7 @@ func (TaskHandle) Kept(reason TaxonomyReason)
 func (TaskHandle) Key(key string)  *TaskHandle
 func (TaskHandle) Next(actions ...Action)  *TaskHandle
 func (TaskHandle) NextCommand(executable string, args ...string)  *TaskHandle
+func (TaskHandle) Problem(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Progress(completed, total int)  *TaskHandle
 func (TaskHandle) Push(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Record(verb string, quantity int, object string)
@@ -72,7 +75,7 @@ func (TaskHandle) Step(completed, total int, name string)  *TaskHandle
 func (TaskHandle) Update(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
-func (TaskHandle) Warn(summary string)
+func (TaskHandle) Warn(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Write(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
@@ -98,12 +101,14 @@ func Destructive()  ConfirmOption
 func Detail(text string)  ProblemOption
 func Diagnostics(w io.Writer)  Option
 func DryRun()  Option
+func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)  error
 func EncodeEventJSON(e Event)  []byte,  error
 func EncodeJSON(s Snapshot)  []byte,  error
 func EncodeJSONL(events []Event)  []byte,  error
-func Exec(ctx context.Context, spec ExecSpec)  error
+func Exec(ctx context.Context, spec ExecSpec)  ExecResult,  error
 func ExternalProjection()  Option
 func FSPath(path string)  Fingerprint
+func FSResource(path string)  Resource
 func Fact(name, value string)
 func File(ctx context.Context, spec FileSpec)  error
 func ForSkip()  ReasonOption
@@ -115,6 +120,7 @@ func IsCharDevice(w io.Writer)  bool
 func KeepLastLines(n int)  EvidenceOption
 func Label(text string)  Action
 func Location(path string, line, column int)  ProblemOption
+func LogicalResource(name string)  Resource
 func Main(run RunFunc)  int
 func MaxEntities(n int)  Option
 func MaxEvents(n int)  Option
@@ -176,6 +182,8 @@ type DebugConfig
 type DebugPaneOption
 type DebugPresentation
 type EffectRecord
+type EffectSpec
+type EffectVerb
 type EntityOption
 type EntityState
 type Event
@@ -184,6 +192,7 @@ type Evidence
 type EvidenceOption
 type EvidencePhase
 type EvidenceStream
+type ExecResult
 type ExecSpec
 type FactRecord
 type Failure
@@ -230,6 +239,7 @@ type Projection
 type ReasonOption
 type Redactor
 type Resolution
+type Resource
 type Result
 type RunFunc
 type SequenceHandle
@@ -257,6 +267,12 @@ value DebugPresentationPane
 value DefaultVisibleNames
 value Determinate
 value Done
+value EffectAdd
+value EffectCreate
+value EffectDelete
+value EffectPush
+value EffectRemove
+value EffectUpdate
 value Empty
 value ErrAlreadyResolved
 value ErrClosed
@@ -264,6 +280,10 @@ value ErrConcurrentRunning
 value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName
+value ErrEffectCallbackMissing
+value ErrEffectObjectMissing
+value ErrEffectQuantityNotPositive
+value ErrEffectVerbInvalid
 value ErrExecExecutableNotFound
 value ErrExecNonzeroExit
 value ErrExecOutputMissingAfterSuccess
@@ -274,8 +294,10 @@ value ErrFileSpecMissingPath
 value ErrFileUnmanagedContentsMissing
 value ErrInvalidConfig
 value ErrInvalidProgress
+value ErrInvalidResource
 value ErrKeyAfterDefine
 value ErrLimitExceeded
+value ErrNestedResourceAcquisition
 value ErrNoTaskContext
 value ErrNotStarted
 value ErrProgressRegression

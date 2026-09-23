@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/apisurface"
 )
 
 // dialectSurface is the evo-rec.md public function set, plus *f formatted
@@ -30,8 +32,11 @@ var dialectSurface = map[string][]string{
 		"Command(executable string, args ...string)",
 		"App()",
 		"FSPath(path string)",
+		"FSResource(path string)",
+		"LogicalResource(name string)",
 		"File(ctx context.Context, spec FileSpec)",
 		"Exec(ctx context.Context, spec ExecSpec)",
+		"Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)",
 		"Runner(r ProcessRunner)",
 		"Value(name string, v any)",
 		"Confirm(question string, opts ...ConfirmOption)",
@@ -156,6 +161,7 @@ var dialectSurface = map[string][]string{
 		"Kept(reason TaxonomyReason)",
 		"Next(actions ...Action)",
 		"NextCommand(executable string, args ...string)",
+		"Problem(summary string, options ...ProblemOption)",
 		"Progress(completed int, total int)",
 		"Push(object string, fn func() error, opts ...MutationOption)",
 		"Record(verb string, quantity int, object string)",
@@ -168,7 +174,7 @@ var dialectSurface = map[string][]string{
 		"Update(object string, fn func() error, opts ...MutationOption)",
 		"Verify(fn func(context.Context) (bool, error))",
 		"Wait()",
-		"Warn(summary string)",
+		"Warn(summary string, options ...ProblemOption)",
 		"Write(object string, fn func() error, opts ...MutationOption)",
 		"Writer()",
 	},
@@ -178,6 +184,7 @@ var dialectSurface = map[string][]string{
 		"Snapshot()",
 		"Summary(text string)",
 		"Task(name string)",
+		"Wait()",
 	},
 	"*GroupHandle": {
 		"Group(name string)",
@@ -185,6 +192,7 @@ var dialectSurface = map[string][]string{
 		"Snapshot()",
 		"Summary(text string)",
 		"Task(name string)",
+		"Wait()",
 	},
 	"*Printer": {
 		"Print(args ...any)",
@@ -423,4 +431,41 @@ func findSig(sigs []string, prefix string) string {
 		return "(absent)"
 	}
 	return strings.Join(match, ", ")
+}
+
+func TestDialectSurface_SubsetOfGoDocSurface(t *testing.T) {
+	live, err := apisurface.Walk(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var missing []string
+	for recv, sigs := range dialectSurface {
+		for _, sig := range sigs {
+			prefix := dialectGoDocPrefix(recv, sig)
+			if !surfaceHasPrefix(live, prefix) {
+				missing = append(missing, recv+" "+sig)
+			}
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		t.Fatalf("dialect methods missing from go/doc surface:\n  %s", strings.Join(missing, "\n  "))
+	}
+}
+
+func dialectGoDocPrefix(recv, sig string) string {
+	name, _, _ := strings.Cut(sig, "(")
+	if recv == "pkg" {
+		return "func " + name + "("
+	}
+	return "func (" + strings.TrimPrefix(recv, "*") + ") " + name + "("
+}
+
+func surfaceHasPrefix(live []string, prefix string) bool {
+	for _, line := range live {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+	return false
 }

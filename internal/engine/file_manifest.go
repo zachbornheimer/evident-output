@@ -102,20 +102,46 @@ func (o *Output) appendManifestOperationLocked(taskID string, rec manifest.Opera
 }
 
 // commitManifestTaskLocked persists taskID's accumulated operations as this
-// Run's truth (spec §11.3) once the Task has settled Done. A Task that
-// recorded no tracked operations, or a Run with no usable manifest Store,
-// commits nothing. Callers must already hold o.mu.
+// Run's truth (spec §11.3) once the Task has settled Done. A Run with no
+// usable manifest Store commits nothing (no Task in this Run ever used
+// File/Exec/Patch, so nothing opened the manifest — see manifestFor —
+// keeping a purely opaque consumer's Run free of any manifest file at all).
+// Otherwise every settled Task commits a TaskRecord: one with tracked
+// Operations carries only its own precise per-operation provenance: one
+// with none is opaque, so it automatically falls back to the application
+// fingerprint as its own DefinitionFingerprint (ZYS-817 Decisions
+// 2026-09-23) — zero caller code, and never folded into any operation's
+// user-visible Basis. Callers must already hold o.mu.
 func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 	st := o.taskByRef[taskID]
-	if st == nil || len(st.manifestOps) == 0 || o.manifestStore == nil {
+	if st == nil || o.manifestStore == nil {
 		return
 	}
 	task := manifest.TaskRecord{Key: st.key, Operations: append([]manifest.OperationRecord(nil), st.manifestOps...)}
+	if len(st.manifestOps) == 0 {
+		task.DefinitionFingerprint = taskOpaqueDefinitionFingerprint(st.key, o.manifestApp.Fingerprint)
+	}
 	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err == nil {
 		o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
 			"operations": len(task.Operations),
 		})
 	}
+}
+
+// taskOpaqueDefinitionFingerprint computes an opaque Task's own definition
+// identity: the conservative application-fingerprint fallback ZYS-817
+// Decisions (2026-09-23) requires when a Task's Define recorded no precise
+// File/Exec/Patch operation of its own to prove freshness with. Scoped by
+// the Task's own stable key so two different opaque Tasks never collide
+// onto the same digest merely because the application fingerprint matches.
+func taskOpaqueDefinitionFingerprint(key, appFingerprint string) string {
+	h := sha256.New()
+	_, _ = h.Write([]byte("evident-output:task:definition:opaque:v1\x00"))
+	_, _ = h.Write([]byte(key))
+	h.Write([]byte{0})
+	_, _ = h.Write([]byte(appFingerprint))
+	h.Write([]byte{0})
+	return "sha256:" + hex.EncodeToString(h.Sum(nil))
 }
 
 // basisRecordsFrom fingerprints every entry in basis (spec §11.1) and

@@ -54,6 +54,23 @@ and more than once (idempotent); prefer `defer out.Close()` right after
 
 Multi-gate: resolve every Task, tracking a local `blocked` bool at each `Block` call site, then `if blocked { return nil }` before mutation — `Output.Run`/`Conclusion` answer the same question once a run has finished, so no mid-run query is exported; `Main` maps `ExitCode`.
 
+### Task is one independently meaningful promise
+
+A Task names **one independently schedulable promise whose outcome is independently meaningful to the user** — not a display row, not a subject label, not a container reached for merely to earn a row on screen. A good Task name answers "what will this unit of work accomplish or determine?" and, as a strong heuristic (not a grammar rule review mechanically enforces), reads as an action: verb + concrete object — `check file integrity`, `format Python`, `stabilize Go source`, `lint Go`, `check Python`, `build application icons`. `file integrity` names a subject, not the work; `fix`, `go`, `pre-commit`, `classify` alone read as a category, a tool name, or a phase, not a promise. A concise contextual name can still be perfectly clear — context, not word count, decides.
+
+Four tests settle it when the heuristic alone is ambiguous:
+
+1. If it fails, does the Task's name alone tell the user what failed?
+2. Can this unit run/wait/fail/satisfy independently?
+3. Would the user care about its independent outcome?
+4. Is it actual work, rather than a category, a display heading, a fact, a verification dimension, or an implementation phase?
+
+If the answers are no, it probably is not a Task.
+
+`Group` and `Sequence` **organize** work — they are never themselves fake work created only to earn a success row. `Task("fix")` that really owns several independently meaningful operations should become `Group("prepare staged files")` (or `Sequence`) with each operation as its own verb+object Task underneath; the container header's own visibility is a renderer decision, independent of whether the header deserves a row at all.
+
+One Task may still make several internal observations without promoting each predicate to a sibling Task: `check file integrity` can inspect merge markers, path validity, staged/worktree consistency, symlinks, and generated-file corruption, and report them all as `Fact`/`Warn`/`Problem` evidence under the one Task that answers a single user-meaningful question. Only split an observation into its own Task when it has an independently meaningful lifecycle/remediation and can run on its own. `TaskHandle` intentionally has no `.Task`/`.Group`/`.Sequence` child constructors — only `Output`, `GroupHandle`, and `SequenceHandle` declare children, so a Task cannot structurally grow a container of its own; review (`API-045`) teaches the semantic half of this boundary that a compile-time signature cannot decide.
+
 ## Severity dialect
 
 | Outcome   | Meaning                                                                       |
@@ -63,6 +80,43 @@ Multi-gate: resolve every Task, tracking a local `blocked` bool at each `Block` 
 | **Fail**  | Evaluation failed or **required** tool/IO failed                              |
 
 `Block` ≠ Go `error`. After Block, return nil from `run` and let `Main` exit `1`.
+
+## One check Task, many Problems
+
+A Task with several findings owns them all as `Problem`s — never one `Task`
+per finding, never every finding flattened into a single
+`errors.New(strings.Join(...))` string:
+
+```go
+task := out.Task("file integrity")
+for _, issue := range issues {
+    task.Problem(issue.Summary,
+        evo.On(issue.Path),
+        evo.Code(issue.Code),
+        evo.Location(issue.Path, issue.Line, 0),
+    )
+}
+task.Define(func(context.Context) error { return nil })
+```
+
+`Problem(summary, opts...)` appends one blocking Problem and returns
+`*TaskHandle` to chain (`task.Problem(...).Problem(...)`); it does not
+resolve the task. If `Define`'s callback returns `nil` — or a bare `Done()`
+is called — while the Task has accumulated Problems, the Task resolves
+**Failed**, not Done: accumulated blocking evidence always overrides a
+claimed clean outcome. The Task still resolves exactly once regardless of
+how many Problems it owns.
+
+`Warn(summary, opts...)` takes the same `ProblemOption`s (`Detail`, `Code`,
+`On`, `Location`, `Next`, ...) for a non-blocking finding with the same
+structured metadata — it never resolves the task either.
+
+Every accumulated Problem survives in `Snapshot`/JSON/JSONL even when the
+plain human view bounds how many render inline (5 by default) behind an
+`and N more failures` line — the count is always authoritative, and a
+remedy (`evo.Next(...)`/`evo.NextCommand(...)`) attached to any Problem
+still reaches the run's own Next-steps output. See
+[docs/migration/1.1.md](migration/1.1.md) for the exact 1.0→1.1 signatures.
 
 ## Child processes / tool-backed gates
 
@@ -114,7 +168,7 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 | `Task`         | One atomic unit — resolved directly (Done/Warn/Block/Fail/Skipped) or submitted with Define / a mutation verb        |
 | `Group`        | Independent collection of tasks (state is **derived**); scheduler may overlap eligible children                      |
 | `Sequence`     | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                                   |
-| `Problem`      | Structured evidence for warn / block / fail                                                                          |
+| `Problem`      | Structured evidence for warn / block / fail; a Task accumulates many via `Problem(...)` before it resolves once      |
 | Mutation verbs | `Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push` — effects that happened vs would happen, from one call site |
 | `Conclusion`   | Headline + `Changed` / `Partial` / `Cancelled` + exit code                                                           |
 | `Main`         | Finish + Close + process exit code for CLI entrypoints                                                               |

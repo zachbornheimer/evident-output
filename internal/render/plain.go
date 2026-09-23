@@ -537,6 +537,8 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, co
 	}
 	inlineTaxonomy, inlineTaxonomyVerb, hasInlineTaxonomy := inlineTaskTaxonomy(t)
 	switch {
+	case t.Resolution == core.ResolutionAlreadySatisfied:
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, label, alreadySatisfiedRowDetail(t, color))
 	case t.Summary != "" && t.State == core.Failed:
 		// release-gate round 6 finding 5: a Fail summary is the evidence the
 		// reader most needs — it must never render at the lowest contrast on
@@ -772,7 +774,7 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		WriteCollection(&nested, child, color, verbose, profile)
-		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
@@ -843,7 +845,7 @@ func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEac
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		WriteCollection(&nested, child, color, verbose, profile)
-		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
@@ -893,6 +895,9 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int
 	case len(t.Problems) > 0:
 		headerSummary = t.Problems[0].Summary
 		fmt.Fprintf(&row, "   %s %s  %s", tg, name, headerSummary)
+	case t.Resolution == core.ResolutionAlreadySatisfied:
+		headerSummary = alreadySatisfiedDetail
+		fmt.Fprintf(&row, "   %s %s  %s", tg, name, alreadySatisfiedRowDetail(t, color))
 	case headerSummary != "":
 		fmt.Fprintf(&row, "   %s %s  %s", tg, name, headerSummary)
 	case hasInlineWarning:
@@ -1084,10 +1089,7 @@ func WriteEffects(b *strings.Builder, kind, subject string, nameWidth int, recor
 			fmt.Fprintf(b, "  %s  %s %s\n", verb, qty, ledgerObject(r))
 			continue
 		}
-		gap := maxVerb - len(r.Verb)
-		if gap > maxLeader {
-			gap = maxLeader
-		}
+		gap := min(maxVerb-len(r.Verb), maxLeader)
 		if gap > 2 {
 			leader := strings.Repeat("·", gap)
 			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, txt.Dim(leader, color), r.Object)

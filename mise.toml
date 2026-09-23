@@ -116,9 +116,13 @@ run = "mise run test && mise run cut-release"
 description = "Run example CLIs back-to-back with headers"
 run = "bash tools/scripts/run-examples.sh"
 
+[tasks.api-contract]
+description = "Public API surface matches testdata/api_golden.txt plus required/retired floors"
+run = "go run ./cmd/evident-output contract"
+
 [tasks.ci]
-description = "Full gate: lint + test + scan + conformance + traceability + v0.6/1.0 acceptance (increments 1-3)"
-depends = ["lint", "test", "scan", "conformance", "traceability", "acceptance-v06-green"]
+description = "Full gate: lint + test + scan + conformance + traceability + api-contract + v0.6/1.0 acceptance (increments 1-3)"
+depends = ["lint", "test", "scan", "conformance", "traceability", "api-contract", "acceptance-v06-green"]
 
 [tasks.test-evo]
 description = "Capture timed PNG/TXT frames of a command in a real tmux PTY. Flags AFTER the task name. Requires --start-dir, exactly one of --timeout-ms/--timeout-s, exactly one of --screenshot-interval-ms/--screenshot-interval-s, then -- CMD"

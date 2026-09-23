@@ -53,6 +53,14 @@ type OperationRecord struct {
 type TaskRecord struct {
 	Key        string            `json:"key"`
 	Operations []OperationRecord `json:"operations,omitempty"`
+	// DefinitionFingerprint is this Task's own definition identity, set
+	// only when the Task recorded no precise File/Exec/Patch Operations of
+	// its own (ZYS-817 Decisions 2026-09-23: "opaque Define/task definition
+	// identity automatically incorporates the application fingerprint as
+	// conservative fallback with zero caller code"). A Task with at least
+	// one Operation leaves this empty — precise per-operation provenance
+	// already beats the fallback and must not be shadowed by it.
+	DefinitionFingerprint string `json:"definition_fingerprint,omitempty"`
 }
 
 // ApplicationRecord identifies the application and its fingerprint at

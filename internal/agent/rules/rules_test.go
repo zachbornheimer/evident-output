@@ -203,6 +203,9 @@ func TestMCP028_RuleStabilityVersionPolicy(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for _, id := range ids {
+		if id == "" {
+			t.Fatal("rule entry has an empty ID (a merge left a field-only fragment in the catalog)")
+		}
 		if seen[id] {
 			t.Fatalf("duplicate rule id %s", id)
 		}

@@ -27,7 +27,7 @@ func main() {
 		return
 	}
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: evident-output <adopt|review|preview|explain|version> [args…]")
+		fmt.Fprintln(os.Stderr, "usage: evident-output <adopt|review|preview|explain|contract|version> [args…]")
 		os.Exit(2)
 	}
 	var err error
@@ -42,6 +42,8 @@ func main() {
 		err = cmdPreview(os.Args[2:])
 	case "explain":
 		err = cmdExplain(os.Args[2:])
+	case "contract":
+		err = cmdContract(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", os.Args[1])
 		os.Exit(2)

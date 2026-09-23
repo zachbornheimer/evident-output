@@ -590,6 +590,616 @@ func detectChannelWaitWrapperAroundDefine(filename, src string) []Finding {
 	return findings
 }
 
+// ===== API-047: a Task/Group/Sequence declaration reuses a sibling literal
+// name already used, under the same parent handle, by a different entity
+// kind. §3.1's default stable key folds kind into the key
+// (kind:parentKey/name), so out.Task("build") and out.Group("build")
+// register as two distinct runtime identities that share one visible
+// sibling name. failDuplicateSiblingLocked's same-kind check
+// (ProblemCodeDuplicateSiblingName) does not catch this because it only
+// compares within one kind's own name index (ZYS-944).
+
+// siblingEntityKind names the three declarable entity kinds this rule
+// compares across (a package-local mirror of internal/engine's own
+// entityKind — review is a static-analysis package and does not import
+// engine, so it keeps its own copy of this small vocabulary).
+type siblingEntityKind string
+
+const (
+	declKindTask     siblingEntityKind = "task"
+	declKindGroup    siblingEntityKind = "group"
+	declKindSequence siblingEntityKind = "sequence"
+)
+
+// siblingDeclKind reports the siblingEntityKind a Task/Group/Sequence declaration
+// method name declares, or ("", false) for any other method.
+func siblingDeclKind(method string) (kind siblingEntityKind, ok bool) {
+	switch method {
+	case "Task":
+		return declKindTask, true
+	case "Group":
+		return declKindGroup, true
+	case "Sequence":
+		return declKindSequence, true
+	default:
+		return "", false
+	}
+}
+
+// siblingKindDecl is the first declaration scanBlockForCrossKindSiblings saw
+// for one (parent, name) pair: its entity kind and source position, so a
+// later declaration under the same parent and name can be compared and
+// reported against it.
+type siblingKindDecl struct {
+	kind siblingEntityKind
+	pos  token.Position
+}
+
+// detectCrossKindDuplicateSiblingName scans every block independently
+// (never across an if/else branch split, where two kinds sharing a name are
+// legitimately mutually exclusive) for sibling Task/Group/Sequence
+// declarations that reuse one literal name across different kinds under the
+// same parent handle.
+func detectCrossKindDuplicateSiblingName(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		block, ok := n.(*ast.BlockStmt)
+		if !ok {
+			return true
+		}
+		findings = append(findings, scanBlockForCrossKindSiblings(filename, block, fset)...)
+		return true
+	})
+	return findings
+}
+
+// scanBlockForCrossKindSiblings walks block's direct statements without
+// descending into a nested BlockStmt — the outer ast.Inspect in
+// detectCrossKindDuplicateSiblingName visits and scans a nested block on its
+// own, so an if-branch and its else-branch are never compared against each
+// other. A chained declaration (out.Task("build").Define(...)) and an
+// assigned one (work := out.Group("work")) are both reached because the
+// per-statement walk only stops descent at a BlockStmt boundary, never at
+// the statement's own expression shape.
+func scanBlockForCrossKindSiblings(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
+	var findings []Finding
+	seen := map[string]map[string]siblingKindDecl{}
+	for _, stmt := range block.List {
+		ast.Inspect(stmt, func(n ast.Node) bool {
+			if _, ok := n.(*ast.BlockStmt); ok {
+				return false
+			}
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			kind, ok := siblingDeclKind(sel.Sel.Name)
+			if !ok || len(call.Args) != 1 || !isLikelyEvoReceiver(sel.X) {
+				return true
+			}
+			lit, ok := call.Args[0].(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			name, err := strconv.Unquote(lit.Value)
+			if err != nil || name == "" {
+				return true
+			}
+			recv := exprDottedName(sel.X)
+			if recv == "" {
+				return true
+			}
+			if seen[recv] == nil {
+				seen[recv] = map[string]siblingKindDecl{}
+			}
+			prior, ok := seen[recv][name]
+			if !ok {
+				seen[recv][name] = siblingKindDecl{kind: kind, pos: fset.Position(call.Pos())}
+				return true
+			}
+			if prior.kind != kind {
+				pos := fset.Position(call.Pos())
+				findings = append(findings, crossKindDuplicateSiblingFinding(filename, pos, recv, name, prior, kind))
+			}
+			return true
+		})
+	}
+	return findings
+}
+
+// crossKindDuplicateSiblingFinding builds API-047's Finding: recv/name/kind
+// describe the second (flagged) declaration, prior the first one it collides
+// with.
+func crossKindDuplicateSiblingFinding(filename string, pos token.Position, recv, name string, prior siblingKindDecl, kind siblingEntityKind) Finding {
+	method := siblingDeclMethod(kind)
+	priorMethod := siblingDeclMethod(prior.kind)
+	renamed := strconv.Quote(name + " " + strings.ToLower(method))
+	quotedName := strconv.Quote(name)
+	return Finding{
+		RuleID:   "API-047",
+		Severity: "error",
+		Message: recv + "." + method + "(" + quotedName + ") reuses the sibling name already declared as a " + string(prior.kind) +
+			" at line " + strconv.Itoa(prior.pos.Line) + " (" + recv + "." + priorMethod + "(" + quotedName + ")); the same visible name now names two distinct " +
+			string(prior.kind) + "/" + string(kind) + " runtime identities under one parent",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "give " + recv + "." + method + "(" + quotedName + ") its own distinct name, e.g. " + recv + "." + method + "(" + renamed + "), so the two runtime identities that already exist here are no longer visually indistinguishable",
+	}
+}
+
+// siblingDeclMethod is siblingDeclKind's inverse, so a Finding can name the
+// exact method call (out.Group(...), never a bare kind string) the fix
+// should read.
+func siblingDeclMethod(kind siblingEntityKind) string {
+	switch kind {
+	case declKindTask:
+		return "Task"
+	case declKindGroup:
+		return "Group"
+	case declKindSequence:
+		return "Sequence"
+	default:
+		return string(kind)
+	}
+}
+
+// ===== API-048: the same Group/Sequence receiver's .Task("literal") called
+// more than once with the identical string in one function — declareGroupTask
+// fails the second call as a duplicate sibling rather than returning the
+// first handle (§3.1; internal/engine/group.go's GroupHandle.Task), so a
+// later dependency reference (After, a second Define, ...) must keep the
+// first handle instead of re-declaring by name. The contract's own zq prune
+// fixture (spec §21/§18) extracts these into a typed var (...) block; that
+// is the recommended fix, never required for a Task named only once.
+
+// taskCallSite is one <receiver>.Task("literal") call site, kept in
+// declaration order so the finding always lands on the second (repeat)
+// occurrence, never the legitimate first declaration.
+type taskCallSite struct {
+	recv    string
+	literal string
+	pos     token.Pos
+}
+
+func detectRedeclaredTaskLiteral(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	forEachFuncBody(file, func(body *ast.BlockStmt) {
+		seen := map[string]token.Pos{}
+		ast.Inspect(body, func(n ast.Node) bool {
+			site, ok := taskCallSiteAt(n)
+			if !ok {
+				return true
+			}
+			key := site.recv + "\x00" + site.literal
+			if _, dup := seen[key]; dup {
+				pos := fset.Position(site.pos)
+				findings = append(findings, redeclaredTaskLiteralFinding(filename, pos, site.recv, site.literal))
+				return true
+			}
+			seen[key] = site.pos
+			return true
+		})
+	})
+	return findings
+}
+
+// taskCallSiteAt reports the <recv>.Task("literal") shape at n, when recv is
+// a named identifier (not a chained call result) — a Group/Sequence handle
+// held in a variable, the only shape a later reference could re-declare by
+// name instead of reusing.
+func taskCallSiteAt(n ast.Node) (taskCallSite, bool) {
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return taskCallSite{}, false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Task" || len(call.Args) != 1 {
+		return taskCallSite{}, false
+	}
+	if _, ok := sel.X.(*ast.Ident); !ok {
+		return taskCallSite{}, false
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return taskCallSite{}, false
+	}
+	text, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return taskCallSite{}, false
+	}
+	return taskCallSite{recv: exprDottedName(sel.X), literal: text, pos: call.Pos()}, true
+}
+
+func redeclaredTaskLiteralFinding(filename string, pos token.Position, recv, literal string) Finding {
+	quoted := strconv.Quote(literal)
+	return Finding{
+		RuleID:     "API-048",
+		Severity:   "suggestion",
+		Message:    recv + ".Task(" + quoted + ") is declared again with the same label; the second call fails as a duplicate sibling rather than returning the first handle",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "keep the first " + recv + ".Task(" + quoted + ") handle in a typed variable (a var (...) block when there are several) and reuse it for the later reference instead of re-declaring by name",
+	}
+}
+
+// ===== API-049: task.Define(func(context.Context) error { ... }) discards
+// its scheduler-provided context parameter (unnamed, or named something other
+// than the outer "ctx" it shadows) while the body still calls cancellable
+// work with the captured outer "ctx" — the row cancels correctly but the
+// work it names never observes that cancellation (ZYS-938 / evo-1.x Decisions
+// 2026-09-23: "the Define context is authoritative for task
+// cancellation/lifecycle").
+
+// defineCallbackContextParamName reports the Define callback's single
+// context.Context parameter name ("" for an unnamed or blank-identifier
+// parameter) and whether the signature matches func(context.Context) error
+// at all.
+func defineCallbackContextParamName(ft *ast.FuncType) (string, bool) {
+	if ft.Params == nil || len(ft.Params.List) != 1 {
+		return "", false
+	}
+	field := ft.Params.List[0]
+	sel, ok := field.Type.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Context" || exprDottedName(sel.X) != "context" {
+		return "", false
+	}
+	if len(field.Names) == 0 {
+		return "", true
+	}
+	name := field.Names[0].Name
+	if name == "_" {
+		return "", true
+	}
+	return name, true
+}
+
+// bodyCallsWithCapturedIdent reports whether block contains a call passing
+// ident as an argument that still resolves to the callback's captured outer
+// variable. A local re-declaration of ident (ctx := ..., var ctx ...) in an
+// earlier statement of the same or an enclosing block shadows the outer
+// variable from that point on — Go's scoping rules start the new binding's
+// scope right after the declaring statement — so a call after the shadow
+// that passes ident reaches the local, not the ctx Define's callback
+// discarded, and is not this rule's shape.
+func bodyCallsWithCapturedIdent(block *ast.BlockStmt, ident string) bool {
+	return stmtsCallWithCapturedIdent(block.List, ident, false)
+}
+
+// stmtsCallWithCapturedIdent walks stmts in declaration order, threading
+// whether ident has already been locally shadowed by a preceding statement
+// in this same block into every statement (and, for block-bearing
+// statements, into their nested blocks) that follows.
+func stmtsCallWithCapturedIdent(stmts []ast.Stmt, ident string, shadowed bool) bool {
+	for _, stmt := range stmts {
+		switch s := stmt.(type) {
+		case *ast.BlockStmt:
+			if stmtsCallWithCapturedIdent(s.List, ident, shadowed) {
+				return true
+			}
+			continue
+		case *ast.IfStmt:
+			if ifStmtCallsWithCapturedIdent(s, ident, shadowed) {
+				return true
+			}
+			continue
+		case *ast.ForStmt:
+			if s.Body != nil && stmtsCallWithCapturedIdent(s.Body.List, ident, shadowed) {
+				return true
+			}
+			continue
+		case *ast.RangeStmt:
+			if s.Body != nil && stmtsCallWithCapturedIdent(s.Body.List, ident, shadowed) {
+				return true
+			}
+			continue
+		case *ast.SwitchStmt:
+			if caseClausesCallWithCapturedIdent(s.Body, ident, shadowed) {
+				return true
+			}
+			continue
+		case *ast.TypeSwitchStmt:
+			if caseClausesCallWithCapturedIdent(s.Body, ident, shadowed) {
+				return true
+			}
+			continue
+		case *ast.SelectStmt:
+			if commClausesCallWithCapturedIdent(s.Body, ident, shadowed) {
+				return true
+			}
+			continue
+		case *ast.LabeledStmt:
+			if stmtsCallWithCapturedIdent([]ast.Stmt{s.Stmt}, ident, shadowed) {
+				return true
+			}
+			continue
+		}
+		if !shadowed && stmtLeafCallsWithIdent(stmt, ident) {
+			return true
+		}
+		if stmtDeclaresLocalIdent(stmt, ident) {
+			shadowed = true
+		}
+	}
+	return false
+}
+
+func ifStmtCallsWithCapturedIdent(s *ast.IfStmt, ident string, shadowed bool) bool {
+	if s.Init != nil {
+		if !shadowed && stmtLeafCallsWithIdent(s.Init, ident) {
+			return true
+		}
+		if stmtDeclaresLocalIdent(s.Init, ident) {
+			shadowed = true
+		}
+	}
+	if s.Body != nil && stmtsCallWithCapturedIdent(s.Body.List, ident, shadowed) {
+		return true
+	}
+	if s.Else != nil {
+		return stmtsCallWithCapturedIdent([]ast.Stmt{s.Else}, ident, shadowed)
+	}
+	return false
+}
+
+func caseClausesCallWithCapturedIdent(body *ast.BlockStmt, ident string, shadowed bool) bool {
+	if body == nil {
+		return false
+	}
+	for _, stmt := range body.List {
+		cc, ok := stmt.(*ast.CaseClause)
+		if !ok {
+			continue
+		}
+		if stmtsCallWithCapturedIdent(cc.Body, ident, shadowed) {
+			return true
+		}
+	}
+	return false
+}
+
+func commClausesCallWithCapturedIdent(body *ast.BlockStmt, ident string, shadowed bool) bool {
+	if body == nil {
+		return false
+	}
+	for _, stmt := range body.List {
+		cc, ok := stmt.(*ast.CommClause)
+		if !ok {
+			continue
+		}
+		if stmtsCallWithCapturedIdent(cc.Body, ident, shadowed) {
+			return true
+		}
+	}
+	return false
+}
+
+// stmtDeclaresLocalIdent reports whether stmt is a `ident := ...` or
+// `var ident ...` declaration — the two shapes that start a new binding for
+// ident, shadowing any outer variable of the same name from here on.
+func stmtDeclaresLocalIdent(stmt ast.Stmt, ident string) bool {
+	switch s := stmt.(type) {
+	case *ast.AssignStmt:
+		if s.Tok != token.DEFINE {
+			return false
+		}
+		for _, lhs := range s.Lhs {
+			if id, ok := lhs.(*ast.Ident); ok && id.Name == ident {
+				return true
+			}
+		}
+	case *ast.DeclStmt:
+		gen, ok := s.Decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.VAR {
+			return false
+		}
+		for _, spec := range gen.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for _, name := range vs.Names {
+				if name.Name == ident {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// stmtLeafCallsWithIdent reports a call passing ident as an argument
+// anywhere within stmt, for a statement kind with no nested block of its
+// own sibling statements to thread shadowing through (an ExprStmt, a
+// ReturnStmt, ... — nested FuncLit bodies are still descended into, matching
+// this rule's original scope of also catching a closure that re-discards
+// the same captured ctx).
+func stmtLeafCallsWithIdent(stmt ast.Stmt, ident string) bool {
+	found := false
+	ast.Inspect(stmt, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		for _, arg := range call.Args {
+			if id, ok := arg.(*ast.Ident); ok && id.Name == ident {
+				found = true
+				return false
+			}
+		}
+		return true
+	})
+	return found
+}
+
+// localDefineReceiverTypes collects every type declared in this file that
+// has its own Define(fn func(context.Context) error) method — a shape a
+// consumer file may legitimately declare for reasons unrelated to evo (a
+// validator, a config builder, a test helper). A call to one of these
+// types' Define is not evo's TaskHandle.Define and must not be attributed
+// to the scheduler (ZYS-938: proven false positive on such a type sharing a
+// file with real evo usage).
+func localDefineReceiverTypes(file *ast.File) map[string]bool {
+	types := map[string]bool{}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || len(fn.Recv.List) != 1 || fn.Name.Name != "Define" {
+			continue
+		}
+		if !isDefineCtxCallbackMethod(fn.Type) {
+			continue
+		}
+		if name := typeNameOf(fn.Recv.List[0].Type); name != "" {
+			types[name] = true
+		}
+	}
+	return types
+}
+
+// isDefineCtxCallbackMethod reports whether ft is a method signature
+// shaped like Define(fn func(context.Context) error) — a single parameter
+// that is itself a func(context.Context) error. This is the outer method
+// signature (its one parameter names the callback), unlike
+// defineCallbackContextParamName, which inspects that inner callback's own
+// signature.
+func isDefineCtxCallbackMethod(ft *ast.FuncType) bool {
+	if ft.Params == nil || len(ft.Params.List) != 1 {
+		return false
+	}
+	fnType, ok := ft.Params.List[0].Type.(*ast.FuncType)
+	if !ok {
+		return false
+	}
+	_, isCtxCallback := defineCallbackContextParamName(fnType)
+	return isCtxCallback
+}
+
+// typeNameOf returns a bare or pointer type expression's identifier name
+// ("Validator" for both Validator and *Validator), or "" for anything else
+// (a selector into another package, a generic instantiation, ...).
+func typeNameOf(e ast.Expr) string {
+	if star, ok := e.(*ast.StarExpr); ok {
+		e = star.X
+	}
+	id, ok := e.(*ast.Ident)
+	if !ok {
+		return ""
+	}
+	return id.Name
+}
+
+// identDeclaredTypeName is a best-effort, file-wide scan for a var/:=
+// declaration's or a parameter's type for name. It is not scoped to the
+// enclosing function — a coarse approximation — but is enough to keep a
+// receiver known to be one of localDefineReceiverTypes' non-evo types from
+// being mistaken for evo's TaskHandle; it returns "" (no exclusion) for
+// anything it cannot resolve, so it only ever narrows this rule, never
+// widens it.
+func identDeclaredTypeName(file *ast.File, name string) string {
+	result := ""
+	ast.Inspect(file, func(n ast.Node) bool {
+		if result != "" {
+			return false
+		}
+		switch s := n.(type) {
+		case *ast.AssignStmt:
+			if s.Tok != token.DEFINE || len(s.Lhs) != len(s.Rhs) {
+				return true
+			}
+			for i, lhs := range s.Lhs {
+				id, ok := lhs.(*ast.Ident)
+				if !ok || id.Name != name {
+					continue
+				}
+				if t := assignedTypeName(s.Rhs[i]); t != "" {
+					result = t
+				}
+			}
+		case *ast.ValueSpec:
+			for _, id := range s.Names {
+				if id.Name == name && s.Type != nil {
+					result = typeNameOf(s.Type)
+				}
+			}
+		case *ast.Field:
+			for _, id := range s.Names {
+				if id.Name == name {
+					result = typeNameOf(s.Type)
+				}
+			}
+		}
+		return true
+	})
+	return result
+}
+
+// assignedTypeName names the composite-literal type an expression
+// constructs (T{...} or &T{...}), or "" when it constructs anything else.
+func assignedTypeName(e ast.Expr) string {
+	switch v := e.(type) {
+	case *ast.CompositeLit:
+		return typeNameOf(v.Type)
+	case *ast.UnaryExpr:
+		if v.Op == token.AND {
+			return assignedTypeName(v.X)
+		}
+	}
+	return ""
+}
+
+func detectDefineDiscardsSchedulerContext(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	localTypes := localDefineReceiverTypes(file)
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Define" || len(call.Args) != 1 {
+			return true
+		}
+		if len(localTypes) > 0 {
+			if recv, ok := sel.X.(*ast.Ident); ok {
+				if t := identDeclaredTypeName(file, recv.Name); t != "" && localTypes[t] {
+					return true
+				}
+			}
+		}
+		fl, ok := call.Args[0].(*ast.FuncLit)
+		if !ok {
+			return true
+		}
+		paramName, isCtxCallback := defineCallbackContextParamName(fl.Type)
+		if !isCtxCallback || paramName == "ctx" {
+			return true
+		}
+		if fl.Body == nil || !bodyCallsWithCapturedIdent(fl.Body, "ctx") {
+			return true
+		}
+		pos := fset.Position(call.Pos())
+		findings = append(findings, Finding{
+			RuleID:     "API-049",
+			Severity:   "error",
+			Message:    "Define's callback discards its scheduler-provided context and calls cancellable work with a captured outer ctx instead; the scheduler's cancellation never reaches that work",
+			File:       filename,
+			Line:       pos.Line,
+			Column:     pos.Column,
+			Suggestion: "name the callback parameter ctx (func(ctx context.Context) error) and pass that ctx into the work instead of the captured outer variable",
+		})
+		return true
+	})
+	return findings
+}
+
 // ===== TAX-003: an evo.Reason("literal") used inline as a call argument in
 // non-test source, and a reason that merely restates its verb.
 
@@ -663,9 +1273,201 @@ func inlineReasonFinding(filename string, pos token.Position, pkg string, outerS
 	}
 }
 
+// ===== API-046: task.Skipped(evo.Reason("...")) whose reason text names an
+// obvious already-satisfied condition (already up to date, unchanged,
+// already latest, already current) rather than true inapplicability (no
+// project config, no Go module). Skipped means the check never applied;
+// ResolutionAlreadySatisfied — produced by a Verify precondition, or derived
+// automatically from evo.File/evo.Exec's own tracked comparison — means the
+// check applied and already held. Collapsing the two into Skipped hides a
+// real, checked precondition behind the "did not apply" glyph.
+
+// alreadySatisfiedReasonPhrases are multi-word substrings (checked
+// case-insensitive against the full reason text) that only ever name a
+// checked-and-already-true condition — long enough that they never collide
+// with an unrelated sentence.
+var alreadySatisfiedReasonPhrases = []string{
+	"already up to date", "already up-to-date", "already latest",
+	"already current", "already installed", "already exists",
+	"already satisfied", "no changes needed", "nothing changed",
+	"no update needed", "no upgrade needed",
+}
+
+// alreadySatisfiedReasonWords are single bare words that only fire when the
+// entire (trimmed) reason text is exactly one of them — a one-word reason
+// like "current" or "unchanged" is unambiguous, but the same word inside a
+// longer sentence ("current branch is protected") is not, so those go
+// through alreadySatisfiedReasonPhrases instead.
+var alreadySatisfiedReasonWords = map[string]bool{
+	"current": true, "unchanged": true, "latest": true,
+	"up to date": true, "up-to-date": true, "uptodate": true,
+}
+
+// inapplicabilityReasonPhrases are substrings that name true inapplicability
+// (the check never ran because its precondition object doesn't exist) —
+// these never fire API-046 even if they also loosely match "current" or
+// "up to date" phrasing elsewhere in the same string.
+var inapplicabilityReasonPhrases = []string{
+	"no project config", "no go module", "no go.mod", "not applicable",
+	"n/a", "not a git repo", "not a repository", "no config found",
+	"missing config", "no module found", "not present",
+}
+
+func detectSkippedForAlreadySatisfied(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
+	if pkg == "" {
+		return nil
+	}
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Skipped" || !isLikelyEvoReceiver(sel.X) || len(call.Args) < 1 {
+			return true
+		}
+		reasonCall, ok := call.Args[0].(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		reasonSel, ok := reasonCall.Fun.(*ast.SelectorExpr)
+		if !ok || !isEvoIdent(reasonSel.X, pkg) || reasonSel.Sel.Name != "Reason" || len(reasonCall.Args) != 1 {
+			return true
+		}
+		lit, ok := reasonCall.Args[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		text, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		lower := strings.ToLower(strings.TrimSpace(text))
+		if containsAnyMarker(lower, inapplicabilityReasonPhrases) {
+			return true
+		}
+		if !containsAnyMarker(lower, alreadySatisfiedReasonPhrases) && !alreadySatisfiedReasonWords[lower] {
+			return true
+		}
+		pos := fset.Position(call.Pos())
+		findings = append(findings, skippedAlreadySatisfiedFinding(filename, pos, exprDottedName(sel.X), text))
+		return true
+	})
+	return findings
+}
+
+func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, text string) Finding {
+	if recv == "" {
+		recv = "task"
+	}
+	return Finding{
+		RuleID:   "API-046",
+		Severity: "warning",
+		Message:  "Skipped(evo.Reason(" + strconv.Quote(text) + ")) reports \"did not apply\"; the reason names a condition that was checked and already held, which is ResolutionAlreadySatisfied",
+		File:     filename,
+		Line:     pos.Line,
+		Column:   pos.Column,
+		Suggestion: "add a precondition check via " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) before " + recv +
+			".Define(...) so evo resolves ResolutionAlreadySatisfied on its own, or let evo.File/evo.Exec derive it from their own tracked comparison; reserve Skipped for true inapplicability (no project config, no Go module)",
+	}
+}
+
 // exportedReasonName turns a reason literal into an exported-style Go
 // identifier fragment ("dirty worktree" -> "DirtyWorktree") for the var-name
 // this rule's suggestion spells out.
+// ===== API-045: Task(name) where name is a bare subject/category label or a
+// generic phase word — ZYS-838's "Task means one independently meaningful
+// action, not a display row or container". Task is a compile-time-flexible
+// spelling (Output/GroupHandle/SequenceHandle.Task all take any string), so
+// this boundary cannot be a Go type; zq's own fix/check command family
+// (internal/app/app.go:80's a.task("fix", ...), a.task("check", ...)) is the
+// canary case that motivated the split into two findings below: a subject
+// label is missing its verb, a container word is organizing other work
+// wearing one Task's clothes.
+
+// taskSubjectOnlyNames is a narrow, curated list of names ZYS-838 itself
+// names as "weak/suspicious" subject labels — not a grammar check (a short
+// name can be legitimate in context), only names known to answer "what",
+// never "what will this determine".
+var taskSubjectOnlyNames = map[string]string{
+	"file integrity": "check file integrity",
+	"go":             "build Go",
+	"ruff":           "lint Python",
+	"classify":       "classify staged files",
+}
+
+// taskContainerWords are generic phase/category words that organize other
+// work rather than being independently meaningful themselves (ZYS-838's
+// "fix"/"pre-commit" examples; zq's a.task("fix", ...) command family).
+var taskContainerWords = map[string]bool{
+	"fix":        true,
+	"pre-commit": true,
+	"precommit":  true,
+	"setup":      true,
+	"process":    true,
+}
+
+func detectSubjectOnlyOrContainerTaskName(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Task" || len(call.Args) < 1 || !isLikelyEvoReceiver(sel.X) {
+			return true
+		}
+		lit, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		text, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		lower := strings.ToLower(strings.TrimSpace(text))
+		pos := fset.Position(call.Pos())
+		if taskContainerWords[lower] {
+			findings = append(findings, containerTaskNameFinding(filename, pos, text))
+			return true
+		}
+		if corrected, ok := taskSubjectOnlyNames[lower]; ok {
+			findings = append(findings, subjectOnlyTaskNameFinding(filename, pos, text, corrected))
+		}
+		return true
+	})
+	return findings
+}
+
+func subjectOnlyTaskNameFinding(filename string, pos token.Position, text, corrected string) Finding {
+	return Finding{
+		RuleID:   "API-045",
+		Severity: "warning",
+		Message:  "Task(" + strconv.Quote(text) + ") names a subject, not the work; a Task should name one independently meaningful action",
+		File:     filename,
+		Line:     pos.Line,
+		Column:   pos.Column,
+		Suggestion: "rename to Task(" + strconv.Quote(corrected) + ") — read the name as an action (verb + concrete object) " +
+			"that answers what this unit of work will accomplish or determine",
+	}
+}
+
+func containerTaskNameFinding(filename string, pos token.Position, text string) Finding {
+	return Finding{
+		RuleID:   "API-045",
+		Severity: "warning",
+		Message:  "Task(" + strconv.Quote(text) + ") appears to organize several independently meaningful operations, not perform one itself",
+		File:     filename,
+		Line:     pos.Line,
+		Column:   pos.Column,
+		Suggestion: "replace Task(" + strconv.Quote(text) + ") with a Group/Sequence such as Group(\"prepare staged files\") " +
+			"and give each independently meaningful operation its own verb+object Task underneath",
+	}
+}
+
 func exportedReasonName(text string) string {
 	var b strings.Builder
 	upperNext := true

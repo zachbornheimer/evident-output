@@ -39,7 +39,7 @@ func omittedBasisRule() Rule {
 	Basis:      []evo.Fingerprint{evo.FSPath("input.xlsx")}, // template.txt is read but omitted
 	Outputs:    []string{"build/out.bin"},
 })`,
-		GoodCode: `return evo.Exec(ctx, evo.ExecSpec{
+		GoodCode: `_, err := evo.Exec(ctx, evo.ExecSpec{
 	Executable: "python3",
 	Args:       []string{"generate.py", "input.xlsx", "template.txt", "build/out.bin"},
 	Basis: []evo.Fingerprint{
@@ -47,7 +47,8 @@ func omittedBasisRule() Rule {
 		evo.FSPath("template.txt"),
 	},
 	Outputs: []string{"build/out.bin"},
-})`,
+})
+return err`,
 		Remediation:     "Add every file/value the generator actually reads to Basis; do not invent a Basis entry the source does not justify (§58) — trace the generator's real inputs instead",
 		RelatedGuidance: []string{"provenance", "evo-file-exec"},
 		VerificationIDs: []string{"EVO-PROVENANCE-001"},

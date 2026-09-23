@@ -45,8 +45,14 @@ func (t *TaskHandle) Create(object string, fn func() error, opts ...MutationOpti
 }
 
 // Define freezes this Task's configuration and submits fn to the
-// scheduler — see internal/engine.TaskHandle.Define (§7).
-func (t *TaskHandle) Define(fn func(context.Context) error) { t.impl().Define(fn) }
+// scheduler — see internal/engine.TaskHandle.Define (§7). It returns this
+// same *TaskHandle as fluent sugar (ZYS-849 Decisions) so a single Task's
+// common shape can be written `return task.Define(fn).Wait()`; it does not
+// change Define's asynchronous scheduler semantics.
+func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
+	t.impl().Define(fn)
+	return t
+}
 
 func (t *TaskHandle) Delete(object string, fn func() error, opts ...MutationOption) {
 	t.impl().Delete(object, fn, opts...)
@@ -85,6 +91,13 @@ func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
 
 func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle {
 	t.impl().NextCommand(executable, args...)
+	return t
+}
+
+// Problem appends one blocking Problem to this Task without resolving it —
+// see internal/engine.TaskHandle.Problem (1.1/ZYS-848).
+func (t *TaskHandle) Problem(summary string, options ...ProblemOption) *TaskHandle {
+	t.impl().Problem(summary, options...)
 	return t
 }
 
@@ -143,7 +156,13 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 	return t
 }
 
-func (t *TaskHandle) Warn(summary string) { t.impl().Warn(summary) }
+// Warn accumulates a warning annotation on this Task, now with the same
+// structured ProblemOptions Problem/Fail/Block accept — see
+// internal/engine.TaskHandle.Warn (1.1/ZYS-848, docs/migration/1.1.md).
+func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle {
+	t.impl().Warn(summary, options...)
+	return t
+}
 
 func (t *TaskHandle) Write(object string, fn func() error, opts ...MutationOption) {
 	t.impl().Write(object, fn, opts...)

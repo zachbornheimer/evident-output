@@ -33,6 +33,20 @@ func ExampleTaskHandle() {
 	// ✓ fetch
 }
 
+// ExampleTaskHandle_Define_wait shows Define's fluent Wait sugar (ZYS-849
+// Decisions): the common single-Task shape is `return task.Define(fn).Wait()`
+// — Define still submits fn to the scheduler asynchronously, and Wait is
+// what actually blocks for its outcome.
+func ExampleTaskHandle_Define_wait() {
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+	task := out.Task("fetch")
+	err := task.Define(func(ctx context.Context) error { return nil }).Wait()
+	_ = out.Finish()
+	fmt.Println(err)
+	// Output:
+	// <nil>
+}
+
 // ExampleTaskSnapshot reads a Task's immutable view after it resolves.
 func ExampleTaskSnapshot() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
