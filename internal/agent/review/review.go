@@ -617,6 +617,15 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectDirectWorkspacePatchApply(filename, f, fset)...)
 	}
 
+	// API-059: a Patch-derived FileSet is never passed to evo.Files, and
+	// the same function commits a freshly built FileSpec through evo.File
+	// instead, discarding the source Basis/stale-write guard the FileSet
+	// carried (ZYS-935). evo.Patch/evo.Files are 1.1.0-only, so a pin
+	// older than that cannot have this shape.
+	if hasEvoAtOneOne {
+		findings = append(findings, detectPatchFileSetDiscardedBeforeCommit(filename, f, fset)...)
+	}
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)

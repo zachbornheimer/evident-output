@@ -1647,7 +1647,7 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Category:  "API",
 			Severity:  "error",
 			Invariant: "an evo.Effect callback never mutates the filesystem directly; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively (a git ref, a remote API call, a database row), and file-backed state always routes through evo.File",
-			Why:       "evo.Write and its sibling TaskHandle mutation verbs were removed outright in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). File-backed state routes through evo.File, including writes derived from an existing file's contents; evo.Files (fed by evo.Patch) commits through the same File path with a stale-Basis guard.",
+			Why:       "evo.Write and its sibling TaskHandle mutation verbs were removed outright in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). evo.File is the route for file-backed state, including writes derived from an existing file's own contents; a write derived from a unified diff instead goes through evo.Patch/evo.Files (API-058/API-059, ZYS-934/ZYS-935/ZYS-841) — neither is a second write API layered under Effect.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
     return os.WriteFile(path, contents, 0o644)
@@ -1682,6 +1682,36 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Remediation:     "Replace the exec.Command(\"patch\"/\"git apply\"/\"git am\", ...) call with files, err := evo.Patch(ctx, diff) to derive the desired file states, then evo.Files(ctx, files) to commit them",
 			RelatedGuidance: []string{"evo-file-exec"},
 			VerificationIDs: []string{"API-058"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-059",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a FileSet evo.Patch returns is opaque so its source Basis and stale-write guard cannot be stripped before commit; a function that derives one from a diff always commits it through evo.Files, never by building a fresh evo.FileSpec and calling evo.File",
+			Why:       "evo.Patch(ctx, diff) parses a unified diff into a FileSet carrying each touched file's Basis — the content it was read against — so evo.Files(ctx, fileSet) can refuse a write when the file changed underneath the diff since Patch derived it (ZYS-841 Decisions, 2026-09-23). A function that calls evo.Patch, then re-derives the same file's desired contents another way and commits through evo.File directly, reconstructs a fresh FileSpec with no Basis at all — the stale-write guard Patch computed is silently discarded, and evo.File happily overwrites a file another writer changed in the meantime. The FileSet is opaque specifically to prevent this: there is no field to read the derived contents back out of it and hand to evo.File, so the only way to lose the guard is to ignore the FileSet and reconstruct the write from scratch, which is exactly the shape this rule flags.",
+			BadCode: `func applyPatch(ctx context.Context, diff string) error {
+  fileSet, err := evo.Patch(ctx, diff)
+  if err != nil {
+    return err
+  }
+  contents, err := renderMerged(fileSet)
+  if err != nil {
+    return err
+  }
+  return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents})
+}`,
+			GoodCode: `func applyPatch(ctx context.Context, diff string) error {
+  fileSet, err := evo.Patch(ctx, diff)
+  if err != nil {
+    return err
+  }
+  return evo.Files(ctx, fileSet)
+}`,
+			Remediation:     "Delete the evo.File call and the FileSpec it built from the Patch-derived FileSet; commit through evo.Files(ctx, fileSet) instead, using the exact FileSet evo.Patch returned so its Basis/stale-write guard survives to commit.",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-059"},
 			Since:           "1.1.0",
 			Certainty:       "heuristic",
 		},
