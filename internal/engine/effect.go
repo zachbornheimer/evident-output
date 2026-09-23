@@ -43,7 +43,10 @@ type EffectSpec struct {
 	// Quantity is one aggregate count for this Effect, not N Effects. It
 	// must be > 0: when there is nothing to mutate, do not call Effect.
 	Quantity int
-	// Resource is an optional single resource claim; nil means none.
+	// Resource is an optional single resource the Effect claims for
+	// writing while fn runs; nil means none. Overlapping claims (the same
+	// logical name, or filesystem paths where one contains the other) wait
+	// for each other, and a waiting Task shows "waiting for <resource>".
 	Resource Resource
 }
 
@@ -73,12 +76,26 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 		return fmt.Errorf("evo: Effect %s %q: %w", spec.Verb, spec.Object, err)
 	}
 	if !task.out.DryRun() {
-		if err := fn(ctx); err != nil {
+		if err := task.out.performEffect(ctx, spec.Resource, fn); err != nil {
+			return err
+		}
+	} else if spec.Resource != nil {
+		if err := task.out.validateResource(spec.Resource); err != nil {
 			return err
 		}
 	}
 	task.out.recordMutation(task.id, string(spec.Verb), int64(spec.Quantity), true, spec.Object)
 	return nil
+}
+
+// performEffect invokes fn, holding r for writing when the Effect claims
+// one. fn receives the holding context, so tracked work inside it that
+// would need a second resource fails as nested acquisition.
+func (o *Output) performEffect(ctx context.Context, r Resource, fn func(context.Context) error) error {
+	if r == nil {
+		return fn(ctx)
+	}
+	return o.holdResource(ctx, r, resourceWrite, fn)
 }
 
 // validate rejects a content-free Effect: one with no known verb, no
