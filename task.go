@@ -5,10 +5,6 @@ import (
 	"io"
 )
 
-func (t *TaskHandle) Add(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Add(object, fn, opts...)
-}
-
 func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	unwrapped := make([]any, len(preds))
 	for i, p := range preds {
@@ -40,17 +36,9 @@ func (t *TaskHandle) Context() context.Context {
 	return t.inner.Context()
 }
 
-func (t *TaskHandle) Create(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Create(object, fn, opts...)
-}
-
 // Define freezes this Task's configuration and submits fn to the
 // scheduler — see internal/engine.TaskHandle.Define (§7).
 func (t *TaskHandle) Define(fn func(context.Context) error) { t.impl().Define(fn) }
-
-func (t *TaskHandle) Delete(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Delete(object, fn, opts...)
-}
 
 func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	t.impl().Doing(text, args...)
@@ -100,10 +88,6 @@ func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	return t
 }
 
-func (t *TaskHandle) Push(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Push(object, fn, opts...)
-}
-
 func (t *TaskHandle) Record(verb string, quantity int, object string) {
 	t.impl().Record(verb, quantity, object)
 }
@@ -113,10 +97,6 @@ func (t *TaskHandle) RecordLabel(label string, quantity int, object string) {
 }
 
 func (t *TaskHandle) RecordName(verb, object string) { t.impl().RecordName(verb, object) }
-
-func (t *TaskHandle) Remove(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Remove(object, fn, opts...)
-}
 
 func (t *TaskHandle) Skipped(reason TaxonomyReason) { t.impl().Skipped(reason.inner) }
 
@@ -130,10 +110,6 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 	t.impl().Step(completed, total, name)
 	return t
-}
-
-func (t *TaskHandle) Update(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Update(object, fn, opts...)
 }
 
 func (t *TaskHandle) Wait() error {
@@ -156,10 +132,6 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle {
 	t.impl().Warn(summary, options...)
 	return t
-}
-
-func (t *TaskHandle) Write(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Write(object, fn, opts...)
 }
 
 func (t *TaskHandle) Writer() io.Writer {

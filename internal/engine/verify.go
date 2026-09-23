@@ -94,7 +94,7 @@ func (t *TaskHandle) Define(fn func(context.Context) error) {
 	verifiers := append([]verifierFunc(nil), st.verifiers...)
 	o.mu.Unlock()
 
-	t.submitWork(func() error { return t.runDefine(verifiers, fn) }, nil)
+	t.submitWork(func() error { return t.runDefine(verifiers, fn) })
 }
 
 // runDefine is Define's Verify-aware execution wiring (§7, §9.1, §29/§30).

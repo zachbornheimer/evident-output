@@ -92,13 +92,15 @@ func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 	}
 }
 
-// --- Finding 4: MED — Affected validation ----------------------------------
+// --- Finding 4: MED — quantity validation ---------------------------------
+// Owned by EffectSpec validation now (TestEffect_RejectsContentFreeSpec):
+// a Quantity <= 0 Effect is refused before any ledger row exists.
 
 // --- Finding 5: LOW-MED — double-resolve race ------------------------------
 
 // TestE2_5Finding5_ConcurrentDoneDuringMutationCallDoesNotDropEffect proves
-// the ledger target resolves once: a concurrent Done racing a mutation
-// verb's in-flight call must not cause the effect that call just committed
+// the ledger target resolves once: a concurrent Done racing an Effect's
+// in-flight call must not cause the effect that call just committed
 // to be silently dropped as spurious misuse.
 func TestE2_5Finding5_ConcurrentDoneDuringMutationCallDoesNotDropEffect(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true})

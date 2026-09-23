@@ -32,8 +32,8 @@ import (
 
 const apiGoldenPath = "testdata/api_golden.txt"
 
-// retiredAPINames are identifiers 1.0.0 deliberately removed (MainWith,
-// Each) or never had (speculative names from earlier drafts/other
+// retiredAPINames are identifiers 1.0.0/1.1 deliberately removed (MainWith,
+// Each, the TaskHandle mutation verbs) or never had (speculative names from earlier drafts/other
 // libraries) — a reappearance fails this test even if someone regenerated
 // testdata/api_golden.txt to match, so retiring a name stays retired.
 var retiredAPINames = []string{
@@ -43,6 +43,13 @@ var retiredAPINames = []string{
 	"Sequence.Fail",
 	"TaskConfig",
 	"MainWith",
+	// Removed in 1.1 (ZYS-950): the seven TaskHandle mutation verbs and
+	// their Affected/MutationOption quantity option. Opaque mutations use
+	// evo.Effect (EffectSpec.Quantity); file state uses evo.File.
+	"(TaskHandle) Add(", "(TaskHandle) Create(", "(TaskHandle) Delete(",
+	"(TaskHandle) Push(", "(TaskHandle) Remove(", "(TaskHandle) Update(",
+	"(TaskHandle) Write(",
+	"func Affected(", "MutationOption",
 }
 
 // buildAPISurface parses every non-test .go file in dir (the root package)

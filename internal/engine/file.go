@@ -229,7 +229,7 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 
 // recordFileEffect records File's planned (dry-run) or committed (applied)
 // Effect under taskID's own ledger section (spec §8.2/§27/§51) — the same
-// Plan/Changes routing TaskHandle's named mutation verbs already use.
+// Plan/Changes routing evo.Effect and TaskHandle.Record already use.
 func (o *Output) recordFileEffect(taskID, displayPath string) {
 	(&TaskHandle{out: o, id: taskID}).RecordName("write", displayPath)
 }
@@ -299,7 +299,7 @@ func (o *Output) fileRecordOperation(ctx context.Context, taskID string, spec Fi
 }
 
 // DryRun reports whether this Output is configured for dry-run/preview
-// tense — the same flag TaskHandle mutation verbs already render by.
+// tense — the same flag evo.Effect and TaskHandle.Record render by.
 func (o *Output) DryRun() bool {
 	if o == nil {
 		return false
