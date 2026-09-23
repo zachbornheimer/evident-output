@@ -650,6 +650,15 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectMissingProducerConsumerOrdering(filename, f, fset)...)
 	}
 
+	// API-053: a .After(...) edge whose comment and both Tasks' own
+	// resource declarations show the only reason is shared-resource
+	// exclusion, not a semantic dependency. File/FSResource/LogicalResource
+	// automatic claim coordination (ZYS-840) only exists from 1.1.0 on, so
+	// a pin older than that cannot apply this rule's remediation.
+	if hasEvoAtOneOne {
+		findings = append(findings, detectAfterOnlyForResourceContention(filename, src, f, fset)...)
+	}
+
 	// API-027: Done/Fail/Progress on Group/Sequence (name-match).
 	if hasEvo {
 		findings = append(findings, detectCollectionLeafMisuse(filename, f, fset)...)
