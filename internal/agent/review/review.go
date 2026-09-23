@@ -644,6 +644,15 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectCallerWaitLoopOverContainerChildren(filename, src)...)
 	}
 
+	// API-053: a second evo.File/Resource-claiming evo.Effect call made
+	// with a context an enclosing evo.Effect already holds a Resource on
+	// (ZYS-840), directly or one call away through a same-file helper.
+	// EffectSpec.Resource only exists from 1.1.0 on, so a pin older than
+	// that cannot have this shape.
+	if hasEvoAtOneOne {
+		findings = append(findings, detectNestedResourceAcquisition(filename, f, fset)...)
+	}
+
 	// EVO-DAG-003: a visible producer/consumer relationship has no
 	// first-run scheduler ordering.
 	if hasEvoAtOneZero {
