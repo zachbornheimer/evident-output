@@ -104,7 +104,7 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 func EncodeEventJSON(e Event)  []byte,  error
 func EncodeJSON(s Snapshot)  []byte,  error
 func EncodeJSONL(events []Event)  []byte,  error
-func Exec(ctx context.Context, spec ExecSpec)  error
+func Exec(ctx context.Context, spec ExecSpec)  ExecResult,  error
 func ExternalProjection()  Option
 func FSPath(path string)  Fingerprint
 func FSResource(path string)  Resource
@@ -191,6 +191,7 @@ type Evidence
 type EvidenceOption
 type EvidencePhase
 type EvidenceStream
+type ExecResult
 type ExecSpec
 type FactRecord
 type Failure
