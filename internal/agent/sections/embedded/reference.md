@@ -64,6 +64,43 @@ Multi-gate: resolve every Task, tracking a local `blocked` bool at each `Block` 
 
 `Block` ≠ Go `error`. After Block, return nil from `run` and let `Main` exit `1`.
 
+## One check Task, many Problems
+
+A Task with several findings owns them all as `Problem`s — never one `Task`
+per finding, never every finding flattened into a single
+`errors.New(strings.Join(...))` string:
+
+```go
+task := out.Task("file integrity")
+for _, issue := range issues {
+    task.Problem(issue.Summary,
+        evo.On(issue.Path),
+        evo.Code(issue.Code),
+        evo.Location(issue.Path, issue.Line, 0),
+    )
+}
+task.Define(func(context.Context) error { return nil })
+```
+
+`Problem(summary, opts...)` appends one blocking Problem and returns
+`*TaskHandle` to chain (`task.Problem(...).Problem(...)`); it does not
+resolve the task. If `Define`'s callback returns `nil` — or a bare `Done()`
+is called — while the Task has accumulated Problems, the Task resolves
+**Failed**, not Done: accumulated blocking evidence always overrides a
+claimed clean outcome. The Task still resolves exactly once regardless of
+how many Problems it owns.
+
+`Warn(summary, opts...)` takes the same `ProblemOption`s (`Detail`, `Code`,
+`On`, `Location`, `Next`, ...) for a non-blocking finding with the same
+structured metadata — it never resolves the task either.
+
+Every accumulated Problem survives in `Snapshot`/JSON/JSONL even when the
+plain human view bounds how many render inline (5 by default) behind an
+`and N more failures` line — the count is always authoritative, and a
+remedy (`evo.Next(...)`/`evo.NextCommand(...)`) attached to any Problem
+still reaches the run's own Next-steps output. See
+[docs/migration/1.1.md](migration/1.1.md) for the exact 1.0→1.1 signatures.
+
 ## Child processes / tool-backed gates
 
 Evidence belongs to the **entity** (a `Task`, whether it ran or was resolved as a
@@ -114,7 +151,7 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 | `Task`         | One atomic unit — resolved directly (Done/Warn/Block/Fail/Skipped) or submitted with Define / a mutation verb        |
 | `Group`        | Independent collection of tasks (state is **derived**); scheduler may overlap eligible children                      |
 | `Sequence`     | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                                   |
-| `Problem`      | Structured evidence for warn / block / fail                                                                          |
+| `Problem`      | Structured evidence for warn / block / fail; a Task accumulates many via `Problem(...)` before it resolves once      |
 | Mutation verbs | `Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push` — effects that happened vs would happen, from one call site |
 | `Conclusion`   | Headline + `Changed` / `Partial` / `Cancelled` + exit code                                                           |
 | `Main`         | Finish + Close + process exit code for CLI entrypoints                                                               |
