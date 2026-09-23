@@ -297,7 +297,10 @@ type taskState struct {
 	// the row as something other than Done, so the effect it was given must
 	// not reach the ledger (see deniesItsOwnEffect).
 	effectDenied bool
-	preds        []predecessor
+	// effectsInFlight counts evo.Effect callbacks currently running for this
+	// task; a non-Done resolution while one runs disowns that Effect.
+	effectsInFlight int
+	preds           []predecessor
 	// verifiers holds TaskHandle.Verify's registered pre/post-Define
 	// observation checks, ANDed in registration order (§9.1). Must be
 	// registered before Define — see Verify.

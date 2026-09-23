@@ -609,7 +609,7 @@ func declaresSuccess(state EntityState) bool {
 // the resolving goroutine's own stack: callbackDepth is non-zero only
 // inside a task callback, which is precisely "the row resolved itself".
 func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAuthority) bool {
-	if st.mutation == nil || !st.runningWork || authority != byCaller || state == Done {
+	if (st.mutation == nil && st.effectsInFlight == 0) || !st.runningWork || authority != byCaller || state == Done {
 		return false
 	}
 	return callbackDepth() > 0
