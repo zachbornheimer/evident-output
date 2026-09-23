@@ -1643,6 +1643,26 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-057",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "an evo.Effect callback never mutates the filesystem directly; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively (a git ref, a remote API call, a database row), and file-backed state always routes through evo.File",
+			Why:       "evo.Write and its sibling TaskHandle mutation verbs were removed outright in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). evo.Patch/evo.Files do not exist in this module's public API; until they ship, evo.File is the only supported route for file-backed state, including writes derived from an existing file's contents.",
+			BadCode: `task.Define(func(ctx context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
+    return os.WriteFile(path, contents, 0o644)
+  })
+})`,
+			GoodCode: `task.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents, Mode: 0o644})
+})`,
+			Remediation:     "Delete the evo.Effect wrapping the file write; call evo.File(ctx, evo.FileSpec{...}) directly — read the existing contents first if the new contents derive from them, then pass the derived result as FileSpec.Contents",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-057"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",
