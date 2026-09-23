@@ -43,10 +43,16 @@ const (
 	EventEffectPlanned         = "effect.planned"
 	EventEffectCommitted       = "effect.committed"
 	EventManifestTaskCommitted = "manifest.task_committed"
-	EventOperationFinished     = "operation.finished"
-	EventDefinitionFinished    = "definition.finished"
-	EventTaskFinished          = "task.finished"
-	EventRunFinished           = "run.finished"
+	// EventTaskDefinitionSkippedCurrent is emitted when an opaque Task's
+	// automatic application-fingerprint fallback (ZYS-817 Decisions
+	// 2026-09-23) matches its prior committed TaskRecord — the Task's own
+	// Define callback is skipped entirely, mirroring
+	// EventOperationSkippedCurrent's per-operation shape at the Task level.
+	EventTaskDefinitionSkippedCurrent = "task.definition_skipped_current"
+	EventOperationFinished            = "operation.finished"
+	EventDefinitionFinished           = "definition.finished"
+	EventTaskFinished                 = "task.finished"
+	EventRunFinished                  = "run.finished"
 )
 
 // EventDocument is one "evo.event" JSONL line (spec §38). seq is the

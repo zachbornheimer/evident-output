@@ -155,3 +155,60 @@ func TestTaskOpaqueDefinitionFingerprintChangesWithAppFingerprint(t *testing.T) 
 		t.Fatal("two different Task keys must not collide onto the same opaque DefinitionFingerprint")
 	}
 }
+
+// TestOpaqueTaskDefinitionSkipsSecondRunsCallback proves the ZYS-817
+// fallback actually gates a skip/rerun decision, not just storage: a Task
+// with the same manifest key that stayed opaque (no File/Exec/Patch) on a
+// prior Run, in a Run that already has other manifest activity, and whose
+// application fingerprint has not changed, has its Define callback skipped
+// entirely on the next Run — mirroring how a current File/Exec operation
+// already skips re-running its own managed work.
+//
+// This test intentionally runs two sequential *Output Runs against the
+// same on-disk manifest state (not two separate test cases, and not
+// t.Parallel()) — that shared, single-test-function-scoped
+// sharedRunStateDir/sharedManagedFilePath is the thing under test: whether
+// Run 2 reuses Run 1's committed TaskRecord. Each is still its own unique
+// t.TempDir(), isolated from every other test in this package.
+func TestOpaqueTaskDefinitionSkipsSecondRunsCallback(t *testing.T) {
+	sharedRunStateDir := t.TempDir()
+	sharedManagedFilePath := filepath.Join(t.TempDir(), "managed.txt")
+
+	// Run 1: an unrelated File Task opens the manifest, plus one opaque
+	// Task, so the opaque Task's TaskRecord (Operations empty,
+	// DefinitionFingerprint set) is committed for reuse.
+	out1 := Init(Config{Isolated: true, StateDir: sharedRunStateDir})
+	if err := runFileTask(t, out1, "file", FileSpec{Path: sharedManagedFilePath, Contents: []byte("desired")}); err != nil {
+		t.Fatalf("run1 file task: %v", err)
+	}
+	run1Calls := 0
+	opaque1 := out1.Task("opaque")
+	opaque1.Define(func(ctx context.Context) error { run1Calls++; return nil })
+	if err := opaque1.Wait(); err != nil {
+		t.Fatalf("run1 opaque task: %v", err)
+	}
+	if err := out1.Close(); err != nil {
+		t.Fatalf("run1 close: %v", err)
+	}
+	if run1Calls != 1 {
+		t.Fatalf("run1 opaque Define calls = %d, want 1 (first Run has no prior record to skip by)", run1Calls)
+	}
+
+	// Run 2: same manifest key, same unrelated File Task (so the manifest
+	// opens again), same application fingerprint (same test binary) — the
+	// opaque Task's Define must be skipped this time.
+	out2 := Init(Config{Isolated: true, StateDir: sharedRunStateDir})
+	t.Cleanup(func() { _ = out2.Close() })
+	if err := runFileTask(t, out2, "file", FileSpec{Path: sharedManagedFilePath, Contents: []byte("desired")}); err != nil {
+		t.Fatalf("run2 file task: %v", err)
+	}
+	run2Calls := 0
+	opaque2 := out2.Task("opaque")
+	opaque2.Define(func(ctx context.Context) error { run2Calls++; return nil })
+	if err := opaque2.Wait(); err != nil {
+		t.Fatalf("run2 opaque task: %v", err)
+	}
+	if run2Calls != 0 {
+		t.Fatal("an opaque Task's Define callback must be skipped on a Run whose application fingerprint and prior opaque TaskRecord both still match")
+	}
+}
