@@ -3,9 +3,9 @@
 // for work Evo cannot model declaratively (a git ref, a remote API call, a
 // database row) — not a second file-write API (ZYS-851's Decisions,
 // 2026-09-23). File-backed state must route through evo.File directly.
-// evo.Patch/evo.Files do not exist in this module's public API, so this
-// detector always suggests evo.File, even when the callback also reads the
-// file it writes.
+// This detector always suggests evo.File, even when the callback also reads
+// the file it writes; evo.Files (fed by evo.Patch) is the diff-shaped
+// alternative and commits through File's own code path.
 //
 // Detection is structural, per ZYS-851's Decisions: "MCP file-looking
 // detection is structural, not based on an object string that merely
@@ -155,10 +155,10 @@ func openFileFlagIsWriteMode(flag ast.Expr) bool {
 }
 
 // fileWriteInEffectFinding builds API-057's Finding. The Suggestion always
-// names evo.File: evo.Patch/evo.Files do not exist in this module's public
-// API, so a write derived from an existing file's contents still routes
+// names evo.File: a write derived from an existing file's contents routes
 // through evo.File (read the existing contents first, then pass the
-// derived result as FileSpec.Contents).
+// derived result as FileSpec.Contents). evo.Files commits through the same
+// File path, so evo.File is never the wrong suggestion.
 func fileWriteInEffectFinding(filename string, pos token.Position, calleeName string) Finding {
 	return Finding{
 		RuleID:          "API-057",
