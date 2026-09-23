@@ -1468,6 +1468,69 @@ func TestAPI053_MutexGuardingUnrelatedDomainState_StaysSilent(t *testing.T) {
 	}
 }
 
+const rwMutexRLockAroundFileReadSrc = `package p
+import (
+  "context"
+  "sync"
+  evo "github.com/zachbornheimer/evident-output"
+)
+type Writer struct {
+  mu   sync.RWMutex
+  path string
+}
+func (w *Writer) read(ctx context.Context) ([]byte, error) {
+  w.mu.RLock()
+  defer w.mu.RUnlock()
+  var out []byte
+  err := evo.File(ctx, evo.FileSpec{Path: w.path, Into: &out})
+  return out, err
+}
+`
+
+func TestAPI053_RWMutexRLockAroundFileRead_Fires(t *testing.T) {
+	res := review.GoSource("writer.go", rwMutexRLockAroundFileReadSrc)
+	f := findingByID(t, res, "API-053")
+	if f.Severity != "error" {
+		t.Fatalf("API-053 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "w.mu.RLock()/w.mu.RUnlock()") {
+		t.Fatalf("API-053 suggestion does not name the actual RLock()/RUnlock() pair: %q", f.Suggestion)
+	}
+	if strings.Contains(f.Suggestion, "w.mu.Lock()/w.mu.Unlock()") {
+		t.Fatalf("API-053 suggestion wrongly names Lock()/Unlock() for RWMutex RLock code: %q", f.Suggestion)
+	}
+}
+
+const rwMutexRLockScopeNarrowsAtRealRUnlockSrc = `package p
+import (
+  "context"
+  "sync"
+  evo "github.com/zachbornheimer/evident-output"
+)
+type Writer struct {
+  mu   sync.RWMutex
+  path string
+}
+func (w *Writer) read(ctx context.Context) ([]byte, error) {
+  w.mu.RLock()
+  var out []byte
+  err := evo.File(ctx, evo.FileSpec{Path: w.path, Into: &out})
+  w.mu.RUnlock()
+  if err != nil {
+    return nil, err
+  }
+  return out, nil
+}
+`
+
+func TestAPI053_RWMutexRLockScopeNarrowsAtRealRUnlock_Fires(t *testing.T) {
+	res := review.GoSource("writer.go", rwMutexRLockScopeNarrowsAtRealRUnlockSrc)
+	f := findingByID(t, res, "API-053")
+	if !strings.Contains(f.Suggestion, "RLock()/w.mu.RUnlock()") {
+		t.Fatalf("API-053 suggestion does not name the actual RLock()/RUnlock() pair: %q", f.Suggestion)
+	}
+}
+
 func TestAPI053_PreOneOneOnePin_StaysSilent(t *testing.T) {
 	res := review.GoSourceAt("writer.go", manualMutexAroundFileWriteSrc, "1.0.0")
 	for _, f := range res.Findings {

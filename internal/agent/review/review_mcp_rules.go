@@ -1999,8 +1999,10 @@ func detectManualLockAroundEvoFile(filename, src string) []Finding {
 		if recv == "" {
 			continue
 		}
+		lockMethod := "Lock()"
 		unlockMethod := "Unlock()"
-		if strings.HasPrefix(body[loc[0]+len(recv):], ".RLock()") {
+		if strings.HasPrefix(body[loc[0]:], ".RLock()") {
+			lockMethod = "RLock()"
 			unlockMethod = "RUnlock()"
 		}
 		rest := body[loc[1]:]
@@ -2022,7 +2024,7 @@ func detectManualLockAroundEvoFile(filename, src string) []Finding {
 			Message:  recv + " manually locks/unlocks around an evo.File call — File already claims its own path for writing with no caller code",
 			File:     filename,
 			Line:     lineAt(src, fn.offset+loc[0]),
-			Suggestion: "delete " + recv + ".Lock()/" + recv + "." + unlockMethod +
+			Suggestion: "delete " + recv + "." + lockMethod + "/" + recv + "." + unlockMethod +
 				" (and the sync.Mutex/RWMutex field) and call evo.File(ctx, evo.FileSpec{Path: ...}) directly;" +
 				" for a non-File operation over the same path use evo.Effect(ctx, evo.EffectSpec{..., Resource: evo.FSResource(path)}, fn) instead of a caller lock",
 		})
