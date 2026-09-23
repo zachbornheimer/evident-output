@@ -116,6 +116,7 @@ var dialectSurface = map[string][]string{
 		"Confirm(question string, opts ...ConfirmOption)",
 		"Context()",
 		"Err()",
+		"Events()",
 		"Fact(name string, value string)",
 		"Fail(summary string, options ...ProblemOption)",
 		"Failf(format string, args ...any)",
