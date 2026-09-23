@@ -242,7 +242,7 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			Title:    "evo.File and evo.Exec: declarative tracked operations",
 			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile", "resource", "lock"},
 			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "FSResource", "Effect", "EffectSpec"},
-			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053", "API-054", "API-055"},
+			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053", "API-054", "API-055", "API-058"},
 			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) replaces hand-rolled os.WriteFile +
 os.Chmod + a manual existence/hash check: it writes only on drift and no-ops when Path/Contents/Mode already
 match, with dry-run safety the hand-rolled version never had (EVO-FILE-001).
@@ -276,8 +276,16 @@ when Resource is set (evo.FSResource(path) or evo.LogicalResource(name)), holds 
 resource access holds at most one Resource at a time: a second evo.File or Resource-claiming evo.Effect call
 made with fn's own held ctx — directly, or through a helper fn hands that ctx to — fails deterministically with
 evo.ErrNestedResourceAcquisition instead of risking deadlock (API-053). Finish and return from the first
-Effect/File before starting a second, or claim one coarser Resource both mutations share.`,
-			TokenEstimate: 280,
+Effect/File before starting a second, or claim one coarser Resource both mutations share.
+
+evo.Patch(ctx, diff) derives the desired file states a unified diff describes — reading each source once under
+its own read claim and mutating nothing — and evo.Files(ctx, files) commits them through evo.File, so dry-run
+planning, the stale-write guard (ErrStaleBasis), and already-satisfied all apply exactly as they do for a single
+File call. Applying a patch through os/exec ("patch", "git apply", "git am") straight to the real workspace
+bypasses that coverage outright and is never correct (API-058) — derive with evo.Patch, commit with evo.Files.
+Domain code that only parses or reads a patch's hunks, with no exec and no direct filesystem mutation, is not
+this rule's target.`,
+			TokenEstimate: 320,
 		},
 		{
 			ID:       "provenance",
