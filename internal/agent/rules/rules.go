@@ -486,6 +486,24 @@ go func() { <-c; task.Cancel("interrupted") }()
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "SIG-002",
+			Category:  "SIG",
+			Severity:  "warning",
+			Invariant: "evo.Main/evo.Run own SIGINT/SIGTERM/os.Interrupt cancellation; a host does not build a second interrupt layer around them",
+			Why:       "evo.Main/evo.Run cancel RunFunc's context.Context on SIGINT/SIGTERM/os.Interrupt as of 1.0.0; a host-built signal.NotifyContext/signal.Notify wired for the same signals solely to wrap that call duplicates the lifecycle and can let the ledger's ■ glyph and the process's real exit path diverge.",
+			BadCode: `ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer stop()
+os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
+			GoodCode: `os.Exit(evo.Main(run)) // run(ctx context.Context) error — Main cancels ctx on SIGINT/SIGTERM itself
+// signal.Notify for anything unrelated to Evo's own lifecycle (e.g. SIGHUP) is unaffected`,
+			Remediation:     "Delete the duplicate signal.NotifyContext/signal.Notify wiring and read cancellation from the ctx evo.Main/evo.Run already pass into the run callback; keep signal.Notify only for signals Evo does not own (SIGHUP, SIGUSR1, ...)",
+			Exceptions:      []string{"signal.Notify/NotifyContext for a signal other than SIGINT/SIGTERM/os.Interrupt"},
+			RelatedGuidance: []string{"streams", "interactive"},
+			VerificationIDs: []string{"SIG-002"},
+			Since:           "1.0.0",
+			Certainty:       "deterministic",
+		},
+		{
 			ID:              "TERM-008",
 			Category:        "TERM",
 			Severity:        "error",
