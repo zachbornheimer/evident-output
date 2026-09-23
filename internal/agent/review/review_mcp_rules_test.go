@@ -501,3 +501,63 @@ func TestAPI045_PreOneZeroPin_StaysSilent(t *testing.T) {
 		}
 	}
 }
+
+// A non-evo type that happens to declare its own Define(func(context.Context)
+// error) method in the same file as evo usage must not be mistaken for evo's
+// TaskHandle.Define — ZYS-938's proven false positive.
+const defineOnUnrelatedTypeSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+
+type Validator struct{}
+
+func (v *Validator) Define(fn func(context.Context) error) {
+  _ = fn
+}
+
+func run(ctx context.Context, task *evo.TaskHandle) {
+  v := &Validator{}
+  v.Define(func(context.Context) error {
+    return doWork(ctx)
+  })
+}
+func doWork(ctx context.Context) error { return nil }
+`
+
+func TestAPI045_UnrelatedTypeWithOwnDefineMethod_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", defineOnUnrelatedTypeSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-045" {
+			t.Fatalf("false positive API-045 on an unrelated type's own Define method: %+v", f)
+		}
+	}
+}
+
+// A callback that discards the scheduler ctx but declares its own local ctx
+// (shadowing the captured outer one) before calling cancellable work is a
+// correct, common pattern (e.g. intentionally detached background work) —
+// ZYS-938's second proven false positive.
+const defineShadowsCtxLocallySrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context, task *evo.TaskHandle) {
+  task.Define(func(context.Context) error {
+    ctx := context.Background()
+    return doWork(ctx)
+  })
+}
+func doWork(ctx context.Context) error { return nil }
+`
+
+func TestAPI045_LocalCtxShadow_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", defineShadowsCtxLocallySrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-045" {
+			t.Fatalf("false positive API-045 when the callback shadows ctx with its own local before calling cancellable work: %+v", f)
+		}
+	}
+}
