@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
+
+### Added
+
+- **`TaskHandle.Problem(summary string, opts ...ProblemOption) *TaskHandle`:**
+  a Task can own zero, one, or many blocking `Problem`s before it resolves,
+  instead of a caller-invented `Task` per finding or every finding
+  flattened into one `errors.New` string. If the Task would otherwise
+  resolve `Done` (a nil `Define` return, or a bare `Done()`) while it
+  accumulated at least one `Problem`, it resolves `Failed` instead.
+- **`wire.EventProblemRecorded`:** distinct wire event for `Problem`
+  accumulation (previously would have collided with `EventWarningRecorded`).
+
+### Changed
+
+- **`TaskHandle.Warn(summary string, opts ...ProblemOption) *TaskHandle`:**
+  now takes the same `ProblemOption`s `Problem`/`Fail`/`Block` do and
+  returns `*TaskHandle` to chain. Every existing `task.Warn("x")` call site
+  still compiles unchanged.
+
+### Fixed
+
+- A remedy (`evo.Next(...)` / `evo.NextCommand(...)`) attached to a
+  `Fail`/`Block`/`Problem`'s own `Problem` now reaches the run's Next-steps
+  output — it was previously collected only from task-level `Next(...)`
+  calls and silently dropped otherwise.
+
 ## [1.0.0] — Define as the scheduling boundary; File/Fingerprint; MainWith and Each removed
 
 See [`docs/migration/1.0.md`](docs/migration/1.0.md) for the full upgrade guide.

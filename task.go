@@ -88,6 +88,13 @@ func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle 
 	return t
 }
 
+// Problem appends one blocking Problem to this Task without resolving it —
+// see internal/engine.TaskHandle.Problem (1.1/ZYS-848).
+func (t *TaskHandle) Problem(summary string, options ...ProblemOption) *TaskHandle {
+	t.impl().Problem(summary, options...)
+	return t
+}
+
 func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	t.impl().Progress(completed, total)
 	return t
@@ -143,7 +150,13 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 	return t
 }
 
-func (t *TaskHandle) Warn(summary string) { t.impl().Warn(summary) }
+// Warn accumulates a warning annotation on this Task, now with the same
+// structured ProblemOptions Problem/Fail/Block accept — see
+// internal/engine.TaskHandle.Warn (1.1/ZYS-848, docs/migration/1.1.md).
+func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle {
+	t.impl().Warn(summary, options...)
+	return t
+}
 
 func (t *TaskHandle) Write(object string, fn func() error, opts ...MutationOption) {
 	t.impl().Write(object, fn, opts...)

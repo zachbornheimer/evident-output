@@ -436,6 +436,49 @@ func (w *failAfterNWriter) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
+// TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning is ZYS-848's
+// wire-side "all Problems remain available in ... JSONL" acceptance item:
+// each TaskHandle.Problem call streams its own problem.recorded line,
+// distinct from warning.recorded, so a JSONL consumer never needs to guess
+// whether an accumulated finding was blocking or a warning.
+func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("audit")
+	task.Problem("finding one", Code("A1"))
+	task.Problem("finding two", Code("A2"))
+	task.Warn("heads up", Code("W1"))
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	types := wireEventTypes(events)
+	problemCount, warningCount := 0, 0
+	for _, ty := range types {
+		switch ty {
+		case wire.EventProblemRecorded:
+			problemCount++
+		case wire.EventWarningRecorded:
+			warningCount++
+		}
+	}
+	if problemCount != 2 {
+		t.Fatalf("want 2 %s events, got %d in %v", wire.EventProblemRecorded, problemCount, types)
+	}
+	if warningCount != 1 {
+		t.Fatalf("want 1 %s event, got %d in %v", wire.EventWarningRecorded, warningCount, types)
+	}
+	// The task resolves Failed (accumulated Problems override the nil
+	// Define return) even though the warning alone would not have.
+	finished := events[indexOfType(events, wire.EventTaskFinished)]
+	if finished.Payload["state"] != "failed" {
+		t.Fatalf("want task.finished state=failed, got %v", finished.Payload["state"])
+	}
+}
+
 // TestWireEvents_WriteFailureMidStream_FailsRunButKeepsEarlierLines proves
 // spec §32.2: "Earlier valid lines remain valid if a later write fails; the
 // Run then fails" — the lines already written stay intact, and Finish

@@ -63,6 +63,10 @@ streams its row the instant its owning task resolves (Done/Fail/Block), bounded 
 
 Severity: Warn = non-terminal annotation (does not resolve the task — call it any number of times before Done/
 Fail/Block); Block = stop before mutate; Fail = evaluation failed.
+One Task, many Problems (1.1/ZYS-848): task.Problem(summary, opts...) appends one blocking Problem without
+resolving the task — call it once per finding instead of a Task per finding. A nil Define return (or bare Done())
+after any accumulated Problem resolves the Task Failed, never Done. Warn also takes the same ProblemOptions
+(Detail/Code/On/Location/Next) as Problem/Fail/Block. See docs/migration/1.1.md.
 Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) so a caller can tell "you did
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
@@ -72,7 +76,7 @@ are printf-variadic themselves — there is no separate Donef/Warnf/Taskf/Reason
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
 failure on its own Task and use Next(evo.Label(...)) for follow-up guidance instead.`,
-			TokenEstimate: 340,
+			TokenEstimate: 410,
 		},
 		{
 			ID:       "tasks",
