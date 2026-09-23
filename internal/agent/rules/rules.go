@@ -714,8 +714,8 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			ID:        "API-032",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, Capture, Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), positional quantity-first mutation verbs, the retired independent-collection constructor, Skip, evo.ID, evo.StartPhase, evo.MainWith (removed in 1.0)",
-			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were removed in 1.0; Isolated *Output uses Output.Run); Config fields replaced Option funcs; mutation verbs take (object, fn) with optional Affected(n), not a positional quantity then object; the independent collection constructor is Group; Item folded into Task; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr; Skip is Skipped; ID/StartPhase are unexported (Task takes only the name; Doing sets the first phase).",
+			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, Capture, Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), the TaskHandle mutation verbs (Add/Create/Delete/Push/Remove/Update/Write) and evo.Affected (removed in 1.1), the retired independent-collection constructor, Skip, evo.ID, evo.StartPhase, evo.MainWith (removed in 1.0)",
+			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were removed in 1.0; Isolated *Output uses Output.Run); Config fields replaced Option funcs; the TaskHandle mutation verbs were removed in 1.1 — an opaque mutation is evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) inside Define and file state is evo.File, so neither the 0.x positional Delete(n, object) nor the 1.0 Delete(object, fn, Affected(n)) compiles; the independent collection constructor is Group; Item folded into Task; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr; Skip is Skipped; ID/StartPhase are unexported (Task takes only the name; Doing sets the first phase).",
 			BadCode: `func main() {
 	out := evo.New(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
 	os.Exit(evo.MainWith(out, run)) // MainWith: removed in 1.0
@@ -733,11 +733,13 @@ func run(out *evo.Output) error {
 func run(ctx context.Context) error {
 	task := evo.Task("branches")
 	task.Doing("classifying tips")
-	task.Delete("local tip", func() error { return remove() }, evo.Affected(n))
-	task.Skipped(reason)
+	task.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: n}, remove)
+	})
+	evo.Task("tip").Skipped(reason)
 	return evo.Task("z").Failf("failed: %w", err)
 }`,
-			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace positional quantity-first mutation verbs with Delete(object, fn, evo.Affected(n)); replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer()",
+			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every removed TaskHandle mutation verb (either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer()",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
@@ -1202,14 +1204,14 @@ t = out.Task("build")`,
 			ID:        "FP-005",
 			Category:  "FP",
 			Severity:  "warning",
-			Invariant: "a Task that will complete submits its work through Define or a mutation verb — never created already Done",
-			Why:       "A tool row that first appears as ✓ looks like a lie: the work happened off-screen. Narrating with Doing before an unrelated Done is the same lie with extra steps (FP-006); the real fix is to let evo run the work via Define or a mutation verb.",
+			Invariant: "a Task that will complete submits its work through Define — never created already Done",
+			Why:       "A tool row that first appears as ✓ looks like a lie: the work happened off-screen. Narrating with Doing before an unrelated Done is the same lie with extra steps (FP-006); the real fix is to let evo run the work via Define.",
 			BadCode:   `out.Task("go@1.25.11").Done(path)`,
 			GoodCode: `t := out.Task("go@1.25.11")
-t.Define(func() error {
+t.Define(func(ctx context.Context) error {
   return resolve(path)
 })`,
-			Remediation:     "Call Define(func() error { ... }) or the matching mutation verb (Create/Delete/Update/...) so evo decides when the row resolves, instead of resolving with Done alone",
+			Remediation:     "Call Define(func(ctx context.Context) error { ... }) — with evo.Effect or evo.File inside it for mutations — so evo decides when the row resolves, instead of resolving with Done alone",
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"FP-005"},
 			Since:           "0.4.7",
@@ -1219,16 +1221,16 @@ t.Define(func() error {
 			ID:        "FP-006",
 			Category:  "FP",
 			Severity:  "error",
-			Invariant: "Doing narrates work in flight; a Done that immediately follows it with no Define/mutation verb submitting work between them is theater over work that already happened off-row",
-			Why:       "`.Doing(\"fixing\").Done(...)` after the fix already ran (zq fix.go:58,265) makes the row narrate a job it never actually gave to evo; FP-005's old suggestion (\"Doing before Done\") prescribed exactly this theater instead of naming Define/a verb.",
+			Invariant: "Doing narrates work in flight; a Done that immediately follows it with no Define submitting work between them is theater over work that already happened off-row",
+			Why:       "`.Doing(\"fixing\").Done(...)` after the fix already ran (zq fix.go:58,265) makes the row narrate a job it never actually gave to evo; FP-005's old suggestion (\"Doing before Done\") prescribed exactly this theater instead of naming Define.",
 			BadCode:   `a.out.Task("file integrity").Doing("fixing").Done("%d files changed", fixed)`,
 			GoodCode: `t := a.out.Task("file integrity")
-t.Define(func() error {
+t.Define(func(ctx context.Context) error {
   var err error
   fixed, err = quality.Fix(a.services.FS, root, files)
   return err
 })`,
-			Remediation:     "Replace Doing(...).Done(...) with Define(func() error { ... }) or the matching mutation verb so evo — not the caller — decides when the row resolves",
+			Remediation:     "Replace Doing(...).Done(...) with Define(func(ctx context.Context) error { ... }) so evo — not the caller — decides when the row resolves",
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"FP-006"},
 			Since:           "0.4.7",
@@ -1318,16 +1320,18 @@ for _, name := range []string{"a"} {
 			ID:        "API-042",
 			Category:  "API",
 			Severity:  "error",
-			Invariant: "a mutation verb's callback does the work; nil or a no-op callback is theater over work that ran elsewhere",
-			Why:       "`Create(\"module\", nil)` (README.md:39) and `Create(\"module\", func() error { return installedPythonModuleCount(name, n) })` (zq setup_python.go:172-181, where the named func only validates a count) both let the bulk work already run outside the callback, then hand the verb an empty gesture.",
-			BadCode: `task.Create("module", nil, evo.Affected(n))
-task.Create("module", func() error { return installedPythonModuleCount(name, n) }, evo.Affected(n))`,
-			GoodCode: `task.Create("module", func() error {
+			Invariant: "an evo.Effect callback does the mutation; nil or a no-op callback is theater over work that ran elsewhere",
+			Why:       "A nil Effect callback (zq README.md:39's old Create(\"module\", nil)) and one that only returns installedPythonModuleCount(name, n) (zq setup_python.go:172-181, where the named func only validates a count) both let the bulk work already run outside the callback, then hand Effect an empty gesture the ledger records as a real mutation.",
+			BadCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
+evo.Effect(ctx, spec, nil)
+evo.Effect(ctx, spec, func(context.Context) error { return installedPythonModuleCount(name, n) })`,
+			GoodCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
+evo.Effect(ctx, spec, func(ctx context.Context) error {
   return invokeUV(ctx, root, packages)
-}, evo.Affected(n))
+})
 // or, when the work already ran:
 task.Record("create", n, "module")`,
-			Remediation:     "Move the real work into the callback, or use Record(verb, n, object) when the work already happened",
+			Remediation:     "Move the real mutation into the Effect callback, or use task.Record(verb, n, object) when the work already happened",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-042"},
 			Since:           "0.4.7",
@@ -1337,11 +1341,11 @@ task.Record("create", n, "module")`,
 			ID:              "API-043",
 			Category:        "API",
 			Severity:        "warning",
-			Invariant:       "a mutation verb's object literal names the singular; evo pluralizes it via Affected(n)",
-			Why:             "`Delete(\"worktrees\", fn, evo.Affected(1))` renders \"deleted 1 worktrees\" (zq axis-14 P17) because Pluralize treats an already-plural literal as unchanged; the object argument must stay singular so pluralization has one job.",
-			BadCode:         `task.Delete("worktrees", fn, evo.Affected(1))`,
-			GoodCode:        `task.Delete("worktree", fn, evo.Affected(1))`,
-			Remediation:     "Pass the singular noun as the object literal; let Affected(n) drive pluralization",
+			Invariant:       "an EffectSpec.Object literal names the singular; evo pluralizes it from Quantity",
+			Why:             "`EffectSpec{Verb: EffectDelete, Object: \"worktrees\", Quantity: 1}` renders \"deleted 1 worktrees\" (zq axis-14 P17) because Pluralize treats an already-plural literal as unchanged; Object must stay singular so pluralization has one job.",
+			BadCode:         `evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktrees", Quantity: 1}`,
+			GoodCode:        `evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}`,
+			Remediation:     "Pass the singular noun as EffectSpec.Object; let Quantity drive pluralization",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-043"},
 			Since:           "0.4.7",
@@ -1584,7 +1588,7 @@ task.Kept(reasonProtected)`,
 			ID:        "EVO-DRYRUN-001",
 			Category:  "EVO",
 			Severity:  "error",
-			Invariant: "a Define callback that promises Evo dry-run safety routes mutation through evo.File, evo.Exec, or a typed mutation verb, never a raw os/exec/db call",
+			Invariant: "a Define callback that promises Evo dry-run safety routes file state through evo.File, commands through evo.Exec, and other opaque mutations through evo.Effect — never a raw os/exec/db call left bare in Define",
 			Why:       "Evo cannot intercept an arbitrary Go side effect — a raw os.WriteFile, exec.Command, or direct database mutation inside Define runs even in dry-run mode, because the runtime has no way to see or suppress it (spec §32.2).",
 			BadCode: `task.Define(func(ctx context.Context) error {
   return os.WriteFile(path, data, 0o644)
@@ -1592,7 +1596,7 @@ task.Kept(reasonProtected)`,
 			GoodCode: `task.Define(func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
 })`,
-			Remediation:     "Replace the raw os/exec/db call with evo.File, evo.Exec, or a typed mutation verb",
+			Remediation:     "Replace the raw os/exec/db call with evo.File or evo.Exec; wrap a mutation neither models (a database or API change) in evo.Effect so dry-run skips it",
 			RelatedGuidance: []string{"common-api", "evidence-provenance"},
 			VerificationIDs: []string{"EVO-DRYRUN-001"},
 			Since:           "1.0.0",

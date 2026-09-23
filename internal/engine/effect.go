@@ -63,7 +63,10 @@ var (
 // (ctx must come from one; see taskScope). A dry run records one planned
 // Effect and never invokes fn. An apply run invokes fn with ctx — the
 // scheduler-owned context — and records the changed Effect only when fn
-// returns nil; fn's error is returned unchanged so Define can return it.
+// returns nil; fn's error is returned unchanged so Define can return it. A
+// callback that resolved its own task as anything but Done (Skipped, Fail,
+// Block) disowned the work, so nothing reaches the ledger (see
+// deniesItsOwnEffect).
 func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error) error {
 	task, err := taskScope(ctx)
 	if err != nil {
@@ -75,16 +78,29 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("evo: Effect %s %q: %w", spec.Verb, spec.Object, err)
 	}
-	if !task.out.DryRun() {
-		if err := task.out.performEffect(ctx, spec.Resource, fn); err != nil {
+	// Resolve the ledger target once, before fn runs: an interrupt that
+	// cancels the row while fn runs describes work that really happened,
+	// and the reader is still owed "! already mutated: ...".
+	subject, dryRun, err := task.out.resolveLedgerTarget(task.id)
+	if err != nil {
+		return err
+	}
+	if !dryRun {
+		disowned, err := task.out.runEffectCallback(task.id, ctx, func(ctx context.Context) error {
+			return task.out.performEffect(ctx, spec.Resource, fn)
+		})
+		if err != nil {
 			return err
+		}
+		if disowned {
+			return nil
 		}
 	} else if spec.Resource != nil {
 		if err := task.out.validateResource(spec.Resource); err != nil {
 			return err
 		}
 	}
-	task.out.recordMutation(task.id, string(spec.Verb), int64(spec.Quantity), true, spec.Object)
+	task.out.recordResolvedMutation(task.id, subject, dryRun, string(spec.Verb), int64(spec.Quantity), true, spec.Object)
 	return nil
 }
 
@@ -112,4 +128,28 @@ func (s EffectSpec) validate(fn func(context.Context) error) error {
 		return ErrEffectCallbackMissing
 	}
 	return nil
+}
+
+// runEffectCallback invokes an Effect's fn with the task marked as having an
+// Effect in flight, and reports whether fn disowned the work by resolving its
+// own task as anything but Done while it ran.
+func (o *Output) runEffectCallback(taskID string, ctx context.Context, fn func(context.Context) error) (disowned bool, err error) {
+	o.mu.Lock()
+	st := o.taskByRef[taskID]
+	if st != nil {
+		st.effectsInFlight++
+		st.effectDenied = false
+	}
+	o.mu.Unlock()
+	defer func() {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		if st == nil {
+			return
+		}
+		st.effectsInFlight--
+		disowned = st.effectDenied
+		st.effectDenied = false
+	}()
+	return false, fn(ctx)
 }

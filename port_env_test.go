@@ -41,7 +41,7 @@ func TestTERM011_WidthZeroFallsBackSafely(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Width: 0, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("c").Add("x", func() error { return nil }, evo.Affected(1))
+	out.Task("c").Define(effectOf(evo.EffectAdd, "x", 1))
 	_ = out.Finish()
 	if buf.Len() == 0 {
 		t.Fatal("expected output")

@@ -271,7 +271,7 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	deleteAcct := out.Task("delete account acme")
-	deleteAcct.Delete("project", func() error { return nil }, evo.Affected(14))
+	deleteAcct.Define(effectOf(evo.EffectDelete, "project", 14))
 	deleteAcct.Record("revoke", 7, "API keys")
 
 	if err := out.Finish(); err != nil {

@@ -10,13 +10,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
-type mutationSpec struct {
-	verb     string
-	object   string
-	quantity int64
-	hasQty   bool
-}
-
 type predecessor struct {
 	taskID  string
 	groupID string
@@ -74,7 +67,7 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	return t
 }
 
-func (t *TaskHandle) submitWork(fn func() error, mut *mutationSpec) {
+func (t *TaskHandle) submitWork(fn func() error) {
 	if t == nil || t.out == nil {
 		return
 	}
@@ -102,7 +95,6 @@ func (t *TaskHandle) submitWork(fn func() error, mut *mutationSpec) {
 	}
 	st.submitted = true
 	st.workFn = fn
-	st.mutation = mut
 	o.schedWG.Add(1)
 	// §48: a predecessor that already failed before this task was even
 	// submitted must settle it NotStarted right now, under the same lock —
@@ -118,11 +110,11 @@ func (t *TaskHandle) submitWork(fn func() error, mut *mutationSpec) {
 func (o *Output) kick() {
 	o.abandonUnreachableWork()
 	for {
-		st, fn, mut := o.takeEligible()
+		st, fn := o.takeEligible()
 		if st == nil {
 			break
 		}
-		go o.runWork(st, fn, mut)
+		go o.runWork(st, fn)
 	}
 	// A freed slot and a resolved task are the two events that can turn a
 	// live run into a stuck one, and kick is the choke point for both.
@@ -144,18 +136,18 @@ func (o *Output) abandonUnreachableWork() {
 	o.cascadeIneligibleLocked()
 }
 
-func (o *Output) takeEligible() (st *taskState, fn func() error, mut *mutationSpec) {
+func (o *Output) takeEligible() (st *taskState, fn func() error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.schedCancelled {
 		// After an interrupt the queue is abandoned, not drained: nothing
 		// new starts, so the run stops at the ^C instead of running to
 		// completion behind one cancelled row.
-		return nil, nil, nil
+		return nil, nil
 	}
 	max := o.concurrencyCeilingLocked()
 	if o.schedInflight >= max {
-		return nil, nil, nil
+		return nil, nil
 	}
 	for _, cand := range o.tasks {
 		if !cand.submitted || cand.runningWork || core.IsTerminalTask(cand.state) {
@@ -165,7 +157,7 @@ func (o *Output) takeEligible() (st *taskState, fn func() error, mut *mutationSp
 			continue
 		}
 		if o.schedInflight >= max {
-			return nil, nil, nil
+			return nil, nil
 		}
 		o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
 		cand.runningWork = true
@@ -180,9 +172,9 @@ func (o *Output) takeEligible() (st *taskState, fn func() error, mut *mutationSp
 		}
 		o.bumpLocked()
 		o.signalLiveLocked(true)
-		return cand, cand.workFn, cand.mutation
+		return cand, cand.workFn
 	}
-	return nil, nil, nil
+	return nil, nil
 }
 
 func (o *Output) concurrencyCeilingLocked() int {
@@ -196,7 +188,7 @@ func (o *Output) concurrencyCeilingLocked() int {
 	return n
 }
 
-func (o *Output) runWork(st *taskState, fn func() error, mut *mutationSpec) {
+func (o *Output) runWork(st *taskState, fn func() error) {
 	defer func() {
 		if r := recover(); r != nil {
 			st.handle.failScheduled(fmt.Sprintf("panic: %v", r))
@@ -209,43 +201,19 @@ func (o *Output) runWork(st *taskState, fn func() error, mut *mutationSpec) {
 		o.kick()
 	}()
 
-	o.executeWork(st, fn, mut)
+	o.executeWork(st, fn)
 }
 
 // executeWork runs one task's callback and resolves the task from what it
 // returned — the scheduler's sole resolution point (see TaskHandle.finish).
 // Shared by the pooled worker (runWork) and by a waiter that donates its own
 // goroutine to work it would otherwise block on (TaskHandle.Wait).
-func (o *Output) executeWork(st *taskState, fn func() error, mut *mutationSpec) {
-	o.mu.Lock()
-	subject := ""
-	taskID := ""
-	if st != nil {
-		subject = ledgerSubjectFor(st)
-		taskID = st.id
-	}
-	dryRun := o.cfg.dryRun
-	o.mu.Unlock()
-
-	if mut != nil && dryRun {
-		o.recordResolvedMutation(taskID, subject, true, mut.verb, mut.quantity, mut.hasQty, mut.object)
-		o.recordWorkOutcome(st, nil)
-		o.resolveObserved(st, nil)
-		return
-	}
+func (o *Output) executeWork(st *taskState, fn func() error) {
 	var err error
 	if fn != nil {
 		err = runCallback(fn)
 	}
 	o.recordWorkOutcome(st, err)
-	// The effect commits on the callback's success alone, before any
-	// resolution: a task that mutated and then failed still owes the reader
-	// its "! already mutated: ..." line. But a callback that stated its own
-	// verdict as anything but Done said the mutation did not happen, and the
-	// ledger must not count what the row itself denies.
-	if err == nil && mut != nil && !o.callbackDeniedTheWork(st) {
-		o.recordResolvedMutation(taskID, subject, false, mut.verb, mut.quantity, mut.hasQty, mut.object)
-	}
 	// A callback that resolved its own task (Failf/Fail/Block inside fn, or
 	// an interrupt that cancelled the row) already stated one outcome. The
 	// scheduler neither restates it nor calls it misuse (P13) — returning
@@ -311,17 +279,6 @@ func (o *Output) recordWorkOutcome(st *taskState, err error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	st.workErr = err
-}
-
-// callbackDeniedTheWork reports whether the mutation callback disowned the
-// work it was given — see deniesItsOwnEffect for what earns the flag.
-func (o *Output) callbackDeniedTheWork(st *taskState) bool {
-	if st == nil {
-		return false
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return st.effectDenied
 }
 
 func (o *Output) taskIsTerminal(st *taskState) bool {
@@ -540,11 +497,11 @@ func (o *Output) awaitedWorkIsStalled(taskID string) bool {
 // running, already terminal, never defined, not yet eligible, or the run is
 // cancelling.
 func (o *Output) runForWaiter(taskID string) bool {
-	st, fn, mut, claimed := o.claimForWaiter(taskID)
+	st, fn, claimed := o.claimForWaiter(taskID)
 	if !claimed {
 		return false
 	}
-	o.executeClaimed(st, fn, mut)
+	o.executeClaimed(st, fn)
 	return true
 }
 
@@ -552,11 +509,11 @@ func (o *Output) runForWaiter(taskID string) bool {
 // start, on the waiting caller's own goroutine, and reports whether it found
 // one (see runWaitedWork).
 func (o *Output) runOneStalledTask() bool {
-	st, fn, mut, claimed := o.claimAnyForWaiter()
+	st, fn, claimed := o.claimAnyForWaiter()
 	if !claimed {
 		return false
 	}
-	o.executeClaimed(st, fn, mut)
+	o.executeClaimed(st, fn)
 	return true
 }
 
@@ -564,7 +521,7 @@ func (o *Output) runOneStalledTask() bool {
 // consumes no scheduler slot: the waiting goroutine either already holds one
 // (a callback nested inside another callback) or holds none at all, so the
 // number of callbacks actually executing never rises above the ceiling.
-func (o *Output) executeClaimed(st *taskState, fn func() error, mut *mutationSpec) {
+func (o *Output) executeClaimed(st *taskState, fn func() error) {
 	defer func() {
 		if r := recover(); r != nil {
 			st.handle.failScheduled(fmt.Sprintf("panic: %v", r))
@@ -575,17 +532,17 @@ func (o *Output) executeClaimed(st *taskState, fn func() error, mut *mutationSpe
 		o.schedWG.Done()
 		o.kick()
 	}()
-	o.executeWork(st, fn, mut)
+	o.executeWork(st, fn)
 }
 
 // claimForWaiter marks one named submitted, eligible, not-yet-started task
 // as running for a waiting goroutine.
-func (o *Output) claimForWaiter(taskID string) (st *taskState, fn func() error, mut *mutationSpec, claimed bool) {
+func (o *Output) claimForWaiter(taskID string) (st *taskState, fn func() error, claimed bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	cand := o.taskByRef[taskID]
 	if !o.claimableLocked(cand) {
-		return nil, nil, nil, false
+		return nil, nil, false
 	}
 	return o.claimLocked(cand)
 }
@@ -593,7 +550,7 @@ func (o *Output) claimForWaiter(taskID string) (st *taskState, fn func() error, 
 // claimAnyForWaiter marks whichever submitted, eligible, not-yet-started
 // task the scheduler reaches first as running for a waiting goroutine —
 // claimForWaiter without a named target.
-func (o *Output) claimAnyForWaiter() (st *taskState, fn func() error, mut *mutationSpec, claimed bool) {
+func (o *Output) claimAnyForWaiter() (st *taskState, fn func() error, claimed bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, cand := range o.tasks {
@@ -602,7 +559,7 @@ func (o *Output) claimAnyForWaiter() (st *taskState, fn func() error, mut *mutat
 		}
 		return o.claimLocked(cand)
 	}
-	return nil, nil, nil, false
+	return nil, nil, false
 }
 
 // claimableLocked reports whether a waiting goroutine may run cand itself.
@@ -615,7 +572,7 @@ func (o *Output) claimableLocked(cand *taskState) bool {
 
 // claimLocked is takeEligible's start bookkeeping without the concurrency
 // ceiling and without the in-flight accounting (see executeClaimed).
-func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error, mut *mutationSpec, claimed bool) {
+func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error, claimed bool) {
 	cand.runningWork = true
 	o.schedExecuting++
 	o.schedStartOrder = append(o.schedStartOrder, cand.name)
@@ -624,7 +581,7 @@ func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error, m
 	}
 	o.bumpLocked()
 	o.signalLiveLocked(true)
-	return cand, cand.workFn, cand.mutation, true
+	return cand, cand.workFn, true
 }
 
 func (o *Output) drainScheduler() {

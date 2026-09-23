@@ -240,7 +240,7 @@ func (o *Output) recordFileEffectIf(op fileOperation, mutates bool) {
 
 // recordFileEffect records File's planned (dry-run) or committed (applied)
 // Effect under taskID's own ledger section (spec §8.2/§27/§51) — the same
-// Plan/Changes routing TaskHandle's named mutation verbs already use.
+// Plan/Changes routing evo.Effect and TaskHandle.Record already use.
 func (o *Output) recordFileEffect(taskID, displayPath string) {
 	(&TaskHandle{out: o, id: taskID}).RecordName("write", displayPath)
 }

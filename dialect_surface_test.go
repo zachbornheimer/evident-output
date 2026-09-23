@@ -24,7 +24,6 @@ import (
 // A new export, a dropped rec verb, or a signature change fails this test.
 var dialectSurface = map[string][]string{
 	"pkg": {
-		"Affected(n int)",
 		"AlsoWrite(w io.Writer)",
 		"AssumeYes(v bool)",
 		"Clock(ts TimeSource)",
@@ -141,17 +140,14 @@ var dialectSurface = map[string][]string{
 		"Writer()",
 	},
 	"*TaskHandle": {
-		"Add(object string, fn func() error, opts ...MutationOption)",
 		"After(preds ...any)",
 		"Block(summary string, options ...ProblemOption)",
 		"Blockf(format string, args ...any)",
 		"Bytes(completed int64, total int64)",
 		"Cancel(reason string)",
 		"Context()",
-		"Create(object string, fn func() error, opts ...MutationOption)",
 		"Define(fn func(context.Context) error)",
 		"Key(key string)",
-		"Delete(object string, fn func() error, opts ...MutationOption)",
 		"Doing(text string, args ...any)",
 		"Done(args ...any)",
 		"Fact(name string, value string)",
@@ -162,19 +158,15 @@ var dialectSurface = map[string][]string{
 		"NextCommand(executable string, args ...string)",
 		"Problem(summary string, options ...ProblemOption)",
 		"Progress(completed int, total int)",
-		"Push(object string, fn func() error, opts ...MutationOption)",
 		"Record(verb string, quantity int, object string)",
 		"RecordLabel(label string, quantity int, object string)",
 		"RecordName(verb string, object string)",
-		"Remove(object string, fn func() error, opts ...MutationOption)",
 		"Skipped(reason TaxonomyReason)",
 		"Snapshot()",
 		"Step(completed int, total int, name string)",
-		"Update(object string, fn func() error, opts ...MutationOption)",
 		"Verify(fn func(context.Context) (bool, error))",
 		"Wait()",
 		"Warn(summary string, options ...ProblemOption)",
-		"Write(object string, fn func() error, opts ...MutationOption)",
 		"Writer()",
 	},
 	"*SequenceHandle": {
@@ -267,12 +259,18 @@ func TestDialectSurface_TaskDeclareIsNameOnly(t *testing.T) {
 	}
 }
 
-func TestDialectSurface_DeleteIsObjectThenCallback(t *testing.T) {
+// TestDialectSurface_LegacyMutationVerbsAreRemoved pins ZYS-950: the seven
+// TaskHandle mutation verbs were removed in 1.1 with no aliases. Opaque
+// mutations go through evo.Effect; file state goes through evo.File.
+func TestDialectSurface_LegacyMutationVerbsAreRemoved(t *testing.T) {
 	got := exportedFuncsByRecv(t)
-	want := "Delete(object string, fn func() error, opts ...MutationOption)"
-	if !containsSig(got["*TaskHandle"], want) {
-		t.Errorf("*TaskHandle.Delete want %s; got matching %s",
-			want, findSig(got["*TaskHandle"], "Delete("))
+	for _, verb := range []string{"Add(", "Create(", "Delete(", "Push(", "Remove(", "Update(", "Write("} {
+		if sig := findSig(got["*TaskHandle"], verb); sig != "(absent)" {
+			t.Errorf("*TaskHandle.%s was removed in 1.1 but is exported: %s", strings.TrimSuffix(verb, "("), sig)
+		}
+	}
+	if sig := findSig(got["pkg"], "Affected("); sig != "(absent)" {
+		t.Errorf("evo.Affected was removed in 1.1 (EffectSpec.Quantity replaces it) but is exported: %s", sig)
 	}
 }
 

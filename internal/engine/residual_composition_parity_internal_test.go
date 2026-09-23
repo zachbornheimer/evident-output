@@ -31,7 +31,7 @@ func TestResidualComposition_PlainAndInteractiveSectionParity(t *testing.T) {
 		task := out.Task("branches")
 		task.Fail("could not delete", Detail("permission denied"))
 		cleanup := out.Task("cleanup")
-		cleanup.Delete("stale local branch", func() error { return nil }, Affected(3))
+		cleanup.Define(effectOf(EffectDelete, "stale local branch", 3))
 		cleanup.waitSubmitted()
 
 		out.mu.Lock()

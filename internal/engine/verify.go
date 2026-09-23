@@ -99,7 +99,7 @@ func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
 	verifiers := append([]verifierFunc(nil), st.verifiers...)
 	o.mu.Unlock()
 
-	t.submitWork(func() error { return t.runDefine(verifiers, fn) }, nil)
+	t.submitWork(func() error { return t.runDefine(verifiers, fn) })
 	return t
 }
 
