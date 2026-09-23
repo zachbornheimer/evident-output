@@ -537,6 +537,12 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectInlineReasonLiteral(filename, f, fset)...)
 	}
 
+	// API-045: Task(name) where name is a bare subject label or a generic
+	// container/phase word, not one independently meaningful action.
+	if hasEvo {
+		findings = append(findings, detectSubjectOnlyOrContainerTaskName(filename, f, fset)...)
+	}
+
 	// The EVO-EVIDENCE-001/VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestions
 	// all recommend 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence);
 	// a pin older than that cannot apply them, so none of these six may fire
@@ -1247,8 +1253,8 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 		return nil
 	}
 	line := 1
-	if idx := strings.Index(src, "signal.Notify("); idx >= 0 {
-		line += strings.Count(src[:idx], "\n")
+	if before, _, ok := strings.Cut(src, "signal.Notify("); ok {
+		line += strings.Count(before, "\n")
 	}
 	return []Finding{{
 		RuleID:     "SIG-001",
@@ -2215,7 +2221,7 @@ func composesItsArgument(stmt string) bool {
 func singleStatementBody(inner string) string {
 	var stmt string
 	count := 0
-	for _, l := range strings.Split(inner, "\n") {
+	for l := range strings.SplitSeq(inner, "\n") {
 		t := strings.TrimSpace(l)
 		if t == "" || strings.HasPrefix(t, "//") {
 			continue

@@ -54,6 +54,23 @@ and more than once (idempotent); prefer `defer out.Close()` right after
 
 Multi-gate: resolve every Task, tracking a local `blocked` bool at each `Block` call site, then `if blocked { return nil }` before mutation — `Output.Run`/`Conclusion` answer the same question once a run has finished, so no mid-run query is exported; `Main` maps `ExitCode`.
 
+### Task is one independently meaningful promise
+
+A Task names **one independently schedulable promise whose outcome is independently meaningful to the user** — not a display row, not a subject label, not a container reached for merely to earn a row on screen. A good Task name answers "what will this unit of work accomplish or determine?" and, as a strong heuristic (not a grammar rule review mechanically enforces), reads as an action: verb + concrete object — `check file integrity`, `format Python`, `stabilize Go source`, `lint Go`, `check Python`, `build application icons`. `file integrity` names a subject, not the work; `fix`, `go`, `pre-commit`, `classify` alone read as a category, a tool name, or a phase, not a promise. A concise contextual name can still be perfectly clear — context, not word count, decides.
+
+Four tests settle it when the heuristic alone is ambiguous:
+
+1. If it fails, does the Task's name alone tell the user what failed?
+2. Can this unit run/wait/fail/satisfy independently?
+3. Would the user care about its independent outcome?
+4. Is it actual work, rather than a category, a display heading, a fact, a verification dimension, or an implementation phase?
+
+If the answers are no, it probably is not a Task.
+
+`Group` and `Sequence` **organize** work — they are never themselves fake work created only to earn a success row. `Task("fix")` that really owns several independently meaningful operations should become `Group("prepare staged files")` (or `Sequence`) with each operation as its own verb+object Task underneath; the container header's own visibility is a renderer decision, independent of whether the header deserves a row at all.
+
+One Task may still make several internal observations without promoting each predicate to a sibling Task: `check file integrity` can inspect merge markers, path validity, staged/worktree consistency, symlinks, and generated-file corruption, and report them all as `Fact`/`Warn`/`Problem` evidence under the one Task that answers a single user-meaningful question. Only split an observation into its own Task when it has an independently meaningful lifecycle/remediation and can run on its own. `TaskHandle` intentionally has no `.Task`/`.Group`/`.Sequence` child constructors — only `Output`, `GroupHandle`, and `SequenceHandle` declare children, so a Task cannot structurally grow a container of its own; review (`API-045`) teaches the semantic half of this boundary that a compile-time signature cannot decide.
+
 ## Severity dialect
 
 | Outcome   | Meaning                                                                       |
