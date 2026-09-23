@@ -1353,3 +1353,108 @@ func TestAPI052_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 		}
 	}
 }
+
+// API-053 (ZYS-931): a caller-managed sync.Mutex/RWMutex Lock/Unlock wrapped
+// around an evo.File call — the exact caller lock ZYS-840's automatic
+// resource coordination now owns (File claims its own path for writing with
+// no caller code).
+
+const manualMutexAroundFileWriteSrc = `package p
+import (
+  "context"
+  "sync"
+  evo "github.com/zachbornheimer/evident-output"
+)
+type Writer struct {
+  mu   sync.Mutex
+  path string
+}
+func (w *Writer) write(ctx context.Context, contents []byte) error {
+  w.mu.Lock()
+  defer w.mu.Unlock()
+  return evo.File(ctx, evo.FileSpec{Path: w.path, Contents: contents})
+}
+`
+
+func TestAPI053_ManualMutexAroundFileWrite_Fires(t *testing.T) {
+	res := review.GoSource("writer.go", manualMutexAroundFileWriteSrc)
+	f := findingByID(t, res, "API-053")
+	if f.Severity != "error" {
+		t.Fatalf("API-053 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "evo.File") {
+		t.Fatalf("API-053 suggestion does not name evo.File as the fix: %q", f.Suggestion)
+	}
+}
+
+const noManualMutexAroundFileWriteSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+type Writer struct {
+  path string
+}
+func (w *Writer) write(ctx context.Context, contents []byte) error {
+  return evo.File(ctx, evo.FileSpec{Path: w.path, Contents: contents})
+}
+`
+
+func TestAPI053_NoManualMutexAroundFileWrite_StaysSilent(t *testing.T) {
+	res := review.GoSource("writer.go", noManualMutexAroundFileWriteSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053 when File already owns its own coordination: %+v", f)
+		}
+	}
+}
+
+const mutexUnrelatedToEvoFileSrc = `package p
+import (
+  "context"
+  "sync"
+  evo "github.com/zachbornheimer/evident-output"
+)
+type Service struct {
+  mu    sync.Mutex
+  count int
+}
+func (s *Service) touch() {
+  s.mu.Lock()
+  defer s.mu.Unlock()
+  s.count++
+}
+func (s *Service) write(ctx context.Context, path string, contents []byte) error {
+  return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents})
+}
+`
+
+func TestAPI053_MutexGuardingUnrelatedDomainState_StaysSilent(t *testing.T) {
+	res := review.GoSource("service.go", mutexUnrelatedToEvoFileSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053 on a mutex guarding unrelated domain state: %+v", f)
+		}
+	}
+}
+
+func TestAPI053_PreOneOneOnePin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("writer.go", manualMutexAroundFileWriteSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("API-053 fired for a pin older than 1.1.0 (automatic resource claiming did not exist yet): %+v", f)
+		}
+	}
+}
+
+func TestAPI053_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+	res := review.GoSource("writer.go", manualMutexAroundFileWriteSrc)
+	findingByID(t, res, "API-053")
+
+	after := review.GoSource("writer.go", noManualMutexAroundFileWriteSrc)
+	for _, f := range after.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("API-053 still fires after remediation to plain evo.File: %+v", f)
+		}
+	}
+}
