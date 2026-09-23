@@ -1837,3 +1837,222 @@ func TestAPI055_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 		}
 	}
 }
+
+// API-056: a .After(...) edge kept only to avoid a race on shared/same-file
+// state — both Tasks already claim that same resource (evo.File's own
+// Path, or an explicit evo.FSResource/evo.LogicalResource claim), so Evo's
+// automatic resource coordination (ZYS-840) already serializes them without
+// the edge (ZYS-936).
+
+const afterResourceContentionSameFileSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(configTask, cacheTask *evo.TaskHandle) {
+  configTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  cacheTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  // same file — avoid concurrent write race
+  cacheTask.After(configTask)
+}
+`
+
+func TestAPI056_AfterOnlyForSameFileContention_Fires(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceContentionSameFileSrc)
+	f := findingByID(t, res, "API-056")
+	if f.Severity != "warning" {
+		t.Fatalf("API-056 severity = %q, want warning", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "delete") || !strings.Contains(f.Suggestion, "cacheTask.After(configTask)") {
+		t.Fatalf("API-056 suggestion does not name the edge to delete: %q", f.Suggestion)
+	}
+	if !strings.Contains(f.Message, "config.json") {
+		t.Fatalf("API-056 message does not name the shared resource: %q", f.Message)
+	}
+}
+
+// afterResourceContentionFSResourceSrc: sweepTask and gcTask both DELETE
+// the identical FSResource. Deleting an already-deleted path is idempotent,
+// so which Task runs first never changes the outcome — a genuine
+// order-invariant overlap, safe to report.
+const afterResourceContentionFSResourceSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(sweepTask, gcTask *evo.TaskHandle) {
+  sweepTask.Define(func(ctx context.Context) error {
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo cache", Resource: evo.FSResource("/repo/cache")}, removeRepoCache)
+  })
+  gcTask.Define(func(ctx context.Context) error {
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo cache", Resource: evo.FSResource("/repo/cache")}, removeRepoCache)
+  })
+  // shared resource, exclusive access only
+  gcTask.After(sweepTask)
+}
+func removeRepoCache(context.Context) error { return nil }
+`
+
+func TestAPI056_AfterOnlyForFSResourceContention_Fires(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceContentionFSResourceSrc)
+	findingByID(t, res, "API-056")
+}
+
+// afterResourceConflictingVerbsSrc: lockTask UPDATEs and sweepTask DELETEs
+// the identical FSResource. Delete-then-update recreates the resource;
+// update-then-delete removes it — the outcome genuinely depends on order,
+// so this is a real dependency the rule must not tell the caller to delete.
+const afterResourceConflictingVerbsSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(lockTask, sweepTask *evo.TaskHandle) {
+  lockTask.Define(func(ctx context.Context) error {
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "repo", Resource: evo.FSResource("/repo")}, refreshRepo)
+  })
+  sweepTask.Define(func(ctx context.Context) error {
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo", Resource: evo.FSResource("/repo")}, removeRepo)
+  })
+  // shared resource, exclusive access only
+  sweepTask.After(lockTask)
+}
+func refreshRepo(context.Context) error { return nil }
+func removeRepo(context.Context) error  { return nil }
+`
+
+func TestAPI056_ConflictingVerbsFSResource_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceConflictingVerbsSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-056" {
+			t.Fatalf("false positive API-056 when conflicting Verbs (Update vs Delete) on the same resource make order a real dependency: %+v", f)
+		}
+	}
+}
+
+// afterResourceDifferingContentsSrc: configTask and cacheTask both write
+// config.json, but with different Contents. Deleting the .After edge (this
+// rule's own remediation) would leave config.json's final content
+// nondeterministic across runs — a resource claim only coordinates the
+// overlap, it does not decide which write wins.
+const afterResourceDifferingContentsSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(configTask, cacheTask *evo.TaskHandle) {
+  configTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+  })
+  cacheTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: warm})
+  })
+  // same file — avoid concurrent write race
+  cacheTask.After(configTask)
+}
+`
+
+func TestAPI056_DifferingFileContents_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceDifferingContentsSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-056" {
+			t.Fatalf("false positive API-056 when the two File writes carry different Contents, so deleting .After leaves config.json nondeterministic: %+v", f)
+		}
+	}
+}
+
+const afterRealDependencySrc = `package p
+import (
+  "context"
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(prepareTask, buildTask *evo.TaskHandle) {
+  prepareTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  buildTask.Define(func(ctx context.Context) error {
+    _, err := os.ReadFile("config.json")
+    return err
+  })
+  // buildTask needs the config prepareTask writes
+  buildTask.After(prepareTask)
+}
+`
+
+func TestAPI056_RealSemanticDependency_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", afterRealDependencySrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-056" {
+			t.Fatalf("false positive API-056 on a real producer/consumer dependency: %+v", f)
+		}
+	}
+}
+
+const afterNoCommentSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(configTask, cacheTask *evo.TaskHandle) {
+  configTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  cacheTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  cacheTask.After(configTask)
+}
+`
+
+func TestAPI056_NoContentionComment_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", afterNoCommentSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-056" {
+			t.Fatalf("false positive API-056 with no comment naming exclusion as the reason: %+v", f)
+		}
+	}
+}
+
+func TestAPI056_PreOneOneOnePin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("run.go", afterResourceContentionSameFileSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-056" {
+			t.Fatalf("API-056 fired for a pin older than 1.1.0 (automatic resource claims did not exist yet): %+v", f)
+		}
+	}
+}
+
+// afterResourceContentionRemediatedSrc is afterResourceContentionSameFileSrc
+// with this rule's own Suggestion applied: cacheTask.After(configTask) and
+// its comment are deleted, keeping only the overlapping File claim.
+const afterResourceContentionRemediatedSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(configTask, cacheTask *evo.TaskHandle) {
+  configTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  cacheTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+}
+`
+
+func TestAPI056_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceContentionSameFileSrc)
+	findingByID(t, res, "API-056")
+
+	after := review.GoSource("run.go", afterResourceContentionRemediatedSrc)
+	for _, f := range after.Findings {
+		if f.RuleID == "API-056" {
+			t.Fatalf("API-056 still fires after applying its own prescribed remediation (deleting the .After(...) edge): %+v", f)
+		}
+	}
+}

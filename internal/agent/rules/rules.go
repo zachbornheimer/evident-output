@@ -1615,6 +1615,34 @@ func (w *Writer) archive(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-056",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a child.After(parent) edge exists to declare a real semantic dependency; it is never kept only to avoid a data race that File/FSResource/LogicalResource's own automatic resource claim (ZYS-840) already serializes AND whose overlapping writes are order-invariant (identical writes, or an idempotent Verb like Delete) — a resource claim only coordinates the overlap, it never decides which write wins, so an edge guarding two writes with different outcomes stays",
+			Why:       "Before ZYS-840, two Tasks writing the same file/shared state had no automatic exclusion, so pinning one After the other was the only way to avoid a race, and the reason usually shows up as a comment (\"same file\", \"avoid race\", \"exclusive access\") next to the edge. Now that File/FSResource/LogicalResource auto-claim and serialize any overlapping write, an edge guarding two IDENTICAL writes no longer does anything a resource claim doesn't already do — it only couples two Tasks' scheduling that would otherwise run concurrently, which costs wall-clock time and reads as a real dependency to the next person who touches the DAG. An edge guarding two DIFFERENT writes (different Contents, or conflicting Verbs like Update vs Delete) is not this case: the resource claim only prevents concurrent corruption, it does not pin which write is final, so deleting .After there would make the outcome nondeterministic across runs — that edge is a real dependency and must stay.",
+			BadCode: `configTask.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+})
+cacheWarmTask.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+})
+// same file — avoid concurrent write race
+cacheWarmTask.After(configTask)`,
+			GoodCode: `configTask.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+})
+cacheWarmTask.Define(func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+})
+// no .After: both Tasks write the identical config.json, and File already
+// claims the path and serializes the overlap`,
+			Remediation:     "Delete the .After(...) edge only when the overlapping writes are order-invariant — identical Contents, or an idempotent Verb such as Delete on both sides. Keep .After when the writes differ (different Contents, or conflicting Verbs like Update vs Delete): the resource claim serializes them but does not decide which write wins, so order is still a real dependency there.",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-056"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",
