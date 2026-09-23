@@ -39,7 +39,6 @@ func main() {
 func run(ctx context.Context) error {
     worktrees := evo.Group("worktrees")
     for _, path := range items {
-        path := path
         worktrees.Task(path).Define(func(ctx context.Context) error { return check(path) })
     }
     return nil
