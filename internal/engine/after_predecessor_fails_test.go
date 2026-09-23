@@ -59,7 +59,7 @@ func waitForParkedWaiter(t *testing.T, o *Output, want int) {
 // stayed closed (in production: however long the predecessor's goroutine
 // took to actually return from the callback call).
 func TestAfterPredecessorFails_WhileDependentAlreadyParkedInWait_SettlesImmediately(t *testing.T) {
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		t.Run("", func(t *testing.T) {
 			out := newAfterFailTestOutput(t, 4)
 
@@ -110,7 +110,7 @@ func TestAfterPredecessorFails_WhileDependentAlreadyParkedInWait_SettlesImmediat
 // not yet a deadlock") cannot mask the missing settle path — real repros
 // hit this because unrelated work elsewhere in the run was still in flight.
 func TestAfterPredecessorFails_BeforeDependentIsSubmitted_SettlesImmediately(t *testing.T) {
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		t.Run("", func(t *testing.T) {
 			out := newAfterFailTestOutput(t, 4)
 
