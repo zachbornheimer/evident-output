@@ -959,3 +959,129 @@ func TestAPI049_LocalCtxShadow_StaysSilent(t *testing.T) {
 		}
 	}
 }
+
+// API-050: a caller stores Group/Sequence child Task handles solely to loop
+// Wait, filter ErrNotStarted, Snapshot the container, count failed children,
+// and synthesize its own aggregate error — GroupHandle.Wait/SequenceHandle.Wait
+// (ZYS-849) now owns exactly this (ZYS-941, zq runParallel/
+// waitDefinedRunOperations evidence).
+
+const callerWaitLoopSnapshotCountSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func runParallel(jobs *evo.GroupHandle, items []string) error {
+  var handles []*evo.TaskHandle
+  for _, item := range items {
+    t := jobs.Task(item)
+    t.Define(func(ctx context.Context) error { return nil })
+    handles = append(handles, t)
+  }
+  failed := 0
+  for _, h := range handles {
+    if err := h.Wait(); err != nil {
+      failed++
+    }
+  }
+  snap := jobs.Snapshot()
+  _ = snap
+  if failed > 0 {
+    return fmt.Errorf("%d of %d failed", failed, len(handles))
+  }
+  return nil
+}
+`
+
+func TestAPI050_CallerWaitLoopSnapshotCount_Fires(t *testing.T) {
+	res := review.GoSource("run_parallel.go", callerWaitLoopSnapshotCountSrc)
+	f := findingByID(t, res, "API-050")
+	if f.Severity != "error" {
+		t.Fatalf("API-050 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "GroupHandle.Wait") && !strings.Contains(f.Suggestion, "jobs.Wait()") {
+		t.Fatalf("API-050 suggestion does not name the container Wait fix: %q", f.Suggestion)
+	}
+}
+
+const callerWaitLoopErrNotStartedSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func waitDefinedRunOperations(tasks []*evo.TaskHandle) error {
+  for _, task := range tasks {
+    err := task.Wait()
+    if errors.Is(err, evo.ErrNotStarted) {
+      continue
+    }
+    if err != nil {
+      return err
+    }
+  }
+  return nil
+}
+`
+
+func TestAPI050_CallerWaitLoopErrNotStartedFilter_Fires(t *testing.T) {
+	res := review.GoSource("run_execute.go", callerWaitLoopErrNotStartedSrc)
+	f := findingByID(t, res, "API-050")
+	if !strings.Contains(f.Suggestion, "SequenceHandle.Wait") && !strings.Contains(f.Suggestion, "GroupHandle.Wait") {
+		t.Fatalf("API-050 suggestion does not name the container Wait surface: %q", f.Suggestion)
+	}
+}
+
+const containerWaitDirectSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func runParallel(jobs *evo.GroupHandle, items []string) error {
+  for _, item := range items {
+    jobs.Task(item).Define(func(ctx context.Context) error { return nil })
+  }
+  return jobs.Wait()
+}
+`
+
+func TestAPI050_ContainerWaitDirectly_StaysSilent(t *testing.T) {
+	res := review.GoSource("run_parallel.go", containerWaitDirectSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-050" {
+			t.Fatalf("false positive API-050 when the caller already uses container.Wait(): %+v", f)
+		}
+	}
+}
+
+const unrelatedForLoopWaitSrc = `package p
+import "os/exec"
+func runAll(cmds []*exec.Cmd) error {
+  for _, c := range cmds {
+    if err := c.Wait(); err != nil {
+      return err
+    }
+  }
+  return nil
+}
+`
+
+func TestAPI050_UnrelatedExecCmdWaitLoop_StaysSilent(t *testing.T) {
+	res := review.GoSource("run_cmds.go", unrelatedForLoopWaitSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-050" {
+			t.Fatalf("false positive API-050 on an unrelated os/exec Cmd.Wait() loop: %+v", f)
+		}
+	}
+}
+
+func TestAPI050_PreOneOneOnePin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("run_parallel.go", callerWaitLoopSnapshotCountSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-050" {
+			t.Fatalf("API-050 fired for a pin older than 1.1.0 (container Wait did not exist yet): %+v", f)
+		}
+	}
+}
+
+func TestAPI050_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+	res := review.GoSource("run_parallel.go", callerWaitLoopSnapshotCountSrc)
+	findingByID(t, res, "API-050")
+
+	after := review.GoSource("run_parallel.go", containerWaitDirectSrc)
+	for _, f := range after.Findings {
+		if f.RuleID == "API-050" {
+			t.Fatalf("API-050 still fires after remediation to container.Wait(): %+v", f)
+		}
+	}
+}

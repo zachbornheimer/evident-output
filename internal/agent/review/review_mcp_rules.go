@@ -590,6 +590,110 @@ func detectChannelWaitWrapperAroundDefine(filename, src string) []Finding {
 	return findings
 }
 
+// ===== API-050: a caller stores Group/Sequence child Task handles solely to
+// loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count
+// failed children into its own aggregate error — GroupHandle.Wait/
+// SequenceHandle.Wait (ZYS-849) now owns exactly this bookkeeping. zq
+// evidence: internal/app/app.go::runParallel (slice of handles, Wait loop,
+// Snapshot, failed-child count, "N of N failed" error) and
+// internal/app/run_execute.go::waitDefinedRunOperations (Wait loop
+// special-casing evo.ErrNotStarted, first-remaining-error return).
+
+// callerWaitLoopSignals are the tokens that, alongside a for-loop calling
+// .Wait() on a *TaskHandle, corroborate the container-boilerplate shape
+// this rule targets rather than an unrelated Wait() loop (e.g. os/exec's
+// Cmd.Wait()) — the rule requires the loop's function reference TaskHandle
+// at all, plus at least one of these signals anywhere in the same function.
+var callerWaitLoopSignals = []string{"ErrNotStarted", "Snapshot("}
+
+func detectCallerWaitLoopOverContainerChildren(filename, src string) []Finding {
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		// The signature (parameter/receiver types, e.g. "tasks
+		// []*evo.TaskHandle") sits before fn.body's opening brace, so the
+		// TaskHandle/signal check reads the whole declaration, not only
+		// the body statements.
+		funcStart := strings.LastIndex(src[:fn.offset], "func ")
+		if funcStart < 0 {
+			funcStart = fn.offset
+		}
+		wholeFunc := src[funcStart : fn.offset+len(fn.body)]
+		if !strings.Contains(wholeFunc, "TaskHandle") {
+			continue
+		}
+		if !containsAny(wholeFunc, callerWaitLoopSignals) {
+			continue
+		}
+		loop, waitIdx, ok := firstForLoopCallingWait(fn.body)
+		if !ok {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-050",
+			Severity:   "error",
+			Message:    "a caller-owned loop waits on individually stored Task handles, filters ErrNotStarted, snapshots the container, and hand-counts failed children instead of using the container's own Wait",
+			File:       filename,
+			Line:       lineAt(src, fn.offset+loop.offset+waitIdx),
+			Suggestion: "replace the stored-handle Wait loop and hand-counted aggregate error with the owning container's own GroupHandle.Wait()/SequenceHandle.Wait() (e.g. return jobs.Wait())",
+		})
+	}
+	return findings
+}
+
+// containsAny reports whether s contains any of the given substrings.
+func containsAny(s string, substrs []string) bool {
+	for _, sub := range substrs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstForLoopCallingWait finds the first brace-balanced "for" loop in body
+// whose block calls .Wait() directly, best-effort via textual scan (mirrors
+// allFuncBodies' brace-balanced scan for "func"). It returns the loop's own
+// funcBody, the byte offset of ".Wait()" within that loop body, and whether
+// a match was found.
+func firstForLoopCallingWait(body string) (loop funcBody, waitIdx int, ok bool) {
+	scanFrom := 0
+	for {
+		rel := strings.Index(body[scanFrom:], "for ")
+		if rel < 0 {
+			return funcBody{}, 0, false
+		}
+		idx := scanFrom + rel
+		if !precededByStatementBoundary(body, idx) {
+			scanFrom = idx + len("for ")
+			continue
+		}
+		block, start, balanced := balancedBraceBody(body, idx)
+		if !balanced {
+			scanFrom = idx + len("for ")
+			continue
+		}
+		if waitIdx := strings.Index(block, ".Wait()"); waitIdx >= 0 {
+			return funcBody{body: block, offset: start}, waitIdx, true
+		}
+		scanFrom = start + len(block)
+	}
+}
+
+// precededByStatementBoundary reports whether the byte immediately before
+// idx starts a new statement (newline, tab, space, or an opening brace) —
+// filtering an identifier substring like "before " from matching "for ".
+func precededByStatementBoundary(body string, idx int) bool {
+	if idx == 0 {
+		return true
+	}
+	switch body[idx-1] {
+	case '\n', '\t', ' ', '{':
+		return true
+	default:
+		return false
+	}
+}
+
 // ===== API-047: a Task/Group/Sequence declaration reuses a sibling literal
 // name already used, under the same parent handle, by a different entity
 // kind. §3.1's default stable key folds kind into the key
