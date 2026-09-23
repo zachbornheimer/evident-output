@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -58,4 +60,66 @@ func ExampleFileSet() {
 	_ = out.Finish()
 	// Output:
 	// derived: true
+}
+
+// ExampleFiles commits a Patch-derived FileSet through File. A file edited
+// after Patch derived it is stale: Files refuses to overwrite it. Diff
+// paths are relative to the workspace, the working directory at Run start.
+func ExampleFiles() {
+	dir, err := os.MkdirTemp("", "evo-example-files")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	restore, err := chdir(dir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer restore()
+	if err := os.WriteFile("notes.txt", []byte("draft\n"), 0o644); err != nil {
+		fmt.Println(err)
+		return
+	}
+	const diff = "--- a/notes.txt\n+++ b/notes.txt\n@@ -1 +1 @@\n-draft\n+final\n"
+
+	out := evo.Init(evo.Config{Isolated: true, StateDir: dir, Stdout: io.Discard, Stderr: io.Discard})
+	task := out.Task("finalize notes")
+	task.Define(func(ctx context.Context) error {
+		set, err := evo.Patch(ctx, []byte(diff))
+		if err != nil {
+			return err
+		}
+		_ = os.WriteFile("notes.txt", []byte("edited meanwhile\n"), 0o644)
+		fmt.Println("stale:", errors.Is(evo.Files(ctx, set), evo.ErrStaleBasis))
+
+		_ = os.WriteFile("notes.txt", []byte("draft\n"), 0o644)
+		set, err = evo.Patch(ctx, []byte(diff))
+		if err != nil {
+			return err
+		}
+		return evo.Files(ctx, set)
+	})
+	fmt.Println("applied:", task.Wait())
+	_ = out.Finish()
+	contents, _ := os.ReadFile(filepath.Join(dir, "notes.txt"))
+	fmt.Print("notes: ", string(contents))
+	// Output:
+	// stale: true
+	// applied: <nil>
+	// notes: final
+}
+
+// chdir makes dir the working directory and returns a func restoring the
+// previous one.
+func chdir(dir string) (restore func(), err error) {
+	prev, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chdir(dir); err != nil {
+		return nil, err
+	}
+	return func() { _ = os.Chdir(prev) }, nil
 }

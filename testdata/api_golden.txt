@@ -103,6 +103,7 @@ func FSPath(path string)  Fingerprint
 func FSResource(path string)  Resource
 func Fact(name, value string)
 func File(ctx context.Context, spec FileSpec)  error
+func Files(ctx context.Context, files FileSet)  error
 func ForSkip()  ReasonOption
 func Glyphs(p GlyphProfile)  Option
 func Group(name string)  *GroupHandle
@@ -303,6 +304,7 @@ value ErrProgressRegression
 value ErrReasonSkipOnly
 value ErrReasonWrongTask
 value ErrRenderer
+value ErrStaleBasis
 value ErrTaskClosed
 value ErrTerminalWithoutSink
 value ErrUnresolvedTask

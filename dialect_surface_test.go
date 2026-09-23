@@ -34,6 +34,7 @@ var dialectSurface = map[string][]string{
 		"FSResource(path string)",
 		"LogicalResource(name string)",
 		"File(ctx context.Context, spec FileSpec)",
+		"Files(ctx context.Context, files FileSet)",
 		"Exec(ctx context.Context, spec ExecSpec)",
 		"Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)",
 		"Patch(ctx context.Context, diff []byte)",
