@@ -1390,6 +1390,26 @@ prep.Task("stabilize Go source").Define(stabilizeGo)`,
 			Certainty:       "heuristic",
 		},
 		{
+			Since:     "1.1.0",
+			Certainty: "heuristic",
+		},
+		{
+			ID:        "API-047",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a Task/Group/Sequence's default §3.1 identity folds its kind into the stable key (kind:parentKey/name); a sibling name reused across different kinds under one parent is two distinct runtime identities sharing one visible display name",
+			Why:       "`out.Task(\"build\")` and `out.Group(\"build\")` never collide at runtime — failDuplicateSiblingLocked's dedup check only compares within one kind's own name index — so both declare successfully and render as two rows a reader cannot tell apart by name alone, even though provenance/manifest lookups by display name now resolve ambiguously between them.",
+			BadCode: `out.Task("build")
+out.Group("build")`,
+			GoodCode: `out.Task("build")
+out.Group("build assets")`,
+			Remediation:     "Give each Task/Group/Sequence declared under one parent a name distinct from every sibling, regardless of kind — not only from siblings of its own kind",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-047"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",

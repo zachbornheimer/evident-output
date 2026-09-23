@@ -560,6 +560,14 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// for it — mirroring detectDeprecatedSpellings' dialectAtLeast gating.
 	hasEvoAtOneZero := hasEvo && dialectAtLeast(desiredVersion, dialectOneZero)
 
+	// API-047: Task/Group/Sequence declaration reuses a sibling literal name
+	// already used by a different entity kind under the same parent.
+	// Sequence only exists from 1.0.0 on, so a pin older than that cannot
+	// have a cross-kind collision involving it.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectCrossKindDuplicateSiblingName(filename, f, fset)...)
+	}
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)
