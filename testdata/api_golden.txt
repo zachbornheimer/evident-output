@@ -103,6 +103,7 @@ func EncodeJSONL(events []Event)  []byte,  error
 func Exec(ctx context.Context, spec ExecSpec)  error
 func ExternalProjection()  Option
 func FSPath(path string)  Fingerprint
+func FSResource(path string)  Resource
 func Fact(name, value string)
 func File(ctx context.Context, spec FileSpec)  error
 func ForSkip()  ReasonOption
@@ -114,6 +115,7 @@ func IsCharDevice(w io.Writer)  bool
 func KeepLastLines(n int)  EvidenceOption
 func Label(text string)  Action
 func Location(path string, line, column int)  ProblemOption
+func LogicalResource(name string)  Resource
 func Main(run RunFunc)  int
 func MaxEntities(n int)  Option
 func MaxEvents(n int)  Option
@@ -229,6 +231,7 @@ type Projection
 type ReasonOption
 type Redactor
 type Resolution
+type Resource
 type Result
 type RunFunc
 type SequenceHandle
@@ -273,8 +276,10 @@ value ErrFileSpecMissingPath
 value ErrFileUnmanagedContentsMissing
 value ErrInvalidConfig
 value ErrInvalidProgress
+value ErrInvalidResource
 value ErrKeyAfterDefine
 value ErrLimitExceeded
+value ErrNestedResourceAcquisition
 value ErrNoTaskContext
 value ErrNotStarted
 value ErrProgressRegression
