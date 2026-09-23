@@ -26,7 +26,7 @@ func f(task *evo.TaskHandle) {
 	}
 }
 
-// FP-006: Doing(...).Done(...) with no Define/verb between is theater.
+// FP-006: Doing(...).Done(...) with no Define between is theater.
 
 const doingDoneChainSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
@@ -100,7 +100,7 @@ func TestFP006_DefineBetween_StaysSilent(t *testing.T) {
 	}
 }
 
-// API-040: Failf/Fail inside a Define/mutation callback whose result is
+// API-040: Failf/Fail inside a Define callback whose result is
 // returned double-resolves the task (zq app.go:155-176 -> executeCommand).
 
 const failfInDefineSrc = `package p
@@ -221,17 +221,17 @@ func TestAPI041_GoroutineWithDefine_StaysSilent(t *testing.T) {
 	}
 }
 
-// API-042: mutation verb with a nil or no-op callback.
+// API-042: an evo.Effect with a nil or no-op callback.
 
-const nilMutationCallbackSrc = `package p
+const nilEffectCallbackSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
-func run(task *evo.TaskHandle) {
-  task.Create("module", nil, evo.Affected(2))
+func run(ctx context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: 2}, nil)
 }
 `
 
-func TestAPI042_NilCallback_Fires(t *testing.T) {
-	res := review.GoSource("setup.go", nilMutationCallbackSrc)
+func TestAPI042_NilEffectCallback_Fires(t *testing.T) {
+	res := review.GoSource("setup.go", nilEffectCallbackSrc)
 	f := findingByID(t, res, "API-042")
 	if f.Severity != "error" {
 		t.Fatalf("API-042 severity = %q, want error", f.Severity)
@@ -241,15 +241,27 @@ func TestAPI042_NilCallback_Fires(t *testing.T) {
 	}
 }
 
-const noOpNamedCallbackSrc = `package p
+const noOpLiteralEffectCallbackSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(ctx context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}, func(context.Context) error { return nil })
+}
+`
+
+func TestAPI042_NoOpLiteralEffectCallback_Fires(t *testing.T) {
+	res := review.GoSource("clean.go", noOpLiteralEffectCallbackSrc)
+	findingByID(t, res, "API-042")
+}
+
+const noOpNamedEffectCallbackSrc = `package p
 import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output"
 )
-func run(task *evo.TaskHandle, name string, n int) {
-  task.Create("module", func() error {
+func run(ctx context.Context, name string, n int) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}, func(context.Context) error {
     return installedCount(name, n)
-  }, evo.Affected(n))
+  })
 }
 func installedCount(name string, count int) error {
   if name == "" || count < 1 {
@@ -259,41 +271,41 @@ func installedCount(name string, count int) error {
 }
 `
 
-func TestAPI042_NoOpDelegatedCallback_Fires(t *testing.T) {
-	res := review.GoSource("setup.go", noOpNamedCallbackSrc)
+func TestAPI042_NoOpDelegatedEffectCallback_Fires(t *testing.T) {
+	res := review.GoSource("setup.go", noOpNamedEffectCallbackSrc)
 	findingByID(t, res, "API-042")
 }
 
-const realMutationCallbackSrc = `package p
+const realEffectCallbackSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
-func run(task *evo.TaskHandle) {
-  task.Create("module", func() error {
-    return installPackages()
-  }, evo.Affected(2))
+func run(ctx context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: 2}, func(ctx context.Context) error {
+    return installPackages(ctx)
+  })
 }
-func installPackages() error { return invokeUV() }
+func installPackages(ctx context.Context) error { return invokeUV(ctx) }
 `
 
-func TestAPI042_RealWorkCallback_StaysSilent(t *testing.T) {
-	res := review.GoSource("good.go", realMutationCallbackSrc)
+func TestAPI042_RealWorkEffectCallback_StaysSilent(t *testing.T) {
+	res := review.GoSource("good.go", realEffectCallbackSrc)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-042" {
-			t.Fatalf("false positive API-042 on a callback that calls real work: %+v", f)
+			t.Fatalf("false positive API-042 on an Effect callback that calls real work: %+v", f)
 		}
 	}
 }
 
-// API-043: a plural object literal on a mutation verb.
+// API-043: a plural EffectSpec.Object literal.
 
-const pluralMutationObjectSrc = `package p
+const pluralEffectObjectSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
-func run(task *evo.TaskHandle) {
-  task.Delete("worktrees", func() error { return nil }, evo.Affected(1))
+func run(ctx context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktrees", Quantity: 1}, removeWorktree)
 }
 `
 
-func TestAPI043_PluralObjectLiteral_Fires(t *testing.T) {
-	res := review.GoSource("clean.go", pluralMutationObjectSrc)
+func TestAPI043_PluralEffectObjectLiteral_Fires(t *testing.T) {
+	res := review.GoSource("clean.go", pluralEffectObjectSrc)
 	f := findingByID(t, res, "API-043")
 	if f.Severity != "warning" {
 		t.Fatalf("API-043 severity = %q, want warning", f.Severity)
@@ -301,20 +313,38 @@ func TestAPI043_PluralObjectLiteral_Fires(t *testing.T) {
 	if !strings.Contains(f.Suggestion, `"worktree"`) {
 		t.Fatalf("API-043 suggestion does not name the singular: %q", f.Suggestion)
 	}
+	if strings.Contains(f.Message, "Affected") || strings.Contains(f.Suggestion, "Affected") {
+		t.Fatalf("API-043 must not teach the removed evo.Affected: %+v", f)
+	}
 }
 
-const singularMutationObjectSrc = `package p
+const singularEffectObjectSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
-func run(task *evo.TaskHandle) {
-  task.Delete("worktree", func() error { return nil }, evo.Affected(1))
+func run(ctx context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}, removeWorktree)
 }
 `
 
-func TestAPI043_SingularObjectLiteral_StaysSilent(t *testing.T) {
-	res := review.GoSource("good.go", singularMutationObjectSrc)
+func TestAPI043_SingularEffectObjectLiteral_StaysSilent(t *testing.T) {
+	res := review.GoSource("good.go", singularEffectObjectSrc)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-043" {
 			t.Fatalf("false positive API-043 on singular object: %+v", f)
+		}
+	}
+}
+
+const pluralNonEvoObjectFieldSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+type Row struct{ Object string }
+func run(_ *evo.TaskHandle) Row { return Row{Object: "worktrees"} }
+`
+
+func TestAPI043_PluralNonEffectSpecObjectField_StaysSilent(t *testing.T) {
+	res := review.GoSource("good.go", pluralNonEvoObjectFieldSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-043" {
+			t.Fatalf("false positive API-043 on a non-EffectSpec Object field: %+v", f)
 		}
 	}
 }

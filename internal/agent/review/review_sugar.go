@@ -76,14 +76,14 @@ func instantDoneInFunc(filename string, body *ast.BlockStmt, fset *token.FileSet
 }
 
 func instantDoneFinding(filename string, pos token.Position, recv string) Finding {
-	suggestion := "call Define(func() error { ... }) or the matching mutation verb (Create/Delete/Update/...) instead of resolving with Done alone"
+	suggestion := "call Define(func(ctx context.Context) error { ... }) instead of resolving with Done alone"
 	if recv != "" {
-		suggestion = "call " + recv + ".Define(func() error { ... }) or " + recv + "'s matching mutation verb instead of resolving with " + recv + ".Done(...) alone"
+		suggestion = "call " + recv + ".Define(func(ctx context.Context) error { ... }) instead of resolving with " + recv + ".Done(...) alone"
 	}
 	return Finding{
 		RuleID:     "FP-005",
 		Severity:   "warning",
-		Message:    "Task is Done with no Define/mutation verb submitting work; the row first appears already complete",
+		Message:    "Task is Done with no Define submitting work; the row first appears already complete",
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,

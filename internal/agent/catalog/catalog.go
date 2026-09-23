@@ -38,8 +38,9 @@ func All() []Guide {
      (wired to SIGINT/SIGTERM) and returns only error; Main returns the derived exit code and
      does not itself call os.Exit (evo.Run/Output.Run return the full Result instead, for a
      caller that needs the Conclusion and application error, not just the code).
-  2) task.Delete("worktree", fn, evo.Affected(n)) (also Add/Create/Update/Remove/Write/Push) — the
-     callback is the work; Affected is optional quantity. Config.DryRun picks
+  2) task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb:
+     evo.EffectDelete, Object: "worktree", Quantity: n}, fn) }) for an opaque mutation (git ref,
+     worktree, API change); evo.File(ctx, evo.FileSpec{...}) for file state. Config.DryRun picks
      [planned] vs [changed]; no call site ever flips its own tense or chooses Changed/Ready/Planned.
   3) worktrees := evo.Group("worktrees"); for _, path := range paths { worktrees.Task(path).Define(...) }
      for independent collections; evo.Sequence for ordered ones (same one-Task-per-item shape;
@@ -120,7 +121,7 @@ by Doing/Progress activity, so a stale spinner is never indistinguishable from p
 honestly even if nothing ever touches it.
 
 Loops: prefer one named Task per item under evo.Group(name) (or Sequence) over a hand-maintained counter
-(Group.Each/Sequence.Each were removed in 1.0) — Define/mutation verbs submit each item's work. On manual retry, set
+(Group.Each/Sequence.Each were removed in 1.0) — Define submits each item's work. On manual retry, set
 Progress to the true completed count directly — there is no relative/delta counter to misuse (C7: Advance deleted).
 
 Sealed-total invariant: indeterminate → determinate happens once; after a total is sealed it never changes, and
