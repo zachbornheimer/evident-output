@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -464,12 +465,7 @@ func (o *Output) parkedCallbacksLocked() int {
 }
 
 func (o *Output) anyClaimableLocked() bool {
-	for _, cand := range o.tasks {
-		if o.claimableLocked(cand) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(o.tasks, o.claimableLocked)
 }
 
 // anyAwaitedTaskResolvedLocked reports whether some parked waiter's task is
@@ -825,12 +821,7 @@ func collectionFailed(col *tasksState) bool {
 			return true
 		}
 	}
-	for _, child := range col.children {
-		if collectionFailed(child) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(col.children, collectionFailed)
 }
 
 func collectionResolved(col *tasksState) bool {
