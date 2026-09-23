@@ -608,6 +608,15 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectFileWriteInEffectCallback(filename, f, fset)...)
 	}
 
+	// API-058: a patch applied straight to the real workspace through
+	// os/exec (`patch`, `git apply`, `git am`) instead of deriving desired
+	// file states with evo.Patch and committing them through
+	// evo.Files/evo.File (ZYS-934). evo.Patch/evo.Files are 1.1.0-only, so
+	// a pin older than that cannot apply this rule's suggested fix.
+	if hasEvoAtOneOne {
+		findings = append(findings, detectDirectWorkspacePatchApply(filename, f, fset)...)
+	}
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)
