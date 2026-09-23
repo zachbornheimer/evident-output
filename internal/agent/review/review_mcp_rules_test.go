@@ -1353,3 +1353,140 @@ func TestAPI052_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 		}
 	}
 }
+
+// API-053: a .After(...) edge kept only to avoid a race on shared/same-file
+// state — both Tasks already claim that same resource (evo.File's own
+// Path, or an explicit evo.FSResource/evo.LogicalResource claim), so Evo's
+// automatic resource coordination (ZYS-840) already serializes them without
+// the edge (ZYS-936).
+
+const afterResourceContentionSameFileSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(configTask, cacheTask *evo.TaskHandle) {
+  configTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  cacheTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  // same file — avoid concurrent write race
+  cacheTask.After(configTask)
+}
+`
+
+func TestAPI053_AfterOnlyForSameFileContention_Fires(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceContentionSameFileSrc)
+	f := findingByID(t, res, "API-053")
+	if f.Severity != "warning" {
+		t.Fatalf("API-053 severity = %q, want warning", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "delete") || !strings.Contains(f.Suggestion, "cacheTask.After(configTask)") {
+		t.Fatalf("API-053 suggestion does not name the edge to delete: %q", f.Suggestion)
+	}
+	if !strings.Contains(f.Message, "config.json") {
+		t.Fatalf("API-053 message does not name the shared resource: %q", f.Message)
+	}
+}
+
+const afterResourceContentionFSResourceSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(lockTask, sweepTask *evo.TaskHandle) {
+  lockTask.Define(func(ctx context.Context) error {
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "repo", Resource: evo.FSResource("/repo")}, func(context.Context) error {
+      return nil
+    })
+  })
+  sweepTask.Define(func(ctx context.Context) error {
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo", Resource: evo.FSResource("/repo")}, func(context.Context) error {
+      return nil
+    })
+  })
+  // shared resource, exclusive access only
+  sweepTask.After(lockTask)
+}
+`
+
+func TestAPI053_AfterOnlyForFSResourceContention_Fires(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceContentionFSResourceSrc)
+	findingByID(t, res, "API-053")
+}
+
+const afterRealDependencySrc = `package p
+import (
+  "context"
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(prepareTask, buildTask *evo.TaskHandle) {
+  prepareTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  buildTask.Define(func(ctx context.Context) error {
+    _, err := os.ReadFile("config.json")
+    return err
+  })
+  // buildTask needs the config prepareTask writes
+  buildTask.After(prepareTask)
+}
+`
+
+func TestAPI053_RealSemanticDependency_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", afterRealDependencySrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053 on a real producer/consumer dependency: %+v", f)
+		}
+	}
+}
+
+const afterNoCommentSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(configTask, cacheTask *evo.TaskHandle) {
+  configTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  cacheTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  cacheTask.After(configTask)
+}
+`
+
+func TestAPI053_NoContentionComment_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", afterNoCommentSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053 with no comment naming exclusion as the reason: %+v", f)
+		}
+	}
+}
+
+func TestAPI053_PreOneOneOnePin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("run.go", afterResourceContentionSameFileSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("API-053 fired for a pin older than 1.1.0 (automatic resource claims did not exist yet): %+v", f)
+		}
+	}
+}
+
+func TestAPI053_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceContentionSameFileSrc)
+	findingByID(t, res, "API-053")
+
+	after := review.GoSource("run.go", afterNoCommentSrc)
+	for _, f := range after.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("API-053 still fires after the .After(...) edge and its comment are removed: %+v", f)
+		}
+	}
+}
