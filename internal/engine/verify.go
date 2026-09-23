@@ -128,6 +128,20 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 		}
 	}
 
+	if len(verifiers) == 0 {
+		o.mu.Lock()
+		skip := o.opaqueTaskDefinitionCurrentLocked(t.id)
+		if skip {
+			o.emitWireEventLocked(wire.EventTaskDefinitionSkippedCurrent, t.id, nil)
+		}
+		o.mu.Unlock()
+		if skip {
+			o.setResolution(t.id, ResolutionAlreadySatisfied)
+			t.doneScheduled()
+			return nil
+		}
+	}
+
 	o.mu.Lock()
 	o.emitWireEventLocked(wire.EventDefinitionStarted, t.id, nil)
 	o.mu.Unlock()

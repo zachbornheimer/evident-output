@@ -47,7 +47,8 @@ func All() []Guide {
      inside an Effect callback is never correct (API-057): Effect is the opaque-mutation escape
      hatch, not a second file-write API — route file state through evo.File, even when the new
      content derives from an existing file's contents (read the file first, then pass the
-     derived result as FileSpec.Contents; evo.Patch/evo.Files do not exist in this API).
+     derived result as FileSpec.Contents, or derive a FileSet with evo.Patch and commit it with
+     evo.Files, which guards each file's Basis against a stale write).
   3) worktrees := evo.Group("worktrees"); for _, path := range paths { worktrees.Task(path).Define(...) }
      for independent collections; evo.Sequence for ordered ones (same one-Task-per-item shape;
      Group.Each/Sequence.Each were removed in 1.0); .Writer() as cmd.Stdout so a talkative
