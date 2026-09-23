@@ -7,6 +7,7 @@ func (GroupHandle) Sequence(name string)  *SequenceHandle
 func (GroupHandle) Snapshot()  TasksSnapshot
 func (GroupHandle) Summary(text string)  *GroupHandle
 func (GroupHandle) Task(name string)  *TaskHandle
+func (GroupHandle) Wait()  error
 func (Output) Cancel(reason string)
 func (Output) Close()  error
 func (Output) Conclusion()  Conclusion
@@ -40,6 +41,7 @@ func (SequenceHandle) Sequence(name string)  *SequenceHandle
 func (SequenceHandle) Snapshot()  TasksSnapshot
 func (SequenceHandle) Summary(text string)  *SequenceHandle
 func (SequenceHandle) Task(name string)  *TaskHandle
+func (SequenceHandle) Wait()  error
 func (TaskHandle) Add(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) After(preds ...any)  *TaskHandle
 func (TaskHandle) Block(summary string, options ...ProblemOption)
@@ -48,7 +50,7 @@ func (TaskHandle) Bytes(completed, total int64)  *TaskHandle
 func (TaskHandle) Cancel(reason string)
 func (TaskHandle) Context()  context.Context
 func (TaskHandle) Create(object string, fn func() error, opts ...MutationOption)
-func (TaskHandle) Define(fn func(context.Context) error)
+func (TaskHandle) Define(fn func(context.Context) error)  *TaskHandle
 func (TaskHandle) Delete(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
 func (TaskHandle) Done(args ...any)
