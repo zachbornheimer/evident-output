@@ -180,7 +180,7 @@ Never invent a Basis entry the source code does not actually read (EVO-PROVENANC
 			Title:    "Stdout and stderr contracts",
 			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child", "exit-code", "signal"},
 			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData", "Main", "Writer"},
-			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001"},
+			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001", "SIG-001", "SIG-002"},
 			Body: `Human UI and logs must not contaminate structured stdout.
 Ordinary dual-stream: evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr}) — Config auto-applies Plain/NoColor off-TTY.
 FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr; a failed
@@ -190,7 +190,11 @@ Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(run))), or 
 to os.Exit — that is exactly how a Blocked run (1) gets silently read as success, or a real
 failure reads as blocked. SIGINT/SIGTERM already route through Main into Cancel on the active task, so the
 ledger's ■ and the process exit code (130) can never disagree; a caller-written signal.Notify handler that
-calls os.Exit itself bypasses that reconciliation.
+calls os.Exit itself bypasses that reconciliation. A host that wraps evo.Main/evo.Run in its own
+signal.NotifyContext/signal.Notify for SIGINT/SIGTERM/os.Interrupt (as of 1.0.0) duplicates that same
+lifecycle and can let the ledger and the process's real exit path diverge; delete the duplicate layer and
+read cancellation from the ctx Main/Run already passes into the run callback. Signal handling for anything
+else (SIGHUP, SIGUSR1, ...) is unrelated application behavior and stays untouched.
 
 Child processes: cmd.Stdout = task.Writer(); cmd.Stderr = task.Writer(); on error
 task.Failf("...: %w", err) (the trailing %w renders as an evidence line under the summary).
