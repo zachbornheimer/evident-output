@@ -39,9 +39,10 @@ func run(ctx context.Context) error {
         evo.Detail("commit or stash before continuing"),
     )
 
-    evo.Task("cleanup").Delete("stale local branch", func() error {
-        return removeStaleBranches()
-    }, evo.Affected(2)) // singular object, ledger renders "2 stale local branches"
+    evo.Task("cleanup").Define(func(ctx context.Context) error {
+        spec := evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}
+        return evo.Effect(ctx, spec, removeStaleBranches) // singular Object; ledger renders "deleted 2 stale local branches"
+    })
 
     installs := evo.Group("install")
     for _, pkg := range packages {
@@ -84,9 +85,9 @@ the state, not a state of their own.
 
 | Band                           | Exit code | Meaning                                                                                                                                                  |
 | ------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[changed]`                    | `0`       | A mutation verb (`Delete`/`Create`/…) recorded outside `DryRun`                                                                                          |
-| `[planned]`                    | `0`       | A mutation verb recorded under `Config.DryRun` (would, not did)                                                                                          |
-| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation verb recorded                                                                                                    |
+| `[changed]`                    | `0`       | An `evo.Effect`/`evo.File`/`Record` mutation recorded outside `DryRun`                                                                                   |
+| `[planned]`                    | `0`       | A mutation recorded under `Config.DryRun` (would, not did)                                                                                               |
+| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation recorded                                                                                                         |
 | `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                                                                                                               |
 | `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                                                                                                         |
 | `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                                                                                                             |
@@ -97,7 +98,7 @@ the state, not a state of their own.
 
 | Shape        | Use when                                                                                                                                                                      |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | One atomic unit — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skipped`) or work submitted with `Define` / a mutation verb                                   |
+| **Task**     | One atomic unit — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skipped`) or work submitted with `Define`                                                     |
 | **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children; one `group.Task(name).Define(...)` per item for homogeneous items |
 | **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest via `.Sequence`/`.Group`                             |
 

@@ -22,9 +22,10 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 9. Top-level Config.Format / Config.Verbosity — only when the host CLI needs machine or
    verbose output; never set per Task.
 
-Task's mutation verbs (Delete/Create/…) pick [planned] vs [changed] from Config.DryRun on the
-ordinary path — no separate Plan/Changes call site exists to reach for. Quantity is
-evo.Affected(n) when one atomic operation touches more than one item.
+Inside Define, evo.Effect (opaque mutations: a git ref, a worktree, an API change) and evo.File
+(file state) pick [planned] vs [changed] from Config.DryRun on the ordinary path — no separate
+Plan/Changes call site exists to reach for. EffectSpec.Quantity counts one atomic operation
+that touches more than one item.
 ```
 
 ## Standalone (package-level default instance)
