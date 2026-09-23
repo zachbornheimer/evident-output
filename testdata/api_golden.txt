@@ -100,7 +100,7 @@ func DryRun()  Option
 func EncodeEventJSON(e Event)  []byte,  error
 func EncodeJSON(s Snapshot)  []byte,  error
 func EncodeJSONL(events []Event)  []byte,  error
-func Exec(ctx context.Context, spec ExecSpec)  error
+func Exec(ctx context.Context, spec ExecSpec)  ExecResult,  error
 func ExternalProjection()  Option
 func FSPath(path string)  Fingerprint
 func Fact(name, value string)
@@ -183,6 +183,7 @@ type Evidence
 type EvidenceOption
 type EvidencePhase
 type EvidenceStream
+type ExecResult
 type ExecSpec
 type FactRecord
 type Failure

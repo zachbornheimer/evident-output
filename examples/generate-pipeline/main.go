@@ -93,17 +93,18 @@ func runPipeline(ctx context.Context, dir string) error {
 
 	normalize := seq.Task("normalize")
 	normalize.Define(func(ctx context.Context) error {
-		return evo.Exec(ctx, evo.ExecSpec{
+		_, err := evo.Exec(ctx, evo.ExecSpec{
 			Executable: filepath.Join(dir, "normalize"),
 			Dir:        dir,
 			Basis:      []evo.Fingerprint{evo.FSPath(filepath.Join(dir, "schema.xlsx"))},
 			Outputs:    []string{"schema.json"},
 		})
+		return err
 	})
 
 	compile := seq.Task("compile")
 	compile.Define(func(ctx context.Context) error {
-		return evo.Exec(ctx, evo.ExecSpec{
+		_, err := evo.Exec(ctx, evo.ExecSpec{
 			Executable: filepath.Join(dir, "compile"),
 			Dir:        dir,
 			Basis: []evo.Fingerprint{
@@ -112,6 +113,7 @@ func runPipeline(ctx context.Context, dir string) error {
 			},
 			Outputs: []string{"output.bin"},
 		})
+		return err
 	})
 
 	return nil

@@ -87,7 +87,7 @@ func runExecTask(t *testing.T, out *Output, name string, spec ExecSpec) error {
 	var execErr error
 	task := out.Task(name)
 	task.Define(func(ctx context.Context) error {
-		execErr = Exec(ctx, spec)
+		_, execErr = Exec(ctx, spec)
 		return execErr
 	})
 	_ = task.Wait()
@@ -251,7 +251,7 @@ func TestExecCancellationKillsProcess(t *testing.T) {
 	done := make(chan error, 1)
 	task := out.Task("cancel-me")
 	task.Define(func(taskCtx context.Context) error {
-		err := Exec(taskCtx, spec)
+		_, err := Exec(taskCtx, spec)
 		done <- err
 		return err
 	})
@@ -312,7 +312,7 @@ func TestExecCapturedLineBecomesActivity(t *testing.T) {
 	task := out.Task("narrated")
 	var lastPhase string
 	task.Define(func(ctx context.Context) error {
-		err := Exec(ctx, ExecSpec{Executable: tool})
+		_, err := Exec(ctx, ExecSpec{Executable: tool})
 		lastPhase = task.Snapshot().Phase
 		return err
 	})
@@ -334,14 +334,22 @@ func TestExecCapturedSecretIsRedactedBeforeRetention(t *testing.T) {
 
 	task := out.Task("secret")
 	var tail string
+	var result ExecResult
 	task.Define(func(ctx context.Context) error {
-		err := Exec(ctx, ExecSpec{Executable: tool})
+		res, err := Exec(ctx, ExecSpec{Executable: tool})
+		result = res
 		tail = task.EvidenceForTest().Text()
 		return err
 	})
 	_ = task.Wait()
 	if want := "super-secret-value"; strings.Contains(tail, want) {
 		t.Fatalf("evidence tail leaked the secret: %q", tail)
+	}
+	if strings.Contains(result.Stdout, "super-secret-value") {
+		t.Fatalf("ExecResult.Stdout leaked the secret: %q", result.Stdout)
+	}
+	if !strings.Contains(result.Stdout, "[redacted]") {
+		t.Fatalf("ExecResult.Stdout = %q, want a redaction marker", result.Stdout)
 	}
 	if !strings.Contains(tail, "[redacted]") {
 		t.Fatalf("evidence tail = %q, want a redaction marker", tail)
@@ -396,7 +404,7 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 	task.Define(func(taskCtx context.Context) error {
 		go func() {
 			defer close(producerDone)
-			_ = Exec(taskCtx, ExecSpec{Executable: normalizeTool, Dir: dir, Outputs: []string{"schema.json"}})
+			_, _ = Exec(taskCtx, ExecSpec{Executable: normalizeTool, Dir: dir, Outputs: []string{"schema.json"}})
 		}()
 
 		// Wait for the producer's claim (spec: opened at claim time, before
@@ -418,7 +426,7 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 			close(gate)
 		}()
 
-		err := Exec(taskCtx, ExecSpec{
+		_, err := Exec(taskCtx, ExecSpec{
 			Executable: compileTool, Dir: dir,
 			Basis:   []fingerprint.Fingerprint{fingerprint.FSPath(schemaPath)},
 			Outputs: []string{"compiled.txt"},
@@ -459,14 +467,15 @@ func TestExecProducerConflictFailsSecondClaim(t *testing.T) {
 
 	first := out.Task("first")
 	first.Define(func(ctx context.Context) error {
-		return Exec(ctx, ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
+		_, err := Exec(ctx, ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
+		return err
 	})
 	_ = first.Wait()
 
 	var secondErr error
 	second := out.Task("second")
 	second.Define(func(ctx context.Context) error {
-		secondErr = Exec(ctx, ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
+		_, secondErr = Exec(ctx, ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
 		return secondErr
 	})
 	_ = second.Wait()

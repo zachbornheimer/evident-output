@@ -3,10 +3,12 @@ package evo_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
@@ -52,15 +54,16 @@ func ExampleExec() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true, StateDir: dir,
-		Options: []evo.Option{evo.Runner(runner)},
+		ProcessRunner: runner,
 	})
 	task := out.Task("generate")
 	task.Define(func(ctx context.Context) error {
-		return evo.Exec(ctx, evo.ExecSpec{
+		_, err := evo.Exec(ctx, evo.ExecSpec{
 			Executable: "/usr/bin/tool",
 			Args:       []string{"--out", outPath},
 			Outputs:    []string{outPath},
 		})
+		return err
 	})
 	_ = task.Wait()
 	_ = out.Finish()
@@ -70,6 +73,59 @@ func ExampleExec() {
 	// [changed] generate  ran /usr/bin/tool
 	//
 	// [changed]
+}
+
+// ExampleExecResult shows a caller parsing a completed Exec attempt's
+// captured stdout into a structured Problem, instead of rebuilding
+// subprocess capture around Evo — Exec still owns spawning, capture,
+// liveness, and cancellation; the caller only inspects the returned
+// ExecResult (spec §8.4/ZYS-850). A nonzero exit wraps ErrExecNonzeroExit
+// but still returns the captured ExecResult, so a linter's own findings can
+// become a structured Failf instead of a flattened text blob.
+func ExampleExecResult() {
+	runner := testkit.NewProcessRunner()
+	runner.Script("/usr/bin/lint", testkit.ScriptedProcess{
+		ExitCode: 1,
+		Stdout:   []string{"file.go:10: unused variable", "file.go:22: missing return"},
+	})
+
+	// go/doc Example functions take no *testing.T (they are not run via
+	// t.Run), so t.TempDir is unavailable here — os.MkdirTemp + a deferred
+	// RemoveAll is this file's own established substitute (see ExampleExec
+	// above): without an explicit StateDir, Exec's manifest lock would
+	// resolve to this workspace's one shared cache-dir path and collide
+	// with any other Exec call running against it.
+	dir, err := os.MkdirTemp("", "evo-example-exec-result")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true, StateDir: dir,
+		ProcessRunner: runner,
+	})
+	task := out.Task("lint")
+	task.Define(func(ctx context.Context) error {
+		result, err := evo.Exec(ctx, evo.ExecSpec{Executable: "/usr/bin/lint"})
+		if !errors.Is(err, evo.ErrExecNonzeroExit) {
+			return err
+		}
+		findings := strings.Split(strings.TrimSpace(result.Stdout), "\n")
+		return task.Failf("%d lint finding(s) (exit %d)", len(findings), result.ExitCode)
+	})
+	_ = task.Wait()
+	_ = out.Finish()
+	fmt.Print(buf.String())
+	// Output:
+	// ◐ lint  file.go:10: unused variable
+	// ◐ lint  file.go:22: missing return
+	// ✗ lint  2 lint finding(s) (exit 1)
+	//    └─ Last 2 lines:
+	//       file.go:10: unused variable
+	//       file.go:22: missing return
 }
 
 // ExampleProcessCommand is the resolved shape evo.Exec passes to a
