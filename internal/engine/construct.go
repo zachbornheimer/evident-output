@@ -223,15 +223,15 @@ type Config struct {
 	FailedExitCode int
 
 	// DryRun declares this run a dry run once, for the whole process: every
-	// TaskHandle mutation verb (Delete, Create, Update, Remove, Write, Push,
-	// Record, RecordName) renders as a [planned] row with the imperative verb
+	// evo.Effect, evo.File, and TaskHandle.Record/RecordName call renders as
+	// a [planned] row with the imperative verb
 	// instead of a [changed] row with the past-tense verb. No call site writes
 	// its own tense.
 	DryRun bool
 
 	// Preview declares this run a preview before a confirm gate: the same
-	// planned tense as DryRun — mutation callbacks never run and every
-	// TaskHandle mutation verb renders as a [planned] row with the
+	// planned tense as DryRun — Effect callbacks never run and every
+	// Effect/File/Record call renders as a [planned] row with the
 	// imperative verb — announced with the caller's own Config.Subject
 	// ("repo <path>") instead of the "[dry-run] <subject>" header, and with
 	// the same redundant-band suppression on a pure planned verdict.

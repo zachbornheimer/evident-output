@@ -109,8 +109,6 @@ func OldestFirst() DebugPaneOption         { return engine.OldestFirst() }
 func PaneHeight(lines int) DebugPaneOption { return engine.PaneHeight(lines) }
 func PreserveDebugTail() DebugPaneOption   { return engine.PreserveDebugTail() }
 
-func Affected(n int) MutationOption { return engine.Affected(n) }
-
 // ID sets a stable machine key. Superseded: Task is name-only.
 func ID(id string) EntityOption { return engine.ID(id) }
 

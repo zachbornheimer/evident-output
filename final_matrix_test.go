@@ -101,7 +101,7 @@ func TestOUT020_NoSubjectOmitsGuess(t *testing.T) {
 func TestOUT022_PlanVsChanges(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, DryRun: true})
 	p := out.Task("p")
-	p.Delete("x", func() error { return nil }, evo.Affected(1))
+	p.Define(effectOf(evo.EffectDelete, "x", 1))
 	p.Done()
 	_ = out.Finish()
 	if out.Conclusion().Changed {

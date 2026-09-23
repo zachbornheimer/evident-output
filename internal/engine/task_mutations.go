@@ -6,89 +6,11 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
-// Mutation verbs define dry-run-aware work and submit it. object is a
-// singular noun phrase ("branch", not "branches") — the ledger pluralizes
-// from Affected. A dry run never invokes fn and records planned tense; a
-// normal run invokes fn and commits only on success. The callback resolves
-// the Task; callers do not follow with Done.
-
-// Add defines an addition of object.
-func (t *TaskHandle) Add(object string, fn func() error, opts ...MutationOption) {
-	t.mutate("add", object, fn, opts...)
-}
-
-// Delete defines a deletion of object.
-func (t *TaskHandle) Delete(object string, fn func() error, opts ...MutationOption) {
-	t.mutate("delete", object, fn, opts...)
-}
-
-// Create defines the creation of object.
-func (t *TaskHandle) Create(object string, fn func() error, opts ...MutationOption) {
-	t.mutate("create", object, fn, opts...)
-}
-
-// Update defines an update of object.
-func (t *TaskHandle) Update(object string, fn func() error, opts ...MutationOption) {
-	t.mutate("update", object, fn, opts...)
-}
-
-// Remove defines a removal of object.
-func (t *TaskHandle) Remove(object string, fn func() error, opts ...MutationOption) {
-	t.mutate("remove", object, fn, opts...)
-}
-
-// Write defines the writing of object.
-func (t *TaskHandle) Write(object string, fn func() error, opts ...MutationOption) {
-	t.mutate("write", object, fn, opts...)
-}
-
-// Push defines a push of object.
-func (t *TaskHandle) Push(object string, fn func() error, opts ...MutationOption) {
-	t.mutate("push", object, fn, opts...)
-}
-
-func (t *TaskHandle) mutate(verb, object string, fn func() error, opts ...MutationOption) {
-	if t == nil || t.out == nil {
-		return
-	}
-	cfg := applyMutationOptions(opts)
-	// A verb with no callback declares an effect nothing performs — the row
-	// and the ledger would describe work that never happened (P4). Record is
-	// the spelling for an effect that already happened elsewhere.
-	if fn == nil {
-		t.out.recordMisuse(ErrInvalidConfig)
-		return
-	}
-	// object is a singular noun phrase; the ledger pluralizes it from the
-	// quantity. A plural literal reads "deleted 1 worktrees" (P17).
-	if txt.IsPlural(object) {
-		t.out.recordMisuse(ErrInvalidConfig)
-	}
-	if cfg.hasQty && cfg.quantity < 0 {
-		t.out.recordMisuse(ErrInvalidConfig)
-		return
-	}
-	if cfg.hasQty && cfg.quantity == 0 {
-		return
-	}
-	qty := defaultMutationQuantity
-	if cfg.hasQty {
-		qty = cfg.quantity
-	}
-	t.submitWork(fn, &mutationSpec{
-		verb:     verb,
-		object:   object,
-		quantity: int64(qty),
-		hasQty:   true,
-	})
-}
-
 // Record records an arbitrary imperative verb/quantity/object mutation
-// directly, resolving the target task's dry-run status the same way the
-// named verbs do (it does not bypass Plan/Changes routing — only the
-// call/error boundary the named verbs wrap around an executed callback).
-// The low-level primitive the named verbs (and the conformance goldens)
-// share. Nil-safe: a nil TaskHandle, or one whose Output is already gone,
+// directly, resolving the target task's dry-run status the same way
+// evo.Effect does (it does not bypass Plan/Changes routing — only the
+// call/error boundary Effect wraps around an executed callback). The
+// low-level primitive Effect (and the conformance goldens) share. Nil-safe: a nil TaskHandle, or one whose Output is already gone,
 // records nothing instead of panicking.
 func (t *TaskHandle) Record(verb string, quantity int, object string) {
 	if t == nil || t.out == nil {
@@ -97,7 +19,7 @@ func (t *TaskHandle) Record(verb string, quantity int, object string) {
 	t.out.recordMutation(t.id, verb, int64(quantity), true, object)
 }
 
-// RecordLabel records quantity of object (singular; see Delete) under
+// RecordLabel records quantity of object (singular; see EffectSpec.Object) under
 // label, verbatim, into the task's Changes ledger. Unlike Record's mutation
 // verbs, label is a classification result (e.g. "ready", "blocked") rather
 // than an imperative action, so it is never conjugated to past tense, and
@@ -124,7 +46,7 @@ func (t *TaskHandle) RecordName(verb, object string) {
 // resolveLedgerTarget resolves the task named by taskID and reports the
 // ledger subject it mutates into (see ledgerSubjectFor) plus whether this
 // run is a dry run — the shared guard (open, not yet resolved) behind
-// TaskHandle.mutate, recordMutation, and recordClassification. err is
+// Effect, recordMutation, and recordClassification. err is
 // non-nil (already recorded as misuse where the cause is not simply "the
 // task no longer exists") when the caller should record nothing further.
 func (o *Output) resolveLedgerTarget(taskID string) (subject string, dryRun bool, err error) {
@@ -149,7 +71,7 @@ func (o *Output) resolveLedgerTarget(taskID string) (subject string, dryRun bool
 // the Plan (DryRun) or Changes (applied) section sharing the task's name —
 // the single-resolve entry point Record/RecordName use (their call carries
 // no callback, so there is no window for the double-resolve race
-// recordResolvedMutation's callers avoid; see TaskHandle.mutate).
+// recordResolvedMutation's callers avoid; see Effect).
 func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool, object string) {
 	subject, dryRun, err := o.resolveLedgerTarget(taskID)
 	if err != nil {
@@ -161,13 +83,13 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 // recordResolvedMutation records verb/quantity/object into subject's Plan
 // (dryRun) or Changes (applied) ledger, conjugating verb to past tense for
 // the applied ledger only. Takes an already-resolved subject/dryRun pair
-// rather than re-resolving taskID itself (E2.5 finding 5): TaskHandle.mutate
-// resolves once, before running its call, and passes that result straight
+// rather than re-resolving taskID itself (E2.5 finding 5): Effect resolves
+// once, before running its callback, and passes that result straight
 // through here — re-resolving after the call would re-open the terminal-task
 // check to a state a concurrent Done may have legitimately changed in the
 // meantime, dropping a real effect as spurious misuse. A zero-quantity
-// Affected() call never reaches here at all (TaskHandle.mutate returns
-// early, E2.5 finding 4) — Record's own zero-quantity call still does, and
+// Effect never reaches here at all (EffectSpec validation rejects it, E2.5
+// finding 4) — Record's own zero-quantity call still does, and
 // keeps declaring its intended verb so an empty Record section still renders
 // evo-rec.md Problem 18's "nothing to <verb> <subject>" empty-section
 // grammar.

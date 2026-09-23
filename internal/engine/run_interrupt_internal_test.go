@@ -134,10 +134,12 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 	go func() {
 		code <- out.Run(context.Background(), func(ctx context.Context) error {
 			scan.Define(func(ctx context.Context) error { return nil })
-			venv.Create(".venv directory", func() error {
-				close(blocking)
-				<-venv.Context().Done()
-				return nil
+			venv.Define(func(ctx context.Context) error {
+				return Effect(ctx, EffectSpec{Verb: EffectCreate, Object: ".venv directory", Quantity: 1}, func(context.Context) error {
+					close(blocking)
+					<-venv.Context().Done()
+					return nil
+				})
 			})
 			install.Define(func(ctx context.Context) error { return nil })
 			return install.Wait()

@@ -14,6 +14,7 @@ func (Output) Conclusion()  Conclusion
 func (Output) Confirm(question string, opts ...ConfirmOption)  bool
 func (Output) Context()  context.Context
 func (Output) Err()  error
+func (Output) Events()  []Event
 func (Output) Fact(name, value string)
 func (Output) Fail(summary string, options ...ProblemOption)
 func (Output) Failf(format string, args ...any)
@@ -42,16 +43,13 @@ func (SequenceHandle) Snapshot()  TasksSnapshot
 func (SequenceHandle) Summary(text string)  *SequenceHandle
 func (SequenceHandle) Task(name string)  *TaskHandle
 func (SequenceHandle) Wait()  error
-func (TaskHandle) Add(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) After(preds ...any)  *TaskHandle
 func (TaskHandle) Block(summary string, options ...ProblemOption)
 func (TaskHandle) Blockf(format string, args ...any)  *Failure
 func (TaskHandle) Bytes(completed, total int64)  *TaskHandle
 func (TaskHandle) Cancel(reason string)
 func (TaskHandle) Context()  context.Context
-func (TaskHandle) Create(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Define(fn func(context.Context) error)  *TaskHandle
-func (TaskHandle) Delete(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
 func (TaskHandle) Done(args ...any)
 func (TaskHandle) Fact(name, value string)
@@ -63,22 +61,17 @@ func (TaskHandle) Next(actions ...Action)  *TaskHandle
 func (TaskHandle) NextCommand(executable string, args ...string)  *TaskHandle
 func (TaskHandle) Problem(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Progress(completed, total int)  *TaskHandle
-func (TaskHandle) Push(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Record(verb string, quantity int, object string)
 func (TaskHandle) RecordLabel(label string, quantity int, object string)
 func (TaskHandle) RecordName(verb, object string)
-func (TaskHandle) Remove(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Skipped(reason TaxonomyReason)
 func (TaskHandle) Snapshot()  TaskSnapshot
 func (TaskHandle) Step(completed, total int, name string)  *TaskHandle
-func (TaskHandle) Update(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
 func (TaskHandle) Warn(summary string, options ...ProblemOption)  *TaskHandle
-func (TaskHandle) Write(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
-func Affected(n int)  MutationOption
 func AlsoWrite(w io.Writer)  Option
 func App()  Fingerprint
 func AssumeYes(v bool)  ConfirmOption
@@ -220,7 +213,6 @@ type LiveSurface
 type LogLevel
 type LogRecord
 type MessageSnapshot
-type MutationOption
 type NoopRedactor
 type Option
 type Output

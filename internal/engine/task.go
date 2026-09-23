@@ -523,7 +523,7 @@ func (t *TaskHandle) doneScheduled() {
 }
 
 // Context reports the cancellation signal this task's work runs under — the
-// run's own (see Output.Context), so a Define or mutation-verb callback
+// run's own (see Output.Context), so a Define or Effect callback
 // doing I/O selects on it and stops when the run is interrupted.
 func (t *TaskHandle) Context() context.Context {
 	if t == nil {
@@ -553,7 +553,7 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 // ratified (the work did succeed; the caller's own summary is what renders,
 // which is how a callback declares "✓ branches  8 deleted") or rejected as
 // ErrAlreadyResolved misuse, with the observed failure taking the row (P2:
-// `task.Delete(obj, fn); task.Done()` can no longer launder an error into a
+// `task.Define(fn); task.Done()` can no longer launder an error into a
 // green row). Nothing ratifies its own completion.
 //
 // Bad news needs no ratification: Fail/Block/Cancel state an outcome the
@@ -595,21 +595,21 @@ func declaresSuccess(state EntityState) bool {
 	return state == Done || state == Skipped
 }
 
-// deniesItsOwnEffect reports whether this resolution is a mutation callback
-// disowning the work it was given: `task.Create("module", fn)` whose fn
-// calls Skipped or Fail and then returns nil rendered both `! skipped 1
+// deniesItsOwnEffect reports whether this resolution is an evo.Effect
+// callback disowning the work it was given: an Effect creating "module"
+// whose fn calls Skipped or Fail and then returns nil rendered both `! skipped 1
 // (install failed)` and `[changed] broken  created 1 module` — the ledger
 // counting the package the installer had just rejected. A nil return after
 // the row said "skipped" means "I handled it", not "I did it".
 //
 // Only the callback's own verdict counts. A later Fail from the program
-// (`task.Delete(obj, fn)` then `task.Fail(...)`) and an interrupt that
-// cancels a running mutation row both describe work that really happened,
+// (an Effect in Define, then `task.Fail(...)`) and an interrupt that
+// cancels a running Effect both describe work that really happened,
 // and both still owe the reader `! already mutated: …`. The separator is
 // the resolving goroutine's own stack: callbackDepth is non-zero only
 // inside a task callback, which is precisely "the row resolved itself".
 func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAuthority) bool {
-	if st.mutation == nil || !st.runningWork || authority != byCaller || state == Done {
+	if st.effectsInFlight == 0 || !st.runningWork || authority != byCaller || state == Done {
 		return false
 	}
 	return callbackDepth() > 0

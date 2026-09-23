@@ -76,7 +76,7 @@ func File(ctx context.Context, spec FileSpec) error {
 }
 
 // DryRun reports whether this Output is configured for dry-run/preview
-// tense — the same flag TaskHandle mutation verbs already render by.
+// tense — the same flag evo.Effect and TaskHandle.Record render by.
 func (o *Output) DryRun() bool {
 	if o == nil {
 		return false

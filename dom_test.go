@@ -21,7 +21,7 @@ func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
 func TestDOM039_ChangesPlusFailure(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "deps"})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("deps").Add("package", func() error { return nil }, evo.Affected(1))
+	out.Task("deps").Define(effectOf(evo.EffectAdd, "package", 1))
 	out.Task("install").Fail("disk full")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestAPI001_MinimalItemExample(t *testing.T) {
 func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "acct", DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("delete").Delete("thing", func() error { return nil }, evo.Affected(1))
+	out.Task("delete").Define(effectOf(evo.EffectDelete, "thing", 1))
 	_ = out.Finish()
 	testkit.RequireConclusion(t, out, evo.StatePlanned)
 	testkit.RequireClean(t, out)

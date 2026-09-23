@@ -14,16 +14,9 @@ import (
 	"strings"
 )
 
-// mutationVerbNames are TaskHandle's object-first mutation verbs — the
-// callback-submitting family Define sits alongside (evo-rec.md "Additions").
-var mutationVerbNames = map[string]bool{
-	"Create": true, "Delete": true, "Update": true,
-	"Add": true, "Remove": true, "Push": true, "Write": true,
-}
-
-// evoResolutionCallbacks collects every FuncLit passed directly as the work
-// callback of Define or a mutation verb — the two shapes whose return value
-// resolves the task through evo's own scheduler (API-040/FP-006's scope).
+// evoResolutionCallbacks collects every FuncLit passed directly as a
+// Define callback — the shape whose return value resolves the task through
+// evo's own scheduler (API-040/FP-006's scope).
 func evoResolutionCallbacks(file *ast.File) []*ast.FuncLit {
 	var out []*ast.FuncLit
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -35,13 +28,8 @@ func evoResolutionCallbacks(file *ast.File) []*ast.FuncLit {
 		if !ok {
 			return true
 		}
-		switch {
-		case sel.Sel.Name == "Define" && len(call.Args) >= 1:
+		if sel.Sel.Name == "Define" && len(call.Args) >= 1 {
 			if fl, ok := call.Args[0].(*ast.FuncLit); ok {
-				out = append(out, fl)
-			}
-		case mutationVerbNames[sel.Sel.Name] && len(call.Args) >= 2:
-			if fl, ok := call.Args[1].(*ast.FuncLit); ok {
 				out = append(out, fl)
 			}
 		}
@@ -183,7 +171,7 @@ func scanIfElseForFailfReturn(filename string, els ast.Stmt, fset *token.FileSet
 func failResolvedInCallbackFinding(filename string, pos token.Position, recv, verb, shape string) Finding {
 	suggestion := "return the error; do not call " + verb + " first"
 	if recv != "" {
-		suggestion = "replace with `return err` (or the wrapped error) and delete the " + recv + "." + verb + "(...) call; Define/the mutation verb resolves the task from the returned error"
+		suggestion = "replace with `return err` (or the wrapped error) and delete the " + recv + "." + verb + "(...) call; Define resolves the task from the returned error"
 	}
 	return Finding{
 		RuleID:     "API-040",
@@ -197,7 +185,7 @@ func failResolvedInCallbackFinding(filename string, pos token.Position, recv, ve
 }
 
 // ===== FP-006: Doing(...) immediately followed by Done(...) on the same
-// handle with no Define/mutation verb submitting work between them — the
+// handle with no Define submitting work between them — the
 // theater FP-005's old suggestion prescribed (zq fix.go:58,265).
 
 func detectDoingDoneTheater(filename string, file *ast.File, fset *token.FileSet) []Finding {
@@ -253,16 +241,16 @@ func scanDoingDoneAdjacent(filename string, block *ast.BlockStmt, fset *token.Fi
 			if recv == "" {
 				continue
 			}
-			switch {
-			case sel.Sel.Name == "Doing":
+			switch sel.Sel.Name {
+			case "Doing":
 				pending[recv] = true
-			case sel.Sel.Name == "Done":
+			case "Done":
 				if pending[recv] {
 					pos := fset.Position(call.Pos())
 					findings = append(findings, doingDoneTheaterFinding(filename, pos, recv))
 				}
 				delete(pending, recv)
-			case sel.Sel.Name == "Define" || mutationVerbNames[sel.Sel.Name]:
+			case "Define":
 				delete(pending, recv)
 			}
 		case *ast.IfStmt:
@@ -277,14 +265,14 @@ func scanDoingDoneAdjacent(filename string, block *ast.BlockStmt, fset *token.Fi
 }
 
 func doingDoneTheaterFinding(filename string, pos token.Position, recv string) Finding {
-	suggestion := "replace Doing(...).Done(...) with Define(func() error { ... }) or the matching mutation verb"
+	suggestion := "replace Doing(...).Done(...) with Define(func(ctx context.Context) error { ... })"
 	if recv != "" {
-		suggestion = "replace " + recv + ".Doing(...) ... " + recv + ".Done(...) with " + recv + ".Define(func() error { ... }) or " + recv + "'s matching mutation verb"
+		suggestion = "replace " + recv + ".Doing(...) ... " + recv + ".Done(...) with " + recv + ".Define(func(ctx context.Context) error { ... })"
 	}
 	return Finding{
 		RuleID:     "FP-006",
 		Severity:   "error",
-		Message:    "Doing(...) is immediately followed by Done(...) with no Define/mutation verb submitting work between them; the row narrates work that already happened off-screen",
+		Message:    "Doing(...) is immediately followed by Done(...) with no Define submitting work between them; the row narrates work that already happened off-screen",
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
@@ -336,12 +324,17 @@ func containsAnyMarker(s string, markers []string) bool {
 	return false
 }
 
-// ===== API-042: a mutation verb's callback is nil, or a no-op — the work
+// ===== API-042: an evo.Effect callback is nil, or a no-op — the work
 // already happened elsewhere and the callback is theater over it (zq
-// README.md:39's Create(..., nil, ...), setup_python.go:172-181's
-// Create("module", func() error { return installedPythonModuleCount(...) })).
+// README.md:39's nil callback, setup_python.go:172-181's callback that only
+// returns installedPythonModuleCount(...)).
 
-func detectNoOpMutationCallback(filename string, file *ast.File, fset *token.FileSet) []Finding {
+// effectCallbackArg is evo.Effect's callback argument index:
+// Effect(ctx, spec, fn).
+const effectCallbackArg = 2
+
+func detectNoOpEffectCallback(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
 	funcs := map[string]*ast.FuncDecl{}
 	ast.Inspect(file, func(n ast.Node) bool {
 		if fd, ok := n.(*ast.FuncDecl); ok && fd.Body != nil {
@@ -353,41 +346,47 @@ func detectNoOpMutationCallback(filename string, file *ast.File, fset *token.Fil
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok {
+		if !ok || !isEvoEffectCall(call, pkg) {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || !mutationVerbNames[sel.Sel.Name] || len(call.Args) < 2 {
-			return true
-		}
-		recv := exprDottedName(sel.X)
 		pos := fset.Position(call.Pos())
-		switch arg := call.Args[1].(type) {
-		case *ast.Ident:
-			if arg.Name == "nil" {
-				findings = append(findings, noOpMutationFinding(filename, pos, recv, sel.Sel.Name, "nil"))
-				return true
-			}
-			if fd, ok := funcs[arg.Name]; ok && funcBodyLooksLikeNoOpWork(fd.Body) {
-				findings = append(findings, noOpMutationFinding(filename, pos, recv, sel.Sel.Name, "named"))
-			}
-		case *ast.FuncLit:
-			if funcBodyIsBareReturnNil(arg.Body) {
-				findings = append(findings, noOpMutationFinding(filename, pos, recv, sel.Sel.Name, "literal"))
-			} else if name, ok := singleReturnCallName(arg.Body); ok {
-				// e.g. Create("module", func() error { return
-				// installedPythonModuleCount(name, n) }) — the callback's
-				// only statement delegates to a same-file func that itself
-				// does no real work (just validates what the caller
-				// already computed).
-				if fd, ok := funcs[name]; ok && funcBodyLooksLikeNoOpWork(fd.Body) {
-					findings = append(findings, noOpMutationFinding(filename, pos, recv, sel.Sel.Name, "named"))
-				}
-			}
+		if shape, ok := noOpCallbackShape(call.Args[effectCallbackArg], funcs); ok {
+			findings = append(findings, noOpEffectFinding(filename, pos, shape))
 		}
 		return true
 	})
 	return findings
+}
+
+// isEvoEffectCall reports whether call is pkg.Effect(ctx, spec, fn).
+func isEvoEffectCall(call *ast.CallExpr, pkg string) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	return ok && pkg != "" && isEvoIdent(sel.X, pkg) && sel.Sel.Name == "Effect" && len(call.Args) > effectCallbackArg
+}
+
+// noOpCallbackShape classifies fn as a callback that does no real work:
+// "nil", a bare `return nil` "literal", or a "named" func (directly or as a
+// literal's single delegated return) whose body only validates.
+func noOpCallbackShape(fn ast.Expr, funcs map[string]*ast.FuncDecl) (string, bool) {
+	switch arg := fn.(type) {
+	case *ast.Ident:
+		if arg.Name == "nil" {
+			return "nil", true
+		}
+		if fd, ok := funcs[arg.Name]; ok && funcBodyLooksLikeNoOpWork(fd.Body) {
+			return "named", true
+		}
+	case *ast.FuncLit:
+		if funcBodyIsBareReturnNil(arg.Body) {
+			return "literal", true
+		}
+		if name, ok := singleReturnCallName(arg.Body); ok {
+			if fd, ok := funcs[name]; ok && funcBodyLooksLikeNoOpWork(fd.Body) {
+				return "named", true
+			}
+		}
+	}
+	return "", false
 }
 
 // noOpCalleeAllowList are calls cheap enough to still count as "no real
@@ -456,14 +455,10 @@ func funcBodyIsBareReturnNil(body *ast.BlockStmt) bool {
 	return ok && id.Name == "nil"
 }
 
-func noOpMutationFinding(filename string, pos token.Position, recv, verb, shape string) Finding {
-	message := "mutation verb has a nil callback; the work must run inside the callback"
+func noOpEffectFinding(filename string, pos token.Position, shape string) Finding {
+	message := "evo.Effect has a nil callback; the mutation must run inside the callback"
 	if shape != "nil" {
-		message = "mutation verb's callback does no real work (only validates/constructs an error); the work already ran elsewhere"
-	}
-	suggestion := "move the work into the callback, or call " + recv + ".Record(\"" + strings.ToLower(verb) + "\", n, object) when the work already happened"
-	if recv == "" {
-		suggestion = "move the work into the callback, or call task.Record(verb, n, object) when the work already happened"
+		message = "evo.Effect's callback does no real work (only validates/constructs an error); the mutation already ran elsewhere"
 	}
 	return Finding{
 		RuleID:     "API-042",
@@ -472,16 +467,16 @@ func noOpMutationFinding(filename string, pos token.Position, recv, verb, shape 
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
-		Suggestion: suggestion,
+		Suggestion: "move the mutation into the Effect callback, or call task.Record(verb, n, object) when the work already happened",
 	}
 }
 
-// ===== API-043: a plural object literal on a mutation verb — evo pluralizes
-// the singular via Affected(n); passing the plural already produces
-// "deleted 1 worktrees" (zq axis-14 P17) because an already-plural literal
-// round-trips unchanged.
+// ===== API-043: a plural EffectSpec.Object literal — evo pluralizes the
+// singular from Quantity; passing the plural already produces "deleted 1
+// worktrees" (zq axis-14 P17) because an already-plural literal round-trips
+// unchanged.
 
-// mutationObjectNouns is the small, deliberately narrow whitelist of object
+// mutationObjectNouns is the small, deliberately narrow whitelist of Effect object
 // nouns this detector recognizes — it only fires when trimming a candidate
 // plural suffix yields one of these, so it never guesses at English
 // pluralization rules for words it doesn't know (see isSibilantPlural).
@@ -498,19 +493,16 @@ var mutationObjectNouns = map[string]bool{
 	"target": true,
 }
 
-func detectPluralMutationObject(filename string, file *ast.File, fset *token.FileSet) []Finding {
+func detectPluralEffectObject(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
+		cl, ok := n.(*ast.CompositeLit)
+		if !ok || !isEvoEffectSpecLit(cl, pkg) {
+			return true
+		}
+		lit, ok := effectSpecObjectLit(cl)
 		if !ok {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || !mutationVerbNames[sel.Sel.Name] || len(call.Args) < 1 {
-			return true
-		}
-		lit, ok := call.Args[0].(*ast.BasicLit)
-		if !ok || lit.Kind != token.STRING {
 			return true
 		}
 		text, err := strconv.Unquote(lit.Value)
@@ -521,20 +513,38 @@ func detectPluralMutationObject(filename string, file *ast.File, fset *token.Fil
 		if !ok {
 			return true
 		}
-		recv := exprDottedName(sel.X)
-		pos := fset.Position(call.Pos())
+		pos := fset.Position(lit.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "API-043",
 			Severity:   "warning",
-			Message:    "mutation object literal " + strconv.Quote(text) + " is plural; evo pluralizes the singular via Affected(n)",
+			Message:    "EffectSpec.Object literal " + strconv.Quote(text) + " is plural; evo pluralizes the singular from Quantity",
 			File:       filename,
 			Line:       pos.Line,
 			Column:     pos.Column,
-			Suggestion: "replace " + strconv.Quote(text) + " with " + strconv.Quote(singular) + " (" + recv + "." + sel.Sel.Name + ")",
+			Suggestion: "replace Object: " + strconv.Quote(text) + " with Object: " + strconv.Quote(singular),
 		})
 		return true
 	})
 	return findings
+}
+
+// isEvoEffectSpecLit reports whether cl is a pkg.EffectSpec{...} literal.
+func isEvoEffectSpecLit(cl *ast.CompositeLit, pkg string) bool {
+	sel, ok := cl.Type.(*ast.SelectorExpr)
+	return ok && pkg != "" && isEvoIdent(sel.X, pkg) && sel.Sel.Name == "EffectSpec"
+}
+
+// effectSpecObjectLit returns the string literal keyed Object in cl.
+func effectSpecObjectLit(cl *ast.CompositeLit) (*ast.BasicLit, bool) {
+	for _, elt := range cl.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok || identName(kv.Key) != "Object" {
+			continue
+		}
+		lit, ok := kv.Value.(*ast.BasicLit)
+		return lit, ok && lit.Kind == token.STRING
+	}
+	return nil, false
 }
 
 // pluralObjectSingular returns the singular form when word is a recognized

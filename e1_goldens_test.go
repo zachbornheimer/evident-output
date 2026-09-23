@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"strings"
@@ -26,7 +27,7 @@ func TestE1P1_MutationVerb_SuccessCommitsChangedEffect(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(2))
+	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 2))
 	branches.Done()
 
 	if err := out.Finish(); err != nil {
@@ -48,7 +49,7 @@ func TestE1P1_MutationVerb_NilCallRecordsWithoutExecuting(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(2))
+	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 2))
 	branches.Done()
 
 	if err := out.Finish(); err != nil {
@@ -92,10 +93,12 @@ func TestE1P1_MutationVerb_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
 
 	branches := out.Task("branches")
 	called := false
-	branches.Delete("stale local branch", func() error {
-		called = true
-		return nil
-	}, evo.Affected(2))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {
+			called = true
+			return nil
+		})
+	})
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

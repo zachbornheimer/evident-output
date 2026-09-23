@@ -14,12 +14,6 @@ var supersededOptionFuncs = map[string]bool{
 	"Title": true,
 }
 
-// oldMutationVerbs used a positional quantity then object; object+callback is current.
-var oldMutationVerbs = map[string]bool{
-	"Delete": true, "Remove": true, "Add": true, "Create": true,
-	"Update": true, "Push": true, "Write": true,
-}
-
 type srcSpan struct{ start, end int }
 
 func (s srcSpan) contains(offset int) bool {
@@ -27,7 +21,7 @@ func (s srcSpan) contains(offset int) bool {
 }
 
 // recSurfaceDetector is API-032's rec-surface pass: Options/To/Plain,
-// positional quantity-first mutation verbs, retired collection constructor,
+// the TaskHandle mutation verbs removed in 1.1 (both shapes), retired collection constructor,
 // Skip, Task extras, ID/StartPhase, MainWith (removed in 1.0).
 type recSurfaceDetector struct {
 	filename string
@@ -113,18 +107,9 @@ func (d *recSurfaceDetector) inspectCall(call *ast.CallExpr) {
 	name := sel.Sel.Name
 	recv := exprDottedName(sel.X)
 	switch {
-	case oldMutationVerbs[name] && isOldMutationShape(call):
-		old := d.nodeSrc(call)
-		qty := d.nodeSrc(call.Args[0])
-		obj := d.nodeSrc(call.Args[1])
-		next := recv + "." + name + "(" + obj + ", fn"
-		if qty != "1" {
-			next += ", " + d.pkg + ".Affected(" + qty + ")"
-		}
-		next += ")"
-		d.report(call, name+" (n, object) is superseded; name the object and pass the work as a callback",
-			"replace "+old+" with "+next)
-		d.cover(call)
+	case isLegacyMutationCall(name, call):
+		m, _ := parseLegacyMutation(name, call)
+		d.reportLegacyMutation(recv, call, m)
 	case name == retiredIndependentCollection:
 		old := d.nodeSrc(call)
 		d.report(call, "independent collection constructor was renamed to Group",
@@ -416,8 +401,8 @@ func isOldMutationShape(call *ast.CallExpr) bool {
 	if len(call.Args) < 2 {
 		return false
 	}
-	// New shape: Delete(object, fn) / Affected. Func-lit, nil callback, or
-	// Affected metadata means the rec surface.
+	// Object-first shape: Delete(object, fn) / Affected. Func-lit, nil
+	// callback, or Affected metadata means the 1.0 shape, not 0.x.
 	if mutationHasAffected(call.Args) || isFuncLit(call.Args[1]) || isNilExpr(call.Args[1]) {
 		return false
 	}

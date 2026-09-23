@@ -112,7 +112,7 @@ func TestFinish_UnresolvedTask_HintReplacesRawMisuseLine(t *testing.T) {
 	if strings.Contains(rendered, "evo: task has no final state") {
 		t.Fatalf("raw sentinel jargon leaked into the user stream:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "call Done, Fail, Block, Skipped, or a mutation verb on this task") {
+	if !strings.Contains(rendered, "call Done, Fail, Block, Skipped, or Define on this task") {
 		t.Fatalf("want the corrective hint rendered instead, got:\n%s", rendered)
 	}
 }
@@ -126,7 +126,7 @@ func TestChanges_RepeatedIdenticalRecordsMergeQuantities(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, Width: 80})
 
 	task := out.Task("cleanup")
-	for i := 0; i < 12; i++ {
+	for range 12 {
 		task.Record("delete", 1, "merged branch")
 	}
 	task.Done()

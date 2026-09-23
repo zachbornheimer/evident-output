@@ -61,10 +61,10 @@ func TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion(t *testin
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
-	branches.Delete("local tip", func() error { return nil }, evo.Affected(2))
+	branches.Define(effectOf(evo.EffectDelete, "local tip", 2))
 
 	worktrees := out.Task("worktrees")
-	worktrees.Remove("worktree", func() error { return nil }, evo.Affected(1))
+	worktrees.Define(effectOf(evo.EffectRemove, "worktree", 1))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -87,7 +87,7 @@ func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Warn("kept 13")
-	branches.Delete("local tip", func() error { return nil }, evo.Affected(2))
+	branches.Define(effectOf(evo.EffectDelete, "local tip", 2))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -123,8 +123,8 @@ func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "tool", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("files").Add("file", func() error { return nil }, evo.Affected(1))
-	out.Task("manifest").Update("entry", func() error { return nil }, evo.Affected(1))
+	out.Task("files").Define(effectOf(evo.EffectAdd, "file", 1))
+	out.Task("manifest").Define(effectOf(evo.EffectUpdate, "entry", 1))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "tool", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("other-subject").Add("x", func() error { return nil }, evo.Affected(1))
+	out.Task("other-subject").Define(effectOf(evo.EffectAdd, "x", 1))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "tool", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("tool").Add("x", func() error { return nil }, evo.Affected(1))
+	out.Task("tool").Define(effectOf(evo.EffectAdd, "x", 1))
 	out.NextCommand("git", "status")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -168,7 +168,7 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "tool"})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("tool").Add("x", func() error { return nil }, evo.Affected(1))
+	out.Task("tool").Define(effectOf(evo.EffectAdd, "x", 1))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

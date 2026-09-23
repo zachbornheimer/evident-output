@@ -26,7 +26,7 @@ Call the tools. A passing `go test` is not a review.
 
 Svelte does not let the model “remember Svelte 4.” We do not let the model
 remember `DisplayGroup` / `Task.Each` (both removed in 1.0) / quantity-first
-`Delete`.
+`Delete` / `Task.Delete(object, fn)` and its six siblings (removed in 1.1).
 
 ## Tools (underscores)
 
@@ -76,10 +76,12 @@ Stale if any of these are true:
   section count as a freshness signal; a fresh server's section count
   changes every time a doc is added and is not a stable number to check
   against.
-- review fires **API-032 on `Create(object, fn)` / `Delete(object, fn)`**
+- review suggests `Delete(object, fn)` / `evo.Affected(n)` as a _fix_, or
+  stays silent on them — those verbs were removed in 1.1 and a current
+  server rewrites them to `Define` + `evo.Effect`
 
-That last one is inverted rec. Applying those suggestions **reverts** the
-dialect. Do not apply. Reinstall, then start a **fresh** Grok process.
+That last one is a pre-1.1 autofixer. Applying its suggestions **reverts**
+the dialect. Do not apply. Reinstall, then start a **fresh** Grok process.
 
 ```bash
 # never GOBIN=$HOME/.local/bin — that self-symlinks and deletes the binary
@@ -145,7 +147,10 @@ evo.Task("check config").Define(checkConfig)
 worktrees := evo.Group("worktrees")
 for _, path := range paths {
     path := path
-    worktrees.Task(path).Delete("worktree", func() error { return remove(path) })
+    worktrees.Task(path).Define(func(ctx context.Context) error {
+        spec := evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}
+        return evo.Effect(ctx, spec, func(ctx context.Context) error { return remove(ctx, path) })
+    })
 }
 
 evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
@@ -156,10 +161,13 @@ evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
   1.0; it is `Group`).
 - **Group** = independent children (scheduler may overlap). **Sequence** =
   declaration order, one Running child.
-- **Define** / mutation verbs (`Delete(object, fn)`, optional `Affected(n)`)
-  submit work. They do not mean “run this callback synchronously now.”
+- **Define** submits work. It does not mean “run this callback synchronously
+  now.” Inside it, **`evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn)`**
+  performs an opaque mutation (git ref, worktree, API change) and
+  **`evo.File`** owns file state. The seven TaskHandle mutation verbs
+  (`Delete(object, fn)`, `Write`, …) and `evo.Affected` were removed in 1.1.
 - **Done** is only for already-resolved work with no callback.
-- Dry-run skips **mutation** callbacks only. `Define` still runs.
+- Dry-run skips **Effect** callbacks (and File writes) only. `Define` still runs.
 - `Group.Each` was removed in 1.0. Callers do not `errgroup` / `go func` to
   make evo rows parallel either — predeclare one named child `Task` per item
   under a `Group` + `Define` and let evo’s scheduler run them. A domain graph
@@ -198,9 +206,9 @@ anyway; add detectors when they recur:
 
 Caught as of this MCP build (do not re-add to this list): `errgroup`/`go func`
 driving predeclared evo Tasks (API-041), `Failf`/`Fail` inside a
-Define/mutation callback whose result is returned (API-040), a nil or no-op
-mutation callback (API-042), a plural object literal on a mutation verb
-(API-043), a hand-rolled channel wrapper around Define (API-044),
+Define callback whose result is returned (API-040), a nil or no-op
+`evo.Effect` callback (API-042), a plural `EffectSpec.Object` literal
+(API-043), a removed 1.1 mutation verb or `evo.Affected` (API-032), a hand-rolled channel wrapper around Define (API-044),
 `Doing(...).Done(...)` with no real work between them (FP-006), and an
 inline `evo.Reason(...)` literal or one that restates its own verb (TAX-003).
 

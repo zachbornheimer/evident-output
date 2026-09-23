@@ -22,7 +22,7 @@ func Migrations() []MigrationRow {
 			From:  "legacy presentation-only Task usage",
 			To:    "scheduled Task/Group/Sequence",
 			Since: "1.0.0",
-			Notes: "a Task used only to print status, with no Define/mutation verb submitting work, becomes a scheduled child of Group/Sequence",
+			Notes: "a Task used only to print status, with no Define submitting work, becomes a scheduled child of Group/Sequence",
 		},
 		{
 			// EVO-EVIDENCE-001 is spec §57's detector for this shape; it
@@ -31,7 +31,7 @@ func Migrations() []MigrationRow {
 			From:  "mutating Evidence callback (task.Evidence(\"write\", func() error { ... }))",
 			To:    "mutation in Define",
 			Since: "1.0.0",
-			Notes: "Evidence is read-only; a callback that mutates state belongs in Define or a mutation verb, not Evidence",
+			Notes: "Evidence is read-only; a callback that mutates state belongs in Define (evo.Effect / evo.File), not Evidence",
 		},
 		{
 			From:   "manual os.WriteFile + os.Chmod + read-only Evidence",

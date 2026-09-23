@@ -14,13 +14,13 @@ import (
 // told an honest, complete story already — the easiest path (forgetting
 // Done) becomes correct instead of a surprising Cancelled/NotStarted plus a
 // silent exit-code flip to failure. This is exactly the README quickstart's
-// `evo.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(2))` shape with no
+// `evo.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 2))` shape with no
 // following Done.
 func TestFinish_UnresolvedTaskWithRecordedEffect_AutoResolvesDone(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(2))
+	out.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 2))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (recorded effect should auto-resolve Done)", err)
@@ -51,7 +51,7 @@ func TestFinish_RemainingMisuse_RendersTaskLine(t *testing.T) {
 
 	task := out.Task("branches")
 	task.Block("local-only branch")
-	task.Delete("stale local branch", func() error { return nil }, evo.Affected(2)) // already resolved — misuse
+	task.Define(effectOf(evo.EffectDelete, "stale local branch", 2)) // already resolved — misuse
 
 	if err := out.Finish(); err == nil {
 		t.Fatal("Finish() = nil, want the recorded misuse")

@@ -26,7 +26,20 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   returns `*TaskHandle` to chain. Every existing `task.Warn("x")` call site
   still compiles unchanged.
 
+### Removed
+
+- **`TaskHandle.Add/Create/Delete/Push/Remove/Update/Write`, `evo.Affected`,
+  and `evo.MutationOption`** were removed with no aliases (ZYS-950). Opaque
+  mutations use `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)`
+  inside `Define`; file state uses `evo.File`. MCP review (API-032) rewrites
+  both removed call shapes; API-042/API-043 now check `evo.Effect` callbacks
+  and `EffectSpec.Object`.
+
 ### Fixed
+
+- An `evo.Effect` callback that resolves its own task as `Skipped`/`Fail`
+  records no ledger row (and no misuse), and an interrupt that cancels a
+  row mid-Effect keeps the committed record for "! already mutated".
 
 - A remedy (`evo.Next(...)` / `evo.NextCommand(...)`) attached to a
   `Fail`/`Block`/`Problem`'s own `Problem` now reaches the run's Next-steps
