@@ -13,7 +13,8 @@ const retiredIndependentCollection = "Display" + "Group"
 const dialectFold = "0.4.0"
 
 // dialectRec is the first release whose public surface is the rec dialect
-// (Task(name string), Delete(object, fn)/Affected, Config fields not Options).
+// (Task(name string), object-first mutation callbacks, Config fields not
+// Options). Those callbacks were removed in 1.1 in favor of evo.Effect.
 const dialectRec = "0.4.7"
 
 // dialectOneZero is the first release whose public surface supports Verify,

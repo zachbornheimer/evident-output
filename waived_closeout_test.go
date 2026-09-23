@@ -147,8 +147,8 @@ func TestTXT016_LeaderBoundedAndOmittedNarrow(t *testing.T) {
 	mk := func(w io.Writer, cols int) {
 		out := evo.Init(evo.Config{Isolated: true, Stdout: w, Title: "x", Width: cols, Color: evo.ColorNever, Plain: true})
 		ch := out.Task("files")
-		ch.Add("a.go", func() error { return nil }, evo.Affected(1))
-		ch.Remove("b.go", func() error { return nil }, evo.Affected(2))
+		ch.Define(effectOf(evo.EffectAdd, "a.go", 1))
+		ch.Define(effectOf(evo.EffectRemove, "b.go", 2))
 		_ = out.Finish()
 		_ = out.Close()
 	}

@@ -98,7 +98,7 @@ Advanced capabilities may exist without appearing in ordinary examples.
 
 ```text
 Init(Config) → Main → Print/Verbose → Task/Sequence/Group
-→ task.Writer() → mutation verbs (Delete/Create/Update/…) → slog → ResultWriter
+→ task.Writer() → evo.Effect / evo.File → slog → ResultWriter
 ```
 
 ---

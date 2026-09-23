@@ -1,6 +1,7 @@
 package rules_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -125,21 +126,36 @@ func TestGuidanceOnlyRulesAreMarked(t *testing.T) {
 	}
 }
 
-func TestAPI032_MutationCallbackIsGoodCode(t *testing.T) {
+func TestAPI032_EffectIsGoodCode(t *testing.T) {
 	r, ok := rules.Explain("API-032")
 	if !ok {
 		t.Fatal("API-032 missing")
 	}
-	if !strings.Contains(r.BadCode, `Delete(n, "local tip")`) && !strings.Contains(r.BadCode, "Delete(n,") {
-		t.Fatalf("API-032 BadCode must show positional quantity-first Delete, got %q", r.BadCode)
+	if !strings.Contains(r.BadCode, "Delete(n,") {
+		t.Fatalf("API-032 BadCode must show the removed quantity-first Delete, got %q", r.BadCode)
 	}
-	if strings.Contains(r.GoodCode, `Delete(n, "local tip")`) {
-		t.Fatalf("API-032 GoodCode must not teach quantity-first Delete, got %q", r.GoodCode)
+	if !strings.Contains(r.GoodCode, "evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete") {
+		t.Fatalf("API-032 GoodCode must teach Define + evo.Effect, got %q", r.GoodCode)
 	}
-	hasObjectFirst := strings.Contains(r.GoodCode, `Delete("`)
-	hasCallback := strings.Contains(r.GoodCode, "func()") || strings.Contains(r.GoodCode, "Affected")
-	if !hasObjectFirst || !hasCallback {
-		t.Fatalf("API-032 GoodCode must teach Delete(object, fn)/Affected, got %q", r.GoodCode)
+}
+
+// removedMutationVerbCall matches a call to one of the TaskHandle mutation
+// verbs removed in 1.1 (ZYS-950) — `.Delete("worktree", fn)` and siblings.
+var removedMutationVerbCall = regexp.MustCompile(`\.(Add|Create|Delete|Push|Remove|Update|Write)\("`)
+
+// TestRules_NeverTeachRemovedMutationVerbs pins ZYS-950 for the MCP
+// catalog: no rule's GoodCode or Remediation teaches a removed verb or
+// evo.Affected. BadCode may still show them — that is what gets flagged.
+func TestRules_NeverTeachRemovedMutationVerbs(t *testing.T) {
+	for _, r := range rules.All() {
+		for field, text := range map[string]string{"GoodCode": r.GoodCode, "Remediation": r.Remediation} {
+			if strings.Contains(text, "Affected(") {
+				t.Errorf("%s %s teaches the removed evo.Affected: %q", r.ID, field, text)
+			}
+			if field == "GoodCode" && removedMutationVerbCall.MatchString(text) {
+				t.Errorf("%s GoodCode teaches a removed TaskHandle mutation verb: %q", r.ID, text)
+			}
+		}
 	}
 }
 

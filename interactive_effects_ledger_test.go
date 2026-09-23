@@ -25,7 +25,7 @@ func TestInteractive_DryRunDeleteReachesLiveTerminalLedger(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
-	task.Delete("stale local branch", func() error { return nil }, evo.Affected(3))
+	task.Define(effectOf(evo.EffectDelete, "stale local branch", 3))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
@@ -50,7 +50,7 @@ func TestInteractive_ChangesDeleteReachesLiveTerminalLedger(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
-	task.Delete("stale local branch", func() error { return nil }, evo.Affected(3))
+	task.Define(effectOf(evo.EffectDelete, "stale local branch", 3))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)

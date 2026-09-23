@@ -403,7 +403,7 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	}
 
 	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
-	// rec-surface Options/To/Plain/Affected/old Delete/Skip/MainWith (removed in 1.0)) gets a derived fix, not a lecture.
+	// rec-surface Options/To/Plain, the mutation verbs removed in 1.1, Skip/MainWith (removed in 1.0)) gets a derived fix, not a lecture.
 	if hasEvo {
 		findings = append(findings, detectDeprecatedSpellings(filename, src, desiredVersion)...)
 	}
@@ -510,12 +510,12 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	}
 
 	// FP-006: Doing(...) immediately followed by Done(...) with no
-	// Define/mutation verb submitting work between them (theater).
+	// Define submitting work between them (theater).
 	if hasEvo {
 		findings = append(findings, detectDoingDoneTheater(filename, f, fset)...)
 	}
 
-	// API-040: Failf/Fail inside a Define/mutation callback whose result
+	// API-040: Failf/Fail inside a Define callback whose result
 	// reaches that same callback — double-resolves the task.
 	if hasEvo {
 		findings = append(findings, detectFailInResolvedCallback(filename, f, fset)...)
@@ -527,14 +527,14 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectGoroutineResolvesPredeclaredTask(filename, src)...)
 	}
 
-	// API-042: mutation verb with a nil or no-op callback.
+	// API-042: evo.Effect with a nil or no-op callback.
 	if hasEvo {
-		findings = append(findings, detectNoOpMutationCallback(filename, f, fset)...)
+		findings = append(findings, detectNoOpEffectCallback(filename, f, fset)...)
 	}
 
-	// API-043: plural object literal on a mutation verb.
+	// API-043: plural EffectSpec.Object literal.
 	if hasEvo {
-		findings = append(findings, detectPluralMutationObject(filename, f, fset)...)
+		findings = append(findings, detectPluralEffectObject(filename, f, fset)...)
 	}
 
 	// API-044: channel-wait wrapper around Define.
@@ -1953,7 +1953,7 @@ var captureCallPattern = regexp.MustCompile(`(\w+)\.Capture\(`)
 var itemCallPattern = regexp.MustCompile(`(\w+)\.Item\(`)
 
 // planCallPattern / changesCallPattern match the retired v0.2 Plan/Changes
-// surfaces. Suggestion is Task mutation verbs, not a new Plan/Changes API.
+// surfaces. Suggestion is evo.Effect / evo.File / Task.Record, not a new Plan/Changes API.
 var planCallPattern = regexp.MustCompile(`(\w+)\.Plan\(`)
 var changesCallPattern = regexp.MustCompile(`(\w+)\.Changes\(`)
 
@@ -1972,7 +1972,7 @@ var okCallPattern = regexp.MustCompile(`(\w+)\.OK\(\)`)
 // Item(name).OK().Because(text) is now Task(name).Done(text)), evo.Cause
 // (Failf/Blockf's trailing %w since Fail/Block are statement-form), Capture
 // (renamed to Evidence), and the rec-surface spellings (Config.Options,
-// Option funcs, quantity-first mutation verbs, Skip, ID, StartPhase).
+// Option funcs, the mutation verbs removed in 1.1, Skip, ID, StartPhase).
 func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 	var findings []Finding
 	if dialectAtLeast(desiredVersion, dialectFold) {
@@ -2010,10 +2010,10 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
 				Severity:   "warning",
-				Message:    "Plan was removed in v0.4 — use Task mutation verbs",
+				Message:    "Plan was removed in v0.4 — use evo.Effect, evo.File, or Task.Record",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
-				Suggestion: "replace " + recv + ".Plan(...) with Task mutation verbs (Delete/Create/Record/...), not a new Plan API",
+				Suggestion: "replace " + recv + ".Plan(...) with evo.Effect (opaque mutations), evo.File (file state), or Task.Record, not a new Plan API",
 			})
 		}
 
@@ -2025,10 +2025,10 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
 				Severity:   "warning",
-				Message:    "Changes was removed in v0.4 — use Task mutation verbs",
+				Message:    "Changes was removed in v0.4 — use evo.Effect, evo.File, or Task.Record",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
-				Suggestion: "replace " + recv + ".Changes(...) with Task mutation verbs (Delete/Create/Record/...), not a new Changes API",
+				Suggestion: "replace " + recv + ".Changes(...) with evo.Effect (opaque mutations), evo.File (file state), or Task.Record, not a new Changes API",
 			})
 		}
 

@@ -14,8 +14,8 @@ const (
 	RequiredRelPath = "testdata/api_required.txt"
 )
 
-// RetiredNames are identifiers 1.0.0 deliberately removed (MainWith, Each)
-// or never had (speculative names from earlier drafts/other libraries). A
+// RetiredNames are identifiers 1.0.0/1.1 deliberately removed (MainWith,
+// Each, the TaskHandle mutation verbs) or never had (speculative names from earlier drafts/other libraries). A
 // reappearance fails the contract even if testdata/api_golden.txt is
 // rewritten to match, so retiring a name stays retired.
 var RetiredNames = []string{
@@ -25,6 +25,14 @@ var RetiredNames = []string{
 	"Sequence.Fail",
 	"TaskConfig",
 	"MainWith",
+	// Removed in 1.1 (ZYS-950): the seven TaskHandle mutation verbs and
+	// their Affected/MutationOption quantity option. Opaque mutations use
+	// evo.Effect (EffectSpec.Quantity); file state uses evo.File. The
+	// trailing "(" keeps "TaskHandle.Write(" from matching Writer.
+	"TaskHandle.Add(", "TaskHandle.Create(", "TaskHandle.Delete(",
+	"TaskHandle.Push(", "TaskHandle.Remove(", "TaskHandle.Update(",
+	"TaskHandle.Write(",
+	"Affected", "MutationOption",
 }
 
 // Report is the four-bucket result of Check. Empty buckets mean that
