@@ -26,6 +26,7 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 		width = defaultWidth
 	}
 	color := !noColor
+	s = HumanProjection(s)
 
 	if s.DryRun {
 		WritePlannedHeader(&b, color, s.Preview, s.DryRunSubject)
@@ -759,6 +760,10 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 		WriteTaskAligned(b, col.Tasks[0], maxTaskNameWidth(col.Tasks), color, verbose, profile)
 		return
 	}
+	if groupHeaderAddsNothing(col) {
+		writeHeaderlessGroup(b, col, color, verbose, profile)
+		return
+	}
 	glyph := txt.StyleGlyph(TaskGlyph(col.State, profile), StateColor(col.State), color)
 	if col.Summary != "" {
 		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, txt.Dim(col.Summary, color))
@@ -1185,6 +1190,10 @@ func conclusionBandTag(c core.Conclusion) string {
 }
 
 func WriteConclusion(b *strings.Builder, c core.Conclusion, color bool, profile txt.GlyphProfile) {
+	if c.State == core.StateCancelled {
+		writeCancellationBand(b, c, color, profile)
+		return
+	}
 	tag := txt.Style(conclusionBandTag(c), conclusionColor(c.State), color)
 	// A bare Subject that equals the headline state word itself ("changed",
 	// "failed", ...) says nothing the bracketed tag hasn't already said — it
@@ -1199,8 +1208,35 @@ func WriteConclusion(b *strings.Builder, c core.Conclusion, color bool, profile 
 	if c.Explanation != "" {
 		fmt.Fprintf(b, "  %s\n", c.Explanation)
 	}
-	if c.State == core.StateCancelled || c.State == core.StateFailed {
+	if c.State == core.StateFailed {
 		writeAlreadyMutated(b, c.Changes, color, profile)
+	}
+	for _, a := range c.Actions {
+		writeAction(b, a, color, profile)
+	}
+}
+
+// writeCancellationBand renders the cancelled outcome as contract §15 shows
+// it: "[cancelled] <subject>  <cause>", then the partial-changes note only
+// when some Effect committed. The cause is the Conclusion's Explanation (for
+// example "by user"), carried on the band line itself instead of a second
+// sentence beneath it.
+func writeCancellationBand(b *strings.Builder, c core.Conclusion, color bool, profile txt.GlyphProfile) {
+	// "cancelled" already says the run stopped short; a "· partial" modifier
+	// beside it would only repeat that (the not-started rows say which part).
+	tagged := c
+	tagged.Partial = false
+	line := txt.Style(conclusionBandTag(tagged), conclusionColor(c.State), color)
+	if c.Subject != "" && c.Subject != string(c.State) {
+		line += " " + txt.Style(c.Subject, txt.SGRBold, color)
+	}
+	if c.Explanation != "" {
+		line += "  " + c.Explanation
+	}
+	fmt.Fprintf(b, "\n%s\n", line)
+	if _, committed := summarizeAlreadyMutated(c.Changes); committed {
+		glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
+		fmt.Fprintf(b, "  %s %s\n", glyph, cancellationPartialChangesNote)
 	}
 	for _, a := range c.Actions {
 		writeAction(b, a, color, profile)

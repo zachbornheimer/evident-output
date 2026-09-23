@@ -159,7 +159,7 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 	}
 
 	rendered := buf.String()
-	for _, want := range []string{"✓ scan", "■ venv", "- install", "already mutated: 1 .venv directory created"} {
+	for _, want := range []string{"✓ scan", "■ venv", "- install", "partial changes were applied before cancellation"} {
 		if !strings.Contains(strings.Join(strings.Fields(rendered), " "), strings.Join(strings.Fields(want), " ")) {
 			t.Fatalf("want %q in:\n%s", want, rendered)
 		}

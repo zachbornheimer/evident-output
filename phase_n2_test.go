@@ -19,8 +19,8 @@ import (
 
 // TestConclusion_AlreadyMutated_CancelledWithChanges is red-first for item 1:
 // a Cancelled run with committed effects must render one derived
-// "! already mutated: ..." line summarizing the Changes ledger — never a
-// caller-assembled string.
+// "! partial changes were applied before cancellation" note (contract §15),
+// never a caller-assembled string and never a second copy of the ledger.
 func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
@@ -32,8 +32,8 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 		t.Log(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "!  already mutated: 8 local branches deleted") {
-		t.Fatalf("want derived already-mutated line, got:\n%s", got)
+	if !strings.Contains(got, "! partial changes were applied before cancellation") {
+		t.Fatalf("want the partial-changes note, got:\n%s", got)
 	}
 }
 

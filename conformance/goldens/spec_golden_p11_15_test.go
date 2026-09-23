@@ -685,7 +685,7 @@ func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"■ install cancelled during retry",
-		"already mutated: 13 packages installed"} {
+		"partial changes were applied before cancellation"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}

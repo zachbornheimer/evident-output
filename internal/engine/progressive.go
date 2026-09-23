@@ -169,6 +169,9 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.state) {
 		return
 	}
+	if o.heldBackAsNoOpLocked(st.snapshot()) {
+		return
+	}
 	var b strings.Builder
 	nameWidth := maxRootTaskNameWidth(o.tasks)
 	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
@@ -418,14 +421,17 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 
 	if includeEntities {
 		residualNameWidth := maxRootTaskNameWidth(o.tasks)
+		hidden := render.ZeroInformationTaskIDs(snap)
 		for _, t := range o.tasks {
 			if t.collection != nil || t.coreEmitted {
 				continue
 			}
-			render.WriteTaskAligned(&b, t.snapshot(), residualNameWidth, color, verbose, profile)
+			if !hidden[t.id] {
+				render.WriteTaskAligned(&b, t.snapshot(), residualNameWidth, color, verbose, profile)
+			}
 			t.coreEmitted = true
 		}
-		for _, col := range snap.Collections {
+		for _, col := range render.WithoutTasks(snap, hidden).Collections {
 			render.WriteCollection(&b, col, color, verbose, profile)
 		}
 	}

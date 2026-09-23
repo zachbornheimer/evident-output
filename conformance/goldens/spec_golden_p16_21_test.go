@@ -176,7 +176,7 @@ func TestSpecP16_CompactLayout_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if !strings.Contains(got, "already mutated: 3 locals deleted") {
+	if !strings.Contains(got, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", buf.String())
 	}
 }
@@ -425,7 +425,7 @@ func TestSpecP17_Taxonomy_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if !strings.Contains(got, "already mutated: 10 branches deleted") {
+	if !strings.Contains(got, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", buf.String())
 	}
 }
@@ -1056,7 +1056,7 @@ func TestSpecP21_DurableNote_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if !strings.Contains(got, "already mutated: 5 packages in .venv installed") {
+	if !strings.Contains(got, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", buf.String())
 	}
 }

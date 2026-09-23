@@ -164,6 +164,10 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		b.WriteByte('\n')
 		return
 	}
+	if groupHeaderAddsNothing(col) && !hasUnfinishedTask(col) {
+		writeLiveHeaderlessGroup(b, col, height, width, spin, color, now, profile)
+		return
+	}
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == core.Done || t.State == core.Skipped {

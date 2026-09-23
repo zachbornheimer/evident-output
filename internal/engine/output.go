@@ -118,6 +118,10 @@ type Output struct {
 	// schedCancelled stops the scheduler dispatching anything new: after an
 	// interrupt the queue is abandoned, not drained.
 	schedCancelled bool
+	// cancelCause names who stopped the run ("by user" for a signal). It
+	// becomes the cancelled Conclusion's Explanation, so the band and the
+	// JSON document state the same cause.
+	cancelCause string
 
 	schedWG          sync.WaitGroup
 	schedInflight    int
@@ -380,6 +384,9 @@ type tasksState struct {
 type changesState struct {
 	id      string
 	subject string
+	// order is the declaration index of the Task this section is named for
+	// (ledger_order.go); sections print in that order.
+	order   int
 	records []EffectRecord
 	// intendedVerb is the first imperative verb recorded for this section
 	// (evo-rec.md "empty effect section grammar"). Set once, by
@@ -399,6 +406,8 @@ type changesState struct {
 type planState struct {
 	id      string
 	subject string
+	// order mirrors changesState.order.
+	order   int
 	records []EffectRecord
 	// intendedVerb mirrors changesState.intendedVerb for plan sections.
 	intendedVerb string
@@ -901,6 +910,7 @@ func (o *Output) interrupt(reason string) {
 	}
 	o.mu.Lock()
 	o.schedCancelled = true
+	o.cancelCause = cancelCauseUser
 	cancelRun := o.cancelRun
 	o.mu.Unlock()
 
@@ -1149,10 +1159,11 @@ func (o *Output) declareChangeLedgerLocked(subject string) *changeLedger {
 	st := &changesState{
 		id:      o.nextID("changes"),
 		subject: txt.Text(subject),
+		order:   o.ledgerOrderLocked(subject),
 	}
 	h := &changeLedger{out: o, id: st.id}
 	st.handle = h
-	o.changes = append(o.changes, st)
+	o.changes = insertByLedgerOrder(o.changes, st, func(c *changesState) int { return c.order })
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "changes.declared", EntityID: st.id})
 	return h
@@ -1169,10 +1180,11 @@ func (o *Output) declarePlanLedgerLocked(subject string) *planLedger {
 	st := &planState{
 		id:      o.nextID("plan"),
 		subject: txt.Text(subject),
+		order:   o.ledgerOrderLocked(subject),
 	}
 	h := &planLedger{out: o, id: st.id}
 	st.handle = h
-	o.plans = append(o.plans, st)
+	o.plans = insertByLedgerOrder(o.plans, st, func(p *planState) int { return p.order })
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "plan.declared", EntityID: st.id})
 	return h
@@ -1933,6 +1945,7 @@ func (o *Output) Finish() error {
 
 	snap := o.snapshotLocked()
 	conc := core.InferConclusion(snap)
+	o.explainCancellationLocked(&conc)
 	core.FoldLeftoverMisuse(&conc, o.misuse)
 	core.ApplyFailedExitCode(&conc, o.cfg.failedExitCode)
 	conc.RunID = o.outputID
@@ -2147,8 +2160,21 @@ func (o *Output) Conclusion() Conclusion {
 	}
 	snap := o.snapshotLocked()
 	c := core.InferConclusion(snap)
+	o.explainCancellationLocked(&c)
 	core.ApplyFailedExitCode(&c, o.cfg.failedExitCode)
 	return c
+}
+
+// cancelCauseUser is the cause an interrupt signal records: the person at
+// the terminal stopped the run.
+const cancelCauseUser = "by user"
+
+// explainCancellationLocked names the cancellation cause on a cancelled
+// conclusion. Any other outcome keeps its own Explanation untouched.
+func (o *Output) explainCancellationLocked(c *core.Conclusion) {
+	if c.State == core.StateCancelled && c.Explanation == "" {
+		c.Explanation = o.cancelCause
+	}
 }
 
 // Events returns a copy of durable events (v0.1 journal).

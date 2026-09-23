@@ -506,7 +506,7 @@ func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{"✓ scan", "■ venv interrupted", "- install not started", "already mutated: 1 .venv directory created"} {
+	for _, want := range []string{"✓ scan", "■ venv interrupted", "- install not started", "partial changes were applied before cancellation"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -857,7 +857,7 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 	if !strings.Contains(collapsed, "[cancel] worktrees interrupted") {
 		t.Fatalf("want the ASCII cancelled worktrees row annotated \"interrupted\", got:\n%s", got)
 	}
-	if !strings.Contains(collapsed, "already mutated: 8 locals deleted") {
+	if !strings.Contains(collapsed, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
@@ -1020,7 +1020,7 @@ func TestSpecP26_NarrowTerminal_EarlyTermination(t *testing.T) {
 	if !strings.Contains(collapsed, "■ worktrees interrupted") {
 		t.Fatalf("want the cancelled worktrees row annotated \"interrupted\", got:\n%s", got)
 	}
-	if !strings.Contains(collapsed, "already mutated: 15 locals deleted") {
+	if !strings.Contains(collapsed, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }

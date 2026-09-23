@@ -26,6 +26,25 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   returns `*TaskHandle` to chain. Every existing `task.Warn("x")` call site
   still compiles unchanged.
 
+- **The renderer decides which rows deserve a line (no new API; callers just
+  stop choosing):**
+  - A `Group` with no `Summary` of its own renders no header row in human
+    output; its children render as siblings. A live header stays while work
+    is in flight because its `N/M complete` count is the Group's own
+    progress. A `Sequence` keeps its header. JSON and JSONL keep the Group.
+  - A finished no-op row (`Done`, resolved no-work or already-satisfied, with
+    no Summary, Problem, Warning, Fact, Progress, Action or effect) is hidden
+    from human output when other content is visible, in a Group or, if
+    proven already-satisfied by `Verify`, at the root. Never on a failed,
+    blocked or cancelled run; never in JSON/JSONL.
+  - `[planned]` and `[changed]` ledger rows print in Task declaration order,
+    whatever order the Tasks finished in.
+  - A cancelled run renders `[cancelled] <subject>  by user` (the cause is
+    now `Conclusion.Explanation`, also in JSON) and, only when an Effect
+    committed, `  ! partial changes were applied before cancellation`. This
+    replaces `! already mutated: ...` on cancelled runs; failed runs keep it.
+    Exit code stays 130.
+
 ### Removed
 
 - **`TaskHandle.Add/Create/Delete/Push/Remove/Update/Write`, `evo.Affected`,
