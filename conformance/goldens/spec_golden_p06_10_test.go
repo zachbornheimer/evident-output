@@ -180,7 +180,7 @@ func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 	branches := out.Task("branches")
 	branches.RecordName("delete", "feat/a")
 	branches.RecordName("delete", "feat/b")
-	for i := 0; i < 498; i++ {
+	for range 498 {
 		branches.RecordName("delete", "feat/x")
 	}
 	if err := out.Finish(); err != nil {
@@ -207,7 +207,7 @@ func TestSpecP7_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	g := out.Group("branches")
-	g.Task("deleted").Delete("branch", func() error { return nil }, evo.Affected(120))
+	g.Task("deleted").Define(effectOf(evo.EffectDelete, "branch", 120))
 	g.Task("feat/protected").Fail("cannot delete feat/protected")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -300,7 +300,7 @@ func TestSpecP7_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	g := out.Group("branches")
-	g.Task("deleted").Delete("branch", func() error { return nil }, evo.Affected(120))
+	g.Task("deleted").Define(effectOf(evo.EffectDelete, "branch", 120))
 	g.Task("remaining").Cancel("cancelled")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -331,7 +331,7 @@ func TestSpecP8_Success(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	remotes := out.Task("remotes")
-	remotes.Delete("origin tip", func() error { return nil }, evo.Affected(3))
+	remotes.Define(effectOf(evo.EffectDelete, "origin tip", 3))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +373,7 @@ func TestSpecP8_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	g := out.Group("remotes")
-	g.Task("origin/feat/a").Delete("origin tip", func() error { return nil })
+	g.Task("origin/feat/a").Define(effectOf(evo.EffectDelete, "origin tip", 1))
 	failed := g.Task("origin/feat/b")
 	failed.Fail("HTTP 401", evo.Detail("Authorization: token expired"))
 	failed.NextCommand("gh", "auth", "refresh")
@@ -402,7 +402,7 @@ func TestSpecP8_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	g := out.Group("remotes")
-	g.Task("origin/feat/a").Delete("origin tip", func() error { return nil })
+	g.Task("origin/feat/a").Define(effectOf(evo.EffectDelete, "origin tip", 1))
 	g.Task("origin/feat/b").Cancel("cancelled before feat/b")
 	if err := out.Finish(); err != nil {
 		t.Log(err)

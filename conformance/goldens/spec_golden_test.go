@@ -339,7 +339,7 @@ func TestSpecP7_ViewportTruncation_PlanOverflowLine(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	for i := 0; i < 500; i++ {
+	for i := range 500 {
 		branches.RecordName("delete", fmt.Sprintf("feat/branch-%d", i))
 	}
 	branches.Done("500 deleted")
@@ -430,10 +430,12 @@ func TestSpecP3_DryRunTense_Step1(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	called := false
 	salvage := out.Task("salvage")
-	salvage.Push("feat/a → retire/feat/a", func() error {
-		called = true
-		return nil
-	}, evo.Affected(3))
+	salvage.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectPush, Object: "feat/a → retire/feat/a", Quantity: 3}, func(context.Context) error {
+			called = true
+			return nil
+		})
+	})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

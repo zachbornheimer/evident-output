@@ -75,7 +75,14 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("evo: Effect %s %q: %w", spec.Verb, spec.Object, err)
 	}
-	if !task.out.DryRun() {
+	// Resolve the ledger target once, before fn runs: an interrupt that
+	// cancels the row while fn runs describes work that really happened,
+	// and the reader is still owed "! already mutated: ...".
+	subject, dryRun, err := task.out.resolveLedgerTarget(task.id)
+	if err != nil {
+		return err
+	}
+	if !dryRun {
 		disowned, err := task.out.runEffectCallback(task.id, ctx, fn)
 		if err != nil {
 			return err
@@ -84,7 +91,7 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 			return nil
 		}
 	}
-	task.out.recordMutation(task.id, string(spec.Verb), int64(spec.Quantity), true, spec.Object)
+	task.out.recordResolvedMutation(task.id, subject, dryRun, string(spec.Verb), int64(spec.Quantity), true, spec.Object)
 	return nil
 }
 

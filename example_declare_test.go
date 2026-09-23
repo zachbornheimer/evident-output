@@ -89,7 +89,7 @@ func ExampleMutationOption() {
 func ExampleAffected() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	task := out.Task("prune branches")
-	task.Delete("stale branches", func() error { return nil }, evo.Affected(5))
+	task.Define(effectOf(evo.EffectDelete, "stale branches", 5))
 	_ = task.Wait()
 	_ = out.Finish()
 	fmt.Println(task.Snapshot().State)

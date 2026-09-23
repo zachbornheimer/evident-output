@@ -28,7 +28,7 @@ func TestInit_WithOptionsInstallsDefault(t *testing.T) {
 	t.Cleanup(func() { evo.SetDefault(nil) })
 
 	branches := evo.Task("branches")
-	branches.Delete("stale branch", func() error { return nil }, evo.Affected(2))
+	branches.Define(effectOf(evo.EffectDelete, "stale branch", 2))
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)

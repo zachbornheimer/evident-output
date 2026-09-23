@@ -786,16 +786,16 @@ type bearerTokenRedactor struct{}
 
 func (bearerTokenRedactor) RedactString(s string) string {
 	const marker = "Bearer "
-	i := strings.Index(s, marker)
-	if i < 0 {
+	before, after, ok := strings.Cut(s, marker)
+	if !ok {
 		return s
 	}
-	rest := s[i+len(marker):]
+	rest := after
 	end := strings.IndexAny(rest, " \n")
 	if end < 0 {
 		end = len(rest)
 	}
-	return s[:i] + marker + "***" + rest[end:]
+	return before + marker + "***" + rest[end:]
 }
 
 // TestSpecP14_Capture_Failure covers Problem 14's failure block: a captured

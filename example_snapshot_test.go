@@ -23,7 +23,7 @@ func ExampleSnapshot() {
 // mutation verb recorded, run without DryRun.
 func ExampleChangesSnapshot() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("prune branches").Delete("stale branch", func() error { return nil }, evo.Affected(2))
+	out.Task("prune branches").Define(effectOf(evo.EffectDelete, "stale branch", 2))
 	_ = out.Finish()
 	changes := out.Snapshot().Changes[0]
 	fmt.Println(changes.Records[0].Verb, changes.Records[0].Quantity)
@@ -35,7 +35,7 @@ func ExampleChangesSnapshot() {
 // mutation verb recorded under DryRun.
 func ExamplePlanSnapshot() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true, DryRun: true})
-	out.Task("prune branches").Delete("stale branch", func() error { return nil }, evo.Affected(2))
+	out.Task("prune branches").Define(effectOf(evo.EffectDelete, "stale branch", 2))
 	_ = out.Finish()
 	plan := out.Snapshot().Plans[0]
 	fmt.Println(plan.Records[0].Verb, plan.Records[0].Quantity)
