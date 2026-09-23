@@ -235,11 +235,18 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			ID:       "evo-file-exec",
 			Title:    "evo.File and evo.Exec: declarative tracked operations",
 			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile", "resource", "lock"},
-			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "Effect", "EffectSpec"},
-			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053", "API-054"},
+			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "FSResource", "Effect", "EffectSpec"},
+			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053", "API-054", "API-055"},
 			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) replaces hand-rolled os.WriteFile +
 os.Chmod + a manual existence/hash check: it writes only on drift and no-ops when Path/Contents/Mode already
 match, with dry-run safety the hand-rolled version never had (EVO-FILE-001).
+
+File also claims write-side ownership of its own Path automatically — application code never wraps it in a
+caller-managed sync.Mutex/RWMutex or lock file (API-055, ZYS-931/ZYS-840). Overlapping File/Basis/Effect claims
+on the same or an ancestor path already wait on each other; a contended wait renders as "waiting for <path>" on
+its own. A non-File operation that still needs exclusivity over a path claims it explicitly with
+evo.FSResource(path) (or evo.LogicalResource(name) for non-filesystem shared state) via EffectSpec.Resource —
+never a caller lock, and never a generic Write(func...) callback for tracked file state.
 
 evo.Exec(ctx, evo.ExecSpec{Executable, Args, Basis, Outputs}) is the same declarative shape for an external
 process: it replaces os/exec.Command paired with a hand-written stat/hash/mtime freshness check, and no-ops

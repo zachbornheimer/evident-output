@@ -663,6 +663,14 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectNestedResourceAcquisition(filename, f, fset)...)
 	}
 
+	// API-055: caller-managed sync.Mutex/RWMutex Lock/Unlock wrapped around
+	// an evo.File call — File's automatic resource claim (ZYS-840) only
+	// exists from 1.1.0 on, so a pin older than that cannot apply this
+	// recommendation.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
+		findings = append(findings, detectManualLockAroundEvoFile(filename, src)...)
+	}
+
 	// EVO-DAG-003: a visible producer/consumer relationship has no
 	// first-run scheduler ordering.
 	if hasEvoAtOneZero {
