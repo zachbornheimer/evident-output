@@ -1554,6 +1554,33 @@ return evo.Effect(ctx, spec, func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-054",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a raw os/exec.Cmd wired to an Evo Task's Writer() does not hand-roll bytes.Buffer/io.MultiWriter capture or recognize cancellation by comparing captured output strings; evo.Exec already owns spawning, capture, liveness, sanitized/redacted bounded retention, and context-based cancellation, and returns an inspectable ExecResult",
+			Why:       "zq's run_captured_task.go allocates its own bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter, falls back to Result.Output when live redirection is unavailable, recognizes cancellation by comparing captured output strings, classifies nonzero exit itself, and manually attaches captured evidence through Failf — all of it now redundant with the ExecResult{Ran, ExitCode, Stdout, Stderr, Truncated} that evo.Exec returns (ZYS-850), plus errors.Is(err, evo.ErrExecNonzeroExit) for exit classification.",
+			BadCode: `var buf bytes.Buffer
+cmd.Stdout = io.MultiWriter(task.Writer(), &buf)
+cmd.Stderr = io.MultiWriter(task.Writer(), &buf)
+if err := cmd.Run(); err != nil {
+  if strings.Contains(buf.String(), "signal: killed") {
+    return context.Canceled
+  }
+  return err
+}`,
+			GoodCode: `res, err := evo.Exec(ctx, spec)
+if errors.Is(err, evo.ErrExecNonzeroExit) {
+  task.Failf("lint failed: %s", res.Stdout)
+  return nil
+}
+return err`,
+			Remediation:     "Delete the raw exec.Cmd, its hand-rolled bytes.Buffer/io.MultiWriter capture, and any output-string cancellation match; call evo.Exec(ctx, spec) and inspect the returned ExecResult (and errors.Is(err, evo.ErrExecNonzeroExit)) instead",
+			RelatedGuidance: []string{"evo-file-exec", "tasks"},
+			VerificationIDs: []string{"API-054"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",

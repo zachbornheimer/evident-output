@@ -635,6 +635,16 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectAfterChainDuplicatesSequence(filename, f, fset)...)
 	}
 
+	// API-054: raw os/exec.Cmd wired to an Evo Task's Writer() reimplements
+	// Exec's own capture/liveness/cancellation with hand-rolled
+	// bytes.Buffer/io.MultiWriter plumbing or output-string cancellation
+	// matching instead of inspecting the ExecResult evo.Exec now returns
+	// (ZYS-850). That inspectable ExecResult surface only exists from
+	// 1.1.0 on, so a pin older than that cannot apply this recommendation.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
+		findings = append(findings, detectManualSubprocessCaptureAroundTask(filename, src)...)
+	}
+
 	// API-052: caller-owned Wait loop over stored Task handles, filtering
 	// ErrNotStarted/snapshotting/hand-counting failures instead of using
 	// GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849). That container

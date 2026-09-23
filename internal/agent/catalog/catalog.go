@@ -236,7 +236,7 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			Title:    "evo.File and evo.Exec: declarative tracked operations",
 			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile", "resource", "lock"},
 			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "Effect", "EffectSpec"},
-			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053"},
+			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053", "API-054"},
 			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) replaces hand-rolled os.WriteFile +
 os.Chmod + a manual existence/hash check: it writes only on drift and no-ops when Path/Contents/Mode already
 match, with dry-run safety the hand-rolled version never had (EVO-FILE-001).

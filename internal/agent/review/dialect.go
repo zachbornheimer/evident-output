@@ -24,6 +24,9 @@ const dialectRec = "0.4.7"
 const dialectOneZero = "1.0.0"
 
 // dialectOneOne is the first release whose public surface supports
+// evo.Exec returning an inspectable ExecResult (ZYS-850) — the structured
+// capture/exit-code surface API-054 recommends in place of hand-rolled
+// bytes.Buffer/io.MultiWriter capture and string-match cancellation — plus
 // TaskHandle.Problem/Warn accumulating many structured Problems on one Task
 // before it resolves once (ZYS-848 Decisions 2026-09-23; docs/migration/1.1.md
 // "TaskHandle.Problem — a Task can now own many blocking findings"), and
