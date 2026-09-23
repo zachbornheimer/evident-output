@@ -7,8 +7,8 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
 )
 
-// API-053 (ZYS-932): a filesystem mutator call hidden inside an
-// evo.Effect callback bypasses evo.File/evo.Patch.
+// API-054 (ZYS-932): a filesystem mutator call hidden inside an
+// evo.Effect callback bypasses evo.File.
 
 const rawWriteFileInEffectLiteralSrc = `package p
 import (
@@ -22,17 +22,17 @@ func run(ctx context.Context, path string, contents []byte) error {
 }
 `
 
-func TestAPI053_RawWriteFileInEffectLiteral_Fires(t *testing.T) {
+func TestAPI054_RawWriteFileInEffectLiteral_Fires(t *testing.T) {
 	res := review.GoSource("configure.go", rawWriteFileInEffectLiteralSrc)
-	f := findingByID(t, res, "API-053")
+	f := findingByID(t, res, "API-054")
 	if f.Severity != "error" {
-		t.Fatalf("API-053 severity = %q, want error", f.Severity)
+		t.Fatalf("API-054 severity = %q, want error", f.Severity)
 	}
 	if !strings.Contains(f.Suggestion, "evo.File") {
-		t.Fatalf("API-053 suggestion does not name evo.File: %q", f.Suggestion)
+		t.Fatalf("API-054 suggestion does not name evo.File: %q", f.Suggestion)
 	}
 	if f.RequiredVersion != "1.1.0" {
-		t.Fatalf("API-053 required_version = %q, want 1.1.0", f.RequiredVersion)
+		t.Fatalf("API-054 required_version = %q, want 1.1.0", f.RequiredVersion)
 	}
 }
 
@@ -40,7 +40,7 @@ func TestAPI053_RawWriteFileInEffectLiteral_Fires(t *testing.T) {
 // same-file named function, not a literal. EVO-DRYRUN-001's raw-mutation
 // walk only recurses into text lexically inside the Define body, so it
 // never resolves a bare identifier callback to its declaration elsewhere in
-// the file — API-053 must.
+// the file — API-054 must.
 
 const rawWriteFileInEffectNamedFuncSrc = `package p
 import (
@@ -55,9 +55,9 @@ func writeManifest(context.Context) error {
 }
 `
 
-func TestAPI053_RawWriteFileInEffectNamedFunc_Fires(t *testing.T) {
+func TestAPI054_RawWriteFileInEffectNamedFunc_Fires(t *testing.T) {
 	res := review.GoSource("manifest.go", rawWriteFileInEffectNamedFuncSrc)
-	findingByID(t, res, "API-053")
+	findingByID(t, res, "API-054")
 }
 
 // A write-mode os.OpenFile is just as much a raw filesystem mutator as
@@ -80,9 +80,9 @@ func run(ctx context.Context, path string) error {
 }
 `
 
-func TestAPI053_WriteModeOpenFileInEffect_Fires(t *testing.T) {
+func TestAPI054_WriteModeOpenFileInEffect_Fires(t *testing.T) {
 	res := review.GoSource("rotate.go", writeModeOpenFileInEffectSrc)
-	findingByID(t, res, "API-053")
+	findingByID(t, res, "API-054")
 }
 
 // A read-only os.OpenFile is not a mutator and must stay silent.
@@ -104,18 +104,19 @@ func run(ctx context.Context, path string) error {
 }
 `
 
-func TestAPI053_ReadOnlyOpenFileInEffect_StaysSilent(t *testing.T) {
+func TestAPI054_ReadOnlyOpenFileInEffect_StaysSilent(t *testing.T) {
 	res := review.GoSource("push.go", readOnlyOpenFileInEffectSrc)
 	for _, f := range res.Findings {
-		if f.RuleID == "API-053" {
-			t.Fatalf("false positive API-053 on a read-only os.OpenFile: %+v", f)
+		if f.RuleID == "API-054" {
+			t.Fatalf("false positive API-054 on a read-only os.OpenFile: %+v", f)
 		}
 	}
 }
 
-// When the callback also reads the same file's existing contents before
-// writing it back, the Suggestion must name evo.Patch -> evo.Files, not a
-// plain evo.File — the write derives from existing state.
+// evo.Patch/evo.Files do not exist in this module's public API (ZYS-932):
+// even when the callback also reads the same file's existing contents
+// before writing it back, the Suggestion must still name evo.File, never a
+// fictitious evo.Patch/evo.Files pair.
 
 const rawWriteDerivedFromReadInEffectSrc = `package p
 import (
@@ -133,11 +134,14 @@ func run(ctx context.Context, path string) error {
 }
 `
 
-func TestAPI053_WriteDerivedFromRead_SuggestsPatch(t *testing.T) {
+func TestAPI054_WriteDerivedFromRead_SuggestsEvoFile(t *testing.T) {
 	res := review.GoSource("transform.go", rawWriteDerivedFromReadInEffectSrc)
-	f := findingByID(t, res, "API-053")
-	if !strings.Contains(f.Suggestion, "evo.Patch") || !strings.Contains(f.Suggestion, "evo.Files") {
-		t.Fatalf("API-053 suggestion does not name evo.Patch -> evo.Files for a derived write: %q", f.Suggestion)
+	f := findingByID(t, res, "API-054")
+	if !strings.Contains(f.Suggestion, "evo.File") {
+		t.Fatalf("API-054 suggestion does not name evo.File for a derived write: %q", f.Suggestion)
+	}
+	if strings.Contains(f.Suggestion, "evo.Patch") || strings.Contains(f.Suggestion, "evo.Files(") {
+		t.Fatalf("API-054 suggestion names the nonexistent evo.Patch/evo.Files API: %q", f.Suggestion)
 	}
 }
 
@@ -154,16 +158,16 @@ func run(ctx context.Context, ref string) error {
 }
 `
 
-func TestAPI053_RealOpaqueEffectCallback_StaysSilent(t *testing.T) {
+func TestAPI054_RealOpaqueEffectCallback_StaysSilent(t *testing.T) {
 	res := review.GoSource("prune.go", realOpaqueEffectCallbackSrc)
 	for _, f := range res.Findings {
-		if f.RuleID == "API-053" {
-			t.Fatalf("false positive API-053 on a real opaque Effect callback: %+v", f)
+		if f.RuleID == "API-054" {
+			t.Fatalf("false positive API-054 on a real opaque Effect callback: %+v", f)
 		}
 	}
 }
 
-// evo.File is the remediated shape and must never itself trigger API-053.
+// evo.File is the remediated shape and must never itself trigger API-054.
 
 const evoFileGoodCodeSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
@@ -172,32 +176,32 @@ func run(ctx context.Context, path string, contents []byte) error {
 }
 `
 
-func TestAPI053_EvoFileGoodCode_StaysSilent(t *testing.T) {
+func TestAPI054_EvoFileGoodCode_StaysSilent(t *testing.T) {
 	res := review.GoSource("configure_good.go", evoFileGoodCodeSrc)
 	for _, f := range res.Findings {
-		if f.RuleID == "API-053" {
-			t.Fatalf("false positive API-053 on evo.File: %+v", f)
+		if f.RuleID == "API-054" {
+			t.Fatalf("false positive API-054 on evo.File: %+v", f)
 		}
 	}
 }
 
-func TestAPI053_PreOneOneOnePin_StaysSilent(t *testing.T) {
+func TestAPI054_PreOneOneOnePin_StaysSilent(t *testing.T) {
 	res := review.GoSourceAt("configure.go", rawWriteFileInEffectLiteralSrc, "1.0.0")
 	for _, f := range res.Findings {
-		if f.RuleID == "API-053" {
-			t.Fatalf("API-053 fired for a pin older than 1.1.0 (evo.Effect did not exist yet): %+v", f)
+		if f.RuleID == "API-054" {
+			t.Fatalf("API-054 fired for a pin older than 1.1.0 (evo.Effect did not exist yet): %+v", f)
 		}
 	}
 }
 
-func TestAPI053_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+func TestAPI054_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 	res := review.GoSource("configure.go", rawWriteFileInEffectLiteralSrc)
-	findingByID(t, res, "API-053")
+	findingByID(t, res, "API-054")
 
 	after := review.GoSource("configure_good.go", evoFileGoodCodeSrc)
 	for _, f := range after.Findings {
-		if f.RuleID == "API-053" {
-			t.Fatalf("API-053 still fires after remediation to evo.File: %+v", f)
+		if f.RuleID == "API-054" {
+			t.Fatalf("API-054 still fires after remediation to evo.File: %+v", f)
 		}
 	}
 }

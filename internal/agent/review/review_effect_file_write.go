@@ -1,10 +1,11 @@
-// Package review — API-053 (ZYS-932): a filesystem mutator call hidden
+// Package review — API-054 (ZYS-932): a filesystem mutator call hidden
 // inside an evo.Effect callback. Effect is the opaque-mutation escape hatch
 // for work Evo cannot model declaratively (a git ref, a remote API call, a
 // database row) — not a second file-write API (ZYS-851's Decisions,
-// 2026-09-23). File-backed state must route through evo.File directly, or
-// evo.Patch -> evo.Files when the new content derives from an existing
-// file's contents.
+// 2026-09-23). File-backed state must route through evo.File directly.
+// evo.Patch/evo.Files do not exist in this module's public API, so this
+// detector always suggests evo.File, even when the callback also reads the
+// file it writes.
 //
 // Detection is structural, per ZYS-851's Decisions: "MCP file-looking
 // detection is structural, not based on an object string that merely
@@ -30,15 +31,7 @@ var fsWriteMutatorNames = map[string]bool{
 	"os.Rename": true, "ioutil.WriteFile": true,
 }
 
-// fsReadCalleeNames are filesystem reads that, found alongside a write in
-// the same Effect callback, are structural evidence the write derives from
-// an existing file's contents — the evo.Patch -> evo.Files shape, not a
-// plain evo.File write of wholly new desired state.
-var fsReadCalleeNames = map[string]bool{
-	"os.ReadFile": true, "ioutil.ReadFile": true, "os.Open": true,
-}
-
-// detectFileWriteInEffectCallback is API-053: an evo.Effect callback
+// detectFileWriteInEffectCallback is API-054: an evo.Effect callback
 // (literal, or a same-file named function passed as the callback) contains
 // a filesystem mutator call.
 func detectFileWriteInEffectCallback(filename string, file *ast.File, fset *token.FileSet) []Finding {
@@ -62,7 +55,7 @@ func detectFileWriteInEffectCallback(filename string, file *ast.File, fset *toke
 			return true
 		}
 		p := fset.Position(pos)
-		findings = append(findings, fileWriteInEffectFinding(filename, p, name, effectCallbackReadsExistingFile(body)))
+		findings = append(findings, fileWriteInEffectFinding(filename, p, name))
 		return true
 	})
 	return findings
@@ -161,38 +154,20 @@ func openFileFlagIsWriteMode(flag ast.Expr) bool {
 	return write
 }
 
-// effectCallbackReadsExistingFile reports whether body also calls a
-// filesystem read (fsReadCalleeNames) — evidence the write derives from an
-// existing file's contents (the evo.Patch -> evo.Files shape) rather than
-// writing wholly new desired state (a plain evo.File).
-func effectCallbackReadsExistingFile(body *ast.BlockStmt) bool {
-	reads := false
-	ast.Inspect(body, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if ok && fsReadCalleeNames[calledFuncDotted(call)] {
-			reads = true
-		}
-		return true
-	})
-	return reads
-}
-
-// fileWriteInEffectFinding builds API-053's Finding. The Suggestion names
-// evo.Patch -> evo.Files when the callback also reads the file it writes
-// (derivedFromExisting), else the plain evo.File write.
-func fileWriteInEffectFinding(filename string, pos token.Position, calleeName string, derivedFromExisting bool) Finding {
-	route := "evo.File(ctx, evo.FileSpec{Path: path, Contents: contents}) for the desired file state"
-	if derivedFromExisting {
-		route = "evo.Patch(...) applied through evo.Files(ctx, patch), since the new content derives from the existing file's contents"
-	}
+// fileWriteInEffectFinding builds API-054's Finding. The Suggestion always
+// names evo.File: evo.Patch/evo.Files do not exist in this module's public
+// API, so a write derived from an existing file's contents still routes
+// through evo.File (read the existing contents first, then pass the
+// derived result as FileSpec.Contents).
+func fileWriteInEffectFinding(filename string, pos token.Position, calleeName string) Finding {
 	return Finding{
-		RuleID:          "API-053",
+		RuleID:          "API-054",
 		Severity:        "error",
 		Message:         calleeName + " mutates the filesystem directly inside an evo.Effect callback; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively, not a second file-write API",
 		File:            filename,
 		Line:            pos.Line,
 		Column:          pos.Column,
-		Suggestion:      "delete the evo.Effect wrapping this file write; use " + route,
+		Suggestion:      "delete the evo.Effect wrapping this file write; call evo.File(ctx, evo.FileSpec{Path: path, Contents: contents}) directly for the desired file state",
 		RequiredVersion: dialectOneOne,
 	}
 }

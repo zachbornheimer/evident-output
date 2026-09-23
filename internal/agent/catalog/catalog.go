@@ -31,7 +31,7 @@ func All() []Guide {
 			Rules: []string{
 				"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002",
 				"API-034", "API-035", "API-036", "API-037", "API-038", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
-				"API-053",
+				"API-054",
 			},
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
   1) evo.Init(evo.Config{Title, DryRun}) once in main, before any I/O; os.Exit(evo.Main(run)) —
@@ -44,9 +44,10 @@ func All() []Guide {
      worktree, API change); evo.File(ctx, evo.FileSpec{...}) for file state. Config.DryRun picks
      [planned] vs [changed]; no call site ever flips its own tense or chooses Changed/Ready/Planned.
      A filesystem mutator (os.WriteFile, os.Create, write-mode os.OpenFile, os.Remove, os.Rename)
-     inside an Effect callback is never correct (API-053): Effect is the opaque-mutation escape
-     hatch, not a second file-write API — route file state through evo.File, or evo.Patch ->
-     evo.Files when the new content derives from an existing file's contents.
+     inside an Effect callback is never correct (API-054): Effect is the opaque-mutation escape
+     hatch, not a second file-write API — route file state through evo.File, even when the new
+     content derives from an existing file's contents (read the file first, then pass the
+     derived result as FileSpec.Contents; evo.Patch/evo.Files do not exist in this API).
   3) worktrees := evo.Group("worktrees"); for _, path := range paths { worktrees.Task(path).Define(...) }
      for independent collections; evo.Sequence for ordered ones (same one-Task-per-item shape;
      Group.Each/Sequence.Each were removed in 1.0); .Writer() as cmd.Stdout so a talkative
@@ -239,9 +240,9 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 		{
 			ID:       "evo-file-exec",
 			Title:    "evo.File and evo.Exec: declarative tracked operations",
-			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile"},
-			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs"},
-			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001"},
+			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile", "resource", "lock"},
+			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "Effect", "EffectSpec"},
+			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053"},
 			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) replaces hand-rolled os.WriteFile +
 os.Chmod + a manual existence/hash check: it writes only on drift and no-ops when Path/Contents/Mode already
 match, with dry-run safety the hand-rolled version never had (EVO-FILE-001).
@@ -259,8 +260,17 @@ callers that never inspect the result ignore it with "_, err := evo.Exec(ctx, sp
 either way — there is no second raw subprocess API to reach for.
 
 Both share one freshness contract: Basis lists every additional Fingerprint input (evo.FSPath/evo.Value/evo.App)
-whose change should invalidate the current result — call it inside task.Define, from a ctx that Define supplies.`,
-			TokenEstimate: 220,
+whose change should invalidate the current result — call it inside task.Define, from a ctx that Define supplies.
+
+File and file-backed Basis claim their own path automatically; no caller manages a mutex, lock file, or unlock
+lifecycle. For state Evo cannot model as desired file contents (a Git ref deletion, a worktree move, a remote
+push), evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity, Resource}, fn) performs one opaque mutation and,
+when Resource is set (evo.FSResource(path) or evo.LogicalResource(name)), holds it for fn's duration. Generic
+resource access holds at most one Resource at a time: a second evo.File or Resource-claiming evo.Effect call
+made with fn's own held ctx — directly, or through a helper fn hands that ctx to — fails deterministically with
+evo.ErrNestedResourceAcquisition instead of risking deadlock (API-053). Finish and return from the first
+Effect/File before starting a second, or claim one coarser Resource both mutations share.`,
+			TokenEstimate: 280,
 		},
 		{
 			ID:       "provenance",

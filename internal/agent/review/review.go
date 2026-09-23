@@ -600,10 +600,10 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectFlattenedDiagnosticsLoop(filename, src)...)
 	}
 
-	// API-053: a filesystem mutator call hidden inside an evo.Effect
+	// API-054: a filesystem mutator call hidden inside an evo.Effect
 	// callback — Effect is the opaque-mutation escape hatch, not a second
-	// file-write API; File/Patch->Files are 1.1.0-only (ZYS-851 Decisions),
-	// so a pin older than that cannot apply this rule's suggested fix.
+	// file-write API; evo.File is 1.1.0-only (ZYS-851 Decisions), so a pin
+	// older than that cannot apply this rule's suggested fix.
 	if hasEvoAtOneOne {
 		findings = append(findings, detectFileWriteInEffectCallback(filename, f, fset)...)
 	}
@@ -650,6 +650,15 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// cannot apply this recommendation.
 	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
 		findings = append(findings, detectCallerWaitLoopOverContainerChildren(filename, src)...)
+	}
+
+	// API-053: a second evo.File/Resource-claiming evo.Effect call made
+	// with a context an enclosing evo.Effect already holds a Resource on
+	// (ZYS-840), directly or one call away through a same-file helper.
+	// EffectSpec.Resource only exists from 1.1.0 on, so a pin older than
+	// that cannot have this shape.
+	if hasEvoAtOneOne {
+		findings = append(findings, detectNestedResourceAcquisition(filename, f, fset)...)
 	}
 
 	// EVO-DAG-003: a visible producer/consumer relationship has no

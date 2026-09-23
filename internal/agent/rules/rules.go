@@ -1534,8 +1534,31 @@ return jobs.Wait()`,
 			ID:        "API-053",
 			Category:  "API",
 			Severity:  "error",
-			Invariant: "an evo.Effect callback never mutates the filesystem directly; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively (a git ref, a remote API call, a database row), and file-backed state always routes through evo.File, or evo.Patch -> evo.Files when the new content derives from an existing file's contents",
-			Why:       "evo.Write and its sibling TaskHandle mutation verbs were removed outright in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23).",
+			Invariant: "generic resource access holds at most one Resource at a time (ZYS-840); code that already holds a Resource — directly, or through any helper it hands its context to — never asks for a second one",
+			Why:       "evo.Effect only claims spec.Resource for its fn callback's duration when spec.Resource is set; a second evo.File or Resource-claiming evo.Effect call made with that same held context — moving a worktree's Effect whose fn also writes a marker File at the destination, say — fails deterministically with evo.ErrNestedResourceAcquisition at apply time, even when the second resource is free, because holding at most one Resource at a time is what makes deadlock impossible by construction. Catching it in review turns a runtime failure into a review finding before it ships.",
+			BadCode: `spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
+return evo.Effect(ctx, spec, func(ctx context.Context) error {
+  return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}) // nested: ctx already holds "from"
+})`,
+			GoodCode: `if err := evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}); err != nil {
+  return err
+}
+spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
+return evo.Effect(ctx, spec, func(ctx context.Context) error {
+  return os.Rename(from, to)
+})`,
+			Remediation:     "Finish and return from the first evo.Effect/evo.File before starting a second, or claim one coarser Resource (e.g. evo.FSResource covering both paths) that both mutations share instead of nesting a second acquisition",
+			RelatedGuidance: []string{"evo-file-exec", "common-api"},
+			VerificationIDs: []string{"API-053"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-054",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "an evo.Effect callback never mutates the filesystem directly; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively (a git ref, a remote API call, a database row), and file-backed state always routes through evo.File",
+			Why:       "evo.Write and its sibling TaskHandle mutation verbs were removed outright in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). evo.Patch/evo.Files do not exist in this module's public API; until they ship, evo.File is the only supported route for file-backed state, including writes derived from an existing file's contents.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
     return os.WriteFile(path, contents, 0o644)
@@ -1544,9 +1567,9 @@ return jobs.Wait()`,
 			GoodCode: `task.Define(func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents, Mode: 0o644})
 })`,
-			Remediation:     "Delete the evo.Effect wrapping the file write; call evo.File(ctx, evo.FileSpec{...}) directly, or evo.Patch(...) applied through evo.Files(ctx, patch) when the new content derives from the existing file's contents",
+			Remediation:     "Delete the evo.Effect wrapping the file write; call evo.File(ctx, evo.FileSpec{...}) directly — read the existing contents first if the new contents derive from them, then pass the derived result as FileSpec.Contents",
 			RelatedGuidance: []string{"common-api"},
-			VerificationIDs: []string{"API-053"},
+			VerificationIDs: []string{"API-054"},
 			Since:           "1.1.0",
 			Certainty:       "heuristic",
 		},

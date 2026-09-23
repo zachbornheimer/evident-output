@@ -14,6 +14,7 @@ func (Output) Conclusion()  Conclusion
 func (Output) Confirm(question string, opts ...ConfirmOption)  bool
 func (Output) Context()  context.Context
 func (Output) Err()  error
+func (Output) Events()  []Event
 func (Output) Fact(name, value string)
 func (Output) Fail(summary string, options ...ProblemOption)
 func (Output) Failf(format string, args ...any)
