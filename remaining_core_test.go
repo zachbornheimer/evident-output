@@ -131,7 +131,7 @@ func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
 	t.Cleanup(func() { _ = out.Close() })
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -179,12 +179,10 @@ func TestOUT011_EventTimestampsPresent(t *testing.T) {
 func TestCON005_CloseDuringUpdates(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	var wg sync.WaitGroup
-	for i := 0; i < 20; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 20 {
+		wg.Go(func() {
 			out.Task("x").Done()
-		}()
+		})
 	}
 	wg.Wait()
 	_ = out.Close()
