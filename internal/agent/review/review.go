@@ -635,6 +635,15 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectAfterChainDuplicatesSequence(filename, f, fset)...)
 	}
 
+	// API-052: caller-owned Wait loop over stored Task handles, filtering
+	// ErrNotStarted/snapshotting/hand-counting failures instead of using
+	// GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849). That container
+	// Wait surface only exists from 1.1.0 on, so a pin older than that
+	// cannot apply this recommendation.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
+		findings = append(findings, detectCallerWaitLoopOverContainerChildren(filename, src)...)
+	}
+
 	// EVO-DAG-003: a visible producer/consumer relationship has no
 	// first-run scheduler ordering.
 	if hasEvoAtOneZero {

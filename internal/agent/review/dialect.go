@@ -25,9 +25,10 @@ const dialectOneZero = "1.0.0"
 // dialectOneOne is the first release whose public surface supports
 // TaskHandle.Problem/Warn accumulating many structured Problems on one Task
 // before it resolves once (ZYS-848 Decisions 2026-09-23; docs/migration/1.1.md
-// "TaskHandle.Problem — a Task can now own many blocking findings"). API-051's
-// suggestion recommends this API, so the rule must not fire for a pin older
-// than this.
+// "TaskHandle.Problem — a Task can now own many blocking findings"), and
+// GroupHandle.Wait/SequenceHandle.Wait (ZYS-849), the container wait/result
+// surface. API-051 and API-052 recommend these APIs, so those rules must not
+// fire for a pin older than this.
 const dialectOneOne = "1.1.0"
 
 // dialectAtLeast reports whether desired is the current dialect (empty) or

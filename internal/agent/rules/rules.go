@@ -1496,6 +1496,37 @@ task.Define(func(context.Context) error { return nil })`,
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-052",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "the container that owns child Task scheduling also owns waiting for its descendants and deriving their aggregate outcome; a caller does not store child handles merely to loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count failures",
+			Why:       "zq's runParallel (internal/app/app.go) keeps []*evo.TaskHandle, loops task.Wait(), Snapshots the Group, counts failed children, and builds its own \"N of N failed\" error; waitDefinedRunOperations (internal/app/run_execute.go) loops Tasks, special-cases evo.ErrNotStarted, and returns the first remaining error. Both reimplement exactly what GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849) now does natively, including ErrNotStarted-from-a-failed-predecessor suppression and declaration-order error joining.",
+			BadCode: `var handles []*evo.TaskHandle
+for _, item := range items {
+  t := jobs.Task(item.Name)
+  t.Define(func(ctx context.Context) error { return run(item) })
+  handles = append(handles, t)
+}
+failed := 0
+for _, h := range handles {
+  if err := h.Wait(); err != nil {
+    failed++
+  }
+}
+if failed > 0 {
+  return fmt.Errorf("%d of %d failed", failed, len(handles))
+}`,
+			GoodCode: `for _, item := range items {
+  jobs.Task(item.Name).Define(func(ctx context.Context) error { return run(item) })
+}
+return jobs.Wait()`,
+			Remediation:     "Delete the stored-handle slice, the Wait loop, the Snapshot, and the hand-counted aggregate error; call the owning GroupHandle/SequenceHandle's own Wait() after every child is declared",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-052"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",
