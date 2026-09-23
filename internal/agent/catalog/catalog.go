@@ -210,6 +210,12 @@ when the declared Outputs are already current against Basis (EVO-EXEC-001). Outp
 itself produces — never add them to Basis, and never flag a literal Exec Arg that already names a declared
 Output or the call's own Executable as an omitted input (EVO-PROVENANCE-001, see the provenance guide).
 
+evo.Exec returns (ExecResult, error): ExecResult carries Ran/ExitCode/Stdout/Stderr/Truncated, the same
+sanitized/redacted, bounded capture Evo already retains as evidence — a linter or check can parse it to build
+structured Problems/Facts without taking over process spawning, capture, liveness, or cancellation. Ordinary
+callers that never inspect the result ignore it with "_, err := evo.Exec(ctx, spec)"; Exec still owns capture
+either way — there is no second raw subprocess API to reach for.
+
 Both share one freshness contract: Basis lists every additional Fingerprint input (evo.FSPath/evo.Value/evo.App)
 whose change should invalidate the current result — call it inside task.Define, from a ctx that Define supplies.`,
 			TokenEstimate: 220,
