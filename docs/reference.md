@@ -124,6 +124,18 @@ Keep the core vocabulary small. Scale via **Config**, **schema keys**, and **str
 
 Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Prefer one `Config` field or `EntityOption` over a new top-level type.
 
+## Shared resources and concurrency
+
+Evo coordinates shared state for you; there is no lock or unlock call.
+
+- **`File`** claims its own path for writing while it inspects, writes, and records it.
+- **`FSPath` Basis** entries (on `File` and `Exec`) are observed under a read claim, so an observation sees a whole commit or none of it — never a torn write.
+- **`Effect`** claims `EffectSpec.Resource` for writing while its callback runs. Name at most one: `FSResource(path)` for a file or a coarse directory (a module, a repository root), `LogicalResource(name)` for state with no truthful path (a package database, a remote).
+
+Reads share. Any overlapping pair that includes a write waits: filesystem claims overlap when the paths are equal or one contains the other; logical claims overlap only when their names match. A claim never creates an `After` dependency and never adds to freshness. A Task waiting on a conflicting claim shows `waiting for <resource>` as its live activity; an uncontended claim renders nothing. Code holding a resource (an `Effect` callback with a `Resource`) that calls `File`, or anything else needing a second resource, fails with `ErrNestedResourceAcquisition` instead of risking deadlock.
+
+**Guarantee scope.** Resource claims coordinate every `Output` in one process. Across processes, the manifest's exclusive lock carries the guarantee: the first `File`/`Exec` in a Run takes it before claiming any resource and holds it until `Close`, so two processes using the **same manifest namespace** (same `StateDir`, or same `AppID` and workspace) never interleave tracked `File`/`Exec` state. Different namespaces are independent by design and do not coordinate. Opaque `Effect` claims are process-local: two processes running the same `Effect` are not serialized by Evo.
+
 ## Vocabulary
 
 | Type           | Meaning                                                                                                              |
