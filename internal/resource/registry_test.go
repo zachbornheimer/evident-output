@@ -491,3 +491,45 @@ func TestHoldResourceRejectsInvalid(t *testing.T) {
 	}
 	assertIdle(t, r)
 }
+
+// A request's own OnContended hook reports contention to the caller that
+// is actually waiting, instead of the Registry-wide hook.
+func TestHoldResourceRequestHookReportsItsOwnContention(t *testing.T) {
+	registryWide := make(chan Claim, 1)
+	r := NewRegistry(OnContended(func(c Claim) { registryWide <- c }))
+	name := "db"
+	key := logicalKey(name)
+	first := startHolder(context.Background(), r, writeOf(key))
+	first.waitEntered(t)
+
+	requestHook := make(chan Claim, 1)
+	done := make(chan error, 1)
+	go func() {
+		req := Request{Resource: Logical(name), Mode: Write, OnContended: func(c Claim) { requestHook <- c }}
+		done <- r.HoldResource(context.Background(), req, func(context.Context) error { return nil })
+	}()
+	awaitContended(t, requestHook, writeOf(key))
+	first.finish(t)
+	if err := <-done; err != nil {
+		t.Fatalf("HoldResource: %v", err)
+	}
+	select {
+	case c := <-registryWide:
+		t.Fatalf("registry-wide hook fired for %v although the request carried its own", c)
+	default:
+	}
+	assertIdle(t, r)
+}
+
+func TestCheckFreeReportsHeldClaim(t *testing.T) {
+	r := NewRegistry()
+	if err := CheckFree(context.Background(), "write fs:/x"); err != nil {
+		t.Fatalf("CheckFree on a bare context = %v, want nil", err)
+	}
+	err := r.Hold(context.Background(), readOf(logicalKey("cache")), func(held context.Context) error {
+		return CheckFree(held, "write fs:/x")
+	})
+	if !errors.Is(err, ErrNested) {
+		t.Fatalf("CheckFree while holding = %v, want ErrNested", err)
+	}
+}

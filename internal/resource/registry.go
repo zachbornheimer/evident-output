@@ -54,6 +54,11 @@ type Request struct {
 	Resource  Resource
 	Workspace string
 	Mode      Mode
+	// OnContended, when non-nil, runs instead of the Registry's own
+	// OnContended hook for this one request: once, outside any registry
+	// lock, and only if the claim has to wait. It lets one process-wide
+	// Registry report contention to whichever caller is actually waiting.
+	OnContended func(Claim)
 }
 
 // Registry grants claims. The zero value is not usable; call NewRegistry.
@@ -117,14 +122,29 @@ func holding(ctx context.Context) (*hold, bool) {
 // nested-acquisition check runs before resolution so misuse is reported as
 // ErrNested regardless of whether the requested Resource resolves.
 func (r *Registry) HoldResource(ctx context.Context, req Request, fn func(context.Context) error) error {
-	if h, ok := holding(ctx); ok {
-		return nestedError(h, fmt.Sprintf("%s %v", req.Mode, req.Resource))
+	if err := CheckFree(ctx, fmt.Sprintf("%s %v", req.Mode, req.Resource)); err != nil {
+		return err
 	}
 	key, err := Resolve(req.Resource, req.Workspace)
 	if err != nil {
 		return fmt.Errorf("evo: hold %s %v: %w", req.Mode, req.Resource, err)
 	}
-	return r.Hold(ctx, Claim{Key: key, Mode: req.Mode}, fn)
+	onContended := req.OnContended
+	if onContended == nil {
+		onContended = r.onContended
+	}
+	return r.hold(ctx, Claim{Key: key, Mode: req.Mode}, onContended, fn)
+}
+
+// CheckFree returns ErrNested, naming requested, when ctx already holds a
+// resource. Operations that must not block while a claim is held (opening
+// a cross-process manifest lock, for one) call it before doing anything
+// that could wait.
+func CheckFree(ctx context.Context, requested string) error {
+	if h, ok := holding(ctx); ok {
+		return nestedError(h, requested)
+	}
+	return nil
 }
 
 // Hold waits until c can be granted, runs fn with a context derived from
@@ -135,10 +155,14 @@ func (r *Registry) HoldResource(ctx context.Context, req Request, fn func(contex
 // passed to), Hold returns ErrNested immediately. If ctx ends while
 // waiting, Hold returns its cause and fn never runs.
 func (r *Registry) Hold(ctx context.Context, c Claim, fn func(context.Context) error) error {
-	if h, ok := holding(ctx); ok {
-		return nestedError(h, c.String())
+	return r.hold(ctx, c, r.onContended, fn)
+}
+
+func (r *Registry) hold(ctx context.Context, c Claim, onContended func(Claim), fn func(context.Context) error) error {
+	if err := CheckFree(ctx, c.String()); err != nil {
+		return err
 	}
-	h, cause := r.acquire(ctx, c)
+	h, cause := r.acquire(ctx, c, onContended)
 	if h == nil {
 		return fmt.Errorf("evo: acquire %s: %w", c, cause)
 	}
@@ -152,7 +176,7 @@ func nestedError(h *hold, requested string) error {
 
 // acquire queues c and blocks until it is granted, or returns a nil hold
 // and ctx's cancellation cause once ctx ends first.
-func (r *Registry) acquire(ctx context.Context, c Claim) (*hold, error) {
+func (r *Registry) acquire(ctx context.Context, c Claim, onContended func(Claim)) (*hold, error) {
 	if ctx.Err() != nil {
 		return nil, context.Cause(ctx)
 	}
@@ -169,9 +193,9 @@ func (r *Registry) acquire(ctx context.Context, c Claim) (*hold, error) {
 		}
 		changed := r.changed
 		r.mu.Unlock()
-		if !reported && r.onContended != nil {
+		if !reported && onContended != nil {
 			reported = true
-			r.onContended(c)
+			onContended(c)
 		}
 		select {
 		case <-changed:

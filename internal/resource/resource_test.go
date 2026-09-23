@@ -174,3 +174,14 @@ func TestResourceString(t *testing.T) {
 }
 
 type fmtStringer interface{ String() string }
+
+func TestLabelIsTheCallersName(t *testing.T) {
+	for r, want := range map[Resource]string{
+		FS("./go.mod"):         "./go.mod",
+		Logical("  homebrew "): "homebrew",
+	} {
+		if got := Label(r); got != want {
+			t.Errorf("Label(%v) = %q, want %q", r, got, want)
+		}
+	}
+}
