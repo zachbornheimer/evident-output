@@ -224,13 +224,14 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 	out.Task("working tree").Done()
 	out.Task("scan").Doing("walk").Done("done")
 	g := out.Group("deps")
-	g.Task("a").Done()
-	g.Task("b").Done()
+	g.Task("a").Done("ok")
+	g.Task("b").Done("ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()
-	for _, need := range []string{"working tree", "scan", "deps"} {
+	// "deps" is a Group with no Summary of its own, so only its children render.
+	for _, need := range []string{"working tree", "scan", "✓ a", "✓ b"} {
 		if !strings.Contains(s, need) {
 			t.Fatalf("missing %q in %q", need, s)
 		}

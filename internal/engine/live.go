@@ -427,7 +427,7 @@ func (o *Output) liveTickerSnapshotLocked() Snapshot {
 	snap := o.snapshotLocked()
 	visible := snap.Tasks[:0]
 	for _, t := range snap.Tasks {
-		if st := o.taskByRef[t.ID]; st != nil && st.collection == nil && st.coreEmitted {
+		if st := o.taskByRef[t.ID]; st != nil && st.collection == nil && (st.coreEmitted || o.heldBackAsNoOpLocked(t)) {
 			continue
 		}
 		visible = append(visible, t)

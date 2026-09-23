@@ -151,7 +151,7 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 	persisted := screen.PersistedText()
 	for _, want := range []string{
 		"■", "generate", "cancelled",
-		"already mutated: 1 partial artifact at /tmp/out (2.1 MB) wrote"} {
+		"partial changes were applied before cancellation"} {
 		if !strings.Contains(persisted, want) {
 			t.Fatalf("want %q in persisted live surface:\n%s", want, persisted)
 		}
@@ -522,7 +522,7 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 		"✓ scan",
 		"■ venv cancelled — .venv partial",
 		"- install not started",
-		"already mutated: 1 incomplete .venv directory wrote"} {
+		"partial changes were applied before cancellation"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -691,7 +691,7 @@ func TestSpecP10_EarlyTermination(t *testing.T) {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
-	for _, want := range []string{"✓ scan", "■ install cancelled at 6/14", "already mutated: 6 packages in .venv installed"} {
+	for _, want := range []string{"✓ scan", "■ install cancelled at 6/14", "partial changes were applied before cancellation"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}

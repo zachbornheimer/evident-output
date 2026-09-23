@@ -248,9 +248,8 @@ func TestV8_Stress(t *testing.T) {
 		"    error  operation not permitted\n" +
 		"    path   " + displayPath + "\n" +
 		"    mode   0644\n" +
-		"✓ deploy production\n" +
-		"   ✓ discover\n" +
-		"   ✓ services  already satisfied\n" +
+		"✓ discover\n" +
+		"✓ services  already satisfied\n" +
 		"\n" +
 		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
 		"\n" +
@@ -278,11 +277,10 @@ func TestV8_Stress(t *testing.T) {
 //     append-only model can produce; that ordering is followed here.
 //   - The frame doesn't show it, but a committed effect must never
 //     disappear once work is cut short (spec §15/§43: "Committed effects
-//     remain... never implying rollback"), so the conclusion band also
-//     carries a "· partial" modifier and "! already mutated: 4 stale
-//     origin/* deleted" — the same fact the ledger line above it already
-//     gave, restated where a reader scanning only the conclusion band
-//     would otherwise miss it.
+//     remain... never implying rollback"), so the cancellation band adds
+//     "! partial changes were applied before cancellation" (contract §15).
+//     The note is derived from the committed Effects, not caller-authored,
+//     and it does not repeat the ledger line above it.
 //
 // The frame's glyph for the interrupted row ("-") is not used here either:
 // spec §43's own example and the glyph table (§41) both use "■" for
@@ -305,7 +303,6 @@ func TestV8_CancelledAfterMutation(t *testing.T) {
 	remotes.Done("4/4")
 
 	worktrees.Cancel("interrupted")
-	out.Warn("partial changes were applied before cancellation")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -314,13 +311,12 @@ func TestV8_CancelledAfterMutation(t *testing.T) {
 	want := "zq prune --apply  ~/.../eapp-system-style-contract-heading\n" +
 		"✓ remote-tracking  4/4\n" +
 		"■ worktrees        interrupted\n" +
-		"! partial changes were applied before cancellation\n" +
 		"- branches         not started\n" +
 		"\n" +
 		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
 		"\n" +
-		"[cancelled · partial · warned]  prune\n" +
-		"!  already mutated: 4 stale origin/* deleted\n"
+		"[cancelled] prune\n" +
+		"  ! partial changes were applied before cancellation\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -372,13 +368,14 @@ func TestV8_AlreadySatisfied(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := "✓ deploy production\n" +
-		"   ✓ discover\n" +
-		"   ✓ prepare hosts       already satisfied\n" +
-		"   ✓ services            already satisfied\n" +
-		"   ✓ write launch agent  already satisfied\n" +
-		"   path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
-		"   ✓ cleanup             nothing to do\n"
+	// "deploy production" has no Summary, so its header is not a row, and
+	// its zero-information children (discover, prepare hosts, services:
+	// nothing to say, nothing changed) are hidden while other content
+	// exists. The launch agent stays because it owns a Fact; cleanup because
+	// it has a Summary.
+	want := "✓ write launch agent  already satisfied\n" +
+		"  path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
+		"✓ cleanup             nothing to do\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -600,11 +597,10 @@ func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
 	clock.Advance(6 * time.Second)
 	install.Progress(18, 40)
 
-	glyph := firstRune(strings.TrimPrefix(screen.LatestLiveText(), "✓ launch agent\n   ✓ write plist\n   ✓ register\n   ✓ start\n"))
-	want := "✓ launch agent\n" +
-		"   ✓ write plist\n" +
-		"   ✓ register\n" +
-		"   ✓ start\n" +
+	glyph := firstRune(strings.TrimPrefix(screen.LatestLiveText(), "✓ write plist\n✓ register\n✓ start\n"))
+	want := "✓ write plist\n" +
+		"✓ register\n" +
+		"✓ start\n" +
 		glyph + " install dependencies  [█████       ]  18/40 — 6s\n" +
 		"   " + glyph + " requests"
 	if got := screen.LatestLiveText(); got != want {

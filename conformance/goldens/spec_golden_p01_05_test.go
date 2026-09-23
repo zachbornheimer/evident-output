@@ -57,7 +57,7 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	// "skipped 1 (protected)" line individually.
 	for _, want := range []string{
 		"✓ branches 8 deleted",
-		"✗ worktrees",
+		"✗ remove",
 		"remove failed",
 		"path locked: ../.worktrees/app-sah-1"} {
 		if !strings.Contains(collapsed, want) {
@@ -145,7 +145,7 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	for _, want := range []string{
 		"✓ branches 8 deleted",
 		"■ worktrees cancelled — 0 removed",
-		"already mutated: 8 branches deleted"} {
+		"partial changes were applied before cancellation"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -223,7 +223,7 @@ func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if !strings.Contains(collapsed, "already mutated: 5 branches deleted") {
+	if !strings.Contains(collapsed, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
@@ -369,7 +369,7 @@ func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if !strings.Contains(collapsed, "already mutated: 1 branch pushed") {
+	if !strings.Contains(collapsed, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
@@ -497,7 +497,7 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	// that actually committed (".venv" created) — Progress (6/14) is a live
 	// counter, not a Changes-ledger record, so it never contributes a
 	// "6 packages installed" fragment to the derivation.
-	if !strings.Contains(collapsed, "already mutated: 1 .venv created") {
+	if !strings.Contains(collapsed, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }

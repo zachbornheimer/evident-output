@@ -19,8 +19,7 @@ func ExampleGroup() {
 	_ = evo.Default().Finish()
 	fmt.Print(buf.String())
 	// Output:
-	// ✓ install
-	//    ✓ curl
+	// ✓ curl
 }
 
 // ExampleGroupHandle shows the collection handle Group returns: it declares

@@ -31,12 +31,12 @@ func TestContainerVisibility_CollapsesLoneSameNameTask(t *testing.T) {
 	}
 }
 
-// TestContainerVisibility_StaysVisibleWithNestedCollectionChild proves the
+// TestContainerVisibility_HidesHeaderOfGroupWithoutOwnInformation proves the
 // container-visibility decision is independent of whether the child is a
-// Task: a Group whose only child is itself a nested Group (zero direct
-// Task children) still renders its own header row — collapsing requires a
-// lone same-name Task, never merely "one child of any kind".
-func TestContainerVisibility_StaysVisibleWithNestedCollectionChild(t *testing.T) {
+// Task: a Group with no Summary of its own has nothing to say beyond its
+// children, whatever kind they are, so its header row is not rendered
+// (contract §3/§18) and the nested Group's content still shows.
+func TestContainerVisibility_HidesHeaderOfGroupWithoutOwnInformation(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	outer := out.Group("outer")
@@ -46,11 +46,11 @@ func TestContainerVisibility_StaysVisibleWithNestedCollectionChild(t *testing.T)
 		t.Fatal(err)
 	}
 	s := buf.String()
-	if !strings.Contains(s, "outer") {
-		t.Fatalf("outer Group's own header row must stay visible when its only child is a nested Group, not collapse away:\n%s", s)
+	if strings.Contains(s, "outer") {
+		t.Fatalf("outer Group has no information of its own, so no header row:\n%s", s)
 	}
 	if !strings.Contains(s, "inner") {
-		t.Fatalf("nested inner Group must still render under outer:\n%s", s)
+		t.Fatalf("nested inner Group's content must still render:\n%s", s)
 	}
 }
 
