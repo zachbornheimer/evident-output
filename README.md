@@ -45,7 +45,6 @@ func run(ctx context.Context) error {
 
     installs := evo.Group("install")
     for _, pkg := range packages {
-        pkg := pkg
         installs.Task(pkg).Define(func(ctx context.Context) error { return install(pkg) })
     }
     return nil // Block is a presentation outcome, not a Go error
