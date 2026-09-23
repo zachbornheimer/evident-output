@@ -2,8 +2,11 @@ package engine
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/resource"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Resource names one unit of shared state an operation coordinates on
@@ -39,9 +42,88 @@ var processResources = resource.NewRegistry()
 // fn ends. It is the only way engine code acquires a resource; there is no
 // lock/unlock pair to misuse. A ctx that already holds a resource fails
 // with ErrNestedResourceAcquisition before any wait.
+//
+// An uncontended claim is invisible. When the claim has to wait and ctx
+// belongs to a Task's Define callback, that Task shows "waiting for
+// <resource>" as its live activity until the claim is granted.
 func (o *Output) holdResource(ctx context.Context, r Resource, mode resource.Mode, fn func(context.Context) error) error {
-	req := resource.Request{Resource: r, Workspace: o.workspaceDirLocked(), Mode: mode}
-	return processResources.HoldResource(ctx, req, fn)
+	wait := o.resourceWaitFor(ctx, r)
+	defer wait.clear()
+	req := resource.Request{Resource: r, Workspace: o.workspaceDirLocked(), Mode: mode, OnContended: wait.show}
+	return processResources.HoldResource(ctx, req, func(held context.Context) error {
+		wait.clear()
+		return fn(held)
+	})
+}
+
+// checkResourceFree fails with ErrNestedResourceAcquisition when ctx
+// already holds a resource. Operations that may block before claiming
+// their own resource (opening the cross-process manifest lock) call it
+// first, so a held claim can never wait on anything else.
+func checkResourceFree(ctx context.Context, r Resource, mode resource.Mode) error {
+	return resource.CheckFree(ctx, fmt.Sprintf("%s %v", mode, r))
+}
+
+// validateResource resolves r without claiming it, so a dry run rejects
+// an invalid Resource exactly like an applied run does.
+func (o *Output) validateResource(r Resource) error {
+	if _, err := resource.Resolve(r, o.workspaceDirLocked()); err != nil {
+		return fmt.Errorf("evo: resource %v: %w", r, err)
+	}
+	return nil
+}
+
+// resourceWait is one claim's waiting activity: shown on its Task only if
+// the claim is contended, and cleared the moment the claim is granted (or
+// abandoned). show and clear run on the claiming goroutine.
+type resourceWait struct {
+	out    *Output
+	taskID string
+	text   string
+	prior  string
+	shown  bool
+}
+
+// resourceWaitFor prepares r's waiting activity for the Task ctx belongs
+// to. Outside a Define callback there is no row to show it on, and show
+// is a no-op.
+func (o *Output) resourceWaitFor(ctx context.Context, r Resource) *resourceWait {
+	wait := &resourceWait{out: o, text: txt.Text(resourceWaitingPrefix + resource.Label(r))}
+	if task, err := taskScope(ctx); err == nil && task.out == o {
+		wait.taskID = task.id
+	}
+	return wait
+}
+
+func (w *resourceWait) show(resource.Claim) {
+	if w.taskID == "" {
+		return
+	}
+	w.out.mu.Lock()
+	defer w.out.mu.Unlock()
+	st := w.out.taskByRef[w.taskID]
+	if st == nil || core.IsTerminalTask(st.state) {
+		return
+	}
+	w.prior = st.phase
+	w.shown = true
+	w.out.setLiveOnlyPhaseLocked(st, w.text)
+}
+
+// clear restores the Task's previous activity, unless something else
+// replaced the waiting text in the meantime.
+func (w *resourceWait) clear() {
+	if !w.shown {
+		return
+	}
+	w.shown = false
+	w.out.mu.Lock()
+	defer w.out.mu.Unlock()
+	st := w.out.taskByRef[w.taskID]
+	if st == nil || core.IsTerminalTask(st.state) || st.phase != w.text {
+		return
+	}
+	w.out.setLiveOnlyPhaseLocked(st, w.prior)
 }
 
 // Resource misuse errors.
@@ -56,3 +138,7 @@ var (
 	// empty path or logical name.
 	ErrInvalidResource = resource.ErrInvalid
 )
+
+// resourceWaitingPrefix opens the live activity a Task shows while one of
+// its claims waits on a conflicting holder.
+const resourceWaitingPrefix = "waiting for "
