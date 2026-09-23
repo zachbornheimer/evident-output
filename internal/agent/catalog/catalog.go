@@ -79,15 +79,36 @@ failure on its own Task and use Next(evo.Label(...)) for follow-up guidance inst
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
 			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Each", "Define", "Skipped", "Kept"},
-			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039"},
-			Body: `Task is one atomic operation with optional Doing/Progress. Group/Sequence are collections whose state is
+			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "API-045"},
+			Body: `Task is one independently schedulable promise whose outcome is independently meaningful to the user (ZYS-838) —
+not a display row, not a subject label, not a container. A good Task name answers "what will this unit of work
+accomplish or determine?" and usually reads as an action, verb + concrete object ("check file integrity", "format
+Python", "stabilize Go source") — a strong heuristic, not a grammar validator: a concise contextual name can still
+be clear, and review never rejects a short name on grammar alone. Four semantic tests decide, in order of what
+actually matters: (1) does the Task's own name explain a failure without reading its children? (2) can it run/wait/
+fail/satisfy independently? (3) would the user care about its independent outcome? (4) is it actual work, rather
+than a category, a display heading, a fact, a verification dimension, or an implementation phase? "file integrity"
+names a subject, not the work (API-045); "fix" organizes several independently meaningful operations under one row
+instead of being one itself (API-045) — prefer a Group/Sequence such as Group("prepare staged files") with real
+verb+object Tasks underneath. One Task may still make several internal observations — "check file integrity" can
+inspect merge markers, path validity, symlinks, generated-file corruption — without turning each predicate into a
+sibling Task: report them as Fact/Warn/Problem evidence under the one Task that answers the single user-meaningful
+question, and only split one out into its own Task when it has an independently meaningful lifecycle/remediation
+and can run on its own.
+
+Task is one atomic operation with optional Doing/Progress. Group/Sequence are collections that organize work — they
+are never themselves fake work created just to earn a success row; state is
 derived from children — never call Done/Fail/Progress on the collection itself (API-027). A Group of
 exactly one explicit child is a lone Task (API-039): the live renderer collapses it to one line, and review flags the
 Go shape so agents do not write a Group named run plus a single child. Group's children
 are independent (the scheduler may overlap eligible work; concurrent Running children
 expected); Sequence's children are an ordered dependency that stops later, still-unresolved siblings as
 "-  not started" automatically once one fails or is cancelled (C13). Both offer nested .Sequence(name)/
-.Group(name) for recursive containers — a failure three levels deep still surfaces at the root header.
+.Group(name) for recursive containers — a failure three levels deep still surfaces at the root header. TaskHandle
+itself has no .Task/.Group/.Sequence child constructors (ZYS-838 Decisions): only Output/GroupHandle/SequenceHandle
+declare children, so a Task cannot structurally grow containers of its own. The renderer, not the container's mere
+presence, decides whether a container's own header row is visible or collapses into its one child — that decision
+is independent of whether the children underneath are Tasks or further nested containers.
 
 Heartbeat: any unresolved row (Running or Pending), and any unfinished container header, gains an elapsed
 suffix ("pushing feat/a — 5s") 5s after it is first actually painted in the live region — monotonic, never reset

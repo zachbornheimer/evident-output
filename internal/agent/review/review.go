@@ -537,6 +537,12 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectInlineReasonLiteral(filename, f, fset)...)
 	}
 
+	// API-045: Task(name) where name is a bare subject label or a generic
+	// container/phase word, not one independently meaningful action.
+	if hasEvo {
+		findings = append(findings, detectSubjectOnlyOrContainerTaskName(filename, f, fset)...)
+	}
+
 	// The EVO-EVIDENCE-001/VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestions
 	// all recommend 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence);
 	// a pin older than that cannot apply them, so none of these six may fire

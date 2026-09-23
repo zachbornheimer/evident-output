@@ -767,6 +767,97 @@ func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, t
 // exportedReasonName turns a reason literal into an exported-style Go
 // identifier fragment ("dirty worktree" -> "DirtyWorktree") for the var-name
 // this rule's suggestion spells out.
+// ===== API-045: Task(name) where name is a bare subject/category label or a
+// generic phase word — ZYS-838's "Task means one independently meaningful
+// action, not a display row or container". Task is a compile-time-flexible
+// spelling (Output/GroupHandle/SequenceHandle.Task all take any string), so
+// this boundary cannot be a Go type; zq's own fix/check command family
+// (internal/app/app.go:80's a.task("fix", ...), a.task("check", ...)) is the
+// canary case that motivated the split into two findings below: a subject
+// label is missing its verb, a container word is organizing other work
+// wearing one Task's clothes.
+
+// taskSubjectOnlyNames is a narrow, curated list of names ZYS-838 itself
+// names as "weak/suspicious" subject labels — not a grammar check (a short
+// name can be legitimate in context), only names known to answer "what",
+// never "what will this determine".
+var taskSubjectOnlyNames = map[string]string{
+	"file integrity": "check file integrity",
+	"go":             "build Go",
+	"ruff":           "lint Python",
+	"classify":       "classify staged files",
+}
+
+// taskContainerWords are generic phase/category words that organize other
+// work rather than being independently meaningful themselves (ZYS-838's
+// "fix"/"pre-commit" examples; zq's a.task("fix", ...) command family).
+var taskContainerWords = map[string]bool{
+	"fix":        true,
+	"pre-commit": true,
+	"precommit":  true,
+	"setup":      true,
+	"process":    true,
+}
+
+func detectSubjectOnlyOrContainerTaskName(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Task" || len(call.Args) < 1 || !isLikelyEvoReceiver(sel.X) {
+			return true
+		}
+		lit, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		text, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		lower := strings.ToLower(strings.TrimSpace(text))
+		pos := fset.Position(call.Pos())
+		if taskContainerWords[lower] {
+			findings = append(findings, containerTaskNameFinding(filename, pos, text))
+			return true
+		}
+		if corrected, ok := taskSubjectOnlyNames[lower]; ok {
+			findings = append(findings, subjectOnlyTaskNameFinding(filename, pos, text, corrected))
+		}
+		return true
+	})
+	return findings
+}
+
+func subjectOnlyTaskNameFinding(filename string, pos token.Position, text, corrected string) Finding {
+	return Finding{
+		RuleID:   "API-045",
+		Severity: "warning",
+		Message:  "Task(" + strconv.Quote(text) + ") names a subject, not the work; a Task should name one independently meaningful action",
+		File:     filename,
+		Line:     pos.Line,
+		Column:   pos.Column,
+		Suggestion: "rename to Task(" + strconv.Quote(corrected) + ") — read the name as an action (verb + concrete object) " +
+			"that answers what this unit of work will accomplish or determine",
+	}
+}
+
+func containerTaskNameFinding(filename string, pos token.Position, text string) Finding {
+	return Finding{
+		RuleID:   "API-045",
+		Severity: "warning",
+		Message:  "Task(" + strconv.Quote(text) + ") appears to organize several independently meaningful operations, not perform one itself",
+		File:     filename,
+		Line:     pos.Line,
+		Column:   pos.Column,
+		Suggestion: "replace Task(" + strconv.Quote(text) + ") with a Group/Sequence such as Group(\"prepare staged files\") " +
+			"and give each independently meaningful operation its own verb+object Task underneath",
+	}
+}
+
 func exportedReasonName(text string) string {
 	var b strings.Builder
 	upperNext := true

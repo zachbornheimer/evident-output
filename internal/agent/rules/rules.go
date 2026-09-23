@@ -1353,6 +1353,25 @@ return task.Wait()`,
 			// rule; this entry documents the spelling the MCP now teaches.
 		},
 		{
+			ID:        "API-045",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a Task names one independently schedulable promise whose outcome is independently meaningful to the user, not a subject label or a container wearing one Task's clothes",
+			Why:       "`Task(\"file integrity\")` (ZYS-838, also this codebase's own FP-006 fixture) names what the Task is about, not what it will determine; `Task(\"fix\")` (zq internal/app/app.go:80's a.task(\"fix\", ...) command family) reads as one row but really organizes several independently meaningful operations. Neither answers ZYS-838's own test: does the name alone tell the user what failed?",
+			BadCode: `out.Task("file integrity").Done()
+out.Task("fix").Done()`,
+			GoodCode: `out.Task("check file integrity").Done()
+
+prep := out.Group("prepare staged files")
+prep.Task("format Python").Define(formatPython)
+prep.Task("stabilize Go source").Define(stabilizeGo)`,
+			Remediation:     "Rename a subject-only Task to verb+object; replace a generic container Task with a Group/Sequence whose children are the independently meaningful Tasks",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-045"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",
