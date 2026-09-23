@@ -183,6 +183,7 @@ var dialectSurface = map[string][]string{
 		"Snapshot()",
 		"Summary(text string)",
 		"Task(name string)",
+		"Wait()",
 	},
 	"*GroupHandle": {
 		"Group(name string)",
@@ -190,6 +191,7 @@ var dialectSurface = map[string][]string{
 		"Snapshot()",
 		"Summary(text string)",
 		"Task(name string)",
+		"Wait()",
 	},
 	"*Printer": {
 		"Print(args ...any)",

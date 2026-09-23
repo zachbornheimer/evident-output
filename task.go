@@ -45,8 +45,14 @@ func (t *TaskHandle) Create(object string, fn func() error, opts ...MutationOpti
 }
 
 // Define freezes this Task's configuration and submits fn to the
-// scheduler — see internal/engine.TaskHandle.Define (§7).
-func (t *TaskHandle) Define(fn func(context.Context) error) { t.impl().Define(fn) }
+// scheduler — see internal/engine.TaskHandle.Define (§7). It returns this
+// same *TaskHandle as fluent sugar (ZYS-849 Decisions) so a single Task's
+// common shape can be written `return task.Define(fn).Wait()`; it does not
+// change Define's asynchronous scheduler semantics.
+func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
+	t.impl().Define(fn)
+	return t
+}
 
 func (t *TaskHandle) Delete(object string, fn func() error, opts ...MutationOption) {
 	t.impl().Delete(object, fn, opts...)

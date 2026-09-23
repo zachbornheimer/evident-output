@@ -74,27 +74,33 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 // the Verify-aware resolution wiring); evo.Run/evo.Main wait for every
 // submitted Task before returning their Result.
 //
+// Define returns the same *TaskHandle (ZYS-849 Decisions) so the common
+// single-Task shape can be written `return task.Define(fn).Wait()`. This is
+// fluent sugar only — it does not change Define's asynchronous submission:
+// fn still runs on the scheduler, not inline before Define returns.
+//
 // A second Define on the same Task is misuse (submitWork's own
 // already-submitted guard) — configuration freezes once.
-func (t *TaskHandle) Define(fn func(context.Context) error) {
+func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
 	if t == nil || t.out == nil {
-		return
+		return t
 	}
 	o := t.out
 	if fn == nil {
 		o.recordMisuse(ErrInvalidConfig)
-		return
+		return t
 	}
 	o.mu.Lock()
 	st := o.taskByRef[t.id]
 	if st == nil {
 		o.mu.Unlock()
-		return
+		return t
 	}
 	verifiers := append([]verifierFunc(nil), st.verifiers...)
 	o.mu.Unlock()
 
 	t.submitWork(func() error { return t.runDefine(verifiers, fn) }, nil)
+	return t
 }
 
 // runDefine is Define's Verify-aware execution wiring (§7, §9.1, §29/§30).

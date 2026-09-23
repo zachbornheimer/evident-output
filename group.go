@@ -24,6 +24,16 @@ func (g *GroupHandle) Task(name string) *TaskHandle {
 	return wrapTask(g.impl().Task(name))
 }
 
+// Wait blocks until every child this Group declared (directly or through a
+// nested Group/Sequence) has settled, and returns their aggregate outcome —
+// see internal/engine.GroupHandle.Wait (ZYS-849 Decisions).
+func (g *GroupHandle) Wait() error {
+	if g == nil {
+		return nil
+	}
+	return g.impl().Wait()
+}
+
 func (s *SequenceHandle) Group(name string) *GroupHandle {
 	return wrapGroup(s.impl().Group(name))
 }
@@ -46,4 +56,14 @@ func (s *SequenceHandle) Summary(text string) *SequenceHandle {
 
 func (s *SequenceHandle) Task(name string) *TaskHandle {
 	return wrapTask(s.impl().Task(name))
+}
+
+// Wait blocks until every step this Sequence declared (directly or through a
+// nested Group/Sequence) has settled, and returns their aggregate outcome —
+// see internal/engine.SequenceHandle.Wait (ZYS-849 Decisions).
+func (s *SequenceHandle) Wait() error {
+	if s == nil {
+		return nil
+	}
+	return s.impl().Wait()
 }
