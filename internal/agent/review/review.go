@@ -575,6 +575,13 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectCrossKindDuplicateSiblingName(filename, f, fset)...)
 	}
 
+	// API-049: Define callback discards its scheduler-provided context.
+	// context.Context-typed Define only exists from 1.0.0 on, so a pin older
+	// than that cannot have this shape.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectDefineDiscardsSchedulerContext(filename, f, fset)...)
+	}
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)

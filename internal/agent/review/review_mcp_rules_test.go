@@ -819,3 +819,143 @@ func TestAPI045_SameLabelDifferentGroups_StaysSilent(t *testing.T) {
 		}
 	}
 }
+
+// API-049: a Define callback discards its scheduler-provided context and
+// passes a captured outer ctx into cancellable work instead (ZYS-938).
+
+const defineDiscardsSchedulerCtxSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context, task *evo.TaskHandle) {
+  task.Define(func(context.Context) error {
+    return doWork(ctx)
+  })
+}
+func doWork(ctx context.Context) error { return nil }
+`
+
+func TestAPI049_DefineDiscardsSchedulerCtx_Fires(t *testing.T) {
+	res := review.GoSource("run.go", defineDiscardsSchedulerCtxSrc)
+	f := findingByID(t, res, "API-049")
+	if f.Severity != "error" {
+		t.Fatalf("API-049 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "func(ctx context.Context) error") {
+		t.Fatalf("API-049 suggestion does not name the corrected signature: %q", f.Suggestion)
+	}
+}
+
+const defineUsesOwnCtxSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context, task *evo.TaskHandle) {
+  task.Define(func(ctx context.Context) error {
+    return doWork(ctx)
+  })
+}
+func doWork(ctx context.Context) error { return nil }
+`
+
+func TestAPI049_DefineUsesOwnCtx_StaysSilent(t *testing.T) {
+	res := review.GoSource("good.go", defineUsesOwnCtxSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-049" {
+			t.Fatalf("false positive API-049 when Define names and uses its own ctx: %+v", f)
+		}
+	}
+}
+
+const defineNoCancellableWorkSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context, task *evo.TaskHandle) {
+  task.Define(func(context.Context) error {
+    return doWork()
+  })
+}
+func doWork() error { return nil }
+`
+
+func TestAPI049_NoCancellableWork_StaysSilent(t *testing.T) {
+	res := review.GoSource("good.go", defineNoCancellableWorkSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-049" {
+			t.Fatalf("false positive API-049 when the callback never uses the captured outer ctx: %+v", f)
+		}
+	}
+}
+
+func TestAPI049_PreOneZeroPin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("run.go", defineDiscardsSchedulerCtxSrc, "0.6.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-049" {
+			t.Fatalf("API-049 fired for a pin older than 1.0.0 (ctx-based Define did not exist yet): %+v", f)
+		}
+	}
+}
+
+// A non-evo type that happens to declare its own Define(func(context.Context)
+// error) method in the same file as evo usage must not be mistaken for evo's
+// TaskHandle.Define — ZYS-938's proven false positive.
+const defineOnUnrelatedTypeSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+
+type Validator struct{}
+
+func (v *Validator) Define(fn func(context.Context) error) {
+  _ = fn
+}
+
+func run(ctx context.Context, task *evo.TaskHandle) {
+  v := &Validator{}
+  v.Define(func(context.Context) error {
+    return doWork(ctx)
+  })
+}
+func doWork(ctx context.Context) error { return nil }
+`
+
+func TestAPI049_UnrelatedTypeWithOwnDefineMethod_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", defineOnUnrelatedTypeSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-049" {
+			t.Fatalf("false positive API-049 on an unrelated type's own Define method: %+v", f)
+		}
+	}
+}
+
+// A callback that discards the scheduler ctx but declares its own local ctx
+// (shadowing the captured outer one) before calling cancellable work is a
+// correct, common pattern (e.g. intentionally detached background work) —
+// ZYS-938's second proven false positive.
+const defineShadowsCtxLocallySrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context, task *evo.TaskHandle) {
+  task.Define(func(context.Context) error {
+    ctx := context.Background()
+    return doWork(ctx)
+  })
+}
+func doWork(ctx context.Context) error { return nil }
+`
+
+func TestAPI049_LocalCtxShadow_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", defineShadowsCtxLocallySrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-049" {
+			t.Fatalf("false positive API-049 when the callback shadows ctx with its own local before calling cancellable work: %+v", f)
+		}
+	}
+}
