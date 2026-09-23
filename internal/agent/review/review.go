@@ -297,6 +297,17 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectSignalNotifyWithoutCancel(filename, src)...)
 	}
 
+	// SIG-002: signal.Notify/NotifyContext wired for SIGINT/SIGTERM/
+	// os.Interrupt in a file that also calls evo.Main/evo.Run — those
+	// entrypoints have owned that exact lifecycle since 1.0.0 (RunFunc's
+	// context.Context is cancelled on SIGINT/SIGTERM internally), so a
+	// second interrupt layer built solely to duplicate it can let the
+	// ledger and the process's actual exit path diverge (Decisions
+	// 2026-09-23, ZYS-939). Pre-1.0.0 pins predate that ownership.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneZero) {
+		findings = append(findings, detectDuplicateSignalWiringAroundMain(filename, f, fset)...)
+	}
+
 	// TERM-015: a child that owns the terminal (tty passthrough) must run
 	// inside out.Suspend, or its own UI glues onto the parent's live
 	// spinner — no in-process fix helps once two processes share one tty
@@ -537,11 +548,25 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectInlineReasonLiteral(filename, f, fset)...)
 	}
 
+	// API-045: Task(name) where name is a bare subject label or a generic
+	// container/phase word, not one independently meaningful action.
+	if hasEvo {
+		findings = append(findings, detectSubjectOnlyOrContainerTaskName(filename, f, fset)...)
+	}
+
 	// The EVO-EVIDENCE-001/VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestions
 	// all recommend 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence);
 	// a pin older than that cannot apply them, so none of these six may fire
 	// for it — mirroring detectDeprecatedSpellings' dialectAtLeast gating.
 	hasEvoAtOneZero := hasEvo && dialectAtLeast(desiredVersion, dialectOneZero)
+
+	// API-047: Task/Group/Sequence declaration reuses a sibling literal name
+	// already used by a different entity kind under the same parent.
+	// Sequence only exists from 1.0.0 on, so a pin older than that cannot
+	// have a cross-kind collision involving it.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectCrossKindDuplicateSiblingName(filename, f, fset)...)
+	}
 
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
@@ -552,6 +577,14 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// be read-only.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingVerify(filename, f, fset)...)
+	}
+
+	// API-046: Skipped(evo.Reason("...")) whose reason names an
+	// already-satisfied condition instead of true inapplicability —
+	// ResolutionAlreadySatisfied (via Verify or evo.File/evo.Exec) is
+	// 1.0.0-only, so this recommendation cannot fire for an older pin.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectSkippedForAlreadySatisfied(filename, f, fset)...)
 	}
 
 	// EVO-DRYRUN-001: Define callback raw-calls a side effect Evo's runtime
@@ -1247,8 +1280,8 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 		return nil
 	}
 	line := 1
-	if idx := strings.Index(src, "signal.Notify("); idx >= 0 {
-		line += strings.Count(src[:idx], "\n")
+	if before, _, ok := strings.Cut(src, "signal.Notify("); ok {
+		line += strings.Count(before, "\n")
 	}
 	return []Finding{{
 		RuleID:     "SIG-001",
@@ -1258,6 +1291,102 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 		Line:       line,
 		Suggestion: "replace the signal-handling goroutine with os.Exit(evo.Main(run)) or out.Run(ctx, run), or call task.Cancel(reason) from it",
 	}}
+}
+
+// lifecycleSignalSelectors are the signal identifiers that overlap the
+// SIGINT/SIGTERM cancellation evo.Main/evo.Run already wire into RunFunc's
+// context — os.Interrupt, syscall.SIGINT, syscall.SIGTERM. Any other signal
+// (SIGHUP, SIGUSR1, ...) is unrelated application signal handling and
+// detectDuplicateSignalWiringAroundMain never flags it.
+var lifecycleSignalSelectors = map[string]bool{
+	"Interrupt": true,
+	"SIGINT":    true,
+	"SIGTERM":   true,
+}
+
+// detectDuplicateSignalWiringAroundMain flags signal.Notify/NotifyContext
+// calls that wire SIGINT/SIGTERM/os.Interrupt in a file that also calls
+// evo.Main/evo.Run — a host-built interrupt layer solely duplicating the
+// lifecycle those entrypoints already own (evo-rec.md "Interrupts";
+// Decisions 2026-09-23, ZYS-939: "evo.Main / evo.Run already own SIGINT/
+// SIGTERM cancellation and second-signal behavior. Flag host code that
+// wraps the callback in its own signal.NotifyContext / duplicate interrupt
+// layer solely for Evo lifecycle."). Signal handling for anything else
+// (SIGHUP, SIGUSR1, ...) is real application behavior and is left alone.
+func detectDuplicateSignalWiringAroundMain(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
+	if pkg == "" || !fileCallsEvoEntrypoint(file, pkg, "Main", "Run") {
+		return nil
+	}
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || (sel.Sel.Name != "Notify" && sel.Sel.Name != "NotifyContext") || !isEvoIdent(sel.X, "signal") {
+			return true
+		}
+		if !callArgsIncludeLifecycleSignal(call.Args) {
+			return true
+		}
+		pos := fset.Position(call.Pos())
+		findings = append(findings, duplicateSignalWiringFinding(filename, pos, pkg, sel.Sel.Name))
+		return true
+	})
+	return findings
+}
+
+// fileCallsEvoEntrypoint reports whether file calls pkg.<name> for any of
+// names — e.g. evo.Main(...) or evo.Run(...).
+func fileCallsEvoEntrypoint(file *ast.File, pkg string, names ...string) bool {
+	found := false
+	ast.Inspect(file, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !isEvoIdent(sel.X, pkg) {
+			return true
+		}
+		if slices.Contains(names, sel.Sel.Name) {
+			found = true
+		}
+		return true
+	})
+	return found
+}
+
+// callArgsIncludeLifecycleSignal reports whether any argument names a
+// SIGINT/SIGTERM/os.Interrupt selector (lifecycleSignalSelectors).
+func callArgsIncludeLifecycleSignal(args []ast.Expr) bool {
+	for _, arg := range args {
+		sel, ok := arg.(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+		if lifecycleSignalSelectors[sel.Sel.Name] {
+			return true
+		}
+	}
+	return false
+}
+
+func duplicateSignalWiringFinding(filename string, pos token.Position, pkg, verb string) Finding {
+	return Finding{
+		RuleID:     "SIG-002",
+		Severity:   "warning",
+		Message:    "signal." + verb + " wires SIGINT/SIGTERM/os.Interrupt in a file that also calls " + pkg + ".Main/" + pkg + ".Run; those entrypoints already cancel RunFunc's context on the same signals, so this duplicate layer can let the ledger and the process's actual exit path diverge",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "delete the signal." + verb + " call and read cancellation from the ctx " + pkg + ".Main/" + pkg + ".Run already passes into the run callback; keep signal.Notify only for signals unrelated to Evo's own lifecycle (e.g. SIGHUP)",
+	}
 }
 
 // detectTTYPassthroughWithoutSuspend flags exec.Cmd Stdout/Stderr wired
@@ -2215,7 +2344,7 @@ func composesItsArgument(stmt string) bool {
 func singleStatementBody(inner string) string {
 	var stmt string
 	count := 0
-	for _, l := range strings.Split(inner, "\n") {
+	for l := range strings.SplitSeq(inner, "\n") {
 		t := strings.TrimSpace(l)
 		if t == "" || strings.HasPrefix(t, "//") {
 			continue

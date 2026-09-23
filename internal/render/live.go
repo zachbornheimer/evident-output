@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -69,6 +70,17 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, color bool, p
 	nameWidth := maxRootTaskNameWidth(s.Tasks)
 	for _, t := range s.Tasks {
 		writeLiveTaskLine(&b, t, 0, nameWidth, width, spin, color, now, profile)
+	}
+	if hasTaskRows(s) && hasEffectSections(s) {
+		b.WriteByte('\n')
+	}
+	changeNameWidth := maxEffectSubjectWidth(s.Changes, func(c core.ChangesSnapshot) string { return c.Subject })
+	for _, ch := range s.Changes {
+		WriteEffects(&b, "changed", ch.Subject, changeNameWidth, ch.Records, ch.IntendedVerb, width, color, profile)
+	}
+	planNameWidth := maxEffectSubjectWidth(s.Plans, func(p core.PlanSnapshot) string { return p.Subject })
+	for _, p := range s.Plans {
+		WriteEffects(&b, "planned", p.Subject, planNameWidth, p.Records, p.IntendedVerb, width, color, profile)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -199,10 +211,9 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 
 	// Select children by severity under height budget.
 	// Budget: height includes header; leave room for omission line.
-	maxChildRows := height - 2 // header + possible omission
-	if maxChildRows < 1 {
-		maxChildRows = 1
-	}
+	maxChildRows := max(
+		// header + possible omission
+		height-2, 1)
 	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
 	for _, t := range selected {
 		writeLiveTaskLine(b, t, 1, 0, width, spin, color, now, profile)
@@ -217,7 +228,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
-		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
@@ -415,7 +426,7 @@ func writeLiveEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
-		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
@@ -427,12 +438,7 @@ func anyChildRunning(col core.TasksSnapshot) bool {
 			return true
 		}
 	}
-	for _, child := range col.Collections {
-		if anyChildRunning(child) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(col.Collections, anyChildRunning)
 }
 
 func anyChildFailed(col core.TasksSnapshot) bool {
@@ -441,12 +447,7 @@ func anyChildFailed(col core.TasksSnapshot) bool {
 			return true
 		}
 	}
-	for _, child := range col.Collections {
-		if anyChildFailed(child) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(col.Collections, anyChildFailed)
 }
 
 // anyChildPendingActive reports whether the collection has any unresolved
@@ -462,12 +463,7 @@ func anyChildPendingActive(col core.TasksSnapshot) bool {
 			return true
 		}
 	}
-	for _, child := range col.Collections {
-		if anyChildPendingActive(child) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(col.Collections, anyChildPendingActive)
 }
 
 // earliestLiveFirstSeen returns the earliest LiveFirstSeenAt among a
@@ -553,21 +549,19 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 
 // writeLiveTaskLine renders one task row at the given indent.
 //
-// A standalone (indent == 0) Running task with a determinate bar/count AND
-// a current-activity Phase gets the same stable-parent-plus-one-activity-
-// child shape a Group's promoted lone child already has (spec §18/§23:
-// "⠋ install dependencies  [████        ]  14/40  — 7s" / "  ⠋ urllib3"):
+// A Running task with a determinate bar/count AND a current-activity Phase
+// gets spec §23's stable-parent-plus-one-activity-child shape at any
+// indent ("⠋ install dependencies  [████        ]  14/40  — 7s" /
+// "  ⠋ urllib3", and the same pair one level deeper under a Group):
 // the parent line owns the bar/count/timer only, and the current activity
 // becomes its own indented spinner line beneath it — so the child can
-// change/truncate independently without moving the timer horizontally, per
-// §18/§24. A nested (indent > 0) row already reaches this shape via its own
-// container-level handling and is unaffected.
+// change/truncate independently without moving the timer horizontally.
 func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
 	pad := ""
 	if indent > 0 {
 		pad = "   "
 	}
-	if splitsStandaloneActivityChild(t, indent) {
+	if splitsActivityChild(t) {
 		parent := t
 		parent.Phase = ""
 		unit := liveTaskUnit(parent, indent, width, spin, color, now, profile)
@@ -578,14 +572,23 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 			Glyph: txt.StyleGlyph(spin, StateColor(core.Running), color),
 			Name:  t.Phase,
 		}
-		b.WriteString(child.Render("   "))
+		b.WriteString(child.Render(pad + "   "))
 		b.WriteByte('\n')
-		return
+	} else {
+		unit := liveTaskUnit(t, indent, width, spin, color, now, profile)
+		padRootName(&unit, indent, nameWidth)
+		b.WriteString(unit.Render(pad))
+		b.WriteByte('\n')
 	}
-	unit := liveTaskUnit(t, indent, width, spin, color, now, profile)
-	padRootName(&unit, indent, nameWidth)
-	b.WriteString(unit.Render(pad))
-	b.WriteByte('\n')
+	// Spec §22: warnings must not disappear. Running/Failed rows keep their
+	// diagnostic parent line (bar/count or failure summary) and nest each
+	// warning underneath — Done still inlines a short warning on the ✓ row.
+	if t.State == core.Running || t.State == core.Failed {
+		writeNestedTaskWarnings(b, t.Warnings, pad+"   ", color, profile)
+	}
+	if t.State == core.Failed {
+		writeVerificationDetails(b, t.Verification, pad+"   ", true, false, color, profile)
+	}
 }
 
 // padRootName right-pads a standalone (indent == 0) row's name to nameWidth
@@ -599,13 +602,12 @@ func padRootName(unit *DisplayUnit, indent, nameWidth int) {
 	unit.Name = txt.PadRight(unit.Name, nameWidth)
 }
 
-// splitsStandaloneActivityChild reports whether t is a standalone
-// (indent == 0) Running task with a determinate progress bar/count AND a
-// current-activity Phase — the one condition writeLiveTaskLine splits into
-// a parent bar/count/timer line plus its own activity-child line.
-func splitsStandaloneActivityChild(t core.TaskSnapshot, indent int) bool {
-	return indent == 0 &&
-		t.State == core.Running &&
+// splitsActivityChild reports whether t is a Running task with a
+// determinate progress bar/count AND a current-activity Phase — the
+// condition writeLiveTaskLine splits into a parent bar/count/timer line
+// plus its own activity-child line, at any indent (spec §23).
+func splitsActivityChild(t core.TaskSnapshot) bool {
+	return t.State == core.Running &&
 		t.Progress.Kind == core.Determinate &&
 		t.Progress.Total > 0 &&
 		t.Phase != ""
@@ -638,6 +640,8 @@ func liveTaskUnit(t core.TaskSnapshot, indent, width int, spin string, color boo
 	switch {
 	case t.State == core.Done && t.Progress.Kind == core.BytesKind:
 		unit.Detail = formatBytes(t.Progress.Completed)
+	case t.Resolution == core.ResolutionAlreadySatisfied:
+		unit.Detail = alreadySatisfiedRowDetail(t, color)
 	case t.State == core.Done && t.Summary != "":
 		unit.Detail = txt.Dim(t.Summary, color)
 	case t.State == core.Running && t.Progress.Kind == core.BytesKind && t.Progress.Total > 0:

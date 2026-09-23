@@ -81,6 +81,15 @@ func (s *Store) Operation(taskKey string, i int) (OperationRecord, bool) {
 	return task.Operations[i], true
 }
 
+// Task returns the previously committed TaskRecord for taskKey, if this
+// store has one — symmetric with Operation, but returning the whole record
+// (including its own DefinitionFingerprint, ZYS-817) rather than one
+// operation within it.
+func (s *Store) Task(taskKey string) (TaskRecord, bool) {
+	task, ok := s.doc.Tasks[taskKey]
+	return task, ok
+}
+
 // CommitTask atomically records task's full operation state as this Run's
 // truth for taskKey, and persists app alongside it. Callers must only call
 // CommitTask after the Task itself has fully succeeded (spec §11.3/§9.2) —

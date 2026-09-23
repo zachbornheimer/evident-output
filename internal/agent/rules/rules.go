@@ -486,6 +486,24 @@ go func() { <-c; task.Cancel("interrupted") }()
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "SIG-002",
+			Category:  "SIG",
+			Severity:  "warning",
+			Invariant: "evo.Main/evo.Run own SIGINT/SIGTERM/os.Interrupt cancellation; a host does not build a second interrupt layer around them",
+			Why:       "evo.Main/evo.Run cancel RunFunc's context.Context on SIGINT/SIGTERM/os.Interrupt as of 1.0.0; a host-built signal.NotifyContext/signal.Notify wired for the same signals solely to wrap that call duplicates the lifecycle and can let the ledger's ■ glyph and the process's real exit path diverge.",
+			BadCode: `ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer stop()
+os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
+			GoodCode: `os.Exit(evo.Main(run)) // run(ctx context.Context) error — Main cancels ctx on SIGINT/SIGTERM itself
+// signal.Notify for anything unrelated to Evo's own lifecycle (e.g. SIGHUP) is unaffected`,
+			Remediation:     "Delete the duplicate signal.NotifyContext/signal.Notify wiring and read cancellation from the ctx evo.Main/evo.Run already pass into the run callback; keep signal.Notify only for signals Evo does not own (SIGHUP, SIGUSR1, ...)",
+			Exceptions:      []string{"signal.Notify/NotifyContext for a signal other than SIGINT/SIGTERM/os.Interrupt"},
+			RelatedGuidance: []string{"streams", "interactive"},
+			VerificationIDs: []string{"SIG-002"},
+			Since:           "1.0.0",
+			Certainty:       "deterministic",
+		},
+		{
 			ID:              "TERM-008",
 			Category:        "TERM",
 			Severity:        "error",
@@ -1353,6 +1371,45 @@ return task.Wait()`,
 			// rule; this entry documents the spelling the MCP now teaches.
 		},
 		{
+			ID:        "API-045",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a Task names one independently schedulable promise whose outcome is independently meaningful to the user, not a subject label or a container wearing one Task's clothes",
+			Why:       "`Task(\"file integrity\")` (ZYS-838, also this codebase's own FP-006 fixture) names what the Task is about, not what it will determine; `Task(\"fix\")` (zq internal/app/app.go:80's a.task(\"fix\", ...) command family) reads as one row but really organizes several independently meaningful operations. Neither answers ZYS-838's own test: does the name alone tell the user what failed?",
+			BadCode: `out.Task("file integrity").Done()
+out.Task("fix").Done()`,
+			GoodCode: `out.Task("check file integrity").Done()
+
+prep := out.Group("prepare staged files")
+prep.Task("format Python").Define(formatPython)
+prep.Task("stabilize Go source").Define(stabilizeGo)`,
+			Remediation:     "Rename a subject-only Task to verb+object; replace a generic container Task with a Group/Sequence whose children are the independently meaningful Tasks",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-045"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
+			Since:     "1.1.0",
+			Certainty: "heuristic",
+		},
+		{
+			ID:        "API-047",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a Task/Group/Sequence's default §3.1 identity folds its kind into the stable key (kind:parentKey/name); a sibling name reused across different kinds under one parent is two distinct runtime identities sharing one visible display name",
+			Why:       "`out.Task(\"build\")` and `out.Group(\"build\")` never collide at runtime — failDuplicateSiblingLocked's dedup check only compares within one kind's own name index — so both declare successfully and render as two rows a reader cannot tell apart by name alone, even though provenance/manifest lookups by display name now resolve ambiguously between them.",
+			BadCode: `out.Task("build")
+out.Group("build")`,
+			GoodCode: `out.Task("build")
+out.Group("build assets")`,
+			Remediation:     "Give each Task/Group/Sequence declared under one parent a name distinct from every sibling, regardless of kind — not only from siblings of its own kind",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-047"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",
@@ -1488,6 +1545,27 @@ consumer.Define(func(ctx context.Context) error {
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"EVO-DAG-003"},
 			Since:           "1.0.0",
+			Certainty:       "heuristic",
+		},
+		{
+			ID:        "API-046",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "Skipped means a check never applied; ResolutionAlreadySatisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
+			Why:       "task.Skipped(evo.Reason(\"already up to date\")) reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison resolve ResolutionAlreadySatisfied for exactly this case, and collapsing it into Skipped hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Skipped.",
+			BadCode: `if installedVersion == latestVersion {
+  task.Skipped(evo.Reason("already up to date"))
+  return
+}
+task.Define(func(ctx context.Context) error { return install(ctx) })`,
+			GoodCode: `task.Verify(func(ctx context.Context) (bool, error) {
+  return installedVersion == latestVersion, nil
+})
+task.Define(func(ctx context.Context) error { return install(ctx) })`,
+			Remediation:     "Move the already-true check into task.Verify(...) before Define, or rely on evo.File/evo.Exec's own tracked comparison, so evo resolves ResolutionAlreadySatisfied instead of Skipped; keep Skipped only for true inapplicability",
+			RelatedGuidance: []string{"tasks", "evidence-provenance"},
+			VerificationIDs: []string{"API-046"},
+			Since:           "1.1.0",
 			Certainty:       "heuristic",
 		},
 	}

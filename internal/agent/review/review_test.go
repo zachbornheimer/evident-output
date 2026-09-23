@@ -475,6 +475,173 @@ func main() {
 	}
 }
 
+func TestSIG002_DuplicateSignalWiringAroundMain(t *testing.T) {
+	src := `package main
+import (
+  "context"
+  "os"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context) error { return nil }
+func main() {
+  ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+  defer stop()
+  os.Exit(evo.Main(func(context.Context) error {
+    return run(ctx)
+  }))
+}
+`
+	res := review.GoSource("bad.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-002" {
+			found = true
+			if f.Line == 0 {
+				t.Error("SIG-002 missing line")
+			}
+			if f.Suggestion == "" {
+				t.Error("SIG-002 missing suggestion")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected SIG-002 on signal.NotifyContext duplicating evo.Main's SIGINT/SIGTERM lifecycle: %+v", res.Findings)
+	}
+}
+
+func TestSIG002_RecheckClearsAfterRemediation(t *testing.T) {
+	bad := `package main
+import (
+  "context"
+  "os"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context) error { return nil }
+func main() {
+  ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+  defer stop()
+  os.Exit(evo.Main(func(context.Context) error {
+    return run(ctx)
+  }))
+}
+`
+	before := review.GoSource("bad.go", bad)
+	if !hasRule(before, "SIG-002") {
+		t.Fatalf("expected SIG-002 before remediation: %+v", before.Findings)
+	}
+	fixed := `package main
+import (
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(_ interface{}) error { return nil }
+func main() {
+  os.Exit(evo.Main(run))
+}
+`
+	after := review.GoSource("fixed.go", fixed)
+	if hasRule(after, "SIG-002") {
+		t.Fatalf("SIG-002 must be gone after deleting the duplicate signal.NotifyContext layer: %+v", after.Findings)
+	}
+}
+
+func TestSIG002_NoFalsePositiveWithoutMainOrRun(t *testing.T) {
+	src := `package main
+import (
+  "context"
+  "os"
+  "os/signal"
+  "syscall"
+)
+func main() {
+  ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+  defer stop()
+  _ = ctx
+}
+`
+	res := review.GoSource("good_no_evo.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-002" {
+			t.Fatalf("false positive SIG-002 with no evo.Main/Run call: %+v", res.Findings)
+		}
+	}
+}
+
+func TestSIG002_NoFalsePositiveWhenMainOwnsLifecycle(t *testing.T) {
+	src := `package main
+import (
+  "context"
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context) error { return nil }
+func main() {
+  os.Exit(evo.Main(run))
+}
+`
+	res := review.GoSource("good.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-002" {
+			t.Fatalf("false positive SIG-002 when evo.Main owns the whole lifecycle: %+v", res.Findings)
+		}
+	}
+}
+
+func TestSIG002_NoFalsePositiveOnUnrelatedSignal(t *testing.T) {
+	src := `package main
+import (
+  "os"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run() error { return nil }
+func watchReload(c chan os.Signal) {}
+func main() {
+  reload := make(chan os.Signal, 1)
+  signal.Notify(reload, syscall.SIGHUP)
+  go watchReload(reload)
+  os.Exit(evo.Main(func(_ interface{}) error { return run() }))
+}
+`
+	res := review.GoSource("good_sighup.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-002" {
+			t.Fatalf("false positive SIG-002 on unrelated SIGHUP handling: %+v", res.Findings)
+		}
+	}
+}
+
+func TestSIG002_NotFlaggedBeforeDialectOneZero(t *testing.T) {
+	src := `package main
+import (
+  "context"
+  "os"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context) error { return nil }
+func main() {
+  ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+  defer stop()
+  os.Exit(evo.Main(func(context.Context) error {
+    return run(ctx)
+  }))
+}
+`
+	res := review.GoSourceAt("bad.go", src, "v0.4.7")
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-002" {
+			t.Fatalf("SIG-002 must not fire for a pin before evo.Main owned SIGINT/SIGTERM (1.0.0): %+v", res.Findings)
+		}
+	}
+}
+
 func TestTERM015_TTYPassthroughWithoutSuspend(t *testing.T) {
 	bad := `package p
 import (

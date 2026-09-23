@@ -421,3 +421,321 @@ func TestTAX003_TestFile_StaysSilent(t *testing.T) {
 		}
 	}
 }
+
+// API-046: task.Skipped(evo.Reason("...")) whose reason names an
+// already-satisfied condition instead of true inapplicability.
+
+const skippedAlreadyUpToDateSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle, installed, latest string) {
+  if installed == latest {
+    task.Skipped(evo.Reason("already up to date"))
+    return
+  }
+  task.Define(func(ctx context.Context) error { return nil })
+}
+`
+
+func TestAPI046_SkippedAlreadyUpToDate_Fires(t *testing.T) {
+	res := review.GoSource("adopt.go", skippedAlreadyUpToDateSrc)
+	f := findingByID(t, res, "API-046")
+	if f.Severity != "warning" {
+		t.Fatalf("API-046 severity = %q, want warning", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "Verify") {
+		t.Fatalf("API-046 suggestion does not name Verify: %q", f.Suggestion)
+	}
+	if !strings.Contains(f.Suggestion, "ResolutionAlreadySatisfied") {
+		t.Fatalf("API-046 suggestion does not name ResolutionAlreadySatisfied: %q", f.Suggestion)
+	}
+}
+
+func TestAPI046_SkippedBareWordReasons_Fire(t *testing.T) {
+	cases := []string{"already latest", "unchanged", "current", "latest", "up to date"}
+	for _, reason := range cases {
+		src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle) {
+  task.Skipped(evo.Reason("` + reason + `"))
+}
+`
+		t.Run(reason, func(t *testing.T) {
+			res := review.GoSource("adopt.go", src)
+			findingByID(t, res, "API-046")
+		})
+	}
+}
+
+const skippedNoGoModuleSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle) {
+  task.Skipped(evo.Reason("no Go module"))
+}
+`
+
+func TestAPI046_TrueInapplicability_StaysSilent(t *testing.T) {
+	res := review.GoSource("adopt.go", skippedNoGoModuleSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-046" {
+			t.Fatalf("false positive API-046 on true inapplicability: %+v", f)
+		}
+	}
+}
+
+const skippedUnrelatedReasonSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle) {
+  task.Skipped(evo.Reason("protected"))
+}
+`
+
+func TestAPI046_UnrelatedReason_StaysSilent(t *testing.T) {
+	res := review.GoSource("adopt.go", skippedUnrelatedReasonSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-046" {
+			t.Fatalf("false positive API-046 on an unrelated skip reason: %+v", f)
+		}
+	}
+}
+
+func TestAPI046_PreOneZeroPin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("adopt.go", skippedAlreadyUpToDateSrc, "0.6.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-046" {
+			t.Fatalf("false positive API-046 for a pre-1.0.0 pin: %+v", f)
+		}
+	}
+}
+
+func TestAPI046_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+	res := review.GoSource("adopt.go", skippedAlreadyUpToDateSrc)
+	findingByID(t, res, "API-046")
+
+	const remediated = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle, installed, latest string) {
+  task.Verify(func(ctx context.Context) (bool, error) {
+    return installed == latest, nil
+  })
+  task.Define(func(ctx context.Context) error { return nil })
+}
+`
+	after := review.GoSource("adopt.go", remediated)
+	for _, f := range after.Findings {
+		if f.RuleID == "API-046" {
+			t.Fatalf("API-046 still fires after remediation: %+v", f)
+		}
+	}
+}
+
+// API-045: a Task name that is a bare subject/category label (ZYS-838's own
+// "file integrity") is not one independently meaningful action — the
+// finding must name the semantic distinction, not merely grammar, and offer
+// the exact corrected verb+object spelling.
+
+const subjectOnlyTaskNameSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("file integrity").Done()
+}
+`
+
+func TestAPI045_SubjectOnlyTaskName_Fires(t *testing.T) {
+	res := review.GoSource("check.go", subjectOnlyTaskNameSrc)
+	f := findingByID(t, res, "API-045")
+	if f.Severity != "warning" {
+		t.Fatalf("API-045 severity = %q, want warning", f.Severity)
+	}
+	if !strings.Contains(f.Message, "names a subject, not the work") {
+		t.Fatalf("API-045 message does not name the semantic distinction: %q", f.Message)
+	}
+	if !strings.Contains(f.Suggestion, `"check file integrity"`) {
+		t.Fatalf("API-045 suggestion does not offer the corrected verb+object name: %q", f.Suggestion)
+	}
+}
+
+const containerTaskNameSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("fix").Done()
+}
+`
+
+func TestAPI045_ContainerTaskName_Fires(t *testing.T) {
+	res := review.GoSource("fix.go", containerTaskNameSrc)
+	f := findingByID(t, res, "API-045")
+	if !strings.Contains(f.Message, "organize") {
+		t.Fatalf("API-045 message does not describe the container shape: %q", f.Message)
+	}
+	if !strings.Contains(f.Suggestion, "Group") && !strings.Contains(f.Suggestion, "Sequence") {
+		t.Fatalf("API-045 suggestion does not name Group/Sequence: %q", f.Suggestion)
+	}
+}
+
+const verbObjectTaskNameSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output, g *evo.GroupHandle) {
+  out.Task("check file integrity").Done()
+  g.Task("format Python").Done()
+  g.Task("stabilize Go source").Done()
+  g.Task("lint Go").Done()
+  g.Task("check Python").Done()
+  g.Task("build application icons").Done()
+}
+`
+
+func TestAPI045_VerbObjectTaskNames_StaySilent(t *testing.T) {
+	res := review.GoSource("good.go", verbObjectTaskNameSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-045" {
+			t.Fatalf("false positive API-045 on a verb+object Task name: %+v", f)
+		}
+	}
+}
+
+func TestAPI045_ObservationsUnderOneTask_StaySilent(t *testing.T) {
+	// The "check file integrity" fixture (ZYS-838 acceptance): several
+	// internal observations answer one user-meaningful question and stay
+	// Facts/problems under one Task, never sibling Tasks.
+	const src = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle) {
+  task.Fact("merge markers", "none found")
+  task.Fact("symlinks", "valid")
+  task.Warn("generated file looks stale")
+}
+`
+	res := review.GoSource("integrity.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-045" {
+			t.Fatalf("false positive API-045 on Facts/Warn under one Task: %+v", f)
+		}
+	}
+}
+
+// API-047: a Task/Group/Sequence declaration reuses a sibling literal name
+// already used by a different entity kind under the same parent (ZYS-944).
+// Same-kind reuse already fails fast at runtime
+// (engine.ProblemCodeDuplicateSiblingName); this rule closes the cross-kind
+// gap statically.
+
+const crossKindDuplicateSiblingSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("build")
+  out.Group("build")
+}
+`
+
+func TestAPI047_CrossKindDuplicateSiblingName_Fires(t *testing.T) {
+	res := review.GoSource("run.go", crossKindDuplicateSiblingSrc)
+	f := findingByID(t, res, "API-047")
+	if f.Severity != "error" {
+		t.Fatalf("API-047 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "out.Group(") {
+		t.Fatalf("API-047 suggestion does not name the corrected out.Group(...) call: %q", f.Suggestion)
+	}
+	if !strings.Contains(f.Message, "task") || !strings.Contains(f.Message, "group") {
+		t.Fatalf("API-047 message does not name both conflicting kinds: %q", f.Message)
+	}
+}
+
+const crossKindDuplicateSiblingNestedSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  work := out.Group("work")
+  work.Task("build")
+  work.Sequence("build")
+}
+`
+
+func TestAPI047_CrossKindDuplicateSiblingName_FiresUnderNestedParent(t *testing.T) {
+	res := review.GoSource("run.go", crossKindDuplicateSiblingNestedSrc)
+	f := findingByID(t, res, "API-047")
+	if !strings.Contains(f.Suggestion, "work.Sequence(") {
+		t.Fatalf("API-047 suggestion does not name the corrected work.Sequence(...) call: %q", f.Suggestion)
+	}
+}
+
+const sameKindDuplicateSiblingSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("build")
+  out.Task("build")
+}
+`
+
+func TestAPI047_SameKindDuplicate_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", sameKindDuplicateSiblingSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-047" {
+			t.Fatalf("API-047 fired for a same-kind duplicate; the runtime's own duplicate-sibling-name failure already covers this: %+v", f)
+		}
+	}
+}
+
+const distinctSiblingNamesSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  out.Task("build")
+  out.Group("test")
+}
+`
+
+func TestAPI047_DistinctNames_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", distinctSiblingNamesSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-047" {
+			t.Fatalf("false positive API-047 for distinct sibling names: %+v", f)
+		}
+	}
+}
+
+const crossKindDifferentParentsSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output) {
+  a := out.Group("a")
+  b := out.Group("b")
+  a.Task("build")
+  b.Group("build")
+}
+`
+
+func TestAPI047_CrossKindDifferentParents_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", crossKindDifferentParentsSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-047" {
+			t.Fatalf("false positive API-047 across two distinct parents that merely share a literal child name: %+v", f)
+		}
+	}
+}
+
+const crossKindDuplicateSiblingBranchesSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(out *evo.Output, cond bool) {
+  if cond {
+    out.Task("build")
+  } else {
+    out.Group("build")
+  }
+}
+`
+
+func TestAPI047_MutuallyExclusiveBranches_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", crossKindDuplicateSiblingBranchesSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-047" {
+			t.Fatalf("false positive API-047 across mutually exclusive if/else branches: %+v", f)
+		}
+	}
+}
+
+func TestAPI047_PreOneZeroPin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("run.go", crossKindDuplicateSiblingSrc, "0.6.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-047" {
+			t.Fatalf("API-047 fired for a pin older than 1.0.0: %+v", f)
+		}
+	}
+}
