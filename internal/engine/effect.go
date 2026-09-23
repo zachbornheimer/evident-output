@@ -7,15 +7,6 @@ import (
 	"strings"
 )
 
-// Resource names the one shared resource an opaque Effect may claim so
-// overlapping work is coordinated (ZYS-840). The unexported marker method
-// seals the interface: only this package can produce a Resource, so a
-// caller cannot hand Evo an identity the coordination layer does not
-// understand. A nil Resource means "no resource claim".
-type Resource interface {
-	resource()
-}
-
 // EffectVerb is the closed set of imperative verbs an opaque Effect may
 // declare. There is deliberately no write verb: file state goes through
 // File (and Patch), never an opaque callback.

@@ -6,10 +6,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
-// Resource names the one shared resource an opaque Effect may claim. It is
-// sealed: callers cannot implement it. A nil Resource means no claim.
-type Resource = engine.Resource
-
 // EffectVerb is the closed set of imperative verbs an opaque Effect may
 // declare. There is no write verb: file state goes through File.
 type EffectVerb = engine.EffectVerb

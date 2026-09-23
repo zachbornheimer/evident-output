@@ -54,9 +54,10 @@ func ExampleEffectVerb() {
 	// add create delete push remove update
 }
 
-// ExampleResource shows the default: an EffectSpec with no Resource makes
-// no resource claim. Resource is sealed — callers cannot implement it.
-func ExampleResource() {
+// ExampleEffectSpec_noResource shows the default: an EffectSpec with no
+// Resource makes no resource claim. Resource is sealed — callers cannot
+// implement it.
+func ExampleEffectSpec_noResource() {
 	spec := evo.EffectSpec{Verb: evo.EffectPush, Object: "branch", Quantity: 1}
 	fmt.Println(spec.Resource == nil)
 	// Output:
