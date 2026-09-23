@@ -113,10 +113,9 @@ func TestAPI057_ReadOnlyOpenFileInEffect_StaysSilent(t *testing.T) {
 	}
 }
 
-// evo.Patch/evo.Files do not exist in this module's public API (ZYS-932):
-// even when the callback also reads the same file's existing contents
-// before writing it back, the Suggestion must still name evo.File, never a
-// fictitious evo.Patch/evo.Files pair.
+// ZYS-932: even when the callback also reads the same file's existing
+// contents before writing it back, the Suggestion must still name evo.File,
+// the one route that needs no diff.
 
 const rawWriteDerivedFromReadInEffectSrc = `package p
 import (
