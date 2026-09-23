@@ -421,3 +421,109 @@ func TestTAX003_TestFile_StaysSilent(t *testing.T) {
 		}
 	}
 }
+
+// API-046: task.Skipped(evo.Reason("...")) whose reason names an
+// already-satisfied condition instead of true inapplicability.
+
+const skippedAlreadyUpToDateSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle, installed, latest string) {
+  if installed == latest {
+    task.Skipped(evo.Reason("already up to date"))
+    return
+  }
+  task.Define(func(ctx context.Context) error { return nil })
+}
+`
+
+func TestAPI046_SkippedAlreadyUpToDate_Fires(t *testing.T) {
+	res := review.GoSource("adopt.go", skippedAlreadyUpToDateSrc)
+	f := findingByID(t, res, "API-046")
+	if f.Severity != "warning" {
+		t.Fatalf("API-046 severity = %q, want warning", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "Verify") {
+		t.Fatalf("API-046 suggestion does not name Verify: %q", f.Suggestion)
+	}
+	if !strings.Contains(f.Suggestion, "ResolutionAlreadySatisfied") {
+		t.Fatalf("API-046 suggestion does not name ResolutionAlreadySatisfied: %q", f.Suggestion)
+	}
+}
+
+func TestAPI046_SkippedBareWordReasons_Fire(t *testing.T) {
+	cases := []string{"already latest", "unchanged", "current", "latest", "up to date"}
+	for _, reason := range cases {
+		src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle) {
+  task.Skipped(evo.Reason("` + reason + `"))
+}
+`
+		t.Run(reason, func(t *testing.T) {
+			res := review.GoSource("adopt.go", src)
+			findingByID(t, res, "API-046")
+		})
+	}
+}
+
+const skippedNoGoModuleSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle) {
+  task.Skipped(evo.Reason("no Go module"))
+}
+`
+
+func TestAPI046_TrueInapplicability_StaysSilent(t *testing.T) {
+	res := review.GoSource("adopt.go", skippedNoGoModuleSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-046" {
+			t.Fatalf("false positive API-046 on true inapplicability: %+v", f)
+		}
+	}
+}
+
+const skippedUnrelatedReasonSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle) {
+  task.Skipped(evo.Reason("protected"))
+}
+`
+
+func TestAPI046_UnrelatedReason_StaysSilent(t *testing.T) {
+	res := review.GoSource("adopt.go", skippedUnrelatedReasonSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-046" {
+			t.Fatalf("false positive API-046 on an unrelated skip reason: %+v", f)
+		}
+	}
+}
+
+func TestAPI046_PreOneZeroPin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("adopt.go", skippedAlreadyUpToDateSrc, "0.6.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-046" {
+			t.Fatalf("false positive API-046 for a pre-1.0.0 pin: %+v", f)
+		}
+	}
+}
+
+func TestAPI046_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+	res := review.GoSource("adopt.go", skippedAlreadyUpToDateSrc)
+	findingByID(t, res, "API-046")
+
+	const remediated = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(task *evo.TaskHandle, installed, latest string) {
+  task.Verify(func(ctx context.Context) (bool, error) {
+    return installed == latest, nil
+  })
+  task.Define(func(ctx context.Context) error { return nil })
+}
+`
+	after := review.GoSource("adopt.go", remediated)
+	for _, f := range after.Findings {
+		if f.RuleID == "API-046" {
+			t.Fatalf("API-046 still fires after remediation: %+v", f)
+		}
+	}
+}

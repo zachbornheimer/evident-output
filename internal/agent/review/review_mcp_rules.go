@@ -663,6 +663,107 @@ func inlineReasonFinding(filename string, pos token.Position, pkg string, outerS
 	}
 }
 
+// ===== API-046: task.Skipped(evo.Reason("...")) whose reason text names an
+// obvious already-satisfied condition (already up to date, unchanged,
+// already latest, already current) rather than true inapplicability (no
+// project config, no Go module). Skipped means the check never applied;
+// ResolutionAlreadySatisfied — produced by a Verify precondition, or derived
+// automatically from evo.File/evo.Exec's own tracked comparison — means the
+// check applied and already held. Collapsing the two into Skipped hides a
+// real, checked precondition behind the "did not apply" glyph.
+
+// alreadySatisfiedReasonPhrases are multi-word substrings (checked
+// case-insensitive against the full reason text) that only ever name a
+// checked-and-already-true condition — long enough that they never collide
+// with an unrelated sentence.
+var alreadySatisfiedReasonPhrases = []string{
+	"already up to date", "already up-to-date", "already latest",
+	"already current", "already installed", "already exists",
+	"already satisfied", "no changes needed", "nothing changed",
+	"no update needed", "no upgrade needed",
+}
+
+// alreadySatisfiedReasonWords are single bare words that only fire when the
+// entire (trimmed) reason text is exactly one of them — a one-word reason
+// like "current" or "unchanged" is unambiguous, but the same word inside a
+// longer sentence ("current branch is protected") is not, so those go
+// through alreadySatisfiedReasonPhrases instead.
+var alreadySatisfiedReasonWords = map[string]bool{
+	"current": true, "unchanged": true, "latest": true,
+	"up to date": true, "up-to-date": true, "uptodate": true,
+}
+
+// inapplicabilityReasonPhrases are substrings that name true inapplicability
+// (the check never ran because its precondition object doesn't exist) —
+// these never fire API-046 even if they also loosely match "current" or
+// "up to date" phrasing elsewhere in the same string.
+var inapplicabilityReasonPhrases = []string{
+	"no project config", "no go module", "no go.mod", "not applicable",
+	"n/a", "not a git repo", "not a repository", "no config found",
+	"missing config", "no module found", "not present",
+}
+
+func detectSkippedForAlreadySatisfied(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
+	if pkg == "" {
+		return nil
+	}
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Skipped" || !isLikelyEvoReceiver(sel.X) || len(call.Args) < 1 {
+			return true
+		}
+		reasonCall, ok := call.Args[0].(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		reasonSel, ok := reasonCall.Fun.(*ast.SelectorExpr)
+		if !ok || !isEvoIdent(reasonSel.X, pkg) || reasonSel.Sel.Name != "Reason" || len(reasonCall.Args) != 1 {
+			return true
+		}
+		lit, ok := reasonCall.Args[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		text, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		lower := strings.ToLower(strings.TrimSpace(text))
+		if containsAnyMarker(lower, inapplicabilityReasonPhrases) {
+			return true
+		}
+		if !containsAnyMarker(lower, alreadySatisfiedReasonPhrases) && !alreadySatisfiedReasonWords[lower] {
+			return true
+		}
+		pos := fset.Position(call.Pos())
+		findings = append(findings, skippedAlreadySatisfiedFinding(filename, pos, exprDottedName(sel.X), text))
+		return true
+	})
+	return findings
+}
+
+func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, text string) Finding {
+	if recv == "" {
+		recv = "task"
+	}
+	return Finding{
+		RuleID:   "API-046",
+		Severity: "warning",
+		Message:  "Skipped(evo.Reason(" + strconv.Quote(text) + ")) reports \"did not apply\"; the reason names a condition that was checked and already held, which is ResolutionAlreadySatisfied",
+		File:     filename,
+		Line:     pos.Line,
+		Column:   pos.Column,
+		Suggestion: "add a precondition check via " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) before " + recv +
+			".Define(...) so evo resolves ResolutionAlreadySatisfied on its own, or let evo.File/evo.Exec derive it from their own tracked comparison; reserve Skipped for true inapplicability (no project config, no Go module)",
+	}
+}
+
 // exportedReasonName turns a reason literal into an exported-style Go
 // identifier fragment ("dirty worktree" -> "DirtyWorktree") for the var-name
 // this rule's suggestion spells out.
