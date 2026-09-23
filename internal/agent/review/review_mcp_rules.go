@@ -748,6 +748,86 @@ func siblingDeclMethod(kind siblingEntityKind) string {
 	}
 }
 
+// ===== API-048: the same Group/Sequence receiver's .Task("literal") called
+// more than once with the identical string in one function — declareGroupTask
+// fails the second call as a duplicate sibling rather than returning the
+// first handle (§3.1; internal/engine/group.go's GroupHandle.Task), so a
+// later dependency reference (After, a second Define, ...) must keep the
+// first handle instead of re-declaring by name. The contract's own zq prune
+// fixture (spec §21/§18) extracts these into a typed var (...) block; that
+// is the recommended fix, never required for a Task named only once.
+
+// taskCallSite is one <receiver>.Task("literal") call site, kept in
+// declaration order so the finding always lands on the second (repeat)
+// occurrence, never the legitimate first declaration.
+type taskCallSite struct {
+	recv    string
+	literal string
+	pos     token.Pos
+}
+
+func detectRedeclaredTaskLiteral(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	forEachFuncBody(file, func(body *ast.BlockStmt) {
+		seen := map[string]token.Pos{}
+		ast.Inspect(body, func(n ast.Node) bool {
+			site, ok := taskCallSiteAt(n)
+			if !ok {
+				return true
+			}
+			key := site.recv + "\x00" + site.literal
+			if _, dup := seen[key]; dup {
+				pos := fset.Position(site.pos)
+				findings = append(findings, redeclaredTaskLiteralFinding(filename, pos, site.recv, site.literal))
+				return true
+			}
+			seen[key] = site.pos
+			return true
+		})
+	})
+	return findings
+}
+
+// taskCallSiteAt reports the <recv>.Task("literal") shape at n, when recv is
+// a named identifier (not a chained call result) — a Group/Sequence handle
+// held in a variable, the only shape a later reference could re-declare by
+// name instead of reusing.
+func taskCallSiteAt(n ast.Node) (taskCallSite, bool) {
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return taskCallSite{}, false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Task" || len(call.Args) != 1 {
+		return taskCallSite{}, false
+	}
+	if _, ok := sel.X.(*ast.Ident); !ok {
+		return taskCallSite{}, false
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return taskCallSite{}, false
+	}
+	text, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return taskCallSite{}, false
+	}
+	return taskCallSite{recv: exprDottedName(sel.X), literal: text, pos: call.Pos()}, true
+}
+
+func redeclaredTaskLiteralFinding(filename string, pos token.Position, recv, literal string) Finding {
+	quoted := strconv.Quote(literal)
+	return Finding{
+		RuleID:     "API-048",
+		Severity:   "suggestion",
+		Message:    recv + ".Task(" + quoted + ") is declared again with the same label; the second call fails as a duplicate sibling rather than returning the first handle",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "keep the first " + recv + ".Task(" + quoted + ") handle in a typed variable (a var (...) block when there are several) and reuse it for the later reference instead of re-declaring by name",
+	}
+}
+
 // ===== TAX-003: an evo.Reason("literal") used inline as a call argument in
 // non-test source, and a reason that merely restates its verb.
 

@@ -739,3 +739,83 @@ func TestAPI047_PreOneZeroPin_StaysSilent(t *testing.T) {
 		}
 	}
 }
+
+// API-048: a Group/Sequence Task re-declared by the same string literal to
+// obtain a later dependency reference — declareGroupTask fails the second
+// call as a duplicate sibling rather than returning the first handle (§3.1;
+// internal/engine/group.go's GroupHandle.Task doc comment), so the fix is a
+// typed variable (or var (...) block) holding the one handle, per the
+// product contract's own zq prune example.
+
+const redeclaredTaskForAfterSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(prune *evo.GroupHandle) {
+  prune.Task("branches").Define(func(ctx context.Context) error { return nil })
+  prune.Task("remote-tracking").After(prune.Task("branches")).Define(func(ctx context.Context) error { return nil })
+}
+`
+
+func TestAPI045_RedeclaredTaskLiteralForAfter_Fires(t *testing.T) {
+	res := review.GoSource("prune.go", redeclaredTaskForAfterSrc)
+	f := findingByID(t, res, "API-048")
+	if f.Severity != "suggestion" {
+		t.Fatalf("API-048 severity = %q, want suggestion", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "var") {
+		t.Fatalf("API-048 suggestion does not recommend a typed variable: %q", f.Suggestion)
+	}
+}
+
+const typedTaskVarSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(prune *evo.GroupHandle) {
+  var (
+    branches = prune.Task("branches")
+    remote   = prune.Task("remote-tracking")
+  )
+  branches.Define(func(ctx context.Context) error { return nil })
+  remote.After(branches).Define(func(ctx context.Context) error { return nil })
+}
+`
+
+func TestAPI045_TypedTaskVar_StaysSilent(t *testing.T) {
+	res := review.GoSource("prune_good.go", typedTaskVarSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-048" {
+			t.Fatalf("false positive API-048 on a typed Task variable: %+v", f)
+		}
+	}
+}
+
+const oneOffTaskSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(prune *evo.GroupHandle) {
+  prune.Task("branches").Define(func(ctx context.Context) error { return nil })
+}
+`
+
+func TestAPI045_TrivialOneOffTask_StaysSilent(t *testing.T) {
+	res := review.GoSource("oneoff.go", oneOffTaskSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-048" {
+			t.Fatalf("false positive API-048 on a trivial one-off Task: %+v", f)
+		}
+	}
+}
+
+const differentGroupsSameLabelSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func run(a, b *evo.GroupHandle) {
+  a.Task("branches").Define(func(ctx context.Context) error { return nil })
+  b.Task("branches").Define(func(ctx context.Context) error { return nil })
+}
+`
+
+func TestAPI045_SameLabelDifferentGroups_StaysSilent(t *testing.T) {
+	res := review.GoSource("two_groups.go", differentGroupsSameLabelSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-048" {
+			t.Fatalf("false positive API-048 on the same label under two different groups: %+v", f)
+		}
+	}
+}

@@ -1410,6 +1410,28 @@ out.Group("build assets")`,
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-048",
+			Category:  "API",
+			Severity:  "suggestion",
+			Invariant: "a Group/Sequence Task referenced later (After, a second Define, ...) keeps its first handle in a variable; re-declaring by the same string literal is a duplicate sibling, not a get-or-create",
+			Why:       "GroupHandle.Task(name)'s second call with an already-used name fails as a duplicate sibling (declareGroupTask, §3.1) rather than returning the earlier handle, so `prune.Task(\"branches\")` called again later to pass into After silently breaks the second Task instead of referencing the first. The product contract's own zq prune fixture (§18/§21) extracts these into a typed var (...) block instead.",
+			BadCode: `prune.Task("branches").Define(func(ctx context.Context) error { return nil })
+prune.Task("remote-tracking").
+  After(prune.Task("branches")). // re-declares "branches"; fails as a duplicate sibling
+  Define(func(ctx context.Context) error { return nil })`,
+			GoodCode: `var (
+  branches = prune.Task("branches")
+  remote   = prune.Task("remote-tracking")
+)
+branches.Define(func(ctx context.Context) error { return nil })
+remote.After(branches).Define(func(ctx context.Context) error { return nil })`,
+			Remediation:     "Keep the first Task(name) handle in a typed variable (a var (...) block when there are several) and reuse it for the later reference; do not require this for a Task named only once",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-048"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",

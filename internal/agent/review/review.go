@@ -542,6 +542,13 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectChannelWaitWrapperAroundDefine(filename, src)...)
 	}
 
+	// API-048: a Group/Sequence Task re-declared by the same string literal
+	// to obtain a later dependency reference (duplicate sibling, not a
+	// get-or-create) — recommend a typed variable instead.
+	if hasEvo {
+		findings = append(findings, detectRedeclaredTaskLiteral(filename, f, fset)...)
+	}
+
 	// TAX-003: inline evo.Reason("...") literal, or a reason that restates
 	// its own verb.
 	if hasEvo {
