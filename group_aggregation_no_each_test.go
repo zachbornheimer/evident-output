@@ -36,7 +36,7 @@ func TestGroup_LargePlainGroupAggregatesWithoutEach(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	packages := out.Group("packages")
-	for n := 0; n < 100; n++ {
+	for n := range 100 {
 		task := packages.Task(fmt.Sprintf("package-%03d", n))
 		switch n {
 		case 7:
