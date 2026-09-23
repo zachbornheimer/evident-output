@@ -37,40 +37,52 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 		return wrapped
 	}
 
-	path := o.resolveWorkspacePath(spec.Path)
-	target := FSResource(path)
+	return o.establishFile(ctx, fileOperation{taskID: taskID, spec: spec, path: o.resolveWorkspacePath(spec.Path)})
+}
+
+// establishFile claims op's path and reconciles it. op.derivedFrom, when
+// set, is checked while the path is held for writing, immediately before
+// the commit, so no write can land between the check and the commit.
+func (o *Output) establishFile(ctx context.Context, op fileOperation) error {
+	target := FSResource(op.path)
 	if nestedErr := checkResourceFree(ctx, target, resourceWrite); nestedErr != nil {
-		return fmt.Errorf("evo: File %q: %w", spec.Path, nestedErr)
+		return fmt.Errorf("evo: File %q: %w", op.spec.Path, nestedErr)
 	}
 
 	o.mu.Lock()
-	claimErr := o.claimManifestOutputLocked(taskID, path)
+	claimErr := o.claimManifestOutputLocked(op.taskID, op.path)
 	o.mu.Unlock()
 	if claimErr != nil {
 		return claimErr
 	}
-	defer o.settleOutputBarrier(path)
+	defer o.settleOutputBarrier(op.path)
 
-	op := fileOperation{taskID: taskID, spec: spec, path: path}
 	if op.manifestManaged() {
-		basis, basisErr := o.fileObserveBasis(ctx, taskID, spec, path)
+		basis, basisErr := o.fileObserveBasis(ctx, op.taskID, op.spec, op.path)
 		if basisErr != nil {
 			return basisErr
 		}
 		op.basis = basis
 	}
 	return o.holdResource(ctx, target, resourceWrite, func(held context.Context) error {
+		if op.derivedFrom != nil {
+			if staleErr := op.derivedFrom.revalidate(o.fileFS(), op.path); staleErr != nil {
+				return staleErr
+			}
+		}
 		return o.commitFile(held, op)
 	})
 }
 
 // fileOperation is one File call's resolved inputs: the owning Task, the
-// caller's spec, its canonical path, and the Basis observed for it.
+// caller's spec, its canonical path, the Basis observed for it, and, for
+// a derived state, the source it was derived from (nil for plain File).
 type fileOperation struct {
-	taskID string
-	spec   FileSpec
-	path   string
-	basis  []manifest.BasisRecord
+	taskID      string
+	spec        FileSpec
+	path        string
+	basis       []manifest.BasisRecord
+	derivedFrom *derivation
 }
 
 func (op fileOperation) contentsManaged() bool { return op.spec.Contents != nil }
