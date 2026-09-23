@@ -1663,6 +1663,36 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-058",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a FileSet evo.Patch returns is opaque so its source Basis and stale-write guard cannot be stripped before commit; a function that derives one from a diff always commits it through evo.Files, never by building a fresh evo.FileSpec and calling evo.File",
+			Why:       "evo.Patch(ctx, diff) parses a unified diff into a FileSet carrying each touched file's Basis — the content it was read against — so evo.Files(ctx, fileSet) can refuse a write when the file changed underneath the diff since Patch derived it (ZYS-841 Decisions, 2026-09-23). A function that calls evo.Patch, then re-derives the same file's desired contents another way and commits through evo.File directly, reconstructs a fresh FileSpec with no Basis at all — the stale-write guard Patch computed is silently discarded, and evo.File happily overwrites a file another writer changed in the meantime. The FileSet is opaque specifically to prevent this: there is no field to read the derived contents back out of it and hand to evo.File, so the only way to lose the guard is to ignore the FileSet and reconstruct the write from scratch, which is exactly the shape this rule flags.",
+			BadCode: `func applyPatch(ctx context.Context, diff string) error {
+  fileSet, err := evo.Patch(ctx, diff)
+  if err != nil {
+    return err
+  }
+  contents, err := renderMerged(fileSet)
+  if err != nil {
+    return err
+  }
+  return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents})
+}`,
+			GoodCode: `func applyPatch(ctx context.Context, diff string) error {
+  fileSet, err := evo.Patch(ctx, diff)
+  if err != nil {
+    return err
+  }
+  return evo.Files(ctx, fileSet)
+}`,
+			Remediation:     "Delete the evo.File call and the FileSpec it built from the Patch-derived FileSet; commit through evo.Files(ctx, fileSet) instead, using the exact FileSet evo.Patch returned so its Basis/stale-write guard survives to commit.",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-058"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",
