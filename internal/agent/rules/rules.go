@@ -1353,6 +1353,24 @@ return task.Wait()`,
 			// rule; this entry documents the spelling the MCP now teaches.
 		},
 		{
+			ID:        "API-045",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "a Define callback's context.Context parameter is the scheduler's authoritative cancellation context; a callback that discards it and calls cancellable work with a captured outer ctx never observes the scheduler's cancellation",
+			Why:       "`task.Define(func(context.Context) error { return run(ctx) })` compiles and runs — the captured outer ctx is a real context — but it is not the Define callback's own context, so cancelling this task through the scheduler (timeout, second SIGINT, a sibling failure under a Group) never reaches run's cancellable work.",
+			BadCode: `task.Define(func(context.Context) error {
+  return run(ctx) // captured outer ctx
+})`,
+			GoodCode: `task.Define(func(ctx context.Context) error {
+  return run(ctx)
+})`,
+			Remediation:     "Name the callback parameter ctx (func(ctx context.Context) error) and pass that ctx into the work, not a captured outer variable",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-045"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",

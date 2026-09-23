@@ -543,6 +543,13 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// for it — mirroring detectDeprecatedSpellings' dialectAtLeast gating.
 	hasEvoAtOneZero := hasEvo && dialectAtLeast(desiredVersion, dialectOneZero)
 
+	// API-045: Define callback discards its scheduler-provided context.
+	// context.Context-typed Define only exists from 1.0.0 on, so a pin older
+	// than that cannot have this shape.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectDefineDiscardsSchedulerContext(filename, f, fset)...)
+	}
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)
@@ -1247,8 +1254,8 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 		return nil
 	}
 	line := 1
-	if idx := strings.Index(src, "signal.Notify("); idx >= 0 {
-		line += strings.Count(src[:idx], "\n")
+	if before, _, ok := strings.Cut(src, "signal.Notify("); ok {
+		line += strings.Count(before, "\n")
 	}
 	return []Finding{{
 		RuleID:     "SIG-001",
@@ -2215,7 +2222,7 @@ func composesItsArgument(stmt string) bool {
 func singleStatementBody(inner string) string {
 	var stmt string
 	count := 0
-	for _, l := range strings.Split(inner, "\n") {
+	for l := range strings.SplitSeq(inner, "\n") {
 		t := strings.TrimSpace(l)
 		if t == "" || strings.HasPrefix(t, "//") {
 			continue

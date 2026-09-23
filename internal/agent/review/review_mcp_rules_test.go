@@ -421,3 +421,83 @@ func TestTAX003_TestFile_StaysSilent(t *testing.T) {
 		}
 	}
 }
+
+// API-045: a Define callback discards its scheduler-provided context and
+// passes a captured outer ctx into cancellable work instead (ZYS-938).
+
+const defineDiscardsSchedulerCtxSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context, task *evo.TaskHandle) {
+  task.Define(func(context.Context) error {
+    return doWork(ctx)
+  })
+}
+func doWork(ctx context.Context) error { return nil }
+`
+
+func TestAPI045_DefineDiscardsSchedulerCtx_Fires(t *testing.T) {
+	res := review.GoSource("run.go", defineDiscardsSchedulerCtxSrc)
+	f := findingByID(t, res, "API-045")
+	if f.Severity != "error" {
+		t.Fatalf("API-045 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "func(ctx context.Context) error") {
+		t.Fatalf("API-045 suggestion does not name the corrected signature: %q", f.Suggestion)
+	}
+}
+
+const defineUsesOwnCtxSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context, task *evo.TaskHandle) {
+  task.Define(func(ctx context.Context) error {
+    return doWork(ctx)
+  })
+}
+func doWork(ctx context.Context) error { return nil }
+`
+
+func TestAPI045_DefineUsesOwnCtx_StaysSilent(t *testing.T) {
+	res := review.GoSource("good.go", defineUsesOwnCtxSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-045" {
+			t.Fatalf("false positive API-045 when Define names and uses its own ctx: %+v", f)
+		}
+	}
+}
+
+const defineNoCancellableWorkSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context, task *evo.TaskHandle) {
+  task.Define(func(context.Context) error {
+    return doWork()
+  })
+}
+func doWork() error { return nil }
+`
+
+func TestAPI045_NoCancellableWork_StaysSilent(t *testing.T) {
+	res := review.GoSource("good.go", defineNoCancellableWorkSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-045" {
+			t.Fatalf("false positive API-045 when the callback never uses the captured outer ctx: %+v", f)
+		}
+	}
+}
+
+func TestAPI045_PreOneZeroPin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("run.go", defineDiscardsSchedulerCtxSrc, "0.6.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-045" {
+			t.Fatalf("API-045 fired for a pin older than 1.0.0 (ctx-based Define did not exist yet): %+v", f)
+		}
+	}
+}

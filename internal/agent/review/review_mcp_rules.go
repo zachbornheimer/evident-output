@@ -590,6 +590,98 @@ func detectChannelWaitWrapperAroundDefine(filename, src string) []Finding {
 	return findings
 }
 
+// ===== API-045: task.Define(func(context.Context) error { ... }) discards
+// its scheduler-provided context parameter (unnamed, or named something other
+// than the outer "ctx" it shadows) while the body still calls cancellable
+// work with the captured outer "ctx" — the row cancels correctly but the
+// work it names never observes that cancellation (ZYS-938 / evo-1.x Decisions
+// 2026-09-23: "the Define context is authoritative for task
+// cancellation/lifecycle").
+
+// defineCallbackContextParamName reports the Define callback's single
+// context.Context parameter name ("" for an unnamed or blank-identifier
+// parameter) and whether the signature matches func(context.Context) error
+// at all.
+func defineCallbackContextParamName(ft *ast.FuncType) (string, bool) {
+	if ft.Params == nil || len(ft.Params.List) != 1 {
+		return "", false
+	}
+	field := ft.Params.List[0]
+	sel, ok := field.Type.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Context" || exprDottedName(sel.X) != "context" {
+		return "", false
+	}
+	if len(field.Names) == 0 {
+		return "", true
+	}
+	name := field.Names[0].Name
+	if name == "_" {
+		return "", true
+	}
+	return name, true
+}
+
+// bodyCallsWithCapturedIdent reports whether block contains a call passing
+// ident as an argument — the signal that a captured outer variable (rather
+// than the callback's own discarded parameter) is reaching cancellable work.
+func bodyCallsWithCapturedIdent(block *ast.BlockStmt, ident string) bool {
+	found := false
+	ast.Inspect(block, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		for _, arg := range call.Args {
+			if id, ok := arg.(*ast.Ident); ok && id.Name == ident {
+				found = true
+				return false
+			}
+		}
+		return true
+	})
+	return found
+}
+
+func detectDefineDiscardsSchedulerContext(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Define" || len(call.Args) != 1 {
+			return true
+		}
+		fl, ok := call.Args[0].(*ast.FuncLit)
+		if !ok {
+			return true
+		}
+		paramName, isCtxCallback := defineCallbackContextParamName(fl.Type)
+		if !isCtxCallback || paramName == "ctx" {
+			return true
+		}
+		if fl.Body == nil || !bodyCallsWithCapturedIdent(fl.Body, "ctx") {
+			return true
+		}
+		pos := fset.Position(call.Pos())
+		findings = append(findings, Finding{
+			RuleID:     "API-045",
+			Severity:   "error",
+			Message:    "Define's callback discards its scheduler-provided context and calls cancellable work with a captured outer ctx instead; the scheduler's cancellation never reaches that work",
+			File:       filename,
+			Line:       pos.Line,
+			Column:     pos.Column,
+			Suggestion: "name the callback parameter ctx (func(ctx context.Context) error) and pass that ctx into the work instead of the captured outer variable",
+		})
+		return true
+	})
+	return findings
+}
+
 // ===== TAX-003: an evo.Reason("literal") used inline as a call argument in
 // non-test source, and a reason that merely restates its verb.
 
