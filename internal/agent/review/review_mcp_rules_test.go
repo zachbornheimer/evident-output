@@ -1421,30 +1421,94 @@ func TestAPI053_AfterOnlyForSameFileContention_Fires(t *testing.T) {
 	}
 }
 
+// afterResourceContentionFSResourceSrc: sweepTask and gcTask both DELETE
+// the identical FSResource. Deleting an already-deleted path is idempotent,
+// so which Task runs first never changes the outcome — a genuine
+// order-invariant overlap, safe to report.
 const afterResourceContentionFSResourceSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(sweepTask, gcTask *evo.TaskHandle) {
+  sweepTask.Define(func(ctx context.Context) error {
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo cache", Resource: evo.FSResource("/repo/cache")}, removeRepoCache)
+  })
+  gcTask.Define(func(ctx context.Context) error {
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo cache", Resource: evo.FSResource("/repo/cache")}, removeRepoCache)
+  })
+  // shared resource, exclusive access only
+  gcTask.After(sweepTask)
+}
+func removeRepoCache(context.Context) error { return nil }
+`
+
+func TestAPI053_AfterOnlyForFSResourceContention_Fires(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceContentionFSResourceSrc)
+	findingByID(t, res, "API-053")
+}
+
+// afterResourceConflictingVerbsSrc: lockTask UPDATEs and sweepTask DELETEs
+// the identical FSResource. Delete-then-update recreates the resource;
+// update-then-delete removes it — the outcome genuinely depends on order,
+// so this is a real dependency the rule must not tell the caller to delete.
+const afterResourceConflictingVerbsSrc = `package p
 import (
   "context"
   evo "github.com/zachbornheimer/evident-output"
 )
 func run(lockTask, sweepTask *evo.TaskHandle) {
   lockTask.Define(func(ctx context.Context) error {
-    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "repo", Resource: evo.FSResource("/repo")}, func(context.Context) error {
-      return nil
-    })
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "repo", Resource: evo.FSResource("/repo")}, refreshRepo)
   })
   sweepTask.Define(func(ctx context.Context) error {
-    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo", Resource: evo.FSResource("/repo")}, func(context.Context) error {
-      return nil
-    })
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo", Resource: evo.FSResource("/repo")}, removeRepo)
   })
   // shared resource, exclusive access only
   sweepTask.After(lockTask)
 }
+func refreshRepo(context.Context) error { return nil }
+func removeRepo(context.Context) error  { return nil }
 `
 
-func TestAPI053_AfterOnlyForFSResourceContention_Fires(t *testing.T) {
-	res := review.GoSource("run.go", afterResourceContentionFSResourceSrc)
-	findingByID(t, res, "API-053")
+func TestAPI053_ConflictingVerbsFSResource_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceConflictingVerbsSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053 when conflicting Verbs (Update vs Delete) on the same resource make order a real dependency: %+v", f)
+		}
+	}
+}
+
+// afterResourceDifferingContentsSrc: configTask and cacheTask both write
+// config.json, but with different Contents. Deleting the .After edge (this
+// rule's own remediation) would leave config.json's final content
+// nondeterministic across runs — a resource claim only coordinates the
+// overlap, it does not decide which write wins.
+const afterResourceDifferingContentsSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(configTask, cacheTask *evo.TaskHandle) {
+  configTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+  })
+  cacheTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: warm})
+  })
+  // same file — avoid concurrent write race
+  cacheTask.After(configTask)
+}
+`
+
+func TestAPI053_DifferingFileContents_StaysSilent(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceDifferingContentsSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-053" {
+			t.Fatalf("false positive API-053 when the two File writes carry different Contents, so deleting .After leaves config.json nondeterministic: %+v", f)
+		}
+	}
 }
 
 const afterRealDependencySrc = `package p
@@ -1509,14 +1573,32 @@ func TestAPI053_PreOneOneOnePin_StaysSilent(t *testing.T) {
 	}
 }
 
+// afterResourceContentionRemediatedSrc is afterResourceContentionSameFileSrc
+// with this rule's own Suggestion applied: cacheTask.After(configTask) and
+// its comment are deleted, keeping only the overlapping File claim.
+const afterResourceContentionRemediatedSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(configTask, cacheTask *evo.TaskHandle) {
+  configTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+  cacheTask.Define(func(ctx context.Context) error {
+    return evo.File(ctx, evo.FileSpec{Path: "config.json"})
+  })
+}
+`
+
 func TestAPI053_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 	res := review.GoSource("run.go", afterResourceContentionSameFileSrc)
 	findingByID(t, res, "API-053")
 
-	after := review.GoSource("run.go", afterNoCommentSrc)
+	after := review.GoSource("run.go", afterResourceContentionRemediatedSrc)
 	for _, f := range after.Findings {
 		if f.RuleID == "API-053" {
-			t.Fatalf("API-053 still fires after the .After(...) edge and its comment are removed: %+v", f)
+			t.Fatalf("API-053 still fires after applying its own prescribed remediation (deleting the .After(...) edge): %+v", f)
 		}
 	}
 }

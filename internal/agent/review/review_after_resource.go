@@ -10,6 +10,7 @@ package review
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 	"strconv"
 	"strings"
 )
@@ -63,17 +64,37 @@ func nearbyLineComment(lines []string, pos token.Pos, fset *token.FileSet) strin
 	return ""
 }
 
-// taskResourceLiterals maps each Task variable that declares a Define
-// callback to the resource identity literals its callback body claims:
-// evo.FSResource("path")/evo.LogicalResource("name") arguments, and
-// evo.File(ctx, evo.FileSpec{Path: "path", ...})'s own auto-claimed Path.
-// Both sides of an edge sharing one of these literals is the "resource
+// resourceClaim is one resource identity literal a Task's Define callback
+// claims, together with a write-shape signature that captures whether the
+// claim's own outcome is order-independent. A bare FSResource/LogicalResource
+// claim (no Effect wrapper) and an evo.File claim with no Contents field
+// both signature as "" — there is nothing in the call to say the two writes
+// differ, so they default to order-independent, matching this rule's
+// original behavior. Once a claim's write is visible (a File's Contents
+// expression, or an Effect's Verb), two claims on the same literal must
+// also match on signature: differing Contents (cfg vs warm) or conflicting
+// Verbs (Update vs Delete) prove the write's final state, or the resource's
+// final existence, depends on which Task runs last — a real ordering
+// dependency a resource claim's mutual exclusion does not resolve (ZYS-840
+// Decisions: "a resource claim only coordinates overlap; it does not create
+// an After dependency"). This rule fires only when it can positively show
+// the overlap is order-invariant, never merely because a comment says so.
+type resourceClaim struct {
+	literal   string
+	signature string
+}
+
+// taskResourceClaims maps each Task variable that declares a Define
+// callback to the resourceClaims its callback body makes: evo.FSResource/
+// evo.LogicalResource arguments (bare, or via evo.Effect's Resource field),
+// and evo.File(ctx, evo.FileSpec{Path: "path", ...})'s own auto-claimed
+// Path. Both sides of an edge sharing one of these claims is the "resource
 // declarations" leg of this rule's evidence (spec ZYS-840 Decisions
 // 2026-09-23: File/FSResource/LogicalResource share one canonical claim
 // namespace).
-func taskResourceLiterals(file *ast.File, evoPkg string) map[string][]string {
+func taskResourceClaims(file *ast.File, evoPkg string) map[string][]resourceClaim {
 	disproven := evoDisprovenVars(file)
-	out := map[string][]string{}
+	out := map[string][]resourceClaim{}
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
@@ -93,15 +114,23 @@ func taskResourceLiterals(file *ast.File, evoPkg string) map[string][]string {
 				return true
 			}
 			switch calledFuncDotted(inner) {
+			case evoPkg + ".Effect":
+				if literal, signature, ok := effectResourceClaim(inner, evoPkg); ok {
+					out[taskVar.Name] = append(out[taskVar.Name], resourceClaim{literal: literal, signature: signature})
+				}
+				return false
 			case evoPkg + ".FSResource", evoPkg + ".LogicalResource":
 				if len(inner.Args) == 1 {
 					if lit, ok := stringLit(inner.Args[0]); ok {
-						out[taskVar.Name] = append(out[taskVar.Name], lit)
+						out[taskVar.Name] = append(out[taskVar.Name], resourceClaim{literal: lit})
 					}
 				}
 			case evoPkg + ".File":
 				if path, ok := fileSpecPathLiteral(inner, evoPkg); ok {
-					out[taskVar.Name] = append(out[taskVar.Name], path)
+					out[taskVar.Name] = append(out[taskVar.Name], resourceClaim{
+						literal:   path,
+						signature: fileSpecContentsSignature(inner, evoPkg),
+					})
 				}
 			}
 			return true
@@ -111,15 +140,80 @@ func taskResourceLiterals(file *ast.File, evoPkg string) map[string][]string {
 	return out
 }
 
-// sharedLiteral reports the first literal both a and b claim in common.
-func sharedLiteral(a, b []string) (string, bool) {
-	set := map[string]bool{}
-	for _, v := range a {
-		set[v] = true
+// effectResourceClaim extracts, from an evo.Effect(ctx, evo.EffectSpec{...},
+// fn) call, the Resource field's underlying FSResource/LogicalResource
+// literal and the Verb field's source text as the write-shape signature.
+func effectResourceClaim(call *ast.CallExpr, evoPkg string) (literal, signature string, ok bool) {
+	if len(call.Args) < 2 {
+		return "", "", false
 	}
-	for _, v := range b {
-		if set[v] {
-			return v, true
+	spec, isLit := call.Args[1].(*ast.CompositeLit)
+	if !isLit {
+		return "", "", false
+	}
+	for _, elt := range spec.Elts {
+		kv, isKV := elt.(*ast.KeyValueExpr)
+		if !isKV {
+			continue
+		}
+		key, isIdent := kv.Key.(*ast.Ident)
+		if !isIdent {
+			continue
+		}
+		switch key.Name {
+		case "Resource":
+			inner, isCall := kv.Value.(*ast.CallExpr)
+			if !isCall {
+				continue
+			}
+			switch calledFuncDotted(inner) {
+			case evoPkg + ".FSResource", evoPkg + ".LogicalResource":
+				if len(inner.Args) == 1 {
+					if s, ok := stringLit(inner.Args[0]); ok {
+						literal = s
+					}
+				}
+			}
+		case "Verb":
+			signature = types.ExprString(kv.Value)
+		}
+	}
+	return literal, signature, literal != ""
+}
+
+// fileSpecContentsSignature extracts the Contents field's source text from
+// an evo.File(ctx, evo.FileSpec{...}) call, or "" when the call has no
+// Contents field (or is not an evo.File call).
+func fileSpecContentsSignature(call *ast.CallExpr, evoPkg string) string {
+	if calledFuncDotted(call) != evoPkg+".File" || len(call.Args) < 2 {
+		return ""
+	}
+	lit, ok := call.Args[1].(*ast.CompositeLit)
+	if !ok {
+		return ""
+	}
+	for _, elt := range lit.Elts {
+		kv, isKV := elt.(*ast.KeyValueExpr)
+		if !isKV {
+			continue
+		}
+		if key, isIdent := kv.Key.(*ast.Ident); isIdent && key.Name == "Contents" {
+			return types.ExprString(kv.Value)
+		}
+	}
+	return ""
+}
+
+// sharedClaim reports the literal of the first claim both a and b make in
+// common — matching on literal AND signature, so a shared path/name with
+// differing write shapes (differing Contents, conflicting Verbs) is never
+// reported as order-independent.
+func sharedClaim(a, b []resourceClaim) (string, bool) {
+	for _, ca := range a {
+		for _, cb := range b {
+			if ca.literal != "" && ca.literal == cb.literal && ca.signature == cb.signature {
+				return ca.literal, true
+			}
 		}
 	}
 	return "", false
@@ -137,25 +231,28 @@ func containsContentionSignal(comment string) bool {
 }
 
 // detectAfterOnlyForResourceContention is API-053: an edge fires only when
-// both legs of evidence line up — the child and parent Tasks' own Define
-// bodies claim the identical resource literal (so Evo's automatic claim
-// already serializes them), and the edge itself carries a comment naming
-// exclusion, not a dependency, as the reason. Requiring both keeps this
-// rule silent on EVO-DAG-003's real producer/consumer shape (a reader
-// task with no resource claim of its own) and on undocumented edges this
-// rule cannot safely explain.
+// three legs of evidence line up — the child and parent Tasks' own Define
+// bodies claim the identical resource literal with the identical write
+// shape (so the overlap is order-invariant, not just mutually exclusive),
+// the edge itself carries a comment naming exclusion, not a dependency, as
+// the reason. Requiring all three keeps this rule silent on EVO-DAG-003's
+// real producer/consumer shape (a reader task with no resource claim of its
+// own), on undocumented edges this rule cannot safely explain, and on a
+// shared claim whose writes conflict (differing File Contents, conflicting
+// Effect Verbs) — a case where deleting .After would leave the outcome
+// nondeterministic rather than merely redundant (ZYS-936).
 func detectAfterOnlyForResourceContention(filename, src string, file *ast.File, fset *token.FileSet) []Finding {
 	pkg := evoImportName(file)
 	if pkg == "" {
 		return nil
 	}
-	literals := taskResourceLiterals(file, pkg)
+	claims := taskResourceClaims(file, pkg)
 	var findings []Finding
 	for _, e := range collectAfterEdgesWithComments(src, file, fset) {
 		if !containsContentionSignal(e.comment) {
 			continue
 		}
-		resource, ok := sharedLiteral(literals[e.child], literals[e.parent])
+		resource, ok := sharedClaim(claims[e.child], claims[e.parent])
 		if !ok {
 			continue
 		}
