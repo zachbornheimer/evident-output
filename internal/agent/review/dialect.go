@@ -22,6 +22,14 @@ const dialectRec = "0.4.7"
 // than this cannot apply those suggestions, so the rules must not fire for it.
 const dialectOneZero = "1.0.0"
 
+// dialectOneOne is the first release whose public surface supports
+// evo.Exec returning an inspectable ExecResult (ZYS-850) — the structured
+// capture/exit-code surface API-051 recommends in place of hand-rolled
+// bytes.Buffer/io.MultiWriter capture and string-match cancellation. A pin
+// older than this cannot apply that recommendation, so the rule must not
+// fire for it.
+const dialectOneOne = "1.1.0"
+
 // dialectAtLeast reports whether desired is the current dialect (empty) or
 // a pin at/after cutoff. Pre-cutoff pins do not fire that dialect's findings.
 func dialectAtLeast(desired, cutoff string) bool {

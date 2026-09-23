@@ -1488,3 +1488,84 @@ func exportedReasonName(text string) string {
 	}
 	return b.String()
 }
+
+// ===== API-051: generic bytes.Buffer/io.MultiWriter/task.Writer plumbing
+// wired around a raw os/exec.Cmd solely to recreate Exec's own capture,
+// liveness, and cancellation classification — or cancellation recognized by
+// comparing captured output strings — when evo.Exec now returns an
+// inspectable ExecResult (ZYS-850) that already owns exactly this. zq
+// evidence: internal/app/run_captured_task.go allocates its own
+// bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter,
+// recognizes cancellation by comparing output strings, and classifies
+// nonzero exit itself instead of inspecting ExecResult/ErrExecNonzeroExit.
+
+// manualSubprocessCaptureSignals are the tokens that, alongside a function
+// wiring a raw os/exec.Cmd's Stdout/Stderr to an Evo Task's own Writer(),
+// corroborate the manual-recapture-of-Exec shape this rule targets: either
+// a hand-rolled buffer/multiwriter combine, or cancellation recognized by
+// matching a captured-output string instead of an error/context check.
+var manualSubprocessCaptureSignals = []string{
+	"bytes.Buffer", "bytes.NewBuffer", "MultiWriter(",
+	`"signal: killed"`, `"signal: interrupt"`, `"context canceled"`,
+}
+
+// rawExecCmdSignals mark that the function drives a raw os/exec.Cmd (as
+// opposed to some unrelated io.Writer plumbing) — required alongside
+// task.Writer() so this rule only fires on code actually reimplementing
+// Exec, not any bytes.Buffer/MultiWriter combination in the codebase.
+var rawExecCmdSignals = []string{"cmd.Run(", "cmd.Start(", "cmd.Output(", "cmd.CombinedOutput(", "exec.Cmd"}
+
+func detectManualSubprocessCaptureAroundTask(filename, src string) []Finding {
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		funcStart := strings.LastIndex(src[:fn.offset], "func ")
+		if funcStart < 0 {
+			funcStart = fn.offset
+		}
+		wholeFunc := src[funcStart : fn.offset+len(fn.body)]
+		if !strings.Contains(wholeFunc, ".Writer()") {
+			continue
+		}
+		if !containsAnyToken(wholeFunc, rawExecCmdSignals) {
+			continue
+		}
+		signal, idx := firstContainedToken(wholeFunc, manualSubprocessCaptureSignals)
+		if signal == "" {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:   "API-051",
+			Severity: "error",
+			Message:  "a raw os/exec.Cmd wired to an Evo Task's Writer() reimplements Exec's own capture/liveness/cancellation with hand-rolled " + signal + " plumbing instead of inspecting the ExecResult evo.Exec already returns",
+			File:     filename,
+			Line:     lineAt(src, funcStart+idx),
+			Suggestion: "replace the raw exec.Cmd, its manual bytes.Buffer/io.MultiWriter capture, and any output-string cancellation match with " +
+				"res, err := evo.Exec(ctx, spec); inspect res (ExecResult: Ran/ExitCode/Stdout/Stderr/Truncated) and errors.Is(err, evo.ErrExecNonzeroExit) instead",
+		})
+	}
+	return findings
+}
+
+// containsAnyToken reports whether s contains any of the given substrings.
+func containsAnyToken(s string, tokens []string) bool {
+	for _, tok := range tokens {
+		if strings.Contains(s, tok) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstContainedToken returns the first token from tokens (in the given
+// order) that occurs in s, and its byte offset within s — used to pick a
+// stable, meaningful finding line among several corroborating signals.
+func firstContainedToken(s string, tokens []string) (token string, idx int) {
+	best := -1
+	for _, tok := range tokens {
+		if i := strings.Index(s, tok); i >= 0 && (best < 0 || i < best) {
+			best = i
+			token = tok
+		}
+	}
+	return token, best
+}

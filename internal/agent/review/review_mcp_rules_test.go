@@ -959,3 +959,129 @@ func TestAPI049_LocalCtxShadow_StaysSilent(t *testing.T) {
 		}
 	}
 }
+
+// API-051: generic bytes.Buffer/io.MultiWriter/task.Writer plumbing wired
+// around a raw os/exec.Cmd to recreate Exec's own capture/liveness, plus
+// string-match cancellation detection, instead of using evo.Exec and
+// inspecting the returned ExecResult (ZYS-942, ZYS-850's ExecResult;
+// zq run_captured_task.go evidence: own bytes.Buffer, task.Writer()
+// combined via io.MultiWriter, output-string cancellation match).
+
+const manualCaptureBufferMultiWriterSrc = `package p
+import (
+  "bytes"
+  "io"
+  "os/exec"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func runCapturedTask(task *evo.TaskHandle, cmd *exec.Cmd) error {
+  var buf bytes.Buffer
+  cmd.Stdout = io.MultiWriter(task.Writer(), &buf)
+  cmd.Stderr = io.MultiWriter(task.Writer(), &buf)
+  if err := cmd.Run(); err != nil {
+    return err
+  }
+  return nil
+}
+`
+
+func TestAPI051_ManualBufferMultiWriterAroundTaskWriter_Fires(t *testing.T) {
+	res := review.GoSource("run_captured_task.go", manualCaptureBufferMultiWriterSrc)
+	f := findingByID(t, res, "API-051")
+	if f.Severity != "error" {
+		t.Fatalf("API-051 severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "evo.Exec") || !strings.Contains(f.Suggestion, "ExecResult") {
+		t.Fatalf("API-051 suggestion does not name the Exec/ExecResult fix: %q", f.Suggestion)
+	}
+}
+
+const manualCancellationStringMatchSrc = `package p
+import (
+  "os/exec"
+  "strings"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func runChecked(task *evo.TaskHandle, cmd *exec.Cmd) error {
+  cmd.Stdout = task.Writer()
+  out, err := cmd.CombinedOutput()
+  if err != nil {
+    if strings.Contains(string(out), "signal: killed") {
+      return context.Canceled
+    }
+    return err
+  }
+  return nil
+}
+`
+
+func TestAPI051_StringMatchCancellationAroundTaskWriter_Fires(t *testing.T) {
+	res := review.GoSource("run_checked.go", manualCancellationStringMatchSrc)
+	f := findingByID(t, res, "API-051")
+	if !strings.Contains(f.Suggestion, "ExecResult") {
+		t.Fatalf("API-051 suggestion does not name ExecResult: %q", f.Suggestion)
+	}
+}
+
+const evoExecResultInspectionSrc = `package p
+import evo "github.com/zachbornheimer/evident-output"
+func runChecked(ctx context.Context, spec evo.ExecSpec) error {
+  res, err := evo.Exec(ctx, spec)
+  if errors.Is(err, evo.ErrExecNonzeroExit) {
+    task.Failf("lint failed: %s", res.Stdout)
+    return nil
+  }
+  return err
+}
+`
+
+func TestAPI051_EvoExecResultInspection_StaysSilent(t *testing.T) {
+	res := review.GoSource("run_checked.go", evoExecResultInspectionSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("false positive API-051 on evo.Exec/ExecResult inspection: %+v", f)
+		}
+	}
+}
+
+const unrelatedBufferMultiWriterNoTaskSrc = `package p
+import (
+  "bytes"
+  "io"
+  "os"
+)
+func teeToFile(f *os.File) io.Writer {
+  var buf bytes.Buffer
+  return io.MultiWriter(f, &buf)
+}
+`
+
+func TestAPI051_UnrelatedBufferMultiWriterNoTaskWriter_StaysSilent(t *testing.T) {
+	res := review.GoSource("tee.go", unrelatedBufferMultiWriterNoTaskSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("false positive API-051 without any task.Writer()/raw exec.Cmd combination: %+v", f)
+		}
+	}
+}
+
+func TestAPI051_PreOneOneOnePin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("run_captured_task.go", manualCaptureBufferMultiWriterSrc, "1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("API-051 fired for a pin older than 1.1.0 (ExecResult did not exist yet): %+v", f)
+		}
+	}
+}
+
+func TestAPI051_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
+	res := review.GoSource("run_captured_task.go", manualCaptureBufferMultiWriterSrc)
+	findingByID(t, res, "API-051")
+
+	after := review.GoSource("run_checked.go", evoExecResultInspectionSrc)
+	for _, f := range after.Findings {
+		if f.RuleID == "API-051" {
+			t.Fatalf("API-051 still fires after remediation to evo.Exec/ExecResult: %+v", f)
+		}
+	}
+}
