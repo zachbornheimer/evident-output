@@ -52,7 +52,7 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 
 	// All three declared up front, matching the real CLI's three
 	// concurrently-checked subjects: plain mode's shared name-column width
-	// for a run of sibling standalone tasks (maxRootTaskNameWidth) is
+	// for a run of sibling standalone tasks (rootColumn) is
 	// computed from every task declared so far at the moment each one
 	// resolves — declaring all three before any resolves is what produces
 	// the mockup's aligned name column.

@@ -28,6 +28,9 @@ func (x *ledgerIndex) opened(key ledgerSectionKey, s *ledgerSection) {
 // must hold o.mu.
 func (o *Output) appendTaskLocked(st *taskState) {
 	o.tasks = append(o.tasks, st)
+	if st.collection == nil {
+		o.rootColumn.add(st.name)
+	}
 }
 
 // heldBackAsNoOpLocked reports whether a resolved root Task is a

@@ -3,6 +3,7 @@ package engine
 import (
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
@@ -86,7 +87,7 @@ func (o *Output) writeDurableTextLocked(text string) {
 	}
 }
 
-// maxRootTaskNameWidth is progressive emission's sibling-column-alignment
+// The root name column is progressive emission's sibling-column-alignment
 // width (fixture-repo-retire-dryrun.md): every root (non-collection) task
 // the caller has declared so far, whether or not it has resolved yet. A
 // caller that declares its whole known set of sibling tasks before
@@ -97,26 +98,27 @@ func (o *Output) writeDurableTextLocked(text string) {
 // commit, which is the honest limit of "render immediately" (§17.5)
 // progressive streaming: a name declared after this row already committed
 // cannot retroactively widen it.
-func maxRootTaskNameWidth(tasks []*taskState) int {
-	width := 0
-	count := 0
-	for _, t := range tasks {
-		if t.collection != nil {
-			continue
-		}
-		count++
-		if n := len([]rune(t.name)); n > width {
-			width = n
-		}
-	}
-	if count < 2 {
+//
+// rootColumn keeps that width current as root Tasks are declared (see
+// appendTaskLocked), so a commit reads it without rescanning every Task.
+type rootColumn struct{ count, width int }
+
+func (c *rootColumn) add(name string) {
+	c.count++
+	c.width = max(c.width, utf8.RuneCountInString(name))
+}
+
+// nameWidth is the column width, or 0 when fewer than two root Tasks exist
+// and there is nothing to align.
+func (c rootColumn) nameWidth() int {
+	if c.count < 2 {
 		return 0
 	}
-	return width
+	return c.width
 }
 
 // maxChangeSubjectWidth/maxPlanSubjectWidth are residualCompositionLocked's
-// batch-time equivalent of maxRootTaskNameWidth for the Changes/Plan ledger
+// batch-time equivalent of rootColumn for the Changes/Plan ledger
 // (fixture-repo-retire-dryrun.md's aligned "[planned] <name>  <verb> ..."
 // column) — Changes/Plans render only at Finish (never progressively, see
 // residualCompositionLocked's doc comment), so the full set is always known
@@ -147,7 +149,7 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 		return
 	}
 	var b strings.Builder
-	nameWidth := maxRootTaskNameWidth(o.tasks)
+	nameWidth := o.rootColumn.nameWidth()
 	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
 	st.coreEmitted = true
 	if b.Len() == 0 {
@@ -388,7 +390,7 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	}
 
 	if includeEntities {
-		residualNameWidth := maxRootTaskNameWidth(o.tasks)
+		residualNameWidth := o.rootColumn.nameWidth()
 		hidden := render.ZeroInformationTaskIDs(render.SnapshotAtVerbosity(snap, verbose))
 		for _, t := range o.tasks {
 			if t.collection != nil || t.coreEmitted {

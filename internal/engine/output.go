@@ -81,6 +81,8 @@ type Output struct {
 
 	taskByRef  map[string]*taskState
 	tasksByRef map[string]*tasksState
+	// rootColumn is the alignment width for root Task rows.
+	rootColumn rootColumn
 	keys       map[string]struct{}
 
 	// namedTasks records every (scope, name) pair already declared through
