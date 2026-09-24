@@ -51,7 +51,6 @@ func (TaskHandle) Cancel(reason string)
 func (TaskHandle) Context()  context.Context
 func (TaskHandle) Define(fn func(context.Context) error)  *TaskHandle
 func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
-func (TaskHandle) Done(args ...any)
 func (TaskHandle) Fact(name, value string)
 func (TaskHandle) Fail(summary string, options ...ProblemOption)
 func (TaskHandle) Failf(format string, args ...any)  *Failure
@@ -61,9 +60,6 @@ func (TaskHandle) Next(actions ...Action)  *TaskHandle
 func (TaskHandle) NextCommand(executable string, args ...string)  *TaskHandle
 func (TaskHandle) Problem(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Progress(completed, total int)  *TaskHandle
-func (TaskHandle) Record(verb string, quantity int, object string)
-func (TaskHandle) RecordLabel(label string, quantity int, object string)
-func (TaskHandle) RecordName(verb, object string)
 func (TaskHandle) Skipped(reason TaxonomyReason)
 func (TaskHandle) Snapshot()  TaskSnapshot
 func (TaskHandle) Step(completed, total int, name string)  *TaskHandle

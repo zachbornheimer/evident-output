@@ -80,7 +80,7 @@ func runLive(out *evo.Output, step time.Duration) error {
 		return nil
 	})
 
-	evo.Task("lockfile").Done()
-	evo.Task("registry").Done()
+	evo.Task("lockfile").Define(func(context.Context) error { return nil })
+	evo.Task("registry").Define(func(context.Context) error { return nil })
 	return nil
 }

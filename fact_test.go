@@ -18,7 +18,7 @@ func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")
-	scan.Done()
+	succeed(scan)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestTaskFact_NeverResolvesTask(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever})
 	task := out.Task("t")
 	task.Fact("language", "go")
-	task.Done()
+	succeed(task)
 	snap := out.Snapshot()
 	if len(snap.Tasks) != 1 || snap.Tasks[0].State != evo.Done {
 		t.Fatalf("Fact must not resolve the task, got %+v", snap.Tasks)

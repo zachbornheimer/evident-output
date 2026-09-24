@@ -73,10 +73,10 @@ func TestEffect_CallbackThatFailedItsOwnTaskRecordsNoEffect(t *testing.T) {
 	}
 }
 
-// TestEffect_CallbackThatDoneItsOwnTaskKeepsTheEffect guards the fix's
-// blast radius: `Done(summary)` inside an Effect callback is the ratified
-// proposal shape the dialect teaches, and it still records the effect.
-func TestEffect_CallbackThatDoneItsOwnTaskKeepsTheEffect(t *testing.T) {
+// TestEffect_CallbackThatSummarizesItsOwnTaskKeepsTheEffect guards the
+// fix's blast radius: `Summary(text)` inside an Effect callback sets result
+// metadata without resolving the Task, and the effect still records.
+func TestEffect_CallbackThatSummarizesItsOwnTaskKeepsTheEffect(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
@@ -84,7 +84,7 @@ func TestEffect_CallbackThatDoneItsOwnTaskKeepsTheEffect(t *testing.T) {
 	pkg := out.Task("numpy")
 	pkg.Define(func(ctx context.Context) error {
 		return evo.Effect(ctx, createModule, func(context.Context) error {
-			pkg.Done("installed from cache")
+			pkg.Summary("installed from cache")
 			return nil
 		})
 	})
@@ -93,7 +93,7 @@ func TestEffect_CallbackThatDoneItsOwnTaskKeepsTheEffect(t *testing.T) {
 	}
 
 	if got := buf.String(); !strings.Contains(got, "created 1 module") {
-		t.Fatalf("a ratified Done proposal must keep its effect:\n%s", got)
+		t.Fatalf("a Summary inside the callback must keep its effect:\n%s", got)
 	}
 }
 

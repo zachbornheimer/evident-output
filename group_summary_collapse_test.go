@@ -71,7 +71,7 @@ func renderSubject(t *testing.T, groupName, childName, summary string) string {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "zq", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})
 	group := out.Group(groupName)
-	group.Task(childName).Doing("classifying tips").Done("146 tips")
+	succeed(group.Task(childName).Doing("classifying tips"), "146 tips")
 	if summary != "" {
 		group.Summary(summary)
 	}

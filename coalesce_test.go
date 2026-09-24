@@ -14,7 +14,7 @@ func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "librarian", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("librarian").Record("placed", 1, "file")
+	out.Task("librarian").Define(effectOf(evo.EffectAdd, "file", 1))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.
 	if strings.Count(got, "[changed]") != 1 {
 		t.Fatalf("want one [changed] band, got:\n%s", got)
 	}
-	if !strings.Contains(got, "placed") {
+	if !strings.Contains(got, "added") {
 		t.Fatalf("missing body:\n%s", got)
 	}
 	// Structured model still has conclusion.
@@ -37,7 +37,7 @@ func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) 
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "librarian", Color: evo.ColorNever, Plain: true, DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("librarian").RecordName("move", "a → b")
+	out.Task("librarian").Define(effectOf(evo.EffectUpdate, "file", 1))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "librarian", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("librarian").Record("placed", 7, "files")
+	out.Task("librarian").Define(effectOf(evo.EffectAdd, "file", 7))
 	out.Task("placement").Fail("not writable", evo.On("arr/x"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -205,7 +205,7 @@ func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "database", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("database").Done()
+	succeed(out.Task("database"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -238,8 +238,8 @@ func TestCoalesce_MultipleItems_KeepsAggregateConclusion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "repository", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("working tree").Done()
-	out.Task("branches").Done()
+	succeed(out.Task("working tree"))
+	succeed(out.Task("branches"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

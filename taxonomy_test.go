@@ -114,7 +114,7 @@ func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
 	if out.Err() == nil {
 		t.Fatal("want recorded misuse for a ForSkip reason recorded via Kept")
 	}
-	branches.Done()
+	succeed(branches)
 	// Finish returns the recorded misuse (see ErrAlreadyResolved-style
 	// contracts elsewhere); the assertion here is that the record still
 	// rendered, not that Finish reports a clean run.
@@ -175,7 +175,7 @@ func TestTaskHandle_SkippedCauseRendersOneBoundedEvidenceLine(t *testing.T) {
 	branches := evo.Task("branches")
 	branches.SkippedWithErrs(protected, "main", errors.New("required review"))
 	branches.SkippedWithErrs(protected, "staging", errors.New("required review"))
-	branches.Done()
+	succeed(branches)
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -202,7 +202,7 @@ func TestTaskHandle_SkippedCauseVerboseListsEveryCause(t *testing.T) {
 	branches := evo.Task("branches")
 	branches.SkippedWithErrs(protected, "main", errors.New("cause one"))
 	branches.SkippedWithErrs(protected, "staging", errors.New("cause two"))
-	branches.Done()
+	succeed(branches)
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)

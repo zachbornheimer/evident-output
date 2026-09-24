@@ -15,7 +15,7 @@ func TestMainWith_SuccessExitZero(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
 	code := out.Run(context.Background(), func(ctx context.Context) error {
-		out.Task("working tree").Done()
+		succeed(out.Task("working tree"))
 		return nil
 	}).ExitCode()
 	if code != evo.ExitOK {
@@ -42,7 +42,7 @@ func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
 	code := out.Run(context.Background(), func(ctx context.Context) error {
-		out.Task("x").Done()
+		succeed(out.Task("x"))
 		return errors.New("app boom")
 	}).ExitCode()
 	if code != evo.ExitFailed {

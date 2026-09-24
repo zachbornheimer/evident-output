@@ -64,7 +64,7 @@ func TestSpecP4_SequenceDefine_DeclarationOrder(t *testing.T) {
 	seq.Task("venv").Define(func(ctx context.Context) error { return nil })
 	install := seq.Task("install")
 	install.Define(func(ctx context.Context) error {
-		install.Done("14 modules")
+		install.Summary("14 modules")
 		return nil
 	})
 	if err := out.Finish(); err != nil {

@@ -44,7 +44,7 @@ func TestPackageFuncs_DelegateToDefaultInstance(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
-	evo.Task("working tree").Done()
+	succeed(evo.Task("working tree"))
 	evo.Println("hello from package func")
 
 	if err := evo.Default().Finish(); err != nil {
@@ -81,7 +81,7 @@ func TestMain_OKExitZero(t *testing.T) {
 	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	code := evo.Run(context.Background(), func(ctx context.Context) error {
-		evo.Task("working tree").Done()
+		succeed(evo.Task("working tree"))
 		return nil
 	}).ExitCode()
 	if code != evo.ExitOK {
@@ -189,7 +189,7 @@ func TestDefault_LazyInitNeverPanics(t *testing.T) {
 	if os.Getenv("EVO_LAZY_DEFAULT_SUBPROCESS") == "1" {
 		evo.Println("hello without Init")
 		task := evo.Task("background")
-		task.Done()
+		succeed(task)
 		first := evo.Default()
 		second := evo.Default()
 		if first != second {

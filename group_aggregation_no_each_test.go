@@ -44,7 +44,7 @@ func TestGroup_LargePlainGroupAggregatesWithoutEach(t *testing.T) {
 		case 42:
 			task.Doing("downloading")
 		default:
-			task.Done()
+			succeed(task)
 		}
 	}
 
@@ -84,8 +84,8 @@ func TestGroup_SmallGroupStillShowsEveryChild(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	agent := out.Group("launch agent")
-	agent.Task("write plist").Done()
-	agent.Task("register").Done()
+	succeed(agent.Task("write plist"))
+	succeed(agent.Task("register"))
 	agent.Task("start").Doing("starting")
 
 	got := screen.LatestLiveText()

@@ -21,7 +21,7 @@ func TestPhaseAndSkip_ArePrintfVariadic(t *testing.T) {
 	if got := phased.Snapshot().Phase; got != "resolving main" {
 		t.Fatalf("Phase must format its printf args, got phase %q", got)
 	}
-	phased.Done()
+	succeed(phased)
 
 	skipped := out.Task("prune")
 	skipped.Skipped(evo.Reason("not needed on main"))

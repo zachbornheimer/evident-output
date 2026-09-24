@@ -13,7 +13,7 @@ import (
 func TestNew_IsolatedPlainNonInteractive(t *testing.T) {
 	out := testkit.New(t)
 
-	out.Task("build").Done()
+	succeed(out.Task("build"))
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}

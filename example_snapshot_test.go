@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 
@@ -11,7 +12,7 @@ import (
 // finished run.
 func ExampleSnapshot() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("apply patch").Done()
+	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	snap := out.Snapshot()
 	fmt.Println(len(snap.Tasks))
@@ -68,7 +69,7 @@ func ExampleMessageSnapshot() {
 // projection (docs/development.md's "Machine output" snippet).
 func ExampleOutput_Events() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("apply patch").Done()
+	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	jsonl, err := evo.EncodeJSONL(out.Events())
 	fmt.Println(len(jsonl) > 0, err)

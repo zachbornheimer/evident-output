@@ -6,6 +6,8 @@
 package main
 
 import (
+	"context"
+
 	evo "github.com/zachbornheimer/evident-output"
 )
 
@@ -14,14 +16,16 @@ func doWork() {
 	// Before (relied on repeated calls resolving to the same task)
 	evo.Task("branches").Doing("scanning")
 	// ... later ...
-	evo.Task("branches").Done()
+	evo.Task("branches").Define(scanBranches)
 
 	// After — keep the handle
 	branches := evo.Task("branches")
 	branches.Doing("scanning")
 	// ... later ...
-	branches.Done()
+	branches.Define(scanBranches)
 	// docexamples:snippet end
 }
+
+func scanBranches(ctx context.Context) error { return nil }
 
 func main() { doWork() }

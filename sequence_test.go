@@ -23,7 +23,7 @@ func TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 	venv := setup.Task("venv")
 	install := setup.Task("install")
 
-	scan.Done()
+	succeed(scan)
 	venv.Fail("uv exited 1")
 
 	if err := out.Finish(); err != nil {
@@ -51,7 +51,7 @@ func TestSequence_EarlierCompletedSiblingKeepsItsResolvedState(t *testing.T) {
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 
-	scan.Done()
+	succeed(scan)
 	venv.Fail("uv exited 1")
 	_ = out.Finish()
 
@@ -72,7 +72,7 @@ func TestSequence_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
 	venv := setup.Task("venv")
 	extras := setup.Task("extras")
 
-	scan.Done()
+	succeed(scan)
 	venv.Fail("uv exited 1")
 	extras.SkipForTest("optional, not needed")
 
@@ -96,7 +96,7 @@ func TestSequence_CancelAutoResolvesLaterSiblings(t *testing.T) {
 	venv := setup.Task("venv")
 	install := setup.Task("install")
 
-	scan.Done()
+	succeed(scan)
 	venv.Cancel("interrupted")
 
 	_ = out.Finish()
@@ -117,7 +117,7 @@ func TestSequence_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted(t *t
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Sequence("python")
-	setup.Task("scan").Done()
+	succeed(setup.Task("scan"))
 	setup.Task("venv").Fail("uv exited 1")
 	setup.Task("install")
 
@@ -140,9 +140,9 @@ func TestSequence_AllChildrenDoneRendersAsToday(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Sequence("python")
-	setup.Task("scan").Done()
-	setup.Task("venv").Done()
-	setup.Task("install").Done()
+	succeed(setup.Task("scan"))
+	succeed(setup.Task("venv"))
+	succeed(setup.Task("install"))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -177,10 +177,10 @@ func TestSequence_SequentialBytesProgressFinishesClean(t *testing.T) {
 	download.Bytes(0, total)
 	download.Bytes(total/2, total)
 	download.Bytes(total, total)
-	download.Done("%.1f MB", float64(total)/1_000_000)
+	succeed(download, "18.0 MB")
 
 	verify.Doing("checking signatures")
-	verify.Done()
+	succeed(verify)
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v\noutput:\n%s", err, buf.String())
