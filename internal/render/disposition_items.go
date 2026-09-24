@@ -2,8 +2,10 @@ package render
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // A Group's per-item children that did nothing but resolve Kept or Skipped
@@ -51,6 +53,15 @@ func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.D
 	}
 	col.Tasks = rest
 	return col, items
+}
+
+// writeLiveDispositions writes items' tallies as the live frame shows them
+// (never verbose) and reports how many rows they took, so the frame's
+// height budget can count them.
+func writeLiveDispositions(b *strings.Builder, items core.Dispositions, color bool, profile txt.GlyphProfile) (rows int) {
+	start := b.Len()
+	writeDispositions(b, taskAnnotationIndent, items, "", false, color, profile)
+	return strings.Count(b.String()[start:], "\n")
 }
 
 // headerlessRowNameWidth is the shared name column of a header-less

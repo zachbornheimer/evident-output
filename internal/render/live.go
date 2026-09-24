@@ -147,11 +147,15 @@ func liveRegionFitsColumns(text string, columns int) bool {
 	return txt.VisibleCells(text[start:]) <= columns
 }
 
+// liveHeaderRows is what a live Group header reserves from the height
+// budget before its children: the header row and a possible omission line.
+const liveHeaderRows = 2
+
 func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
 	col, items := withoutDispositionItems(col)
 	if rendersAsOwnTask(col) {
 		writeLiveTaskLine(b, col.Tasks[0], 0, 0, width, spin, color, now, profile)
-		writeDispositions(b, taskAnnotationIndent, items, "", false, color, profile)
+		writeLiveDispositions(b, items, color, profile)
 		return
 	}
 	if promotesLoneChildOntoHeader(col) {
@@ -159,7 +163,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
-		writeDispositions(b, taskAnnotationIndent, items, "", false, color, profile)
+		writeLiveDispositions(b, items, color, profile)
 		return
 	}
 	if groupHeaderAddsNothing(col) && items.Empty() && !hasUnfinishedTask(col) {
@@ -210,13 +214,11 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	}
 	b.WriteString(unit.Render(""))
 	b.WriteByte('\n')
-	writeDispositions(b, taskAnnotationIndent, items, "", false, color, profile)
+	tallyRows := writeLiveDispositions(b, items, color, profile)
 
-	// Select children by severity under height budget.
-	// Budget: height includes header; leave room for omission line.
-	maxChildRows := max(
-		// header + possible omission
-		height-2, 1)
+	// Select children by severity under the height budget, which the
+	// header, the folded tallies, and a possible omission line all spend.
+	maxChildRows := max(height-liveHeaderRows-tallyRows, 1)
 	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
 	for _, t := range selected {
 		writeLiveTaskLine(b, t, 1, 0, width, spin, color, now, profile)
