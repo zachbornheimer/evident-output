@@ -2,7 +2,6 @@ package review
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"strings"
 )
@@ -35,18 +34,14 @@ type recSurfaceDetector struct {
 	doneScope *removedDoneScope
 }
 
-func detectSupersededRecSurface(filename, src, desiredVersion string) []Finding {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
-	if err != nil {
-		return nil
-	}
+func detectSupersededRecSurface(in fileInput) []Finding {
+	f := in.file
 	pkg := evoImportName(f)
 	if pkg == "" {
 		return nil
 	}
-	d := &recSurfaceDetector{filename: filename, src: src, pkg: pkg, fset: fset}
-	if dialectAtLeast(desiredVersion, dialectOneOne) {
+	d := &recSurfaceDetector{filename: in.filename, src: in.src, pkg: pkg, fset: in.fset}
+	if dialectAtLeast(in.desiredVersion, dialectOneOne) {
 		scope := newRemovedDoneScope(f, d)
 		d.doneScope = &scope
 	}

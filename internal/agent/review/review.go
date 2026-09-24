@@ -1191,7 +1191,8 @@ var okCallPattern = regexp.MustCompile(`(\w+)\.OK\(\)`)
 // (Failf/Blockf's trailing %w since Fail/Block are statement-form), Capture
 // (renamed to Evidence), and the rec-surface spellings (Config.Options,
 // Option funcs, the mutation verbs removed in 1.1, Skip, ID, StartPhase).
-func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
+func detectDeprecatedSpellings(in fileInput) []Finding {
+	filename, src, desiredVersion := in.filename, in.src, in.desiredVersion
 	var findings []Finding
 	if dialectAtLeast(desiredVersion, dialectFold) {
 
@@ -1313,7 +1314,7 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 
 	}
 	if dialectAtLeast(desiredVersion, dialectRec) {
-		findings = append(findings, detectSupersededRecSurface(filename, src, desiredVersion)...)
+		findings = append(findings, detectSupersededRecSurface(in)...)
 	}
 	return findings
 }

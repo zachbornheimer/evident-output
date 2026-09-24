@@ -113,7 +113,7 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectPlaceholderDoing)},
 	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
 	// rec-surface Options/To/Plain, the mutation verbs removed in 1.1, Skip/MainWith (removed in 1.0)) gets a derived fix, not a lecture.
-	{needsEvo: true, run: func(in fileInput) []Finding { return detectDeprecatedSpellings(in.filename, in.src, in.desiredVersion) }},
+	{needsEvo: true, run: detectDeprecatedSpellings},
 	// API-033: an entity's own name reused verbatim as its skip/verb argument.
 	{needsEvo: true, run: textRule(detectNameEqualsVerbArgument)},
 	// API-034: a statement-form Fail/Block immediately followed by return nil
