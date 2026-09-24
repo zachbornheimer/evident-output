@@ -56,6 +56,40 @@ type liveEngine struct {
 
 	// resizeArmed is true when SIGWINCH watch is registered on the surface.
 	resizeArmed bool
+
+	// forced meters the render work forced paints spent in the current
+	// frame interval (see forcedPaintAllowedLocked).
+	forced renderBudget
+}
+
+// renderBudget bounds the render work forced paints may spend in one
+// frame interval. A forced paint renders the whole live region — every
+// Task, not only the rows on screen — so forcing one per scheduler
+// transition cost O(n) per Task and O(n²) per run (4000 Tasks: 46.9s).
+// Under the budget every transition still paints, which is what a small
+// run and FP-005's spinner-before-check need; past it, forced paints
+// coalesce under the frame-rate cap and the animator paints the latest
+// state on its next tick.
+type renderBudget struct {
+	since time.Time
+	spent int
+}
+
+// forcedRenderRowsPerInterval is the budget, in Task rows rendered, forced
+// paints may spend per frame interval.
+const forcedRenderRowsPerInterval = 4096
+
+// allow reports whether a forced paint of rows fits the budget at now, and
+// charges it when it does.
+func (b *renderBudget) allow(now time.Time, interval time.Duration, rows int) bool {
+	if b.since.IsZero() || now.Sub(b.since) >= interval {
+		b.since, b.spent = now, 0
+	}
+	if b.spent > 0 && b.spent+rows > forcedRenderRowsPerInterval {
+		return false
+	}
+	b.spent += rows
+	return true
 }
 
 func (o *Output) liveLocked() LiveSurface {
@@ -79,7 +113,7 @@ func (o *Output) signalLiveLocked(force bool) {
 		o.startResizeWatchLocked(live)
 	}
 	now := o.cfg.clock.Now()
-	if o.hasLiveActivityLocked() {
+	if !o.visibilitySettledLocked(now) && o.hasLiveActivityLocked() {
 		if o.live.activitySince.IsZero() {
 			o.live.activitySince = now
 		}
@@ -100,15 +134,29 @@ func (o *Output) signalLiveLocked(force bool) {
 	if !o.live.visible {
 		return
 	}
+	minGap := time.Second / time.Duration(max(1, o.cfg.maxFrameRate))
+	if force && !o.live.forced.allow(now, minGap, len(o.tasks)) {
+		force = false
+	}
 	if !force && !o.live.lastRender.IsZero() {
-		minGap := time.Second / time.Duration(max(1, o.cfg.maxFrameRate))
 		if now.Sub(o.live.lastRender) < minGap {
+			// The animator paints the coalesced change on its next tick.
 			o.live.pendingRedraw = true
+			o.ensureSpinnerAnimatorLocked()
 			return
 		}
 	}
 	o.renderLiveLocked(force)
 	o.ensureSpinnerAnimatorLocked()
+}
+
+// visibilitySettledLocked reports whether VisibilityDelay can no longer
+// withhold a paint: the region is visible and the delay since activity
+// began has elapsed. Past that point the activity scan decides nothing,
+// and skipping it keeps each signal from walking every Task.
+func (o *Output) visibilitySettledLocked(now time.Time) bool {
+	return o.live.visible && !o.live.activitySince.IsZero() &&
+		(o.cfg.visibilityDelay <= 0 || now.Sub(o.live.activitySince) >= o.cfg.visibilityDelay)
 }
 
 // holdRunningPaint keeps a Running row on screen for one spinner period so a
@@ -261,7 +309,7 @@ func (o *Output) ensureSpinnerAnimatorLocked() {
 		// fall through to start animator
 	case !o.live.visible:
 		return
-	case !o.needsSpinnerAnimLocked():
+	case !o.needsSpinnerAnimLocked() && !o.live.pendingRedraw:
 		o.stopSpinnerAnimatorLocked()
 		return
 	}
@@ -358,6 +406,11 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 				return
 			}
 			if !o.needsSpinnerAnimLocked() {
+				// Paint the last coalesced change before going quiet, so
+				// the frame on screen is never older than the run.
+				if o.live.pendingRedraw {
+					o.renderLiveLocked(true)
+				}
 				o.stopSpinnerAnimatorLocked()
 				o.mu.Unlock()
 				return

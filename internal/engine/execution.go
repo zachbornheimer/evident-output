@@ -119,10 +119,9 @@ func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error) {
 		o.promoteRunningLocked(cand)
 	}
 	o.bumpLocked()
-	// Not forced: a start is one of many transitions per frame, and the
-	// frame-rate cap coalesces them (FP-005's first paint is covered by
-	// hasUnpaintedRunningLocked bypassing VisibilityDelay).
-	o.signalLiveLocked(false)
+	// Forced, within the live render budget: a start is the spinner FP-005
+	// requires before the check.
+	o.signalLiveLocked(true)
 	return cand, cand.sched.work
 }
 
