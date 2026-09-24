@@ -21,6 +21,9 @@ func (g *GroupHandle) Wait() error {
 	if g == nil || g.out == nil {
 		return nil
 	}
+	if err := g.out.refuseWaitUnderClaim(g.id); err != nil {
+		return err
+	}
 	return waitDescendants(g.out.collectDescendantTasksLocked(g.id))
 }
 

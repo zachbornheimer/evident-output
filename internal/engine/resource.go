@@ -52,8 +52,46 @@ func (o *Output) holdResource(ctx context.Context, r Resource, mode resource.Mod
 	req := resource.Request{Resource: r, Workspace: o.workspaceDirLocked(), Mode: mode, OnContended: wait.show}
 	return processResources.HoldResource(ctx, req, func(held context.Context) error {
 		wait.clear()
-		return fn(held)
+		return runHoldingResource(held, fn)
 	})
+}
+
+// runHoldingResource is the single frame every granted claim's work runs
+// beneath, so Wait can tell from its own goroutine's stack that the caller
+// holds a claim (see refuseWaitUnderClaim).
+func runHoldingResource(held context.Context, fn func(context.Context) error) error {
+	holdingFrames.note()
+	return fn(held)
+}
+
+// holdingFrames marks runHoldingResource (see frameMarker).
+var holdingFrames frameMarker
+
+// refuseWaitUnderClaim returns ErrNestedResourceAcquisition, naming the
+// awaited Task or container, when the calling goroutine holds a resource
+// claim. Waiting while holding a claim is nested acquisition in
+// disguise: the awaited work may need the held resource, and neither side
+// could then move. Like a second acquisition, it is refused every time,
+// not only when it would actually conflict, so the outcome never depends
+// on timing. Wait takes no context, so the claim is read from the stack.
+func (o *Output) refuseWaitUnderClaim(ref string) error {
+	if holdingFrames.depth() == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: Wait on %q while holding a resource claim", ErrNestedResourceAcquisition, o.refName(ref))
+}
+
+// refName is the declared name of the Task or Group/Sequence ref names.
+func (o *Output) refName(ref string) string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if st := o.taskByRef[ref]; st != nil {
+		return st.name
+	}
+	if col := o.tasksByRef[ref]; col != nil {
+		return col.name
+	}
+	return ref
 }
 
 // checkResourceFree fails with ErrNestedResourceAcquisition when ctx
@@ -130,9 +168,10 @@ func (w *resourceWait) clear() {
 var (
 	// ErrNestedResourceAcquisition is returned, without waiting, when code
 	// already holding a resource (directly, or through any helper it passed
-	// its context to) asks for a second one. Holding at most one resource
-	// at a time is what makes deadlock impossible, so this is misuse even
-	// when the second resource is free.
+	// its context to) asks for a second one, or calls Wait on a Task, Group,
+	// or Sequence. Holding at most one resource at a time, and never
+	// waiting while holding one, is what makes deadlock impossible, so this
+	// is misuse even when the second resource is free.
 	ErrNestedResourceAcquisition = resource.ErrNested
 	// ErrInvalidResource is returned when a Resource names nothing: an
 	// empty path or logical name.

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"runtime"
 	"slices"
-	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -291,69 +290,21 @@ func (o *Output) taskIsTerminal(st *taskState) bool {
 }
 
 // runCallback is the single frame every task callback runs beneath, so a
-// goroutine parked in Wait can count — on its own stack, without asking who
-// it is — how many callbacks it is holding still. That count is the one
-// thing separating "a callback is stuck waiting" from "a plain caller is
-// waiting while callbacks run", and Go offers no goroutine-scoped storage
-// to carry it instead (see callbackDepth).
+// goroutine parked in Wait can count how many callbacks it is holding
+// still. That count is the one thing separating "a callback is stuck
+// waiting" from "a plain caller is waiting while callbacks run".
 func runCallback(fn func() error) error {
-	noteCallbackFrame()
+	callbackFrames.note()
 	return fn()
 }
 
-// callbackFrame is runCallback's own qualified name, learned from
-// runCallback rather than spelled as a literal so a rename or a package
-// move cannot silently blind the deadlock check. Empty until the first
-// callback runs, which is exactly when the count is still zero anyway.
-var callbackFrame atomic.Pointer[string]
-
-func noteCallbackFrame() {
-	if callbackFrame.Load() != nil {
-		return
-	}
-	var pcs [1]uintptr
-	// Skip runtime.Callers and noteCallbackFrame itself: the caller is
-	// runCallback, the frame every callback sits beneath.
-	if runtime.Callers(2, pcs[:]) == 0 {
-		return
-	}
-	frame, _ := runtime.CallersFrames(pcs[:]).Next()
-	name := frame.Function
-	callbackFrame.Store(&name)
-}
-
-// stackSampleFrames is the initial depth one stack sample reads. A deeper
-// stack is resampled with a doubled buffer rather than truncated, because a
-// missed frame would under-count parked callbacks and call a live run dead.
-const stackSampleFrames = 64
+// callbackFrames marks runCallback (see frameMarker).
+var callbackFrames frameMarker
 
 // callbackDepth counts the task callbacks the calling goroutine is
 // currently inside: zero for a plain caller, one for a callback, more when
 // a waiter donated its goroutine to nested work before parking.
-func callbackDepth() int {
-	name := callbackFrame.Load()
-	if name == nil {
-		return 0
-	}
-	for size := stackSampleFrames; ; size *= 2 {
-		pcs := make([]uintptr, size)
-		n := runtime.Callers(2, pcs)
-		if n == size {
-			continue
-		}
-		depth := 0
-		frames := runtime.CallersFrames(pcs[:n])
-		for {
-			frame, more := frames.Next()
-			if frame.Function == *name {
-				depth++
-			}
-			if !more {
-				return depth
-			}
-		}
-	}
-}
+func callbackDepth() int { return callbackFrames.depth() }
 
 // beginWait registers this goroutine's park and re-tests the run: a newly
 // parked waiter may be the last thing that could have moved it.
@@ -816,6 +767,10 @@ func (st *taskState) closeDoneLocked() {
 // returns ErrNotStarted rather than nil, and a cancelled one returns its
 // cancellation: Wait never reports success for work that did not happen.
 //
+// Wait called while the calling goroutine holds a resource claim (inside an
+// Effect, File, or Basis hold) returns ErrNestedResourceAcquisition without
+// waiting: the awaited work could need that claim, and neither could move.
+//
 // A waiter has stopped doing work, so the concurrency ceiling must not be
 // the reason the task it waits on cannot start (P16). Wait therefore runs
 // that task, and whatever is holding it back, on its own goroutine when the
@@ -825,6 +780,9 @@ func (st *taskState) closeDoneLocked() {
 func (t *TaskHandle) Wait() error {
 	if t == nil || t.out == nil {
 		return nil
+	}
+	if err := t.out.refuseWaitUnderClaim(t.id); err != nil {
+		return err
 	}
 	t.out.runWaitedWork(t.id)
 	if !t.waitSubmitted() {
