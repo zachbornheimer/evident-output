@@ -796,7 +796,7 @@ func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidt
 	for _, t := range col.Tasks {
 		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
 	}
-	// Nested containers (P3's recursive .Sequence/.DisplayGroup nesting)
+	// Nested containers (P3's recursive .Sequence/.Group nesting)
 	// render as an indented sub-group, one level per nesting depth.
 	for _, child := range col.Collections {
 		var nested strings.Builder

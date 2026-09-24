@@ -233,8 +233,8 @@ func toJSONDocument(s core.Snapshot) JSONDocument {
 }
 
 // appendJSONCollection flattens col — and, recursively, every container it
-// nests via Sequence.Sequence/Sequence.DisplayGroup/DisplayGroup.Sequence/
-// DisplayGroup.DisplayGroup (P3) — into doc.TaskCollections/doc.Tasks, so a
+// nests via Group.Group/Group.Sequence/Sequence.Group/Sequence.Sequence
+// (P3) — into doc.TaskCollections/doc.Tasks, so a
 // nested container's tasks are never silently dropped from the wire
 // document. JSONCollection's own shape is unchanged; nesting is expressed
 // the same way the live/plain renderers express it, by including the nested

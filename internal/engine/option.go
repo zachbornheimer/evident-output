@@ -52,7 +52,7 @@ type config struct {
 	// failedExitCode overrides ExitFailed when conclusion is StateFailed.
 	// Zero means use ExitFailed (2).
 	failedExitCode int
-	// dryRun selects ledger tense: true renders Effect/File/Record rows as
+	// dryRun selects ledger tense: true renders Effect/File rows as
 	// [planned]/imperative, false as [changed]/past tense. Both
 	// Config.DryRun and Config.Preview set it — they are one tense with two
 	// announcements (see preview below).

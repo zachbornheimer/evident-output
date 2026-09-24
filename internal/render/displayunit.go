@@ -24,7 +24,7 @@ func alreadySatisfiedRowDetail(t core.TaskSnapshot, color bool) string {
 }
 
 // DisplayUnit is evo-rec.md P3's uniform row model: a task row, a Sequence/
-// DisplayGroup header, a fact line, a confirm gate, and a conclusion band
+// Group header, a fact line, a confirm gate, and a conclusion band
 // are the same shape with different slots populated. "A child's elapsed
 // time is not shown at the top level" is a slot policy the caller decides
 // when it builds the unit — never an omitted switch branch buried in the

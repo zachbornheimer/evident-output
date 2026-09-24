@@ -185,8 +185,8 @@ func retiredMatches(line, name string) bool {
 		}
 		return strings.Contains(line, "func ("+typ+") "+meth)
 	}
-	// Single-word retired names (DisplayGroup, TaskConfig, MainWith, ...)
-	// must go through the identifier-boundary-safe path only: a raw
+	// Single-word retired names (removed in 1.0: DisplayGroup, TaskConfig,
+	// MainWith, ...) must go through the identifier-boundary-safe path only: a raw
 	// substring check here would false-positive against any unrelated,
 	// longer identifier that merely contains the retired name (e.g.
 	// DisplayGroupID contains DisplayGroup).

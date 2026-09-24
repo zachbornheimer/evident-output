@@ -118,7 +118,7 @@ func anyTaskWarned(tasks []TaskSnapshot) bool {
 // anyCollectionWarned recurses into every container's own tasks and nested
 // containers (E2.5 finding 1): a Snapshot's root anyTaskWarned(s.Tasks) alone
 // sees only root-level tasks, so a warned child living under a
-// Sequence/DisplayGroup — at any nesting depth — otherwise yields no "·
+// Sequence/Group — at any nesting depth — otherwise yields no "·
 // warned" modifier and Warned stays false, a silent regression from a run
 // that would have surfaced the same warning at the top level.
 func anyCollectionWarned(collections []TasksSnapshot) bool {

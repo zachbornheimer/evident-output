@@ -3,8 +3,8 @@ package engine
 import txt "github.com/zachbornheimer/evident-output/internal/text"
 
 // changeLedger is the internal handle for one task's durable effects — the
-// section named after the task that evo.Effect, evo.File, and
-// TaskHandle.Record (task_mutations.go) record committed effects into. Unexported: P1/P13
+// section named after the task that evo.Effect and evo.File record
+// committed effects into. Unexported: P1/P13
 // removed the caller-facing Output.Changes entry point and its past-tense
 // builder methods (Added/Created/Updated/...) from the public surface —
 // ChangesSnapshot stays the public, read-only view.
@@ -72,8 +72,8 @@ func (c *changeLedger) recordNoQty(verb, object string) *changeLedger {
 }
 
 // declareIntendedVerb records verb as the section's intended verb if none is
-// set yet, without adding a row. Effect and Record (task_mutations.go)
-// call this with the caller's original imperative verb before record
+// set yet, without adding a row. Effect calls this with the caller's
+// original imperative verb before record
 // conjugates it to past tense, so an empty section still reads "nothing to
 // delete <subject>" rather than "nothing to deleted <subject>".
 func (c *changeLedger) declareIntendedVerb(verb string) {

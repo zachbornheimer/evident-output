@@ -38,7 +38,7 @@ type Symbol struct {
 
 var symbols = []Symbol{
 	{Contract: "MainWith", RemovedIn: Release1_0, Replacement: "evo.Main / Output.Run", Taught: regexp.MustCompile(`\bMainWith\b`)},
-	{Contract: "Task.Run", RemovedIn: Release1_0, Replacement: "task.Writer() on cmd.Stdout/Stderr", Taught: regexp.MustCompile(`\bTask\.Run\b`)},
+	{Contract: "Task.Run", RemovedIn: Release1_0, Replacement: "task.Writer() on cmd.Stdout/Stderr", Taught: regexp.MustCompile(`\b[Tt]ask\.Run\b`)},
 	{Contract: "Task.Go", RemovedIn: Release1_0, Replacement: "Task.Define", Taught: regexp.MustCompile(`\bTask\.Go\b`)},
 	{Contract: "Task.Each", RemovedIn: Release1_0, Replacement: "one Group.Task(...).Define per item", Taught: regexp.MustCompile(`\b(?:Task|Group|Sequence)\.Each\b|\.Each\(`)},
 	{Contract: "DisplayGroup", RemovedIn: Release1_0, Replacement: "Group", Taught: regexp.MustCompile(`\bDisplayGroup\b`)},
@@ -61,8 +61,8 @@ var symbols = []Symbol{
 	// ZYS-812: the Done success stamp and the record-only ledger verbs.
 	// Success resolves through Define (result text is Summary); mutations
 	// go through Effect, information through Fact.
-	{Contract: "TaskHandle.Done(", RemovedIn: Release1_1, Replacement: "Define (result text via Summary)", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*|TaskHandle)\.Done\(|/Done\b`)},
-	{Contract: "TaskHandle.Record(", RemovedIn: Release1_1, Replacement: "evo.Effect for a mutation, Fact for information", Taught: regexp.MustCompile(`\b[Tt]ask\w*\.Record\(`)},
+	{Contract: "TaskHandle.Done(", RemovedIn: Release1_1, Replacement: "Define (result text via Summary)", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*|TaskHandle)\.Done\(|\bTask\([^)]*\)\.Done\(|/Done\b`)},
+	{Contract: "TaskHandle.Record(", RemovedIn: Release1_1, Replacement: "evo.Effect for a mutation, Fact for information", Taught: regexp.MustCompile(`\b[Tt]ask\w*\.Record\(|\bTaskHandle\.Record\b`)},
 	{Contract: "TaskHandle.RecordLabel(", RemovedIn: Release1_1, Replacement: "Fact", Taught: regexp.MustCompile(`\bRecordLabel\(`)},
 	{Contract: "TaskHandle.RecordName(", RemovedIn: Release1_1, Replacement: "Fact", Taught: regexp.MustCompile(`\bRecordName\(`)},
 }

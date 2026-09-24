@@ -404,8 +404,9 @@ func isOldMutationShape(call *ast.CallExpr) bool {
 	if len(call.Args) < 2 {
 		return false
 	}
-	// Object-first shape: Delete(object, fn) / Affected. Func-lit, nil
-	// callback, or Affected metadata means the 1.0 shape, not 0.x.
+	// Object-first shape: Delete(object, fn) / Affected, removed in 1.1.
+	// Func-lit, nil callback, or Affected metadata means the 1.0 shape, not
+	// 0.x.
 	if mutationHasAffected(call.Args) || isFuncLit(call.Args[1]) || isNilExpr(call.Args[1]) {
 		return false
 	}

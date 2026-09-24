@@ -46,7 +46,7 @@ func applyEntityOptions(opts []EntityOption) entityOpts {
 //   - Session Capture, Writer, and SlogHandler stay on *Output (shared session).
 //
 //     registry := out.scope("registry")
-//     registry.Task("credentials").Done()
+//     registry.Task("credentials").Define(checkCredentials)
 //     // key → "registry.auth"
 type scope struct {
 	out  *Output

@@ -127,8 +127,8 @@ var fileDetectors = []detector{
 	// matching Failf/Blockf.
 	{needsEvo: true, run: textRule(detectSprintfInVerb)},
 	// API-038: fmt.Sprintf(...) passed to a printf-variadic evo method
-	// (Task/Group/Sequence/Summary/Done/Warn/Doing/Skip/Failf) should
-	// flatten into that method's own format + args.
+	// (Doing/Failf/Blockf) should flatten into that method's own format +
+	// args.
 	{needsEvo: true, run: textRule(detectSprintfIntoVariadicVerb)},
 	// API-037: a method whose whole body is one call on a Task/Item handle —
 	// pure ceremony over the handle's own verb.

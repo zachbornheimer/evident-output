@@ -1,5 +1,5 @@
 // Package main compiles docs/migration/1.0.md's "After (1.0)" fence for
-// Task.Each's replacement: one named child Task per item under a Group,
+// Task.Each's replacement (Each was removed in 1.0): one named child Task per item under a Group,
 // each submitting its own work through Define. See
 // TestDocFencesMatchFixtures. Never run.
 package main

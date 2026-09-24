@@ -192,7 +192,7 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 //	-  go test ./...  not started
 //
 // The early-termination "! already mutated: ..." row is derived mechanically
-// from the Changes ledger (task_mutations.go / plain.go writeAlreadyMutated)
+// from the Changes ledger (effect.go / plain.go writeAlreadyMutated)
 // and is suppressed entirely when the ledger is empty ("!" is
 // attention-only; an empty ledger earns none) — this scenario records no
 // Record/RecordName mutation on either child, so the row is absent.

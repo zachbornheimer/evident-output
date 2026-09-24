@@ -25,7 +25,7 @@ type legacyMutation struct {
 
 // parseLegacyMutation recognizes both removed shapes: the 0.x positional
 // Delete(n, object) and the 1.0 object-first Delete(object, fn,
-// evo.Affected(n)). The object-first shape needs a work callback literal,
+// evo.Affected(n)), removed in 1.1. The object-first shape needs a work callback literal,
 // nil, or an Affected option so same-named methods on other types
 // (http.Header.Add(key, value)) never match.
 func parseLegacyMutation(name string, call *ast.CallExpr) (legacyMutation, bool) {
@@ -57,7 +57,8 @@ func isWorkCallbackLit(e ast.Expr) bool {
 	return ok && id.Name == "error"
 }
 
-// affectedQuantity returns the n of an evo.Affected(n) option, or nil.
+// affectedQuantity returns the n of a legacy evo.Affected(n) option, or
+// nil. Affected was removed in 1.1.
 func affectedQuantity(args []ast.Expr) ast.Expr {
 	for _, a := range args[2:] {
 		call, ok := a.(*ast.CallExpr)

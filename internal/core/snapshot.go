@@ -156,7 +156,7 @@ type TaxonomyRecord struct {
 	Causes []string
 }
 
-// TasksSnapshot is an immutable collection view (evo.DisplayGroup or
+// TasksSnapshot is an immutable collection view (evo.Group or
 // evo.Sequence).
 type TasksSnapshot struct {
 	ID string
@@ -171,14 +171,14 @@ type TasksSnapshot struct {
 	Summary string
 	Tasks   []TaskSnapshot
 	// Collections holds nested child containers declared via
-	// Sequence.Sequence, Sequence.DisplayGroup, DisplayGroup.Sequence, or
-	// DisplayGroup.DisplayGroup (P3's recursive nesting) — a rendering walk
-	// that stops at Tasks alone misses any container nested this way.
+	// Group.Group, Group.Sequence, Sequence.Group, or Sequence.Sequence
+	// (P3's recursive nesting) — a rendering walk that stops at Tasks alone
+	// misses any container nested this way.
 	Collections []TasksSnapshot
 	// Sequential reports whether this container is an evo.Sequence (ordered
 	// dependency, "one Running child" heart contract, failure cascades to
-	// NotStarted) rather than an evo.DisplayGroup (independent, presentation
-	// only, concurrent Running children expected).
+	// NotStarted) rather than an evo.Group (independent children,
+	// scheduler may overlap, concurrent Running children expected).
 	Sequential  bool
 	Declaration int
 }

@@ -231,7 +231,7 @@ type Config struct {
 
 	// Preview declares this run a preview before a confirm gate: the same
 	// planned tense as DryRun — Effect callbacks never run and every
-	// Effect/File/Record call renders as a [planned] row with the
+	// Effect/File call renders as a [planned] row with the
 	// imperative verb — announced with the caller's own Config.Subject
 	// ("repo <path>") instead of the "[dry-run] <subject>" header, and with
 	// the same redundant-band suppression on a pure planned verdict.

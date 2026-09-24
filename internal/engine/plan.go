@@ -3,8 +3,8 @@ package engine
 import txt "github.com/zachbornheimer/evident-output/internal/text"
 
 // planLedger is the internal handle for one task's planned (dry-run)
-// effects — the section named after the task that TaskHandle's mutation
-// verbs (task_mutations.go) record planned effects into during DryRun.
+// effects — the section named after the task that evo.Effect and evo.File
+// record planned effects into during DryRun.
 // Unexported: P1/P13 removed the caller-facing Output.Plan entry point and
 // its builder methods from the public surface — PlanSnapshot stays the
 // public, read-only view.

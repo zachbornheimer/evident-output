@@ -98,7 +98,7 @@ type Output struct {
 	// never a repeat declaration to be merged.
 	taskNameByKey map[string]string
 	// namedPlans/namedChanges back get-or-create identity for ledger
-	// sections (Effect, File, Record, ...): repeated mutations on one task
+	// sections (Effect, File): repeated mutations on one task
 	// accumulate into the one Plan/Changes section named after the task,
 	// instead of one section per call. Unrelated to Task/Group/Sequence
 	// declaration identity (§3.1) — a ledger section is not a sibling.
@@ -389,10 +389,9 @@ type tasksState struct {
 	// "one Running child" check never rescans every step.
 	runningSteps []*taskState
 
-	// children holds nested containers declared via Sequence.Sequence,
-	// Sequence.DisplayGroup, DisplayGroup.Sequence, or
-	// DisplayGroup.DisplayGroup (P3's "both offer .Task/.Sequence/
-	// .DisplayGroup, recursive") — a container's derived state and
+	// children holds nested containers declared via Group.Group,
+	// Group.Sequence, Sequence.Group, or Sequence.Sequence (P3's recursive
+	// nesting) — a container's derived state and
 	// rendering fold its children in exactly the way it folds its own
 	// tasks.
 	children []*tasksState
@@ -700,7 +699,7 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 // For a sequential collection (Sequence), it records misuse when a sibling is
 // already Running, enforcing the heart contract "one Running child"
 // (evo-rec.md) — callers still get the transition; Strict mode is what
-// escalates the violation to a panic. A plain DisplayGroup collection
+// escalates the violation to a panic. A plain Group collection
 // documents its children as independent (worker-pool fan-out is a
 // supported, concurrency-safe pattern there), so it is not policed.
 func (o *Output) promoteRunningLocked(st *taskState) {
@@ -1159,8 +1158,8 @@ func (o *Output) declareGroupTask(groupID, name string, opts ...EntityOption) *T
 
 // declareChangeLedgerLocked starts a durable-effects section named subject —
 // the internal counterpart of the deleted public Output.Changes entry point
-// (P1/P13: presentation-decision aPI, callers reach effects only through
-// evo.Effect/evo.File and TaskHandle.Record now). Caller must hold o.mu.
+// (P1/P13: callers reach effects only through evo.Effect and evo.File).
+// Caller must hold o.mu.
 func (o *Output) declareChangeLedgerLocked(subject string) *changeLedger {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
@@ -1551,7 +1550,7 @@ func (g *tasksState) snapshot() TasksSnapshot {
 
 // derivedState folds both this container's own tasks and its nested
 // children (P3's recursive nesting) into one verdict: a nested Sequence or
-// DisplayGroup contributes exactly like one more task would, so a failure
+// Group contributes exactly like one more task would, so a failure
 // three levels deep still surfaces at the root header.
 func (g *tasksState) derivedState() EntityState {
 	if len(g.tasks) == 0 && len(g.children) == 0 {
@@ -1899,7 +1898,7 @@ func (o *Output) Finish() error {
 	// Unresolved entities. A task with no problems of its own told an
 	// honest, complete story already — the caller just never called a
 	// terminal verb — whenever it also carries at least one of: a recorded
-	// Effect/File/Record ledger row, a sealed absolute
+	// Effect/File ledger row, a sealed absolute
 	// progress (a completed Progress/Step loop reached its total),
 	// recorded taxonomy (Skipped/Kept), or a recorded warning (P2:
 	// TaskHandle.Warn never itself resolves the task, so a warned-but-

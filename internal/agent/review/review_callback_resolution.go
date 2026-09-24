@@ -1,4 +1,6 @@
-// Package review — API-040 and FP-006: a Define callback that resolves its own row twice, and Doing/Done theater.
+// Package review — API-040 and FP-006: a Define callback that resolves its
+// own row twice, and Doing-then-Done theater (Done was removed in 1.1; the
+// detector still recognizes the legacy shape).
 package review
 
 import (

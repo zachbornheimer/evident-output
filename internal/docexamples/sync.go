@@ -49,7 +49,7 @@ type DocFixture struct {
 	// transparently.
 	Fixture string
 	// TextOnly marks a fence pinned as exact text only, never proven to
-	// compile: a "Before" snippet documenting pre-1.0 API that was removed
+	// compile: a "Before" snippet documenting API removed in 1.0
 	// (evo.MainWith, Group.Each, evo.New, a signature without ctx) or a
 	// fence that elides a real declaration's initializer for brevity (the
 	// Projection const list). Its Fixture directory's snippet file carries

@@ -1433,17 +1433,16 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 			Message:    "io.Discard sink in a function that also Fails/Blocks discards the evidence a security gate needs to explain its own verdict",
 			File:       filename,
 			Line:       lineAt(src, fb.offset+idx),
-			Suggestion: "wire the checked command's output through task.Evidence() (or task.Run) instead of io.Discard, so Block/Fail can attach DetailTail",
+			Suggestion: "wire the checked command's output through task.Writer() (on cmd.Stdout/Stderr) or evo.Exec instead of io.Discard, so Block/Fail can attach DetailTail",
 		})
 	}
 	return findings
 }
 
 // sprintfInVerbPattern matches Fail/Block called with fmt.Sprintf as (the
-// start of) its argument list. Warn is deliberately excluded: it is itself
-// printf-variadic (P1/P2 deleted the separate Warnf), so a Warn(fmt.Sprintf(
-// ...)) call belongs to API-038's flatten-into-the-call family, not this
-// rule's "use the *f sibling" family — that sibling no longer exists.
+// start of) its argument list. Warn is deliberately excluded: it has no
+// Warnf sibling, and Warn(summary, options...) takes fmt.Sprintf as its
+// ordinary summary argument.
 var sprintfInVerbPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*fmt\.Sprintf\(`)
 
 // detectSprintfInVerb is API-036: a Fail/Block summary hand-built via
@@ -1488,11 +1487,10 @@ func detectSprintfInVerb(filename, src string) []Finding {
 }
 
 // printfVariadicVerbPattern matches a call to one of evo's own printf-
-// variadic entity/status methods — Task/Group/Sequence/Summary/Done/
-// Warn/Doing/Skip/Failf all already take (format string, args ...any)
-// directly (P1/P2, C6: the separate *f siblings for these were deleted) —
-// with fmt.Sprintf as (the start of) its argument list.
-var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Done|Doing|Failf)\(\s*fmt\.Sprintf\(`)
+// variadic TaskHandle methods — Doing, Failf, and Blockf take
+// (format string, args ...any) directly — with fmt.Sprintf as (the start
+// of) its argument list.
+var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Doing|Failf|Blockf)\(\s*fmt\.Sprintf\(`)
 
 // detectSprintfIntoVariadicVerb is API-038: fmt.Sprintf(...) passed to a
 // method that is already printf-variadic itself is ceremony that also hides

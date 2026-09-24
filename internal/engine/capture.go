@@ -43,16 +43,14 @@ type capturedLine struct {
 // sanitized proof a failure can point back to.
 //
 //	upgrade := out.Task("brew packages")
-//	proof := upgrade.evidence() // silent retention by default
-//	if err := run.Run(ctx, "brew", args, proof); err != nil {
-//	    upgrade.Failf("brew upgrade failed: %w", err)
-//	    return nil
-//	}
-//	upgrade.Done()
+//	upgrade.Define(func(ctx context.Context) error {
+//	    return run.Run(ctx, "brew", args, upgrade.evidence())
+//	})
 //
-// Prefer task.Run for an *exec.Cmd — it wires evidence and Phase together in
-// one call. Reach for evidence directly only when the caller already owns
-// stdout/stderr plumbing (a custom runner, a non-exec.Cmd tool integration).
+// Prefer evo.Exec, or task.Writer() on an *exec.Cmd's Stdout/Stderr — both
+// wire evidence and Phase together. Reach for evidence directly only when
+// the caller already owns stdout/stderr plumbing (a custom runner, a
+// non-exec.Cmd tool integration).
 //
 // Combined streams by default (P1): Write (merged), Stdout(), and Stderr() all
 // feed the same bounded ring used by Text/Tail/DetailTail. Linters and most
