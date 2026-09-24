@@ -82,12 +82,6 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 	return h
 }
 
-// declaredTaskState is Pending until the scheduler starts the Task.
-func declaredTaskState(col *tasksState) EntityState {
-	_ = col
-	return Pending
-}
-
 func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey string) *TaskHandle {
 	h := o.declareTaskLocked(name, col, key, parentKey)
 	if _, ok := o.taskByRef[h.id]; ok {
@@ -127,7 +121,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 		id:          o.nextID("task"),
 		key:         effectiveKey,
 		name:        name,
-		state:       declaredTaskState(col),
+		state:       Pending,
 		progress:    Progress{Kind: Indeterminate},
 		collection:  col,
 		declaration: o.nextDecl(),
