@@ -74,15 +74,12 @@ var (
 // Block) disowned the work, so nothing reaches the ledger (see
 // deniesItsOwnEffect).
 func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error) error {
-	task, err := taskScope(ctx)
+	task, err := beginOperation(ctx, fmt.Sprintf("Effect %s %q", spec.Verb, spec.Object))
 	if err != nil {
 		return err
 	}
 	if err := spec.validate(fn); err != nil {
 		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("evo: Effect %s %q: %w", spec.Verb, spec.Object, err)
 	}
 	// Resolve the ledger target once, before fn runs: an interrupt that
 	// cancels the row while fn runs describes work that really happened,

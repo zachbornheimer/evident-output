@@ -108,7 +108,7 @@ type execEvaluation struct {
 // sentinels — wrapping would add nothing and would break a bare errors.Is
 // check on either).
 func Exec(ctx context.Context, spec ExecSpec) (ExecResult, error) {
-	task, scopeErr := taskScope(ctx)
+	task, scopeErr := beginOperation(ctx, fmt.Sprintf("Exec %q", spec.Executable))
 	if scopeErr != nil {
 		return ExecResult{}, scopeErr
 	}
@@ -121,9 +121,6 @@ func Exec(ctx context.Context, spec ExecSpec) (ExecResult, error) {
 func (o *Output) reconcileExec(ctx context.Context, taskID string, spec ExecSpec) (ExecResult, error) {
 	if spec.Executable == "" {
 		return ExecResult{}, ErrExecSpecMissingExecutable
-	}
-	if cancelErr := o.recordCancelledExec(ctx, spec); cancelErr != nil {
-		return ExecResult{}, cancelErr
 	}
 
 	dir := o.resolveWorkspacePath(spec.Dir)
@@ -149,20 +146,6 @@ func (o *Output) reconcileExec(ctx context.Context, taskID string, spec ExecSpec
 		return ExecResult{Ran: false}, nil
 	}
 	return o.execRunAndRecord(ctx, taskID, spec, target, eval)
-}
-
-// recordCancelledExec reports ctx's error as misuse (spec: a cancelled Run
-// must never look like it silently succeeded) before Exec does anything
-// else — the same guard reconcileFile applies for File.
-func (o *Output) recordCancelledExec(ctx context.Context, spec ExecSpec) error {
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		wrapped := fmt.Errorf("evo: Exec %q: %w", spec.Executable, ctxErr)
-		o.mu.Lock()
-		o.recordMisuse(wrapped)
-		o.mu.Unlock()
-		return wrapped
-	}
-	return nil
 }
 
 // execEvaluate resolves this call's manifest verdict: current (skip,

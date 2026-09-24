@@ -70,7 +70,7 @@ var (
 // Task's Define callback (see taskScope) — File returns ErrNoTaskContext or
 // ErrTaskClosed otherwise.
 func File(ctx context.Context, spec FileSpec) error {
-	task, err := taskScope(ctx)
+	task, err := beginOperation(ctx, fmt.Sprintf("File %q", spec.Path))
 	if err != nil {
 		return err
 	}

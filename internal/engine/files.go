@@ -22,7 +22,7 @@ var ErrStaleBasis = errors.New("evo: source changed since its Basis was observed
 // not a transaction: it stops at the first failing file, and files it
 // already committed keep their Effects.
 func Files(ctx context.Context, files FileSet) error {
-	task, err := taskScope(ctx)
+	task, err := beginOperation(ctx, "Files")
 	if err != nil {
 		return err
 	}

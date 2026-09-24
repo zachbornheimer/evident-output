@@ -53,7 +53,7 @@ var (
 // Basis recorded for it is the identity of exactly the bytes the hunks
 // were applied to (an absent file's Basis is its observed absence).
 func Patch(ctx context.Context, diff []byte) (FileSet, error) {
-	task, err := taskScope(ctx)
+	task, err := beginOperation(ctx, "Patch")
 	if err != nil {
 		return FileSet{}, err
 	}
@@ -61,9 +61,6 @@ func Patch(ctx context.Context, diff []byte) (FileSet, error) {
 }
 
 func (o *Output) derivePatch(ctx context.Context, diff []byte) (FileSet, error) {
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return FileSet{}, fmt.Errorf("evo: Patch: %w", ctxErr)
-	}
 	edits, parseErr := patch.Parse(diff)
 	if parseErr != nil {
 		return FileSet{}, parseErr
