@@ -125,7 +125,7 @@ func deadlineAwareCallee(ctx context.Context) error {
 // An embedded run hides its caller's deadline from Tasks: a deadline-aware
 // callee must not fail its row before the interrupt marks it cancelled.
 // context.Cause still says why the run stopped.
-func TestOutputRun_ExternalHidesCallerDeadlineFromTasks(t *testing.T) {
+func TestOutputRun_EmbeddedHidesCallerDeadlineFromTasks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), callerBudget)
 	defer cancel()
 	out := embedderOutput()

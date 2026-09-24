@@ -10,8 +10,10 @@ See [`docs/migration/1.2.md`](docs/migration/1.2.md) for the upgrade guide and
 [`docs/decisions/caller-cancellation.md`](docs/decisions/caller-cancellation.md)
 for the decision record.
 
-No behavior change for existing 1.1 hosts: the caller-cancellation
-lifecycle is opt-in (DEC-CANCEL-005). See
+The caller-cancellation lifecycle and the random `run_id` are opt-in
+through `Config.Embedded` (DEC-CANCEL-005): without it, a 1.1 host keeps
+its `ctx` contract and its `out_1` run identity. The signal, lock, and
+write-error fixes and the cancellation cause below reach every run. See
 [`docs/guides/http-embedding.md`](docs/guides/http-embedding.md) and
 `examples/launch-agent-http`.
 
@@ -27,15 +29,16 @@ lifecycle is opt-in (DEC-CANCEL-005). See
   fails the running Define (exit 2) and the run owns ^C.
 - **`Config.RunID` pins the run identity** for golden tests (alongside
   `Config.Clock`) or for a host that already has a request id. Empty keeps
-  the random default below.
+  the default below.
 - **A signal arriving after the run callback returns still stops the run.**
   SIGINT/SIGTERM were watched only until `run` returned, so in the ordinary
   shape — declare Tasks, return, let Define work execute during Finish — a
   long Define (a server, a slow install) ignored ^C.
-- **`run_id` is unique per run.** It was `out_1` for every run in every
-  process; it is now `run_` plus a random suffix unless `Config.RunID`
-  pins it. Task, Group, and message ids keep their 1.1 numbering (the
-  first Task is still `task_2`).
+- **An `Embedded` run's `run_id` is unique per run.** Every run carried
+  `out_1`, so concurrent requests in one process shared it; an `Embedded`
+  run now carries `run_` plus a random suffix unless `Config.RunID` pins
+  it. Every other run keeps `out_1`. Task, Group, and message ids keep
+  their 1.1 numbering (the first Task is still `task_2`).
 - **`WriteJSON` and `FormatJSON` share one writer,** so their documents are
   byte-identical for the same run. `WriteJSON` errors now name the failed
   step and wrap the writer's error; a `FormatJSON` write failure now

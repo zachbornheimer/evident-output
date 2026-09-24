@@ -56,8 +56,9 @@ so they already land on the right Output.
 ## Lifecycle
 
 - **One Output per request.** Isolated Outputs share no runtime state, and
-  each run carries its own random `run_id` (or the one `Config.RunID`
-  pins, such as your request id).
+  each `Embedded` run carries its own random `run_id` (or the one
+  `Config.RunID` pins, such as your request id). A run without `Embedded`
+  keeps the 1.1 identity, `out_1`.
 - **`Embedded` hands the run's lifecycle to the request.** Without it, a
   run keeps the 1.1 CLI contract on every format, `FormatExternal`
   included: the end of `ctx` fails the running Define (exit 2), and the run

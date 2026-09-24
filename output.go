@@ -81,13 +81,16 @@ func (o *Output) ResultWriter() io.Writer {
 // Run executes run against o and returns the Result (Conclusion plus the
 // application error, if any); it never exits the process.
 //
-// For a FormatExternal Output, ctx is the request lifecycle: when it ends
-// before the work finishes, the run concludes cancelled (ExitCancelled,
-// 130) with Explanation "by caller" or "deadline exceeded", queued Tasks
-// never start, and Tasks never see ctx's cancellation or deadline
-// directly. Such a run registers no SIGINT/SIGTERM handler; its host owns
-// process signals. Every other format passes ctx to Tasks unchanged and
-// stops on SIGINT/SIGTERM (cancelled, 130, "by user").
+// By default, on every Format (FormatExternal included), ctx reaches Tasks
+// unchanged, so its end fails the running Define (ExitFailed, 2), and the
+// run stops on SIGINT/SIGTERM (cancelled, 130, "by user"), as in 1.1.
+//
+// When o's Config sets Embedded, ctx is the request lifecycle instead:
+// when it ends before the work finishes, the run concludes cancelled
+// (ExitCancelled, 130) with Explanation "by caller" or "deadline exceeded",
+// queued Tasks never start, and Tasks never see ctx's cancellation or
+// deadline directly. Such a run registers no SIGINT/SIGTERM handler; its
+// host owns process signals.
 func (o *Output) Run(ctx context.Context, run RunFunc) Result {
 	if o == nil || o.inner == nil {
 		return Result{Conclusion: Conclusion{State: StateFailed, ExitCode: ExitFailed}}

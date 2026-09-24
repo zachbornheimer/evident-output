@@ -2,7 +2,8 @@
 
 **Status:** Accepted
 **Date:** 2026-09-23 (DEC-CANCEL-005 accepted by the maintainer and
-DEC-CANCEL-007 added 2026-09-24)
+DEC-CANCEL-007 added 2026-09-24; DEC-CANCEL-005 extended to `run_id`
+2026-09-24)
 **IDs:** DEC-CANCEL-001 … DEC-CANCEL-007
 **Ticket:** ZYS-946 (spec §53)
 **Implementation:** `internal/engine/construct.go` (`Config.Embedded`),
@@ -87,10 +88,14 @@ So 1.2 adds one `Config` bool, `Embedded`, alongside `Isolated`:
 
 - `Embedded: true` applies DEC-CANCEL-001 … 004 and 006: evo registers no
   SIGINT/SIGTERM handler, the end of `ctx` interrupts the run, and Tasks
-  see the caller's values without its cancellation or deadline.
+  see the caller's values without its cancellation or deadline. Its
+  `run_id` is random (`run_` plus a suffix), so concurrent requests in
+  one process never share one.
 - Without it, every run keeps the 1.1 contract exactly, `FormatExternal`
   included: Tasks receive the caller's `ctx` unchanged, a Define that
-  returns `ctx.Err()` fails its row (exit 2), and the run owns ^C.
+  returns `ctx.Err()` fails its row (exit 2), the run owns ^C, and its
+  `run_id` is `out_1`, so a 1.1 golden test that pinned it stays
+  byte-stable. `Config.RunID` pins either default.
 
 `Embedded` is independent of `Format`. `FormatExternal` chooses how a run
 renders; `Embedded` chooses who owns its lifecycle. An HTTP handler
@@ -100,10 +105,13 @@ it is honored on the `Config.Options` path too.
 
 Widening DEC-CANCEL-001 to every run by default is a separate breaking
 decision for a major release. The scope lives in one place:
-`Output.scopeCaller`, `Output.watchCaller`, `Output.endRunCallback`, and
-`Output.subscribeProcessSignals` branch on the `embedded` config bit, which
-only `Config.Embedded` sets. Pinned by
+`Output.scopeCaller`, `Output.watchCaller`, `Output.endRunCallback`,
+`Output.subscribeProcessSignals`, and `config.issueRunID` branch on the
+`embedded` config bit, which only `Config.Embedded` sets. Pinned by
 `TestOutputRun_CallerCancelWithoutEmbeddedKeeps11Verdict`,
+`TestOutputRun_CallerDeadlineWithoutEmbeddedReachesTasks`,
+`TestConfigRunID_UnsetKeeps11IdentityWithoutEmbedded`,
+`TestConfigRunID_UnsetIsUniquePerEmbeddedRun`,
 `TestOutputRun_EmbeddedOptsAnyFormatIntoCallerCancellation`,
 `TestRun_EmbeddedLeavesProcessSignalsToHost`, and
 `TestRun_FormatExternalWithoutEmbeddedStillOwnsProcessSignals`.
@@ -120,7 +128,7 @@ context is cancelled with a cause, so `context.Cause(taskCtx)` is
 `context.DeadlineExceeded` when the deadline stopped the run, while
 `taskCtx.Err()` is `context.Canceled`. A Task that needs its own budget
 sets one inside its Define. Pinned by
-`TestOutputRun_ExternalHidesCallerDeadlineFromTasks`.
+`TestOutputRun_EmbeddedHidesCallerDeadlineFromTasks`.
 
 ### DEC-CANCEL-007: The wire document names the cancellation cause
 
@@ -147,9 +155,16 @@ disagree. Pinned by `TestOutputRun_CallerContextEndConcludesCancelled`,
 
 ## Consequences
 
-- No 1.1 caller changes behavior on upgrade. A host that wants the §53
-  lifecycle sets `Config.Embedded` (DEC-CANCEL-005), then branches on
-  `StateCancelled` / exit 130 and owns SIGINT/SIGTERM itself. See
+- No 1.1 caller's `ctx` lifecycle or `run_id` changes on upgrade: a
+  `ctx` that ends mid-run still fails the running Define (exit 2), the
+  run still owns ^C, and `run_id` is still `out_1`. A host that wants the
+  §53 lifecycle sets `Config.Embedded` (DEC-CANCEL-005), then branches on
+  `StateCancelled` / exit 130 and owns SIGINT/SIGTERM itself.
+- Fixes outside this decision do reach every 1.1 caller: a ^C during
+  Finish stops the run instead of being ignored, a run waiting on the
+  state lock stops on ^C, a cancelled document names its cause
+  (DEC-CANCEL-007), and a `FormatJSON` write failure wraps the writer's
+  error. See "Changes for every format" in
   [`docs/migration/1.2.md`](../migration/1.2.md).
 - `Result.Err` still carries whatever the run callback returned, so an
   embedder can tell work failure from cancellation.
