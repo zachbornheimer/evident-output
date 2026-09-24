@@ -31,6 +31,10 @@ type Output struct {
 	declSeq   int
 	version   uint64
 	closed    bool
+	// closing is non-nil once a Close call claimed the teardown; it closes
+	// when that teardown ends, so a concurrent Close waits instead of
+	// tearing down twice.
+	closing   chan struct{}
 	finishing bool
 	finished  bool
 	armed     bool // set by arm(): live surface may paint before any entity exists
@@ -520,13 +524,19 @@ func (o *Output) bumpLocked() {
 	o.version++
 }
 
-// Close is idempotent cleanup; best-effort Finish when needed.
+// Close is idempotent cleanup; best-effort Finish when needed. The first
+// call tears down and returns its error; a concurrent or later call waits
+// for that teardown to end and returns nil.
 func (o *Output) Close() error {
 	o.mu.Lock()
-	if o.closed {
+	if o.closing != nil {
+		closing := o.closing
 		o.mu.Unlock()
+		<-closing
 		return nil
 	}
+	o.closing = make(chan struct{})
+	defer close(o.closing)
 	needFinish := !o.finished
 	o.mu.Unlock()
 	if needFinish {
