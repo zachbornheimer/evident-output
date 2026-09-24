@@ -87,7 +87,7 @@ out.Task("x").Retry(3)`,
 			GoodCode: `worktrees := evo.Group("worktrees")
 for _, path := range paths {
   path := path
-  worktrees.Task(path).Define(func() error { return check(path) })
+  worktrees.Task(path).Define(func(context.Context) error { return check(path) })
 }`,
 			Remediation:     "Declare one named Task per item under Group/Sequence, then Define/After; do not add RunAll/Map/Retry on evo types",
 			RelatedGuidance: []string{"common-api", "tasks"},
@@ -311,7 +311,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
   out := evo.Init(evo.Config{Isolated: true, DryRun: true, Facts: rootFacts})
   inv := out.Task("inventory")
   inv.Doing("walking worktrees")
-  inv.Define(func() error {
+  inv.Define(func(context.Context) error {
     for _, root := range roots {
       if err := filepath.WalkDir(root, walk); err != nil {
         return err
@@ -320,7 +320,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
     return nil
   })
 }`,
-			Remediation:     "Declare Task/Group/Sequence first; put the loop inside Task.Define or range Group/Sequence.Each so every iteration is visible work",
+			Remediation:     "Declare Task/Group/Sequence first; put the loop inside Task.Define, or declare one named Task per item under a Group, so every iteration is visible work",
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"LOOP-001"},
 			Since:           "0.5.1",
@@ -334,7 +334,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Why:       "Inline make() or new() inside an evo construct call hides the value the call site is passing. Extract a named local before the call so the argument list stays readable and reviewable.",
 			BadCode: `out := evo.Init(evo.Config{Facts: make([]evo.Fact, 0)})
 _ = out.Task("scan")`,
-			GoodCode: `facts := make([]evo.Fact, 0)
+			GoodCode: `facts := make([]evo.FactRecord, 0)
 out := evo.Init(evo.Config{Facts: facts})
 _ = out.Task("scan")`,
 			Remediation:     "Extract make/new to a named local before the evo.Init/Task/Group call",
@@ -414,7 +414,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			Invariant:       "source must parse before any other finding is trustworthy",
 			Why:             "A parse failure means every AST-based rule below it saw a broken tree; reporting anything else is noise the agent cannot act on.",
 			BadCode:         `func f( { // syntax error`,
-			GoodCode:        `func f() { // valid Go`,
+			GoodCode:        `func f() {} // valid Go`,
 			Remediation:     "Fix the reported syntax error and rerun review; no other findings are meaningful until the file parses",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-000"},
@@ -605,10 +605,11 @@ answer, _ := reader.ReadString('\n')`,
 			Invariant: "reason partitions sum to the headline count; taxonomy is derived, never hand-assembled",
 			Why:       "A bare \"skipped 6\" or a hand-built \"already mutated\" string can't be trusted — it can miscount, and the user can't tell why items were skipped.",
 			BadCode:   `msg := fmt.Sprintf("skipped %d", n) // hand-assembled, no reason partition`,
-			GoodCode: `task.Skipped(evo.Reason("protected"), "main")
-task.Skipped(evo.Reason("dirty"), "feature/x")
-// evo derives "skipped 2 (1 protected, 1 dirty)" and enforces 1+1==2`,
-			Remediation:     "Record reason + name via task.Skipped/Kept; let evo count, sum, and print the partition",
+			GoodCode: `branches := out.Group("branches")
+branches.Task("main").Skipped(evo.Reason("protected"))
+branches.Task("feature/x").Skipped(evo.Reason("dirty"))
+// the item is the Task; evo derives each tally from its Reason`,
+			Remediation:     "Declare one Task per item and record its reason via task.Skipped/Kept; let evo count, sum, and print the partition",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-001"},
 			Since:           "0.6.0",
@@ -809,9 +810,11 @@ item.Skipped(reason)`,
 			Invariant: "a failure summary does not manually embed the retained evidence text",
 			Why:       "task.Failf(\"install failed: %s\", capture.Text()) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time as evidence underneath it (user-13-problems.md Problem 7: \"execution owns evidence, callers provide context\").",
 			BadCode:   `task.Failf("install failed: %s", capture.Text())`,
-			GoodCode: `proof := task.Evidence()
-run.Run(ctx, "npm", args, proof)
-return task.Failf("install dependencies: %w", err)`,
+			GoodCode: `cmd.Stdout = task.Writer() // retained as evidence and auto-attached on failure
+cmd.Stderr = task.Writer()
+if err := cmd.Run(); err != nil {
+  return task.Failf("install dependencies: %w", err)
+}`,
 			Remediation:     "Pass context via the trailing \": %w\" wrap instead of interpolating capture.Text()/Evidence().Text() into the summary — Failf/Blockf auto-attach the retained tail as its own evidence line",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EV-001"},
@@ -911,7 +914,7 @@ t.Doing("walking")`,
 			GoodCode: `group := evo.Group("items")
 for _, item := range items {
   item := item
-  group.Task(item).Define(func() error { return work(item) })
+  group.Task(item).Define(func(context.Context) error { return work(item) })
 }`,
 			Remediation:     "Declare one named Task per item under Group/Sequence so each item is an atomic Task; do not hand-drive Progress from a loop index (Group.Each/Sequence.Each/Task.Each were removed in 1.0)",
 			RelatedGuidance: []string{"tasks"},
@@ -956,10 +959,10 @@ for _, item := range items {
 			Severity:  "error",
 			Invariant: "progress and live-UI bytes never reach stdout while a data projection (FormatData) is active",
 			Why:       "A data command's stdout is a machine payload contract; any progress byte on stdout corrupts a JSON/line consumer downstream.",
-			BadCode: `out := evo.Init(evo.Config{Stdout: os.Stdout})
-out.FormatData(...) // no Stderr configured: progress/UI also target Stdout`,
-			GoodCode: `out := evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr})
-out.FormatData(...) // progress/UI route to Stderr; only the payload reaches Stdout`,
+			BadCode: `out := evo.Init(evo.Config{Format: evo.FormatData, Stdout: os.Stdout, Stderr: os.Stdout})
+// progress/UI share the payload's stream`,
+			GoodCode: `out := evo.Init(evo.Config{Format: evo.FormatData, Stdout: os.Stdout, Stderr: os.Stderr})
+// progress/UI route to Stderr; only the payload reaches Stdout`,
 			Remediation:     "Configure Stderr alongside Stdout when using FormatData/ResultWriter; never write progress bytes to stdout by hand",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"OUT-003"},
@@ -1122,8 +1125,8 @@ if err := cmd.Run(); err != nil {
 			Invariant:       "evo.Reason's argument is a fixed string literal or a const/package-level var, never a computed expression",
 			Why:             "evo.Reason built from a computed expression (Sprintf, Join, concatenation) opens one taxonomy bucket per distinct rendered value instead of one per classification (live instance: joining per-item counts into the reason text).",
 			BadCode:         `task.Skipped(evo.Reason(strings.Join(names, ", ")), name)`,
-			GoodCode:        `task.Skipped(evo.Reason("protected"), name) // the per-item detail is the Skipped name argument, not the reason`,
-			Remediation:     `Use a fixed string literal (or a package-level var) naming the classification; fold the dynamic detail into Skipped's name argument`,
+			GoodCode:        `group.Task(name).Skipped(evo.Reason("protected")) // the per-item detail is the Task's name, not the reason`,
+			Remediation:     `Use a fixed string literal (or a package-level var) naming the classification; the dynamic detail is the item's own Task name`,
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-002"},
 			Since:           "0.2.17",
@@ -1170,8 +1173,8 @@ t = out.Task("build")`,
 			Invariant: "a Fail/Warn/Block summary is short text; cause and remedy are Detail/Next, never hand-assembled into the summary",
 			Why:       "A summary hand-assembling \" — cause:\"/\" — action:\" fragments reimplements Detail/Next inside plain text, losing their structured rendering and truncation.",
 			BadCode:   `task.Fail("policy check failed — cause: manifest missing — action: run zq init")`,
-			GoodCode: `task.Fail("policy check failed", evo.Detail("manifest missing")).
-	Next(evo.Label("run zq init"))`,
+			GoodCode: `task.Next(evo.Label("run zq init")).
+	Fail("policy check failed", evo.Detail("manifest missing"))`,
 			Remediation:     "Split the crammed text: keep the summary short, move the cause to Detail(...) and the remedy to Next(evo.Label(...))",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"TXT-021"},
@@ -1271,13 +1274,13 @@ t.Doing("running install:fresh-start")`,
 			Severity:  "error",
 			Invariant: "Failf/Blockf inside a Define or mutation callback whose return value reaches that same callback resolves the task twice",
 			Why:       "Define's own contract is \"a non-nil return fails the task\"; calling Failf/Fail on the same task and then also returning that error double-resolves it — the row is correct but a spurious second misuse line appears, and zq's taskAlreadyResolved guard exists only to paper over this (app.go:162-167).",
-			BadCode: `task.Define(func() error {
+			BadCode: `task.Define(func(ctx context.Context) error {
   if err := a.executeCommand(ctx, root, task, item); err != nil {
     return task.Failf("resolve %s: %w", item.Name, err)
   }
   return nil
 })`,
-			GoodCode: `task.Define(func() error {
+			GoodCode: `task.Define(func(ctx context.Context) error {
   if err := a.executeCommand(ctx, root, task, item); err != nil {
     return err // Define's own non-nil-return-fails-the-task resolves it once
   }
@@ -1322,10 +1325,8 @@ evo.Effect(ctx, spec, func(context.Context) error { return installedPythonModule
 			GoodCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
 evo.Effect(ctx, spec, func(ctx context.Context) error {
   return invokeUV(ctx, root, packages)
-})
-// or, when the work already ran:
-task.Record("create", n, "module")`,
-			Remediation:     "Move the real mutation into the Effect callback, or use task.Record(verb, n, object) when the work already happened",
+})`,
+			Remediation:     "Move the real mutation into the Effect callback, so the ledger records the work the callback actually does",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-042"},
 			Since:           "0.4.7",
@@ -1685,7 +1686,7 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Severity:  "error",
 			Invariant: "a FileSet evo.Patch returns is opaque so its source Basis and stale-write guard cannot be stripped before commit; a function that derives one from a diff always commits it through evo.Files, never by building a fresh evo.FileSpec and calling evo.File",
 			Why:       "evo.Patch(ctx, diff) parses a unified diff into a FileSet carrying each touched file's Basis — the content it was read against — so evo.Files(ctx, fileSet) can refuse a write when the file changed underneath the diff since Patch derived it (ZYS-841 Decisions, 2026-09-23). A function that calls evo.Patch, then re-derives the same file's desired contents another way and commits through evo.File directly, reconstructs a fresh FileSpec with no Basis at all — the stale-write guard Patch computed is silently discarded, and evo.File happily overwrites a file another writer changed in the meantime. The FileSet is opaque specifically to prevent this: there is no field to read the derived contents back out of it and hand to evo.File, so the only way to lose the guard is to ignore the FileSet and reconstruct the write from scratch, which is exactly the shape this rule flags.",
-			BadCode: `func applyPatch(ctx context.Context, diff string) error {
+			BadCode: `func applyPatch(ctx context.Context, diff []byte) error {
   fileSet, err := evo.Patch(ctx, diff)
   if err != nil {
     return err
@@ -1696,7 +1697,7 @@ cacheWarmTask.Define(func(ctx context.Context) error {
   }
   return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents})
 }`,
-			GoodCode: `func applyPatch(ctx context.Context, diff string) error {
+			GoodCode: `func applyPatch(ctx context.Context, diff []byte) error {
   fileSet, err := evo.Patch(ctx, diff)
   if err != nil {
     return err
