@@ -64,6 +64,17 @@ type ConclusionJSON = render.ConclusionJSON
 // JSONProblem is a wire-format problem (no raw Cause by default).
 type JSONProblem = render.JSONProblem
 
+// JSONLocation is a wire-format source position on a JSONProblem (ZYS-823:
+// the same core.Problem.Location machine truth Snapshot/JSONL already
+// carry, now also in the public output.v1 projection).
+type JSONLocation = render.JSONLocation
+
+// JSONAttachment is a wire-format evidence attachment on a JSONProblem.
+type JSONAttachment = render.JSONAttachment
+
+// JSONField is a wire-format structured diagnostic field on a JSONProblem.
+type JSONField = render.JSONField
+
 // JSONTask is a wire-format task.
 type JSONTask = render.JSONTask
 

@@ -130,6 +130,30 @@ func (v *validator) checkObject(path string, schema map[string]any, value any) {
 		}
 		v.check(path+"."+name, ps, fieldVal)
 	}
+	// additionalProperties:false makes a schema strict: a document field
+	// this schema does not declare in "properties" is a violation. This is
+	// opt-in (schema["additionalProperties"] absent, or explicitly true,
+	// keeps today's permissive behavior) rather than a default, so
+	// existing schemas that haven't been reviewed for completeness don't
+	// start failing — but any $def that does set it to false now actually
+	// gates unknown fields, closing the gap where a reverted schema
+	// addition still validated against a document that kept emitting the
+	// field.
+	allowsAdditional, isBool := schema["additionalProperties"].(bool)
+	if !isBool || allowsAdditional {
+		return
+	}
+	names := make([]string, 0, len(obj))
+	for name := range obj {
+		if _, declared := props[name]; declared {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		v.fail(path, "additional property %q not declared in schema", name)
+	}
 }
 
 func (v *validator) checkArray(path string, schema map[string]any, value any) {

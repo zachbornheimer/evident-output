@@ -618,6 +618,65 @@ func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
 	}
 }
 
+// TestWireEvents_VerificationObservedUsesSanitizedFacts is ZYS-823 review
+// gap: attachVerificationLocked stores a sanitized+cloned copy of details
+// onto st.verification (core.StoreVerificationDetails, which runs
+// text.Text over every Fact value) but built the "verification.observed"
+// JSONL payload from the raw `details` argument instead — a Fact value
+// carrying control/ANSI bytes (e.g. an OS error string) therefore reached
+// JSONL unsanitized while the final "evo.run" JSON document (which reads
+// the stored, sanitized st.verification) carried the sanitized form. That
+// breaks one-runtime-truth parity between FormatJSON and FormatJSONL for
+// the exact same underlying data.
+func TestWireEvents_VerificationObservedUsesSanitizedFacts(t *testing.T) {
+	const rawErr = "permission denied\x1b[31m\x07 (control bytes)"
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("write file")
+	task.Define(func(context.Context) error { return nil })
+
+	out.mu.Lock()
+	out.attachVerificationLocked(task.id, []core.VerificationDetail{
+		{
+			Name: "contents", Status: core.VerificationError,
+			Facts: []core.Fact{{Name: "error", Value: rawErr}},
+		},
+	})
+	sanitized := out.taskByRef[task.id].verification
+	out.mu.Unlock()
+
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	if len(sanitized) != 1 || len(sanitized[0].Facts) != 1 {
+		t.Fatalf("stored verification = %+v, want 1 detail with 1 fact", sanitized)
+	}
+	wantValue := sanitized[0].Facts[0].Value
+	if wantValue == rawErr {
+		t.Fatalf("test fixture invalid: sanitization did not change %q, fixture must carry bytes text.Text strips", rawErr)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	var payload map[string]any
+	for _, e := range events {
+		if e.Type == wire.EventVerificationObserved {
+			payload = e.Payload
+		}
+	}
+	if payload == nil {
+		t.Fatalf("no verification.observed event, got: %v", wireEventTypes(events))
+	}
+	facts, ok := payload["facts"].([]any)
+	if !ok || len(facts) != 1 {
+		t.Fatalf("verification.observed facts = %v, want 1 fact", payload["facts"])
+	}
+	fact, _ := facts[0].(map[string]any)
+	if got, _ := fact["value"].(string); got != wantValue {
+		t.Fatalf("verification.observed fact value = %q, want sanitized %q (JSONL must match the stored, sanitized copy JSON reads — not the raw pre-sanitization argument)", got, wantValue)
+	}
+}
+
 // failAfterNWriter succeeds its first n Write calls, then fails every call
 // after — a stand-in for a stdout pipe that breaks mid-stream (spec §32.2).
 type failAfterNWriter struct {

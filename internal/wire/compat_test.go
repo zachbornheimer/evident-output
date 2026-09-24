@@ -26,11 +26,15 @@ var schemaDir = os.DirFS("../../schema")
 // "resource" maps to TrackedResourceDoc and "Patch" maps to VerificationDoc
 // (spec §27: Patch reduces to File, and File's own machine truth — per-
 // attribute contents/permissions outcome, with the Facts that explain a
-// failed one — is VerificationDoc, not a second patch-specific wire type;
-// there is no separate Patch JSON type in this package). "Problem" maps to
-// ProblemDoc. fixtureResourcePath is an obviously-fake path (never touches
-// disk — these tests only exercise json.Marshal/Unmarshal on in-memory
-// structs).
+// failed one — is VerificationDoc; TrackedResourceDoc.Mode and
+// VerificationDoc.Facts are what carry that File-provenance data today).
+// "Problem" maps to ProblemDoc. BasisDoc (the "basis" $def) is a distinct,
+// currently-always-empty wire field with no core data source yet — see
+// ZYS-978, filed to design where that gets captured — so it has its own
+// TestSchemaCompat_BasisDocEmptyShapeValidatesAgainstSchema below rather
+// than an older/current-shape pair like the others. fixtureResourcePath is
+// an obviously-fake path (never touches disk — these tests only exercise
+// json.Marshal/Unmarshal on in-memory structs).
 const fixtureResourcePath = "fixture://managed/x"
 
 func TestSchemaCompat_ProblemDocOlderShapeDecodesWithNoLoss(t *testing.T) {
@@ -40,7 +44,8 @@ func TestSchemaCompat_ProblemDocOlderShapeDecodesWithNoLoss(t *testing.T) {
 		t.Fatalf("decode older ProblemDoc shape: %v", err)
 	}
 	want := ProblemDoc{Code: "A1", Message: "finding", Subject: "file.go", Detail: "why", Count: 2, Unit: "line"}
-	if got != want {
+	if got.Code != want.Code || got.Message != want.Message || got.Subject != want.Subject ||
+		got.Detail != want.Detail || got.Count != want.Count || got.Unit != want.Unit {
 		t.Fatalf("older-shape decode = %+v, want %+v (no loss on known fields)", got, want)
 	}
 	if got.EvidenceTail != "" {
@@ -275,6 +280,23 @@ func TestSchemaCompat_TrackedResourceDocShapesValidateAgainstSchema(t *testing.T
 		map[string]any{"kind": "file", "path": fixtureResourcePath, "mode": "0644"},
 	}
 	validateSpliced(t, current)
+}
+
+// TestSchemaCompat_BasisDocEmptyShapeValidatesAgainstSchema proves the
+// always-empty "basis" array toTaskDoc emits today validates against
+// schema/run.v2.json's basis $def, and that a populated BasisDoc (the
+// shape ZYS-978 will start emitting once core has a data source) is
+// already schema-valid too — the $def is ready before the producer is.
+func TestSchemaCompat_BasisDocEmptyShapeValidatesAgainstSchema(t *testing.T) {
+	empty := baseRunDocument(t)
+	firstTask(empty)["basis"] = []any{}
+	validateSpliced(t, empty)
+
+	populated := baseRunDocument(t)
+	firstTask(populated)["basis"] = []any{
+		map[string]any{"kind": "template", "value": fixtureResourcePath},
+	}
+	validateSpliced(t, populated)
 }
 
 func TestSchemaCompat_EffectDocQuantityIsAdditive(t *testing.T) {

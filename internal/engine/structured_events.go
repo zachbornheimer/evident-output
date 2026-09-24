@@ -4,17 +4,73 @@ import "github.com/zachbornheimer/evident-output/internal/wire"
 
 // wireProblemPayloadLocked builds the "evo.event" payload for a
 // problem.recorded/warning.recorded line (spec §38): summary always, plus
-// detail/evidence_tail when the Problem carries them. Omitting a non-empty
-// Detail or EvidenceTail here would be the same machine-truth loss ZYS-823
-// gap 2 found in the final JSON projection (toJSONProblems) — a JSONL
-// consumer must see the same evidence a plain/TTY reader does.
+// every other field the Problem carries. Omitting a non-empty field here
+// is the same machine-truth loss ZYS-823 found in the final JSON
+// projection (toJSONProblems/toProblemDocs) — a JSONL consumer must see
+// the same code/subject/count/unit/location/severity/evidence/fields/
+// remedies a FormatJSON consumer does, not a narrower subset. code and
+// subject in particular are how a JSONL-only consumer identifies which
+// stable problem fired without parsing prose — their absence here (while
+// wire.ProblemDoc/render.JSONProblem carried them) was the sharpest form
+// of this gap.
 func wireProblemPayloadLocked(p Problem) map[string]any {
 	payload := map[string]any{"summary": p.Summary}
+	if p.Code != "" {
+		payload["code"] = p.Code
+	}
+	if p.Subject != "" {
+		payload["subject"] = p.Subject
+	}
 	if p.Detail != "" {
 		payload["detail"] = p.Detail
 	}
 	if p.EvidenceTail != "" {
 		payload["evidence_tail"] = p.EvidenceTail
+	}
+	if p.Count != 0 {
+		payload["count"] = p.Count
+	}
+	if p.Unit != "" {
+		payload["unit"] = p.Unit
+	}
+	if p.Severity != "" {
+		payload["severity"] = p.Severity
+	}
+	if p.Location != nil {
+		payload["location"] = map[string]any{
+			"path": p.Location.Path, "line": p.Location.Line, "column": p.Location.Column,
+		}
+	}
+	if len(p.Evidence) > 0 {
+		evidence := make([]map[string]any, len(p.Evidence))
+		for i, a := range p.Evidence {
+			evidence[i] = map[string]any{"label": a.Label, "value": a.Value}
+		}
+		payload["evidence"] = evidence
+	}
+	if len(p.Fields) > 0 {
+		fields := make([]map[string]any, len(p.Fields))
+		for i, f := range p.Fields {
+			v := f.Value
+			if f.Sensitive {
+				v = "***"
+			}
+			fields[i] = map[string]any{"key": f.Key, "value": v}
+		}
+		payload["fields"] = fields
+	}
+	if len(p.Actions) > 0 {
+		remedies := make([]map[string]any, len(p.Actions))
+		for i, a := range p.Actions {
+			remedy := map[string]any{"label": a.Label, "url": a.URL}
+			if a.Command != nil {
+				remedy["command"] = map[string]any{
+					"executable": a.Command.Executable, "args": a.Command.Args,
+				}
+			}
+			remedies[i] = remedy
+		}
+		payload["remedies"] = remedies
 	}
 	return payload
 }

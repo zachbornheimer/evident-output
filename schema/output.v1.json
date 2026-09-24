@@ -14,27 +14,49 @@
     "actions"
   ],
   "properties": {
-    "schema_version": { "const": "0.4" },
+    "schema_version": {
+      "const": "0.4"
+    },
     "output": {
       "type": "object",
       "required": ["id"],
       "properties": {
-        "id": { "type": "string" },
-        "subject": { "type": "string" }
-      }
+        "id": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "conclusion": {
       "type": "object",
       "required": ["state", "changed", "partial", "cancelled", "warned", "exit_code"],
       "properties": {
-        "state": { "type": "string" },
-        "changed": { "type": "boolean" },
-        "partial": { "type": "boolean" },
-        "cancelled": { "type": "boolean" },
-        "warned": { "type": "boolean" },
-        "exit_code": { "type": "integer" },
-        "explanation": { "type": "string" }
-      }
+        "state": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "partial": {
+          "type": "boolean"
+        },
+        "cancelled": {
+          "type": "boolean"
+        },
+        "warned": {
+          "type": "boolean"
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "explanation": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "task_collections": {
       "type": "array",
@@ -42,25 +64,45 @@
         "type": "object",
         "required": ["id", "name", "state", "children"],
         "properties": {
-          "id": { "type": "string" },
-          "name": { "type": "string" },
-          "state": { "type": "string" },
-          "summary": { "type": "string" },
-          "children": { "type": "array", "items": { "type": "string" } }
-        }
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
       }
     },
     "tasks": {
       "type": "array",
-      "items": { "$ref": "#/$defs/task" }
+      "items": {
+        "$ref": "#/$defs/task"
+      }
     },
     "changes": {
       "type": "array",
-      "items": { "$ref": "#/$defs/effectRecordSet" }
+      "items": {
+        "$ref": "#/$defs/effectRecordSet"
+      }
     },
     "plans": {
       "type": "array",
-      "items": { "$ref": "#/$defs/effectRecordSet" }
+      "items": {
+        "$ref": "#/$defs/effectRecordSet"
+      }
     },
     "messages": {
       "type": "array",
@@ -68,70 +110,196 @@
         "type": "object",
         "required": ["id", "visibility", "text"],
         "properties": {
-          "id": { "type": "string" },
-          "visibility": { "type": "string" },
-          "text": { "type": "string" }
-        }
+          "id": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "actions": {
       "type": "array",
       "items": {
-        "type": "object",
-        "properties": {
-          "label": { "type": "string" },
-          "url": { "type": "string" },
-          "command": {
-            "type": "object",
-            "required": ["executable"],
-            "properties": {
-              "executable": { "type": "string" },
-              "args": { "type": "array", "items": { "type": "string" } }
-            }
-          }
-        }
+        "$ref": "#/$defs/action"
       }
     }
   },
+  "additionalProperties": false,
   "$defs": {
+    "action": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "command": {
+          "type": "object",
+          "required": ["executable"],
+          "properties": {
+            "executable": {
+              "type": "string"
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "location": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "column": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "attachment": {
+      "type": "object",
+      "required": ["value"],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "field": {
+      "type": "object",
+      "required": ["key", "value"],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {}
+      },
+      "additionalProperties": false
+    },
     "problem": {
       "type": "object",
       "properties": {
-        "subject": { "type": "string" },
-        "summary": { "type": "string" },
-        "detail": { "type": "string" },
-        "evidence_tail": { "type": "string" },
-        "count": { "type": "integer" },
-        "unit": { "type": "string" },
-        "code": { "type": "string" }
-      }
+        "subject": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "evidence_tail": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attachment"
+          }
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/field"
+          }
+        },
+        "remedies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "task": {
       "type": "object",
       "required": ["id", "name", "state"],
       "properties": {
-        "id": { "type": "string" },
-        "key": { "type": "string" },
-        "name": { "type": "string" },
-        "state": { "type": "string" },
-        "phase": { "type": "string" },
-        "summary": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
         "warnings": {
           "type": "array",
-          "items": { "$ref": "#/$defs/problem" }
+          "items": {
+            "$ref": "#/$defs/problem"
+          }
         },
         "progress": {
           "type": "object",
           "required": ["kind", "completed", "total"],
           "properties": {
-            "kind": { "type": "string" },
-            "completed": { "type": "integer" },
-            "total": { "type": "integer" }
-          }
+            "kind": {
+              "type": "string"
+            },
+            "completed": {
+              "type": "integer"
+            },
+            "total": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
         },
         "problems": {
           "type": "array",
-          "items": { "$ref": "#/$defs/problem" }
+          "items": {
+            "$ref": "#/$defs/problem"
+          }
         },
         "verification": {
           "type": "array",
@@ -139,43 +307,66 @@
             "type": "object",
             "required": ["name", "status"],
             "properties": {
-              "name": { "type": "string" },
-              "status": { "type": "string" },
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
               "facts": {
                 "type": "array",
                 "items": {
                   "type": "object",
                   "required": ["name", "value"],
                   "properties": {
-                    "name": { "type": "string" },
-                    "value": { "type": "string" }
-                  }
+                    "name": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
                 }
               }
-            }
+            },
+            "additionalProperties": false
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "effectRecordSet": {
       "type": "object",
       "required": ["id", "subject", "records"],
       "properties": {
-        "id": { "type": "string" },
-        "subject": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
         "records": {
           "type": "array",
           "items": {
             "type": "object",
             "required": ["verb", "object"],
             "properties": {
-              "verb": { "type": "string" },
-              "quantity": { "type": "integer" },
-              "object": { "type": "string" }
-            }
+              "verb": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": "integer"
+              },
+              "object": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
           }
         }
-      }
+      },
+      "additionalProperties": false
     }
   }
 }

@@ -662,8 +662,16 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 	if st == nil || core.IsTerminalTask(st.state) {
 		return
 	}
-	st.verification = append(st.verification, core.StoreVerificationDetails(details)...)
-	for _, d := range details {
+	stored := core.StoreVerificationDetails(details)
+	st.verification = append(st.verification, stored...)
+	// Emit from stored, not the raw details argument: stored has already
+	// run through core.StoreVerificationDetails' sanitization (text.Text
+	// over every Fact value), the same copy toVerificationDocs later reads
+	// for the final "evo.run" JSON document. Emitting from the raw
+	// argument would let a Fact value carrying control/ANSI bytes reach
+	// JSONL unsanitized while JSON carries the sanitized form — the same
+	// one-runtime-truth split ZYS-823 exists to close.
+	for _, d := range stored {
 		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, verificationObservedPayload(d))
 	}
 }

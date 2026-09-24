@@ -234,6 +234,38 @@ type ProblemDoc struct {
 	EvidenceTail string `json:"evidence_tail,omitempty"`
 	Count        int64  `json:"count,omitempty"`
 	Unit         string `json:"unit,omitempty"`
+	// Location, Severity, Evidence, Fields and Remedies mirror
+	// render.JSONProblem's same-named additions (ZYS-823: "Problems retain
+	// code/rule, location, summary/detail and remedies in Snapshot/JSON/
+	// JSONL") — the full-fidelity §36 document must not drop what the
+	// legacy output.v1 projection now carries.
+	Location *LocationDoc    `json:"location,omitempty"`
+	Severity string          `json:"severity,omitempty"`
+	Evidence []AttachmentDoc `json:"evidence,omitempty"`
+	Fields   []FieldDoc      `json:"fields,omitempty"`
+	Remedies []ActionDoc     `json:"remedies,omitempty"`
+}
+
+// LocationDoc is a wire-format source position (mirrors core.SourceLocation).
+type LocationDoc struct {
+	Path   string `json:"path"`
+	Line   int    `json:"line,omitempty"`
+	Column int    `json:"column,omitempty"`
+}
+
+// AttachmentDoc is a wire-format evidence attachment (mirrors
+// core.Attachment).
+type AttachmentDoc struct {
+	Label string `json:"label,omitempty"`
+	Value string `json:"value"`
+}
+
+// FieldDoc is a wire-format structured diagnostic field (mirrors
+// core.Field). A Sensitive field's Value is redacted to "***" — see
+// toFieldDocs.
+type FieldDoc struct {
+	Key   string `json:"key"`
+	Value any    `json:"value"`
 }
 
 // EffectDoc is one flattened change/plan row (spec §35's top-level
@@ -445,7 +477,61 @@ func toProblemDocs(in []core.Problem) []ProblemDoc {
 			Code: p.Code, Message: p.Summary, Subject: p.Subject,
 			Detail: p.Detail, EvidenceTail: p.EvidenceTail,
 			Count: p.Count, Unit: p.Unit,
+			Location: toLocationDoc(p.Location), Severity: p.Severity,
+			Evidence: toAttachmentDocs(p.Evidence), Fields: toFieldDocs(p.Fields),
+			Remedies: toActionDocs(p.Actions),
 		})
+	}
+	return out
+}
+
+// toLocationDoc projects a core.SourceLocation into its wire form, nil-safe
+// since most Problems never carry one.
+func toLocationDoc(loc *core.SourceLocation) *LocationDoc {
+	if loc == nil {
+		return nil
+	}
+	return &LocationDoc{Path: loc.Path, Line: loc.Line, Column: loc.Column}
+}
+
+// toAttachmentDocs projects a Problem's Evidence attachments into their
+// wire form.
+func toAttachmentDocs(in []core.Attachment) []AttachmentDoc {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]AttachmentDoc, len(in))
+	for i, a := range in {
+		out[i] = AttachmentDoc{Label: a.Label, Value: a.Value}
+	}
+	return out
+}
+
+// toFieldDocs redacts a Sensitive Field's Value to "***", the same
+// convention render.toJSONFields applies.
+func toFieldDocs(in []core.Field) []FieldDoc {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]FieldDoc, len(in))
+	for i, f := range in {
+		v := f.Value
+		if f.Sensitive {
+			v = "***"
+		}
+		out[i] = FieldDoc{Key: f.Key, Value: v}
+	}
+	return out
+}
+
+// toActionDocs projects a Problem's remedy Actions into their wire form.
+func toActionDocs(in []core.Action) []ActionDoc {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]ActionDoc, len(in))
+	for i, a := range in {
+		out[i] = toActionDoc(a)
 	}
 	return out
 }

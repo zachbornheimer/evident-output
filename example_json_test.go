@@ -86,6 +86,32 @@ func ExampleJSONProblem() {
 	// schema mismatch E_SCHEMA
 }
 
+// ExampleJSONLocation shows a wire-format source position on a JSONProblem.
+func ExampleJSONLocation() {
+	l := evo.JSONLocation{Path: "config.yaml", Line: 12, Column: 3}
+	fmt.Println(l.Path, l.Line, l.Column)
+	// Output:
+	// config.yaml 12 3
+}
+
+// ExampleJSONAttachment shows a wire-format evidence attachment on a
+// JSONProblem.
+func ExampleJSONAttachment() {
+	a := evo.JSONAttachment{Label: "log excerpt", Value: "permission denied"}
+	fmt.Println(a.Label, a.Value)
+	// Output:
+	// log excerpt permission denied
+}
+
+// ExampleJSONField shows a wire-format structured diagnostic field on a
+// JSONProblem.
+func ExampleJSONField() {
+	f := evo.JSONField{Key: "retry_count", Value: 3}
+	fmt.Println(f.Key, f.Value)
+	// Output:
+	// retry_count 3
+}
+
 // ExampleJSONTask shows a wire-format task.
 func ExampleJSONTask() {
 	t := evo.JSONTask{Name: "apply patch", State: evo.Done}

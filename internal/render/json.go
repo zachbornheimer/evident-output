@@ -71,6 +71,44 @@ type JSONProblem struct {
 	Count        int64  `json:"count,omitempty"`
 	Unit         string `json:"unit,omitempty"`
 	Code         string `json:"code,omitempty"`
+	// Location, Severity, Evidence, Fields and Remedies mirror
+	// core.Problem's remaining structured data (ZYS-823: "Problems retain
+	// code/rule, location, summary/detail and remedies in Snapshot/JSON/
+	// JSONL"). Location/Severity/Fields were dropped entirely from this
+	// projection, Evidence attachments had no machine home at all, and a
+	// Problem's own remedies (core.Action) reached machine output only as
+	// run-level Conclusion.Actions — detached from the Problem they
+	// explain, so a consumer could not tell which remedy fixed which
+	// problem.
+	Location *JSONLocation    `json:"location,omitempty"`
+	Severity string           `json:"severity,omitempty"`
+	Evidence []JSONAttachment `json:"evidence,omitempty"`
+	Fields   []JSONField      `json:"fields,omitempty"`
+	Remedies []JSONAction     `json:"remedies,omitempty"`
+}
+
+// JSONLocation is a wire-format source position (mirrors core.SourceLocation).
+type JSONLocation struct {
+	Path   string `json:"path"`
+	Line   int    `json:"line,omitempty"`
+	Column int    `json:"column,omitempty"`
+}
+
+// JSONAttachment is a wire-format evidence attachment (mirrors
+// core.Attachment).
+type JSONAttachment struct {
+	Label string `json:"label,omitempty"`
+	Value string `json:"value"`
+}
+
+// JSONField is a wire-format structured diagnostic field (mirrors
+// core.Field). A Sensitive field's Value is redacted to "***" at
+// projection time — see toJSONFields — the same convention
+// formatHistoryAttrs/newDebugRecordLocked already apply to human output, so
+// a machine consumer never receives a value the human path would hide.
+type JSONField struct {
+	Key   string `json:"key"`
+	Value any    `json:"value"`
 }
 
 // JSONTask is a wire-format task.
@@ -313,7 +351,58 @@ func toJSONProblems(in []core.Problem) []JSONProblem {
 			Subject: p.Subject, Summary: p.Summary, Detail: p.Detail,
 			EvidenceTail: p.EvidenceTail,
 			Count:        p.Count, Unit: p.Unit, Code: p.Code,
+			Location: toJSONLocation(p.Location), Severity: p.Severity,
+			Evidence: toJSONAttachments(p.Evidence), Fields: toJSONFields(p.Fields),
+			Remedies: toJSONActions(p.Actions),
 		}
+	}
+	return out
+}
+
+func toJSONLocation(loc *core.SourceLocation) *JSONLocation {
+	if loc == nil {
+		return nil
+	}
+	return &JSONLocation{Path: loc.Path, Line: loc.Line, Column: loc.Column}
+}
+
+func toJSONAttachments(in []core.Attachment) []JSONAttachment {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]JSONAttachment, len(in))
+	for i, a := range in {
+		out[i] = JSONAttachment{Label: a.Label, Value: a.Value}
+	}
+	return out
+}
+
+// toJSONFields redacts a Sensitive Field's Value to "***", the same
+// convention newDebugRecordLocked/formatHistoryAttrs already apply to
+// human-readable output — a machine consumer must not receive what the
+// human path hides.
+func toJSONFields(in []core.Field) []JSONField {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]JSONField, len(in))
+	for i, f := range in {
+		v := f.Value
+		if f.Sensitive {
+			v = "***"
+		}
+		out[i] = JSONField{Key: f.Key, Value: v}
+	}
+	return out
+}
+
+func toJSONActions(in []core.Action) []JSONAction {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]JSONAction, len(in))
+	for i, a := range in {
+		out[i] = toJSONAction(a)
 	}
 	return out
 }
