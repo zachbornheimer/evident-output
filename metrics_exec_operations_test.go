@@ -1,13 +1,17 @@
 package evo_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/wireschema"
 )
 
 // The §39 propagation-stop metric for Exec: a Basis change forces the
@@ -34,10 +38,18 @@ func (ws execWorkspace) editSource(t *testing.T, text string) {
 	}
 }
 
-// run executes one generator Exec whose output ignores its Basis content.
+// run executes one generator Exec and returns its operation tallies.
 func (ws execWorkspace) run(t *testing.T, dryRun bool) evo.OperationCounts {
 	t.Helper()
-	out := evo.Init(evo.Config{Isolated: true, StateDir: ws.state, Plain: true, DryRun: dryRun, Stdout: io.Discard, Stderr: io.Discard})
+	return ws.runWith(t, evo.Config{DryRun: dryRun, Stdout: io.Discard}).Conclusion().Metrics().Operations
+}
+
+// runWith executes one generator Exec whose output ignores its Basis
+// content, under cfg's mode and output stream.
+func (ws execWorkspace) runWith(t *testing.T, cfg evo.Config) *evo.Output {
+	t.Helper()
+	cfg.Isolated, cfg.StateDir, cfg.Plain, cfg.Stderr = true, ws.state, true, io.Discard
+	out := evo.Init(cfg)
 	out.Task("generate").Define(func(ctx context.Context) error {
 		_, err := evo.Exec(ctx, evo.ExecSpec{
 			Executable: "/bin/sh",
@@ -53,7 +65,7 @@ func (ws execWorkspace) run(t *testing.T, dryRun bool) evo.OperationCounts {
 	if err := out.Close(); err != nil {
 		t.Fatal(err)
 	}
-	return out.Conclusion().Metrics().Operations
+	return out
 }
 
 func TestMetrics_ExecIdenticalOutputStopsPropagation(t *testing.T) {
@@ -81,5 +93,59 @@ func TestMetrics_DryRunExecClaimsNoChange(t *testing.T) {
 	}
 	if got.Executed != 1 {
 		t.Fatalf("dry-run Executed = %d, want 1: the manifest could not prove the operation current", got.Executed)
+	}
+}
+
+// operationFinishedPayload runs one Exec streaming JSONL and returns its
+// operation.finished payload.
+func (ws execWorkspace) operationFinishedPayload(t *testing.T, dryRun bool) map[string]any {
+	t.Helper()
+	var buf bytes.Buffer
+	ws.runWith(t, evo.Config{DryRun: dryRun, Stdout: &buf, Format: evo.FormatJSONL})
+	for line := range strings.SplitSeq(strings.TrimSpace(buf.String()), "\n") {
+		var ev struct {
+			Type    string         `json:"type"`
+			Payload map[string]any `json:"payload"`
+		}
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			t.Fatalf("decode %q: %v", line, err)
+		}
+		if ev.Type == "operation.finished" {
+			return ev.Payload
+		}
+	}
+	t.Fatalf("no operation.finished event in:\n%s", buf.String())
+	return nil
+}
+
+// The operation.finished payload has two typed shapes (schema/event.v2.json):
+// an observed one that reports changed, and a dry run's planned one that
+// never ran, so it reports no outcome at all.
+func TestMetrics_ExecOperationFinishedPayloadsConformToTheirTypedShapes(t *testing.T) {
+	t.Parallel()
+	schema, err := os.ReadFile("schema/event.v2.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := newExecWorkspace(t)
+	shapes := []struct {
+		def             string
+		dryRun          bool
+		present, absent string
+	}{
+		{def: "operationPlannedPayload", dryRun: true, present: "planned", absent: "changed"},
+		{def: "operationObservedPayload", dryRun: false, present: "changed", absent: "planned"},
+	}
+	for _, shape := range shapes {
+		payload := ws.operationFinishedPayload(t, shape.dryRun)
+		if err := wireschema.ValidateDef(schema, mustJSON(t, payload), shape.def); err != nil {
+			t.Errorf("dry run %v: payload %v does not conform to $defs/%s: %v", shape.dryRun, payload, shape.def, err)
+		}
+		if _, ok := payload[shape.present]; !ok {
+			t.Errorf("dry run %v: payload %v lacks %q", shape.dryRun, payload, shape.present)
+		}
+		if _, ok := payload[shape.absent]; ok {
+			t.Errorf("dry run %v: payload %v carries %q; the shapes are exclusive", shape.dryRun, payload, shape.absent)
+		}
 	}
 }

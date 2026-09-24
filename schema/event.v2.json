@@ -14,8 +14,27 @@
     "entity_id": { "type": "string" },
     "payload": { "type": "object" }
   },
-  "$comment": "The envelope types payload loosely because its shape depends on type. $defs name the typed payloads; a run.finished payload conforms to runFinishedPayload. metrics, operationCounts, and rates are kept identical to schema/run.v2.json (a test enforces it).",
+  "$comment": "The envelope types payload loosely because its shape depends on type. $defs name the typed payloads; a run.finished payload conforms to runFinishedPayload. An operation.finished payload conforms to exactly one of operationObservedPayload (the operation ran, or was checked, and reports whether its tracked output changed) or operationPlannedPayload (a dry run planned an Exec it never ran, so it reports no outcome: planned is present and changed is absent). metrics, operationCounts, and rates are kept identical to schema/run.v2.json (a test enforces it).",
   "$defs": {
+    "operationObservedPayload": {
+      "type": "object",
+      "required": ["kind", "changed"],
+      "properties": {
+        "kind": { "type": "string" },
+        "path": { "type": "string" },
+        "executable": { "type": "string" },
+        "changed": { "type": "boolean" }
+      }
+    },
+    "operationPlannedPayload": {
+      "type": "object",
+      "required": ["kind", "executable", "planned"],
+      "properties": {
+        "kind": { "const": "exec" },
+        "executable": { "type": "string" },
+        "planned": { "const": true }
+      }
+    },
     "runFinishedPayload": {
       "type": "object",
       "required": ["outcome", "exit_code", "metrics"],
