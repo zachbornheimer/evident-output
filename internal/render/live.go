@@ -61,15 +61,15 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, color bool, p
 		height = 24
 	}
 	var b strings.Builder
-	spin := txt.SpinnerGlyph(now, profile)
+	st := liveStyle{width: width, spin: txt.SpinnerGlyph(now, profile), color: color, now: now, profile: profile}
 
 	// Prefer collections for multi-task progress display.
 	for _, col := range s.Collections {
-		writeLiveCollection(&b, col, height, width, spin, color, now, profile)
+		writeLiveCollection(&b, col, height, st)
 	}
 	nameWidth := maxRootTaskNameWidth(s.Tasks)
 	for _, t := range s.Tasks {
-		writeLiveTaskLine(&b, t, 0, nameWidth, width, spin, color, now, profile)
+		writeLiveTaskLine(&b, t, 0, nameWidth, st)
 	}
 	if hasTaskRows(s) && hasEffectSections(s) {
 		b.WriteByte('\n')
@@ -145,74 +145,6 @@ func liveRegionFitsColumns(text string, columns int) bool {
 		start = i + 1
 	}
 	return txt.VisibleCells(text[start:]) <= columns
-}
-
-// liveHeaderRows is what a live Group header reserves from the height
-// budget before its children: the header row and a possible omission line.
-const liveHeaderRows = 2
-
-// minLiveChildRows is the fewest child rows a live Group header keeps,
-// whatever its tallies take. Below liveHeaderRows + two tally headlines +
-// minLiveChildRows rows of height, the frame is taller than the terminal:
-// the header, the headlines and one child are the floor.
-const minLiveChildRows = 1
-
-func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
-	// Count before folding: a folded item is still a completed child, so
-	// "N/M complete" never drops when the items fold.
-	done, total := completion(col)
-	col, items := withoutDispositionItems(col)
-	if rendersAsOwnTask(col) {
-		writeLiveTaskLine(b, col.Tasks[0], 0, 0, width, spin, color, now, profile)
-		writeLiveDispositions(b, taskAnnotationIndent, items, height-1, color, profile)
-		return
-	}
-	if promotesLoneChildOntoHeader(col) {
-		unit := liveTaskUnit(col.Tasks[0], 0, width, spin, color, now, profile)
-		unit.Name = col.Name + "  " + unit.Name
-		b.WriteString(unit.Render(""))
-		b.WriteByte('\n')
-		writeLiveDispositions(b, taskAnnotationIndent, items, height-1, color, profile)
-		return
-	}
-	if groupHeaderAddsNothing(col) && items.Empty() && !hasUnfinishedTask(col) {
-		writeLiveHeaderlessGroup(b, col, height, width, spin, color, now, profile)
-		return
-	}
-	b.WriteString(liveGroupHeader(col, done, total, spin, color, now, profile).Render(""))
-	b.WriteByte('\n')
-	// The header, the folded tallies, and a possible omission line all
-	// spend the height budget the children are selected under.
-	tallyRows := writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, color, profile)
-	selected, omitted := selectLiveChildren(col.Tasks, max(height-liveHeaderRows-tallyRows, minLiveChildRows))
-	for _, t := range selected {
-		writeLiveTaskLine(b, t, 1, 0, width, spin, color, now, profile)
-	}
-	if omitted > 0 {
-		fmt.Fprintf(b, "   %s  %d not shown\n", txt.Dim(txt.GlyphOverflow.Render(profile), color), omitted)
-	}
-	// Nested containers render as an indented sub-header + its own
-	// children, one level per nesting depth — rendered into a scratch
-	// builder first so the same three-space child indent writeLiveTaskLine
-	// uses applies uniformly.
-	for _, child := range col.Collections {
-		var nested strings.Builder
-		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
-		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
-			fmt.Fprintf(b, "   %s\n", line)
-		}
-	}
-}
-
-// completion is how many of col's own child Tasks have completed (Done or
-// Skipped) out of all of them, folded items included.
-func completion(col core.TasksSnapshot) (done, total int) {
-	for i := range col.Tasks {
-		if state := col.Tasks[i].State; state == core.Done || state == core.Skipped {
-			done++
-		}
-	}
-	return done, len(col.Tasks)
 }
 
 // liveGroupHeader is a live Group's header row. While any child is
@@ -328,10 +260,7 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 	// there happens to be vertical room left repeats what the header already
 	// said, one row at a time, for a Group large enough that its own
 	// aggregation was already necessary (spec §25: "aggregation is
-	// renderer-owned and automatic" — the same rule Each's
-	// selectEachAttentionChildren already applied before Task.Each was
-	// removed as a public API; an ordinary Group of explicit children gets
-	// no lesser treatment now that Each is gone).
+	// renderer-owned and automatic").
 	const attentionRankCount = 4
 	for r := 0; r < attentionRankCount && len(selected) < max; r++ {
 		for _, t := range buckets[r] {
@@ -344,7 +273,9 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 	return selected, len(tasks) - len(selected)
 }
 
-// writeLiveTaskLine renders one task row at the given indent.
+// writeLiveTaskLine renders one task row at the given indent and reports
+// how many rows it wrote: the row, plus any activity child, nested
+// warnings, and verification detail rows beneath it.
 //
 // A Running task with a determinate bar/count AND a current-activity Phase
 // gets spec §23's stable-parent-plus-one-activity-child shape at any
@@ -353,7 +284,9 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 // the parent line owns the bar/count/timer only, and the current activity
 // becomes its own indented spinner line beneath it — so the child can
 // change/truncate independently without moving the timer horizontally.
-func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth int, st liveStyle) (rows int) {
+	start := b.Len()
+	width, spin, color, now, profile := st.width, st.spin, st.color, st.now, st.profile
 	pad := ""
 	if indent > 0 {
 		pad = "   "
@@ -386,6 +319,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	if t.State == core.Failed {
 		writeVerificationDetails(b, t.Verification, pad+"   ", true, false, color, profile)
 	}
+	return rowsSince(b, start)
 }
 
 // padRootName right-pads a standalone (indent == 0) row's name to nameWidth

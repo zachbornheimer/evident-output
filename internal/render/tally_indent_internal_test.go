@@ -3,7 +3,6 @@ package render
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -46,7 +45,7 @@ func TestLiveGroupTallies_ShareTheChildColumn(t *testing.T) {
 	col := branchesWithWorkChild(core.TaskSnapshot{Name: "deleting", State: core.Running})
 	col.State = core.Running
 	var b strings.Builder
-	writeLiveCollection(&b, col, 20, 80, "⠋", false, time.Time{}, txt.GlyphsUnicode)
+	writeLiveCollection(&b, col, 20, testLiveStyle)
 	lines := strings.Split(strings.TrimRight(b.String(), "\n"), "\n")
 	if len(lines) != 4 {
 		t.Fatalf("live frame: want header, two tallies, one child:\n%s", b.String())

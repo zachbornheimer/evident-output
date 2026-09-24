@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // shortTerminalRows is a live height the header, both folded tallies and
@@ -39,7 +37,7 @@ func causedItems(running int) core.TasksSnapshot {
 func TestLiveTallies_DropCausesBeforeOverrunningTheHeight(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
-	writeLiveCollection(&b, causedItems(3), shortTerminalRows, 80, "⠋", false, time.Time{}, txt.GlyphsUnicode)
+	writeLiveCollection(&b, causedItems(3), shortTerminalRows, testLiveStyle)
 	frame := b.String()
 	if rows := strings.Count(frame, "\n"); rows > shortTerminalRows {
 		t.Fatalf("live frame is %d rows, over the %d-row height:\n%s", rows, shortTerminalRows, frame)
@@ -56,7 +54,7 @@ func TestLiveTallies_DropCausesBeforeOverrunningTheHeight(t *testing.T) {
 func TestLiveTallies_KeepCausesWhenTheyFit(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
-	writeLiveCollection(&b, causedItems(1), 20, 80, "⠋", false, time.Time{}, txt.GlyphsUnicode)
+	writeLiveCollection(&b, causedItems(1), 20, testLiveStyle)
 	if frame := b.String(); !strings.Contains(frame, "lockfile pins item-0 (+1 more)") {
 		t.Fatalf("live frame dropped causes it had room for:\n%s", frame)
 	}

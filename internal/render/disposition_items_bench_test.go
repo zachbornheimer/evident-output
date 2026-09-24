@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -34,7 +33,7 @@ func keptCategory(items int) core.TasksSnapshot {
 func TestKeptCategory_FoldsEveryItemIntoOneTally(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
-	writeLiveCollection(&b, keptCategory(keptItemCount), 40, 80, "⠋", false, time.Time{}, txt.GlyphsUnicode)
+	writeLiveCollection(&b, keptCategory(keptItemCount), 40, testLiveStyle)
 	if got := b.String(); strings.Contains(got, "feat/branch-") || !strings.Contains(got, "! kept 1000 (334 checked out, 333 unpushed, 333 protected)") {
 		t.Fatalf("want one tally for %d items, got:\n%s", keptItemCount, got)
 	}
@@ -47,7 +46,7 @@ func BenchmarkLiveFrame_KeptCategory1k(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		var sb strings.Builder
-		writeLiveCollection(&sb, col, 40, 80, "⠋", false, time.Time{}, txt.GlyphsUnicode)
+		writeLiveCollection(&sb, col, 40, testLiveStyle)
 	}
 }
 
