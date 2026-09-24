@@ -25,13 +25,11 @@ func Migrations() []MigrationRow {
 			Notes: "a Task used only to print status, with no Define submitting work, becomes a scheduled child of Group/Sequence",
 		},
 		{
-			// EVO-EVIDENCE-001 is spec §57's detector for this shape; it
-			// ships in a parallel slice of this work and is intentionally
-			// not cited here until that rule lands in coreRules/fileAndExecRules.
-			From:  "mutating Evidence callback (task.Evidence(\"write\", func() error { ... }))",
-			To:    "mutation in Define",
-			Since: "1.0.0",
-			Notes: "Evidence is read-only; a callback that mutates state belongs in Define (evo.Effect / evo.File), not Evidence",
+			From:   "mutating Evidence callback (task.Evidence(\"write\", func() error { ... }))",
+			To:     "mutation in Define",
+			RuleID: "EVO-EVIDENCE-001",
+			Since:  "1.0.0",
+			Notes:  "Evidence is read-only; a callback that mutates state belongs in Define (evo.Effect / evo.File), not Evidence",
 		},
 		{
 			From:   "manual os.WriteFile + os.Chmod + read-only Evidence",
