@@ -1,9 +1,12 @@
 package examples_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -36,7 +39,6 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 		{name: "terminal-driver", args: []string{"--fast", "--frames"}},
 	}
 	for _, s := range specs {
-		s := s
 		label := s.name
 		if len(s.args) > 0 {
 			label = s.name + "/" + joinArgs(s.args)
@@ -74,15 +76,81 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 	}
 }
 
+// buildExampleBinary and runExampleBinary name the two subprocess.Command
+// call sites TestDataCommand_StdoutCarriesOnlyResultPayload needs: this
+// test's whole point is observing a *real compiled binary's* independent OS
+// stdout/stderr streams (spec §32.1's separation), the same reason
+// TestExamples_NonTTYSmoke above already spawns exec.Command directly
+// rather than calling package code in-process — an injectable runner
+// facade would hide the exact boundary under test.
+func buildExampleBinary(bin, dir string) *exec.Cmd {
+	cmd := exec.Command("go", "build", "-o", bin, ".")
+	cmd.Dir = dir
+	return cmd
+}
+
+func runExampleBinary(bin string, args ...string) *exec.Cmd {
+	return exec.Command(bin, args...)
+}
+
+// TestDataCommand_StdoutCarriesOnlyResultPayload is ZYS-823 gap 5: run the
+// real data-command binary (evo.FormatData, spec §32.1's stdout-is-the-
+// payload contract) with stdout and stderr captured on separate pipes —
+// the smoke test above merges them with CombinedOutput and so cannot prove
+// this. stdout must decode as exactly one BuildResult JSON object and
+// nothing else (no evo task rows spliced in); the human ledger must appear
+// only on stderr.
+func TestDataCommand_StdoutCarriesOnlyResultPayload(t *testing.T) {
+	root := findRepoRoot(t)
+	dir := filepath.Join(root, "examples", "data-command")
+	bin := filepath.Join(t.TempDir(), "data-command")
+	build := buildExampleBinary(bin, dir)
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+
+	cmd := runExampleBinary(bin)
+	cmd.Env = append(os.Environ(), "NO_COLOR=1")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout.String(), stderr.String())
+	}
+
+	var payload struct {
+		Artifact string `json:"artifact"`
+		Packages int    `json:"packages"`
+		Duration string `json:"duration"`
+	}
+	dec := json.NewDecoder(&stdout)
+	if err := dec.Decode(&payload); err != nil {
+		t.Fatalf("stdout must decode as one BuildResult JSON object: %v\nstdout:\n%s", err, stdout.String())
+	}
+	if dec.More() {
+		t.Fatalf("stdout must carry exactly one JSON document, found trailing content:\n%s", stdout.String())
+	}
+	if payload.Artifact == "" {
+		t.Fatalf("decoded payload is missing its domain fields: %+v", payload)
+	}
+
+	if strings.Contains(stdout.String(), "compile") || strings.Contains(stdout.String(), "✓") {
+		t.Fatalf("evo task presentation leaked into stdout:\n%s", stdout.String())
+	}
+	if stderr.Len() == 0 {
+		t.Fatalf("human presentation vanished; it must still reach stderr")
+	}
+}
+
 func joinArgs(args []string) string {
-	out := ""
+	var out strings.Builder
 	for i, a := range args {
 		if i > 0 {
-			out += "_"
+			out.WriteString("_")
 		}
-		out += a
+		out.WriteString(a)
 	}
-	return out
+	return out.String()
 }
 
 func findRepoRoot(t *testing.T) string {
@@ -91,7 +159,7 @@ func findRepoRoot(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			// When tests run as package examples_test from examples/, go.mod is parent.
 			if filepath.Base(dir) == "examples" {
