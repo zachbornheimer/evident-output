@@ -62,9 +62,15 @@ type JSONProblem struct {
 	Subject string `json:"subject,omitempty"`
 	Summary string `json:"summary,omitempty"`
 	Detail  string `json:"detail,omitempty"`
-	Count   int64  `json:"count,omitempty"`
-	Unit    string `json:"unit,omitempty"`
-	Code    string `json:"code,omitempty"`
+	// EvidenceTail mirrors core.Problem.EvidenceTail (ZYS-823 gap 2): the
+	// plain/TTY renderer shows this evidence line alongside (or in place
+	// of) Detail, and a machine consumer must see the same untruncated
+	// text — dropping it here was machine-truth loss, not a display-only
+	// omission.
+	EvidenceTail string `json:"evidence_tail,omitempty"`
+	Count        int64  `json:"count,omitempty"`
+	Unit         string `json:"unit,omitempty"`
+	Code         string `json:"code,omitempty"`
 }
 
 // JSONTask is a wire-format task.
@@ -282,7 +288,8 @@ func toJSONProblems(in []core.Problem) []JSONProblem {
 	for i, p := range in {
 		out[i] = JSONProblem{
 			Subject: p.Subject, Summary: p.Summary, Detail: p.Detail,
-			Count: p.Count, Unit: p.Unit, Code: p.Code,
+			EvidenceTail: p.EvidenceTail,
+			Count:        p.Count, Unit: p.Unit, Code: p.Code,
 		}
 	}
 	return out

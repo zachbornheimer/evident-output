@@ -2,6 +2,23 @@ package engine
 
 import "github.com/zachbornheimer/evident-output/internal/wire"
 
+// wireProblemPayloadLocked builds the "evo.event" payload for a
+// problem.recorded/warning.recorded line (spec §38): summary always, plus
+// detail/evidence_tail when the Problem carries them. Omitting a non-empty
+// Detail or EvidenceTail here would be the same machine-truth loss ZYS-823
+// gap 2 found in the final JSON projection (toJSONProblems) — a JSONL
+// consumer must see the same evidence a plain/TTY reader does.
+func wireProblemPayloadLocked(p Problem) map[string]any {
+	payload := map[string]any{"summary": p.Summary}
+	if p.Detail != "" {
+		payload["detail"] = p.Detail
+	}
+	if p.EvidenceTail != "" {
+		payload["evidence_tail"] = p.EvidenceTail
+	}
+	return payload
+}
+
 // emitWireEventLocked appends one §38 "evo.event" JSONL line for eventType,
 // scoped to entityID (empty for a run-level event) with payload as its
 // domain fields. It is a no-op unless this Output is configured for

@@ -315,7 +315,7 @@ func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
 	st.warnings = append(st.warnings, p)
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
-	t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, map[string]any{"summary": p.Summary})
+	t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, wireProblemPayloadLocked(p))
 	t.out.signalLiveLocked(true)
 	return t
 }
@@ -389,7 +389,7 @@ func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle 
 	st.pendingProblems = append(st.pendingProblems, p)
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
-	t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, map[string]any{"summary": p.Summary})
+	t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, wireProblemPayloadLocked(p))
 	t.out.signalLiveLocked(true)
 	return t
 }

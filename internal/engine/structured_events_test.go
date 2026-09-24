@@ -482,6 +482,31 @@ func decodeWireEventsWithRunID(t *testing.T, body string) []wireEventLineWithRun
 	return events
 }
 
+// TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail is ZYS-823 gap
+// 2's JSONL half: problem.recorded/warning.recorded used to carry only
+// "summary", dropping Detail and EvidenceTail entirely — machine truth a
+// plain/TTY reader can see. A JSONL consumer must get the same evidence.
+func TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	task.Problem("finding one", Detail("full detail text"))
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	idx := indexOfType(events, wire.EventProblemRecorded)
+	if idx == -1 {
+		t.Fatalf("problem.recorded must fire, got: %v", wireEventTypes(events))
+	}
+	if got := events[idx].Payload["detail"]; got != "full detail text" {
+		t.Fatalf("problem.recorded payload detail = %v, want %q (full payload: %+v)", got, "full detail text", events[idx].Payload)
+	}
+}
+
 // failAfterNWriter succeeds its first n Write calls, then fails every call
 // after — a stand-in for a stdout pipe that breaks mid-stream (spec §32.2).
 type failAfterNWriter struct {
