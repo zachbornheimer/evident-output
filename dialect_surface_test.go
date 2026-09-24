@@ -112,7 +112,7 @@ var dialectSurface = map[string][]string{
 		"TruncateNames(names []string, visible int)",
 		"Verbose()",
 		"VisibilityDelay(delay time.Duration)",
-		"Warn(summary string)",
+		"Warn(summary string, options ...ProblemOption)",
 		"Width(columns int)",
 		"WriteJSON(w io.Writer, result Result)",
 	},
@@ -140,7 +140,7 @@ var dialectSurface = map[string][]string{
 		"Snapshot()",
 		"Suspend(fn func() error)",
 		"Task(name string)",
-		"Warn(summary string)",
+		"Warn(summary string, options ...ProblemOption)",
 		"Writer()",
 	},
 	"*TaskHandle": {

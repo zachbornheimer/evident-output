@@ -31,7 +31,7 @@ func (Output) Sequence(name string)  *SequenceHandle
 func (Output) Snapshot()  Snapshot
 func (Output) Suspend(fn func() error)  error
 func (Output) Task(name string)  *TaskHandle
-func (Output) Warn(summary string)
+func (Output) Warn(summary string, options ...ProblemOption)
 func (Output) Writer()  io.Writer
 func (Printer) Print(args ...any)
 func (Printer) Printf(format string, args ...any)
@@ -51,7 +51,7 @@ func (TaskHandle) Cancel(reason string)
 func (TaskHandle) Context()  context.Context
 func (TaskHandle) Define(fn func(context.Context) error)  *TaskHandle
 func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
-func (TaskHandle) Fact(name, value string)
+func (TaskHandle) Fact(name, value string)  *TaskHandle
 func (TaskHandle) Fail(summary string, options ...ProblemOption)
 func (TaskHandle) Failf(format string, args ...any)  *Failure
 func (TaskHandle) Kept(reason TaxonomyReason)
@@ -157,7 +157,7 @@ func TruncateNames(names []string, visible int)  string
 func Value(name string, v any)  Fingerprint
 func Verbose()  *Printer
 func VisibilityDelay(delay time.Duration)  Option
-func Warn(summary string)
+func Warn(summary string, options ...ProblemOption)
 func Width(columns int)  Option
 func WriteJSON(w io.Writer, result Result)  error
 type Action
