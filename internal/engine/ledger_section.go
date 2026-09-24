@@ -3,6 +3,7 @@ package engine
 import (
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -46,10 +47,6 @@ func (t ledgerTense) recordedEvent() string {
 	}
 	return "change.recorded"
 }
-
-// qualifiedSubjectSeparator joins a nested Task's container path when its
-// bare name would be ambiguous in the ledger.
-const qualifiedSubjectSeparator = " › "
 
 // ledgerSection is one Task's [changed] or [planned] rows: the Effects,
 // Files, and Execs its Define recorded. The Task owns the section; its name
@@ -156,7 +153,7 @@ func qualifiedSubject(st *taskState) string {
 	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
 		parts[i], parts[j] = parts[j], parts[i]
 	}
-	return strings.Join(parts, qualifiedSubjectSeparator)
+	return strings.Join(parts, core.QualifiedSubjectSeparator)
 }
 
 // hasLedgerSectionLocked reports whether the Task taskID owns a section in

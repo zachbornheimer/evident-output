@@ -13,8 +13,7 @@ import (
 // A row is zero-information when ALL of these hold:
 //   - the Task is Done and resolved NoWork or AlreadySatisfied (it changed
 //     nothing);
-//   - it carries no Summary, Problem, Warning, Fact, disposition record,
-//     Action or verification detail, and no in-flight Progress or Phase;
+//   - it carries no information field (core.IsZeroInformationTask);
 //   - no [changed]/[planned] section is named for it;
 //   - the library did not invent it (a synthetic outcome row).
 //
@@ -43,33 +42,12 @@ const (
 	hideAnyNoOp
 )
 
-// IsZeroInformationTask reports whether t alone, ignoring its ledger and its
-// neighbours, would add nothing to a human reader (see the rule above).
-func IsZeroInformationTask(t core.TaskSnapshot) bool {
-	if t.State != core.Done || t.Synthetic() {
-		return false
-	}
-	if t.Resolution != core.ResolutionNoWork && t.Resolution != core.ResolutionAlreadySatisfied {
-		return false
-	}
-	return t.Summary == "" && t.Phase == "" && t.Progress.Total == 0 && t.Progress.Completed == 0 &&
-		len(t.Problems) == 0 && len(t.Warnings) == 0 && len(t.Facts) == 0 &&
-		len(t.Skipped) == 0 && len(t.Kept) == 0 && len(t.Actions) == 0 &&
-		len(t.Verification) == 0
-}
-
-// IsProvenNoOpRootTask reports whether t is a zero-information row that may
-// be hidden at the run's root: one whose no-op was proven by Verify.
-func IsProvenNoOpRootTask(t core.TaskSnapshot) bool {
-	return IsZeroInformationTask(t) && t.Resolution == core.ResolutionAlreadySatisfied
-}
-
 func (scope hideScope) admits(t core.TaskSnapshot) bool {
 	switch scope {
 	case hideAnyNoOp:
-		return IsZeroInformationTask(t)
+		return core.IsZeroInformationTask(t)
 	case hideProvenNoOp:
-		return IsProvenNoOpRootTask(t)
+		return core.IsProvenNoOpTask(t)
 	default:
 		return false
 	}
@@ -135,15 +113,16 @@ func ZeroInformationTaskIDs(s core.Snapshot) map[string]bool {
 	return scan.candidates
 }
 
-// ledgerSubjects is the set of subjects s has a [changed] or [planned]
-// section for.
+// ledgerSubjects is the set of Task names s has a [changed] or [planned]
+// section for. A qualified subject ("alpha › prune") counts for its Task
+// name, so a same-named Task elsewhere stays visible rather than hidden.
 func ledgerSubjects(s core.Snapshot) map[string]bool {
 	subjects := make(map[string]bool, len(s.Changes)+len(s.Plans))
 	for _, c := range s.Changes {
-		subjects[c.Subject] = true
+		subjects[core.SubjectTaskName(c.Subject)] = true
 	}
 	for _, p := range s.Plans {
-		subjects[p.Subject] = true
+		subjects[core.SubjectTaskName(p.Subject)] = true
 	}
 	return subjects
 }

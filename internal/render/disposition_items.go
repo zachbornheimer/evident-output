@@ -70,7 +70,7 @@ func censusOf(col core.TasksSnapshot) childCensus {
 // items of one subject. A child still in flight is not one yet: it may
 // still resolve as an item.
 func isWorkPeer(t *core.TaskSnapshot) bool {
-	return core.IsTerminalTask(t.State) && !IsZeroInformationTask(*t)
+	return core.IsTerminalTask(t.State) && !core.IsZeroInformationTask(*t)
 }
 
 // foldsItems reports whether col's disposition items fold into a tally:
