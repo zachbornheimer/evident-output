@@ -1,66 +1,48 @@
 package engine
 
 import (
+	"encoding/json"
+
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // wireProblemPayloadLocked builds the "evo.event" payload for a
-// problem.recorded/warning.recorded line (spec §38), carrying every field
-// the Problem carries — the same code/subject/count/unit/location/
-// severity/evidence/fields/remedies machine truth a FormatJSON or
-// FormatJSON-run consumer sees, not a narrower subset. It reuses
-// wire.ToProblemDoc — the one owner of the core.Problem->wire projection,
-// including Sensitive-Field redaction — instead of rebuilding that
-// projection as a third hand-written map[string]any (the duplication
-// ZYS-823's own review found across this function, wire.toProblemDocs and
-// render.toJSONProblems). problemDocPayload then copies ProblemDoc's own
-// fields into this event stream's payload shape.
+// problem.recorded/warning.recorded line (spec §38), carrying the same
+// machine truth a FormatJSON/FormatJSON-run consumer sees for this
+// Problem, not a narrower subset. It reuses wire.ToProblemDoc — the one
+// owner of the core.Problem->wire projection, including Sensitive-Field
+// redaction — instead of rebuilding that projection independently.
 func wireProblemPayloadLocked(p Problem) map[string]any {
 	return problemDocPayload(wire.ToProblemDoc(p))
 }
 
-// problemDocPayload copies doc's non-zero fields into this event stream's
-// payload shape (spec §38: a field the Problem never set is omitted, not
-// present-but-empty). JSONL's own field is "summary", one name different
-// from ProblemDoc's "message" (§36's "evo.run" field) — every other key
-// carries doc's already-redacted, already-projected value straight
-// through, so this is a direct copy rather than a second independent
-// projection of core.Problem.
+// problemDocPayload builds this event stream's payload from doc's own JSON
+// encoding (spec §38: a field the Problem never set is omitted, not
+// present-but-empty — the same `omitempty` tags ProblemDoc already carries
+// decide that here too). JSONL's own field is "summary", one name
+// different from ProblemDoc's "message" (§36's "evo.run" field); every
+// other key carries doc's already-redacted, already-projected value
+// straight through, unrenamed.
+//
+// Marshaling doc itself (instead of copying its fields one at a time) is
+// deliberate: the next field ToProblemDoc gains is in this payload for
+// free, so JSONL cannot silently fall behind evo.run the way ZYS-823 found
+// it had — see problemDocPayload_test.go's json-tag coverage check.
 func problemDocPayload(doc wire.ProblemDoc) map[string]any {
-	payload := map[string]any{"summary": doc.Message}
-	if doc.Code != "" {
-		payload["code"] = doc.Code
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		// ProblemDoc's fields are all JSON-marshalable primitives/structs;
+		// this is unreachable outside a future field breaking that
+		// invariant, at which point a test should catch it before this
+		// runs in production.
+		return map[string]any{"summary": doc.Message}
 	}
-	if doc.Subject != "" {
-		payload["subject"] = doc.Subject
+	payload := map[string]any{}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return map[string]any{"summary": doc.Message}
 	}
-	if doc.Detail != "" {
-		payload["detail"] = doc.Detail
-	}
-	if doc.EvidenceTail != "" {
-		payload["evidence_tail"] = doc.EvidenceTail
-	}
-	if doc.Count != 0 {
-		payload["count"] = doc.Count
-	}
-	if doc.Unit != "" {
-		payload["unit"] = doc.Unit
-	}
-	if doc.Severity != "" {
-		payload["severity"] = doc.Severity
-	}
-	if doc.Location != nil {
-		payload["location"] = doc.Location
-	}
-	if len(doc.Evidence) > 0 {
-		payload["evidence"] = doc.Evidence
-	}
-	if len(doc.Fields) > 0 {
-		payload["fields"] = doc.Fields
-	}
-	if len(doc.Remedies) > 0 {
-		payload["remedies"] = doc.Remedies
-	}
+	payload["summary"] = doc.Message
+	delete(payload, "message")
 	return payload
 }
 

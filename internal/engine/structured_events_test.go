@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -536,53 +537,54 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	}
 }
 
-// TestWireProblemPayloadLocked_CarriesLocationSeverityEvidenceFieldsRemedies
-// is ZYS-823's JSONL guard on the same projection internal/render's and
-// internal/wire's Location/Severity/Evidence/Fields/Remedies tests cover:
-// this function must carry all of them onto the problem.recorded/
-// warning.recorded payload, not just summary/detail/evidence_tail.
-func TestWireProblemPayloadLocked_CarriesLocationSeverityEvidenceFieldsRemedies(t *testing.T) {
+// TestWireProblemPayloadLocked_CarriesLocationAndRemedies is ZYS-823's
+// JSONL guard on the same projection internal/render's and internal/wire's
+// Location/Remedies tests cover: this function must carry both onto the
+// problem.recorded/warning.recorded payload, not just
+// summary/detail/evidence_tail.
+func TestWireProblemPayloadLocked_CarriesLocationAndRemedies(t *testing.T) {
 	payload := wireProblemPayloadLocked(Problem{
 		Summary:  "build failed",
-		Severity: "error",
 		Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
-		Evidence: []core.Attachment{{Label: "stderr", Value: "undefined: foo"}},
-		Fields:   []core.Field{{Key: "attempt", Value: "2"}},
 		Actions:  []core.Action{{Label: "rerun"}},
 	})
-	if payload["severity"] != "error" {
-		t.Fatalf("payload[severity] = %v, want %q (full payload: %+v)", payload["severity"], "error", payload)
-	}
 	if _, ok := payload["location"]; !ok {
 		t.Fatalf("payload missing location (full payload: %+v)", payload)
-	}
-	if _, ok := payload["evidence"]; !ok {
-		t.Fatalf("payload missing evidence (full payload: %+v)", payload)
-	}
-	if _, ok := payload["fields"]; !ok {
-		t.Fatalf("payload missing fields (full payload: %+v)", payload)
 	}
 	if _, ok := payload["remedies"]; !ok {
 		t.Fatalf("payload missing remedies (full payload: %+v)", payload)
 	}
 }
 
-// TestWireProblemPayloadLocked_RedactsSensitiveFieldValue is the JSONL
-// security invariant: a Sensitive Field's raw value must never reach the
-// problem.recorded/warning.recorded payload. The fixture value below is an
-// obviously-fake placeholder, never a real credential.
-func TestWireProblemPayloadLocked_RedactsSensitiveFieldValue(t *testing.T) {
-	const fixtureRawValue = "fixture-raw-value-must-not-leak"
+// TestWireProblemPayloadLocked_CoversEveryProblemDocJSONTag is ZYS-823's
+// guard against the JSON/JSONL split this ticket exists to close:
+// problemDocPayload builds the JSONL payload from wire.ProblemDoc's own
+// JSON encoding, so the next field ToProblemDoc gains must appear here
+// automatically. This test pins that mechanism by reflecting over
+// ProblemDoc's json tags and failing if one goes missing from the payload
+// — a regression to per-field copying would still pass every other test in
+// this file yet silently drop the new tag, which is exactly the bug this
+// test exists to catch.
+func TestWireProblemPayloadLocked_CoversEveryProblemDocJSONTag(t *testing.T) {
 	payload := wireProblemPayloadLocked(Problem{
-		Summary: "leaked secret",
-		Fields:  []core.Field{{Key: "api_key", Value: fixtureRawValue, Sensitive: true}},
+		Summary: "build failed", Code: "A1", Subject: "main.go",
+		Detail: "compiler error", EvidenceTail: "tail", Count: 1, Unit: "line",
+		Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
+		Actions:  []core.Action{{Label: "rerun"}},
 	})
-	fields, ok := payload["fields"].([]wire.FieldDoc)
-	if !ok || len(fields) != 1 {
-		t.Fatalf("payload[fields] = %v (%T), want 1 wire.FieldDoc", payload["fields"], payload["fields"])
+	rt := reflect.TypeFor[wire.ProblemDoc]()
+	for i := 0; i < rt.NumField(); i++ {
+		tag := rt.Field(i).Tag.Get("json")
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "" || name == "-" || name == "message" {
+			continue // "message" renames to "summary" in the JSONL payload.
+		}
+		if _, ok := payload[name]; !ok {
+			t.Fatalf("payload missing %q, a json tag ProblemDoc carries (full payload: %+v)", name, payload)
+		}
 	}
-	if fields[0].Value != core.RedactedValue {
-		t.Fatalf("Value = %v, want the redaction sentinel %q (not the raw fixture value)", fields[0].Value, core.RedactedValue)
+	if _, ok := payload["summary"]; !ok {
+		t.Fatalf("payload missing summary (ProblemDoc's message, renamed): %+v", payload)
 	}
 }
 

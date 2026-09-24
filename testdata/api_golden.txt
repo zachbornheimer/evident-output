@@ -199,14 +199,12 @@ type Format
 type GlyphProfile
 type GroupHandle
 type JSONAction
-type JSONAttachment
 type JSONChanges
 type JSONCollection
 type JSONCommand
 type JSONDocument
 type JSONEffectRecord
 type JSONFact
-type JSONField
 type JSONLocation
 type JSONMessage
 type JSONOutputMeta

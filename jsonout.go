@@ -69,12 +69,6 @@ type JSONProblem = render.JSONProblem
 // carry, now also in the public output.v1 projection).
 type JSONLocation = render.JSONLocation
 
-// JSONAttachment is a wire-format evidence attachment on a JSONProblem.
-type JSONAttachment = render.JSONAttachment
-
-// JSONField is a wire-format structured diagnostic field on a JSONProblem.
-type JSONField = render.JSONField
-
 // JSONTask is a wire-format task.
 type JSONTask = render.JSONTask
 

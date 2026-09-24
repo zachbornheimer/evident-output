@@ -23,6 +23,24 @@ import (
 // never moves what "repo root" means for this fs.FS.
 var repoRoot = mustAbsDirFS(".")
 
+// verificationRow is one decoded per-attribute verification outcome from
+// an "evo.run" document's tasks[].verification.
+type verificationRow struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+// findVerification returns the named per-attribute verification row, if
+// present.
+func findVerification(rows []verificationRow, name string) (verificationRow, bool) {
+	for _, r := range rows {
+		if r.Name == name {
+			return r, true
+		}
+	}
+	return verificationRow{}, false
+}
+
 func mustAbsDirFS(dir string) fs.FS {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
@@ -71,25 +89,44 @@ func TestPatch_FileVerification_SurvivesEncodeRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read schema/run.v2.json: %v", err)
 	}
-	if err := wireschema.Validate(schema, body.Bytes()); err != nil {
+	// wireschema.Strict, not the raw published schema: every other compat
+	// test in this repo (internal/wire/compat_test.go) validates against
+	// the strengthened schema so a dropped/undeclared field fails this
+	// test rather than silently passing against the permissive published
+	// copy — this end-to-end Patch test held a weaker bar than the rest.
+	strict, err := wireschema.Strict(schema)
+	if err != nil {
+		t.Fatalf("wireschema.Strict(run.v2.json): %v", err)
+	}
+	if err := wireschema.Validate(strict, body.Bytes()); err != nil {
 		t.Fatalf("Patch-derived evo.run document does not conform to schema/run.v2.json:\n%v\n\ndocument:\n%s", err, body.String())
 	}
 
 	var doc struct {
 		Data struct {
 			Tasks []struct {
-				Verification []struct {
-					Name   string `json:"name"`
-					Status string `json:"status"`
-				} `json:"verification"`
+				Verification []verificationRow `json:"verification"`
 			} `json:"tasks"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body.Bytes(), &doc); err != nil {
 		t.Fatalf("decode evo.run: %v", err)
 	}
-	if len(doc.Data.Tasks) != 1 || len(doc.Data.Tasks[0].Verification) == 0 {
-		t.Fatalf("Patch-derived evo.run carries no per-attribute verification: %s", body.String())
+	if len(doc.Data.Tasks) != 1 {
+		t.Fatalf("evo.run carries %d tasks, want 1: %s", len(doc.Data.Tasks), body.String())
+	}
+	// Pin Patch's actual machine truth, not merely "some verification
+	// exists": a Patch-committed File reports a "contents" attribute, and
+	// this fixture's contents-only diff (no mode change) must have
+	// satisfied it — the same code/status contract
+	// internal/engine/file.go's toVerificationDetails produces.
+	verification := doc.Data.Tasks[0].Verification
+	contentsVerification, ok := findVerification(verification, "contents")
+	if !ok {
+		t.Fatalf("Patch-derived evo.run has no %q verification attribute: %+v", "contents", verification)
+	}
+	if contentsVerification.Status != "satisfied" {
+		t.Fatalf("contents verification status = %q, want %q: %+v", contentsVerification.Status, "satisfied", verification)
 	}
 
 	contents, err := os.ReadFile(path)

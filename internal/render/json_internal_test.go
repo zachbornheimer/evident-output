@@ -33,18 +33,18 @@ func TestToJSONProblems_PreservesEvidenceTail(t *testing.T) {
 	}
 }
 
-// TestToJSONProblems_ProjectsLocationSeverityEvidenceFieldsRemedies is
-// ZYS-823's guard against the projections toJSONProblems builds but no
-// test previously exercised: Location, Severity, Evidence, Fields and
-// Remedies must all survive the Problem->JSONProblem conversion, not just
-// the fields TestToJSONProblems_PreservesEvidenceTail already covers.
-func TestToJSONProblems_ProjectsLocationSeverityEvidenceFieldsRemedies(t *testing.T) {
+// TestToJSONProblems_ProjectsLocationAndRemedies is ZYS-823's guard against
+// the two toJSONProblems projections that carry data an exported
+// ProblemOption can actually produce: Location and Remedies. (A prior
+// version of this test also asserted Severity/Evidence/Fields, which
+// toJSONProblems no longer projects at all — see JSONProblem's doc comment
+// for why: no exported ProblemOption can set core.Problem's
+// Severity/Evidence/Fields, so a projection for them would be permanent
+// public surface for unreachable data.)
+func TestToJSONProblems_ProjectsLocationAndRemedies(t *testing.T) {
 	in := []core.Problem{{
 		Summary:  "build failed",
-		Severity: "error",
 		Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
-		Evidence: []core.Attachment{{Label: "stderr", Value: "undefined: foo"}},
-		Fields:   []core.Field{{Key: "attempt", Value: 2}},
 		Actions:  []core.Action{{Label: "rerun", Command: &core.CommandSpec{Executable: "go", Args: []string{"build", "./..."}}}},
 	}}
 
@@ -54,38 +54,11 @@ func TestToJSONProblems_ProjectsLocationSeverityEvidenceFieldsRemedies(t *testin
 		t.Fatalf("toJSONProblems returned %d problems, want 1", len(out))
 	}
 	got := out[0]
-	if got.Severity != "error" {
-		t.Fatalf("Severity = %q, want %q", got.Severity, "error")
-	}
 	if got.Location == nil || got.Location.Path != "main.go" || got.Location.Line != 12 || got.Location.Column != 3 {
 		t.Fatalf("Location = %+v, want {main.go 12 3}", got.Location)
 	}
-	if len(got.Evidence) != 1 || got.Evidence[0].Label != "stderr" || got.Evidence[0].Value != "undefined: foo" {
-		t.Fatalf("Evidence = %+v, want [{stderr undefined: foo}]", got.Evidence)
-	}
-	if len(got.Fields) != 1 || got.Fields[0].Key != "attempt" || got.Fields[0].Value != 2 {
-		t.Fatalf("Fields = %+v, want [{attempt 2}]", got.Fields)
-	}
 	if len(got.Remedies) != 1 || got.Remedies[0].Label != "rerun" {
 		t.Fatalf("Remedies = %+v, want a [rerun] action", got.Remedies)
-	}
-}
-
-// TestToJSONFields_RedactsSensitiveValue is the security-invariant guard
-// on toJSONFields's own redaction: a Field.Sensitive value must never
-// reach the JSON wire, replaced by core.RedactedValue instead of its raw
-// contents.
-func TestToJSONFields_RedactsSensitiveValue(t *testing.T) {
-	const secret = "sk_live_do_not_leak"
-	out := toJSONFields([]core.Field{{Key: "api_key", Value: secret, Sensitive: true}})
-	if len(out) != 1 {
-		t.Fatalf("toJSONFields returned %d fields, want 1", len(out))
-	}
-	if out[0].Value == secret {
-		t.Fatalf("toJSONFields leaked the raw Sensitive value %q onto the wire", secret)
-	}
-	if out[0].Value != core.RedactedValue {
-		t.Fatalf("Value = %v, want the redaction sentinel %q", out[0].Value, core.RedactedValue)
 	}
 }
 
