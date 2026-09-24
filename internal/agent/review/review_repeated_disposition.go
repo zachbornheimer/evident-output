@@ -8,9 +8,10 @@
 // receiver certainly holds an evo Task (see taskBindings) and is a plain
 // identifier or selector, never a call such as group.Task(x). It repeats
 // when that receiver either:
-//   - sits inside a loop that did not bind it (by :=, =, var, or range),
-//     so it runs once per iteration on one Task, unless its block leaves
-//     the loop (see loopExits); or
+//   - sits inside a loop that reruns it without binding it (by :=, =,
+//     var, or range), so it runs once per iteration on one Task (see
+//     loopChain.reruns for how return, break, continue and goto decide
+//     which loop, if any, reruns it); or
 //   - already received a disposition call earlier in the same statement
 //     list, with no assignment rebinding it in between, so both run in
 //     sequence on one Task.
@@ -43,10 +44,12 @@ func detectRepeatedDisposition(filename string, file *ast.File, fset *token.File
 			scan.visitStatementList(node.List)
 		case *ast.CaseClause:
 			scan.visitStatementList(node.Body)
-		case *ast.ForStmt:
-			scan.visitLoop(node.Body, node.Init)
-		case *ast.RangeStmt:
-			scan.visitLoop(node.Body, node)
+		case *ast.FuncDecl:
+			if node.Body != nil {
+				scan.visitFunc(node.Body)
+			}
+		case *ast.FuncLit:
+			scan.visitFunc(node.Body)
 		}
 		return true
 	})
@@ -87,31 +90,48 @@ func (s *repeatedDispositionScan) visitStatementList(stmts []ast.Stmt) {
 	}
 }
 
-// visitLoop flags a disposition call anywhere in body whose receiver the
-// loop itself (its header or its body) did not bind, unless its block
-// leaves the loop. A nested loop is its own scope: detectRepeatedDisposition
-// visits it separately, against its own bindings.
-func (s *repeatedDispositionScan) visitLoop(body *ast.BlockStmt, header ast.Node) {
-	exits := newLoopExits(body)
-	bound := boundNames(body)
-	if header != nil {
-		for name := range boundNames(header) {
-			bound[name] = true
+// visitFunc flags a disposition call that a loop around it reruns on
+// one Task. A function literal inside body is its own function, visited on
+// its own: a callback body runs on its own schedule.
+func (s *repeatedDispositionScan) visitFunc(body *ast.BlockStmt) {
+	s.visitLoops(body, nil, labelSpans(body))
+}
+
+// visitLoops walks n with loops as the loops around it, outermost first.
+func (s *repeatedDispositionScan) visitLoops(n ast.Node, loops loopChain, labels map[string]nodeSpan) {
+	ast.Inspect(n, func(child ast.Node) bool {
+		if child == n {
+			return true
 		}
-	}
-	ast.Inspect(body, func(n ast.Node) bool {
-		if _, isFunc := n.(*ast.FuncLit); isFunc {
-			return false // a callback body runs on its own schedule
-		}
-		if isLoop(n) {
+		switch c := child.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.LabeledStmt:
+			if isLoop(c.Stmt) {
+				s.visitLoop(c.Stmt, c.Label.Name, loops, labels)
+				return false
+			}
+		case *ast.ForStmt, *ast.RangeStmt:
+			s.visitLoop(c.(ast.Stmt), "", loops, labels)
 			return false
 		}
-		call, recv, ok := s.dispositionCall(n)
-		if ok && !bound[rootIdent(call.Fun.(*ast.SelectorExpr).X)] && !exits.RunsOnce(call) {
+		call, recv, ok := s.dispositionCall(child)
+		if ok && loops.reruns(call, rootIdent(call.Fun.(*ast.SelectorExpr).X), labels) {
 			s.report(call, recv)
 		}
 		return true
 	})
+}
+
+// visitLoop walks one loop's body with the loop pushed onto loops.
+func (s *repeatedDispositionScan) visitLoop(loop ast.Stmt, label string, loops loopChain, labels map[string]nodeSpan) {
+	inner := append(loops[:len(loops):len(loops)], newLoopScope(loop, label))
+	switch l := loop.(type) {
+	case *ast.ForStmt:
+		s.visitLoops(l.Body, inner, labels)
+	case *ast.RangeStmt:
+		s.visitLoops(l.Body, inner, labels)
+	}
 }
 
 func (s *repeatedDispositionScan) report(call *ast.CallExpr, recv string) {

@@ -245,3 +245,159 @@ func count(out *evo.Output, repos []repo) {
 func TestAPI062_NonTaskReceiver_Silent(t *testing.T) {
 	assertNoFinding(t, review.GoSource("tally.go", nonTaskDispositionSrc), "API-062")
 }
+
+// A labeled continue to an enclosing loop leaves the inner loop, so the
+// disposition runs at most once per outer iteration; the outer loop binds
+// a fresh Task each time.
+const continueOuterFreshTaskSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(groups []group) {
+outer:
+	for _, g := range groups {
+		task := evo.Task(g.Name)
+		for _, r := range g.Repos {
+			if r.Dirty {
+				task.Kept(evo.Reason("dirty"))
+				continue outer
+			}
+		}
+	}
+}
+`
+
+func TestAPI062_ContinueOuterOnFreshTask_Silent(t *testing.T) {
+	assertNoFinding(t, review.GoSource("outer.go", continueOuterFreshTaskSrc), "API-062")
+}
+
+// The same shape on one Task the outer loop did not bind still repeats:
+// once per outer iteration.
+const continueOuterOneTaskSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(task *evo.TaskHandle, groups []group) {
+outer:
+	for _, g := range groups {
+		for _, r := range g.Repos {
+			if r.Dirty {
+				task.Kept(evo.Reason("dirty"))
+				continue outer
+			}
+		}
+	}
+}
+`
+
+func TestAPI062_ContinueOuterOnOneTask_Fires(t *testing.T) {
+	findingByID(t, review.GoSource("outer.go", continueOuterOneTaskSrc), "API-062")
+}
+
+// A break leaves only the inner loop: the outer loop reruns the call on
+// one Task.
+const breakInnerOneTaskSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(task *evo.TaskHandle, groups []group) {
+	for _, g := range groups {
+		for _, r := range g.Repos {
+			if r.Dirty {
+				task.Kept(evo.Reason("dirty"))
+				break
+			}
+		}
+	}
+}
+`
+
+func TestAPI062_BreakInnerOnOneTask_Fires(t *testing.T) {
+	findingByID(t, review.GoSource("inner.go", breakInnerOneTaskSrc), "API-062")
+}
+
+// A labeled break to the outermost loop, or a labeled continue to the
+// loop's own label, are told apart from each other.
+const labeledTransfersSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(task *evo.TaskHandle, groups []group) {
+all:
+	for _, g := range groups {
+		for _, r := range g.Repos {
+			if r.Dirty {
+				task.Kept(evo.Reason("dirty"))
+				break all
+			}
+		}
+	}
+}
+`
+
+func TestAPI062_BreakOutermostLabel_Silent(t *testing.T) {
+	assertNoFinding(t, review.GoSource("all.go", labeledTransfersSrc), "API-062")
+}
+
+const continueOwnLabelSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(task *evo.TaskHandle, repos []repo) {
+repos:
+	for _, r := range repos {
+		if r.Dirty {
+			task.Kept(evo.Reason("dirty"))
+			continue repos
+		}
+	}
+}
+`
+
+func TestAPI062_ContinueOwnLabel_Fires(t *testing.T) {
+	findingByID(t, review.GoSource("own.go", continueOwnLabelSrc), "API-062")
+}
+
+// A labeled break that targets a switch inside the loop leaves only the
+// switch.
+const breakInnerSwitchLabelSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(task *evo.TaskHandle, repos []repo) {
+	for _, r := range repos {
+	sw:
+		switch {
+		case r.Dirty:
+			task.Kept(evo.Reason("dirty"))
+			break sw
+		}
+	}
+}
+`
+
+func TestAPI062_BreakInnerSwitchLabel_Fires(t *testing.T) {
+	findingByID(t, review.GoSource("sw.go", breakInnerSwitchLabelSrc), "API-062")
+}
+
+// A goto to a label inside the loop body stays in the loop: the next
+// iteration reruns the call.
+const gotoInsideLoopSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(task *evo.TaskHandle, repos []repo) {
+	for _, r := range repos {
+		if r.Dirty {
+			task.Kept(evo.Reason("dirty"))
+			goto next
+		}
+	next:
+		r.Visit()
+	}
+}
+`
+
+func TestAPI062_GotoInsideLoop_Fires(t *testing.T) {
+	findingByID(t, review.GoSource("goto.go", gotoInsideLoopSrc), "API-062")
+}
