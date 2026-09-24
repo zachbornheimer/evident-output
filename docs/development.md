@@ -46,6 +46,7 @@ examples/live-progress/      ordinary multi-progress
 examples/debug-history/      slog durable debug
 examples/debug-pane/         rolling slog viewport
 examples/terminal-driver/    advanced custom TerminalDriver
+examples/launch-agent-http/  one model served as CLI and HTTP (§53)
 ```
 
 ```bash

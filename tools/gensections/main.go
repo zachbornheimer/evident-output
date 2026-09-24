@@ -22,6 +22,7 @@ var sourceDocs = map[string]string{
 	"mcp.md":                filepath.Join("docs", "mcp.md"),
 	"adoption-ladder.md":    filepath.Join("docs", "guides", "teaching-ladder.md"),
 	"exit-code-fidelity.md": filepath.Join("docs", "guides", "exit-code-fidelity.md"),
+	"http-embedding.md":     filepath.Join("docs", "guides", "http-embedding.md"),
 }
 
 func main() {

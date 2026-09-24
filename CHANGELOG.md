@@ -8,6 +8,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
+### Embedding behind HTTP (1.2, spec §53, ZYS-946)
+
+See [`docs/migration/1.2.md`](docs/migration/1.2.md) for the upgrade guide and
+[`docs/decisions/caller-cancellation.md`](docs/decisions/caller-cancellation.md)
+for the decision record.
+
+1.2 adds no exported API and changes no bytes a 1.1 host writes. A 1.1
+host keeps its signal window, `ctx` contract, exit codes, `run_id`,
+errors, and `"evo.run"` document on every format (DEC-CANCEL-005). A
+caller-owned run lifecycle, a per-run `run_id`, and a machine-readable
+cancellation cause (DEC-CANCEL-007) are deferred behind ZYS-947.
+
+- **Fixed: a run queued on the state lock stays interruptible.** A ^C
+  during the run callback, while a Define waited for another run's
+  exclusive manifest lock (spec §11.3), hung until the other run
+  finished. It now stops the run at once with exit 130.
+- **`WriteJSON` and `FormatJSON` share one encoder,** so their documents
+  stay byte-identical for the same run. Both errors are unchanged from
+  1.1.
+- **HTTP embedding guide and example.** `docs/guides/http-embedding.md`
+  and `examples/launch-agent-http` serve one model as a CLI and an HTTP
+  endpoint on the 1.1 API.
+- **MCP API-063:** package-level `evo.Task`/`Group`/`Sequence`/`Fact`/
+  `Warn`/`Print*`/`Confirm` reached from an Isolated Output's `Run`
+  callback declare on the package default, not the Output being run. The
+  rule follows the callback into the package's own functions (the §53
+  `launchAgent` shape) and recognizes `var` Outputs, Config variables,
+  `*evo.Output` parameters, and Output struct fields. Fires for 1.2.0+
+  pins only.
+
 ### Added
 
 - **`evo.Effect(ctx, EffectSpec, fn) error`:** the one way to perform an
