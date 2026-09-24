@@ -139,6 +139,18 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   output — it was previously collected only from task-level `Next(...)`
   calls and silently dropped otherwise.
 
+- `Wait` no longer hangs when what it waits on runs `After` a Task nobody
+  Defined. That Task settles `NotStarted` and the Wait returns
+  `ErrNotStarted`. A self-wait deadlock returns `ErrWaitDeadlock` even
+  when unrelated rows are still undefined.
+
+- A Sequence's nested `Group`/`Sequence` is one step: it starts after the
+  step before it ends, the step after it waits for all of it, and a failed
+  step leaves the nested members after it `NotStarted`.
+
+- MCP `review` with `kind=package` honors `desired_version`, and an
+  oversize request gets a JSON-RPC error instead of stopping the server.
+
 ## [1.0.0] — Define as the scheduling boundary; File/Fingerprint; MainWith and Each removed
 
 See [`docs/migration/1.0.md`](docs/migration/1.0.md) for the full upgrade guide.
