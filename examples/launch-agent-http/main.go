@@ -2,8 +2,8 @@
 // both a CLI and an HTTP endpoint. Run once, it declares the model on the
 // package-default Output in any --format. With --serve, the process's own
 // run is the server: evo.Main owns SIGINT/SIGTERM and turns them into a
-// graceful shutdown, while each request runs the model on its own Isolated
-// FormatExternal Output and answers with the "evo.run" document FormatJSON
+// graceful shutdown, while each request runs the model on its own Isolated,
+// Embedded Output and answers with the "evo.run" document FormatJSON
 // prints:
 //
 //	go run ./examples/launch-agent-http --format json
@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -28,6 +29,8 @@ import (
 const (
 	// defaultBudget bounds one request's run.
 	defaultBudget = 30 * time.Second
+	// defaultMaxRequests bounds the requests running or queued at once.
+	defaultMaxRequests = 16
 	// shutdownGrace is how long in-flight requests may finish after SIGTERM.
 	shutdownGrace = 10 * time.Second
 	// readHeaderTimeout bounds a client's request headers.
@@ -39,10 +42,11 @@ const (
 )
 
 type options struct {
-	stateDir string
-	serve    string
-	format   evo.Format
-	budget   time.Duration
+	stateDir    string
+	serve       string
+	format      evo.Format
+	budget      time.Duration
+	maxRequests int
 }
 
 func parseOptions() options {
@@ -54,6 +58,15 @@ func parseOptions() options {
 		return err
 	})
 	flag.DurationVar(&o.budget, "budget", defaultBudget, "per-request run budget in --serve mode")
+	o.maxRequests = defaultMaxRequests
+	flag.Func("max-requests", fmt.Sprintf("requests running or queued at once in --serve mode; more answer 503 (default %d)", defaultMaxRequests), func(s string) error {
+		n, err := strconv.Atoi(s)
+		if err != nil || n < 1 {
+			return fmt.Errorf("want a whole number of at least 1, got %q", s)
+		}
+		o.maxRequests = n
+		return nil
+	})
 	flag.Parse()
 	return o
 }
@@ -82,7 +95,10 @@ func main() {
 // Outputs register no signal handlers of their own.
 func serve(ctx context.Context, o options, a agent) error {
 	mux := http.NewServeMux()
-	mux.Handle(launchPath, runHandler{agent: a, stateDir: o.stateDir, budget: o.budget, log: slog.Default()})
+	mux.Handle(launchPath, runHandler{
+		agent: a, stateDir: o.stateDir, budget: o.budget,
+		admission: newAdmission(o.maxRequests), log: slog.Default(),
+	})
 	srv := &http.Server{Addr: o.serve, Handler: mux, ReadHeaderTimeout: readHeaderTimeout}
 
 	listenErr := make(chan error, 1)

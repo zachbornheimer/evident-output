@@ -14,30 +14,44 @@ import (
 //
 // Lifecycle: each request gets its own Isolated, Embedded Output, so
 // concurrent requests share no runtime state and the server, not Evo, owns
-// process signals. The request context — bounded by budget — is the run's
-// only cancellation: a disconnected client or an exhausted budget concludes
-// the run Cancelled, with the work already committed still reported.
+// process signals. Embedded makes the request context — bounded by budget —
+// the run's only cancellation: a disconnected client or an exhausted budget
+// concludes the run Cancelled, with the work already committed still
+// reported. FormatExternal only keeps the run from rendering anywhere.
 //
-// Backpressure: nothing is written to the client while the run executes;
-// the run's human rendering goes to io.Discard. The document is encoded
-// once, after the run, so a slow client can delay only its own response,
-// never the scheduler. Every request shares stateDir, so requests queue on
-// its exclusive manifest lock (spec §11.3) and run one at a time; the
-// budget covers that wait, and a request whose budget runs out in the
-// queue answers Cancelled at once.
+// Backpressure: every request shares stateDir, so runs serialize on its
+// exclusive manifest lock (spec §11.3) and each waiting request holds a
+// goroutine and a connection. admission bounds that queue: a request
+// beyond the limit is turned away at once with 503 and Retry-After, before
+// it starts a run. An admitted request's budget covers its wait on the
+// lock, and one whose budget runs out in the queue answers Cancelled at
+// once. Nothing is written to the client while its run executes; the
+// document is encoded once, after the run, so a slow client delays only
+// its own response, never the scheduler.
 //
 // Errors: the HTTP status comes from the structured Conclusion state, never
 // from message text; the body carries the full outcome either way. A
 // failure writing the body is transport trouble and is logged, not
 // reported as work failure.
 type runHandler struct {
-	agent    agent
-	stateDir string
-	budget   time.Duration
-	log      *slog.Logger
+	agent     agent
+	stateDir  string
+	budget    time.Duration
+	admission admission
+	log       *slog.Logger
 }
 
+// retryAfterSeconds is the Retry-After a turned-away request is given.
+const retryAfterSeconds = "1"
+
 func (h runHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !h.admission.tryEnter() {
+		w.Header().Set("Retry-After", retryAfterSeconds)
+		http.Error(w, "launch agent: too many requests waiting; retry later", http.StatusServiceUnavailable)
+		return
+	}
+	defer h.admission.leave()
+
 	ctx, cancel := context.WithTimeout(r.Context(), h.budget)
 	defer cancel()
 
@@ -61,6 +75,26 @@ func (h runHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.log.Warn("launch agent response not delivered", "run_id", result.Conclusion.RunID, "error", err)
 	}
 }
+
+// admission bounds how many requests are running or queued on the state
+// lock at once.
+type admission chan struct{}
+
+// newAdmission admits at most limit requests at a time.
+func newAdmission(limit int) admission { return make(admission, limit) }
+
+// tryEnter takes a slot, or reports false at once when none is free.
+func (a admission) tryEnter() bool {
+	select {
+	case a <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+// leave frees the slot tryEnter took.
+func (a admission) leave() { <-a }
 
 // statusFor maps a run's outcome to the HTTP status this service promises.
 func statusFor(state evo.ConclusionState) int {

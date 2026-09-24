@@ -21,10 +21,16 @@ const testBudget = 10 * time.Second
 
 func newServer(t *testing.T, a agent, stateDir string, budget time.Duration) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(runHandler{
+	return serveHandler(t, runHandler{
 		agent: a, stateDir: stateDir, budget: budget,
-		log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		admission: newAdmission(concurrentLaunches),
+		log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
+}
+
+func serveHandler(t *testing.T, h runHandler) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -317,5 +323,45 @@ func TestLaunchHTTP_BudgetRunsOutWhileQueuedOnStateLock(t *testing.T) {
 	doc := decodeLaunch(t, body)
 	if doc.Outcome != "cancelled" || doc.state("write plist") != "cancelled" || doc.state("load agent") != string(evo.NotStarted) {
 		t.Fatalf("outcome %q, tasks %+v; want cancelled with write plist cancelled and load agent not started\n%s", doc.Outcome, doc.Data.Tasks, body)
+	}
+}
+
+// Requests beyond the admission limit are turned away at once with 503
+// and Retry-After, before they start a run or queue on the state lock:
+// waiting requests never pile up goroutines and connections unbounded.
+func TestLaunchHTTP_RequestBeyondAdmissionLimitIsTurnedAway(t *testing.T) {
+	dir := t.TempDir()
+	a, load := blockingAgent(dir)
+	srv := serveHandler(t, runHandler{
+		agent: a, stateDir: dir, budget: testBudget,
+		admission: newAdmission(1),
+		log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	holderCtx, releaseHolder := context.WithCancel(context.Background())
+	defer releaseHolder()
+	holderDone := make(chan struct{})
+	go func() {
+		defer close(holderDone)
+		_, _, _ = postLaunch(holderCtx, t, srv)
+	}()
+	<-load.started
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("POST /launch beyond the limit: %v", err)
+	}
+	_ = resp.Body.Close()
+	releaseHolder()
+	<-holderDone
+
+	if resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") == "" {
+		t.Fatalf("POST /launch beyond the limit = %d, Retry-After %q; want 503 with Retry-After", resp.StatusCode, resp.Header.Get("Retry-After"))
+	}
+	if ct := resp.Header.Get("Content-Type"); ct == "application/json" {
+		t.Fatalf("a turned-away request answered %s; it ran no model, so it has no evo.run document", ct)
 	}
 }
