@@ -3,7 +3,6 @@ package render
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -41,7 +40,7 @@ func TestAlreadySatisfiedRowDetail_LiveUnit(t *testing.T) {
 		Summary:    "nope",
 		Resolution: core.ResolutionAlreadySatisfied,
 	}
-	unit := liveTaskUnit(snap, 1, 80, "⠋", false, time.Time{}, txt.GlyphsUnicode)
+	unit := liveTaskUnit(snap, 1, liveStyle{width: 80, spin: "⠋", profile: txt.GlyphsUnicode})
 	if unit.Detail != alreadySatisfiedDetail {
 		t.Fatalf("live Detail = %q, want %q", unit.Detail, alreadySatisfiedDetail)
 	}

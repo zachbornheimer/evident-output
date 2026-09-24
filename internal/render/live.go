@@ -146,7 +146,8 @@ func liveRegionFitsColumns(text string, columns int) bool {
 // its (recursive) children — when this header itself first painted. Once
 // every child has settled (spec §18's worked example: "✓ launch agent",
 // no count) the count is redundant with the glyph and disappears.
-func liveGroupHeader(col core.TasksSnapshot, done, total int, spin string, color bool, now time.Time, profile txt.GlyphProfile) DisplayUnit {
+func liveGroupHeader(col core.TasksSnapshot, done, total int, st liveStyle) DisplayUnit {
+	spin, color, now, profile := st.spin, st.color, st.now, st.profile
 	glyph, state := TaskGlyph(col.State, profile), col.State
 	if col.State == core.Failed {
 		glyph = txt.GlyphFailedState.Render(profile)
@@ -279,7 +280,7 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 // change/truncate independently without moving the timer horizontally.
 func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth int, st liveStyle) (rows int) {
 	start := b.Len()
-	width, spin, color, now, profile := st.width, st.spin, st.color, st.now, st.profile
+	spin, color, profile := st.spin, st.color, st.profile
 	pad := ""
 	if indent > 0 {
 		pad = "   "
@@ -287,7 +288,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	if splitsActivityChild(t) {
 		parent := t
 		parent.Phase = ""
-		unit := liveTaskUnit(parent, indent, width, spin, color, now, profile)
+		unit := liveTaskUnit(parent, indent, st)
 		padRootName(&unit, indent, nameWidth)
 		b.WriteString(unit.Render(pad))
 		b.WriteByte('\n')
@@ -298,7 +299,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 		b.WriteString(child.Render(pad + "   "))
 		b.WriteByte('\n')
 	} else {
-		unit := liveTaskUnit(t, indent, width, spin, color, now, profile)
+		unit := liveTaskUnit(t, indent, st)
 		padRootName(&unit, indent, nameWidth)
 		b.WriteString(unit.Render(pad))
 		b.WriteByte('\n')
@@ -344,7 +345,8 @@ func splitsActivityChild(t core.TaskSnapshot) bool {
 // case shares. Returning the unit rather than writing it lets a caller that
 // owns a richer row (a group header promoting its only Running child) reuse
 // the whole policy and re-label just the name slot.
-func liveTaskUnit(t core.TaskSnapshot, indent, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) DisplayUnit {
+func liveTaskUnit(t core.TaskSnapshot, indent int, st liveStyle) DisplayUnit {
+	width, spin, color, now, profile := st.width, st.spin, st.color, st.now, st.profile
 	glyph := TaskGlyph(t.State, profile)
 	if t.State == core.Running {
 		glyph = spin

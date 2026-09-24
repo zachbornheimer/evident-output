@@ -70,7 +70,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height int,
 		taskRows := writeLiveTaskLine(b, col.Tasks[0], 0, 0, st)
 		writeLiveDispositions(b, taskAnnotationIndent, items, height-taskRows, st.color, st.profile)
 	case promotesLoneChildOntoHeader(col):
-		unit := liveTaskUnit(col.Tasks[0], 0, st.width, st.spin, st.color, st.now, st.profile)
+		unit := liveTaskUnit(col.Tasks[0], 0, st)
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
@@ -78,7 +78,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height int,
 	case groupHeaderAddsNothing(col) && items.Empty() && !hasUnfinishedTask(col):
 		writeLiveBody(b, col, height, inPlace, st)
 	default:
-		b.WriteString(liveGroupHeader(col, done, total, st.spin, st.color, st.now, st.profile).Render(""))
+		b.WriteString(liveGroupHeader(col, done, total, st).Render(""))
 		b.WriteByte('\n')
 		tallyRows := writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.color, st.profile)
 		writeLiveBody(b, col, max(height-headerRows-tallyRows, minLiveChildRows+omissionRows), underHeader, st)
