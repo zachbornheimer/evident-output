@@ -11,20 +11,22 @@ import (
 
 // interruption names why a run stopped early: reason is the text each
 // cancelled row carries, cause is the cancelled Conclusion's Explanation,
-// so the band and the JSON document state the same cause.
+// so the band and the JSON document state the same cause. err is what
+// context.Cause reports on every Task scope the interrupt cancels.
 type interruption struct {
 	reason string
 	cause  string
+	err    error
 }
 
 var (
 	// interruptionBySignal: the person at the terminal pressed ^C.
-	interruptionBySignal = interruption{reason: "interrupted", cause: "by user"}
-	// interruptionByCaller: the caller cancelled the Run's context — an
-	// HTTP client disconnected, or the embedder shut the request down.
-	interruptionByCaller = interruption{reason: "cancelled", cause: "by caller"}
-	// interruptionByDeadline: the caller's context deadline passed.
-	interruptionByDeadline = interruption{reason: "deadline exceeded", cause: "deadline exceeded"}
+	interruptionBySignal = interruption{reason: "interrupted", cause: "by user", err: context.Canceled}
+	// interruptionByCaller: the caller cancelled an embedded Run's context —
+	// an HTTP client disconnected, or the embedder shut the request down.
+	interruptionByCaller = interruption{reason: "cancelled", cause: "by caller", err: context.Canceled}
+	// interruptionByDeadline: an embedded Run's caller deadline passed.
+	interruptionByDeadline = interruption{reason: "deadline exceeded", cause: "deadline exceeded", err: context.DeadlineExceeded}
 )
 
 // callerInterruption classifies why the caller's context ended.
@@ -35,24 +37,42 @@ func callerInterruption(err error) interruption {
 	return interruptionByCaller
 }
 
-// callerWatch turns the end of the caller's context into the same ordered
-// interrupt a ^C performs. The run's own context does not inherit the
-// caller's cancellation directly (see detachCancellation): if it did, a
-// Define would observe Done and fail its row before interrupt had marked
-// it cancelled.
+// scopeCaller is the context this run's Tasks descend from. A CLI run
+// hands Tasks the caller's ctx unchanged (the 1.1 contract: its end fails
+// the running Define). An embedded run hands them a callerScope, so the
+// caller's end reaches Tasks only through interrupt (DEC-CANCEL-002/005).
+func (o *Output) scopeCaller(ctx context.Context) context.Context {
+	if !o.cfg.embedded {
+		return ctx
+	}
+	return callerScope{value: ctx.Value}
+}
+
+// callerWatch turns the end of an embedded run's caller context into the
+// same ordered interrupt a ^C performs.
 type callerWatch struct {
 	callerErr func() error
 	interrupt func()
 	stop      func() bool
 }
 
-// watchCaller interrupts out once, when ctx ends, until release.
-func watchCaller(ctx context.Context, out *Output) callerWatch {
-	interrupt := sync.OnceFunc(func() { out.interrupt(callerInterruption(ctx.Err())) })
+// inertCallerWatch never interrupts: a CLI run's ctx is not its lifecycle.
+var inertCallerWatch = callerWatch{
+	callerErr: func() error { return nil },
+	interrupt: func() {},
+	stop:      func() bool { return false },
+}
+
+// watchCaller interrupts an embedded out once, when ctx ends, until release.
+func (o *Output) watchCaller(ctx context.Context) callerWatch {
+	if !o.cfg.embedded {
+		return inertCallerWatch
+	}
+	interrupt := sync.OnceFunc(func() { o.interrupt(callerInterruption(ctx.Err())) })
 	return callerWatch{callerErr: ctx.Err, interrupt: interrupt, stop: context.AfterFunc(ctx, interrupt)}
 }
 
-// ended reports whether the caller's context has ended.
+// ended reports whether the watched caller context has ended.
 func (w callerWatch) ended() bool { return w.callerErr() != nil }
 
 // interruptIfEnded reports whether the caller's context has ended and, if
@@ -69,20 +89,18 @@ func (w callerWatch) interruptIfEnded() bool {
 // release stops watching: a run that already concluded is not interrupted.
 func (w callerWatch) release() { w.stop() }
 
-// callerScope exposes the caller's values and deadline to Define/Verify
-// without its cancellation, which reaches the run only through interrupt.
+// callerScope exposes the caller's values to Define/Verify, and neither
+// its cancellation nor its deadline. Both reach the run only through
+// interrupt: a Task that saw the deadline could time itself out (as
+// net.Dialer does) and fail its row before the interrupt marks it
+// cancelled (DEC-CANCEL-006). context.Cause on a Task's ctx still reports
+// context.DeadlineExceeded when the deadline is why the run stopped.
 type callerScope struct {
-	deadline func() (time.Time, bool)
-	value    func(key any) any
+	value func(key any) any
 }
 
-// detachCancellation wraps the caller's ctx as a callerScope.
-func detachCancellation(ctx context.Context) context.Context {
-	return callerScope{deadline: ctx.Deadline, value: ctx.Value}
-}
-
-// Deadline reports the caller's deadline so task code can budget against it.
-func (s callerScope) Deadline() (time.Time, bool) { return s.deadline() }
+// Deadline is unset; see callerScope.
+func (callerScope) Deadline() (deadline time.Time, ok bool) { return }
 
 // Done is nil: the caller's cancellation never ends the scope directly.
 func (callerScope) Done() <-chan struct{} { return nil }

@@ -64,6 +64,11 @@ func SlogHandler() slog.Handler { return engine.SlogHandler() }
 // Run executes run against the default Output and returns the Result
 // (Conclusion plus the application error, if any); it never exits the
 // process.
+//
+// ctx and signals behave as Output.Run documents: a FormatExternal default
+// Output concludes cancelled (130, "by caller" or "deadline exceeded") when
+// ctx ends and registers no SIGINT/SIGTERM handler; any other format passes
+// ctx to Tasks unchanged and stops on SIGINT/SIGTERM.
 func Run(ctx context.Context, run RunFunc) Result { return engine.Run(ctx, run) }
 
 // Main executes run against the default Output and returns the derived exit

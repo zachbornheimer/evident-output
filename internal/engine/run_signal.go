@@ -8,8 +8,9 @@ import (
 )
 
 // RunFunc is the shape of application work handed to Run/Main/Output.Run —
-// a context.Context carries cancellation (wired to SIGINT/SIGTERM by those
-// entrypoints) in place of the pre-v0.6 no-context func() error form.
+// a context.Context carries cancellation (SIGINT/SIGTERM, or an embedded
+// Output's caller ctx ending; see Output.Run) in place of the pre-v0.6
+// no-context func() error form.
 type RunFunc func(context.Context) error
 
 // signalNotifier and signalStopper abstract os/signal (facade rule) so
@@ -38,7 +39,7 @@ type processSignals struct {
 // Output is embedded (FormatExternal): an HTTP server's SIGTERM means
 // graceful shutdown, which must let in-flight requests finish (spec §53).
 func (o *Output) subscribeProcessSignals() processSignals {
-	if o.cfg.hostOwnsSignals {
+	if o.cfg.embedded {
 		return processSignals{}
 	}
 	received := make(chan os.Signal, signalChannelCapacity)

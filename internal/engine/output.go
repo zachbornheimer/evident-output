@@ -114,7 +114,7 @@ type Output struct {
 	// I/O selects on. cancelRun trips it on interrupt and on Close, so no
 	// callback can outlive the run that owns it.
 	ctx       context.Context
-	cancelRun context.CancelFunc
+	cancelRun context.CancelCauseFunc
 	// schedCancelled stops the scheduler dispatching anything new: after an
 	// interrupt the queue is abandoned, not drained.
 	schedCancelled bool
@@ -495,7 +495,7 @@ func newOutput(subject string, options ...Option) *Output {
 		cfg.maxEvents = defaultMaxEvents
 	}
 	resolveGlyphProfileLocked(&cfg)
-	runCtx, cancelRun := context.WithCancel(context.Background())
+	runCtx, cancelRun := context.WithCancelCause(context.Background())
 	o := &Output{
 		cfg:        cfg,
 		outputID:   newRunID(),
@@ -925,7 +925,7 @@ func (o *Output) interrupt(why interruption) {
 	o.abandonQueuedWork()
 
 	if cancelRun != nil {
-		cancelRun()
+		cancelRun(why.err)
 	}
 }
 
@@ -2098,7 +2098,7 @@ func (o *Output) Close() error {
 	manifestStore := o.manifestStore
 	o.mu.Unlock()
 	if cancelRun != nil {
-		cancelRun()
+		cancelRun(nil)
 	}
 	if manifestStore != nil {
 		// Releases this Run's exclusive manifest lock (spec §11.3). Already
@@ -2109,8 +2109,9 @@ func (o *Output) Close() error {
 	return nil
 }
 
-// beginRunContext installs ctx (Run/evo.Run's own ctx parameter) as the
-// parent of this run's task scopes, replacing the context.Background()
+// beginRunContext installs ctx (Run's caller ctx, or an embedded Output's
+// callerScope over it — see scopeCaller) as the parent of this run's task
+// scopes, replacing the context.Background()
 // Init installed as a placeholder for Define/Verify calls made before any
 // Run. Every taskScopeHandle context (see withTaskScope) descends from
 // o.Context(), so without this a caller's Run(ctx, ...) cancellation or
@@ -2129,7 +2130,7 @@ func (o *Output) beginRunContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	runCtx, cancel := context.WithCancel(ctx)
+	runCtx, cancel := context.WithCancelCause(ctx)
 	o.mu.Lock()
 	previousCancel := o.cancelRun
 	o.ctx = runCtx
@@ -2137,7 +2138,7 @@ func (o *Output) beginRunContext(ctx context.Context) context.Context {
 	o.runSettling = false
 	o.mu.Unlock()
 	if previousCancel != nil {
-		previousCancel()
+		previousCancel(nil)
 	}
 	return runCtx
 }

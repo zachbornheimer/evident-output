@@ -1,11 +1,12 @@
-# Decision: Caller context end concludes cancelled
+# Decision: An embedded run's caller context end concludes cancelled
 
 **Status:** Accepted
 **Date:** 2026-09-23
-**IDs:** DEC-CANCEL-001 … DEC-CANCEL-004
+**IDs:** DEC-CANCEL-001 … DEC-CANCEL-006
 **Ticket:** ZYS-946 (spec §53)
 **Implementation:** `internal/engine/run.go` (`runInterruptible`),
-`internal/engine/run_interruption.go` (`callerWatch`, `settledLocked`)
+`internal/engine/run_interruption.go` (`scopeCaller`, `watchCaller`,
+`callerScope`, `settledLocked`)
 
 ## Context
 
@@ -24,8 +25,8 @@ When the caller's `ctx` ends, the run stops the same way ^C stops a CLI:
 running Tasks are marked cancelled, queued Tasks resolve `not_started`, and
 the Conclusion is `cancelled` with `ExitCancelled` (130).
 `Conclusion.Explanation` names the cause: `by caller` or
-`deadline exceeded`. This applies to every caller of `Run`, not only
-embedders. A CLI passing `context.Background()` is unaffected.
+`deadline exceeded`. This applies to `FormatExternal` Outputs only; see
+DEC-CANCEL-005.
 
 ### DEC-CANCEL-002: One ordered interrupt
 
@@ -51,10 +52,41 @@ concludes cancelled, even with no Task left running. The check and the
 record of "callback returned" happen under the Output's lock, so the
 answer does not depend on goroutine scheduling.
 
+### DEC-CANCEL-005: 1.2 scopes the change to `FormatExternal`
+
+Applied to every caller, DEC-CANCEL-001 is a breaking behavior change: a
+`Run`/`Output.Run` caller whose `ctx` ends would get exit 130 instead of
+2, and its queued Tasks would stop running. Semver forbids that in a minor
+release. So 1.2 applies DEC-CANCEL-001 … 004 only to an Output configured
+with `Format: FormatExternal` — the embedding format spec §53 introduces,
+whose callers have no 1.1 cancellation behavior to depend on. Every other
+format keeps the 1.1 contract exactly: Tasks receive the caller's `ctx`
+unchanged, and a Define that returns `ctx.Err()` fails its row (exit 2).
+
+Widening the rule to every format is a separate, breaking decision for a
+major release. It needs the maintainer's explicit sign-off; nothing in 1.2
+depends on it. The scope lives in one place: `Output.scopeCaller` and
+`Output.watchCaller` branch on the `embedded` config bit that
+`externalProjection` sets.
+
+### DEC-CANCEL-006: An embedded Task sees no caller deadline
+
+`callerScope` carries the caller's values but reports no deadline.
+Deadline-aware callees (a `net.Dialer` derives its connection deadline
+from `ctx.Deadline()`) would otherwise time out at the same instant the
+deadline's interrupt fires, and could fail their row before the interrupt
+marks it cancelled — the race DEC-CANCEL-002 exists to close. The run
+context is cancelled with a cause, so `context.Cause(taskCtx)` is
+`context.DeadlineExceeded` when the deadline stopped the run, while
+`taskCtx.Err()` is `context.Canceled`. A Task that needs its own budget
+sets one inside its Define. Pinned by
+`TestOutputRun_ExternalHidesCallerDeadlineFromTasks`.
+
 ## Consequences
 
-- A caller that relied on exit 2 for a cancelled `ctx` must branch on
-  `StateCancelled` / exit 130 instead. See
-  [`docs/migration/1.2.md`](../migration/1.2.md).
+- A `FormatExternal` caller that relied on exit 2 for a cancelled `ctx`
+  must branch on `StateCancelled` / exit 130 instead. See
+  [`docs/migration/1.2.md`](../migration/1.2.md). Other formats are
+  unchanged (`TestOutputRun_NonExternalCallerCancelKeeps11Verdict`).
 - `Result.Err` still carries whatever the run callback returned, so an
   embedder can tell work failure from cancellation.

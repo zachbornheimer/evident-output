@@ -8,11 +8,11 @@ func dataProjection() Option {
 }
 
 // ExternalProjection selects snapshot-only host rendering. The host embeds
-// the Output, so it also owns process signals: Run stops only through its
-// caller's context (spec §53).
+// the Output, so it also owns process signals, and Run stops only through
+// its caller's context (spec §53).
 func externalProjection() Option {
 	return optionFunc(func(c *config) {
 		c.plain = true
-		c.hostOwnsSignals = true
+		c.embedded = true
 	})
 }

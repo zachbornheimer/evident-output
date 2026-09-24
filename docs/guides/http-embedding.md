@@ -43,7 +43,10 @@ Package-level `evo.Task`, `evo.Group`, `evo.Sequence`, `evo.Fact`,
 `evo.Warn`, `evo.Print*`, and `evo.Confirm` always reach the package
 default, so inside an Isolated run they would put every request's work on
 one shared Output and leave the request's own document empty. The MCP
-reports that shape as API-062.
+reports that shape as API-062. Spec §53's sample writes
+`launchAgent(ctx, agent)`; the `*evo.Output` parameter is the recorded
+deviation that makes it work
+([`decisions/http-embedding-declaration-target.md`](../decisions/http-embedding-declaration-target.md)).
 
 `evo.File`, `evo.Effect`, and `evo.Exec` take the Define callback's `ctx`,
 so they already land on the right Output.
@@ -57,7 +60,12 @@ so they already land on the right Output.
   same way ^C stops a CLI: running Tasks are marked cancelled, queued Tasks
   never start, and the Conclusion is `cancelled` with exit code 130. Work
   already committed stays in the document's `effects`. Tasks see the
-  context's values and deadline.
+  context's values, but not its cancellation or deadline: both reach them
+  only through that interrupt, so a deadline-aware call (a `net.Dialer`)
+  cannot time out and fail its row first. `context.Cause(ctx)` in a Task
+  reports `context.DeadlineExceeded` when the budget ran out. This applies
+  to `FormatExternal` only; other formats pass the context through
+  unchanged.
 - **A cancel after the work is done changes nothing.** If the context ends
   after the run callback returned and every Task finished, the run keeps
   its own verdict.

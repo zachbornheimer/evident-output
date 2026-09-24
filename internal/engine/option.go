@@ -16,9 +16,10 @@ type config struct {
 	diagnostic io.Writer
 	result     io.Writer // domain payload (FormatData); never used for presentation
 	plain      bool
-	// hostOwnsSignals marks an embedded Output (external projection): its
-	// host, not Run, owns SIGINT/SIGTERM (spec §53).
-	hostOwnsSignals   bool
+	// embedded marks an Output a host drives (external projection, spec
+	// §53): the host owns SIGINT/SIGTERM, and the end of Run's ctx is the
+	// request ending — an interrupt, not a failure.
+	embedded          bool
 	projection        Projection
 	noColor           bool
 	width             int

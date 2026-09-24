@@ -13,11 +13,15 @@ for the decision record.
 No new public API. See [`docs/guides/http-embedding.md`](docs/guides/http-embedding.md)
 and `examples/launch-agent-http`.
 
-- **Breaking behavior: caller context end concludes `cancelled` (exit
-  130).** When the `ctx` passed to `Run`/`Output.Run` ends, running Tasks are marked cancelled,
-  queued Tasks never start, and `Conclusion.Explanation` is `by caller` or
-  `deadline exceeded`. Previously the run concluded `failed` (exit 2) with a
-  `context canceled` problem and let queued work keep running.
+- **`FormatExternal`: caller context end concludes `cancelled` (exit
+  130).** When the `ctx` passed to `Run`/`Output.Run` of a `FormatExternal`
+  Output ends, running Tasks are marked cancelled, queued Tasks never
+  start, and `Conclusion.Explanation` is `by caller` or
+  `deadline exceeded`. Tasks no longer see that `ctx`'s cancellation or
+  deadline directly; `context.Cause` on a Task's ctx reports
+  `context.DeadlineExceeded` when the deadline stopped the run. Every other
+  format keeps the 1.1 behavior exactly (the end of `ctx` fails the running
+  Define, exit 2), so no existing CLI caller changes in this minor release.
 - **A signal arriving after the run callback returns still stops the run.**
   SIGINT/SIGTERM were watched only until `run` returned, so in the ordinary
   shape — declare Tasks, return, let Define work execute during Finish — a

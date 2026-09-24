@@ -18,15 +18,28 @@ import (
 //	    os.Exit(out.Run(context.Background(), run).ExitCode())
 //	}
 //
-// ctx carries caller-driven cancellation into run in addition to the
-// SIGINT/SIGTERM wiring below; a nil ctx runs as context.Background().
+// A nil ctx runs as context.Background(). What the end of ctx means
+// depends on the Output (DEC-CANCEL-005):
+//   - an embedded (FormatExternal) Output treats ctx as its request
+//     lifecycle. Tasks never see ctx's cancellation or deadline directly;
+//     when ctx ends, the run is interrupted exactly as ^C interrupts a CLI
+//     (running Tasks cancelled, queued Tasks not_started). Such a run
+//     registers no SIGINT/SIGTERM handler — its host owns process signals.
+//   - every other Output passes ctx to its Tasks unchanged: a Define that
+//     returns ctx.Err() fails its row, and the run concludes failed.
 //
 // Lifecycle: arm first paint → run → (reconcile run error into model) →
-// Finish → Close.
+// Finish → Close. Signals and the caller's ctx are watched until the run
+// concludes, not only until run returns.
 //
 // Result.Conclusion.ExitCode:
 //   - nil Output → ExitFailed (2)
-//   - SIGINT/SIGTERM → Cancel on the active task (or the output) → ExitCancelled (130)
+//   - SIGINT/SIGTERM (non-embedded only) → Cancel on the active task (or
+//     the output) → ExitCancelled (130), cause "by user"
+//   - embedded Output whose ctx ends before its work finishes →
+//     ExitCancelled (130), cause "by caller" or "deadline exceeded"; a ctx
+//     that ends after the callback returned and every Task finished leaves
+//     the verdict unchanged (DEC-CANCEL-004)
 //   - a second SIGINT/SIGTERM → ExitCancelled (130) returned immediately, without
 //     waiting for run to unwind, so the caller's
 //     os.Exit(out.Run(...).ExitCode()) exits now
@@ -91,28 +104,24 @@ func Main(run RunFunc) int {
 	return Run(context.Background(), run).ExitCode()
 }
 
-// runInterruptible executes run to completion, turning SIGINT/SIGTERM and
-// the end of the caller's ctx into one ordered interrupt of the active
-// task (or the output itself) — and of the derived ctx passed to run — so
-// the ledger and exit code always agree. Both are watched until the run
-// concludes, not just until run returns: the ordinary shape declares
-// Tasks and returns, and their Define work executes while Finish waits.
-// A second signal returns ExitCancelled immediately instead of waiting for
-// the work to unwind — the process-level os.Exit that wraps a caller's
-// os.Exit(evo.Main(run)) is what actually terminates. An embedded
-// (FormatExternal) Output leaves signals to its host and stops only
-// through ctx (spec §53).
+// runInterruptible executes run to completion, turning SIGINT/SIGTERM
+// (non-embedded Outputs) and the end of an embedded Output's caller ctx
+// into one ordered interrupt of the active task (or the output itself) —
+// and of the run context passed to run — so the ledger and exit code
+// always agree. Both are watched until the run concludes, not just until
+// run returns: the ordinary shape declares Tasks and returns, and their
+// Define work executes while Finish waits. A second signal returns
+// ExitCancelled immediately instead of waiting for the work to unwind.
 func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 	// runCtx becomes o.Context() for the duration of this run (see
-	// beginRunContext): every Define/Verify task scope started from here
-	// on sees the caller's values and deadline, and is cancelled only by
-	// interrupt. It is installed before either watch starts, so the first
-	// interrupt — even one a pre-cancelled ctx fires at once — cancels
-	// this context rather than a placeholder it would then replace.
-	runCtx := out.beginRunContext(detachCancellation(ctx))
+	// beginRunContext). It is installed before either watch starts, so the
+	// first interrupt — even one a pre-cancelled ctx fires at once —
+	// cancels this context rather than a placeholder it would then replace
+	// (DEC-CANCEL-003).
+	runCtx := out.beginRunContext(out.scopeCaller(ctx))
 	signals := out.subscribeProcessSignals()
 	defer signals.stop()
-	caller := watchCaller(ctx, out)
+	caller := out.watchCaller(ctx)
 	defer caller.release()
 
 	var signalled atomic.Bool
