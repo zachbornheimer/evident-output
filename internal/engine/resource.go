@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/resource"
@@ -61,8 +62,14 @@ func (o *Output) holdResource(ctx context.Context, r Resource, mode resource.Mod
 // holds a claim (see refuseWaitUnderClaim).
 func runHoldingResource(held context.Context, fn func(context.Context) error) error {
 	holdingFrames.note()
+	heldClaims.Add(1)
+	defer heldClaims.Add(-1)
 	return fn(held)
 }
+
+// heldClaims counts the claims held across the process, so a Wait while
+// none is held skips reading its own stack.
+var heldClaims atomic.Int64
 
 // holdingFrames marks runHoldingResource (see frameMarker).
 var holdingFrames frameMarker
@@ -74,8 +81,8 @@ var holdingFrames frameMarker
 // could then move. Like a second acquisition, it is refused every time,
 // not only when it would actually conflict, so the outcome never depends
 // on timing. Wait takes no context, so the claim is read from the stack.
-func (o *Output) refuseWaitUnderClaim(ref string) error {
-	if holdingFrames.depth() == 0 {
+func (o *Output) refuseWaitUnderClaim(ref string, stack *waiterStack) error {
+	if !stack.holdsClaim() {
 		return nil
 	}
 	return fmt.Errorf("%w: Wait on %q while holding a resource claim", ErrNestedResourceAcquisition, o.refName(ref))

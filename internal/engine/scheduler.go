@@ -304,7 +304,7 @@ var callbackFrames frameMarker
 // callbackDepth counts the task callbacks the calling goroutine is
 // currently inside: zero for a plain caller, one for a callback, more when
 // a waiter donated its goroutine to nested work before parking.
-func callbackDepth() int { return callbackFrames.depth() }
+func callbackDepth() int { return readStackMarks().callbacks }
 
 // beginWait registers this goroutine's park and re-tests the run: a newly
 // parked waiter may be the last thing that could have moved it.
@@ -776,18 +776,20 @@ func (t *TaskHandle) Wait() error {
 	if t == nil || t.out == nil {
 		return nil
 	}
-	if err := t.out.refuseWaitUnderClaim(t.id); err != nil {
+	var stack waiterStack
+	if err := t.out.refuseWaitUnderClaim(t.id, &stack); err != nil {
 		return err
 	}
-	return t.waitChecked(callbackDepth())
+	return t.waitChecked(&stack)
 }
 
-// waitChecked is Wait after its caller already refused a held claim and
-// read its own callbackDepth — one stack walk per Wait call, however many
-// Tasks a Group or Sequence Wait then waits on (see waitDescendants).
-func (t *TaskHandle) waitChecked(depth int) error {
+// waitChecked is Wait after its caller already refused a held claim. stack
+// is shared by every Task a Group or Sequence Wait waits on (see
+// waitDescendants), so one Wait walks its stack at most once, and not at
+// all unless a claim is held somewhere or it actually parks.
+func (t *TaskHandle) waitChecked(stack *waiterStack) error {
 	t.out.runWaitedWork(t.id)
-	if !t.waitSubmitted(depth) {
+	if !t.waitSubmitted(stack) {
 		return t.out.unreachableWaitOutcome(t.id)
 	}
 	return t.out.waitOutcome(t.id)
@@ -860,7 +862,7 @@ func failedWaitOutcome(summary string) error {
 // False means the scheduler proved the wait could never be satisfied and
 // released the caller instead of letting it hang (see
 // releaseUnsatisfiableWaits).
-func (t *TaskHandle) waitSubmitted(depth int) bool {
+func (t *TaskHandle) waitSubmitted(stack *waiterStack) bool {
 	if t == nil || t.out == nil {
 		return true
 	}
@@ -882,7 +884,7 @@ func (t *TaskHandle) waitSubmitted(depth int) bool {
 	if ch == nil {
 		return true
 	}
-	ticket := o.beginWait(t.id, depth)
+	ticket := o.beginWait(t.id, stack.callbackDepth())
 	defer o.endWait(ticket)
 	select {
 	case <-ch:

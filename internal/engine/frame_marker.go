@@ -5,10 +5,10 @@ import (
 	"sync/atomic"
 )
 
-// frameMarker lets a goroutine count, on its own stack and without asking
-// who it is, how many times it is currently beneath one marked function. Go
-// has no goroutine-scoped storage, and Wait takes no context, so the stack
-// is the only place "this goroutine is inside a callback" or "this goroutine
+// frameMarker names one marked function, so a goroutine can count, on its
+// own stack and without asking who it is, how many times it is currently
+// beneath it (see readStackMarks). Go has no goroutine-scoped storage, and
+// Wait takes no context, so the stack is the only place "this goroutine is inside a callback" or "this goroutine
 // holds a resource claim" can be read from.
 //
 // The marked function calls note first thing. The marker learns that
@@ -41,28 +41,76 @@ func (m *frameMarker) note() {
 // missed frame would under-count and, for callbacks, call a live run dead.
 const stackSampleFrames = 64
 
-// depth counts the marked frames on the calling goroutine's stack.
-func (m *frameMarker) depth() int {
-	name := m.name.Load()
-	if name == nil {
-		return 0
-	}
+// walkStack calls visit with the function name of every frame on the
+// calling goroutine's stack, below walkStack's own caller.
+func walkStack(visit func(function string)) {
 	for size := stackSampleFrames; ; size *= 2 {
 		pcs := make([]uintptr, size)
-		n := runtime.Callers(2, pcs)
+		n := runtime.Callers(3, pcs)
 		if n == size {
 			continue
 		}
-		depth := 0
 		frames := runtime.CallersFrames(pcs[:n])
 		for {
 			frame, more := frames.Next()
-			if frame.Function == *name {
-				depth++
-			}
+			visit(frame.Function)
 			if !more {
-				return depth
+				return
 			}
 		}
 	}
 }
+
+// stackMarks is what one walk of a goroutine's stack reports: how many task
+// callbacks it is inside (runCallback) and how many resource claims it
+// holds (runHoldingResource).
+type stackMarks struct {
+	callbacks int
+	claims    int
+}
+
+// readStackMarks counts both marks in a single walk, and walks nothing when
+// neither marked function has run yet.
+func readStackMarks() stackMarks {
+	callback, holding := callbackFrames.name.Load(), holdingFrames.name.Load()
+	var m stackMarks
+	if callback == nil && holding == nil {
+		return m
+	}
+	walkStack(func(function string) {
+		switch {
+		case callback != nil && function == *callback:
+			m.callbacks++
+		case holding != nil && function == *holding:
+			m.claims++
+		}
+	})
+	return m
+}
+
+// waiterStack reads a waiting goroutine's stack marks at most once, and
+// only when an answer needs them: a Wait on already-settled work while no
+// claim is held anywhere in the process walks nothing.
+type waiterStack struct {
+	read  bool
+	marks stackMarks
+}
+
+func (w *waiterStack) load() stackMarks {
+	if !w.read {
+		w.marks = readStackMarks()
+		w.read = true
+	}
+	return w.marks
+}
+
+// holdsClaim reports whether the waiting goroutine holds a resource claim.
+func (w *waiterStack) holdsClaim() bool {
+	if heldClaims.Load() == 0 {
+		return false
+	}
+	return w.load().claims > 0
+}
+
+// callbackDepth is how many task callbacks the waiting goroutine is inside.
+func (w *waiterStack) callbackDepth() int { return w.load().callbacks }

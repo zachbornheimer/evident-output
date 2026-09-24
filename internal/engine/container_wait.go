@@ -21,10 +21,11 @@ func (g *GroupHandle) Wait() error {
 	if g == nil || g.out == nil {
 		return nil
 	}
-	if err := g.out.refuseWaitUnderClaim(g.id); err != nil {
+	var stack waiterStack
+	if err := g.out.refuseWaitUnderClaim(g.id, &stack); err != nil {
 		return err
 	}
-	return waitDescendants(g.out.collectDescendantTasks(g.id))
+	return waitDescendants(g.out.collectDescendantTasks(g.id), &stack)
 }
 
 // Wait is Sequence's counterpart to GroupHandle.Wait: the ordered container
@@ -95,16 +96,15 @@ func appendDescendantTasksLocked(col *tasksState, out []*taskState) []*taskState
 // execution: each was already submitted to the scheduler before Wait was
 // called, so this loop only blocks on outcomes concurrent work is already
 // free to produce.
-func waitDescendants(states []*taskState) error {
+func waitDescendants(states []*taskState, stack *waiterStack) error {
 	var errs []error
 	var notStarted error
-	depth := callbackDepth()
 	for _, st := range states {
 		h := st.handle
 		if h == nil || h.out == nil {
 			continue
 		}
-		err := h.waitChecked(depth)
+		err := h.waitChecked(stack)
 		switch {
 		case err == nil:
 		case errors.Is(err, ErrNotStarted):
