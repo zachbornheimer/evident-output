@@ -33,18 +33,22 @@ func Dim(s string, color bool) string {
 	return Style(s, SGRDim, color)
 }
 
-// PadRight right-pads s with spaces to width n.
+// PadRight right-pads s with spaces to display width n, measured in
+// terminal cells (Cells), not bytes — a wide-glyph (CJK, emoji) subject
+// pads to the same visual column as an ASCII one of equal cell width.
 func PadRight(s string, n int) string {
-	if len(s) >= n {
+	w := Cells(s)
+	if w >= n {
 		return s
 	}
-	return s + strings.Repeat(" ", n-len(s))
+	return s + strings.Repeat(" ", n-w)
 }
 
-// PadLeft left-pads s with spaces to width n.
+// PadLeft left-pads s with spaces to display width n (see PadRight).
 func PadLeft(s string, n int) string {
-	if len(s) >= n {
+	w := Cells(s)
+	if w >= n {
 		return s
 	}
-	return strings.Repeat(" ", n-len(s)) + s
+	return strings.Repeat(" ", n-w) + s
 }

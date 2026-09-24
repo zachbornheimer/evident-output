@@ -148,7 +148,7 @@ func maxEffectSubjectWidth[T any](sections []T, subjectOf func(T) string) int {
 	}
 	width := 0
 	for _, s := range sections {
-		if n := len([]rune(subjectOf(s))); n > width {
+		if n := txt.Cells(subjectOf(s)); n > width {
 			width = n
 		}
 	}
@@ -1041,10 +1041,14 @@ func WriteEffects(b *strings.Builder, kind, subject string, nameWidth int, recor
 	// onto one line would lose which quantity/object belongs to which verb.
 	if len(visible) == 1 && len(visible) <= maxVisibleEffectRows {
 		r := visible[0]
-		// taskNameColumnMargin: this collapsed one-row-per-subject form is
-		// measured against the same fixture-repo-retire-dryrun.md ledger rows
-		// as the task-row inline annotations, so it carries the same margin.
-		name := txt.PadRight(subject, nameWidth+taskNameColumnMargin)
+		// Contract §18: pad the subject to the max display width of the
+		// aligned block, then exactly two literal spaces before the verb —
+		// no taskNameColumnMargin here. That margin exists so a task-row's
+		// own inline annotation clears the ledger's leader dots; the
+		// collapsed Effect line has no such neighbor to clear, and adding
+		// it produced a third space (byte drift from the canonical
+		// zq-prune §18 fixture: "[planned] branches         delete ...").
+		name := txt.PadRight(subject, nameWidth)
 		if r.HasQty {
 			fmt.Fprintf(b, "%s %s  %s %d %s\n", tag, name, r.Verb, r.Quantity, ledgerObject(r))
 		} else {
