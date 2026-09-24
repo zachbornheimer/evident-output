@@ -49,7 +49,7 @@ func (t *TaskHandle) submitWork(fn func() error) {
 	}
 	// §48: a predecessor that already failed settles this Task NotStarted
 	// right here, under the same lock.
-	o.placeLocked(st)
+	o.placeLocked(st, scanAll)
 	o.mu.Unlock()
 	o.kick()
 }
@@ -83,7 +83,7 @@ func (o *Output) nextEligibleLocked() *taskState {
 			return st
 		}
 		o.sched.queue.dropHead()
-		o.placeLocked(st)
+		o.placeLocked(st, scanToBlocker)
 	}
 }
 

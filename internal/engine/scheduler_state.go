@@ -35,4 +35,7 @@ type scheduler struct {
 	// cancelled stops dispatching anything new: after an interrupt the
 	// queue is abandoned, not drained.
 	cancelled bool
+	// predChecks counts predecessor outcomes read, so a test can prove
+	// fan-in scheduling stays linear.
+	predChecks int
 }

@@ -165,3 +165,37 @@ func TestFanInSchedulingIsLinear(t *testing.T) {
 		t.Errorf("fan-in examined %d queue entries for %d Tasks (want <= %d)", visits, 2*n, scheduleVisitsPerTask*2*n)
 	}
 }
+
+// fanInTasks declares n Tasks and one more After every one of them — the
+// After(t1…tn) shape. It returns the predecessor outcomes scheduling read.
+func fanInTasks(tb testing.TB, n int) int {
+	tb.Helper()
+	out := Init(Config{Isolated: true, StateDir: tb.TempDir(), Stdout: io.Discard, Stderr: io.Discard, MaxConcurrency: 1})
+	defer func() { _ = out.Close() }()
+	preds := make([]any, n)
+	for i := range preds {
+		preds[i] = out.Task(fmt.Sprintf("item %d", i)).Define(func(context.Context) error { return nil })
+	}
+	if err := out.Task("fan-in").After(preds...).Define(func(context.Context) error { return nil }).Wait(); err != nil {
+		tb.Fatalf("Wait: %v", err)
+	}
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	return out.sched.predChecks
+}
+
+// TestFanInOverTasksIsLinear guards After(t1…tn): each time one
+// predecessor settled, the waiting Task used to reread every predecessor
+// from the first, Done ones included (n=32000: 14.7s).
+func TestFanInOverTasksIsLinear(t *testing.T) {
+	const n = 2000
+	checks := fanInTasks(t, n)
+	t.Logf("fan-in over Tasks: n=%d predecessor checks=%d", n, checks)
+	if checks > predChecksPerPredecessor*n {
+		t.Errorf("fan-in read %d predecessor outcomes for %d predecessors (want <= %d)", checks, n, predChecksPerPredecessor*n)
+	}
+}
+
+// predChecksPerPredecessor bounds how often scheduling reads one
+// predecessor's outcome: a constant, never once per sibling that settles.
+const predChecksPerPredecessor = 4

@@ -156,26 +156,58 @@ func (o *Output) collectionOutcomeLocked(c *tasksState) predOutcome {
 	}
 }
 
+// predScan says how far predsOutcomeLocked reads a Task's predecessors.
+type predScan uint8
+
+const (
+	// scanToBlocker stops at the first predecessor still pending. The
+	// Task parks on that one and reads again only once it settles, so a
+	// predecessor further on that fails meanwhile is found then.
+	scanToBlocker predScan = iota
+	// scanAll reads every predecessor, so one that already failed settles
+	// the Task NotStarted at once (§48).
+	scanAll
+)
+
 // predsOutcomeLocked folds st's predecessors into one outcome and, while
 // that outcome is pending, the first predecessor still pending.
-func (o *Output) predsOutcomeLocked(st *taskState) (predOutcome, predecessor) {
+//
+// It forgets each Task predecessor it finds succeeded: a terminal state
+// never reverts, and rereading it on every wake would make fan-in over n
+// Tasks cost n² reads. A collection predecessor is kept, because a newly
+// declared member can make it pending again.
+func (o *Output) predsOutcomeLocked(st *taskState, scan predScan) (predOutcome, predecessor) {
 	verdict, blocker := predSucceeded, predecessor{}
-	for _, p := range st.sched.preds {
-		switch o.outcomeLocked(p) {
-		case predFailed:
-			return predFailed, p
-		case predPending:
-			if verdict == predSucceeded {
-				verdict, blocker = predPending, p
-			}
-		case predSucceeded:
+	preds := st.sched.preds
+	kept := preds[:0]
+	i := 0
+	for ; i < len(preds); i++ {
+		p := preds[i]
+		o.sched.predChecks++
+		out := o.outcomeLocked(p)
+		if out == predFailed {
+			verdict, blocker = predFailed, p
+			break
+		}
+		if out == predPending && verdict == predSucceeded {
+			verdict, blocker = predPending, p
+		}
+		if out != predSucceeded || p.task == nil {
+			kept = append(kept, p)
+		}
+		if verdict == predPending && scan == scanToBlocker {
+			i++
+			break
 		}
 	}
+	kept = append(kept, preds[i:]...)
+	clear(preds[len(kept):])
+	st.sched.preds = kept
 	return verdict, blocker
 }
 
 func (o *Output) eligibleLocked(st *taskState) bool {
-	verdict, _ := o.predsOutcomeLocked(st)
+	verdict, _ := o.predsOutcomeLocked(st, scanToBlocker)
 	return verdict == predSucceeded
 }
 
@@ -192,9 +224,10 @@ func (o *Output) enterPhaseLocked(st *taskState, phase schedPhase) {
 
 // placeLocked routes submitted st by what its predecessors say: queued
 // when all succeeded, parked on the first one still pending, and settled
-// NotStarted when one can never succeed. st must not be in the queue.
-func (o *Output) placeLocked(st *taskState) {
-	verdict, blocker := o.predsOutcomeLocked(st)
+// NotStarted when one can never succeed. scan says how far it reads them.
+// st must not be in the queue.
+func (o *Output) placeLocked(st *taskState, scan predScan) {
+	verdict, blocker := o.predsOutcomeLocked(st, scan)
 	switch verdict {
 	case predSucceeded:
 		o.enterPhaseLocked(st, phaseQueued)
@@ -235,7 +268,7 @@ func (o *Output) drainWokenLocked() {
 		st := o.sched.woken[i]
 		o.sched.woken[i] = nil
 		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state) {
-			o.placeLocked(st)
+			o.placeLocked(st, scanToBlocker)
 		}
 	}
 	o.sched.woken = o.sched.woken[:0]
@@ -284,7 +317,7 @@ func (o *Output) replaceParkedLocked() {
 	}
 	for _, st := range parked {
 		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state) {
-			o.placeLocked(st)
+			o.placeLocked(st, scanAll)
 		}
 	}
 }
