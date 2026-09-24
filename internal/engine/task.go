@@ -27,6 +27,26 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	if len(args) > 0 {
 		text = fmt.Sprintf(text, args...)
 	}
+	return t.annotate(func(st *taskState) { t.out.setPhaseLocked(st, text) })
+}
+
+// resolvedByInterrupt reports whether this state was reached by the
+// interrupt sweep rather than by the caller. Narrating such a row is not
+// misuse: cancellation resolves it underneath whoever was reporting on it,
+// and a worker already inside its per-item step had no way to prevent the
+// one straggling update that follows. Blaming the caller for the interrupt's
+// own timing put a misuse warning at the top of every interrupted ledger.
+func resolvedByInterrupt(state EntityState) bool {
+	return state == Cancelled || state == NotStarted
+}
+
+// annotate is the one guard every non-terminal annotation verb (Doing,
+// Progress, Bytes, Step, Summary, Warn, Problem, Fact) shares: under o.mu,
+// it applies apply to the task's state only while the task is open. On a
+// closed Output it records that misuse; on a terminal row it records
+// ErrAlreadyResolved, unless the interrupt sweep resolved the row (see
+// resolvedByInterrupt). It returns t so each verb can chain.
+func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -43,18 +63,8 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 		}
 		return t
 	}
-	t.out.setPhaseLocked(st, text)
+	apply(st)
 	return t
-}
-
-// resolvedByInterrupt reports whether this state was reached by the
-// interrupt sweep rather than by the caller. Narrating such a row is not
-// misuse: cancellation resolves it underneath whoever was reporting on it,
-// and a worker already inside its per-item step had no way to prevent the
-// one straggling update that follows. Blaming the caller for the interrupt's
-// own timing put a misuse warning at the top of every interrupted ledger.
-func resolvedByInterrupt(state EntityState) bool {
-	return state == Cancelled || state == NotStarted
 }
 
 // setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
@@ -69,23 +79,7 @@ func resolvedByInterrupt(state EntityState) bool {
 // finding 4). Step is the same shape: Isolated+Plain must not stream a
 // durable line per unique item name.
 func (t *TaskHandle) setLiveOnlyPhase(text string) {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return
-	}
-	if core.IsTerminalTask(st.state) {
-		if !resolvedByInterrupt(st.state) {
-			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		}
-		return
-	}
-	t.out.setLiveOnlyPhaseLocked(st, text)
+	t.annotate(func(st *taskState) { t.out.setLiveOnlyPhaseLocked(st, text) })
 }
 
 // setPhaseLocked is Phase's locked body, factored out so a caller already
@@ -151,24 +145,7 @@ func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
 }
 
 func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *TaskHandle {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		if !resolvedByInterrupt(st.state) {
-			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		}
-		return t
-	}
-	t.applyProgressLocked(st, completed, total, kind)
-	return t
+	return t.annotate(func(st *taskState) { t.applyProgressLocked(st, completed, total, kind) })
 }
 
 // applyProgressLocked reports whether the update was applied — false means a
@@ -225,26 +202,11 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 // line per unique name (thinned progress milestones still emit). Doing
 // remains the durable narrated-beat path.
 func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		if !resolvedByInterrupt(st.state) {
-			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+	return t.annotate(func(st *taskState) {
+		if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
+			t.out.setLiveOnlyPhaseLocked(st, name)
 		}
-		return t
-	}
-	if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
-		t.out.setLiveOnlyPhaseLocked(st, name)
-	}
-	return t
+	})
 }
 
 // succeed resolves the task Done with summary: the engine's synchronous
@@ -270,26 +232,13 @@ func (t *TaskHandle) succeed(summary string) {
 // Next/NextCommand already had); summary itself is never Sprintf-formatted.
 func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		return t
-	}
-	st.warnings = append(st.warnings, p)
-	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
-	t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, map[string]any{"summary": p.Summary})
-	t.out.signalLiveLocked(true)
-	return t
+	return t.annotate(func(st *taskState) {
+		st.warnings = append(st.warnings, p)
+		t.out.bumpLocked()
+		t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
+		t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, map[string]any{"summary": p.Summary})
+		t.out.signalLiveLocked(true)
+	})
 }
 
 // Summary sets non-terminal result metadata for the task's successful
@@ -305,27 +254,12 @@ func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
 // rather than a silent no-op. GroupHandle.Summary is the same shape one
 // level up (internal/engine/group.go).
 func (t *TaskHandle) Summary(text string) *TaskHandle {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		if !resolvedByInterrupt(st.state) {
-			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		}
-		return t
-	}
-	st.summary = txt.Text(text)
-	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task.summary_set", EntityID: t.id})
-	t.out.signalLiveLocked(true)
-	return t
+	return t.annotate(func(st *taskState) {
+		st.summary = txt.Text(text)
+		t.out.bumpLocked()
+		t.out.appendEventLocked(Event{Type: "task.summary_set", EntityID: t.id})
+		t.out.signalLiveLocked(true)
+	})
 }
 
 // Problem appends one blocking/error Problem to the task (1.1/ZYS-848, new
@@ -344,26 +278,13 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 // calls chain: task.Problem(...).Problem(...).
 func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		return t
-	}
-	st.pendingProblems = append(st.pendingProblems, p)
-	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
-	t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, map[string]any{"summary": p.Summary})
-	t.out.signalLiveLocked(true)
-	return t
+	return t.annotate(func(st *taskState) {
+		st.pendingProblems = append(st.pendingProblems, p)
+		t.out.bumpLocked()
+		t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
+		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, map[string]any{"summary": p.Summary})
+		t.out.signalLiveLocked(true)
+	})
 }
 
 // Fact accumulates a discovered name/value annotation on the task — info
@@ -374,24 +295,12 @@ func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle 
 // task — call it any number of times before the task's terminal verb.
 func (t *TaskHandle) Fact(name, value string) {
 	f := core.SanitizeFact(FactRecord{Name: txt.Text(name), Value: txt.Text(value)})
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return
-	}
-	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		return
-	}
-	st.facts = append(st.facts, f)
-	t.out.bumpLocked()
-	t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, map[string]any{"name": f.Name, "value": f.Value})
-	t.out.signalLiveLocked(true)
+	t.annotate(func(st *taskState) {
+		st.facts = append(st.facts, f)
+		t.out.bumpLocked()
+		t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, map[string]any{"name": f.Name, "value": f.Value})
+		t.out.signalLiveLocked(true)
+	})
 }
 
 // Fail resolves the task as failed. This is a statement, not a fluent
