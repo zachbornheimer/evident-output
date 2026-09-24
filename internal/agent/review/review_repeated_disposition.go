@@ -4,11 +4,13 @@
 // group.Task(item).Kept(reason); the renderer folds those children into
 // one tally under the Group's row (contract §25).
 //
-// Detection is structural. A disposition call repeats when its receiver
-// (a plain identifier or selector, never a call such as group.Task(x))
-// either:
+// Detection is structural. A disposition call counts only when its
+// receiver certainly holds an evo Task (see taskBindings) and is a plain
+// identifier or selector, never a call such as group.Task(x). It repeats
+// when that receiver either:
 //   - sits inside a loop that did not bind it (by :=, =, var, or range),
-//     so it runs once per iteration on one Task; or
+//     so it runs once per iteration on one Task, unless its block leaves
+//     the loop (see loopExits); or
 //   - already received a disposition call earlier in the same statement
 //     list, with no assignment rebinding it in between, so both run in
 //     sequence on one Task.
@@ -29,7 +31,12 @@ var dispositionMethods = map[string]bool{"Kept": true, "Skipped": true}
 
 // detectRepeatedDisposition is API-062.
 func detectRepeatedDisposition(filename string, file *ast.File, fset *token.FileSet) []Finding {
-	scan := repeatedDispositionScan{filename: filename, fset: fset, reported: map[token.Pos]bool{}}
+	scan := repeatedDispositionScan{
+		filename: filename,
+		fset:     fset,
+		tasks:    newTaskBindings(file, evoImportName(file)),
+		reported: map[token.Pos]bool{},
+	}
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.BlockStmt:
@@ -49,6 +56,7 @@ func detectRepeatedDisposition(filename string, file *ast.File, fset *token.File
 type repeatedDispositionScan struct {
 	filename string
 	fset     *token.FileSet
+	tasks    taskBindings
 	reported map[token.Pos]bool
 	findings []Finding
 }
@@ -68,7 +76,7 @@ func (s *repeatedDispositionScan) visitStatementList(stmts []ast.Stmt) {
 		if !ok {
 			continue
 		}
-		call, recv, ok := dispositionCall(expr.X)
+		call, recv, ok := s.dispositionCall(expr.X)
 		if !ok {
 			continue
 		}
@@ -80,10 +88,11 @@ func (s *repeatedDispositionScan) visitStatementList(stmts []ast.Stmt) {
 }
 
 // visitLoop flags a disposition call anywhere in body whose receiver the
-// loop itself (its header or its body) did not bind. A nested loop is its
-// own scope: detectRepeatedDisposition visits it separately, against its
-// own bindings.
+// loop itself (its header or its body) did not bind, unless its block
+// leaves the loop. A nested loop is its own scope: detectRepeatedDisposition
+// visits it separately, against its own bindings.
 func (s *repeatedDispositionScan) visitLoop(body *ast.BlockStmt, header ast.Node) {
+	exits := newLoopExits(body)
 	bound := boundNames(body)
 	if header != nil {
 		for name := range boundNames(header) {
@@ -97,8 +106,8 @@ func (s *repeatedDispositionScan) visitLoop(body *ast.BlockStmt, header ast.Node
 		if isLoop(n) {
 			return false
 		}
-		call, recv, ok := dispositionCall(n)
-		if ok && !bound[rootIdent(call.Fun.(*ast.SelectorExpr).X)] {
+		call, recv, ok := s.dispositionCall(n)
+		if ok && !bound[rootIdent(call.Fun.(*ast.SelectorExpr).X)] && !exits.RunsOnce(call) {
 			s.report(call, recv)
 		}
 		return true
@@ -124,15 +133,16 @@ func (s *repeatedDispositionScan) report(call *ast.CallExpr, recv string) {
 }
 
 // dispositionCall reports whether n is recv.Kept(reason) or
-// recv.Skipped(reason) on a named receiver (never a call such as
-// group.Task(item), which is a fresh Task each time).
-func dispositionCall(n ast.Node) (*ast.CallExpr, string, bool) {
+// recv.Skipped(reason) on a named receiver that certainly holds an evo
+// Task (never a call such as group.Task(item), which is a fresh Task each
+// time, and never another type's Kept/Skipped).
+func (s *repeatedDispositionScan) dispositionCall(n ast.Node) (*ast.CallExpr, string, bool) {
 	call, ok := n.(*ast.CallExpr)
 	if !ok || len(call.Args) != 1 {
 		return nil, "", false
 	}
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || !dispositionMethods[sel.Sel.Name] || rootIdent(sel.X) == "" {
+	if !ok || !dispositionMethods[sel.Sel.Name] || rootIdent(sel.X) == "" || !s.tasks.IsTask(sel.X) {
 		return nil, "", false
 	}
 	return call, types.ExprString(sel.X), true

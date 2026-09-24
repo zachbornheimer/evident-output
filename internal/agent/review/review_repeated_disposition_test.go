@@ -161,3 +161,87 @@ func define(groups map[string][]string, reason evo.ReasonValue) {
 func TestAPI062_NestedLoopOneTask_Fires(t *testing.T) {
 	findingByID(t, review.GoSource("nested.go", nestedRepeatSrc), "API-062")
 }
+
+// A disposition call in a block that leaves the loop (return, goto, or a
+// break out of the loop itself) runs at most once, however many items the
+// loop visits.
+const dispositionThenLeaveLoopSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(task *evo.TaskHandle, repos []repo) error {
+	for _, r := range repos {
+		if r.Dirty {
+			task.Kept(evo.Reason("dirty"))
+			return nil
+		}
+	}
+	for _, r := range repos {
+		if r.Protected {
+			if r.Main {
+				task.Skipped(evo.Reason("protected"))
+			}
+			break
+		}
+	}
+	for _, r := range repos {
+		if r.Locked {
+			task.Skipped(evo.Reason("locked"))
+			goto done
+		}
+	}
+done:
+	return nil
+}
+`
+
+func TestAPI062_DispositionThenLeaveLoop_Silent(t *testing.T) {
+	assertNoFinding(t, review.GoSource("leave.go", dispositionThenLeaveLoopSrc), "API-062")
+}
+
+// A break inside a switch leaves only the switch, so the loop still runs
+// the disposition once per item.
+const dispositionThenBreakSwitchSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(task *evo.TaskHandle, repos []repo) {
+	for _, r := range repos {
+		switch {
+		case r.Dirty:
+			task.Kept(evo.Reason("dirty"))
+			break
+		}
+	}
+}
+`
+
+func TestAPI062_DispositionThenBreakSwitch_Fires(t *testing.T) {
+	findingByID(t, review.GoSource("switch.go", dispositionThenBreakSwitchSrc), "API-062")
+}
+
+// Kept/Skipped on a type that is not an evo Task, in a file that imports
+// evo, is someone else's method.
+const nonTaskDispositionSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+type tally struct{ kept, skipped int }
+
+func (t *tally) Kept(n int)    { t.kept += n }
+func (t *tally) Skipped(n int) { t.skipped += n }
+
+func count(out *evo.Output, repos []repo) {
+	var stats tally
+	for _, r := range repos {
+		stats.Kept(r.Weight)
+	}
+	stats.Skipped(1)
+	stats.Skipped(2)
+	_ = out.Task("count")
+}
+`
+
+func TestAPI062_NonTaskReceiver_Silent(t *testing.T) {
+	assertNoFinding(t, review.GoSource("tally.go", nonTaskDispositionSrc), "API-062")
+}
