@@ -94,26 +94,18 @@ func mergedExecEnv(overrides map[string]string) []string {
 	return env
 }
 
-// execCapture is spawnExec's captured process output, read back from the
-// same evidence ring Exec already retains (sanitized/redacted, bounded) —
-// never a second unbounded copy — so execRunAndRecord can hand it to the
-// caller as ExecResult.Stdout/Stderr/Truncated.
-type execCapture struct {
-	Stdout    string
-	Stderr    string
-	Truncated bool
-}
-
 // spawnExec wires one Exec spawn's capture: stdout/stderr both feed the
 // task's evidence ring (sanitized, redacted, bounded), and each completed
 // line becomes the task's current Doing activity (spec §23) — never parsed
 // for totals, only narrated. Cancelling ctx kills the child (ProcessRunner's
 // contract); Close flushes any trailing partial line into evidence before
-// execCapture reads it back. A spawn or evidence-flush failure is wrapped
+// the result reads it back. The returned ExecResult's Stdout/Stderr come
+// from that same evidence ring (sanitized, redacted, bounded), never a
+// second unbounded copy; it is zero-valued alongside a spawn error. A spawn or evidence-flush failure is wrapped
 // with the resolved executable path here (rather than left bare) since the
 // caller's own wrap only knows ExecSpec.Executable, not the path Evo
 // actually resolved and tried to run.
-func (o *Output) spawnExec(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (ProcessOutcome, execCapture, error) {
+func (o *Output) spawnExec(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (ExecResult, error) {
 	task := &TaskHandle{out: o, id: taskID}
 	ev := task.evidence(activityFeed(func(line string) { task.Doing(line) }))
 
@@ -129,13 +121,14 @@ func (o *Output) spawnExec(ctx context.Context, taskID string, spec ExecSpec, ta
 	if closeErr := ev.Close(); closeErr != nil && runErr == nil {
 		runErr = fmt.Errorf("flush evidence: %w", closeErr)
 	}
-	capture := execCapture{
+	if runErr != nil {
+		return ExecResult{}, fmt.Errorf("spawn %q: %w", target.ExecutablePath, runErr)
+	}
+	return ExecResult{
+		Ran:       true,
+		ExitCode:  outcome.ExitCode,
 		Stdout:    ev.streamText(EvidenceStreamStdout),
 		Stderr:    ev.streamText(EvidenceStreamStderr),
 		Truncated: ev.wasTruncated(),
-	}
-	if runErr != nil {
-		return ProcessOutcome{}, capture, fmt.Errorf("spawn %q: %w", target.ExecutablePath, runErr)
-	}
-	return outcome, capture, nil
+	}, nil
 }
