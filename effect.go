@@ -34,6 +34,10 @@ type EffectSpec = engine.EffectSpec
 // invokes fn with ctx (the scheduler-owned context) and records the changed
 // Effect only when fn returns nil; fn's error is returned unchanged.
 //
+// When fn committed part of the aggregate before failing, it returns
+// PartialEffect(committed, err): Effect records the committed subset as
+// changed and still returns err, so the Task fails over a truthful ledger.
+//
 // When spec.Resource is set, Effect holds it for writing while fn runs,
 // waiting out any overlapping claim first. The claim is process-local; fn
 // receives the holding context, so tracked work inside fn that needs a
@@ -49,3 +53,20 @@ var (
 	ErrEffectQuantityNotPositive = engine.ErrEffectQuantityNotPositive
 	ErrEffectCallbackMissing     = engine.ErrEffectCallbackMissing
 )
+
+// PartialEffect is the error an Effect callback returns when committed of
+// the requested EffectSpec.Quantity really happened before err stopped the
+// rest. Effect records one changed Effect with the spec's Verb and Object
+// and Quantity=committed (none when committed is 0), then returns an error
+// that keeps err reachable through errors.Is and errors.As, so the Task
+// fails. err must be non-nil and 0 <= committed <= spec.Quantity; anything
+// else makes Effect return ErrInvalidPartialEffect and record nothing.
+// Dry runs never invoke the callback, so PartialEffect cannot arise there.
+// It is not a retry protocol and implies no rollback.
+func PartialEffect(committed int, err error) error {
+	return engine.PartialEffect(committed, err)
+}
+
+// ErrInvalidPartialEffect reports a PartialEffect with a nil cause, a
+// negative committed count, or more committed than the Effect requested.
+var ErrInvalidPartialEffect = engine.ErrInvalidPartialEffect

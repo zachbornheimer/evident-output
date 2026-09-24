@@ -63,7 +63,9 @@ var (
 // (ctx must come from one; see taskScope). A dry run records one planned
 // Effect and never invokes fn. An apply run invokes fn with ctx — the
 // scheduler-owned context — and records the changed Effect only when fn
-// returns nil; fn's error is returned unchanged so Define can return it. A
+// returns nil; fn's error is returned unchanged so Define can return it,
+// except that a PartialEffect records its committed subset first (see
+// recordPartialEffect) and an invalid one wraps ErrInvalidPartialEffect. A
 // callback that resolved its own task as anything but Done (Skipped, Fail,
 // Block) disowned the work, so nothing reaches the ledger (see
 // deniesItsOwnEffect).
@@ -90,7 +92,7 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 			return task.out.performEffect(ctx, spec.Resource, fn)
 		})
 		if err != nil {
-			return err
+			return task.out.recordPartialEffect(task.id, subject, spec, err)
 		}
 		if disowned {
 			return nil
@@ -102,6 +104,19 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 	}
 	task.out.recordResolvedMutation(task.id, subject, dryRun, string(spec.Verb), int64(spec.Quantity), true, spec.Object)
 	return nil
+}
+
+// recordPartialEffect handles a failed Effect callback: when its error is a
+// valid PartialEffect with a positive committed count, that subset is
+// recorded as changed (the original Verb/Object, Quantity=committed) before
+// the error is returned, so the Task fails over a truthful ledger. The
+// callback's own verdict on its row does not erase work it says committed.
+func (o *Output) recordPartialEffect(taskID, subject string, spec EffectSpec, err error) error {
+	committed, err := spec.committedOf(err)
+	if committed > 0 {
+		o.recordResolvedMutation(taskID, subject, false, string(spec.Verb), int64(committed), true, spec.Object)
+	}
+	return err
 }
 
 // performEffect invokes fn, holding r for writing when the Effect claims

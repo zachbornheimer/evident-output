@@ -106,7 +106,7 @@ func (o *Output) recordResolvedMutation(taskID, subject string, dryRun bool, ver
 			sec.recordNoQty(verb, object)
 		}
 		o.mu.Lock()
-		o.emitWireEventLocked(wire.EventEffectPlanned, taskID, map[string]any{"verb": verb, "object": object})
+		o.emitWireEventLocked(wire.EventEffectPlanned, taskID, effectPayload(verb, quantity, hasQty, object))
 		o.mu.Unlock()
 		return
 	}
@@ -119,8 +119,19 @@ func (o *Output) recordResolvedMutation(taskID, subject string, dryRun bool, ver
 		sec.recordNoQty(pastTense, object)
 	}
 	o.mu.Lock()
-	o.emitWireEventLocked(wire.EventEffectCommitted, taskID, map[string]any{"verb": pastTense, "object": object})
+	o.emitWireEventLocked(wire.EventEffectCommitted, taskID, effectPayload(pastTense, quantity, hasQty, object))
 	o.mu.Unlock()
+}
+
+// effectPayload is the effect.planned / effect.committed wire payload. It
+// carries the quantity the ledger recorded, so the JSONL stream agrees with
+// the human rows and the final document on the count.
+func effectPayload(verb string, quantity int64, hasQty bool, object string) map[string]any {
+	payload := map[string]any{"verb": verb, "object": object}
+	if hasQty {
+		payload["quantity"] = quantity
+	}
+	return payload
 }
 
 // recordClassification resolves the task named by taskID, then records

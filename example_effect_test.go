@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -62,4 +63,27 @@ func ExampleEffectSpec_noResource() {
 	fmt.Println(spec.Resource == nil)
 	// Output:
 	// true
+}
+
+// ExamplePartialEffect reports a partial commit: 2 of 3 remote refs were
+// deleted before the remote rejected the third. The ledger records the 2
+// that really happened and the Task still fails with the cause.
+func ExamplePartialEffect() {
+	var buf strings.Builder
+	out := evo.Init(evo.Config{Isolated: true, Title: "prune", Plain: true, Color: evo.ColorNever, Stdout: &buf})
+	rejected := errors.New("remote rejected refs/heads/old")
+	var effectErr error
+	out.Task("remote refs").Define(func(ctx context.Context) error {
+		effectErr = evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "remote ref", Quantity: 3},
+			func(ctx context.Context) error {
+				committed := 2 // e.g. `git push --delete` for each ref until one fails
+				return evo.PartialEffect(committed, rejected)
+			})
+		return effectErr
+	})
+	_ = out.Finish()
+	snap := out.Snapshot()
+	fmt.Println(errors.Is(effectErr, rejected), snap.Changes[0].Records[0].Quantity)
+	// Output:
+	// true 2
 }
