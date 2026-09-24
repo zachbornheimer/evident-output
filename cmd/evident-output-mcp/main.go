@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -102,8 +103,8 @@ const latestProtocol = "2025-06-18"
 const (
 	defaultToolDeadline = 30 * time.Second
 	toolNameMaxLen      = 64
-	// maxNDJSONFrameBytes bounds a single newline-delimited JSON-RPC message.
-	maxNDJSONFrameBytes = 8 << 20 // 8 MiB, same as Content-Length path
+	// maxFrameBytes bounds one JSON-RPC message, in either framing.
+	maxFrameBytes = 8 << 20 // 8 MiB
 )
 
 var toolNameRE = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
@@ -157,6 +158,10 @@ func runStdioServer(in io.Reader, out io.Writer) {
 	r := bufio.NewReaderSize(in, 1024*1024)
 	for {
 		msg, mode, err := readMCPMessage(r)
+		if errors.Is(err, errFrameTooLarge) {
+			writeRPCError(nil, -32600, fmt.Sprintf("request exceeds %d MiB", maxFrameBytes>>20))
+			continue
+		}
 		if err != nil {
 			if err != io.EOF {
 				fmt.Fprintf(os.Stderr, "stdin: %v\n", err)
@@ -241,6 +246,10 @@ func runStdioServer(in io.Reader, out io.Writer) {
 	}
 }
 
+// errFrameTooLarge is a message over maxFrameBytes. readMCPMessage has
+// already skipped past it, so the server answers it and keeps reading.
+var errFrameTooLarge = fmt.Errorf("message exceeds %d bytes", maxFrameBytes)
+
 // readMCPMessage reads one JSON-RPC message from r.
 // Supports NDJSON (spec) and LSP-style Content-Length frames (some clients).
 func readMCPMessage(r *bufio.Reader) ([]byte, framingMode, error) {
@@ -281,7 +290,7 @@ func readMCPMessage(r *bufio.Reader) ([]byte, framingMode, error) {
 			nStr = strings.TrimSpace(headerLine[i+1:])
 		}
 		n, err := strconv.Atoi(nStr)
-		if err != nil || n < 0 || n > 8<<20 {
+		if err != nil || n < 0 {
 			return nil, frameContentLength, fmt.Errorf("invalid Content-Length %q", nStr)
 		}
 		// Consume optional additional headers until blank line.
@@ -293,6 +302,13 @@ func readMCPMessage(r *bufio.Reader) ([]byte, framingMode, error) {
 			if line == "\n" || line == "\r\n" {
 				break
 			}
+		}
+		if n > maxFrameBytes {
+			// Discard the body so the next message can resync.
+			if _, err := io.CopyN(io.Discard, r, int64(n)); err != nil {
+				return nil, frameContentLength, err
+			}
+			return nil, frameContentLength, fmt.Errorf("%w: Content-Length %d", errFrameTooLarge, n)
 		}
 		body := make([]byte, n)
 		if _, err := io.ReadFull(r, body); err != nil {
@@ -315,7 +331,7 @@ func readMCPMessage(r *bufio.Reader) ([]byte, framingMode, error) {
 		if b == '\n' {
 			break
 		}
-		if buf.Len() >= maxNDJSONFrameBytes {
+		if buf.Len() >= maxFrameBytes {
 			// Drain until newline or EOF so the next message can resync.
 			for {
 				bb, e2 := r.ReadByte()
@@ -323,7 +339,7 @@ func readMCPMessage(r *bufio.Reader) ([]byte, framingMode, error) {
 					break
 				}
 			}
-			return nil, frameNDJSON, fmt.Errorf("ndjson frame exceeds %d bytes", maxNDJSONFrameBytes)
+			return nil, frameNDJSON, fmt.Errorf("%w: ndjson frame", errFrameTooLarge)
 		}
 		buf.WriteByte(b)
 	}
