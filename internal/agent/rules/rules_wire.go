@@ -19,7 +19,7 @@ func wireRules() []Rule {
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"EVO-WIRE-001"},
 			Since:           "1.0.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "EVO-WIRE-002",
@@ -36,13 +36,13 @@ func wireRules() []Rule {
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EVO-WIRE-002"},
 			Since:           "1.0.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 			// No cheap, honest static detector: telling a schema-affecting
 			// edit apart from a comment/refactor requires diffing the
 			// encoder across two revisions, which a single-source review
 			// call never sees. Guidance-only; enforced by review discipline
 			// (goldens must stay byte-identical unless the version moves).
-			Detection: "guidance",
+			Detection: DetectionGuidance,
 		},
 		{
 			ID:        "EVO-WIRE-003",
@@ -60,7 +60,7 @@ json.NewEncoder(os.Stdout).Encode(doc)`,
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EVO-WIRE-003"},
 			Since:           "1.0.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 	}
 }

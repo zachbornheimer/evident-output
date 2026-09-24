@@ -117,7 +117,9 @@ func (o *Output) Suspend(fn func() error) error {
 
 func (o *Output) Task(name string) *TaskHandle { return wrapTask(o.impl().Task(name)) }
 
-func (o *Output) Warn(summary string) { o.impl().Warn(summary) }
+// Warn accumulates a run-scoped warning. It takes the same structured
+// ProblemOptions as TaskHandle.Warn and Output.Fail.
+func (o *Output) Warn(summary string, options ...ProblemOption) { o.impl().Warn(summary, options...) }
 
 func (o *Output) Writer() io.Writer {
 	if o == nil || o.inner == nil {

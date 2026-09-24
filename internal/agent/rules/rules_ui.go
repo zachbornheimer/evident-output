@@ -20,7 +20,7 @@ task.Fact("commit", sha)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"EVO-UI-001"},
 			Since:           "1.0.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "EVO-UI-002",
@@ -47,7 +47,7 @@ task.Fact("commit", sha)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"EVO-UI-002"},
 			Since:           "1.0.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "EVO-UI-003",
@@ -63,7 +63,7 @@ task.Fact("commit", sha)`,
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"EVO-UI-003"},
 			Since:           "1.0.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "EVO-UI-004",
@@ -77,12 +77,12 @@ task.Fact("commit", sha)`,
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EVO-UI-004"},
 			Since:           "1.0.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 			// No cheap, honest static detector: a hand-picked glyph/color
 			// word is plain formatted text, indistinguishable by AST alone
 			// from ordinary output (same reasoning as OUT-004's raw-ANSI
 			// case). Guidance-only; catalog + Explain teach it by example.
-			Detection: "guidance",
+			Detection: DetectionGuidance,
 		},
 	}
 }

@@ -55,7 +55,13 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	return t
 }
 
-func (t *TaskHandle) Fact(name, value string) { t.impl().Fact(name, value) }
+// Fact records one name/value fact on this Task: information, not a
+// mutation. It never resolves the Task, and returns this *TaskHandle so a
+// call can chain like Warn, Problem, and Summary.
+func (t *TaskHandle) Fact(name, value string) *TaskHandle {
+	t.impl().Fact(name, value)
+	return t
+}
 
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	t.impl().Fail(summary, options...)

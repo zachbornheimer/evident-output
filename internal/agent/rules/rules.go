@@ -22,16 +22,11 @@ type Rule struct {
 	// reports the rule for an older desired_version, and every finding of
 	// it carries this as RequiredVersion. It is stated here once, never on
 	// a detector.
-	MinDialect  string `json:"min_dialect,omitempty"`
-	Deprecated  bool   `json:"deprecated"`
-	Replacement string `json:"replacement,omitempty"`
-	Certainty   string `json:"certainty,omitempty"` // deterministic | heuristic
-	// Detection is "guidance" when no cheap, honest static detector exists
-	// for this rule — agent/review never emits this ID, and the catalog/
-	// docs teach it by example only. Empty means a detector may exist;
-	// callers that need a hard guarantee check agent/review's registered
-	// rule IDs directly.
-	Detection string `json:"detection,omitempty"`
+	MinDialect  string    `json:"min_dialect,omitempty"`
+	Deprecated  bool      `json:"deprecated"`
+	Replacement string    `json:"replacement,omitempty"`
+	Certainty   Certainty `json:"certainty,omitempty"`
+	Detection   Detection `json:"detection,omitempty"`
 }
 
 // familyRegistry collects rule slices contributed by sibling files in this
@@ -80,7 +75,7 @@ t.Doing("walking")`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"MCP-012", "API-006"},
 			Since:           "0.1.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "API-026",
@@ -99,7 +94,7 @@ for _, path := range paths {
 			RelatedGuidance: []string{"common-api", "tasks"},
 			VerificationIDs: []string{"API-026"},
 			Since:           "0.1.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "API-027",
@@ -116,7 +111,7 @@ g.Task("b").Define(installB)`,
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-027", "DOM-016"},
 			Since:           "0.1.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "STREAM-003",
@@ -136,7 +131,7 @@ out.Printf("progress %d\n", n)
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"STREAM-003", "MCP-013"},
 			Since:           "0.1.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "STREAM-004",
@@ -162,11 +157,11 @@ if err := cmd.Run(); err != nil {
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"STREAM-004"},
 			Since:           "0.2.17",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 			// No cheap, honest static detector: telling Writer-shaped
 			// wiring apart from a legitimately mixed capture needs
 			// dataflow analysis the AST pass does not do. Guidance-only.
-			Detection: "guidance",
+			Detection: DetectionGuidance,
 		},
 		{
 			ID:        "API-028",
@@ -184,7 +179,7 @@ task.Failf("boom: %w", err)`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "API-029",
@@ -203,7 +198,7 @@ if err := cmd.Run(); err != nil {
 			RelatedGuidance: []string{"streams", "tasks"},
 			VerificationIDs: []string{"API-029"},
 			Since:           "0.2.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:              "SEC-001",
@@ -217,7 +212,7 @@ if err := cmd.Run(); err != nil {
 			RelatedGuidance: []string{"security"},
 			VerificationIDs: []string{"SEC-001", "TXT-007"},
 			Since:           "0.1.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "DOM-011",
@@ -239,7 +234,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"MCP-014", "DOM-011", "DOM-048"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "TERM-001",
@@ -253,7 +248,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-001", "H.17"},
 			Since:           "0.1.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "FP-001",
@@ -275,7 +270,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			RelatedGuidance: []string{"first-paint", "common-api"},
 			VerificationIDs: []string{"FP-001"},
 			Since:           "0.3.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "FP-002",
@@ -298,7 +293,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			RelatedGuidance: []string{"first-paint"},
 			VerificationIDs: []string{"FP-002"},
 			Since:           "0.3.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "LOOP-001",
@@ -330,7 +325,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"LOOP-001"},
 			Since:           "0.5.1",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "CALL-001",
@@ -347,7 +342,7 @@ _ = out.Task("scan")`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"CALL-001"},
 			Since:           "0.5.1",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "LAYOUT-001",
@@ -367,7 +362,7 @@ cmd := &cobra.Command{
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"LAYOUT-001"},
 			Since:           "0.5.1",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "LAYOUT-002",
@@ -392,7 +387,7 @@ func purgeCommand() *cobra.Command { return purge.Command() }`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"LAYOUT-002"},
 			Since:           "0.5.1",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "FP-003",
@@ -411,7 +406,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"FP-003"},
 			Since:           "0.3.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "API-000",
@@ -425,7 +420,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-000"},
 			Since:           "0.1.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "API-018",
@@ -442,7 +437,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"API-018"},
 			Since:           "0.2.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "DOM-014",
@@ -456,7 +451,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-014"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "MCP-017",
@@ -470,7 +465,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"MCP-017"},
 			Since:           "0.4.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "SIG-001",
@@ -489,26 +484,7 @@ go func() { <-c; task.Cancel("interrupted") }()
 			RelatedGuidance: []string{"streams", "interactive"},
 			VerificationIDs: []string{"SIG-001"},
 			Since:           "0.4.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "SIG-002",
-			MinDialect: "1.0.0",
-			Category:   "SIG",
-			Severity:   SeverityWarning,
-			Invariant:  "evo.Main/evo.Run own SIGINT/SIGTERM/os.Interrupt cancellation; a host does not build a second interrupt layer around them",
-			Why:        "evo.Main/evo.Run cancel RunFunc's context.Context on SIGINT/SIGTERM/os.Interrupt as of 1.0.0; a host-built signal.NotifyContext/signal.Notify wired for the same signals solely to wrap that call duplicates the lifecycle and can let the ledger's ■ glyph and the process's real exit path diverge.",
-			BadCode: `ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-defer stop()
-os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
-			GoodCode: `os.Exit(evo.Main(run)) // run(ctx context.Context) error — Main cancels ctx on SIGINT/SIGTERM itself
-// signal.Notify for anything unrelated to Evo's own lifecycle (e.g. SIGHUP) is unaffected`,
-			Remediation:     "Delete the duplicate signal.NotifyContext/signal.Notify wiring and read cancellation from the ctx evo.Main/evo.Run already pass into the run callback; keep signal.Notify only for signals Evo does not own (SIGHUP, SIGUSR1, ...)",
-			Exceptions:      []string{"signal.Notify/NotifyContext for a signal other than SIGINT/SIGTERM/os.Interrupt"},
-			RelatedGuidance: []string{"streams", "interactive"},
-			VerificationIDs: []string{"SIG-002"},
-			Since:           "1.0.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "TERM-008",
@@ -522,7 +498,7 @@ os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-008"},
 			Since:           "0.1.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:              "TERM-014",
@@ -536,7 +512,7 @@ os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
 			RelatedGuidance: []string{"interactive", "streams"},
 			VerificationIDs: []string{"TERM-014"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "SCHEMA-001",
@@ -550,7 +526,7 @@ os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"SCHEMA-001"},
 			Since:           "0.1.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "TERM-015",
@@ -572,7 +548,7 @@ if err := cmd.Run(); err != nil {
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-015"},
 			Since:           "0.6.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "CONFIRM-001",
@@ -588,7 +564,7 @@ answer, _ := reader.ReadString('\n')`,
 			RelatedGuidance: []string{"interactive", "common-api"},
 			VerificationIDs: []string{"CONFIRM-001"},
 			Since:           "0.6.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "GLYPH-001",
@@ -601,9 +577,9 @@ answer, _ := reader.ReadString('\n')`,
 			Remediation:     "Select glyphs via the capability profile (glyphs=auto|unicode|ascii); never infer width from rune count",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"GLYPH-001"},
-			Detection:       "guidance", // no cheap single-file detector: cell-width vs rune-count is a runtime measurement question, not a static AST pattern
+			Detection:       DetectionGuidance, // no cheap single-file detector: cell-width vs rune-count is a runtime measurement question, not a static AST pattern
 			Since:           "0.6.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "TAX-001",
@@ -619,7 +595,7 @@ task.Skipped(evo.Reason("dirty"), "feature/x")
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-001"},
 			Since:           "0.6.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "PROG-001",
@@ -636,14 +612,14 @@ task.Progress(14, 40) // sealed once discovery completes; never re-sealed`,
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"PROG-001"},
 			Since:           "0.6.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "CON-001",
 			Category:  "CON",
 			Severity:  SeverityError,
 			Invariant: "Partial is a completeness modifier; exit codes come from Outcome alone, and 130 is reserved for interruption",
-			Detection: "guidance", // no cheap single-file detector: correct exit code use is unobservable from source (evo.Main hides the mapping)
+			Detection: DetectionGuidance, // no cheap single-file detector: correct exit code use is unobservable from source (evo.Main hides the mapping)
 			Why:       "Hand-mapping an exit code outside 0/1/2/130, or using 130 for something other than an actual interrupt, breaks the contract wrapping scripts and CI rely on.",
 			BadCode: `if blocked {
   os.Exit(3) // hand-mapped code outside Outcome's 0/1/2/130
@@ -656,7 +632,7 @@ if partial {
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"CON-001"},
 			Since:           "0.6.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "BOUND-001",
@@ -672,7 +648,7 @@ task.Doing(evo.TruncateNames(reasons, 8))`,
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"BOUND-001"},
 			Since:           "0.7.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "API-030",
@@ -694,7 +670,7 @@ for _, j := range jobs {
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-030"},
 			Since:           "0.7.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "API-031",
@@ -712,7 +688,7 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			RelatedGuidance: []string{"tasks", "streams"},
 			VerificationIDs: []string{"API-031"},
 			Since:           "0.7.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "API-032",
@@ -747,7 +723,7 @@ func run(ctx context.Context) error {
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "API-033",
@@ -762,7 +738,7 @@ item.Skipped(reason)`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-033"},
 			Since:           "0.3.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "CONFIRM-002",
@@ -776,7 +752,7 @@ item.Skipped(reason)`,
 			RelatedGuidance: []string{"interactive", "common-api"},
 			VerificationIDs: []string{"CONFIRM-002"},
 			Since:           "0.7.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "CON-002",
@@ -793,7 +769,7 @@ item.Skipped(reason)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"CON-002"},
 			Since:           "0.7.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "FP-004",
@@ -807,7 +783,7 @@ item.Skipped(reason)`,
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"FP-004"},
 			Since:           "0.7.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "EV-001",
@@ -823,7 +799,7 @@ return task.Failf("install dependencies: %w", err)`,
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EV-001"},
 			Since:           "0.4.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "MCP-021",
@@ -837,7 +813,7 @@ return task.Failf("install dependencies: %w", err)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"MCP-021", "MCP-022", "MCP-049"},
 			Since:           "0.5.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "API-001",
@@ -853,8 +829,8 @@ out.Task("disk space").Define(checkDiskSpace)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-001"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: an empty/default Config literal is not distinguishable from an intentional one by AST alone
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: an empty/default Config literal is not distinguishable from an intentional one by AST alone
 		},
 		{
 			ID:        "DOM-006",
@@ -871,7 +847,7 @@ it.Define(checkDiskSpace)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-006"},
 			Since:           "0.1.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:              "DOM-007",
@@ -885,8 +861,8 @@ it.Define(checkDiskSpace)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-007"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: distinguishing a legitimate hand-built Problem from misuse needs call-site intent, not AST shape
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: distinguishing a legitimate hand-built Problem from misuse needs call-site intent, not AST shape
 		},
 		{
 			ID:        "DOM-016",
@@ -903,8 +879,8 @@ t.Doing("walking")`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"DOM-016"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // API-006 already carries the detector for the shared Start-then-X shape; DOM-016 documents the resulting state
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // API-006 already carries the detector for the shared Start-then-X shape; DOM-016 documents the resulting state
 		},
 		{
 			ID:        "DOM-017",
@@ -924,8 +900,8 @@ for _, item := range items {
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"DOM-017"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: a literal "1" argument is not distinguishable from a genuine absolute count by AST alone
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: a literal "1" argument is not distinguishable from a genuine absolute count by AST alone
 		},
 		{
 			ID:              "LOG-001",
@@ -939,8 +915,8 @@ for _, item := range items {
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"LOG-001"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: a hand-formatted level string is a plain fmt call, indistinguishable from ordinary text by AST alone
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: a hand-formatted level string is a plain fmt call, indistinguishable from ordinary text by AST alone
 		},
 		{
 			ID:              "OUT-001",
@@ -954,8 +930,8 @@ for _, item := range items {
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"OUT-001"},
 			Since:           "0.3.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: which writer the "final report" logically belongs to is a call-site judgment, not an AST pattern
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: which writer the "final report" logically belongs to is a call-site judgment, not an AST pattern
 		},
 		{
 			ID:        "OUT-003",
@@ -971,8 +947,8 @@ out.FormatData(...) // progress/UI route to Stderr; only the payload reaches Std
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"OUT-003"},
 			Since:           "0.3.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: whether a given write targets the data channel vs. progress is a runtime routing question
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: whether a given write targets the data channel vs. progress is a runtime routing question
 		},
 		{
 			ID:              "OUT-004",
@@ -986,8 +962,8 @@ out.FormatData(...) // progress/UI route to Stderr; only the payload reaches Std
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"OUT-004"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: a raw fmt.Fprint call with an escape-sequence string literal isn't reliably distinguishable from other formatted output
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: a raw fmt.Fprint call with an escape-sequence string literal isn't reliably distinguishable from other formatted output
 		},
 		{
 			ID:        "SEC-006",
@@ -1005,8 +981,8 @@ task.Doing(strings.Join(quoted, " "))`,
 			RelatedGuidance: []string{"security"},
 			VerificationIDs: []string{"SEC-006"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: strings.Join(args, " ") is a common, mostly-safe pattern; flagging it requires knowing args came from a shell command
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: strings.Join(args, " ") is a common, mostly-safe pattern; flagging it requires knowing args came from a shell command
 		},
 		{
 			ID:              "TERM-006",
@@ -1020,8 +996,8 @@ task.Doing(strings.Join(quoted, " "))`,
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-006"},
 			Since:           "0.2.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: whether a live region is open at a given fmt call site is a runtime property, not visible in source
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: whether a live region is open at a given fmt call site is a runtime property, not visible in source
 		},
 		{
 			ID:              "TXT-007",
@@ -1035,8 +1011,8 @@ task.Doing(strings.Join(quoted, " "))`,
 			RelatedGuidance: []string{"security"},
 			VerificationIDs: []string{"TXT-007", "SEC-001"},
 			Since:           "0.1.0",
-			Certainty:       "heuristic",
-			Detection:       "guidance", // no cheap detector: a raw write of "untrusted" text isn't distinguishable from a raw write of trusted text by AST alone
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: a raw write of "untrusted" text isn't distinguishable from a raw write of trusted text by AST alone
 		},
 		{
 			ID:        "API-034",
@@ -1055,7 +1031,7 @@ task.Doing(strings.Join(quoted, " "))`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-034"},
 			Since:           "0.2.17",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "API-035",
@@ -1076,7 +1052,7 @@ if err := cmd.Run(); err != nil {
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"API-035"},
 			Since:           "0.2.17",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "API-036",
@@ -1090,7 +1066,7 @@ if err := cmd.Run(); err != nil {
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-036"},
 			Since:           "0.2.17",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "API-037",
@@ -1106,7 +1082,7 @@ if err := cmd.Run(); err != nil {
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-037"},
 			Since:           "0.2.17",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:              "DOM-018",
@@ -1120,7 +1096,7 @@ if err := cmd.Run(); err != nil {
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-018"},
 			Since:           "0.2.17",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:              "TAX-002",
@@ -1134,7 +1110,7 @@ if err := cmd.Run(); err != nil {
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-002"},
 			Since:           "0.2.17",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "TXT-020",
@@ -1149,7 +1125,7 @@ t.Doing("copying staging -> production release bucket")`,
 			RelatedGuidance: []string{"first-paint"},
 			VerificationIDs: []string{"TXT-020"},
 			Since:           "0.2.17",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "DOM-019",
@@ -1168,7 +1144,7 @@ t = out.Task("build")`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-019"},
 			Since:           "0.2.17",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "TXT-021",
@@ -1183,7 +1159,7 @@ t = out.Task("build")`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"TXT-021"},
 			Since:           "0.2.17",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "API-038",
@@ -1200,7 +1176,7 @@ t = out.Task("build")`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-038"},
 			Since:           "0.4.1",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "FP-005",
@@ -1217,7 +1193,7 @@ t.Define(func(ctx context.Context) error {
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"FP-005"},
 			Since:           "0.4.7",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "FP-006",
@@ -1236,7 +1212,7 @@ t.Define(func(ctx context.Context) error {
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"FP-006"},
 			Since:           "0.4.7",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "API-039",
@@ -1252,7 +1228,7 @@ t.Doing("running install:fresh-start")`,
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-039"},
 			Since:           "0.4.7",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:              "DOM-020",
@@ -1266,11 +1242,11 @@ t.Doing("running install:fresh-start")`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-020"},
 			Since:           "0.2.17",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 			// No cheap, honest static detector: telling "this Fail is a usage
 			// mistake" from "this Fail is a genuine evaluation failure" needs
 			// the caller's own domain judgment, not a source-level pattern.
-			Detection: "guidance",
+			Detection: DetectionGuidance,
 		},
 		{
 			ID:        "API-040",
@@ -1294,7 +1270,7 @@ t.Doing("running install:fresh-start")`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-040"},
 			Since:           "0.4.7",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "API-041",
@@ -1315,40 +1291,7 @@ for _, name := range []string{"a"} {
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-041"},
 			Since:           "0.4.7",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:        "API-042",
-			Category:  "API",
-			Severity:  SeverityError,
-			Invariant: "an evo.Effect callback does the mutation; nil or a no-op callback is theater over work that ran elsewhere",
-			Why:       "A nil Effect callback (zq README.md:39's old Create(\"module\", nil)) and one that only returns installedPythonModuleCount(name, n) (zq setup_python.go:172-181, where the named func only validates a count) both let the bulk work already run outside the callback, then hand Effect an empty gesture the ledger records as a real mutation.",
-			BadCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
-evo.Effect(ctx, spec, nil)
-evo.Effect(ctx, spec, func(context.Context) error { return installedPythonModuleCount(name, n) })`,
-			GoodCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
-evo.Effect(ctx, spec, func(ctx context.Context) error {
-  return invokeUV(ctx, root, packages)
-})`,
-			Remediation:     "Move the real mutation into the Effect callback. When the work already ran elsewhere and only information remains, report it with task.Fact instead of an Effect",
-			RelatedGuidance: []string{"tasks"},
-			VerificationIDs: []string{"API-042"},
-			Since:           "0.4.7",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:              "API-043",
-			Category:        "API",
-			Severity:        SeverityWarning,
-			Invariant:       "an EffectSpec.Object literal names the singular; evo pluralizes it from Quantity",
-			Why:             "`EffectSpec{Verb: EffectDelete, Object: \"worktrees\", Quantity: 1}` renders \"deleted 1 worktrees\" (zq axis-14 P17) because Pluralize treats an already-plural literal as unchanged; Object must stay singular so pluralization has one job.",
-			BadCode:         `evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktrees", Quantity: 1}`,
-			GoodCode:        `evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}`,
-			Remediation:     "Pass the singular noun as EffectSpec.Object; let Quantity drive pluralization",
-			RelatedGuidance: []string{"tasks"},
-			VerificationIDs: []string{"API-043"},
-			Since:           "0.4.7",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "API-044",
@@ -1369,406 +1312,9 @@ return task.Wait()`,
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-044"},
 			Since:           "0.4.7",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 			// Wait is being added to the public API in parallel with this
 			// rule; this entry documents the spelling the MCP now teaches.
-		},
-		{
-			ID:        "API-045",
-			Category:  "API",
-			Severity:  SeverityWarning,
-			Invariant: "a Task names one independently schedulable promise whose outcome is independently meaningful to the user, not a subject label or a container wearing one Task's clothes",
-			Why:       "`Task(\"file integrity\")` (ZYS-838, also this codebase's own FP-006 fixture) names what the Task is about, not what it will determine; `Task(\"fix\")` (zq internal/app/app.go:80's a.task(\"fix\", ...) command family) reads as one row but really organizes several independently meaningful operations. Neither answers ZYS-838's own test: does the name alone tell the user what failed?",
-			BadCode: `out.Task("file integrity").Define(checkIntegrity)
-out.Task("fix").Define(fixAll)`,
-			GoodCode: `out.Task("check file integrity").Define(checkIntegrity)
-
-prep := out.Group("prepare staged files")
-prep.Task("format Python").Define(formatPython)
-prep.Task("stabilize Go source").Define(stabilizeGo)`,
-			Remediation:     "Rename a subject-only Task to verb+object; replace a generic container Task with a Group/Sequence whose children are the independently meaningful Tasks",
-			RelatedGuidance: []string{"tasks"},
-			VerificationIDs: []string{"API-045"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:        "API-050",
-			Category:  "API",
-			Severity:  SeverityWarning,
-			Invariant: "a Task named for a generic phase/category (fix/check/classify/resolve/finalize) performs one independently meaningful action, not several sequenced behind one row",
-			Why:       "Task(\"fix\") (zq internal/app/app.go:80's a.task(\"fix\", ...) command family, ZYS-937) that sequences two or more independently erroring steps in its own Define callback exists primarily to own child-looking work or force a row — API-045 flags the bare word on sight, but the callback's own shape is the structural proof: each guarded step could fail, wait, and report independently, so each deserves its own Task under a Group.",
-			BadCode: `out.Task("fix").Define(func(ctx context.Context) error {
-  if err := fixGoImports(); err != nil {
-    return err
-  }
-  if err := fixGoFormatting(); err != nil {
-    return err
-  }
-  return nil
-})`,
-			GoodCode: `fixGroup := out.Group("fix")
-fixGroup.Task("fix Go imports").Define(func(ctx context.Context) error { return fixGoImports() })
-fixGroup.Task("fix Go formatting").Define(func(ctx context.Context) error { return fixGoFormatting() })`,
-			Remediation:     "Replace a generic phase/category Task that sequences several independently erroring steps with a Group carrying one verb+object child Task per step",
-			RelatedGuidance: []string{"tasks"},
-			VerificationIDs: []string{"API-050"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-047",
-			MinDialect: "1.0.0",
-			Category:   "API",
-			Severity:   SeverityError,
-			Invariant:  "a Task/Group/Sequence's default §3.1 identity folds its kind into the stable key (kind:parentKey/name); a sibling name reused across different kinds under one parent is two distinct runtime identities sharing one visible display name",
-			Why:        "`out.Task(\"build\")` and `out.Group(\"build\")` never collide at runtime — failDuplicateSiblingLocked's dedup check only compares within one kind's own name index — so both declare successfully and render as two rows a reader cannot tell apart by name alone, even though provenance/manifest lookups by display name now resolve ambiguously between them.",
-			BadCode: `out.Task("build")
-out.Group("build")`,
-			GoodCode: `out.Task("build")
-out.Group("build assets")`,
-			Remediation:     "Give each Task/Group/Sequence declared under one parent a name distinct from every sibling, regardless of kind — not only from siblings of its own kind",
-			RelatedGuidance: []string{"tasks"},
-			VerificationIDs: []string{"API-047"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:        "API-048",
-			Category:  "API",
-			Severity:  SeveritySuggestion,
-			Invariant: "a Group/Sequence Task referenced later (After, a second Define, ...) keeps its first handle in a variable; re-declaring by the same string literal is a duplicate sibling, not a get-or-create",
-			Why:       "GroupHandle.Task(name)'s second call with an already-used name fails as a duplicate sibling (declareGroupTask, §3.1) rather than returning the earlier handle, so `prune.Task(\"branches\")` called again later to pass into After silently breaks the second Task instead of referencing the first. The product contract's own zq prune fixture (§18/§21) extracts these into a typed var (...) block instead.",
-			BadCode: `prune.Task("branches").Define(func(ctx context.Context) error { return nil })
-prune.Task("remote-tracking").
-  After(prune.Task("branches")). // re-declares "branches"; fails as a duplicate sibling
-  Define(func(ctx context.Context) error { return nil })`,
-			GoodCode: `var (
-  branches = prune.Task("branches")
-  remote   = prune.Task("remote-tracking")
-)
-branches.Define(func(ctx context.Context) error { return nil })
-remote.After(branches).Define(func(ctx context.Context) error { return nil })`,
-			Remediation:     "Keep the first Task(name) handle in a typed variable (a var (...) block when there are several) and reuse it for the later reference; do not require this for a Task named only once",
-			RelatedGuidance: []string{"tasks", "common-api"},
-			VerificationIDs: []string{"API-048"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-049",
-			MinDialect: "1.0.0",
-			Category:   "API",
-			Severity:   SeverityError,
-			Invariant:  "a Define callback's context.Context parameter is the scheduler's authoritative cancellation context; a callback that discards it and calls cancellable work with a captured outer ctx never observes the scheduler's cancellation",
-			Why:        "`task.Define(func(context.Context) error { return run(ctx) })` compiles and runs — the captured outer ctx is a real context — but it is not the Define callback's own context, so cancelling this task through the scheduler (timeout, second SIGINT, a sibling failure under a Group) never reaches run's cancellable work.",
-			BadCode: `task.Define(func(context.Context) error {
-  return run(ctx) // captured outer ctx
-})`,
-			GoodCode: `task.Define(func(ctx context.Context) error {
-  return run(ctx)
-})`,
-			Remediation:     "Name the callback parameter ctx (func(ctx context.Context) error) and pass that ctx into the work, not a captured outer variable",
-			RelatedGuidance: []string{"tasks", "common-api"},
-			VerificationIDs: []string{"API-049"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-051",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityError,
-			Invariant:  "a real check Task owns zero, one, or many structured Problems before it resolves once; findings are never flattened into one joined error string, and a finding is never given its own fake Task",
-			Why:        "Without TaskHandle.Problem, a caller with several structured findings has only two theater shapes: `errors.New(strings.Join(lines, \"\\n\"))` collapses every finding's own location/code/detail into one string at the Evo boundary (zq's blockStagedGolangciFindings), or `group.Task(f.File).Fail(f.Message)` inside a loop spawns one Task per finding that is never independently schedulable or awaited (zq's reportFileIntegrityIssues) — both destroy the one-Task-many-findings model ZYS-848 built Problem for.",
-			BadCode: `var lines []string
-for _, f := range findings {
-  lines = append(lines, formatFinding(f))
-}
-return errors.New(strings.Join(lines, "\n"))`,
-			GoodCode: `task := out.Task("file integrity")
-for _, issue := range issues {
-  task.Problem(issue.Summary,
-    evo.On(issue.Path),
-    evo.Code(issue.Code),
-    evo.Location(issue.Path, issue.Line, 0),
-  )
-}
-task.Define(func(context.Context) error { return nil })`,
-			Remediation:     "Replace the joined-error loop or the per-finding Task(...).Fail(...) loop with one owning Task that calls task.Problem(summary, opts...) once per finding; let Define resolve the Task Failed once if any Problem was accumulated",
-			RelatedGuidance: []string{"tasks"},
-			VerificationIDs: []string{"API-051"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-052",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityError,
-			Invariant:  "the container that owns child Task scheduling also owns waiting for its descendants and deriving their aggregate outcome; a caller does not store child handles merely to loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count failures",
-			Why:        "zq's runParallel (internal/app/app.go) keeps []*evo.TaskHandle, loops task.Wait(), Snapshots the Group, counts failed children, and builds its own \"N of N failed\" error; waitDefinedRunOperations (internal/app/run_execute.go) loops Tasks, special-cases evo.ErrNotStarted, and returns the first remaining error. Both reimplement exactly what GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849) now does natively, including ErrNotStarted-from-a-failed-predecessor suppression and declaration-order error joining.",
-			BadCode: `var handles []*evo.TaskHandle
-for _, item := range items {
-  t := jobs.Task(item.Name)
-  t.Define(func(ctx context.Context) error { return run(item) })
-  handles = append(handles, t)
-}
-failed := 0
-for _, h := range handles {
-  if err := h.Wait(); err != nil {
-    failed++
-  }
-}
-if failed > 0 {
-  return fmt.Errorf("%d of %d failed", failed, len(handles))
-}`,
-			GoodCode: `for _, item := range items {
-  jobs.Task(item.Name).Define(func(ctx context.Context) error { return run(item) })
-}
-return jobs.Wait()`,
-			Remediation:     "Delete the stored-handle slice, the Wait loop, the Snapshot, and the hand-counted aggregate error; call the owning GroupHandle/SequenceHandle's own Wait() after every child is declared",
-			RelatedGuidance: []string{"tasks", "common-api"},
-			VerificationIDs: []string{"API-052"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-053",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityError,
-			Invariant:  "generic resource access holds at most one Resource at a time (ZYS-840); code that already holds a Resource — directly, or through any helper it hands its context to — never asks for a second one",
-			Why:        "evo.Effect only claims spec.Resource for its fn callback's duration when spec.Resource is set; a second evo.File or Resource-claiming evo.Effect call made with that same held context — moving a worktree's Effect whose fn also writes a marker File at the destination, say — fails deterministically with evo.ErrNestedResourceAcquisition at apply time, even when the second resource is free, because holding at most one Resource at a time is what makes deadlock impossible by construction. Catching it in review turns a runtime failure into a review finding before it ships.",
-			BadCode: `spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
-return evo.Effect(ctx, spec, func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}) // nested: ctx already holds "from"
-})`,
-			GoodCode: `if err := evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}); err != nil {
-  return err
-}
-spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
-return evo.Effect(ctx, spec, func(ctx context.Context) error {
-  return os.Rename(from, to)
-})`,
-			Remediation:     "Finish and return from the first evo.Effect/evo.File before starting a second, or claim one coarser Resource (e.g. evo.FSResource covering both paths) that both mutations share instead of nesting a second acquisition",
-			RelatedGuidance: []string{"evo-file-exec", "common-api"},
-			VerificationIDs: []string{"API-053"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-054",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityError,
-			Invariant:  "a raw os/exec.Cmd wired to an Evo Task's Writer() does not hand-roll bytes.Buffer/io.MultiWriter capture or recognize cancellation by comparing captured output strings; evo.Exec already owns spawning, capture, liveness, sanitized/redacted bounded retention, and context-based cancellation, and returns an inspectable ExecResult",
-			Why:        "zq's run_captured_task.go allocates its own bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter, falls back to Result.Output when live redirection is unavailable, recognizes cancellation by comparing captured output strings, classifies nonzero exit itself, and manually attaches captured evidence through Failf — all of it now redundant with the ExecResult{Ran, ExitCode, Stdout, Stderr, Truncated} that evo.Exec returns (ZYS-850), plus errors.Is(err, evo.ErrExecNonzeroExit) for exit classification.",
-			BadCode: `var buf bytes.Buffer
-cmd.Stdout = io.MultiWriter(task.Writer(), &buf)
-cmd.Stderr = io.MultiWriter(task.Writer(), &buf)
-if err := cmd.Run(); err != nil {
-  if strings.Contains(buf.String(), "signal: killed") {
-    return context.Canceled
-  }
-  return err
-}`,
-			GoodCode: `res, err := evo.Exec(ctx, spec)
-if errors.Is(err, evo.ErrExecNonzeroExit) {
-  task.Failf("lint failed: %s", res.Stdout)
-  return nil
-}
-return err`,
-			Remediation:     "Delete the raw exec.Cmd, its hand-rolled bytes.Buffer/io.MultiWriter capture, and any output-string cancellation match; call evo.Exec(ctx, spec) and inspect the returned ExecResult (and errors.Is(err, evo.ErrExecNonzeroExit)) instead",
-			RelatedGuidance: []string{"evo-file-exec", "tasks"},
-			VerificationIDs: []string{"API-054"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-055",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityWarning,
-			Invariant:  "application code does not manage mutexes, lock files, or unlock lifecycle around an Evo-managed File path; File claims write-side ownership of its own path automatically, and overlapping File/Basis/Effect claims already wait on each other",
-			Why:        "A caller-managed sync.Mutex/RWMutex wrapped around an evo.File call (ZYS-931) is invisible to Evo's own resource coordination (ZYS-840): it cannot see a contended wait, cannot render \"waiting for <path>\" the way a real resource claim does, and is pure redundancy once File already serializes writers on its own Path — or a false sense of safety if the two coordination layers ever disagree about ordering. Remove the lock and let File own the path; when the work is not itself a File write, claim the same path explicitly with evo.FSResource so it still overlaps File/Basis on that path.",
-			BadCode: `type Writer struct {
-  mu   sync.Mutex
-  path string
-}
-func (w *Writer) write(ctx context.Context, contents []byte) error {
-  w.mu.Lock()
-  defer w.mu.Unlock()
-  return evo.File(ctx, evo.FileSpec{Path: w.path, Contents: contents})
-}`,
-			GoodCode: `type Writer struct {
-  path string
-}
-func (w *Writer) write(ctx context.Context, contents []byte) error {
-  return evo.File(ctx, evo.FileSpec{Path: w.path, Contents: contents})
-}
-// A non-File operation over the same path claims it explicitly instead:
-func (w *Writer) archive(ctx context.Context) error {
-  return evo.Effect(ctx, evo.EffectSpec{
-    Verb: evo.EffectUpdate, Object: "archive", Quantity: 1,
-    Resource: evo.FSResource(w.path),
-  }, func(ctx context.Context) error { return archive(w.path) })
-}`,
-			Remediation:     "When the Lock()/Unlock() pair guards nothing but the evo.File call, drop the pair; File already claims its own path for writing. When the lock also guards other shared state, keep it and end the critical section before calling evo.File, because File can wait on its resource claim while the caller lock is held. Never delete a mutex field on this rule alone; other methods may depend on it. For an opaque (non-File) mutation over the same path, claim it with evo.Effect's EffectSpec.Resource: evo.FSResource(path) instead of a caller lock — never a bare Write(func...) callback for tracked file state.",
-			RelatedGuidance: []string{"evo-file-exec", "common-api"},
-			VerificationIDs: []string{"API-055"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-056",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityWarning,
-			Invariant:  "a child.After(parent) edge exists to declare a real semantic dependency; it is never kept only to avoid a data race that File/FSResource/LogicalResource's own automatic resource claim (ZYS-840) already serializes AND whose overlapping writes are order-invariant (identical writes, or an idempotent Verb like Delete) — a resource claim only coordinates the overlap, it never decides which write wins, so an edge guarding two writes with different outcomes stays",
-			Why:        "Before ZYS-840, two Tasks writing the same file/shared state had no automatic exclusion, so pinning one After the other was the only way to avoid a race, and the reason usually shows up as a comment (\"same file\", \"avoid race\", \"exclusive access\") next to the edge. Now that File/FSResource/LogicalResource auto-claim and serialize any overlapping write, an edge guarding two IDENTICAL writes no longer does anything a resource claim doesn't already do — it only couples two Tasks' scheduling that would otherwise run concurrently, which costs wall-clock time and reads as a real dependency to the next person who touches the DAG. An edge guarding two DIFFERENT writes (different Contents, or conflicting Verbs like Update vs Delete) is not this case: the resource claim only prevents concurrent corruption, it does not pin which write is final, so deleting .After there would make the outcome nondeterministic across runs — that edge is a real dependency and must stay.",
-			BadCode: `configTask.Define(func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
-})
-cacheWarmTask.Define(func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
-})
-// same file — avoid concurrent write race
-cacheWarmTask.After(configTask)`,
-			GoodCode: `configTask.Define(func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
-})
-cacheWarmTask.Define(func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
-})
-// no .After: both Tasks write the identical config.json, and File already
-// claims the path and serializes the overlap`,
-			Remediation:     "Delete the .After(...) edge only when the overlapping writes are order-invariant — identical Contents, or an idempotent Verb such as Delete on both sides. Keep .After when the writes differ (different Contents, or conflicting Verbs like Update vs Delete): the resource claim serializes them but does not decide which write wins, so order is still a real dependency there.",
-			RelatedGuidance: []string{"tasks", "common-api"},
-			VerificationIDs: []string{"API-056"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-057",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityError,
-			Invariant:  "an evo.Effect callback never mutates the filesystem directly; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively (a git ref, a remote API call, a database row), and file-backed state always routes through evo.File",
-			Why:        "evo.Write and its sibling TaskHandle mutation verbs were removed outright in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). evo.File is the route for file-backed state, including writes derived from an existing file's own contents; a write derived from a unified diff instead goes through evo.Patch/evo.Files (API-058/API-059, ZYS-934/ZYS-935/ZYS-841) — neither is a second write API layered under Effect.",
-			BadCode: `task.Define(func(ctx context.Context) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
-    return os.WriteFile(path, contents, 0o644)
-  })
-})`,
-			GoodCode: `task.Define(func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents, Mode: 0o644})
-})`,
-			Remediation:     "Delete the evo.Effect wrapping the file write; call evo.File(ctx, evo.FileSpec{...}) directly — read the existing contents first if the new contents derive from them, then pass the derived result as FileSpec.Contents",
-			RelatedGuidance: []string{"common-api"},
-			VerificationIDs: []string{"API-057"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-058",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityError,
-			Invariant:  "a patch is never applied straight to the real workspace through os/exec; the call site derives desired file states with evo.Patch and commits them through evo.Files/evo.File",
-			Why:        "evo.Patch(ctx, diff) reads each referenced source once under its own read claim and mutates nothing; evo.Files(ctx, files) then commits each derived state through evo.File, so dry-run planning, the stale-write guard (ErrStaleBasis), desired-state comparison, and already-satisfied all apply exactly as they do for a single File call (ZYS-934). Shelling out to `patch` or `git apply`/`git am` bypasses every one of those guarantees at once — the workspace is mutated whether or not a dry run was requested, a source that changed after the diff was derived is overwritten instead of failing with ErrStaleBasis, and there is no Effect record of what changed. Domain code that only parses or reads a patch's hunks, with no exec and no direct filesystem mutation, is not this rule's target — evo.Patch itself is exactly that shape.",
-			BadCode: `task.Define(func(ctx context.Context) error {
-  cmd := exec.Command("patch", "-p1", "-i", diffPath)
-  return cmd.Run()
-})`,
-			GoodCode: `task.Define(func(ctx context.Context) error {
-  files, err := evo.Patch(ctx, diff)
-  if err != nil {
-    return err
-  }
-  return evo.Files(ctx, files)
-})`,
-			Remediation:     "Replace the exec.Command(\"patch\"/\"git apply\"/\"git am\", ...) call with files, err := evo.Patch(ctx, diff) to derive the desired file states, then evo.Files(ctx, files) to commit them",
-			RelatedGuidance: []string{"evo-file-exec"},
-			VerificationIDs: []string{"API-058"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-059",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityError,
-			Invariant:  "a FileSet evo.Patch returns is opaque so its source Basis and stale-write guard cannot be stripped before commit; a function that derives one from a diff always commits it through evo.Files, never by building a fresh evo.FileSpec and calling evo.File",
-			Why:        "evo.Patch(ctx, diff) parses a unified diff into a FileSet carrying each touched file's Basis — the content it was read against — so evo.Files(ctx, fileSet) can refuse a write when the file changed underneath the diff since Patch derived it (ZYS-841 Decisions, 2026-09-23). A function that calls evo.Patch, then re-derives the same file's desired contents another way and commits through evo.File directly, reconstructs a fresh FileSpec with no Basis at all — the stale-write guard Patch computed is silently discarded, and evo.File happily overwrites a file another writer changed in the meantime. The FileSet is opaque specifically to prevent this: there is no field to read the derived contents back out of it and hand to evo.File, so the only way to lose the guard is to ignore the FileSet and reconstruct the write from scratch, which is exactly the shape this rule flags.",
-			BadCode: `func applyPatch(ctx context.Context, diff string) error {
-  fileSet, err := evo.Patch(ctx, diff)
-  if err != nil {
-    return err
-  }
-  contents, err := renderMerged(fileSet)
-  if err != nil {
-    return err
-  }
-  return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents})
-}`,
-			GoodCode: `func applyPatch(ctx context.Context, diff string) error {
-  fileSet, err := evo.Patch(ctx, diff)
-  if err != nil {
-    return err
-  }
-  return evo.Files(ctx, fileSet)
-}`,
-			Remediation:     "Delete the evo.File call and the FileSpec it built from the Patch-derived FileSet; commit through evo.Files(ctx, fileSet) instead, using the exact FileSet evo.Patch returned so its Basis/stale-write guard survives to commit.",
-			RelatedGuidance: []string{"common-api"},
-			VerificationIDs: []string{"API-059"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-060",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityWarning,
-			Invariant:  "TaskHandle.Summary/GroupHandle.Summary carries the caller's own result metadata, not mutation, dry-run, or already-satisfied narration that belongs to File/Effect/AlreadySatisfied/Facts",
-			Why:        "Summary is non-terminal result metadata (1.1/ZYS-971 Decisions, 2026-09-23): it never resolves the Task, and Define/the evo-native operation outcome remains the only normal success resolution path. A caller who reaches for it as a replacement stamp channel — narrating what a mutation did (\"wrote config.json\"), what a dry run would do (\"would add 3 refs\"), that nothing changed (\"nothing to write\"), or that a precondition already held (\"already up to date\") — recreates the exact success-stamp footgun Done(text) was removed in 1.1 for, one call away: that narration belongs to evo.File/evo.Effect's own Basis-tracked record, ResolutionAlreadySatisfied, or evo.Fact, each of which carries structured evidence Summary's bare string cannot.",
-			BadCode: `task.Define(func(ctx context.Context) error {
-  if err := evo.File(ctx, spec); err != nil {
-    return err
-  }
-  task.Summary("wrote config.json")
-  return nil
-})`,
-			GoodCode: `task.Define(func(ctx context.Context) error {
-  n, err := checkBranches(ctx)
-  if err != nil {
-    return err
-  }
-  task.Summary(fmt.Sprintf("%d checked", n))
-  return nil
-})`,
-			Remediation:     "Move mutation/dry-run/already-satisfied narration to the primitive that owns it — evo.File/evo.Effect's own record, ResolutionAlreadySatisfied, or evo.Fact — and use Summary only for the caller's own result metadata (a count, a rate, a verdict) that isn't already represented elsewhere.",
-			RelatedGuidance: []string{"common-api"},
-			VerificationIDs: []string{"API-060"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-061",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityWarning,
-			Invariant:  "a call site never uses the record-only verbs Record/RecordLabel/RecordName; each has no record-only replacement",
-			Why:        "Record/RecordLabel/RecordName report a mutation, classification, or named object after the fact instead of performing it through a primitive with dry-run planning, desired-state comparison, and AlreadySatisfied (ZYS-974 Decisions, 2026-09-23b). There is no drop-in record-only replacement: the call is migrated by what it actually reports — a real mutation moves into evo.Effect's callback, information/classification with no state change moves to evo.Fact, and a file write moves to evo.File/evo.Patch.",
-			BadCode:    `task.Record("install", 1, "package")`,
-			GoodCode: `evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectInstall, Quantity: 1, Object: "package"}, func(ctx context.Context) error {
-  return installPackage(ctx)
-})`,
-			Remediation:     "Route the call by what it reports: a real mutation into evo.Effect's callback, information/classification into evo.Fact, a file write into evo.File/evo.Patch — Record/RecordLabel/RecordName have no record-only replacement",
-			RelatedGuidance: []string{"common-api"},
-			VerificationIDs: []string{"API-061"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
 		},
 		{
 			ID:        "TAX-003",
@@ -1785,7 +1331,7 @@ task.Kept(reasonProtected)`,
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-003"},
 			Since:           "0.4.7",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:         "EVO-EVIDENCE-001",
@@ -1804,7 +1350,7 @@ task.Kept(reasonProtected)`,
 			RelatedGuidance: []string{"common-api", "evidence-provenance"},
 			VerificationIDs: []string{"EVO-EVIDENCE-001"},
 			Since:           "1.0.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:         "EVO-VERIFY-001",
@@ -1824,7 +1370,7 @@ task.Kept(reasonProtected)`,
 			RelatedGuidance: []string{"common-api", "evidence-provenance"},
 			VerificationIDs: []string{"EVO-VERIFY-001"},
 			Since:           "1.0.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:         "EVO-DRYRUN-001",
@@ -1843,7 +1389,7 @@ task.Kept(reasonProtected)`,
 			RelatedGuidance: []string{"common-api", "evidence-provenance"},
 			VerificationIDs: []string{"EVO-DRYRUN-001"},
 			Since:           "1.0.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:         "EVO-DAG-001",
@@ -1866,7 +1412,7 @@ task.Kept(reasonProtected)`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"EVO-DAG-001"},
 			Since:           "1.0.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:         "EVO-DAG-002",
@@ -1887,7 +1433,7 @@ start := seq.Task("start")`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"EVO-DAG-002"},
 			Since:           "1.0.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:         "EVO-DAG-003",
@@ -1912,29 +1458,7 @@ consumer.Define(func(ctx context.Context) error {
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"EVO-DAG-003"},
 			Since:           "1.0.0",
-			Certainty:       "heuristic",
-		},
-		{
-			ID:         "API-046",
-			MinDialect: "1.0.0",
-			Category:   "API",
-			Severity:   SeverityWarning,
-			Invariant:  "Skipped means a check never applied; ResolutionAlreadySatisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
-			Why:        "task.Skipped(evo.Reason(\"already up to date\")) reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison resolve ResolutionAlreadySatisfied for exactly this case, and collapsing it into Skipped hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Skipped.",
-			BadCode: `if installedVersion == latestVersion {
-  task.Skipped(evo.Reason("already up to date"))
-  return
-}
-task.Define(func(ctx context.Context) error { return install(ctx) })`,
-			GoodCode: `task.Verify(func(ctx context.Context) (bool, error) {
-  return installedVersion == latestVersion, nil
-})
-task.Define(func(ctx context.Context) error { return install(ctx) })`,
-			Remediation:     "Move the already-true check into task.Verify(...) before Define, or rely on evo.File/evo.Exec's own tracked comparison, so evo resolves ResolutionAlreadySatisfied instead of Skipped; keep Skipped only for true inapplicability",
-			RelatedGuidance: []string{"tasks", "evidence-provenance"},
-			VerificationIDs: []string{"API-046"},
-			Since:           "1.1.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 	}
 }

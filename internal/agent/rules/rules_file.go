@@ -40,7 +40,7 @@ if err := os.Chmod(path, 0o644); err != nil {
 		RelatedGuidance: []string{"evo-file-exec", "provenance"},
 		VerificationIDs: []string{"EVO-FILE-001"},
 		Since:           "1.0.0",
-		Certainty:       "heuristic",
+		Certainty:       CertaintyHeuristic,
 	}
 }
 
@@ -70,6 +70,6 @@ return err`,
 		RelatedGuidance: []string{"evo-file-exec", "provenance"},
 		VerificationIDs: []string{"EVO-EXEC-001"},
 		Since:           "1.0.0",
-		Certainty:       "heuristic",
+		Certainty:       CertaintyHeuristic,
 	}
 }
