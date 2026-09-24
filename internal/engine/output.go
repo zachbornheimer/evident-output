@@ -345,6 +345,13 @@ type tasksState struct {
 
 	// parent is the container this one is nested in, nil at the root.
 	parent *tasksState
+	// entry is what everything declared in this container starts after:
+	// the step before it when it is a step of a Sequence (see
+	// nextStepPreds).
+	entry []predecessor
+	// lastStep is, for a Sequence, what its next step starts after: the
+	// step declared most recently, Task or nested collection.
+	lastStep []predecessor
 	// tally counts this container's descendant Tasks by outcome, for the
 	// Tasks that run After it.
 	tally collectionTally

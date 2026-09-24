@@ -48,3 +48,24 @@ func (g *SequenceHandle) Group(name string) *GroupHandle {
 	}
 	return g.tasks.Group(name)
 }
+
+// nextStepPreds is what a child declared in c now starts after. In a
+// Sequence that is the step declared just before it, whether that step is
+// a Task or a nested Group/Sequence; for a Sequence's first step, and in a
+// Group, it is what c itself starts after.
+func (c *tasksState) nextStepPreds() []predecessor {
+	if c.sequential && c.lastStep != nil {
+		return c.lastStep
+	}
+	return c.entry
+}
+
+// recordStep makes step c's latest step when c is a Sequence. carried are
+// the predecessors step itself starts after: an empty nested collection
+// succeeds without running anything, so the step after it must still wait
+// for what came before it.
+func (c *tasksState) recordStep(step predecessor, carried ...predecessor) {
+	if c.sequential {
+		c.lastStep = append([]predecessor{step}, carried...)
+	}
+}

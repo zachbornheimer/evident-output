@@ -288,23 +288,38 @@ func (o *Output) abandonLocked(st *taskState) {
 	o.sched.wg.Done()
 }
 
-// failSequenceFollowers settles NotStarted every later step of failed's
-// Sequence that has not started, Defined or not.
+// failSequenceFollowers settles NotStarted every step declared after the
+// one failed belongs to, in each Sequence it sits under, that has not
+// started, Defined or not. A nested Group/Sequence step settles all of its
+// members.
 func (o *Output) failSequenceFollowers(failed *taskState) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if failed.collection == nil || !failed.collection.sequential {
+	branch := failed.declaration
+	for c := failed.collection; c != nil; branch, c = c.declaration, c.parent {
+		if !c.sequential {
+			continue
+		}
+		for _, sib := range c.tasks {
+			if sib.declaration > branch {
+				o.stopUnstartedLocked(sib)
+			}
+		}
+		for _, child := range c.children {
+			if child.declaration > branch {
+				for _, member := range appendDescendantTasksLocked(child, nil) {
+					o.stopUnstartedLocked(member)
+				}
+			}
+		}
+	}
+}
+
+// stopUnstartedLocked settles st NotStarted unless it already started or
+// resolved.
+func (o *Output) stopUnstartedLocked(st *taskState) {
+	if core.IsTerminalTask(st.state) || st.sched.phase == phaseRunning {
 		return
 	}
-	seen := false
-	for _, sib := range failed.collection.tasks {
-		if sib == failed {
-			seen = true
-			continue
-		}
-		if !seen || core.IsTerminalTask(sib.state) || sib.sched.phase == phaseRunning {
-			continue
-		}
-		o.markNotStartedLocked(sib)
-	}
+	o.markNotStartedLocked(st)
 }

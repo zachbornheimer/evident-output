@@ -29,8 +29,9 @@ const (
 type taskSchedule struct {
 	phase schedPhase
 	work  func() error
-	// preds are the Task's predecessors: its After arguments and, for a
-	// Sequence step, the step declared just before it.
+	// preds are the Task's predecessors: its After arguments and, inside
+	// a Sequence, the step declared just before its own (see
+	// nextStepPreds).
 	preds []predecessor
 	// dependents are the Tasks parked until this one resolves.
 	dependents []*taskState
