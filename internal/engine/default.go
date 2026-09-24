@@ -125,10 +125,9 @@ func Default() *Output {
 
 // Task declares a Task on the default instance. A repeated name is a
 // duplicate sibling declaration (§3.1), not a get-or-create — see
-// Output.Task/taskScoped. name is a printf format when args are present
-// (fmt.Sprintf semantics).
+// Output.Task/taskScoped.
 func Task(name string) *TaskHandle {
-	return Default().taskScoped(name, "")
+	return Default().taskScoped(name, "", "")
 }
 
 // Sequence declares an ordered task container on the default instance —

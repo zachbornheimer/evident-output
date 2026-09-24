@@ -119,6 +119,10 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `evo.Effect` (closed `EffectVerb` set), information through `Fact`, a file
   write through `evo.File`/`evo.Patch`. MCP review (API-061) names the exact
   replacement for each call shape.
+- **`evo.ID`, `evo.StartPhase`, and `evo.EntityOption`** were removed with
+  no aliases. `Task` is name-only, so no API accepted an `EntityOption`:
+  both constructors built values nothing consumed. Stable identity is
+  `TaskHandle.Key`; the first step is `Doing` chained after `Task`.
 - The `ErrInvalidConfig` misuse hint no longer names Done's removed printf
   summary; it reads "configure After and Verify before Define, and Define
   each task once with a non-nil callback". The unresolved-task hint reads

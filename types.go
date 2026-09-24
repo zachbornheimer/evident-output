@@ -20,7 +20,6 @@ type Evidence = engine.Evidence
 type EvidenceOption = engine.EvidenceOption
 type EvidenceStream = engine.EvidenceStream
 type ConfirmOption = engine.ConfirmOption
-type EntityOption = engine.EntityOption
 type ReasonOption = engine.ReasonOption
 type DebugPaneOption = engine.DebugPaneOption
 type DebugPresentation = engine.DebugPresentation

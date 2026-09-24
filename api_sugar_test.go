@@ -216,10 +216,10 @@ func TestAPISugar_TaskBlockfNextCommandAttachesRemedy(t *testing.T) {
 	}
 }
 
-// TestAPISugar_StartPhaseDeclaresWithPhaseSet pins L7: evo.StartPhase
-// collapses declare + first Phase into one call, with no gap where the task
-// sits Pending between two statements.
-func TestAPISugar_StartPhaseDeclaresWithPhaseSet(t *testing.T) {
+// TestAPISugar_DoingDeclaresWithPhaseSet pins L7: Task(...).Doing(...)
+// declares with the first phase set in one chained call (evo.StartPhase,
+// removed in 1.1, was the old spelling).
+func TestAPISugar_DoingDeclaresWithPhaseSet(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 

@@ -109,10 +109,5 @@ func OldestFirst() DebugPaneOption         { return engine.OldestFirst() }
 func PaneHeight(lines int) DebugPaneOption { return engine.PaneHeight(lines) }
 func PreserveDebugTail() DebugPaneOption   { return engine.PreserveDebugTail() }
 
-// ID sets a stable machine key. Superseded: Task is name-only.
-func ID(id string) EntityOption { return engine.ID(id) }
-
-// StartPhase sets a task's first doing-text at declare time. Superseded: call Doing.
-func StartPhase(text string) EntityOption { return engine.StartPhase(text) }
 func ForSkip() ReasonOption               { return engine.ForSkip() }
 func OnTask(taskName string) ReasonOption { return engine.OnTask(taskName) }

@@ -1,43 +1,11 @@
 package engine
 
-// EntityOption configures Task declaration (stable keys).
-// The common path remains Task("label"); options are platform-scale.
-type EntityOption interface {
-	applyEntity(*entityOpts)
-}
-
-type entityOpts struct {
-	key   string
-	phase string
-}
-
-type entityOptionFunc func(*entityOpts)
-
-func (f entityOptionFunc) applyEntity(o *entityOpts) { f(o) }
-
-// ID sets a stable machine key independent of the human label.
-// Labels may be localized or reworded; IDs should not.
-//
-//	out.Task("download base image")
-func iD(id string) EntityOption {
-	return entityOptionFunc(func(o *entityOpts) { o.key = id })
-}
-
-func applyEntityOptions(opts []EntityOption) entityOpts {
-	var o entityOpts
-	for _, opt := range opts {
-		if opt != nil {
-			opt.applyEntity(&o)
-		}
-	}
-	return o
-}
-
 // scope is a namespaced declaration handle for plugins and subsystems.
 //
 // Contract (honest limits):
 //
-//   - Qualifies evo.ID keys as "scope.key" for stable machine identity.
+//   - Qualifies explicit Task keys as "scope.key" for stable machine
+//     identity.
 //
 //   - Exposes only Task and Tasks — operations that actually take the namespace.
 //
@@ -69,13 +37,12 @@ func (s *scope) Name() string {
 	return s.name
 }
 
-// Task declares a task; optional evo.ID is prefixed with the scope name.
-// name is a printf format when args are present (fmt.Sprintf semantics).
+// Task declares a task named name in this scope.
 func (s *scope) Task(name string) *TaskHandle {
 	if s == nil || s.out == nil {
 		return &TaskHandle{}
 	}
-	return s.out.taskScoped(name, s.name)
+	return s.out.taskScoped(name, s.name, "")
 }
 
 func qualifyKey(scope, key string) string {

@@ -65,6 +65,12 @@ var symbols = []Symbol{
 	{Contract: "TaskHandle.Record(", RemovedIn: Release1_1, Replacement: "evo.Effect for a mutation, Fact for information", Taught: regexp.MustCompile(`\b[Tt]ask\w*\.Record\(|\bTaskHandle\.Record\b`)},
 	{Contract: "TaskHandle.RecordLabel(", RemovedIn: Release1_1, Replacement: "Fact", Taught: regexp.MustCompile(`\bRecordLabel\(`)},
 	{Contract: "TaskHandle.RecordName(", RemovedIn: Release1_1, Replacement: "Fact", Taught: regexp.MustCompile(`\bRecordName\(`)},
+
+	// Task is name-only, so nothing accepted an EntityOption: ID and
+	// StartPhase built values no API consumed (PHIL-007).
+	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
+	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
+	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose

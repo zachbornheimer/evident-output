@@ -43,10 +43,6 @@ func PaneHeight(lines int) DebugPaneOption  { return paneHeight(lines) }
 func NewestFirst() DebugPaneOption          { return newestFirst() }
 func OldestFirst() DebugPaneOption          { return oldestFirst() }
 func PreserveDebugTail() DebugPaneOption    { return preserveDebugTail() }
-func ID(id string) EntityOption             { return iD(id) }
-func StartPhase(text string) EntityOption {
-	return entityOptionFunc(func(o *entityOpts) { o.phase = text })
-}
 func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	return renderPlain(s, opts)
 }
@@ -80,7 +76,7 @@ func (o *Output) AlsoWriteForTest(w io.Writer) {
 	o.cfg.extraWriters = append(o.cfg.extraWriters, w)
 }
 func (o *Output) TaskIdentified(name, key string) *TaskHandle {
-	return o.taskScoped(name, "", iD(key))
+	return o.taskScoped(name, "", key)
 }
 func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ...error) {
 	t.recordTaxonomy(reason, name, dispositionSkip, errs)
@@ -125,5 +121,5 @@ func (s *scope) TaskIdentified(name, key string) *TaskHandle {
 	if s == nil || s.out == nil {
 		return &TaskHandle{}
 	}
-	return s.out.taskScoped(name, s.name, iD(key))
+	return s.out.taskScoped(name, s.name, key)
 }

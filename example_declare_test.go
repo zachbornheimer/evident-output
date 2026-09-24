@@ -74,31 +74,3 @@ func ExampleReasonOption() {
 	// Output:
 	// true
 }
-
-// ExampleEntityOption shows the interface ID and StartPhase implement — an
-// advanced, platform-scale Task-declaration configuration surface.
-func ExampleEntityOption() {
-	opt := evo.ID("download-base-image")
-	fmt.Println(opt != nil)
-	// Output:
-	// true
-}
-
-// ExampleID sets a stable machine key independent of a Task's human label
-// (superseded today: Task is name-only, kept for advanced/platform callers
-// building their own declaration layer over EntityOption).
-func ExampleID() {
-	opt := evo.ID("download-base-image")
-	fmt.Println(opt != nil)
-	// Output:
-	// true
-}
-
-// ExampleStartPhase sets a task's first doing-text at declare time
-// (superseded today: call TaskHandle.Doing after declaring instead).
-func ExampleStartPhase() {
-	opt := evo.StartPhase("resolving dependencies")
-	fmt.Println(opt != nil)
-	// Output:
-	// true
-}

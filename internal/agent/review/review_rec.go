@@ -168,14 +168,14 @@ func (d *recSurfaceDetector) inspectLeftover(n ast.Node) bool {
 		d.report(call, "evo."+name+" is a superseded Option func; use the Config field",
 			"replace "+old+" with "+field)
 	case name == "ID":
-		d.report(call, "evo.ID is unexported; Task identity is the human label",
+		d.report(call, "evo.ID was removed in 1.1; Task identity is the human label (override with TaskHandle.Key)",
 			"replace "+old+" by dropping it; Task takes only the name")
 	case name == "StartPhase":
 		text := `""`
 		if len(call.Args) > 0 {
 			text = d.nodeSrc(call.Args[0])
 		}
-		d.report(call, "evo.StartPhase is unexported; set the first phase with Doing after Task",
+		d.report(call, "evo.StartPhase was removed in 1.1; set the first phase with Doing after Task",
 			"replace "+old+" with .Doing("+text+")")
 	}
 	return true

@@ -104,7 +104,6 @@ func Files(ctx context.Context, files FileSet)  error
 func ForSkip()  ReasonOption
 func Glyphs(p GlyphProfile)  Option
 func Group(name string)  *GroupHandle
-func ID(id string)  EntityOption
 func Init(configs ...Config)  *Output
 func IsCharDevice(w io.Writer)  bool
 func KeepLastLines(n int)  EvidenceOption
@@ -146,7 +145,6 @@ func Runner(r ProcessRunner)  Option
 func Sequence(name string)  *SequenceHandle
 func SetDefault(out *Output)
 func SlogHandler()  slog.Handler
-func StartPhase(text string)  EntityOption
 func Stdin(r io.Reader)  Option
 func Strict()  Option
 func Task(name string)  *TaskHandle
@@ -176,7 +174,6 @@ type DebugPresentation
 type EffectRecord
 type EffectSpec
 type EffectVerb
-type EntityOption
 type EntityState
 type Event
 type EventJSON

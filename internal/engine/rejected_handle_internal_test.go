@@ -30,8 +30,8 @@ func TestRejectedDeclaration_WaitNeverReportsSuccess(t *testing.T) {
 			return definedNoop(o.Task("x"))
 		}, rejected: ErrDuplicateSiblingName},
 		"duplicate key": {declare: func(o *Output) waiter {
-			o.taskScoped("a", "", ID("k"))
-			return definedNoop(o.taskScoped("b", "", ID("k")))
+			o.taskScoped("a", "", "k")
+			return definedNoop(o.taskScoped("b", "", "k"))
 		}, rejected: ErrDuplicateKey},
 		"limit exceeded": {cfg: Config{MaxEntities: 1}, declare: func(o *Output) waiter {
 			o.Task("a")

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -26,27 +25,25 @@ func (o *Output) ensureEntityRoomLocked() error {
 	return nil
 }
 
-// Task declares a single operation. Optional evo.ID sets a stable machine
-// key. name is a printf format when args are present (fmt.Sprintf
-// semantics) — evo.ID (or any other EntityOption) may be mixed into args in
-// any position and still applies.
+// Task declares a single operation named name. Identity overrides go
+// through TaskHandle.Key.
 func (o *Output) Task(name string) *TaskHandle {
-	return o.taskScoped(name, "")
+	return o.taskScoped(name, "", "")
 }
 
-// taskScoped is the declaration path behind Output.Task and Scope.Task. A
+// taskScoped is the declaration path behind Output.Task and Scope.Task;
+// key is an explicit stable key (tests only), or "" for the default. A
 // repeated call with the same (scope, name) pair — or a repeated explicit
-// evo.ID under any name — is a duplicate sibling declaration (§3.1), never a
+// key under any name — is a duplicate sibling declaration (§3.1), never a
 // get-or-create: 1.0 removed that idiom because letting two distinct
 // declarations silently merge into one identity would make a false
 // "already satisfied" possible once identity drives manifest reconciliation.
 // A same-name repeat records a Failed task with ProblemCodeDuplicateSiblingName
 // (see failDuplicateSiblingLocked); a reused explicit key still reports
 // ErrDuplicateKey, its own pre-existing identity-conflict error.
-func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandle {
-	eo := applyEntityOptions(opts)
+func (o *Output) taskScoped(name, scope, explicitKey string) *TaskHandle {
 	clean := declaredName(name)
-	key := qualifyKey(scope, eo.key)
+	key := qualifyKey(scope, explicitKey)
 
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -75,11 +72,6 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 		o.namedTasks["key:"+key] = h
 	} else {
 		o.namedTasks["\x00"+scope+"\x00"+clean] = h
-	}
-	if eo.phase != "" {
-		if st := o.taskByRef[h.id]; st != nil && o.ensureOpen() == nil && !core.IsTerminalTask(st.state) {
-			o.setPhaseLocked(st, eo.phase)
-		}
 	}
 	return h
 }
@@ -268,7 +260,7 @@ func (o *Output) declareChildContainerLocked(parent *tasksState, name string, se
 // identity behind Group.Task/Sequence.Task. A repeated name is a duplicate
 // sibling declaration (§3.1), not a get-or-create. A task declared under a
 // refused container is refused for the same reason.
-func (o *Output) declareGroupTask(g *GroupHandle, name string, opts ...EntityOption) *TaskHandle {
+func (o *Output) declareGroupTask(g *GroupHandle, name string) *TaskHandle {
 	clean := declaredName(name)
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -279,8 +271,7 @@ func (o *Output) declareGroupTask(g *GroupHandle, name string, opts ...EntityOpt
 	if _, ok := col.namedTasks[clean]; ok {
 		return o.rejectedTask(o.failDuplicateSiblingLocked(col, kindTask, clean))
 	}
-	eo := applyEntityOptions(opts)
-	h := o.addTaskLocked(clean, col, eo.key, col.key)
+	h := o.addTaskLocked(clean, col, "", col.key)
 	if h.rejected != nil {
 		return h
 	}
