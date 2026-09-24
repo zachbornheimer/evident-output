@@ -98,12 +98,13 @@ func appendDescendantTasksLocked(col *tasksState, out []*taskState) []*taskState
 func waitDescendants(states []*taskState) error {
 	var errs []error
 	var notStarted error
+	depth := callbackDepth()
 	for _, st := range states {
 		h := st.handle
-		if h == nil {
+		if h == nil || h.out == nil {
 			continue
 		}
-		err := h.Wait()
+		err := h.waitChecked(depth)
 		switch {
 		case err == nil:
 		case errors.Is(err, ErrNotStarted):
