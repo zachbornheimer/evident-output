@@ -325,6 +325,27 @@ t.Define(func(ctx context.Context) error {
 			Detection: DetectionGuidance,
 		},
 		{
+			ID:        "DOM-021",
+			Category:  "DOM",
+			Severity:  SeverityError,
+			Invariant: "a Task a function declares is Defined, resolved, or handed on before the function returns",
+			Why:       "Wiring a Task's Writer (or adding Facts) does not resolve it: the row stays unresolved, the run concludes partial with 'call Define, Fail, Block, or Skipped on this task', and a child process run off-row never becomes the row's outcome.",
+			BadCode: `t := evo.Task("fetch")
+cmd.Stdout = t.Writer()
+return cmd.Run()`,
+			GoodCode: `t := evo.Task("fetch")
+t.Define(func(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "git", "fetch")
+	cmd.Stdout = t.Writer()
+	return cmd.Run()
+})`,
+			Remediation:     "Run the work inside the Task's Define, or resolve it with Fail, Block, or Skipped",
+			RelatedGuidance: []string{"common-api", "tasks"},
+			VerificationIDs: []string{"DOM-021"},
+			Since:           "1.1.0",
+			Certainty:       CertaintyHeuristic,
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  SeverityWarning,

@@ -214,8 +214,10 @@ driving predeclared evo Tasks (API-041), `Failf`/`Fail` inside a
 Define callback whose result is returned (API-040), a nil or no-op
 `evo.Effect` callback (API-042), a plural `EffectSpec.Object` literal
 (API-043), a removed 1.1 mutation verb or `evo.Affected` (API-032), a hand-rolled channel wrapper around Define (API-044),
-`Doing(...).Done(...)` with no real work between them (FP-006), and an
-inline `evo.Reason(...)` literal or one that restates its own verb (TAX-003).
+`Doing(...).Done(...)` with no real work between them (FP-006), an
+inline `evo.Reason(...)` literal or one that restates its own verb (TAX-003),
+and a Task declared (say, only given a `Writer`) that its function never
+Defines, resolves, or hands on (DOM-021).
 
 `defineAndWait` in zq is not an exception: it is the API-044 channel-wait
 shape (it hangs when the task is already terminal before Define runs) and

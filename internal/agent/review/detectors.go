@@ -159,6 +159,9 @@ var fileDetectors = []detector{
 	// before the previous one was resolved — the earlier row is orphaned
 	// Running forever (a double row under one variable name).
 	{needsEvo: true, run: textRule(detectShadowedHandle)},
+	// DOM-021: a Task declared in a function that never Defines,
+	// resolves, or hands it on — its row stays unresolved.
+	{needsEvo: true, run: astRule(detectUnresolvedTask)},
 	// TXT-021: a Fail/Warn/Block summary hand-assembles a " — cause:"/
 	// " — action:" fragment instead of using Detail/Next.
 	{needsEvo: true, run: textRule(detectCrammedSummary)},
