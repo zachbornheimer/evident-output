@@ -32,7 +32,7 @@ func scheduleContainer(tb testing.TB, n int, sequential bool) int {
 	}
 	out.mu.Lock()
 	defer out.mu.Unlock()
-	return out.schedQueue.visits
+	return out.sched.queue.visits
 }
 
 func BenchmarkScheduleGroup(b *testing.B) {
@@ -92,7 +92,7 @@ func drainContainer(tb testing.TB, n int) int {
 	go func() {
 		for {
 			out.mu.Lock()
-			draining := out.schedDraining
+			draining := out.sched.draining
 			out.mu.Unlock()
 			if draining {
 				close(release)
@@ -104,7 +104,7 @@ func drainContainer(tb testing.TB, n int) int {
 	_ = out.Close()
 	out.mu.Lock()
 	defer out.mu.Unlock()
-	return out.schedQueue.visits
+	return out.sched.queue.visits
 }
 
 // TestDrainWorkIsLinear guards the drain path TestSchedulingScalesLinearly

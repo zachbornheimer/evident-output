@@ -114,35 +114,13 @@ type Output struct {
 	// callback can outlive the run that owns it.
 	ctx       context.Context
 	cancelRun context.CancelFunc
-	// schedCancelled stops the scheduler dispatching anything new: after an
-	// interrupt the queue is abandoned, not drained.
-	schedCancelled bool
 	// cancelCause names who stopped the run ("by user" for a signal). It
 	// becomes the cancelled Conclusion's Explanation, so the band and the
 	// JSON document state the same cause.
 	cancelCause string
 
-	schedWG          sync.WaitGroup
-	schedInflight    int
-	schedMaxObserved int
-	schedStartOrder  []string
-	schedDraining    bool
-
-	// schedExecuting counts task callbacks currently running, pooled and
-	// donated alike — schedInflight counts only the pooled slots, so it
-	// cannot answer "is any callback still moving?".
-	schedExecuting int
-	// schedWaits holds one ticket per goroutine parked in TaskHandle.Wait.
-	// Together with schedExecuting it decides whether the run can still
-	// progress, and it is how a wait that never can be satisfied is
-	// released instead of hanging Finish (see releaseUnsatisfiableWaits).
-	schedWaits map[*waitTicket]struct{}
-	// schedQueue holds submitted Tasks nobody has started (see schedQueue).
-	schedQueue schedQueue
-	// schedCascadeDue records that some Task reached a non-success terminal
-	// state since the last NotStarted cascade, so queued dependents may now
-	// be unreachable (see cascadeIneligibleLocked).
-	schedCascadeDue bool
+	// sched is the run's scheduling state (scheduler_state.go).
+	sched scheduler
 
 	// confirmAbort holds one abort channel per pending Confirm gate, keyed by
 	// item id, so cancelActive can unblock Confirm's stdin read and resolve
@@ -803,10 +781,10 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 		col.tasks = append(col.tasks, st)
 	}
 	o.taskByRef[st.id] = st
-	if o.schedDraining {
+	if o.sched.draining {
 		// A never-Defined Task strands its dependents once the run drains,
 		// and the drain's opening cascade ran before this one existed.
-		o.schedCascadeDue = true
+		o.sched.cascadeDue = true
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
@@ -834,7 +812,7 @@ func (o *Output) interrupt(reason string) {
 		return
 	}
 	o.mu.Lock()
-	o.schedCancelled = true
+	o.sched.cancelled = true
 	o.cancelCause = cancelCauseUser
 	cancelRun := o.cancelRun
 	o.mu.Unlock()

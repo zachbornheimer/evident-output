@@ -114,12 +114,12 @@ func (o *Output) AtForTest(visibility Visibility) *Printer { return o.at(visibil
 func (o *Output) SchedulerStartOrder() []string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return append([]string(nil), o.schedStartOrder...)
+	return append([]string(nil), o.sched.startOrder...)
 }
 func (o *Output) SchedulerMaxObserved() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.schedMaxObserved
+	return o.sched.maxObserved
 }
 
 func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {

@@ -28,7 +28,7 @@ func newAfterFailTestOutput(t *testing.T, maxConcurrency int) *Output {
 }
 
 // waitForParkedWaiter busy-polls (no sleep) until a goroutine has registered
-// itself in o.schedWaits — the same registration TaskHandle.Wait's
+// itself in o.sched.waits — the same registration TaskHandle.Wait's
 // waitSubmitted performs just before it parks — so a test can prove a
 // waiter is already asleep before triggering the event under test, instead
 // of guessing at timing.
@@ -37,7 +37,7 @@ func waitForParkedWaiter(t *testing.T, o *Output, want int) {
 	deadline := time.Now().Add(waitOutcomeTimeout)
 	for time.Now().Before(deadline) {
 		o.mu.Lock()
-		n := len(o.schedWaits)
+		n := len(o.sched.waits)
 		o.mu.Unlock()
 		if n >= want {
 			return

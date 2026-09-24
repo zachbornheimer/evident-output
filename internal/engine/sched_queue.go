@@ -71,12 +71,12 @@ func (q *schedQueue) live() []*taskState {
 // Nothing parks once the run is draining, so the drain's cascade sees
 // every submitted Task.
 func (o *Output) enqueueLocked(st *taskState) {
-	if prev := st.prevSibling; prev != nil && !o.schedDraining && len(st.preds) == 0 &&
+	if prev := st.prevSibling; prev != nil && !o.sched.draining && len(st.preds) == 0 &&
 		st.collection.sequential && !core.IsTerminalTask(prev.state) {
 		st.parkedOnPrev = true
 		return
 	}
-	o.schedQueue.push(st)
+	o.sched.queue.push(st)
 }
 
 // releaseNextStepLocked queues the Sequence step parked on st, now that st
@@ -88,7 +88,7 @@ func (o *Output) releaseNextStepLocked(st *taskState) {
 	}
 	next.parkedOnPrev = false
 	if awaitingStart(next) {
-		o.schedQueue.push(next)
+		o.sched.queue.push(next)
 	}
 }
 
@@ -99,7 +99,7 @@ func (o *Output) unparkAllLocked() {
 		if st.parkedOnPrev {
 			st.parkedOnPrev = false
 			if awaitingStart(st) {
-				o.schedQueue.push(st)
+				o.sched.queue.push(st)
 			}
 		}
 	}

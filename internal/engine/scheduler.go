@@ -94,8 +94,8 @@ func (t *TaskHandle) submitWork(fn func() error) {
 	}
 	st.submitted = true
 	st.workFn = fn
-	o.schedWG.Add(1)
-	if o.schedCancelled {
+	o.sched.wg.Add(1)
+	if o.sched.cancelled {
 		// Nothing starts after an interrupt, so work submitted after it is
 		// work the interrupt took away (see abandonQueuedWork).
 		o.markNotStartedLocked(st)
@@ -108,7 +108,7 @@ func (t *TaskHandle) submitWork(fn func() error) {
 	// not wait for a later kick()/waiter to notice. Only this task is new
 	// to the queue, so only it needs checking, unless some earlier failure
 	// left the whole queue due for a cascade.
-	if o.schedCascadeDue || o.unreachableLocked(st) {
+	if o.sched.cascadeDue || o.unreachableLocked(st) {
 		o.cascadeIneligibleLocked()
 	}
 	o.mu.Unlock()
@@ -139,7 +139,7 @@ func (o *Output) kick() {
 func (o *Output) abandonUnreachableWork() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if !o.schedCascadeDue {
+	if !o.sched.cascadeDue {
 		return
 	}
 	o.cascadeIneligibleLocked()
@@ -148,24 +148,24 @@ func (o *Output) abandonUnreachableWork() {
 func (o *Output) takeEligible() (st *taskState, fn func() error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.schedCancelled {
+	if o.sched.cancelled {
 		// After an interrupt the queue is abandoned, not drained: nothing
 		// new starts, so the run stops at the ^C instead of running to
 		// completion behind one cancelled row.
 		return nil, nil
 	}
-	if o.schedInflight >= o.concurrencyCeilingLocked() {
+	if o.sched.inflight >= o.concurrencyCeilingLocked() {
 		return nil, nil
 	}
-	if cand := o.schedQueue.first(o.eligibleLocked); cand != nil {
+	if cand := o.sched.queue.first(o.eligibleLocked); cand != nil {
 		o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
 		cand.runningWork = true
-		o.schedInflight++
-		o.schedExecuting++
-		if o.schedInflight > o.schedMaxObserved {
-			o.schedMaxObserved = o.schedInflight
+		o.sched.inflight++
+		o.sched.executing++
+		if o.sched.inflight > o.sched.maxObserved {
+			o.sched.maxObserved = o.sched.inflight
 		}
-		o.schedStartOrder = append(o.schedStartOrder, cand.name)
+		o.sched.startOrder = append(o.sched.startOrder, cand.name)
 		if cand.state == Pending {
 			o.promoteRunningLocked(cand)
 		}
@@ -193,10 +193,10 @@ func (o *Output) runWork(st *taskState, fn func() error) {
 			st.handle.failScheduled(fmt.Sprintf("panic: %v", r))
 		}
 		o.mu.Lock()
-		o.schedInflight--
-		o.schedExecuting--
+		o.sched.inflight--
+		o.sched.executing--
 		o.mu.Unlock()
-		o.schedWG.Done()
+		o.sched.wg.Done()
 		o.kick()
 	}()
 
@@ -311,10 +311,10 @@ func callbackDepth() int { return readStackMarks().callbacks }
 func (o *Output) beginWait(taskID string, depth int) *waitTicket {
 	ticket := &waitTicket{taskID: taskID, depth: depth, abort: make(chan struct{})}
 	o.mu.Lock()
-	if o.schedWaits == nil {
-		o.schedWaits = make(map[*waitTicket]struct{})
+	if o.sched.waits == nil {
+		o.sched.waits = make(map[*waitTicket]struct{})
 	}
-	o.schedWaits[ticket] = struct{}{}
+	o.sched.waits[ticket] = struct{}{}
 	o.mu.Unlock()
 	o.releaseUnsatisfiableWaits()
 	return ticket
@@ -323,7 +323,7 @@ func (o *Output) beginWait(taskID string, depth int) *waitTicket {
 func (o *Output) endWait(ticket *waitTicket) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	delete(o.schedWaits, ticket)
+	delete(o.sched.waits, ticket)
 }
 
 // releaseUnsatisfiableWaits ends every parked wait once the run has proven
@@ -335,7 +335,7 @@ func (o *Output) endWait(ticket *waitTicket) {
 func (o *Output) releaseUnsatisfiableWaits() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if len(o.schedWaits) == 0 || o.progressPossibleLocked() {
+	if len(o.sched.waits) == 0 || o.progressPossibleLocked() {
 		return
 	}
 	// Work whose predecessors can no longer succeed is abandoned first: a
@@ -344,8 +344,8 @@ func (o *Output) releaseUnsatisfiableWaits() {
 	if o.progressPossibleLocked() {
 		return
 	}
-	for ticket := range o.schedWaits {
-		delete(o.schedWaits, ticket)
+	for ticket := range o.sched.waits {
+		delete(o.sched.waits, ticket)
 		if st := o.taskByRef[ticket.taskID]; st != nil {
 			o.recordMisuseFor(st.name, ErrWaitDeadlock)
 		}
@@ -355,7 +355,7 @@ func (o *Output) releaseUnsatisfiableWaits() {
 
 // progressPossibleLocked reports whether anything could still move the run.
 func (o *Output) progressPossibleLocked() bool {
-	return o.schedExecuting > o.parkedCallbacksLocked() ||
+	return o.sched.executing > o.parkedCallbacksLocked() ||
 		o.anyClaimableLocked() ||
 		o.anyAwaitedTaskResolvedLocked() ||
 		o.anyCallerResolvableLocked()
@@ -366,20 +366,20 @@ func (o *Output) progressPossibleLocked() bool {
 // still doing work.
 func (o *Output) parkedCallbacksLocked() int {
 	parked := 0
-	for ticket := range o.schedWaits {
+	for ticket := range o.sched.waits {
 		parked += ticket.depth
 	}
 	return parked
 }
 
 func (o *Output) anyClaimableLocked() bool {
-	return !o.schedCancelled && o.schedQueue.first(o.eligibleLocked) != nil
+	return !o.sched.cancelled && o.sched.queue.first(o.eligibleLocked) != nil
 }
 
 // anyAwaitedTaskResolvedLocked reports whether some parked waiter's task is
 // already terminal — it is about to wake on its own doneCh.
 func (o *Output) anyAwaitedTaskResolvedLocked() bool {
-	for ticket := range o.schedWaits {
+	for ticket := range o.sched.waits {
 		if st := o.taskByRef[ticket.taskID]; st != nil && core.IsTerminalTask(st.state) {
 			return true
 		}
@@ -393,7 +393,7 @@ func (o *Output) anyAwaitedTaskResolvedLocked() bool {
 // means the run is waiting on its caller rather than on itself, and from
 // the inside evo cannot tell that apart from a cycle.
 func (o *Output) anyCallerResolvableLocked() bool {
-	if o.schedDraining {
+	if o.sched.draining {
 		return false
 	}
 	for _, st := range o.tasks {
@@ -478,9 +478,9 @@ func (o *Output) executeClaimed(st *taskState, fn func() error) {
 			st.handle.failScheduled(fmt.Sprintf("panic: %v", r))
 		}
 		o.mu.Lock()
-		o.schedExecuting--
+		o.sched.executing--
 		o.mu.Unlock()
-		o.schedWG.Done()
+		o.sched.wg.Done()
 		o.kick()
 	}()
 	o.executeWork(st, fn)
@@ -504,10 +504,10 @@ func (o *Output) claimForWaiter(taskID string) (st *taskState, fn func() error, 
 func (o *Output) claimAnyForWaiter() (st *taskState, fn func() error, claimed bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.schedCancelled {
+	if o.sched.cancelled {
 		return nil, nil, false
 	}
-	if cand := o.schedQueue.first(o.eligibleLocked); cand != nil {
+	if cand := o.sched.queue.first(o.eligibleLocked); cand != nil {
 		return o.claimLocked(cand)
 	}
 	return nil, nil, false
@@ -515,7 +515,7 @@ func (o *Output) claimAnyForWaiter() (st *taskState, fn func() error, claimed bo
 
 // claimableLocked reports whether a waiting goroutine may run cand itself.
 func (o *Output) claimableLocked(cand *taskState) bool {
-	if o.schedCancelled || cand == nil || !cand.submitted || cand.runningWork || core.IsTerminalTask(cand.state) {
+	if o.sched.cancelled || cand == nil || !cand.submitted || cand.runningWork || core.IsTerminalTask(cand.state) {
 		return false
 	}
 	return o.eligibleLocked(cand)
@@ -525,8 +525,8 @@ func (o *Output) claimableLocked(cand *taskState) bool {
 // ceiling and without the in-flight accounting (see executeClaimed).
 func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error, claimed bool) {
 	cand.runningWork = true
-	o.schedExecuting++
-	o.schedStartOrder = append(o.schedStartOrder, cand.name)
+	o.sched.executing++
+	o.sched.startOrder = append(o.sched.startOrder, cand.name)
 	if cand.state == Pending {
 		o.promoteRunningLocked(cand)
 	}
@@ -537,12 +537,12 @@ func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error, c
 
 func (o *Output) drainScheduler() {
 	o.mu.Lock()
-	o.schedDraining = true
+	o.sched.draining = true
 	o.unparkAllLocked()
 	o.cascadeIneligibleLocked()
 	o.mu.Unlock()
 	o.kick()
-	o.schedWG.Wait()
+	o.sched.wg.Wait()
 }
 
 func (o *Output) eligibleLocked(st *taskState) bool {
@@ -582,7 +582,7 @@ func (o *Output) predsSatisfiedLocked(st *taskState) bool {
 func (o *Output) cascadeIneligibleLocked() {
 	for changed := true; changed; {
 		changed = false
-		for _, st := range o.schedQueue.live() {
+		for _, st := range o.sched.queue.live() {
 			if !awaitingStart(st) || !o.unreachableLocked(st) {
 				continue
 			}
@@ -590,7 +590,7 @@ func (o *Output) cascadeIneligibleLocked() {
 			changed = true
 		}
 	}
-	o.schedCascadeDue = false
+	o.sched.cascadeDue = false
 }
 
 // unreachableLocked reports whether queued st can never become eligible:
@@ -634,7 +634,7 @@ func (o *Output) predecessorBlockedLocked(st *taskState) bool {
 			if pred != nil && predecessorFailed(pred.state) {
 				return true
 			}
-			if o.schedDraining && (pred == nil || !pred.submitted && !core.IsTerminalTask(pred.state)) {
+			if o.sched.draining && (pred == nil || !pred.submitted && !core.IsTerminalTask(pred.state)) {
 				return true
 			}
 			continue
@@ -659,7 +659,7 @@ func (o *Output) markNotStartedLocked(st *taskState) {
 	st.runningWork = true
 	if st.submitted {
 		st.submitted = false
-		o.schedWG.Done()
+		o.sched.wg.Done()
 	}
 	o.settleLocked(st, NotStarted)
 }

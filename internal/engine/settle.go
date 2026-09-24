@@ -20,7 +20,7 @@ func (o *Output) settleLocked(st *taskState, state EntityState) {
 	st.closeDoneLocked()
 	o.releaseNextStepLocked(st)
 	if predecessorFailed(state) {
-		o.schedCascadeDue = true
+		o.sched.cascadeDue = true
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task." + string(state), EntityID: st.id})
