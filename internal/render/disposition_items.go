@@ -31,12 +31,17 @@ func isDispositionItem(group string, t *core.TaskSnapshot) bool {
 		len(t.Actions) == 0 && len(t.Verification) == 0
 }
 
-// minFoldedItems is the fewest disposition items a tally replaces. One
-// item's own row already is its count, and it carries the item's name: a
-// lone Skipped peer ("○ remote-tracking  - skipped 1 (--skip-fetch)")
-// must not become a nameless "- skipped 1" under a header its Group never
-// had.
-const minFoldedItems = 2
+// minFoldedItems is the fewest disposition items a tally replaces when
+// no own Task names their subject. One item's own row already is its
+// count, and it carries the item's name: a lone Skipped peer
+// ("○ remote-tracking  - skipped 1 (--skip-fetch)") must not become a
+// nameless "- skipped 1" under a header its Group never had. Under a
+// Group's own Task every item is an item of that subject, so one is
+// enough ("✓ branches  2 checked" / "  ! kept 1 (protected)").
+const (
+	minFoldedItems        = 2
+	minFoldedItemsOwnTask = 1
+)
 
 // childCensus is how a Group's child Tasks partition for folding: its own
 // Task, its disposition items, and whether any other child finished work
@@ -73,9 +78,9 @@ func isWorkPeer(t *core.TaskSnapshot) bool {
 }
 
 // foldsItems reports whether col's disposition items fold into a tally:
-// at least minFoldedItems of them, under a Group whose own row names the
-// subject they are items of — its own Task or its own Summary — or that
-// has no work peer. Beside a work peer, with no such row, a Skipped or
+// any of them under a Group's own Task, else at least minFoldedItems
+// under a Group whose Summary names their subject or that has no work
+// peer. Beside a work peer, with no such row, a Skipped or
 // Kept child is a peer category whose name is its information ("○ tags
 // - skipped 1 (--skip-fetch)"), so it keeps its row. A Sequence keeps
 // every row: its rows state an order the tally cannot (§5, and the
@@ -85,8 +90,10 @@ func foldsItems(col core.TasksSnapshot) bool {
 		return false
 	}
 	c := censusOf(col)
-	namesSubject := c.ownTask || col.Summary != ""
-	return c.items >= minFoldedItems && (namesSubject || !c.workPeer)
+	if c.ownTask {
+		return c.items >= minFoldedItemsOwnTask
+	}
+	return c.items >= minFoldedItems && (col.Summary != "" || !c.workPeer)
 }
 
 // withoutDispositionItems returns col without its disposition items, and

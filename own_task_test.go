@@ -113,3 +113,27 @@ func TestOwnTask_SkippedPeersBesideWorkKeepTheirRows(t *testing.T) {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
 }
+
+// TestOwnTask_LoneKeptItemFoldsUnderItsGroupRow is zq prune on a small
+// repo: main is always kept, so a category often has exactly one kept
+// item. Under a Group with its own work Task that item is an item of the
+// category, and it folds into the tally like any number of items would.
+func TestOwnTask_LoneKeptItemFoldsUnderItsGroupRow(t *testing.T) {
+	var buf bytes.Buffer
+	out := newPlainOutput(&buf, false)
+	t.Cleanup(func() { _ = out.Close() })
+	items := out.Group("branches")
+	work := items.Task("branches")
+	work.Define(func(context.Context) error {
+		items.Task("main").Kept(evo.Reason("protected"))
+		work.Summary("2 checked")
+		return nil
+	})
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	want := "✓ branches  2 checked\n  ! kept 1 (protected)\n" + warnedBand
+	if got := buf.String(); got != want {
+		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+	}
+}
