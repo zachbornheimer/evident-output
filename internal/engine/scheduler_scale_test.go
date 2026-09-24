@@ -9,8 +9,9 @@ import (
 )
 
 // scheduleContainer declares n no-op Tasks under one Group or Sequence,
-// Defines each, and waits for the container.
-func scheduleContainer(tb testing.TB, n int, sequential bool) {
+// Defines each, and waits for the container. It returns the queue entries
+// scheduling examined.
+func scheduleContainer(tb testing.TB, n int, sequential bool) int {
 	tb.Helper()
 	out := Init(Config{Isolated: true, StateDir: tb.TempDir(), Stdout: io.Discard, Stderr: io.Discard})
 	defer func() { _ = out.Close() }()
@@ -29,6 +30,9 @@ func scheduleContainer(tb testing.TB, n int, sequential bool) {
 	if err := wait(); err != nil {
 		tb.Fatalf("Wait: %v", err)
 	}
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	return out.schedQueue.visits
 }
 
 func BenchmarkScheduleGroup(b *testing.B) {
@@ -51,37 +55,23 @@ func BenchmarkScheduleSequence(b *testing.B) {
 	}
 }
 
-// TestSchedulingScalesLinearly guards against a super-linear scheduler:
-// four times the Tasks must cost well under sixteen times the time.
-func TestSchedulingScalesLinearly(t *testing.T) {
-	if testing.Short() {
-		t.Skip("timing guard")
-	}
+// TestSchedulingWorkIsLinear guards against a super-linear scheduler by
+// counting the queue entries it examines, not by timing it: a timed 4x
+// ratio flaked under a loaded `go test ./...`.
+func TestSchedulingWorkIsLinear(t *testing.T) {
+	const n = 4000
 	for _, sequential := range []bool{false, true} {
-		small := timeSchedule(t, 1000, sequential)
-		large := timeSchedule(t, 4000, sequential)
-		ratio := float64(large) / float64(small)
-		t.Logf("sequential=%v: 1000=%v 4000=%v x%.1f", sequential, small, large, ratio)
-		if ratio > linearScaleCeiling {
-			t.Errorf("sequential=%v: 4000 Tasks took %v, 1000 took %v (x%.1f, want <= x%.0f)", sequential, large, small, ratio, linearScaleCeiling)
+		visits := scheduleContainer(t, n, sequential)
+		t.Logf("sequential=%v: n=%d visits=%d", sequential, n, visits)
+		if visits > scheduleVisitsPerTask*n {
+			t.Errorf("sequential=%v: scheduling examined %d queue entries for %d Tasks (want <= %d)", sequential, visits, n, scheduleVisitsPerTask*n)
 		}
 	}
 }
 
-// linearScaleCeiling is the largest 4x-input cost ratio accepted: 4 is
-// linear, 16 is quadratic; the margin absorbs timer and GC noise.
-const linearScaleCeiling = 8.0
-
-func timeSchedule(t *testing.T, n int, sequential bool) time.Duration {
-	t.Helper()
-	best := time.Duration(1<<63 - 1)
-	for range 3 {
-		start := time.Now()
-		scheduleContainer(t, n, sequential)
-		best = min(best, time.Since(start))
-	}
-	return best
-}
+// scheduleVisitsPerTask bounds scheduling work per Task: a constant number
+// of passes over each entry, never a rescan of the queue per start.
+const scheduleVisitsPerTask = 4
 
 // drainContainer is the canonical evo.Main shape: declare and Define n
 // Tasks, return, and let Close's drain run them. The first Task holds the
@@ -114,13 +104,14 @@ func drainContainer(tb testing.TB, n int) int {
 	_ = out.Close()
 	out.mu.Lock()
 	defer out.mu.Unlock()
-	return out.schedCascadeVisits
+	return out.schedQueue.visits
 }
 
 // TestDrainWorkIsLinear guards the drain path TestSchedulingScalesLinearly
 // cannot see: while draining, every Task completion used to rescan the
 // whole live queue for unreachable work (n=16000: 127.9M visits, 3.57s).
-// It counts the cascade's work instead of timing it, so load cannot flake it.
+// It counts the queue entries scheduling examined instead of timing it, so
+// load cannot flake it.
 func TestDrainWorkIsLinear(t *testing.T) {
 	const n = 4000
 	visits := drainContainer(t, n)
@@ -130,6 +121,6 @@ func TestDrainWorkIsLinear(t *testing.T) {
 	}
 }
 
-// drainVisitsPerTask bounds the cascade's work per Task: the drain's
-// opening pass visits each queued Task once.
-const drainVisitsPerTask = 2
+// drainVisitsPerTask bounds scheduling work per Task: the drain's opening
+// cascade visits each queued Task once, and starting it visits it again.
+const drainVisitsPerTask = 4

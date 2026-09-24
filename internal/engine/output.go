@@ -143,9 +143,6 @@ type Output struct {
 	// state since the last NotStarted cascade, so queued dependents may now
 	// be unreachable (see cascadeIneligibleLocked).
 	schedCascadeDue bool
-	// schedCascadeVisits counts queue entries the cascade has examined, so
-	// a test can prove the scheduler's work stays linear without timing it.
-	schedCascadeVisits int
 
 	// confirmAbort holds one abort channel per pending Confirm gate, keyed by
 	// item id, so cancelActive can unblock Confirm's stdin read and resolve
