@@ -1,6 +1,10 @@
 package engine
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/zachbornheimer/evident-output/internal/render"
+)
 
 // journal is the run's durable event log, bounded under backpressure
 // (CON-008): once it holds more than its cap, the oldest non-critical
@@ -78,4 +82,39 @@ func criticalEventType(t string) bool {
 	default:
 		return false
 	}
+}
+
+func (o *Output) appendEventLocked(e Event) {
+	e.Timestamp = o.cfg.clock.Now()
+	e.SchemaVersion = EventSchemaVersion
+	if e.OutputID == "" {
+		e.OutputID = o.outputID
+	}
+	e = o.journal.append(e, o.cfg.maxEvents)
+	if o.cfg.projection == ProjectionStreamJSON {
+		o.writeStreamJSONLocked(e)
+	}
+}
+
+func (o *Output) writeStreamJSONLocked(e Event) {
+	w := o.cfg.primary
+	if w == nil {
+		return
+	}
+	row, err := render.EncodeEventJSON(e)
+	if err != nil {
+		return
+	}
+	_, _ = w.Write(row)
+	_, _ = w.Write([]byte{'\n'})
+	if f, ok := w.(flusher); ok {
+		_ = f.Flush()
+	}
+}
+
+// Events returns a copy of durable events (v0.1 journal).
+func (o *Output) copyEvents() []Event {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.journal.snapshot(o.cfg.maxEvents)
 }
