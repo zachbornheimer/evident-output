@@ -70,7 +70,7 @@ type Output struct {
 	ledger  ledgerIndex
 	lines   []string
 	actions []Action
-	events  []Event
+	journal journal
 
 	// wireSeq/wireEventErr back the §38 "evo.event" JSONL stream
 	// (structured_events.go's emitWireEventLocked) — a counter and
@@ -1545,13 +1545,7 @@ func (o *Output) appendEventLocked(e Event) {
 	if e.OutputID == "" {
 		e.OutputID = o.outputID
 	}
-	// Sequence is monotonic assignment order, not index after compaction.
-	e.Sequence = uint64(len(o.events) + 1)
-	if len(o.events) > 0 {
-		e.Sequence = o.events[len(o.events)-1].Sequence + 1
-	}
-	o.events = append(o.events, e)
-	o.compactJournalLocked()
+	e = o.journal.append(e, o.cfg.maxEvents)
 	if o.cfg.projection == ProjectionStreamJSON {
 		o.writeStreamJSONLocked(e)
 	}
@@ -1570,38 +1564,6 @@ func (o *Output) writeStreamJSONLocked(e Event) {
 	_, _ = w.Write([]byte{'\n'})
 	if f, ok := w.(flusher); ok {
 		_ = f.Flush()
-	}
-}
-
-// criticalEventTypes are never dropped under journal backpressure (CON-008).
-func criticalEventType(t string) bool {
-	switch t {
-	case "output.failed", "output.finished", "output.cancelled",
-		"task.blocked", "task.failed", "output.started":
-		return true
-	default:
-		return false
-	}
-}
-
-func (o *Output) compactJournalLocked() {
-	max := o.cfg.maxEvents
-	if max <= 0 || len(o.events) <= max {
-		return
-	}
-	// Drop oldest non-critical until under cap; if still over, drop oldest critical last.
-	for len(o.events) > max {
-		drop := -1
-		for i, ev := range o.events {
-			if !criticalEventType(ev.Type) {
-				drop = i
-				break
-			}
-		}
-		if drop < 0 {
-			drop = 0
-		}
-		o.events = append(o.events[:drop], o.events[drop+1:]...)
 	}
 }
 
@@ -1833,7 +1795,7 @@ func (o *Output) Finish() error {
 	if cfg.projection.suppressesHuman() {
 		var events []Event
 		if cfg.projection == ProjectionJSONL {
-			events = append([]Event(nil), o.events...)
+			events = o.journal.snapshot(o.cfg.maxEvents)
 		}
 		o.mu.Unlock()
 		return writeMachinePresentation(writer, snap, events, cfg.projection, misuse)
@@ -2016,7 +1978,5 @@ func (o *Output) explainCancellationLocked(c *core.Conclusion) {
 func (o *Output) copyEvents() []Event {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	out := make([]Event, len(o.events))
-	copy(out, o.events)
-	return out
+	return o.journal.snapshot(o.cfg.maxEvents)
 }

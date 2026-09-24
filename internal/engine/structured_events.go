@@ -10,7 +10,7 @@ import "github.com/zachbornheimer/evident-output/internal/wire"
 // guard is the one place that decides whether the line is worth building.
 //
 // wireSeq is its own counter, independent of the legacy 0.3 journal's
-// o.events sequence (appendEventLocked): the two streams describe distinct
+// o.journal sequence (appendEventLocked): the two streams describe distinct
 // vocabularies (see internal/wire/event.go's §38 family constants vs. the
 // legacy Event.Type strings appendEventLocked still carries unchanged), and
 // §38 only requires seq strictly monotonic *within this stream*, not shared
