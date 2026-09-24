@@ -433,22 +433,22 @@ func inlineWarningText(msg string, color bool, profile txt.GlyphProfile) string 
 // caller which of Skipped/Kept was inlined, so its causes/Verbose name list
 // (writeTaxonomy's other output) still renders below the row — inlining
 // only replaces the headline count line, never the evidence under it.
-func inlineTaskTaxonomy(t core.TaskSnapshot) (text, verb string, ok bool) {
+func inlineTaskTaxonomy(t core.TaskSnapshot) (text string, verb disposition, ok bool) {
 	if t.State != core.Done || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 0 {
-		return "", "", false
+		return "", noDisposition, false
 	}
 	var records []core.TaxonomyRecord
 	switch {
 	case len(t.Skipped) > 0 && len(t.Kept) == 0:
-		verb, records = taxonomySkipped, t.Skipped
+		verb, records = dispositionSkipped, t.Skipped
 	case len(t.Kept) > 0 && len(t.Skipped) == 0:
-		verb, records = taxonomyKept, t.Kept
+		verb, records = dispositionKept, t.Kept
 	default:
-		return "", "", false
+		return "", noDisposition, false
 	}
 	text = taxonomySummaryText(verb, core.TallyOf(records))
 	if txt.Cells(text) > warningInlineMaxCells {
-		return "", "", false
+		return "", noDisposition, false
 	}
 	return text, verb, true
 }
@@ -673,7 +673,7 @@ func progressCountText(p core.Progress) string {
 // text inline on the task's own row (inlineTaskTaxonomy) — the causes
 // evidence line and Verbose name list below are unaffected by where the
 // headline text landed, so only the summary line itself is suppressed.
-func writeTaxonomy(b *strings.Builder, indent, verb string, tally core.Tally, skipSummary, verbose, color bool, profile txt.GlyphProfile) {
+func writeTaxonomy(b *strings.Builder, indent string, verb disposition, tally core.Tally, skipSummary, verbose, color bool, profile txt.GlyphProfile) {
 	if tally.Total() == 0 {
 		return
 	}
@@ -691,20 +691,20 @@ func writeTaxonomy(b *strings.Builder, indent, verb string, tally core.Tally, sk
 
 // writeTaxonomyHeadline writes tally's one count line ("- skipped 3
 // (...)"), or nothing when it is empty.
-func writeTaxonomyHeadline(b *strings.Builder, indent, verb string, tally core.Tally, color bool, profile txt.GlyphProfile) {
+func writeTaxonomyHeadline(b *strings.Builder, indent string, verb disposition, tally core.Tally, color bool, profile txt.GlyphProfile) {
 	if tally.Total() == 0 {
 		return
 	}
-	fmt.Fprintf(b, "%s%s %s\n", indent, taxonomyGlyph(verb, color, profile), taxonomySummaryText(verb, tally))
+	fmt.Fprintf(b, "%s%s %s\n", indent, verb.glyph(color, profile), taxonomySummaryText(verb, tally))
 }
 
 // writeDispositions writes d's skipped then kept tallies at indent.
 // inlinedVerb names the tally the caller already rendered on its own row
 // (inlineTaskTaxonomy), whose headline line is then not repeated; "" when
-// none was inlined.
-func writeDispositions(b *strings.Builder, indent string, d core.Dispositions, inlinedVerb string, verbose, color bool, profile txt.GlyphProfile) {
-	writeTaxonomy(b, indent, taxonomySkipped, d.Skipped, inlinedVerb == taxonomySkipped, verbose, color, profile)
-	writeTaxonomy(b, indent, taxonomyKept, d.Kept, inlinedVerb == taxonomyKept, verbose, color, profile)
+// noDisposition when none was inlined.
+func writeDispositions(b *strings.Builder, indent string, d core.Dispositions, inlinedVerb disposition, verbose, color bool, profile txt.GlyphProfile) {
+	writeTaxonomy(b, indent, dispositionSkipped, d.Skipped, inlinedVerb == dispositionSkipped, verbose, color, profile)
+	writeTaxonomy(b, indent, dispositionKept, d.Kept, inlinedVerb == dispositionKept, verbose, color, profile)
 }
 
 // taskDispositions is t's own two tallies.
@@ -714,30 +714,10 @@ func taskDispositions(t core.TaskSnapshot) core.Dispositions {
 	return d
 }
 
-// Disposition verbs a taxonomy tally reads as ("skipped 3 (...)", "kept 2
-// (...)").
-const (
-	taxonomySkipped = "skipped"
-	taxonomyKept    = "kept"
-)
-
-// taxonomyGlyph is a tally's leading glyph. A Kept tally is attention — the
-// run left something in place the reader may have expected gone — so it
-// wears the warning bang (contract §26/§27: "! kept 13 (...)"). A Skipped
-// tally is skip detail, never a warning: contract §20 "Use a plain,
-// widely-rendered `-` for an already-satisfied/skipped detail", and §41
-// reserves "!" for Warning.
-func taxonomyGlyph(verb string, color bool, profile txt.GlyphProfile) string {
-	if verb == taxonomySkipped {
-		return txt.Dim(txt.GlyphSkipDetail.Render(profile), color)
-	}
-	return txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
-}
-
 // inlineTaxonomyText is a tally inlined on its task's row, with the same
-// glyph its nested line would carry (taxonomyGlyph).
-func inlineTaxonomyText(text, verb string, color bool, profile txt.GlyphProfile) string {
-	return txt.Dim(taxonomyGlyph(verb, color, profile)+" "+text, color)
+// glyph its nested line would carry (disposition.glyph).
+func inlineTaxonomyText(text string, verb disposition, color bool, profile txt.GlyphProfile) string {
+	return txt.Dim(verb.glyph(color, profile)+" "+text, color)
 }
 
 // taxonomySummaryText derives the "<verb> N (<reason breakdown>)" text shared
@@ -746,7 +726,7 @@ func inlineTaxonomyText(text, verb string, color bool, profile txt.GlyphProfile)
 // byte-identical text (fixture-repo-retire-dryrun.md's "kept 13 (8 protected,
 // 5 unpushed)": single space before the parenthesis, not the two-space form
 // the pre-fixture rendering used).
-func taxonomySummaryText(verb string, tally core.Tally) string {
+func taxonomySummaryText(verb disposition, tally core.Tally) string {
 	reasons := tally.Reasons()
 	parts := make([]string, len(reasons))
 	for i, part := range reasons {
@@ -798,7 +778,7 @@ func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidt
 	col, items := withoutDispositionItems(col)
 	if rendersAsOwnTask(col) {
 		WriteTaskAligned(b, col.Tasks[0], nameWidth, color, verbose, profile)
-		writeDispositions(b, taskAnnotationIndent, items, "", verbose, color, profile)
+		writeDispositions(b, taskAnnotationIndent, items, noDisposition, verbose, color, profile)
 		return
 	}
 	if groupHeaderAddsNothing(col) && items.Empty() {
@@ -811,7 +791,7 @@ func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidt
 	} else {
 		fmt.Fprintf(b, "%s %s\n", glyph, col.Name)
 	}
-	writeDispositions(b, headerTallyIndent(col), items, "", verbose, color, profile)
+	writeDispositions(b, headerTallyIndent(col), items, noDisposition, verbose, color, profile)
 	childNameWidth := maxTaskNameWidth(col.Tasks)
 	for _, t := range col.Tasks {
 		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
@@ -1114,7 +1094,7 @@ func WritePlannedHeader(b *strings.Builder, color, preview bool, subject string)
 // that never invented a State of its own (StatePartial is dead precisely
 // because Partial is a modifier, not a root verdict) still needs an honest
 // band when core.Conclusion.Partial is true (release-gate round 4 finding 1) — an
-// abandoned Each loop or a forgotten terminal verb on an otherwise clean
+// abandoned per-item loop or a forgotten terminal verb on an otherwise clean
 // finish must not read as silently complete.
 const conclusionPartialModifier = " · partial"
 

@@ -136,14 +136,14 @@ func writeLiveDispositions(b *strings.Builder, indent string, items core.Disposi
 		return 0
 	}
 	var full strings.Builder
-	writeDispositions(&full, indent, items, "", false, color, profile)
+	writeDispositions(&full, indent, items, noDisposition, false, color, profile)
 	if rows = strings.Count(full.String(), "\n"); rows <= maxRows {
 		b.WriteString(full.String())
 		return rows
 	}
 	start := b.Len()
-	writeTaxonomyHeadline(b, indent, taxonomySkipped, items.Skipped, color, profile)
-	writeTaxonomyHeadline(b, indent, taxonomyKept, items.Kept, color, profile)
+	writeTaxonomyHeadline(b, indent, dispositionSkipped, items.Skipped, color, profile)
+	writeTaxonomyHeadline(b, indent, dispositionKept, items.Kept, color, profile)
 	return strings.Count(b.String()[start:], "\n")
 }
 
