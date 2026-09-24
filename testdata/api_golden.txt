@@ -131,6 +131,7 @@ func On(subject string)  ProblemOption
 func OnTask(taskName string)  ReasonOption
 func PaneHeight(lines int)  DebugPaneOption
 func ParseFormat(s string)  Format,  error
+func PartialEffect(committed int, err error)  error
 func Patch(ctx context.Context, diff []byte)  FileSet,  error
 func Plain()  Option
 func Pluralize(quantity int64, singular string)  string
@@ -288,6 +289,7 @@ value ErrFilePathTypeMismatch
 value ErrFileSpecMissingPath
 value ErrFileUnmanagedContentsMissing
 value ErrInvalidConfig
+value ErrInvalidPartialEffect
 value ErrInvalidProgress
 value ErrInvalidResource
 value ErrKeyAfterDefine
