@@ -632,6 +632,13 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// (information), or File/Patch (file writes).
 	findings = append(findings, detectDeprecatedRecordCall(filename, f, fset)...)
 
+	// API-062: a caller stopwatch narrated through Summary/Fact duplicates
+	// the lifecycle timing Evo stamps itself (ZYS-945). TaskSnapshot.Timing
+	// and Conclusion.Metrics only exist from 1.2.0 on.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneTwo) {
+		findings = append(findings, detectManualTaskTiming(filename, f, fset)...)
+	}
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)

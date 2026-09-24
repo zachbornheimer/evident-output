@@ -35,6 +35,12 @@ const dialectOneZero = "1.0.0"
 // fire for a pin older than this.
 const dialectOneOne = "1.1.0"
 
+// dialectOneTwo is the first release whose public surface stamps every
+// Task's lifecycle (TaskSnapshot.Timing) and derives the run aggregate
+// (Conclusion.Metrics) — the §39 optimization data API-062 recommends in
+// place of a caller stopwatch narrated through Summary/Fact (ZYS-945).
+const dialectOneTwo = "1.2.0"
+
 // dialectAtLeast reports whether desired is the current dialect (empty) or
 // a pin at/after cutoff. Pre-cutoff pins do not fire that dialect's findings.
 func dialectAtLeast(desired, cutoff string) bool {

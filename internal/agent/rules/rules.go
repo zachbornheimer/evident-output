@@ -1753,6 +1753,28 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-062",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a caller never narrates a stopwatch through Summary or Fact; Evo stamps every Task's lifecycle and derives the run's timing aggregate",
+			Why:       "Evo stamps each Task's declared/eligible/started/settled boundaries from the run's Clock and derives where time went — waiting on dependencies, waiting on scheduler capacity, running — plus resolution counts and peak concurrency (contract §39, ZYS-945). A time.Since reading pasted into a Summary or Fact duplicates that truth as prose: it measures from wherever the caller happened to start the stopwatch, conflates queueing with running, and reaches JSON/JSONL as a string no machine consumer can aggregate.",
+			BadCode: `start := time.Now()
+task.Define(func(ctx context.Context) error {
+  err := build(ctx)
+  task.Summary(fmt.Sprintf("built in %s", time.Since(start)))
+  return err
+})`,
+			GoodCode: `task.Define(build)
+_ = out.Finish()
+timing := task.Snapshot().Timing // Queued, Running, Total
+metrics := out.Conclusion().Metrics()`,
+			Remediation:     "Delete the stopwatch and the Summary/Fact that narrates it; read TaskSnapshot.Timing or Conclusion.Metrics in code, \"timing\"/\"data.metrics\" in JSON (run.finished \"metrics\" in JSONL), and the Verbose timing line in human output.",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-062"},
+			Since:           "1.2.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",
