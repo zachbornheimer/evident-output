@@ -122,25 +122,35 @@ func (o *Output) ledgerSectionLocked(owner *taskState, tense ledgerTense) *ledge
 	sections := o.sectionsLocked(tense)
 	*sections = insertByLedgerOrder(*sections, s)
 	o.ledger.opened(key, s)
-	o.qualifyLocked(owner.name)
+	o.qualifyLocked(s)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: tense.declaredEvent(), EntityID: s.id})
 	return s
 }
 
-// qualifyLocked names every nested section called name by its container
-// path once two sections share that name. A root Task's section keeps its
-// bare name: root names are unique siblings, and a root section may already
-// have streamed (commitNamedEffectsLocked) before a nested one opened.
-func (o *Output) qualifyLocked(name string) {
-	shared := o.ledger.byName[name]
-	if len(shared) < 2 {
+// qualifyLocked names the newly opened section by its container path once
+// another section shares its name, and the one earlier section too when
+// this open is what made the name ambiguous. Every other same-named
+// section was qualified when it opened, and a Task's container path is
+// fixed at declaration, so qualification stays O(1) per open. A root
+// Task's section keeps its bare name: root names are unique siblings, and
+// a root section may already have streamed (commitNamedEffectsLocked)
+// before a nested one opened.
+func (o *Output) qualifyLocked(opened *ledgerSection) {
+	shared := o.ledger.byName[opened.owner.name]
+	switch len(shared) {
+	case 0, 1:
 		return
+	case 2:
+		qualify(shared[0])
 	}
-	for _, s := range shared {
-		if s.owner.collection != nil {
-			s.subject = qualifiedSubject(s.owner)
-		}
+	qualify(opened)
+}
+
+// qualify names a nested section by its container path.
+func qualify(s *ledgerSection) {
+	if s.owner.collection != nil {
+		s.subject = qualifiedSubject(s.owner)
 	}
 }
 
