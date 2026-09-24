@@ -118,13 +118,19 @@ doesn't install as the package-level default.
 
 ```go
 upgrade := out.Task("brew packages")
-cmd := exec.Command("brew", args...)
-cmd.Stdout = upgrade.Writer()
-cmd.Stderr = upgrade.Writer()
-if err := cmd.Run(); err != nil {
-    return upgrade.Failf("brew upgrade failed: %w", err)
-}
+upgrade.Define(func(ctx context.Context) error {
+    cmd := exec.CommandContext(ctx, "brew", args...)
+    cmd.Stdout = upgrade.Writer()
+    cmd.Stderr = upgrade.Writer()
+    if err := cmd.Run(); err != nil {
+        return fmt.Errorf("brew upgrade failed: %w", err)
+    }
+    return nil
+})
 ```
+
+Run the child inside the Task's `Define`: a Task given a `Writer` but never
+Defined stays unresolved and the run concludes `partial`.
 
 Do **not** use `DebugWriter` for child tools (API-029).
 Secrets: set `Config.Redactor`.

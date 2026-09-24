@@ -83,12 +83,13 @@ task.Failf("boom: %w", err)`,
 			Why:       "DebugWriter is filtered by DebugLevel and is the wrong dialect for failure evidence.",
 			BadCode: `dbg := out.DebugWriter()
 run.Run(ctx, "brew", args, dbg)`,
-			GoodCode: `cmd.Stdout = task.Writer()
-cmd.Stderr = task.Writer()
-if err := cmd.Run(); err != nil {
-	return task.Failf("brew failed: %w", err)
-}`,
-			Remediation:     "Use cmd.Stdout = task.Writer() + Failf's trailing %w",
+			GoodCode: `task.Define(func(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "brew", "upgrade")
+	cmd.Stdout = task.Writer()
+	cmd.Stderr = task.Writer()
+	return cmd.Run()
+})`,
+			Remediation:     "Run the child inside the Task's Define with cmd.Stdout = task.Writer(); its error resolves the row",
 			RelatedGuidance: []string{"streams", "tasks"},
 			VerificationIDs: []string{"API-029"},
 			Since:           "0.2.0",

@@ -4,25 +4,28 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os/exec"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func doWork() error {
+func doWork() {
 	out := evo.Init(evo.Config{Isolated: true})
 
 	// docexamples:snippet start
 	upgrade := out.Task("brew packages")
-	cmd := exec.Command("brew", "upgrade", "--formula")
-	cmd.Stdout = upgrade.Writer()
-	cmd.Stderr = upgrade.Writer()
-	if err := cmd.Run(); err != nil {
-		return upgrade.Failf("brew upgrade failed: %w", err)
-	}
+	upgrade.Define(func(ctx context.Context) error {
+		cmd := exec.CommandContext(ctx, "brew", "upgrade", "--formula")
+		cmd.Stdout = upgrade.Writer()
+		cmd.Stderr = upgrade.Writer()
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("brew upgrade failed: %w", err)
+		}
+		return nil
+	})
 	// docexamples:snippet end
-
-	return nil
 }
 
-func main() { _ = doWork() }
+func main() { doWork() }

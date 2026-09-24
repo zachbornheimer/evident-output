@@ -78,14 +78,15 @@ Release pin procedure: `docs/guides/cutting-a-release.md`.
 ## Evidence
 
 ```go
-cmd.Stdout = task.Writer()
-cmd.Stderr = task.Writer()
-if err := cmd.Run(); err != nil {
-    return task.Failf("failed: %w", err)
-}
+task.Define(func(ctx context.Context) error {
+    cmd := exec.CommandContext(ctx, "make", "test")
+    cmd.Stdout = task.Writer()
+    cmd.Stderr = task.Writer()
+    return cmd.Run()
+})
 ```
 
-`Writer()` turns the child's last line into live doing-text and retains a bounded ring for Fail evidence.
+`Writer()` turns the child's last line into live doing-text and retains a bounded ring for Fail evidence. Run the child inside the Task's `Define`, so its result resolves the row.
 
 ## Confirm
 

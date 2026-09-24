@@ -3,23 +3,24 @@
 package main
 
 import (
+	"context"
 	"os/exec"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func doWork(task *evo.TaskHandle, cmd *exec.Cmd) error {
+func doWork(task *evo.TaskHandle) {
 	// docexamples:snippet start
-	cmd.Stdout = task.Writer()
-	cmd.Stderr = task.Writer()
-	if err := cmd.Run(); err != nil {
-		return task.Failf("failed: %w", err)
-	}
+	task.Define(func(ctx context.Context) error {
+		cmd := exec.CommandContext(ctx, "make", "test")
+		cmd.Stdout = task.Writer()
+		cmd.Stderr = task.Writer()
+		return cmd.Run()
+	})
 	// docexamples:snippet end
-	return nil
 }
 
 func main() {
 	out := evo.Init(evo.Config{Isolated: true})
-	_ = doWork(out.Task("build"), exec.Command("true"))
+	doWork(out.Task("build"))
 }

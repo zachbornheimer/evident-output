@@ -138,12 +138,15 @@ For an `*exec.Cmd`, wire stdout/stderr through `Task.Writer()`:
 
 ```go
 upgrade := out.Task("brew packages")
-cmd := exec.Command("brew", "upgrade", "--formula")
-cmd.Stdout = upgrade.Writer()
-cmd.Stderr = upgrade.Writer()
-if err := cmd.Run(); err != nil {
-    return upgrade.Failf("brew upgrade failed: %w", err)
-}
+upgrade.Define(func(ctx context.Context) error {
+    cmd := exec.CommandContext(ctx, "brew", "upgrade", "--formula")
+    cmd.Stdout = upgrade.Writer()
+    cmd.Stderr = upgrade.Writer()
+    if err := cmd.Run(); err != nil {
+        return fmt.Errorf("brew upgrade failed: %w", err)
+    }
+    return nil
+})
 ```
 
 Tool-backed **condition** (a `Task` whose check is its `Define` callback, no `Doing`/`Progress`):

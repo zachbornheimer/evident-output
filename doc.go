@@ -21,10 +21,14 @@
 //	func run(ctx context.Context) error {
 //	    evo.Println("Reading configuration")
 //	    evo.Task("working tree").Define(checkWorkingTree)
-//	    t := evo.Task("fetch")
-//	    cmd.Stdout = t.Writer()
-//	    cmd.Stderr = t.Writer()
-//	    return nil // Block is a presentation outcome, not a Go error
+//	    status := evo.Task("git status")
+//	    status.Define(func(ctx context.Context) error {
+//	        cmd := exec.CommandContext(ctx, "git", "status", "--short")
+//	        cmd.Stdout = status.Writer() // the child's output is this row's evidence
+//	        cmd.Stderr = status.Writer()
+//	        return cmd.Run()
+//	    })
+//	    return nil
 //	}
 //
 // # Migrating from 0.5
