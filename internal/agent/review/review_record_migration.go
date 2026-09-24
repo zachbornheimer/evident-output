@@ -20,9 +20,10 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/effectverb"
 )
 
 // recordVerbArgCount is the exact argument count each deprecated verb
@@ -69,20 +70,6 @@ func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.Fil
 // shares, appended to each suggestion so the reader sees the whole rule.
 const recordRouting = "Record* has no record-only replacement (ZYS-974): route a real mutation through evo.Effect, information/classification through evo.Fact, and a file write through evo.File/evo.Patch"
 
-// effectVerbs are the EffectVerb values a Record verb literal may name.
-// Review does not link the engine, so TestEffectVerbsMatchEngine holds
-// this list to engine.EffectVerbs().
-var effectVerbs = []string{"add", "create", "delete", "install", "push", "remove", "uninstall", "update"}
-
-// effectVerbConstant is the evo constant spelling EffectVerb verb
-// ("EffectDelete"), or false when no EffectVerb is spelled verb.
-func effectVerbConstant(verb string) (string, bool) {
-	if !slices.Contains(effectVerbs, verb) {
-		return "", false
-	}
-	return "Effect" + strings.ToUpper(verb[:1]) + verb[1:], true
-}
-
 // deprecatedRecordCallFinding builds API-061's Finding, with the exact
 // rewrite when the call's verb literal determines one.
 func deprecatedRecordCallFinding(filename string, pos token.Position, sel *ast.SelectorExpr, args []ast.Expr) Finding {
@@ -122,10 +109,20 @@ func recordRewrite(recv, verb string, args []ast.Expr) string {
 	if lit == "write" {
 		return "move the write into " + recv + ".Define(func(ctx context.Context) error { return evo.File(ctx, evo.FileSpec{Path: " + object + ", Contents: data}) })"
 	}
-	constant, ok := effectVerbConstant(lit)
+	constant, ok := effectverb.Constant(lit)
 	if !ok {
-		return "no EffectVerb is spelled " + strconv.Quote(lit) + "; pick the closest of " + strings.Join(effectVerbs, "/")
+		return "no EffectVerb is spelled " + strconv.Quote(lit) + "; pick the closest of " + strings.Join(effectVerbValues(), "/")
 	}
 	return "move the mutation into " + recv + ".Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo." + constant +
 		", Object: " + object + ", Quantity: " + quantity + "}, fn) })"
+}
+
+// effectVerbValues is every EffectVerb spelling, in declaration order.
+func effectVerbValues() []string {
+	verbs := effectverb.All()
+	values := make([]string, len(verbs))
+	for i, v := range verbs {
+		values[i] = v.Value
+	}
+	return values
 }

@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/effectverb"
 )
 
 // EffectVerb is the closed set of imperative verbs an opaque Effect may
@@ -15,25 +16,21 @@ type EffectVerb string
 
 // The complete EffectVerb enum.
 const (
-	EffectAdd       EffectVerb = "add"
-	EffectCreate    EffectVerb = "create"
-	EffectDelete    EffectVerb = "delete"
-	EffectInstall   EffectVerb = "install"
-	EffectPush      EffectVerb = "push"
-	EffectRemove    EffectVerb = "remove"
-	EffectUninstall EffectVerb = "uninstall"
-	EffectUpdate    EffectVerb = "update"
+	EffectAdd       EffectVerb = effectverb.Add
+	EffectCreate    EffectVerb = effectverb.Create
+	EffectDelete    EffectVerb = effectverb.Delete
+	EffectInstall   EffectVerb = effectverb.Install
+	EffectPush      EffectVerb = effectverb.Push
+	EffectRemove    EffectVerb = effectverb.Remove
+	EffectUninstall EffectVerb = effectverb.Uninstall
+	EffectUpdate    EffectVerb = effectverb.Update
 )
 
-// effectVerbs is the closed EffectVerb set, in declaration order.
-var effectVerbs = []EffectVerb{EffectAdd, EffectCreate, EffectDelete, EffectInstall, EffectPush, EffectRemove, EffectUninstall, EffectUpdate}
-
-// EffectVerbs returns every EffectVerb constant, the one list anything
-// enumerating verbs (validation, review's Record* rewrite) derives from.
-func EffectVerbs() []EffectVerb { return slices.Clone(effectVerbs) }
-
 // valid reports whether v is one of the declared EffectVerb constants.
-func (v EffectVerb) valid() bool { return slices.Contains(effectVerbs, v) }
+func (v EffectVerb) valid() bool {
+	_, ok := effectverb.Constant(string(v))
+	return ok
+}
 
 // EffectSpec describes one aggregate opaque mutation Evo cannot model as
 // desired state (a Git ref deletion, a remote push, an API-side change).
