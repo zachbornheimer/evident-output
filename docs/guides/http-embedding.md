@@ -2,12 +2,16 @@
 
 Spec §53: the CLI and an HTTP endpoint run the same model. One function
 declares the work. The CLI runs it on the package default Output in any
-`--format`. An HTTP handler runs it on a fresh Isolated, Embedded Output per
-request and answers with `evo.WriteJSON` — the same `"evo.run"` document
+`--format`. An HTTP handler runs it on a fresh Isolated Output per request
+and answers with `evo.WriteJSON` — the same `"evo.run"` document
 `FormatJSON` prints, byte for byte, for the same run.
 
-`examples/launch-agent-http` is the working embedder; its tests prove every
-rule below.
+Everything here is the 1.1 public API; 1.2 adds none. `examples/launch-agent-http`
+is the working embedder, and its tests prove every rule below. A
+host-owned lifecycle (the request context as the run's interrupt, a
+per-run `run_id`) needs new public surface and waits for a second real
+consumer (ZYS-947; see
+[DEC-CANCEL-005](../decisions/caller-cancellation.md#dec-cancel-005-no-lifecycle-change-and-no-new-public-surface-in-12-accepted)).
 
 ## The handler
 
@@ -18,7 +22,6 @@ func (h runHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Embedded: true,
 		Format:   evo.FormatExternal,
 		Stdout:   io.Discard,
 		Stderr:   io.Discard,
@@ -29,9 +32,9 @@ func (h runHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusFor(result.Conclusion.State))
+	w.WriteHeader(statusFor(ctx, result.Conclusion.State))
 	if err := evo.WriteJSON(w, result); err != nil {
-		h.log.Warn("response not delivered", "run_id", result.Conclusion.RunID, "error", err)
+		h.log.Warn("response not delivered", "error", err)
 	}
 }
 ```
@@ -55,32 +58,23 @@ so they already land on the right Output.
 
 ## Lifecycle
 
-- **One Output per request.** Isolated Outputs share no runtime state, and
-  each `Embedded` run carries its own random `run_id` (or the one
-  `Config.RunID` pins, such as your request id). A run without `Embedded`
-  keeps the 1.1 identity, `out_1`.
-- **`Embedded` hands the run's lifecycle to the request.** Without it, a
-  run keeps the 1.1 CLI contract on every format, `FormatExternal`
-  included: the end of `ctx` fails the running Define (exit 2). A
-  `FormatExternal` run without `Embedded` also keeps the 1.1 signal window:
-  it acts on ^C only while the run callback runs, and ignores a signal that
-  arrives after it returned (DEC-CANCEL-005). `FormatExternal` only keeps
-  the run from rendering anywhere.
-- **The request context is the only cancellation.** When it ends — the
-  client disconnects or the handler's budget runs out — the run stops the
-  same way ^C stops a CLI: running Tasks are marked cancelled, queued Tasks
-  never start, and the Conclusion is `cancelled` with exit code 130. Work
-  already committed stays in the document's `effects`. Tasks see the
-  context's values, but not its cancellation or deadline: both reach them
-  only through that interrupt, so a deadline-aware call (a `net.Dialer`)
-  cannot time out and fail its row first. `context.Cause(ctx)` in a Task
-  reports `context.DeadlineExceeded` when the budget ran out.
-- **A cancel after the work is done changes nothing.** If the context ends
-  after the run callback returned and every Task finished, the run keeps
-  its own verdict.
-- **The server owns process signals.** An `Embedded` run registers no
-  SIGINT/SIGTERM handler, so the server's graceful shutdown lets in-flight
-  requests finish.
+- **One Output per request.** Isolated Outputs share no runtime state.
+  Every run still carries the 1.1 `run_id`, `out_1`, so correlate
+  requests on your own request id, not on `run_id`.
+- **The request context reaches the Tasks unchanged.** When it ends — the
+  client disconnects or the handler's budget runs out — the running Define
+  sees `ctx.Done()`, fails its row, and the run concludes `failed`
+  (exit 2); the Tasks after it in a `Sequence` are `not_started`. Work
+  already committed stays in the document's `effects`. The handler owns
+  that context, so it is the one that knows the request ended: check
+  `ctx.Err()` before mapping the Conclusion to a status.
+- **Signals.** evo acts on SIGINT/SIGTERM only while a run callback runs;
+  a signal that arrives after it returned is caught and ignored. A handler
+  callback that only declares the work returns at once, so a server's
+  graceful SIGTERM lets in-flight requests finish. The server's own run
+  (`evo.Main`) must serve inside its callback, not in a Define, for ^C to
+  shut it down.
+- **`FormatExternal` only keeps the run from rendering anywhere.**
 - **`Output.Run` finishes and closes the Output.** Build a new one for
   every request.
 
@@ -98,9 +92,9 @@ Requests that share a `StateDir` queue on its state lock. The first
 workspace's manifest (spec §11.3) and holds it until the run ends, so two
 requests over the same workspace run one after the other, not side by
 side. A queued request's budget keeps running down while it waits: if it
-runs out in the queue, the request answers `cancelled` (exit code 130)
-right away, with the waiting Task cancelled and the Tasks after it
-`not_started`. Size the budget for the wait as well as the work, or give
+runs out in the queue, the request answers right away: the waiting Task
+fails with the deadline, the Tasks after it are `not_started`, and the
+handler answers 503 because its `ctx` ended. Size the budget for the wait as well as the work, or give
 independent workspaces their own `StateDir`.
 
 Bound the queue. Every waiting request holds a goroutine and a connection
@@ -117,19 +111,18 @@ throttle the run itself.
 
 ## Errors and status
 
-- **Status comes from structured state.** Map `result.Conclusion.State`
-  (`ready`, `blocked`, `failed`, `cancelled`) to your status codes. Never
-  parse message text. The body carries the full outcome either way.
+- **Status comes from the request context and structured state.** If
+  `ctx.Err()` is non-nil, the request ended (client gone, budget spent):
+  answer 503 whatever the run concluded. Otherwise map
+  `result.Conclusion.State` (`ready`, `blocked`, `failed`, `cancelled`) to
+  your status codes. Never parse message text. The body carries the full
+  outcome either way.
 - **Work failure is not transport failure.** `result.Err` is the error your
-  run function returned. A `WriteJSON` error means the response did not
-  reach the client; it names the failed step and wraps the writer's error,
-  so `errors.Is` still matches it. Log it; the run's truth is unchanged.
-- **The cancellation cause is in the body.** A cancelled document carries
-  `"cancellation": {"cause": "caller"}` when the request context was
-  cancelled, `"deadline"` when its deadline passed, and `"user"` for ^C on
-  a CLI run. An HTTP client tells a server budget timeout from a shutdown
-  by that field, not by the status code or the human text. The same words
-  are in `result.Conclusion.Explanation` (`by caller`,
-  `deadline exceeded`, `by user`). The field is absent on any run that did
-  not conclude cancelled
+  run function returned. A `WriteJSON` write error is the writer's own
+  error, unchanged from 1.1, so compare it as you would any transport
+  error. Log it; the run's truth is unchanged.
+- **A cancelled document names its cause.** A run stopped by SIGINT/SIGTERM
+  carries `"cancellation": {"cause": "user"}`; the same words are in
+  `result.Conclusion.Explanation` (`by user`). The field is absent on any
+  run that did not conclude cancelled
   ([DEC-CANCEL-007](../decisions/caller-cancellation.md#dec-cancel-007-the-wire-document-names-the-cancellation-cause)).

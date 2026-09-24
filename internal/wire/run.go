@@ -71,9 +71,8 @@ type RunDocument struct {
 }
 
 // CancellationDoc says why a cancelled run stopped, as a stable code a
-// machine consumer branches on instead of parsing the human Explanation:
-// "user" (SIGINT/SIGTERM), "caller" (the embedder's context was
-// cancelled), or "deadline" (the embedder's deadline passed).
+// machine consumer branches on instead of parsing the human Explanation.
+// 1.2 emits only "user" (SIGINT/SIGTERM).
 type CancellationDoc struct {
 	Cause string `json:"cause"`
 }

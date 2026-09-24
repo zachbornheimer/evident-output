@@ -114,7 +114,7 @@ type Output struct {
 	// I/O selects on. cancelRun trips it on interrupt and on Close, so no
 	// callback can outlive the run that owns it.
 	ctx       context.Context
-	cancelRun context.CancelCauseFunc
+	cancelRun context.CancelFunc
 	// schedCancelled stops the scheduler dispatching anything new: after an
 	// interrupt the queue is abandoned, not drained.
 	schedCancelled bool
@@ -122,10 +122,6 @@ type Output struct {
 	// did). It becomes the cancelled Conclusion's Explanation and wire
 	// cause, so the band and the JSON document state the same cause.
 	cancelledBy interruption
-	// runSettling is set when an embedded run's callback returned while its
-	// caller's ctx was live; once every Task is also terminal, interrupt is
-	// a no-op (see settledLocked) so completed work keeps its verdict.
-	runSettling bool
 
 	schedWG          sync.WaitGroup
 	schedInflight    int
@@ -498,17 +494,18 @@ func newOutput(subject string, options ...Option) *Output {
 		cfg.maxEvents = defaultMaxEvents
 	}
 	resolveGlyphProfileLocked(&cfg)
-	runCtx, cancelRun := context.WithCancelCause(context.Background())
+	runCtx, cancelRun := context.WithCancel(context.Background())
 	o := &Output{
 		cfg:        cfg,
-		outputID:   cfg.issueRunID(),
-		idSeq:      runIDSeqSlot,
+		outputID:   "out_1",
 		taskByRef:  make(map[string]*taskState),
 		tasksByRef: make(map[string]*tasksState),
 		keys:       make(map[string]struct{}),
 		ctx:        runCtx,
 		cancelRun:  cancelRun,
 	}
+	// Stable-enough id for a process-local output instance.
+	o.outputID = o.nextID("out")
 	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(Event{Type: "output.started", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventRunStarted, "", nil)
@@ -2071,7 +2068,7 @@ func (o *Output) Close() error {
 	manifestStore := o.manifestStore
 	o.mu.Unlock()
 	if cancelRun != nil {
-		cancelRun(nil)
+		cancelRun()
 	}
 	if manifestStore != nil {
 		// Releases this Run's exclusive manifest lock (spec §11.3). Already
@@ -2082,9 +2079,8 @@ func (o *Output) Close() error {
 	return nil
 }
 
-// beginRunContext installs ctx (Run's caller ctx, or an embedded Output's
-// callerScope over it — see scopeCaller) as the parent of this run's task
-// scopes, replacing the context.Background()
+// beginRunContext installs ctx (Run/evo.Run's own ctx parameter) as the
+// parent of this run's task scopes, replacing the context.Background()
 // Init installed as a placeholder for Define/Verify calls made before any
 // Run. Every taskScopeHandle context (see withTaskScope) descends from
 // o.Context(), so without this a caller's Run(ctx, ...) cancellation or
@@ -2103,15 +2099,14 @@ func (o *Output) beginRunContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	runCtx, cancel := context.WithCancelCause(ctx)
+	runCtx, cancel := context.WithCancel(ctx)
 	o.mu.Lock()
 	previousCancel := o.cancelRun
 	o.ctx = runCtx
 	o.cancelRun = cancel
-	o.runSettling = false
 	o.mu.Unlock()
 	if previousCancel != nil {
-		previousCancel(nil)
+		previousCancel()
 	}
 	return runCtx
 }

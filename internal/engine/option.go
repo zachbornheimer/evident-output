@@ -11,21 +11,11 @@ type Option interface {
 }
 
 type config struct {
-	subject    string
-	primary    io.Writer
-	diagnostic io.Writer
-	result     io.Writer // domain payload (FormatData); never used for presentation
-	plain      bool
-	// embedded mirrors Config.Embedded (spec §53): the host owns
-	// SIGINT/SIGTERM, and the end of Run's ctx is the request ending — an
-	// interrupt, not a failure.
-	embedded bool
-	// external mirrors FormatExternal / ExternalProjection: a host renders
-	// Snapshot() itself. Without embedded it keeps the 1.1 signal window
-	// (DEC-CANCEL-005; see signalWindow).
-	external bool
-	// runID mirrors Config.RunID; empty defers to issueRunID.
-	runID             string
+	subject           string
+	primary           io.Writer
+	diagnostic        io.Writer
+	result            io.Writer // domain payload (FormatData); never used for presentation
+	plain             bool
 	projection        Projection
 	noColor           bool
 	width             int
@@ -219,16 +209,6 @@ func dryRunHeader(text string) Option {
 // plumbing only.
 func preview() Option {
 	return optionFunc(func(c *config) { c.preview = true })
-}
-
-// embedded mirrors Config.Embedded: a host owns this run's lifecycle.
-func embedded() Option {
-	return optionFunc(func(c *config) { c.embedded = true })
-}
-
-// withRunID mirrors Config.RunID; empty keeps the random identity.
-func withRunID(id string) Option {
-	return optionFunc(func(c *config) { c.runID = id })
 }
 
 // Stdin injects the reader Confirm reads answers from (facade rule — no

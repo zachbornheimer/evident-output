@@ -108,7 +108,6 @@ func TestLaunchHTTP_AnswersWithTheCLIDocument(t *testing.T) {
 }
 
 type launchDoc struct {
-	RunID   string `json:"run_id"`
 	Outcome string `json:"outcome"`
 	Data    struct {
 		Tasks []struct {
@@ -152,8 +151,8 @@ func (d launchDoc) state(task string) string {
 // concurrentLaunches overlaps enough requests to expose shared state.
 const concurrentLaunches = 8
 
-// Concurrent requests each get their own run: their own identity, their
-// own two Tasks, and a success answer.
+// Concurrent requests each get their own run: their own two Tasks and a
+// success answer.
 func TestLaunchHTTP_ConcurrentRequestsGetSeparateRuns(t *testing.T) {
 	dir := t.TempDir()
 	srv := newServer(t, newAgent(dir), dir, testBudget)
@@ -171,16 +170,11 @@ func TestLaunchHTTP_ConcurrentRequestsGetSeparateRuns(t *testing.T) {
 	}
 	wg.Wait()
 
-	seen := make(map[string]bool, concurrentLaunches)
 	for i, body := range bodies {
 		doc := decodeLaunch(t, body)
 		if len(doc.Data.Tasks) != 2 || doc.state("write plist") != "done" || doc.state("load agent") != "done" {
 			t.Errorf("request %d tasks = %+v, want its own write plist + load agent, both done", i, doc.Data.Tasks)
 		}
-		if seen[doc.RunID] {
-			t.Errorf("request %d reused run_id %q", i, doc.RunID)
-		}
-		seen[doc.RunID] = true
 	}
 }
 
@@ -209,9 +203,10 @@ func blockingAgent(dir string) (agent, loadProbe) {
 // write ample time to commit first.
 const shortBudget = time.Second
 
-// An exhausted budget answers 503 with a Cancelled document that still
-// reports the plist write already committed.
-func TestLaunchHTTP_ExhaustedBudgetAnswersCancelledWithCommittedWork(t *testing.T) {
+// An exhausted budget answers 503. The 1.1 lifecycle hands the deadline to
+// the running load, which fails; the document still reports the plist
+// write already committed.
+func TestLaunchHTTP_ExhaustedBudgetAnswers503WithCommittedWork(t *testing.T) {
 	dir := t.TempDir()
 	a, _ := blockingAgent(dir)
 	status, body, err := postLaunch(context.Background(), t, newServer(t, a, dir, shortBudget))
@@ -219,11 +214,11 @@ func TestLaunchHTTP_ExhaustedBudgetAnswersCancelledWithCommittedWork(t *testing.
 		t.Fatalf("POST /launch = %d, %v, want 503\n%s", status, err, body)
 	}
 	doc := decodeLaunch(t, body)
-	if doc.Outcome != "cancelled" || doc.state("write plist") != "done" || doc.state("load agent") != "cancelled" {
-		t.Fatalf("outcome %q, tasks %+v; want cancelled with write plist done and load agent cancelled\n%s", doc.Outcome, doc.Data.Tasks, body)
+	if doc.Outcome != "failed" || doc.state("write plist") != "done" || doc.state("load agent") != "failed" {
+		t.Fatalf("outcome %q, tasks %+v; want failed with write plist done and load agent failed\n%s", doc.Outcome, doc.Data.Tasks, body)
 	}
 	if !doc.changed("write plist") {
-		t.Fatalf("committed plist Effect missing from the cancelled document\n%s", body)
+		t.Fatalf("committed plist Effect missing from the document\n%s", body)
 	}
 }
 
@@ -258,8 +253,20 @@ func TestStatusFor_MapsConclusionState(t *testing.T) {
 		evo.StateCancelled: http.StatusServiceUnavailable,
 	}
 	for state, want := range cases {
-		if got := statusFor(state); got != want {
+		if got := statusFor(context.Background(), state); got != want {
 			t.Errorf("statusFor(%s) = %d, want %d", state, got, want)
+		}
+	}
+}
+
+// A request whose context ended answers 503 whatever the run concluded:
+// the end of ctx failed the running Define, which is not the work's fault.
+func TestStatusFor_EndedRequestIsUnavailable(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	for _, state := range []evo.ConclusionState{evo.StateReady, evo.StateFailed, evo.StateCancelled} {
+		if got := statusFor(ctx, state); got != http.StatusServiceUnavailable {
+			t.Errorf("statusFor(ended ctx, %s) = %d, want %d", state, got, http.StatusServiceUnavailable)
 		}
 	}
 }
@@ -283,8 +290,8 @@ const lockWaitDeadline = 5 * shortBudget
 // Every request shares one StateDir, so a request queues on the exclusive
 // per-manifest lock (spec §11.3) while another run holds it — and its
 // budget keeps running down while it waits. When the budget runs out in
-// the queue, the request answers 503 Cancelled at once; it neither waits
-// for the holder to finish nor reports work it never started.
+// the queue, the request answers 503 at once; it neither waits for the
+// holder to finish nor reports work it never started.
 func TestLaunchHTTP_BudgetRunsOutWhileQueuedOnStateLock(t *testing.T) {
 	dir := t.TempDir()
 	holder, load := blockingAgent(dir)
@@ -321,8 +328,8 @@ func TestLaunchHTTP_BudgetRunsOutWhileQueuedOnStateLock(t *testing.T) {
 		t.Fatalf("queued POST /launch = %d, %v, want 503\n%s", status, err, body)
 	}
 	doc := decodeLaunch(t, body)
-	if doc.Outcome != "cancelled" || doc.state("write plist") != "cancelled" || doc.state("load agent") != string(evo.NotStarted) {
-		t.Fatalf("outcome %q, tasks %+v; want cancelled with write plist cancelled and load agent not started\n%s", doc.Outcome, doc.Data.Tasks, body)
+	if doc.Outcome != "failed" || doc.state("write plist") != "failed" || doc.state("load agent") != string(evo.NotStarted) {
+		t.Fatalf("outcome %q, tasks %+v; want failed with write plist failed and load agent not started\n%s", doc.Outcome, doc.Data.Tasks, body)
 	}
 }
 

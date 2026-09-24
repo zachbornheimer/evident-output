@@ -252,9 +252,9 @@ func TestToRunDocument_UnevaluatedPhaseOmitsSatisfiedAndSource(t *testing.T) {
 // else is not reported either.
 func TestCancellationFor_OnlyOnCancelledRunsWithACause(t *testing.T) {
 	cancelled := withConc(func(c *core.Conclusion) { c.State = core.StateCancelled })
-	core.SetCancelCause(&cancelled, core.CancelCauseDeadline)
-	if got := cancellationFor(cancelled); got == nil || got.Cause != "deadline" {
-		t.Fatalf("cancellationFor(cancelled by deadline) = %+v, want cause \"deadline\"", got)
+	core.SetCancelCause(&cancelled, core.CancelCauseUser)
+	if got := cancellationFor(cancelled); got == nil || got.Cause != "user" {
+		t.Fatalf("cancellationFor(cancelled by user) = %+v, want cause \"user\"", got)
 	}
 
 	refolded := cancelled
@@ -274,7 +274,7 @@ func TestCancellationFor_OnlyOnCancelledRunsWithACause(t *testing.T) {
 // the exit code, or the cancellation record.
 func TestRunFinishedPayload_AgreesWithTheRunDocument(t *testing.T) {
 	cancelled := withConc(func(c *core.Conclusion) { c.State = core.StateCancelled; c.ExitCode = 130 })
-	core.SetCancelCause(&cancelled, core.CancelCauseCaller)
+	core.SetCancelCause(&cancelled, core.CancelCauseUser)
 	conclusions := map[string]core.Conclusion{
 		"ok":        withConc(func(c *core.Conclusion) { c.State = core.StateReady }),
 		"failed":    withConc(func(c *core.Conclusion) { c.State = core.StateFailed; c.ExitCode = 2 }),

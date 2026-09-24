@@ -6,13 +6,10 @@ package core
 type CancelCause string
 
 const (
-	// CancelCauseUser: SIGINT/SIGTERM reached a CLI run.
+	// CancelCauseUser: SIGINT/SIGTERM reached the run. It is the only
+	// cause 1.2 emits; a caller-owned lifecycle and its causes are
+	// deferred behind ZYS-947.
 	CancelCauseUser CancelCause = "user"
-	// CancelCauseCaller: an embedded run's caller cancelled its context
-	// (an HTTP client disconnected, or the host shut the request down).
-	CancelCauseCaller CancelCause = "caller"
-	// CancelCauseDeadline: an embedded run's caller deadline passed.
-	CancelCauseDeadline CancelCause = "deadline"
 )
 
 // CancelCauseOf reports why c's run was cancelled; empty when the run was

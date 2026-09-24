@@ -31,7 +31,7 @@
       "type": "object",
       "required": ["cause"],
       "properties": {
-        "cause": { "type": "string", "enum": ["user", "caller", "deadline"] }
+        "cause": { "type": "string", "enum": ["user"] }
       }
     },
     "data": {

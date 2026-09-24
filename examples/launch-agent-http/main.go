@@ -1,10 +1,10 @@
 // Command launch-agent-http proves spec §53: one launch-agent model serves
 // both a CLI and an HTTP endpoint. Run once, it declares the model on the
 // package-default Output in any --format. With --serve, the process's own
-// run is the server: evo.Main owns SIGINT/SIGTERM and turns them into a
-// graceful shutdown, while each request runs the model on its own Isolated,
-// Embedded Output and answers with the "evo.run" document FormatJSON
-// prints:
+// run callback is the server: evo.Main owns SIGINT/SIGTERM while the
+// callback runs and turns them into a graceful shutdown, while each request
+// runs the model on its own Isolated Output and answers with the "evo.run"
+// document FormatJSON prints:
 //
 //	go run ./examples/launch-agent-http --format json
 //	go run ./examples/launch-agent-http --serve 127.0.0.1:8080
@@ -74,7 +74,7 @@ func parseOptions() options {
 func main() {
 	o := parseOptions()
 	evo.Init(evo.Config{Title: "launch agent", Format: o.format, StateDir: o.stateDir})
-	os.Exit(evo.Main(func(context.Context) error {
+	os.Exit(evo.Main(func(ctx context.Context) error {
 		if err := os.MkdirAll(o.stateDir, stateDirMode); err != nil {
 			return fmt.Errorf("create state dir %s: %w", o.stateDir, err)
 		}
@@ -83,16 +83,15 @@ func main() {
 			launchAgent(evo.Default(), a)
 			return nil
 		}
-		evo.Task("serve " + o.serve).Define(func(ctx context.Context) error {
-			return serve(ctx, o, a)
-		})
-		return nil
+		// serve runs inside the callback, not in a Define: evo acts on
+		// SIGINT/SIGTERM only while the callback runs, so this is what lets
+		// ^C end ctx and shut the server down.
+		return serve(ctx, o, a)
 	}))
 }
 
 // serve answers POST /launch until ctx ends — evo.Main cancels it on
-// SIGINT/SIGTERM — then lets in-flight requests finish. The per-request
-// Outputs register no signal handlers of their own.
+// SIGINT/SIGTERM — then lets in-flight requests finish.
 func serve(ctx context.Context, o options, a agent) error {
 	mux := http.NewServeMux()
 	mux.Handle(launchPath, runHandler{

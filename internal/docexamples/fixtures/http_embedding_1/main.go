@@ -29,7 +29,7 @@ func launchAgent(out *evo.Output, _ agent) {
 	out.Task("load agent").Define(func(context.Context) error { return nil })
 }
 
-func statusFor(evo.ConclusionState) int { return http.StatusOK }
+func statusFor(context.Context, evo.ConclusionState) int { return http.StatusOK }
 
 // docexamples:snippet start
 func (h runHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +38,6 @@ func (h runHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Embedded: true,
 		Format:   evo.FormatExternal,
 		Stdout:   io.Discard,
 		Stderr:   io.Discard,
@@ -49,9 +48,9 @@ func (h runHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusFor(result.Conclusion.State))
+	w.WriteHeader(statusFor(ctx, result.Conclusion.State))
 	if err := evo.WriteJSON(w, result); err != nil {
-		h.log.Warn("response not delivered", "run_id", result.Conclusion.RunID, "error", err)
+		h.log.Warn("response not delivered", "error", err)
 	}
 }
 

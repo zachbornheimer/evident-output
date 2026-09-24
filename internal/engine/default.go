@@ -34,8 +34,7 @@ var (
 //
 // Config.Options is the advanced raw-Option escape hatch for tests and
 // specialized embedding; when set, ordinary Config fields (besides Title,
-// Subject, and the additive DryRun, Preview, Embedded, and RunID) are
-// ignored. Options installs as the package-level
+// DryRun, Preview, and Subject) are ignored. Options installs as the package-level
 // default and arms first paint exactly like every other Init call — Isolated
 // is the one and only opt-out, orthogonal to Options (release-gate round 8
 // finding 1: a caller who set Options but not Isolated must still be able to
@@ -50,11 +49,20 @@ func Init(configs ...Config) *Output {
 	if len(cfg.Options) > 0 {
 		// Advanced/testing escape hatch: build directly from raw Options,
 		// bypassing Config's ordinary stream/TTY/color inference entirely.
-		// additiveOptions never conflict with a caller's own Options, so
-		// they are still honored here instead of silently dropped (I1) —
-		// everything else on Config is genuinely superseded by the caller's
-		// explicit Option control.
-		opts := append(append([]Option{}, cfg.Options...), additiveOptions(cfg)...)
+		// DryRun and Subject are additive and never conflict with a caller's
+		// own Options, so they are still honored here instead of silently
+		// dropped (I1) — everything else on Config is genuinely superseded
+		// by the caller's explicit Option control.
+		opts := cfg.Options
+		if cfg.DryRun || cfg.Preview {
+			opts = append(append([]Option{}, opts...), dryRun())
+			if cfg.Subject != "" {
+				opts = append(opts, dryRunHeader(cfg.Subject))
+			}
+		}
+		if cfg.Preview {
+			opts = append(append([]Option{}, opts...), preview())
+		}
 		out := newOutput(cfg.Title, opts...)
 		return finishInit(out, cfg, cfg.Facts)
 	}

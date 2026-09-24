@@ -9,21 +9,28 @@ import (
 	"testing"
 )
 
-// runToStdout runs one Task under format, sending one ^C while the Task
-// runs when interrupted is set, and returns what the run wrote to Stdout.
+// runToStdout runs one Task under format, sending one ^C from the run
+// callback while the Task runs when interrupted is set (the 1.1 signal
+// window), and returns what the run wrote to Stdout.
 func runToStdout(t *testing.T, format Format, interrupted bool) []byte {
 	t.Helper()
 	interrupt := sendOneSignal(t)
 	var stdout bytes.Buffer
 	out := Init(Config{Isolated: true, Plain: true, Format: format, Stdout: &stdout, Stderr: io.Discard})
-	out.Run(context.Background(), func(context.Context) error {
-		out.Task("install agent").Define(func(ctx context.Context) error {
+	out.Run(context.Background(), func(ctx context.Context) error {
+		started := make(chan struct{})
+		out.Task("install agent").Define(func(taskCtx context.Context) error {
+			close(started)
 			if interrupted {
-				interrupt()
-				<-ctx.Done()
+				<-taskCtx.Done()
 			}
 			return nil
 		})
+		if interrupted {
+			<-started
+			interrupt()
+			<-ctx.Done()
+		}
 		return nil
 	})
 	return stdout.Bytes()

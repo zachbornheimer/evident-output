@@ -1,10 +1,11 @@
 package evo_test
 
 // Spec §53 (ZYS-946): CLI and HTTP use the same model. An embedder builds
-// one Isolated, Embedded, FormatExternal Output per request, drives it with
-// Output.Run(r.Context(), ...), and serializes the Result with WriteJSON.
-// These tests pin the lifecycle, isolation, and error semantics that
-// contract depends on.
+// one Isolated, FormatExternal Output per request, drives it with
+// Output.Run(r.Context(), ...), and serializes the Result with WriteJSON —
+// all 1.1 API. These tests pin the isolation and error semantics that
+// contract depends on; the 1.1 lifecycle itself is pinned in
+// caller_context_test.go.
 
 import (
 	"bytes"
@@ -16,24 +17,16 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
 
 // runDoc is the subset of the "evo.run" wire document these tests read.
 type runDoc struct {
-	RunID        string `json:"run_id"`
-	Outcome      string `json:"outcome"`
-	ExitCode     int    `json:"exit_code"`
-	Cancellation *struct {
-		Cause string `json:"cause"`
-	} `json:"cancellation"`
 	Data struct {
 		Tasks []struct {
-			ID    string `json:"id"`
-			Name  string `json:"name"`
-			State string `json:"state"`
+			ID   string `json:"id"`
+			Name string `json:"name"`
 		} `json:"tasks"`
 	} `json:"data"`
 }
@@ -47,20 +40,10 @@ func decodeRunDoc(t *testing.T, body []byte) runDoc {
 	return doc
 }
 
-func (d runDoc) taskState(name string) string {
-	for _, task := range d.Data.Tasks {
-		if task.Name == name {
-			return task.State
-		}
-	}
-	return ""
-}
-
 // embedderOutput is the §53 per-request configuration.
 func embedderOutput() *evo.Output {
 	return evo.Init(evo.Config{
 		Isolated: true,
-		Embedded: true,
 		Format:   evo.FormatExternal,
 		Stdout:   io.Discard,
 		Stderr:   io.Discard,
@@ -120,83 +103,11 @@ func (failingWriter) Write([]byte) (int, error) { return 0, errClientGone }
 // syscall.EPIPE (or its own sentinel), or matching err.Error(), keeps
 // working on upgrade.
 func TestWriteJSON_WriterFailureReturnsTheWriterError(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Format: evo.FormatExternal, Stdout: io.Discard, Stderr: io.Discard})
+	out := embedderOutput()
 	result := out.Run(context.Background(), func(context.Context) error { return nil })
 
 	if err := evo.WriteJSON(failingWriter{}, result); err != errClientGone {
 		t.Fatalf("WriteJSON error = %#v, want the writer's error itself (%#v), as in 1.1", err, errClientGone)
-	}
-}
-
-// Request lifecycle: when the caller's context ends (client disconnect,
-// handler deadline), the run concludes Cancelled with exit 130 — the same
-// truth a ^C produces — and queued work is reported not started instead
-// of running on after the request is gone.
-func TestOutputRun_CallerContextEndConcludesCancelled(t *testing.T) {
-	// Each case yields the caller's ctx and the trigger that ends it from
-	// inside the running Task; a deadline ends on its own.
-	cases := map[string]struct {
-		makeCtx   func() (ctx context.Context, trigger, cleanup func())
-		cause     string
-		wireCause string
-	}{
-		"cancel": {
-			makeCtx: func() (context.Context, func(), func()) {
-				ctx, cancel := context.WithCancel(context.Background())
-				return ctx, cancel, cancel
-			},
-			cause:     "by caller",
-			wireCause: "caller",
-		},
-		"deadline": {
-			makeCtx: func() (context.Context, func(), func()) {
-				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-				return ctx, func() {}, cancel
-			},
-			cause:     "deadline exceeded",
-			wireCause: "deadline",
-		},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			ctx, trigger, cleanup := tc.makeCtx()
-			defer cleanup()
-			out := embedderOutput()
-			result := out.Run(ctx, func(context.Context) error {
-				seq := out.Sequence("launch agent")
-				seq.Task("register").Define(func(ctx context.Context) error {
-					trigger()
-					<-ctx.Done()
-					return ctx.Err()
-				})
-				seq.Task("start").Define(func(context.Context) error {
-					t.Error("queued Task ran after the caller's context ended")
-					return nil
-				})
-				return nil
-			})
-
-			if result.Conclusion.State != evo.StateCancelled || result.ExitCode() != evo.ExitCancelled {
-				t.Fatalf("conclusion = %s/%d, want %s/%d", result.Conclusion.State, result.ExitCode(), evo.StateCancelled, evo.ExitCancelled)
-			}
-			if result.Conclusion.Explanation != tc.cause {
-				t.Fatalf("cancellation cause = %q, want %q", result.Conclusion.Explanation, tc.cause)
-			}
-			var body bytes.Buffer
-			if err := evo.WriteJSON(&body, result); err != nil {
-				t.Fatalf("WriteJSON: %v", err)
-			}
-			doc := decodeRunDoc(t, body.Bytes())
-			if doc.Outcome != "cancelled" || doc.ExitCode != evo.ExitCancelled {
-				t.Fatalf("document outcome = %s/%d, want cancelled/130", doc.Outcome, doc.ExitCode)
-			}
-			if doc.Cancellation == nil || doc.Cancellation.Cause != tc.wireCause {
-				t.Fatalf("document cancellation = %+v, want cause %q: an HTTP consumer must tell a disconnect from a budget timeout", doc.Cancellation, tc.wireCause)
-			}
-			if got := doc.taskState("start"); got != string(evo.NotStarted) {
-				t.Fatalf("queued Task state = %q, want %q", got, evo.NotStarted)
-			}
-		})
 	}
 }
 
@@ -205,8 +116,9 @@ func TestOutputRun_CallerContextEndConcludesCancelled(t *testing.T) {
 const concurrentRequests = 16
 
 // Concurrent requests never share runtime state: each run's document holds
-// only its own Tasks, carries its own run identity, and the package
-// default Output never sees any of them.
+// only its own Tasks, and the package default Output never sees any of
+// them. (Every run still carries the 1.1 run_id "out_1"; a per-run
+// identity is deferred behind ZYS-947.)
 func TestIsolatedOutputs_ConcurrentRunsKeepSeparateTruth(t *testing.T) {
 	defaultBefore := len(evo.Default().Snapshot().Tasks)
 	bodies := make([][]byte, concurrentRequests)
@@ -228,64 +140,20 @@ func TestIsolatedOutputs_ConcurrentRunsKeepSeparateTruth(t *testing.T) {
 	}
 	wg.Wait()
 
-	runIDs := make(map[string]int, concurrentRequests)
 	for i, body := range bodies {
 		doc := decodeRunDoc(t, body)
 		if len(doc.Data.Tasks) != 1 || doc.Data.Tasks[0].Name != fmt.Sprintf("request %d", i) {
 			t.Errorf("request %d document holds tasks %+v, want only its own", i, doc.Data.Tasks)
 		}
-		if prev, dup := runIDs[doc.RunID]; dup {
-			t.Errorf("requests %d and %d share run_id %q", prev, i, doc.RunID)
-		}
-		runIDs[doc.RunID] = i
 	}
 	if after := len(evo.Default().Snapshot().Tasks); after != defaultBefore {
 		t.Fatalf("package default gained %d Tasks from Isolated runs", after-defaultBefore)
 	}
 }
 
-// preCancelledProbeRuns is how many runs it takes to hit the window where a
-// caller's already-ended ctx interrupts before the run context exists; the
-// original report hung at run 123 of 2000.
-const preCancelledProbeRuns = 2000
-
-// preCancelledProbeBudget bounds the whole probe: every run returns at
-// once, so exceeding it means one run's context was never cancelled.
-const preCancelledProbeBudget = 30 * time.Second
-
-// A request whose client disconnected before the handler reached Run still
-// concludes: the interrupt the ended ctx triggers must cancel the context
-// the run body actually waits on, never a placeholder replaced after it.
-func TestOutputRun_PreCancelledCallerContextNeverHangs(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	done := make(chan evo.Result, 1)
-	go func() {
-		var last evo.Result
-		for range preCancelledProbeRuns {
-			last = embedderOutput().Run(ctx, func(rc context.Context) error {
-				<-rc.Done()
-				return rc.Err()
-			})
-			if last.ExitCode() != evo.ExitCancelled {
-				break
-			}
-		}
-		done <- last
-	}()
-	select {
-	case result := <-done:
-		if result.Conclusion.State != evo.StateCancelled || result.ExitCode() != evo.ExitCancelled {
-			t.Fatalf("pre-cancelled run concluded %s/%d, want %s/%d", result.Conclusion.State, result.ExitCode(), evo.StateCancelled, evo.ExitCancelled)
-		}
-	case <-time.After(preCancelledProbeBudget):
-		t.Fatal("a run on a pre-cancelled caller ctx hung: its run context was installed after the interrupt and never cancelled")
-	}
-}
-
 // firstTaskID is the wire id 1.1 gave a run's first Task: the id sequence
-// spent 1 on the run itself. A random run_id must not renumber every
-// Task, Group, and message a consumer already correlates on.
+// spent 1 on the run itself. 1.2 must not renumber any Task, Group, or
+// message a consumer already correlates on.
 const firstTaskID = "task_2"
 
 func TestRunDocument_TaskIDsKeepTheirNumbering(t *testing.T) {

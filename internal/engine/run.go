@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"errors"
+	"os"
+	"syscall"
 )
 
 // Run executes a CLI presentation lifecycle against this Output and returns
@@ -17,32 +19,18 @@ import (
 //	    os.Exit(out.Run(context.Background(), run).ExitCode())
 //	}
 //
-// A nil ctx runs as context.Background(). What the end of ctx means
-// depends on the Output (DEC-CANCEL-005):
-//   - an Embedded (Config.Embedded) Output treats ctx as its request
-//     lifecycle. Tasks never see ctx's cancellation or deadline directly;
-//     when ctx ends, the run is interrupted exactly as ^C interrupts a CLI
-//     (running Tasks cancelled, queued Tasks not_started). Such a run
-//     registers no SIGINT/SIGTERM handler — its host owns process signals.
-//   - every other Output passes ctx to its Tasks unchanged: a Define that
-//     returns ctx.Err() fails its row, and the run concludes failed.
+// ctx carries caller-driven cancellation into run in addition to the
+// SIGINT/SIGTERM wiring below; a nil ctx runs as context.Background().
 //
 // Lifecycle: arm first paint → run → (reconcile run error into model) →
-// Finish → Close. An Embedded Output's ctx, and SIGINT/SIGTERM on every
-// CLI format, are watched until the run concludes, not only until run
-// returns. A FormatExternal Output that is not Embedded keeps the 1.1
-// signal window: a signal is acted on only while run runs, and one that
-// arrives after run returned is caught and ignored (DEC-CANCEL-005).
+// Finish → Close. SIGINT/SIGTERM are acted on while run runs; one that
+// arrives after run returned is caught and ignored, so the Define work
+// Finish waits on completes (the 1.1 signal window, kept on every format
+// in 1.2 — DEC-CANCEL-005).
 //
 // Result.Conclusion.ExitCode:
 //   - nil Output → ExitFailed (2)
-//   - SIGINT/SIGTERM (non-embedded only, within the signal window above)
-//     → Cancel on the active task (or the output) → ExitCancelled (130),
-//     cause "by user"
-//   - embedded Output whose ctx ends before its work finishes →
-//     ExitCancelled (130), cause "by caller" or "deadline exceeded"; a ctx
-//     that ends after the callback returned and every Task finished leaves
-//     the verdict unchanged (DEC-CANCEL-004)
+//   - SIGINT/SIGTERM → Cancel on the active task (or the output) → ExitCancelled (130)
 //   - a second SIGINT/SIGTERM → ExitCancelled (130) returned immediately, without
 //     waiting for run to unwind, so the caller's
 //     os.Exit(out.Run(...).ExitCode()) exits now
@@ -107,55 +95,45 @@ func Main(run RunFunc) int {
 	return Run(context.Background(), run).ExitCode()
 }
 
-// runInterruptible executes run to completion, turning SIGINT/SIGTERM
-// (non-embedded Outputs) and the end of an embedded Output's caller ctx
-// into one ordered interrupt of the active task (or the output itself) —
-// and of the run context passed to run — so the ledger and exit code
-// always agree. The caller's ctx, and signals on every CLI format, are
-// watched until the run concludes, not just until run returns: the
-// ordinary shape declares Tasks and returns, and their Define work
-// executes while Finish waits. A FormatExternal run that is not Embedded
-// keeps the 1.1 window instead (signalsUntilCallbackReturns). A second
-// signal returns ExitCancelled immediately instead of waiting for the work
-// to unwind.
+// runInterruptible executes run to completion, wiring SIGINT/SIGTERM into
+// cancellation of the active task (or the output itself) — and of the
+// derived ctx passed to run — so the ledger and exit code always agree. A
+// second signal returns ExitCancelled immediately instead of waiting for run
+// to unwind — the process-level os.Exit that wraps a caller's
+// os.Exit(evo.Main(run)) is what actually terminates.
 func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
-	// runCtx becomes o.Context() for the duration of this run (see
-	// beginRunContext). It is installed before either watch starts, so the
-	// first interrupt — even one a pre-cancelled ctx fires at once —
-	// cancels this context rather than a placeholder it would then replace
-	// (DEC-CANCEL-003).
-	runCtx := out.beginRunContext(out.scopeCaller(ctx))
-	signals := out.subscribeProcessSignals()
-	defer signals.stop()
-	caller := out.watchCaller(ctx)
-	defer caller.release()
+	sigCh := make(chan os.Signal, signalChannelCapacity)
+	notifySignals(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals(sigCh)
 
-	phase := new(runPhase)
-	results := make(chan Result, 1)
+	// runCtx becomes o.Context() for the duration of this run (see
+	// beginRunContext): every Define/Verify task scope started from here
+	// on descends from the caller's own ctx, not just from run's local
+	// parameter.
+	runCtx := out.beginRunContext(ctx)
+
+	done := make(chan error, 1)
 	go func() {
-		var runErr error
+		var err error
 		if run != nil {
-			runErr = run(runCtx)
+			err = run(runCtx)
 		}
-		out.endRunCallback(caller.ended)
-		if phase.callbackReturned() || caller.interruptIfEnded() {
-			results <- concludeCancelled(out, runErr)
-			return
-		}
-		results <- concludeRun(out, runErr)
+		done <- err
 	}()
 
-	if result, concluded := signals.awaitInterrupt(results, phase); concluded {
-		return result
-	}
-	// out.interrupt cancels o.cancelRun, the same cancel beginRunContext
-	// installed above — no separate local cancel is needed.
-	out.interrupt(interruptionBySignal)
 	select {
-	case result := <-results:
-		return result
-	case <-signals.received:
-		return Result{Conclusion: Conclusion{State: StateCancelled, Cancelled: true, ExitCode: ExitCancelled}}
+	case runErr := <-done:
+		return concludeRun(out, runErr)
+	case <-sigCh:
+		// out.interrupt cancels o.cancelRun, the same cancel beginRunContext
+		// installed above — no separate local cancel is needed.
+		out.interrupt(interruptionBySignal)
+		select {
+		case runErr := <-done:
+			return concludeCancelled(out, runErr)
+		case <-sigCh:
+			return Result{Conclusion: Conclusion{State: StateCancelled, Cancelled: true, ExitCode: ExitCancelled}}
+		}
 	}
 }
 

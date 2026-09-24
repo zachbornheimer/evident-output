@@ -8,6 +8,8 @@ import (
 	"testing"
 )
 
+var reasonAlreadyCurrent = Reason("already current")
+
 // concludedRunAttempts repeats the signal-after-conclusion race enough
 // times that a missing guard fails reliably; each attempt takes well
 // under a millisecond.
