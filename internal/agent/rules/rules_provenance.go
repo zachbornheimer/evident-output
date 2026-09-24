@@ -11,7 +11,7 @@ package rules
 // documents. EVO-PROVENANCE-002 has no such detector: distinguishing "a
 // callback trusts a prior manifest entry alone" from a legitimate
 // cached-but-reverified check needs call-site intent an AST shape cannot
-// carry, so it stays Detection: "guidance" and taught by example only
+// carry, so it stays Detection: DetectionGuidance and taught by example only
 // (agent/review's regression suite proves it never *fabricates* a positive
 // here; see review_evo_file_test.go).
 func init() { registerFamily(provenanceRules()) }
@@ -53,7 +53,7 @@ return err`,
 		RelatedGuidance: []string{"provenance", "evo-file-exec"},
 		VerificationIDs: []string{"EVO-PROVENANCE-001"},
 		Since:           "1.0.0",
-		Certainty:       "heuristic",
+		Certainty:       CertaintyHeuristic,
 	}
 }
 
@@ -80,7 +80,7 @@ func opaqueManifestSkipRule() Rule {
 		RelatedGuidance: []string{"provenance", "evidence-provenance"},
 		VerificationIDs: []string{"EVO-PROVENANCE-002"},
 		Since:           "1.0.0",
-		Certainty:       "heuristic",
-		Detection:       "guidance", // no cheap detector: distinguishing "trusts the manifest alone" from a legitimate cached-but-reverified check needs call-site intent, not AST shape
+		Certainty:       CertaintyHeuristic,
+		Detection:       DetectionGuidance, // no cheap detector: distinguishing "trusts the manifest alone" from a legitimate cached-but-reverified check needs call-site intent, not AST shape
 	}
 }
