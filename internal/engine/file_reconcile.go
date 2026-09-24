@@ -271,5 +271,5 @@ func (o *Output) recordFileEffectIf(op fileOperation, mutates bool) {
 // Effect under taskID's own ledger section (spec §8.2/§27/§51) — the same
 // Plan/Changes routing evo.Effect and evo.Exec already use.
 func (o *Output) recordFileEffect(taskID, displayPath string) {
-	(&TaskHandle{out: o, id: taskID}).recordName("write", displayPath)
+	o.recordLedgerEntry(taskID, namedEntry("write", displayPath))
 }

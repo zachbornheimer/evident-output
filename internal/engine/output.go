@@ -411,7 +411,7 @@ type changesState struct {
 	records []EffectRecord
 	// intendedVerb is the first imperative verb recorded for this section
 	// (evo-rec.md "empty effect section grammar"). Set once, by
-	// recordResolvedMutation; it is what lets a section that ends up
+	// recordResolvedEntry; it is what lets a section that ends up
 	// with zero rows still render "nothing to <verb> <subject>" instead of a
 	// generic fallback.
 	intendedVerb string
