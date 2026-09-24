@@ -554,7 +554,7 @@ func TestSpecP13_Retry_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓ install  40/40", "- skipped 1 (optional)"} {
+	for _, want := range []string{"✓ install  40/40", "- skipped 2 (optional)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -765,8 +765,10 @@ func TestSpecP14_Capture_Success(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if n := strings.Count(collapsed, "skipped 1 (has-pr)"); n != 3 {
-		t.Fatalf("want 3 individual derived taxonomy lines \"skipped 1 (has-pr)\", got %d:\n%s", n, got)
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	if n := strings.Count(collapsed, "skipped 3 (has-pr)"); n != 1 {
+		t.Fatalf("want one aggregated \"skipped 3 (has-pr)\" tally, got %d:\n%s", n, got)
 	}
 	if strings.Contains(got, "skip-has-pr") {
 		t.Fatalf("expected no fused verb-reason spelling but found it:\n%s", got)

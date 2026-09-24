@@ -286,3 +286,37 @@ func TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning(t *testing.T) {
 		t.Fatalf("a Skipped tally must not feed the warned band:\n%s", got)
 	}
 }
+
+// TestGroup_KeptChildrenAggregateUnderGroupRow pins contract §25 ("Rendering
+// every child is not a correctness requirement; retaining every child in
+// the model is") for per-item disposition children: a Group whose children
+// only resolved Kept renders its own row plus one "! kept N (...)" tally,
+// indented under it (§26/§27), never one row per item.
+func TestGroup_KeptChildrenAggregateUnderGroupRow(t *testing.T) {
+	for _, summary := range []string{"6 checked", ""} {
+		var buf bytes.Buffer
+		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+		t.Cleanup(func() { _ = out.Close() })
+
+		unpushed, protected := evo.Reason("unpushed"), evo.Reason("protected")
+		branches := out.Group("branches")
+		if summary != "" {
+			branches.Summary(summary)
+		}
+		branches.Task("feat/a").Kept(unpushed)
+		branches.Task("main").Kept(protected)
+		branches.Task("feat/b").Kept(unpushed)
+		if err := out.Finish(); err != nil {
+			t.Fatal(err)
+		}
+
+		row := "✓ branches\n"
+		if summary != "" {
+			row = "✓ branches  " + summary + "\n"
+		}
+		want := row + "  ! kept 3 (2 unpushed, 1 protected)\n\n[ready · warned]\n"
+		if got := buf.String(); got != want {
+			t.Fatalf("summary %q mismatch:\n--- want ---\n%s\n--- got ---\n%s", summary, want, got)
+		}
+	}
+}

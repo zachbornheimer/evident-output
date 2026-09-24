@@ -59,11 +59,11 @@ func writeLiveHeaderlessGroup(b *strings.Builder, col core.TasksSnapshot, height
 // surrounding rows, aligned to one name column, then any nested containers
 // the same way.
 func writeHeaderlessGroup(b *strings.Builder, col core.TasksSnapshot, color, verbose bool, profile txt.GlyphProfile) {
-	nameWidth := maxTaskNameWidth(col.Tasks)
+	nameWidth := headerlessRowNameWidth(col)
 	for _, t := range col.Tasks {
 		WriteTaskAligned(b, t, nameWidth, color, verbose, profile)
 	}
 	for _, child := range col.Collections {
-		WriteCollection(b, child, color, verbose, profile)
+		writeCollectionAligned(b, child, nameWidth, color, verbose, profile)
 	}
 }

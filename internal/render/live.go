@@ -153,8 +153,10 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		writeLiveEachAggregate(b, col, fromEach, explicit, height, width, spin, color, now, profile)
 		return
 	}
+	col, items := withoutDispositionItems(col)
 	if collapsesIntoOnlyChild(col) {
 		writeLiveTaskLine(b, col.Tasks[0], 0, 0, width, spin, color, now, profile)
+		writeDispositions(b, taskAnnotationIndent, items, "", false, color, profile)
 		return
 	}
 	if promotesLoneChildOntoHeader(col) {
@@ -162,9 +164,10 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
+		writeDispositions(b, taskAnnotationIndent, items, "", false, color, profile)
 		return
 	}
-	if groupHeaderAddsNothing(col) && !hasUnfinishedTask(col) {
+	if groupHeaderAddsNothing(col) && items.Empty() && !hasUnfinishedTask(col) {
 		writeLiveHeaderlessGroup(b, col, height, width, spin, color, now, profile)
 		return
 	}
@@ -212,6 +215,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	}
 	b.WriteString(unit.Render(""))
 	b.WriteByte('\n')
+	writeDispositions(b, taskAnnotationIndent, items, "", false, color, profile)
 
 	// Select children by severity under height budget.
 	// Budget: height includes header; leave room for omission line.
@@ -280,6 +284,11 @@ func promotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
 }
 
 func partitionEachChildren(tasks []core.TaskSnapshot) (fromEach, explicit []core.TaskSnapshot) {
+	// The common case has no Each child: return tasks itself rather than
+	// copying every (large) TaskSnapshot on each live frame.
+	if !slices.ContainsFunc(tasks, core.TaskSnapshot.FromEach) {
+		return nil, tasks
+	}
 	for _, t := range tasks {
 		if t.FromEach() {
 			fromEach = append(fromEach, t)
@@ -373,14 +382,6 @@ func currentEachItemName(fromEach []core.TaskSnapshot) string {
 		}
 	}
 	return ""
-}
-
-func collectEachTaxonomy(fromEach []core.TaskSnapshot) (skipped, kept []core.TaxonomyRecord) {
-	for _, t := range fromEach {
-		skipped = append(skipped, t.Skipped...)
-		kept = append(kept, t.Kept...)
-	}
-	return skipped, kept
 }
 
 func writeLiveEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach, explicit []core.TaskSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {

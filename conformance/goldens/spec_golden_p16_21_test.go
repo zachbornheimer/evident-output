@@ -93,11 +93,10 @@ func TestSpecP16_CompactLayout_Success(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6
-	// (protected)") was removed with Each in 1.0 (§3.1) — each plain Group
-	// child renders its own line.
-	if n := strings.Count(got, "- skipped 1 (protected)"); n != 6 {
-		t.Fatalf("want 6 individual (parenthesized-reason) taxonomy lines, got %d:\n%s", n, got)
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	if n := strings.Count(got, "- skipped 6 (protected)"); n != 1 {
+		t.Fatalf("want one aggregated skipped tally, got %d:\n%s", n, got)
 	}
 }
 
@@ -238,17 +237,12 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 	if !strings.Contains(got, "✓ branches 14 deleted") {
 		t.Fatalf("want %q in:\n%s", "✓ branches 14 deleted", buf.String())
 	}
-	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6 (4
-	// protected, 2 dirty)"/"kept 3 (unpushed)") was removed with Each in
-	// 1.0 (§3.1) — each plain Group child renders its own line.
-	if n := strings.Count(got, "- skipped 1 (protected)"); n != 4 {
-		t.Fatalf("want 4 individual skipped-protected lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "- skipped 1 (dirty)"); n != 2 {
-		t.Fatalf("want 2 individual skipped-dirty lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "! kept 1 (unpushed)"); n != 3 {
-		t.Fatalf("want 3 individual kept-unpushed lines, got %d:\n%s", n, buf.String())
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	for _, want := range []string{"- skipped 6 (4 protected, 2 dirty)", "! kept 3 (unpushed)"} {
+		if strings.Count(got, want) != 1 {
+			t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
+		}
 	}
 }
 
@@ -290,16 +284,12 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	// Each's own cross-child rollup (collectEachTaxonomy) was removed with
-	// Each in 1.0 (§3.1) — each plain Group child renders its own line.
-	if n := strings.Count(got, "- skipped 1 (protected)"); n != 4 {
-		t.Fatalf("want 4 individual skipped-protected lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "- skipped 1 (dirty)"); n != 2 {
-		t.Fatalf("want 2 individual skipped-dirty lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "! kept 1 (unpushed)"); n != 3 {
-		t.Fatalf("want 3 individual kept-unpushed lines, got %d:\n%s", n, buf.String())
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	for _, want := range []string{"- skipped 6 (4 protected, 2 dirty)", "! kept 3 (unpushed)"} {
+		if strings.Count(got, want) != 1 {
+			t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
+		}
 	}
 }
 
@@ -343,8 +333,8 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		"10 deleted",
 		"✗",
 		"delete failed on feat/x",
-		"- skipped 1 (unchanged)",
-		"! kept 1 (unpushed, not attempted)"} {
+		"- skipped 6 (unchanged)",
+		"! kept 3 (unpushed, not attempted)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}

@@ -238,56 +238,74 @@ func TestPruneContract_LedgerFollowsTaskDeclarationOrderNotCompletionOrder(t *te
 	}
 }
 
-// TestPruneContract_KeptUnderGroupedCategoriesRendersContract18 is zq
-// prune's real 1.1 shape (a header-less Group of category Tasks, each
-// accumulating Kept records inside its Define before its Effect), held to
-// the contract §18 dry-run bytes TestV8_DryRunPlanOnly pins for the
-// Warn-authored form: a Kept tally nests under its row ("  ! kept N (...)",
-// spec §26/§27) exactly like a Warn, and its "!" row feeds the trailing
-// "[planned · warned]" band like any other warning-glyph annotation. It runs
-// under zq's own Config (Title "zq"): the band stays bare because the
-// dry-run Subject header already named the run.
-func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T) {
+// keptItem is one item a prune category keeps, and why.
+type keptItem struct {
+	name   string
+	reason evo.TaxonomyReason
+}
+
+// pruneCategory is one zq prune category in the contract-correct per-item
+// shape: a Group named for the category holding the category's own work
+// Task (same name: it classifies, summarizes, and owns the Effect, so the
+// ledger subject is the category) plus one child Task per kept item that
+// resolves Kept (the item is the Task — docs/reference.md).
+func pruneCategory(parent *evo.GroupHandle, name, summary string, spec *evo.EffectSpec, kept ...keptItem) *evo.TaskHandle {
+	items := parent.Group(name)
+	work := items.Task(name)
+	work.Define(func(ctx context.Context) error {
+		for _, item := range kept {
+			items.Task(item.name).Kept(item.reason)
+		}
+		work.Summary(summary)
+		if spec == nil {
+			return nil
+		}
+		return evo.Effect(ctx, *spec, func(context.Context) error { return nil })
+	})
+	return work
+}
+
+// renderPruneContract18 runs zq prune's dry-run under zq's own Config
+// (Title "zq", a Subject header) at verbosity.
+func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
+	t.Helper()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
-		Isolated: true, DryRun: true, Color: evo.ColorNever, Plain: true,
+		Isolated: true, DryRun: true, Color: evo.ColorNever, Plain: true, Verbosity: verbosity,
 		Title: "zq", Subject: "zq prune  ~/repo", Stdout: &buf,
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
 	categories := out.Group("categories")
-	branches := categories.Task("branches")
-	worktrees := categories.Task("worktrees")
-	remotes := categories.Task("remote-tracking")
-
-	keepAll := func(task *evo.TaskHandle, summary string, spec evo.EffectSpec, reasons ...evo.TaxonomyReason) {
-		task.Define(func(ctx context.Context) error {
-			for _, reason := range reasons {
-				task.Kept(reason)
-			}
-			task.Summary(summary)
-			return evo.Effect(ctx, spec, func(context.Context) error { return nil })
-		})
-	}
-	remotes.Define(func(context.Context) error {
-		remotes.Summary("nothing to clean")
-		return nil
-	})
+	checkedOut, protected := evo.Reason("checked out"), evo.Reason("protected")
+	dirty, unpushed := evo.Reason("dirty"), evo.Reason("unpushed")
+	branches := pruneCategory(categories, "branches", "188 checked",
+		&evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 87},
+		keptItem{"feat/wt-a", checkedOut}, keptItem{"feat/wt-b", checkedOut}, keptItem{"main", protected})
+	worktrees := pruneCategory(categories, "worktrees", "168 checked",
+		&evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 95},
+		keptItem{"../wt-a", dirty}, keptItem{"../wt-b", dirty}, keptItem{"../wt-c", unpushed})
+	remotes := pruneCategory(categories, "remote-tracking", "nothing to clean", nil)
 	worktrees.Fact("on disk", "508.8 MB") // routine: verbose-only (§13, §21)
-	keepAll(worktrees, "168 checked",
-		evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 95},
-		evo.Reason("dirty"), evo.Reason("dirty"), evo.Reason("unpushed"))
-	branches.After(worktrees, remotes)
-	keepAll(branches, "188 checked",
-		evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 87},
-		evo.Reason("checked out"), evo.Reason("checked out"), evo.Reason("protected"))
-	if err := branches.Wait(); err != nil {
-		t.Fatal(err)
+	for _, category := range []*evo.TaskHandle{branches, worktrees, remotes} {
+		if err := category.Wait(); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
+	return buf.String()
+}
 
+// TestPruneContract_KeptUnderGroupedCategoriesRendersContract18 holds zq
+// prune's contract-correct per-item shape (pruneCategory) to the contract
+// §18 dry-run bytes TestV8_DryRunPlanOnly pins for the Warn-authored form.
+// Each category Group's kept children aggregate into one tally under the
+// category's row (§25: "aggregation is a renderer concern"; §26/§27:
+// "  ! kept N (...)"), the tally feeds "[planned · warned]", and the band
+// stays bare because the dry-run Subject header already named the run.
+func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T) {
 	want := "[dry-run] zq prune  ~/repo\n" +
 		"\n" +
 		"✓ branches         188 checked\n" +
@@ -300,7 +318,48 @@ func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T)
 		"[planned] worktrees  remove 95 worktrees\n" +
 		"\n" +
 		"[planned · warned]\n"
-	if got := buf.String(); got != want {
+	if got := renderPruneContract18(t, evo.VerbosityNormal); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+	}
+}
+
+// TestPruneContract_KeptTallyVerboseListsRealItemNames is the --verbose
+// half: the aggregated tally lists each kept child's own name under its
+// reason, and the routine "on disk" Fact appears.
+func TestPruneContract_KeptTallyVerboseListsRealItemNames(t *testing.T) {
+	got := renderPruneContract18(t, evo.VerbosityVerbose)
+	for _, want := range []string{
+		"✓ branches         188 checked\n  ! kept 3 (2 checked out, 1 protected)\n",
+		"checked out: feat/wt-a, feat/wt-b\n",
+		"protected: main\n",
+		"dirty: ../wt-a, ../wt-b\n",
+		"unpushed: ../wt-c\n",
+		"on disk  508.8 MB\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("verbose output lacks %q:\n%s", want, got)
+		}
+	}
+}
+
+// TestPruneContract_KeptChildrenStayInMachineOutput proves the aggregation
+// is human-only: JSON keeps every kept child Task.
+func TestPruneContract_KeptChildrenStayInMachineOutput(t *testing.T) {
+	var buf bytes.Buffer
+	out := newPlainOutput(&buf, true)
+	t.Cleanup(func() { _ = out.Close() })
+	work := pruneCategory(out.Group("categories"), "branches", "2 checked", nil,
+		keptItem{"feat/a", evo.Reason("unpushed")}, keptItem{"main", evo.Reason("protected")})
+	if err := work.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "feat/a") {
+		t.Fatalf("human output must aggregate kept children into the tally:\n%s", buf.String())
+	}
+	if doc := machineDocument(t, out); !strings.Contains(doc, `"feat/a"`) || !strings.Contains(doc, `"main"`) {
+		t.Fatalf("machine output keeps every kept child:\n%s", doc)
 	}
 }

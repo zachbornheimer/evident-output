@@ -549,7 +549,7 @@ func TestSpecP25_ASCIIGlyphFallback_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"[ok] branches  14 deleted", "[ok] worktrees  2 removed", "- skipped 1 (protected)", "- skipped 1 (dirty)"} {
+	for _, want := range []string{"[ok] branches  14 deleted", "[ok] worktrees  2 removed", "- skipped 2 (1 protected, 1 dirty)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in ASCII-profile output:\n%s", want, got)
 		}

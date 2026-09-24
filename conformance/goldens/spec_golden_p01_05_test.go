@@ -51,10 +51,9 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	// taxonomy line is always derived with a reason partition
 	// (task_taxonomy.go: "the taxonomy line... is derived from every
 	// accumulated record at render time"). Each's own collection-level
-	// rollup summing that partition across many same-shaped children
-	// (collectEachTaxonomy) was removed with Each in 1.0 (§3.1: get-or-create
-	// reliance is unsound); each plain Group child now renders its own
-	// "skipped 1 (protected)" line individually.
+	// rollup was removed with Each in 1.0 (§3.1: get-or-create reliance is
+	// unsound); per-item Group children now fold into one tally under their
+	// Group (contract §25 renderer aggregation).
 	for _, want := range []string{
 		"✓ branches 8 deleted",
 		"✗ remove",
@@ -64,8 +63,8 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if n := strings.Count(collapsed, "skipped 1 (protected)"); n != 6 {
-		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
+	if n := strings.Count(collapsed, "skipped 6 (protected)"); n != 1 {
+		t.Fatalf("want one aggregated skipped tally, got %d:\n%s", n, got)
 	}
 }
 
@@ -97,9 +96,8 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	// reachable literal — the real taxonomy line always carries a mechanical
 	// reason partition instead (see the Failure cell above), which still
 	// proves the same underlying contract: the skip count survives the
-	// error, uncorrupted. Each's own cross-child rollup (collectEachTaxonomy)
-	// was removed with Each in 1.0 (§3.1) — each plain Group child renders
-	// its own line, asserted by count below.
+	// error, uncorrupted. Per-item Group children fold into one tally under
+	// their Group (contract §25 renderer aggregation).
 	for _, want := range []string{
 		"8 branches deleted",
 		"git: cannot lock ref 'refs/heads/feat/x'",
@@ -108,8 +106,8 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if n := strings.Count(collapsed, "skipped 1 (protected)"); n != 6 {
-		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
+	if n := strings.Count(collapsed, "skipped 6 (protected)"); n != 1 {
+		t.Fatalf("want one aggregated skipped tally, got %d:\n%s", n, got)
 	}
 }
 
