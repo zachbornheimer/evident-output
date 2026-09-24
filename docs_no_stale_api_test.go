@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
 	"github.com/zachbornheimer/evident-output/internal/retired"
 )
 
@@ -91,7 +92,8 @@ func TestDocsNeverCallLiveAPIUnimplemented(t *testing.T) {
 }
 
 // currentDocs reads every doc that teaches the current API, keyed by its
-// module-relative path; frozen historical documents are skipped.
+// module-relative path, plus every MCP catalog guide body (served to
+// agents, never a file); frozen historical documents are skipped.
 func currentDocs(t *testing.T, root string) map[string]string {
 	t.Helper()
 	files := map[string]struct{}{}
@@ -125,6 +127,9 @@ func currentDocs(t *testing.T, root string) map[string]string {
 			t.Fatalf("read %s: %v", rel, err)
 		}
 		docs[rel] = string(body)
+	}
+	for _, guide := range catalog.All() {
+		docs["internal/agent/catalog guide "+guide.ID] = guide.Body
 	}
 	return docs
 }

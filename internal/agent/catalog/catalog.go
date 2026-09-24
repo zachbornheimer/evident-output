@@ -182,7 +182,7 @@ from a Task's Define callback. Do not teach a hand-rolled Evidence callback (a l
 as the normal way to make file work idempotent — evo.File already covers it.
 
 Teach evo.Task("...").Define(fn) first, then Group/Sequence for collections, then evo.File for declarative
-tracked file state, then a Task's Basis of Fingerprint values (evo.FSPath/evo.Value/evo.App) only when freshness
+tracked file state, then FileSpec.Basis / ExecSpec.Basis Fingerprint values (evo.FSPath/evo.Value/evo.App) only when freshness
 depends on semantic external inputs File/Exec do not already track, then Task.Verify only for domains Evo cannot
 track automatically. Never lead with manifest internals or renderer controls.
 
