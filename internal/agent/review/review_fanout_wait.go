@@ -4,7 +4,7 @@ package review
 import "strings"
 
 // ===== API-041: a goroutine/.Go(func( closure resolves a predeclared Task
-// (Doing/Done/Fail/Progress) with no Define inside it — the scheduler never
+// (Doing/Fail/Progress) with no Define inside it — the scheduler never
 // received the work (zq axis-11 P1).
 
 var fanOutResolutionVerbMarkers = []string{".Doing(", ".Done(", ".Fail(", ".Progress("}
@@ -25,7 +25,7 @@ func detectGoroutineResolvesPredeclaredTask(filename, src string) []Finding {
 			if !strings.Contains(body, ".Define(") && containsAny(body, fanOutResolutionVerbMarkers) {
 				findings = append(findings, Finding{
 					RuleID:     "API-041",
-					Message:    "goroutine/fan-out closure resolves a predeclared Task (Doing/Done/Fail/Progress) with no Define; evo never received this work to schedule",
+					Message:    "goroutine/fan-out closure resolves a predeclared Task (Doing/Fail/Progress) with no Define; evo never received this work to schedule",
 					File:       filename,
 					Line:       lineAt(src, start),
 					Suggestion: "predeclare with Group.Task(...) (one named Task per item), then call task.Define(func() error { ... }) instead of a bare goroutine",

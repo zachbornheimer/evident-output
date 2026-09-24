@@ -33,7 +33,7 @@ func detectSelectorCallRules(in fileInput) []Finding {
 		// API-006: redundant Start on presentation handles
 		if name == "Start" && isLikelyEvoReceiver(sel.X) {
 			recv := exprDottedName(sel.X)
-			suggestion := "remove .Start(); Doing/Progress/Done already activate the task"
+			suggestion := "remove .Start(); Doing/Progress and Define already activate the task"
 			if recv != "" {
 				suggestion = "remove " + recv + ".Start(); " + recv + ".Doing(...)/" + recv + ".Progress(...) already activate it"
 			}
@@ -52,11 +52,11 @@ func detectSelectorCallRules(in fileInput) []Finding {
 		if hasEvo && isForbiddenExecutionHelper(name) && isEvoExecutionReceiver(sel.X) {
 			findings = append(findings, Finding{
 				RuleID:     "API-026",
-				Message:    "forbidden execution helper ." + name + "( — callers do not invent RunAll/Map/Retry; use Group/Sequence/Define/Each/After",
+				Message:    "forbidden execution helper ." + name + "( — callers do not invent RunAll/Map/Retry; use Group/Sequence/Define/After",
 				File:       filename,
 				Line:       pos.Line,
 				Column:     pos.Column,
-				Suggestion: "replace ." + name + "( with Group.Each/Define/After or keep the loop in application code",
+				Suggestion: "replace ." + name + "( with one Group.Task(item).Define per item, After for ordering, or keep the loop in application code",
 			})
 		}
 
@@ -130,7 +130,7 @@ func detectSelectorCallRules(in fileInput) []Finding {
 					}
 					findings = append(findings, Finding{
 						RuleID:     "API-028",
-						Message:    name + " has no format directive; prefer non-formatting method (e.g. Done(\"text\") not Donef(\"text\"))",
+						Message:    name + " has no format directive; prefer non-formatting method (e.g. Fail(\"text\") not Failf(\"text\"))",
 						File:       filename,
 						Line:       pos.Line,
 						Column:     pos.Column,

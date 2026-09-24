@@ -60,7 +60,7 @@ Trigger phrases: "adopt evident-output", "migrate to evo", "clean up CLI output"
    If `facades` is set, migrate the facade first (`next_action` says so) — not each call site.
 2. **Migrate the current page**, then re-call with `{ "directory": "...", "cursor": "<next_cursor>" }`
    until `next_action` is `clean`. Ladder order (no containers rung):
-   `Init/Main → Task/Done → effects → facts/warnings → confirm/dry-run`.
+   `Init/Main → Task/Define → effects → facts/warnings → confirm/dry-run`.
    Pull authoritative detail per rung with `evident_output_get_documentation` (ids
    `adoption-ladder`, `guide/common-api`, `guide/tasks`) rather than guessing spellings —
    the catalog is the single source of truth, this skill only points at it.

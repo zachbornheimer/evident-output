@@ -152,7 +152,7 @@ cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
   return task.Failf("build failed: %w", err)
 }`,
-			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer(); do not call unexported Task.Run or Evidence from application code",
+			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer() (Task.Run was removed in 1.0); do not call Evidence from application code",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"STREAM-004"},
 			Since:           "0.2.17",
@@ -299,7 +299,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Category:  "LOOP",
 			Severity:  SeverityError,
 			Invariant: "real work loops live only inside a task definition — never before Task/Group/Sequence",
-			Why:       "A for/range that walks disk (or otherwise does the job) before any Task leaves the consumer UI blank: the purge/prune silent-pre-output FAIL class. Group.Each / Task.Define make the good path the only path.",
+			Why:       "A for/range that walks disk (or otherwise does the job) before any Task leaves the consumer UI blank: the purge/prune silent-pre-output FAIL class. Group.Task(...).Define per item makes the good path the only path.",
 			BadCode: `func previewPurge() {
   out := evo.Init(evo.Config{Isolated: true, DryRun: true})
   for _, root := range roots {
@@ -320,7 +320,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
     return nil
   })
 }`,
-			Remediation:     "Declare Task/Group/Sequence first; put the loop inside Task.Define or range Group/Sequence.Each so every iteration is visible work",
+			Remediation:     "Declare Task/Group/Sequence first; put the loop inside Task.Define, or declare one Group.Task(item) per iteration, so every iteration is visible work",
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"LOOP-001"},
 			Since:           "0.5.1",
@@ -736,7 +736,7 @@ func run(ctx context.Context) error {
 	evo.Task("tip").Skipped(reason)
 	return evo.Task("z").Failf("failed: %w", err)
 }`,
-			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every removed TaskHandle mutation verb (either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer(); replace TaskHandle.Done() with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
+			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every TaskHandle mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer(); replace TaskHandle.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
@@ -1322,10 +1322,8 @@ evo.Effect(ctx, spec, func(context.Context) error { return installedPythonModule
 			GoodCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
 evo.Effect(ctx, spec, func(ctx context.Context) error {
   return invokeUV(ctx, root, packages)
-})
-// or, when the work already ran:
-task.Record("create", n, "module")`,
-			Remediation:     "Move the real mutation into the Effect callback, or use task.Record(verb, n, object) when the work already happened",
+})`,
+			Remediation:     "Move the real mutation into the Effect callback. When the work already ran elsewhere and only information remains, report it with task.Fact instead of an Effect",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-042"},
 			Since:           "0.4.7",

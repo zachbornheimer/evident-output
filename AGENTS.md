@@ -227,8 +227,9 @@ for a container.
 Evident Output 1.x ships breaking changes in minor releases when the owner's
 API-freeze decisions call for them, with no compatibility shims. `MainWith`
 and `Task.Each` were removed in 1.0 outright (docs/acceptance/v0.6.md,
-"Owner decisions"); 1.1 removes the TaskHandle mutation verbs, `Done`, `Record*`,
-`Affected`/`MutationOption`, and changes `Exec` and `Define`, per the
+"Owner decisions"). Removed in 1.1: the TaskHandle mutation verbs, `Done`,
+`Record*`, and `Affected`/`MutationOption`; 1.1 also changes `Exec` and
+`Define`, per the
 "Decisions (2026-09-23) — 1.1 API freeze" section of the Linear contract doc
 "Evident Output 1.x — Product + Implementation Contract" (project P-ZYS-23).
 

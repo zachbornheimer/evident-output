@@ -5,7 +5,7 @@
       "file": "main.go",
       "line": 13,
       "pattern": "import github.com/briandowns/spinner",
-      "rung": "Task/Done",
+      "rung": "Task/Define",
       "suggestion": "evo.Task's live heartbeat renders progress/elapsed automatically — delete the manual spinner and its Start/Stop calls.",
       "certainty": "high"
     },
@@ -13,16 +13,16 @@
       "file": "main.go",
       "line": 21,
       "pattern": "fmt.Printf",
-      "rung": "Task/Done",
-      "suggestion": "replace with evo.Println/Print/Printf (durable notes) or a Task's Doing/Done — never fmt.Print* while a live region may be open.",
+      "rung": "Task/Define",
+      "suggestion": "replace with evo.Println/Print/Printf (durable notes) or a Task's Doing and Define — never fmt.Print* while a live region may be open.",
       "certainty": "needs-review"
     },
     {
       "file": "main.go",
       "line": 22,
       "pattern": "log.Println",
-      "rung": "Task/Done",
-      "suggestion": "replace with evo.Println/Print/Printf for a durable note, or task.Doing/Done if this reports lifecycle state — see the common-api guide.",
+      "rung": "Task/Define",
+      "suggestion": "replace with evo.Println/Print/Printf for a durable note, or task.Doing plus the Task's Define callback if this reports lifecycle state — see the common-api guide.",
       "certainty": "needs-review"
     },
     {
@@ -36,6 +36,6 @@
   ],
   "rungs_touched": [
     "Init/Main",
-    "Task/Done"
+    "Task/Define"
   ]
 }

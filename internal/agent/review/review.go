@@ -1743,7 +1743,7 @@ func detectShadowedHandle(filename, src string) []Finding {
 							"the earlier row is orphaned Running forever",
 						File:       filename,
 						Line:       lineAt(src, fb.offset+m[0]),
-						Suggestion: "resolve " + name + " (Done/Fail/Block/Warn/Cancel/Skip) before reassigning it, or give the second declaration its own variable name",
+						Suggestion: "resolve " + name + " (Define, Fail, Block, Cancel, or Skipped) before reassigning it, or give the second declaration its own variable name",
 					})
 				}
 			}
