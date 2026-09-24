@@ -254,7 +254,10 @@ type Config struct {
 	// Title, DryRun, Preview, and Subject is ignored.
 	Options []Option
 
-	// MaxConcurrency is the scheduler ceiling. Zero means GOMAXPROCS.
+	// MaxConcurrency is the scheduler ceiling: it bounds pooled workers plus
+	// waiting goroutines that pick up unrelated work. A goroutine blocked in
+	// Wait that runs the very Task it awaits is not counted. Zero means
+	// GOMAXPROCS.
 	MaxConcurrency int
 
 	// StateDir, when non-empty, is the exact manifest state directory File's

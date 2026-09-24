@@ -46,8 +46,10 @@ func (o *Output) endWait(ticket *waitTicket) {
 // Donating only to the awaited task was not enough: at MaxConcurrency 1 the
 // waiter's own slot can be the only thing keeping that task's unmet
 // predecessor queued, so the wait ended only when the run drained and
-// abandoned the whole chain. A plain caller holds no slot to lend, so it
-// runs work only when a slot is free (see takeWaiterSlotLocked).
+// abandoned the whole chain. A plain caller holds no slot to lend: it still
+// runs the task it awaits, because its goroutine is blocked on that task
+// anyway, but it runs unrelated queued work only when a slot is free (see
+// takeWaiterSlotLocked).
 //
 // The loop terminates: every donation resolves one task, and a resolved task
 // is never claimable again.
@@ -105,7 +107,7 @@ func (o *Output) claimForWaiter(taskID string, stack *waiterStack) *waiterClaim 
 	if !o.claimableLocked(cand) {
 		return nil
 	}
-	return o.claimForWaiterLocked(cand, stack)
+	return o.claimForWaiterLocked(cand, stack, true)
 }
 
 // claimAnyForWaiter is claimForWaiter for whichever eligible task the
@@ -120,11 +122,13 @@ func (o *Output) claimAnyForWaiter(stack *waiterStack) *waiterClaim {
 	if cand == nil {
 		return nil
 	}
-	return o.claimForWaiterLocked(cand, stack)
+	return o.claimForWaiterLocked(cand, stack, false)
 }
 
-func (o *Output) claimForWaiterLocked(cand *taskState, stack *waiterStack) *waiterClaim {
-	pooled, ok := o.takeWaiterSlotLocked(stack)
+// claimForWaiterLocked claims cand for a waiting goroutine; awaited says
+// cand is the very task that goroutine is blocked on.
+func (o *Output) claimForWaiterLocked(cand *taskState, stack *waiterStack, awaited bool) *waiterClaim {
+	pooled, ok := o.takeWaiterSlotLocked(stack, awaited)
 	if !ok {
 		return nil
 	}
@@ -135,14 +139,18 @@ func (o *Output) claimForWaiterLocked(cand *taskState, stack *waiterStack) *wait
 // takeWaiterSlotLocked decides whether a waiting goroutine may run work
 // now, so the number of executing callbacks never rises above the ceiling.
 // A callback lends the slot it already holds (pooled is false). A plain
-// caller holds none: it takes a free slot like a pooled worker would, or
-// runs nothing and parks while the pool finishes the work.
-func (o *Output) takeWaiterSlotLocked(stack *waiterStack) (pooled, ok bool) {
+// caller holds none: it takes a free slot like a pooled worker would. With
+// no slot free it still runs the task it awaits (awaited), unpooled: that
+// goroutine is blocked on the task whatever happens, so running it lends a
+// goroutine that would otherwise sit idle, and refusing can hang the run —
+// a callback that spawns the waiter and blocks on it holds the only slot.
+// Unrelated work it leaves to the pool.
+func (o *Output) takeWaiterSlotLocked(stack *waiterStack, awaited bool) (pooled, ok bool) {
 	if stack.callbackDepth() > 0 {
 		return false, true
 	}
 	if o.sched.inflight >= o.concurrencyCeilingLocked() {
-		return false, false
+		return false, awaited
 	}
 	o.takeSlotLocked()
 	return true, true
@@ -183,8 +191,13 @@ func (st *taskState) closeDoneLocked() {
 // that task, and whatever is holding it back, on its own goroutine when the
 // scheduler has not picked them up (see runWaitedWork): nested Define+Wait
 // completes even at MaxConcurrency 1, because the waiting callback's slot
-// carries the work it is waiting for instead of idling. A plain caller has
-// no slot to lend, so it runs work only when a slot is free.
+// carries the work it is waiting for instead of idling.
+//
+// MaxConcurrency therefore bounds pooled workers plus goroutines that pick
+// up unrelated work. It does not count a blocked goroutine running the task
+// it awaits: a plain caller (one outside any callback, including a
+// goroutine a callback spawned) always runs its awaited task once that task
+// is eligible, and runs anything else only when a slot is free.
 func (t *TaskHandle) Wait() error {
 	if t == nil || t.out == nil {
 		return nil
