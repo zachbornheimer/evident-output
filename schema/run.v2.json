@@ -274,28 +274,6 @@
         }
       }
     },
-    "attachment": {
-      "type": "object",
-      "required": ["value"],
-      "properties": {
-        "label": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
-        }
-      }
-    },
-    "field": {
-      "type": "object",
-      "required": ["key", "value"],
-      "properties": {
-        "key": {
-          "type": "string"
-        },
-        "value": {}
-      }
-    },
     "problem": {
       "type": "object",
       "properties": {
@@ -322,21 +300,6 @@
         },
         "location": {
           "$ref": "#/$defs/location"
-        },
-        "severity": {
-          "type": "string"
-        },
-        "evidence": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/attachment"
-          }
-        },
-        "fields": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/field"
-          }
         },
         "remedies": {
           "type": "array",

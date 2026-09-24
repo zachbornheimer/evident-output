@@ -68,19 +68,23 @@ func rawRunSchema(t *testing.T) []byte {
 	return schema
 }
 
-// baseRunDocument returns a real "evo.run" document (one task, one Problem)
-// produced by EncodeRun — a known-valid baseline whose data.tasks[0] and
-// data.problems[0] a test below overwrites with an older- or current-shape
-// fixture, so every other required field (schema_version, run_id, evidence,
-// progress, timing, ...) stays populated exactly as production code emits
-// it instead of being hand-guessed.
+// baseRunDocument returns a real "evo.run" document (one task, one Problem
+// carrying every field added since run.v2 first shipped: evidence_tail,
+// location, remedies) produced by EncodeRun. Tests overwrite parts of it
+// with an older- or current-shape fixture, so every other required field
+// stays exactly as production code emits it.
 func baseRunDocument(t *testing.T) map[string]any {
 	t.Helper()
 	result := core.Result{Conclusion: withConc(func(c *core.Conclusion) {
 		c.Tasks = []core.TaskSnapshot{
 			core.NewTaskSnapshot(core.TaskSnapshot{
 				ID: "task_1", Name: "build", State: core.Done,
-				Problems: []core.Problem{{Code: "A1", Summary: "finding", Subject: "file.go", Detail: "why", Count: 2, Unit: "line"}},
+				Problems: []core.Problem{{
+					Code: "A1", Summary: "finding", Subject: "file.go", Detail: "why", Count: 2, Unit: "line",
+					EvidenceTail: "file.go:3:1: why",
+					Location:     &core.SourceLocation{Path: "file.go", Line: 3, Column: 1},
+					Actions:      []core.Action{{Label: "fix", Command: &core.CommandSpec{Executable: "go", Args: []string{"fix"}}}},
+				}},
 			}, time.Time{}, false),
 		}
 	})}
@@ -118,25 +122,48 @@ func firstProblem(doc map[string]any) map[string]any {
 	return firstTask(doc)["problems"].([]any)[0].(map[string]any)
 }
 
-// TestSchemaCompat_ProblemDocOlderShapeValidatesAgainstSchema proves an
-// older-shape Problem (written before evidence_tail existed) still
-// validates against today's schema/run.v2.json — not merely decodes into
-// today's Go type.
+// problemAdditions are the ProblemDoc keys added after run.v2 first
+// shipped; an older-shape Problem lacks all of them.
+var problemAdditions = []string{"evidence_tail", "location", "remedies"}
+
+// TestSchemaCompat_ProblemDocOlderShapeValidatesAgainstSchema proves a
+// Problem written before evidence_tail/location/remedies existed still
+// validates against today's Strict schema/run.v2.json.
 func TestSchemaCompat_ProblemDocOlderShapeValidatesAgainstSchema(t *testing.T) {
 	doc := baseRunDocument(t)
 	older := firstProblem(doc)
-	delete(older, "evidence_tail")
+	for _, key := range problemAdditions {
+		if _, ok := older[key]; !ok {
+			t.Fatalf("baseline Problem lacks %q, so deleting it proves nothing: %v", key, older)
+		}
+		delete(older, key)
+	}
 	validateSpliced(t, doc)
 }
 
-// TestSchemaCompat_ProblemDocCurrentShapeValidatesAgainstSchema proves the
-// additive evidence_tail field itself is schema-declared, guarding against
-// the exact gap this ticket closed: run.v2.json carried "verification.facts"
-// but not "problem.evidence_tail" despite wire.ProblemDoc emitting it.
+// TestSchemaCompat_ProblemDocCurrentShapeValidatesAgainstSchema proves each
+// added Problem field is declared in schema/run.v2.json: under Strict, an
+// undeclared evidence_tail, location or remedies fails validation.
 func TestSchemaCompat_ProblemDocCurrentShapeValidatesAgainstSchema(t *testing.T) {
-	doc := baseRunDocument(t)
-	firstProblem(doc)["evidence_tail"] = "tail text"
-	validateSpliced(t, doc)
+	cases := map[string]any{
+		"evidence_tail": "tail text",
+		"location":      map[string]any{"path": fixtureResourcePath, "line": 4, "column": 2},
+		"remedies": []any{
+			map[string]any{"label": "retry", "url": "https://example.invalid/retry"},
+			map[string]any{"command": map[string]any{"executable": "go", "args": []any{"vet"}}},
+		},
+	}
+	for key, value := range cases {
+		t.Run(key, func(t *testing.T) {
+			doc := baseRunDocument(t)
+			problem := firstProblem(doc)
+			for _, other := range problemAdditions {
+				delete(problem, other)
+			}
+			problem[key] = value
+			validateSpliced(t, doc)
+		})
+	}
 }
 
 // TestSchemaCompat_VerificationDocOlderShapeValidatesAgainstSchema proves
