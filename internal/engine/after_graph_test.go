@@ -127,8 +127,12 @@ func TestAfterGroupDeclaredLater_WaitsForItsChildren(t *testing.T) {
 	out.Task("fetch").After(g).Define(record("fetch"))
 	// Give a wrongly eligible fetch every chance to start first.
 	time.Sleep(20 * time.Millisecond)
-	g.Task("a").Define(record("a"))
-	g.Task("b").Define(record("b"))
+	// Declare both children before either runs: a finishing before b
+	// exists would make the Group momentarily all-succeeded, and fetch
+	// starting then is correct, not the bug.
+	a, b := g.Task("a"), g.Task("b")
+	a.Define(record("a"))
+	b.Define(record("b"))
 	if err := closeWithin(t, out); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
