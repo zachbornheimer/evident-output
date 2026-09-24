@@ -158,6 +158,10 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   wrapping the refusal, and `Define` on it is misuse instead of a silent
   drop.
 
+- A `Wait` called outside any callback no longer runs queued work beside
+  a full pool: it takes a free slot or parks, so `MaxConcurrency` holds.
+  A waiting callback still lends its own slot to the work it waits on.
+
 - A Sequence's nested `Group`/`Sequence` is one step: it starts after the
   step before it ends, the step after it waits for all of it, and a failed
   step leaves the nested members after it `NotStarted`. A Sequence of n

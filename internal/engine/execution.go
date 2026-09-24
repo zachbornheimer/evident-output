@@ -104,14 +104,19 @@ func (o *Output) takeEligible() (st *taskState, fn func() error) {
 		return nil, nil
 	}
 	o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
-	o.sched.inflight++
-	o.sched.maxObserved = max(o.sched.maxObserved, o.sched.inflight)
+	o.takeSlotLocked()
 	return o.claimLocked(cand)
 }
 
+// takeSlotLocked takes one scheduler slot; finishClaimed returns it.
+func (o *Output) takeSlotLocked() {
+	o.sched.inflight++
+	o.sched.maxObserved = max(o.sched.maxObserved, o.sched.inflight)
+}
+
 // claimLocked marks cand's callback as started — for a pooled worker
-// (takeEligible, which also takes a slot) or for a waiter that donates its
-// own goroutine (see executeClaimed).
+// (takeEligible, which also takes a slot) or for a waiter that runs it on
+// its own goroutine (see runWaitedWork).
 func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error) {
 	o.enterPhaseLocked(cand, phaseRunning)
 	o.sched.executing++
@@ -135,15 +140,6 @@ func (o *Output) concurrencyCeilingLocked() int {
 // runWork runs a Task claimed by takeEligible on a pooled worker.
 func (o *Output) runWork(st *taskState, fn func() error) {
 	defer o.finishClaimed(st, true)
-	o.executeWork(st, fn)
-}
-
-// executeClaimed runs a task a waiting goroutine claimed for itself. It
-// consumes no scheduler slot: the waiting goroutine either already holds one
-// (a callback nested inside another callback) or holds none at all, so the
-// number of callbacks actually executing never rises above the ceiling.
-func (o *Output) executeClaimed(st *taskState, fn func() error) {
-	defer o.finishClaimed(st, false)
 	o.executeWork(st, fn)
 }
 

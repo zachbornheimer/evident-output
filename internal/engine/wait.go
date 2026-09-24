@@ -41,23 +41,25 @@ func (o *Output) endWait(ticket *waitTicket) {
 // scheduler has not started it, and otherwise whatever the scheduler is
 // holding back that could make it eligible.
 //
-// A waiter has stopped doing work, so the concurrency ceiling must never be
-// the reason the task it waits on cannot start (P16). Donating only to the
-// awaited task was not enough: at MaxConcurrency 1 the waiter's own slot can
-// be the only thing keeping that task's unmet predecessor queued, so the
-// wait ended only when the run drained and abandoned the whole chain.
+// A waiting callback has stopped doing work, so the concurrency ceiling
+// must never be the reason the task it waits on cannot start (P16).
+// Donating only to the awaited task was not enough: at MaxConcurrency 1 the
+// waiter's own slot can be the only thing keeping that task's unmet
+// predecessor queued, so the wait ended only when the run drained and
+// abandoned the whole chain. A plain caller holds no slot to lend, so it
+// runs work only when a slot is free (see takeWaiterSlotLocked).
 //
 // The loop terminates: every donation resolves one task, and a resolved task
 // is never claimable again.
-func (o *Output) runWaitedWork(taskID string) {
+func (o *Output) runWaitedWork(taskID string, stack *waiterStack) {
 	for {
-		if o.runForWaiter(taskID) {
+		if o.runClaimed(o.claimForWaiter(taskID, stack)) {
 			return
 		}
 		if !o.awaitedWorkIsStalled(taskID) {
 			return
 		}
-		if !o.runOneStalledTask() {
+		if !o.runClaimed(o.claimAnyForWaiter(stack)) {
 			return
 		}
 	}
@@ -74,59 +76,76 @@ func (o *Output) awaitedWorkIsStalled(taskID string) bool {
 	return st != nil && st.awaitingStart()
 }
 
-// runForWaiter executes the task a caller is about to block on, on the
-// caller's own goroutine, when the scheduler has not started it yet, and
-// reports whether it did. A no-op when the task is not claimable — already
-// running, already terminal, never defined, not yet eligible, or the run is
-// cancelling.
-func (o *Output) runForWaiter(taskID string) bool {
-	st, fn, claimed := o.claimForWaiter(taskID)
-	if !claimed {
+// waiterClaim is one task a waiting goroutine claimed to run itself.
+// pooled means the claim took a scheduler slot the run must get back.
+type waiterClaim struct {
+	st     *taskState
+	fn     func() error
+	pooled bool
+}
+
+// runClaimed executes a waiter's claim on the waiting goroutine, and
+// reports whether there was one.
+func (o *Output) runClaimed(c *waiterClaim) bool {
+	if c == nil {
 		return false
 	}
-	o.executeClaimed(st, fn)
+	defer o.finishClaimed(c.st, c.pooled)
+	o.executeWork(c.st, c.fn)
 	return true
 }
 
-// runOneStalledTask executes one task the scheduler has room for nobody to
-// start, on the waiting caller's own goroutine, and reports whether it found
-// one (see runWaitedWork).
-func (o *Output) runOneStalledTask() bool {
-	st, fn, claimed := o.claimAnyForWaiter()
-	if !claimed {
-		return false
-	}
-	o.executeClaimed(st, fn)
-	return true
-}
-
-// claimForWaiter marks one named submitted, eligible, not-yet-started task
-// as running for a waiting goroutine.
-func (o *Output) claimForWaiter(taskID string) (st *taskState, fn func() error, claimed bool) {
+// claimForWaiter claims the named task for a waiting goroutine when it is
+// submitted, eligible, and not yet started, and the waiter may run work
+// now; nil otherwise.
+func (o *Output) claimForWaiter(taskID string, stack *waiterStack) *waiterClaim {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	cand := o.taskByRef[taskID]
 	if !o.claimableLocked(cand) {
-		return nil, nil, false
+		return nil
 	}
-	st, fn = o.claimLocked(cand)
-	return st, fn, true
+	return o.claimForWaiterLocked(cand, stack)
 }
 
-// claimAnyForWaiter marks whichever submitted, eligible, not-yet-started
-// task the scheduler reaches first as running for a waiting goroutine —
-// claimForWaiter without a named target.
-func (o *Output) claimAnyForWaiter() (st *taskState, fn func() error, claimed bool) {
+// claimAnyForWaiter is claimForWaiter for whichever eligible task the
+// scheduler reaches first.
+func (o *Output) claimAnyForWaiter(stack *waiterStack) *waiterClaim {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.sched.cancelled {
-		return nil, nil, false
+		return nil
 	}
-	if cand := o.nextEligibleLocked(); cand != nil {
-		st, fn = o.claimLocked(cand)
-		return st, fn, true
+	cand := o.nextEligibleLocked()
+	if cand == nil {
+		return nil
 	}
-	return nil, nil, false
+	return o.claimForWaiterLocked(cand, stack)
+}
+
+func (o *Output) claimForWaiterLocked(cand *taskState, stack *waiterStack) *waiterClaim {
+	pooled, ok := o.takeWaiterSlotLocked(stack)
+	if !ok {
+		return nil
+	}
+	st, fn := o.claimLocked(cand)
+	return &waiterClaim{st: st, fn: fn, pooled: pooled}
+}
+
+// takeWaiterSlotLocked decides whether a waiting goroutine may run work
+// now, so the number of executing callbacks never rises above the ceiling.
+// A callback lends the slot it already holds (pooled is false). A plain
+// caller holds none: it takes a free slot like a pooled worker would, or
+// runs nothing and parks while the pool finishes the work.
+func (o *Output) takeWaiterSlotLocked(stack *waiterStack) (pooled, ok bool) {
+	if stack.callbackDepth() > 0 {
+		return false, true
+	}
+	if o.sched.inflight >= o.concurrencyCeilingLocked() {
+		return false, false
+	}
+	o.takeSlotLocked()
+	return true, true
 }
 
 // claimableLocked reports whether a waiting goroutine may run cand itself.
@@ -164,7 +183,8 @@ func (st *taskState) closeDoneLocked() {
 // that task, and whatever is holding it back, on its own goroutine when the
 // scheduler has not picked them up (see runWaitedWork): nested Define+Wait
 // completes even at MaxConcurrency 1, because the waiting callback's slot
-// carries the work it is waiting for instead of idling.
+// carries the work it is waiting for instead of idling. A plain caller has
+// no slot to lend, so it runs work only when a slot is free.
 func (t *TaskHandle) Wait() error {
 	if t == nil || t.out == nil {
 		return nil
@@ -186,7 +206,7 @@ func (t *TaskHandle) Wait() error {
 // shared inputs once.
 func (t *TaskHandle) waitChecked(stack *waiterStack, seen *inputSeals) error {
 	t.out.sealAwaitedInputs(t.id, seen)
-	t.out.runWaitedWork(t.id)
+	t.out.runWaitedWork(t.id, stack)
 	if !t.waitSubmitted(stack) {
 		return t.out.unreachableWaitOutcome(t.id)
 	}
