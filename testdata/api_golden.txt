@@ -234,6 +234,7 @@ type Resolution
 type Resource
 type Result
 type RunFunc
+type RunMetrics
 type SequenceHandle
 type Snapshot
 type SourceLocation
@@ -241,6 +242,7 @@ type SystemClock
 type TaskEvidence
 type TaskHandle
 type TaskSnapshot
+type TaskTiming
 type TasksSnapshot
 type TaxonomyReason
 type TaxonomyRecord

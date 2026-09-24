@@ -46,3 +46,15 @@ type EvidencePhase = core.EvidencePhase
 // TaskEvidence preserves both observation phases a Task's Verify may have
 // recorded (§30).
 type TaskEvidence = core.TaskEvidence
+
+// TaskTiming is when a Task crossed each lifecycle boundary — declared,
+// eligible, started, settled — on the run's Clock (§39). Evo stamps it;
+// its span methods (DependencyWait, SchedulerWait, Queued, Running, Total)
+// say where the Task's time went.
+type TaskTiming = core.TaskTiming
+
+// RunMetrics is the run-level optimization aggregate (§39) that
+// Conclusion.Metrics derives from every Task's Timing and Resolution: time
+// spent waiting on dependencies, waiting on scheduler capacity, and
+// running, plus resolution counts and peak concurrency.
+type RunMetrics = core.RunMetrics

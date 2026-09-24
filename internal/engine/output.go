@@ -314,6 +314,9 @@ type taskState struct {
 	resolution Resolution
 	// verifyEvidence preserves both Verify observation phases (§30).
 	verifyEvidence TaskEvidence
+	// timing holds this Task's lifecycle boundary stamps (§39; see
+	// task_timing.go).
+	timing core.TaskTiming
 	// workErr is the callback's own return value, kept so TaskHandle.Wait
 	// returns exactly what the work returned rather than a state guess.
 	workErr error
@@ -684,7 +687,9 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 		}
 	}
 	st.state = Running
-	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
+	now := o.cfg.clock.Now()
+	st.markStarted(now)
+	o.armPlainHeartbeatLocked(st, now)
 	// Every promoteRunningLocked call site already guards on st.state ==
 	// Pending before calling it, and this line immediately advances past
 	// Pending — so task.started fires exactly once per task's lifetime.
@@ -843,6 +848,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 		fromEach:    fromEach,
 		resolution:  ResolutionNoWork,
 	}
+	st.markDeclared(o.cfg.clock.Now())
 	h := &TaskHandle{out: o, id: st.id}
 	st.handle = h
 	o.tasks = append(o.tasks, st)
@@ -993,6 +999,7 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 		delete(o.confirmAbort, id)
 		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.state) {
 			st.state = Cancelled
+			st.markSettled(o.cfg.clock.Now())
 			st.summary = txt.Text(reason)
 			o.bumpLocked()
 			o.appendEventLocked(Event{Type: "task.cancelled", EntityID: id})
@@ -1500,6 +1507,7 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Declaration:  t.declaration,
 		Resolution:   t.resolution,
 		Evidence:     t.verifyEvidence,
+		Timing:       t.timing,
 	}
 	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic, t.fromEach)
 }
@@ -1943,6 +1951,7 @@ func (o *Output) Finish() error {
 		o.appendMisuseLineLocked()
 	}
 
+	o.settleUnstampedLocked()
 	snap := o.snapshotLocked()
 	conc := core.InferConclusion(snap)
 	o.explainCancellationLocked(&conc)
@@ -1963,6 +1972,7 @@ func (o *Output) Finish() error {
 	o.emitWireEventLocked(wire.EventRunFinished, "", map[string]any{
 		"outcome":   wireRunOutcome(conc.State),
 		"exit_code": conc.ExitCode,
+		"metrics":   wire.ToMetricsDoc(conc),
 	})
 	writer := o.cfg.primary
 	cfg := o.cfg

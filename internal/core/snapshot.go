@@ -118,6 +118,9 @@ type TaskSnapshot struct {
 	// Evidence preserves both Verify observation phases this Task recorded,
 	// if any (§30) — the zero value when Verify was never called.
 	Evidence TaskEvidence
+	// Timing is when this Task crossed each lifecycle boundary (§39) — the
+	// runtime truth Conclusion.Metrics and every projection derive from.
+	Timing TaskTiming
 	// synthetic marks a task the library invented to carry an output-level
 	// outcome (Output.Failf/Cancel) rather than one the caller declared —
 	// presentation-internal bookkeeping (coalescing), never part of the

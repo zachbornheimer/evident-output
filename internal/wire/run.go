@@ -75,6 +75,7 @@ type RunData struct {
 	Problems    []ProblemDoc    `json:"problems"`
 	Effects     []EffectDoc     `json:"effects"`
 	Actions     []ActionDoc     `json:"actions"`
+	Metrics     MetricsDoc      `json:"metrics"`
 }
 
 // CollectionDoc is a Group/Sequence wire record (spec §36: "kind:
@@ -136,14 +137,17 @@ type EvidenceDoc struct {
 	After  *EvidencePhaseDoc `json:"after,omitempty"`
 }
 
-// TimingDoc is a task's duration breakdown (spec §36). Increment 4 has no
-// per-phase instrumentation yet (queued/running split); every field is 0
-// until that lands, the same "emit the final shape now, fill it later"
-// treatment as tracked_resources/basis/operations below.
+// TimingDoc is a task's duration breakdown (spec §36), projected from
+// core.TaskTiming (§39): queued is declaration to start, split into the
+// dependency wait (declaration to eligibility) and the scheduler wait
+// (eligibility to start); running is start to settlement; total is
+// declaration to settlement. An uncrossed boundary contributes 0.
 type TimingDoc struct {
-	QueuedMs  int64 `json:"queued_ms"`
-	RunningMs int64 `json:"running_ms"`
-	TotalMs   int64 `json:"total_ms"`
+	QueuedMs         int64 `json:"queued_ms"`
+	RunningMs        int64 `json:"running_ms"`
+	TotalMs          int64 `json:"total_ms"`
+	DependencyWaitMs int64 `json:"dependency_wait_ms"`
+	SchedulerWaitMs  int64 `json:"scheduler_wait_ms"`
 }
 
 // VerificationDoc is one diagnostic sub-result (spec §36).
@@ -273,6 +277,7 @@ func ToRunDocument(result core.Result, evoVersion string) RunDocument {
 			Problems:    []ProblemDoc{},
 			Effects:     make([]EffectDoc, 0, len(c.Changes)+len(c.Plans)),
 			Actions:     make([]ActionDoc, 0, len(c.Actions)),
+			Metrics:     ToMetricsDoc(c),
 		},
 	}
 	for _, col := range c.Collections {
@@ -370,7 +375,7 @@ func toTaskDoc(parentID string, t core.TaskSnapshot) TaskDoc {
 		Evidence:           toEvidenceDoc(t.Evidence),
 		Progress:           toProgressDoc(t.Progress),
 		Activity:           toActivityDoc(t.Phase),
-		Timing:             TimingDoc{},
+		Timing:             toTimingDoc(t.Timing),
 		Verification:       []VerificationDoc{},
 		TrackedResources:   []TrackedResourceDoc{},
 		Basis:              []BasisDoc{},

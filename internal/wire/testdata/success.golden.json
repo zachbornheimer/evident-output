@@ -30,9 +30,11 @@
         "progress": null,
         "activity": null,
         "timing": {
-          "queued_ms": 0,
-          "running_ms": 0,
-          "total_ms": 0
+          "queued_ms": 50,
+          "running_ms": 1200,
+          "total_ms": 1250,
+          "dependency_wait_ms": 40,
+          "scheduler_wait_ms": 10
         },
         "verification": [],
         "tracked_resources": [],
@@ -45,6 +47,16 @@
     "facts": [],
     "problems": [],
     "effects": [],
-    "actions": []
+    "actions": [],
+    "metrics": {
+      "tasks": 1,
+      "executed": 1,
+      "already_satisfied": 0,
+      "no_work": 0,
+      "dependency_wait_ms": 40,
+      "scheduler_wait_ms": 10,
+      "running_ms": 1200,
+      "peak_concurrency": 1
+    }
   }
 }

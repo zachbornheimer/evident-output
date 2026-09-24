@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 type predecessor struct {
@@ -109,6 +108,7 @@ func (t *TaskHandle) submitWork(fn func() error) {
 
 func (o *Output) kick() {
 	o.abandonUnreachableWork()
+	o.noteNewlyEligible()
 	for {
 		st, fn := o.takeEligible()
 		if st == nil {
@@ -159,7 +159,7 @@ func (o *Output) takeEligible() (st *taskState, fn func() error) {
 		if o.schedInflight >= max {
 			return nil, nil
 		}
-		o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
+		o.noteEligibleLocked(cand)
 		cand.runningWork = true
 		o.schedInflight++
 		o.schedExecuting++
@@ -573,6 +573,7 @@ func (o *Output) claimableLocked(cand *taskState) bool {
 // claimLocked is takeEligible's start bookkeeping without the concurrency
 // ceiling and without the in-flight accounting (see executeClaimed).
 func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error, claimed bool) {
+	o.noteEligibleLocked(cand)
 	cand.runningWork = true
 	o.schedExecuting++
 	o.schedStartOrder = append(o.schedStartOrder, cand.name)
@@ -697,6 +698,7 @@ func (o *Output) predecessorBlockedLocked(st *taskState) bool {
 
 func (o *Output) markNotStartedLocked(st *taskState) {
 	st.state = NotStarted
+	st.markSettled(o.cfg.clock.Now())
 	st.phase = ""
 	st.summary = notStartedSummary
 	st.runningWork = true

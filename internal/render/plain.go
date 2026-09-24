@@ -59,6 +59,9 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 		WriteEffects(&b, "planned", p.Subject, planNameWidth, p.Records, p.IntendedVerb, width, color, profile)
 	}
 
+	if s.Conclusion != nil && verbose {
+		WriteMetrics(&b, s.Conclusion.Metrics(), color)
+	}
 	if s.Conclusion != nil && !ShouldSuppressStandaloneConclusion(s) {
 		WriteConclusion(&b, *s.Conclusion, color, profile)
 	}

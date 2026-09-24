@@ -667,6 +667,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		}
 	}
 	st.state = state
+	st.markSettled(t.out.cfg.clock.Now())
 	st.phase = "" // Done clears active phase
 	if summary != "" {
 		st.summary = txt.Text(summary)

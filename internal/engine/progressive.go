@@ -457,6 +457,9 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 		}
 		render.WriteEffects(&b, "planned", p.subject, planNameWidth, p.records, p.intendedVerb, width, color, profile)
 	}
+	if snap.Conclusion != nil && verbose {
+		render.WriteMetrics(&b, snap.Conclusion.Metrics(), color)
+	}
 	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {
 		render.WriteConclusion(&b, *snap.Conclusion, color, profile)
 	}

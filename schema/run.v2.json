@@ -36,11 +36,35 @@
         "facts": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
         "problems": { "type": "array", "items": { "$ref": "#/$defs/problem" } },
         "effects": { "type": "array", "items": { "$ref": "#/$defs/effect" } },
-        "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } }
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } },
+        "metrics": { "$ref": "#/$defs/metrics" }
       }
     }
   },
   "$defs": {
+    "metrics": {
+      "type": "object",
+      "required": [
+        "tasks",
+        "executed",
+        "already_satisfied",
+        "no_work",
+        "dependency_wait_ms",
+        "scheduler_wait_ms",
+        "running_ms",
+        "peak_concurrency"
+      ],
+      "properties": {
+        "tasks": { "type": "integer" },
+        "executed": { "type": "integer" },
+        "already_satisfied": { "type": "integer" },
+        "no_work": { "type": "integer" },
+        "dependency_wait_ms": { "type": "integer" },
+        "scheduler_wait_ms": { "type": "integer" },
+        "running_ms": { "type": "integer" },
+        "peak_concurrency": { "type": "integer" }
+      }
+    },
     "collection": {
       "type": "object",
       "required": ["id", "name", "kind", "state", "children"],
@@ -88,7 +112,9 @@
       "properties": {
         "queued_ms": { "type": "integer" },
         "running_ms": { "type": "integer" },
-        "total_ms": { "type": "integer" }
+        "total_ms": { "type": "integer" },
+        "dependency_wait_ms": { "type": "integer" },
+        "scheduler_wait_ms": { "type": "integer" }
       }
     },
     "verification": {

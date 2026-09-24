@@ -39,6 +39,12 @@ func runFixtures() map[string]core.Result {
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_1", Key: "build", Name: "build", State: core.Done,
 					Resolution: core.ResolutionExecuted,
+					Timing: core.TaskTiming{
+						DeclaredAt: testStart,
+						EligibleAt: testStart.Add(40 * time.Millisecond),
+						StartedAt:  testStart.Add(50 * time.Millisecond),
+						SettledAt:  testStart.Add(1250 * time.Millisecond),
+					},
 				}, time.Time{}, false, false),
 			}
 		})},
