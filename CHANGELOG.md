@@ -21,6 +21,8 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 - **`evo.PartialEffect(committed int, err error) error`:** an Effect
   callback returns it when only part of the work committed, so the ledger
   records exactly that subset (`ErrInvalidPartialEffect` for a bad count).
+  It counts once, for the innermost Effect whose callback returned it; an
+  outer Effect that passes the error up records nothing for it.
 - **`Resource`, `evo.FSResource(path)`, `evo.LogicalResource(name)`:**
   declare what an Effect writes; overlapping claims wait for each other and
   the waiting row shows "waiting for <resource>". Acquiring a second
@@ -33,7 +35,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `evo.File`. `Files` refuses to overwrite a source that changed since the
   diff was read (`ErrStaleBasis`). Patch errors: `ErrPatchMalformed`,
   `ErrPatchDoesNotApply`, `ErrPatchUnsupported`, `ErrPatchDeleteUnsupported`,
-  `ErrPatchRenameUnsupported`, `ErrPatchBinaryUnsupported`.
+  `ErrPatchRenameUnsupported`, `ErrPatchBinaryUnsupported`. A path beyond
+  a symlinked directory fails with `ErrPatchUnsupported`; Patch never
+  creates directories, so a file in a missing directory fails with
+  `ErrPatchDoesNotApply` before anything commits. Applying the same diff
+  again is already satisfied, not a failure.
 - **`GroupHandle.Wait() error` and `SequenceHandle.Wait() error`:** wait for
   every descendant; `nil` only when every one ran and succeeded,
   `ErrNotStarted` when work never ran (including a Task nobody Defined).
@@ -129,6 +135,13 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   "call Define, Fail, Block, or Skipped on this task".
 
 ### Fixed
+
+- A lone kept or skipped item under a Group's own Task folds into the
+  Group's tally (`✓ branches  2 checked` / `  ! kept 1 (protected)`)
+  instead of printing as its own success row. A live Group that holds
+  only nested Groups no longer paints `0/0 complete`. Opening a ledger
+  section is O(log N), so one Effect per Task no longer grows
+  quadratically.
 
 - A header-less Group's row whose name another visible row also shows is
   named by its container path (`g › build`), like a ledger section. Two
