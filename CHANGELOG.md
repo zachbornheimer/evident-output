@@ -4,9 +4,11 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## Unreleased (1.2)
 
-### Added (1.2, ZYS-945 — §39 optimization data)
+ZYS-945 — §39 optimization data.
+
+### Added (1.2)
 
 - **`TaskSnapshot.Timing` (`TaskTiming`):** Evo stamps when each Task was
   declared, submitted by `Define`, became eligible, started, and settled,
@@ -19,15 +21,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   operations by manifest outcome, with hit, Basis-invalidation, change, and
   propagation-stopped rates.
 - **`Conclusion.Metrics()` (`RunMetrics`):** the derived run aggregate —
-  resolution and callback counts, callback-entry and Verify-satisfied
+  resolution and callback counts (`Defined` counts only callbacks Evo
+  decided on: entered, or proven current and skipped; work a failed
+  predecessor never released is not a skip), callback-entry and Verify-satisfied
   rates, every span and phase summed, the critical path, peak concurrency,
   and summed operations.
 - **`TasksSnapshot.PeakConcurrency()`:** group concurrency — the most of a
   Group's or Sequence's own Tasks (nested ones included) running at once.
   Final JSON carries it as each collection's `peak_concurrency`.
 - **Projections:** final JSON fills each Task's `timing` (previously all
-  zero) with every span and phase and adds `data.metrics` (with
-  `operations` and `rates`); JSONL `run.finished` carries the same
+  zero) with every span, phase time, and phase entry count
+  (`definition_entries` and siblings), adds each Task's own
+  `operation_counts`, and adds `data.metrics` (with `operations` and
+  `rates`); JSONL `run.finished` carries the same
   `metrics`, typed in `schema/event.v2.json`, and `task.eligible` now fires
   when a Task becomes eligible rather than when a scheduler slot frees.
   Human output shows one dim `timing` line under `VerbosityVerbose` only.
@@ -42,6 +48,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **MCP API-062:** flags a stopwatch a function started with `time.Now()`
   and narrated through `Summary`/`Fact` (`time.Since`, `time.Now().Sub`,
   directly or through one local). A domain timestamp's age stays silent.
+
+### Changed (1.2)
+
+- **JSONL `operation.finished` for a dry-run `Exec`:** the payload is now
+  `{"kind":"exec","executable":…,"planned":true}` instead of
+  `{"changed":true}`: the command never ran, so it claims no outcome.
+  `schema/event.v2.json` types both shapes as `$defs/operationObservedPayload`
+  and `$defs/operationPlannedPayload`. Consumers that read `changed` must
+  treat a missing `changed` with `planned: true` as "not run".
+
+## Unreleased
 
 See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
