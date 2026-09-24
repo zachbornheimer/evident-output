@@ -4,12 +4,10 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"strconv"
@@ -18,13 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/agent/adopt"
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/internal/agent/preview"
-	"github.com/zachbornheimer/evident-output/internal/agent/review"
 	"github.com/zachbornheimer/evident-output/internal/agent/rules"
-	"github.com/zachbornheimer/evident-output/internal/agent/sections"
 )
 
 // serverInstructions is the MCP `instructions` hint returned on initialize —
@@ -474,327 +467,35 @@ func handleToolCall(id any, req map[string]any) {
 		return
 	}
 
-	switch name {
-	case "evident_output_list_guides":
-		useCase, _ := args["use_case"].(string)
-		guides := catalog.Filter(useCase)
-		maxTok := intFromArgs(args, "max_tokens")
-		truncated := false
-		if maxTok > 0 {
-			guides, truncated = catalog.ApplyTokenBudget(guides, maxTok)
-		}
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		text := fmt.Sprintf("%d guides", len(guides))
-		if truncated {
-			text += " (truncated to token budget)"
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": text}},
-			"structuredContent": map[string]any{
-				"schema":    "evident_output.guides.v1",
-				"guides":    guides,
-				"truncated": truncated,
-				"checksum":  catalog.Checksum()}})
-	case "evident_output_get_guidance":
-		var ids []string
-		if raw, ok := args["ids"].([]any); ok {
-			for _, v := range raw {
-				if s, ok := v.(string); ok {
-					ids = append(ids, s)
-				}
-			}
-		}
-		found, missing := catalog.Get(ids)
-		maxTok := intFromArgs(args, "max_tokens")
-		truncated := false
-		if maxTok > 0 {
-			found, truncated = catalog.ApplyTokenBudget(found, maxTok)
-		}
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		text := fmt.Sprintf("found=%d missing=%d", len(found), len(missing))
-		if truncated {
-			text += " truncated"
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": text}},
-			"structuredContent": map[string]any{
-				"schema":    "evident_output.guidance.v1",
-				"guides":    found,
-				"missing":   missing,
-				"truncated": truncated}})
-	case "evident_output_explain":
-		ruleID, _ := args["rule_id"].(string)
-		if r, ok := rules.Explain(ruleID); ok {
-			writeRPC(id, map[string]any{
-				"content": []map[string]any{{"type": "text", "text": r.Invariant}},
-				"structuredContent": map[string]any{
-					"schema": "evident_output.rule.v1",
-					"rule":   r}})
-			return
-		}
-		writeRPC(id, toolError("unknown rule"))
-	case "evident_output_list_sections":
-		query, _ := args["query"].(string)
-		list := sections.Filter(query)
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d sections", len(list))}},
-			"structuredContent": map[string]any{
-				"schema":   "evident_output.sections.v1",
-				"sections": summarizeSections(list)}})
-	case "evident_output_get_documentation":
-		var ids []string
-		if raw, ok := args["ids"].([]any); ok {
-			for _, v := range raw {
-				if s, ok := v.(string); ok {
-					ids = append(ids, s)
-				}
-			}
-		}
-		var found []sections.Section
-		var missing []string
-		for _, sid := range ids {
-			if s, ok := sections.Get(sid); ok {
-				found = append(found, s)
-			} else {
-				missing = append(missing, sid)
-			}
-		}
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("found=%d missing=%d", len(found), len(missing))}},
-			"structuredContent": map[string]any{
-				"schema":   "evident_output.documentation.v1",
-				"sections": found,
-				"missing":  missing}})
-	case "evident_output_adopt_plan":
-		directory, _ := args["directory"].(string)
-		if directory == "" {
-			writeRPC(id, toolError("directory is required"))
-			return
-		}
-		if isRemotePath(directory) {
-			writeRPC(id, toolError("remote path unsupported; pass a local directory (MCP-036)"))
-			return
-		}
-		cursor, _ := args["cursor"].(string)
-		page, err := adopt.InventoryPage(directory, adopt.InventoryOptions{
-			Cursor: cursor,
-			Limit:  intFromArgs(args, "limit")})
-		if err != nil {
-			writeRPC(id, toolError("adopt_plan: "+err.Error()))
-			return
-		}
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d findings, remaining=%d — %s", len(page.Findings), page.Remaining, page.NextAction)}},
-			"structuredContent": map[string]any{
-				"schema":      "evident_output_adopt_plan.v1",
-				"directory":   page.Directory,
-				"findings":    page.Findings,
-				"rung":        page.Rung,
-				"remaining":   page.Remaining,
-				"next_cursor": page.NextCursor,
-				"next_action": page.NextAction,
-				"facades":     page.Facades,
-				"caveat":      page.Caveat}})
-	case "evident_output_review":
-		src, _ := args["source"].(string)
-		file, _ := args["file"].(string)
-		kind, _ := args["kind"].(string)
-		if kind == "directory" {
-			handleReviewDirectory(id, args, &cancelled)
-			return
-		}
-		if file == "" {
-			file = "input.go"
-		}
-		// MCP-036: remote paths unsupported — accept inlined content, or a
-		// readable local absolute path.
-		if isRemotePath(file) {
-			writeRPC(id, toolError("remote path unsupported; pass source content only (MCP-036)"))
-			return
-		}
-		if src == "" && filepath.IsAbs(file) {
-			read, err := os.ReadFile(file)
-			if err != nil {
-				writeRPC(id, toolError(fmt.Sprintf("cannot read %s: %s", file, err)))
-				return
-			}
-			src = string(read)
-		}
-		var res review.Result
-		switch kind {
-		case "transcript":
-			res = review.Transcript(file, src)
-		case "json", "structured":
-			res = review.StructuredDocument(file, []byte(src))
-		case "package":
-			// MCP-017: multi-file map via JSON object in source or single pair.
-			// Each map value may be inline source text or a readable local
-			// absolute path — resolved the same way as the single `file` form.
-			files := map[string]string{file: src}
-			if raw, ok := args["files"].(map[string]any); ok {
-				files = map[string]string{}
-				for k, v := range raw {
-					s, ok := v.(string)
-					if !ok {
-						continue
-					}
-					if isRemotePath(s) {
-						writeRPC(id, toolError("remote path unsupported; pass source content only (MCP-036)"))
-						return
-					}
-					if filepath.IsAbs(s) {
-						read, err := os.ReadFile(s)
-						if err != nil {
-							writeRPC(id, toolError(fmt.Sprintf("cannot read %s: %s", s, err)))
-							return
-						}
-						s = string(read)
-					}
-					files[k] = s
-				}
-			}
-			if allFileContentEmpty(files) {
-				writeRPC(id, toolError("empty source after decode: check files map shape"))
-				return
-			}
-			res = review.GoPackage(files)
-		default:
-			if src == "" {
-				writeRPC(id, toolError("no source to review: pass `source` content or an absolute `file` path that exists"))
-				return
-			}
-			desired, _ := args["desired_version"].(string)
-			res = review.GoSourceAt(file, src, desired)
-		}
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		applyDesiredVersion(&res, args)
-		writeReviewResult(id, res)
-	case "evident_output_conformance":
-		handleConformanceTool(id, args, &cancelled)
-	case "evident_output_update":
-		handleUpdateTool(id, args)
-	case "evident_output_preview":
-		subject, _ := args["subject"].(string)
-		item, _ := args["item"].(string)
-		state, _ := args["state"].(string)
-		dbg, _ := args["debug"].(string)
-		if subject == "" {
-			subject = "demo"
-		}
-		if item == "" {
-			item = "status"
-		}
-		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Title: subject, Stdout: &buf, Plain: true, Color: evo.ColorNever, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-		it := out.Task(item)
-		switch state {
-		case "blocked":
-			it.Block("blocked for demo")
-		case "failed":
-			it.Fail("failed for demo")
-		default:
-			it.Define(func(context.Context) error { return nil })
-		}
-		_ = dbg
-		_ = out.Finish()
-		snap := out.Snapshot()
-		profiles := preview.DefaultProfiles(snap)
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d profiles", len(profiles))}},
-			"structuredContent": map[string]any{
-				"schema":   "evident_output_preview.v1",
-				"profiles": profiles,
-				"plain":    buf.String()}})
-	default:
+	handler, ok := toolHandlers()[name]
+	if !ok {
 		writeRPC(id, toolError("unknown tool"))
+		return
 	}
+	handler(id, args, &cancelled)
 }
 
-// allFileContentEmpty reports whether every entry in a package-kind `files`
-// map decoded to no usable content — e.g. the map held non-string values, or
-// resolved paths read as empty. This is the honest diagnosis for the "empty
-// source" failure mode: a generic parser EOF error tells the caller nothing
-// about which of these two shapes actually happened.
-func allFileContentEmpty(files map[string]string) bool {
-	for _, content := range files {
-		if content != "" {
-			return false
-		}
-	}
-	return true
-}
+// toolHandler serves one MCP tool call. cancelled reports the call's soft
+// deadline has passed; a handler must not return results after it.
+type toolHandler func(id any, args map[string]any, cancelled *atomic.Bool)
 
-func handleReviewDirectory(id any, args map[string]any, cancelled *atomic.Bool) {
-	directory, _ := args["directory"].(string)
-	if directory == "" {
-		writeRPC(id, toolError("directory is required"))
-		return
+// toolHandlers maps each advertised tool name to its handler: adding a
+// tool is one entry here, one in toolList, and one in toolArgAllowlist.
+func toolHandlers() map[string]toolHandler {
+	return map[string]toolHandler{
+		"evident_output_list_guides":       handleListGuides,
+		"evident_output_get_guidance":      handleGetGuidance,
+		"evident_output_explain":           handleExplain,
+		"evident_output_list_sections":     handleListSections,
+		"evident_output_get_documentation": handleGetDocumentation,
+		"evident_output_adopt_plan":        handleAdoptPlan,
+		"evident_output_review":            handleReview,
+		"evident_output_conformance":       handleConformanceTool,
+		"evident_output_update": func(id any, args map[string]any, _ *atomic.Bool) {
+			handleUpdateTool(id, args)
+		},
+		"evident_output_preview": handlePreview,
 	}
-	if isRemotePath(directory) {
-		writeRPC(id, toolError("remote path unsupported; pass a local directory (MCP-036)"))
-		return
-	}
-	if !filepath.IsAbs(directory) {
-		writeRPC(id, toolError("directory must be an absolute local path"))
-		return
-	}
-	desired, _ := args["desired_version"].(string)
-	res, err := review.GoDirectoryAt(directory, desired)
-	if err != nil {
-		writeRPC(id, toolError("review directory: "+err.Error()))
-		return
-	}
-	if cancelled.Load() {
-		writeRPC(id, toolError("deadline exceeded"))
-		return
-	}
-	applyDesiredVersion(&res, args)
-	writeReviewResult(id, res)
-}
-
-func applyDesiredVersion(res *review.Result, args map[string]any) {
-	if v, _ := args["desired_version"].(string); v != "" {
-		res.DesiredVersion = v
-	}
-}
-
-// summarizeSections strips body text for the list view — evident_output_list_sections
-// is a table of contents; evident_output_get_documentation returns the body.
-func summarizeSections(list []sections.Section) []map[string]any {
-	out := make([]map[string]any, 0, len(list))
-	for _, s := range list {
-		out = append(out, map[string]any{
-			"id":       s.ID,
-			"title":    s.Title,
-			"source":   s.Source,
-			"concepts": s.Concepts})
-	}
-	return out
 }
 
 func toolError(msg string) map[string]any {

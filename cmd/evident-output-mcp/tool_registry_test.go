@@ -51,7 +51,11 @@ func TestToolRegistryMatchesToolList(t *testing.T) {
 			t.Errorf("alias %q must not appear in tools/list", name)
 		}
 	}
+	handlers := toolHandlers()
 	for name := range allowed {
+		if _, ok := handlers[name]; !ok {
+			t.Errorf("tool %q accepts arguments but has no handler", name)
+		}
 		if advertised[name] {
 			continue
 		}
