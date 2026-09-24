@@ -100,6 +100,7 @@
         "subject": { "type": "string" },
         "summary": { "type": "string" },
         "detail": { "type": "string" },
+        "evidence_tail": { "type": "string" },
         "count": { "type": "integer" },
         "unit": { "type": "string" },
         "code": { "type": "string" }
@@ -131,6 +132,28 @@
         "problems": {
           "type": "array",
           "items": { "$ref": "#/$defs/problem" }
+        },
+        "verification": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "status"],
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "type": "string" },
+              "facts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "value"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "value": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },

@@ -663,6 +663,30 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 		return
 	}
 	st.verification = append(st.verification, core.StoreVerificationDetails(details)...)
+	for _, d := range details {
+		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, verificationObservedPayload(d))
+	}
+}
+
+// verificationObservedPayload builds one attachVerificationLocked detail's
+// "verification.observed" payload (spec §38), carrying its Facts alongside
+// name/status — the same per-attribute machine truth ToRunDocument's
+// toVerificationDocs already projects into the final "evo.run" document's
+// tasks[].verification (ZYS-823: FormatJSONL must see the same facts a
+// FormatJSON consumer does, not a subset).
+func verificationObservedPayload(d core.VerificationDetail) map[string]any {
+	payload := map[string]any{
+		"name":   d.Name,
+		"status": string(d.Status),
+	}
+	if len(d.Facts) > 0 {
+		facts := make([]map[string]any, len(d.Facts))
+		for i, f := range d.Facts {
+			facts[i] = map[string]any{"name": f.Name, "value": f.Value}
+		}
+		payload["facts"] = facts
+	}
+	return payload
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first

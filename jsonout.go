@@ -70,6 +70,14 @@ type JSONTask = render.JSONTask
 // JSONProgress is wire-format progress.
 type JSONProgress = render.JSONProgress
 
+// JSONVerification is one wire-format per-attribute File/Patch
+// verification outcome (ZYS-823: the same machine truth evo.run already
+// carries, now also in the public output.v1 projection).
+type JSONVerification = render.JSONVerification
+
+// JSONFact is a wire-format name/value Fact annotation.
+type JSONFact = render.JSONFact
+
 // JSONCollection is a wire-format task collection with child IDs (§25.1).
 type JSONCollection = render.JSONCollection
 

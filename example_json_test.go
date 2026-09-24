@@ -102,6 +102,23 @@ func ExampleJSONProgress() {
 	// determinate 50 100
 }
 
+// ExampleJSONVerification shows one wire-format per-attribute File/Patch
+// verification outcome.
+func ExampleJSONVerification() {
+	v := evo.JSONVerification{Name: "permissions", Status: "error"}
+	fmt.Println(v.Name, v.Status)
+	// Output:
+	// permissions error
+}
+
+// ExampleJSONFact shows a wire-format name/value Fact annotation.
+func ExampleJSONFact() {
+	f := evo.JSONFact{Name: "path", Value: "~/agent.plist"}
+	fmt.Println(f.Name, f.Value)
+	// Output:
+	// path ~/agent.plist
+}
+
 // ExampleJSONCollection shows a wire-format task collection with child IDs
 // (§25.1).
 func ExampleJSONCollection() {

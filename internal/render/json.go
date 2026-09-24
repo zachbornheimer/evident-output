@@ -88,6 +88,26 @@ type JSONTask struct {
 	Warnings []JSONProblem `json:"warnings,omitempty"`
 	Progress *JSONProgress `json:"progress,omitempty"`
 	Problems []JSONProblem `json:"problems,omitempty"`
+	// Verification mirrors internal/wire's TaskDoc.Verification (ZYS-823):
+	// the same per-attribute File/Patch reconciliation outcome — with the
+	// Facts that explain a non-satisfied attribute — that evo.run already
+	// carries. Public evo.EncodeJSON must not lose this machine truth just
+	// because it is the legacy output.v1 projection.
+	Verification []JSONVerification `json:"verification,omitempty"`
+}
+
+// JSONVerification is one wire-format per-attribute verification outcome
+// (mirrors internal/wire.VerificationDoc).
+type JSONVerification struct {
+	Name   string     `json:"name"`
+	Status string     `json:"status"`
+	Facts  []JSONFact `json:"facts,omitempty"`
+}
+
+// JSONFact is a wire-format name/value Fact annotation.
+type JSONFact struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // JSONProgress is wire-format progress.
@@ -270,6 +290,9 @@ func toJSONTask(t core.TaskSnapshot) JSONTask {
 	if len(t.Warnings) > 0 {
 		jt.Warnings = toJSONProblems(t.Warnings)
 	}
+	if len(t.Verification) > 0 {
+		jt.Verification = toJSONVerifications(t.Verification)
+	}
 	if t.Progress.Kind != "" && t.Progress.Kind != core.Indeterminate {
 		jt.Progress = &JSONProgress{
 			Kind: t.Progress.Kind, Completed: t.Progress.Completed, Total: t.Progress.Total,
@@ -291,6 +314,21 @@ func toJSONProblems(in []core.Problem) []JSONProblem {
 			EvidenceTail: p.EvidenceTail,
 			Count:        p.Count, Unit: p.Unit, Code: p.Code,
 		}
+	}
+	return out
+}
+
+func toJSONVerifications(in []core.VerificationDetail) []JSONVerification {
+	out := make([]JSONVerification, len(in))
+	for i, d := range in {
+		v := JSONVerification{Name: d.Name, Status: string(d.Status)}
+		if len(d.Facts) > 0 {
+			v.Facts = make([]JSONFact, len(d.Facts))
+			for j, f := range d.Facts {
+				v.Facts[j] = JSONFact{Name: f.Name, Value: f.Value}
+			}
+		}
+		out[i] = v
 	}
 	return out
 }

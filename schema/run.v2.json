@@ -142,6 +142,7 @@
         "message": { "type": "string" },
         "subject": { "type": "string" },
         "detail": { "type": "string" },
+        "evidence_tail": { "type": "string" },
         "count": { "type": "integer" },
         "unit": { "type": "string" }
       }

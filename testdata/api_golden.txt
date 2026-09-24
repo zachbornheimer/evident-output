@@ -204,12 +204,14 @@ type JSONCollection
 type JSONCommand
 type JSONDocument
 type JSONEffectRecord
+type JSONFact
 type JSONMessage
 type JSONOutputMeta
 type JSONPlan
 type JSONProblem
 type JSONProgress
 type JSONTask
+type JSONVerification
 type LiveSurface
 type LogLevel
 type LogRecord

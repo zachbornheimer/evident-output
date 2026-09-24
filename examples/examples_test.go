@@ -76,21 +76,28 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 	}
 }
 
-// buildExampleBinary and runExampleBinary name the two subprocess.Command
-// call sites TestDataCommand_StdoutCarriesOnlyResultPayload needs: this
-// test's whole point is observing a *real compiled binary's* independent OS
-// stdout/stderr streams (spec §32.1's separation), the same reason
-// TestExamples_NonTTYSmoke above already spawns exec.Command directly
-// rather than calling package code in-process — an injectable runner
-// facade would hide the exact boundary under test.
+// newCommand is the sole exec.Command call site examples_test.go uses,
+// injectable so a test can swap in a fake process launcher instead of
+// spawning a real one — the facade buildExampleBinary/runExampleBinary
+// previously lacked (ZYS-823 review: a wrapper with no injection point is
+// not a facade). TestExamples_NonTTYSmoke keeps its own direct
+// exec.Command calls: that test's whole point is exercising the real `go
+// build`/binary lifecycle across many specs, not a boundary anything mocks.
+var newCommand = exec.Command
+
+// buildExampleBinary and runExampleBinary name the two subprocess call
+// sites TestDataCommand_StdoutCarriesOnlyResultPayload needs: this test's
+// whole point is observing a *real compiled binary's* independent OS
+// stdout/stderr streams (spec §32.1's separation) — the process launch
+// itself is real, but goes through newCommand so it stays swappable.
 func buildExampleBinary(bin, dir string) *exec.Cmd {
-	cmd := exec.Command("go", "build", "-o", bin, ".")
+	cmd := newCommand("go", "build", "-o", bin, ".")
 	cmd.Dir = dir
 	return cmd
 }
 
 func runExampleBinary(bin string, args ...string) *exec.Cmd {
-	return exec.Command(bin, args...)
+	return newCommand(bin, args...)
 }
 
 // TestDataCommand_StdoutCarriesOnlyResultPayload is ZYS-823 gap 5: run the
@@ -123,19 +130,20 @@ func TestDataCommand_StdoutCarriesOnlyResultPayload(t *testing.T) {
 		Packages int    `json:"packages"`
 		Duration string `json:"duration"`
 	}
+	raw := append([]byte(nil), stdout.Bytes()...)
 	dec := json.NewDecoder(&stdout)
 	if err := dec.Decode(&payload); err != nil {
-		t.Fatalf("stdout must decode as one BuildResult JSON object: %v\nstdout:\n%s", err, stdout.String())
+		t.Fatalf("stdout must decode as one BuildResult JSON object: %v\nstdout:\n%s", err, raw)
 	}
 	if dec.More() {
-		t.Fatalf("stdout must carry exactly one JSON document, found trailing content:\n%s", stdout.String())
+		t.Fatalf("stdout must carry exactly one JSON document, found trailing content:\n%s", raw)
 	}
 	if payload.Artifact == "" {
 		t.Fatalf("decoded payload is missing its domain fields: %+v", payload)
 	}
 
-	if strings.Contains(stdout.String(), "compile") || strings.Contains(stdout.String(), "✓") {
-		t.Fatalf("evo task presentation leaked into stdout:\n%s", stdout.String())
+	if strings.Contains(string(raw), "compile") || strings.Contains(string(raw), "✓") {
+		t.Fatalf("evo task presentation leaked into stdout:\n%s", raw)
 	}
 	if stderr.Len() == 0 {
 		t.Fatalf("human presentation vanished; it must still reach stderr")

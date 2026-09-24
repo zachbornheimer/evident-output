@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -504,6 +505,116 @@ func TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail(t *testing.T) {
 	}
 	if got := events[idx].Payload["detail"]; got != "full detail text" {
 		t.Fatalf("problem.recorded payload detail = %v, want %q (full payload: %+v)", got, "full detail text", events[idx].Payload)
+	}
+}
+
+// TestWireEvents_ProblemRecordedCarriesEvidenceTail proves
+// wireProblemPayloadLocked's evidence_tail branch (structured_events.go:17):
+// a Problem carrying a capture's DetailTail() must surface evidence_tail on
+// the problem.recorded JSONL line, not just detail.
+func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	tail := task.EvidenceForTest()
+	_, _ = fmt.Fprintln(tail, "error: undefined symbol foo")
+	task.Problem("finding one", tail.DetailTail())
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	idx := indexOfType(events, wire.EventProblemRecorded)
+	if idx == -1 {
+		t.Fatalf("problem.recorded must fire, got: %v", wireEventTypes(events))
+	}
+	got, _ := events[idx].Payload["evidence_tail"].(string)
+	if !strings.Contains(got, "undefined symbol foo") {
+		t.Fatalf("problem.recorded payload evidence_tail = %v, want it to contain the capture tail (full payload: %+v)", got, events[idx].Payload)
+	}
+}
+
+// TestWireEvents_WarningRecordedCarriesEvidenceTail is
+// TestWireEvents_ProblemRecordedCarriesEvidenceTail's warning.recorded
+// counterpart (task.go:290 — Warn's own emitWireEventLocked call was
+// untested).
+func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	tail := task.EvidenceForTest()
+	_, _ = fmt.Fprintln(tail, "warning: deprecated flag used")
+	task.Warn("non-blocking finding", tail.DetailTail())
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	idx := indexOfType(events, wire.EventWarningRecorded)
+	if idx == -1 {
+		t.Fatalf("warning.recorded must fire, got: %v", wireEventTypes(events))
+	}
+	got, _ := events[idx].Payload["evidence_tail"].(string)
+	if !strings.Contains(got, "deprecated flag used") {
+		t.Fatalf("warning.recorded payload evidence_tail = %v, want it to contain the capture tail (full payload: %+v)", got, events[idx].Payload)
+	}
+}
+
+// TestWireEvents_VerificationObservedCarriesFacts is ZYS-823 gap 8:
+// attachVerificationLocked (output.go) recorded a Task's per-attribute
+// File/Patch VerificationDetails for Snapshot/JSON but emitted no
+// "verification.observed" JSONL line, so a FormatJSONL consumer never saw
+// the same per-attribute Facts (error/path/mode) FormatJSON's evo.run
+// document carries — breaking one-runtime-truth parity across the two
+// projections.
+func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("write launch agent")
+	task.Define(func(context.Context) error { return nil })
+
+	out.mu.Lock()
+	out.attachVerificationLocked(task.id, []core.VerificationDetail{
+		{Name: "contents", Status: core.VerificationSatisfied},
+		{
+			Name: "permissions", Status: core.VerificationError,
+			Facts: []core.Fact{
+				{Name: "error", Value: "operation not permitted"},
+				{Name: "path", Value: "~/Library/LaunchAgents/com.acme.prod.agent.plist"},
+			},
+		},
+	})
+	out.mu.Unlock()
+
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	var found []wireEventLine
+	for _, e := range events {
+		if e.Type == wire.EventVerificationObserved {
+			found = append(found, e)
+		}
+	}
+	if len(found) != 2 {
+		t.Fatalf("verification.observed events = %d, want 2, got: %v", len(found), wireEventTypes(events))
+	}
+	if found[0].Payload["name"] != "contents" || found[0].Payload["status"] != string(core.VerificationSatisfied) {
+		t.Fatalf("first verification.observed payload = %+v", found[0].Payload)
+	}
+	permFacts, ok := found[1].Payload["facts"].([]any)
+	if !ok || len(permFacts) != 2 {
+		t.Fatalf("second verification.observed payload facts = %v, want 2 facts (full payload: %+v)", found[1].Payload["facts"], found[1].Payload)
+	}
+	first, _ := permFacts[0].(map[string]any)
+	if first["name"] != "error" || first["value"] != "operation not permitted" {
+		t.Fatalf("verification.observed facts[0] = %+v, want error fact", first)
 	}
 }
 

@@ -32,3 +32,41 @@ func TestToJSONProblems_PreservesEvidenceTail(t *testing.T) {
 		t.Fatalf("Detail = %q, want it to still render alongside EvidenceTail", out[0].Detail)
 	}
 }
+
+// TestToJSONTask_ProjectsVerificationFacts is ZYS-823's public output.v1
+// counterpart to wire.toTaskDoc's Verification fix: toJSONTask previously
+// had no Verification field at all, so evo.EncodeJSON's public "evo.run"-
+// sibling document dropped every File/Patch per-attribute verification
+// outcome (and its Facts) a Task recorded, the same machine-truth loss for
+// this legacy projection.
+func TestToJSONTask_ProjectsVerificationFacts(t *testing.T) {
+	in := core.TaskSnapshot{
+		ID: "task_1", Name: "write launch agent",
+		Verification: []core.VerificationDetail{
+			{Name: "contents", Status: core.VerificationSatisfied},
+			{
+				Name: "permissions", Status: core.VerificationError,
+				Facts: []core.Fact{
+					{Name: "error", Value: "operation not permitted"},
+					{Name: "path", Value: "~/Library/LaunchAgents/com.acme.prod.agent.plist"},
+				},
+			},
+		},
+	}
+
+	out := toJSONTask(in)
+
+	if len(out.Verification) != 2 {
+		t.Fatalf("Verification = %+v, want 2 entries", out.Verification)
+	}
+	if out.Verification[0].Name != "contents" || out.Verification[0].Status != string(core.VerificationSatisfied) {
+		t.Fatalf("Verification[0] = %+v", out.Verification[0])
+	}
+	perm := out.Verification[1]
+	if perm.Name != "permissions" || perm.Status != string(core.VerificationError) {
+		t.Fatalf("Verification[1] = %+v", perm)
+	}
+	if len(perm.Facts) != 2 || perm.Facts[0].Name != "error" || perm.Facts[0].Value != "operation not permitted" {
+		t.Fatalf("Verification[1].Facts = %+v, want the error fact preserved", perm.Facts)
+	}
+}
