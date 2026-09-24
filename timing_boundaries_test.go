@@ -141,3 +141,23 @@ func TestTiming_CallerSettledPredecessorReleasesDependentAtSettle(t *testing.T) 
 // dependentStartDeadline bounds the real-time wait for a released
 // dependent's goroutine; the domain clock is fake, so this only guards a hang.
 const dependentStartDeadline = 5 * time.Second
+
+// A Define callback that panics was still entered: its Definition phase
+// ends on the panic, so Entered and CallbackEntryRate count it.
+func TestTiming_PanickingDefineStillCountsAsEntered(t *testing.T) {
+	t.Parallel()
+	out, clock := newTimingOutput(t)
+	const inside = 2 * time.Second
+	task := out.Task("generate").Define(func(context.Context) error {
+		clock.Advance(inside)
+		panic("generator crashed")
+	})
+	_ = out.Finish()
+	phase := task.Snapshot().Timing.Definition
+	if phase.Entries != 1 || phase.Duration != inside {
+		t.Fatalf("Definition = %+v, want 1 entry lasting %v", phase, inside)
+	}
+	if m := out.Conclusion().Metrics(); m.Entered != 1 || m.CallbackEntryRate() != 1 {
+		t.Fatalf("Entered = %d, CallbackEntryRate = %v; want 1 and 1", m.Entered, m.CallbackEntryRate())
+	}
+}
