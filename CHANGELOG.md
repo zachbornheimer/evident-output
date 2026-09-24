@@ -126,6 +126,16 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Fixed
 
+- A header-less Group's row whose name another visible row also shows is
+  named by its container path (`g › build`), like a ledger section. Two
+  failing `build` rows from two Groups used to print as identical
+  siblings. A no-op Task is no longer kept visible because a same-named
+  Task elsewhere owns a ledger section.
+
+- A Task row states one headline wherever it sits: its Summary, with the
+  count it reached when it failed mid-loop, else its first Problem. Under
+  a Group header it used to show the first Problem and drop the count.
+
 - A `[changed]`/`[planned]` section belongs to its Task, not its name. Two
   same-named Tasks in different containers (`alpha › prune`, `beta › prune`)
   used to merge into one row that summed both counts; each now gets its own

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -397,5 +398,44 @@ func TestPruneContract_LedgerSectionKeepsOnlyItsOwnTaskVisible(t *testing.T) {
 
 	if got := buf.String(); strings.Count(got, "✓ prune") != 1 {
 		t.Fatalf("only the Task owning the section keeps its no-op row; got:\n%s", got)
+	}
+}
+
+// TestPruneContract_FlattenedSameNamedRowsNameTheirGroup pins that a
+// header-less Group's rows never read as identical siblings: two failing
+// "build" rows from two Groups each name their container, the same way
+// their ledger sections would ("g › build").
+func TestPruneContract_FlattenedSameNamedRowsNameTheirGroup(t *testing.T) {
+	var buf bytes.Buffer
+	out := newPlainOutput(&buf, false)
+	t.Cleanup(func() { _ = out.Close() })
+
+	for _, g := range []*evo.GroupHandle{out.Group("g"), out.Group("gwith header").Summary("all built")} {
+		g.Task("build").Define(func(context.Context) error { return errors.New("compile failed") })
+		succeed(g.Task("ok"), "linked")
+	}
+	_ = out.Finish()
+
+	got := buf.String()
+	for _, row := range []string{"✗ g › build", "✓ g › ok", "✗ gwith header › build", "✓ gwith header › ok"} {
+		if !strings.Contains(got, row) {
+			t.Fatalf("missing %q: same-named rows must name their Group; got:\n%s", row, got)
+		}
+	}
+}
+
+// TestPruneContract_FlattenedUniqueRowsKeepBareNames: qualification is for
+// collisions only; a unique name stays bare.
+func TestPruneContract_FlattenedUniqueRowsKeepBareNames(t *testing.T) {
+	var buf bytes.Buffer
+	out := newPlainOutput(&buf, false)
+	t.Cleanup(func() { _ = out.Close() })
+
+	succeed(out.Group("a").Task("branches"), "deleted 3")
+	succeed(out.Group("b").Task("worktrees"), "removed 1")
+	_ = out.Finish()
+
+	if got := buf.String(); strings.Contains(got, " › ") {
+		t.Fatalf("unique rows keep their bare names; got:\n%s", got)
 	}
 }

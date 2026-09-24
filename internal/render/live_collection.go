@@ -73,7 +73,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height int,
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
 		writeLiveDispositions(b, taskAnnotationIndent, items, height-headerRows, st.Style)
-	case groupHeaderAddsNothing(col) && items.Empty() && !hasUnfinishedTask(col):
+	case liveFlattensHeader(col, items):
 		writeLiveBody(b, col, height, inPlace, st)
 	default:
 		b.WriteString(liveGroupHeader(col, done, total, st).Render(""))

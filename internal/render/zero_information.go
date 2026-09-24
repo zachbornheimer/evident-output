@@ -149,9 +149,11 @@ func collectionsWithoutTasks(cols []core.TasksSnapshot, hidden map[string]bool) 
 }
 
 // HumanProjection is s as a human reader should see it at this verbosity:
-// hidden Facts dropped (SnapshotAtVerbosity), then zero-information Tasks
-// removed. Machine projections take the snapshot as it is.
+// hidden Facts dropped (SnapshotAtVerbosity), zero-information Tasks
+// removed, and a header-less Group's colliding row names qualified by
+// their container path. Machine projections take the snapshot as it is.
 func HumanProjection(s core.Snapshot, verbose bool) core.Snapshot {
 	s = SnapshotAtVerbosity(s, verbose)
-	return WithoutTasks(s, ZeroInformationTaskIDs(s))
+	s = WithoutTasks(s, ZeroInformationTaskIDs(s))
+	return qualifyFlattenedRows(s, flattensHeader)
 }

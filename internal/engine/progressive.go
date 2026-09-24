@@ -411,21 +411,25 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 }
 
 // writeResidualEntitiesLocked writes every root Task row not already
-// streamed, then every collection, as human output shows them (zero-
-// information rows hidden).
+// streamed, then every collection, as human output shows them
+// (render.HumanProjection).
 func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, style render.Style) {
 	nameWidth := o.rootColumn.nameWidth()
-	hidden := render.ZeroInformationTaskIDs(render.SnapshotAtVerbosity(snap, style.Verbose))
+	human := render.HumanProjection(snap, style.Verbose)
+	shown := make(map[string]bool, len(human.Tasks))
+	for _, t := range human.Tasks {
+		shown[t.ID] = true
+	}
 	for _, t := range o.tasks {
 		if t.collection != nil || t.coreEmitted {
 			continue
 		}
-		if !hidden[t.id] {
+		if shown[t.id] {
 			render.WriteTaskAligned(b, t.snapshot(), nameWidth, style)
 		}
 		t.coreEmitted = true
 	}
-	for _, col := range render.WithoutTasks(snap, hidden).Collections {
+	for _, col := range human.Collections {
 		render.WriteCollection(b, col, style)
 	}
 }
