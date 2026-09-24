@@ -30,10 +30,13 @@ write-error fixes and the cancellation cause below reach every run. See
 - **`Config.RunID` pins the run identity** for golden tests (alongside
   `Config.Clock`) or for a host that already has a request id. Empty keeps
   the default below.
-- **A signal arriving after the run callback returns still stops the run.**
-  SIGINT/SIGTERM were watched only until `run` returned, so in the ordinary
-  shape — declare Tasks, return, let Define work execute during Finish — a
-  long Define (a server, a slow install) ignored ^C.
+- **A signal arriving after the run callback returns still stops the run**
+  on every format evo renders. SIGINT/SIGTERM were watched only until `run`
+  returned, so in the ordinary shape — declare Tasks, return, let Define
+  work execute during Finish — a long Define (a server, a slow install)
+  ignored ^C. A `FormatExternal` run without `Embedded` keeps the 1.1
+  window, so a 1.1 host's graceful SIGTERM still lets in-flight work
+  finish (DEC-CANCEL-005).
 - **An `Embedded` run's `run_id` is unique per run.** Every run carried
   `out_1`, so concurrent requests in one process shared it; an `Embedded`
   run now carries `run_` plus a random suffix unless `Config.RunID` pins
@@ -42,7 +45,8 @@ write-error fixes and the cancellation cause below reach every run. See
 - **`WriteJSON` and `FormatJSON` share one writer,** so their documents are
   byte-identical for the same run. `WriteJSON` errors now name the failed
   step and wrap the writer's error; a `FormatJSON` write failure now
-  matches both `ErrRenderer` and the writer's error under `errors.Is`.
+  matches both `ErrRenderer` and the writer's error under `errors.Is`,
+  with its 1.1 text unchanged.
 - **A run queued on the state lock stays interruptible.** A run waiting
   for another run's exclusive manifest lock (spec §11.3) ignored ^C and
   its caller's deadline until the other run finished; it now stops at

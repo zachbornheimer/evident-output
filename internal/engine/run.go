@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 )
 
 // Run executes a CLI presentation lifecycle against this Output and returns
@@ -29,13 +28,17 @@ import (
 //     returns ctx.Err() fails its row, and the run concludes failed.
 //
 // Lifecycle: arm first paint → run → (reconcile run error into model) →
-// Finish → Close. Signals and the caller's ctx are watched until the run
-// concludes, not only until run returns.
+// Finish → Close. An Embedded Output's ctx, and SIGINT/SIGTERM on every
+// CLI format, are watched until the run concludes, not only until run
+// returns. A FormatExternal Output that is not Embedded keeps the 1.1
+// signal window: a signal is acted on only while run runs, and one that
+// arrives after run returned is caught and ignored (DEC-CANCEL-005).
 //
 // Result.Conclusion.ExitCode:
 //   - nil Output → ExitFailed (2)
-//   - SIGINT/SIGTERM (non-embedded only) → Cancel on the active task (or
-//     the output) → ExitCancelled (130), cause "by user"
+//   - SIGINT/SIGTERM (non-embedded only, within the signal window above)
+//     → Cancel on the active task (or the output) → ExitCancelled (130),
+//     cause "by user"
 //   - embedded Output whose ctx ends before its work finishes →
 //     ExitCancelled (130), cause "by caller" or "deadline exceeded"; a ctx
 //     that ends after the callback returned and every Task finished leaves
@@ -108,10 +111,13 @@ func Main(run RunFunc) int {
 // (non-embedded Outputs) and the end of an embedded Output's caller ctx
 // into one ordered interrupt of the active task (or the output itself) —
 // and of the run context passed to run — so the ledger and exit code
-// always agree. Both are watched until the run concludes, not just until
-// run returns: the ordinary shape declares Tasks and returns, and their
-// Define work executes while Finish waits. A second signal returns
-// ExitCancelled immediately instead of waiting for the work to unwind.
+// always agree. The caller's ctx, and signals on every CLI format, are
+// watched until the run concludes, not just until run returns: the
+// ordinary shape declares Tasks and returns, and their Define work
+// executes while Finish waits. A FormatExternal run that is not Embedded
+// keeps the 1.1 window instead (signalsUntilCallbackReturns). A second
+// signal returns ExitCancelled immediately instead of waiting for the work
+// to unwind.
 func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 	// runCtx becomes o.Context() for the duration of this run (see
 	// beginRunContext). It is installed before either watch starts, so the
@@ -124,32 +130,29 @@ func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 	caller := out.watchCaller(ctx)
 	defer caller.release()
 
-	var signalled atomic.Bool
-	concluded := make(chan Result, 1)
+	phase := new(runPhase)
+	results := make(chan Result, 1)
 	go func() {
 		var runErr error
 		if run != nil {
 			runErr = run(runCtx)
 		}
 		out.endRunCallback(caller.ended)
-		if signalled.Load() || caller.interruptIfEnded() {
-			concluded <- concludeCancelled(out, runErr)
+		if phase.callbackReturned() || caller.interruptIfEnded() {
+			results <- concludeCancelled(out, runErr)
 			return
 		}
-		concluded <- concludeRun(out, runErr)
+		results <- concludeRun(out, runErr)
 	}()
 
-	select {
-	case result := <-concluded:
+	if result, concluded := signals.awaitInterrupt(results, phase); concluded {
 		return result
-	case <-signals.received:
-		// out.interrupt cancels o.cancelRun, the same cancel beginRunContext
-		// installed above — no separate local cancel is needed.
-		signalled.Store(true)
-		out.interrupt(interruptionBySignal)
 	}
+	// out.interrupt cancels o.cancelRun, the same cancel beginRunContext
+	// installed above — no separate local cancel is needed.
+	out.interrupt(interruptionBySignal)
 	select {
-	case result := <-concluded:
+	case result := <-results:
 		return result
 	case <-signals.received:
 		return Result{Conclusion: Conclusion{State: StateCancelled, Cancelled: true, ExitCode: ExitCancelled}}

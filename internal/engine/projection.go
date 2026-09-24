@@ -11,5 +11,5 @@ func dataProjection() Option {
 // the run renders, not who owns its lifecycle: that is Config.Embedded
 // (DEC-CANCEL-005).
 func externalProjection() Option {
-	return optionFunc(func(c *config) { c.plain = true })
+	return optionFunc(func(c *config) { c.plain, c.external = true, true })
 }

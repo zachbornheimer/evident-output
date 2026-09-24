@@ -20,6 +20,10 @@ type config struct {
 	// SIGINT/SIGTERM, and the end of Run's ctx is the request ending — an
 	// interrupt, not a failure.
 	embedded bool
+	// external mirrors FormatExternal / ExternalProjection: a host renders
+	// Snapshot() itself. Without embedded it keeps the 1.1 signal window
+	// (DEC-CANCEL-005; see signalWindow).
+	external bool
 	// runID mirrors Config.RunID; empty defers to issueRunID.
 	runID             string
 	projection        Projection

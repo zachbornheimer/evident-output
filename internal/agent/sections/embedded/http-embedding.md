@@ -61,9 +61,11 @@ so they already land on the right Output.
   keeps the 1.1 identity, `out_1`.
 - **`Embedded` hands the run's lifecycle to the request.** Without it, a
   run keeps the 1.1 CLI contract on every format, `FormatExternal`
-  included: the end of `ctx` fails the running Define (exit 2), and the run
-  owns ^C (DEC-CANCEL-005). `FormatExternal` only keeps the run from
-  rendering anywhere.
+  included: the end of `ctx` fails the running Define (exit 2). A
+  `FormatExternal` run without `Embedded` also keeps the 1.1 signal window:
+  it acts on ^C only while the run callback runs, and ignores a signal that
+  arrives after it returned (DEC-CANCEL-005). `FormatExternal` only keeps
+  the run from rendering anywhere.
 - **The request context is the only cancellation.** When it ends — the
   client disconnects or the handler's budget runs out — the run stops the
   same way ^C stops a CLI: running Tasks are marked cancelled, queued Tasks

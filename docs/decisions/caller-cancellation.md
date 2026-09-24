@@ -2,12 +2,14 @@
 
 **Status:** Accepted
 **Date:** 2026-09-23 (DEC-CANCEL-005 accepted by the maintainer and
-DEC-CANCEL-007 added 2026-09-24; DEC-CANCEL-005 extended to `run_id`
+DEC-CANCEL-007 added 2026-09-24; DEC-CANCEL-005 extended to `run_id`,
+the `FormatExternal` signal window, and the `FormatJSON` error text
 2026-09-24)
 **IDs:** DEC-CANCEL-001 … DEC-CANCEL-007
 **Ticket:** ZYS-946 (spec §53)
 **Implementation:** `internal/engine/construct.go` (`Config.Embedded`),
 `internal/engine/run.go` (`runInterruptible`),
+`internal/engine/run_signal.go` (`signalWindow`),
 `internal/engine/run_interruption.go` (`scopeCaller`, `watchCaller`,
 `settledLocked`)
 
@@ -96,6 +98,18 @@ So 1.2 adds one `Config` bool, `Embedded`, alongside `Isolated`:
   returns `ctx.Err()` fails its row (exit 2), the run owns ^C, and its
   `run_id` is `out_1`, so a 1.1 golden test that pinned it stays
   byte-stable. `Config.RunID` pins either default.
+- A `FormatExternal` run without `Embedded` also keeps the 1.1 signal
+  window. evo acts on SIGINT/SIGTERM only while the run callback runs; a
+  signal after it returned is caught and ignored, so the Define work
+  Finish waits on completes. A 1.1 HTTP server on `FormatExternal` gets
+  SIGTERM for graceful shutdown, and every request in Finish must still
+  finish. The formats evo renders itself watch signals until the run
+  concludes (a ^C during Finish stops the run), because there the person
+  at the terminal asked it to stop. `Output.signalWindow` resolves the
+  window from the `embedded` and `external` config bits.
+- A `FormatJSON` write failure keeps its 1.1 error text
+  (`<ErrRenderer>: <writer error>`) and additionally matches the writer's
+  error under `errors.Is`.
 
 `Embedded` is independent of `Format`. `FormatExternal` chooses how a run
 renders; `Embedded` chooses who owns its lifecycle. An HTTP handler
@@ -106,15 +120,18 @@ it is honored on the `Config.Options` path too.
 Widening DEC-CANCEL-001 to every run by default is a separate breaking
 decision for a major release. The scope lives in one place:
 `Output.scopeCaller`, `Output.watchCaller`, `Output.endRunCallback`,
-`Output.subscribeProcessSignals`, and `config.issueRunID` branch on the
-`embedded` config bit, which only `Config.Embedded` sets. Pinned by
+`Output.signalWindow`, and `config.issueRunID` branch on the `embedded`
+config bit, which only `Config.Embedded` sets. Pinned by
 `TestOutputRun_CallerCancelWithoutEmbeddedKeeps11Verdict`,
 `TestOutputRun_CallerDeadlineWithoutEmbeddedReachesTasks`,
 `TestConfigRunID_UnsetKeeps11IdentityWithoutEmbedded`,
 `TestConfigRunID_UnsetIsUniquePerEmbeddedRun`,
 `TestOutputRun_EmbeddedOptsAnyFormatIntoCallerCancellation`,
-`TestRun_EmbeddedLeavesProcessSignalsToHost`, and
-`TestRun_FormatExternalWithoutEmbeddedStillOwnsProcessSignals`.
+`TestRun_EmbeddedLeavesProcessSignalsToHost`,
+`TestRun_FormatExternalWithoutEmbeddedStillOwnsProcessSignals`,
+`TestRun_FormatExternalWithoutEmbeddedIgnoresSignalsAfterCallback`,
+`TestRun_FormatExternalWithoutEmbeddedStopsOnSignalDuringCallback`, and
+`TestFormatJSON_WriterFailureIsRendererErrorAndKeepsCause`.
 
 ### DEC-CANCEL-006: An embedded Task sees no caller deadline
 
@@ -160,11 +177,13 @@ disagree. Pinned by `TestOutputRun_CallerContextEndConcludesCancelled`,
   run still owns ^C, and `run_id` is still `out_1`. A host that wants the
   §53 lifecycle sets `Config.Embedded` (DEC-CANCEL-005), then branches on
   `StateCancelled` / exit 130 and owns SIGINT/SIGTERM itself.
-- Fixes outside this decision do reach every 1.1 caller: a ^C during
-  Finish stops the run instead of being ignored, a run waiting on the
-  state lock stops on ^C, a cancelled document names its cause
-  (DEC-CANCEL-007), and a `FormatJSON` write failure wraps the writer's
-  error. See "Changes for every format" in
+- Fixes outside this decision reach 1.1 callers on the formats evo
+  renders: a ^C during Finish stops the run instead of being ignored, a
+  run waiting on the state lock stops on ^C, a cancelled document names
+  its cause (DEC-CANCEL-007), and a `FormatJSON` write failure also
+  matches the writer's error under `errors.Is` (text unchanged). A
+  `FormatExternal` run without `Embedded` keeps the 1.1 signal window.
+  See "Changes for CLI formats" in
   [`docs/migration/1.2.md`](../migration/1.2.md).
 - `Result.Err` still carries whatever the run callback returned, so an
   embedder can tell work failure from cancellation.
