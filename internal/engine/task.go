@@ -69,9 +69,8 @@ func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
 
 // setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
 // — the shared entry point for every phase source that is NOT the caller's
-// own narrated beat: Each's per-item courtesy default, PhaseWriter's (and
-// through it, Task.Run's) per-line mirror of a talkative child's raw output,
-// and Step's current-item name. Off-TTY, an explicit TaskHandle.Doing call
+// own narrated beat: Writer's per-line mirror of a talkative child's raw
+// output, and Step's current-item name. Off-TTY, an explicit TaskHandle.Doing call
 // still forces its own durable row (the P10 contract: the one line the
 // caller asked to see); this path never does — a child's full output already
 // has one durable home, the evidence ring (and its failure-path DetailTail),
@@ -105,13 +104,10 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // source that is not the caller's own narrated beat (see setLiveOnlyPhase):
 // the same state transition as setPhaseLocked (promotion, activity clock,
 // live redraw signal), but it never forces its own durable line in plain
-// mode. Each's bare item name is a courtesy default, not a caller-declared
-// phase — if the loop body sets its own Phase before the next paint, that
-// call's own emission carries the current text once, instead of the reader
-// seeing the item name and the body's phase as two separate redundant lines
-// (beginner-10). A talkative child's mirrored output line is the same
-// shape: the evidence ring is its one durable home, not a plain-mode row
-// per line (release-gate round 9 finding 4).
+// mode. A talkative child's mirrored output line (Writer) already has one
+// durable home, the evidence ring, so it gets no plain-mode row per line
+// (release-gate round 9 finding 4); Step's current-item name is live
+// status for the same reason, never a durable line per item.
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	text = txt.Text(text)
 	// Identical live-only phase is a no-op: Writer leftover/repeated lines

@@ -613,10 +613,10 @@ func (o *Output) hasRecordedEffectLocked(subject string) bool {
 }
 
 // hasSealedProgress reports whether t's absolute progress reached the total
-// it declared — a completed Each/EachN/Progress loop — same unresolved-task
+// it declared — a completed Progress/Step loop — same unresolved-task
 // amnesty rationale as hasRecordedEffectLocked (beginner-gate-2 findings
 // 1/2). Total must be positive and the kind explicitly set (Determinate or
-// BytesKind): a task that never called Progress/Bytes/Each carries the zero
+// BytesKind): a task that never called Progress/Bytes/Step carries the zero
 // value (Total 0, Kind "") and must not read as sealed.
 func hasSealedProgress(t *taskState) bool {
 	if t.progress.Kind == "" || t.progress.Kind == Indeterminate {
@@ -686,7 +686,7 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first
-// unit of evidence (Phase/Progress/Advance/Bytes/Each iteration/PhaseWriter
+// unit of evidence (Phase/Progress/Advance/Bytes/Step/Writer
 // write, or a work callback starting — see promoteRunningForActivity).
 // For a sequential collection (Sequence), it records misuse when a sibling is
 // already Running, enforcing the heart contract "one Running child"
@@ -1895,7 +1895,7 @@ func (o *Output) Finish() error {
 	// honest, complete story already — the caller just never called a
 	// terminal verb — whenever it also carries at least one of: a recorded
 	// Effect/File/Record ledger row, a sealed absolute
-	// progress (a completed Each/EachN/Progress loop reached its total),
+	// progress (a completed Progress/Step loop reached its total),
 	// recorded taxonomy (Skipped/Kept), or a recorded warning (P2:
 	// TaskHandle.Warn never itself resolves the task, so a warned-but-
 	// unresolved task earns the same amnesty). The easiest path (forgetting
@@ -1933,9 +1933,8 @@ func (o *Output) Finish() error {
 			continue
 		}
 		resolveUnstartedTaskLocked(t)
-		// A declared-but-never-defined task never started — Each children
-		// the loop did not yield, or work the interrupt took away. That is
-		// the answer, not misuse.
+		// A declared task that never started is work the failure or
+		// interrupt took away. That is the answer, not misuse.
 		if t.state == NotStarted {
 			continue
 		}
