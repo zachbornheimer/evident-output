@@ -246,7 +246,7 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			ID:       "evo-file-exec",
 			Title:    "evo.File and evo.Exec: declarative tracked operations",
 			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile", "resource", "lock"},
-			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "FSResource", "Effect", "EffectSpec"},
+			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "FSResource", "Effect", "EffectSpec", "PartialEffect"},
 			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053", "API-054", "API-055", "API-058"},
 			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) replaces hand-rolled os.WriteFile +
 os.Chmod + a manual existence/hash check: it writes only on drift and no-ops when Path/Contents/Mode already
@@ -282,6 +282,10 @@ resource access holds at most one Resource at a time: a second evo.File or Resou
 made with fn's own held ctx — directly, or through a helper fn hands that ctx to — fails deterministically with
 evo.ErrNestedResourceAcquisition instead of risking deadlock (API-053). Finish and return from the first
 Effect/File before starting a second, or claim one coarser Resource both mutations share.
+
+An Effect fn that committed part of its Quantity before failing returns evo.PartialEffect(committed, err):
+Effect records the committed subset as changed and still fails the Task with err (errors.Is/As intact). An
+invalid count or nil err returns evo.ErrInvalidPartialEffect and records nothing.
 
 evo.Patch(ctx, diff) derives the desired file states a unified diff describes — reading each source once under
 its own read claim and mutating nothing — and evo.Files(ctx, files) commits them through evo.File, so dry-run
