@@ -76,3 +76,27 @@ func TestPatchKeepsExecutableBit(t *testing.T) {
 		t.Fatalf("mode after content-only Patch = %v, want -rwxr-xr-x", got)
 	}
 }
+
+// TestFileRewriteKeepsSetuidWhenUnmanaged proves an unmanaged rewrite
+// keeps the special mode bits too: the existing mode was read through
+// Perm(), which drops setuid, setgid, and sticky.
+func TestFileRewriteKeepsSetuidWhenUnmanaged(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tool")
+	if err := os.WriteFile(path, []byte("old\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o755|fs.ModeSetuid); err != nil {
+		t.Fatal(err)
+	}
+	if statOrFatal(t, path).Mode()&fs.ModeSetuid == 0 {
+		t.Skip("this filesystem does not keep setuid on a regular file")
+	}
+	out := Init(Config{Isolated: true, StateDir: t.TempDir()})
+	t.Cleanup(func() { _ = out.Close() })
+	if err := runFileTask(t, out, "rewrite", FileSpec{Path: path, Contents: []byte("new\n")}); err != nil {
+		t.Fatalf("File: %v", err)
+	}
+	if got := statOrFatal(t, path).Mode(); got&fs.ModeSetuid == 0 || got.Perm() != 0o755 {
+		t.Fatalf("mode after unmanaged rewrite = %v, want -rwsr-xr-x", got)
+	}
+}

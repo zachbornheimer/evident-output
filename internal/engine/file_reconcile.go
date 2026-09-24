@@ -184,6 +184,11 @@ func (o *Output) inspectFile(fsys FileFS, op fileOperation) (fileDelta, error) {
 	return fileDelta{exists: exists, writeNeeded: writeNeeded, modeDiffers: modeDiffers, writeMode: contentWriteMode(spec.Mode, info, exists)}, nil
 }
 
+// inheritedModeBits are the mode bits an unmanaged rewrite carries over:
+// the permissions and setuid, setgid, and sticky, which Perm() alone
+// would drop.
+const inheritedModeBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
+
 // contentWriteMode is the permission a content write leaves: the managed
 // mode when there is one, otherwise the existing file's own (an unmanaged
 // rewrite never changes it), otherwise ordinary creation semantics.
@@ -192,7 +197,7 @@ func contentWriteMode(managed fs.FileMode, info fs.FileInfo, exists bool) fs.Fil
 	case managed != 0:
 		return managed
 	case exists:
-		return info.Mode().Perm()
+		return info.Mode() & inheritedModeBits
 	default:
 		return defaultCreateMode
 	}
