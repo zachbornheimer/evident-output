@@ -75,7 +75,8 @@ func (t *TaskHandle) Kept(reason TaxonomyReason) { t.impl().Kept(reason.inner) }
 
 // Key sets an advanced override for this Task's stable identity, so a
 // rename or refactor keeps its manifest history. Call it before Define; a
-// later call records ErrKeyAfterDefine and leaves the key unchanged. A key
+// call after Define or after the Task settled records ErrKeyAfterDefine and
+// leaves the key unchanged. Repeating the Task's own key is a no-op. A key
 // another Task already claims is ErrDuplicateKey.
 func (t *TaskHandle) Key(key string) *TaskHandle {
 	t.impl().Key(key)

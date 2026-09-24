@@ -74,9 +74,11 @@ func parentKeyOf(col *tasksState) string {
 // within the application/workspace manifest namespace. Must be called
 // before Define — dependency/verification/execution configuration freezes
 // at Define, and identity is part of that configuration — a call after
-// Define records ErrKeyAfterDefine and leaves the task's key untouched. A
-// key already claimed by another Task is ErrDuplicateKey, the same
-// identity-conflict error every other explicit-key path already reports.
+// Define, or after a terminal verb settled the Task, records
+// ErrKeyAfterDefine and leaves the task's key untouched. Repeating the key
+// the Task already has is a no-op. A key already claimed by another Task is
+// ErrDuplicateKey, the same identity-conflict error every other
+// explicit-key path already reports.
 func (t *TaskHandle) Key(key string) *TaskHandle {
 	if t == nil || t.out == nil {
 		return t
@@ -88,11 +90,14 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 	if st == nil {
 		return t
 	}
-	if st.sched.submitted() {
+	if !st.neverDefined() {
 		o.recordMisuseFor(st.name, ErrKeyAfterDefine)
 		return t
 	}
 	clean := txt.Text(key)
+	if clean == st.key {
+		return t
+	}
 	if _, ok := o.keys[clean]; ok {
 		o.recordMisuse(ErrDuplicateKey)
 		return t
