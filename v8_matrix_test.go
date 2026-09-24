@@ -83,9 +83,9 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 		"  ! kept 292 (163 dirty, 89 unpushed, 40 ignored files)\n" +
 		"✓ remote-tracking  4 stale refs\n" +
 		"\n" +
-		"[planned] branches          delete 40 local tips\n" +
-		"[planned] worktrees         remove 1 worktree\n" +
-		"[planned] remote-tracking   delete 4 stale origin/*\n" +
+		"[planned] branches         delete 40 local tips\n" +
+		"[planned] worktrees        remove 1 worktree\n" +
+		"[planned] remote-tracking  delete 4 stale origin/*\n" +
 		"\n" +
 		"[planned · warned]\n"
 	if got := buf.String(); got != want {
@@ -460,8 +460,8 @@ func TestV8_StressLive(t *testing.T) {
 		"      " + glyph + " feat/cleanup…\n" +
 		"      ! kept 5 (3 protected, 2 unpushed)\n" +
 		"\n" +
-		"[changed] discover   deleted 5 local tips\n" +
-		"[changed] cleanup    pruned 12 stale origin/*"
+		"[changed] discover  deleted 5 local tips\n" +
+		"[changed] cleanup   pruned 12 stale origin/*"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
