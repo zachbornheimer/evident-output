@@ -173,15 +173,16 @@ func (t *TaskHandle) Wait() error {
 	if err := t.out.refuseWaitUnderClaim(t.id, &stack); err != nil {
 		return err
 	}
-	return t.waitChecked(&stack)
+	return t.waitChecked(&stack, nil)
 }
 
 // waitChecked is Wait after its caller already refused a held claim. stack
-// is shared by every Task a Group or Sequence Wait waits on (see
+// and seen are shared by every Task a Group or Sequence Wait waits on (see
 // waitDescendants), so one Wait walks its stack at most once, and not at
-// all unless a claim is held somewhere or it actually parks.
-func (t *TaskHandle) waitChecked(stack *waiterStack) error {
-	t.out.sealAwaitedInputs(t.id)
+// all unless a claim is held somewhere or it actually parks, and walks
+// shared inputs once.
+func (t *TaskHandle) waitChecked(stack *waiterStack, seen *inputSeals) error {
+	t.out.sealAwaitedInputs(t.id, seen)
 	t.out.runWaitedWork(t.id)
 	if !t.waitSubmitted(stack) {
 		return t.out.unreachableWaitOutcome(t.id)
@@ -215,11 +216,11 @@ func (o *Output) waitOutcome(taskID string) error {
 		return nil
 	case st.workErr != nil:
 		return st.workErr
-	case st.state == NotStarted:
-		return ErrNotStarted
-	case st.neverDefined():
+	case st.sched.phase == phaseDeclared && (st.state == NotStarted || st.neverDefined()):
 		// Declared but never Defined: there is no work to have succeeded.
 		return fmt.Errorf("%w: %s was never defined", ErrNotStarted, st.name)
+	case st.state == NotStarted:
+		return ErrNotStarted
 	case st.state == Cancelled:
 		return cancelledWaitOutcome(st.summary)
 	case st.state == Failed || st.state == Blocked:

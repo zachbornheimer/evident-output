@@ -147,7 +147,9 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 - `Wait` no longer hangs when what it waits on runs `After` a Task nobody
   Defined. That Task settles `NotStarted` and the Wait returns
   `ErrNotStarted`. A self-wait deadlock returns `ErrWaitDeadlock` even
-  when unrelated rows are still undefined.
+  when unrelated rows are still undefined. A `Wait` on a Task nobody
+  Defined settles it `NotStarted` too, and the error names it. How a Wait
+  answers no longer depends on which Waits ran before it.
 
 - A Sequence's nested `Group`/`Sequence` is one step: it starts after the
   step before it ends, the step after it waits for all of it, and a failed

@@ -41,9 +41,6 @@ type collectionTally struct {
 	// sealed records that the run proved nothing will declare into this
 	// still-empty collection (see sealInputsLocked).
 	sealed bool
-	// walked is total as of the last Wait that sealed this collection's
-	// members: until a member is added, walking them again finds nothing.
-	walked int
 	// dependents are the Tasks parked until this collection stops pending.
 	dependents []*taskState
 }
