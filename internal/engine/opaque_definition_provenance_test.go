@@ -206,7 +206,8 @@ func TestOpaqueTaskDefinitionRunsEveryRun(t *testing.T) {
 // file on disk holds only the File Task's record, however many opaque
 // Tasks settled after it. Each opaque settle used to marshal, fsync, and
 // rename the whole manifest under o.mu (400 no-op Tasks: 3.6ms without a
-// File Task, 5.98s with one). Close writes the staged records once.
+// File Task, 5.98s with one). Finish (here via Close) writes the staged
+// records once.
 func TestOpaqueTasksDoNotRewriteTheManifestPerSettle(t *testing.T) {
 	const opaqueTasks = 50
 	state := t.TempDir()
@@ -216,6 +217,11 @@ func TestOpaqueTasksDoNotRewriteTheManifestPerSettle(t *testing.T) {
 
 	if err := runFileTask(t, out, "file", FileSpec{Path: path, Contents: []byte("desired")}); err != nil {
 		t.Fatalf("file task: %v", err)
+	}
+	// The File Task's commit is written in the background; wait for it so
+	// the file on disk is the baseline the opaque settles must not touch.
+	if err := out.manifestStore.Flush(t.Context()); err != nil {
+		t.Fatalf("flush file task record: %v", err)
 	}
 	group := out.Group("opaque")
 	for i := range opaqueTasks {

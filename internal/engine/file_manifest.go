@@ -10,6 +10,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -127,11 +128,45 @@ func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 		return
 	}
 	task := manifest.TaskRecord{Key: st.key, Operations: append([]manifest.OperationRecord(nil), st.manifestOps...)}
-	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err == nil {
-		o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
-			"operations": len(task.Operations),
-		})
+	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err != nil {
+		o.warnManifestUnsavedLocked(err)
+		return
 	}
+	o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
+		"operations": len(task.Operations),
+	})
+}
+
+// saveManifest waits until every record this Run committed or staged is
+// on disk, so an Init+Finish caller that never calls Close still persists
+// its history, and warns on the run when the write failed: the next run
+// re-executes work this one did, and the reader must know why.
+func (o *Output) saveManifest() {
+	o.mu.Lock()
+	store := o.manifestStore
+	o.mu.Unlock()
+	if store == nil {
+		return
+	}
+	err := store.Flush(context.Background())
+	if err == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if !o.finished {
+		o.warnManifestUnsavedLocked(err)
+	}
+}
+
+// warnManifestUnsavedLocked states once per run that the manifest could
+// not be saved. Callers must already hold o.mu.
+func (o *Output) warnManifestUnsavedLocked(err error) {
+	if o.manifestUnsavedIssued {
+		return
+	}
+	o.manifestUnsavedIssued = true
+	o.warnLocked(applyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
 }
 
 // taskOpaqueDefinitionFingerprint computes an opaque Task's own definition

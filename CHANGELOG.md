@@ -146,6 +146,14 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   Task, and work Defined after `^C` settles `NotStarted` instead of hanging
   `Finish`.
 
+- A manifest that cannot be saved is no longer silent. The run shows a
+  `manifest not saved: <reason>` warning, and `Close` returns the write
+  error. `Finish` now writes the manifest, so an `Init`+`Finish` caller
+  that never calls `Close` keeps its history. File/Exec/Patch Tasks no
+  longer write and fsync the manifest while holding the run lock: one
+  background writer folds every commit since its last write into one
+  write.
+
 - An `evo.Effect` callback that resolves its own task as `Skipped`/`Fail`
   records no ledger row (and no misuse), and an interrupt that cancels a
   row mid-Effect keeps the committed record for "! already mutated".

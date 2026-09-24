@@ -13,6 +13,7 @@ import (
 // Projection I/O runs outside the domain lock (§17.1).
 func (o *Output) Finish() error {
 	o.drainScheduler()
+	o.saveManifest()
 	o.mu.Lock()
 	if o.finished {
 		err := o.misuse

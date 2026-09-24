@@ -61,6 +61,12 @@ func (o *Output) Warn(summary string, options ...ProblemOption) {
 		o.recordMisuse(err)
 		return
 	}
+	o.warnLocked(p)
+}
+
+// warnLocked records p as a run-scoped warning and renders it. Callers
+// must already hold o.mu.
+func (o *Output) warnLocked(p Problem) {
 	o.runWarnings = append(o.runWarnings, p)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "run.warned", OutputID: o.outputID})

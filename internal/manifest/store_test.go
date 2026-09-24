@@ -3,8 +3,10 @@ package manifest
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -324,5 +326,63 @@ func TestStoreStageTaskWritesOnlyOnFlush(t *testing.T) {
 	defer func() { _ = reopened.Close() }()
 	if got, ok := reopened.Task("opaque"); !ok || got.DefinitionFingerprint != "sha256:fallback" {
 		t.Fatalf("staged record after Flush = %+v, %v", got, ok)
+	}
+}
+
+// TestStoreCommitTaskNeverWaitsOnTheDiskAndCoalesces proves CommitTask
+// returns while a write is still in flight, and that every commit made
+// during that write lands in one more write rather than one each.
+func TestStoreCommitTaskNeverWaitsOnTheDiskAndCoalesces(t *testing.T) {
+	s, err := Open(t.Context(), Config{StateDir: t.TempDir()}, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	var writes atomic.Int32
+	s.write = func([]byte) error {
+		if writes.Add(1) == 1 {
+			<-release
+		}
+		return nil
+	}
+	const commits = 100
+	committed := make(chan struct{})
+	go func() {
+		for i := range commits {
+			_ = s.CommitTask(t.Context(), ApplicationRecord{ID: "app"}, TaskRecord{Key: fmt.Sprint(i)})
+		}
+		close(committed)
+	}()
+	select {
+	case <-committed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("CommitTask waited on a write in flight")
+	}
+	close(release)
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got := writes.Load(); got > 2 {
+		t.Fatalf("%d commits during one write cost %d writes, want at most 2", commits, got)
+	}
+}
+
+// TestStoreFlushReportsAWriteFailure proves a failed write reaches the
+// caller through Flush and Close instead of being dropped.
+func TestStoreFlushReportsAWriteFailure(t *testing.T) {
+	s, err := Open(t.Context(), Config{StateDir: t.TempDir()}, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	disk := errors.New("disk full")
+	s.write = func([]byte) error { return disk }
+	if err := s.CommitTask(t.Context(), ApplicationRecord{ID: "app"}, TaskRecord{Key: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Flush(t.Context()); !errors.Is(err, disk) {
+		t.Fatalf("Flush() = %v, want %v", err, disk)
+	}
+	if err := s.Close(); !errors.Is(err, disk) {
+		t.Fatalf("Close() = %v, want %v", err, disk)
 	}
 }

@@ -166,6 +166,9 @@ type Output struct {
 	manifestOpened        bool
 	manifestOpenErr       error
 	manifestWarningIssued bool
+	// manifestUnsavedIssued records that the run already warned its
+	// manifest was not saved, so a failed write is stated once.
+	manifestUnsavedIssued bool
 	// manifestApp is this Run's application record, computed once and
 	// reused on every Task commit (spec §11.2/§11.3).
 	manifestApp     manifest.ApplicationRecord
@@ -564,15 +567,11 @@ func (o *Output) Close() error {
 	if cancelRun != nil {
 		cancelRun()
 	}
-	if manifestStore != nil {
-		// Writes the opaque Task records staged during the Run, then
-		// releases this Run's exclusive manifest lock (spec §11.3). Already
-		// committed Task records on disk are unaffected — Close never rolls
-		// anything back.
-		_ = manifestStore.Flush(context.Background())
-		_ = manifestStore.Close()
-	}
-	return nil
+	// Finish already wrote the manifest and warned when it could not; this
+	// releases the Run's exclusive manifest lock (spec §11.3) and returns
+	// any write or release failure. Already committed Task records on disk
+	// are unaffected — Close never rolls anything back.
+	return manifestStore.Close()
 }
 
 // beginRunContext installs ctx (Run/evo.Run's own ctx parameter) as the
