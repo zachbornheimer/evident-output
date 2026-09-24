@@ -595,7 +595,6 @@ func (o *Output) drainScheduler() {
 	o.mu.Lock()
 	o.schedDraining = true
 	o.cascadeIneligibleLocked()
-	o.admitAllEligibleLocked()
 	o.mu.Unlock()
 	o.kick()
 	o.schedWG.Wait()

@@ -56,14 +56,6 @@ func (o *Output) releaseCollectionDependentsLocked(col *tasksState) {
 	}
 }
 
-// admitAllEligibleLocked is the drain's one full pass: it queues any
-// eligible Task a settle outside settleLocked (Finish's own sweeps) freed.
-func (o *Output) admitAllEligibleLocked() {
-	for _, st := range o.tasks {
-		o.admitIfEligibleLocked(st)
-	}
-}
-
 // nextSibling is the Task declared right after st in its container.
 func nextSibling(st *taskState) *taskState {
 	if st.collection == nil {
