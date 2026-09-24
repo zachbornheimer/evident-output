@@ -86,9 +86,9 @@ type Output struct {
 	rootColumn rootColumn
 	keys       map[string]struct{}
 
-	// rootNames holds, per declaration scope, the names root Tasks, Groups,
-	// and Sequences claimed (§3.1); see siblingsLocked.
-	rootNames map[string]*siblings
+	// rootNames holds the names root Tasks, Groups, and Sequences claimed
+	// (§3.1); see siblingsLocked.
+	rootNames siblings
 	// namedReasons backs get-or-create identity for evo.Reason: repeated calls
 	// with the same name (inline or lifted to a var) merge into one bucket.
 	// Also unrelated to §3.1 — a taxonomy Reason is not a declared entity.

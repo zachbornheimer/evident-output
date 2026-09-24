@@ -25,39 +25,22 @@ func (o *Output) ensureEntityRoomLocked() error {
 	return nil
 }
 
-// Task declares a single operation named name. Identity overrides go
-// through TaskHandle.Key.
+// Task declares a single root-level operation named name. Identity
+// overrides go through TaskHandle.Key. A repeated name is a duplicate
+// sibling declaration (§3.1), never a get-or-create: 1.0 removed that idiom
+// because letting two distinct declarations silently merge into one
+// identity would make a false "already satisfied" possible once identity
+// drives manifest reconciliation. The repeat records a Failed task with
+// ProblemCodeDuplicateSiblingName (see failDuplicateSiblingLocked).
 func (o *Output) Task(name string) *TaskHandle {
-	return o.taskScoped(name, "", "")
-}
-
-// taskScoped is the declaration path behind Output.Task and Scope.Task;
-// key is an explicit stable key (tests only), or "" for the default. A
-// repeated call with the same (scope, name) pair — or a repeated explicit
-// key under any name — is a duplicate sibling declaration (§3.1), never a
-// get-or-create: 1.0 removed that idiom because letting two distinct
-// declarations silently merge into one identity would make a false
-// "already satisfied" possible once identity drives manifest reconciliation.
-// A same-name repeat records a Failed task with ProblemCodeDuplicateSiblingName
-// (see failDuplicateSiblingLocked); a reused explicit key still reports
-// ErrDuplicateKey, its own pre-existing identity-conflict error.
-func (o *Output) taskScoped(name, scope, explicitKey string) *TaskHandle {
 	clean := declaredName(name)
-	key := qualifyKey(scope, explicitKey)
-
 	o.mu.Lock()
 	defer o.mu.Unlock()
-
-	if key != "" {
-		// An explicit key is the identity: declareTaskLocked refuses a
-		// reused one (ErrDuplicateKey), and the name claims nothing.
-		return o.addTaskLocked(clean, nil, key, scope)
-	}
-	names := o.siblingsLocked(nil, scope)
+	names := o.siblingsLocked(nil)
 	if names.taskTaken(clean) {
 		return o.rejectedTask(o.failDuplicateSiblingLocked(nil, kindTask, clean))
 	}
-	h := o.addTaskLocked(clean, nil, "", scope)
+	h := o.addTaskLocked(clean, nil, "", "")
 	if h.rejected == nil {
 		names.claimTask(clean)
 	}
@@ -78,8 +61,7 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey stri
 // When key is empty, the task's §3.1 stable identity defaults to
 // kind+parentKey+normalized-name; an explicit key replaces that derivation
 // entirely and is registered instead. parentKey is the declaring parent's
-// own stable key (a Group/Sequence's key, or the declaration scope for a
-// root-level Task — see Scope).
+// own stable key (a Group/Sequence's key, or "" for a root-level Task).
 func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey string) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
@@ -155,7 +137,7 @@ func (o *Output) Sequence(name string) *SequenceHandle {
 func (o *Output) declareContainerLocked(parent *tasksState, name string, sequential bool) *GroupHandle {
 	clean := declaredName(name)
 	kind := childKindFor(sequential)
-	names := o.siblingsLocked(parent, "")
+	names := o.siblingsLocked(parent)
 	if names.containerTaken(clean) {
 		return o.rejectedGroup(o.failDuplicateSiblingLocked(parent, kind, clean))
 	}

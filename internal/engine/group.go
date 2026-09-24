@@ -18,7 +18,7 @@ type GroupHandle struct {
 }
 
 // Task declares a child task. A repeated name is a duplicate sibling
-// declaration, not a get-or-create (§3.1, taskScoped's doc comment): it
+// declaration, not a get-or-create (§3.1, Output.Task's doc comment): it
 // fails the new call with ProblemCodeDuplicateSiblingName rather than
 // returning the earlier handle. Callers that reference a Task again later
 // (for example in After) must keep the first handle, typically in a typed

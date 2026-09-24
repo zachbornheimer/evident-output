@@ -48,7 +48,6 @@ func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 }
 
 type Evidence = evidence
-type Scope = scope
 type SystemClock = systemClock
 type FixedClock = fixedClock
 type NoopRedactor = noopRedactor
@@ -65,7 +64,6 @@ func (t *TaskHandle) EvidenceForTest(opts ...EvidenceOption) *evidence {
 }
 func (o *Output) EvidenceForTest(opts ...EvidenceOption) *evidence { return o.evidence(opts...) }
 func (o *Output) Events() []Event                                  { return o.copyEvents() }
-func (o *Output) ScopeForTest(name string) *scope                  { return o.scope(name) }
 func (o *Output) DebugForTest(message string, fields ...Field) {
 	o.debug(message, fields...)
 }
@@ -74,9 +72,6 @@ func (o *Output) AlsoWriteForTest(w io.Writer) {
 		return
 	}
 	o.cfg.extraWriters = append(o.cfg.extraWriters, w)
-}
-func (o *Output) TaskIdentified(name, key string) *TaskHandle {
-	return o.taskScoped(name, "", key)
 }
 func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ...error) {
 	t.recordTaxonomy(reason, name, dispositionSkip, errs)
@@ -115,11 +110,4 @@ func (o *Output) SchedulerMaxObserved() int {
 
 func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
 	return Default().reasonGetOrCreate(name, opts...)
-}
-
-func (s *scope) TaskIdentified(name, key string) *TaskHandle {
-	if s == nil || s.out == nil {
-		return &TaskHandle{}
-	}
-	return s.out.taskScoped(name, s.name, key)
 }

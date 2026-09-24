@@ -125,9 +125,9 @@ func Default() *Output {
 
 // Task declares a Task on the default instance. A repeated name is a
 // duplicate sibling declaration (§3.1), not a get-or-create — see
-// Output.Task/taskScoped.
+// Output.Task.
 func Task(name string) *TaskHandle {
-	return Default().taskScoped(name, "", "")
+	return Default().Task(name)
 }
 
 // Sequence declares an ordered task container on the default instance —

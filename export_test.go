@@ -23,36 +23,6 @@ func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
 }
 func SlogHandlerForTest() slog.Handler { return SlogHandler() }
 
-type Scope struct{ inner *engine.Scope }
-
-func (o *Output) ScopeForTest(name string) *Scope {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return &Scope{inner: o.inner.ScopeForTest(name)}
-}
-
-func (s *Scope) Name() string {
-	if s == nil || s.inner == nil {
-		return ""
-	}
-	return s.inner.Name()
-}
-
-func (s *Scope) Task(name string) *TaskHandle {
-	if s == nil || s.inner == nil {
-		return nil
-	}
-	return wrapTask(s.inner.Task(name))
-}
-
-func (s *Scope) TaskIdentified(name, key string) *TaskHandle {
-	if s == nil || s.inner == nil {
-		return nil
-	}
-	return wrapTask(s.inner.TaskIdentified(name, key))
-}
-
 func (o *Output) AboutForTest(text string) {
 	if o != nil && o.inner != nil {
 		o.inner.AboutForTest(text)
@@ -88,13 +58,6 @@ func (o *Output) AlsoWriteForTest(w io.Writer) {
 	if o != nil && o.inner != nil {
 		o.inner.AlsoWriteForTest(w)
 	}
-}
-
-func (o *Output) TaskIdentified(name, key string) *TaskHandle {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return wrapTask(o.inner.TaskIdentified(name, key))
 }
 
 func (o *Output) SetDiagnosticSharesTerminalForTest() {

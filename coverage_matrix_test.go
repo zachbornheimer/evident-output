@@ -78,14 +78,14 @@ func TestDOM004_SameNameIsDuplicateSibling(t *testing.T) {
 	}
 }
 
-// TestDOM004_DistinctIDsAllowSameDisplayName covers the remaining case the
-// retired DuplicateDisplayNamesAllowed test named: two genuinely distinct
-// entities may still share a display name, using an explicit evo.ID.
-func TestDOM004_DistinctIDsAllowSameDisplayName(t *testing.T) {
+// TestDOM004_DistinctParentsAllowSameDisplayName covers the remaining case
+// the retired DuplicateDisplayNamesAllowed test named: two genuinely
+// distinct entities may still share a display name under different parents.
+func TestDOM004_DistinctParentsAllowSameDisplayName(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	a := out.TaskIdentified("same", "a")
-	b := out.TaskIdentified("same", "b")
+	a := out.Group("first").Task("same")
+	b := out.Group("second").Task("same")
 	succeed(a)
 	succeed(b)
 	if a.Snapshot().ID == b.Snapshot().ID {

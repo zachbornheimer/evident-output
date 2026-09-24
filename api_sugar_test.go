@@ -96,28 +96,6 @@ func TestAPISugar_ReasonFormatsAndGetsOrCreates(t *testing.T) {
 	}
 }
 
-func TestAPISugar_ScopeTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	scoped := out.ScopeForTest("registry")
-	task := scoped.Task(fmt.Sprintf("sync %s", "auth"))
-	if got := task.Snapshot().Name; got != "sync auth" {
-		t.Fatalf("name = %q, want %q", got, "sync auth")
-	}
-}
-
-func TestAPISugar_ScopeItemNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	scoped := out.ScopeForTest("registry")
-	item := scoped.Task(fmt.Sprintf("probe %s", "docker"))
-	if got := item.Snapshot().Name; got != "probe docker" {
-		t.Fatalf("name = %q, want %q", got, "probe docker")
-	}
-}
-
 func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
