@@ -601,7 +601,8 @@ func TestSpecP19_FirstPaint_Step2(t *testing.T) {
 func TestSpecP19_FirstPaint_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever, Verbosity: evo.VerbosityVerbose})
 	scan := out.Task("scan")
 	scan.Fact("ready", "40 repos")
 	succeed(scan, "128 checked")

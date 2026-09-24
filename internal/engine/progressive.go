@@ -421,7 +421,7 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 
 	if includeEntities {
 		residualNameWidth := maxRootTaskNameWidth(o.tasks)
-		hidden := render.ZeroInformationTaskIDs(snap)
+		hidden := render.ZeroInformationTaskIDs(render.SnapshotAtVerbosity(snap, verbose))
 		for _, t := range o.tasks {
 			if t.collection != nil || t.coreEmitted {
 				continue

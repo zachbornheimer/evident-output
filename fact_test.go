@@ -14,7 +14,8 @@ import (
 // are work. Facts are information.").
 func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, Verbosity: evo.VerbosityVerbose})
 
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")

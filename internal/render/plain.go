@@ -26,7 +26,7 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 		width = defaultWidth
 	}
 	color := !noColor
-	s = HumanProjection(s)
+	s = HumanProjection(s, verbose)
 
 	if s.DryRun {
 		WritePlannedHeader(&b, color, s.Preview, s.DryRunSubject)
@@ -521,6 +521,7 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, pro
 // wherever its own name happens to end. A detail-less row's padding is
 // trimmed so it never ends in dangling whitespace (mirrors DisplayUnit.Render).
 func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, color, verbose bool, profile txt.GlyphProfile) {
+	t = TaskAtVerbosity(t, verbose)
 	glyph := txt.StyleGlyph(TaskGlyph(t.State, profile), StateColor(t.State), color)
 	label := txt.PadRight(t.Name, nameWidth)
 	// annotatedLabel carries taskNameColumnMargin's extra column — only the
@@ -911,6 +912,7 @@ func writeNotStartedCount(b *strings.Builder, fromEach []core.TaskSnapshot, colo
 // evidence (└─ ...) and taxonomy here was the gap that forced the
 // repo-retire adoption off the Group/Tasks API.
 func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int, color, verbose bool, profile txt.GlyphProfile) {
+	t = TaskAtVerbosity(t, verbose)
 	tg := txt.StyleGlyph(TaskGlyph(t.State, profile), StateColor(t.State), color)
 	name := txt.PadRight(t.Name, nameWidth)
 	// annotatedName carries taskNameColumnMargin's extra column — only the

@@ -209,7 +209,8 @@ func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever, Verbosity: evo.VerbosityVerbose})
 	scan := out.Task("scan")
 	scan.Progress(128, 128)
 	scan.Fact("ready", "40 repos")
@@ -247,7 +248,8 @@ func TestSpecP5_DiscoverySealedTotal_Success(t *testing.T) {
 func TestSpecP5_ClassificationFact_NeverMovesUnderPlanDuringDryRun(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true, Verbosity: evo.VerbosityVerbose})
 	scan := out.Task("scan")
 	scan.Fact("ready", "40 repos")
 	succeed(scan, "128 checked")

@@ -271,6 +271,7 @@ func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T)
 		remotes.Summary("nothing to clean")
 		return nil
 	})
+	worktrees.Fact("on disk", "508.8 MB") // routine: verbose-only (§13, §21)
 	keepAll(worktrees, "168 checked",
 		evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 95},
 		evo.Reason("dirty"), evo.Reason("dirty"), evo.Reason("unpushed"))

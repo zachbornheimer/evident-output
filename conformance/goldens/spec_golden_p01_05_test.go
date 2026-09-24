@@ -544,7 +544,8 @@ func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever, Verbosity: evo.VerbosityVerbose})
 	scan := out.Task("scan")
 	scan.Progress(40, 128)
 	scan.Fact("ready", "39 repos")

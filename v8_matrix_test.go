@@ -333,8 +333,34 @@ func TestV8_CancelledAfterMutation(t *testing.T) {
 // than this single tab warrants; the golden follows the actual, tested
 // convention.
 func TestV8_AlreadySatisfied(t *testing.T) {
+	// "deploy production" has no Summary, so its header is not a row, and
+	// its zero-information children (discover, prepare hosts, services:
+	// nothing to say, nothing changed) are hidden while other content
+	// exists. The launch agent's "path" is a routine Task Fact: contract
+	// §13/§21 hide it at normal verbosity (§21 labels this exact
+	// "✓ write launch agent / path ..." shape its "Verbose example"), which
+	// leaves the launch agent zero-information too. Under verbose it owns a
+	// visible Fact and keeps its row; cleanup always keeps its Summary.
+	cases := []struct {
+		verbosity evo.Verbosity
+		want      string
+	}{
+		{evo.VerbosityNormal, "✓ cleanup  nothing to do\n"},
+		{evo.VerbosityVerbose, "✓ write launch agent  already satisfied\n" +
+			"  path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
+			"✓ cleanup             nothing to do\n"},
+	}
+	for _, tc := range cases {
+		if got := renderV8AlreadySatisfied(t, tc.verbosity); got != tc.want {
+			t.Fatalf("verbosity %v mismatch:\n--- want ---\n%s\n--- got ---\n%s", tc.verbosity, tc.want, got)
+		}
+	}
+}
+
+func renderV8AlreadySatisfied(t *testing.T, verbosity evo.Verbosity) string {
+	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true, Stdout: &buf, Stderr: io.Discard})
+	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true, Stdout: &buf, Stderr: io.Discard, Verbosity: verbosity})
 	t.Cleanup(func() { _ = out.Close() })
 
 	// Spec §19's suffix is ResolutionAlreadySatisfied, produced only by a
@@ -362,18 +388,7 @@ func TestV8_AlreadySatisfied(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-
-	// "deploy production" has no Summary, so its header is not a row, and
-	// its zero-information children (discover, prepare hosts, services:
-	// nothing to say, nothing changed) are hidden while other content
-	// exists. The launch agent stays because it owns a Fact; cleanup because
-	// it has a Summary.
-	want := "✓ write launch agent  already satisfied\n" +
-		"  path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
-		"✓ cleanup             nothing to do\n"
-	if got := buf.String(); got != want {
-		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
-	}
+	return buf.String()
 }
 
 // TestV8_StressLive is the golden for the HTML "Stress case" Replay tab's

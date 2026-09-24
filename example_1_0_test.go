@@ -100,7 +100,8 @@ func ExampleFile() {
 // Task and never fakes a checkmark merely to display a value.
 func ExampleTaskHandle_Fact() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true})
+	// A Task Fact is routine context: it renders only under verbose (contract §13).
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true, Verbosity: evo.VerbosityVerbose})
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")
 	scan.Define(func(context.Context) error { return nil })
