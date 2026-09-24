@@ -31,7 +31,7 @@ func All() []Guide {
 			Rules: []string{
 				"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002",
 				"API-034", "API-035", "API-036", "API-037", "API-038", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
-				"API-057", "API-059", "API-060",
+				"API-057", "API-059", "API-060", "API-061",
 			},
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
   1) evo.Init(evo.Config{Title, DryRun}) once in main, before any I/O; os.Exit(evo.Main(run)) —

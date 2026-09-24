@@ -626,6 +626,12 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectPatchFileSetDiscardedBeforeCommit(filename, f, fset)...)
 	}
 
+	// API-061: a call site still uses the record-only mutation verbs
+	// Record/RecordLabel/RecordName, which have no record-only
+	// replacement (ZYS-974) — steer it to Effect (mutation), Fact
+	// (information), or File/Patch (file writes).
+	findings = append(findings, detectDeprecatedRecordCall(filename, f, fset)...)
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)
