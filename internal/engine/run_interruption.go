@@ -11,22 +11,24 @@ import (
 
 // interruption names why a run stopped early: reason is the text each
 // cancelled row carries, cause is the cancelled Conclusion's Explanation,
-// so the band and the JSON document state the same cause. err is what
-// context.Cause reports on every Task scope the interrupt cancels.
+// and code is the same cause as a stable machine code (the "evo.run"
+// document's cancellation.cause), so the band and the wire agree. err is
+// what context.Cause reports on every Task scope the interrupt cancels.
 type interruption struct {
 	reason string
 	cause  string
+	code   core.CancelCause
 	err    error
 }
 
 var (
 	// interruptionBySignal: the person at the terminal pressed ^C.
-	interruptionBySignal = interruption{reason: "interrupted", cause: "by user", err: context.Canceled}
+	interruptionBySignal = interruption{reason: "interrupted", cause: "by user", code: core.CancelCauseUser, err: context.Canceled}
 	// interruptionByCaller: the caller cancelled an embedded Run's context —
 	// an HTTP client disconnected, or the embedder shut the request down.
-	interruptionByCaller = interruption{reason: "cancelled", cause: "by caller", err: context.Canceled}
+	interruptionByCaller = interruption{reason: "cancelled", cause: "by caller", code: core.CancelCauseCaller, err: context.Canceled}
 	// interruptionByDeadline: an embedded Run's caller deadline passed.
-	interruptionByDeadline = interruption{reason: "deadline exceeded", cause: "deadline exceeded", err: context.DeadlineExceeded}
+	interruptionByDeadline = interruption{reason: "deadline exceeded", cause: "deadline exceeded", code: core.CancelCauseDeadline, err: context.DeadlineExceeded}
 )
 
 // interrupt stops the run at the first signal or at the end of the
@@ -45,7 +47,7 @@ func (o *Output) interrupt(why interruption) {
 		return
 	}
 	o.schedCancelled = true
-	o.cancelCause = why.cause
+	o.cancelledBy = why
 	cancelRun := o.cancelRun
 	o.mu.Unlock()
 
@@ -55,6 +57,20 @@ func (o *Output) interrupt(why interruption) {
 	if cancelRun != nil {
 		cancelRun(why.err)
 	}
+}
+
+// explainCancellationLocked names the interruption's cause on a cancelled
+// conclusion: Explanation in words (unless something more specific already
+// explained it) and the machine code the wire document carries. Any other
+// outcome is left untouched.
+func (o *Output) explainCancellationLocked(c *core.Conclusion) {
+	if c.State != core.StateCancelled {
+		return
+	}
+	if c.Explanation == "" {
+		c.Explanation = o.cancelledBy.cause
+	}
+	core.SetCancelCause(c, o.cancelledBy.code)
 }
 
 // stopsNothingLocked reports whether an interrupt arriving now has no work

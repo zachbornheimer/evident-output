@@ -107,6 +107,12 @@ throttle the run itself.
   run function returned. A `WriteJSON` error means the response did not
   reach the client; it names the failed step and wraps the writer's error,
   so `errors.Is` still matches it. Log it; the run's truth is unchanged.
-- **The cancellation cause** (`by caller` or `deadline exceeded`) is in
-  `result.Conclusion.Explanation`. The v2 document records the outcome and
-  exit code, not the cause.
+- **The cancellation cause is in the body.** A cancelled document carries
+  `"cancellation": {"cause": "caller"}` when the request context was
+  cancelled, `"deadline"` when its deadline passed, and `"user"` for ^C on
+  a CLI run. An HTTP client tells a server budget timeout from a shutdown
+  by that field, not by the status code or the human text. The same words
+  are in `result.Conclusion.Explanation` (`by caller`,
+  `deadline exceeded`, `by user`). The field is absent on any run that did
+  not conclude cancelled
+  ([DEC-CANCEL-007](../decisions/caller-cancellation.md#dec-cancel-007-the-wire-document-names-the-cancellation-cause)).

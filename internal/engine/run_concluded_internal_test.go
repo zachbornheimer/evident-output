@@ -49,7 +49,7 @@ func TestRun_SignalAfterConclusionLeavesTheResult(t *testing.T) {
 			t.Fatalf("Output concluded %s/%d but Run returned %s/%d", got.State, got.ExitCode, result.Conclusion.State, result.Conclusion.ExitCode)
 		}
 		out.mu.Lock()
-		cancelled, cause := out.schedCancelled, out.cancelCause
+		cancelled, cause := out.schedCancelled, out.cancelledBy.cause
 		out.mu.Unlock()
 		if cancelled || cause != "" {
 			t.Fatalf("a signal after conclusion rewrote the concluded Output (schedCancelled=%v, cause=%q)", cancelled, cause)
@@ -69,7 +69,7 @@ func TestInterrupt_AfterConclusionIsANoOp(t *testing.T) {
 	out.interrupt(interruptionBySignal)
 
 	out.mu.Lock()
-	cancelled, cause := out.schedCancelled, out.cancelCause
+	cancelled, cause := out.schedCancelled, out.cancelledBy.cause
 	out.mu.Unlock()
 	if cancelled || cause != "" {
 		t.Fatalf("interrupt rewrote a finished Output (schedCancelled=%v, cause=%q)", cancelled, cause)

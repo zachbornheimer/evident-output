@@ -27,6 +27,13 @@
     "mode": { "type": "string" },
     "outcome": { "type": "string" },
     "exit_code": { "type": "integer" },
+    "cancellation": {
+      "type": "object",
+      "required": ["cause"],
+      "properties": {
+        "cause": { "type": "string", "enum": ["user", "caller", "deadline"] }
+      }
+    },
     "data": {
       "type": "object",
       "required": ["collections", "tasks", "facts", "problems", "effects", "actions"],

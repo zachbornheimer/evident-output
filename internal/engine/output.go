@@ -118,10 +118,10 @@ type Output struct {
 	// schedCancelled stops the scheduler dispatching anything new: after an
 	// interrupt the queue is abandoned, not drained.
 	schedCancelled bool
-	// cancelCause names who stopped the run (interruption.cause). It
-	// becomes the cancelled Conclusion's Explanation, so the band and the
-	// JSON document state the same cause.
-	cancelCause string
+	// cancelledBy is the interruption that stopped the run (zero when none
+	// did). It becomes the cancelled Conclusion's Explanation and wire
+	// cause, so the band and the JSON document state the same cause.
+	cancelledBy interruption
 	// runSettling is set when an embedded run's callback returned while its
 	// caller's ctx was live; once every Task is also terminal, interrupt is
 	// a no-op (see settledLocked) so completed work keeps its verdict.
@@ -1943,10 +1943,7 @@ func (o *Output) Finish() error {
 	// run.finished (spec §38) fires on every path through Finish, including
 	// failure and cancel — conc.State already reflects whichever outcome
 	// this run reached, the same single choke point output.finished uses.
-	o.emitWireEventLocked(wire.EventRunFinished, "", map[string]any{
-		"outcome":   wireRunOutcome(conc.State),
-		"exit_code": conc.ExitCode,
-	})
+	o.emitWireEventLocked(wire.EventRunFinished, "", runFinishedPayload(conc))
 	writer := o.cfg.primary
 	cfg := o.cfg
 	misuse := o.misuse
@@ -2148,14 +2145,6 @@ func (o *Output) Conclusion() Conclusion {
 	o.explainCancellationLocked(&c)
 	core.ApplyFailedExitCode(&c, o.cfg.failedExitCode)
 	return c
-}
-
-// explainCancellationLocked names the cancellation cause on a cancelled
-// conclusion. Any other outcome keeps its own Explanation untouched.
-func (o *Output) explainCancellationLocked(c *core.Conclusion) {
-	if c.State == core.StateCancelled && c.Explanation == "" {
-		c.Explanation = o.cancelCause
-	}
 }
 
 // Events returns a copy of durable events (v0.1 journal).

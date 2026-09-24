@@ -9,6 +9,9 @@
   "mode": "apply",
   "outcome": "cancelled",
   "exit_code": 130,
+  "cancellation": {
+    "cause": "user"
+  },
   "data": {
     "collections": [],
     "tasks": [

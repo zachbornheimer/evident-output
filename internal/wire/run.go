@@ -64,7 +64,29 @@ type RunDocument struct {
 	Mode          string    `json:"mode"`
 	Outcome       string    `json:"outcome"`
 	ExitCode      int       `json:"exit_code"`
-	Data          RunData   `json:"data"`
+	// Cancellation is present only on a cancelled run whose cause is
+	// known (schema-additive in 1.2, DEC-CANCEL-007).
+	Cancellation *CancellationDoc `json:"cancellation,omitempty"`
+	Data         RunData          `json:"data"`
+}
+
+// CancellationDoc says why a cancelled run stopped, as a stable code a
+// machine consumer branches on instead of parsing the human Explanation:
+// "user" (SIGINT/SIGTERM), "caller" (the embedder's context was
+// cancelled), or "deadline" (the embedder's deadline passed).
+type CancellationDoc struct {
+	Cause string `json:"cause"`
+}
+
+// CancellationFor is c's cancellation record, or nil when c did not
+// conclude cancelled or recorded no cause. The "evo.run" document and the
+// JSONL run.finished event both carry it, so the two cannot disagree.
+func CancellationFor(c core.Conclusion) *CancellationDoc {
+	cause := core.CancelCauseOf(c)
+	if c.State != core.StateCancelled || cause == "" {
+		return nil
+	}
+	return &CancellationDoc{Cause: string(cause)}
 }
 
 // RunData is the "evo.run" envelope's "data" payload (spec §35).
@@ -266,6 +288,7 @@ func ToRunDocument(result core.Result, evoVersion string) RunDocument {
 		Mode:          modeFor(c.DryRun),
 		Outcome:       outcomeFor(c.State),
 		ExitCode:      c.ExitCode,
+		Cancellation:  CancellationFor(c),
 		Data: RunData{
 			Collections: make([]CollectionDoc, 0, len(c.Collections)),
 			Tasks:       make([]TaskDoc, 0, len(c.Tasks)),

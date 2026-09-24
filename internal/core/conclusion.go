@@ -41,6 +41,10 @@ type Conclusion struct {
 	// Facts mirrors Snapshot.Facts (run-scoped evo.Fact annotations) — the
 	// wire v2 envelope's top-level "data.facts" (spec §35/§36).
 	Facts []Fact
+	// cancelCause is why a cancelled run stopped, as a stable code for
+	// machine consumers (see CancelCauseOf). Unexported so 1.2 adds no
+	// public field (DEC-CANCEL-007); Explanation stays the human form.
+	cancelCause CancelCause
 }
 
 // Default exit codes from architecture §26.

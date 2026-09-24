@@ -23,10 +23,13 @@ import (
 
 // runDoc is the subset of the "evo.run" wire document these tests read.
 type runDoc struct {
-	RunID    string `json:"run_id"`
-	Outcome  string `json:"outcome"`
-	ExitCode int    `json:"exit_code"`
-	Data     struct {
+	RunID        string `json:"run_id"`
+	Outcome      string `json:"outcome"`
+	ExitCode     int    `json:"exit_code"`
+	Cancellation *struct {
+		Cause string `json:"cause"`
+	} `json:"cancellation"`
+	Data struct {
 		Tasks []struct {
 			ID    string `json:"id"`
 			Name  string `json:"name"`
@@ -133,22 +136,25 @@ func TestOutputRun_CallerContextEndConcludesCancelled(t *testing.T) {
 	// Each case yields the caller's ctx and the trigger that ends it from
 	// inside the running Task; a deadline ends on its own.
 	cases := map[string]struct {
-		makeCtx func() (ctx context.Context, trigger, cleanup func())
-		cause   string
+		makeCtx   func() (ctx context.Context, trigger, cleanup func())
+		cause     string
+		wireCause string
 	}{
 		"cancel": {
 			makeCtx: func() (context.Context, func(), func()) {
 				ctx, cancel := context.WithCancel(context.Background())
 				return ctx, cancel, cancel
 			},
-			cause: "by caller",
+			cause:     "by caller",
+			wireCause: "caller",
 		},
 		"deadline": {
 			makeCtx: func() (context.Context, func(), func()) {
 				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 				return ctx, func() {}, cancel
 			},
-			cause: "deadline exceeded",
+			cause:     "deadline exceeded",
+			wireCause: "deadline",
 		},
 	}
 	for name, tc := range cases {
@@ -183,6 +189,9 @@ func TestOutputRun_CallerContextEndConcludesCancelled(t *testing.T) {
 			doc := decodeRunDoc(t, body.Bytes())
 			if doc.Outcome != "cancelled" || doc.ExitCode != evo.ExitCancelled {
 				t.Fatalf("document outcome = %s/%d, want cancelled/130", doc.Outcome, doc.ExitCode)
+			}
+			if doc.Cancellation == nil || doc.Cancellation.Cause != tc.wireCause {
+				t.Fatalf("document cancellation = %+v, want cause %q: an HTTP consumer must tell a disconnect from a budget timeout", doc.Cancellation, tc.wireCause)
 			}
 			if got := doc.taskState("start"); got != string(evo.NotStarted) {
 				t.Fatalf("queued Task state = %q, want %q", got, evo.NotStarted)

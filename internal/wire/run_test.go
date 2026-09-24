@@ -78,6 +78,7 @@ func runFixtures() map[string]core.Result {
 			c.State = core.StateCancelled
 			c.Cancelled = true
 			c.ExitCode = core.ExitCancelled
+			core.SetCancelCause(c, core.CancelCauseUser)
 			c.Tasks = []core.TaskSnapshot{
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_1", Key: "scan", Name: "scan", State: core.Done,
@@ -242,5 +243,28 @@ func TestToRunDocument_UnevaluatedPhaseOmitsSatisfiedAndSource(t *testing.T) {
 	}
 	if string(raw) != `{"evaluated":false}` {
 		t.Fatalf("unevaluated phase = %s, want {\"evaluated\":false}", raw)
+	}
+}
+
+// DEC-CANCEL-007: the cancellation record appears only on a cancelled run
+// with a known cause — a completed run's document never names one, and a
+// cause recorded before a later fold turned the verdict into something
+// else is not reported either.
+func TestCancellationFor_OnlyOnCancelledRunsWithACause(t *testing.T) {
+	cancelled := withConc(func(c *core.Conclusion) { c.State = core.StateCancelled })
+	core.SetCancelCause(&cancelled, core.CancelCauseDeadline)
+	if got := CancellationFor(cancelled); got == nil || got.Cause != "deadline" {
+		t.Fatalf("CancellationFor(cancelled by deadline) = %+v, want cause \"deadline\"", got)
+	}
+
+	refolded := cancelled
+	refolded.State = core.StateFailed
+	uncaused := withConc(func(c *core.Conclusion) { c.State = core.StateCancelled })
+	ok := withConc(func(c *core.Conclusion) { c.State = core.StateReady })
+	core.SetCancelCause(&ok, core.CancelCauseUser)
+	for name, c := range map[string]core.Conclusion{"refolded to failed": refolded, "no cause": uncaused, "ok": ok} {
+		if got := CancellationFor(c); got != nil {
+			t.Errorf("CancellationFor(%s) = %+v, want nil", name, got)
+		}
 	}
 }
