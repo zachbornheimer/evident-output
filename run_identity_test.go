@@ -34,7 +34,7 @@ func runPinned(t *testing.T, format evo.Format) ([]byte, *evo.Output, evo.Result
 	return stdout.Bytes(), out, result
 }
 
-// A run_id is random by default, so a consumer's golden test on the wire
+// An Embedded run_id is random by default, so a consumer's golden test on the wire
 // output pins it through Config.RunID, the way it pins time through
 // Config.Clock. Every projection then carries the pinned identity, and two
 // runs of one model produce byte-identical documents.
@@ -57,11 +57,39 @@ func TestConfigRunID_PinsTheIdentityOnEveryProjection(t *testing.T) {
 	}
 }
 
-// An unpinned run keeps a unique identity: two runs never share a run_id.
-func TestConfigRunID_UnsetIsUniquePerRun(t *testing.T) {
-	first := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard})
-	second := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard})
-	if a, b := first.Snapshot().OutputID, second.Snapshot().OutputID; a == b || a == "" {
-		t.Fatalf("unpinned run ids %q and %q, want two distinct non-empty ids", a, b)
+// legacyRunID is the run_id every 1.1 run carried. A run that neither pins
+// RunID nor opts into Embedded keeps it, so a 1.1 golden test that pinned
+// "out_1" stays byte-stable on upgrade (DEC-CANCEL-005).
+const legacyRunID = "out_1"
+
+// Without Embedded or RunID, every projection keeps the 1.1 identity.
+func TestConfigRunID_UnsetKeeps11IdentityWithoutEmbedded(t *testing.T) {
+	for name, format := range map[string]evo.Format{"json": evo.FormatJSON, "jsonl": evo.FormatJSONL, "external": evo.FormatExternal} {
+		t.Run(name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			out := evo.Init(evo.Config{Isolated: true, Format: format, Clock: testkit.NewClock(), Stdout: &stdout, Stderr: io.Discard})
+			result := out.Run(context.Background(), func(context.Context) error {
+				out.Task("check").Define(func(context.Context) error { return nil })
+				return nil
+			})
+			if result.Conclusion.RunID != legacyRunID || out.Snapshot().OutputID != legacyRunID {
+				t.Fatalf("Conclusion.RunID = %q, Snapshot().OutputID = %q, want both %q (1.1 identity)",
+					result.Conclusion.RunID, out.Snapshot().OutputID, legacyRunID)
+			}
+			if format != evo.FormatExternal && !regexp.MustCompile(`"run_id":\s*"`+legacyRunID+`"`).Match(stdout.Bytes()) {
+				t.Fatalf("wire output does not carry the 1.1 run_id %q\n%s", legacyRunID, stdout.Bytes())
+			}
+		})
+	}
+}
+
+// An unpinned Embedded run draws a unique identity: concurrent requests
+// served by one process never share a run_id (spec §53).
+func TestConfigRunID_UnsetIsUniquePerEmbeddedRun(t *testing.T) {
+	first := evo.Init(evo.Config{Isolated: true, Embedded: true, Stdout: io.Discard, Stderr: io.Discard})
+	second := evo.Init(evo.Config{Isolated: true, Embedded: true, Stdout: io.Discard, Stderr: io.Discard})
+	a, b := first.Snapshot().OutputID, second.Snapshot().OutputID
+	if a == b || a == "" || a == legacyRunID {
+		t.Fatalf("unpinned Embedded run ids %q and %q, want two distinct ids other than %q", a, b, legacyRunID)
 	}
 }

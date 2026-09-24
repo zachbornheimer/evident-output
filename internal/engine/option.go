@@ -20,7 +20,7 @@ type config struct {
 	// SIGINT/SIGTERM, and the end of Run's ctx is the request ending — an
 	// interrupt, not a failure.
 	embedded bool
-	// runID mirrors Config.RunID; empty draws a random identity.
+	// runID mirrors Config.RunID; empty defers to issueRunID.
 	runID             string
 	projection        Projection
 	noColor           bool

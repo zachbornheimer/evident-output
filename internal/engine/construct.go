@@ -264,8 +264,9 @@ type Config struct {
 	Embedded bool
 
 	// RunID pins the run's identity: "run_id" on the wire, Conclusion.RunID,
-	// and Snapshot().OutputID. Empty (the default) draws a random identity,
-	// unique per run. Set it where the identity must be reproducible — a
+	// and Snapshot().OutputID. Empty (the default) keeps the 1.1 identity,
+	// "out_1", unless Embedded is set: an Embedded run draws a random
+	// identity, unique per run. Set it where the identity must be reproducible — a
 	// golden test, alongside Clock — or where the host already has one,
 	// such as a request id; a consumer that correlates on run_id then
 	// relies on the host to keep it unique. Honored whether or not Options
