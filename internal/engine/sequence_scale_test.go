@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"testing"
@@ -66,5 +67,33 @@ func BenchmarkScheduleNestedSteps(b *testing.B) {
 				scheduleNestedSteps(b, n)
 			}
 		})
+	}
+}
+
+// TestRepeatedStepFailuresStopFollowersOnce guards k failing members of
+// one nested step: each failure used to rescan every later step, so the
+// cost was k·n.
+func TestRepeatedStepFailuresStopFollowersOnce(t *testing.T) {
+	const k, n = 50, 200
+	out := Init(Config{Isolated: true, StateDir: t.TempDir(), Stdout: io.Discard, Stderr: io.Discard, MaxConcurrency: k})
+	defer func() { _ = out.Close() }()
+	seq := out.Sequence("phases")
+	g := seq.Group("checks")
+	boom := errors.New("boom")
+	start := make(chan struct{})
+	for i := range k {
+		g.Task(fmt.Sprintf("check %d", i)).Define(func(context.Context) error { <-start; return boom })
+	}
+	for i := range n {
+		seq.Task(fmt.Sprintf("later %d", i))
+	}
+	close(start)
+	_ = g.Wait()
+	out.mu.Lock()
+	checks := out.sched.followerChecks
+	out.mu.Unlock()
+	t.Logf("k=%d failures, n=%d later steps: follower checks=%d", k, n, checks)
+	if checks > n {
+		t.Errorf("%d failures examined %d followers of %d later steps (want <= %d)", k, checks, n, n)
 	}
 }

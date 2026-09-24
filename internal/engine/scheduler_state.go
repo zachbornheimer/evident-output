@@ -38,4 +38,7 @@ type scheduler struct {
 	// predChecks counts predecessor outcomes read, so a test can prove
 	// fan-in scheduling stays linear.
 	predChecks int
+	// followerChecks counts Sequence followers failSequenceFollowers
+	// examined, so a test can prove repeated failures stay linear.
+	followerChecks int
 }

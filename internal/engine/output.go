@@ -352,6 +352,9 @@ type tasksState struct {
 	// lastStep is, for a Sequence, what its next step starts after: the
 	// one step declared most recently, Task or nested collection.
 	lastStep []predecessor
+	// stoppedAfter is, for a Sequence, the declaration of the earliest step
+	// a failure already stopped its later steps after (0: none yet).
+	stoppedAfter int
 	// tally counts this container's descendant Tasks by outcome, for the
 	// Tasks that run After it.
 	tally collectionTally

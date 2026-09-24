@@ -292,6 +292,10 @@ func (o *Output) abandonLocked(st *taskState) {
 // one failed belongs to, in each Sequence it sits under, that has not
 // started, Defined or not. A nested Group/Sequence step settles all of its
 // members.
+//
+// Each Sequence remembers the earliest step it already stopped after. A
+// failure at or after that step finds nothing new to stop, here or in the
+// Sequences above, so k failing members of one step cost one walk, not k.
 func (o *Output) failSequenceFollowers(failed *taskState) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -300,16 +304,28 @@ func (o *Output) failSequenceFollowers(failed *taskState) {
 		if !c.sequential {
 			continue
 		}
-		for _, sib := range c.tasks {
-			if sib.declaration > branch {
-				o.stopUnstartedLocked(sib)
-			}
+		if c.stoppedAfter != 0 && branch >= c.stoppedAfter {
+			return
 		}
-		for _, child := range c.children {
-			if child.declaration > branch {
-				for _, member := range appendDescendantTasksLocked(child, nil) {
-					o.stopUnstartedLocked(member)
-				}
+		c.stoppedAfter = branch
+		o.stopFollowersLocked(c, branch)
+	}
+}
+
+// stopFollowersLocked settles NotStarted every unstarted member of
+// Sequence c's steps declared after branch.
+func (o *Output) stopFollowersLocked(c *tasksState, branch int) {
+	for _, sib := range c.tasks {
+		if sib.declaration > branch {
+			o.sched.followerChecks++
+			o.stopUnstartedLocked(sib)
+		}
+	}
+	for _, child := range c.children {
+		if child.declaration > branch {
+			for _, member := range appendDescendantTasksLocked(child, nil) {
+				o.sched.followerChecks++
+				o.stopUnstartedLocked(member)
 			}
 		}
 	}
