@@ -632,6 +632,13 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// (information), or File/Patch (file writes).
 	findings = append(findings, detectDeprecatedRecordCall(filename, f, fset)...)
 
+	// API-062: a second Kept/Skipped on one Task — the item is the Task, so
+	// the per-item shape is group.Task(item).Kept(reason) (contract §25
+	// renderer aggregation folds those children into one tally).
+	if hasEvoAtOneZero {
+		findings = append(findings, detectRepeatedDisposition(filename, f, fset)...)
+	}
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)
