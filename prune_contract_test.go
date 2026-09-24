@@ -237,3 +237,67 @@ func TestPruneContract_LedgerFollowsTaskDeclarationOrderNotCompletionOrder(t *te
 		}
 	}
 }
+
+// TestPruneContract_KeptUnderGroupedCategoriesRendersContract18 is zq
+// prune's real 1.1 shape (a header-less Group of category Tasks, each
+// accumulating Kept records inside its Define before its Effect), held to
+// the contract §18 dry-run bytes TestV8_DryRunPlanOnly pins for the
+// Warn-authored form: a Kept tally nests under its row ("  ! kept N (...)",
+// spec §26/§27) exactly like a Warn, and its "!" row feeds the trailing
+// "[planned · warned]" band like any other warning-glyph annotation.
+func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Isolated: true, DryRun: true, Color: evo.ColorNever, Plain: true,
+		Subject: "zq prune  ~/repo", Stdout: &buf,
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	categories := out.Group("categories")
+	branches := categories.Task("branches")
+	worktrees := categories.Task("worktrees")
+	remotes := categories.Task("remote-tracking")
+
+	keepAll := func(task *evo.TaskHandle, summary string, spec evo.EffectSpec, reasons ...evo.TaxonomyReason) {
+		task.Define(func(ctx context.Context) error {
+			for _, reason := range reasons {
+				task.Kept(reason)
+			}
+			task.Summary(summary)
+			return evo.Effect(ctx, spec, func(context.Context) error { return nil })
+		})
+	}
+	remotes.Define(func(context.Context) error {
+		remotes.Summary("nothing to clean")
+		return nil
+	})
+	keepAll(worktrees, "168 checked",
+		evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 95},
+		evo.Reason("dirty"), evo.Reason("dirty"), evo.Reason("unpushed"))
+	branches.After(worktrees, remotes)
+	keepAll(branches, "188 checked",
+		evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 87},
+		evo.Reason("checked out"), evo.Reason("checked out"), evo.Reason("protected"))
+	if err := branches.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := "[dry-run] zq prune  ~/repo\n" +
+		"\n" +
+		"✓ branches         188 checked\n" +
+		"  ! kept 3 (2 checked out, 1 protected)\n" +
+		"✓ worktrees        168 checked\n" +
+		"  ! kept 3 (2 dirty, 1 unpushed)\n" +
+		"✓ remote-tracking  nothing to clean\n" +
+		"\n" +
+		"[planned] branches   delete 87 local tips\n" +
+		"[planned] worktrees  remove 95 worktrees\n" +
+		"\n" +
+		"[planned · warned]\n"
+	if got := buf.String(); got != want {
+		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+	}
+}

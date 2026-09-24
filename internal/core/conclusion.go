@@ -102,12 +102,13 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 }
 
 // anyTaskWarned reports whether any task in tasks carries at least one
-// TaskHandle.Warn annotation (P2: conclusion algebra reads TaskSnapshot.
-// Warnings, never a lifecycle state — Warning is not one of the terminal
-// EntityState values).
+// TaskHandle.Warn annotation or Kept tally (P2: conclusion algebra reads
+// annotations, never a lifecycle state — Warning is not one of the terminal
+// EntityState values). A Kept tally renders the same "! kept N (...)" row a
+// Warn does, so it feeds the same "· warned" band (contract §18).
 func anyTaskWarned(tasks []TaskSnapshot) bool {
 	for _, t := range tasks {
-		if len(t.Warnings) > 0 {
+		if len(t.Warnings) > 0 || len(t.Kept) > 0 {
 			return true
 		}
 	}

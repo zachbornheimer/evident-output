@@ -178,6 +178,10 @@ const (
 	problemTreeIndent = "   "
 	// problemDetailIndent continues multi-line Detail under a └─ / │ opener.
 	problemDetailIndent = "      "
+	// taskAnnotationIndent nests a standalone task's annotations — taxonomy
+	// tallies, verification details, warnings, facts — under its row
+	// (spec §26/§27: "✓ branches  50 checked" / "  ! kept 13 (...)").
+	taskAnnotationIndent = "  "
 )
 
 // writeVerificationDetails renders a Task's per-attribute reconciliation
@@ -612,11 +616,11 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, co
 			Unit:    "failures",
 		}, color, emphasize, profile)
 	}
-	writeTaxonomy(b, "", "skipped", t.Skipped, hasInlineTaxonomy && inlineTaxonomyVerb == "skipped", verbose, color, profile)
-	writeTaxonomy(b, "", "kept", t.Kept, hasInlineTaxonomy && inlineTaxonomyVerb == "kept", verbose, color, profile)
-	writeVerificationDetails(b, t.Verification, "  ", t.State == core.Failed, verbose, color, profile)
-	writeNestedTaskWarnings(b, nestedWarnings, "  ", color, profile)
-	writeNestedTaskFacts(b, nestedFacts, "  ", color)
+	writeTaxonomy(b, taskAnnotationIndent, "skipped", t.Skipped, hasInlineTaxonomy && inlineTaxonomyVerb == "skipped", verbose, color, profile)
+	writeTaxonomy(b, taskAnnotationIndent, "kept", t.Kept, hasInlineTaxonomy && inlineTaxonomyVerb == "kept", verbose, color, profile)
+	writeVerificationDetails(b, t.Verification, taskAnnotationIndent, t.State == core.Failed, verbose, color, profile)
+	writeNestedTaskWarnings(b, nestedWarnings, taskAnnotationIndent, color, profile)
+	writeNestedTaskFacts(b, nestedFacts, taskAnnotationIndent, color)
 }
 
 // runningTaskDetail composes a core.Running task's plain-mode detail text: its
@@ -661,8 +665,8 @@ func progressCountText(p core.Progress) string {
 // A single reason collapses to its bare name (the count already said N);
 // multiple reasons each carry their own count so the parts sum to N.
 // indent prefixes the taxonomy row (and, verbose, its detail rows) so a
-// collection child's taxonomy nests under the child's own glyph column
-// instead of the standalone task's zero-indent column.
+// collection child nests under its own glyph column and a standalone task
+// under its row (taskAnnotationIndent).
 // skipSummary is true when the caller already rendered this verb's summary
 // text inline on the task's own row (inlineTaskTaxonomy) — the causes
 // evidence line and Verbose name list below are unaffected by where the
