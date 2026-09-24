@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -238,5 +239,51 @@ func TestTasksSnapshotPeakConcurrency_CountsOnlyItsOwnTasks(t *testing.T) {
 	}}
 	if got := sequence.PeakConcurrency(); got != 1 {
 		t.Fatalf("Sequence PeakConcurrency() = %d, want 1", got)
+	}
+}
+
+// wideCollection is a Group of n one-second Tasks, each After refs.
+func wideCollection(id string, n int, refs ...string) TasksSnapshot {
+	col := TasksSnapshot{ID: id}
+	for i := range n {
+		col.Tasks = append(col.Tasks, taskAfter(fmt.Sprintf("%s-%d", id, i), 1, refs...))
+	}
+	return col
+}
+
+func TestConclusionMetrics_CriticalPathChainsGroupAfterGroup(t *testing.T) {
+	c := Conclusion{Collections: []TasksSnapshot{
+		wideCollection("fetch", 3),
+		wideCollection("build", 3, "fetch"),
+		wideCollection("ship", 3, "build"),
+	}}
+	if got := c.Metrics().CriticalPath; got != secs(3) {
+		t.Fatalf("CriticalPath = %v, want 3s: one Task per chained Group", got)
+	}
+}
+
+func TestConclusionMetrics_CriticalPathSurvivesATaskAfterItsOwnGroup(t *testing.T) {
+	c := Conclusion{Collections: []TasksSnapshot{{
+		ID:    "g",
+		Tasks: []TaskSnapshot{taskAfter("a", 2), taskAfter("b", 1, "g")},
+	}}}
+	// b waits on its own Group: the cycle stops at b, so b follows a.
+	if got := c.Metrics().CriticalPath; got != secs(3) {
+		t.Fatalf("CriticalPath = %v, want 3s", got)
+	}
+}
+
+// wideRunWidth is the Group width the benchmark chains: 10x a large zq
+// run, where expanding each collection edge to every member cost
+// O(width²) per Group-After-Group edge.
+const wideRunWidth = 2000
+
+func BenchmarkCriticalPath_GroupAfterGroup(b *testing.B) {
+	c := Conclusion{Collections: []TasksSnapshot{
+		wideCollection("fetch", wideRunWidth),
+		wideCollection("build", wideRunWidth, "fetch"),
+	}}
+	for b.Loop() {
+		_ = newDependencyGraph(c).criticalPath()
 	}
 }

@@ -2,24 +2,28 @@ package core
 
 import "time"
 
-// dependencyGraph is a Conclusion's Task dependency edges, resolved to
-// Task IDs: a Task's After predecessors (a collection predecessor stands
-// for every Task inside it) plus, inside a Sequence, the step before it.
+// dependencyGraph is a Conclusion's Task dependency edges: a Task's After
+// predecessors (Tasks, or collections standing for every Task inside
+// them) plus, inside a Sequence, the step before it. A collection's finish
+// is computed once and shared by every dependent, so a Group After a
+// Group costs O(N+M), not O(N×M).
 type dependencyGraph struct {
-	tasks    map[string]TaskSnapshot
-	members  map[string][]string
-	previous map[string]string
-	finish   map[string]time.Duration
-	visiting map[string]bool
+	tasks     map[string]TaskSnapshot
+	members   map[string][]string
+	previous  map[string]string
+	finish    map[string]time.Duration
+	colFinish map[string]time.Duration
+	visiting  map[string]bool
 }
 
 func newDependencyGraph(c Conclusion) *dependencyGraph {
 	g := &dependencyGraph{
-		tasks:    map[string]TaskSnapshot{},
-		members:  map[string][]string{},
-		previous: map[string]string{},
-		finish:   map[string]time.Duration{},
-		visiting: map[string]bool{},
+		tasks:     map[string]TaskSnapshot{},
+		members:   map[string][]string{},
+		previous:  map[string]string{},
+		finish:    map[string]time.Duration{},
+		colFinish: map[string]time.Duration{},
+		visiting:  map[string]bool{},
 	}
 	for _, t := range c.Tasks {
 		g.tasks[t.ID] = t
@@ -68,27 +72,43 @@ func (g *dependencyGraph) finishOf(id string) time.Duration {
 		return 0
 	}
 	g.visiting[id] = true
-	var before time.Duration
-	for _, pred := range g.predecessors(id) {
-		before = max(before, g.finishOf(pred))
-	}
+	before := g.longestBefore(id)
 	g.visiting[id] = false
 	g.finish[id] = before + g.tasks[id].Timing.Running()
 	return g.finish[id]
 }
 
-// predecessors is every Task id waits on.
-func (g *dependencyGraph) predecessors(id string) []string {
-	var preds []string
+// longestBefore is the longest chain among every predecessor id waits on.
+func (g *dependencyGraph) longestBefore(id string) time.Duration {
+	var before time.Duration
 	if prev, ok := g.previous[id]; ok {
-		preds = append(preds, prev)
+		before = g.finishOf(prev)
 	}
 	for _, ref := range g.tasks[id].after {
 		if members, isCollection := g.members[ref]; isCollection {
-			preds = append(preds, members...)
+			before = max(before, g.collectionFinish(ref, members))
 			continue
 		}
-		preds = append(preds, ref)
+		before = max(before, g.finishOf(ref))
 	}
-	return preds
+	return before
+}
+
+// collectionFinish is the longest chain ending at any of a collection's
+// members. It is memoized unless a member is mid-evaluation (a Task After
+// its own collection), where the partial answer must not be reused.
+func (g *dependencyGraph) collectionFinish(id string, members []string) time.Duration {
+	if d, done := g.colFinish[id]; done {
+		return d
+	}
+	var d time.Duration
+	cyclic := false
+	for _, m := range members {
+		cyclic = cyclic || g.visiting[m]
+		d = max(d, g.finishOf(m))
+	}
+	if !cyclic {
+		g.colFinish[id] = d
+	}
+	return d
 }
