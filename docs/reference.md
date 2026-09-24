@@ -176,6 +176,14 @@ Reads share. Any overlapping pair that includes a write waits: filesystem claims
 
 **Guarantee scope.** Resource claims coordinate every `Output` in one process. Across processes, the manifest's exclusive lock carries the guarantee: the first `File`/`Exec` in a Run takes it before claiming any resource and holds it until `Close`, so two processes using the **same manifest namespace** (same `StateDir`, or same `AppID` and workspace) never interleave tracked `File`/`Exec` state. Different namespaces are independent by design and do not coordinate. Opaque `Effect` claims are process-local: two processes running the same `Effect` are not serialized by Evo.
 
+## Where the time went
+
+Evo times every Task for you; never start a stopwatch to narrate one (review rule **API-062**, since 1.2.0).
+
+- **`TaskSnapshot.Timing`** holds when the Task was declared, became eligible, started, and settled, on the run's `Clock`. Its spans are `DependencyWait` (waiting on predecessors), `SchedulerWait` (eligible, waiting for a `MaxConcurrency` slot), `Queued` (both), `Running`, and `Total`. A boundary the Task never crossed contributes 0.
+- **`Conclusion.Metrics()`** derives the run aggregate from those stamps: Tasks by resolution (`Executed`, `AlreadySatisfied`, `NoWork`), summed `DependencyWait`/`SchedulerWait`/`Running`, and `PeakConcurrency`.
+- **Projections.** Final JSON carries each Task's `timing` (`queued_ms`, `running_ms`, `total_ms`, `dependency_wait_ms`, `scheduler_wait_ms`) and the run's `data.metrics`; JSONL emits `task.eligible` when eligibility happens and the same `metrics` on `run.finished`. Human output adds one dim `timing` line above the conclusion band under `VerbosityVerbose` only.
+
 ## Vocabulary
 
 | Type           | Meaning                                                                                                              |

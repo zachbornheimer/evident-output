@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added (1.2, ZYS-945 — §39 optimization data)
+
+- **`TaskSnapshot.Timing` (`TaskTiming`):** Evo stamps when each Task was
+  declared, became eligible, started, and settled, from the run's `Clock`.
+  Span methods `DependencyWait`, `SchedulerWait`, `Queued`, `Running`, and
+  `Total` say where the Task's time went. No caller code.
+- **`Conclusion.Metrics()` (`RunMetrics`):** the derived run aggregate —
+  Tasks by resolution, summed dependency wait / scheduler wait / running
+  time, and peak concurrency.
+- **Projections:** final JSON fills each Task's `timing` (previously all
+  zero) and adds `dependency_wait_ms`/`scheduler_wait_ms` plus
+  `data.metrics`; JSONL `run.finished` carries the same `metrics`, and
+  `task.eligible` now fires when a Task becomes eligible rather than when a
+  scheduler slot frees. Human output shows one dim `timing` line under
+  `VerbosityVerbose` only.
+- **MCP API-062:** flags a caller stopwatch (`time.Since`,
+  `time.Now().Sub`) narrated through `Summary`/`Fact`.
+
 See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Added
