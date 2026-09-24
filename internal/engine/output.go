@@ -122,6 +122,10 @@ type Output struct {
 	// becomes the cancelled Conclusion's Explanation, so the band and the
 	// JSON document state the same cause.
 	cancelCause string
+	// runSettling is set when the run callback returned while the caller's
+	// ctx was live; once every Task is also terminal, interrupt is a no-op
+	// (see settledLocked) so completed work keeps its verdict.
+	runSettling bool
 
 	schedWG          sync.WaitGroup
 	schedInflight    int
@@ -908,6 +912,10 @@ func (o *Output) interrupt(why interruption) {
 		return
 	}
 	o.mu.Lock()
+	if o.settledLocked() {
+		o.mu.Unlock()
+		return
+	}
 	o.schedCancelled = true
 	o.cancelCause = why.cause
 	cancelRun := o.cancelRun
@@ -2126,6 +2134,7 @@ func (o *Output) beginRunContext(ctx context.Context) context.Context {
 	previousCancel := o.cancelRun
 	o.ctx = runCtx
 	o.cancelRun = cancel
+	o.runSettling = false
 	o.mu.Unlock()
 	if previousCancel != nil {
 		previousCancel()

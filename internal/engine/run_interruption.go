@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
 // interruption names why a run stopped early: reason is the text each
@@ -50,11 +52,14 @@ func watchCaller(ctx context.Context, out *Output) callerWatch {
 	return callerWatch{callerErr: ctx.Err, interrupt: interrupt, stop: context.AfterFunc(ctx, interrupt)}
 }
 
-// ended reports whether the caller's context has ended and, if so, waits
-// until its interrupt has been applied — a run that returned because its
-// context ended concludes only after its rows say cancelled.
-func (w callerWatch) ended() bool {
-	if w.callerErr() == nil {
+// ended reports whether the caller's context has ended.
+func (w callerWatch) ended() bool { return w.callerErr() != nil }
+
+// interruptIfEnded reports whether the caller's context has ended and, if
+// so, waits until its interrupt has been applied — a run that returned
+// because its context ended concludes only after its rows say cancelled.
+func (w callerWatch) interruptIfEnded() bool {
+	if !w.ended() {
 		return false
 	}
 	w.interrupt()
@@ -87,3 +92,29 @@ func (callerScope) Err() error { return nil }
 
 // Value reads through to the caller's values.
 func (s callerScope) Value(key any) any { return s.value(key) }
+
+// endRunCallback records that the run callback returned. If the caller's
+// ctx was still live at that moment, the run is settling: what remains is
+// whatever its Tasks still do, so an interrupt that later finds every Task
+// terminal has nothing left to stop (see settledLocked). Checking
+// callerEnded under o.mu orders this against a racing interrupt: a caller
+// that ended first always cancels.
+func (o *Output) endRunCallback(callerEnded func() bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.runSettling = !callerEnded()
+}
+
+// settledLocked reports whether an interrupt would stop nothing: the run
+// callback returned while the caller was live and every Task is terminal.
+func (o *Output) settledLocked() bool {
+	if !o.runSettling {
+		return false
+	}
+	for _, t := range o.tasks {
+		if !core.IsTerminalTask(t.state) {
+			return false
+		}
+	}
+	return true
+}

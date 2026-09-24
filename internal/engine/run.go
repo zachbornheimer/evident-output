@@ -103,16 +103,17 @@ func Main(run RunFunc) int {
 // (FormatExternal) Output leaves signals to its host and stops only
 // through ctx (spec §53).
 func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
+	// runCtx becomes o.Context() for the duration of this run (see
+	// beginRunContext): every Define/Verify task scope started from here
+	// on sees the caller's values and deadline, and is cancelled only by
+	// interrupt. It is installed before either watch starts, so the first
+	// interrupt — even one a pre-cancelled ctx fires at once — cancels
+	// this context rather than a placeholder it would then replace.
+	runCtx := out.beginRunContext(detachCancellation(ctx))
 	signals := out.subscribeProcessSignals()
 	defer signals.stop()
 	caller := watchCaller(ctx, out)
 	defer caller.release()
-
-	// runCtx becomes o.Context() for the duration of this run (see
-	// beginRunContext): every Define/Verify task scope started from here
-	// on sees the caller's values and deadline, and is cancelled only by
-	// interrupt.
-	runCtx := out.beginRunContext(detachCancellation(ctx))
 
 	var signalled atomic.Bool
 	concluded := make(chan Result, 1)
@@ -121,7 +122,8 @@ func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 		if run != nil {
 			runErr = run(runCtx)
 		}
-		if signalled.Load() || caller.ended() {
+		out.endRunCallback(caller.ended)
+		if signalled.Load() || caller.interruptIfEnded() {
 			concluded <- concludeCancelled(out, runErr)
 			return
 		}

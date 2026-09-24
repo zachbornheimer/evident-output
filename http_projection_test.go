@@ -230,3 +230,42 @@ func TestIsolatedOutputs_ConcurrentRunsKeepSeparateTruth(t *testing.T) {
 		t.Fatalf("package default gained %d Tasks from Isolated runs", after-defaultBefore)
 	}
 }
+
+// preCancelledProbeRuns is how many runs it takes to hit the window where a
+// caller's already-ended ctx interrupts before the run context exists; the
+// original report hung at run 123 of 2000.
+const preCancelledProbeRuns = 2000
+
+// preCancelledProbeBudget bounds the whole probe: every run returns at
+// once, so exceeding it means one run's context was never cancelled.
+const preCancelledProbeBudget = 30 * time.Second
+
+// A request whose client disconnected before the handler reached Run still
+// concludes: the interrupt the ended ctx triggers must cancel the context
+// the run body actually waits on, never a placeholder replaced after it.
+func TestOutputRun_PreCancelledCallerContextNeverHangs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	done := make(chan evo.Result, 1)
+	go func() {
+		var last evo.Result
+		for range preCancelledProbeRuns {
+			last = embedderOutput().Run(ctx, func(rc context.Context) error {
+				<-rc.Done()
+				return rc.Err()
+			})
+			if last.ExitCode() != evo.ExitCancelled {
+				break
+			}
+		}
+		done <- last
+	}()
+	select {
+	case result := <-done:
+		if result.Conclusion.State != evo.StateCancelled || result.ExitCode() != evo.ExitCancelled {
+			t.Fatalf("pre-cancelled run concluded %s/%d, want %s/%d", result.Conclusion.State, result.ExitCode(), evo.StateCancelled, evo.ExitCancelled)
+		}
+	case <-time.After(preCancelledProbeBudget):
+		t.Fatal("a run on a pre-cancelled caller ctx hung: its run context was installed after the interrupt and never cancelled")
+	}
+}
