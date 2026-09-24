@@ -1,7 +1,6 @@
 package review
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -18,47 +17,37 @@ func GoPackage(files map[string]string) Result {
 }
 
 // GoPackageAt reviews multiple Go files in one package as they would be
-// written for desiredVersion (empty means the current rec dialect), with
-// go/types for cross-file API resolution without executing package code
-// (MCP-017). files maps filename → source. External imports are stubbed
-// so type-check stays local to the provided sources. Files are reviewed in
-// name order, so the findings keep one order across calls.
+// written for desiredVersion (empty means the current rec dialect).
+// files maps filename → source. Files are reviewed in name order, so the
+// findings keep one order across calls. The package's own declarations are
+// type-checked across files without loading any import (MCP-017).
 func GoPackageAt(files map[string]string, desiredVersion string) Result {
 	if len(files) == 0 {
 		return newResult([]Finding{{RuleID: "API-000", Message: "no files provided"}})
 	}
 	pkg := parsePackage(files)
-	pkgHasEvo := packageImportsEvo(files)
+	pkgHasEvo := pkg.importsEvo()
 	var all []Finding
 	for _, name := range pkg.names {
-		src := files[name]
-		if f := pkg.parsed[name]; f != nil {
-			all = append(all, reviewFile(name, src, f, pkg.fset, desiredVersion)...)
+		f := pkg.parsed[name]
+		if f == nil {
+			continue
 		}
+		all = append(all, reviewFile(name, files[name], f, pkg.fset, desiredVersion)...)
 		if pkgHasEvo {
-			all = append(all, crossFileStreamFindings(name, src)...)
+			all = append(all, crossFileStreamFindings(name, f)...)
 		}
 	}
 	all = append(all, pkg.parseErrors...)
-	if len(pkg.files) == 0 {
-		res := newResult(all)
-		res.Partial = true
-		res.DesiredVersion = desiredVersion
-		return res
-	}
-	typed, typeErr := pkg.typeCheck()
-	all = append(all, admitDialect(typedCollectionLeafFindings(pkg, typed), desiredVersion)...)
-	// Partial when the type check failed: stubbed imports can leave
-	// cross-file types unresolved.
-	partial := typeErr != nil && (pkgHasEvo || len(files) >= 2)
-	if typeErr != nil && len(files) >= 2 {
+	localErr := pkg.localTypeError()
+	if localErr != "" {
 		all = append(all, Finding{
 			RuleID:  "MCP-017",
-			Message: "cross-file typecheck incomplete: " + typeErr.Error(),
+			Message: "cross-file typecheck incomplete: " + localErr,
 		})
 	}
 	res := newResult(all)
-	res.Partial = partial
+	res.Partial = len(pkg.files) == 0 || localErr != ""
 	res.DesiredVersion = desiredVersion
 	return res
 }
@@ -94,28 +83,74 @@ func parsePackage(files map[string]string) parsedPackage {
 	return pkg
 }
 
-// typeCheck resolves the package's types locally. The returned info is
-// usable even when the check reports an error.
-func (pkg parsedPackage) typeCheck() (*types.Info, error) {
+// localTypeError type-checks the package's own declarations and returns
+// the first error that is not caused by an unloaded import, or "". Imports
+// are never loaded, so every selector through one is unresolved by design;
+// those errors say nothing about the reviewed code.
+func (pkg parsedPackage) localTypeError() string {
+	qualifiers := pkg.importQualifiers()
+	var first string
 	conf := types.Config{
-		// Local-only: missing imports do not abort the whole check.
-		Importer: stubImporter{},
-		Error:    func(error) {}, // collect via Check return
+		Importer: emptyImporter{},
+		Error: func(err error) {
+			te, ok := err.(types.Error)
+			if first != "" || (ok && qualifiers[te.Pos]) {
+				return
+			}
+			if ok && strings.Contains(te.Msg, "imported and not used") {
+				return
+			}
+			first = err.Error()
+		},
 	}
-	info := &types.Info{
-		Types: make(map[ast.Expr]types.TypeAndValue),
-		Uses:  make(map[*ast.Ident]types.Object),
-		Defs:  make(map[*ast.Ident]types.Object),
-	}
-	_, err := conf.Check(pkg.name, pkg.fset, pkg.files, info)
-	return info, err
+	_, _ = conf.Check(pkg.name, pkg.fset, pkg.files, nil)
+	return first
 }
 
-// packageImportsEvo reports whether any file imports evo, so STREAM rules
+// importQualifiers is the position of every package qualifier in the
+// package: the X of a selector whose name is one of its file's imports.
+func (pkg parsedPackage) importQualifiers() map[token.Pos]bool {
+	out := map[token.Pos]bool{}
+	for _, f := range pkg.files {
+		names := importNames(f)
+		ast.Inspect(f, func(n ast.Node) bool {
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			if id, ok := sel.X.(*ast.Ident); ok && names[id.Name] {
+				out[id.Pos()] = true
+				out[sel.Sel.Pos()] = true
+			}
+			return true
+		})
+	}
+	return out
+}
+
+// importNames is the set of names file f can qualify an import by: its
+// alias, else the last path element, and evo for this module.
+func importNames(f *ast.File) map[string]bool {
+	names := map[string]bool{}
+	for _, imp := range f.Imports {
+		path := strings.Trim(imp.Path.Value, `"`)
+		if imp.Name != nil {
+			names[imp.Name.Name] = true
+			continue
+		}
+		names[path[strings.LastIndex(path, "/")+1:]] = true
+	}
+	if name := evoImportName(f); name != "" {
+		names[name] = true
+	}
+	return names
+}
+
+// importsEvo reports whether any parsed file imports evo, so STREAM rules
 // apply across the package.
-func packageImportsEvo(files map[string]string) bool {
-	for _, src := range files {
-		if strings.Contains(src, "evident-output") || strings.Contains(src, `"evo"`) {
+func (pkg parsedPackage) importsEvo() bool {
+	for _, f := range pkg.files {
+		if evoImportName(f) != "" {
 			return true
 		}
 	}
@@ -124,11 +159,8 @@ func packageImportsEvo(files map[string]string) bool {
 
 // crossFileStreamFindings flags fmt.Print* in a file that does not import
 // evo itself, in a package that does (STREAM-003).
-func crossFileStreamFindings(name, src string) []Finding {
-	if strings.Contains(src, "evident-output") {
-		return nil
-	}
-	if !strings.Contains(src, "fmt.Print") && !strings.Contains(src, "fmt.Fprint") {
+func crossFileStreamFindings(name string, f *ast.File) []Finding {
+	if evoImportName(f) != "" || !callsFmtPrint(f) {
 		return nil
 	}
 	return []Finding{{
@@ -138,48 +170,24 @@ func crossFileStreamFindings(name, src string) []Finding {
 	}}
 }
 
-// collectionLeafVerbs are the leaf verbs a Group/Sequence must not call.
-var collectionLeafVerbs = []string{"Done", "Fail", "Progress"}
-
-// typedCollectionLeafFindings flags a leaf verb called on a value whose
-// resolved type is a Group or Sequence handle (API-027).
-func typedCollectionLeafFindings(pkg parsedPackage, info *types.Info) []Finding {
-	var out []Finding
-	for _, f := range pkg.files {
-		ast.Inspect(f, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || !slices.Contains(collectionLeafVerbs, sel.Sel.Name) {
-				return true
-			}
-			tv, ok := info.Types[sel.X]
-			if !ok || tv.Type == nil {
-				return true
-			}
-			tn := tv.Type.String()
-			if strings.Contains(tn, "GroupHandle") || strings.Contains(tn, "SequenceHandle") {
-				pos := pkg.fset.Position(n.Pos())
-				out = append(out, Finding{
-					RuleID:  "API-027",
-					Message: fmt.Sprintf("typed: %s.%s on collection type %s is forbidden", tn, sel.Sel.Name, tn),
-					File:    pos.Filename,
-					Line:    pos.Line,
-					Column:  pos.Column,
-				})
-			}
-			return true
-		})
-	}
-	return out
+// callsFmtPrint reports whether f calls fmt.Print* or fmt.Fprint*.
+func callsFmtPrint(f *ast.File) bool {
+	found := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if ok && identName(sel.X) == "fmt" &&
+			(strings.HasPrefix(sel.Sel.Name, "Print") || strings.HasPrefix(sel.Sel.Name, "Fprint")) {
+			found = true
+		}
+		return !found
+	})
+	return found
 }
 
-// stubImporter satisfies go/types for external imports without loading code.
-type stubImporter struct{}
+// emptyImporter gives go/types an empty package for every import, so the
+// check stays local to the reviewed sources.
+type emptyImporter struct{}
 
-func (stubImporter) Import(path string) (*types.Package, error) {
-	// Return an empty package so Check can continue for local symbols.
+func (emptyImporter) Import(path string) (*types.Package, error) {
 	return types.NewPackage(path, path[strings.LastIndex(path, "/")+1:]), nil
 }

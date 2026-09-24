@@ -1499,14 +1499,14 @@ func run(out *evo.Output) error {
 	collect(review.Transcript("t.txt", "\x1b[?25l hello \x00"))
 	collect(review.StructuredDocument("x.json", []byte(`{"foo":1}`)))
 
-	// MCP-017: cross-file typecheck with an unresolved external symbol.
+	// MCP-017: cross-file typecheck with an unresolved local symbol.
 	collect(review.GoPackage(map[string]string{
 		"a.go": `package p
 import evo "github.com/zachbornheimer/evident-output"
 func makeOut() *evo.Output { return evo.Init(evo.Config{}) }
 `,
 		"b.go": `package p
-func use() { _ = makeOut() }
+func use() { _ = makeOutt() }
 `}))
 
 	if len(emitted) == 0 {
@@ -1620,9 +1620,9 @@ func use() {
 	if !hasStream {
 		t.Fatalf("expected STREAM-003 from cross-file fmt: %+v", res.Findings)
 	}
-	// With 2 files and local typecheck, Partial should be false when types succeed.
-	// Stub importer may still leave Partial true — at least multi-file ran without crash.
-	_ = res.Partial
+	if res.Partial {
+		t.Fatalf("both files type-check locally, so the review is not partial: %+v", res.Findings)
+	}
 }
 
 func findAPI032(res review.Result) []review.Finding {
