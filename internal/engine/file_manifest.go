@@ -128,37 +128,6 @@ func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 	}
 }
 
-// opaqueTaskDefinitionCurrentLocked reports whether taskID can safely skip
-// invoking its Define callback this Run because the last Run's committed
-// TaskRecord for the same manifest key already proves it: (1) that prior
-// Run's Define recorded no File/Exec/Patch operation of its own (so
-// skipping produces no observable managed-state gap — an opaque Task never
-// had tracked output to go stale), and (2) this Task's own
-// taskOpaqueDefinitionFingerprint (key + application fingerprint) is
-// unchanged since that commit, i.e. neither the Task's stable key nor the
-// application binary has drifted (ZYS-817 Decisions 2026-09-23: "opaque
-// callbacks conservatively fall back to app identity"). It only ever
-// consults a manifest this Run already opened for some other Task (see
-// manifestFor) — checking here never itself opens one, keeping a purely
-// opaque Run's "never touches the manifest file" guarantee (spec/
-// TestOpaqueOnlyRunNeverOpensManifest) intact. Callers must already hold
-// o.mu.
-func (o *Output) opaqueTaskDefinitionCurrentLocked(taskID string) bool {
-	if !o.manifestOpened || o.manifestStore == nil || !o.manifestAppDone {
-		return false
-	}
-	key, _, ok := o.taskManifestKeyLocked(taskID)
-	if !ok {
-		return false
-	}
-	prior, ok := o.manifestStore.Task(key)
-	if !ok || len(prior.Operations) != 0 {
-		return false
-	}
-	want := taskOpaqueDefinitionFingerprint(key, o.manifestApp.Fingerprint)
-	return prior.DefinitionFingerprint != "" && prior.DefinitionFingerprint == want
-}
-
 // taskOpaqueDefinitionFingerprint computes an opaque Task's own definition
 // identity: the conservative application-fingerprint fallback ZYS-817
 // Decisions (2026-09-23) requires when a Task's Define recorded no precise

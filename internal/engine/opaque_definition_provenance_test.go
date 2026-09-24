@@ -156,59 +156,45 @@ func TestTaskOpaqueDefinitionFingerprintChangesWithAppFingerprint(t *testing.T) 
 	}
 }
 
-// TestOpaqueTaskDefinitionSkipsSecondRunsCallback proves the ZYS-817
-// fallback actually gates a skip/rerun decision, not just storage: a Task
-// with the same manifest key that stayed opaque (no File/Exec/Patch) on a
-// prior Run, in a Run that already has other manifest activity, and whose
-// application fingerprint has not changed, has its Define callback skipped
-// entirely on the next Run — mirroring how a current File/Exec operation
-// already skips re-running its own managed work.
-//
-// This test intentionally runs two sequential *Output Runs against the
-// same on-disk manifest state (not two separate test cases, and not
-// t.Parallel()) — that shared, single-test-function-scoped
-// sharedRunStateDir/sharedManagedFilePath is the thing under test: whether
-// Run 2 reuses Run 1's committed TaskRecord. Each is still its own unique
-// t.TempDir(), isolated from every other test in this package.
-func TestOpaqueTaskDefinitionSkipsSecondRunsCallback(t *testing.T) {
-	sharedRunStateDir := t.TempDir()
-	sharedManagedFilePath := filepath.Join(t.TempDir(), "managed.txt")
+// TestOpaqueTaskDefinitionRunsEveryRun proves an opaque Task (no Verify,
+// no File/Exec operation) runs its Define callback on every Run, even when
+// a prior Run of the same binary committed a TaskRecord for it. Evo cannot
+// observe opaque state (a push, an API call), so application identity can
+// never prove it current. The File Task first opens the manifest, the shape
+// that used to trigger the skip.
+func TestOpaqueTaskDefinitionRunsEveryRun(t *testing.T) {
+	stateDir := t.TempDir()
+	managed := filepath.Join(t.TempDir(), "managed.txt")
 
-	// Run 1: an unrelated File Task opens the manifest, plus one opaque
-	// Task, so the opaque Task's TaskRecord (Operations empty,
-	// DefinitionFingerprint set) is committed for reuse.
-	out1 := Init(Config{Isolated: true, StateDir: sharedRunStateDir})
-	if err := runFileTask(t, out1, "file", FileSpec{Path: sharedManagedFilePath, Contents: []byte("desired")}); err != nil {
-		t.Fatalf("run1 file task: %v", err)
-	}
-	run1Calls := 0
-	opaque1 := out1.Task("opaque")
-	opaque1.Define(func(ctx context.Context) error { run1Calls++; return nil })
-	if err := opaque1.Wait(); err != nil {
-		t.Fatalf("run1 opaque task: %v", err)
-	}
-	if err := out1.Close(); err != nil {
-		t.Fatalf("run1 close: %v", err)
-	}
-	if run1Calls != 1 {
-		t.Fatalf("run1 opaque Define calls = %d, want 1 (first Run has no prior record to skip by)", run1Calls)
+	runOnce := func(run int) int {
+		out := Init(Config{Isolated: true, StateDir: stateDir})
+		defer func() { _ = out.Close() }()
+		if err := runFileTask(t, out, "file", FileSpec{Path: managed, Contents: []byte("desired")}); err != nil {
+			t.Fatalf("run %d file task: %v", run, err)
+		}
+		pushes := 0
+		push := out.Task("push branch")
+		push.Define(func(ctx context.Context) error {
+			return Effect(ctx, EffectSpec{Verb: EffectPush, Object: "branch", Quantity: 1}, func(context.Context) error {
+				pushes++
+				return nil
+			})
+		})
+		if err := push.Wait(); err != nil {
+			t.Fatalf("run %d push task: %v", run, err)
+		}
+		out.mu.Lock()
+		got := out.taskByRef[push.id].resolution
+		out.mu.Unlock()
+		if got != ResolutionExecuted {
+			t.Fatalf("run %d push resolution = %q, want %q", run, got, ResolutionExecuted)
+		}
+		return pushes
 	}
 
-	// Run 2: same manifest key, same unrelated File Task (so the manifest
-	// opens again), same application fingerprint (same test binary) — the
-	// opaque Task's Define must be skipped this time.
-	out2 := Init(Config{Isolated: true, StateDir: sharedRunStateDir})
-	t.Cleanup(func() { _ = out2.Close() })
-	if err := runFileTask(t, out2, "file", FileSpec{Path: sharedManagedFilePath, Contents: []byte("desired")}); err != nil {
-		t.Fatalf("run2 file task: %v", err)
-	}
-	run2Calls := 0
-	opaque2 := out2.Task("opaque")
-	opaque2.Define(func(ctx context.Context) error { run2Calls++; return nil })
-	if err := opaque2.Wait(); err != nil {
-		t.Fatalf("run2 opaque task: %v", err)
-	}
-	if run2Calls != 0 {
-		t.Fatal("an opaque Task's Define callback must be skipped on a Run whose application fingerprint and prior opaque TaskRecord both still match")
+	for run := 1; run <= 2; run++ {
+		if got := runOnce(run); got != 1 {
+			t.Fatalf("run %d Effect callback calls = %d, want 1: an opaque Task must never be skipped as already satisfied", run, got)
+		}
 	}
 }
