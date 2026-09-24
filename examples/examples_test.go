@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -34,9 +35,10 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 		{name: "debug-pane", args: []string{"--fast"}},
 		{name: "debug-pane", args: []string{"--fast", "--fail"}, allowExit: []int{0, 1}},
 		{name: "terminal-driver", args: []string{"--fast", "--frames"}},
+		{name: "launch-agent-http"},
+		{name: "launch-agent-http", args: []string{"--format", "json"}},
 	}
 	for _, s := range specs {
-		s := s
 		label := s.name
 		if len(s.args) > 0 {
 			label = s.name + "/" + joinArgs(s.args)
@@ -75,14 +77,14 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 }
 
 func joinArgs(args []string) string {
-	out := ""
+	var out strings.Builder
 	for i, a := range args {
 		if i > 0 {
-			out += "_"
+			out.WriteString("_")
 		}
-		out += a
+		out.WriteString(a)
 	}
-	return out
+	return out.String()
 }
 
 func findRepoRoot(t *testing.T) string {
@@ -91,7 +93,7 @@ func findRepoRoot(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			// When tests run as package examples_test from examples/, go.mod is parent.
 			if filepath.Base(dir) == "examples" {
