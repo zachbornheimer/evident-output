@@ -491,8 +491,7 @@ func (o *Output) liveTickerSnapshotLocked() Snapshot {
 
 // renderLiveRegionWithDebug builds the live ledger plus optional rolling debug pane (§21.3.2).
 func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Time) string {
-	color := !o.cfg.noColor
-	profile := o.cfg.glyphs
+	style := o.humanStyle()
 	bodyHeight := height
 	if o.cfg.debugPresentation == DebugPresentationPane && len(o.debugRecords) > 0 {
 		// Reserve rows for pane heading + visible records before budgeting the body.
@@ -505,15 +504,15 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 		}
 		bodyHeight = max(height-paneRows, 1)
 	}
-	body := render.LiveRegion(o.liveTickerSnapshotLocked(), bodyHeight, width, now, color, profile)
+	body := render.LiveRegion(o.liveTickerSnapshotLocked(), bodyHeight, width, now, style)
 	if body == "" && o.armedTitleLiveLocked() {
-		body = render.ArmedTitleLine(o.cfg.subject, now, color, profile)
+		body = render.ArmedTitleLine(o.cfg.subject, now, style)
 	}
 	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {
 		return render.FitLiveRegion(body, width)
 	}
 	var b strings.Builder
 	b.WriteString(body)
-	writeDebugPane(&b, o.debugRecords, o.cfg.debugPane, width, color)
+	writeDebugPane(&b, o.debugRecords, o.cfg.debugPane, width, style.Color)
 	return render.FitLiveRegion(strings.TrimRight(b.String(), "\n"), width)
 }

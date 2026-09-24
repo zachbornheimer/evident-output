@@ -14,19 +14,19 @@ import (
 // connectors stay txt.Dim either way — they are decoration — but the evidence
 // text itself renders at full intensity so a failure's proof is never the
 // lowest-contrast text on screen.
-func writeProblem(b *strings.Builder, p core.Problem, color, emphasize bool, profile txt.GlyphProfile) {
+func writeProblem(b *strings.Builder, p core.Problem, emphasize bool, s Style) {
 	detail, tail := effectiveDetailAndTail(p)
 	if p.Subject != "" {
 		extra := p.Summary
 		if p.Count != 0 {
 			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
 		}
-		fmt.Fprintf(b, "%s%s %s  %s\n", problemTreeIndent, txt.Dim("├─", color), p.Subject, extra)
+		fmt.Fprintf(b, "%s%s %s  %s\n", problemTreeIndent, s.dim("├─"), p.Subject, extra)
 		if detail != "" {
-			writeProblemDetailLines(b, detail, txt.Dim("│", color), color, emphasize)
+			writeProblemDetailLines(b, detail, emphasize, s)
 		}
 		if tail != "" {
-			writeProblemDetailLines(b, tail, txt.Dim("│", color), color, emphasize)
+			writeProblemDetailLines(b, tail, emphasize, s)
 		}
 		return
 	}
@@ -34,13 +34,13 @@ func writeProblem(b *strings.Builder, p core.Problem, color, emphasize bool, pro
 	// when the caller left it set — writeTask clears Summary when it already
 	// appears on the ✗ row so Detail alone is the evidence body (P4).
 	if detail != "" {
-		writeProblemDetailBlock(b, p.Summary, detail, color, emphasize, profile)
+		writeProblemDetailBlock(b, p.Summary, detail, emphasize, s)
 		if tail != "" {
-			writeAdditionalEvidenceLines(b, tail, color, emphasize)
+			writeAdditionalEvidenceLines(b, tail, emphasize, s)
 		}
 		return
 	}
-	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, txt.Dim(txt.GlyphEvidence.Render(profile), color), emphasizedText(p.Summary, color, emphasize))
+	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, s.evidenceGlyph(), s.emphasized(p.Summary, emphasize))
 }
 
 // dedupeEvidenceTailAgainstRow is P7's addition (user-13-problems.md
@@ -64,16 +64,6 @@ func dedupeEvidenceTailAgainstRow(p core.Problem, rowSummary string) core.Proble
 		p.EvidenceTail = ""
 	}
 	return p
-}
-
-// emphasizedText applies txt.Dim unless emphasize opts the text out of demotion —
-// the single place that decides "is this text decoration or evidence" for
-// the problem-rendering chain.
-func emphasizedText(s string, color, emphasize bool) string {
-	if emphasize {
-		return s
-	}
-	return txt.Dim(s, color)
 }
 
 // effectiveDetailAndTail resolves a core.Problem's Detail and EvidenceTail into
@@ -100,9 +90,9 @@ func effectiveDetailAndTail(p core.Problem) (detail, tail string) {
 // under a just-written Detail block, matching writeProblemDetailBlock's own
 // continuation indent so the tail reads as more evidence for the same
 // problem rather than a new one.
-func writeAdditionalEvidenceLines(b *strings.Builder, tail string, color, emphasize bool) {
+func writeAdditionalEvidenceLines(b *strings.Builder, tail string, emphasize bool, s Style) {
 	for _, line := range splitPresentationLines(tail) {
-		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, emphasizedText(line, color, emphasize))
+		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, s.emphasized(line, emphasize))
 	}
 }
 
@@ -110,29 +100,25 @@ func writeAdditionalEvidenceLines(b *strings.Builder, tail string, color, emphas
 // the evidence connector. When summary is non-empty it opens the block;
 // continuations (and all detail lines when summary is empty) are indented
 // under it.
-func writeProblemDetailBlock(b *strings.Builder, summary, detail string, color, emphasize bool, profile txt.GlyphProfile) {
+func writeProblemDetailBlock(b *strings.Builder, summary, detail string, emphasize bool, s Style) {
 	lines := splitPresentationLines(detail)
-	evidence := txt.Dim(txt.GlyphEvidence.Render(profile), color)
-	if summary != "" {
-		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, evidence, emphasizedText(summary, color, emphasize))
-		for _, line := range lines {
-			fmt.Fprintf(b, "%s%s\n", problemDetailIndent, emphasizedText(line, color, emphasize))
+	if summary == "" {
+		if len(lines) == 0 {
+			return
 		}
-		return
+		summary, lines = lines[0], lines[1:]
 	}
-	if len(lines) == 0 {
-		return
-	}
-	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, evidence, emphasizedText(lines[0], color, emphasize))
-	for _, line := range lines[1:] {
-		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, emphasizedText(line, color, emphasize))
+	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, s.evidenceGlyph(), s.emphasized(summary, emphasize))
+	for _, line := range lines {
+		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, s.emphasized(line, emphasize))
 	}
 }
 
 // writeProblemDetailLines continues Detail under a subject (├─) row with │ prefixes.
-func writeProblemDetailLines(b *strings.Builder, detail, pipe string, color, emphasize bool) {
+func writeProblemDetailLines(b *strings.Builder, detail string, emphasize bool, s Style) {
+	pipe := s.dim("│")
 	for _, line := range splitPresentationLines(detail) {
-		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, pipe, emphasizedText(line, color, emphasize))
+		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, pipe, s.emphasized(line, emphasize))
 	}
 }
 
@@ -154,11 +140,11 @@ func splitPresentationLines(s string) []string {
 // writeAction renders one next-action row prefixed by the profile-aware next-
 // action glyph (→ / >). evo-rec.md's tightened vocabulary gives "next action"
 // its own row so the meaning does not rest on cyan color alone.
-func writeAction(b *strings.Builder, a core.Action, color bool, profile txt.GlyphProfile) {
-	glyph := txt.StyleGlyph(txt.GlyphNextAction.Render(profile), txt.SGRCyan, color)
+func writeAction(b *strings.Builder, a core.Action, s Style) {
+	glyph := txt.StyleGlyph(txt.GlyphNextAction.Render(s.Profile), txt.SGRCyan, s.Color)
 	if a.Command != nil {
 		cmd := a.Command.Executable + " " + strings.Join(a.Command.Args, " ")
-		fmt.Fprintf(b, "%s  %s\n", glyph, txt.Style(cmd, txt.SGRCyan, color))
+		fmt.Fprintf(b, "%s  %s\n", glyph, s.paint(cmd, txt.SGRCyan))
 		return
 	}
 	if a.Label != "" {

@@ -22,7 +22,7 @@ func TestAlreadySatisfiedRowDetail_IgnoresSummary(t *testing.T) {
 		Resolution: core.ResolutionAlreadySatisfied,
 	}
 	var b strings.Builder
-	WriteTaskAligned(&b, snap, 0, false, false, txt.GlyphsUnicode)
+	WriteTaskAligned(&b, snap, 0, Style{Profile: txt.GlyphsUnicode})
 	got := b.String()
 	if !strings.Contains(got, "already satisfied") {
 		t.Fatalf("missing ResolutionAlreadySatisfied suffix:\n%s", got)
@@ -40,7 +40,7 @@ func TestAlreadySatisfiedRowDetail_LiveUnit(t *testing.T) {
 		Summary:    "nope",
 		Resolution: core.ResolutionAlreadySatisfied,
 	}
-	unit := liveTaskUnit(snap, 1, liveStyle{width: 80, spin: "⠋", profile: txt.GlyphsUnicode})
+	unit := liveTaskUnit(snap, 1, liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 80, spin: "⠋"})
 	if unit.Detail != alreadySatisfiedDetail {
 		t.Fatalf("live Detail = %q, want %q", unit.Detail, alreadySatisfiedDetail)
 	}

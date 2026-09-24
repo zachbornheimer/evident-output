@@ -23,42 +23,35 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 	if width <= 0 {
 		width = defaultWidth
 	}
-	color := !noColor
+	st := Style{Color: !noColor, Verbose: verbose, Profile: profile}
 	s = HumanProjection(s, verbose)
 
 	if s.DryRun {
-		WritePlannedHeader(&b, color, s.Preview, s.DryRunSubject)
+		WritePlannedHeader(&b, st.Color, s.Preview, s.DryRunSubject)
 	}
 
 	for _, line := range s.Lines {
-		WriteDebugOrLine(&b, line, color)
+		WriteDebugOrLine(&b, line, st.Color)
 	}
-	writeRunAnnotations(&b, s.Warnings, s.Facts, color, profile)
+	writeRunAnnotations(&b, s.Warnings, s.Facts, st)
 
 	taskNameWidth := maxTaskNameWidth(s.Tasks)
 	for _, t := range s.Tasks {
-		WriteTaskAligned(&b, t, taskNameWidth, color, verbose, profile)
+		WriteTaskAligned(&b, t, taskNameWidth, st)
 	}
 
 	for _, col := range s.Collections {
-		WriteCollection(&b, col, color, verbose, profile)
+		WriteCollection(&b, col, st)
 	}
 
 	if hasTaskRows(s) && hasEffectSections(s) {
 		b.WriteByte('\n')
 	}
 
-	changeNameWidth := maxEffectSubjectWidth(s.Changes, func(c core.ChangesSnapshot) string { return c.Subject })
-	for _, ch := range s.Changes {
-		WriteEffects(&b, "changed", ch.Subject, changeNameWidth, ch.Records, ch.IntendedVerb, width, color, profile)
-	}
-	planNameWidth := maxEffectSubjectWidth(s.Plans, func(p core.PlanSnapshot) string { return p.Subject })
-	for _, p := range s.Plans {
-		WriteEffects(&b, "planned", p.Subject, planNameWidth, p.Records, p.IntendedVerb, width, color, profile)
-	}
+	writeLedger(&b, s, width, st)
 
 	if s.Conclusion != nil && !ShouldSuppressStandaloneConclusion(s) {
-		WriteConclusion(&b, StandaloneConclusion(s), color, profile)
+		WriteConclusion(&b, StandaloneConclusion(s), st)
 	}
 
 	return b.String()
@@ -173,18 +166,16 @@ const (
 // row's own nesting indent (matches the value writeNestedTaskFacts/
 // writeNestedTaskWarnings already use at this call site — "  " for a
 // standalone task, problemTreeIndent for a collection child).
-func writeVerificationDetails(b *strings.Builder, details []core.VerificationDetail, indent string, taskFailed, verbose, color bool, profile txt.GlyphProfile) {
-	if len(details) == 0 || (!taskFailed && !verbose) {
+func writeVerificationDetails(b *strings.Builder, details []core.VerificationDetail, indent string, taskFailed bool, s Style) {
+	if len(details) == 0 || (!taskFailed && !s.Verbose) {
 		return
 	}
 	for _, d := range details {
 		if d.Status == core.VerificationSatisfied {
-			glyph := txt.StyleGlyph(TaskGlyph(core.NotStarted, profile), StateColor(core.NotStarted), color)
-			fmt.Fprintf(b, "%s%s %s\n", indent, glyph, txt.Dim(d.Name+"  already satisfied", color))
+			fmt.Fprintf(b, "%s%s %s\n", indent, s.stateGlyph(core.NotStarted), s.dim(d.Name+"  already satisfied"))
 			continue
 		}
-		glyph := txt.StyleGlyph(TaskGlyph(core.Failed, profile), StateColor(core.Failed), color)
-		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, d.Name)
+		fmt.Fprintf(b, "%s%s %s\n", indent, s.stateGlyph(core.Failed), d.Name)
 		writeVerificationFacts(b, d.Facts, indent+"  ")
 	}
 }
@@ -225,117 +216,16 @@ const bangColumnFiller = "  "
 // WriteTask renders a standalone task row unpadded — see WriteTaskAligned
 // for the sibling-column-alignment form fixture-repo-retire-dryrun.md
 // requires when annotations (inline warnings/facts) sit among peers.
-func WriteTask(b *strings.Builder, t core.TaskSnapshot, color, verbose bool, profile txt.GlyphProfile) {
-	WriteTaskAligned(b, t, 0, color, verbose, profile)
+func WriteTask(b *strings.Builder, t core.TaskSnapshot, s Style) {
+	WriteTaskAligned(b, t, 0, s)
 }
 
-// WriteTaskAligned renders a task row with its name padded to nameWidth (0
-// = no padding) before any annotation, so a run of sibling tasks with inline
-// warnings/facts line up in one column ("✓ branches          ! kept 13...",
-// fixture-repo-retire-dryrun.md) instead of each row's detail starting
-// wherever its own name happens to end. A detail-less row's padding is
-// trimmed so it never ends in dangling whitespace (mirrors DisplayUnit.Render).
-func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, color, verbose bool, profile txt.GlyphProfile) {
-	t = TaskAtVerbosity(t, verbose)
-	glyph := txt.StyleGlyph(TaskGlyph(t.State, profile), StateColor(t.State), color)
-	label := txt.PadRight(t.Name, nameWidth)
-	// annotatedLabel carries taskNameColumnMargin's extra column — only the
-	// inline warning/fact/taxonomy cases below use it, never a Summary row.
-	annotatedLabel := txt.PadRight(t.Name, nameWidth+taskNameColumnMargin)
-	runningDetail := ""
-	if t.State == core.Running {
-		runningDetail = runningTaskDetail(t)
-	}
-	inlineWarning, hasInlineWarning := inlineTaskWarning(t)
-	nestedWarnings := t.Warnings
-	if hasInlineWarning {
-		nestedWarnings = nil
-	}
-	inlineFact, hasInlineFact := inlineTaskFact(t)
-	nestedFacts := t.Facts
-	if hasInlineFact {
-		nestedFacts = nil
-	}
-	inlineTaxonomy, inlineTaxonomyVerb, hasInlineTaxonomy := inlineTaskTaxonomy(t)
-	switch {
-	case t.Resolution == core.ResolutionAlreadySatisfied:
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, label, alreadySatisfiedRowDetail(t, color))
-	case t.Summary != "" && t.State == core.Failed:
-		// release-gate round 6 finding 5: a Fail summary is the evidence the
-		// reader most needs — it must never render at the lowest contrast on
-		// screen. Full intensity here; txt.Dim stays for genuinely subordinate
-		// outcomes (core.Done/Skip/Cancel summaries) below.
-		//
-		// release-gate round 8 finding 4: a task that failed mid-loop still
-		// carries the in-flight count (e.g. "1/3") it had when Fail was
-		// called — dropping it the instant a task fails would hide exactly
-		// the evidence a reader needs most ("how far did it get"). Rendered
-		// in the same position a core.Running row shows it (runningTaskDetail).
-		if count := progressCountText(t.Progress); count != "" {
-			fmt.Fprintf(b, "%s %s  %s  %s\n", glyph, label, count, t.Summary)
-		} else {
-			fmt.Fprintf(b, "%s %s  %s\n", glyph, label, t.Summary)
-		}
-	case t.Summary != "" && t.State == core.Blocked:
-		// release-gate round 6 finding 5: same full-intensity treatment as
-		// core.Failed above; core.Blocked never carries in-flight progress (a gate
-		// resolves before mutation, never mid-loop), so no count applies.
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, label, t.Summary)
-	case t.Summary != "":
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, label, txt.Dim(t.Summary, color))
-	case hasInlineWarning:
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, annotatedLabel, inlineWarningText(inlineWarning, color, profile))
-	case hasInlineTaxonomy:
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, annotatedLabel, inlineTaxonomyText(inlineTaxonomy, inlineTaxonomyVerb, color, profile))
-	case hasInlineFact:
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, annotatedLabel, inlineFactText(inlineFact, color))
-	case runningDetail != "":
-		// Default intensity, not txt.Dim: the in-flight phase/progress is the
-		// diagnostic signal while work is stalled — txt.Dim is reserved for
-		// genuinely subordinate rows (○ pending, - not started, evidence,
-		// overflow), per evo-rec.md "Color and txt.Style demotions".
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, label, runningDetail)
-	default:
-		// No detail to align a column against — pad-trimmed so this row
-		// never ends in dangling whitespace (DisplayUnit.Render's rule).
-		fmt.Fprintf(b, "%s %s\n", glyph, strings.TrimRight(label, " "))
-	}
-	// Problems (including Detail from Capture tails) always follow the row.
-	// Early-return on Summary used to drop Fail Detail — a silent dialect hole.
-	// emphasize keeps a Fail/Block task's evidence at full intensity (finding 5).
-	emphasize := t.State == core.Failed || t.State == core.Blocked
-	problems := t.Problems
-	omitted := 0
-	if len(problems) > maxVisibleProblems {
-		omitted = len(problems) - maxVisibleProblems
-		problems = problems[:maxVisibleProblems]
-	}
-	for _, p := range problems {
-		p = dedupeEvidenceTailAgainstRow(p, t.Summary)
-		// beginner-3: the task glyph row already shows t.Summary. A problem
-		// row with no Detail beyond that summary says nothing new — drop it
-		// entirely instead of re-echoing "└─ <same text>" underneath.
-		if p.Detail == "" && p.EvidenceTail == "" && p.Subject == "" && p.Summary != "" && p.Summary == t.Summary {
-			continue
-		}
-		// P4: task glyph row already shows t.Summary; do not re-echo it as the
-		// └─ header when Detail carries the real evidence (capture tail / diff).
-		if (p.Detail != "" || p.EvidenceTail != "") && p.Summary != "" && p.Summary == t.Summary {
-			p.Summary = ""
-		}
-		writeProblem(b, p, color, emphasize, profile)
-	}
-	if omitted > 0 {
-		writeProblem(b, core.Problem{
-			Summary: fmt.Sprintf("and %d more failures", omitted),
-			Count:   int64(omitted),
-			Unit:    "failures",
-		}, color, emphasize, profile)
-	}
-	writeDispositions(b, taskAnnotationIndent, taskDispositions(t), inlineTaxonomyVerb, verbose, color, profile)
-	writeVerificationDetails(b, t.Verification, taskAnnotationIndent, t.State == core.Failed, verbose, color, profile)
-	writeNestedTaskWarnings(b, nestedWarnings, taskAnnotationIndent, color, profile)
-	writeNestedTaskFacts(b, nestedFacts, taskAnnotationIndent, color)
+// WriteTaskAligned renders a root task row with its name padded to
+// nameWidth (0 = no padding) before any annotation, so a run of sibling
+// tasks with inline warnings/facts line up in one column ("✓ branches
+// ! kept 13...", fixture-repo-retire-dryrun.md). See taskRow.
+func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, s Style) {
+	rootRow(t, nameWidth).write(b, s)
 }
 
 // runningTaskDetail composes a core.Running task's plain-mode detail text: its
@@ -373,137 +263,58 @@ func progressCountText(p core.Progress) string {
 	}
 }
 
-// writeCollection renders a Tasks group: the parent glyph/name (with its own
+// WriteCollection renders a Tasks group: the parent glyph/name (with its own
 // Summary when set), then every resolved child row with its own summary or
 // problem — core.Done included. Evo-rec.md core.Problem 1's final ledger keeps ✓ rows
 // like "✓  branches   14 deleted" instead of the parent collapsing to one
 // line and erasing the children whose evidence lived only in the live
 // region while it was running.
-func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose bool, profile txt.GlyphProfile) {
-	writeCollectionAligned(b, col, 0, color, verbose, profile)
+func WriteCollection(b *strings.Builder, col core.TasksSnapshot, s Style) {
+	writeCollectionAligned(b, col, 0, s)
 }
 
 // writeCollectionAligned is WriteCollection with the name column a
 // collapsed one-row collection pads to (0 = its own name), so a header-less
 // parent's rows line up (headerlessRowNameWidth).
-func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidth int, color, verbose bool, profile txt.GlyphProfile) {
+func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidth int, s Style) {
 	col, items := withoutDispositionItems(col)
-	if rendersAsOwnTask(col) {
-		WriteTaskAligned(b, col.Tasks[0], nameWidth, color, verbose, profile)
-		writeDispositions(b, taskAnnotationIndent, items, noDisposition, verbose, color, profile)
-		return
+	switch {
+	case rendersAsOwnTask(col):
+		WriteTaskAligned(b, col.Tasks[0], nameWidth, s)
+		writeDispositions(b, taskAnnotationIndent, items, noDisposition, s)
+	case flattensHeader(col, items):
+		writeHeaderlessGroup(b, col, s)
+	default:
+		writeCollectionHeader(b, col, s)
+		writeDispositions(b, headerTallyIndent(col), items, noDisposition, s)
+		writeCollectionBody(b, col, s)
 	}
-	if groupHeaderAddsNothing(col) && items.Empty() {
-		writeHeaderlessGroup(b, col, color, verbose, profile)
-		return
-	}
-	glyph := txt.StyleGlyph(TaskGlyph(col.State, profile), StateColor(col.State), color)
+}
+
+// writeCollectionHeader writes a Group or Sequence's own row.
+func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s Style) {
+	unit := DisplayUnit{Glyph: s.stateGlyph(col.State), Name: col.Name}
 	if col.Summary != "" {
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, txt.Dim(col.Summary, color))
-	} else {
-		fmt.Fprintf(b, "%s %s\n", glyph, col.Name)
+		unit.Detail = s.dim(col.Summary)
 	}
-	writeDispositions(b, headerTallyIndent(col), items, noDisposition, verbose, color, profile)
+	b.WriteString(unit.Render(""))
+	b.WriteByte('\n')
+}
+
+// writeCollectionBody writes a headed container's child rows, then its
+// nested containers indented one level per nesting depth (P3).
+func writeCollectionBody(b *strings.Builder, col core.TasksSnapshot, s Style) {
 	childNameWidth := maxTaskNameWidth(col.Tasks)
 	for _, t := range col.Tasks {
-		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
+		childRow(t, childNameWidth).write(b, s)
 	}
-	// Nested containers (P3's recursive .Sequence/.Group nesting)
-	// render as an indented sub-group, one level per nesting depth.
 	for _, child := range col.Collections {
 		var nested strings.Builder
-		WriteCollection(&nested, child, color, verbose, profile)
+		WriteCollection(&nested, child, s)
 		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "%s%s\n", groupChildIndent, line)
 		}
 	}
-}
-
-// writeCollectionChild renders one child task row under its parent group:
-// glyph, name, and whichever of problem summary / task summary explains it,
-// then every problem's Detail/evidence line the same way a standalone
-// writeTask already does — a collection child is a task, and dropping its
-// evidence (└─ ...) and taxonomy here was the gap that forced the
-// repo-retire adoption off the Group/Tasks API.
-func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int, color, verbose bool, profile txt.GlyphProfile) {
-	t = TaskAtVerbosity(t, verbose)
-	tg := txt.StyleGlyph(TaskGlyph(t.State, profile), StateColor(t.State), color)
-	name := txt.PadRight(t.Name, nameWidth)
-	// annotatedName carries taskNameColumnMargin's extra column — only the
-	// inline warning/fact/taxonomy cases below use it, never a Summary row
-	// (mirrors WriteTaskAligned's annotatedLabel; see taskNameColumnMargin).
-	annotatedName := txt.PadRight(t.Name, nameWidth+taskNameColumnMargin)
-	headerSummary := t.Summary
-	inlineWarning, hasInlineWarning := inlineTaskWarning(t)
-	nestedWarnings := t.Warnings
-	inlineFact, hasInlineFact := inlineTaskFact(t)
-	nestedFacts := t.Facts
-	inlineTaxonomy, inlineTaxonomyVerb, hasInlineTaxonomy := inlineTaskTaxonomy(t)
-	var row strings.Builder
-	hasDetail := true
-	switch {
-	case len(t.Problems) > 0:
-		headerSummary = t.Problems[0].Summary
-		fmt.Fprintf(&row, "   %s %s  %s", tg, name, headerSummary)
-	case t.Resolution == core.ResolutionAlreadySatisfied:
-		headerSummary = alreadySatisfiedDetail
-		fmt.Fprintf(&row, "   %s %s  %s", tg, name, alreadySatisfiedRowDetail(t, color))
-	case headerSummary != "":
-		fmt.Fprintf(&row, "   %s %s  %s", tg, name, headerSummary)
-	case hasInlineWarning:
-		fmt.Fprintf(&row, "   %s %s  %s", tg, annotatedName, inlineWarningText(inlineWarning, color, profile))
-		nestedWarnings = nil
-	case hasInlineTaxonomy:
-		fmt.Fprintf(&row, "   %s %s  %s", tg, annotatedName, inlineTaxonomyText(inlineTaxonomy, inlineTaxonomyVerb, color, profile))
-	case hasInlineFact:
-		fmt.Fprintf(&row, "   %s %s  %s", tg, annotatedName, inlineFactText(inlineFact, color))
-		nestedFacts = nil
-	default:
-		fmt.Fprintf(&row, "   %s %s", tg, name)
-		hasDetail = false
-	}
-	if hasDetail {
-		b.WriteString(row.String())
-	} else {
-		// No detail to align a column against — the padded name's trailing
-		// spaces would otherwise dangle at line end (DisplayUnit.Render's rule).
-		b.WriteString(strings.TrimRight(row.String(), " "))
-	}
-	b.WriteByte('\n')
-	// emphasize keeps a Fail/Block child's evidence at full intensity, the
-	// same contrast rule writeTask applies to a standalone task (finding 5).
-	emphasize := t.State == core.Failed || t.State == core.Blocked
-	problems := t.Problems
-	omitted := 0
-	if len(problems) > maxVisibleProblems {
-		omitted = len(problems) - maxVisibleProblems
-		problems = problems[:maxVisibleProblems]
-	}
-	for _, p := range problems {
-		p = dedupeEvidenceTailAgainstRow(p, headerSummary)
-		// beginner-3: mirror writeTask's de-echo — a problem row with no
-		// Detail beyond the already-shown header summary says nothing new.
-		if p.Detail == "" && p.EvidenceTail == "" && p.Subject == "" && p.Summary != "" && p.Summary == headerSummary {
-			continue
-		}
-		// The header row already showed this summary; Detail alone is the
-		// evidence body (mirrors writeTask's P4 dedup).
-		if (p.Detail != "" || p.EvidenceTail != "") && p.Summary != "" && p.Summary == headerSummary {
-			p.Summary = ""
-		}
-		writeProblem(b, p, color, emphasize, profile)
-	}
-	if omitted > 0 {
-		writeProblem(b, core.Problem{
-			Summary: fmt.Sprintf("and %d more failures", omitted),
-			Count:   int64(omitted),
-			Unit:    "failures",
-		}, color, emphasize, profile)
-	}
-	writeDispositions(b, problemTreeIndent, taskDispositions(t), inlineTaxonomyVerb, verbose, color, profile)
-	writeVerificationDetails(b, t.Verification, problemTreeIndent, t.State == core.Failed, verbose, color, profile)
-	writeNestedTaskWarnings(b, nestedWarnings, problemTreeIndent, color, profile)
-	writeNestedTaskFacts(b, nestedFacts, problemTreeIndent, color)
 }
 
 // maxVisibleEffectRows bounds how many plan/changes rows the human view

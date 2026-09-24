@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // groupHeaderAddsNothing reports whether a Group's own row would say
@@ -20,6 +19,13 @@ import (
 // Group stays in the snapshot and the JSON document.
 func groupHeaderAddsNothing(col core.TasksSnapshot) bool {
 	return !col.Sequential && col.Summary == ""
+}
+
+// flattensHeader reports whether col, with items already folded out of it,
+// renders without its header row: its children then render as siblings of
+// the rows around it. Folded tallies need the header to hang under.
+func flattensHeader(col core.TasksSnapshot, items core.Dispositions) bool {
+	return groupHeaderAddsNothing(col) && items.Empty()
 }
 
 // hasUnfinishedTask reports whether any Task at or below col is still
@@ -38,12 +44,12 @@ func hasUnfinishedTask(col core.TasksSnapshot) bool {
 // writeHeaderlessGroup renders a Group's children as siblings of the
 // surrounding rows, aligned to one name column, then any nested containers
 // the same way.
-func writeHeaderlessGroup(b *strings.Builder, col core.TasksSnapshot, color, verbose bool, profile txt.GlyphProfile) {
+func writeHeaderlessGroup(b *strings.Builder, col core.TasksSnapshot, s Style) {
 	nameWidth := headerlessRowNameWidth(col)
 	for _, t := range col.Tasks {
-		WriteTaskAligned(b, t, nameWidth, color, verbose, profile)
+		WriteTaskAligned(b, t, nameWidth, s)
 	}
 	for _, child := range col.Collections {
-		writeCollectionAligned(b, child, nameWidth, color, verbose, profile)
+		writeCollectionAligned(b, child, nameWidth, s)
 	}
 }

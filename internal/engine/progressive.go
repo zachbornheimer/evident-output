@@ -150,7 +150,7 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	}
 	var b strings.Builder
 	nameWidth := o.rootColumn.nameWidth()
-	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
+	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, o.humanStyle())
 	st.coreEmitted = true
 	if b.Len() == 0 {
 		return
@@ -208,18 +208,29 @@ func (o *Output) commitNamedEffectsLocked(owner string) {
 		if !ok || s.namedRowsEmitted || !hasNamedEffectRecord(s.records) {
 			continue
 		}
-		o.emitEffectSectionLocked(tense.String(), s.subject, s.records, s.intendedVerb, maxSubjectWidth(*o.sectionsLocked(tense)))
+		var b strings.Builder
+		render.WriteEffects(&b, o.effectSectionLocked(s, maxSubjectWidth(*o.sectionsLocked(tense))), o.humanStyle())
+		o.writeDurableTextLocked(b.String())
 		s.namedRowsEmitted = true
 	}
 }
 
-// emitEffectSectionLocked renders one Plan/Changes section with the same
-// render.WriteEffects call residualCompositionLocked uses at Finish, and
-// streams it as durable text immediately (see writeDurableTextLocked).
-func (o *Output) emitEffectSectionLocked(kind, subject string, records []core.EffectRecord, intendedVerb string, nameWidth int) {
-	var b strings.Builder
-	render.WriteEffects(&b, kind, subject, nameWidth, records, intendedVerb, o.cfg.width, !o.cfg.noColor, o.cfg.glyphs)
-	o.writeDurableTextLocked(b.String())
+// effectSectionLocked is s laid out for render.WriteEffects — the one
+// shape both the streamed and the Finish ledger render.
+func (o *Output) effectSectionLocked(s *ledgerSection, nameWidth int) render.EffectSection {
+	width := o.cfg.width
+	if width <= 0 {
+		width = defaultWidth
+	}
+	return render.EffectSection{
+		Kind: s.tense.String(), Subject: s.subject, Records: s.records,
+		IntendedVerb: s.intendedVerb, NameWidth: nameWidth, Width: width,
+	}
+}
+
+// humanStyle is how this Output paints human rows.
+func (o *Output) humanStyle() render.Style {
+	return render.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbosity >= VerbosityVerbose, Profile: o.cfg.glyphs}
 }
 
 // taskProgressiveTrigger names which evidence call is streaming a Running
@@ -312,7 +323,7 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	row := st.snapshot()
 	row.Name = progressiveRowName(st)
 	var b strings.Builder
-	render.WriteTask(&b, row, !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
+	render.WriteTask(&b, row, o.humanStyle())
 	if b.Len() == 0 {
 		return
 	}
@@ -375,35 +386,13 @@ func residualHasEffectSections(o *Output) bool {
 // dual-stream skips them here to avoid a second render of the same rows on
 // two destinations.
 func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, includeEntities bool) string {
-	cfg := o.cfg
-	color := !cfg.noColor
-	verbose := cfg.verbosity >= VerbosityVerbose
-	profile := cfg.glyphs
-	width := cfg.width
-	if width <= 0 {
-		width = defaultWidth
-	}
+	style := o.humanStyle()
 	var b strings.Builder
-
 	for i := linesFrom; i < len(snap.Lines); i++ {
-		render.WriteDebugOrLine(&b, snap.Lines[i], color)
+		render.WriteDebugOrLine(&b, snap.Lines[i], style.Color)
 	}
-
 	if includeEntities {
-		residualNameWidth := o.rootColumn.nameWidth()
-		hidden := render.ZeroInformationTaskIDs(render.SnapshotAtVerbosity(snap, verbose))
-		for _, t := range o.tasks {
-			if t.collection != nil || t.coreEmitted {
-				continue
-			}
-			if !hidden[t.id] {
-				render.WriteTaskAligned(&b, t.snapshot(), residualNameWidth, color, verbose, profile)
-			}
-			t.coreEmitted = true
-		}
-		for _, col := range render.WithoutTasks(snap, hidden).Collections {
-			render.WriteCollection(&b, col, color, verbose, profile)
-		}
+		o.writeResidualEntitiesLocked(&b, snap, style)
 	}
 	// A blank line separates the task block from the [changed]/[planned]
 	// ledger (fixture-repo-retire-dryrun.md: line 12→14) — checked against
@@ -413,34 +402,59 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	if residualHasTaskRows(o, snap) && residualHasEffectSections(o) {
 		b.WriteByte('\n')
 	}
-	changeNameWidth := maxSubjectWidth(o.changes)
-	for _, ch := range o.changes {
-		if ch.namedRowsEmitted {
-			continue
-		}
-		render.WriteEffects(&b, "changed", ch.subject, changeNameWidth, ch.records, ch.intendedVerb, width, color, profile)
-	}
-	planNameWidth := maxSubjectWidth(o.plans)
-	for _, p := range o.plans {
-		if p.namedRowsEmitted {
-			continue
-		}
-		render.WriteEffects(&b, "planned", p.subject, planNameWidth, p.records, p.intendedVerb, width, color, profile)
-	}
+	o.writeResidualLedgerLocked(&b, style)
 	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {
-		render.WriteConclusion(&b, render.StandaloneConclusion(snap), color, profile)
+		render.WriteConclusion(&b, render.StandaloneConclusion(snap), style)
 	}
-	// Pane mode: optional diagnostic tail under final result (§21.3.2) — the
-	// default preserveOnBad path only ever fires when debugPaneActive is
-	// true, which only happens for a live rolling pane (interactive).
-	if snap.Conclusion != nil && o.shouldPreserveDebugTailLocked(*snap.Conclusion) {
-		max := o.cfg.debugPane.height
-		if max <= 0 {
-			max = defaultDebugPaneHeight
-		}
-		writeDebugTail(&b, o.debugRecords, max, color)
-	}
+	o.writeDebugTailLocked(&b, snap, style.Color)
 	return b.String()
+}
+
+// writeResidualEntitiesLocked writes every root Task row not already
+// streamed, then every collection, as human output shows them (zero-
+// information rows hidden).
+func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, style render.Style) {
+	nameWidth := o.rootColumn.nameWidth()
+	hidden := render.ZeroInformationTaskIDs(render.SnapshotAtVerbosity(snap, style.Verbose))
+	for _, t := range o.tasks {
+		if t.collection != nil || t.coreEmitted {
+			continue
+		}
+		if !hidden[t.id] {
+			render.WriteTaskAligned(b, t.snapshot(), nameWidth, style)
+		}
+		t.coreEmitted = true
+	}
+	for _, col := range render.WithoutTasks(snap, hidden).Collections {
+		render.WriteCollection(b, col, style)
+	}
+}
+
+// writeResidualLedgerLocked writes every [changed] then [planned] section
+// that did not already stream at its Task's resolution.
+func (o *Output) writeResidualLedgerLocked(b *strings.Builder, style render.Style) {
+	for _, sections := range []*[]*ledgerSection{&o.changes, &o.plans} {
+		nameWidth := maxSubjectWidth(*sections)
+		for _, s := range *sections {
+			if !s.namedRowsEmitted {
+				render.WriteEffects(b, o.effectSectionLocked(s, nameWidth), style)
+			}
+		}
+	}
+}
+
+// writeDebugTailLocked writes the pane-mode diagnostic tail under the final
+// result (§21.3.2). The default preserveOnBad path only fires when
+// debugPaneActive is true, which only happens for a live rolling pane.
+func (o *Output) writeDebugTailLocked(b *strings.Builder, snap Snapshot, color bool) {
+	if snap.Conclusion == nil || !o.shouldPreserveDebugTailLocked(*snap.Conclusion) {
+		return
+	}
+	rows := o.cfg.debugPane.height
+	if rows <= 0 {
+		rows = defaultDebugPaneHeight
+	}
+	writeDebugTail(b, o.debugRecords, rows, color)
 }
 
 // residualPlainLocked builds the Finish tail for the plain/primary-mirror

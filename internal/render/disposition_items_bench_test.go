@@ -57,6 +57,6 @@ func BenchmarkDurable_KeptCategory1k(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		var sb strings.Builder
-		WriteCollection(&sb, col, false, true, txt.GlyphsUnicode)
+		WriteCollection(&sb, col, Style{Verbose: true, Profile: txt.GlyphsUnicode})
 	}
 }

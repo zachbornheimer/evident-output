@@ -58,19 +58,19 @@ func conclusionBandTag(c core.Conclusion) string {
 	return fmt.Sprintf("[%s]", tag)
 }
 
-func WriteConclusion(b *strings.Builder, c core.Conclusion, color bool, profile txt.GlyphProfile) {
+func WriteConclusion(b *strings.Builder, c core.Conclusion, s Style) {
 	if c.State == core.StateCancelled {
-		writeCancellationBand(b, c, color, profile)
+		writeCancellationBand(b, c, s)
 		return
 	}
-	tag := txt.Style(conclusionBandTag(c), conclusionColor(c.State), color)
+	tag := s.paint(conclusionBandTag(c), conclusionColor(c.State))
 	// A bare Subject that equals the headline state word itself ("changed",
 	// "failed", ...) says nothing the bracketed tag hasn't already said — it
 	// is what an unconfigured Config.Title falls back to, not a caller's
 	// chosen subject, so printing it stutters the band ("[changed]  changed",
 	// release-gate round 10 finding 1). Suppress it instead of repeating it.
 	if c.Subject != "" && c.Subject != string(c.State) {
-		fmt.Fprintf(b, "\n%s  %s\n", tag, txt.Style(c.Subject, txt.SGRBold, color))
+		fmt.Fprintf(b, "\n%s  %s\n", tag, s.paint(c.Subject, txt.SGRBold))
 	} else {
 		fmt.Fprintf(b, "\n%s\n", tag)
 	}
@@ -78,10 +78,10 @@ func WriteConclusion(b *strings.Builder, c core.Conclusion, color bool, profile 
 		fmt.Fprintf(b, "  %s\n", c.Explanation)
 	}
 	if c.State == core.StateFailed {
-		writeAlreadyMutated(b, c.Changes, color, profile)
+		writeAlreadyMutated(b, c.Changes, s)
 	}
 	for _, a := range c.Actions {
-		writeAction(b, a, color, profile)
+		writeAction(b, a, s)
 	}
 }
 
@@ -90,25 +90,24 @@ func WriteConclusion(b *strings.Builder, c core.Conclusion, color bool, profile 
 // when some Effect committed. The cause is the Conclusion's Explanation (for
 // example "by user"), carried on the band line itself instead of a second
 // sentence beneath it.
-func writeCancellationBand(b *strings.Builder, c core.Conclusion, color bool, profile txt.GlyphProfile) {
+func writeCancellationBand(b *strings.Builder, c core.Conclusion, s Style) {
 	// "cancelled" already says the run stopped short; a "· partial" modifier
 	// beside it would only repeat that (the not-started rows say which part).
 	tagged := c
 	tagged.Partial = false
-	line := txt.Style(conclusionBandTag(tagged), conclusionColor(c.State), color)
+	line := s.paint(conclusionBandTag(tagged), conclusionColor(c.State))
 	if c.Subject != "" && c.Subject != string(c.State) {
-		line += " " + txt.Style(c.Subject, txt.SGRBold, color)
+		line += " " + s.paint(c.Subject, txt.SGRBold)
 	}
 	if c.Explanation != "" {
 		line += "  " + c.Explanation
 	}
 	fmt.Fprintf(b, "\n%s\n", line)
 	if _, committed := summarizeAlreadyMutated(c.Changes); committed {
-		glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
-		fmt.Fprintf(b, "  %s %s\n", glyph, cancellationPartialChangesNote)
+		fmt.Fprintf(b, "  %s %s\n", s.warningGlyph(), cancellationPartialChangesNote)
 	}
 	for _, a := range c.Actions {
-		writeAction(b, a, color, profile)
+		writeAction(b, a, s)
 	}
 }
 

@@ -11,10 +11,11 @@ import (
 )
 
 // ledgerObject renders r.Object pluralized from r.Quantity when the record
-// carries a quantity (I4) — mutation verbs take a singular object
-// (Delete(2, "stale local branch")) and the ledger derives "branches" at
-// render time via txt.Pluralize, instead of every call site hand-composing its
-// own singular/plural noun with evo.Pluralize. txt.Pluralize itself stays
+// carries a quantity (I4) — an Effect names a singular object
+// (evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch",
+// Quantity: 2}) and the ledger derives "branches" at render time via
+// txt.Pluralize, instead of every call site hand-composing its own
+// singular/plural noun with evo.Pluralize. txt.Pluralize itself stays
 // exported for prose outside the ledger (a Printf line, a core.Problem detail).
 func ledgerObject(r core.EffectRecord) string {
 	if !r.HasQty {
@@ -26,7 +27,7 @@ func ledgerObject(r core.EffectRecord) string {
 // mergeIdenticalEffectRecords combines repeated records that share the same
 // (verb, object) pair — one ledger's tense is fixed for every record it
 // holds, so verb+object alone identifies a duplicate row — into one row with
-// summed quantities: twelve `Delete(1, "merged branch")` calls render
+// summed quantities: twelve Effects deleting one "merged branch" each render
 // "deleted 12 merged branches", not twelve identical rows plus an overflow
 // ellipsis (release-gate finding 6). Distinct records (different verb or
 // object) are left alone and keep their original relative order. The model
@@ -56,83 +57,98 @@ func mergeIdenticalEffectRecords(records []core.EffectRecord) []core.EffectRecor
 	return merged
 }
 
-func WriteEffects(b *strings.Builder, kind, subject string, nameWidth int, records []core.EffectRecord, intendedVerb string, width int, color bool, profile txt.GlyphProfile) {
-	// A [planned]/[changed] header with zero rows beneath it invents a mutation
-	// story that never happened; render the honest empty-success line instead
-	// (evo-rec.md "nothing-to-do" default). The verb comes from the section's
-	// own recorded intent — never hand-assembled — falling back to a generic
-	// phrasing only when no mutation verb was ever recorded for it.
-	if len(records) == 0 {
-		if intendedVerb != "" {
-			fmt.Fprintf(b, "nothing to %s %s\n", intendedVerb, subject)
-		} else {
-			fmt.Fprintf(b, "nothing to change for %s\n", subject)
-		}
+// EffectSection is one [changed] or [planned] section as the ledger lays
+// it out: Kind ("changed" or "planned"), its Subject and records, the verb
+// it meant to use when no record survived, the subject column shared with
+// sibling sections (NameWidth, 0 = none), and the terminal Width.
+type EffectSection struct {
+	Kind         string
+	Subject      string
+	Records      []core.EffectRecord
+	IntendedVerb string
+	NameWidth    int
+	Width        int
+}
+
+// WriteEffects renders one ledger section in the layout its records need:
+// the honest "nothing to" line when none survived, one collapsed line for
+// a single distinct record, and otherwise a header plus bounded rows,
+// compact on a narrow terminal and leader-aligned elsewhere.
+func WriteEffects(b *strings.Builder, sec EffectSection, s Style) {
+	if len(sec.Records) == 0 {
+		writeNothingToDo(b, sec)
 		return
 	}
-	tag := txt.Style(fmt.Sprintf("[%s]", kind), effectColor(kind), color)
-
-	visible := mergeIdenticalEffectRecords(records)
-
-	// The common case — one mutation call per task — collapses to ONE
-	// aligned line per subject: "[planned] branches   delete 2 local tips"
-	// (fixture-repo-retire-dryrun.md), instead of a separate header line plus
-	// an indented row underneath. A subject with more than one distinct
-	// record (rarer — several mutation calls under one task) keeps the
-	// original header+rows shape below, since collapsing several records
-	// onto one line would lose which quantity/object belongs to which verb.
-	if len(visible) == 1 && len(visible) <= maxVisibleEffectRows {
-		r := visible[0]
-		// Contract §18: pad the subject to the max display width of the
-		// aligned block, then exactly two literal spaces before the verb —
-		// no taskNameColumnMargin here. That margin exists so a task-row's
-		// own inline annotation clears the ledger's leader dots; the
-		// collapsed Effect line has no such neighbor to clear, and adding
-		// it produced a third space (byte drift from the canonical
-		// zq-prune §18 fixture: "[planned] branches         delete ...").
-		name := txt.PadRight(subject, nameWidth)
-		if r.HasQty {
-			fmt.Fprintf(b, "%s %s  %s %d %s\n", tag, name, r.Verb, r.Quantity, ledgerObject(r))
-		} else {
-			fmt.Fprintf(b, "%s %s  %s %s\n", tag, name, r.Verb, r.Object)
-		}
+	tag := s.paint(fmt.Sprintf("[%s]", sec.Kind), effectColor(sec.Kind))
+	visible := mergeIdenticalEffectRecords(sec.Records)
+	if len(visible) == 1 {
+		writeEffectLine(b, tag, sec, visible[0])
 		return
 	}
-
-	fmt.Fprintf(b, "%s  %s\n", tag, subject)
-	omitted := 0
-	if len(visible) > maxVisibleEffectRows {
-		omitted = len(visible) - maxVisibleEffectRows
-		visible = visible[:maxVisibleEffectRows]
+	fmt.Fprintf(b, "%s  %s\n", tag, sec.Subject)
+	omitted := max(len(visible)-maxVisibleEffectRows, 0)
+	visible = visible[:len(visible)-omitted]
+	if sec.Width > 0 && sec.Width < compactLayoutMaxWidth {
+		writeCompactEffects(b, visible)
+	} else {
+		writeAlignedEffects(b, visible, s)
 	}
+	writeEffectOverflow(b, omitted, s)
+}
 
-	// TXT-016: leaders omitted when unnecessary (single short column / narrow).
-	if width > 0 && width < compactLayoutMaxWidth {
-		for _, r := range visible {
-			if r.HasQty {
-				fmt.Fprintf(b, "  %s %d %s\n", r.Verb, r.Quantity, ledgerObject(r))
-			} else {
-				fmt.Fprintf(b, "  %s %s\n", r.Verb, r.Object)
-			}
-		}
-		writeEffectOverflow(b, omitted, color, profile)
+// writeNothingToDo is a section with zero rows: a [planned]/[changed]
+// header over nothing would invent a mutation story that never happened
+// (evo-rec.md "nothing-to-do" default). The verb is the section's own
+// recorded intent, never hand-assembled.
+func writeNothingToDo(b *strings.Builder, sec EffectSection) {
+	if sec.IntendedVerb != "" {
+		fmt.Fprintf(b, "nothing to %s %s\n", sec.IntendedVerb, sec.Subject)
 		return
 	}
-	maxVerb := 0
-	maxQty := 0
+	fmt.Fprintf(b, "nothing to change for %s\n", sec.Subject)
+}
+
+// writeEffectLine collapses a section with one distinct record — one
+// Effect per task, the common case — to ONE aligned line: "[planned]
+// branches   delete 2 local tips" (fixture-repo-retire-dryrun.md). Contract
+// §18: the subject pads to the aligned block's width, then exactly two
+// spaces before the verb; taskNameColumnMargin does not apply, since no
+// inline annotation sits beside it to clear.
+func writeEffectLine(b *strings.Builder, tag string, sec EffectSection, r core.EffectRecord) {
+	name := txt.PadRight(sec.Subject, sec.NameWidth)
+	if r.HasQty {
+		fmt.Fprintf(b, "%s %s  %s %d %s\n", tag, name, r.Verb, r.Quantity, ledgerObject(r))
+		return
+	}
+	fmt.Fprintf(b, "%s %s  %s %s\n", tag, name, r.Verb, r.Object)
+}
+
+// writeCompactEffects writes rows without leaders for a narrow terminal
+// (TXT-016).
+func writeCompactEffects(b *strings.Builder, visible []core.EffectRecord) {
 	for _, r := range visible {
-		if len(r.Verb) > maxVerb {
-			maxVerb = len(r.Verb)
-		}
 		if r.HasQty {
-			n := len(strconv.FormatInt(r.Quantity, 10))
-			if n > maxQty {
-				maxQty = n
-			}
+			fmt.Fprintf(b, "  %s %d %s\n", r.Verb, r.Quantity, ledgerObject(r))
+		} else {
+			fmt.Fprintf(b, "  %s %s\n", r.Verb, r.Object)
 		}
 	}
-	// Bound leader fill so wide verbs do not create unbounded gaps (TXT-016).
-	const maxLeader = 12
+}
+
+// maxEffectLeader bounds leader fill so a wide verb does not open an
+// unbounded gap (TXT-016).
+const maxEffectLeader = 12
+
+// writeAlignedEffects writes rows with verbs and quantities in columns,
+// joined to a quantity-less object by a dim leader when the gap is wide.
+func writeAlignedEffects(b *strings.Builder, visible []core.EffectRecord, s Style) {
+	maxVerb, maxQty := 0, 0
+	for _, r := range visible {
+		maxVerb = max(maxVerb, len(r.Verb))
+		if r.HasQty {
+			maxQty = max(maxQty, len(strconv.FormatInt(r.Quantity, 10)))
+		}
+	}
 	for _, r := range visible {
 		verb := txt.PadRight(r.Verb, maxVerb)
 		if r.HasQty {
@@ -140,27 +156,36 @@ func WriteEffects(b *strings.Builder, kind, subject string, nameWidth int, recor
 			fmt.Fprintf(b, "  %s  %s %s\n", verb, qty, ledgerObject(r))
 			continue
 		}
-		gap := min(maxVerb-len(r.Verb), maxLeader)
-		if gap > 2 {
-			leader := strings.Repeat("·", gap)
-			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, txt.Dim(leader, color), r.Object)
-		} else {
-			qtyPad := txt.PadLeft("", maxQty)
-			fmt.Fprintf(b, "  %s  %s %s\n", verb, qtyPad, r.Object)
+		if gap := min(maxVerb-len(r.Verb), maxEffectLeader); gap > 2 {
+			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, s.dim(strings.Repeat("·", gap)), r.Object)
+			continue
 		}
+		fmt.Fprintf(b, "  %s  %s %s\n", verb, txt.PadLeft("", maxQty), r.Object)
 	}
-	writeEffectOverflow(b, omitted, color, profile)
+}
+
+// writeLedger writes every [changed] then [planned] section of snap, each
+// kind aligned to its own subject column.
+func writeLedger(b *strings.Builder, snap core.Snapshot, width int, s Style) {
+	changeNameWidth := maxEffectSubjectWidth(snap.Changes, func(c core.ChangesSnapshot) string { return c.Subject })
+	for _, ch := range snap.Changes {
+		WriteEffects(b, EffectSection{Kind: "changed", Subject: ch.Subject, Records: ch.Records, IntendedVerb: ch.IntendedVerb, NameWidth: changeNameWidth, Width: width}, s)
+	}
+	planNameWidth := maxEffectSubjectWidth(snap.Plans, func(p core.PlanSnapshot) string { return p.Subject })
+	for _, p := range snap.Plans {
+		WriteEffects(b, EffectSection{Kind: "planned", Subject: p.Subject, Records: p.Records, IntendedVerb: p.IntendedVerb, NameWidth: planNameWidth, Width: width}, s)
+	}
 }
 
 // writeEffectOverflow renders the bounded-rows omission line. The overflow
 // glyph (txt.Dim "…"/"...") marks it, not "!" — an omitted-count line is a
 // viewport limit, not something demanding attention (evo-rec.md "! is
 // attention only... Overflow is never !").
-func writeEffectOverflow(b *strings.Builder, omitted int, color bool, profile txt.GlyphProfile) {
+func writeEffectOverflow(b *strings.Builder, omitted int, s Style) {
 	if omitted <= 0 {
 		return
 	}
-	fmt.Fprintf(b, "  %s  +%d more (not shown)\n", txt.Dim(txt.GlyphOverflow.Render(profile), color), omitted)
+	fmt.Fprintf(b, "  %s  +%d more (not shown)\n", s.overflowGlyph(), omitted)
 }
 
 // writeAlreadyMutated renders the early-termination "! already mutated: ..."
@@ -170,13 +195,12 @@ func writeEffectOverflow(b *strings.Builder, omitted int, color bool, profile tx
 // suppressed entirely rather than rendered as "none". The summary is derived
 // mechanically from the Changes ledger, never assembled by the caller
 // (evo-rec.md "Taxonomy and mutation lines are derived, never assembled").
-func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, color bool, profile txt.GlyphProfile) {
+func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, s Style) {
 	summary, ok := summarizeAlreadyMutated(changes)
 	if !ok {
 		return
 	}
-	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
-	fmt.Fprintf(b, "%s  already mutated: %s\n", glyph, summary)
+	fmt.Fprintf(b, "%s  already mutated: %s\n", s.warningGlyph(), summary)
 }
 
 // summarizeAlreadyMutated derives the "! already mutated: ..." line's

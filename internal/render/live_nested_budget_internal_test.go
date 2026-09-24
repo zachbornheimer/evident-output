@@ -19,7 +19,7 @@ func frameRows(frame string) int {
 
 // liveFrame renders s's live region at height with fixed test settings.
 func liveFrame(s core.Snapshot, height int) string {
-	return LiveRegion(s, height, 80, time.Time{}, false, txt.GlyphsUnicode)
+	return LiveRegion(s, height, 80, time.Time{}, Style{Profile: txt.GlyphsUnicode})
 }
 
 // runningCategory is one of zq clean-repo's category Groups mid-run:
@@ -133,4 +133,4 @@ func TestLiveOwnTask_TalliesCountTheActivityRow(t *testing.T) {
 
 // testLiveStyle is the fixed live paint settings internal tests render
 // with: 80 columns, a fixed spinner, no color, Unicode glyphs.
-var testLiveStyle = liveStyle{width: 80, spin: "⠋", profile: txt.GlyphsUnicode}
+var testLiveStyle = liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 80, spin: "⠋"}

@@ -6,17 +6,15 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // liveStyle is how one live frame paints every row: the terminal width,
 // this tick's spinner glyph, color, the clock, and the glyph profile.
 type liveStyle struct {
-	width   int
-	spin    string
-	color   bool
-	now     time.Time
-	profile txt.GlyphProfile
+	Style
+	width int
+	spin  string
+	now   time.Time
 }
 
 // A live Group spends a row budget: its header, its folded tallies, its
@@ -68,19 +66,19 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height int,
 	switch {
 	case rendersAsOwnTask(col):
 		taskRows := writeLiveTaskLine(b, col.Tasks[0], 0, 0, st)
-		writeLiveDispositions(b, taskAnnotationIndent, items, height-taskRows, st.color, st.profile)
+		writeLiveDispositions(b, taskAnnotationIndent, items, height-taskRows, st.Style)
 	case promotesLoneChildOntoHeader(col):
 		unit := liveTaskUnit(col.Tasks[0], 0, st)
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
-		writeLiveDispositions(b, taskAnnotationIndent, items, height-headerRows, st.color, st.profile)
+		writeLiveDispositions(b, taskAnnotationIndent, items, height-headerRows, st.Style)
 	case groupHeaderAddsNothing(col) && items.Empty() && !hasUnfinishedTask(col):
 		writeLiveBody(b, col, height, inPlace, st)
 	default:
 		b.WriteString(liveGroupHeader(col, done, total, st).Render(""))
 		b.WriteByte('\n')
-		tallyRows := writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.color, st.profile)
+		tallyRows := writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
 		writeLiveBody(b, col, max(height-headerRows-tallyRows, minLiveChildRows+omissionRows), underHeader, st)
 	}
 	return rowsSince(b, start)
@@ -96,7 +94,7 @@ func writeLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level
 		return
 	}
 	omitted := fillLiveBody(b, col, budget-omissionRows, level, st)
-	fmt.Fprintf(b, "%s%s  %d not shown\n", level.pad, txt.Dim(txt.GlyphOverflow.Render(st.profile), st.color), omitted)
+	fmt.Fprintf(b, "%s%s  %d not shown\n", level.pad, st.overflowGlyph(), omitted)
 }
 
 // fillLiveBody writes as much of col's body as fits in budget rows and
