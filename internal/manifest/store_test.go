@@ -3,8 +3,10 @@ package manifest
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -285,3 +287,45 @@ type fakeEnvironment struct {
 func (f fakeEnvironment) Executable() (string, error)   { return f.exePath, f.exeErr }
 func (f fakeEnvironment) UserCacheDir() (string, error) { return f.cacheDir, f.cacheErr }
 func (f fakeEnvironment) ReadBuildInfo() (string, bool) { return f.modulePath, f.moduleOK }
+
+// concurrentCommitters is how many Tasks commit their own records at once
+// while others consult prior ones — the shape a parallel Group produces.
+const concurrentCommitters = 16
+
+// TestStoreConsultAndCommitAreSafeConcurrently proves parallel Tasks can
+// consult prior records (Operation, Task) while others commit their own.
+// Unguarded, the document's Tasks map is read and written at once: the
+// runtime's concurrent-map check aborts the test binary, and -race (the CI
+// race job) reports the race.
+func TestStoreConsultAndCommitAreSafeConcurrently(t *testing.T) {
+	s, err := Open(context.Background(), Config{StateDir: t.TempDir()}, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	var wg sync.WaitGroup
+	for i := range concurrentCommitters {
+		key := fmt.Sprintf("task-%d", i)
+		wg.Go(func() {
+			task := TaskRecord{Key: key, Operations: []OperationRecord{{Kind: "file", DefinitionFingerprint: key}}}
+			if err := s.CommitTask(context.Background(), ApplicationRecord{ID: "app"}, task); err != nil {
+				t.Error(err)
+			}
+		})
+		wg.Go(func() {
+			for range concurrentCommitters {
+				s.Operation(key, 0)
+				s.Task(key)
+			}
+		})
+	}
+	wg.Wait()
+
+	for i := range concurrentCommitters {
+		key := fmt.Sprintf("task-%d", i)
+		if op, ok := s.Operation(key, 0); !ok || op.DefinitionFingerprint != key {
+			t.Errorf("Operation(%q, 0) = %+v, %v; want the committed record", key, op, ok)
+		}
+	}
+}
