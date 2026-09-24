@@ -18,9 +18,10 @@ type selectorCall struct {
 	name string
 	pos  token.Position
 	file string
-	// safeWriters and runCodes are file-wide facts STREAM-003 and API-018
-	// consult, computed once per file.
+	// safeWriters, driverSinks, and runCodes are file-wide facts STREAM-003
+	// and API-018 consult, computed once per file.
 	safeWriters map[string]bool
+	driverSinks []driverSinkMethod
 	runCodes    map[string]bool
 }
 
@@ -59,6 +60,7 @@ func detectSelectorCallRules(in fileInput) []Finding {
 		}
 	}
 	safeWriters, runCodes := localSafeWriterVars(in.file), runExitCodeVars(in.file)
+	driverSinks := terminalDriverMethods(in.file)
 	var findings []Finding
 	ast.Inspect(in.file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -71,7 +73,7 @@ func detectSelectorCallRules(in fileInput) []Finding {
 		}
 		c := selectorCall{
 			call: call, sel: sel, name: sel.Sel.Name, pos: in.fset.Position(n.Pos()), file: in.filename,
-			safeWriters: safeWriters, runCodes: runCodes,
+			safeWriters: safeWriters, driverSinks: driverSinks, runCodes: runCodes,
 		}
 		for _, r := range admitted {
 			findings = append(findings, r.check(c)...)
@@ -108,7 +110,8 @@ func forbiddenExecutionHelper(c selectorCall) []Finding {
 // fmtPrintAlongsideEvo is STREAM-003 and EVO-LIVE-001 (spec §57): fmt.Print*
 // in an evo file. Both fire so existing STREAM-003 consumers see no change;
 // fmt.Fprint* to os.Stderr or a known-safe writer is allowed (flag.Usage,
-// pre-session errors).
+// pre-session errors), and so is a TerminalDriver writing to its own sink
+// (see terminalDriverMethods).
 func fmtPrintAlongsideEvo(c selectorCall) []Finding {
 	if id, ok := c.sel.X.(*ast.Ident); !ok || id.Name != "fmt" {
 		return nil
@@ -116,7 +119,8 @@ func fmtPrintAlongsideEvo(c selectorCall) []Finding {
 	switch c.name {
 	case "Print", "Printf", "Println":
 	case "Fprint", "Fprintf", "Fprintln":
-		if len(c.call.Args) > 0 && (isOSStderrArg(c.call.Args[0]) || isSafeWriterArg(c.call.Args[0], c.safeWriters)) {
+		if len(c.call.Args) > 0 && (isOSStderrArg(c.call.Args[0]) || isSafeWriterArg(c.call.Args[0], c.safeWriters) ||
+			writesOwnDriverSink(c.call, c.call.Args[0], c.driverSinks)) {
 			return nil
 		}
 	default:
