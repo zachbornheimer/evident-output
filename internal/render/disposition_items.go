@@ -16,12 +16,12 @@ import (
 // item under its reason. Machine output never calls this; JSON and JSONL
 // keep every child Task.
 
-// isDispositionItem reports whether t is one of col's items whose only
-// information is its Kept or Skipped record, so its row would say nothing
-// its Group's tally does not. The Group's own Task is never an item: it is
+// isDispositionItem reports whether t is an item of the Group named group
+// whose only information is its Kept or Skipped record, so its row would
+// say nothing its Group's tally does not. The Group's own Task is never an item: it is
 // the row the tally hangs under.
-func isDispositionItem(col core.TasksSnapshot, t core.TaskSnapshot) bool {
-	if t.State != core.Done && t.State != core.Skipped || t.Synthetic() || isOwnTask(col, t) {
+func isDispositionItem(group string, t core.TaskSnapshot) bool {
+	if t.State != core.Done && t.State != core.Skipped || t.Synthetic() || t.Name == group {
 		return false
 	}
 	if len(t.Kept) == 0 && len(t.Skipped) == 0 {
@@ -48,7 +48,7 @@ func foldsItems(col core.TasksSnapshot) bool {
 	}
 	items := 0
 	for _, t := range col.Tasks {
-		if isDispositionItem(col, t) {
+		if isDispositionItem(col.Name, t) {
 			items++
 			if items == minFoldedItems {
 				return true
@@ -71,7 +71,7 @@ func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.D
 	// are typically the one work Task, not the thousand items.
 	var rest []core.TaskSnapshot
 	for _, t := range col.Tasks {
-		if isDispositionItem(col, t) {
+		if isDispositionItem(col.Name, t) {
 			items.AddTask(t)
 			continue
 		}
