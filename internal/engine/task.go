@@ -562,6 +562,9 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	}
 	st.state = state
 	st.phase = "" // Done clears active phase
+	if predecessorFailed(state) {
+		t.out.schedCascadeDue = true
+	}
 	if summary != "" {
 		st.summary = txt.Text(summary)
 	}
@@ -622,6 +625,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		t.out.commitManifestTaskLocked(runCtx, t.id)
 	}
 	st.closeDoneLocked()
+	t.out.releaseNextStepLocked(st)
 	// §48: a failed predecessor makes its dependents NotStarted,
 	// deterministically. This must settle here, under the same lock this
 	// resolution already holds — not only later, from kick()'s post-return

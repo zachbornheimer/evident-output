@@ -95,13 +95,15 @@ func (t *TaskHandle) submitWork(fn func() error) {
 	st.submitted = true
 	st.workFn = fn
 	o.schedWG.Add(1)
+	o.enqueueLocked(st)
 	// §48: a predecessor that already failed before this task was even
 	// submitted must settle it NotStarted right now, under the same lock —
-	// not wait for a later kick()/waiter to notice. cascadeIneligibleLocked
-	// is a no-op when nothing is permanently blocked (a predecessor still
-	// running is left alone), so this is safe to run unconditionally on
-	// every submission.
-	o.cascadeIneligibleLocked()
+	// not wait for a later kick()/waiter to notice. Only this task is new
+	// to the queue, so only it needs checking, unless some earlier failure
+	// left the whole queue due for a cascade.
+	if o.schedCascadeDue || o.unreachableLocked(st) {
+		o.cascadeIneligibleLocked()
+	}
 	o.mu.Unlock()
 	o.kick()
 }
@@ -120,16 +122,16 @@ func (o *Output) kick() {
 	o.releaseUnsatisfiableWaits()
 }
 
-// abandonUnreachableWork resolves, once the run is draining, every queued
-// task whose predecessors can no longer succeed. The drain cascaded once at
-// its start, so a task whose predecessor failed *after* that moment stayed
-// queued for a predecessor that would never arrive — and any caller waiting
-// on it stayed blocked with it, which is a hung Finish rather than a
-// reported outcome.
+// abandonUnreachableWork resolves every queued task whose predecessors can
+// no longer succeed, once some task failed since the last cascade or the
+// run is draining. The drain cascaded once at its start, so a task whose
+// predecessor failed *after* that moment stayed queued for a predecessor
+// that would never arrive — and any caller waiting on it stayed blocked
+// with it, which is a hung Finish rather than a reported outcome.
 func (o *Output) abandonUnreachableWork() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if !o.schedDraining {
+	if !o.schedDraining && !o.schedCascadeDue {
 		return
 	}
 	o.cascadeIneligibleLocked()
@@ -144,20 +146,10 @@ func (o *Output) takeEligible() (st *taskState, fn func() error) {
 		// completion behind one cancelled row.
 		return nil, nil
 	}
-	max := o.concurrencyCeilingLocked()
-	if o.schedInflight >= max {
+	if o.schedInflight >= o.concurrencyCeilingLocked() {
 		return nil, nil
 	}
-	for _, cand := range o.tasks {
-		if !cand.submitted || cand.runningWork || core.IsTerminalTask(cand.state) {
-			continue
-		}
-		if !o.eligibleLocked(cand) {
-			continue
-		}
-		if o.schedInflight >= max {
-			return nil, nil
-		}
+	if cand := o.schedQueue.first(o.eligibleLocked); cand != nil {
 		o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
 		cand.runningWork = true
 		o.schedInflight++
@@ -373,7 +365,7 @@ func (o *Output) parkedCallbacksLocked() int {
 }
 
 func (o *Output) anyClaimableLocked() bool {
-	return slices.ContainsFunc(o.tasks, o.claimableLocked)
+	return !o.schedCancelled && o.schedQueue.first(o.eligibleLocked) != nil
 }
 
 // anyAwaitedTaskResolvedLocked reports whether some parked waiter's task is
@@ -504,10 +496,10 @@ func (o *Output) claimForWaiter(taskID string) (st *taskState, fn func() error, 
 func (o *Output) claimAnyForWaiter() (st *taskState, fn func() error, claimed bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	for _, cand := range o.tasks {
-		if !o.claimableLocked(cand) {
-			continue
-		}
+	if o.schedCancelled {
+		return nil, nil, false
+	}
+	if cand := o.schedQueue.first(o.eligibleLocked); cand != nil {
 		return o.claimLocked(cand)
 	}
 	return nil, nil, false
@@ -538,6 +530,7 @@ func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error, c
 func (o *Output) drainScheduler() {
 	o.mu.Lock()
 	o.schedDraining = true
+	o.unparkAllLocked()
 	o.cascadeIneligibleLocked()
 	o.mu.Unlock()
 	o.kick()
@@ -575,24 +568,31 @@ func (o *Output) predsSatisfiedLocked(st *taskState) bool {
 	return true
 }
 
+// cascadeIneligibleLocked settles NotStarted every queued task that can
+// never become eligible, repeating until nothing changes (one settling can
+// strand the tasks queued behind it).
 func (o *Output) cascadeIneligibleLocked() {
-	changed := true
-	for changed {
+	for changed := true; changed; {
 		changed = false
-		for _, st := range o.tasks {
-			if !st.submitted || st.runningWork || core.IsTerminalTask(st.state) {
-				continue
-			}
-			if o.eligibleLocked(st) {
-				continue
-			}
-			if o.canStillBecomeEligibleLocked(st) && !o.predecessorBlockedLocked(st) {
+		for _, st := range o.schedQueue.live() {
+			if !awaitingStart(st) || !o.unreachableLocked(st) {
 				continue
 			}
 			o.markNotStartedLocked(st)
 			changed = true
 		}
 	}
+	o.schedCascadeDue = false
+}
+
+// unreachableLocked reports whether queued st can never become eligible:
+// not eligible now, and either no predecessor is still pending or one has
+// already failed.
+func (o *Output) unreachableLocked(st *taskState) bool {
+	if o.eligibleLocked(st) {
+		return false
+	}
+	return !o.canStillBecomeEligibleLocked(st) || o.predecessorBlockedLocked(st)
 }
 
 func (o *Output) canStillBecomeEligibleLocked(st *taskState) bool {
@@ -656,6 +656,8 @@ func (o *Output) markNotStartedLocked(st *taskState) {
 		o.schedWG.Done()
 	}
 	st.closeDoneLocked()
+	o.releaseNextStepLocked(st)
+	o.schedCascadeDue = true
 	o.appendEventLocked(Event{Type: "task.not_started", EntityID: st.id})
 }
 
@@ -679,17 +681,7 @@ func (o *Output) failSequenceFollowers(failed *taskState) {
 }
 
 func previousSibling(st *taskState) *taskState {
-	if st.collection == nil {
-		return nil
-	}
-	var prev *taskState
-	for _, sib := range st.collection.tasks {
-		if sib == st {
-			return prev
-		}
-		prev = sib
-	}
-	return nil
+	return st.prevSibling
 }
 
 func predecessorSucceeded(s EntityState) bool {
