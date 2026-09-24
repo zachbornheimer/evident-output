@@ -38,16 +38,22 @@ const (
 	minLiveChildRows = 1
 )
 
-// liveBodyLevel is where a Group's body rows sit: one indent under its
-// header, or in place of a header the Group does not need.
+// liveBodyLevel is where a body's rows sit and in what order: one indent
+// under a Group header, in place of a header the Group does not need, or
+// at the frame's root.
 type liveBodyLevel struct {
 	indent int
 	pad    string
+	// groupsFirst paints nested Groups before child Tasks. The root does:
+	// root Groups come before standalone root Tasks, as in the durable
+	// ledger. A Group's own body lists its Tasks first.
+	groupsFirst bool
 }
 
 var (
 	underHeader = liveBodyLevel{indent: 1, pad: groupChildIndent}
 	inPlace     = liveBodyLevel{}
+	atRoot      = liveBodyLevel{groupsFirst: true}
 )
 
 // writeLiveCollection writes col's live rows within height and reports how
@@ -94,40 +100,66 @@ func writeLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level
 }
 
 // fillLiveBody writes as much of col's body as fits in budget rows and
-// reports how many Tasks it left out. Child Tasks come first, in
-// selectLiveChildren's attention order; each nested Group then gets a fair
-// share of what is left, and what it does not use rolls to the next.
+// reports how many Tasks it left out.
 func fillLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level liveBodyLevel, st liveStyle) (omitted int) {
-	left := budget
-	nameWidth := 0
-	if level == inPlace {
-		nameWidth = maxRootTaskNameWidth(col.Tasks)
+	fill := liveFill{b: b, left: budget, level: level, st: st}
+	if level.groupsFirst {
+		fill.groups(col.Collections)
+		fill.tasks(col.Tasks)
+	} else {
+		fill.tasks(col.Tasks)
+		fill.groups(col.Collections)
 	}
-	selected, omitted := selectLiveChildren(col.Tasks, max(left, 0))
+	return fill.omitted
+}
+
+// liveFill is one body's row budget as it is spent: what is left, and how
+// many Tasks did not fit.
+type liveFill struct {
+	b       *strings.Builder
+	left    int
+	omitted int
+	level   liveBodyLevel
+	st      liveStyle
+}
+
+// tasks writes child Tasks in selectLiveChildren's attention order until
+// the next one's rows (an activity child counts) no longer fit.
+func (f *liveFill) tasks(tasks []core.TaskSnapshot) {
+	nameWidth := 0
+	if f.level.indent == 0 {
+		nameWidth = maxRootTaskNameWidth(tasks)
+	}
+	selected, omitted := selectLiveChildren(tasks, max(f.left, 0))
+	f.omitted += omitted
 	for i, t := range selected {
 		var row strings.Builder
-		rows := writeLiveTaskLine(&row, t, level.indent, nameWidth, st)
-		if rows > left {
-			omitted += len(selected) - i
-			break
+		rows := writeLiveTaskLine(&row, t, f.level.indent, nameWidth, f.st)
+		if rows > f.left {
+			f.omitted += len(selected) - i
+			return
 		}
-		b.WriteString(row.String())
-		left -= rows
+		f.b.WriteString(row.String())
+		f.left -= rows
 	}
-	for i, child := range col.Collections {
+}
+
+// groups gives each nested Group a fair share of what is left; what one
+// does not use rolls to the next, and one that does not fit is counted.
+func (f *liveFill) groups(cols []core.TasksSnapshot) {
+	for i, child := range cols {
 		var nested strings.Builder
-		share := left / (len(col.Collections) - i)
-		rows := writeLiveCollection(&nested, child, share, st)
-		if rows > left {
-			omitted += taskCount(child)
+		share := f.left / (len(cols) - i)
+		rows := writeLiveCollection(&nested, child, share, f.st)
+		if rows > f.left {
+			f.omitted += taskCount(child)
 			continue
 		}
 		for line := range strings.SplitSeq(strings.TrimSuffix(nested.String(), "\n"), "\n") {
-			b.WriteString(level.pad + line + "\n")
+			f.b.WriteString(f.level.pad + line + "\n")
 		}
-		left -= rows
+		f.left -= rows
 	}
-	return omitted
 }
 
 // completion is how many of col's own child Tasks have completed (Done or
@@ -153,4 +185,11 @@ func taskCount(col core.TasksSnapshot) int {
 // rowsSince is how many rows b gained after byte offset start.
 func rowsSince(b *strings.Builder, start int) int {
 	return strings.Count(b.String()[start:], "\n")
+}
+
+// liveRoot is the frame's root as a header-less body: the root Groups and
+// the standalone root Tasks spend one row budget, the same way a Group's
+// nested Groups and child Tasks do.
+func liveRoot(s core.Snapshot) core.TasksSnapshot {
+	return core.TasksSnapshot{Tasks: s.Tasks, Collections: s.Collections}
 }

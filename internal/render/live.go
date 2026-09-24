@@ -63,14 +63,7 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, color bool, p
 	var b strings.Builder
 	st := liveStyle{width: width, spin: txt.SpinnerGlyph(now, profile), color: color, now: now, profile: profile}
 
-	// Prefer collections for multi-task progress display.
-	for _, col := range s.Collections {
-		writeLiveCollection(&b, col, height, st)
-	}
-	nameWidth := maxRootTaskNameWidth(s.Tasks)
-	for _, t := range s.Tasks {
-		writeLiveTaskLine(&b, t, 0, nameWidth, st)
-	}
+	writeLiveBody(&b, liveRoot(s), height, atRoot, st)
 	if hasTaskRows(s) && hasEffectSections(s) {
 		b.WriteByte('\n')
 	}
