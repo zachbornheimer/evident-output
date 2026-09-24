@@ -5,7 +5,7 @@
 // deadlock is impossible by construction rather than by lock ordering.
 //
 // Nothing here is a public lock/unlock API. Callers get ownership only for
-// the duration of a callback (Registry.Hold), which makes leaking it on
+// the duration of a callback (Registry.HoldResource), which makes leaking it on
 // error, panic, or cancellation inexpressible.
 package resource
 

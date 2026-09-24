@@ -22,6 +22,9 @@ func newObservedRegistry(observe func(Claim)) *Registry {
 // Hold holds an already-resolved Claim for fn, the test-side counterpart of
 // HoldResource.
 func (r *Registry) Hold(ctx context.Context, c Claim, fn func(context.Context) error) error {
+	if err := CheckFree(ctx, c.String()); err != nil {
+		return err
+	}
 	observe, _ := contentionObservers.Load(r)
 	hook, _ := observe.(func(Claim))
 	return r.hold(ctx, c, hook, fn)

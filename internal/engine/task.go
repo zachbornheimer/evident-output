@@ -275,8 +275,8 @@ func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle 
 // severity, Warn's non-terminal sibling (user-13-problems.md Problem 8:
 // "Tasks are work. Facts are information."). Renders as a dim "name  value"
 // line, inline when it is the task's only annotation, nested otherwise.
-// Like Warn, this is a statement (no return value) and never resolves the
-// task — call it any number of times before the task's terminal verb.
+// Like Warn, it returns the Task for chaining and never resolves it — call
+// it any number of times before the task's terminal verb.
 func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	f := core.SanitizeFact(FactRecord{Name: txt.Text(name), Value: txt.Text(value)})
 	return t.annotate(func(st *taskState) {

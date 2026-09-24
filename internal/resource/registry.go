@@ -130,10 +130,9 @@ func CheckFree(ctx context.Context, requested string) error {
 	return nil
 }
 
+// hold acquires c, runs fn under it, and releases it. The caller has
+// already refused a nested claim (CheckFree).
 func (r *Registry) hold(ctx context.Context, c Claim, onContended func(Claim), fn func(context.Context) error) error {
-	if err := CheckFree(ctx, c.String()); err != nil {
-		return err
-	}
 	h, cause := r.acquire(ctx, c, onContended)
 	if h == nil {
 		return fmt.Errorf("evo: acquire %s: %w", c, cause)
