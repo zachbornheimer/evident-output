@@ -7,10 +7,11 @@
 // Detection is structural. A disposition call repeats when its receiver
 // (a plain identifier or selector, never a call such as group.Task(x))
 // either:
-//   - sits inside a loop that did not declare it, so it runs once per
-//     iteration on one Task; or
+//   - sits inside a loop that did not bind it (by :=, =, var, or range),
+//     so it runs once per iteration on one Task; or
 //   - already received a disposition call earlier in the same statement
-//     list, so both run in sequence.
+//     list, with no assignment rebinding it in between, so both run in
+//     sequence on one Task.
 //
 // Calls on exclusive branches (if/else) sit in different statement lists
 // and stay silent.
@@ -57,6 +58,12 @@ type repeatedDispositionScan struct {
 func (s *repeatedDispositionScan) visitStatementList(stmts []ast.Stmt) {
 	seen := map[string]bool{}
 	for _, stmt := range stmts {
+		if assign, ok := stmt.(*ast.AssignStmt); ok {
+			for _, lhs := range assign.Lhs {
+				delete(seen, types.ExprString(lhs)) // a fresh Task from here on
+			}
+			continue
+		}
 		expr, ok := stmt.(*ast.ExprStmt)
 		if !ok {
 			continue
@@ -73,12 +80,12 @@ func (s *repeatedDispositionScan) visitStatementList(stmts []ast.Stmt) {
 }
 
 // visitLoop flags a disposition call anywhere in body whose receiver the
-// loop itself (its header or its body) did not declare.
+// loop itself (its header or its body) did not bind.
 func (s *repeatedDispositionScan) visitLoop(body *ast.BlockStmt, header ast.Node) {
-	declared := declaredNames(body)
+	bound := boundNames(body)
 	if header != nil {
-		for name := range declaredNames(header) {
-			declared[name] = true
+		for name := range boundNames(header) {
+			bound[name] = true
 		}
 	}
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -86,7 +93,7 @@ func (s *repeatedDispositionScan) visitLoop(body *ast.BlockStmt, header ast.Node
 			return false // a callback body runs on its own schedule
 		}
 		call, recv, ok := dispositionCall(n)
-		if ok && !declared[rootIdent(call.Fun.(*ast.SelectorExpr).X)] {
+		if ok && !bound[rootIdent(call.Fun.(*ast.SelectorExpr).X)] {
 			s.report(call, recv)
 		}
 		return true
@@ -145,9 +152,10 @@ func rootIdent(expr ast.Expr) string {
 	}
 }
 
-// declaredNames is every identifier n declares by :=, var, or a range
-// clause's key/value.
-func declaredNames(n ast.Node) map[string]bool {
+// boundNames is every identifier n binds by :=, =, var, or a range
+// clause's key/value: a receiver bound inside a loop is a fresh value each
+// iteration.
+func boundNames(n ast.Node) map[string]bool {
 	names := map[string]bool{}
 	if n == nil {
 		return names
@@ -155,7 +163,7 @@ func declaredNames(n ast.Node) map[string]bool {
 	ast.Inspect(n, func(node ast.Node) bool {
 		switch d := node.(type) {
 		case *ast.AssignStmt:
-			if d.Tok == token.DEFINE {
+			if d.Tok == token.DEFINE || d.Tok == token.ASSIGN {
 				addIdents(names, d.Lhs...)
 			}
 		case *ast.ValueSpec:
@@ -163,7 +171,7 @@ func declaredNames(n ast.Node) map[string]bool {
 				names[id.Name] = true
 			}
 		case *ast.RangeStmt:
-			if d.Tok == token.DEFINE {
+			if d.Tok == token.DEFINE || d.Tok == token.ASSIGN {
 				addIdents(names, d.Key, d.Value)
 			}
 			return false // its body is a nested loop's own scope

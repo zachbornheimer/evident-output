@@ -92,3 +92,26 @@ func run(out *evo.Output, skip bool) {
 func TestAPI062_DistinctTasksOrExclusiveBranches_Silent(t *testing.T) {
 	assertNoFinding(t, review.GoSource("run.go", distinctOrExclusiveSrc), "API-062")
 }
+
+// A receiver rebound by plain assignment is a fresh Task each time: once
+// per loop iteration, or again before a second call in one statement list.
+const reboundPerItemSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(branches *evo.GroupHandle, locals []decision) {
+	var item *evo.TaskHandle
+	for _, d := range locals {
+		item = branches.Task(d.Name)
+		item.Kept(keepReason(d.Reason))
+	}
+	item = branches.Task("main")
+	item.Kept(evo.Reason("protected"))
+	item = branches.Task("develop")
+	item.Kept(evo.Reason("protected"))
+}
+`
+
+func TestAPI062_ReceiverReboundPerItem_Silent(t *testing.T) {
+	assertNoFinding(t, review.GoSource("rebound.go", reboundPerItemSrc), "API-062")
+}
