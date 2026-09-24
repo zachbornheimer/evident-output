@@ -90,11 +90,11 @@ func (s *ledgerSection) record(verb string, e ledgerEntry) bool {
 }
 
 func (s *ledgerSection) changesSnapshot() ChangesSnapshot {
-	return ChangesSnapshot{ID: s.id, Subject: s.subject, Records: append([]EffectRecord(nil), s.records...), IntendedVerb: s.intendedVerb}
+	return core.NewChangesSnapshot(ChangesSnapshot{ID: s.id, Subject: s.subject, Records: append([]EffectRecord(nil), s.records...), IntendedVerb: s.intendedVerb}, s.owner.id)
 }
 
 func (s *ledgerSection) planSnapshot() PlanSnapshot {
-	return PlanSnapshot{ID: s.id, Subject: s.subject, Records: append([]EffectRecord(nil), s.records...), IntendedVerb: s.intendedVerb}
+	return core.NewPlanSnapshot(PlanSnapshot{ID: s.id, Subject: s.subject, Records: append([]EffectRecord(nil), s.records...), IntendedVerb: s.intendedVerb}, s.owner.id)
 }
 
 // ledgerSectionKey identifies a section: one per owning Task per tense.

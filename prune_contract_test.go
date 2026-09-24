@@ -380,3 +380,22 @@ func TestPruneContract_KeptChildrenStayInMachineOutput(t *testing.T) {
 		t.Fatalf("machine output keeps every kept child:\n%s", doc)
 	}
 }
+
+// TestPruneContract_LedgerSectionKeepsOnlyItsOwnTaskVisible pins that a
+// section belongs to its Task, not its name: beta's no-op "prune" is hidden
+// even though alpha's "prune" owns a [changed] section.
+func TestPruneContract_LedgerSectionKeepsOnlyItsOwnTaskVisible(t *testing.T) {
+	var buf bytes.Buffer
+	out := newPlainOutput(&buf, false)
+	t.Cleanup(func() { _ = out.Close() })
+
+	commit(out.Group("alpha").Task("prune"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale branch", Quantity: 3})
+	satisfied(out.Group("beta").Task("prune"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := buf.String(); strings.Count(got, "✓ prune") != 1 {
+		t.Fatalf("only the Task owning the section keeps its no-op row; got:\n%s", got)
+	}
+}

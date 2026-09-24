@@ -193,7 +193,22 @@ type ChangesSnapshot struct {
 	// Records. Empty when no verb was ever recorded (evo-rec.md "empty effect
 	// section grammar"). Never caller-assembled.
 	IntendedVerb string
+
+	// owner is the ID of the Task the section belongs to (see
+	// NewChangesSnapshot). Unexported: identity for presentation policy,
+	// never part of the public snapshot.
+	owner string
 }
+
+// NewChangesSnapshot is c owned by the Task ownerID.
+func NewChangesSnapshot(c ChangesSnapshot, ownerID string) ChangesSnapshot {
+	c.owner = ownerID
+	return c
+}
+
+// ChangesOwner is the ID of the Task c belongs to, or "" when c was built
+// without one.
+func ChangesOwner(c ChangesSnapshot) string { return c.owner }
 
 // PlanSnapshot is an immutable plan section.
 type PlanSnapshot struct {
@@ -202,7 +217,20 @@ type PlanSnapshot struct {
 	Records []EffectRecord
 	// IntendedVerb mirrors ChangesSnapshot.IntendedVerb for plan sections.
 	IntendedVerb string
+
+	// owner mirrors ChangesSnapshot's.
+	owner string
 }
+
+// NewPlanSnapshot is p owned by the Task ownerID.
+func NewPlanSnapshot(p PlanSnapshot, ownerID string) PlanSnapshot {
+	p.owner = ownerID
+	return p
+}
+
+// PlanOwner is the ID of the Task p belongs to, or "" when p was built
+// without one.
+func PlanOwner(p PlanSnapshot) string { return p.owner }
 
 // EffectRecord is one semantic change or plan row.
 type EffectRecord struct {

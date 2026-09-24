@@ -56,12 +56,12 @@ func (scope hideScope) admits(t core.TaskSnapshot) bool {
 // zeroInformationScan accumulates what ZeroInformationTaskIDs learns while
 // walking a snapshot's Tasks.
 type zeroInformationScan struct {
-	// ledgerSubjects is every [changed]/[planned] section subject, built
-	// once per scan.
-	ledgerSubjects map[string]bool
-	candidates     map[string]bool
-	visible        int
-	stopped        bool
+	// ledgerOwners is the ID of every Task that owns a [changed]/[planned]
+	// section, built once per scan.
+	ledgerOwners map[string]bool
+	candidates   map[string]bool
+	visible      int
+	stopped      bool
 }
 
 func (scan *zeroInformationScan) visit(t core.TaskSnapshot, scope hideScope) {
@@ -69,7 +69,7 @@ func (scan *zeroInformationScan) visit(t core.TaskSnapshot, scope hideScope) {
 	case core.Failed, core.Blocked, core.Cancelled:
 		scan.stopped = true
 	}
-	if scope.admits(t) && !scan.ledgerSubjects[t.Name] {
+	if scope.admits(t) && !scan.ledgerOwners[t.ID] {
 		scan.candidates[t.ID] = true
 		return
 	}
@@ -97,9 +97,9 @@ func (scan *zeroInformationScan) visitCollection(col core.TasksSnapshot, parent 
 // must show everything (see the rule above).
 func ZeroInformationTaskIDs(s core.Snapshot) map[string]bool {
 	scan := &zeroInformationScan{
-		ledgerSubjects: ledgerSubjects(s),
-		candidates:     make(map[string]bool, len(s.Tasks)+len(s.Collections)),
-		visible:        len(s.Lines) + len(s.Warnings) + len(s.Facts) + len(s.Changes) + len(s.Plans),
+		ledgerOwners: ledgerOwners(s),
+		candidates:   make(map[string]bool, len(s.Tasks)+len(s.Collections)),
+		visible:      len(s.Lines) + len(s.Warnings) + len(s.Facts) + len(s.Changes) + len(s.Plans),
 	}
 	for _, t := range s.Tasks {
 		scan.visit(t, hideProvenNoOp)
@@ -113,18 +113,18 @@ func ZeroInformationTaskIDs(s core.Snapshot) map[string]bool {
 	return scan.candidates
 }
 
-// ledgerSubjects is the set of Task names s has a [changed] or [planned]
-// section for. A qualified subject ("alpha › prune") counts for its Task
-// name, so a same-named Task elsewhere stays visible rather than hidden.
-func ledgerSubjects(s core.Snapshot) map[string]bool {
-	subjects := make(map[string]bool, len(s.Changes)+len(s.Plans))
+// ledgerOwners is the set of Task IDs s has a [changed] or [planned]
+// section for. A section belongs to its Task, never to its name, so a
+// same-named Task elsewhere is judged on its own.
+func ledgerOwners(s core.Snapshot) map[string]bool {
+	owners := make(map[string]bool, len(s.Changes)+len(s.Plans))
 	for _, c := range s.Changes {
-		subjects[core.SubjectTaskName(c.Subject)] = true
+		owners[core.ChangesOwner(c)] = true
 	}
 	for _, p := range s.Plans {
-		subjects[core.SubjectTaskName(p.Subject)] = true
+		owners[core.PlanOwner(p)] = true
 	}
-	return subjects
+	return owners
 }
 
 // WithoutTasks returns s with the Tasks in hidden removed from the root and

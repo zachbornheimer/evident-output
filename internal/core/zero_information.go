@@ -1,7 +1,5 @@
 package core
 
-import "strings"
-
 // IsZeroInformationTask reports whether t alone, ignoring its ledger and its
 // neighbours, would add nothing to a human reader: a Done Task that changed
 // nothing (NoWork or AlreadySatisfied), was not invented by the library, and
@@ -32,12 +30,3 @@ func IsProvenNoOpTask(t TaskSnapshot) bool {
 // QualifiedSubjectSeparator joins a nested Task's container path into its
 // ledger subject when its bare name is ambiguous ("alpha › prune").
 const QualifiedSubjectSeparator = " › "
-
-// SubjectTaskName is the Task name a ledger subject shows: the subject
-// itself, or its last path element when it is qualified.
-func SubjectTaskName(subject string) string {
-	if i := strings.LastIndex(subject, QualifiedSubjectSeparator); i >= 0 {
-		return subject[i+len(QualifiedSubjectSeparator):]
-	}
-	return subject
-}
