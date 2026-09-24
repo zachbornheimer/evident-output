@@ -28,7 +28,7 @@ func detectGoroutineWrappingDefine(filename, src string) []Finding {
 			if !ok {
 				break
 			}
-			if containsAnyMarker(body, []string{".Define("}) {
+			if containsAny(body, []string{".Define("}) {
 				findings = append(findings, Finding{
 					RuleID:          "EVO-DAG-001",
 					Severity:        "warning",
