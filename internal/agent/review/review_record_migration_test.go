@@ -220,3 +220,9 @@ func assertNoRule(t *testing.T, res review.Result, ruleID string) {
 		}
 	}
 }
+
+// Record* still exists at a 1.0.x pin, so an explicit older pin must not be
+// told it was removed.
+func TestAPI061_PreOneOnePin_Silent(t *testing.T) {
+	assertNoRule(t, review.GoSourceAt("setup_python.go", recordInstallShapedSrc, "1.0.0"), "API-061")
+}

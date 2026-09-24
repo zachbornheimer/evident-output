@@ -248,8 +248,9 @@ var fileDetectors = []detector{
 	// API-061: a call site still uses the record-only mutation verbs
 	// Record/RecordLabel/RecordName, which have no record-only
 	// replacement (ZYS-974) — steer it to Effect (mutation), Fact
-	// (information), or File/Patch (file writes).
-	{gate: gateEvo, run: astRule(detectDeprecatedRecordCall)},
+	// (information), or File/Patch (file writes). Record* still exists at a
+	// 1.0.x pin, so the rule only fires from 1.1.0 on.
+	{gate: gateEvoOneOne, run: astRule(detectDeprecatedRecordCall)},
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	{gate: gateEvoOneZero, run: astRule(detectMutatingLegacyEvidence)},
 	// EVO-VERIFY-001: Verify callback performs a raw mutation; Verify must
