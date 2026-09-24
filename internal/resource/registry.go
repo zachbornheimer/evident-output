@@ -54,17 +54,14 @@ type Request struct {
 	Resource  Resource
 	Workspace string
 	Mode      Mode
-	// OnContended, when non-nil, runs instead of the Registry's own
-	// OnContended hook for this one request: once, outside any registry
-	// lock, and only if the claim has to wait. It lets one process-wide
-	// Registry report contention to whichever caller is actually waiting.
+	// OnContended, when non-nil, runs once, outside any registry lock, and
+	// only if the claim has to wait. It lets one process-wide Registry
+	// report contention to whichever caller is actually waiting.
 	OnContended func(Claim)
 }
 
 // Registry grants claims. The zero value is not usable; call NewRegistry.
 type Registry struct {
-	onContended func(Claim)
-
 	mu sync.Mutex
 	// held are the claims currently granted.
 	held []*hold
@@ -84,24 +81,8 @@ type hold struct {
 	ready    chan struct{}
 }
 
-// Option configures a Registry.
-type Option func(*Registry)
-
-// OnContended registers fn to run, at most once per Hold and outside any
-// registry lock, when a claim must wait for a conflicting one. An
-// uncontended claim never calls it, so quiet acquisitions stay invisible.
-func OnContended(fn func(Claim)) Option {
-	return func(r *Registry) { r.onContended = fn }
-}
-
 // NewRegistry returns an empty Registry.
-func NewRegistry(opts ...Option) *Registry {
-	r := &Registry{}
-	for _, opt := range opts {
-		opt(r)
-	}
-	return r
-}
+func NewRegistry() *Registry { return &Registry{} }
 
 // heldKey is the context key under which Hold records the claim its
 // callback owns — unexported so nothing outside this package can forge or
@@ -118,9 +99,15 @@ func holding(ctx context.Context) (*hold, bool) {
 	return h, true
 }
 
-// HoldResource resolves req and holds it for fn, exactly like Hold. The
-// nested-acquisition check runs before resolution so misuse is reported as
-// ErrNested regardless of whether the requested Resource resolves.
+// HoldResource resolves req, waits until its claim can be granted, runs fn
+// with a context derived from ctx that records the claim, and releases the
+// claim when fn returns or panics. ctx must be non-nil.
+//
+// If ctx already holds a claim (directly, or through any helper it was
+// passed to), HoldResource returns ErrNested immediately — before
+// resolution, so misuse is reported even for a Resource that would not
+// resolve. If ctx ends while waiting, it returns its cause and fn never
+// runs.
 func (r *Registry) HoldResource(ctx context.Context, req Request, fn func(context.Context) error) error {
 	if err := CheckFree(ctx, fmt.Sprintf("%s %v", req.Mode, req.Resource)); err != nil {
 		return err
@@ -129,11 +116,7 @@ func (r *Registry) HoldResource(ctx context.Context, req Request, fn func(contex
 	if err != nil {
 		return fmt.Errorf("evo: hold %s %v: %w", req.Mode, req.Resource, err)
 	}
-	onContended := req.OnContended
-	if onContended == nil {
-		onContended = r.onContended
-	}
-	return r.hold(ctx, Claim{Key: key, Mode: req.Mode}, onContended, fn)
+	return r.hold(ctx, Claim{Key: key, Mode: req.Mode}, req.OnContended, fn)
 }
 
 // CheckFree returns ErrNested, naming requested, when ctx already holds a
@@ -145,17 +128,6 @@ func CheckFree(ctx context.Context, requested string) error {
 		return nestedError(h, requested)
 	}
 	return nil
-}
-
-// Hold waits until c can be granted, runs fn with a context derived from
-// ctx that records the claim, and releases the claim when fn returns or
-// panics. ctx must be non-nil.
-//
-// If ctx already holds a claim (directly, or through any helper it was
-// passed to), Hold returns ErrNested immediately. If ctx ends while
-// waiting, Hold returns its cause and fn never runs.
-func (r *Registry) Hold(ctx context.Context, c Claim, fn func(context.Context) error) error {
-	return r.hold(ctx, c, r.onContended, fn)
 }
 
 func (r *Registry) hold(ctx context.Context, c Claim, onContended func(Claim), fn func(context.Context) error) error {
