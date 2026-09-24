@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 
@@ -56,17 +58,17 @@ func Patch(ctx context.Context, diff []byte) (FileSet, error) {
 	if err != nil {
 		return FileSet{}, err
 	}
-	return task.out.derivePatch(ctx, diff)
+	return task.out.derivePatch(ctx, task.id, diff)
 }
 
-func (o *Output) derivePatch(ctx context.Context, diff []byte) (FileSet, error) {
+func (o *Output) derivePatch(ctx context.Context, taskID string, diff []byte) (FileSet, error) {
 	edits, parseErr := patch.Parse(diff)
 	if parseErr != nil {
 		return FileSet{}, parseErr
 	}
 	files := make([]desiredFile, 0, len(edits))
 	for _, edit := range edits {
-		desired, deriveErr := o.deriveFile(ctx, edit)
+		desired, deriveErr := o.deriveFile(ctx, taskID, edit)
 		if deriveErr != nil {
 			return FileSet{}, fmt.Errorf("evo: Patch %q: %w", edit.Path, deriveErr)
 		}
@@ -77,7 +79,7 @@ func (o *Output) derivePatch(ctx context.Context, diff []byte) (FileSet, error) 
 
 // deriveFile observes edit's source under a read claim on its path and
 // applies edit to exactly the bytes observed.
-func (o *Output) deriveFile(ctx context.Context, edit patch.File) (desiredFile, error) {
+func (o *Output) deriveFile(ctx context.Context, taskID string, edit patch.File) (desiredFile, error) {
 	target := workspaceFile{root: o.workspace(), rel: edit.Path}
 	path := target.path()
 	var source observedSource
@@ -92,26 +94,71 @@ func (o *Output) deriveFile(ctx context.Context, edit patch.File) (desiredFile, 
 	if claimErr != nil {
 		return desiredFile{}, claimErr
 	}
-	contents, applyErr := desiredContents(edit, source, path)
+	contents, applyErr := desiredContents(edit, source, path, func() bool {
+		return o.taskLastLeft(ctx, taskID, source.basis)
+	})
 	if applyErr != nil {
 		return desiredFile{}, applyErr
 	}
 	return desiredFile{target: target, contents: contents, mode: edit.Mode, basis: source.basis}, nil
 }
 
-// desiredContents is the bytes edit leaves at source. A source that
-// already holds edit's result (the same diff on a second Run) is its own
-// desired state, which Files then reports as already satisfied.
-func desiredContents(edit patch.File, source observedSource, path string) ([]byte, error) {
+// desiredContents is the bytes edit leaves at source. The diff is applied
+// forward first, as patch(1) and git apply do. A source that already
+// holds edit's result (the same diff on a second Run) is its own desired
+// state, which Files then reports as already satisfied: when the forward
+// apply fails and the reverse matches (patch -N), or when source matches
+// both sides and resultOfLastRun confirms these bytes are what this
+// Task's previous Run left there.
+func desiredContents(edit patch.File, source observedSource, path string, resultOfLastRun func() bool) ([]byte, error) {
+	applied := source.exists && edit.AppliedTo(source.contents)
 	switch {
 	case !edit.Create && !source.exists:
 		return nil, fmt.Errorf("%w: modifies %s, which does not exist", ErrPatchDoesNotApply, path)
-	case source.exists && edit.AppliedTo(source.contents):
-		return source.contents, nil
-	case edit.Create && source.exists:
+	case edit.Create && source.exists && !applied:
 		return nil, fmt.Errorf("%w: creates %s, which already exists", ErrPatchDoesNotApply, path)
+	case edit.Create && applied:
+		return source.contents, nil
 	}
-	return edit.Apply(source.contents)
+	forward, applyErr := edit.Apply(source.contents)
+	switch {
+	case applyErr != nil && applied && errors.Is(applyErr, ErrPatchDoesNotApply):
+		return source.contents, nil
+	case applyErr != nil:
+		return nil, applyErr
+	case applied && resultOfLastRun():
+		return source.contents, nil
+	}
+	return forward, nil
+}
+
+// taskLastLeft reports whether taskID's previous Run recorded observed as
+// the output it left at observed's path: the manifest's proof that the
+// bytes there are this Task's own earlier result.
+func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed fingerprint.FingerprintValue) bool {
+	store, openErr := o.manifestFor(ctx)
+	if openErr != nil {
+		return false
+	}
+	o.mu.Lock()
+	key, _, ok := o.taskManifestKeyLocked(taskID)
+	o.mu.Unlock()
+	if !ok {
+		return false
+	}
+	prior, found := store.Task(key)
+	if !found {
+		return false
+	}
+	digest := hex.EncodeToString(observed.Digest[:])
+	for _, op := range prior.Operations {
+		for _, output := range op.Outputs {
+			if output.Path == observed.Key && output.Digest == digest {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // observedSource is one patch source as read: whether it exists, its

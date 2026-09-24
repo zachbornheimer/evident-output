@@ -40,3 +40,45 @@ func TestPatchRerunRejectsASourceThatIsNotTheResult(t *testing.T) {
 		t.Fatalf("err = %v (set %d files), want ErrPatchDoesNotApply", err, len(set.files))
 	}
 }
+
+// duplicateInsertionDiff inserts a line equal to the line that already
+// follows its context, so "head\na\na\n" matches both the diff's old side
+// and its new side.
+const duplicateInsertionDiff = "--- a/list.txt\n+++ b/list.txt\n@@ -2,1 +2,2 @@\n a\n+a\n"
+
+// TestPatchAmbiguousFirstRunAppliesForward proves a source that matches
+// both sides of a diff is patched forward on its first Run, as patch(1)
+// and git apply do, and that the same Task's next Run (which reads its
+// own recorded result from the manifest) is already satisfied instead of
+// inserting the line again.
+func TestPatchAmbiguousFirstRunAppliesForward(t *testing.T) {
+	const want = "head\na\na\na\n"
+	dir, first := patchWorkspace(t, map[string]string{"list.txt": "head\na\na\n"})
+	state := first.cfg.stateDir
+	if err := runFilesTask(t, first, duplicateInsertionDiff, nil); err != nil {
+		t.Fatalf("run 1: %v", err)
+	}
+	if got := readOrFatal(t, filepath.Join(dir, "list.txt")); got != want {
+		t.Fatalf("list.txt after run 1 = %q, want %q", got, want)
+	}
+	if _, changed := effectObjects(first); len(changed) != 1 {
+		t.Fatalf("run 1 changes = %v, want one", changed)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("close run 1: %v", err)
+	}
+	second := Init(Config{Isolated: true, StateDir: state})
+	t.Cleanup(func() { _ = second.Close() })
+	second.mu.Lock()
+	second.workspaceDir = dir
+	second.mu.Unlock()
+	if err := runFilesTask(t, second, duplicateInsertionDiff, nil); err != nil {
+		t.Fatalf("run 2: %v", err)
+	}
+	if got := readOrFatal(t, filepath.Join(dir, "list.txt")); got != want {
+		t.Fatalf("list.txt after run 2 = %q, want %q (already satisfied)", got, want)
+	}
+	if _, changed := effectObjects(second); len(changed) != 0 {
+		t.Fatalf("run 2 changes = %v, want none", changed)
+	}
+}

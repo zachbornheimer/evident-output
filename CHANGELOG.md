@@ -38,8 +38,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `ErrPatchRenameUnsupported`, `ErrPatchBinaryUnsupported`. A path beyond
   a symlinked directory fails with `ErrPatchUnsupported`; Patch never
   creates directories, so a file in a missing directory fails with
-  `ErrPatchDoesNotApply` before anything commits. Applying the same diff
-  again is already satisfied, not a failure.
+  `ErrPatchDoesNotApply` before anything commits. Patch applies the diff
+  forward first, as `patch` and `git apply` do. Applying the same diff
+  again is already satisfied, not a failure; when the file matches both
+  sides of the diff, only this Task's own recorded result from its last
+  Run counts as already applied.
 - **`GroupHandle.Wait() error` and `SequenceHandle.Wait() error`:** wait for
   every descendant; `nil` only when every one ran and succeeded,
   `ErrNotStarted` when work never ran (including a Task nobody Defined).
