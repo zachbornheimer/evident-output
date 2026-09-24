@@ -230,7 +230,7 @@ func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
 		st.warnings = append(st.warnings, p)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
-		t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, map[string]any{"summary": p.Summary})
+		t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
 		t.out.signalLiveLocked(true)
 	})
 }
@@ -267,7 +267,7 @@ func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle 
 		st.pendingProblems = append(st.pendingProblems, p)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
-		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, map[string]any{"summary": p.Summary})
+		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
 		t.out.signalLiveLocked(true)
 	})
 }
@@ -283,7 +283,7 @@ func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	return t.annotate(func(st *taskState) {
 		st.facts = append(st.facts, f)
 		t.out.bumpLocked()
-		t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, map[string]any{"name": f.Name, "value": f.Value})
+		t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, wire.ToFactDoc(f).EventPayload())
 		t.out.signalLiveLocked(true)
 	})
 }

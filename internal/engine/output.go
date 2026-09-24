@@ -686,7 +686,12 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 	if st == nil || core.IsTerminalTask(st.state) {
 		return
 	}
-	st.verification = append(st.verification, core.StoreVerificationDetails(details)...)
+	stored := core.StoreVerificationDetails(details)
+	st.verification = append(st.verification, stored...)
+	// Emit the sanitized copy evo.run projects, so JSONL and JSON agree.
+	for _, d := range stored {
+		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, wire.ToVerificationDoc(d).EventPayload())
+	}
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first
@@ -1363,7 +1368,7 @@ func (o *Output) newDebugRecordLocked(levelName, message string, fields []Field,
 	}
 	for i := range rec.Fields {
 		if rec.Fields[i].Sensitive {
-			rec.Fields[i].Value = "***"
+			rec.Fields[i].Value = core.RedactedValue
 		} else if o.cfg.redactor != nil {
 			rec.Fields[i].Value = o.cfg.redactor.RedactString(fmt.Sprint(rec.Fields[i].Value))
 		}

@@ -146,20 +146,6 @@ type TimingDoc struct {
 	TotalMs   int64 `json:"total_ms"`
 }
 
-// VerificationDoc is one diagnostic sub-result (spec §36).
-type VerificationDoc struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
-}
-
-// Verification statuses (spec §36).
-const (
-	VerificationSatisfied   = "satisfied"
-	VerificationUnsatisfied = "unsatisfied"
-	VerificationError       = "error"
-	VerificationUnknown     = "unknown"
-)
-
 // TrackedResourceDoc is one observable, fingerprintable resource (spec §36).
 // The runtime model has no tracked-resource instrumentation yet (that is
 // increment 2's File/manifest work) — always an empty slice for now.
@@ -207,23 +193,6 @@ type TaskDoc struct {
 	Operations         []OperationDoc       `json:"operations"`
 }
 
-// FactDoc is a wire-format Fact annotation (spec §36/§39's "Facts" data).
-type FactDoc struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-// ProblemDoc is a wire-format Problem: stable code plus a human message a
-// machine consumer must not parse (spec §37).
-type ProblemDoc struct {
-	Code    string `json:"code,omitempty"`
-	Message string `json:"message,omitempty"`
-	Subject string `json:"subject,omitempty"`
-	Detail  string `json:"detail,omitempty"`
-	Count   int64  `json:"count,omitempty"`
-	Unit    string `json:"unit,omitempty"`
-}
-
 // EffectDoc is one flattened change/plan row (spec §35's top-level
 // "effects"), tagged with which ledger it came from so a machine consumer
 // gets the human [planned]/[changed] distinction without parsing verb tense.
@@ -233,19 +202,6 @@ type EffectDoc struct {
 	Verb     string `json:"verb"`
 	Quantity *int64 `json:"quantity,omitempty"`
 	Object   string `json:"object"`
-}
-
-// ActionDoc is a wire-format next-step Action.
-type ActionDoc struct {
-	Label   string      `json:"label,omitempty"`
-	Command *CommandDoc `json:"command,omitempty"`
-	URL     string      `json:"url,omitempty"`
-}
-
-// CommandDoc is argv for display.
-type CommandDoc struct {
-	Executable string   `json:"executable"`
-	Args       []string `json:"args,omitempty"`
 }
 
 // ToRunDocument builds the "evo.run" wire document from a finished Result
@@ -288,7 +244,7 @@ func ToRunDocument(result core.Result, evoVersion string) RunDocument {
 		doc.Data.Effects = append(doc.Data.Effects, toEffectDocs(p.Subject, EffectStatusPlanned, p.Records)...)
 	}
 	for _, a := range c.Actions {
-		doc.Data.Actions = append(doc.Data.Actions, toActionDoc(a))
+		doc.Data.Actions = append(doc.Data.Actions, ToActionDoc(a))
 	}
 	return doc
 }
@@ -371,7 +327,7 @@ func toTaskDoc(parentID string, t core.TaskSnapshot) TaskDoc {
 		Progress:           toProgressDoc(t.Progress),
 		Activity:           toActivityDoc(t.Phase),
 		Timing:             TimingDoc{},
-		Verification:       []VerificationDoc{},
+		Verification:       toVerificationDocs(t.Verification),
 		TrackedResources:   []TrackedResourceDoc{},
 		Basis:              []BasisDoc{},
 		Facts:              toFactDocs(t.Facts),
@@ -410,25 +366,6 @@ func toEvidencePhaseDoc(p core.EvidencePhase) EvidencePhaseDoc {
 	return EvidencePhaseDoc{Evaluated: p.Evaluated, Satisfied: p.Satisfied, Source: p.Source}
 }
 
-func toFactDocs(in []core.Fact) []FactDoc {
-	out := make([]FactDoc, 0, len(in))
-	for _, f := range in {
-		out = append(out, FactDoc{Name: f.Name, Value: f.Value})
-	}
-	return out
-}
-
-func toProblemDocs(in []core.Problem) []ProblemDoc {
-	out := make([]ProblemDoc, 0, len(in))
-	for _, p := range in {
-		out = append(out, ProblemDoc{
-			Code: p.Code, Message: p.Summary, Subject: p.Subject,
-			Detail: p.Detail, Count: p.Count, Unit: p.Unit,
-		})
-	}
-	return out
-}
-
 func toEffectDocs(subject, status string, in []core.EffectRecord) []EffectDoc {
 	out := make([]EffectDoc, 0, len(in))
 	for _, r := range in {
@@ -440,15 +377,4 @@ func toEffectDocs(subject, status string, in []core.EffectRecord) []EffectDoc {
 		out = append(out, rec)
 	}
 	return out
-}
-
-func toActionDoc(a core.Action) ActionDoc {
-	ad := ActionDoc{Label: a.Label, URL: a.URL}
-	if a.Command != nil {
-		ad.Command = &CommandDoc{
-			Executable: a.Command.Executable,
-			Args:       append([]string(nil), a.Command.Args...),
-		}
-	}
-	return ad
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // JSONSchemaVersion is the final JSON document schema version.
@@ -301,13 +302,15 @@ func toJSONEffects(in []core.EffectRecord) []JSONEffectRecord {
 	return out
 }
 
+// toJSONAction adapts wire's one core.Action projection to the frozen
+// output.v1 type. The JSONCommand conversion compiles only while
+// JSONCommand and wire.CommandDoc keep identical fields.
 func toJSONAction(a core.Action) JSONAction {
-	ja := JSONAction{Label: a.Label, URL: a.URL}
-	if a.Command != nil {
-		ja.Command = &JSONCommand{
-			Executable: a.Command.Executable,
-			Args:       append([]string(nil), a.Command.Args...),
-		}
+	doc := wire.ToActionDoc(a)
+	ja := JSONAction{Label: doc.Label, URL: doc.URL}
+	if doc.Command != nil {
+		cmd := JSONCommand(*doc.Command)
+		ja.Command = &cmd
 	}
 	return ja
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -176,6 +177,108 @@ func TestToRunDocument_ValidatesAgainstSchema(t *testing.T) {
 				t.Fatalf("evo.run document for %q does not conform to schema/run.v2.json:\n%v\n\ndocument:\n%s", name, err, doc)
 			}
 		})
+	}
+}
+
+// TestToRunDocument_VerificationProjectsPerAttributeFactsToo is ZYS-823's
+// Patch/File machine-provenance gap: a failing evo.File/Patch attribute's
+// Facts (error/path/mode — internal/core's fileVerificationDetails, §8.2)
+// are exactly what a machine consumer needs to explain the failure without
+// parsing terminal prose, but toTaskDoc hard-coded Verification to an empty
+// slice, so WriteJSON's public "evo.run" document dropped every
+// VerificationDetail (and its Facts) a Task recorded.
+func TestToRunDocument_VerificationProjectsPerAttributeFactsToo(t *testing.T) {
+	result := core.Result{Conclusion: withConc(func(c *core.Conclusion) {
+		c.Tasks = []core.TaskSnapshot{
+			core.NewTaskSnapshot(core.TaskSnapshot{
+				ID: "task_1", Name: "write launch agent", State: core.Failed,
+				Verification: []core.VerificationDetail{
+					{Name: "contents", Status: core.VerificationSatisfied},
+					{
+						Name: "permissions", Status: core.VerificationError,
+						Facts: []core.Fact{
+							{Name: "error", Value: "operation not permitted"},
+							{Name: "path", Value: "~/Library/LaunchAgents/com.acme.prod.agent.plist"},
+							{Name: "mode", Value: "0644"},
+						},
+					},
+				},
+			}, time.Time{}, false),
+		}
+	})}
+	doc := ToRunDocument(result, testEvoVersion)
+	got := doc.Data.Tasks[0].Verification
+	want := []VerificationDoc{
+		{Name: "contents", Status: VerificationSatisfied},
+		{
+			Name: "permissions", Status: VerificationError,
+			Facts: []FactDoc{
+				{Name: "error", Value: "operation not permitted"},
+				{Name: "path", Value: "~/Library/LaunchAgents/com.acme.prod.agent.plist"},
+				{Name: "mode", Value: "0644"},
+			},
+		},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Verification = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i].Name != want[i].Name || got[i].Status != want[i].Status {
+			t.Errorf("Verification[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+		if len(got[i].Facts) != len(want[i].Facts) {
+			t.Fatalf("Verification[%d].Facts = %+v, want %+v", i, got[i].Facts, want[i].Facts)
+		}
+		for j := range want[i].Facts {
+			if got[i].Facts[j] != want[i].Facts[j] {
+				t.Errorf("Verification[%d].Facts[%d] = %+v, want %+v", i, j, got[i].Facts[j], want[i].Facts[j])
+			}
+		}
+	}
+}
+
+// TestToProblemDoc_ProjectsLocationAndRemedies proves Location and
+// Remedies reach ProblemDoc; evo.run is the only machine document that
+// carries them (output.v1 is frozen at 1.1).
+func TestToProblemDoc_ProjectsLocationAndRemedies(t *testing.T) {
+	got := ToProblemDoc(core.Problem{
+		Summary:  "build failed",
+		Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
+		Actions:  []core.Action{{Label: "rerun", Command: &core.CommandSpec{Executable: "go", Args: []string{"build", "./..."}}}},
+	})
+	if got.Location == nil || got.Location.Path != "main.go" || got.Location.Line != 12 || got.Location.Column != 3 {
+		t.Fatalf("Location = %+v, want {main.go 12 3}", got.Location)
+	}
+	if len(got.Remedies) != 1 || got.Remedies[0].Label != "rerun" {
+		t.Fatalf("Remedies = %+v, want a [rerun] action", got.Remedies)
+	}
+}
+
+// TestEncodeRun_ProblemLocationAndRemediesSurviveEncoding is the end-to-end
+// proof: Location and Remedies must both survive a real EncodeRun call, not
+// just the ToProblemDoc unit above.
+func TestEncodeRun_ProblemLocationAndRemediesSurviveEncoding(t *testing.T) {
+	result := core.Result{Conclusion: withConc(func(c *core.Conclusion) {
+		c.Tasks = []core.TaskSnapshot{
+			core.NewTaskSnapshot(core.TaskSnapshot{
+				ID: "task_1", Name: "build", State: core.Done,
+				Problems: []core.Problem{{
+					Code: "A1", Summary: "finding",
+					Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
+					Actions:  []core.Action{{Label: "rerun"}},
+				}},
+			}, time.Time{}, false),
+		}
+	})}
+	encoded, err := EncodeRun(result, testEvoVersion)
+	if err != nil {
+		t.Fatalf("EncodeRun: %v", err)
+	}
+	body := string(encoded)
+	for _, want := range []string{`"line": 12`, `"rerun"`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("encoded evo.run missing %q:\n%s", want, body)
+		}
 	}
 }
 

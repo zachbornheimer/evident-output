@@ -211,10 +211,10 @@ func evaluateVerifiers(ctx context.Context, o *Output, taskID string, verifiers 
 	for i, v := range verifiers {
 		ok, verifyErr := v(ctx)
 		o.mu.Lock()
-		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, map[string]any{
-			"name":   fmt.Sprintf("verify_%d", i),
-			"status": verificationStatus(ok, verifyErr),
-		})
+		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, wire.VerificationDoc{
+			Name:   fmt.Sprintf("verify_%d", i),
+			Status: verificationStatus(ok, verifyErr),
+		}.EventPayload())
 		o.mu.Unlock()
 		if verifyErr != nil {
 			return false, verifyErr
