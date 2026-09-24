@@ -60,7 +60,7 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 	}
 
 	if s.Conclusion != nil && !ShouldSuppressStandaloneConclusion(s) {
-		WriteConclusion(&b, *s.Conclusion, color, profile)
+		WriteConclusion(&b, StandaloneConclusion(s), color, profile)
 	}
 
 	return b.String()

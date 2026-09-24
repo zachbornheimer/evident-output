@@ -244,12 +244,14 @@ func TestPruneContract_LedgerFollowsTaskDeclarationOrderNotCompletionOrder(t *te
 // the contract §18 dry-run bytes TestV8_DryRunPlanOnly pins for the
 // Warn-authored form: a Kept tally nests under its row ("  ! kept N (...)",
 // spec §26/§27) exactly like a Warn, and its "!" row feeds the trailing
-// "[planned · warned]" band like any other warning-glyph annotation.
+// "[planned · warned]" band like any other warning-glyph annotation. It runs
+// under zq's own Config (Title "zq"): the band stays bare because the
+// dry-run Subject header already named the run.
 func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true, DryRun: true, Color: evo.ColorNever, Plain: true,
-		Subject: "zq prune  ~/repo", Stdout: &buf,
+		Title: "zq", Subject: "zq prune  ~/repo", Stdout: &buf,
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
