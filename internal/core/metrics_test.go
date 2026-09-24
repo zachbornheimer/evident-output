@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 )
@@ -214,7 +215,7 @@ func TestConclusionMetrics_CriticalPathFollowsAfterAndSequenceEdges(t *testing.T
 func TestConclusionMetrics_CriticalPathSurvivesADependencyCycle(t *testing.T) {
 	c := Conclusion{Tasks: []TaskSnapshot{taskAfter("a", 1, "b"), taskAfter("b", 2, "a")}}
 	if got := c.Metrics().CriticalPath; got != secs(3) {
-		t.Fatalf("CriticalPath = %v, want 3s (the cycle stops at the repeat)", got)
+		t.Fatalf("CriticalPath = %v, want 3s (the cycle counts once, as a unit)", got)
 	}
 }
 
@@ -267,9 +268,57 @@ func TestConclusionMetrics_CriticalPathSurvivesATaskAfterItsOwnGroup(t *testing.
 		ID:    "g",
 		Tasks: []TaskSnapshot{taskAfter("a", 2), taskAfter("b", 1, "g")},
 	}}}
-	// b waits on its own Group: the cycle stops at b, so b follows a.
+	// b waits on its own Group: the cycle is b alone, so b follows a.
 	if got := c.Metrics().CriticalPath; got != secs(3) {
 		t.Fatalf("CriticalPath = %v, want 3s", got)
+	}
+}
+
+// A dependency cycle counts once, as a unit, wherever a walk enters it, so
+// a dependent outside the cycle always sees the whole chain behind it.
+func TestConclusionMetrics_CriticalPathThroughACycleIsOrderIndependent(t *testing.T) {
+	cases := []struct {
+		name       string
+		conclusion Conclusion
+		want       time.Duration
+	}{
+		{
+			// b waits on its own Group; z waits on the Group: a(2) → b(1) → z(1).
+			name: "Task After its own Group",
+			conclusion: Conclusion{
+				Tasks: []TaskSnapshot{taskAfter("z", 1, "g")},
+				Collections: []TasksSnapshot{{
+					ID:    "g",
+					Tasks: []TaskSnapshot{taskAfter("b", 1, "g"), taskAfter("a", 2)},
+				}},
+			},
+			want: secs(4),
+		},
+		{
+			// x waits on g and g's member b waits on x, so {x, b} is one
+			// cycle fed by a: a(2) → {x(1), b(1)} → z(1).
+			name: "Group member After a Task After the Group",
+			conclusion: Conclusion{
+				Tasks: []TaskSnapshot{taskAfter("x", 1, "g"), taskAfter("z", 1, "g")},
+				Collections: []TasksSnapshot{{
+					ID:    "g",
+					Tasks: []TaskSnapshot{taskAfter("a", 2), taskAfter("b", 1, "x")},
+				}},
+			},
+			want: secs(5),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reversed := tc.conclusion
+			reversed.Tasks = slices.Clone(tc.conclusion.Tasks)
+			slices.Reverse(reversed.Tasks)
+			for _, c := range []Conclusion{tc.conclusion, reversed} {
+				if got := c.Metrics().CriticalPath; got != tc.want {
+					t.Fatalf("CriticalPath = %v, want %v", got, tc.want)
+				}
+			}
+		})
 	}
 }
 
