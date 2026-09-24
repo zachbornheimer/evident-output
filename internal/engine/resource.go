@@ -49,7 +49,7 @@ var processResources = resource.NewRegistry()
 func (o *Output) holdResource(ctx context.Context, r Resource, mode resource.Mode, fn func(context.Context) error) error {
 	wait := o.resourceWaitFor(ctx, r)
 	defer wait.clear()
-	req := resource.Request{Resource: r, Workspace: o.workspaceDirLocked(), Mode: mode, OnContended: wait.show}
+	req := resource.Request{Resource: r, Workspace: o.workspace(), Mode: mode, OnContended: wait.show}
 	return processResources.HoldResource(ctx, req, func(held context.Context) error {
 		wait.clear()
 		return runHoldingResource(held, fn)
@@ -105,7 +105,7 @@ func checkResourceFree(ctx context.Context, r Resource, mode resource.Mode) erro
 // validateResource resolves r without claiming it, so a dry run rejects
 // an invalid Resource exactly like an applied run does.
 func (o *Output) validateResource(r Resource) error {
-	if _, err := resource.Resolve(r, o.workspaceDirLocked()); err != nil {
+	if _, err := resource.Resolve(r, o.workspace()); err != nil {
 		return fmt.Errorf("evo: resource %v: %w", r, err)
 	}
 	return nil

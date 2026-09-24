@@ -20,13 +20,13 @@ import (
 var ErrFileConflictingProducer = errors.New("evo: File output path already claimed by another Task in this Run")
 
 // manifestFor returns this Run's manifest Store, opening it on first use
-// (spec §11.3) — the same lazy-capture pattern workspaceDirLocked already
+// (spec §11.3) — the same lazy-capture pattern workspace already
 // uses for the workspace directory. Every later call, whether it succeeded
 // or failed, returns the same cached result: a manifest miss/open failure
 // degrades this Run to live-filesystem-only File behavior rather than
 // retrying on every call.
 func (o *Output) manifestFor(ctx context.Context) (*manifest.Store, error) {
-	workspace := o.workspaceDirLocked()
+	workspace := o.workspace()
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.manifestOpened {

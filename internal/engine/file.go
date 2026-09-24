@@ -129,7 +129,7 @@ func fileVerificationDetails(contentsManaged, modeManaged bool, chmodErr error, 
 // Run's workspace directory captured once at Run start; changing process
 // CWD later does not retarget an operation").
 func (o *Output) resolveWorkspacePath(path string) string {
-	return resolvePathAgainst(o.workspaceDirLocked(), path)
+	return resolvePathAgainst(o.workspace(), path)
 }
 
 // resolvePathAgainst resolves path against base: an absolute path is
@@ -144,11 +144,11 @@ func resolvePathAgainst(base, path string) string {
 	return filepath.Join(base, path)
 }
 
-// workspaceDirLocked lazily captures and caches the process working
+// workspace lazily captures and caches the process working
 // directory the first time any operation needs it, so every relative path
 // in this Run resolves against the same snapshot even if the process CWD
 // later changes.
-func (o *Output) workspaceDirLocked() string {
+func (o *Output) workspace() string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.workspaceDir == "" {

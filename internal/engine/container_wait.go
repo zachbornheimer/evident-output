@@ -24,7 +24,7 @@ func (g *GroupHandle) Wait() error {
 	if err := g.out.refuseWaitUnderClaim(g.id); err != nil {
 		return err
 	}
-	return waitDescendants(g.out.collectDescendantTasksLocked(g.id))
+	return waitDescendants(g.out.collectDescendantTasks(g.id))
 }
 
 // Wait is Sequence's counterpart to GroupHandle.Wait: the ordered container
@@ -37,13 +37,13 @@ func (s *SequenceHandle) Wait() error {
 	return s.tasks.Wait()
 }
 
-// collectDescendantTasksLocked returns every Task declared directly or
+// collectDescendantTasks returns every Task declared directly or
 // transitively under rootID (a Group/Sequence container id), in declaration
 // order — the same global ordinal Task/Group/Sequence declarations share
 // (Output.nextDecl), so a container whose children interleave Task and
 // nested Group/Sequence declarations still joins errors in true declaration
 // order rather than "all direct tasks, then all nested containers".
-func (o *Output) collectDescendantTasksLocked(rootID string) []*taskState {
+func (o *Output) collectDescendantTasks(rootID string) []*taskState {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	col := o.tasksByRef[rootID]
@@ -56,7 +56,7 @@ func (o *Output) collectDescendantTasksLocked(rootID string) []*taskState {
 	return states
 }
 
-// countDescendantTasksLocked sizes collectDescendantTasksLocked's result
+// countDescendantTasksLocked sizes collectDescendantTasks's result
 // slice in one pass so the second, appending pass never reallocates. Caller
 // must hold o.mu.
 func countDescendantTasksLocked(col *tasksState) int {
