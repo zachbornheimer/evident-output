@@ -12,6 +12,7 @@ func (GroupHandle) Task(name string)  *TaskHandle
 func (GroupHandle) Wait()  error
 func (OperationCounts) BasisInvalidationRate()  float64
 func (OperationCounts) ChangeRate()  float64
+func (OperationCounts) Consulted()  int
 func (OperationCounts) HitRate()  float64
 func (OperationCounts) PropagationStoppedRate()  float64
 func (Output) Cancel(reason string)

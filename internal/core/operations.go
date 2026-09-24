@@ -22,12 +22,12 @@ type OperationCounts struct {
 
 // HitRate is the share of tracked operations the manifest proved current:
 // the operation-manifest hit (no-op) rate.
-func (o OperationCounts) HitRate() float64 { return ratio(o.Current, o.consulted()) }
+func (o OperationCounts) HitRate() float64 { return ratio(o.Current, o.Consulted()) }
 
 // BasisInvalidationRate is the share of tracked operations a Basis change
 // invalidated.
 func (o OperationCounts) BasisInvalidationRate() float64 {
-	return ratio(o.BasisDrift, o.consulted())
+	return ratio(o.BasisDrift, o.Consulted())
 }
 
 // ChangeRate is the share of finished operations that changed their
@@ -40,7 +40,10 @@ func (o OperationCounts) PropagationStoppedRate() float64 {
 	return ratio(o.Unchanged, o.finished())
 }
 
-func (o OperationCounts) consulted() int { return o.Current + o.Executed }
+// Consulted is every tracked operation the manifest was asked about:
+// those it proved Current plus those Evo Executed. It is the whole the
+// hit and basis-invalidation rates divide by.
+func (o OperationCounts) Consulted() int { return o.Current + o.Executed }
 
 func (o OperationCounts) finished() int { return o.Changed + o.Unchanged }
 

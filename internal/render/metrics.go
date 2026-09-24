@@ -71,7 +71,7 @@ func resolutionClauses(m core.RunMetrics) clauseList {
 	c.add(m.Executed > 0, fmt.Sprintf("%d executed", m.Executed))
 	c.add(m.AlreadySatisfied > 0, fmt.Sprintf("%d already satisfied", m.AlreadySatisfied))
 	c.add(m.NoWork > 0, fmt.Sprintf("%d no work", m.NoWork))
-	c.add(ops.Current > 0, fmt.Sprintf("%d of %d operations current", ops.Current, ops.Current+ops.Executed))
+	c.add(ops.Current > 0, fmt.Sprintf("%d of %d operations current", ops.Current, ops.Consulted()))
 	c.add(ops.BasisDrift > 0, fmt.Sprintf("%d basis changed", ops.BasisDrift))
 	c.add(ops.Unchanged > 0, fmt.Sprintf("%d identical outputs", ops.Unchanged))
 	return c

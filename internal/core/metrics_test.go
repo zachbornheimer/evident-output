@@ -172,6 +172,9 @@ func TestConclusionMetrics_SumsPhaseTimesOperationsAndEvidence(t *testing.T) {
 			t.Errorf("%s = %v, want %v", name, r[0], r[1])
 		}
 	}
+	if got := m.Operations.Consulted(); got != 6 {
+		t.Errorf("Consulted = %d, want 6 (3 current + 3 executed)", got)
+	}
 }
 
 func TestRates_ZeroWholeIsZeroNotNaN(t *testing.T) {

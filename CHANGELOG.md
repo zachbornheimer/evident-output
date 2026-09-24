@@ -18,8 +18,8 @@ ZYS-945 — §39 optimization data.
   `PhaseTime` fields time the `Define` callback, `Verify`, provenance
   checks, and live tracked-state inspection. No caller code.
 - **`TaskSnapshot.Operations` (`OperationCounts`):** `File`/`Exec`
-  operations by manifest outcome, with hit, Basis-invalidation, change, and
-  propagation-stopped rates.
+  operations by manifest outcome, with the consulted total (`Consulted`)
+  and hit, Basis-invalidation, change, and propagation-stopped rates.
 - **`Conclusion.Metrics()` (`RunMetrics`):** the derived run aggregate —
   resolution and callback counts (`Defined` counts only callbacks Evo
   decided on: entered, or proven current and skipped; work a failed
