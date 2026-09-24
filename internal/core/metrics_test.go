@@ -103,7 +103,7 @@ func TestConclusionMetrics_DerivesResolutionCountsWaitsAndPeakConcurrency(t *tes
 		Executed:         1,
 		AlreadySatisfied: 1,
 		NoWork:           1,
-		Defined:          4,
+		Defined:          1, // only b reached a callback decision (proven current)
 		DependencyWait:   secs(4),
 		SchedulerWait:    secs(3),
 		Running:          secs(8),

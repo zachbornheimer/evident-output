@@ -21,8 +21,11 @@ type RunMetrics struct {
 	Executed         int
 	AlreadySatisfied int
 	NoWork           int
-	// Defined counts Tasks that submitted a Define callback; Entered counts
-	// the callbacks Evo actually entered because no current proof existed.
+	// Defined counts the Define callbacks Evo decided on: it entered them,
+	// or proved them current and skipped them. Work a failed predecessor or
+	// a cancellation kept from ever reaching that decision is not counted.
+	// Entered counts the callbacks Evo entered because no current proof
+	// existed.
 	Defined int
 	Entered int
 	// Verified counts Tasks whose Verify was evaluated before their
@@ -87,11 +90,11 @@ func (m *RunMetrics) count(t TaskSnapshot) {
 	m.Tasks++
 	m.countSpans(t.Timing)
 	m.Operations = m.Operations.plus(t.Operations)
-	if !t.Timing.SubmittedAt.IsZero() {
-		m.Defined++
-	}
-	if t.Timing.Definition.Entries > 0 {
+	if t.definitionEntered() {
 		m.Entered++
+	}
+	if t.definitionEntered() || t.provenCurrent() {
+		m.Defined++
 	}
 	if t.Evidence.Before.Evaluated {
 		m.Verified++
@@ -124,6 +127,16 @@ func (m *RunMetrics) countResolution(t TaskSnapshot) {
 	case ResolutionNoWork:
 		m.NoWork++
 	}
+}
+
+// definitionEntered reports whether Evo entered the Task's Define callback.
+func (t TaskSnapshot) definitionEntered() bool { return t.Timing.Definition.Entries > 0 }
+
+// provenCurrent reports whether Evo proved the Task's Define callback
+// current and skipped it: Verify, or the opaque definition manifest (§9),
+// is the only source of ResolutionAlreadySatisfied.
+func (t TaskSnapshot) provenCurrent() bool {
+	return t.State == Done && t.Resolution == ResolutionAlreadySatisfied
 }
 
 func walkTasks(tasks []TaskSnapshot, collections []TasksSnapshot, visit func(TaskSnapshot)) {
