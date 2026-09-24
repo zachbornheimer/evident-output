@@ -245,22 +245,34 @@ type keptItem struct {
 }
 
 // pruneCategory is one zq prune category in the contract-correct per-item
-// shape: a Group named for the category holding the category's own work
-// Task (same name: it classifies, summarizes, and owns the Effect, so the
-// ledger subject is the category) plus one child Task per kept item that
-// resolves Kept (the item is the Task — docs/reference.md).
-func pruneCategory(parent *evo.GroupHandle, name, summary string, spec *evo.EffectSpec, kept ...keptItem) *evo.TaskHandle {
-	items := parent.Group(name)
-	work := items.Task(name)
+// shape: a Group named for the category holding the category's own Task
+// (same name: it classifies, summarizes, and owns the Effect, so the
+// ledger subject is the category — docs/reference.md "own Task") plus one
+// child Task per kept item that resolves Kept (the item is the Task).
+type pruneCategory struct {
+	name, summary string
+	effect        *evo.EffectSpec
+	onDisk        string // routine Fact, verbose-only (§13, §21); "" for none
+	kept          []keptItem
+}
+
+// declare submits the category under parent and returns its own Task.
+// Every annotation happens inside Define, before the Task resolves.
+func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
+	items := parent.Group(c.name)
+	work := items.Task(c.name)
 	work.Define(func(ctx context.Context) error {
-		for _, item := range kept {
+		for _, item := range c.kept {
 			items.Task(item.name).Kept(item.reason)
 		}
-		work.Summary(summary)
-		if spec == nil {
+		if c.onDisk != "" {
+			work.Fact("on disk", c.onDisk)
+		}
+		work.Summary(c.summary)
+		if c.effect == nil {
 			return nil
 		}
-		return evo.Effect(ctx, *spec, func(context.Context) error { return nil })
+		return evo.Effect(ctx, *c.effect, func(context.Context) error { return nil })
 	})
 	return work
 }
@@ -279,14 +291,17 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 	categories := out.Group("categories")
 	checkedOut, protected := evo.Reason("checked out"), evo.Reason("protected")
 	dirty, unpushed := evo.Reason("dirty"), evo.Reason("unpushed")
-	branches := pruneCategory(categories, "branches", "188 checked",
-		&evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 87},
-		keptItem{"feat/wt-a", checkedOut}, keptItem{"feat/wt-b", checkedOut}, keptItem{"main", protected})
-	worktrees := pruneCategory(categories, "worktrees", "168 checked",
-		&evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 95},
-		keptItem{"../wt-a", dirty}, keptItem{"../wt-b", dirty}, keptItem{"../wt-c", unpushed})
-	remotes := pruneCategory(categories, "remote-tracking", "nothing to clean", nil)
-	worktrees.Fact("on disk", "508.8 MB") // routine: verbose-only (§13, §21)
+	branches := pruneCategory{
+		name: "branches", summary: "188 checked",
+		effect: &evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 87},
+		kept:   []keptItem{{"feat/wt-a", checkedOut}, {"feat/wt-b", checkedOut}, {"main", protected}},
+	}.declare(categories)
+	worktrees := pruneCategory{
+		name: "worktrees", summary: "168 checked", onDisk: "508.8 MB",
+		effect: &evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 95},
+		kept:   []keptItem{{"../wt-a", dirty}, {"../wt-b", dirty}, {"../wt-c", unpushed}},
+	}.declare(categories)
+	remotes := pruneCategory{name: "remote-tracking", summary: "nothing to clean"}.declare(categories)
 	for _, category := range []*evo.TaskHandle{branches, worktrees, remotes} {
 		if err := category.Wait(); err != nil {
 			t.Fatal(err)
@@ -348,8 +363,10 @@ func TestPruneContract_KeptChildrenStayInMachineOutput(t *testing.T) {
 	var buf bytes.Buffer
 	out := newPlainOutput(&buf, true)
 	t.Cleanup(func() { _ = out.Close() })
-	work := pruneCategory(out.Group("categories"), "branches", "2 checked", nil,
-		keptItem{"feat/a", evo.Reason("unpushed")}, keptItem{"main", evo.Reason("protected")})
+	work := pruneCategory{
+		name: "branches", summary: "2 checked",
+		kept: []keptItem{{"feat/a", evo.Reason("unpushed")}, {"main", evo.Reason("protected")}},
+	}.declare(out.Group("categories"))
 	if err := work.Wait(); err != nil {
 		t.Fatal(err)
 	}
