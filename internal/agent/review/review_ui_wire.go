@@ -91,7 +91,6 @@ func detectFactPrintedAsUIText(fset *token.FileSet, f *ast.File, filename string
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "EVO-UI-001",
-			Severity:   "warning",
 			Message:    `manually printed "` + label + `: ..." line duplicates task.Fact; a Fact is derived and projected consistently across renderer and JSON`,
 			File:       filename,
 			Line:       pos.Line,
@@ -144,7 +143,6 @@ func detectPassingVerificationPrinted(fset *token.FileSet, f *ast.File, filename
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "EVO-UI-002",
-			Severity:   "warning",
 			Message:    "manually printed success/verified line duplicates the glyph the Task's success row already renders on the passing path",
 			File:       filename,
 			Line:       pos.Line,
@@ -202,7 +200,6 @@ func detectHandBuiltProgressText(fset *token.FileSet, f *ast.File, filename stri
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "EVO-UI-003",
-			Severity:   "warning",
 			Message:    "hand-built \"N/M\" progress text duplicates counts evo already derives from Task/Group state",
 			File:       filename,
 			Line:       pos.Line,
@@ -253,7 +250,6 @@ func detectMarshalOfInternalSnapshot(fset *token.FileSet, f *ast.File, filename 
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "EVO-WIRE-001",
-			Severity:   "error",
 			Message:    "json." + fn + " marshals the internal Snapshot directly; use the sanctioned JSON encoder instead",
 			File:       filename,
 			Line:       pos.Line,
@@ -286,7 +282,6 @@ func detectJSONStdoutMixedWithHumanText(filename, src string) []Finding {
 	}
 	return []Finding{{
 		RuleID:     "EVO-WIRE-003",
-		Severity:   "error",
 		Message:    "human text written to stdout in a file that also encodes JSON/JSONL to stdout; a machine consumer cannot parse the mixed stream",
 		File:       filename,
 		Line:       lineAt(src, loc[0]),

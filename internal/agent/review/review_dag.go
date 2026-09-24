@@ -28,15 +28,13 @@ func detectGoroutineWrappingDefine(filename, src string) []Finding {
 			if !ok {
 				break
 			}
-			if containsAnyMarker(body, []string{".Define("}) {
+			if containsAny(body, []string{".Define("}) {
 				findings = append(findings, Finding{
-					RuleID:          "EVO-DAG-001",
-					Severity:        "warning",
-					Message:         "a goroutine wraps a call that already submits work to Evo's scheduler (.Define); Group/Sequence already run eligible children concurrently",
-					File:            filename,
-					Line:            lineAt(src, start),
-					Suggestion:      "delete the goroutine and call task.Define(...) directly — Group already schedules independent Tasks concurrently",
-					RequiredVersion: evoDagEvidenceRequiredVersion,
+					RuleID:     "EVO-DAG-001",
+					Message:    "a goroutine wraps a call that already submits work to Evo's scheduler (.Define); Group/Sequence already run eligible children concurrently",
+					File:       filename,
+					Line:       lineAt(src, start),
+					Suggestion: "delete the goroutine and call task.Define(...) directly — Group already schedules independent Tasks concurrently",
 				})
 			}
 			i = start + len(body)
@@ -110,14 +108,12 @@ func detectAfterChainDuplicatesSequence(filename string, file *ast.File, fset *t
 		return nil
 	}
 	return []Finding{{
-		RuleID:          "EVO-DAG-002",
-		Severity:        "warning",
-		Message:         "a chain of .After(...) calls reproduces the exact ordering evo.Sequence already gives its children automatically",
-		File:            filename,
-		Line:            fset.Position(pos).Line,
-		Column:          fset.Position(pos).Column,
-		Suggestion:      "replace the chained .After(...) calls with one evo.Sequence(name) and declare each Task as seq.Task(...) in order",
-		RequiredVersion: evoDagEvidenceRequiredVersion,
+		RuleID:     "EVO-DAG-002",
+		Message:    "a chain of .After(...) calls reproduces the exact ordering evo.Sequence already gives its children automatically",
+		File:       filename,
+		Line:       fset.Position(pos).Line,
+		Column:     fset.Position(pos).Column,
+		Suggestion: "replace the chained .After(...) calls with one evo.Sequence(name) and declare each Task as seq.Task(...) in order",
 	}}
 }
 
@@ -220,14 +216,12 @@ func detectMissingProducerConsumerOrdering(filename string, file *ast.File, fset
 				continue
 			}
 			findings = append(findings, Finding{
-				RuleID:          "EVO-DAG-003",
-				Severity:        "warning",
-				Message:         "task " + c.taskVar + " reads " + c.path + ", which task " + p.taskVar + " produces, but nothing orders them; first-run scheduling gives no guarantee " + p.taskVar + " already ran",
-				File:            filename,
-				Line:            fset.Position(c.pos).Line,
-				Column:          fset.Position(c.pos).Column,
-				Suggestion:      c.taskVar + ".After(" + p.taskVar + "), or declare both under one evo.Sequence so " + p.taskVar + " always runs first",
-				RequiredVersion: evoDagEvidenceRequiredVersion,
+				RuleID:     "EVO-DAG-003",
+				Message:    "task " + c.taskVar + " reads " + c.path + ", which task " + p.taskVar + " produces, but nothing orders them; first-run scheduling gives no guarantee " + p.taskVar + " already ran",
+				File:       filename,
+				Line:       fset.Position(c.pos).Line,
+				Column:     fset.Position(c.pos).Column,
+				Suggestion: c.taskVar + ".After(" + p.taskVar + "), or declare both under one evo.Sequence so " + p.taskVar + " always runs first",
 			})
 		}
 	}

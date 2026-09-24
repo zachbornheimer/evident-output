@@ -113,15 +113,13 @@ func (s *repeatedDispositionScan) report(call *ast.CallExpr, recv string) {
 	method := call.Fun.(*ast.SelectorExpr).Sel.Name
 	pos := s.fset.Position(call.Pos())
 	s.findings = append(s.findings, Finding{
-		RuleID:   "API-062",
-		Severity: "warning",
-		Message:  recv + "." + method + " is called more than once on one Task; " + method + " records that Task's own disposition and resolves it",
-		File:     s.filename,
-		Line:     pos.Line,
-		Column:   pos.Column,
+		RuleID:  "API-062",
+		Message: recv + "." + method + " is called more than once on one Task; " + method + " records that Task's own disposition and resolves it",
+		File:    s.filename,
+		Line:    pos.Line,
+		Column:  pos.Column,
 		Suggestion: "declare one Task per item and record its disposition there: group.Task(item)." + method +
 			"(reason) — evo folds the Group's item children into one tally under its row",
-		RequiredVersion: dialectOneZero,
 	})
 }
 

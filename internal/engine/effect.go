@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -24,14 +25,15 @@ const (
 	EffectUpdate    EffectVerb = "update"
 )
 
+// effectVerbs is the closed EffectVerb set, in declaration order.
+var effectVerbs = []EffectVerb{EffectAdd, EffectCreate, EffectDelete, EffectInstall, EffectPush, EffectRemove, EffectUninstall, EffectUpdate}
+
+// EffectVerbs returns every EffectVerb constant, the one list anything
+// enumerating verbs (validation, review's Record* rewrite) derives from.
+func EffectVerbs() []EffectVerb { return slices.Clone(effectVerbs) }
+
 // valid reports whether v is one of the declared EffectVerb constants.
-func (v EffectVerb) valid() bool {
-	switch v {
-	case EffectAdd, EffectCreate, EffectDelete, EffectInstall, EffectPush, EffectRemove, EffectUninstall, EffectUpdate:
-		return true
-	}
-	return false
-}
+func (v EffectVerb) valid() bool { return slices.Contains(effectVerbs, v) }
 
 // EffectSpec describes one aggregate opaque mutation Evo cannot model as
 // desired state (a Git ref deletion, a remote push, an API-side change).
@@ -85,16 +87,16 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 	// Resolve the ledger target once, before fn runs: an interrupt that
 	// cancels the row while fn runs describes work that really happened,
 	// and the reader is still owed "! already mutated: ...".
-	subject, dryRun, err := task.out.resolveLedgerTarget(task.id)
+	target, err := task.out.resolveLedgerTarget(task.id)
 	if err != nil {
 		return err
 	}
-	if !dryRun {
-		disowned, err := task.out.runEffectCallback(task.id, ctx, func(ctx context.Context) error {
+	if !target.dryRun {
+		disowned, err := task.out.runEffectCallback(ctx, task.id, func(ctx context.Context) error {
 			return task.out.performEffect(ctx, spec.Resource, fn)
 		})
 		if err != nil {
-			return task.out.recordPartialEffect(task.id, subject, spec, err)
+			return task.out.recordPartialEffect(task.id, target, spec, err)
 		}
 		if disowned {
 			return nil
@@ -104,7 +106,7 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 			return err
 		}
 	}
-	task.out.recordResolvedMutation(task.id, subject, dryRun, string(spec.Verb), int64(spec.Quantity), true, spec.Object)
+	task.out.recordResolvedEntry(task.id, target, spec.entry(spec.Quantity))
 	return nil
 }
 
@@ -113,10 +115,10 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 // recorded as changed (the original Verb/Object, Quantity=committed) before
 // the error is returned, so the Task fails over a truthful ledger. The
 // callback's own verdict on its row does not erase work it says committed.
-func (o *Output) recordPartialEffect(taskID, subject string, spec EffectSpec, err error) error {
+func (o *Output) recordPartialEffect(taskID string, target ledgerTarget, spec EffectSpec, err error) error {
 	committed, err := spec.committedOf(err)
 	if committed > 0 {
-		o.recordResolvedMutation(taskID, subject, false, string(spec.Verb), int64(committed), true, spec.Object)
+		o.recordResolvedEntry(taskID, target, spec.entry(committed))
 	}
 	return err
 }
@@ -149,13 +151,16 @@ func (s EffectSpec) validate(fn func(context.Context) error) error {
 
 // runEffectCallback invokes an Effect's fn with the task marked as having an
 // Effect in flight, and reports whether fn disowned the work by resolving its
-// own task as anything but Done while it ran.
-func (o *Output) runEffectCallback(taskID string, ctx context.Context, fn func(context.Context) error) (disowned bool, err error) {
+// own task as anything but Done while it ran. Each invocation compares the
+// task's denial count at its own entry and exit, so concurrent Effects in one
+// Define never clobber each other's verdict.
+func (o *Output) runEffectCallback(ctx context.Context, taskID string, fn func(context.Context) error) (disowned bool, err error) {
 	o.mu.Lock()
 	st := o.taskByRef[taskID]
+	var deniedAtEntry int
 	if st != nil {
 		st.effectsInFlight++
-		st.effectDenied = false
+		deniedAtEntry = st.effectDenials
 	}
 	o.mu.Unlock()
 	defer func() {
@@ -165,8 +170,7 @@ func (o *Output) runEffectCallback(taskID string, ctx context.Context, fn func(c
 			return
 		}
 		st.effectsInFlight--
-		disowned = st.effectDenied
-		st.effectDenied = false
+		disowned = st.effectDenials != deniedAtEntry
 	}()
 	return false, fn(ctx)
 }

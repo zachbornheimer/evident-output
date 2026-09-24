@@ -47,12 +47,11 @@ func detectDualCommandNaming(filename string, fset *token.FileSet, file *ast.Fil
 		}
 		pos := fset.Position(cmd.usePos)
 		findings = append(findings, Finding{
-			RuleID:   ruleDualCommandNaming,
-			Severity: "warning",
-			Message:  "leftover clean-repo naming on cobra Use " + strconv.Quote(cmd.use) + "; name the file and identifiers after the Use (prune/purge) and keep " + leftoverCommandAlias + " as Aliases",
-			File:     filename,
-			Line:     pos.Line,
-			Column:   pos.Column,
+			RuleID:  ruleDualCommandNaming,
+			Message: "leftover clean-repo naming on cobra Use " + strconv.Quote(cmd.use) + "; name the file and identifiers after the Use (prune/purge) and keep " + leftoverCommandAlias + " as Aliases",
+			File:    filename,
+			Line:    pos.Line,
+			Column:  pos.Column,
 			Suggestion: "rename the file/identifier to match Use " + strconv.Quote(cmd.use) +
 				`; keep Aliases: []string{"` + leftoverCommandAlias + `"}`,
 		})
@@ -85,7 +84,6 @@ func detectCommandInWrongFolder(filename string, fset *token.FileSet, file *ast.
 		owner := "internal/" + cmd.use
 		findings = append(findings, Finding{
 			RuleID:     ruleCommandWrongFolder,
-			Severity:   "warning",
 			Message:    "cobra Use " + strconv.Quote(cmd.use) + " RunE lives under " + appCommandDir + "; move the command body to " + owner,
 			File:       filename,
 			Line:       pos.Line,

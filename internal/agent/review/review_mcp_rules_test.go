@@ -1695,8 +1695,8 @@ func (w *Writer) write(ctx context.Context, contents []byte) error {
 func TestAPI055_ManualMutexAroundFileWrite_Fires(t *testing.T) {
 	res := review.GoSource("writer.go", manualMutexAroundFileWriteSrc)
 	f := findingByID(t, res, "API-055")
-	if f.Severity != "error" {
-		t.Fatalf("API-055 severity = %q, want error", f.Severity)
+	if f.Severity != "warning" {
+		t.Fatalf("API-055 severity = %q, want warning", f.Severity)
 	}
 	if !strings.Contains(f.Suggestion, "evo.File") {
 		t.Fatalf("API-055 suggestion does not name evo.File as the fix: %q", f.Suggestion)
@@ -1776,8 +1776,8 @@ func (w *Writer) read(ctx context.Context) ([]byte, error) {
 func TestAPI055_RWMutexRLockAroundFileRead_Fires(t *testing.T) {
 	res := review.GoSource("writer.go", rwMutexRLockAroundFileReadSrc)
 	f := findingByID(t, res, "API-055")
-	if f.Severity != "error" {
-		t.Fatalf("API-055 severity = %q, want error", f.Severity)
+	if f.Severity != "warning" {
+		t.Fatalf("API-055 severity = %q, want warning", f.Severity)
 	}
 	if !strings.Contains(f.Suggestion, "w.mu.RLock()/w.mu.RUnlock()") {
 		t.Fatalf("API-055 suggestion does not name the actual RLock()/RUnlock() pair: %q", f.Suggestion)
@@ -2054,5 +2054,74 @@ func TestAPI056_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 		if f.RuleID == "API-056" {
 			t.Fatalf("API-056 still fires after applying its own prescribed remediation (deleting the .After(...) edge): %+v", f)
 		}
+	}
+}
+
+// A mutex that guards real shared state (a map) as well as the File call
+// must never be deleted: the suggestion narrows the critical section
+// instead, and never tells the agent to remove the lock or its field.
+const mutexGuardingMapAndFileSrc = `package p
+import (
+  "context"
+  "sync"
+  eo "github.com/zachbornheimer/evident-output"
+)
+type Cache struct {
+  mu   sync.Mutex
+  seen map[string]int
+}
+func (c *Cache) store(ctx context.Context, path string, contents []byte) error {
+  c.mu.Lock()
+  defer c.mu.Unlock()
+  c.seen[path]++
+  return eo.File(ctx, eo.FileSpec{Path: path, Contents: contents})
+}
+`
+
+func TestAPI055_MutexGuardingSharedStateAndFile_NeverSuggestsDelete(t *testing.T) {
+	f := findingByID(t, review.GoSource("cache.go", mutexGuardingMapAndFileSrc), "API-055")
+	if f.Severity != "warning" {
+		t.Fatalf("API-055 severity = %q, want warning", f.Severity)
+	}
+	for _, banned := range []string{"delete", "remove", "field"} {
+		if strings.Contains(strings.ToLower(f.Suggestion), banned) {
+			t.Fatalf("API-055 suggestion would drop a lock that guards shared state (%q): %q", banned, f.Suggestion)
+		}
+	}
+	if !strings.Contains(f.Suggestion, "c.mu.Unlock()") {
+		t.Fatalf("API-055 suggestion does not name the lock to narrow: %q", f.Suggestion)
+	}
+}
+
+// A lock-shaped call in a comment or string, or an evo.File mention in a
+// string, is not code: the AST detector stays silent.
+const lockAndFileOnlyInTextSrc = `package p
+import (
+  "context"
+  "sync"
+  evo "github.com/zachbornheimer/evident-output"
+)
+type Doc struct {
+  mu sync.Mutex
+}
+func (d *Doc) help(ctx context.Context) string {
+  // d.mu.Lock() then evo.File(ctx, spec) was the old shape
+  return "d.mu.Lock(); evo.File(ctx, evo.FileSpec{})"
+}
+`
+
+func TestAPI055_LockAndFileOnlyInCommentsAndStrings_StaysSilent(t *testing.T) {
+	assertNoRule(t, review.GoSource("doc.go", lockAndFileOnlyInTextSrc), "API-055")
+}
+
+// The File-only region keeps the removal suggestion but never mentions
+// deleting the mutex field, which may guard other methods.
+func TestAPI055_FileOnlyRegion_DoesNotSuggestDeletingField(t *testing.T) {
+	f := findingByID(t, review.GoSource("writer.go", manualMutexAroundFileWriteSrc), "API-055")
+	if strings.Contains(f.Suggestion, "field") {
+		t.Fatalf("API-055 suggestion tells the agent to delete the mutex field: %q", f.Suggestion)
+	}
+	if !strings.Contains(f.Suggestion, "w.mu.Lock()/w.mu.Unlock()") {
+		t.Fatalf("API-055 suggestion does not name the lock pair: %q", f.Suggestion)
 	}
 }

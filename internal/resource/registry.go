@@ -72,16 +72,16 @@ type Registry struct {
 	// when it conflicts with nothing held and nothing queued ahead of it,
 	// which keeps a writer from starving behind a stream of readers.
 	queue []*hold
-	// changed is closed (and replaced) whenever held or queue shrinks, to
-	// wake every waiter so it can re-check its turn.
-	changed chan struct{}
 }
 
 // hold is one granted or waiting claim. released is atomic because a
 // nested-acquisition check may read a hold owned by another Registry.
+// ready is closed exactly once, when the claim moves from queue to held, so
+// a release wakes only the claims it actually grants.
 type hold struct {
 	claim    Claim
 	released atomic.Bool
+	ready    chan struct{}
 }
 
 // Option configures a Registry.
@@ -96,7 +96,7 @@ func OnContended(fn func(Claim)) Option {
 
 // NewRegistry returns an empty Registry.
 func NewRegistry(opts ...Option) *Registry {
-	r := &Registry{changed: make(chan struct{})}
+	r := &Registry{}
 	for _, opt := range opts {
 		opt(r)
 	}
@@ -180,57 +180,71 @@ func (r *Registry) acquire(ctx context.Context, c Claim, onContended func(Claim)
 	if ctx.Err() != nil {
 		return nil, context.Cause(ctx)
 	}
-	h := &hold{claim: c}
-	reported := false
+	h := &hold{claim: c, ready: make(chan struct{})}
 	r.mu.Lock()
 	r.queue = append(r.queue, h)
-	for {
-		if r.grantableLocked(h) {
-			r.dequeueLocked(h)
-			r.held = append(r.held, h)
-			r.mu.Unlock()
-			return h, nil
-		}
-		changed := r.changed
-		r.mu.Unlock()
-		if !reported && onContended != nil {
-			reported = true
-			onContended(c)
-		}
-		select {
-		case <-changed:
-			r.mu.Lock()
-		case <-ctx.Done():
-			r.mu.Lock()
-			r.dequeueLocked(h)
-			r.broadcastLocked()
-			r.mu.Unlock()
-			return nil, context.Cause(ctx)
-		}
+	r.grantLocked()
+	r.mu.Unlock()
+	select {
+	case <-h.ready:
+		return h, nil
+	default:
+	}
+	if onContended != nil {
+		onContended(c)
+	}
+	select {
+	case <-h.ready:
+		return h, nil
+	case <-ctx.Done():
+		r.abandon(h)
+		return nil, context.Cause(ctx)
 	}
 }
 
-// grantableLocked reports whether h conflicts with nothing held and
-// nothing queued ahead of it.
-func (r *Registry) grantableLocked(h *hold) bool {
+// abandon withdraws h after its context ended: out of the queue if it is
+// still waiting, or out of held if it was granted in the same instant.
+// Either way the claims it was blocking get their turn.
+func (r *Registry) abandon(h *hold) {
+	h.released.Store(true)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.queue = slices.DeleteFunc(r.queue, func(q *hold) bool { return q == h })
+	r.held = slices.DeleteFunc(r.held, func(g *hold) bool { return g == h })
+	r.grantLocked()
+}
+
+// grantLocked walks the queue once, in arrival order, and grants every
+// claim that conflicts with nothing held and nothing still queued ahead of
+// it, closing only those claims' ready channels.
+func (r *Registry) grantLocked() {
+	waiting := r.queue[:0]
+	for _, q := range r.queue {
+		if r.conflictsLocked(q, waiting) {
+			waiting = append(waiting, q)
+			continue
+		}
+		r.held = append(r.held, q)
+		close(q.ready)
+	}
+	clear(r.queue[len(waiting):])
+	r.queue = waiting
+}
+
+// conflictsLocked reports whether h conflicts with a held claim or with a
+// claim still waiting ahead of it.
+func (r *Registry) conflictsLocked(h *hold, ahead []*hold) bool {
 	for _, g := range r.held {
 		if g.claim.conflicts(h.claim) {
-			return false
-		}
-	}
-	for _, q := range r.queue {
-		if q == h {
 			return true
 		}
+	}
+	for _, q := range ahead {
 		if q.claim.conflicts(h.claim) {
-			return false
+			return true
 		}
 	}
-	return true
-}
-
-func (r *Registry) dequeueLocked(h *hold) {
-	r.queue = slices.DeleteFunc(r.queue, func(q *hold) bool { return q == h })
+	return false
 }
 
 func (r *Registry) release(h *hold) {
@@ -238,12 +252,7 @@ func (r *Registry) release(h *hold) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.held = slices.DeleteFunc(r.held, func(g *hold) bool { return g == h })
-	r.broadcastLocked()
-}
-
-func (r *Registry) broadcastLocked() {
-	close(r.changed)
-	r.changed = make(chan struct{})
+	r.grantLocked()
 }
 
 // occupancy reports how many claims are held and queued; tests use it to

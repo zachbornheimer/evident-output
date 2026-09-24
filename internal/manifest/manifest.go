@@ -59,7 +59,10 @@ type TaskRecord struct {
 	// identity automatically incorporates the application fingerprint as
 	// conservative fallback with zero caller code"). A Task with at least
 	// one Operation leaves this empty — precise per-operation provenance
-	// already beats the fallback and must not be shadowed by it.
+	// already beats the fallback and must not be shadowed by it. It is
+	// provenance only: it never lets a Run skip the Task's Define, because
+	// application identity cannot prove opaque state (a push, an API call)
+	// current.
 	DefinitionFingerprint string `json:"definition_fingerprint,omitempty"`
 }
 

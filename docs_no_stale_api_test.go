@@ -7,43 +7,15 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/retired"
 )
 
-// staleAPISymbols are spellings retired in 1.0 (spec §46's public API drift
-// test, mirrored here for prose: docs, README, doc.go, and the agent
-// sections corpus). A hit is only legitimate inside a note that says the
-// symbol was removed — teaching it as current, live surface is the defect
-// this test exists to catch.
-var staleAPISymbols = []string{
-	"MainWith",
-	".Each(",
-	"Group.Each",
-	"Task.Each",
-	"Sequence.Each",
-	"Task.Run",
-	"Task.Go",
-	"DisplayGroup",
-	"Group.Done",
-	"Sequence.Fail",
-	"TaskConfig",
-}
-
-// staleAPIAllowPattern is the migration-note marker: a stale symbol is only
-// legitimate within staleAPIWindow lines of this phrase.
-var staleAPIAllowPattern = regexp.MustCompile(`(?i)removed in 1\.0`)
-
-// staleMutationVerbPattern matches the TaskHandle mutation verbs removed in
-// 1.1 (ZYS-950) — Task.Write/Task.Delete prose, `task.Delete("worktree",`
-// call shapes, and evo.Affected — so docs never teach them, least of all
-// Task.Write for filesystem state (evo.File owns that).
-var staleMutationVerbPattern = regexp.MustCompile(
-	`\bTask\.(Add|Create|Delete|Push|Remove|Update|Write)\b` +
-		`|\.(Add|Create|Delete|Push|Remove|Update|Write)\("[^"]*",\s*(func|fn|nil|[a-z]\w*\))` +
-		`|\b(Add|Create|Delete|Push|Remove|Update|Write)\(object, fn` +
-		`|\bAffected\(`)
-
-// staleMutationVerbAllowPattern is staleAPIAllowPattern's 1.1 counterpart.
-var staleMutationVerbAllowPattern = regexp.MustCompile(`(?i)removed in 1\.1`)
+// Every retired.Symbol with a Taught pattern is checked (spec §46's public
+// API drift test, mirrored here for prose: docs, README, doc.go, and the
+// agent sections corpus). A hit is only legitimate inside a note that says
+// "removed in <release>" for that symbol's release — teaching it as
+// current, live surface is the defect this test exists to catch.
 
 // staleAPIWindow is how many lines before AND after the hit line (inclusive
 // of the hit line itself) are searched for the allow phrase — enough to
@@ -73,6 +45,8 @@ var staleAPIHistoricalFragments = []string{
 	"docs/architecture/",
 	"docs/adr/",
 	"docs/acceptance/reference/",
+	// The v0.2.8-era planning basis: dated design history, not current API.
+	"docs/roadmap/implementation-basis.md",
 	"/COMPLETENESS_",
 }
 
@@ -126,20 +100,20 @@ func checkNoUnexplainedStaleAPI(t *testing.T, rel, body string) {
 	t.Helper()
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
-		if hit := staleMutationVerbPattern.FindString(line); hit != "" && !allowedNearby(lines, i, staleMutationVerbAllowPattern) {
-			t.Errorf("%s:%d: removed mutation verb %q taught without a nearby \"removed in 1.1\" migration note:\n%s",
-				rel, i+1, hit, line)
-		}
-		for _, symbol := range staleAPISymbols {
-			if !strings.Contains(line, symbol) {
+		for _, hit := range retired.TaughtIn(line) {
+			if allowedNearby(lines, i, removedInPattern(hit.Symbol.RemovedIn)) {
 				continue
 			}
-			if !allowedNearby(lines, i, staleAPIAllowPattern) {
-				t.Errorf("%s:%d: stale API %q taught without a nearby \"removed in 1.0\" migration note:\n%s",
-					rel, i+1, symbol, line)
-			}
+			t.Errorf("%s:%d: retired API %q taught without a nearby \"removed in %s\" migration note (use %s):\n%s",
+				rel, i+1, hit.Match, hit.Symbol.RemovedIn, hit.Symbol.Replacement, line)
 		}
 	}
+}
+
+// removedInPattern is the migration-note marker for release: a retired
+// symbol is only legitimate within staleAPIWindow lines of it.
+func removedInPattern(release retired.Release) *regexp.Regexp {
+	return regexp.MustCompile(`(?i)removed in ` + regexp.QuoteMeta(string(release)))
 }
 
 // allowedNearby reports whether allow matches line i or any of the

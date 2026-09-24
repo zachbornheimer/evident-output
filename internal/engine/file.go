@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
@@ -129,7 +131,7 @@ func fileVerificationDetails(contentsManaged, modeManaged bool, chmodErr error, 
 // Run's workspace directory captured once at Run start; changing process
 // CWD later does not retarget an operation").
 func (o *Output) resolveWorkspacePath(path string) string {
-	return resolvePathAgainst(o.workspaceDirLocked(), path)
+	return resolvePathAgainst(o.workspace(), path)
 }
 
 // resolvePathAgainst resolves path against base: an absolute path is
@@ -144,11 +146,11 @@ func resolvePathAgainst(base, path string) string {
 	return filepath.Join(base, path)
 }
 
-// workspaceDirLocked lazily captures and caches the process working
+// workspace lazily captures and caches the process working
 // directory the first time any operation needs it, so every relative path
 // in this Run resolves against the same snapshot even if the process CWD
 // later changes.
-func (o *Output) workspaceDirLocked() string {
+func (o *Output) workspace() string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.workspaceDir == "" {
@@ -179,49 +181,81 @@ func fileNeedsContentWrite(fsys FileFS, path string, exists, contentsManaged boo
 	return !bytes.Equal(current, desired), nil
 }
 
-// contentCreateMode is the mode writeFileAtomic creates a new file with:
-// spec.Mode when the caller manages it, otherwise the platform's ordinary
-// file-creation semantics (0666 subject to umask) so an unmanaged-mode
-// create never silently claims a mode it was never asked to manage (spec
-// §8.1).
-func contentCreateMode(exists bool, specMode fs.FileMode) fs.FileMode {
-	if specMode != 0 {
-		return specMode
-	}
-	return 0o666
-}
+// defaultCreateMode asks writeFileAtomic for ordinary file-creation
+// semantics: 0666 less the process umask, applied by the kernel.
+const defaultCreateMode fs.FileMode = 0
+
+const (
+	// createPermissionDefault opens a defaultCreateMode temp file: 0666,
+	// masked by the umask.
+	createPermissionDefault fs.FileMode = 0o666
+	// createPermissionPrivate opens every other temp file owner-only until
+	// its explicit chmod.
+	createPermissionPrivate fs.FileMode = 0o600
+	// tempNameAttempts bounds createTempFile's search for an unused name.
+	tempNameAttempts = 10000
+)
 
 // writeFileAtomic writes contents to a temp file beside path and renames it
 // into place — the same atomic-replace contract the manifest store's
 // writeAtomic uses — so a reader never observes a partially written file.
+// mode is the exact permission the file ends with; defaultCreateMode
+// leaves it to the umask instead (spec §8.1: unmanaged mode is never
+// claimed).
 func writeFileAtomic(path string, contents []byte, mode fs.FileMode) error {
 	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".evo-file-*.tmp")
+	perm := createPermissionPrivate
+	if mode == defaultCreateMode {
+		perm = createPermissionDefault
+	}
+	tmp, err := createTempFile(dir, perm)
 	if err != nil {
 		return fmt.Errorf("create temp file in %q: %w", dir, err)
 	}
 	tmpPath := tmp.Name()
-	if _, err := tmp.Write(contents); err != nil {
-		_ = tmp.Close()
+	if err := writeAndClose(tmp, contents); err != nil {
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("write temp file %q: %w", tmpPath, err)
+		return err
 	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("fsync temp file %q: %w", tmpPath, err)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("close temp file %q: %w", tmpPath, err)
-	}
-	if err := os.Chmod(tmpPath, mode); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("chmod temp file %q: %w", tmpPath, err)
+	if mode != defaultCreateMode {
+		if err := os.Chmod(tmpPath, mode); err != nil {
+			_ = os.Remove(tmpPath)
+			return fmt.Errorf("chmod temp file %q: %w", tmpPath, err)
+		}
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename %q to %q: %w", tmpPath, path, err)
+	}
+	return nil
+}
+
+// createTempFile creates a new, uniquely named file in dir opened with
+// perm, which (unlike os.CreateTemp's fixed 0600) the umask then masks.
+func createTempFile(dir string, perm fs.FileMode) (*os.File, error) {
+	for range tempNameAttempts {
+		name := filepath.Join(dir, ".evo-file-"+strconv.FormatUint(rand.Uint64(), 36)+".tmp")
+		f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		return f, err
+	}
+	return nil, fmt.Errorf("no unused temp file name after %d attempts", tempNameAttempts)
+}
+
+// writeAndClose writes contents to f, fsyncs it, and closes it.
+func writeAndClose(f *os.File, contents []byte) error {
+	if _, err := f.Write(contents); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("write temp file %q: %w", f.Name(), err)
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("fsync temp file %q: %w", f.Name(), err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close temp file %q: %w", f.Name(), err)
 	}
 	return nil
 }

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode"
+
+	"github.com/zachbornheimer/evident-output/internal/retired"
 )
 
 // GoldenRelPath and RequiredRelPath are the module-root-relative contract files.
@@ -14,32 +16,11 @@ const (
 	RequiredRelPath = "testdata/api_required.txt"
 )
 
-// RetiredNames are identifiers 1.0.0/1.1 deliberately removed (MainWith,
-// Each, the TaskHandle mutation verbs) or never had (speculative names from earlier drafts/other libraries). A
-// reappearance fails the contract even if testdata/api_golden.txt is
-// rewritten to match, so retiring a name stays retired.
-var RetiredNames = []string{
-	"Task.Run", "Task.Go", "Task.Each",
-	"DisplayGroup",
-	"Group.Done",
-	"Sequence.Fail",
-	"TaskConfig",
-	"MainWith",
-	// Removed in 1.1 (ZYS-950): the seven TaskHandle mutation verbs and
-	// their Affected/MutationOption quantity option. Opaque mutations use
-	// evo.Effect (EffectSpec.Quantity); file state uses evo.File. The
-	// trailing "(" keeps "TaskHandle.Write(" from matching Writer.
-	"TaskHandle.Add(", "TaskHandle.Create(", "TaskHandle.Delete(",
-	"TaskHandle.Push(", "TaskHandle.Remove(", "TaskHandle.Update(",
-	"TaskHandle.Write(",
-	"Affected", "MutationOption",
-	// Removed in 1.1 (ZYS-812): the Done success stamp and the record-only
-	// ledger verbs. Success resolves through Define (result text is
-	// Summary); mutations go through Effect, information through Fact,
-	// and file writes through File/Patch (ZYS-971, ZYS-974).
-	"TaskHandle.Done(",
-	"TaskHandle.Record(", "TaskHandle.RecordLabel(", "TaskHandle.RecordName(",
-}
+// RetiredNames are identifiers 1.0/1.1 deliberately removed, or never had
+// (retired.Symbols is the one table). A reappearance fails the contract
+// even if testdata/api_golden.txt is rewritten to match, so retiring a name
+// stays retired.
+var RetiredNames = retired.ContractNames()
 
 // Report is the four-bucket result of Check. Empty buckets mean that
 // dimension passed. OK is true only when every bucket is empty.

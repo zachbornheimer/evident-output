@@ -137,6 +137,9 @@ type fileDelta struct {
 	exists      bool
 	writeNeeded bool
 	modeDiffers bool
+	// writeMode is the permission a content write must leave: the managed
+	// Mode, else the existing file's own, else defaultCreateMode.
+	writeMode fs.FileMode
 }
 
 func (d fileDelta) mutates() bool { return d.writeNeeded || d.modeDiffers }
@@ -191,7 +194,21 @@ func (o *Output) inspectFile(fsys FileFS, op fileOperation) (fileDelta, error) {
 		return fileDelta{}, fmt.Errorf("evo: File inspect %q: %w", path, readErr)
 	}
 	modeDiffers := spec.Mode != 0 && (!exists || info.Mode().Perm() != spec.Mode.Perm())
-	return fileDelta{exists: exists, writeNeeded: writeNeeded, modeDiffers: modeDiffers}, nil
+	return fileDelta{exists: exists, writeNeeded: writeNeeded, modeDiffers: modeDiffers, writeMode: contentWriteMode(spec.Mode, info, exists)}, nil
+}
+
+// contentWriteMode is the permission a content write leaves: the managed
+// mode when there is one, otherwise the existing file's own (an unmanaged
+// rewrite never changes it), otherwise ordinary creation semantics.
+func contentWriteMode(managed fs.FileMode, info fs.FileInfo, exists bool) fs.FileMode {
+	switch {
+	case managed != 0:
+		return managed
+	case exists:
+		return info.Mode().Perm()
+	default:
+		return defaultCreateMode
+	}
 }
 
 // mutateFile applies delta to op's path and attaches the per-attribute
@@ -199,7 +216,7 @@ func (o *Output) inspectFile(fsys FileFS, op fileOperation) (fileDelta, error) {
 func (o *Output) mutateFile(fsys FileFS, op fileOperation, delta fileDelta) error {
 	spec, path := op.spec, op.path
 	if delta.writeNeeded {
-		if err := fsys.WriteAtomic(path, spec.Contents, contentCreateMode(delta.exists, spec.Mode)); err != nil {
+		if err := fsys.WriteAtomic(path, spec.Contents, delta.writeMode); err != nil {
 			return fmt.Errorf("evo: File write %q: %w", path, err)
 		}
 	}
@@ -254,5 +271,5 @@ func (o *Output) recordFileEffectIf(op fileOperation, mutates bool) {
 // Effect under taskID's own ledger section (spec §8.2/§27/§51) — the same
 // Plan/Changes routing evo.Effect and evo.Exec already use.
 func (o *Output) recordFileEffect(taskID, displayPath string) {
-	(&TaskHandle{out: o, id: taskID}).recordName("write", displayPath)
+	o.recordLedgerEntry(taskID, namedEntry("write", displayPath))
 }

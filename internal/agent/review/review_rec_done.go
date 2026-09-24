@@ -26,89 +26,31 @@ type defineBody struct {
 }
 
 // removedDoneScope is what inspectRemovedDone needs from the whole file:
-// which identifiers hold a Task, and where each Task's Define body sits.
+// which expressions hold a Task, and where each Task's Define body sits.
 type removedDoneScope struct {
-	taskVars     map[string]bool
+	tasks        taskBindings
 	defineBodies []defineBody
 }
 
-// newRemovedDoneScope collects every `x := <...>.Task(...)` binding and
-// every `recv.Define(func ...)` callback literal in f.
+// newRemovedDoneScope collects f's Task bindings and every
+// `recv.Define(func ...)` callback literal in it.
 func newRemovedDoneScope(f *ast.File, d *recSurfaceDetector) removedDoneScope {
-	scope := removedDoneScope{taskVars: map[string]bool{}}
+	scope := removedDoneScope{tasks: newTaskBindings(f, d.pkg)}
 	ast.Inspect(f, func(n ast.Node) bool {
-		switch v := n.(type) {
-		case *ast.AssignStmt:
-			for i, rhs := range v.Rhs {
-				if i < len(v.Lhs) && isTaskChain(rhs) {
-					if id, ok := v.Lhs[i].(*ast.Ident); ok {
-						scope.taskVars[id.Name] = true
-					}
-				}
-			}
-		case *ast.Field:
-			if isTaskHandleType(v.Type) {
-				for _, name := range v.Names {
-					scope.taskVars[name.Name] = true
-				}
-			}
-		case *ast.CallExpr:
-			sel, ok := v.Fun.(*ast.SelectorExpr)
-			if !ok || sel.Sel.Name != "Define" || len(v.Args) != 1 {
-				return true
-			}
-			if lit, ok := v.Args[0].(*ast.FuncLit); ok {
-				scope.defineBodies = append(scope.defineBodies, defineBody{recv: exprDottedName(sel.X), span: d.nodeSpan(lit)})
-			}
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Define" || len(call.Args) != 1 {
+			return true
+		}
+		if lit, ok := call.Args[0].(*ast.FuncLit); ok {
+			scope.defineBodies = append(scope.defineBodies, defineBody{recv: exprDottedName(sel.X), span: d.nodeSpan(lit)})
 		}
 		return true
 	})
 	return scope
-}
-
-// isTaskChain reports whether e is a Task(...) call, optionally followed
-// by fluent TaskHandle configuration (.Key/.After/.Summary/...).
-func isTaskChain(e ast.Expr) bool {
-	for {
-		call, ok := e.(*ast.CallExpr)
-		if !ok {
-			return false
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return false
-		}
-		if sel.Sel.Name == "Task" {
-			return true
-		}
-		e = sel.X
-	}
-}
-
-// isTaskHandleType reports whether t spells *evo.TaskHandle (any import
-// name) or a bare *TaskHandle.
-func isTaskHandleType(t ast.Expr) bool {
-	star, ok := t.(*ast.StarExpr)
-	if !ok {
-		return false
-	}
-	switch x := star.X.(type) {
-	case *ast.SelectorExpr:
-		return x.Sel.Name == "TaskHandle"
-	case *ast.Ident:
-		return x.Name == "TaskHandle"
-	}
-	return false
-}
-
-// isTaskReceiver reports whether recv is a Task for certain: a Task(...)
-// chain or an identifier this file binds to one.
-func (s removedDoneScope) isTaskReceiver(recv ast.Expr) bool {
-	if isTaskChain(recv) {
-		return true
-	}
-	id, ok := recv.(*ast.Ident)
-	return ok && s.taskVars[id.Name]
 }
 
 // insideOwnDefine reports whether offset sits in recv's own Define body.
@@ -128,7 +70,7 @@ func (d *recSurfaceDetector) inspectRemovedDone(call *ast.CallExpr, sel *ast.Sel
 	if sel.Sel.Name != "Done" || d.doneScope == nil {
 		return
 	}
-	certain := d.doneScope.isTaskReceiver(sel.X)
+	certain := d.doneScope.tasks.IsTask(sel.X)
 	if len(call.Args) == 0 && !certain {
 		return
 	}

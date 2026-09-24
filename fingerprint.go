@@ -16,17 +16,19 @@ type FingerprintValue = fingerprint.FingerprintValue
 // FSPath fingerprints the filesystem content at path: a regular file's
 // type-marked byte digest, a directory's deterministic Merkle digest over
 // sorted entries, a symlink's target text (never followed), or a stable
-// "missing" digest — see internal/fingerprint.FSPath.
+// "missing" digest. Permission, mtime, and owner changes never change the
+// digest; an unreadable path is an error, never reported as missing.
 func FSPath(path string) Fingerprint { return fingerprint.FSPath(path) }
 
 // Value fingerprints a caller-supplied scalar (string, bool, any signed/
 // unsigned integer, any finite float, time.Time, or []byte) under a stable,
-// safe name — see internal/fingerprint.Value. Only the digest and name are
-// ever persisted, never the raw value.
+// safe name. Only the digest and name are ever persisted, never the raw
+// value. Any other type is an error when the Fingerprint is taken.
 func Value(name string, v any) Fingerprint { return fingerprint.Value(name, v) }
 
-// App fingerprints the running application itself — see
-// internal/fingerprint.App. Include it in an operation's Basis only when
+// App fingerprints the running application itself: the executable's bytes
+// when readable, else its Go build ID, else an error when the Fingerprint
+// is taken. Include it in an operation's Basis only when
 // the application's own implementation is a semantic input to that
 // operation's result.
 func App() Fingerprint { return fingerprint.App() }

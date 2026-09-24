@@ -6,18 +6,23 @@
 // belongs in evo.Fact, and a file write belongs in evo.File/evo.Patch. The
 // suggestion spells the exact rewrite when the verb literal names one.
 //
-// Detection is structural, by method name and call shape, matching the
-// removed signatures: Record(verb string, quantity int, object string),
+// Detection is structural: the method name and arg count must match the
+// removed signatures (Record(verb string, quantity int, object string),
 // RecordLabel(label string, quantity int, object string), RecordName(verb,
-// object string). A call with a different arg count for that method name
-// is not this detector's target and stays silent.
+// object string)), and the receiver must trace back to an evo Task value —
+// an identifier or field typed *<evo>.TaskHandle, a variable assigned from
+// a .Task(...) call, or a .Task(...) call itself. A same-shaped method on
+// anything else (OpenTelemetry's histogram.Record(ctx, v, opts), a local
+// recorder) is not this detector's target and stays silent.
 package review
 
 import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"slices"
 	"strconv"
+	"strings"
 )
 
 // recordVerbArgCount is the exact argument count each deprecated verb
@@ -31,8 +36,14 @@ var recordVerbArgCount = map[string]int{
 }
 
 // detectDeprecatedRecordCall is API-061: a call to .Record/.RecordLabel/
-// .RecordName whose arg count matches that verb's declared signature.
+// .RecordName on an evo Task value whose arg count matches that verb's
+// declared signature.
 func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	evoPkg := evoImportName(file)
+	if evoPkg == "" {
+		return nil
+	}
+	tasks := newTaskBindings(file, evoPkg)
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -44,7 +55,7 @@ func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.Fil
 			return true
 		}
 		want, isRecordVerb := recordVerbArgCount[sel.Sel.Name]
-		if !isRecordVerb || len(call.Args) != want {
+		if !isRecordVerb || len(call.Args) != want || !tasks.IsTask(sel.X) {
 			return true
 		}
 		pos := fset.Position(call.Pos())
@@ -58,12 +69,18 @@ func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.Fil
 // shares, appended to each suggestion so the reader sees the whole rule.
 const recordRouting = "Record* has no record-only replacement (ZYS-974): route a real mutation through evo.Effect, information/classification through evo.Fact, and a file write through evo.File/evo.Patch"
 
-// effectVerbConstants maps a Record verb literal to the EffectVerb that
-// replaces it.
-var effectVerbConstants = map[string]string{
-	"add": "EffectAdd", "create": "EffectCreate", "delete": "EffectDelete",
-	"install": "EffectInstall", "push": "EffectPush", "remove": "EffectRemove",
-	"uninstall": "EffectUninstall", "update": "EffectUpdate",
+// effectVerbs are the EffectVerb values a Record verb literal may name.
+// Review does not link the engine, so TestEffectVerbsMatchEngine holds
+// this list to engine.EffectVerbs().
+var effectVerbs = []string{"add", "create", "delete", "install", "push", "remove", "uninstall", "update"}
+
+// effectVerbConstant is the evo constant spelling EffectVerb verb
+// ("EffectDelete"), or false when no EffectVerb is spelled verb.
+func effectVerbConstant(verb string) (string, bool) {
+	if !slices.Contains(effectVerbs, verb) {
+		return "", false
+	}
+	return "Effect" + strings.ToUpper(verb[:1]) + verb[1:], true
 }
 
 // deprecatedRecordCallFinding builds API-061's Finding, with the exact
@@ -75,14 +92,12 @@ func deprecatedRecordCallFinding(filename string, pos token.Position, sel *ast.S
 		suggestion = rewrite + "; " + recordRouting
 	}
 	return Finding{
-		RuleID:          "API-061",
-		Severity:        "warning",
-		Message:         verb + " was removed in 1.1 with no record-only replacement (ZYS-974)",
-		File:            filename,
-		Line:            pos.Line,
-		Column:          pos.Column,
-		Suggestion:      suggestion,
-		RequiredVersion: dialectOneOne,
+		RuleID:     "API-061",
+		Message:    verb + " was removed in 1.1 with no record-only replacement (ZYS-974)",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: suggestion,
 	}
 }
 
@@ -107,9 +122,9 @@ func recordRewrite(recv, verb string, args []ast.Expr) string {
 	if lit == "write" {
 		return "move the write into " + recv + ".Define(func(ctx context.Context) error { return evo.File(ctx, evo.FileSpec{Path: " + object + ", Contents: data}) })"
 	}
-	constant, ok := effectVerbConstants[lit]
+	constant, ok := effectVerbConstant(lit)
 	if !ok {
-		return "no EffectVerb is spelled " + strconv.Quote(lit) + "; pick the closest of add/create/delete/install/push/remove/uninstall/update"
+		return "no EffectVerb is spelled " + strconv.Quote(lit) + "; pick the closest of " + strings.Join(effectVerbs, "/")
 	}
 	return "move the mutation into " + recv + ".Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo." + constant +
 		", Object: " + object + ", Quantity: " + quantity + "}, fn) })"

@@ -27,6 +27,26 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	if len(args) > 0 {
 		text = fmt.Sprintf(text, args...)
 	}
+	return t.annotate(func(st *taskState) { t.out.setPhaseLocked(st, text) })
+}
+
+// resolvedByInterrupt reports whether this state was reached by the
+// interrupt sweep rather than by the caller. Narrating such a row is not
+// misuse: cancellation resolves it underneath whoever was reporting on it,
+// and a worker already inside its per-item step had no way to prevent the
+// one straggling update that follows. Blaming the caller for the interrupt's
+// own timing put a misuse warning at the top of every interrupted ledger.
+func resolvedByInterrupt(state EntityState) bool {
+	return state == Cancelled || state == NotStarted
+}
+
+// annotate is the one guard every non-terminal annotation verb (Doing,
+// Progress, Bytes, Step, Summary, Warn, Problem, Fact) shares: under o.mu,
+// it applies apply to the task's state only while the task is open. On a
+// closed Output it records that misuse; on a terminal row it records
+// ErrAlreadyResolved, unless the interrupt sweep resolved the row (see
+// resolvedByInterrupt). It returns t so each verb can chain.
+func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
@@ -43,18 +63,8 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 		}
 		return t
 	}
-	t.out.setPhaseLocked(st, text)
+	apply(st)
 	return t
-}
-
-// resolvedByInterrupt reports whether this state was reached by the
-// interrupt sweep rather than by the caller. Narrating such a row is not
-// misuse: cancellation resolves it underneath whoever was reporting on it,
-// and a worker already inside its per-item step had no way to prevent the
-// one straggling update that follows. Blaming the caller for the interrupt's
-// own timing put a misuse warning at the top of every interrupted ledger.
-func resolvedByInterrupt(state EntityState) bool {
-	return state == Cancelled || state == NotStarted
 }
 
 // setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
@@ -69,23 +79,7 @@ func resolvedByInterrupt(state EntityState) bool {
 // finding 4). Step is the same shape: Isolated+Plain must not stream a
 // durable line per unique item name.
 func (t *TaskHandle) setLiveOnlyPhase(text string) {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return
-	}
-	if core.IsTerminalTask(st.state) {
-		if !resolvedByInterrupt(st.state) {
-			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		}
-		return
-	}
-	t.out.setLiveOnlyPhaseLocked(st, text)
+	t.annotate(func(st *taskState) { t.out.setLiveOnlyPhaseLocked(st, text) })
 }
 
 // setPhaseLocked is Phase's locked body, factored out so a caller already
@@ -151,24 +145,7 @@ func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
 }
 
 func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *TaskHandle {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		if !resolvedByInterrupt(st.state) {
-			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		}
-		return t
-	}
-	t.applyProgressLocked(st, completed, total, kind)
-	return t
+	return t.annotate(func(st *taskState) { t.applyProgressLocked(st, completed, total, kind) })
 }
 
 // applyProgressLocked reports whether the update was applied — false means a
@@ -225,145 +202,74 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 // line per unique name (thinned progress milestones still emit). Doing
 // remains the durable narrated-beat path.
 func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		if !resolvedByInterrupt(st.state) {
-			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+	return t.annotate(func(st *taskState) {
+		if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
+			t.out.setLiveOnlyPhaseLocked(st, name)
 		}
-		return t
-	}
-	if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
-		t.out.setLiveOnlyPhaseLocked(st, name)
-	}
-	return t
+	})
 }
 
 // succeed resolves the task Done with summary: the engine's synchronous
 // success verb for library-owned rows (Confirm's gate) and engine tests.
-// The public TaskHandle has no equivalent since 1.1 (ZYS-812) — callers
-// resolve through Define, and Summary carries their result text.
+// The public TaskHandle has no equivalent since 1.1: callers resolve
+// through Define, and Summary carries their result text.
 func (t *TaskHandle) succeed(summary string) {
 	t.finish(Done, txt.Text(summary), nil)
 }
 
-// Warn accumulates a warning annotation on the task (1.1/ZYS-848,
-// docs/migration/1.1.md: a deliberate, documented break of the 1.0 Warn
-// signature — this release intentionally has no compat shims). Every
-// existing `task.Warn("summary")` call site keeps compiling unchanged
-// (opts is variadic, the old call never used a return value); what is new
-// is that a warning can now carry the same structured ProblemOption
-// metadata Problem/Fail/Block accept (Detail/Code/On/Location/Next/...).
-// Warn does not resolve the task (13-problem doc P2: "warnings annotate
-// lifecycle; they do not replace it") — call it any number of times before
-// the task's terminal verb. A warned task that never reaches a terminal
-// verb auto-resolves Done at Finish. The returned *TaskHandle exists only
-// so a call site may chain a following TaskHandle method (the same shape
-// Next/NextCommand already had); summary itself is never Sprintf-formatted.
+// Warn accumulates a non-blocking warning on the task. It takes the same
+// structured ProblemOption metadata as Problem/Fail/Block
+// (Detail/Code/On/Location/Next). It never resolves the task ("warnings
+// annotate lifecycle; they do not replace it"), so call it any number of
+// times before the task resolves; a warned task that never resolves
+// auto-resolves Done at Finish. It returns t only so a call can chain, and
+// summary is never Sprintf-formatted.
 func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		return t
-	}
-	st.warnings = append(st.warnings, p)
-	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
-	t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, map[string]any{"summary": p.Summary})
-	t.out.signalLiveLocked(true)
-	return t
+	return t.annotate(func(st *taskState) {
+		st.warnings = append(st.warnings, p)
+		t.out.bumpLocked()
+		t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
+		t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, map[string]any{"summary": p.Summary})
+		t.out.signalLiveLocked(true)
+	})
 }
 
-// Summary sets non-terminal result metadata for the task's successful
-// terminal row (1.1/ZYS-971 Decisions 2026-09-23b): a single sanitized
-// one-line field, last call wins, empty clears it. It never resolves the
-// task — Define/the evo-native operation outcome remains the only normal
-// success resolution path — and it is not live activity (Doing/Progress/
-// Step/Bytes still own the Running row). It shares its underlying field
-// and projection with the caller's own success text (Done's summary
-// argument, TaskSnapshot.Summary, JSON/JSONL "summary") and follows the
-// same misuse rule as Doing/Warn: calling it after the task has
-// terminally resolved, other than by the interrupt sweep, is misuse
-// rather than a silent no-op. GroupHandle.Summary is the same shape one
-// level up (internal/engine/group.go).
+// Summary sets one sanitized line of result text for the task's terminal
+// row: last call wins, empty clears it. It never resolves the task (Define
+// or the Evo-native operation outcome does), and it is not live activity
+// (Doing/Progress/Step/Bytes own the Running row). It is the same field
+// TaskSnapshot.Summary and JSON/JSONL "summary" project. Calling it after
+// the task resolved is misuse unless the interrupt sweep resolved it (see
+// annotate). GroupHandle.Summary is the same shape one level up.
 func (t *TaskHandle) Summary(text string) *TaskHandle {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		if !resolvedByInterrupt(st.state) {
-			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		}
-		return t
-	}
-	st.summary = txt.Text(text)
-	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task.summary_set", EntityID: t.id})
-	t.out.signalLiveLocked(true)
-	return t
+	return t.annotate(func(st *taskState) {
+		st.summary = txt.Text(text)
+		t.out.bumpLocked()
+		t.out.appendEventLocked(Event{Type: "task.summary_set", EntityID: t.id})
+		t.out.signalLiveLocked(true)
+	})
 }
 
-// Problem appends one blocking/error Problem to the task (1.1/ZYS-848, new
-// method — see docs/migration/1.1.md) without itself terminal-resolving it,
-// so a Define callback — or any caller before the task's terminal verb —
-// may call this many times to accumulate structured findings: one owning
-// Task can retain zero, one, or many Problems instead of a caller-invented
-// Task per finding, and instead of flattening every finding into one
-// newline-delimited error string. Every accumulated Problem merges into the
-// task's terminal problems list when it finally resolves
-// (mergeAccumulatedProblemsLocked) — order preserved, nothing dropped — and
-// if the task would otherwise resolve Done (a nil Define return, or a bare
-// Done() call) while at least one Problem was accumulated, resolve promotes
-// that outcome to Failed instead: a Task that recorded blocking evidence
-// cannot quietly report success. Problem returns *TaskHandle so multiple
-// calls chain: task.Problem(...).Problem(...).
+// Problem appends one blocking Problem to the task without resolving it,
+// so a Define callback may accumulate many structured findings: one owning
+// Task retains zero, one, or many Problems instead of a caller-invented
+// Task per finding or one newline-delimited error string. Every
+// accumulated Problem merges into the task's terminal problems when it
+// resolves (mergeAccumulatedProblemsLocked), order preserved, nothing
+// dropped. If the task would otherwise resolve Done (a nil Define return)
+// while it holds a Problem, it resolves Failed instead: a Task that
+// recorded blocking evidence cannot quietly report success. Problem
+// returns t so calls chain: task.Problem(...).Problem(...).
 func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		return t
-	}
-	st.pendingProblems = append(st.pendingProblems, p)
-	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
-	t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, map[string]any{"summary": p.Summary})
-	t.out.signalLiveLocked(true)
-	return t
+	return t.annotate(func(st *taskState) {
+		st.pendingProblems = append(st.pendingProblems, p)
+		t.out.bumpLocked()
+		t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
+		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, map[string]any{"summary": p.Summary})
+		t.out.signalLiveLocked(true)
+	})
 }
 
 // Fact accumulates a discovered name/value annotation on the task — info
@@ -374,24 +280,12 @@ func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle 
 // task — call it any number of times before the task's terminal verb.
 func (t *TaskHandle) Fact(name, value string) {
 	f := core.SanitizeFact(FactRecord{Name: txt.Text(name), Value: txt.Text(value)})
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return
-	}
-	if core.IsTerminalTask(st.state) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		return
-	}
-	st.facts = append(st.facts, f)
-	t.out.bumpLocked()
-	t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, map[string]any{"name": f.Name, "value": f.Value})
-	t.out.signalLiveLocked(true)
+	t.annotate(func(st *taskState) {
+		st.facts = append(st.facts, f)
+		t.out.bumpLocked()
+		t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, map[string]any{"name": f.Name, "value": f.Value})
+		t.out.signalLiveLocked(true)
+	})
 }
 
 // Fail resolves the task as failed. This is a statement, not a fluent
@@ -640,7 +534,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		return t
 	}
 	if deniesItsOwnEffect(st, state, authority) {
-		st.effectDenied = true
+		st.effectDenials++
 	}
 	if st.submitted && authority == byCaller && declaresSuccess(state) {
 		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
@@ -668,6 +562,9 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	}
 	st.state = state
 	st.phase = "" // Done clears active phase
+	if predecessorFailed(state) {
+		t.out.schedCascadeDue = true
+	}
 	if summary != "" {
 		st.summary = txt.Text(summary)
 	}
@@ -728,6 +625,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		t.out.commitManifestTaskLocked(runCtx, t.id)
 	}
 	st.closeDoneLocked()
+	t.out.releaseNextStepLocked(st)
 	// §48: a failed predecessor makes its dependents NotStarted,
 	// deterministically. This must settle here, under the same lock this
 	// resolution already holds — not only later, from kick()'s post-return

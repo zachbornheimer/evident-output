@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -54,7 +55,7 @@ type Output struct {
 	live                  *liveEngine
 
 	// workspaceDir is the process working directory, captured once on first
-	// use by File (workspaceDirLocked in file.go) so relative paths resolve
+	// use by File (workspace in file.go) so relative paths resolve
 	// consistently even if the process CWD changes mid-Run (§8.1).
 	workspaceDir string
 
@@ -138,6 +139,12 @@ type Output struct {
 	// progress, and it is how a wait that never can be satisfied is
 	// released instead of hanging Finish (see releaseUnsatisfiableWaits).
 	schedWaits map[*waitTicket]struct{}
+	// schedQueue holds submitted Tasks nobody has started (see schedQueue).
+	schedQueue schedQueue
+	// schedCascadeDue records that some Task reached a non-success terminal
+	// state since the last NotStarted cascade, so queued dependents may now
+	// be unreachable (see cascadeIneligibleLocked).
+	schedCascadeDue bool
 
 	// confirmAbort holds one abort channel per pending Confirm gate, keyed by
 	// item id, so cancelActive can unblock Confirm's stdin read and resolve
@@ -203,18 +210,27 @@ type Output struct {
 }
 
 type taskState struct {
-	id          string
-	key         string // optional stable machine key (platform ID)
-	name        string
-	state       EntityState
-	phase       string
-	progress    Progress
-	summary     string
-	problems    []Problem
-	actions     []Action
-	collection  *tasksState
-	declaration int
-	handle      *TaskHandle
+	id         string
+	key        string // optional stable machine key (platform ID)
+	name       string
+	state      EntityState
+	phase      string
+	progress   Progress
+	summary    string
+	problems   []Problem
+	actions    []Action
+	collection *tasksState
+	// prevSibling is the Task declared just before this one in the same
+	// collection (nil for the first, or outside any collection): a
+	// Sequence step's predecessor, found in O(1).
+	prevSibling *taskState
+	// nextSibling is the Task declared just after this one in the same
+	// collection, and parkedOnPrev reports that it is submitted but waiting
+	// off the scheduler queue for this Task to resolve (see enqueueLocked).
+	nextSibling  *taskState
+	parkedOnPrev bool
+	declaration  int
+	handle       *TaskHandle
 
 	// activityAt is the domain-clock time of the most recent Phase, Progress,
 	// or work-callback-starting call — kept for the public
@@ -295,10 +311,11 @@ type taskState struct {
 	submitted   bool
 	runningWork bool
 	workFn      func() error
-	// effectDenied records that this task's own mutation callback resolved
-	// the row as something other than Done, so the effect it was given must
-	// not reach the ledger (see deniesItsOwnEffect).
-	effectDenied bool
+	// effectDenials counts the times this task's own mutation callback
+	// resolved the row as something other than Done while an Effect ran, so
+	// that Effect's work must not reach the ledger (see deniesItsOwnEffect).
+	// Every in-flight Effect compares it at entry and exit.
+	effectDenials int
 	// effectsInFlight counts evo.Effect callbacks currently running for this
 	// task; a non-Done resolution while one runs disowns that Effect.
 	effectsInFlight int
@@ -363,6 +380,10 @@ type tasksState struct {
 	// sequential marks a Sequence: children are chained in declaration
 	// order. A Group's children are independent and may overlap.
 	sequential bool
+	// runningSteps holds the children promoteRunningLocked moved to
+	// Running that may still be Running (pruned on each promotion), so the
+	// "one Running child" check never rescans every step.
+	runningSteps []*taskState
 
 	// children holds nested containers declared via Sequence.Sequence,
 	// Sequence.DisplayGroup, DisplayGroup.Sequence, or
@@ -389,7 +410,7 @@ type changesState struct {
 	records []EffectRecord
 	// intendedVerb is the first imperative verb recorded for this section
 	// (evo-rec.md "empty effect section grammar"). Set once, by
-	// recordResolvedMutation; it is what lets a section that ends up
+	// recordResolvedEntry; it is what lets a section that ends up
 	// with zero rows still render "nothing to <verb> <subject>" instead of a
 	// generic fallback.
 	intendedVerb string
@@ -674,13 +695,12 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 // documents its children as independent (worker-pool fan-out is a
 // supported, concurrency-safe pattern there), so it is not policed.
 func (o *Output) promoteRunningLocked(st *taskState) {
-	if st.collection != nil && st.collection.sequential {
-		for _, sibling := range st.collection.tasks {
-			if sibling != st && sibling.state == Running {
-				o.recordMisuse(ErrConcurrentRunning)
-				break
-			}
+	if col := st.collection; col != nil && col.sequential {
+		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.state != Running })
+		if len(col.runningSteps) > 0 {
+			o.recordMisuse(ErrConcurrentRunning)
 		}
+		col.runningSteps = append(col.runningSteps, st)
 	}
 	st.state = Running
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
@@ -824,6 +844,10 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 	st.handle = h
 	o.tasks = append(o.tasks, st)
 	if col != nil {
+		if n := len(col.tasks); n > 0 {
+			st.prevSibling = col.tasks[n-1]
+			st.prevSibling.nextSibling = st
+		}
 		col.tasks = append(col.tasks, st)
 	}
 	o.taskByRef[st.id] = st
@@ -971,6 +995,8 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.state) {
 			st.state = Cancelled
 			st.summary = txt.Text(reason)
+			o.schedCascadeDue = true
+			o.releaseNextStepLocked(st)
 			o.bumpLocked()
 			o.appendEventLocked(Event{Type: "task.cancelled", EntityID: id})
 			o.commitResolvedTaskLocked(id)
