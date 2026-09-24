@@ -1,55 +1,48 @@
 package evo
 
 import (
-	"sync"
-
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
-var (
-	outputWrappers   sync.Map
-	taskWrappers     sync.Map
-	sequenceWrappers sync.Map
-	groupWrappers    sync.Map
-	printerWrappers  sync.Map
-	failureWrappers  sync.Map
-)
-
 func wrapOutput(inner *engine.Output) *Output {
-	return loadOrStore(&outputWrappers, inner, func() *Output { return &Output{inner: inner} })
+	return wrap(inner, func() *Output { return &Output{inner: inner} })
 }
 
 func wrapTask(inner *engine.TaskHandle) *TaskHandle {
-	return loadOrStore(&taskWrappers, inner, func() *TaskHandle { return &TaskHandle{inner: inner} })
+	return wrap(inner, func() *TaskHandle { return &TaskHandle{inner: inner} })
 }
 
 func wrapSequence(inner *engine.SequenceHandle) *SequenceHandle {
-	return loadOrStore(&sequenceWrappers, inner, func() *SequenceHandle { return &SequenceHandle{inner: inner} })
+	return wrap(inner, func() *SequenceHandle { return &SequenceHandle{inner: inner} })
 }
 
 func wrapGroup(inner *engine.GroupHandle) *GroupHandle {
-	return loadOrStore(&groupWrappers, inner, func() *GroupHandle { return &GroupHandle{inner: inner} })
+	return wrap(inner, func() *GroupHandle { return &GroupHandle{inner: inner} })
 }
 
 func wrapPrinter(inner *engine.Printer) *Printer {
-	return loadOrStore(&printerWrappers, inner, func() *Printer { return &Printer{inner: inner} })
+	return wrap(inner, func() *Printer { return &Printer{inner: inner} })
 }
 
 func wrapFailure(inner *engine.Failure) *Failure {
-	return loadOrStore(&failureWrappers, inner, func() *Failure { return &Failure{inner: inner} })
+	return wrap(inner, func() *Failure { return &Failure{inner: inner} })
 }
 
-func loadOrStore[I comparable, W any](m *sync.Map, inner I, make func() *W) *W {
+// facaded is an engine handle that keeps its own public wrapper.
+type facaded interface {
+	comparable
+	Facade() *engine.FacadeSlot
+}
+
+// wrap returns inner's one public wrapper, creating it on first use, so a
+// handle compares equal to itself however many calls hand it out. The
+// wrapper lives in inner's own slot, so it never outlives inner.
+func wrap[I facaded, W any](inner I, newWrapper func() *W) *W {
 	var zero I
 	if inner == zero {
 		return nil
 	}
-	if w, ok := m.Load(inner); ok {
-		return w.(*W)
-	}
-	w := make()
-	actual, _ := m.LoadOrStore(inner, w)
-	return actual.(*W)
+	return inner.Facade().Wrapper(func() any { return newWrapper() }).(*W)
 }
 
 func (o *Output) impl() *engine.Output {

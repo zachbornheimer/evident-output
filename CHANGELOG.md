@@ -158,6 +158,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   background writer folds every commit since its last write into one
   write.
 
+- A dropped `Output` is garbage again. A process-global table of public
+  wrappers kept every `Output` ever created alive with all its state
+  (about 4.7 MB per 2000-Task run), and a settled Task's heartbeat timer
+  kept its `Output` alive for 30s after `Close`.
+
 - A duplicate sibling reads once: `✗ t  duplicate task name`, not the
   name and problem repeated three times, and the misuse line names it
   (`duplicate sibling name: t`). A root `Group` and `Sequence` with the

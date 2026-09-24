@@ -17,6 +17,8 @@ type TaskHandle struct {
 	// rejected is why the declaration was refused (see rejectedTask); nil
 	// for a declared Task.
 	rejected error
+	// facade holds this handle's public wrapper (see FacadeSlot).
+	facade FacadeSlot
 }
 
 // Doing sets the active current-step live text and starts the task if

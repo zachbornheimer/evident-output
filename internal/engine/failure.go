@@ -18,6 +18,8 @@ type Failure struct {
 	err   error
 	cause error
 	task  *TaskHandle
+	// facade holds this Failure's public wrapper (see FacadeSlot).
+	facade FacadeSlot
 }
 
 // Error returns the rendered failure message.

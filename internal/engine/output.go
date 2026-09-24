@@ -17,6 +17,8 @@ import (
 // Output is the aggregate root for one command's presentation lifecycle.
 type Output struct {
 	mu sync.Mutex
+	// facade holds this Output's public wrapper (see FacadeSlot).
+	facade FacadeSlot
 
 	cfg config
 

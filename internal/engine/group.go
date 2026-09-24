@@ -13,6 +13,8 @@ type GroupHandle struct {
 	// rejected is why the declaration was refused (see rejectedGroup); nil
 	// for a declared Group or Sequence.
 	rejected error
+	// facade holds this handle's public wrapper (see FacadeSlot).
+	facade FacadeSlot
 }
 
 // Task declares a child task. A repeated name is a duplicate sibling

@@ -5,6 +5,8 @@ package engine
 // A failed/blocked/cancelled child makes later siblings NotStarted.
 type SequenceHandle struct {
 	tasks *GroupHandle
+	// facade holds this handle's public wrapper (see FacadeSlot).
+	facade FacadeSlot
 }
 
 // Task declares (or, for a repeated name, returns) a child task in
