@@ -300,8 +300,8 @@ func callbackDepth() int { return callbackFrames.depth() }
 
 // beginWait registers this goroutine's park and re-tests the run: a newly
 // parked waiter may be the last thing that could have moved it.
-func (o *Output) beginWait(taskID string) *waitTicket {
-	ticket := &waitTicket{taskID: taskID, depth: callbackDepth(), abort: make(chan struct{})}
+func (o *Output) beginWait(taskID string, depth int) *waitTicket {
+	ticket := &waitTicket{taskID: taskID, depth: depth, abort: make(chan struct{})}
 	o.mu.Lock()
 	if o.schedWaits == nil {
 		o.schedWaits = make(map[*waitTicket]struct{})
@@ -776,8 +776,15 @@ func (t *TaskHandle) Wait() error {
 	if err := t.out.refuseWaitUnderClaim(t.id); err != nil {
 		return err
 	}
+	return t.waitChecked(callbackDepth())
+}
+
+// waitChecked is Wait after its caller already refused a held claim and
+// read its own callbackDepth — one stack walk per Wait call, however many
+// Tasks a Group or Sequence Wait then waits on (see waitDescendants).
+func (t *TaskHandle) waitChecked(depth int) error {
 	t.out.runWaitedWork(t.id)
-	if !t.waitSubmitted() {
+	if !t.waitSubmitted(depth) {
 		return t.out.unreachableWaitOutcome(t.id)
 	}
 	return t.out.waitOutcome(t.id)
@@ -850,7 +857,7 @@ func failedWaitOutcome(summary string) error {
 // False means the scheduler proved the wait could never be satisfied and
 // released the caller instead of letting it hang (see
 // releaseUnsatisfiableWaits).
-func (t *TaskHandle) waitSubmitted() bool {
+func (t *TaskHandle) waitSubmitted(depth int) bool {
 	if t == nil || t.out == nil {
 		return true
 	}
@@ -872,7 +879,7 @@ func (t *TaskHandle) waitSubmitted() bool {
 	if ch == nil {
 		return true
 	}
-	ticket := o.beginWait(t.id)
+	ticket := o.beginWait(t.id, depth)
 	defer o.endWait(ticket)
 	select {
 	case <-ch:
