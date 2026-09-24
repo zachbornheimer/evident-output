@@ -238,7 +238,7 @@ func TestFlat_MixedPrintfThenTaskStillDeterministic(t *testing.T) {
 	task := out.Task("shellcheck")
 	// Task still pending; mid-run message.
 	out.Printf("still running\n")
-	task.Done()
+	succeed(task)
 	out.Printf("all done\n")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

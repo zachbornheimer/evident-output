@@ -20,7 +20,7 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Group("g")
-	g.Task("a").Done()
+	succeed(g.Task("a"))
 	g.Task("b").Warn("soft")
 	snap := g.Snapshot()
 	if snap.State != evo.Running && snap.State != evo.Incomplete {
@@ -40,7 +40,7 @@ func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	g := out.Group("capture")
-	g.Task("Brewfile").Done()
+	succeed(g.Task("Brewfile"))
 	g.Task("Zen").Warn("skipped — zen-bootstrap not available")
 	_ = out.Finish()
 	_ = out.Close()
@@ -59,8 +59,8 @@ func TestDOM031_CollectionAllDone(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Group("g")
 	g.Summary("all good")
-	g.Task("a").Done()
-	g.Task("b").Done()
+	succeed(g.Task("a"))
+	succeed(g.Task("b"))
 	if g.Snapshot().State != evo.Done {
 		t.Fatal(g.Snapshot().State)
 	}
@@ -76,7 +76,7 @@ func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Group("g")
-	g.Task("a").Done()
+	succeed(g.Task("a"))
 	g.Task("hanging")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
@@ -148,7 +148,7 @@ func TestOUT007_DeterministicJSONWithFixedClock(t *testing.T) {
 	// same semantic state → same conclusion fields (IDs differ by construction)
 	mk := func() evo.Conclusion {
 		out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-		out.Task("a").Done()
+		succeed(out.Task("a"))
 		out.Task("b").Block("x")
 		_ = out.Finish()
 		c := out.Conclusion()
@@ -164,7 +164,7 @@ func TestOUT007_DeterministicJSONWithFixedClock(t *testing.T) {
 func TestOUT011_EventTimestampsPresent(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 	for _, e := range out.Events() {
 		if e.Timestamp.IsZero() {
@@ -181,7 +181,7 @@ func TestCON005_CloseDuringUpdates(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 20 {
 		wg.Go(func() {
-			out.Task("x").Done()
+			succeed(out.Task("x"))
 		})
 	}
 	wg.Wait()
@@ -192,7 +192,7 @@ func TestCON005_CloseDuringUpdates(t *testing.T) {
 func TestAPI010_DonefFormatting(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Done("n=%d", 3)
+	succeed(out.Task("t"), "n=3")
 	s := out.Snapshot()
 	found := false
 	for _, tsk := range s.Tasks {

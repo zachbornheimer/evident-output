@@ -166,7 +166,9 @@ evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
   performs an opaque mutation (git ref, worktree, API change) and
   **`evo.File`** owns file state. The seven TaskHandle mutation verbs
   (`Delete(object, fn)`, `Write`, …) and `evo.Affected` were removed in 1.1.
-- **Done** is only for already-resolved work with no callback.
+- **Done** and **Record/RecordLabel/RecordName** were removed in 1.1. Success
+  is a `Define` callback returning `nil`; result text is `task.Summary(text)`
+  (non-terminal). Information is `task.Fact`, never a ledger row.
 - Dry-run skips **Effect** callbacks (and File writes) only. `Define` still runs.
 - `Group.Each` was removed in 1.0. Callers do not `errgroup` / `go func` to
   make evo rows parallel either — predeclare one named child `Task` per item

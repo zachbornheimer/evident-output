@@ -61,15 +61,12 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	remotes := out.Task("remote-tracking")
 
 	branches.Warn("kept 419 (283 checked out, 135 unpushed, 1 protected)")
-	branches.Record("delete", 40, "local tip")
-	branches.Done("459 checked")
+	commit(branches.Summary("459 checked"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40})
 
 	worktrees.Warn("kept 292 (163 dirty, 89 unpushed, 40 ignored files)")
-	worktrees.Record("remove", 1, "worktree")
-	worktrees.Done("294 checked")
+	commit(worktrees.Summary("294 checked"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1})
 
-	remotes.Record("delete", 4, "stale origin/*")
-	remotes.Done("4 stale refs")
+	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -118,9 +115,9 @@ func TestV8_NothingToClean(t *testing.T) {
 	remotes := out.Task("remote-tracking")
 
 	branches.Warn("kept 1 (protected)")
-	branches.Done("1 checked")
-	worktrees.Done("nothing to clean")
-	remotes.Done("nothing to clean")
+	succeed(branches, "1 checked")
+	succeed(worktrees, "nothing to clean")
+	succeed(remotes, "nothing to clean")
 	out.Println("prune  nothing to clean")
 
 	if err := out.Finish(); err != nil {
@@ -227,12 +224,11 @@ func TestV8_Stress(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	deploy := out.Group("deploy production")
-	deploy.Task("discover").Done()
-	deploy.Task("services").Done("already satisfied")
+	succeed(deploy.Task("discover"))
+	succeed(deploy.Task("services"), "already satisfied")
 
 	remotes := out.Task("remote-tracking")
-	remotes.Record("delete", 4, "stale origin/*")
-	remotes.Done("4 stale refs")
+	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
 
 	agent := out.Task("write launch agent")
 	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
@@ -299,8 +295,7 @@ func TestV8_CancelledAfterMutation(t *testing.T) {
 	worktrees := out.Task("worktrees")
 	remotes := out.Task("remote-tracking")
 
-	remotes.Record("delete", 4, "stale origin/*")
-	remotes.Done("4/4")
+	commit(remotes.Summary("4/4"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
 
 	worktrees.Cancel("interrupted")
 
@@ -356,13 +351,13 @@ func TestV8_AlreadySatisfied(t *testing.T) {
 	}
 
 	deploy := out.Group("deploy production")
-	deploy.Task("discover").Done()
+	alreadySatisfied(deploy.Task("discover"))
 	alreadySatisfied(deploy.Task("prepare hosts"))
 	alreadySatisfied(deploy.Task("services"))
 	launchAgent := deploy.Task("write launch agent")
 	launchAgent.Fact("path", "~/Library/LaunchAgents/com.acme.prod.agent.plist")
 	alreadySatisfied(launchAgent)
-	deploy.Task("cleanup").Done("nothing to do")
+	succeed(deploy.Task("cleanup"), "nothing to do")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -404,9 +399,7 @@ func TestV8_StressLive(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	deploy := out.Group("deploy production")
-	discover := deploy.Task("discover")
-	discover.Record("delete", 5, "local tip")
-	discover.Done()
+	commit(deploy.Task("discover"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 5})
 
 	hosts := deploy.Task("prepare hosts")
 	hosts.Doing("host-031")
@@ -423,11 +416,22 @@ func TestV8_StressLive(t *testing.T) {
 		t.Fatal("write launch agent: expected permissions failure")
 	}
 
+	// cleanup has committed its Effect and is still running when the frame
+	// is captured: its callback parks on release until the test ends.
 	cleanup := deploy.Task("cleanup")
-	cleanup.Doing("feat/cleanup…")
-	cleanup.Progress(7, 18)
-	cleanup.Warn("kept 5 (3 protected, 2 unpushed)")
-	cleanup.Record("fetch-prune", 12, "stale origin/*")
+	committed, release := make(chan struct{}), make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	cleanup.Define(func(ctx context.Context) error {
+		cleanup.Doing("feat/cleanup…")
+		cleanup.Progress(7, 18)
+		cleanup.Warn("kept 5 (3 protected, 2 unpushed)")
+		err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 12},
+			func(context.Context) error { return nil })
+		close(committed)
+		<-release
+		return err
+	})
+	<-committed
 
 	clock.Advance(8 * time.Second)
 	cleanup.Progress(7, 18)
@@ -439,7 +443,7 @@ func TestV8_StressLive(t *testing.T) {
 	//   - File verification Facts nest one level under the failed attribute
 	//     (writeVerificationDetails), so path/mode appear under permissions
 	//     rather than sharing the HTML's i2 indent with "error".
-	//   - both Records land in [changed]: Config.DryRun is run-wide, and a
+	//   - both Effects land in [changed]: Config.DryRun is run-wide, and a
 	//     dry run would skip the chmod failure this golden needs. LiveRegion
 	//     still projects s.Plans as [planned] when a dry-run run has them.
 	glyph := firstRune(screen.LatestLiveText())
@@ -461,7 +465,7 @@ func TestV8_StressLive(t *testing.T) {
 		"      ! kept 5 (3 protected, 2 unpushed)\n" +
 		"\n" +
 		"[changed] discover  deleted 5 local tips\n" +
-		"[changed] cleanup   pruned 12 stale origin/*"
+		"[changed] cleanup   deleted 12 stale origin/*"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -587,9 +591,9 @@ func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	agent := out.Group("launch agent")
-	agent.Task("write plist").Done()
-	agent.Task("register").Done()
-	agent.Task("start").Done()
+	succeed(agent.Task("write plist"))
+	succeed(agent.Task("register"))
+	succeed(agent.Task("start"))
 
 	install := out.Task("install dependencies")
 	install.Doing("requests")

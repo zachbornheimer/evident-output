@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -434,8 +435,8 @@ func safeToolCall(id any, req map[string]any) {
 // normalizeToolName maps legacy dotted names (evident_output_list_guides) to
 // the advertised underscore form Grok and other hosts register cleanly.
 func normalizeToolName(name string) string {
-	if strings.HasPrefix(name, "evident_output.") {
-		return "evident_output_" + strings.TrimPrefix(name, "evident_output.")
+	if after, ok := strings.CutPrefix(name, "evident_output."); ok {
+		return "evident_output_" + after
 	}
 	return name
 }
@@ -713,7 +714,7 @@ func handleToolCall(id any, req map[string]any) {
 		case "failed":
 			it.Fail("failed for demo")
 		default:
-			it.Done()
+			it.Define(func(context.Context) error { return nil })
 		}
 		_ = dbg
 		_ = out.Finish()

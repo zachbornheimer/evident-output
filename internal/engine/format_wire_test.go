@@ -64,7 +64,7 @@ func TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman(t *testing.T) {
 		Isolated: true, Title: "demo", Format: FormatJSON,
 		Stdout: &stdout, Stderr: &stderr,
 	})
-	out.Task("build").Done()
+	out.Task("build").succeed("")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestFormatJSON_StdoutWriteFailureEscalatesToExitFailed(t *testing.T) {
 		Stdout: erroringWriter{}, Stderr: &stderr,
 	})
 	result := out.Run(context.Background(), func(context.Context) error {
-		out.Task("build").Done()
+		out.Task("build").succeed("")
 		return nil
 	})
 	if result.ExitCode() != ExitFailed {
@@ -114,7 +114,7 @@ func TestFormatJSONL_StdoutStreamsEventLinesStderrHasHuman(t *testing.T) {
 		Isolated: true, Title: "demo", Format: FormatJSONL,
 		Stdout: &stdout, Stderr: &stderr,
 	})
-	out.Task("build").Done()
+	out.Task("build").succeed("")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestFormatJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 		Isolated: true, Title: "demo", Format: FormatJSON,
 		Stdout: &stdout, Stderr: &stderr, VisibilityDelay: Delay(0),
 	})
-	out.Task("build").Done()
+	out.Task("build").succeed("")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestFormatJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 		Isolated: true, Title: "demo", Format: FormatJSONL,
 		Stdout: &stdout, Stderr: &stderr, VisibilityDelay: Delay(0),
 	})
-	out.Task("build").Done()
+	out.Task("build").succeed("")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}

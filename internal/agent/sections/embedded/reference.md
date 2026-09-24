@@ -13,11 +13,11 @@ wrong or this doc is; file it either way.
 **Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug: evo.DebugConfig{Level: evo.LevelDebug}` selects the journal threshold — `evo.LogLevel`, a distinct type from stdlib `slog.Level` (`LevelUnset` → Info).
 **Lifecycle:** `evo.Main(run)` (default instance, `run func(context.Context) error`, wired to SIGINT/SIGTERM) exits the process itself after Finish + Close and returns only the derived `int` exit code; `evo.Run(ctx, run)` / `out.Run(ctx, run)` take the caller's own `context.Context` and return the full `Result` (`Conclusion` plus the application error `run` returned) instead of exiting — `Result.ExitCode()` for callers composing their own exit path (`Config.Isolated: true` for a hosted `*Output`). `evo.MainWith` was removed in 1.0; an `Isolated *Output` now calls its own `Output.Run` instead. A non-nil `run` error is recorded as Fail only when nothing already failed. See "Lifecycles" below for the three supported shapes, including `Init` with no `Main`/`Run` at all.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only), written to `Config.Stderr` (default `os.Stderr`) — a piped run like `prog > log.txt` won't capture them; redirect with `2>` (or `2>&1`) instead. Semantic state: `Task`.
-**Mutations:** `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)` (an opaque mutation Evo cannot model: a git ref, a worktree, an API change), `evo.File` (file state), and `Task.Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` or `Config.Preview` — one spelling, never a call-site tense flip. **Planned tense, two announcements:** `DryRun: true` is `--dry-run` — it opens `[dry-run] <Subject>` and really does stop. `Preview: true` is the plan a confirm gate is about to act on — same skipped Effect callbacks and same `[planned]` ledger, but the header is your `Subject` alone (`repo <path>`) and no `[dry-run]` tag, because telling the user nothing will happen and then asking them to authorize it is a contradiction. Both suppress the trailing band on a pure planned verdict when a `Subject` header rendered. Quantity records (`Record`, `evo.Effect` with `EffectSpec.Quantity`) tally and always render at `Finish`. `RecordName` names one item individually — it streams its row the instant its owning task resolves (`Done`/`Fail`/`Block`), under that task's own block, bounded by the same viewport cap and `… +N more (not shown)` overflow the Finish ledger uses.
+**Mutations:** `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)` (an opaque mutation Evo cannot model: a git ref, a worktree, an API change), `evo.File` (file state), and `evo.Exec` pick `[planned]` vs `[changed]` from `Config.DryRun` or `Config.Preview` — one spelling, never a call-site tense flip. **Planned tense, two announcements:** `DryRun: true` is `--dry-run` — it opens `[dry-run] <Subject>` and really does stop. `Preview: true` is the plan a confirm gate is about to act on — same skipped Effect callbacks and same `[planned]` ledger, but the header is your `Subject` alone (`repo <path>`) and no `[dry-run]` tag, because telling the user nothing will happen and then asking them to authorize it is a contradiction. Both suppress the trailing band on a pure planned verdict when a `Subject` header rendered. Quantity records (`evo.Effect` with `EffectSpec.Quantity`) tally and always render at `Finish`. A named row (`evo.File`'s `write <path>`, `evo.Exec`'s `run <executable>`) streams the instant its owning task resolves, under that task's own block, bounded by the same viewport cap and `… +N more (not shown)` overflow the Finish ledger uses. `Record`/`RecordLabel`/`RecordName` were removed in 1.1: a classification is a `Fact`, never a ledger row.
 
 **Partial commits:** an `Effect` callback that committed part of its aggregate before failing returns `evo.PartialEffect(committed, err)`. `Effect` records one changed row with the spec's Verb and Object and `Quantity: committed` (none for 0), then returns an error that keeps `err` reachable through `errors.Is`/`errors.As`, so the Task fails while the ledger stays truthful — human rows, JSON, and the JSONL `effect.committed` payload all carry the committed count. A nil `err`, a negative `committed`, or more than `EffectSpec.Quantity` returns `ErrInvalidPartialEffect` and records nothing. Dry runs never call the callback, so they plan the full `Quantity`. `PartialEffect` is not a retry protocol and implies no rollback.
 **Loops and taxonomy:** declare one named child per item under `Group`/`Sequence` (`group.Task(name)`), then `Task.Define` submits that item's atomic work — `Group.Each`/`Sequence.Each` were removed in 1.0; `Task.Skipped(reason)` / `Task.Kept(reason)` own the counted, summed skip/keep partition (the item name is the Task name). `Task.Step(completed, total, name)` sets the count and the live item name together under one lock; Isolated+Plain does not stream a durable phase line per name.
-**Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error. `question` is literal text, not a printf format — Confirm is the one entity-text spelling that takes no variadic fmt args (every other one — Task/Done/Warn/Doing/Skip/Sequence/Group/Reason — is printf-variadic), so build the string yourself (`fmt.Sprintf`) before calling. A decline resolves `[blocked]` → exit `1` (see the README's exit-code table) — pass `AssumeYes` (or check a separate flag before calling Confirm at all) if declining should exit `0` instead. The default policy hint names a `--yes` flag; pass `evo.PolicyFlag("--apply")` when your program's real flag is spelled differently.
+**Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error. `question` is literal text, not a printf format — Confirm is the one entity-text spelling that takes no variadic fmt args (every other one — Task/Warn/Doing/Sequence/Group/Reason — is printf-variadic), so build the string yourself (`fmt.Sprintf`) before calling. A decline resolves `[blocked]` → exit `1` (see the README's exit-code table) — pass `AssumeYes` (or check a separate flag before calling Confirm at all) if declining should exit `0` instead. The default policy hint names a `--yes` flag; pass `evo.PolicyFlag("--apply")` when your program's real flag is spelled differently.
 **Capture:** `cmd.Stdout = task.Writer()` (and stderr the same way) turns a talkative child's last line into the live doing-text and retains a bounded, redacted ring for Fail evidence. `Config.Redactor` applies before retention. Do not clear the live region around a child.
 **Platform:** `Format: FormatData` keeps domain payload on stdout and presentation on stderr.
 
@@ -50,7 +50,7 @@ and more than once (idempotent); prefer `defer out.Close()` right after
 
 | Shape        | Use when                                                                                                                                                                         |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | One atomic unit — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skipped`) or work submitted with `Define`                                                        |
+| **Task**     | One atomic unit — its check or work submitted with `Define` (success is the callback returning `nil`); `Warn`/`Block`/`Fail`/`Skipped` state a condition directly                |
 | **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children                                                                       |
 | **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both Group and Sequence nest recursively via `.Sequence`/`.Group` |
 
@@ -103,8 +103,8 @@ task.Define(func(context.Context) error { return nil })
 
 `Problem(summary, opts...)` appends one blocking Problem and returns
 `*TaskHandle` to chain (`task.Problem(...).Problem(...)`); it does not
-resolve the task. If `Define`'s callback returns `nil` — or a bare `Done()`
-is called — while the Task has accumulated Problems, the Task resolves
+resolve the task. If `Define`'s callback returns `nil` while the Task has
+accumulated Problems, the Task resolves
 **Failed**, not Done: accumulated blocking evidence always overrides a
 claimed clean outcome. The Task still resolves exactly once regardless of
 how many Problems it owns.
@@ -136,15 +136,16 @@ if err := cmd.Run(); err != nil {
 }
 ```
 
-Tool-backed **condition** (a `Task` resolved directly, no `Doing`/`Progress`):
+Tool-backed **condition** (a `Task` whose check is its `Define` callback, no `Doing`/`Progress`):
 
 ```go
 docker := out.Task("docker daemon")
-if err := pingDocker(); err != nil {
-    docker.Failf("could not inspect the daemon: %w", err)
-} else {
-    docker.Done()
-}
+docker.Define(func(ctx context.Context) error {
+    if err := pingDocker(); err != nil {
+        return fmt.Errorf("could not inspect the daemon: %w", err)
+    }
+    return nil
+})
 ```
 
 - **Ownership:** `Task.Writer()` associates child output with that entity.
@@ -179,7 +180,7 @@ Reads share. Any overlapping pair that includes a write waits: filesystem claims
 
 | Type           | Meaning                                                                                                              |
 | -------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `Task`         | One atomic unit — resolved directly (Done/Warn/Block/Fail/Skipped) or submitted with Define                          |
+| `Task`         | One atomic unit — submitted with Define, or stated directly (Warn/Block/Fail/Skipped)                                |
 | `Group`        | Independent collection of tasks (state is **derived**); scheduler may overlap eligible children                      |
 | `Sequence`     | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                                   |
 | `Problem`      | Structured evidence for warn / block / fail; a Task accumulates many via `Problem(...)` before it resolves once      |

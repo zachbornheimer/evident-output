@@ -16,7 +16,7 @@ func TestPORT006_TermDumbLikeNonInteractive(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Doing("x").Done("ok")
+	succeed(out.Task("t").Doing("x"), "ok")
 	_ = out.Finish()
 	if strings.ContainsAny(buf.String(), "\x1b") {
 		t.Fatal("ANSI in dumb mode")
@@ -30,7 +30,7 @@ func TestPORT_NO_COLOREnvHonoredViaOption(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("x").Done()
+	succeed(out.Task("x"))
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "\x1b[") {
 		t.Fatal(buf.String())

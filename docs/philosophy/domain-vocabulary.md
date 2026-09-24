@@ -13,17 +13,17 @@ One leaf entity, one constructor, plus two structural containers. A `Task` answe
 both questions "is this state acceptable?" and "how is this work going?" —
 which one depends on how it's used, not on a separate type:
 
-| Noun         | Meaning                                                                                                                                              |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | A named condition or unit of work — resolved directly (Done/Warn/Block/Fail/Skip) for a **condition**, or driven through Doing/Progress for **work** |
-| **Sequence** | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                     |
-| **Group**    | Independent collection — no ordering semantics; any number of children may be `Running` at once                                                      |
+| Noun         | Meaning                                                                                                                                                        |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**     | A named condition or unit of work — its check or work runs in `Define`; `Warn`/`Block`/`Fail`/`Skipped` state a condition, `Doing`/`Progress` narrate **work** |
+| **Sequence** | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                               |
+| **Group**    | Independent collection — no ordering semantics; any number of children may be `Running` at once                                                                |
 
 Both containers derive their state entirely from their children — never
-`.Done()`/`.Fail()` on the container itself (see RULE-002 below).
+`.Fail()` or a success stamp on the container itself (see RULE-002 below).
 
 ```go
-gate := out.Task("working tree") // condition: resolved directly below
+gate := out.Task("working tree") // condition: checked in Define below
 work := out.Task("download")     // work: driven through Doing/Progress
 packages := out.Group("packages")
 ```
@@ -35,21 +35,32 @@ one entity, one constructor. `ItemHandle` no longer exists; use `TaskHandle`.)
 
 ## Warn / Block / Fail
 
-Severity on conditions and terminal outcomes on work — the same four verbs
-either way:
+Severity on conditions and terminal outcomes on work — the same verbs either
+way. Success is not a verb the caller calls: a `Define` callback that returns
+`nil` is the Task holding (1.1 removed `Done`; `Summary` carries optional
+result text).
 
-| Verb      | User meaning                                          |
-| --------- | ----------------------------------------------------- |
-| **Done**  | Condition holds; work succeeded                       |
-| **Warn**  | Proceed, but notice this                              |
-| **Block** | Stop until the user acts (not necessarily a Go error) |
-| **Fail**  | Operation failed                                      |
+| Outcome                   | User meaning                                          |
+| ------------------------- | ----------------------------------------------------- |
+| **Define returns nil**    | Condition holds; work succeeded                       |
+| **Warn**                  | Proceed, but notice this                              |
+| **Block**                 | Stop until the user acts (not necessarily a Go error) |
+| **Fail** / returned error | Operation failed                                      |
 
 ```go
-gate.Done()
-gate.Warn("contains ignored files", evo.Detail("2 files"))
-gate.Block("contains local changes", evo.Detail("stash or commit them"))
-return gate.Failf("could not inspect working tree: %w", err)
+gate.Define(func(ctx context.Context) error {
+    status, err := inspectWorkingTree(ctx)
+    if err != nil {
+        return fmt.Errorf("could not inspect working tree: %w", err)
+    }
+    if status.Ignored > 0 {
+        gate.Warn("contains ignored files", evo.Detail("2 files"))
+    }
+    if status.Dirty {
+        gate.Block("contains local changes", evo.Detail("stash or commit them"))
+    }
+    return nil
+})
 ```
 
 Structured evidence for one resolution uses `ProblemOption`s on the same call
@@ -114,21 +125,23 @@ RULE-005: dry-run picks `[planned]` from `Config.DryRun`, never a simulated Task
 
 ## RULE-001 — Domain verbs over generic verbs
 
-Use an `EffectVerb` (`EffectAdd`/`EffectCreate`/`EffectDelete`/`EffectPush`/`EffectRemove`/
-`EffectUpdate`) only when it is the **real** domain verb; reach for `Record` when it isn't.
+The `EffectVerb` set is closed (`EffectAdd`/`EffectCreate`/`EffectDelete`/`EffectInstall`/
+`EffectPush`/`EffectRemove`/`EffectUninstall`/`EffectUpdate`); there is no free-text verb.
+Pick the verb that is true of what happened, and put the domain noun in `Object` — never
+smuggle the verb into the object.
 
 ```go
-// Wrong — "Added" is not what happened
-evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectAdd, Object: "file placed", Quantity: 1}, place)
+// Wrong — the verb is smuggled into the object
+evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectAdd, Object: "file placed", Quantity: n}, place)
 
-// Right — Record the domain verb; object is the final grammatical object
-task.Record("placed", n, noun(n, "file", "files"))
-task.Record("offloaded", n, noun(n, "source", "sources"))
+// Right — the object is the final grammatical object
+evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "file", Quantity: n}, place)
 ```
 
-Evo does **not** own English pluralization (§15). Applications own `noun` helpers.
-
-`Record` exists so the chart can name real domain actions without inventing a method per verb (marble: new domain concept, not sugar symmetry).
+Evo pluralizes `Object` from `Quantity`. A classification that changes nothing (`ready`,
+`reused`, `blocked`) is information, not an Effect: `task.Fact("reused", "63 packages")`.
+`Record`/`RecordLabel`/`RecordName` were removed in 1.1 (ZYS-974): reporting a mutation after
+it already happened bypasses dry-run planning, so the mutation itself moves into `Effect`.
 
 ---
 
@@ -166,12 +179,13 @@ A **summary Task** may represent the aggregated condition of work intentionally 
 
 ```go
 placement := out.Task("placement")
-
-if len(summary.Failures) == 0 {
-    placement.Done()
-} else {
-    placement.Fail(fmt.Sprintf("%d failures", len(summary.Failures)), evo.Detail(detailFrom(summary.Failures)))
-}
+placement.Define(func(ctx context.Context) error {
+    summary := place(ctx)
+    if len(summary.Failures) > 0 {
+        placement.Fail(fmt.Sprintf("%d failures", len(summary.Failures)), evo.Detail(detailFrom(summary.Failures)))
+    }
+    return nil
+})
 ```
 
 Vanity summary Tasks are rejected. Summary Tasks that carry real severity are accepted.
@@ -197,7 +211,7 @@ Workers **update** handles; they do not declare presentation order concurrently.
 ```go
 jobs := out.Group("placement")
 tracked := predeclarePlacementTasks(jobs, sortedFiles)
-// then start workers that call tracked[i].Doing / .Bytes / .Done / .Fail
+// then tracked[i].Define(...) submits each item; its callback drives .Doing / .Bytes / .Fail
 ```
 
 ---
@@ -242,14 +256,14 @@ Evo must not force application error policy. Present the failure for humans; ret
 
 ## Domain-correct vs domain-wrong (quick board)
 
-| Call site                                                        | Verdict                                           |
-| ---------------------------------------------------------------- | ------------------------------------------------- |
-| `out.Task("working tree").Block(..., Detail(...))`               | Correct — condition + user action                 |
-| `out.Task("download").Progress` / `.Bytes` / `.Done`             | Correct — work                                    |
-| `changes.Record("placed", n, "files")` when domain verb is place | Correct                                           |
-| `changes.Added(n, "files placed")`                               | Wrong — generic verb, smuggled domain into object |
-| Task that only says “plan ready” next to a Plan section          | Wrong — vanity (RULE-002)                         |
-| Summary Task `Fail` over batch failures                          | Correct — aggregate condition                     |
-| Failure only in `logger.Error`                                   | Wrong — RULE-003                                  |
-| Workers calling `out.Task` concurrently for order                | Wrong — RULE-004                                  |
-| Dry-run modeled as Tasks that “succeed” without writing          | Wrong — use Plan (RULE-005)                       |
+| Call site                                                    | Verdict                                           |
+| ------------------------------------------------------------ | ------------------------------------------------- |
+| `out.Task("working tree").Block(..., Detail(...))`           | Correct — condition + user action                 |
+| `out.Task("download").Define` driving `.Progress` / `.Bytes` | Correct — work                                    |
+| `Effect{Verb: EffectCreate, Object: "file", Quantity: n}`    | Correct                                           |
+| `Effect{Verb: EffectAdd, Object: "files placed"}`            | Wrong — generic verb, smuggled domain into object |
+| Task that only says “plan ready” next to a Plan section      | Wrong — vanity (RULE-002)                         |
+| Summary Task `Fail` over batch failures                      | Correct — aggregate condition                     |
+| Failure only in `logger.Error`                               | Wrong — RULE-003                                  |
+| Workers calling `out.Task` concurrently for order            | Wrong — RULE-004                                  |
+| Dry-run modeled as Tasks that “succeed” without writing      | Wrong — use Plan (RULE-005)                       |

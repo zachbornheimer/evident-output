@@ -9,7 +9,9 @@ File
 Exec
 FSPath
 Fact
-Record
+Effect
+PartialEffect
+func (TaskHandle) Summary
 Verify
 func (TaskHandle) After
 FileSpec

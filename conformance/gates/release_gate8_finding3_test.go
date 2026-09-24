@@ -18,7 +18,7 @@ func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("fetch").Done()
+	succeed(out.Task("fetch"))
 	out.Task("cache").Warn("stale entry ignored")
 
 	if err := out.Finish(); err != nil {
