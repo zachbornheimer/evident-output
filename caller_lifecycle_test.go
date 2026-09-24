@@ -45,6 +45,43 @@ func TestOutputRun_CallerCancelWithoutEmbeddedKeeps11Verdict(t *testing.T) {
 	}
 }
 
+// errNoCallerDeadline is what a Task reports when the caller's deadline
+// did not reach it.
+var errNoCallerDeadline = errors.New("caller deadline did not reach the Task")
+
+// A run that did not opt in hands Tasks the caller's deadline, as in 1.1:
+// the Task sees ctx.Deadline(), its ctx ends with DeadlineExceeded, and the
+// run concludes failed (exit 2). Only Embedded hides it (DEC-CANCEL-006).
+func TestOutputRun_CallerDeadlineWithoutEmbeddedReachesTasks(t *testing.T) {
+	formats := map[string]evo.Format{"human": evo.FormatHuman, "external": evo.FormatExternal}
+	for name, format := range formats {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), callerBudget)
+			defer cancel()
+			out := evo.Init(evo.Config{Isolated: true, Plain: true, Format: format, Stdout: io.Discard, Stderr: io.Discard})
+			taskErr := make(chan error, 1)
+			result := out.Run(ctx, func(context.Context) error {
+				out.Task("dial").Define(func(taskCtx context.Context) error {
+					if _, ok := taskCtx.Deadline(); !ok {
+						taskErr <- errNoCallerDeadline
+						return errNoCallerDeadline
+					}
+					<-taskCtx.Done()
+					taskErr <- taskCtx.Err()
+					return taskCtx.Err()
+				})
+				return nil
+			})
+			if got := <-taskErr; !errors.Is(got, context.DeadlineExceeded) {
+				t.Fatalf("Task ctx error = %v, want context.DeadlineExceeded (1.1 contract)", got)
+			}
+			if result.Conclusion.State != evo.StateFailed || result.ExitCode() != evo.ExitFailed {
+				t.Fatalf("conclusion = %s/%d, want %s/%d (1.1 contract)", result.Conclusion.State, result.ExitCode(), evo.StateFailed, evo.ExitFailed)
+			}
+		})
+	}
+}
+
 // Embedded is the whole opt-in, independent of Format: a host that
 // streams the FormatJSON document itself gets the same lifecycle as a
 // FormatExternal one, and the document names the caller as the cause.
