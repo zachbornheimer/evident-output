@@ -21,6 +21,10 @@ const metricsSeparator = " · "
 // span would render as a misleading "0ms" and is omitted instead.
 const spanDisplayResolution = time.Millisecond
 
+// secondsSpanPrecision is what a span between one second and one minute
+// rounds to: tenths of a second ("1.2s").
+const secondsSpanPrecision = 100 * time.Millisecond
+
 // WriteMetrics renders the run's derived §39 aggregate as one dim line:
 // how work and tracked operations resolved, where time went (running,
 // waiting on dependencies, waiting on scheduler capacity, inside
@@ -83,7 +87,7 @@ func formatSpan(d time.Duration) string {
 	case d < time.Second:
 		return strconv.FormatInt(d.Milliseconds(), 10) + "ms"
 	case d < time.Minute:
-		tenths := d.Round(100 * time.Millisecond).Seconds()
+		tenths := d.Round(secondsSpanPrecision).Seconds()
 		return strconv.FormatFloat(tenths, 'f', -1, 64) + "s"
 	default:
 		return d.Round(time.Second).String()
