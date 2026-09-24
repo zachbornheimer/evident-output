@@ -111,7 +111,7 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 // hold o.mu.
 func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, name string) {
 	summary := fmt.Sprintf("duplicate %s name: %s", kind, name)
-	h := o.addTaskLocked(summary, col, "", parentKeyOf(col), false)
+	h := o.addTaskLocked(summary, col, "", parentKeyOf(col))
 	st := o.taskByRef[h.id]
 	if st == nil {
 		return

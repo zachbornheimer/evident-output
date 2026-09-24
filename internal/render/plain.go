@@ -2,7 +2,6 @@ package render
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -751,11 +750,6 @@ func partitionTaxonomyByReason(records []core.TaxonomyRecord) (map[string][]stri
 // line and erasing the children whose evidence lived only in the live
 // region while it was running.
 func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose bool, profile txt.GlyphProfile) {
-	fromEach, explicit := partitionEachChildren(col.Tasks)
-	if len(fromEach) > 0 {
-		writePlainEachAggregate(b, col, fromEach, explicit, color, verbose, profile)
-		return
-	}
 	if collapsesIntoOnlyChild(col) {
 		WriteTaskAligned(b, col.Tasks[0], maxTaskNameWidth(col.Tasks), color, verbose, profile)
 		return
@@ -783,96 +777,6 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
-}
-
-// eachAggregateDetail is the durable row's answer to "how many?" — the same
-// completed/total the live frame shows (EachAggregateCount), because a bare
-// "✓ fix tools" cannot tell 999/1000 from 1/1000 once the live region is
-// gone. Empty when the caller's own Summary already answers it for a
-// collection that finished; a collection that stopped short still owes the
-// reader the number, summary or not.
-func eachAggregateDetail(col core.TasksSnapshot, fromEach []core.TaskSnapshot) string {
-	done, total := EachAggregateCount(fromEach)
-	if col.Summary != "" && done == total {
-		return ""
-	}
-	detail := fmt.Sprintf("%d/%d", done, total)
-	if failed := eachFailedCount(fromEach); failed > 0 {
-		detail += eachFailedCountSeparator + fmt.Sprintf("%d failed", failed)
-	}
-	return detail
-}
-
-// eachChildrenNeedingSurface returns the Each children that earn a row of
-// their own beneath the aggregate. It is also the measure of the child name
-// column: a collapsed child is not a row, and a row nobody can see must not
-// set the width of the rows they can — padding `✓ classify` out to a
-// 70-character worktree path that never appears reads as a broken table.
-func eachChildrenNeedingSurface(fromEach []core.TaskSnapshot) []core.TaskSnapshot {
-	var surfaced []core.TaskSnapshot
-	for _, t := range fromEach {
-		if eachChildNeedsSurface(t) {
-			surfaced = append(surfaced, t)
-		}
-	}
-	return surfaced
-}
-
-func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach, explicit []core.TaskSnapshot, color, verbose bool, profile txt.GlyphProfile) {
-	glyph := txt.StyleGlyph(TaskGlyph(col.State, profile), StateColor(col.State), color)
-	switch detail := eachAggregateDetail(col, fromEach); {
-	case detail != "" && col.Summary != "":
-		fmt.Fprintf(b, "%s %s  %s  %s\n", glyph, col.Name, detail, txt.Dim(col.Summary, color))
-	case col.Summary != "":
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, txt.Dim(col.Summary, color))
-	default:
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, detail)
-	}
-	skipped, kept := collectEachTaxonomy(fromEach)
-	writeTaxonomy(b, problemTreeIndent, "skipped", skipped, false, verbose, color, profile)
-	writeTaxonomy(b, problemTreeIndent, "kept", kept, false, verbose, color, profile)
-	var surfaced []core.TaskSnapshot
-	var omitted int
-	if verbose {
-		surfaced = eachChildrenNeedingSurface(fromEach)
-	} else {
-		surfaced, omitted = selectEachAttentionChildren(fromEach, eachAttentionTTYMax)
-	}
-	childNameWidth := maxTaskNameWidth(slices.Concat(surfaced, explicit))
-	for _, t := range surfaced {
-		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
-	}
-	writeEachOmission(b, omitted, color, profile)
-	writeNotStartedCount(b, fromEach, color, profile)
-	for _, t := range explicit {
-		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
-	}
-	for _, child := range col.Collections {
-		var nested strings.Builder
-		WriteCollection(&nested, child, color, verbose, profile)
-		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
-			fmt.Fprintf(b, "   %s\n", line)
-		}
-	}
-}
-
-// notStartedLabel is the wording a NotStarted row already carries, so the
-// aggregate's count line and an individual row say the same thing. Spelled
-// as a literal here rather than imported (like defaultWidth above) because
-// render must never import the root package — see glyph.go's package doc.
-const notStartedLabel = "not started"
-
-// writeNotStartedCount renders the one line that accounts for the children an
-// early termination left behind ("- 6 not started"). It sits under the
-// surfaced failures because it is the rest of the same sentence: this is what
-// stopped, and this is how much never began.
-func writeNotStartedCount(b *strings.Builder, fromEach []core.TaskSnapshot, color bool, profile txt.GlyphProfile) {
-	n := CountNotStarted(fromEach)
-	if n == 0 {
-		return
-	}
-	glyph := txt.StyleGlyph(TaskGlyph(core.NotStarted, profile), StateColor(core.NotStarted), color)
-	fmt.Fprintf(b, "   %s %s\n", glyph, txt.Dim(fmt.Sprintf("%d %s", n, notStartedLabel), color))
 }
 
 // writeCollectionChild renders one child task row under its parent group:

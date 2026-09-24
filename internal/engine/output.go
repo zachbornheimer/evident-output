@@ -308,7 +308,6 @@ type taskState struct {
 	// facts/warnings already require.
 	verification []core.VerificationDetail
 
-	fromEach    bool
 	submitted   bool
 	runningWork bool
 	workFn      func() error
@@ -768,7 +767,7 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 		return &TaskHandle{out: o, id: o.nextID("task")}
 	}
 
-	h := o.addTaskLocked(clean, nil, key, scope, false)
+	h := o.addTaskLocked(clean, nil, key, scope)
 	if o.namedTasks == nil {
 		o.namedTasks = make(map[string]*TaskHandle)
 	}
@@ -809,14 +808,11 @@ func declaredTaskState(col *tasksState) EntityState {
 // under the collection's subject, inside the same bounded viewport and
 // `… +N more (not shown)` overflow every other subject has.
 func ledgerSubjectFor(st *taskState) string {
-	if st.fromEach && st.collection != nil {
-		return st.collection.name
-	}
 	return st.name
 }
 
-func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey string, fromEach bool) *TaskHandle {
-	h := o.declareTaskLocked(name, col, key, parentKey, fromEach)
+func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey string) *TaskHandle {
+	h := o.declareTaskLocked(name, col, key, parentKey)
 	if _, ok := o.taskByRef[h.id]; ok {
 		o.signalLiveLocked(true)
 	}
@@ -832,7 +828,7 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey stri
 // entirely and is registered instead. parentKey is the declaring parent's
 // own stable key (a Group/Sequence's key, or the declaration scope for a
 // root-level Task — see Scope).
-func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey string, fromEach bool) *TaskHandle {
+func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey string) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return &TaskHandle{out: o, id: o.nextID("task")}
@@ -860,7 +856,6 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 		collection:  col,
 		declaration: o.nextDecl(),
 		doneCh:      make(chan struct{}),
-		fromEach:    fromEach,
 		resolution:  ResolutionNoWork,
 	}
 	h := &TaskHandle{out: o, id: st.id}
@@ -1164,7 +1159,7 @@ func (o *Output) declareGroupTask(groupID, name string, opts ...EntityOption) *T
 		return &TaskHandle{out: o, id: o.nextID("task")}
 	}
 	eo := applyEntityOptions(opts)
-	h := o.addTaskLocked(clean, col, eo.key, col.key, false)
+	h := o.addTaskLocked(clean, col, eo.key, col.key)
 	if col.namedTasks == nil {
 		col.namedTasks = make(map[string]*TaskHandle)
 	}
@@ -1527,7 +1522,7 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Resolution:   t.resolution,
 		Evidence:     t.verifyEvidence,
 	}
-	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic, t.fromEach)
+	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic)
 }
 
 func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
