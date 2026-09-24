@@ -114,24 +114,36 @@ func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.D
 	return col, items
 }
 
-// writeLiveDispositions writes items' tallies as the live frame shows them
-// (never verbose) within maxRows, and reports how many rows they took, so
+// headerTallyIndent is where a Group header's folded tallies start. Beside
+// surviving child rows they are the header's children too and share the
+// child column; with no child row left they annotate the header itself,
+// as a Task's tallies annotate its row ("✓ branches  6 checked" /
+// "  ! kept 3 (...)", §26/§27).
+func headerTallyIndent(folded core.TasksSnapshot) string {
+	if len(folded.Tasks) > 0 || len(folded.Collections) > 0 {
+		return groupChildIndent
+	}
+	return taskAnnotationIndent
+}
+
+// writeLiveDispositions writes items' tallies at indent as the live frame
+// shows them (never verbose) within maxRows, and reports how many rows they took, so
 // the frame's height budget can count them. When the cause lines do not
 // fit, each tally keeps its headline and drops its causes: the headline is
 // the count, the durable render still carries the evidence.
-func writeLiveDispositions(b *strings.Builder, items core.Dispositions, maxRows int, color bool, profile txt.GlyphProfile) (rows int) {
+func writeLiveDispositions(b *strings.Builder, indent string, items core.Dispositions, maxRows int, color bool, profile txt.GlyphProfile) (rows int) {
 	if items.Empty() {
 		return 0
 	}
 	var full strings.Builder
-	writeDispositions(&full, taskAnnotationIndent, items, "", false, color, profile)
+	writeDispositions(&full, indent, items, "", false, color, profile)
 	if rows = strings.Count(full.String(), "\n"); rows <= maxRows {
 		b.WriteString(full.String())
 		return rows
 	}
 	start := b.Len()
-	writeTaxonomyHeadline(b, taskAnnotationIndent, taxonomySkipped, items.Skipped, color, profile)
-	writeTaxonomyHeadline(b, taskAnnotationIndent, taxonomyKept, items.Kept, color, profile)
+	writeTaxonomyHeadline(b, indent, taxonomySkipped, items.Skipped, color, profile)
+	writeTaxonomyHeadline(b, indent, taxonomyKept, items.Kept, color, profile)
 	return strings.Count(b.String()[start:], "\n")
 }
 

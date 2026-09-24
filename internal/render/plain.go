@@ -181,6 +181,9 @@ const (
 	// tallies, verification details, warnings, facts — under its row
 	// (spec §26/§27: "✓ branches  50 checked" / "  ! kept 13 (...)").
 	taskAnnotationIndent = "  "
+	// groupChildIndent nests a Group header's children: its child rows and
+	// the tallies its folded items leave behind, in one column.
+	groupChildIndent = "   "
 )
 
 // writeVerificationDetails renders a Task's per-attribute reconciliation
@@ -808,7 +811,7 @@ func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidt
 	} else {
 		fmt.Fprintf(b, "%s %s\n", glyph, col.Name)
 	}
-	writeDispositions(b, taskAnnotationIndent, items, "", verbose, color, profile)
+	writeDispositions(b, headerTallyIndent(col), items, "", verbose, color, profile)
 	childNameWidth := maxTaskNameWidth(col.Tasks)
 	for _, t := range col.Tasks {
 		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
@@ -819,7 +822,7 @@ func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidt
 		var nested strings.Builder
 		WriteCollection(&nested, child, color, verbose, profile)
 		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
-			fmt.Fprintf(b, "   %s\n", line)
+			fmt.Fprintf(b, "%s%s\n", groupChildIndent, line)
 		}
 	}
 }

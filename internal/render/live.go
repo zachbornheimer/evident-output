@@ -164,7 +164,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	col, items := withoutDispositionItems(col)
 	if rendersAsOwnTask(col) {
 		writeLiveTaskLine(b, col.Tasks[0], 0, 0, width, spin, color, now, profile)
-		writeLiveDispositions(b, items, height-1, color, profile)
+		writeLiveDispositions(b, taskAnnotationIndent, items, height-1, color, profile)
 		return
 	}
 	if promotesLoneChildOntoHeader(col) {
@@ -172,7 +172,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
-		writeLiveDispositions(b, items, height-1, color, profile)
+		writeLiveDispositions(b, taskAnnotationIndent, items, height-1, color, profile)
 		return
 	}
 	if groupHeaderAddsNothing(col) && items.Empty() && !hasUnfinishedTask(col) {
@@ -183,7 +183,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	b.WriteByte('\n')
 	// The header, the folded tallies, and a possible omission line all
 	// spend the height budget the children are selected under.
-	tallyRows := writeLiveDispositions(b, items, height-liveHeaderRows-minLiveChildRows, color, profile)
+	tallyRows := writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, color, profile)
 	selected, omitted := selectLiveChildren(col.Tasks, max(height-liveHeaderRows-tallyRows, minLiveChildRows))
 	for _, t := range selected {
 		writeLiveTaskLine(b, t, 1, 0, width, spin, color, now, profile)
