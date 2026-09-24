@@ -103,72 +103,78 @@ func (g *tasksState) derivedState() EntityState {
 	if len(g.tasks) == 0 && len(g.children) == 0 {
 		return Empty
 	}
-	var anyRunning, anyFailed, anyCancelled, anyUnresolved bool
-	allDone := true
 	// A NotStarted child normally borrows its group's verdict from the
 	// sibling that failed first, so it contributes nothing of its own. When
 	// every child is NotStarted there is no such sibling — whatever stopped
 	// the run was another subject entirely — and folding to Done rendered a
 	// check over a subject that never ran.
-	allNotStarted := len(g.tasks) > 0 && len(g.children) == 0
-	for _, t := range g.tasks {
-		if t.state != NotStarted {
-			allNotStarted = false
-		}
-		switch t.state {
-		case Running:
-			anyRunning = true
-			allDone = false
-		case Pending:
-			anyUnresolved = true
-			allDone = false
-		case Failed:
-			anyFailed = true
-		case Cancelled:
-			anyCancelled = true
-		case Done, Skipped:
-		case NotStarted:
-		default:
-			anyUnresolved = true
-			allDone = false
-		}
-	}
-	if allNotStarted {
+	if len(g.children) == 0 && g.allTasksNotStarted() {
 		return NotStarted
 	}
+	var v verdictFold
+	for _, t := range g.tasks {
+		v.add(t.state)
+	}
 	for _, child := range g.children {
-		switch child.derivedState() {
-		case Running:
-			anyRunning = true
-			allDone = false
-		case Failed:
-			anyFailed = true
-			allDone = false
-		case Cancelled:
-			anyCancelled = true
-			allDone = false
-		case Done, Empty:
+		switch s := child.derivedState(); s {
+		case Empty:
+		case NotStarted:
+			v.unresolved = true
 		default:
-			anyUnresolved = true
-			allDone = false
+			v.add(s)
 		}
 	}
-	if anyRunning {
+	return v.state()
+}
+
+func (g *tasksState) allTasksNotStarted() bool {
+	for _, t := range g.tasks {
+		if t.state != NotStarted {
+			return false
+		}
+	}
+	return len(g.tasks) > 0
+}
+
+// verdictFold accumulates member states into one container verdict. A
+// Blocked member counts like a Failed one does for the Tasks After the
+// container (see stateOutcome): the container finished and did not
+// succeed, so its header never reads Incomplete for it.
+type verdictFold struct {
+	running, failed, blocked, cancelled, unresolved bool
+}
+
+func (v *verdictFold) add(s EntityState) {
+	switch s {
+	case Running:
+		v.running = true
+	case Failed:
+		v.failed = true
+	case Blocked:
+		v.blocked = true
+	case Cancelled:
+		v.cancelled = true
+	case Done, Skipped, NotStarted:
+	default:
+		v.unresolved = true
+	}
+}
+
+func (v verdictFold) state() EntityState {
+	switch {
+	case v.running:
 		return Running
-	}
-	if anyFailed {
+	case v.failed:
 		return Failed
-	}
-	if anyCancelled {
+	case v.blocked:
+		return Blocked
+	case v.cancelled:
 		return Cancelled
-	}
-	if anyUnresolved {
+	case v.unresolved:
 		return Incomplete
-	}
-	if allDone {
+	default:
 		return Done
 	}
-	return Incomplete
 }
 
 func (g *tasksState) displaySummary() string {
