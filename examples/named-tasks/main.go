@@ -1,6 +1,6 @@
-// Command scope-plugin demos named Tasks for host and plugin work.
+// Command named-tasks demos root-level Tasks named for the work they do.
 //
-//	go run ./examples/scope-plugin/
+//	go run ./examples/named-tasks/
 package main
 
 import (

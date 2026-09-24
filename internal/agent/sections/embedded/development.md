@@ -39,9 +39,9 @@ examples/verbose/            visibility gating (--verbose)
 examples/repo-status/        Tasks, Problems, actions
 examples/install-pipeline/   Tasks + Capture
 examples/migrate/            Plan versus Changes
-examples/doctor/             severity dialect + WriteJSON
+examples/doctor/             severity dialect + FormatJSON
 examples/data-command/       machine stdout / human stderr (ResultWriter)
-examples/scope-plugin/       Scope + ID for plugin namespaces
+examples/named-tasks/        root Tasks named for their work
 examples/live-progress/      ordinary multi-progress
 examples/debug-history/      slog durable debug
 examples/debug-pane/         rolling slog viewport

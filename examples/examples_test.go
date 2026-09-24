@@ -31,7 +31,7 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 		{name: "doctor", args: []string{"--fast"}, allowExit: []int{0, 1, 2}},
 		{name: "doctor", args: []string{"--fast", "--verbose"}, allowExit: []int{0, 1, 2}},
 		{name: "data-command"},
-		{name: "scope-plugin"},
+		{name: "named-tasks"},
 		{name: "live-progress", args: []string{"--fast"}},
 		{name: "debug-history", args: []string{"--fast"}},
 		{name: "debug-pane", args: []string{"--fast"}},

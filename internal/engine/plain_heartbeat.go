@@ -94,8 +94,8 @@ func (o *Output) stopPlainHeartbeatLocked(st *taskState) {
 // goroutine in tests or a real timer goroutine in production — and either:
 //
 //   - the task settled since this callback was armed: does nothing further
-//     (no reschedule; this is the whole cancellation story, since a settled
-//     task can never become Running again);
+//     and never reschedules. settleLocked already stopped the timer; this
+//     check is the backstop for a callback that was already in flight;
 //   - a real durable emission pushed heartbeat.due out from under this stale
 //     callback: reschedules for the corrected remaining wait without
 //     emitting anything;
