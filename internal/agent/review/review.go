@@ -626,6 +626,13 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectPatchFileSetDiscardedBeforeCommit(filename, f, fset)...)
 	}
 
+	// API-062: a package-level evo declaration inside an Isolated
+	// Output's Run callback lands on the package default instead of the
+	// Output being run (spec §53, ZYS-946).
+	if hasEvoAtOneZero {
+		findings = append(findings, detectPackageFacadeInIsolatedRun(filename, f, fset)...)
+	}
+
 	// API-061: a call site still uses the record-only mutation verbs
 	// Record/RecordLabel/RecordName, which have no record-only
 	// replacement (ZYS-974) — steer it to Effect (mutation), Fact

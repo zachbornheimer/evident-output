@@ -1753,6 +1753,28 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-062",
+			Category:  "API",
+			Severity:  "error",
+			Invariant: "work run on an Isolated Output is declared on that Output; package-level evo.Task/Group/Sequence/Fact/Warn/Print*/Confirm inside its Run callback reach the package default instead",
+			Why:       "Spec §53: HTTP/embedding gives each request its own Isolated Output so concurrent requests share no runtime state. Package-level declarations always reach the package default, never the Output being run — every request would share that default's Tasks while its own evo.run document came back empty. The model stays reusable across CLI and HTTP by taking the *evo.Output that drives it.",
+			BadCode: `out := evo.Init(evo.Config{Isolated: true, Format: evo.FormatExternal, Stdout: io.Discard, Stderr: io.Discard})
+result := out.Run(r.Context(), func(ctx context.Context) error {
+  evo.Task("load agent").Define(load)
+  return nil
+})`,
+			GoodCode: `out := evo.Init(evo.Config{Isolated: true, Format: evo.FormatExternal, Stdout: io.Discard, Stderr: io.Discard})
+result := out.Run(r.Context(), func(ctx context.Context) error {
+  launchAgent(out, agent) // declares out.Sequence(...).Task(...)
+  return nil
+})`,
+			Remediation:     "Declare on the Output being run (out.Task, out.Sequence, out.Fact, ...), or pass that *evo.Output into the shared model function; the CLI passes evo.Default()",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-062"},
+			Since:           "1.0.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",
