@@ -220,8 +220,13 @@ type ProblemDoc struct {
 	Message string `json:"message,omitempty"`
 	Subject string `json:"subject,omitempty"`
 	Detail  string `json:"detail,omitempty"`
-	Count   int64  `json:"count,omitempty"`
-	Unit    string `json:"unit,omitempty"`
+	// EvidenceTail mirrors core.Problem.EvidenceTail (ZYS-823 gap 2, same
+	// projection bug internal/render's JSONProblem had): the plain/TTY
+	// row can show this evidence line, so the full-fidelity §36 document
+	// must carry it too rather than dropping it.
+	EvidenceTail string `json:"evidence_tail,omitempty"`
+	Count        int64  `json:"count,omitempty"`
+	Unit         string `json:"unit,omitempty"`
 }
 
 // EffectDoc is one flattened change/plan row (spec §35's top-level
@@ -423,7 +428,8 @@ func toProblemDocs(in []core.Problem) []ProblemDoc {
 	for _, p := range in {
 		out = append(out, ProblemDoc{
 			Code: p.Code, Message: p.Summary, Subject: p.Subject,
-			Detail: p.Detail, Count: p.Count, Unit: p.Unit,
+			Detail: p.Detail, EvidenceTail: p.EvidenceTail,
+			Count: p.Count, Unit: p.Unit,
 		})
 	}
 	return out
