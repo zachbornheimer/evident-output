@@ -158,6 +158,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   background writer folds every commit since its last write into one
   write.
 
+- A duplicate sibling reads once: `✗ t  duplicate task name`, not the
+  name and problem repeated three times, and the misuse line names it
+  (`duplicate sibling name: t`). A root `Group` and `Sequence` with the
+  same name are now duplicate siblings, as they already were when nested.
+
 - An `evo.Effect` callback that resolves its own task as `Skipped`/`Fail`
   records no ledger row (and no misuse), and an interrupt that cancels a
   row mid-Effect keeps the committed record for "! already mutated".

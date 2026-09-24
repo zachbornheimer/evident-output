@@ -36,7 +36,9 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 	case errors.Is(err, ErrProgressRegression):
 		return "progress must not move backward; report only increasing completed values"
 	case errors.Is(err, ErrDuplicateKey):
-		return "reuse evo.ID only for the same task name; give a new task its own evo.ID"
+		return "each task needs its own Key; this one is already taken"
+	case errors.Is(err, ErrDuplicateSiblingName):
+		return fmt.Sprintf("duplicate sibling name: %s; give each child of one parent its own name", subject)
 	case errors.Is(err, ErrInvalidConfig):
 		return "configure After and Verify before Define, and Define each task once with a non-nil callback"
 	case errors.Is(err, ErrRenderer):

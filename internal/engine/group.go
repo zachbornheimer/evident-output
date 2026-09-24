@@ -49,14 +49,7 @@ func (g *GroupHandle) declareChild(name string, sequential bool) *GroupHandle {
 	if parent == nil {
 		return g.out.rejectedGroup(g.rejected)
 	}
-	child, rejected := g.out.declareChildContainerLocked(parent, name, sequential)
-	if rejected != nil {
-		return g.out.rejectedGroup(rejected)
-	}
-	h := &GroupHandle{out: g.out, id: child.id}
-	child.handle = h
-	g.out.bumpLocked()
-	return h
+	return g.out.declareContainerLocked(parent, name, sequential)
 }
 
 // Summary sets a success-oriented collection summary.

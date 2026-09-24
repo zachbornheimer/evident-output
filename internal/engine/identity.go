@@ -106,22 +106,22 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 // failDuplicateSiblingLocked records a real, visible Failed task carrying
 // ProblemCodeDuplicateSiblingName — the truthful conclusion/exit-code path
 // a duplicate declaration now takes instead of a panic or a silently
-// returned existing handle. col is the parent container the duplicate was
-// declared under, or nil for a root-level declaration. Callers must already
-// hold o.mu. It returns the refusal the duplicate's rejected handle keeps.
+// returned existing handle. The row is named for the duplicated name
+// itself, and its one Problem says what is wrong with it, so the reader
+// sees `✗ t  duplicate task name` once. col is the parent container the
+// duplicate was declared under, or nil for a root-level declaration.
+// Callers must already hold o.mu. It returns the refusal the duplicate's
+// rejected handle keeps.
 func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, name string) error {
-	summary := fmt.Sprintf("duplicate %s name: %s", kind, name)
-	h := o.addTaskLocked(summary, col, "", parentKeyOf(col))
+	h := o.addTaskLocked(name, col, "", parentKeyOf(col))
 	rejected := fmt.Errorf("%w: %s", ErrDuplicateSiblingName, name)
 	st := o.taskByRef[h.id]
 	if st == nil {
 		return rejected
 	}
-	st.summary = txt.Text(summary)
 	st.problems = core.StoreProblems([]Problem{{
 		Code:    ProblemCodeDuplicateSiblingName,
-		Subject: name,
-		Summary: summary,
+		Summary: fmt.Sprintf("duplicate %s name", kind),
 	}})
 	o.settleLocked(st, Failed)
 	o.recordMisuseFor(name, ErrDuplicateSiblingName)

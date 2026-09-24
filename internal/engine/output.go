@@ -80,31 +80,13 @@ type Output struct {
 	rootColumn rootColumn
 	keys       map[string]struct{}
 
-	// namedTasks records every (scope, name) pair already declared through
-	// Output.Task/Scope.Task (and, through them, the package-level
-	// default-instance facade), so a repeated declaration under the same
-	// pair is recognized as a duplicate sibling name (§3.1) instead of
-	// silently merging two distinct declarations into one identity — 1.0
-	// removed get-or-create for exactly that soundness reason (a merged
-	// identity could later report a false "already satisfied"). Keyed
-	// either "\x00"+scope+"\x00"+name (no explicit key) or "key:"+key
-	// (explicit evo.ID); see taskScoped and taskNameByKey.
-	namedTasks map[string]*TaskHandle
-	// taskNameByKey remembers which display name first claimed an explicit
-	// evo.ID through taskScoped: a second call reusing the same ID under any
-	// name — same or different — is a real identity conflict (ErrDuplicateKey),
-	// never a repeat declaration to be merged.
-	taskNameByKey map[string]string
+	// rootNames holds, per declaration scope, the names root Tasks, Groups,
+	// and Sequences claimed (§3.1); see siblingsLocked.
+	rootNames map[string]*siblings
 	// namedReasons backs get-or-create identity for evo.Reason: repeated calls
 	// with the same name (inline or lifted to a var) merge into one bucket.
 	// Also unrelated to §3.1 — a taxonomy Reason is not a declared entity.
 	namedReasons map[string]TaxonomyReason
-	// namedGroups records every name already declared through evo.Sequence,
-	// so a repeat is recognized as a duplicate sibling name (§3.1).
-	namedGroups map[string]*SequenceHandle
-	// namedGroupHandles records every name already declared through
-	// evo.Group, so a repeat is recognized as a duplicate sibling name (§3.1).
-	namedGroupHandles map[string]*GroupHandle
 
 	// ctx is the run's own cancellation signal — the thing a callback doing
 	// I/O selects on. cancelRun trips it on interrupt and on Close, so no
@@ -301,7 +283,7 @@ type tasksState struct {
 	id string
 	// key is the §3.1 stable machine identity for this Group/Sequence: the
 	// default kind+parent-key+normalized-name derivation, computed once at
-	// declaration (see declareContainerLocked/declareChildContainerLocked).
+	// declaration (see declareContainerLocked).
 	key         string
 	name        string
 	summary     string
@@ -309,11 +291,9 @@ type tasksState struct {
 	declaration int
 	handle      *GroupHandle
 
-	// namedTasks records every name already declared as a child of this
-	// container through Group.Task/Sequence.Task, so a repeated name is
-	// recognized as a duplicate sibling (§3.1) instead of merging two
-	// distinct declarations into one identity.
-	namedTasks map[string]*TaskHandle
+	// names holds the names this container's child Tasks and containers
+	// claimed (§3.1); see siblings.
+	names siblings
 
 	// sequential marks a Sequence: children are chained in declaration
 	// order. A Group's children are independent and may overlap.
@@ -329,13 +309,6 @@ type tasksState struct {
 	// rendering fold its children in exactly the way it folds its own
 	// tasks.
 	children []*tasksState
-
-	// namedChildren records every name already declared as a nested
-	// Group/Sequence child of this container, mirroring Output.namedGroups
-	// but scoped to this container (container path + name is the identity,
-	// so the same label under a different parent is a distinct child). A
-	// repeated name here is a duplicate sibling (§3.1), not a get-or-create.
-	namedChildren map[string]*tasksState
 
 	// parent is the container this one is nested in, nil at the root.
 	parent *tasksState
