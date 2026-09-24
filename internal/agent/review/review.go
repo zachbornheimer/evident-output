@@ -709,7 +709,7 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// exists from 1.1.0 on, so a pin older than that cannot apply this
 	// recommendation.
 	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
-		findings = append(findings, detectManualLockAroundEvoFile(filename, src)...)
+		findings = append(findings, detectManualLockAroundEvoFile(filename, f, fset)...)
 	}
 
 	// EVO-DAG-003: a visible producer/consumer relationship has no

@@ -1577,7 +1577,7 @@ return err`,
 		{
 			ID:        "API-055",
 			Category:  "API",
-			Severity:  "error",
+			Severity:  "warning",
 			Invariant: "application code does not manage mutexes, lock files, or unlock lifecycle around an Evo-managed File path; File claims write-side ownership of its own path automatically, and overlapping File/Basis/Effect claims already wait on each other",
 			Why:       "A caller-managed sync.Mutex/RWMutex wrapped around an evo.File call (ZYS-931) is invisible to Evo's own resource coordination (ZYS-840): it cannot see a contended wait, cannot render \"waiting for <path>\" the way a real resource claim does, and is pure redundancy once File already serializes writers on its own Path — or a false sense of safety if the two coordination layers ever disagree about ordering. Remove the lock and let File own the path; when the work is not itself a File write, claim the same path explicitly with evo.FSResource so it still overlaps File/Basis on that path.",
 			BadCode: `type Writer struct {
@@ -1602,7 +1602,7 @@ func (w *Writer) archive(ctx context.Context) error {
     Resource: evo.FSResource(w.path),
   }, func(ctx context.Context) error { return archive(w.path) })
 }`,
-			Remediation:     "Delete the sync.Mutex/RWMutex field and its Lock()/Unlock() calls around the evo.File call; File already claims its own path for writing. For an opaque (non-File) mutation over the same path, claim it with evo.Effect's EffectSpec.Resource: evo.FSResource(path) instead of a caller lock — never a bare Write(func...) callback for tracked file state.",
+			Remediation:     "When the Lock()/Unlock() pair guards nothing but the evo.File call, drop the pair; File already claims its own path for writing. When the lock also guards other shared state, keep it and end the critical section before calling evo.File, because File can wait on its resource claim while the caller lock is held. Never delete a mutex field on this rule alone; other methods may depend on it. For an opaque (non-File) mutation over the same path, claim it with evo.Effect's EffectSpec.Resource: evo.FSResource(path) instead of a caller lock — never a bare Write(func...) callback for tracked file state.",
 			RelatedGuidance: []string{"evo-file-exec", "common-api"},
 			VerificationIDs: []string{"API-055"},
 			Since:           "1.1.0",
