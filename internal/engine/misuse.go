@@ -45,7 +45,7 @@ func (o *Output) recordMisuseFor(subject string, err error) {
 }
 
 // recordAlreadyResolvedLocked records ErrAlreadyResolved for a second
-// terminal verb (Done/Fail/Block/Warn/Cancel/Skip) on task name, retaining
+// terminal verb (Fail/Block/Warn/Cancel/Skipped) on task name, retaining
 // the rejected call's own summary text — when it carried one — so the
 // misuse line can show what got dropped instead of only naming the task
 // (release-gate round 5 finding 4).

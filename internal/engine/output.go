@@ -41,7 +41,7 @@ type Output struct {
 	// contradict what the printed band showed (beginner-1).
 	misuseSubject string
 	// misuseRejectedSummary is the summary text a second terminal verb
-	// (Done/Fail/Block/Warn/Cancel/Skip) tried to attach to an
+	// (Fail/Block/Warn/Cancel/Skipped) tried to attach to an
 	// already-resolved task, captured on the first recorded misuse only —
 	// the same "first ever recorded" scope as misuseSubject. Empty when the
 	// rejected call carried no summary, or the first misuse wasn't this kind

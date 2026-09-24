@@ -359,9 +359,8 @@ func (t *TaskHandle) Cancel(reason string) {
 	t.finish(Cancelled, txt.Text(reason), nil)
 }
 
-// Skip resolves the task as skipped. reason is a printf format when args are
-// present (fmt.Sprintf semantics) — one text spelling shared with
-// Done/Task/Group/Reason/Phase (C6; release-gate round 6 finding 4).
+// skip resolves the task as skipped (the engine body behind Skipped).
+// reason is a printf format when args are present (fmt.Sprintf semantics).
 func (t *TaskHandle) skip(reason string, args ...any) *TaskHandle {
 	if len(args) > 0 {
 		reason = fmt.Sprintf(reason, args...)
@@ -393,7 +392,7 @@ func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle 
 	return t.Next(Command(executable, args...))
 }
 
-// NextSelf attaches a command action that re-runs the caller's own binary
+// nextSelf attaches a command action that re-runs the caller's own binary
 // with args — a self-referencing remedy ("rerun with --apply") that doesn't
 // restate which binary to run (I6). Uses the same identity source as
 // Confirm's PolicyFlag / I2's Failf fallback: Config.Title when set, else
@@ -439,11 +438,11 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 }
 
 // finish is the caller-facing resolution path — every terminal verb
-// (Done/Fail/Block/Cancel/Skip) a program writes by hand.
+// (Fail/Block/Cancel/Skipped) a program writes by hand.
 //
 // Once a task is submitted, the scheduler owns the verdict on its work: only
 // the callback's own return value says whether the work succeeded. So a
-// hand-written Done/Skipped on a submitted task is a *proposal*, not a
+// hand-written Skipped on a submitted task is a *proposal*, not a
 // resolution — it is held until the callback returns and then either
 // ratified (the work did succeed; the caller's own summary is what renders,
 // which is how a callback declares "✓ branches  8 deleted") or rejected as
