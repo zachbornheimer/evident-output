@@ -59,7 +59,7 @@ go run ./examples/verbose/ --verbose
 | `repo-status`      | Parallel **Tasks** (done / blocked / warn), conclusion exit code      |
 | `install-pipeline` | **Tasks** collection with Progress/Bytes/Fail (final report)          |
 | `migrate`          | **Plan** dry-run vs **Changes** apply (`--apply`)                     |
-| `doctor`           | Mixed doctor items; `--json` snapshot on stdout                       |
+| `doctor`           | Mixed doctor items; `--json` evo.run document on stdout               |
 | `data-command`     | Data command: JSON **stdout**, human report **stderr**                |
 | `live-progress`    | **Live multi-progress**: bars + indeterminate phases (ANSI on stderr) |
 | `debug-history`    | **DebugHistory**: durable `HH:MM:SS.mmm [DEBUG] …` above live/items   |
@@ -71,7 +71,7 @@ go run ./examples/repo-status/ --name my-app
 go run ./examples/install-pipeline/
 go run ./examples/migrate/                 # dry-run plan
 go run ./examples/migrate/ --apply
-go run ./examples/doctor/ --json | jq .conclusion
+go run ./examples/doctor/ --json | jq .outcome
 go run ./examples/data-command/ 2>/dev/null | jq .
 go run ./examples/live-progress/              # in-place ANSI live region (real TTY)
 go run ./examples/live-progress/ --frames     # numbered frames you can scroll

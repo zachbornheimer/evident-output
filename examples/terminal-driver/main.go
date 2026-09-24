@@ -50,7 +50,7 @@ func main() {
 
 	var term evo.TerminalDriver
 	if *frames {
-		term = newFrameLog(os.Stderr, *step)
+		term = newFrameLog(os.Stderr, os.Stdin, *step)
 	} else {
 		term = terminal.NewANSI(os.Stderr,
 			terminal.WithInteractive(true),
@@ -108,8 +108,9 @@ type frameLog struct {
 	in    *bufio.Reader
 }
 
-func newFrameLog(w io.Writer, step bool) *frameLog {
-	return &frameLog{w: w, step: step, width: 80, in: bufio.NewReader(os.Stdin)}
+// newFrameLog logs frames to w; in answers the --step pause between them.
+func newFrameLog(w io.Writer, in io.Reader, step bool) *frameLog {
+	return &frameLog{w: w, step: step, width: 80, in: bufio.NewReader(in)}
 }
 
 func (f *frameLog) ID() string          { return "frame-log" }

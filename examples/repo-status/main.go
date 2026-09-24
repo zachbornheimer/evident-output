@@ -19,7 +19,13 @@ func main() {
 	clean := flag.Bool("clean", false, "simulate a clean repo")
 	fast := flag.Bool("fast", false, "short sleeps")
 	verbose := flag.Bool("verbose", false, "show Verbose() messages")
-	colorFlag := flag.String("color", "auto", "auto|always|never")
+	color := evo.ColorAuto
+	// flag.Func validates --color while parsing, so a bad value is a usage
+	// error the flag package reports before any evo output exists.
+	flag.Func("color", "auto|always|never (default auto)", func(s string) (err error) {
+		color, err = parseColorMode(s)
+		return err
+	})
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: repo-status [flags]\n\nReport whether a local git repository is safe to archive.\n\n")
 		flag.PrintDefaults()
@@ -29,11 +35,6 @@ func main() {
 	step := 120 * time.Millisecond
 	if *fast {
 		step = 40 * time.Millisecond
-	}
-	color, err := parseColorMode(*colorFlag)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
 	}
 
 	cfg := evo.DefaultConfig()

@@ -26,10 +26,14 @@ func main() {
 		evo.Println("Reading configuration")
 		evo.Printf("Found %d packages\n", 18)
 		// Hidden unless --verbose (still present in Snapshot.Messages).
-		evo.Verbose().Printf("Cache: %s\n", "/var/cache/packages")
 		evo.Verbose().Println("Using registry mirror us-east-1")
 
-		evo.Task("lockfile").Define(func(context.Context) error { return nil })
+		lockfile := evo.Task("lockfile")
+		lockfile.Define(func(context.Context) error {
+			// A learned value is a Fact, not a printed "Label: value" line.
+			lockfile.Fact("cache", "/var/cache/packages")
+			return nil
+		})
 		return nil
 	}))
 }
