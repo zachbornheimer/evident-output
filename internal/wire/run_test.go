@@ -179,6 +179,63 @@ func TestToRunDocument_ValidatesAgainstSchema(t *testing.T) {
 	}
 }
 
+// TestToRunDocument_VerificationProjectsPerAttributeFactsToo is ZYS-823's
+// Patch/File machine-provenance gap: a failing evo.File/Patch attribute's
+// Facts (error/path/mode — internal/core's fileVerificationDetails, §8.2)
+// are exactly what a machine consumer needs to explain the failure without
+// parsing terminal prose, but toTaskDoc hard-coded Verification to an empty
+// slice, so WriteJSON's public "evo.run" document dropped every
+// VerificationDetail (and its Facts) a Task recorded.
+func TestToRunDocument_VerificationProjectsPerAttributeFactsToo(t *testing.T) {
+	result := core.Result{Conclusion: withConc(func(c *core.Conclusion) {
+		c.Tasks = []core.TaskSnapshot{
+			core.NewTaskSnapshot(core.TaskSnapshot{
+				ID: "task_1", Name: "write launch agent", State: core.Failed,
+				Verification: []core.VerificationDetail{
+					{Name: "contents", Status: core.VerificationSatisfied},
+					{
+						Name: "permissions", Status: core.VerificationError,
+						Facts: []core.Fact{
+							{Name: "error", Value: "operation not permitted"},
+							{Name: "path", Value: "~/Library/LaunchAgents/com.acme.prod.agent.plist"},
+							{Name: "mode", Value: "0644"},
+						},
+					},
+				},
+			}, time.Time{}, false, false),
+		}
+	})}
+	doc := ToRunDocument(result, testEvoVersion)
+	got := doc.Data.Tasks[0].Verification
+	want := []VerificationDoc{
+		{Name: "contents", Status: VerificationSatisfied},
+		{
+			Name: "permissions", Status: VerificationError,
+			Facts: []FactDoc{
+				{Name: "error", Value: "operation not permitted"},
+				{Name: "path", Value: "~/Library/LaunchAgents/com.acme.prod.agent.plist"},
+				{Name: "mode", Value: "0644"},
+			},
+		},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Verification = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i].Name != want[i].Name || got[i].Status != want[i].Status {
+			t.Errorf("Verification[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+		if len(got[i].Facts) != len(want[i].Facts) {
+			t.Fatalf("Verification[%d].Facts = %+v, want %+v", i, got[i].Facts, want[i].Facts)
+		}
+		for j := range want[i].Facts {
+			if got[i].Facts[j] != want[i].Facts[j] {
+				t.Errorf("Verification[%d].Facts[%d] = %+v, want %+v", i, j, got[i].Facts[j], want[i].Facts[j])
+			}
+		}
+	}
+}
+
 func TestOutcomeFor(t *testing.T) {
 	cases := []struct {
 		state core.ConclusionState

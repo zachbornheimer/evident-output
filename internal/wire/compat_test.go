@@ -12,12 +12,14 @@ import (
 // decodes today's document with no error and no data loss on the fields it
 // knows about.
 //
-// "resource" maps to TrackedResourceDoc and "Patch" maps to EffectDoc (the
-// wire record of one committed/planned mutation — the closest §36 concept
-// to "a patch to state"; there is no separate Patch JSON type in this
-// package). "Problem" maps to ProblemDoc. fixtureResourcePath is an
-// obviously-fake path (never touches disk — these tests only exercise
-// json.Marshal/Unmarshal on in-memory structs).
+// "resource" maps to TrackedResourceDoc and "Patch" maps to VerificationDoc
+// (spec §27: Patch reduces to File, and File's own machine truth — per-
+// attribute contents/permissions outcome, with the Facts that explain a
+// failed one — is VerificationDoc, not a second patch-specific wire type;
+// there is no separate Patch JSON type in this package). "Problem" maps to
+// ProblemDoc. fixtureResourcePath is an obviously-fake path (never touches
+// disk — these tests only exercise json.Marshal/Unmarshal on in-memory
+// structs).
 const fixtureResourcePath = "fixture://managed/x"
 
 func TestSchemaCompat_ProblemDocOlderShapeDecodesWithNoLoss(t *testing.T) {
@@ -82,6 +84,40 @@ func TestSchemaCompat_TrackedResourceDocModeIsAdditive(t *testing.T) {
 		t.Fatalf("old consumer must decode today's document ignoring mode: %v", err)
 	}
 	if old.Kind != current.Kind || old.Path != current.Path {
+		t.Fatalf("old consumer decode = %+v, want fields it knows about preserved", old)
+	}
+}
+
+func TestSchemaCompat_VerificationDocOlderShapeDecodesWithNoLoss(t *testing.T) {
+	older := []byte(`{"name":"contents","status":"satisfied"}`)
+	var got VerificationDoc
+	if err := json.Unmarshal(older, &got); err != nil {
+		t.Fatalf("decode older VerificationDoc shape: %v", err)
+	}
+	want := VerificationDoc{Name: "contents", Status: "satisfied"}
+	if got.Name != want.Name || got.Status != want.Status || len(got.Facts) != 0 {
+		t.Fatalf("older-shape decode = %+v, want %+v (no loss, no invented Facts)", got, want)
+	}
+}
+
+func TestSchemaCompat_VerificationDocFactsIsAdditive(t *testing.T) {
+	current := VerificationDoc{
+		Name: "permissions", Status: "error",
+		Facts: []FactDoc{{Name: "error", Value: "operation not permitted"}},
+	}
+	encoded, err := json.Marshal(current)
+	if err != nil {
+		t.Fatalf("encode current VerificationDoc: %v", err)
+	}
+	type oldConsumerVerificationDoc struct {
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	}
+	var old oldConsumerVerificationDoc
+	if err := json.Unmarshal(encoded, &old); err != nil {
+		t.Fatalf("old consumer must decode today's document ignoring facts: %v", err)
+	}
+	if old.Name != current.Name || old.Status != current.Status {
 		t.Fatalf("old consumer decode = %+v, want fields it knows about preserved", old)
 	}
 }

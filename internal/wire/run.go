@@ -146,10 +146,17 @@ type TimingDoc struct {
 	TotalMs   int64 `json:"total_ms"`
 }
 
-// VerificationDoc is one diagnostic sub-result (spec §36).
+// VerificationDoc is one diagnostic sub-result (spec §36): a managed
+// attribute an evo.File/Patch/Exec operation reconciled, satisfied or not.
+// Facts explains a non-satisfied entry (error/path/mode, mirroring
+// core.VerificationDetail.Facts, §8.2's worked example) so a machine
+// consumer never needs to parse the human "failed: permissions" row to
+// learn why (ZYS-823 decisions: "normal human truncation/collapse never
+// truncates machine truth").
 type VerificationDoc struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
+	Name   string    `json:"name"`
+	Status string    `json:"status"`
+	Facts  []FactDoc `json:"facts,omitempty"`
 }
 
 // Verification statuses (spec §36).
@@ -376,7 +383,7 @@ func toTaskDoc(parentID string, t core.TaskSnapshot) TaskDoc {
 		Progress:           toProgressDoc(t.Progress),
 		Activity:           toActivityDoc(t.Phase),
 		Timing:             TimingDoc{},
-		Verification:       []VerificationDoc{},
+		Verification:       toVerificationDocs(t.Verification),
 		TrackedResources:   []TrackedResourceDoc{},
 		Basis:              []BasisDoc{},
 		Facts:              toFactDocs(t.Facts),
@@ -419,6 +426,14 @@ func toFactDocs(in []core.Fact) []FactDoc {
 	out := make([]FactDoc, 0, len(in))
 	for _, f := range in {
 		out = append(out, FactDoc{Name: f.Name, Value: f.Value})
+	}
+	return out
+}
+
+func toVerificationDocs(in []core.VerificationDetail) []VerificationDoc {
+	out := make([]VerificationDoc, 0, len(in))
+	for _, d := range in {
+		out = append(out, VerificationDoc{Name: d.Name, Status: string(d.Status), Facts: toFactDocs(d.Facts)})
 	}
 	return out
 }
