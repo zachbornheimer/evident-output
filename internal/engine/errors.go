@@ -38,6 +38,11 @@ var (
 	// waiting callback is released with this error so its row states the
 	// cycle, rather than the whole run hanging in Finish.
 	ErrWaitDeadlock = errors.New("evo: awaited task can never be reached")
+	// errDependencyCycle is recorded when After edges close a cycle — a
+	// Task after itself, directly, through another Task, or through a Group
+	// it belongs to. Every Task in the cycle settles Blocked naming it,
+	// instead of Finish waiting forever for work that can never start.
+	errDependencyCycle = errors.New("evo: After dependency cycle")
 	// ErrDuplicateSiblingName is recorded when a Task, Group, or Sequence is
 	// declared with a name already used by another child of the same parent
 	// (§3.1). 1.0 removed get-or-create identity for Task/Group/Sequence

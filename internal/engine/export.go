@@ -111,11 +111,6 @@ func (t *TaskHandle) SkipForTest(reason string, args ...any) *TaskHandle {
 	return t.skip(reason, args...)
 }
 func (o *Output) AtForTest(visibility Visibility) *Printer { return o.at(visibility) }
-func (o *Output) SchedulerStartOrder() []string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return append([]string(nil), o.sched.startOrder...)
-}
 func (o *Output) SchedulerMaxObserved() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()

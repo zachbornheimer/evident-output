@@ -195,9 +195,6 @@ func TestScheduler_SequenceDeclarationOrderMaxOne(t *testing.T) {
 		t.Fatalf("Sequence max observed concurrency = %d, want 1", maxObserved)
 	}
 	want := []string{"a", "b", "c"}
-	if got := out.SchedulerStartOrder(); !equalStrings(got, want) {
-		t.Fatalf("scheduler start order = %v, want %v", got, want)
-	}
 	if !equalStrings(startOrder, want) {
 		t.Fatalf("callback start order = %v, want %v", startOrder, want)
 	}

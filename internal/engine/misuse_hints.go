@@ -53,6 +53,8 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 		return "call DeclareDryRun before any Task/Print/Confirm row streams"
 	case errors.Is(err, ErrWaitDeadlock):
 		return fmt.Sprintf("nothing left in the run can resolve %s; a task cannot wait on itself or on a task waiting on it", subject)
+	case errors.Is(err, errDependencyCycle):
+		return fmt.Sprintf("After forms a cycle (%s); a task cannot run after itself, directly or through a Group it belongs to", subject)
 	case errors.Is(err, ErrTerminalWithoutSink):
 		return "pass evo.To(w) alongside evo.Terminal(driver), or use a driver whose Sink() reports its writer"
 	default:

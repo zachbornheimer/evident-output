@@ -88,7 +88,7 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 	if st == nil {
 		return t
 	}
-	if st.submitted {
+	if st.sched.submitted() {
 		o.recordMisuseFor(st.name, ErrKeyAfterDefine)
 		return t
 	}

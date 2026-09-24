@@ -8,20 +8,22 @@ package engine
 //
 //   - the active phase clears;
 //   - every Wait parked on the Task wakes;
-//   - a Sequence step parked behind the Task is queued;
-//   - a non-success outcome marks the dependents' cascade due;
-//   - the snapshot version advances and the task.<state> event is journaled.
+//   - submitted work that never started releases its hold on the drain;
+//   - the snapshot version advances and the task.<state> event is journaled;
+//   - its collections' tallies move, and every Task parked on it (or on a
+//     collection it just resolved) is placed again (see wakeLocked).
 //
 // Callers own only what differs between paths: the summary, the Problems,
 // and where the settled row is committed. Callers must already hold o.mu.
 func (o *Output) settleLocked(st *taskState, state EntityState) {
+	from := stateOutcome(st.state)
 	st.state = state
 	st.phase = ""
 	st.closeDoneLocked()
-	o.releaseNextStepLocked(st)
-	if predecessorFailed(state) {
-		o.sched.cascadeDue = true
+	if st.sched.awaitingStart() {
+		o.abandonLocked(st)
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task." + string(state), EntityID: st.id})
+	o.propagateSettleLocked(st, from)
 }

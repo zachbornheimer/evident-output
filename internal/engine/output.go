@@ -188,27 +188,20 @@ type Output struct {
 }
 
 type taskState struct {
-	id         string
-	key        string // optional stable machine key (platform ID)
-	name       string
-	state      EntityState
-	phase      string
-	progress   Progress
-	summary    string
-	problems   []Problem
-	actions    []Action
-	collection *tasksState
-	// prevSibling is the Task declared just before this one in the same
-	// collection (nil for the first, or outside any collection): a
-	// Sequence step's predecessor, found in O(1).
-	prevSibling *taskState
-	// nextSibling is the Task declared just after this one in the same
-	// collection, and parkedOnPrev reports that it is submitted but waiting
-	// off the scheduler queue for this Task to resolve (see enqueueLocked).
-	nextSibling  *taskState
-	parkedOnPrev bool
-	declaration  int
-	handle       *TaskHandle
+	id          string
+	key         string // optional stable machine key (platform ID)
+	name        string
+	state       EntityState
+	phase       string
+	progress    Progress
+	summary     string
+	problems    []Problem
+	actions     []Action
+	collection  *tasksState
+	declaration int
+	handle      *TaskHandle
+	// sched is where this Task stands with the scheduler.
+	sched taskSchedule
 
 	// activityAt is the domain-clock time of the most recent Phase, Progress,
 	// or work-callback-starting call — kept for the public
@@ -286,9 +279,6 @@ type taskState struct {
 	// facts/warnings already require.
 	verification []core.VerificationDetail
 
-	submitted   bool
-	runningWork bool
-	workFn      func() error
 	// effectDenials counts the times this task's own mutation callback
 	// resolved the row as something other than Done while an Effect ran, so
 	// that Effect's work must not reach the ledger (see deniesItsOwnEffect).
@@ -297,7 +287,6 @@ type taskState struct {
 	// effectsInFlight counts evo.Effect callbacks currently running for this
 	// task; a non-Done resolution while one runs disowns that Effect.
 	effectsInFlight int
-	preds           []predecessor
 	// verifiers holds TaskHandle.Verify's registered pre/post-Define
 	// observation checks, ANDed in registration order (§9.1). Must be
 	// registered before Define — see Verify.
@@ -379,6 +368,9 @@ type tasksState struct {
 
 	// parent is the container this one is nested in, nil at the root.
 	parent *tasksState
+	// tally counts this container's descendant Tasks by outcome, for the
+	// Tasks that run After it.
+	tally collectionTally
 }
 
 func newOutput(subject string, options ...Option) *Output {
@@ -776,18 +768,14 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 	st.handle = h
 	o.appendTaskLocked(st)
 	if col != nil {
-		if n := len(col.tasks); n > 0 {
-			st.prevSibling = col.tasks[n-1]
-			st.prevSibling.nextSibling = st
+		if n := len(col.tasks); n > 0 && col.sequential {
+			// A Sequence step runs after the step declared before it.
+			st.sched.preds = append(st.sched.preds, predecessor{task: col.tasks[n-1]})
 		}
 		col.tasks = append(col.tasks, st)
+		tallyDeclaredLocked(st)
 	}
 	o.taskByRef[st.id] = st
-	if o.sched.draining {
-		// A never-Defined Task strands its dependents once the run drains,
-		// and the drain's opening cascade ran before this one existed.
-		o.sched.cascadeDue = true
-	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
 	o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": name})
@@ -841,7 +829,7 @@ func (o *Output) abandonQueuedWork() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, st := range o.tasks {
-		if st.runningWork || core.IsTerminalTask(st.state) {
+		if st.sched.phase == phaseRunning || core.IsTerminalTask(st.state) {
 			continue
 		}
 		o.markNotStartedLocked(st)

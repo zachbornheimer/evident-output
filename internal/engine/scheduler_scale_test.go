@@ -124,3 +124,44 @@ func TestDrainWorkIsLinear(t *testing.T) {
 // drainVisitsPerTask bounds scheduling work per Task: the drain's opening
 // cascade visits each queued Task once, and starting it visits it again.
 const drainVisitsPerTask = 4
+
+// fanIn declares n Tasks under one Group and n more After the Group — the
+// AGENTS.md `Task("fetch").After(worktrees, branches)` shape at scale. The
+// fan-in Tasks are declared first, so each start pass meets them at the
+// queue's head. It returns the queue entries scheduling examined.
+func fanIn(tb testing.TB, n int) int {
+	tb.Helper()
+	out := Init(Config{Isolated: true, StateDir: tb.TempDir(), Stdout: io.Discard, Stderr: io.Discard, MaxConcurrency: 2})
+	defer func() { _ = out.Close() }()
+	g := out.Group("items")
+	after := make([]*TaskHandle, n)
+	for i := range after {
+		after[i] = out.Task(fmt.Sprintf("after %d", i)).After(g)
+	}
+	for i := range after {
+		after[i].Define(func(context.Context) error { return nil })
+	}
+	for i := range n {
+		g.Task(fmt.Sprintf("item %d", i)).Define(func(context.Context) error { return nil })
+	}
+	for _, task := range after {
+		if err := task.Wait(); err != nil {
+			tb.Fatalf("Wait: %v", err)
+		}
+	}
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	return out.sched.queue.visits
+}
+
+// TestFanInSchedulingIsLinear guards fan-in: a Task waiting on a Group used
+// to sit at the queue's head, so every start pass rescanned every one of
+// them and re-walked the whole Group for each (n=16000: 24.8s).
+func TestFanInSchedulingIsLinear(t *testing.T) {
+	const n = 2000
+	visits := fanIn(t, n)
+	t.Logf("fan-in: n=%d visits=%d", n, visits)
+	if visits > scheduleVisitsPerTask*2*n {
+		t.Errorf("fan-in examined %d queue entries for %d Tasks (want <= %d)", visits, 2*n, scheduleVisitsPerTask*2*n)
+	}
+}

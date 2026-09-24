@@ -136,13 +136,6 @@ func (o *Output) AtForTest(visibility Visibility) *Printer {
 	return wrapPrinter(o.inner.AtForTest(visibility))
 }
 
-func (o *Output) SchedulerStartOrder() []string {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.SchedulerStartOrder()
-}
-
 func (o *Output) SchedulerMaxObserved() int {
 	if o == nil || o.inner == nil {
 		return 0
