@@ -86,8 +86,8 @@ func timeSchedule(t *testing.T, n int, sequential bool) time.Duration {
 // drainContainer is the canonical evo.Main shape: declare and Define n
 // Tasks, return, and let Close's drain run them. The first Task holds the
 // only slot until the drain has started, so every other Task is still
-// queued when it does.
-func drainContainer(tb testing.TB, n int) {
+// queued when it does. It returns the queue entries the cascade examined.
+func drainContainer(tb testing.TB, n int) int {
 	tb.Helper()
 	out := Init(Config{Isolated: true, StateDir: tb.TempDir(), Stdout: io.Discard, Stderr: io.Discard, MaxConcurrency: 1})
 	release := make(chan struct{})
@@ -112,28 +112,24 @@ func drainContainer(tb testing.TB, n int) {
 		}
 	}()
 	_ = out.Close()
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	return out.schedCascadeVisits
 }
 
-// TestDrainScalesLinearly guards the drain path TestSchedulingScalesLinearly
+// TestDrainWorkIsLinear guards the drain path TestSchedulingScalesLinearly
 // cannot see: while draining, every Task completion used to rescan the
 // whole live queue for unreachable work (n=16000: 127.9M visits, 3.57s).
-func TestDrainScalesLinearly(t *testing.T) {
-	if testing.Short() {
-		t.Skip("timing guard")
-	}
-	best := func(n int) time.Duration {
-		d := time.Duration(1<<63 - 1)
-		for range 3 {
-			start := time.Now()
-			drainContainer(t, n)
-			d = min(d, time.Since(start))
-		}
-		return d
-	}
-	small, large := best(1000), best(4000)
-	ratio := float64(large) / float64(small)
-	t.Logf("drain: 1000=%v 4000=%v x%.1f", small, large, ratio)
-	if ratio > linearScaleCeiling {
-		t.Errorf("drain: 4000 Tasks took %v, 1000 took %v (x%.1f, want <= x%.0f)", large, small, ratio, linearScaleCeiling)
+// It counts the cascade's work instead of timing it, so load cannot flake it.
+func TestDrainWorkIsLinear(t *testing.T) {
+	const n = 4000
+	visits := drainContainer(t, n)
+	t.Logf("drain: n=%d visits=%d", n, visits)
+	if visits > drainVisitsPerTask*n {
+		t.Errorf("drain examined %d queue entries for %d Tasks (want <= %d): the cascade rescans the queue per Task", visits, n, drainVisitsPerTask*n)
 	}
 }
+
+// drainVisitsPerTask bounds the cascade's work per Task: the drain's
+// opening pass visits each queued Task once.
+const drainVisitsPerTask = 2

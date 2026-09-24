@@ -582,7 +582,9 @@ func (o *Output) predsSatisfiedLocked(st *taskState) bool {
 func (o *Output) cascadeIneligibleLocked() {
 	for changed := true; changed; {
 		changed = false
-		for _, st := range o.schedQueue.live() {
+		live := o.schedQueue.live()
+		o.schedCascadeVisits += len(live)
+		for _, st := range live {
 			if !awaitingStart(st) || !o.unreachableLocked(st) {
 				continue
 			}
