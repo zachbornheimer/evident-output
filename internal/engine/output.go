@@ -63,9 +63,13 @@ type Output struct {
 	collections []*tasksState
 	changes     []*changesState
 	plans       []*planState
-	lines       []string
-	actions     []Action
-	events      []Event
+	// ledger indexes the names ledger sections are keyed by (see
+	// ledger_order.go), so ordering and no-op checks never rescan every
+	// Task or section.
+	ledger  ledgerIndex
+	lines   []string
+	actions []Action
+	events  []Event
 
 	// wireSeq/wireEventErr back the §38 "evo.event" JSONL stream
 	// (structured_events.go's emitWireEventLocked) — a counter and
@@ -860,7 +864,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 	}
 	h := &TaskHandle{out: o, id: st.id}
 	st.handle = h
-	o.tasks = append(o.tasks, st)
+	o.appendTaskLocked(st)
 	if col != nil {
 		if n := len(col.tasks); n > 0 {
 			st.prevSibling = col.tasks[n-1]
@@ -1101,6 +1105,7 @@ func (o *Output) declareContainerLocked(name string, sequential bool) *tasksStat
 		sequential:  sequential,
 	}
 	o.tasksByRef[st.id] = st
+	o.ledger.declared(st.name, st.declaration)
 	return st
 }
 
@@ -1133,6 +1138,7 @@ func (o *Output) declareChildContainerLocked(parent *tasksState, name string, se
 		sequential:  sequential,
 	}
 	o.tasksByRef[st.id] = st
+	o.ledger.declared(st.name, st.declaration)
 	parent.children = append(parent.children, st)
 	if parent.namedChildren == nil {
 		parent.namedChildren = make(map[string]*tasksState)
@@ -1185,6 +1191,7 @@ func (o *Output) declareChangeLedgerLocked(subject string) *changeLedger {
 	h := &changeLedger{out: o, id: st.id}
 	st.handle = h
 	o.changes = insertByLedgerOrder(o.changes, st, func(c *changesState) int { return c.order })
+	o.ledger.sectionOpened(st.subject)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "changes.declared", EntityID: st.id})
 	return h
@@ -1206,6 +1213,7 @@ func (o *Output) declarePlanLedgerLocked(subject string) *planLedger {
 	h := &planLedger{out: o, id: st.id}
 	st.handle = h
 	o.plans = insertByLedgerOrder(o.plans, st, func(p *planState) int { return p.order })
+	o.ledger.sectionOpened(st.subject)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "plan.declared", EntityID: st.id})
 	return h
@@ -1255,7 +1263,7 @@ func (o *Output) failWith(p Problem) {
 	if st.name == "" {
 		st.name = identityFallbackName()
 	}
-	o.tasks = append(o.tasks, st)
+	o.appendTaskLocked(st)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "output.failed"})
 }
@@ -1280,7 +1288,7 @@ func (o *Output) Cancel(reason string) {
 		declaration: o.nextDecl(),
 		synthetic:   true,
 	}
-	o.tasks = append(o.tasks, t)
+	o.appendTaskLocked(t)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "output.cancelled"})
 }

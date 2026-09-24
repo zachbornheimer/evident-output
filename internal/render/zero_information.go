@@ -78,10 +78,12 @@ func (scope hideScope) admits(t core.TaskSnapshot) bool {
 // zeroInformationScan accumulates what ZeroInformationTaskIDs learns while
 // walking a snapshot's Tasks.
 type zeroInformationScan struct {
-	snapshot   core.Snapshot
-	candidates map[string]bool
-	visible    int
-	stopped    bool
+	// ledgerSubjects is every [changed]/[planned] section subject, built
+	// once per scan.
+	ledgerSubjects map[string]bool
+	candidates     map[string]bool
+	visible        int
+	stopped        bool
 }
 
 func (scan *zeroInformationScan) visit(t core.TaskSnapshot, scope hideScope) {
@@ -89,7 +91,7 @@ func (scan *zeroInformationScan) visit(t core.TaskSnapshot, scope hideScope) {
 	case core.Failed, core.Blocked, core.Cancelled:
 		scan.stopped = true
 	}
-	if scope.admits(t) && !hasLedgerSection(scan.snapshot, t.Name) {
+	if scope.admits(t) && !scan.ledgerSubjects[t.Name] {
 		scan.candidates[t.ID] = true
 		return
 	}
@@ -117,9 +119,9 @@ func (scan *zeroInformationScan) visitCollection(col core.TasksSnapshot, parent 
 // must show everything (see the rule above).
 func ZeroInformationTaskIDs(s core.Snapshot) map[string]bool {
 	scan := &zeroInformationScan{
-		snapshot:   s,
-		candidates: make(map[string]bool, len(s.Tasks)+len(s.Collections)),
-		visible:    len(s.Lines) + len(s.Warnings) + len(s.Facts) + len(s.Changes) + len(s.Plans),
+		ledgerSubjects: ledgerSubjects(s),
+		candidates:     make(map[string]bool, len(s.Tasks)+len(s.Collections)),
+		visible:        len(s.Lines) + len(s.Warnings) + len(s.Facts) + len(s.Changes) + len(s.Plans),
 	}
 	for _, t := range s.Tasks {
 		scan.visit(t, hideProvenNoOp)
@@ -133,9 +135,17 @@ func ZeroInformationTaskIDs(s core.Snapshot) map[string]bool {
 	return scan.candidates
 }
 
-func hasLedgerSection(s core.Snapshot, subject string) bool {
-	return slices.ContainsFunc(s.Changes, func(c core.ChangesSnapshot) bool { return c.Subject == subject }) ||
-		slices.ContainsFunc(s.Plans, func(p core.PlanSnapshot) bool { return p.Subject == subject })
+// ledgerSubjects is the set of subjects s has a [changed] or [planned]
+// section for.
+func ledgerSubjects(s core.Snapshot) map[string]bool {
+	subjects := make(map[string]bool, len(s.Changes)+len(s.Plans))
+	for _, c := range s.Changes {
+		subjects[c.Subject] = true
+	}
+	for _, p := range s.Plans {
+		subjects[p.Subject] = true
+	}
+	return subjects
 }
 
 // WithoutTasks returns s with the Tasks in hidden removed from the root and
