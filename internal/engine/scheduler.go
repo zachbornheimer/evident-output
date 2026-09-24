@@ -95,6 +95,13 @@ func (t *TaskHandle) submitWork(fn func() error) {
 	st.submitted = true
 	st.workFn = fn
 	o.schedWG.Add(1)
+	if o.schedCancelled {
+		// Nothing starts after an interrupt, so work submitted after it is
+		// work the interrupt took away (see abandonQueuedWork).
+		o.markNotStartedLocked(st)
+		o.mu.Unlock()
+		return
+	}
 	o.enqueueLocked(st)
 	// §48: a predecessor that already failed before this task was even
 	// submitted must settle it NotStarted right now, under the same lock —

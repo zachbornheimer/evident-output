@@ -165,3 +165,30 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 		}
 	}
 }
+
+// TestInterrupt_WorkDefinedAfterTheSignalNeverStrandsTheDrain proves a Task
+// Defined after the interrupt settles NotStarted at once. The scheduler
+// dispatches nothing after ^C, so such a Task used to sit in the queue
+// forever, still counted by the drain, and Finish hung: the intermittent
+// hang TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue showed
+// when its run callback was still Defining when the signal landed.
+func TestInterrupt_WorkDefinedAfterTheSignalNeverStrandsTheDrain(t *testing.T) {
+	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, Stdout: io.Discard, Stderr: io.Discard})
+	out.interrupt("interrupted")
+	late := out.Task("late")
+	late.Define(func(context.Context) error { return nil })
+
+	closed := make(chan struct{})
+	go func() {
+		_ = out.Close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(interruptBudget):
+		t.Fatal("Close hung on a Task Defined after the interrupt")
+	}
+	if got := late.Snapshot().State; got != NotStarted {
+		t.Fatalf("late Task state = %s, want %s", got, NotStarted)
+	}
+}
