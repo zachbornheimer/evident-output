@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 )
 
 // ErrInvalidPartialEffect reports a PartialEffect whose data could not be
@@ -12,10 +13,14 @@ import (
 var ErrInvalidPartialEffect = errors.New("evo: invalid PartialEffect")
 
 // partialEffect is the error an Effect callback returns when it committed
-// part of its aggregate before failing. It reads as its cause.
+// part of its aggregate before failing. It reads as its cause. It belongs
+// to the first Effect that reads it: consumed is set then, so an outer
+// Effect whose callback passes the same error up never counts the inner
+// Effect's commits as its own.
 type partialEffect struct {
 	committed int
 	cause     error
+	consumed  atomic.Bool
 }
 
 // PartialEffect reports, from an Effect callback, that committed of the
@@ -37,12 +42,13 @@ func (p *partialEffect) Error() string {
 func (p *partialEffect) Unwrap() error { return p.cause }
 
 // committedOf reads the committed subset an Effect callback's err claims
-// against spec. A callback error that is not a PartialEffect committed
-// nothing. An invalid PartialEffect yields ErrInvalidPartialEffect (still
+// against spec, consuming the PartialEffect. A callback error that is not
+// a PartialEffect, or carries one another Effect already consumed,
+// committed nothing. An invalid PartialEffect yields ErrInvalidPartialEffect (still
 // wrapping the cause) and zero, so no invented count reaches the ledger.
 func (s EffectSpec) committedOf(err error) (int, error) {
 	var p *partialEffect
-	if !errors.As(err, &p) {
+	if !errors.As(err, &p) || p.consumed.Swap(true) {
 		return 0, err
 	}
 	switch {

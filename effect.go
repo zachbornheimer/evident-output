@@ -69,6 +69,9 @@ var (
 // fails. err must be non-nil and 0 <= committed <= spec.Quantity; anything
 // else makes Effect return ErrInvalidPartialEffect and record nothing.
 // Dry runs never invoke the callback, so PartialEffect cannot arise there.
+// A PartialEffect counts once, for the innermost Effect whose callback
+// returned it: an outer Effect that passes that error up records nothing
+// for it.
 // It is not a retry protocol and implies no rollback.
 func PartialEffect(committed int, err error) error {
 	return engine.PartialEffect(committed, err)
