@@ -69,6 +69,9 @@ type Registry struct {
 	// when it conflicts with nothing held and nothing queued ahead of it,
 	// which keeps a writer from starving behind a stream of readers.
 	queue []*hold
+	// visits counts claim comparisons, so a test can pin how much work
+	// granting costs.
+	visits int
 }
 
 // hold is one granted or waiting claim. released is atomic because a
@@ -153,8 +156,7 @@ func (r *Registry) acquire(ctx context.Context, c Claim, onContended func(Claim)
 	}
 	h := &hold{claim: c, ready: make(chan struct{})}
 	r.mu.Lock()
-	r.queue = append(r.queue, h)
-	r.grantLocked()
+	r.admitLocked(h)
 	r.mu.Unlock()
 	select {
 	case <-h.ready:
@@ -185,32 +187,79 @@ func (r *Registry) abandon(h *hold) {
 	r.grantLocked()
 }
 
+// Every waiting claim is blocked: each change to held or queue re-grants
+// before the lock is released. That is what lets a change look only at
+// the claims it could unblock.
+
+// admitLocked grants a newly arrived claim at once when nothing held or
+// queued conflicts with it, and queues it otherwise. A claim joining the
+// tail unblocks nobody, so nothing else is rechecked.
+func (r *Registry) admitLocked(h *hold) {
+	if r.conflictsLocked(h, r.queue) {
+		r.queue = append(r.queue, h)
+		return
+	}
+	r.grant(h)
+}
+
 // grantLocked walks the queue once, in arrival order, and grants every
 // claim that conflicts with nothing held and nothing still queued ahead of
 // it, closing only those claims' ready channels.
 func (r *Registry) grantLocked() {
+	r.regrantLocked(nil)
+}
+
+// regrantLocked is grantLocked after released left held. Only a waiter
+// that conflicted with released can have been unblocked: the others are
+// still blocked by whatever blocked them before. And once a waiting write
+// on released's exact key stays blocked, every later waiter that overlaps
+// released overlaps that write too, so the scan stops there. Draining n
+// writers on one key is then linear, not a rescan per release. A nil
+// released rechecks every waiter.
+func (r *Registry) regrantLocked(released *Claim) {
 	waiting := r.queue[:0]
-	for _, q := range r.queue {
-		if r.conflictsLocked(q, waiting) {
+	for i, q := range r.queue {
+		if released != nil && !r.mayUnblock(q, *released) {
 			waiting = append(waiting, q)
 			continue
 		}
-		r.held = append(r.held, q)
-		close(q.ready)
+		if !r.conflictsLocked(q, waiting) {
+			r.grant(q)
+			continue
+		}
+		waiting = append(waiting, q)
+		if released != nil && q.claim.Mode == Write && q.claim.Key == released.Key {
+			waiting = append(waiting, r.queue[i+1:]...)
+			break
+		}
 	}
 	clear(r.queue[len(waiting):])
 	r.queue = waiting
+}
+
+// mayUnblock reports whether released leaving held could let q in.
+func (r *Registry) mayUnblock(q *hold, released Claim) bool {
+	r.visits++
+	return q.claim.conflicts(released)
+}
+
+// grant moves h to held and wakes its waiter.
+func (r *Registry) grant(h *hold) {
+	r.held = append(r.held, h)
+	close(h.ready)
 }
 
 // conflictsLocked reports whether h conflicts with a held claim or with a
 // claim still waiting ahead of it.
 func (r *Registry) conflictsLocked(h *hold, ahead []*hold) bool {
 	for _, g := range r.held {
+		r.visits++
 		if g.claim.conflicts(h.claim) {
 			return true
 		}
 	}
 	for _, q := range ahead {
+		r.visits++
 		if q.claim.conflicts(h.claim) {
 			return true
 		}
@@ -223,7 +272,7 @@ func (r *Registry) release(h *hold) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.held = slices.DeleteFunc(r.held, func(g *hold) bool { return g == h })
-	r.grantLocked()
+	r.regrantLocked(&h.claim)
 }
 
 // occupancy reports how many claims are held and queued; tests use it to

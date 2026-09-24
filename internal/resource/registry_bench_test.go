@@ -8,9 +8,10 @@ import (
 )
 
 // BenchmarkRegistryContended drains n writers that all claim one key, the
-// zq shape of many worktree Effects claiming one repository root. Every
-// release should wake only the claim it grants, so draining stays close to
-// linear in n rather than waking and rescanning every waiter per release.
+// zq shape of many worktree Effects claiming one repository root. A
+// release wakes only the claim it grants and rechecks only the waiters it
+// could unblock (regrantLocked), so draining is linear in n;
+// TestContendedDrainIsLinear pins that by counting comparisons.
 func BenchmarkRegistryContended(b *testing.B) {
 	for _, n := range []int{10, 100, 1000} {
 		b.Run(strconv.Itoa(n), func(b *testing.B) {
