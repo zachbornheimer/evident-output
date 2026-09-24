@@ -13,6 +13,11 @@ for the decision record.
 No new public API. See [`docs/guides/http-embedding.md`](docs/guides/http-embedding.md)
 and `examples/launch-agent-http`.
 
+- **Breaking for 1.1 `FormatExternal` hosts (pending maintainer sign-off,
+  DEC-CANCEL-005).** `FormatExternal` was public in 1.1 for host-owned
+  rendering. Under 1.2 such a run no longer handles SIGINT/SIGTERM, and a
+  cancelled `ctx` concludes `cancelled`/130 instead of `failed`/2. See the
+  two entries below and the migration guide.
 - **`FormatExternal`: caller context end concludes `cancelled` (exit
   130).** When the `ctx` passed to `Run`/`Output.Run` of a `FormatExternal`
   Output ends, running Tasks are marked cancelled, queued Tasks never
@@ -45,6 +50,14 @@ and `examples/launch-agent-http`.
   changes nothing.** The completed run keeps its own verdict instead of
   concluding cancelled. A ^C on any other format still cancels the run at
   any point before it concludes.
+- **The `"evo.run"` document names why a run was cancelled.** A cancelled
+  document carries `"cancellation": {"cause": "caller" | "deadline" |
+"user"}`, and the JSONL `run.finished` payload carries the same object.
+  Absent on every other outcome; `schema_version` stays `2.0`
+  (schema-additive, DEC-CANCEL-007).
+- **A signal that lands after the run concluded is a no-op.** It could
+  mark an already-concluded Output cancelled behind the exit-0 `Result`
+  that `Run` returned.
 - **MCP API-062:** package-level `evo.Task`/`Group`/`Sequence`/`Fact`/
   `Warn`/`Print*`/`Confirm` inside an Isolated Output's `Run` callback
   declare on the package default, not the Output being run. Fires for
