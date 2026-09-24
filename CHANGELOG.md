@@ -10,59 +10,26 @@ See [`docs/migration/1.2.md`](docs/migration/1.2.md) for the upgrade guide and
 [`docs/decisions/caller-cancellation.md`](docs/decisions/caller-cancellation.md)
 for the decision record.
 
-The caller-cancellation lifecycle and the random `run_id` are opt-in
-through `Config.Embedded` (DEC-CANCEL-005): without it, a 1.1 host keeps
-its `ctx` contract and its `out_1` run identity. The signal, lock, and
-write-error fixes and the cancellation cause below reach every run. See
-[`docs/guides/http-embedding.md`](docs/guides/http-embedding.md) and
-`examples/launch-agent-http`.
+1.2 adds no exported API. A 1.1 host keeps its signal window, `ctx`
+contract, exit codes, `run_id`, and errors on every format
+(DEC-CANCEL-005). A caller-owned run lifecycle and a per-run `run_id` need
+new public surface and are deferred behind ZYS-947.
 
-- **`Config.Embedded`: the caller's context is the run's lifecycle.** An
-  `Embedded` run registers no SIGINT/SIGTERM handler, and when the `ctx`
-  passed to `Run`/`Output.Run` ends, running Tasks are marked cancelled,
-  queued Tasks never start, and the run concludes `cancelled` (exit 130)
-  with `Conclusion.Explanation` `by caller` or `deadline exceeded`. Tasks
-  see the caller's values but not its cancellation or deadline;
-  `context.Cause` on a Task's ctx reports `context.DeadlineExceeded` when
-  the deadline stopped the run. Independent of `Format`. Without it, every
-  run keeps the 1.1 contract, `FormatExternal` included: the end of `ctx`
-  fails the running Define (exit 2) and the run owns ^C.
-- **`Config.RunID` pins the run identity** for golden tests (alongside
-  `Config.Clock`) or for a host that already has a request id. Empty keeps
-  the default below.
-- **A signal arriving after the run callback returns still stops the run**
-  on every format evo renders. SIGINT/SIGTERM were watched only until `run`
-  returned, so in the ordinary shape — declare Tasks, return, let Define
-  work execute during Finish — a long Define (a server, a slow install)
-  ignored ^C. A `FormatExternal` run without `Embedded` keeps the 1.1
-  window, so a 1.1 host's graceful SIGTERM still lets in-flight work
-  finish (DEC-CANCEL-005).
-- **An `Embedded` run's `run_id` is unique per run.** Every run carried
-  `out_1`, so concurrent requests in one process shared it; an `Embedded`
-  run now carries `run_` plus a random suffix unless `Config.RunID` pins
-  it. Every other run keeps `out_1`. Task, Group, and message ids keep
-  their 1.1 numbering (the first Task is still `task_2`).
-- **`WriteJSON` and `FormatJSON` share one writer,** so their documents are
-  byte-identical for the same run. `WriteJSON` errors now name the failed
-  step and wrap the writer's error; a `FormatJSON` write failure now
-  matches both `ErrRenderer` and the writer's error under `errors.Is`,
-  with its 1.1 text unchanged.
-- **A run queued on the state lock stays interruptible.** A run waiting
-  for another run's exclusive manifest lock (spec §11.3) ignored ^C and
-  its caller's deadline until the other run finished; it now stops at
-  once.
-- **`Embedded`: a caller cancel that lands after every Task finished
-  changes nothing.** The completed run keeps its own verdict instead of
-  concluding cancelled. A ^C on a CLI run still cancels the run at any
-  point before it concludes.
-- **The `"evo.run"` document names why a run was cancelled.** A cancelled
-  document carries a `cancellation` object whose `cause` is `caller`,
-  `deadline`, or `user`, and the JSONL `run.finished` payload carries the
-  same object. Absent on every other outcome; `schema_version` stays `2.0`
-  (schema-additive, DEC-CANCEL-007).
-- **A signal that lands after the run concluded is a no-op.** It could
-  mark an already-concluded Output cancelled behind the exit-0 `Result`
-  that `Run` returned.
+- **The `"evo.run"` document names why a signal cancelled a run.** A
+  cancelled document carries `"cancellation": {"cause": "user"}`, and the
+  JSONL `run.finished` payload carries the same object. Absent on every
+  other outcome; `schema_version` stays `2.0` (schema-additive,
+  DEC-CANCEL-007).
+- **A run queued on the state lock stays interruptible.** A ^C during the
+  run callback, while a Define waited for another run's exclusive manifest
+  lock (spec §11.3), hung until the other run finished; it now stops the
+  run at once.
+- **`WriteJSON` and `FormatJSON` share one encoder,** so their documents
+  stay byte-identical for the same run. Both errors are unchanged from
+  1.1.
+- **HTTP embedding guide and example.** `docs/guides/http-embedding.md`
+  and `examples/launch-agent-http` serve one model as a CLI and an HTTP
+  endpoint on the 1.1 API.
 - **MCP API-062:** package-level `evo.Task`/`Group`/`Sequence`/`Fact`/
   `Warn`/`Print*`/`Confirm` reached from an Isolated Output's `Run`
   callback declare on the package default, not the Output being run. The

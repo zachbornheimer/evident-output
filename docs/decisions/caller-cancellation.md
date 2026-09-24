@@ -1,189 +1,141 @@
-# Decision: An embedded run's caller context end concludes cancelled
+# Decision: 1.2 keeps the 1.1 run lifecycle; a caller-owned one waits for a real consumer
 
 **Status:** Accepted
-**Date:** 2026-09-23 (DEC-CANCEL-005 accepted by the maintainer and
-DEC-CANCEL-007 added 2026-09-24; DEC-CANCEL-005 extended to `run_id`,
-the `FormatExternal` signal window, and the `FormatJSON` error text
-2026-09-24)
+**Date:** 2026-09-23 (DEC-CANCEL-001 … 004 and 006 drafted);
+2026-09-24 (DEC-CANCEL-005 rewritten under the maintainer's rules below,
+DEC-CANCEL-007 accepted)
 **IDs:** DEC-CANCEL-001 … DEC-CANCEL-007
-**Ticket:** ZYS-946 (spec §53)
-**Implementation:** `internal/engine/construct.go` (`Config.Embedded`),
-`internal/engine/run.go` (`runInterruptible`),
-`internal/engine/run_signal.go` (`signalWindow`),
-`internal/engine/run_interruption.go` (`scopeCaller`, `watchCaller`,
-`settledLocked`)
+**Ticket:** ZYS-946 (spec §53); deferred work blocked by ZYS-947
+**Implementation:** `internal/engine/run.go` (`runInterruptible`, the 1.1
+signal window), `internal/engine/run_interruption.go` (`interrupt`),
+`internal/engine/manifest_open.go` (the state-lock wait),
+`internal/engine/wireformat.go` (`WriteRunDocument`),
+`internal/wire/run.go` (`cancellationFor`)
 
 ## Context
 
 Through 1.1, the `ctx` passed to `Run`/`Output.Run` reached Define/Verify
 callbacks directly. When it ended, a running callback saw `ctx.Done()`,
 returned `context.Canceled`, and the run concluded `failed` (exit 2) with a
-`context canceled` problem. Queued Tasks kept running. For an HTTP
-embedder, a disconnected client therefore read as a server failure, and
-work kept running for a request nobody was waiting on.
+`context canceled` problem. Queued Tasks kept running. evo acted on
+SIGINT/SIGTERM only while the run callback ran; a signal after it returned
+was caught and ignored. For an HTTP embedder, a disconnected client
+therefore reads as a server failure, and every run carries `run_id`
+`out_1`.
 
 ## Decision
 
-### DEC-CANCEL-001: The caller's ctx is an interrupt, not a failure
+### DEC-CANCEL-005: No lifecycle change and no new public surface in 1.2 (Accepted)
 
-When the caller's `ctx` ends, the run stops the same way ^C stops a CLI:
-running Tasks are marked cancelled, queued Tasks resolve `not_started`, and
-the Conclusion is `cancelled` with `ExitCancelled` (130).
-`Conclusion.Explanation` names the cause: `by caller` or
-`deadline exceeded`. This applies only to an Output whose Config sets
-`Embedded: true`; see DEC-CANCEL-005.
+**Rules (maintainer, 2026-09-24), binding:**
 
-### DEC-CANCEL-002: One ordered interrupt
+1. A minor release changes no behavior for an existing 1.1 host, CLI
+   formats included. A new lifecycle is opt-in only.
+2. Error identity is behavior. Every 1.1 error path returns the error it
+   returned in 1.1.
+3. ZYS-946 requires one real embedder before the public surface grows.
+   1.2 adds no exported API; anything that needs it waits for the next
+   real consumer, ZYS-947.
+
+So 1.2 ships:
+
+- **The 1.1 signal window on every format.** An earlier draft of this
+  branch watched signals until the run concluded, so a ^C during Finish
+  stopped the run on the formats evo renders. That changed 1.1 behavior
+  and is reverted: human, `FormatData`, `FormatJSON`, `FormatJSONL`, and
+  `FormatExternal` all act on a signal only while the run callback runs.
+  Pinned by `TestRun_SignalAfterCallbackIsIgnoredOnEveryFormat` and
+  `TestRun_SignalDuringCallbackStopsTheRun`.
+- **The 1.1 caller `ctx`.** It reaches Tasks unchanged, and its end fails
+  the running Define (exit 2). Pinned by
+  `TestOutputRun_CallerCancelKeeps11Verdict` and
+  `TestOutputRun_CallerDeadlineReachesTasks`.
+- **The 1.1 run identity**, `out_1`, with the first Task at `task_2`.
+  Pinned by `TestRunID_Keeps11IdentityOnEveryProjection` and
+  `TestRunDocument_TaskIDsKeepTheirNumbering`.
+- **The 1.1 errors.** `WriteJSON` returns the writer's error itself
+  (`TestWriteJSON_WriterFailureReturnsTheWriterError`). A `FormatJSON`
+  write failure is one wrap of `ErrRenderer` carrying the writer error's
+  text, and does not match the writer's error under `errors.Is`
+  (`TestFormatJSON_WriterFailureKeeps11Identity`). Both documents come
+  from one encoder, `wire.EncodeRunLine`, so their bytes cannot drift.
+- **A fix inside the 1.1 contract.** A ^C during the run callback now
+  stops a run whose Define is queued on another run's state lock
+  (spec §11.3). The wait used to hold the Output's lock, so the interrupt
+  hung until the other run finished. Pinned by
+  `TestRun_SignalStopsARunQueuedOnTheStateLock`.
+- **DEC-CANCEL-007**, below, which is additive.
+
+Deferred behind ZYS-947, because each needs a new exported `Config` field
+(an `Embedded` opt-in, a `RunID` pin): DEC-CANCEL-001 … 004 and 006, and a
+per-run `run_id`. When ZYS-947 lands a second real consumer, that consumer's
+evidence decides the option's shape; the drafts below are the starting
+point, not a commitment.
+
+### DEC-CANCEL-001 (deferred): The caller's ctx is an interrupt, not a failure
+
+For an opted-in run, when the caller's `ctx` ends, the run stops the same
+way ^C stops a CLI: running Tasks are marked cancelled, queued Tasks
+resolve `not_started`, and the Conclusion is `cancelled` with
+`ExitCancelled` (130), `Conclusion.Explanation` `by caller` or
+`deadline exceeded`.
+
+### DEC-CANCEL-002 (deferred): One ordered interrupt
 
 The run's own context does not inherit the caller's cancellation. The end
 of the caller's `ctx` goes through the same `interrupt` a signal uses:
-close the scheduler, mark the rows, then cancel the run context. A Define
-cannot observe `Done` and fail its row before the interrupt marks it
-cancelled.
+close the scheduler, mark the rows, then cancel the run context, so a
+Define cannot observe `Done` and fail its row first.
 
-### DEC-CANCEL-003: The run context exists before anything can interrupt it
+### DEC-CANCEL-003 (deferred): The run context exists before anything can interrupt it
 
-`runInterruptible` installs the run context before it watches signals or
-the caller's `ctx`. A `ctx` that had already ended when `Run` was called
-interrupts at once; that interrupt must cancel the context the run body
-waits on, never a placeholder the run replaces afterwards.
+A `ctx` that had already ended when `Run` was called must cancel the
+context the run body waits on, never a placeholder the run replaces
+afterwards.
 
-### DEC-CANCEL-004: A cancel that lands after the work is done changes nothing
+### DEC-CANCEL-004 (deferred): A cancel after the work is done changes nothing
 
-If the run callback returned while the caller's `ctx` was still live and
-every Task is terminal, an interrupt is a no-op: the completed run keeps
-its own verdict. A `ctx` already ended when the callback returned still
-concludes cancelled, even with no Task left running. The check and the
-record of "callback returned" happen under the Output's lock, so the
-answer does not depend on goroutine scheduling.
+If the run callback returned while the caller's `ctx` was live and every
+Task is terminal, a caller interrupt is a no-op. Separately, and shipped
+in 1.2: once `Finish` has fixed the Conclusion, no interrupt changes
+anything (`Output.interrupt` checks `finished`; pinned by
+`TestInterrupt_AfterConclusionIsANoOp`).
 
-This rule is about a caller's `ctx`, so it applies to embedded runs only
-(DEC-CANCEL-005). A CLI run never settles: a ^C that lands after the
-callback returned and every Task finished still concludes the run
-cancelled (exit 130), because the person at the terminal asked it to
-stop. `Output.endRunCallback` gates on the `embedded` bit, and
-`TestInterrupt_SignalAfterEveryTaskFinishedStillCancelsCLIRun` pins it.
+### DEC-CANCEL-006 (deferred): An opted-in Task sees no caller deadline
 
-Once `Finish` has fixed the Conclusion, no interrupt changes anything, on
-any format. A signal that lands between the run concluding and `Run`
-returning is a no-op, so the Output's own state and the `Result` it
-returned always agree (`Output.stopsNothingLocked`, pinned by
-`TestRun_SignalAfterConclusionLeavesTheResult`).
-
-### DEC-CANCEL-005: The new lifecycle is opt-in through `Config.Embedded` (Accepted)
-
-**Rule (maintainer, 2026-09-24):** no behavior break for existing 1.1
-`FormatExternal` hosts. The caller-cancellation lifecycle is opt-in,
-through the smallest additive option consistent with existing idioms. The
-default stays 1.1.
-
-Applied to every caller, DEC-CANCEL-001 is a breaking behavior change: a
-`Run`/`Output.Run` caller whose `ctx` ends would get exit 130 instead of
-2, and its queued Tasks would stop running. An earlier draft scoped it to
-`FormatExternal` on the theory that no 1.1 caller depended on that
-format's cancellation. That was false: `FormatExternal` was public in 1.1
-for host-owned rendering (`FormatExternal` + `out.Snapshot()`), and a 1.1
-host rendering in a terminal would have lost evo's SIGINT/SIGTERM handling
-and seen 130 where it saw 2.
-
-So 1.2 adds one `Config` bool, `Embedded`, alongside `Isolated`:
-
-- `Embedded: true` applies DEC-CANCEL-001 … 004 and 006: evo registers no
-  SIGINT/SIGTERM handler, the end of `ctx` interrupts the run, and Tasks
-  see the caller's values without its cancellation or deadline. Its
-  `run_id` is random (`run_` plus a suffix), so concurrent requests in
-  one process never share one.
-- Without it, every run keeps the 1.1 contract exactly, `FormatExternal`
-  included: Tasks receive the caller's `ctx` unchanged, a Define that
-  returns `ctx.Err()` fails its row (exit 2), the run owns ^C, and its
-  `run_id` is `out_1`, so a 1.1 golden test that pinned it stays
-  byte-stable. `Config.RunID` pins either default.
-- A `FormatExternal` run without `Embedded` also keeps the 1.1 signal
-  window. evo acts on SIGINT/SIGTERM only while the run callback runs; a
-  signal after it returned is caught and ignored, so the Define work
-  Finish waits on completes. A 1.1 HTTP server on `FormatExternal` gets
-  SIGTERM for graceful shutdown, and every request in Finish must still
-  finish. The formats evo renders itself watch signals until the run
-  concludes (a ^C during Finish stops the run), because there the person
-  at the terminal asked it to stop. `Output.signalWindow` resolves the
-  window from the `embedded` and `external` config bits.
-- A `FormatJSON` write failure keeps its 1.1 error text
-  (`<ErrRenderer>: <writer error>`) and additionally matches the writer's
-  error under `errors.Is`.
-
-`Embedded` is independent of `Format`. `FormatExternal` chooses how a run
-renders; `Embedded` chooses who owns its lifecycle. An HTTP handler
-usually sets both (`examples/launch-agent-http`), and a host that streams
-the `FormatJSON` document itself can set `Embedded` alone. Like `Isolated`,
-it is honored on the `Config.Options` path too.
-
-Widening DEC-CANCEL-001 to every run by default is a separate breaking
-decision for a major release. The scope lives in one place:
-`Output.scopeCaller`, `Output.watchCaller`, `Output.endRunCallback`,
-`Output.signalWindow`, and `config.issueRunID` branch on the `embedded`
-config bit, which only `Config.Embedded` sets. Pinned by
-`TestOutputRun_CallerCancelWithoutEmbeddedKeeps11Verdict`,
-`TestOutputRun_CallerDeadlineWithoutEmbeddedReachesTasks`,
-`TestConfigRunID_UnsetKeeps11IdentityWithoutEmbedded`,
-`TestConfigRunID_UnsetIsUniquePerEmbeddedRun`,
-`TestOutputRun_EmbeddedOptsAnyFormatIntoCallerCancellation`,
-`TestRun_EmbeddedLeavesProcessSignalsToHost`,
-`TestRun_FormatExternalWithoutEmbeddedStillOwnsProcessSignals`,
-`TestRun_FormatExternalWithoutEmbeddedIgnoresSignalsAfterCallback`,
-`TestRun_FormatExternalWithoutEmbeddedStopsOnSignalDuringCallback`, and
-`TestFormatJSON_WriterFailureIsRendererErrorAndKeepsCause`.
-
-### DEC-CANCEL-006: An embedded Task sees no caller deadline
-
-An embedded run's Tasks descend from `context.WithoutCancel(ctx)`: the
-caller's values, with no cancellation and no deadline.
-Deadline-aware callees (a `net.Dialer` derives its connection deadline
-from `ctx.Deadline()`) would otherwise time out at the same instant the
-deadline's interrupt fires, and could fail their row before the interrupt
-marks it cancelled — the race DEC-CANCEL-002 exists to close. The run
-context is cancelled with a cause, so `context.Cause(taskCtx)` is
-`context.DeadlineExceeded` when the deadline stopped the run, while
-`taskCtx.Err()` is `context.Canceled`. A Task that needs its own budget
-sets one inside its Define. Pinned by
-`TestOutputRun_EmbeddedHidesCallerDeadlineFromTasks`.
+An opted-in run's Tasks would descend from `context.WithoutCancel(ctx)`,
+so a deadline-aware callee (`net.Dialer`) cannot time out and fail its row
+at the instant the deadline's interrupt fires. `context.Cause` on the Task
+`ctx` would report `context.DeadlineExceeded`.
 
 ### DEC-CANCEL-007: The wire document names the cancellation cause
 
 An HTTP client reads only the body, and `Conclusion.Explanation` is human
 text it must not parse (§53). So the v2 `"evo.run"` document gains an
-optional `cancellation` object on a cancelled run:
-`{"cause": "caller" | "deadline" | "user"}`. The JSONL `run.finished`
-event carries the same object in its payload. The field is absent on any
-other outcome, so every existing document except a cancelled one is
-byte-identical, and a v2 reader that ignores unknown keys is unaffected.
-`schema_version` stays `2.0`; `schema/run.v2.json` lists the property.
+optional `cancellation` object on a run that SIGINT/SIGTERM cancelled:
+`{"cause": "user"}`. The JSONL `run.finished` event carries the same
+object in its payload. The field is absent on any other outcome, so every
+other document is byte-identical to 1.1, and a v2 reader that ignores
+unknown keys is unaffected. `schema_version` stays `2.0`;
+`schema/run.v2.json` lists the property with the one cause 1.2 emits.
+ZYS-947 adds `caller` and `deadline` with the opt-in lifecycle.
 
 The code travels on `core.Conclusion` as an unexported field
-(`core.CancelCauseOf`). Go embedders already have the cause:
-`Conclusion.Explanation`, or the handler's own `ctx.Err()`. Promoting it
-to a public `Conclusion` field is a separate API decision.
-`wire.RunFinishedPayload` builds the JSONL payload from the same
-Conclusion through the same mappings as the document, so the two cannot
-disagree. Pinned by `TestOutputRun_CallerContextEndConcludesCancelled`,
+(`core.CancelCauseOf`), so it adds no exported API. `wire.RunFinishedPayload`
+builds the JSONL payload from the same Conclusion through the same
+mappings as the document, so the two cannot disagree. Pinned by
 `TestFormatJSON_SignalledRunNamesUserCause`,
+`TestFormatJSON_CompletedRunHasNoCancellation`,
 `TestFormatJSONL_RunFinishedNamesUserCause`,
 `TestCancellationFor_OnlyOnCancelledRunsWithACause`, and
 `TestRunFinishedPayload_AgreesWithTheRunDocument`.
 
 ## Consequences
 
-- No 1.1 caller's `ctx` lifecycle or `run_id` changes on upgrade: a
-  `ctx` that ends mid-run still fails the running Define (exit 2), the
-  run still owns ^C, and `run_id` is still `out_1`. A host that wants the
-  §53 lifecycle sets `Config.Embedded` (DEC-CANCEL-005), then branches on
-  `StateCancelled` / exit 130 and owns SIGINT/SIGTERM itself.
-- Fixes outside this decision reach 1.1 callers on the formats evo
-  renders: a ^C during Finish stops the run instead of being ignored, a
-  run waiting on the state lock stops on ^C, a cancelled document names
-  its cause (DEC-CANCEL-007), and a `FormatJSON` write failure also
-  matches the writer's error under `errors.Is` (text unchanged). A
-  `FormatExternal` run without `Embedded` keeps the 1.1 signal window.
-  See "Changes for CLI formats" in
-  [`docs/migration/1.2.md`](../migration/1.2.md).
+- No 1.1 host changes on upgrade: the same signal window, `ctx` contract,
+  exit codes, `run_id`, and errors on every format.
+- An HTTP embedder on 1.2 checks its own `ctx.Err()` to tell a request
+  that ended from work that failed, and correlates on its own request id
+  (`docs/guides/http-embedding.md`, `examples/launch-agent-http`).
 - `Result.Err` still carries whatever the run callback returned, so an
   embedder can tell work failure from cancellation.
