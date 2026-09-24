@@ -420,6 +420,68 @@ func TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks(t *testing.T) {
 	}
 }
 
+// TestWireEvents_RunIDStableAcrossAllLines proves ZYS-823's "single stable
+// run_id on every line" requirement: every "evo.event" line in one JSONL
+// stream carries the same non-empty run_id (spec §38's RunID = the runtime
+// Output's own outputID, set once at Init and never reassigned).
+func TestWireEvents_RunIDStableAcrossAllLines(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEventsWithRunID(t, stdout.String())
+	if len(events) == 0 {
+		t.Fatalf("expected at least one wire event")
+	}
+	runID := events[0].RunID
+	if runID == "" {
+		t.Fatalf("event[0] run_id is empty, want a stable non-empty run_id")
+	}
+	for i, e := range events {
+		if e.RunID != runID {
+			t.Fatalf("event[%d] run_id = %q, want stable %q across the whole stream", i, e.RunID, runID)
+		}
+	}
+}
+
+// wireEventLineWithRunID decodes the run_id field alongside the fields
+// wireEventLine already covers, for TestWireEvents_RunIDStableAcrossAllLines.
+type wireEventLineWithRunID struct {
+	Object string `json:"object"`
+	RunID  string `json:"run_id"`
+	Seq    uint64 `json:"seq"`
+	Type   string `json:"type"`
+}
+
+// decodeWireEventsWithRunID is decodeWireEvents plus run_id, kept separate
+// so the existing decoder's return type (and every caller of it) is
+// untouched.
+func decodeWireEventsWithRunID(t *testing.T, body string) []wireEventLineWithRunID {
+	t.Helper()
+	body = strings.TrimRight(body, "\n")
+	if body == "" {
+		return nil
+	}
+	lines := strings.Split(body, "\n")
+	events := make([]wireEventLineWithRunID, 0, len(lines))
+	for i, line := range lines {
+		var e wireEventLineWithRunID
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("line %d is not valid JSON: %v\nline: %s", i, err, line)
+		}
+		if e.Object != wire.EventObject {
+			t.Fatalf("line %d object = %q, want %q", i, e.Object, wire.EventObject)
+		}
+		events = append(events, e)
+	}
+	return events
+}
+
 // failAfterNWriter succeeds its first n Write calls, then fails every call
 // after — a stand-in for a stdout pipe that breaks mid-stream (spec §32.2).
 type failAfterNWriter struct {
