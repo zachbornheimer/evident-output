@@ -50,23 +50,35 @@ func resolvedByInterrupt(state EntityState) bool {
 // ErrAlreadyResolved, unless the interrupt sweep resolved the row (see
 // resolvedByInterrupt). It returns t so each verb can chain.
 func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
+	return t.withTask(func(st *taskState) {
+		if err := t.out.ensureOpen(); err != nil {
+			t.out.recordMisuse(err)
+			return
+		}
+		if core.IsTerminalTask(st.state) {
+			if !resolvedByInterrupt(st.state) {
+				t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+			}
+			return
+		}
+		apply(st)
+	})
+}
+
+// withTask is the one lock-and-lookup every TaskHandle verb that
+// edits its row goes through: under o.mu it hands apply the task's state,
+// and does nothing for a nil or zero TaskHandle or a task this Output does
+// not know. That is where "a nil *TaskHandle is safe" is kept, for every
+// verb at once. It returns t so each verb can chain.
+func (t *TaskHandle) withTask(apply func(st *taskState)) *TaskHandle {
+	if t == nil || t.out == nil {
+		return t
+	}
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
+	if st := t.out.taskByRef[t.id]; st != nil {
+		apply(st)
 	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	if core.IsTerminalTask(st.state) {
-		if !resolvedByInterrupt(st.state) {
-			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		}
-		return t
-	}
-	apply(st)
 	return t
 }
 
@@ -370,19 +382,14 @@ func (t *TaskHandle) skip(reason string, args ...any) *TaskHandle {
 
 // Next attaches actions.
 func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return t
-	}
-	if t.out.finishing || t.out.finished || t.out.closed {
-		t.out.recordMisuse(ErrClosed)
-		return t
-	}
-	st.actions = append(st.actions, cloneActions(actions)...)
-	t.out.bumpLocked()
-	return t
+	return t.withTask(func(st *taskState) {
+		if t.out.finishing || t.out.finished || t.out.closed {
+			t.out.recordMisuse(ErrClosed)
+			return
+		}
+		st.actions = append(st.actions, cloneActions(actions)...)
+		t.out.bumpLocked()
+	})
 }
 
 // NextCommand attaches a command action. args names a foreign tool's own
@@ -399,6 +406,9 @@ func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle 
 // the binary's own basename. Use NextCommand instead when the remedy is a
 // different (foreign) tool.
 func (t *TaskHandle) nextSelf(args ...string) *TaskHandle {
+	if t == nil || t.out == nil {
+		return t
+	}
 	return t.NextCommand(t.out.policySourceName(), args...)
 }
 

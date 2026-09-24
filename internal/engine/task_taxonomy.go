@@ -36,12 +36,10 @@ func (t *TaskHandle) Kept(reason TaxonomyReason) {
 }
 
 func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
-	if st == nil {
-		return
-	}
+	t.withTask(func(st *taskState) { t.recordTaxonomyLocked(st, reason, name, verb, errs) })
+}
+
+func (t *TaskHandle) recordTaxonomyLocked(st *taskState, reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {
 	if err := t.out.ensureOpen(); err != nil {
 		t.out.recordMisuse(err)
 		return
