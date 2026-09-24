@@ -174,8 +174,11 @@ evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
   make evo rows parallel either — predeclare one named child `Task` per item
   under a `Group` + `Define` and let evo’s scheduler run them. A domain graph
   engine (zq mise/gate) may still own _eligibility_; wrap the executor body in
-  `Define` and wait only when you need the result on this stack
-  (`defineAndWait` is that adapter — not a second scheduler).
+  `Define` and call `task.Wait()` (or `Group.Wait()` / `Sequence.Wait()` for a
+  container) only when you need the result on this stack.
+- Never call `Wait` while holding a resource claim (inside an `Effect` with a
+  `Resource`, a `File`, or a `Basis` observation): it returns
+  `ErrNestedResourceAcquisition` instead of risking a deadlock.
 
 ## zq canary (MCP must survive this)
 
@@ -214,10 +217,29 @@ Define callback whose result is returned (API-040), a nil or no-op
 `Doing(...).Done(...)` with no real work between them (FP-006), and an
 inline `evo.Reason(...)` literal or one that restates its own verb (TAX-003).
 
-`defineAndWait` in zq is no longer a documented exception: it is exactly the
-API-044 channel-wait shape (it hangs when the task is already terminal
-before Define runs) and review now flags it; `task.Wait()` is the fix once
-that method lands.
+`defineAndWait` in zq is not an exception: it is the API-044 channel-wait
+shape (it hangs when the task is already terminal before Define runs) and
+review flags it. Use `task.Wait()`, or `Group.Wait()` / `Sequence.Wait()`
+for a container.
+
+## Release policy
+
+Evident Output 1.x ships breaking changes in minor releases when the owner's
+API-freeze decisions call for them, with no compatibility shims. `MainWith`
+and `Task.Each` were removed in 1.0 outright (docs/acceptance/v0.6.md,
+"Owner decisions"); 1.1 removes the TaskHandle mutation verbs, `Done`, `Record*`,
+`Affected`/`MutationOption`, and changes `Exec` and `Define`, per the
+"Decisions (2026-09-23) — 1.1 API freeze" section of the Linear contract doc
+"Evident Output 1.x — Product + Implementation Contract" (project P-ZYS-23).
+
+Every breaking release carries a migration guide under `docs/migration/`
+listing each removed or changed symbol with before/after code, and the MCP
+review rules steer each old call site to its replacement (API-032, API-061).
+
+The module path stays `github.com/zachbornheimer/evident-output` (no `/vN`
+suffix). Go's minimal version selection therefore upgrades a consumer to a
+new minor as soon as any dependency requires it. Consumers pin the exact
+release in `go.mod` and migrate with the guide before bumping.
 
 ## Install / pin
 

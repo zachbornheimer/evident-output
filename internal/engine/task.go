@@ -211,25 +211,19 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 
 // succeed resolves the task Done with summary: the engine's synchronous
 // success verb for library-owned rows (Confirm's gate) and engine tests.
-// The public TaskHandle has no equivalent since 1.1 (ZYS-812) — callers
-// resolve through Define, and Summary carries their result text.
+// The public TaskHandle has no equivalent since 1.1: callers resolve
+// through Define, and Summary carries their result text.
 func (t *TaskHandle) succeed(summary string) {
 	t.finish(Done, txt.Text(summary), nil)
 }
 
-// Warn accumulates a warning annotation on the task (1.1/ZYS-848,
-// docs/migration/1.1.md: a deliberate, documented break of the 1.0 Warn
-// signature — this release intentionally has no compat shims). Every
-// existing `task.Warn("summary")` call site keeps compiling unchanged
-// (opts is variadic, the old call never used a return value); what is new
-// is that a warning can now carry the same structured ProblemOption
-// metadata Problem/Fail/Block accept (Detail/Code/On/Location/Next/...).
-// Warn does not resolve the task (13-problem doc P2: "warnings annotate
-// lifecycle; they do not replace it") — call it any number of times before
-// the task's terminal verb. A warned task that never reaches a terminal
-// verb auto-resolves Done at Finish. The returned *TaskHandle exists only
-// so a call site may chain a following TaskHandle method (the same shape
-// Next/NextCommand already had); summary itself is never Sprintf-formatted.
+// Warn accumulates a non-blocking warning on the task. It takes the same
+// structured ProblemOption metadata as Problem/Fail/Block
+// (Detail/Code/On/Location/Next). It never resolves the task ("warnings
+// annotate lifecycle; they do not replace it"), so call it any number of
+// times before the task resolves; a warned task that never resolves
+// auto-resolves Done at Finish. It returns t only so a call can chain, and
+// summary is never Sprintf-formatted.
 func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)
 	return t.annotate(func(st *taskState) {
@@ -241,18 +235,13 @@ func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
 	})
 }
 
-// Summary sets non-terminal result metadata for the task's successful
-// terminal row (1.1/ZYS-971 Decisions 2026-09-23b): a single sanitized
-// one-line field, last call wins, empty clears it. It never resolves the
-// task — Define/the evo-native operation outcome remains the only normal
-// success resolution path — and it is not live activity (Doing/Progress/
-// Step/Bytes still own the Running row). It shares its underlying field
-// and projection with the caller's own success text (Done's summary
-// argument, TaskSnapshot.Summary, JSON/JSONL "summary") and follows the
-// same misuse rule as Doing/Warn: calling it after the task has
-// terminally resolved, other than by the interrupt sweep, is misuse
-// rather than a silent no-op. GroupHandle.Summary is the same shape one
-// level up (internal/engine/group.go).
+// Summary sets one sanitized line of result text for the task's terminal
+// row: last call wins, empty clears it. It never resolves the task (Define
+// or the Evo-native operation outcome does), and it is not live activity
+// (Doing/Progress/Step/Bytes own the Running row). It is the same field
+// TaskSnapshot.Summary and JSON/JSONL "summary" project. Calling it after
+// the task resolved is misuse unless the interrupt sweep resolved it (see
+// annotate). GroupHandle.Summary is the same shape one level up.
 func (t *TaskHandle) Summary(text string) *TaskHandle {
 	return t.annotate(func(st *taskState) {
 		st.summary = txt.Text(text)
@@ -262,20 +251,16 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 	})
 }
 
-// Problem appends one blocking/error Problem to the task (1.1/ZYS-848, new
-// method — see docs/migration/1.1.md) without itself terminal-resolving it,
-// so a Define callback — or any caller before the task's terminal verb —
-// may call this many times to accumulate structured findings: one owning
-// Task can retain zero, one, or many Problems instead of a caller-invented
-// Task per finding, and instead of flattening every finding into one
-// newline-delimited error string. Every accumulated Problem merges into the
-// task's terminal problems list when it finally resolves
-// (mergeAccumulatedProblemsLocked) — order preserved, nothing dropped — and
-// if the task would otherwise resolve Done (a nil Define return, or a bare
-// Done() call) while at least one Problem was accumulated, resolve promotes
-// that outcome to Failed instead: a Task that recorded blocking evidence
-// cannot quietly report success. Problem returns *TaskHandle so multiple
-// calls chain: task.Problem(...).Problem(...).
+// Problem appends one blocking Problem to the task without resolving it,
+// so a Define callback may accumulate many structured findings: one owning
+// Task retains zero, one, or many Problems instead of a caller-invented
+// Task per finding or one newline-delimited error string. Every
+// accumulated Problem merges into the task's terminal problems when it
+// resolves (mergeAccumulatedProblemsLocked), order preserved, nothing
+// dropped. If the task would otherwise resolve Done (a nil Define return)
+// while it holds a Problem, it resolves Failed instead: a Task that
+// recorded blocking evidence cannot quietly report success. Problem
+// returns t so calls chain: task.Problem(...).Problem(...).
 func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)
 	return t.annotate(func(st *taskState) {
