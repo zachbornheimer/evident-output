@@ -161,3 +161,42 @@ func TestTiming_PanickingDefineStillCountsAsEntered(t *testing.T) {
 		t.Fatalf("Entered = %d, CallbackEntryRate = %v; want 1 and 1", m.Entered, m.CallbackEntryRate())
 	}
 }
+
+// A Task After an outer Group whose only work sits in a nested Group is
+// freed when that nested Task settles: the settle walks every enclosing
+// collection, not just the direct parent. The dependent starts then, not at
+// Finish, and its DependencyWait is exactly the nested Task's Running time.
+func TestTiming_NestedGroupSettleReleasesOuterGroupDependent(t *testing.T) {
+	t.Parallel()
+	out, clock := newTimingOutput(t)
+	const nestedRunning = 2 * time.Second
+	const laterGap = 10 * time.Second
+	outer := out.Group("repos")
+	release := make(chan struct{})
+	leaf := outer.Group("worktrees").Task("wt1").Define(func(context.Context) error {
+		<-release
+		clock.Advance(nestedRunning)
+		return nil
+	})
+	started := make(chan struct{})
+	dep := out.Task("report").After(outer).Define(func(context.Context) error {
+		close(started)
+		return nil
+	})
+	close(release)
+	select {
+	case <-started:
+	case <-time.After(dependentStartDeadline):
+		t.Fatal("dependent of the outer Group did not start when the nested Task settled; it waited for Finish")
+	}
+	clock.Advance(laterGap)
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if got := leaf.Snapshot().Timing.Running(); got != nestedRunning {
+		t.Fatalf("nested Task Running = %v, want %v", got, nestedRunning)
+	}
+	if got := dep.Snapshot().Timing.DependencyWait(); got != nestedRunning {
+		t.Fatalf("DependencyWait = %v, want %v, the nested Task's Running time", got, nestedRunning)
+	}
+}
