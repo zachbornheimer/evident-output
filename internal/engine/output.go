@@ -2097,9 +2097,11 @@ func (o *Output) Close() error {
 		cancelRun()
 	}
 	if manifestStore != nil {
-		// Releases this Run's exclusive manifest lock (spec §11.3). Already
+		// Writes the opaque Task records staged during the Run, then
+		// releases this Run's exclusive manifest lock (spec §11.3). Already
 		// committed Task records on disk are unaffected — Close never rolls
 		// anything back.
+		_ = manifestStore.Flush(context.Background())
 		_ = manifestStore.Close()
 	}
 	return nil

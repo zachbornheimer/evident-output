@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -197,4 +199,50 @@ func TestOpaqueTaskDefinitionRunsEveryRun(t *testing.T) {
 			t.Fatalf("run %d Effect callback calls = %d, want 1: an opaque Task must never be skipped as already satisfied", run, got)
 		}
 	}
+}
+
+// TestOpaqueTasksDoNotRewriteTheManifestPerSettle proves opaque Tasks in a
+// Run with manifest activity cost no manifest write each: before Close the
+// file on disk holds only the File Task's record, however many opaque
+// Tasks settled after it. Each opaque settle used to marshal, fsync, and
+// rename the whole manifest under o.mu (400 no-op Tasks: 3.6ms without a
+// File Task, 5.98s with one). Close writes the staged records once.
+func TestOpaqueTasksDoNotRewriteTheManifestPerSettle(t *testing.T) {
+	const opaqueTasks = 50
+	state := t.TempDir()
+	path := filepath.Join(t.TempDir(), "managed.txt")
+	out := Init(Config{Isolated: true, StateDir: state})
+	t.Cleanup(func() { _ = out.Close() })
+
+	if err := runFileTask(t, out, "file", FileSpec{Path: path, Contents: []byte("desired")}); err != nil {
+		t.Fatalf("file task: %v", err)
+	}
+	group := out.Group("opaque")
+	for i := range opaqueTasks {
+		group.Task(fmt.Sprintf("opaque %d", i)).Define(func(context.Context) error { return nil })
+	}
+	if err := group.Wait(); err != nil {
+		t.Fatalf("opaque tasks: %v", err)
+	}
+
+	if got := manifestTaskCount(t, state); got != 1 {
+		t.Fatalf("manifest on disk holds %d task records before Close, want 1 (the File Task): opaque settles must not rewrite it", got)
+	}
+	_ = out.Close()
+	if got := manifestTaskCount(t, state); got != 1+opaqueTasks {
+		t.Fatalf("manifest after Close holds %d task records, want %d: Close must write every staged opaque record", got, 1+opaqueTasks)
+	}
+}
+
+func manifestTaskCount(t *testing.T, state string) int {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(state, "manifest-v1.json"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var doc manifest.Document
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	return len(doc.Tasks)
 }

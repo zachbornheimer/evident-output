@@ -106,21 +106,27 @@ func (o *Output) appendManifestOperationLocked(taskID string, rec manifest.Opera
 // usable manifest Store commits nothing (no Task in this Run ever used
 // File/Exec/Patch, so nothing opened the manifest — see manifestFor —
 // keeping a purely opaque consumer's Run free of any manifest file at all).
-// Otherwise every settled Task commits a TaskRecord: one with tracked
-// Operations carries only its own precise per-operation provenance: one
-// with none is opaque, so it automatically falls back to the application
-// fingerprint as its own DefinitionFingerprint (ZYS-817 Decisions
-// 2026-09-23) — zero caller code, and never folded into any operation's
-// user-visible Basis. Callers must already hold o.mu.
+//
+// A Task with tracked Operations commits its precise provenance at once. A
+// Task with none is opaque: its record carries the application fingerprint
+// as its DefinitionFingerprint (ZYS-817 Decisions 2026-09-23), never folded
+// into any operation's Basis. Nothing reads that record back within the
+// Run, so it is staged and written with the next commit or at Close
+// instead of costing each settling Task a full manifest
+// rewrite and fsync under o.mu. Callers must already hold o.mu.
 func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 	st := o.taskByRef[taskID]
 	if st == nil || o.manifestStore == nil {
 		return
 	}
-	task := manifest.TaskRecord{Key: st.key, Operations: append([]manifest.OperationRecord(nil), st.manifestOps...)}
 	if len(st.manifestOps) == 0 {
-		task.DefinitionFingerprint = taskOpaqueDefinitionFingerprint(st.key, o.manifestApp.Fingerprint)
+		o.manifestStore.StageTask(o.manifestApp, manifest.TaskRecord{
+			Key:                   st.key,
+			DefinitionFingerprint: taskOpaqueDefinitionFingerprint(st.key, o.manifestApp.Fingerprint),
+		})
+		return
 	}
+	task := manifest.TaskRecord{Key: st.key, Operations: append([]manifest.OperationRecord(nil), st.manifestOps...)}
 	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err == nil {
 		o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
 			"operations": len(task.Operations),

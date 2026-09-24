@@ -285,3 +285,44 @@ type fakeEnvironment struct {
 func (f fakeEnvironment) Executable() (string, error)   { return f.exePath, f.exeErr }
 func (f fakeEnvironment) UserCacheDir() (string, error) { return f.cacheDir, f.cacheErr }
 func (f fakeEnvironment) ReadBuildInfo() (string, bool) { return f.modulePath, f.moduleOK }
+
+// TestStoreStageTaskWritesOnlyOnFlush proves a staged record stays in
+// memory until Flush (or the next CommitTask) writes it, and that Flush
+// with nothing staged writes nothing.
+func TestStoreStageTaskWritesOnlyOnFlush(t *testing.T) {
+	dir := t.TempDir()
+	cfg := Config{StateDir: dir}
+	env := fakeEnvironment{}
+	s, err := Open(context.Background(), cfg, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := Locate(cfg, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("Flush with nothing staged wrote %s (stat err %v)", path, err)
+	}
+	s.StageTask(ApplicationRecord{ID: "app"}, TaskRecord{Key: "opaque", DefinitionFingerprint: "sha256:fallback"})
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("StageTask wrote %s before Flush (stat err %v)", path, err)
+	}
+	if err := s.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(context.Background(), cfg, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = reopened.Close() }()
+	if got, ok := reopened.Task("opaque"); !ok || got.DefinitionFingerprint != "sha256:fallback" {
+		t.Fatalf("staged record after Flush = %+v, %v", got, ok)
+	}
+}

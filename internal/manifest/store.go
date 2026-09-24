@@ -19,6 +19,9 @@ type Store struct {
 	// could not trust (ErrCorrupt) — a safe cache miss, surfaced to the
 	// caller instead of silently treated as "no history" with no signal.
 	missWarning *Warning
+	// staged reports that doc holds records StageTask added since the last
+	// write.
+	staged bool
 }
 
 // Open resolves cfg to a manifest path, acquires its exclusive lock
@@ -99,12 +102,36 @@ func (s *Store) CommitTask(ctx context.Context, app ApplicationRecord, task Task
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("manifest: commit task %q: %w", task.Key, err)
 	}
+	s.put(app, task)
+	return s.writeAtomic()
+}
+
+// StageTask records task like CommitTask, but only in memory: the next
+// CommitTask or Flush writes it. It is for records nothing reads back
+// within the Run, so a Run of N such Tasks pays one write, not N.
+func (s *Store) StageTask(app ApplicationRecord, task TaskRecord) {
+	s.put(app, task)
+	s.staged = true
+}
+
+// Flush writes every record StageTask added since the last write. It does
+// nothing when none are pending.
+func (s *Store) Flush(ctx context.Context) error {
+	if s == nil || !s.staged {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("manifest: flush staged tasks: %w", err)
+	}
+	return s.writeAtomic()
+}
+
+func (s *Store) put(app ApplicationRecord, task TaskRecord) {
 	s.doc.Application = app
 	if s.doc.Tasks == nil {
 		s.doc.Tasks = map[string]TaskRecord{}
 	}
 	s.doc.Tasks[task.Key] = task
-	return s.writeAtomic()
 }
 
 // writeAtomic serializes the current document to a temp file in the same
@@ -144,6 +171,7 @@ func (s *Store) writeAtomic() error {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("manifest: rename %q to %q: %w", tmpPath, s.path, err)
 	}
+	s.staged = false
 	return nil
 }
 
