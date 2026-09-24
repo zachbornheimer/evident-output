@@ -22,12 +22,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   resolution and callback counts, callback-entry and Verify-satisfied
   rates, every span and phase summed, the critical path, peak concurrency,
   and summed operations.
+- **`TasksSnapshot.PeakConcurrency()`:** group concurrency — the most of a
+  Group's or Sequence's own Tasks (nested ones included) running at once.
+  Final JSON carries it as each collection's `peak_concurrency`.
 - **Projections:** final JSON fills each Task's `timing` (previously all
   zero) with every span and phase and adds `data.metrics` (with
   `operations` and `rates`); JSONL `run.finished` carries the same
   `metrics`, typed in `schema/event.v2.json`, and `task.eligible` now fires
   when a Task becomes eligible rather than when a scheduler slot frees.
   Human output shows one dim `timing` line under `VerbosityVerbose` only.
+- **Eligibility is event-driven:** a Task becomes eligible, and its work
+  starts, the moment its last predecessor settles, including one settled on
+  the caller's stack by `Kept`/`Skipped`/`Fail`/`Cancel`. Previously such a
+  dependent waited for an unrelated slot to free (often `Finish`) and
+  reported that stall as `DependencyWait`.
+- **Exec change tracking:** an `Exec` that reruns and writes byte-identical
+  outputs now finishes unchanged (propagation stopped). A dry-run `Exec`
+  never ran, so it counts as neither changed nor unchanged.
 - **MCP API-062:** flags a stopwatch a function started with `time.Now()`
   and narrated through `Summary`/`Fact` (`time.Since`, `time.Now().Sub`,
   directly or through one local). A domain timestamp's age stays silent.

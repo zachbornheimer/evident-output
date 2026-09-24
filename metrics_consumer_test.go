@@ -242,4 +242,23 @@ func TestMetrics_PeakConcurrencyReflectsOverlappingGroupSiblings(t *testing.T) {
 	if m.PeakConcurrency != 3 || m.Running != ticks(3) {
 		t.Fatalf("Metrics() = %+v, want peak 3 and 3s running", m)
 	}
+	if got := group.Snapshot().PeakConcurrency(); got != 3 {
+		t.Fatalf("Group PeakConcurrency() = %d, want 3", got)
+	}
+	var doc struct {
+		Data struct {
+			Collections []struct {
+				Name            string `json:"name"`
+				PeakConcurrency *int   `json:"peak_concurrency"`
+			} `json:"collections"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(machineDocument(t, out)), &doc); err != nil {
+		t.Fatal(err)
+	}
+	for _, col := range doc.Data.Collections {
+		if col.Name == "categories" && (col.PeakConcurrency == nil || *col.PeakConcurrency != 3) {
+			t.Fatalf("collection %q peak_concurrency = %v, want 3", col.Name, col.PeakConcurrency)
+		}
+	}
 }

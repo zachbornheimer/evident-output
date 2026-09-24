@@ -8,6 +8,29 @@ import (
 // runningInterval is one Task's half-open [start, end) Running span.
 type runningInterval struct{ start, end time.Time }
 
+// runningIntervals collects the Running spans of the Tasks a walk visits.
+type runningIntervals []runningInterval
+
+// add records timing's Running span, if the Task ran.
+func (r *runningIntervals) add(timing TaskTiming) {
+	if timing.Running() > 0 {
+		*r = append(*r, runningInterval{timing.StartedAt, timing.SettledAt})
+	}
+}
+
+// peak is the most recorded spans open at one instant.
+func (r runningIntervals) peak() int { return peakOverlap(r) }
+
+// PeakConcurrency is the most of this Group's or Sequence's Tasks, nested
+// collections included, that were Running at one instant: the §39 group
+// concurrency. A Sequence reads at most 1 unless a step ran inline. Tasks
+// outside the collection never count, unlike RunMetrics.PeakConcurrency.
+func (c TasksSnapshot) PeakConcurrency() int {
+	var running runningIntervals
+	walkTasks(c.Tasks, c.Collections, func(t TaskSnapshot) { running.add(t.Timing) })
+	return running.peak()
+}
+
 // peakOverlap is the most intervals open at one instant. Ends sort before
 // starts at the same instant, so one Task settling as the next starts is
 // back-to-back, not concurrent.

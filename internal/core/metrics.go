@@ -70,17 +70,15 @@ func (m RunMetrics) VerifySatisfiedRate() float64 { return ratio(m.VerifiedCurre
 // output-level failure is not caller work and is excluded.
 func (c Conclusion) Metrics() RunMetrics {
 	var m RunMetrics
-	var intervals []runningInterval
+	var running runningIntervals
 	walkTasks(c.Tasks, c.Collections, func(t TaskSnapshot) {
 		if t.Synthetic() {
 			return
 		}
 		m.count(t)
-		if t.Timing.Running() > 0 {
-			intervals = append(intervals, runningInterval{t.Timing.StartedAt, t.Timing.SettledAt})
-		}
+		running.add(t.Timing)
 	})
-	m.PeakConcurrency = peakOverlap(intervals)
+	m.PeakConcurrency = running.peak()
 	m.CriticalPath = newDependencyGraph(c).criticalPath()
 	return m
 }

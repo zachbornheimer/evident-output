@@ -119,7 +119,7 @@
     },
     "collection": {
       "type": "object",
-      "required": ["id", "name", "kind", "state", "children"],
+      "required": ["id", "name", "kind", "state", "children", "peak_concurrency"],
       "properties": {
         "id": { "type": "string" },
         "key": { "type": "string" },
@@ -129,7 +129,8 @@
         "state": { "type": "string" },
         "summary": { "type": "string" },
         "progress": { "$ref": "#/$defs/progress" },
-        "children": { "type": "array", "items": { "type": "string" } }
+        "children": { "type": "array", "items": { "type": "string" } },
+        "peak_concurrency": { "type": "integer" }
       }
     },
     "progress": {

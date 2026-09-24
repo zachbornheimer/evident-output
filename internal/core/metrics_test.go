@@ -216,3 +216,27 @@ func TestConclusionMetrics_CriticalPathSurvivesADependencyCycle(t *testing.T) {
 		t.Fatalf("CriticalPath = %v, want 3s (the cycle stops at the repeat)", got)
 	}
 }
+
+// Group concurrency (§39) counts only the Tasks inside the collection,
+// nested collections included; a root Task running alongside is outside it.
+func TestTasksSnapshotPeakConcurrency_CountsOnlyItsOwnTasks(t *testing.T) {
+	group := TasksSnapshot{
+		Tasks: []TaskSnapshot{
+			doneTask(ResolutionExecuted, ran(0, 0, 0, 4)),
+			doneTask(ResolutionExecuted, ran(0, 0, 1, 3)),
+		},
+		Collections: []TasksSnapshot{{Tasks: []TaskSnapshot{
+			doneTask(ResolutionExecuted, ran(0, 0, 2, 5)),
+		}}},
+	}
+	if got := group.PeakConcurrency(); got != 3 {
+		t.Fatalf("PeakConcurrency() = %d, want 3", got)
+	}
+	sequence := TasksSnapshot{Sequential: true, Tasks: []TaskSnapshot{
+		doneTask(ResolutionExecuted, ran(0, 0, 0, 1)),
+		doneTask(ResolutionExecuted, ran(0, 1, 1, 2)),
+	}}
+	if got := sequence.PeakConcurrency(); got != 1 {
+		t.Fatalf("Sequence PeakConcurrency() = %d, want 1", got)
+	}
+}

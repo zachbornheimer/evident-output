@@ -90,6 +90,9 @@ type CollectionDoc struct {
 	Summary  string       `json:"summary,omitempty"`
 	Progress *ProgressDoc `json:"progress,omitempty"`
 	Children []string     `json:"children"`
+	// PeakConcurrency is the most of this collection's Tasks Running at
+	// one instant (§39 group concurrency).
+	PeakConcurrency int `json:"peak_concurrency"`
 }
 
 // Collection kinds (spec §36).
@@ -363,6 +366,8 @@ func appendCollectionDoc(data *RunData, parentID string, col core.TasksSnapshot)
 		State:    string(col.State),
 		Summary:  col.Summary,
 		Children: children,
+
+		PeakConcurrency: col.PeakConcurrency(),
 	})
 	for _, child := range col.Collections {
 		appendCollectionDoc(data, col.ID, child)
