@@ -707,8 +707,7 @@ func (o *Output) predecessorBlockedLocked(st *taskState) bool {
 }
 
 func (o *Output) markNotStartedLocked(st *taskState) {
-	st.state = NotStarted
-	o.settleLocked(st)
+	o.settleAsLocked(st, NotStarted)
 	st.phase = ""
 	st.summary = notStartedSummary
 	st.runningWork = true

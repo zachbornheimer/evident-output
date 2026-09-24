@@ -116,8 +116,7 @@ func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, na
 	if st == nil {
 		return
 	}
-	st.state = Failed
-	o.settleLocked(st)
+	o.settleAsLocked(st, Failed)
 	st.summary = txt.Text(summary)
 	st.problems = core.StoreProblems([]Problem{{
 		Code:    ProblemCodeDuplicateSiblingName,

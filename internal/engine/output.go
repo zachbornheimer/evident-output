@@ -1009,8 +1009,7 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 		close(abort)
 		delete(o.confirmAbort, id)
 		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.state) {
-			st.state = Cancelled
-			o.settleLocked(st)
+			o.settleAsLocked(st, Cancelled)
 			st.summary = txt.Text(reason)
 			o.bumpLocked()
 			o.appendEventLocked(Event{Type: "task.cancelled", EntityID: id})

@@ -26,10 +26,14 @@ func (o *Output) admitIfEligibleLocked(st *taskState) {
 	o.schedReady.push(st)
 }
 
-// settleLocked stamps st's settle time and releases every Task that was
-// waiting only on st: its After dependents, the dependents of each
-// enclosing Group/Sequence, and its next Sequence sibling.
-func (o *Output) settleLocked(st *taskState) {
+// settleAsLocked moves st to its terminal state and settles it in one
+// step: it stamps SettledAt and releases every Task that was waiting only
+// on st (its After dependents, the dependents of each enclosing
+// Group/Sequence, and its next Sequence sibling). It is the one owner of a
+// terminal write outside Finish; Finish's sweeps run after the scheduler
+// drained and settleUnstampedLocked stamps them.
+func (o *Output) settleAsLocked(st *taskState, state EntityState) {
+	st.state = state
 	st.markSettled(o.cfg.clock.Now())
 	for _, dep := range o.schedDependents[predecessor{taskID: st.id}] {
 		o.admitIfEligibleLocked(dep)

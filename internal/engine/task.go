@@ -670,8 +670,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 			state = Failed
 		}
 	}
-	st.state = state
-	t.out.settleLocked(st)
+	t.out.settleAsLocked(st, state)
 	st.phase = "" // Done clears active phase
 	if summary != "" {
 		st.summary = txt.Text(summary)
