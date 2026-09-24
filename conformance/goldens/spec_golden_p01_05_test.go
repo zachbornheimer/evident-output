@@ -41,7 +41,10 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	for _, name := range eachSkipNames("skip", 6) {
 		worktrees.Task(name).Skipped(protected)
 	}
-	worktrees.Task("remove").Fail("remove failed", evo.Detail("path locked: ../.worktrees/app-sah-1"))
+	// The category's own Task (docs/reference.md, "own Task") owns the
+	// failing removal, so the skipped items fold under it: "✗ worktrees
+	// remove failed" as the spec block reads.
+	worktrees.Task("worktrees").Fail("remove failed", evo.Detail("path locked: ../.worktrees/app-sah-1"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -56,8 +59,7 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	// Group (contract §25 renderer aggregation).
 	for _, want := range []string{
 		"✓ branches 8 deleted",
-		"✗ remove",
-		"remove failed",
+		"✗ worktrees remove failed",
 		"path locked: ../.worktrees/app-sah-1"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
@@ -81,7 +83,9 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	g := out.Group("branches")
-	g.Task("deleted").Define(effectOf(evo.EffectDelete, "branch", 8))
+	// The category's own Task (docs/reference.md, "own Task") does the
+	// deletion, so the skipped items fold under the category.
+	g.Task("branches").Define(effectOf(evo.EffectDelete, "branch", 8))
 	protected := evo.Reason("protected")
 	for _, name := range eachSkipNames("skip", 6) {
 		g.Task(name).Skipped(protected)

@@ -46,10 +46,12 @@ func TestOwnTask_SameNamedWorkTaskIsTheGroupRow(t *testing.T) {
 }
 
 // TestOwnTask_DifferentlyNamedTaskNeverStandsInForItsGroup is the other
-// half: a child with any other name cannot say which subject it is about,
-// so the Group keeps its header and the child keeps its own row.
+// half: a child with any other name cannot say which subject it is about.
+// It never stands in for its Group, and it is a work peer of the kept
+// children, which then keep their named rows: nothing says they are items
+// of one category (docs/reference.md, "own Task").
 func TestOwnTask_DifferentlyNamedTaskNeverStandsInForItsGroup(t *testing.T) {
-	want := "✓ branches\n  ! kept 2 (1 protected, 1 unpushed)\n   ✓ classify  12 checked\n" + warnedBand
+	want := "✓ classify  12 checked\n✓ main       ! kept 1 (protected)\n✓ feat/a     ! kept 1 (unpushed)\n" + warnedBand
 	if got := renderCategory(t, "classify"); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -57,9 +59,9 @@ func TestOwnTask_DifferentlyNamedTaskNeverStandsInForItsGroup(t *testing.T) {
 
 // renderSkippedFetch renders zq prune's --skip-fetch run: branches does
 // its work, remote-tracking resolves Skipped with nothing else to say.
-// ownGroups declares each category as a Group plus its own Task;
+// skipped names the categories that resolve Skipped. ownGroups declares each category as a Group plus its own Task;
 // otherwise the categories are peer Tasks under one Group.
-func renderSkippedFetch(t *testing.T, ownGroups bool) string {
+func renderSkippedFetch(t *testing.T, ownGroups bool, skipped ...string) string {
 	t.Helper()
 	var buf bytes.Buffer
 	out := newPlainOutput(&buf, false)
@@ -72,7 +74,9 @@ func renderSkippedFetch(t *testing.T, ownGroups bool) string {
 		return categories.Task(name)
 	}
 	succeed(task("branches"), "3 checked")
-	task("remote-tracking").Skipped(evo.Reason("--skip-fetch"))
+	for _, name := range skipped {
+		task(name).Skipped(evo.Reason("--skip-fetch"))
+	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +88,7 @@ func renderSkippedFetch(t *testing.T, ownGroups bool) string {
 // own glyph and name.
 func TestOwnTask_IsNeverFoldedAsAnItem(t *testing.T) {
 	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n\n[ready]  prune\n"
-	if got := renderSkippedFetch(t, true); got != want {
+	if got := renderSkippedFetch(t, true, "remote-tracking"); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
 }
@@ -94,7 +98,18 @@ func TestOwnTask_IsNeverFoldedAsAnItem(t *testing.T) {
 // Group does not grow a header to carry a nameless tally.
 func TestOwnTask_LoneSkippedPeerKeepsItsRow(t *testing.T) {
 	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n\n[ready]  prune\n"
-	if got := renderSkippedFetch(t, false); got != want {
+	if got := renderSkippedFetch(t, false, "remote-tracking"); got != want {
+		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+	}
+}
+
+// TestOwnTask_SkippedPeersBesideWorkKeepTheirRows: two Skipped categories
+// beside a category that did its own work are peers, not items of one
+// subject, so neither folds into a nameless tally under a header the
+// header-less Group never had.
+func TestOwnTask_SkippedPeersBesideWorkKeepTheirRows(t *testing.T) {
+	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n○ tags\n  - skipped 1 (--skip-fetch)\n\n[ready]  prune\n"
+	if got := renderSkippedFetch(t, false, "remote-tracking", "tags"); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
 }

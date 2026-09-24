@@ -314,7 +314,9 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever}))
 	out := evo.Default()
 	g := out.Group("branches")
-	commit(g.Task("deleted").Summary("10 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 10})
+	// The category's own Task (docs/reference.md, "own Task") does the
+	// deletion, so the per-item children fold under the category.
+	commit(g.Task("branches").Summary("10 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 10})
 	g.Task("feat/x").Fail("delete failed on feat/x")
 	unchanged := evo.Reason("unchanged")
 	notAttempted := evo.Reason("unpushed, not attempted")
