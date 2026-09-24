@@ -570,7 +570,11 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 // the scheduler must then not resolve it a second time) and how an interrupt
 // cancels a running row.
 func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
-	return t.resolve(state, summary, problems, byCaller)
+	t.resolve(state, summary, problems, byCaller)
+	// A caller-settled Task may have released dependents; start them now,
+	// not when some unrelated slot next frees.
+	t.out.kick()
+	return t
 }
 
 // resolveScheduled is the scheduler's own resolution path, called only from
@@ -667,7 +671,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		}
 	}
 	st.state = state
-	st.markSettled(t.out.cfg.clock.Now())
+	t.out.settleLocked(st)
 	st.phase = "" // Done clears active phase
 	if summary != "" {
 		st.summary = txt.Text(summary)

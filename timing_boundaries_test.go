@@ -103,3 +103,41 @@ func TestTiming_TaskResolvedWithoutWorkHasNoQueuedTime(t *testing.T) {
 		t.Fatalf("Total = %v, want 1s", timing.Total())
 	}
 }
+
+// A predecessor settled on the caller's stack (Kept, Skipped, Fail) frees
+// its dependents at that moment. The dependent's work starts then, not at
+// Finish, and its DependencyWait ends at the predecessor's settle time.
+func TestTiming_CallerSettledPredecessorReleasesDependentAtSettle(t *testing.T) {
+	t.Parallel()
+	out, clock := newTimingOutput(t)
+	const settleAfter = time.Second
+	const laterGap = 10 * time.Second
+	pred := out.Task("inspect")
+	started := make(chan struct{})
+	dep := out.Task("prune").After(pred).Define(func(context.Context) error {
+		close(started)
+		return nil
+	})
+	clock.Advance(settleAfter)
+	pred.Skipped(evo.Reason("clean"))
+	select {
+	case <-started:
+	case <-time.After(dependentStartDeadline):
+		t.Fatal("dependent work did not start after its caller-settled predecessor; it waited for Finish")
+	}
+	clock.Advance(laterGap)
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	timing := dep.Snapshot().Timing
+	if got := timing.DependencyWait(); got != settleAfter {
+		t.Fatalf("DependencyWait = %v, want %v, the predecessor's settle time (timing %+v)", got, settleAfter, timing)
+	}
+	if got := timing.EligibleAt.Sub(timing.SubmittedAt); got != settleAfter {
+		t.Fatalf("EligibleAt - SubmittedAt = %v, want %v", got, settleAfter)
+	}
+}
+
+// dependentStartDeadline bounds the real-time wait for a released
+// dependent's goroutine; the domain clock is fake, so this only guards a hang.
+const dependentStartDeadline = 5 * time.Second

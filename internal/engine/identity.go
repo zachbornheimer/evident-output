@@ -117,7 +117,7 @@ func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, na
 		return
 	}
 	st.state = Failed
-	st.markSettled(o.cfg.clock.Now())
+	o.settleLocked(st)
 	st.summary = txt.Text(summary)
 	st.problems = core.StoreProblems([]Problem{{
 		Code:    ProblemCodeDuplicateSiblingName,

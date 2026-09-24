@@ -95,6 +95,8 @@ func (t *TaskHandle) submitWork(fn func() error) {
 	st.submitted = true
 	st.markSubmitted(o.cfg.clock.Now())
 	st.workFn = fn
+	o.indexDependentLocked(st)
+	o.admitIfEligibleLocked(st)
 	o.schedWG.Add(1)
 	// §48: a predecessor that already failed before this task was even
 	// submitted must settle it NotStarted right now, under the same lock —
@@ -137,35 +139,38 @@ func (o *Output) abandonUnreachableWork() {
 }
 
 // takeEligible claims the next Task the scheduler may start, if capacity
-// allows. Its one scan over the queue also stamps eligibility on every
-// claimable Task, whether or not a slot is free, so a Task held only by
-// capacity records the moment its dependencies cleared (see
-// noteEligibleLocked).
+// allows. Eligibility was stamped when each Task was queued (see
+// eligibility.go), so a full slot costs nothing and a free one pops the
+// earliest-declared queued Task that is still claimable.
 func (o *Output) takeEligible() (st *taskState, fn func() error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.schedCancelled {
-		// After an interrupt the queue is abandoned, not drained: nothing
-		// new starts, so the run stops at the ^C instead of running to
-		// completion behind one cancelled row.
+	// After an interrupt the queue is abandoned, not drained: nothing new
+	// starts, so the run stops at the ^C instead of running to completion
+	// behind one cancelled row.
+	if o.schedCancelled || o.schedInflight >= o.concurrencyCeilingLocked() {
 		return nil, nil
 	}
-	var next *taskState
-	for _, cand := range o.tasks {
-		if !o.claimableLocked(cand) {
-			continue
-		}
-		o.noteEligibleLocked(cand)
-		if next == nil && o.schedInflight < o.concurrencyCeilingLocked() {
-			next = cand
-		}
-	}
+	next := o.popClaimableLocked()
 	if next == nil {
 		return nil, nil
 	}
 	o.schedInflight++
 	o.schedMaxObserved = max(o.schedMaxObserved, o.schedInflight)
 	return o.beginWorkLocked(next)
+}
+
+// popClaimableLocked pops queued Tasks until one may still start. A popped
+// Task a waiter already claimed, or one that settled while queued, is
+// dropped; one whose container gained an unsettled child is re-queued by
+// that child's settle.
+func (o *Output) popClaimableLocked() *taskState {
+	for {
+		cand := o.schedReady.pop()
+		if cand == nil || o.claimableLocked(cand) {
+			return cand
+		}
+	}
 }
 
 func (o *Output) concurrencyCeilingLocked() int {
@@ -588,6 +593,7 @@ func (o *Output) drainScheduler() {
 	o.mu.Lock()
 	o.schedDraining = true
 	o.cascadeIneligibleLocked()
+	o.admitAllEligibleLocked()
 	o.mu.Unlock()
 	o.kick()
 	o.schedWG.Wait()
@@ -697,7 +703,7 @@ func (o *Output) predecessorBlockedLocked(st *taskState) bool {
 
 func (o *Output) markNotStartedLocked(st *taskState) {
 	st.state = NotStarted
-	st.markSettled(o.cfg.clock.Now())
+	o.settleLocked(st)
 	st.phase = ""
 	st.summary = notStartedSummary
 	st.runningWork = true

@@ -128,6 +128,10 @@ type Output struct {
 	schedMaxObserved int
 	schedStartOrder  []string
 	schedDraining    bool
+	// schedReady holds eligible, unstarted work in declaration order, and
+	// schedDependents indexes submitted Tasks by predecessor (eligibility.go).
+	schedReady      readyQueue
+	schedDependents map[predecessor][]*taskState
 
 	// schedExecuting counts task callbacks currently running, pooled and
 	// donated alike — schedInflight counts only the pooled slots, so it
@@ -295,7 +299,9 @@ type taskState struct {
 	fromEach    bool
 	submitted   bool
 	runningWork bool
-	workFn      func() error
+	// readied marks a Task queued on schedReady.
+	readied bool
+	workFn  func() error
 	// effectDenied records that this task's own mutation callback resolved
 	// the row as something other than Done, so the effect it was given must
 	// not reach the ledger (see deniesItsOwnEffect).
@@ -376,6 +382,10 @@ type tasksState struct {
 	// rendering fold its children in exactly the way it folds its own
 	// tasks.
 	children []*tasksState
+	// parent is the container this one is nested in, nil at the root. A
+	// settling Task walks it to release dependents of every enclosing
+	// Group/Sequence.
+	parent *tasksState
 
 	// namedChildren records every name already declared as a nested
 	// Group/Sequence child of this container, mirroring Output.namedGroups
@@ -1000,7 +1010,7 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 		delete(o.confirmAbort, id)
 		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.state) {
 			st.state = Cancelled
-			st.markSettled(o.cfg.clock.Now())
+			o.settleLocked(st)
 			st.summary = txt.Text(reason)
 			o.bumpLocked()
 			o.appendEventLocked(Event{Type: "task.cancelled", EntityID: id})
@@ -1118,6 +1128,7 @@ func (o *Output) declareChildContainerLocked(parent *tasksState, name string, se
 		name:        clean,
 		declaration: o.nextDecl(),
 		sequential:  sequential,
+		parent:      parent,
 	}
 	o.tasksByRef[st.id] = st
 	parent.children = append(parent.children, st)
