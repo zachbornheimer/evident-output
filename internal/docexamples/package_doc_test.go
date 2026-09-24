@@ -53,14 +53,29 @@ func TestPackageDocQuickstartMatchesFixture(t *testing.T) {
 
 // TestPackageDocQuickstartRuns runs doc.go's quickstart and fails when a
 // row is left unresolved: following the first example `go doc` shows
-// must conclude ready, with no misuse hint.
+// must conclude ready, with no misuse hint. The program runs in a fresh
+// git work tree it owns, so the result never depends on whether the
+// module itself is checked out (a source archive, the module cache, or a
+// CI checkout owned by another user is not).
 func TestPackageDocQuickstartRuns(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds and runs a program")
 	}
-	root := repoRoot(t)
-	cmd := exec.Command("go", "run", "./internal/docexamples/"+packageDocFixture)
-	cmd.Dir = root
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("the quickstart runs git, which is not installed")
+	}
+	binary := filepath.Join(t.TempDir(), "quickstart")
+	build := exec.Command("go", "build", "-buildvcs=false", "-o", binary, "./internal/docexamples/"+packageDocFixture)
+	build.Dir = repoRoot(t)
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build quickstart: %v\n%s", err, out)
+	}
+	workTree := t.TempDir()
+	if out, err := exec.Command("git", "init", "--quiet", workTree).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	cmd := exec.Command(binary)
+	cmd.Dir = workTree
 	got, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("quickstart: %v\n%s", err, got)

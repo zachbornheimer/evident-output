@@ -47,7 +47,7 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 			t.Parallel()
 			dir := filepath.Join(root, "examples", s.name)
 			bin := filepath.Join(t.TempDir(), s.name)
-			build := exec.Command("go", "build", "-o", bin, ".")
+			build := exec.Command("go", "build", "-buildvcs=false", "-o", bin, ".")
 			build.Dir = dir
 			if out, err := build.CombinedOutput(); err != nil {
 				t.Fatalf("build: %v\n%s", err, out)
@@ -91,7 +91,7 @@ var newCommand = exec.Command
 // stdout/stderr streams (spec §32.1's separation) — the process launch
 // itself is real, but goes through newCommand so it stays swappable.
 func buildExampleBinary(bin, dir string) *exec.Cmd {
-	cmd := newCommand("go", "build", "-o", bin, ".")
+	cmd := newCommand("go", "build", "-buildvcs=false", "-o", bin, ".")
 	cmd.Dir = dir
 	return cmd
 }

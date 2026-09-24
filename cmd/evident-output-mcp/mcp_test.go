@@ -97,7 +97,7 @@ func buildMCP(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "evident-output-mcp")
-	cmd := exec.Command("go", "build", "-o", bin, ".")
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", bin, ".")
 	cmd.Dir = "."
 	cmd.Env = os.Environ()
 	out, err := cmd.CombinedOutput()
