@@ -5,36 +5,54 @@ import (
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// cancelActive cancels the currently running task, or the output itself when
-// no task is running, so an interrupt always leaves a typed Cancelled state.
-//
-// A pending Confirm gate takes priority over the generic task scan below: a
-// gate holds sole control of the run (Confirm suspends the live region and
-// blocks on stdin) and its abort channel — not TaskHandle.Cancel — is what
-// unblocks the stdin read. Since a Confirm gate is an ordinary Task while
-// its answer is pending, the generic Pending-task fallback would otherwise
-// resolve it to Cancelled without ever closing that channel, leaving
-// readConfirmLine blocked forever.
-// interrupt stops the run at the first signal, in the one order that leaves
-// the ledger honest: the scheduler is closed to new work, every row is put
-// into the state the reader must see, and only then is the run's context
-// cancelled to release the callbacks still in flight. Cancelling first would
-// race a finishing callback into a ✓ row after the ^C.
-func (o *Output) interrupt(reason string) {
+// interruption names why a run stopped early: reason is the text each
+// cancelled row carries, and cause is the cancelled Conclusion's
+// Explanation, so the band and the JSON document state the same cause.
+type interruption struct {
+	reason string
+	cause  string
+}
+
+// interruptionBySignal: the person at the terminal pressed ^C (or the
+// process got SIGTERM). It is the only interruption 1.2 has; a
+// caller-owned lifecycle is deferred behind ZYS-947 (DEC-CANCEL-005).
+var interruptionBySignal = interruption{reason: "interrupted", cause: "by user"}
+
+// interrupt stops the run at the first signal, in the one order that
+// leaves the ledger honest: the scheduler is closed to new work, every row
+// is put into the state the reader must see, and only then is the run's
+// context cancelled to release the callbacks still in flight. Cancelling
+// first would race a finishing callback into a ✓ row after the ^C. Once
+// Finish has fixed the Conclusion there is nothing left to stop, so a late
+// interrupt never rewrites the Output behind the Result Run returned.
+func (o *Output) interrupt(why interruption) {
 	if o == nil {
 		return
 	}
 	o.mu.Lock()
+	if o.finished {
+		o.mu.Unlock()
+		return
+	}
 	o.sched.cancelled = true
-	o.cancelCause = cancelCauseUser
+	o.cancelledBy = why
 	cancelRun := o.cancelRun
 	o.mu.Unlock()
 
-	o.cancelActive(reason)
+	o.cancelActive(why.reason)
 	o.abandonQueuedWork()
 
 	if cancelRun != nil {
 		cancelRun()
+	}
+}
+
+// explainCancellationLocked names the interruption's cause on a cancelled
+// conclusion, unless something more specific already explained it. Any
+// other outcome keeps its own Explanation untouched.
+func (o *Output) explainCancellationLocked(c *core.Conclusion) {
+	if c.State == core.StateCancelled && c.Explanation == "" {
+		c.Explanation = o.cancelledBy.cause
 	}
 }
 
@@ -59,6 +77,16 @@ func (o *Output) abandonQueuedWork() {
 	}
 }
 
+// cancelActive cancels the currently running task, or the output itself when
+// no task is running, so an interrupt always leaves a typed Cancelled state.
+//
+// A pending Confirm gate takes priority over the generic task scan below: a
+// gate holds sole control of the run (Confirm suspends the live region and
+// blocks on stdin) and its abort channel — not TaskHandle.Cancel — is what
+// unblocks the stdin read. Since a Confirm gate is an ordinary Task while
+// its answer is pending, the generic Pending-task fallback would otherwise
+// resolve it to Cancelled without ever closing that channel, leaving
+// readConfirmLine blocked forever.
 func (o *Output) cancelActive(reason string) {
 	o.mu.Lock()
 	if o.cancelPendingConfirmLocked(reason) {

@@ -347,3 +347,26 @@ func TestToRunDocument_UnevaluatedPhaseOmitsSatisfiedAndSource(t *testing.T) {
 		t.Fatalf("unevaluated phase = %s, want {\"evaluated\":false}", raw)
 	}
 }
+
+// The JSONL run.finished payload and the "evo.run" document are built from
+// one Conclusion by one package, so they cannot disagree on the outcome
+// or the exit code, and the payload keeps exactly its 1.1 keys.
+func TestRunFinishedPayload_AgreesWithTheRunDocument(t *testing.T) {
+	conclusions := map[string]core.Conclusion{
+		"ok":        withConc(func(c *core.Conclusion) { c.State = core.StateReady }),
+		"failed":    withConc(func(c *core.Conclusion) { c.State = core.StateFailed; c.ExitCode = 2 }),
+		"cancelled": withConc(func(c *core.Conclusion) { c.State = core.StateCancelled; c.ExitCode = 130 }),
+	}
+	for name, c := range conclusions {
+		t.Run(name, func(t *testing.T) {
+			doc := ToRunDocument(core.Result{Conclusion: c}, testEvoVersion)
+			payload := RunFinishedPayload(c)
+			if payload["outcome"] != doc.Outcome || payload["exit_code"] != doc.ExitCode {
+				t.Fatalf("payload = %v, document outcome %q exit %d", payload, doc.Outcome, doc.ExitCode)
+			}
+			if len(payload) != 2 {
+				t.Fatalf("payload = %v, want only the 1.1 outcome and exit_code keys", payload)
+			}
+		})
+	}
+}

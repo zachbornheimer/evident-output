@@ -90,8 +90,8 @@ func TestCancellation_RenderedBandMatchesContract(t *testing.T) {
 	interrupt()
 	<-code
 
-	if got := out.Conclusion().Explanation; got != cancelCauseUser {
-		t.Fatalf("machine conclusion explanation = %q, want %q", got, cancelCauseUser)
+	if got := out.Conclusion().Explanation; got != interruptionBySignal.cause {
+		t.Fatalf("machine conclusion explanation = %q, want %q", got, interruptionBySignal.cause)
 	}
 
 	want := `✓ remote-tracking

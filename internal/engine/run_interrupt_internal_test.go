@@ -174,7 +174,7 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 // when its run callback was still Defining when the signal landed.
 func TestInterrupt_WorkDefinedAfterTheSignalNeverStrandsTheDrain(t *testing.T) {
 	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, Stdout: io.Discard, Stderr: io.Discard})
-	out.interrupt("interrupted")
+	out.interrupt(interruptionBySignal)
 	late := out.Task("late")
 	late.Define(func(context.Context) error { return nil })
 

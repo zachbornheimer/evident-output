@@ -21,21 +21,33 @@ var wireEvoVersion = "dev"
 // package's init(), from evo.PublishedRelease.
 func SetWireEvoVersion(v string) { wireEvoVersion = v }
 
-// writeWireRunLocked encodes conc as the final "evo.run" document and
-// writes it plus a trailing newline to w (spec §53: "plus one trailing
-// newline"). A nil w or nil conc is a no-op. Encode/write failures are
-// wrapped in ErrRenderer, matching writeMachinePresentation's legacy-wire
-// contract (spec §32.2: "a genuine Run failure, not an ignored logging
-// error").
+// WriteRunDocument writes result as the final "evo.run" document plus one
+// trailing newline — WriteJSON's whole contract (spec §53) and the same
+// bytes FormatJSON writes to Stdout. An encode failure names the step; a
+// write failure is the writer's own error, returned unchanged as in 1.1,
+// so an embedder can compare it (err == syscall.EPIPE) or match its text.
+func WriteRunDocument(w io.Writer, result Result) error {
+	body, err := wire.EncodeRunLine(result, wireEvoVersion)
+	if err != nil {
+		return fmt.Errorf("evo: encode evo.run document: %w", err)
+	}
+	_, err = w.Write(body)
+	return err
+}
+
+// writeWireRunLocked is FormatJSON's end-of-run write of conc to w: the
+// same bytes as WriteRunDocument. A nil w is a no-op. Failures wrap
+// ErrRenderer (spec §32.2: "a genuine Run failure, not an ignored logging
+// error") and carry the cause's text only — the exact 1.1 error, which a
+// FormatJSON host may already branch on or compare.
 func writeWireRunLocked(w io.Writer, conc Conclusion) error {
 	if w == nil {
 		return nil
 	}
-	body, err := wire.EncodeRun(core.Result{Conclusion: conc}, wireEvoVersion)
+	body, err := wire.EncodeRunLine(core.Result{Conclusion: conc}, wireEvoVersion)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrRenderer, err)
 	}
-	body = append(body, '\n')
 	if _, err := w.Write(body); err != nil {
 		return fmt.Errorf("%w: %v", ErrRenderer, err)
 	}

@@ -111,10 +111,10 @@ type Output struct {
 	// callback can outlive the run that owns it.
 	ctx       context.Context
 	cancelRun context.CancelFunc
-	// cancelCause names who stopped the run ("by user" for a signal). It
-	// becomes the cancelled Conclusion's Explanation, so the band and the
-	// JSON document state the same cause.
-	cancelCause string
+	// cancelledBy is the interruption that stopped the run (zero when none
+	// did). It becomes the cancelled Conclusion's Explanation, so the band
+	// and the JSON document state the same cause.
+	cancelledBy interruption
 
 	// sched is the run's scheduling state (scheduler_state.go).
 	sched scheduler
@@ -645,16 +645,4 @@ func (o *Output) Conclusion() Conclusion {
 	o.explainCancellationLocked(&c)
 	core.ApplyFailedExitCode(&c, o.cfg.failedExitCode)
 	return c
-}
-
-// cancelCauseUser is the cause an interrupt signal records: the person at
-// the terminal stopped the run.
-const cancelCauseUser = "by user"
-
-// explainCancellationLocked names the cancellation cause on a cancelled
-// conclusion. Any other outcome keeps its own Explanation untouched.
-func (o *Output) explainCancellationLocked(c *core.Conclusion) {
-	if c.State == core.StateCancelled && c.Explanation == "" {
-		c.Explanation = o.cancelCause
-	}
 }

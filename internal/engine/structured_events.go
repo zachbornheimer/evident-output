@@ -53,21 +53,3 @@ func (o *Output) emitCollectionDeclaredLocked(st *tasksState, parentID string) {
 		"parent_id": parentID,
 	})
 }
-
-// wireRunOutcome maps a finished Conclusion's state to the §38/§35 outcome
-// vocabulary (spec §35: "outcome: ok | blocked | failed | cancelled") — the
-// same mapping wire.ToRunDocument uses for the final "evo.run" document,
-// duplicated locally rather than imported since internal/wire's version is
-// unexported (ToRunDocument's own outcomeFor).
-func wireRunOutcome(state ConclusionState) string {
-	switch state {
-	case StateFailed:
-		return wire.OutcomeFailed
-	case StateBlocked:
-		return wire.OutcomeBlocked
-	case StateCancelled:
-		return wire.OutcomeCancelled
-	default:
-		return wire.OutcomeOK
-	}
-}

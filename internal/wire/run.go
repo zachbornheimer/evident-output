@@ -249,11 +249,21 @@ func ToRunDocument(result core.Result, evoVersion string) RunDocument {
 	return doc
 }
 
-// EncodeRun encodes result as the final "evo.run" document plus no trailing
-// newline (callers that need the newline — WriteJSON, FormatJSON's stdout
-// write — append it themselves; see spec §53).
+// EncodeRun encodes result as the final "evo.run" document with no
+// trailing newline; EncodeRunLine is the form every stream writer uses.
 func EncodeRun(result core.Result, evoVersion string) ([]byte, error) {
 	return json.MarshalIndent(ToRunDocument(result, evoVersion), "", "  ")
+}
+
+// EncodeRunLine is EncodeRun plus the one trailing newline both writers of
+// the document — WriteJSON and FormatJSON's stdout write — emit (spec §53),
+// so the two cannot drift apart byte for byte.
+func EncodeRunLine(result core.Result, evoVersion string) ([]byte, error) {
+	body, err := EncodeRun(result, evoVersion)
+	if err != nil {
+		return nil, err
+	}
+	return append(body, '\n'), nil
 }
 
 func durationMs(started, finished time.Time) int64 {
@@ -270,6 +280,19 @@ func modeFor(dryRun bool) string {
 	return ModeApply
 }
 
+// RunFinishedPayload is the JSONL run.finished payload (spec §38) for a
+// finished run: its outcome and its exit code. It reads the same
+// Conclusion fields through the same mapping ToRunDocument does, so the
+// event and the "evo.run" document cannot disagree.
+func RunFinishedPayload(c core.Conclusion) map[string]any {
+	return map[string]any{
+		"outcome":   outcomeFor(c.State),
+		"exit_code": c.ExitCode,
+	}
+}
+
+// outcomeFor maps a Conclusion state to the §35 outcome vocabulary
+// ("outcome: ok | blocked | failed | cancelled").
 func outcomeFor(state core.ConclusionState) string {
 	switch state {
 	case core.StateFailed:

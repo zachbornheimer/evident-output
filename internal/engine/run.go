@@ -23,7 +23,10 @@ import (
 // SIGINT/SIGTERM wiring below; a nil ctx runs as context.Background().
 //
 // Lifecycle: arm first paint → run → (reconcile run error into model) →
-// Finish → Close.
+// Finish → Close. SIGINT/SIGTERM are acted on while run runs; one that
+// arrives after run returned is caught and ignored, so the Define work
+// Finish waits on completes (the 1.1 signal window, kept on every format
+// in 1.2 — DEC-CANCEL-005).
 //
 // Result.Conclusion.ExitCode:
 //   - nil Output → ExitFailed (2)
@@ -124,7 +127,7 @@ func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 	case <-sigCh:
 		// out.interrupt cancels o.cancelRun, the same cancel beginRunContext
 		// installed above — no separate local cancel is needed.
-		out.interrupt("interrupted")
+		out.interrupt(interruptionBySignal)
 		select {
 		case runErr := <-done:
 			return concludeCancelled(out, runErr)
