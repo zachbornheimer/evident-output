@@ -111,16 +111,18 @@ func (callerScope) Err() error { return nil }
 // Value reads through to the caller's values.
 func (s callerScope) Value(key any) any { return s.value(key) }
 
-// endRunCallback records that the run callback returned. If the caller's
-// ctx was still live at that moment, the run is settling: what remains is
-// whatever its Tasks still do, so an interrupt that later finds every Task
-// terminal has nothing left to stop (see settledLocked). Checking
-// callerEnded under o.mu orders this against a racing interrupt: a caller
-// that ended first always cancels.
+// endRunCallback records that the run callback returned. If an embedded
+// run's caller ctx was still live at that moment, the run is settling:
+// what remains is whatever its Tasks still do, so an interrupt that later
+// finds every Task terminal has nothing left to stop (see settledLocked).
+// Checking callerEnded under o.mu orders this against a racing interrupt:
+// a caller that ended first always cancels. A CLI run never settles — a ^C
+// stops it at any point before it concludes (DEC-CANCEL-004 is scoped to
+// embedded runs).
 func (o *Output) endRunCallback(callerEnded func() bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.runSettling = !callerEnded()
+	o.runSettling = o.cfg.embedded && !callerEnded()
 }
 
 // settledLocked reports whether an interrupt would stop nothing: the run

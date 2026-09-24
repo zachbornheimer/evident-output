@@ -41,3 +41,19 @@ func TestInterrupt_CallerEndedBeforeRunReturnedStillCancels(t *testing.T) {
 		t.Fatalf("run concluded %s/%d, want %s/%d", c.State, c.ExitCode, StateCancelled, ExitCancelled)
 	}
 }
+
+// A CLI run owns ^C for its whole lifetime (DEC-CANCEL-004 is scoped to
+// embedded runs): a ^C that lands after the run callback returned and
+// every Task finished still stops the run, as the person at the terminal
+// asked. Only a caller's context gets the "nothing left to stop" rule.
+func TestInterrupt_SignalAfterEveryTaskFinishedStillCancelsCLIRun(t *testing.T) {
+	out := Init(Config{Isolated: true, Plain: true, Stdout: io.Discard, Stderr: io.Discard})
+	out.beginRunContext(context.Background())
+	out.Task("install agent").Kept(reasonAlreadyCurrent)
+	out.endRunCallback(inertCallerWatch.ended)
+	out.interrupt(interruptionBySignal)
+	_ = out.Finish()
+	if c := out.Conclusion(); c.State != StateCancelled || c.ExitCode != ExitCancelled {
+		t.Fatalf("CLI run concluded %s/%d after ^C, want %s/%d", c.State, c.ExitCode, StateCancelled, ExitCancelled)
+	}
+}

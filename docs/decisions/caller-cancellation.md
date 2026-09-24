@@ -52,6 +52,13 @@ concludes cancelled, even with no Task left running. The check and the
 record of "callback returned" happen under the Output's lock, so the
 answer does not depend on goroutine scheduling.
 
+This rule is about a caller's `ctx`, so it applies to embedded runs only
+(DEC-CANCEL-005). A CLI run never settles: a ^C that lands after the
+callback returned and every Task finished still concludes the run
+cancelled (exit 130), because the person at the terminal asked it to
+stop. `Output.endRunCallback` gates on the `embedded` bit, and
+`TestInterrupt_SignalAfterEveryTaskFinishedStillCancelsCLIRun` pins it.
+
 ### DEC-CANCEL-005: 1.2 scopes the change to `FormatExternal`
 
 Applied to every caller, DEC-CANCEL-001 is a breaking behavior change: a
