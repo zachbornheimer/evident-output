@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"path/filepath"
 	"strings"
 )
 
@@ -139,13 +140,6 @@ func classifyFmtCall(s callSite, method string) (Finding, bool) {
 				CertaintyNeedsReview,
 			), true
 		}
-		if sink, ok := injectedWriterSinkName(s.call.Args[0]); ok {
-			s.pattern += "(" + sink + ", ...)"
-			return s.finding(RungTaskDefine,
-				"writing an injected stdout/stderr sink bypasses evo's live region the same way os.Stdout would — route it through evo.Init(Config{Stdout: ...}) and evo.Println/Task instead.",
-				CertaintyNeedsReview,
-			), true
-		}
 		return Finding{}, false
 	default:
 		return Finding{}, false
@@ -161,37 +155,195 @@ func isOsStdout(arg ast.Expr) bool {
 	return ok && pkg.Name == "os" && sel.Sel.Name == "Stdout"
 }
 
-// injectedSinkFieldNames is the small, deliberately narrow set of
-// conventional names an injected stdout/stderr sink carries — a struct
-// field (homelabctl's runtime.stdout/stderr) or a bare parameter — matched
-// case-insensitively. It excludes generic names like "out" or "err" that
-// collide too often with unrelated values (an error variable is almost
-// always named "err") to be a reliable signal on their own.
-var injectedSinkFieldNames = map[string]bool{
-	"stdout": true,
-	"stderr": true,
+// identBinding resolves what one identifier in a function's parameter or
+// receiver list is declared as, syntactically (no go/types): either a
+// direct io.Writer, a named struct type (to chase a field access like
+// rt.stdout back to that struct's field types), or a named interface type
+// declared in the same package directory (to chase a call like
+// deps.Docker.PullImage back to the interface it's declared against). Only
+// one of the three is ever set.
+type identBinding struct {
+	writerDirect  bool
+	typeName      string
+	interfaceType string
 }
 
-// injectedWriterSinkName reports whether arg is a struct-field access or
-// bare identifier named for an injected stdout/stderr sink — the shape
-// fmt.Fprintf(rt.stdout, ...) or fmt.Fprintln(stderr, ...) takes when a
-// program wires its own io.Writer field instead of using os.Stdout/
-// os.Stderr directly (see ZYS-1018, homelabctl's cmd/homelabctl/runtime.go).
-// This is a selector-name heuristic, the same kind detectFacades already
-// uses for writer fields — it cannot see through renamed fields or fields
-// whose name doesn't match the convention.
-func injectedWriterSinkName(arg ast.Expr) (string, bool) {
-	switch e := arg.(type) {
-	case *ast.SelectorExpr:
-		if injectedSinkFieldNames[strings.ToLower(e.Sel.Name)] {
-			if base, ok := e.X.(*ast.Ident); ok {
-				return base.Name + "." + e.Sel.Name, true
-			}
+// bindingsFor maps every receiver and parameter name of decl to its
+// identBinding, so a call site inside decl's body can resolve rt.stdout or
+// deps.Docker without re-deriving decl's signature at every call.
+// interfaceTypes classifies a named type as interfaceType instead of
+// typeName; pass nil when the caller only needs typeName/writerDirect.
+func bindingsFor(decl *ast.FuncDecl, dir string, interfaceTypes map[string]bool) map[string]identBinding {
+	bindings := map[string]identBinding{}
+	add := func(field *ast.Field) {
+		binding, ok := bindingFromType(field.Type, dir, interfaceTypes)
+		if !ok {
+			return
 		}
-	case *ast.Ident:
-		if injectedSinkFieldNames[strings.ToLower(e.Name)] {
-			return e.Name, true
+		for _, name := range field.Names {
+			bindings[name.Name] = binding
 		}
 	}
-	return "", false
+	if decl.Recv != nil {
+		for _, field := range decl.Recv.List {
+			add(field)
+		}
+	}
+	if decl.Type.Params != nil {
+		for _, field := range decl.Type.Params.List {
+			add(field)
+		}
+	}
+	return bindings
+}
+
+func bindingFromType(expr ast.Expr, dir string, interfaceTypes map[string]bool) (identBinding, bool) {
+	if isIOWriterType(expr) {
+		return identBinding{writerDirect: true}, true
+	}
+	name, ok := resolveNamedType(expr)
+	if !ok {
+		return identBinding{}, false
+	}
+	if interfaceTypes[dir+"."+name] {
+		return identBinding{interfaceType: name}, true
+	}
+	return identBinding{typeName: name}, true
+}
+
+// resolveNamedType returns the identifier name a (possibly pointer) named
+// type expression is declared with — never an external package's qualified
+// type (io.Writer, strings.Builder), which is exactly the exclusion
+// ZYS-1018/1019 need: a field or call resolved to an out-of-package type
+// can't be chased into its declaration syntactically, so it's correctly
+// left unmatched rather than guessed at.
+func resolveNamedType(expr ast.Expr) (string, bool) {
+	switch t := expr.(type) {
+	case *ast.StarExpr:
+		return resolveNamedType(t.X)
+	case *ast.Ident:
+		return t.Name, true
+	default:
+		return "", false
+	}
+}
+
+// writerFieldIndex maps "dir.TypeName" to the set of that struct's field
+// names declared as io.Writer — built once across every parsed file so a
+// struct and the function that reads its field can live in different files
+// of the same package (see ZYS-1018).
+type writerFieldIndex map[string]map[string]bool
+
+func buildWriterFieldIndex(files []parsedFile) writerFieldIndex {
+	idx := writerFieldIndex{}
+	for _, pf := range files {
+		dir := filepath.Dir(pf.Path)
+		ast.Inspect(pf.File, func(n ast.Node) bool {
+			spec, ok := n.(*ast.TypeSpec)
+			if !ok {
+				return true
+			}
+			st, ok := spec.Type.(*ast.StructType)
+			if !ok || st.Fields == nil {
+				return true
+			}
+			key := dir + "." + spec.Name.Name
+			for _, field := range st.Fields.List {
+				if !isIOWriterType(field.Type) {
+					continue
+				}
+				for _, name := range field.Names {
+					if idx[key] == nil {
+						idx[key] = map[string]bool{}
+					}
+					idx[key][name.Name] = true
+				}
+			}
+			return true
+		})
+	}
+	return idx
+}
+
+// detectWriterSinkFindings is the second pass ZYS-1018 needs: a fmt.Fprint*
+// call whose first argument resolves — by declared type, not by name — to
+// an io.Writer, whether that's a bare io.Writer parameter or a struct
+// field typed io.Writer. It runs after every file is parsed so a struct
+// declared in one file and used in another still resolves.
+func detectWriterSinkFindings(fset *token.FileSet, files []parsedFile) []Finding {
+	fields := buildWriterFieldIndex(files)
+	var findings []Finding
+	for _, pf := range files {
+		dir := filepath.Dir(pf.Path)
+		ast.Inspect(pf.File, func(n ast.Node) bool {
+			decl, ok := n.(*ast.FuncDecl)
+			if !ok || decl.Body == nil {
+				return true
+			}
+			bindings := bindingsFor(decl, dir, nil)
+			ast.Inspect(decl.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				pkg, ok := sel.X.(*ast.Ident)
+				if !ok || pkg.Name != "fmt" {
+					return true
+				}
+				switch sel.Sel.Name {
+				case "Fprint", "Fprintf", "Fprintln":
+				default:
+					return true
+				}
+				if len(call.Args) == 0 {
+					return true
+				}
+				sinkExpr, ok := resolvedWriterSink(call.Args[0], dir, bindings, fields)
+				if !ok {
+					return true
+				}
+				site := callSite{fset: fset, path: pf.Path, call: call, pattern: "fmt." + sel.Sel.Name + "(" + sinkExpr + ", ...)"}
+				findings = append(findings, site.finding(RungTaskDefine,
+					"writing an injected io.Writer sink bypasses evo's live region the same way os.Stdout would — route it through evo.Init(Config{Stdout: ...}) and evo.Println/Task instead.",
+					CertaintyNeedsReview,
+				))
+				return true
+			})
+			return true
+		})
+	}
+	return findings
+}
+
+// resolvedWriterSink reports whether arg is a bare identifier declared
+// directly as io.Writer, or a struct-field access whose field is declared
+// io.Writer — resolution is by declared type via bindings/fields, never by
+// the identifier's or field's name.
+func resolvedWriterSink(arg ast.Expr, dir string, bindings map[string]identBinding, fields writerFieldIndex) (string, bool) {
+	switch e := arg.(type) {
+	case *ast.Ident:
+		if binding, ok := bindings[e.Name]; ok && binding.writerDirect {
+			return e.Name, true
+		}
+		return "", false
+	case *ast.SelectorExpr:
+		base, ok := e.X.(*ast.Ident)
+		if !ok {
+			return "", false
+		}
+		binding, ok := bindings[base.Name]
+		if !ok || binding.typeName == "" {
+			return "", false
+		}
+		if fields[dir+"."+binding.typeName][e.Sel.Name] {
+			return base.Name + "." + e.Sel.Name, true
+		}
+		return "", false
+	default:
+		return "", false
+	}
 }

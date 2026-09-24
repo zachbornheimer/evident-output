@@ -49,6 +49,7 @@ func Inventory(dir string) (Plan, error) {
 		return Plan{}, fmt.Errorf("inventory %s: %w", dir, walkErr)
 	}
 
+	plan.Findings = append(plan.Findings, detectWriterSinkFindings(fset, parsed)...)
 	sortFindings(plan.Findings)
 	plan.RungsTouched = rungsTouched(plan.Findings)
 	plan.Facades = detectFacades(fset, parsed)

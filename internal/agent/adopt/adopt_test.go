@@ -237,6 +237,35 @@ func TestInventoryDetectsMutationFacade(t *testing.T) {
 	}
 }
 
+// TestInventoryFlagsWriterSinkByType proves the injected-sink detector
+// (ZYS-1018) resolves by declared field *type* (io.Writer), not field
+// *name*: reporter.out has none of the stdout/stderr naming convention yet
+// must be flagged, while namedLikeSinkButNot.stdout is named exactly like
+// the classic sink but declared *bytes.Buffer and must NOT be flagged.
+func TestInventoryFlagsWriterSinkByType(t *testing.T) {
+	plan, err := adopt.Inventory(filepath.Join("testdata", "sink"))
+	if err != nil {
+		t.Fatalf("Inventory: %v", err)
+	}
+	wantPatterns := map[string]bool{
+		"fmt.Fprintf(r.out, ...)": false,
+	}
+	unwantedPattern := "fmt.Fprintln(n.stdout, ...)"
+	for _, f := range plan.Findings {
+		if _, ok := wantPatterns[f.Pattern]; ok {
+			wantPatterns[f.Pattern] = true
+		}
+		if f.Pattern == unwantedPattern {
+			t.Errorf("flagged %q by name, not type — n.stdout is *bytes.Buffer, not io.Writer", unwantedPattern)
+		}
+	}
+	for pattern, found := range wantPatterns {
+		if !found {
+			t.Errorf("Inventory missed type-resolved sink pattern %q: %+v", pattern, plan.Findings)
+		}
+	}
+}
+
 // TestInventoryPrefersCmdSubtree proves that when dir/cmd exists, inventory
 // walks that subtree instead of every Go file under dir.
 func TestInventoryPrefersCmdSubtree(t *testing.T) {
