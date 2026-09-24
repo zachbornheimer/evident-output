@@ -1943,7 +1943,7 @@ func (o *Output) Finish() error {
 	// run.finished (spec §38) fires on every path through Finish, including
 	// failure and cancel — conc.State already reflects whichever outcome
 	// this run reached, the same single choke point output.finished uses.
-	o.emitWireEventLocked(wire.EventRunFinished, "", runFinishedPayload(conc))
+	o.emitWireEventLocked(wire.EventRunFinished, "", wire.RunFinishedPayload(conc))
 	writer := o.cfg.primary
 	cfg := o.cfg
 	misuse := o.misuse

@@ -78,10 +78,10 @@ type CancellationDoc struct {
 	Cause string `json:"cause"`
 }
 
-// CancellationFor is c's cancellation record, or nil when c did not
+// cancellationFor is c's cancellation record, or nil when c did not
 // conclude cancelled or recorded no cause. The "evo.run" document and the
 // JSONL run.finished event both carry it, so the two cannot disagree.
-func CancellationFor(c core.Conclusion) *CancellationDoc {
+func cancellationFor(c core.Conclusion) *CancellationDoc {
 	cause := core.CancelCauseOf(c)
 	if c.State != core.StateCancelled || cause == "" {
 		return nil
@@ -288,7 +288,7 @@ func ToRunDocument(result core.Result, evoVersion string) RunDocument {
 		Mode:          modeFor(c.DryRun),
 		Outcome:       outcomeFor(c.State),
 		ExitCode:      c.ExitCode,
-		Cancellation:  CancellationFor(c),
+		Cancellation:  cancellationFor(c),
 		Data: RunData{
 			Collections: make([]CollectionDoc, 0, len(c.Collections)),
 			Tasks:       make([]TaskDoc, 0, len(c.Tasks)),
@@ -347,6 +347,24 @@ func modeFor(dryRun bool) string {
 	return ModeApply
 }
 
+// RunFinishedPayload is the JSONL run.finished payload (spec §38) for a
+// finished run: its outcome, its exit code, and — on a cancelled run with a
+// known cause — the cancellation record. It reads the same Conclusion
+// fields through the same mappings ToRunDocument does, so the event and
+// the "evo.run" document cannot disagree.
+func RunFinishedPayload(c core.Conclusion) map[string]any {
+	payload := map[string]any{
+		"outcome":   outcomeFor(c.State),
+		"exit_code": c.ExitCode,
+	}
+	if cancellation := cancellationFor(c); cancellation != nil {
+		payload["cancellation"] = cancellation
+	}
+	return payload
+}
+
+// outcomeFor maps a Conclusion state to the §35 outcome vocabulary
+// ("outcome: ok | blocked | failed | cancelled").
 func outcomeFor(state core.ConclusionState) string {
 	switch state {
 	case core.StateFailed:

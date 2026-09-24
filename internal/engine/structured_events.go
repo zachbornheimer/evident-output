@@ -1,9 +1,6 @@
 package engine
 
-import (
-	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/wire"
-)
+import "github.com/zachbornheimer/evident-output/internal/wire"
 
 // emitWireEventLocked appends one §38 "evo.event" JSONL line for eventType,
 // scoped to entityID (empty for a run-level event) with payload as its
@@ -55,36 +52,4 @@ func (o *Output) emitCollectionDeclaredLocked(st *tasksState, parentID string) {
 		"kind":      kind,
 		"parent_id": parentID,
 	})
-}
-
-// wireRunOutcome maps a finished Conclusion's state to the §38/§35 outcome
-// vocabulary (spec §35: "outcome: ok | blocked | failed | cancelled") — the
-// same mapping wire.ToRunDocument uses for the final "evo.run" document,
-// duplicated locally rather than imported since internal/wire's version is
-// unexported (ToRunDocument's own outcomeFor).
-// runFinishedPayload is the JSONL run.finished payload: the outcome, the
-// exit code, and — on a cancelled run with a known cause — the same
-// cancellation record the "evo.run" document carries.
-func runFinishedPayload(conc core.Conclusion) map[string]any {
-	payload := map[string]any{
-		"outcome":   wireRunOutcome(conc.State),
-		"exit_code": conc.ExitCode,
-	}
-	if cancellation := wire.CancellationFor(conc); cancellation != nil {
-		payload["cancellation"] = cancellation
-	}
-	return payload
-}
-
-func wireRunOutcome(state ConclusionState) string {
-	switch state {
-	case StateFailed:
-		return wire.OutcomeFailed
-	case StateBlocked:
-		return wire.OutcomeBlocked
-	case StateCancelled:
-		return wire.OutcomeCancelled
-	default:
-		return wire.OutcomeOK
-	}
 }
