@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
@@ -35,55 +37,71 @@ func handleReview(id any, args map[string]any, cancelled *atomic.Bool) {
 		}
 		src = string(read)
 	}
-	desired, _ := args["desired_version"].(string)
-	var res review.Result
-	switch kind {
-	case "transcript":
-		res = review.Transcript(file, src)
-	case "json", "structured":
-		res = review.StructuredDocument(file, []byte(src))
-	case "package":
-		files, errMsg := packageFiles(args, file, src)
-		if errMsg != "" {
-			writeRPC(id, toolError(errMsg))
-			return
-		}
-		res = review.GoPackageAt(files, desired)
-	default:
-		if src == "" {
-			writeRPC(id, toolError("no source to review: pass `source` content or an absolute `file` path that exists"))
-			return
-		}
-		res = review.GoSourceAt(file, src, desired)
+	res, errMsg := reviewSource(args, kind, file, src)
+	if errMsg != "" {
+		writeRPC(id, toolError(errMsg))
+		return
 	}
 	if cancelled.Load() {
 		writeRPC(id, toolError("deadline exceeded"))
 		return
 	}
-	applyDesiredVersion(&res, args)
 	writeReviewResult(id, res)
+}
+
+// reviewSource reviews one non-directory input by kind. Go code is linted
+// as the dialect of where it lives (review.DialectFor), the same owner
+// kind=directory uses. A non-empty message is the tool error.
+func reviewSource(args map[string]any, kind, file, src string) (review.Result, string) {
+	desired, _ := args["desired_version"].(string)
+	switch kind {
+	case "transcript":
+		return review.DialectFor(file, desired).Stamp(review.Transcript(file, src)), ""
+	case "json", "structured":
+		return review.DialectFor(file, desired).Stamp(review.StructuredDocument(file, []byte(src))), ""
+	case "package":
+		files, location, errMsg := packageFiles(args, file, src)
+		if errMsg != "" {
+			return review.Result{}, errMsg
+		}
+		dialect := review.DialectFor(location, desired)
+		return dialect.Stamp(review.GoPackageAt(files, dialect.Lint())), ""
+	default:
+		if src == "" {
+			return review.Result{}, "no source to review: pass `source` content or an absolute `file` path that exists"
+		}
+		dialect := review.DialectFor(file, desired)
+		return dialect.Stamp(review.GoSourceAt(file, src, dialect.Lint())), ""
+	}
 }
 
 // packageFiles resolves the package kind's files (MCP-017): the `files`
 // map when given, else the single file/source pair. Each map value may be
 // inline source text or a readable local absolute path, resolved the same
-// way as the single `file` form. A non-empty message is the tool error.
-func packageFiles(args map[string]any, file, src string) (map[string]string, string) {
-	files := map[string]string{file: src}
+// way as the single `file` form. location is where the package lives for
+// dialect resolution: the first absolute path in name order, else file.
+// A non-empty message is the tool error.
+func packageFiles(args map[string]any, file, src string) (files map[string]string, location, errMsg string) {
+	files = map[string]string{file: src}
+	location = file
 	if raw, ok := args["files"].(map[string]any); ok {
 		files = map[string]string{}
-		for k, v := range raw {
-			s, ok := v.(string)
+		location = ""
+		for _, k := range slices.Sorted(maps.Keys(raw)) {
+			s, ok := raw[k].(string)
 			if !ok {
 				continue
 			}
 			if isRemotePath(s) {
-				return nil, "remote path unsupported; pass source content only (MCP-036)"
+				return nil, "", "remote path unsupported; pass source content only (MCP-036)"
 			}
 			if filepath.IsAbs(s) {
 				read, err := os.ReadFile(s)
 				if err != nil {
-					return nil, fmt.Sprintf("cannot read %s: %s", s, err)
+					return nil, "", fmt.Sprintf("cannot read %s: %s", s, err)
+				}
+				if location == "" {
+					location = s
 				}
 				s = string(read)
 			}
@@ -91,9 +109,9 @@ func packageFiles(args map[string]any, file, src string) (map[string]string, str
 		}
 	}
 	if allFileContentEmpty(files) {
-		return nil, "empty source after decode: check files map shape"
+		return nil, "", "empty source after decode: check files map shape"
 	}
-	return files, ""
+	return files, location, ""
 }
 
 // allFileContentEmpty reports whether every entry in a package-kind `files`
@@ -135,12 +153,5 @@ func handleReviewDirectory(id any, args map[string]any, cancelled *atomic.Bool) 
 		writeRPC(id, toolError("deadline exceeded"))
 		return
 	}
-	applyDesiredVersion(&res, args)
 	writeReviewResult(id, res)
-}
-
-func applyDesiredVersion(res *review.Result, args map[string]any) {
-	if v, _ := args["desired_version"].(string); v != "" {
-		res.DesiredVersion = v
-	}
 }

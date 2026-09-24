@@ -25,7 +25,6 @@ func handleConformanceTool(id any, args map[string]any, cancelled *atomic.Bool) 
 		writeRPC(id, toolError("deadline exceeded"))
 		return
 	}
-	applyDesiredVersion(&res, args)
 	targetVersion, _ := args["target_version"].(string)
 	writeConformanceResult(id, review.Conformance(res, targetVersion))
 }
@@ -55,7 +54,8 @@ func conformanceReviewResult(args map[string]any) (review.Result, error) {
 		return review.Result{}, fmt.Errorf("no source to review: pass `source` content or an absolute `file` path that exists")
 	}
 	desired, _ := args["desired_version"].(string)
-	return review.GoSourceAt(file, src, desired), nil
+	dialect := review.DialectFor(file, desired)
+	return dialect.Stamp(review.GoSourceAt(file, src, dialect.Lint())), nil
 }
 
 func conformanceDirectoryResult(args map[string]any) (review.Result, error) {
