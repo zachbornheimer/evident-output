@@ -55,13 +55,18 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Changed
 
-- **`TaskHandle.Warn(summary string, opts ...ProblemOption) *TaskHandle`:**
-  now takes the same `ProblemOption`s `Problem`/`Fail`/`Block` do and
-  returns `*TaskHandle` to chain. Every existing `task.Warn("x")` call site
-  still compiles unchanged.
-- **`Output.Warn` and `evo.Warn`** take the same `ProblemOption`s, and
-  **`TaskHandle.Fact`** returns `*TaskHandle` to chain like `Warn`,
-  `Problem`, and `Summary`. Existing calls compile unchanged.
+- **`TaskHandle.Warn(summary string, opts ...ProblemOption) *TaskHandle`**
+  (breaking for method values and interfaces): now takes the same
+  `ProblemOption`s `Problem`/`Fail`/`Block` do and returns `*TaskHandle` to
+  chain. A `task.Warn("x")` call statement compiles unchanged;
+  `var warn func(string) = task.Warn` and `interface{ Warn(string) }` do not.
+- **`Output.Warn` and `evo.Warn`** (breaking for method values and
+  interfaces) take the same `ProblemOption`s:
+  `var warn func(string) = out.Warn` no longer compiles.
+- **`TaskHandle.Fact(name, value string) *TaskHandle`** (breaking for method
+  values and interfaces) returns the Task to chain like `Warn`, `Problem`,
+  and `Summary`: `var fact func(string, string) = task.Fact` and
+  `interface{ Fact(string, string) }` no longer compile.
 - **`evo.Exec(ctx, ExecSpec) (ExecResult, error)`** (breaking): it returned
   only `error`. Assign or discard the result.
 - **`TaskHandle.Define(fn) *TaskHandle`** (breaking for method values and
