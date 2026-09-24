@@ -35,9 +35,9 @@ const secondsSpanPrecision = 100 * time.Millisecond
 // definitions, evaluating Verify), the critical path, and peak
 // concurrency. Checking provenance and verifying tracked state happen
 // inside Define callbacks, so they print in parentheses after the
-// definitions span they are part of, never as sibling buckets. Zero clauses are omitted; a run with nothing
-// to say writes nothing. The caller gates it on Verbose: rows are scarce
-// (contract §13).
+// definitions span they are part of, never as sibling buckets. Zero
+// clauses are omitted; a run with nothing to say writes nothing. The
+// caller gates it on Verbose: rows are scarce (contract §13).
 func WriteMetrics(b *strings.Builder, m core.RunMetrics, color bool) {
 	clauses := append(resolutionClauses(m), timeClauses(m)...)
 	if len(clauses) == 0 {
