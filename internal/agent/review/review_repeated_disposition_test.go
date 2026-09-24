@@ -115,3 +115,49 @@ func define(branches *evo.GroupHandle, locals []decision) {
 func TestAPI062_ReceiverReboundPerItem_Silent(t *testing.T) {
 	assertNoFinding(t, review.GoSource("rebound.go", reboundPerItemSrc), "API-062")
 }
+
+// zq prune's shape: categories x items. The item Task is bound inside the
+// inner loop, so each Kept resolves its own fresh Task; the outer loop must
+// not read the inner binding as missing.
+const nestedPerItemSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(groups map[string][]string, reason evo.ReasonValue) {
+	for name, items := range groups {
+		g := evo.Group(name)
+		for _, item := range items {
+			t := g.Task(item)
+			t.Kept(reason)
+		}
+		for i := 0; i < len(items); i++ {
+			u := g.Task(items[i])
+			u.Skipped(reason)
+		}
+	}
+}
+`
+
+func TestAPI062_NestedLoopPerItem_Silent(t *testing.T) {
+	assertNoFinding(t, review.GoSource("nested.go", nestedPerItemSrc), "API-062")
+}
+
+// A Task bound once in the outer loop but resolved on every inner
+// iteration still repeats.
+const nestedRepeatSrc = `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func define(groups map[string][]string, reason evo.ReasonValue) {
+	for name, items := range groups {
+		t := evo.Task(name)
+		for range items {
+			t.Kept(reason)
+		}
+	}
+}
+`
+
+func TestAPI062_NestedLoopOneTask_Fires(t *testing.T) {
+	findingByID(t, review.GoSource("nested.go", nestedRepeatSrc), "API-062")
+}

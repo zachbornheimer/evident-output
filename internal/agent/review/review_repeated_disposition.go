@@ -80,7 +80,9 @@ func (s *repeatedDispositionScan) visitStatementList(stmts []ast.Stmt) {
 }
 
 // visitLoop flags a disposition call anywhere in body whose receiver the
-// loop itself (its header or its body) did not bind.
+// loop itself (its header or its body) did not bind. A nested loop is its
+// own scope: detectRepeatedDisposition visits it separately, against its
+// own bindings.
 func (s *repeatedDispositionScan) visitLoop(body *ast.BlockStmt, header ast.Node) {
 	bound := boundNames(body)
 	if header != nil {
@@ -91,6 +93,9 @@ func (s *repeatedDispositionScan) visitLoop(body *ast.BlockStmt, header ast.Node
 	ast.Inspect(body, func(n ast.Node) bool {
 		if _, isFunc := n.(*ast.FuncLit); isFunc {
 			return false // a callback body runs on its own schedule
+		}
+		if isLoop(n) {
+			return false
 		}
 		call, recv, ok := dispositionCall(n)
 		if ok && !bound[rootIdent(call.Fun.(*ast.SelectorExpr).X)] {
@@ -152,9 +157,18 @@ func rootIdent(expr ast.Expr) string {
 	}
 }
 
+// isLoop reports whether n opens a nested loop scope.
+func isLoop(n ast.Node) bool {
+	switch n.(type) {
+	case *ast.ForStmt, *ast.RangeStmt:
+		return true
+	}
+	return false
+}
+
 // boundNames is every identifier n binds by :=, =, var, or a range
 // clause's key/value: a receiver bound inside a loop is a fresh value each
-// iteration.
+// iteration. A nested loop's body is that loop's own scope and is skipped.
 func boundNames(n ast.Node) map[string]bool {
 	names := map[string]bool{}
 	if n == nil {
@@ -175,6 +189,8 @@ func boundNames(n ast.Node) map[string]bool {
 				addIdents(names, d.Key, d.Value)
 			}
 			return false // its body is a nested loop's own scope
+		case *ast.ForStmt:
+			return false // a nested loop's own scope
 		}
 		return true
 	})
