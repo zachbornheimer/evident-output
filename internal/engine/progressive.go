@@ -247,17 +247,17 @@ const plainProgressMilestones = 10
 func shouldEmitPlainProgressLocked(st *taskState) bool {
 	completed := st.progress.Completed
 	total := st.progress.Total
-	if !st.plainProgressStarted {
+	if !st.plainStream.progressStarted {
 		return true
 	}
-	if completed == st.plainProgressEmitted {
+	if completed == st.plainStream.progressEmitted {
 		return false
 	}
 	if total <= 0 || completed >= total {
 		return true
 	}
 	step := max(total/plainProgressMilestones, 1)
-	return completed/step != st.plainProgressEmitted/step
+	return completed/step != st.plainStream.progressEmitted/step
 }
 
 // progressiveRowName qualifies a streamed plain row with the subject it
@@ -298,16 +298,16 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	}
 	switch trigger {
 	case triggerPhase:
-		if st.phase == st.plainPhaseEmitted {
+		if st.phase == st.plainStream.phase {
 			return
 		}
-		st.plainPhaseEmitted = st.phase
+		st.plainStream.phase = st.phase
 	case triggerProgress:
 		if !shouldEmitPlainProgressLocked(st) {
 			return
 		}
-		st.plainProgressStarted = true
-		st.plainProgressEmitted = st.progress.Completed
+		st.plainStream.progressStarted = true
+		st.plainStream.progressEmitted = st.progress.Completed
 	}
 	row := st.snapshot()
 	row.Name = progressiveRowName(st)
@@ -487,4 +487,19 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 func (o *Output) residualInteractiveFinalLocked(snap Snapshot, linesFrom int) string {
 	text := o.residualCompositionLocked(snap, linesFrom, true)
 	return strings.TrimRight(text, "\n")
+}
+
+// plainStreamMark is plain/non-interactive progressive streaming's
+// bookkeeping for a still-Running standalone task (P10: CI logs must not
+// stay silent until Finish; beginner-8: a durable line per progress
+// increment, thinned to milestones for large totals).
+type plainStreamMark struct {
+	// phase is the last Phase text already streamed, so a repeated/no-op
+	// Phase call does not re-emit.
+	phase string
+	// progressStarted is false until the first Progress/Bytes tick.
+	progressStarted bool
+	// progressEmitted is the last completed value actually streamed, so a
+	// later tick knows whether it crossed a milestone boundary.
+	progressEmitted int64
 }

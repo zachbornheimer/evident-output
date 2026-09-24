@@ -216,18 +216,8 @@ type taskState struct {
 	// including a Pending task, which never calls Phase/Progress.
 	liveFirstSeenAt time.Time
 
-	// heartbeatRunningAt is the domain-clock time this task was promoted to
-	// Running (see armPlainHeartbeatLocked in plain_heartbeat.go) — the §40
-	// plain-mode durable heartbeat's elapsed anchor, mirroring liveFirstSeenAt's
-	// role for the live renderer's elapsed suffix. Zero means no heartbeat is
-	// armed for this task (interactive live presentation, or a TimeSource
-	// that cannot schedule).
-	heartbeatRunningAt time.Time
-	// heartbeatDue is when the next plain-mode heartbeat check should
-	// actually emit a line, pushed forward by any real durable emission
-	// (deferPlainHeartbeatLocked) so a task that is genuinely narrating its
-	// own progress never also gets a redundant heartbeat row.
-	heartbeatDue time.Time
+	// heartbeat is the §40 plain-mode durable heartbeat's state.
+	heartbeat plainHeartbeat
 
 	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
 	// so child-process evidence recorded via either path lands in one ring and
@@ -305,17 +295,9 @@ type taskState struct {
 	doneOnce sync.Once
 	doneCh   chan struct{}
 
-	// Plain/non-interactive progressive-streaming bookkeeping for a still-
-	// Running standalone task (P10: CI logs must not stay silent until
-	// Finish; beginner-8: a durable line per progress increment, thinned to
-	// milestones for large totals). plainPhaseEmitted is the last Phase text
-	// already streamed, so a repeated/no-op Phase call does not re-emit.
-	// plainProgressStarted is false until the first Progress/Bytes tick;
-	// plainProgressEmitted holds the last completed value actually streamed,
-	// so a later tick knows whether it crossed a milestone boundary.
-	plainPhaseEmitted    string
-	plainProgressStarted bool
-	plainProgressEmitted int64
+	// plainStream is what plain progressive streaming already emitted for
+	// this still-Running standalone task.
+	plainStream plainStreamMark
 
 	// manifestOps accumulates this Task's tracked operation records for the
 	// current Run (spec §11.3-11.5): one entry per evo.File/evo.Exec call

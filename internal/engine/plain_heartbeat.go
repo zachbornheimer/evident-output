@@ -41,8 +41,8 @@ func (o *Output) armPlainHeartbeatLocked(st *taskState, now time.Time) {
 	if !ok {
 		return
 	}
-	st.heartbeatRunningAt = now
-	st.heartbeatDue = now.Add(plainHeartbeatInterval)
+	st.heartbeat.runningAt = now
+	st.heartbeat.due = now.Add(plainHeartbeatInterval)
 	o.schedulePlainHeartbeatCallbackLocked(sched, st.id, plainHeartbeatInterval)
 }
 
@@ -53,17 +53,17 @@ func (o *Output) armPlainHeartbeatLocked(st *taskState, now time.Time) {
 // task's very first Doing/Phase call both promotes it to Running (arming
 // the heartbeat) and is itself a real emission, so a permanent one-shot
 // disable would silence the heartbeat for every task that ever narrates at
-// all — the common case, not the exception. Both heartbeatRunningAt (the
+// all — the common case, not the exception. Both heartbeat.runningAt (the
 // elapsed display's anchor) and heartbeatDue move to now, so a task that
 // goes silent again earns its next heartbeat exactly plainHeartbeatInterval
 // after this real update, showing elapsed relative to that update rather
 // than the task's original Running start.
 func (o *Output) deferPlainHeartbeatLocked(st *taskState, now time.Time) {
-	if st.heartbeatRunningAt.IsZero() {
+	if st.heartbeat.runningAt.IsZero() {
 		return
 	}
-	st.heartbeatRunningAt = now
-	st.heartbeatDue = now.Add(plainHeartbeatInterval)
+	st.heartbeat.runningAt = now
+	st.heartbeat.due = now.Add(plainHeartbeatInterval)
 }
 
 // schedulePlainHeartbeatCallbackLocked arms one AfterFunc callback for id,
@@ -85,7 +85,7 @@ func (o *Output) schedulePlainHeartbeatCallbackLocked(sched Scheduler, id string
 //   - the task settled since this callback was armed: does nothing further
 //     (no reschedule; this is the whole cancellation story, since a settled
 //     task can never become Running again);
-//   - a real durable emission pushed heartbeatDue out from under this stale
+//   - a real durable emission pushed heartbeat.due out from under this stale
 //     callback: reschedules for the corrected remaining wait without
 //     emitting anything;
 //   - otherwise: emits one durable heartbeat line and reschedules the next
@@ -100,7 +100,7 @@ func (o *Output) checkPlainHeartbeat(id string) {
 		return
 	}
 	st := o.taskByRef[id]
-	if st == nil || core.IsTerminalTask(st.state) || st.heartbeatRunningAt.IsZero() {
+	if st == nil || core.IsTerminalTask(st.state) || st.heartbeat.runningAt.IsZero() {
 		return
 	}
 	sched, ok := o.wantsPlainHeartbeatLocked()
@@ -108,12 +108,12 @@ func (o *Output) checkPlainHeartbeat(id string) {
 		return
 	}
 	now := o.cfg.clock.Now()
-	if now.Before(st.heartbeatDue) {
-		o.schedulePlainHeartbeatCallbackLocked(sched, id, st.heartbeatDue.Sub(now))
+	if now.Before(st.heartbeat.due) {
+		o.schedulePlainHeartbeatCallbackLocked(sched, id, st.heartbeat.due.Sub(now))
 		return
 	}
 	o.emitPlainHeartbeatLocked(st, now)
-	st.heartbeatDue = now.Add(plainHeartbeatInterval)
+	st.heartbeat.due = now.Add(plainHeartbeatInterval)
 	o.schedulePlainHeartbeatCallbackLocked(sched, id, plainHeartbeatInterval)
 }
 
@@ -127,11 +127,26 @@ func (o *Output) checkPlainHeartbeat(id string) {
 // should never have to convert units mid-stream.
 func (o *Output) emitPlainHeartbeatLocked(st *taskState, now time.Time) {
 	color := !o.cfg.noColor
-	elapsed := now.Sub(st.heartbeatRunningAt).Round(time.Second)
+	elapsed := now.Sub(st.heartbeat.runningAt).Round(time.Second)
 	unit := render.DisplayUnit{
 		Glyph:  txt.StyleGlyph(txt.GlyphHeartbeat.Render(o.cfg.glyphs), render.StateColor(Running), color),
 		Name:   progressiveRowName(st),
 		Detail: txt.Dim(fmt.Sprintf("— %ds", int(elapsed.Seconds())), color),
 	}
 	o.writeDurableTextLocked(unit.Render("") + "\n")
+}
+
+// plainHeartbeat is one task's §40 plain-mode durable heartbeat.
+type plainHeartbeat struct {
+	// runningAt is the domain-clock time the task was promoted to Running
+	// (see armPlainHeartbeatLocked) — the heartbeat's elapsed anchor,
+	// mirroring liveFirstSeenAt's role for the live renderer's elapsed
+	// suffix. Zero means no heartbeat is armed for this task (interactive
+	// live presentation, or a TimeSource that cannot schedule).
+	runningAt time.Time
+	// due is when the next heartbeat check should actually emit a line,
+	// pushed forward by any real durable emission
+	// (deferPlainHeartbeatLocked) so a task that is genuinely narrating its
+	// own progress never also gets a redundant heartbeat row.
+	due time.Time
 }
