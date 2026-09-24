@@ -42,11 +42,11 @@ func (e ledgerEntry) payload(verb string) map[string]any {
 	return payload
 }
 
-// ledgerTarget is where a Task's ledger rows go: its ledger subject (the
-// Task's own name) and whether the run is a dry run.
+// ledgerTarget is where a Task's ledger rows go: the Task that owns the
+// section, and the tense the run records in.
 type ledgerTarget struct {
-	subject string
-	dryRun  bool
+	owner *taskState
+	tense ledgerTense
 }
 
 // resolveLedgerTarget resolves the task named by taskID to its ledger
@@ -69,7 +69,7 @@ func (o *Output) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
 		o.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return ledgerTarget{}, ErrAlreadyResolved
 	}
-	return ledgerTarget{subject: st.name, dryRun: o.cfg.dryRun}, nil
+	return ledgerTarget{owner: st, tense: tenseFor(o.cfg.dryRun)}, nil
 }
 
 // recordLedgerEntry resolves taskID's ledger target and records e there —
@@ -84,40 +84,32 @@ func (o *Output) recordLedgerEntry(taskID string, e ledgerEntry) {
 	o.recordResolvedEntry(taskID, target, e)
 }
 
-// recordResolvedEntry records e into target's Plan (dry run) or Changes
-// (applied) ledger, conjugating the verb to past tense for the applied
-// ledger only. It takes an already-resolved target: Effect resolves once,
-// before running its callback, because re-resolving afterward would re-open
-// the terminal-task check to a state a concurrent resolution may have
-// legitimately changed, dropping a real effect as spurious misuse. The
-// intended verb is declared first, so a section that ends up with zero rows
-// renders "nothing to <verb> <subject>" (evo-rec.md Problem 18).
+// recordResolvedEntry records e into target's section, conjugating the verb
+// to past tense for the applied ledger only. It takes an already-resolved
+// target: Effect resolves once, before running its callback, because
+// re-resolving afterward would re-open the terminal-task check to a state a
+// concurrent resolution may have legitimately changed, dropping a real
+// effect as spurious misuse. The imperative verb is kept as the section's
+// intended verb, so a section that ends up with zero rows renders "nothing
+// to <verb> <subject>" (evo-rec.md Problem 18).
 func (o *Output) recordResolvedEntry(taskID string, target ledgerTarget, e ledgerEntry) {
-	if target.dryRun {
-		sec := o.planGetOrCreate(target.subject)
-		sec.declareIntendedVerb(e.verb)
-		if e.counted {
-			sec.record(e.verb, e.quantity, e.object)
-		} else {
-			sec.recordNoQty(e.verb, e.object)
-		}
-		o.emitEffectEvent(taskID, wire.EventEffectPlanned, e.payload(e.verb))
-		return
+	verb, event := e.verb, wire.EventEffectPlanned
+	if target.tense == tenseChanged {
+		verb, event = txt.ConjugatePast(e.verb), wire.EventEffectCommitted
 	}
-	sec := o.changesGetOrCreate(target.subject)
-	sec.declareIntendedVerb(e.verb)
-	past := txt.ConjugatePast(e.verb)
-	if e.counted {
-		sec.record(past, e.quantity, e.object)
-	} else {
-		sec.recordNoQty(past, e.object)
-	}
-	o.emitEffectEvent(taskID, wire.EventEffectCommitted, e.payload(past))
-}
-
-// emitEffectEvent emits one effect.planned/effect.committed wire event.
-func (o *Output) emitEffectEvent(taskID, event string, payload map[string]any) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.emitWireEventLocked(event, taskID, payload)
+	if err := o.ensureOpen(); err != nil {
+		o.recordMisuse(err)
+		return
+	}
+	sec := o.ledgerSectionLocked(target.owner, target.tense)
+	if sec.intendedVerb == "" {
+		sec.intendedVerb = txt.Text(e.verb)
+	}
+	if sec.record(verb, e) {
+		o.bumpLocked()
+		o.appendEventLocked(Event{Type: target.tense.recordedEvent(), EntityID: sec.id})
+	}
+	o.emitWireEventLocked(event, taskID, e.payload(verb))
 }

@@ -61,11 +61,12 @@ type Output struct {
 
 	tasks       []*taskState
 	collections []*tasksState
-	changes     []*changesState
-	plans       []*planState
-	// ledger indexes the names ledger sections are keyed by (see
-	// ledger_order.go), so ordering and no-op checks never rescan every
-	// Task or section.
+	// changes and plans are the run's [changed] and [planned] sections, in
+	// ledger order (ledger_section.go).
+	changes []*ledgerSection
+	plans   []*ledgerSection
+	// ledger finds a section by its owning Task or shown name without
+	// rescanning (ledger_order.go).
 	ledger  ledgerIndex
 	lines   []string
 	actions []Action
@@ -97,13 +98,6 @@ type Output struct {
 	// name — same or different — is a real identity conflict (ErrDuplicateKey),
 	// never a repeat declaration to be merged.
 	taskNameByKey map[string]string
-	// namedPlans/namedChanges back get-or-create identity for ledger
-	// sections (Effect, File): repeated mutations on one task
-	// accumulate into the one Plan/Changes section named after the task,
-	// instead of one section per call. Unrelated to Task/Group/Sequence
-	// declaration identity (§3.1) — a ledger section is not a sibling.
-	namedPlans   map[string]*planLedger
-	namedChanges map[string]*changeLedger
 	// namedReasons backs get-or-create identity for evo.Reason: repeated calls
 	// with the same name (inline or lifted to a var) merge into one bucket.
 	// Also unrelated to §3.1 — a taxonomy Reason is not a declared entity.
@@ -402,42 +396,9 @@ type tasksState struct {
 	// so the same label under a different parent is a distinct child). A
 	// repeated name here is a duplicate sibling (§3.1), not a get-or-create.
 	namedChildren map[string]*tasksState
-}
 
-type changesState struct {
-	id      string
-	subject string
-	// order is the declaration index of the Task this section is named for
-	// (ledger_order.go); sections print in that order.
-	order   int
-	records []EffectRecord
-	// intendedVerb is the first imperative verb recorded for this section
-	// (evo-rec.md "empty effect section grammar"). Set once, by
-	// recordResolvedEntry; it is what lets a section that ends up
-	// with zero rows still render "nothing to <verb> <subject>" instead of a
-	// generic fallback.
-	intendedVerb string
-	handle       *changeLedger
-	// namedRowsEmitted is true once commitNamedEffectsLocked has already
-	// streamed this section's rows durably at its owning task's resolution
-	// (progressive.go) — Finish's residual ledger loop skips a section this
-	// is true for so a named/enumerate section's items never render twice
-	// (once live, once again at Finish).
-	namedRowsEmitted bool
-}
-
-type planState struct {
-	id      string
-	subject string
-	// order mirrors changesState.order.
-	order   int
-	records []EffectRecord
-	// intendedVerb mirrors changesState.intendedVerb for plan sections.
-	intendedVerb string
-	handle       *planLedger
-	// namedRowsEmitted mirrors changesState.namedRowsEmitted for plan
-	// sections.
-	namedRowsEmitted bool
+	// parent is the container this one is nested in, nil at the root.
+	parent *tasksState
 }
 
 func newOutput(subject string, options ...Option) *Output {
@@ -596,23 +557,6 @@ func (o *Output) recordMisuse(err error) {
 	if o.cfg.strict {
 		panic(err)
 	}
-}
-
-// hasRecordedEffectLocked reports whether subject already carries at least
-// one mutation-ledger record (Changes or Plan) — see the unresolved-task
-// auto-Done rescue in Finish (beginner-1, I1).
-func (o *Output) hasRecordedEffectLocked(subject string) bool {
-	for _, ch := range o.changes {
-		if ch.subject == subject && len(ch.records) > 0 {
-			return true
-		}
-	}
-	for _, p := range o.plans {
-		if p.subject == subject && len(p.records) > 0 {
-			return true
-		}
-	}
-	return false
 }
 
 // hasSealedProgress reports whether t's absolute progress reached the total
@@ -870,39 +814,6 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 	return h
 }
 
-// planGetOrCreate returns the Plan previously created under subject by this
-// method, or declares a new one — the identity backing TaskHandle mutation
-// verbs, where repeated dry-run mutations on one task accumulate into one
-// [planned] section instead of a new one per call.
-func (o *Output) planGetOrCreate(subject string) *planLedger {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if p, ok := o.namedPlans[subject]; ok {
-		return p
-	}
-	p := o.declarePlanLedgerLocked(subject)
-	if o.namedPlans == nil {
-		o.namedPlans = make(map[string]*planLedger)
-	}
-	o.namedPlans[subject] = p
-	return p
-}
-
-// changesGetOrCreate is planGetOrCreate's counterpart for applied mutations.
-func (o *Output) changesGetOrCreate(subject string) *changeLedger {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if c, ok := o.namedChanges[subject]; ok {
-		return c
-	}
-	c := o.declareChangeLedgerLocked(subject)
-	if o.namedChanges == nil {
-		o.namedChanges = make(map[string]*changeLedger)
-	}
-	o.namedChanges[subject] = c
-	return c
-}
-
 // cancelActive cancels the currently running task, or the output itself when
 // no task is running, so an interrupt always leaves a typed Cancelled state.
 //
@@ -1092,7 +1003,6 @@ func (o *Output) declareContainerLocked(name string, sequential bool) *tasksStat
 		sequential:  sequential,
 	}
 	o.tasksByRef[st.id] = st
-	o.ledger.declared(st.name, st.declaration)
 	return st
 }
 
@@ -1123,9 +1033,9 @@ func (o *Output) declareChildContainerLocked(parent *tasksState, name string, se
 		name:        clean,
 		declaration: o.nextDecl(),
 		sequential:  sequential,
+		parent:      parent,
 	}
 	o.tasksByRef[st.id] = st
-	o.ledger.declared(st.name, st.declaration)
 	parent.children = append(parent.children, st)
 	if parent.namedChildren == nil {
 		parent.namedChildren = make(map[string]*tasksState)
@@ -1158,51 +1068,6 @@ func (o *Output) declareGroupTask(groupID, name string, opts ...EntityOption) *T
 	}
 	col.namedTasks[clean] = h
 	o.mu.Unlock()
-	return h
-}
-
-// declareChangeLedgerLocked starts a durable-effects section named subject —
-// the internal counterpart of the deleted public Output.Changes entry point
-// (P1/P13: callers reach effects only through evo.Effect and evo.File).
-// Caller must hold o.mu.
-func (o *Output) declareChangeLedgerLocked(subject string) *changeLedger {
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return &changeLedger{out: o, id: o.nextID("changes")}
-	}
-	st := &changesState{
-		id:      o.nextID("changes"),
-		subject: txt.Text(subject),
-		order:   o.ledgerOrderLocked(subject),
-	}
-	h := &changeLedger{out: o, id: st.id}
-	st.handle = h
-	o.changes = insertByLedgerOrder(o.changes, st, func(c *changesState) int { return c.order })
-	o.ledger.sectionOpened(st.subject)
-	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "changes.declared", EntityID: st.id})
-	return h
-}
-
-// declarePlanLedgerLocked starts a would-occur effects section named
-// subject — the internal counterpart of the deleted public Output.Plan
-// entry point (see declareChangeLedgerLocked). Caller must hold o.mu.
-func (o *Output) declarePlanLedgerLocked(subject string) *planLedger {
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return &planLedger{out: o, id: o.nextID("plan")}
-	}
-	st := &planState{
-		id:      o.nextID("plan"),
-		subject: txt.Text(subject),
-		order:   o.ledgerOrderLocked(subject),
-	}
-	h := &planLedger{out: o, id: st.id}
-	st.handle = h
-	o.plans = insertByLedgerOrder(o.plans, st, func(p *planState) int { return p.order })
-	o.ledger.sectionOpened(st.subject)
-	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "plan.declared", EntityID: st.id})
 	return h
 }
 
@@ -1472,10 +1337,10 @@ func (o *Output) snapshotLocked() Snapshot {
 		}
 	}
 	for _, ch := range o.changes {
-		s.Changes = append(s.Changes, ch.snapshot())
+		s.Changes = append(s.Changes, ch.changesSnapshot())
 	}
 	for _, p := range o.plans {
-		s.Plans = append(s.Plans, p.snapshot())
+		s.Plans = append(s.Plans, p.planSnapshot())
 	}
 	for _, m := range o.messages {
 		s.Messages = append(s.Messages, MessageSnapshot{
@@ -1656,24 +1521,6 @@ func (g *tasksState) hasWarnedOrFailedDescendant() bool {
 		}
 	}
 	return false
-}
-
-func (c *changesState) snapshot() ChangesSnapshot {
-	return ChangesSnapshot{
-		ID:           c.id,
-		Subject:      c.subject,
-		Records:      append([]EffectRecord(nil), c.records...),
-		IntendedVerb: c.intendedVerb,
-	}
-}
-
-func (p *planState) snapshot() PlanSnapshot {
-	return PlanSnapshot{
-		ID:           p.id,
-		Subject:      p.subject,
-		Records:      append([]EffectRecord(nil), p.records...),
-		IntendedVerb: p.intendedVerb,
-	}
 }
 
 func (o *Output) collectActionsLocked() []Action {
@@ -1917,7 +1764,7 @@ func (o *Output) Finish() error {
 		if core.IsTerminalTask(t.state) {
 			continue
 		}
-		if len(t.problems) == 0 && (o.hasRecordedEffectLocked(t.name) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0) {
+		if len(t.problems) == 0 && (o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0) {
 			o.settleLocked(t, Done)
 			continue
 		}

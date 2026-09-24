@@ -120,6 +120,16 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Fixed
 
+- A `[changed]`/`[planned]` section belongs to its Task, not its name. Two
+  same-named Tasks in different containers (`alpha › prune`, `beta › prune`)
+  used to merge into one row that summed both counts; each now gets its own
+  row, shown with its container path when the bare name is ambiguous.
+
+- Opaque Tasks no longer rewrite the manifest each time one settles once a
+  File/Exec opened it, the drain no longer rescans the queue after every
+  Task, and work Defined after `^C` settles `NotStarted` instead of hanging
+  `Finish`.
+
 - An `evo.Effect` callback that resolves its own task as `Skipped`/`Fail`
   records no ledger row (and no misuse), and an interrupt that cancels a
   row mid-Effect keeps the committed record for "! already mutated".

@@ -91,7 +91,7 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 	if err != nil {
 		return err
 	}
-	if !target.dryRun {
+	if target.tense == tenseChanged {
 		disowned, err := task.out.runEffectCallback(ctx, task.id, func(ctx context.Context) error {
 			return task.out.performEffect(ctx, spec.Resource, fn)
 		})

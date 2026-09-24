@@ -121,32 +121,6 @@ func maxRootTaskNameWidth(tasks []*taskState) int {
 // column) — Changes/Plans render only at Finish (never progressively, see
 // residualCompositionLocked's doc comment), so the full set is always known
 // here, unlike task rows above.
-func maxChangeSubjectWidth(sections []*changesState) int {
-	if len(sections) < 2 {
-		return 0
-	}
-	width := 0
-	for _, s := range sections {
-		if n := len([]rune(s.subject)); n > width {
-			width = n
-		}
-	}
-	return width
-}
-
-func maxPlanSubjectWidth(sections []*planState) int {
-	if len(sections) < 2 {
-		return 0
-	}
-	width := 0
-	for _, s := range sections {
-		if n := len([]rune(s.subject)); n > width {
-			width = n
-		}
-	}
-	return width
-}
-
 // commitResolvedTaskLocked commits a resolved standalone Task's row to
 // durable scrollback the instant it resolves — interactive or not — and
 // drops it from the live ticker (liveTickerSnapshotLocked already filters
@@ -209,7 +183,7 @@ func hasNamedEffectRecord(records []core.EffectRecord) bool {
 	return false
 }
 
-// commitNamedEffectsLocked streams subject's Plan/Changes ledger section the
+// commitNamedEffectsLocked streams owner's Plan/Changes ledger section the
 // instant its owning standalone task resolves (task.go's finish), provided
 // the section holds at least one named (File/Exec) record — evo-rec.md's
 // "a --dry user loses 'what would run' per item" fix: a caller working
@@ -226,20 +200,14 @@ func hasNamedEffectRecord(records []core.EffectRecord) bool {
 // accumulate; only the presentation instant moves earlier. Marking the
 // section namedRowsEmitted is what makes residualCompositionLocked's Finish
 // loop skip it — the raw item list must never render twice.
-func (o *Output) commitNamedEffectsLocked(subject string) {
-	for _, p := range o.plans {
-		if p.subject != subject || p.namedRowsEmitted || !hasNamedEffectRecord(p.records) {
+func (o *Output) commitNamedEffectsLocked(owner string) {
+	for _, tense := range []ledgerTense{tensePlanned, tenseChanged} {
+		s, ok := o.ledger.byOwner[ledgerSectionKey{owner: owner, tense: tense}]
+		if !ok || s.namedRowsEmitted || !hasNamedEffectRecord(s.records) {
 			continue
 		}
-		o.emitEffectSectionLocked("planned", p.subject, p.records, p.intendedVerb, maxPlanSubjectWidth(o.plans))
-		p.namedRowsEmitted = true
-	}
-	for _, c := range o.changes {
-		if c.subject != subject || c.namedRowsEmitted || !hasNamedEffectRecord(c.records) {
-			continue
-		}
-		o.emitEffectSectionLocked("changed", c.subject, c.records, c.intendedVerb, maxChangeSubjectWidth(o.changes))
-		c.namedRowsEmitted = true
+		o.emitEffectSectionLocked(tense.String(), s.subject, s.records, s.intendedVerb, maxSubjectWidth(*o.sectionsLocked(tense)))
+		s.namedRowsEmitted = true
 	}
 }
 
@@ -443,14 +411,14 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	if residualHasTaskRows(o, snap) && residualHasEffectSections(o) {
 		b.WriteByte('\n')
 	}
-	changeNameWidth := maxChangeSubjectWidth(o.changes)
+	changeNameWidth := maxSubjectWidth(o.changes)
 	for _, ch := range o.changes {
 		if ch.namedRowsEmitted {
 			continue
 		}
 		render.WriteEffects(&b, "changed", ch.subject, changeNameWidth, ch.records, ch.intendedVerb, width, color, profile)
 	}
-	planNameWidth := maxPlanSubjectWidth(o.plans)
+	planNameWidth := maxSubjectWidth(o.plans)
 	for _, p := range o.plans {
 		if p.namedRowsEmitted {
 			continue

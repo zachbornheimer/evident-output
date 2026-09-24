@@ -604,7 +604,7 @@ func (o *Output) commitSettledLocked(st *taskState) {
 		o.signalLiveLocked(true)
 	} else {
 		o.commitResolvedTaskLocked(st.id)
-		o.commitNamedEffectsLocked(st.name)
+		o.commitNamedEffectsLocked(st.id)
 	}
 	if st.state != Done {
 		return
