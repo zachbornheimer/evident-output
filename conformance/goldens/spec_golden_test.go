@@ -525,12 +525,13 @@ func TestSpecP18_RemoteTrackingVsRemoteDelete_Success(t *testing.T) {
 // TestSpecP25_ASCIIGlyphFallback_Success covers evo-rec.md Problem 25
 // (non-UTF-8 locale / dumb terminal: identical dialect, ASCII faces) success
 // block — GlyphsASCII must render "[ok]"/"[!]" markers, never mojibake or
-// bare Unicode.
+// bare Unicode. evo-rec.md lists one skipped line per reason; contract §25
+// folds a Group's Skipped items into one tally, so the rendered block is:
 //
-//	[ok] branches   14 deleted
 //	[ok] worktrees  2 removed
-//	- skipped 1 (protected)
-//	- skipped 1 (dirty)
+//	[ok] branches  14 deleted
+//	   - skipped 2 (1 protected, 1 dirty)
+//	   [ok] deleted  14 deleted
 func TestSpecP25_ASCIIGlyphFallback_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state,
 	// same as the existing default-instance tests in taxonomy_test.go.
