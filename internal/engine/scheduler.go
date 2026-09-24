@@ -819,6 +819,9 @@ func (o *Output) waitOutcome(taskID string) error {
 		return st.workErr
 	case st.state == NotStarted:
 		return ErrNotStarted
+	case !st.submitted && !st.runningWork && !core.IsTerminalTask(st.state):
+		// Declared but never Defined: there is no work to have succeeded.
+		return fmt.Errorf("%w: %s was never defined", ErrNotStarted, st.name)
 	case st.state == Cancelled:
 		return cancelledWaitOutcome(st.summary)
 	case st.state == Failed || st.state == Blocked:

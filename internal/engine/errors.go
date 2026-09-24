@@ -25,8 +25,8 @@ var (
 	// projection and would otherwise render nothing at exit 0.
 	ErrTerminalWithoutSink = errors.New("evo: Terminal driver configured without a primary writer")
 	// ErrNotStarted is what TaskHandle.Wait returns for a task whose work
-	// never ran — a failed or abandoned predecessor, or a run that drained
-	// before the task became eligible. Wait once answered such a caller with
+	// never ran — a failed or abandoned predecessor, a run that drained
+	// before the task became eligible, or a task nobody ever Defined. Wait once answered such a caller with
 	// the zero value of "the error the callback returned", so a waiter
 	// rendered a green row over the very next line admitting the work it
 	// awaited never started.
