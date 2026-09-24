@@ -40,6 +40,11 @@ type EffectSpec = engine.EffectSpec
 // PartialEffect(committed, err): Effect records the committed subset as
 // changed and still returns err, so the Task fails over a truthful ledger.
 //
+// A callback that resolves its own Task as anything but Done (Skipped,
+// Fail, Block) disowns the work: nothing reaches the ledger. If one Define
+// runs several Effects concurrently, that denial disowns every Effect in
+// flight at that moment.
+//
 // When spec.Resource is set, Effect holds it for writing while fn runs,
 // waiting out any overlapping claim first. The claim is process-local; fn
 // receives the holding context, so tracked work inside fn that needs a
