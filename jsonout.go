@@ -27,8 +27,8 @@ func ParseFormat(s string) (Format, error) { return engine.ParseFormat(s) }
 // the same redaction Result's Conclusion already carries. HTTP status (or
 // any other transport-level outcome) is the embedding application's own
 // concern; Evo's outcome/exit semantics stay in the body
-// (Conclusion.State/ExitCode). A writer failure is returned wrapped, so
-// errors.Is still matches the transport's own error.
+// (Conclusion.State/ExitCode). A write failure is the writer's own error,
+// returned unchanged.
 func WriteJSON(w io.Writer, result Result) error { return engine.WriteRunDocument(w, result) }
 
 // JSONSchemaVersion is the final JSON document schema version.

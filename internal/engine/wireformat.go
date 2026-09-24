@@ -23,36 +23,33 @@ func SetWireEvoVersion(v string) { wireEvoVersion = v }
 
 // WriteRunDocument writes result as the final "evo.run" document plus one
 // trailing newline — WriteJSON's whole contract (spec §53) and the same
-// bytes FormatJSON writes to Stdout. Errors name the step that failed and
-// wrap its cause, so an embedder can tell a disconnected client
-// (errors.Is on the writer's error) from an encoding fault.
+// bytes FormatJSON writes to Stdout. An encode failure names the step; a
+// write failure is the writer's own error, returned unchanged as in 1.1,
+// so an embedder can compare it (err == syscall.EPIPE) or match its text.
 func WriteRunDocument(w io.Writer, result Result) error {
 	body, err := wire.EncodeRunLine(result, wireEvoVersion)
 	if err != nil {
 		return fmt.Errorf("evo: encode evo.run document: %w", err)
 	}
-	if _, err := w.Write(body); err != nil {
-		return fmt.Errorf("evo: write evo.run document: %w", err)
-	}
-	return nil
+	_, err = w.Write(body)
+	return err
 }
 
 // writeWireRunLocked is FormatJSON's end-of-run write of conc to w: the
-// same bytes as WriteRunDocument. A nil w is a no-op. Failures are wrapped
-// in ErrRenderer (spec §32.2: "a genuine Run failure, not an ignored
-// logging error") with the cause's own text directly after it, the 1.1
-// text a FormatJSON host may already compare; the cause also stays
-// reachable through errors.Is.
+// same bytes as WriteRunDocument. A nil w is a no-op. Failures wrap
+// ErrRenderer (spec §32.2: "a genuine Run failure, not an ignored logging
+// error") and carry the cause's text only — the exact 1.1 error, which a
+// FormatJSON host may already branch on or compare.
 func writeWireRunLocked(w io.Writer, conc Conclusion) error {
 	if w == nil {
 		return nil
 	}
 	body, err := wire.EncodeRunLine(core.Result{Conclusion: conc}, wireEvoVersion)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrRenderer, err)
+		return fmt.Errorf("%w: %v", ErrRenderer, err)
 	}
 	if _, err := w.Write(body); err != nil {
-		return fmt.Errorf("%w: %w", ErrRenderer, err)
+		return fmt.Errorf("%w: %v", ErrRenderer, err)
 	}
 	if f, ok := w.(flusher); ok {
 		_ = f.Flush()

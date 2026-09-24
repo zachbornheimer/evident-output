@@ -71,8 +71,9 @@ func embedderOutput() *evo.Output {
 // a run and the document WriteJSON produces from that same run's Result are
 // the same bytes — the HTTP projection cannot drift from the CLI one.
 // Both already matched in 1.1; this guards the shared writer against
-// future drift. TestFormatJSON_WriterFailureIsRendererErrorAndKeepsCause
-// pins what sharing it changed.
+// future drift. TestFormatJSON_WriterFailureKeeps11Identity and
+// TestWriteJSON_WriterFailureReturnsTheWriterError pin that sharing it
+// changed neither error.
 func TestWriteJSON_MatchesFormatJSONDocumentForSameRun(t *testing.T) {
 	var stdout bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Format: evo.FormatJSON, Stdout: &stdout, Stderr: io.Discard})
@@ -114,18 +115,16 @@ type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) { return 0, errClientGone }
 
-// Transport failure is the embedder's to classify: WriteJSON names what it
-// was doing and keeps the writer's error reachable through errors.Is.
-func TestWriteJSON_WriterFailureNamesOperationAndKeepsCause(t *testing.T) {
-	out := embedderOutput()
+// Error identity is behavior (ZYS-946 owner rule): WriteJSON returns the
+// writer's error itself, as 1.1 did, so a host comparing err ==
+// syscall.EPIPE (or its own sentinel), or matching err.Error(), keeps
+// working on upgrade.
+func TestWriteJSON_WriterFailureReturnsTheWriterError(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Format: evo.FormatExternal, Stdout: io.Discard, Stderr: io.Discard})
 	result := out.Run(context.Background(), func(context.Context) error { return nil })
 
-	err := evo.WriteJSON(failingWriter{}, result)
-	if !errors.Is(err, errClientGone) {
-		t.Fatalf("WriteJSON error = %v, want errors.Is(err, errClientGone)", err)
-	}
-	if !strings.Contains(err.Error(), "evo.run document") {
-		t.Fatalf("WriteJSON error %q does not name the document it failed to write", err)
+	if err := evo.WriteJSON(failingWriter{}, result); err != errClientGone {
+		t.Fatalf("WriteJSON error = %#v, want the writer's error itself (%#v), as in 1.1", err, errClientGone)
 	}
 }
 
@@ -302,19 +301,21 @@ func TestRunDocument_TaskIDsKeepTheirNumbering(t *testing.T) {
 	}
 }
 
-// FormatJSON and WriteJSON share one writer, so FormatJSON's end-of-run
-// write failure is as classifiable as WriteJSON's: it is a renderer
-// failure (errors.Is ErrRenderer) and still the transport's own error.
-func TestFormatJSON_WriterFailureIsRendererErrorAndKeepsCause(t *testing.T) {
+// FormatJSON's end-of-run write failure keeps its 1.1 identity: exactly
+// one wrap of ErrRenderer carrying the writer error's text, not the
+// writer's error itself. A host that branches on errors.Is(err,
+// ErrRenderer) before any transport check sees the same branch as in 1.1.
+func TestFormatJSON_WriterFailureKeeps11Identity(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Format: evo.FormatJSON, Stdout: failingWriter{}, Stderr: io.Discard})
 	out.Task("register").Define(func(context.Context) error { return nil })
 
 	err := out.Finish()
-	if !errors.Is(err, evo.ErrRenderer) || !errors.Is(err, errClientGone) {
-		t.Fatalf("Finish error = %v, want errors.Is both evo.ErrRenderer and the writer's error", err)
+	if errors.Unwrap(err) != evo.ErrRenderer {
+		t.Fatalf("Finish error = %#v, want a single wrap of evo.ErrRenderer (1.1)", err)
 	}
-	// The 1.1 text is part of the contract a FormatJSON host may already
-	// compare: "<ErrRenderer>: <writer error>", with no new step name.
+	if errors.Is(err, errClientGone) {
+		t.Fatalf("Finish error %v matches the writer's error; 1.1 carried only its text", err)
+	}
 	if want := evo.ErrRenderer.Error() + ": " + errClientGone.Error(); err.Error() != want {
 		t.Fatalf("Finish error text = %q, want the 1.1 text %q", err.Error(), want)
 	}
