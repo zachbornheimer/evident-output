@@ -39,18 +39,42 @@ func (o *Output) resolveStall() bool {
 	return o.sched.draining && o.abandonStrandedLocked()
 }
 
-// releaseWaitsLocked ends every parked wait: nothing left in the run can
-// satisfy it. Each waiter is told the truth — ErrWaitDeadlock naming the
-// task it awaited — and its callback returns that error, putting the cycle
-// on its own row.
+// releaseWaitsLocked ends the parked waits nothing left in the run can
+// satisfy. Each waiter is told the truth — ErrWaitDeadlock naming the task
+// it awaited — and its callback returns that error, putting the cycle on
+// its own row.
+//
+// A waiter a live callback started is released first, and alone: the stall
+// only assumed that callback is blocked on it, and once it returns the
+// callback may finish and satisfy every other wait.
 func (o *Output) releaseWaitsLocked() {
-	for ticket := range o.sched.waits {
-		delete(o.sched.waits, ticket)
+	release := o.spawnedWaitsLocked()
+	if len(release) == 0 {
+		for ticket := range o.sched.waits {
+			release = append(release, ticket)
+		}
+	}
+	for _, ticket := range release {
+		ticket.released = o.unreachableWaitLocked(ticket)
 		if st := o.taskByRef[ticket.taskID]; st != nil {
 			o.recordMisuseFor(st.name, ErrWaitDeadlock)
 		}
+	}
+	for _, ticket := range release {
+		delete(o.sched.waits, ticket)
 		close(ticket.abort)
 	}
+}
+
+// spawnedWaitsLocked lists the parked waiters a live callback started.
+func (o *Output) spawnedWaitsLocked() []*waitTicket {
+	var spawned []*waitTicket
+	for ticket := range o.sched.waits {
+		if o.startedByCallbackLocked(ticket) {
+			spawned = append(spawned, ticket)
+		}
+	}
+	return spawned
 }
 
 // abandonStrandedLocked settles NotStarted every Task still parked once the
@@ -70,24 +94,51 @@ func (o *Output) abandonStrandedLocked() bool {
 
 // progressPossibleLocked reports whether anything could still move the run.
 func (o *Output) progressPossibleLocked() bool {
-	return o.sched.executing > o.parkedCallbacksLocked() ||
-		o.anyClaimableLocked() ||
+	return o.sched.executing > o.heldCallbacksLocked() ||
+		o.anyStartableLocked() ||
 		o.anyAwaitedTaskResolvedLocked()
 }
 
-// parkedCallbacksLocked counts the callbacks currently held still by a
-// parked waiter. More callbacks executing than parked means one of them is
-// still doing work.
-func (o *Output) parkedCallbacksLocked() int {
-	parked := 0
+// heldCallbacksLocked counts the callbacks a parked waiter may be holding
+// still: the ones on its own stack, and those of a callback goroutine that
+// started it — the errgroup shape, where that callback blocks on the
+// goroutine it started. More callbacks executing than held means one of
+// them is still doing work.
+func (o *Output) heldCallbacksLocked() int {
+	held := 0
+	parked := make(map[goroutineID]struct{}, len(o.sched.waits))
 	for ticket := range o.sched.waits {
-		parked += ticket.depth
+		held += ticket.depth
+		parked[ticket.self] = struct{}{}
 	}
-	return parked
+	creators := make(map[goroutineID]struct{})
+	for ticket := range o.sched.waits {
+		if _, counted := parked[ticket.creator]; !counted && o.startedByCallbackLocked(ticket) {
+			creators[ticket.creator] = struct{}{}
+		}
+	}
+	for creator := range creators {
+		held += o.sched.callbackGoroutines[creator]
+	}
+	return held
 }
 
-func (o *Output) anyClaimableLocked() bool {
-	return !o.sched.cancelled && o.nextEligibleLocked() != nil
+// startedByCallbackLocked reports whether ticket's goroutine was started by
+// a goroutine that is running a task callback right now. A parked waiter's
+// own callbacks are already counted by its depth, so only a plain waiter
+// can be one.
+func (o *Output) startedByCallbackLocked(ticket *waitTicket) bool {
+	return ticket.depth == 0 && ticket.creator != 0 && o.sched.callbackGoroutines[ticket.creator] > 0
+}
+
+// anyStartableLocked reports whether the pool could start queued work now:
+// something is eligible and a slot is free. Eligible work behind a full
+// pool moves only when an executing callback finishes, which the executing
+// count already answers.
+func (o *Output) anyStartableLocked() bool {
+	return !o.sched.cancelled &&
+		o.sched.inflight < o.concurrencyCeilingLocked() &&
+		o.nextEligibleLocked() != nil
 }
 
 // anyAwaitedTaskResolvedLocked reports whether some parked waiter's task is

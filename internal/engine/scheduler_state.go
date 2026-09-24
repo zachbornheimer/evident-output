@@ -30,6 +30,10 @@ type scheduler struct {
 	// progress, and it is how a wait that never can be satisfied is
 	// released instead of hanging Finish (see resolveStall).
 	waits map[*waitTicket]struct{}
+	// callbackGoroutines counts, per goroutine, the task callbacks it is
+	// running right now. A parked goroutine that one of them started may be
+	// what that callback is blocked on (see heldCallbacksLocked).
+	callbackGoroutines map[goroutineID]int
 	// draining is set once Finish starts running the queue to empty.
 	draining bool
 	// cancelled stops dispatching anything new: after an interrupt the

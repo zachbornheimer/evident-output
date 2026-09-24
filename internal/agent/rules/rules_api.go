@@ -456,7 +456,7 @@ go func() {
 for _, name := range []string{"a"} {
   work.Task(name).Define(func(ctx context.Context) error { return doWork(ctx, name) })
 }`,
-			Remediation:     "Predeclare with Group.Task(...) (one named Task per item), then call task.Define(func() error { ... }) instead of a bare goroutine",
+			Remediation:     "Predeclare with Group.Task(...) (one named Task per item), then call task.Define(func(ctx context.Context) error { ... }) instead of a bare goroutine. A goroutine a callback starts holds no scheduler slot: if the callback blocks on it while it Waits and every slot is held, Wait returns ErrWaitDeadlock",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-041"},
 			Since:           "0.4.7",

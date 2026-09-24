@@ -193,15 +193,14 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   wrapping the refusal, and `Define` on it is misuse instead of a silent
   drop.
 
-- A `Wait` called outside any callback no longer runs unrelated queued
-  work beside a full pool: it takes a free slot for that or leaves it to
-  the pool. It still runs the Task it awaits once that Task is eligible,
-  because its goroutine is blocked on it anyway; refusing hung a callback
-  that spawned the waiter and blocked on it (the errgroup shape) at
-  `MaxConcurrency 1`. `MaxConcurrency` bounds pooled workers plus waiting
-  goroutines that pick up unrelated work, not a blocked goroutine running
-  its own awaited Task. A waiting callback still lends its own slot to the
-  work it waits on.
+- `MaxConcurrency` bounds every executing callback. A `Wait` called
+  outside any callback runs work only in a free slot, the Task it awaits
+  included, and otherwise waits for the pool; N goroutines that each
+  Define+Wait their own Task run at most `MaxConcurrency` callbacks at
+  once. A waiting callback still lends its own slot to the work it waits
+  on. A goroutine a callback started that Waits while that callback blocks
+  on it and every slot is held (the errgroup shape API-041 rejects) gets
+  `ErrWaitDeadlock` naming API-041 instead of hanging.
 
 - A Sequence's nested `Group`/`Sequence` is one step: it starts after the
   step before it ends, the step after it waits for all of it, and a failed

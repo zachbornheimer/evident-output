@@ -140,13 +140,12 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 // duplicate name, wrapping the refusal), its cancellation when it was
 // cancelled, and ErrWaitDeadlock when nothing in the run can ever reach it.
 // A waiting callback lends its own goroutine to the awaited work, so nested
-// Define+Wait completes even at MaxConcurrency 1. A goroutine outside any
-// callback (including one a callback spawned) runs the Task it awaits once
-// that Task is eligible, and other queued work only when a slot is free, so
-// MaxConcurrency bounds pooled workers plus goroutines that pick up
-// unrelated work, not a blocked goroutine running its own awaited Task.
-// Calling Wait while holding
-// a resource claim (inside an Effect, File, or Basis) returns
+// Define+Wait completes even at MaxConcurrency 1. MaxConcurrency bounds
+// every executing callback: a goroutine outside any callback runs work only
+// in a free slot and otherwise waits for the pool. A goroutine a callback
+// started, Waiting while that callback blocks on it and every slot is held,
+// gets ErrWaitDeadlock naming API-041 instead of hanging. Calling Wait
+// while holding a resource claim (inside an Effect, File, or Basis) returns
 // ErrNestedResourceAcquisition without waiting.
 func (t *TaskHandle) Wait() error {
 	if t == nil || t.inner == nil {

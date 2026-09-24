@@ -167,7 +167,7 @@ func (o *Output) finishClaimed(st *taskState, pooled bool) {
 func (o *Output) executeWork(st *taskState, fn func() error) {
 	var err error
 	if fn != nil {
-		err = runCallback(fn)
+		err = o.runTrackedCallback(fn)
 	}
 	o.recordWorkOutcome(st, err)
 	// A callback that resolved its own task (Failf/Fail/Block inside fn, or
@@ -240,6 +240,27 @@ func (o *Output) taskIsTerminal(st *taskState) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return core.IsTerminalTask(st.state)
+}
+
+// runTrackedCallback runs fn while the scheduler knows which goroutine is
+// running it, so a goroutine fn starts and then parks in Wait can be traced
+// back to the callback it may be holding still.
+func (o *Output) runTrackedCallback(fn func() error) error {
+	g := currentGoroutine()
+	o.mu.Lock()
+	if o.sched.callbackGoroutines == nil {
+		o.sched.callbackGoroutines = make(map[goroutineID]int)
+	}
+	o.sched.callbackGoroutines[g]++
+	o.mu.Unlock()
+	defer func() {
+		o.mu.Lock()
+		if o.sched.callbackGoroutines[g]--; o.sched.callbackGoroutines[g] <= 0 {
+			delete(o.sched.callbackGoroutines, g)
+		}
+		o.mu.Unlock()
+	}()
+	return runCallback(fn)
 }
 
 // runCallback is the single frame every task callback runs beneath, so a
