@@ -142,14 +142,14 @@ func (r taskRow) writeProblems(b *strings.Builder, rowHeadline string, s Style) 
 		if repeatsRow && (p.Detail != "" || p.EvidenceTail != "") {
 			p.Summary = ""
 		}
-		writeProblem(b, p, emphasize, s)
+		writeProblem(b, p, r.prefix, emphasize, s)
 	}
 	if omitted > 0 {
 		writeProblem(b, core.Problem{
 			Summary: fmt.Sprintf("and %d more failures", omitted),
 			Count:   int64(omitted),
 			Unit:    "failures",
-		}, emphasize, s)
+		}, r.prefix, emphasize, s)
 	}
 }
 

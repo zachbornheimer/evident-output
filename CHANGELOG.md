@@ -163,6 +163,9 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   (about 4.7 MB per 2000-Task run), and a settled Task's heartbeat timer
   kept its `Output` alive for 30s after `Close`.
 
+- A Group or Sequence child's Problems nest under the child's row. They
+  started in the child's own glyph column and read as a sibling row.
+
 - A duplicate sibling reads once: `✗ t  duplicate task name`, not the
   name and problem repeated three times, and the misuse line names it
   (`duplicate sibling name: t`). A root `Group` and `Sequence` with the

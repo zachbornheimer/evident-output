@@ -9,24 +9,26 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
-// writeProblem renders one problem row. emphasize is true for a core.Failed/core.Blocked
+// writeProblem renders one problem row, indent being its task row's own
+// prefix, so a child's Problems sit under the child glyph as a root row's
+// sit under its own. emphasize is true for a core.Failed/core.Blocked
 // task's evidence (release-gate round 6 finding 5): the ├─/│/evidence-glyph
 // connectors stay txt.Dim either way — they are decoration — but the evidence
 // text itself renders at full intensity so a failure's proof is never the
 // lowest-contrast text on screen.
-func writeProblem(b *strings.Builder, p core.Problem, emphasize bool, s Style) {
+func writeProblem(b *strings.Builder, p core.Problem, indent string, emphasize bool, s Style) {
 	detail, tail := effectiveDetailAndTail(p)
 	if p.Subject != "" {
 		extra := p.Summary
 		if p.Count != 0 {
 			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
 		}
-		fmt.Fprintf(b, "%s%s %s  %s\n", problemTreeIndent, s.dim("├─"), p.Subject, extra)
+		fmt.Fprintf(b, "%s%s%s %s  %s\n", indent, problemTreeIndent, s.dim("├─"), p.Subject, extra)
 		if detail != "" {
-			writeProblemDetailLines(b, detail, emphasize, s)
+			writeProblemDetailLines(b, detail, indent, emphasize, s)
 		}
 		if tail != "" {
-			writeProblemDetailLines(b, tail, emphasize, s)
+			writeProblemDetailLines(b, tail, indent, emphasize, s)
 		}
 		return
 	}
@@ -34,13 +36,13 @@ func writeProblem(b *strings.Builder, p core.Problem, emphasize bool, s Style) {
 	// when the caller left it set — writeTask clears Summary when it already
 	// appears on the ✗ row so Detail alone is the evidence body (P4).
 	if detail != "" {
-		writeProblemDetailBlock(b, p.Summary, detail, emphasize, s)
+		writeProblemDetailBlock(b, p.Summary, detail, indent, emphasize, s)
 		if tail != "" {
-			writeAdditionalEvidenceLines(b, tail, emphasize, s)
+			writeAdditionalEvidenceLines(b, tail, indent, emphasize, s)
 		}
 		return
 	}
-	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, s.evidenceGlyph(), s.emphasized(p.Summary, emphasize))
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.evidenceGlyph(), s.emphasized(p.Summary, emphasize))
 }
 
 // dedupeEvidenceTailAgainstRow is P7's addition (user-13-problems.md
@@ -90,9 +92,9 @@ func effectiveDetailAndTail(p core.Problem) (detail, tail string) {
 // under a just-written Detail block, matching writeProblemDetailBlock's own
 // continuation indent so the tail reads as more evidence for the same
 // problem rather than a new one.
-func writeAdditionalEvidenceLines(b *strings.Builder, tail string, emphasize bool, s Style) {
+func writeAdditionalEvidenceLines(b *strings.Builder, tail, indent string, emphasize bool, s Style) {
 	for _, line := range splitPresentationLines(tail) {
-		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, s.emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.emphasized(line, emphasize))
 	}
 }
 
@@ -100,7 +102,7 @@ func writeAdditionalEvidenceLines(b *strings.Builder, tail string, emphasize boo
 // the evidence connector. When summary is non-empty it opens the block;
 // continuations (and all detail lines when summary is empty) are indented
 // under it.
-func writeProblemDetailBlock(b *strings.Builder, summary, detail string, emphasize bool, s Style) {
+func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string, emphasize bool, s Style) {
 	lines := splitPresentationLines(detail)
 	if summary == "" {
 		if len(lines) == 0 {
@@ -108,17 +110,17 @@ func writeProblemDetailBlock(b *strings.Builder, summary, detail string, emphasi
 		}
 		summary, lines = lines[0], lines[1:]
 	}
-	fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, s.evidenceGlyph(), s.emphasized(summary, emphasize))
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.evidenceGlyph(), s.emphasized(summary, emphasize))
 	for _, line := range lines {
-		fmt.Fprintf(b, "%s%s\n", problemDetailIndent, s.emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.emphasized(line, emphasize))
 	}
 }
 
 // writeProblemDetailLines continues Detail under a subject (├─) row with │ prefixes.
-func writeProblemDetailLines(b *strings.Builder, detail string, emphasize bool, s Style) {
+func writeProblemDetailLines(b *strings.Builder, detail, indent string, emphasize bool, s Style) {
 	pipe := s.dim("│")
 	for _, line := range splitPresentationLines(detail) {
-		fmt.Fprintf(b, "%s%s %s\n", problemTreeIndent, pipe, s.emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, pipe, s.emphasized(line, emphasize))
 	}
 }
 
