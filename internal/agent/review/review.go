@@ -3,11 +3,9 @@ package review
 
 import (
 	"encoding/json"
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"go/types"
 	"strings"
 )
 
@@ -63,13 +61,17 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
 	if err != nil {
-		return newResult([]Finding{{
-			RuleID:  "API-000",
-			Message: "parse error: " + err.Error(),
-			File:    filename,
-		}})
+		return newResult([]Finding{parseErrorFinding(filename, err)})
 	}
+	// GoSource implements its rules fully via AST. Partial is reserved for incomplete
+	// typecheck / multi-file analysis — not "evo is imported".
+	res := newResult(reviewFile(filename, src, f, fset, desiredVersion))
+	res.DesiredVersion = desiredVersion
+	return res
+}
 
+// reviewFile runs every file detector that admits parsed file f.
+func reviewFile(filename, src string, f *ast.File, fset *token.FileSet, desiredVersion string) []Finding {
 	in := fileInput{
 		filename:       filename,
 		src:            src,
@@ -84,133 +86,11 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 			findings = append(findings, admitDialect(d.run(in), desiredVersion)...)
 		}
 	}
-
-	// GoSource implements its rules fully via AST. Partial is reserved for incomplete
-	// typecheck / multi-file analysis — not "evo is imported".
-	res := newResult(findings)
-	res.DesiredVersion = desiredVersion
-	return res
+	return findings
 }
 
-// GoPackage reviews multiple Go files in one package with go/types for
-// cross-file API resolution without executing package code (MCP-017).
-// files maps filename → source. External imports are stubbed so type-check
-// stays local to the provided sources.
-func GoPackage(files map[string]string) Result {
-	if len(files) == 0 {
-		return newResult([]Finding{{RuleID: "API-000", Message: "no files provided"}})
-	}
-	// Package-level evo import (cross-file): STREAM rules apply if any file imports evo.
-	pkgHasEvo := false
-	for _, src := range files {
-		if strings.Contains(src, "evident-output") || strings.Contains(src, `"evo"`) {
-			pkgHasEvo = true
-			break
-		}
-	}
-	// Per-file textual/AST findings first.
-	var all []Finding
-	for name, src := range files {
-		r := GoSource(name, src)
-		all = append(all, r.Findings...)
-		// Cross-file STREAM-003: flag fmt.Print* in non-importing files when package uses evo.
-		if pkgHasEvo && !strings.Contains(src, "evident-output") {
-			if strings.Contains(src, "fmt.Print") || strings.Contains(src, "fmt.Fprint") {
-				all = append(all, Finding{
-					RuleID:  "STREAM-003",
-					Message: "fmt.Print* in package that imports evo may contaminate managed streams (cross-file)",
-					File:    name,
-				})
-			}
-		}
-	}
-	hasEvo := pkgHasEvo
-
-	fset := token.NewFileSet()
-	var parsed []*ast.File
-	pkgName := "main"
-	for name, src := range files {
-		f, err := parser.ParseFile(fset, name, src, parser.SkipObjectResolution)
-		if err != nil {
-			all = append(all, Finding{
-				RuleID: "API-000", Message: "parse error in " + name + ": " + err.Error(),
-				File: name,
-			})
-			continue
-		}
-		pkgName = f.Name.Name
-		parsed = append(parsed, f)
-	}
-	if len(parsed) == 0 {
-		res := newResult(all)
-		res.Partial = true
-		return res
-	}
-
-	conf := types.Config{
-		// Local-only: missing imports do not abort the whole check.
-		Importer: stubImporter{},
-		Error:    func(error) {}, // collect via Check return
-	}
-	info := &types.Info{
-		Types: make(map[ast.Expr]types.TypeAndValue),
-		Uses:  make(map[*ast.Ident]types.Object),
-		Defs:  make(map[*ast.Ident]types.Object),
-	}
-	_, err := conf.Check(pkgName, fset, parsed, info)
-	typed := err == nil || info != nil
-	// Cross-file: detect Group/Sequence collection leaf misuse with type info when available.
-	for _, f := range parsed {
-		ast.Inspect(f, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-			// If receiver type name is Group/Sequence (package-local), leaf Done/Fail is misuse.
-			if tv, ok := info.Types[sel.X]; ok && tv.Type != nil {
-				tn := tv.Type.String()
-				if (strings.Contains(tn, "GroupHandle") || strings.Contains(tn, "SequenceHandle")) && (sel.Sel.Name == "Done" || sel.Sel.Name == "Fail" || sel.Sel.Name == "Progress") {
-					pos := fset.Position(n.Pos())
-					all = append(all, Finding{
-						RuleID:  "API-027",
-						Message: fmt.Sprintf("typed: %s.%s on collection type %s is forbidden", tn, sel.Sel.Name, tn),
-						File:    pos.Filename,
-						Line:    pos.Line,
-						Column:  pos.Column,
-					})
-				}
-			}
-			return true
-		})
-	}
-	// Partial only when type check fully failed and we lack multi-file coverage.
-	partial := !typed || hasEvo && err != nil
-	if len(files) >= 2 && err == nil {
-		partial = false // MCP-017: multi-file types resolved
-	}
-	if err != nil && len(files) >= 2 {
-		// Still mark that cross-file parse ran; type errors may be from stubs.
-		partial = true
-		all = append(all, Finding{
-			RuleID:  "MCP-017",
-			Message: "cross-file typecheck incomplete: " + err.Error(),
-		})
-	}
-	res := newResult(all)
-	res.Partial = partial
-	return res
-}
-
-// stubImporter satisfies go/types for external imports without loading code.
-type stubImporter struct{}
-
-func (stubImporter) Import(path string) (*types.Package, error) {
-	// Return an empty package so Check can continue for local symbols.
-	return types.NewPackage(path, path[strings.LastIndex(path, "/")+1:]), nil
+func parseErrorFinding(filename string, err error) Finding {
+	return Finding{RuleID: "API-000", Message: "parse error: " + err.Error(), File: filename}
 }
 
 // Transcript reviews a terminal transcript for corruption signals (MCP-018).

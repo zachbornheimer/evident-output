@@ -144,3 +144,16 @@ func f(out *evo.Output) { out.Changes("b") }
 		t.Fatalf("directory review must merge both files: %s", out)
 	}
 }
+
+func TestReview_PackageKindHonorsDesiredVersion(t *testing.T) {
+	bin := buildMCP(t)
+	src, _ := json.Marshal("package p\nimport evo \"github.com/zachbornheimer/evident-output\"\nfunc f(g *evo.GroupHandle, p string) {\n\tg.Task(p).Delete(\"worktree\", func() error { return nil })\n}\n")
+	in := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"kind":"package","desired_version":"v1.0.0","files":{"prune.go":` + string(src) + `}}}}`,
+	}, "\n") + "\n"
+	out := runMCP(t, bin, in)
+	if strings.Contains(out, "API-032") {
+		t.Fatalf("package kind at desired_version=v1.0.0 must not fire 1.1-only API-032: %s", out)
+	}
+}

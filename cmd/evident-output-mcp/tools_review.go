@@ -35,6 +35,7 @@ func handleReview(id any, args map[string]any, cancelled *atomic.Bool) {
 		}
 		src = string(read)
 	}
+	desired, _ := args["desired_version"].(string)
 	var res review.Result
 	switch kind {
 	case "transcript":
@@ -47,13 +48,12 @@ func handleReview(id any, args map[string]any, cancelled *atomic.Bool) {
 			writeRPC(id, toolError(errMsg))
 			return
 		}
-		res = review.GoPackage(files)
+		res = review.GoPackageAt(files, desired)
 	default:
 		if src == "" {
 			writeRPC(id, toolError("no source to review: pass `source` content or an absolute `file` path that exists"))
 			return
 		}
-		desired, _ := args["desired_version"].(string)
 		res = review.GoSourceAt(file, src, desired)
 	}
 	if cancelled.Load() {
