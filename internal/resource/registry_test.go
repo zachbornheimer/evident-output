@@ -68,7 +68,7 @@ func (h *holder) hasEntered() bool {
 // claim that had to wait, so tests observe "blocked" without sleeping.
 func contendedSignal() (*Registry, <-chan Claim) {
 	ch := make(chan Claim, 16)
-	return NewRegistry(OnContended(func(c Claim) { ch <- c })), ch
+	return newObservedRegistry(func(c Claim) { ch <- c }), ch
 }
 
 func awaitContended(t *testing.T, ch <-chan Claim, want Claim) {
@@ -104,7 +104,7 @@ func TestHoldCompatibleClaimsOverlap(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := NewRegistry(OnContended(func(c Claim) { t.Errorf("compatible claim %v was made to wait", c) }))
+			r := newObservedRegistry(func(c Claim) { t.Errorf("compatible claim %v was made to wait", c) })
 			first := startHolder(context.Background(), r, tc.first)
 			first.waitEntered(t)
 			second := startHolder(context.Background(), r, tc.other)
@@ -440,7 +440,7 @@ func TestHoldCancelledDuringCallbackStillReleases(t *testing.T) {
 }
 
 func TestHoldUncontendedNeverReportsContention(t *testing.T) {
-	r := NewRegistry(OnContended(func(c Claim) { t.Errorf("uncontended claim %v reported contention", c) }))
+	r := newObservedRegistry(func(c Claim) { t.Errorf("uncontended claim %v reported contention", c) })
 	for _, c := range []Claim{readOf(fsKey("/a")), writeOf(fsKey("/a")), writeOf(logicalKey("x"))} {
 		if err := r.Hold(context.Background(), c, func(context.Context) error { return nil }); err != nil {
 			t.Fatal(err)
@@ -464,13 +464,14 @@ func TestHoldResourceNestedCheckPrecedesResolution(t *testing.T) {
 
 func TestHoldResourceResolvesAgainstWorkspace(t *testing.T) {
 	ws := realTempDir(t)
-	r, contended := contendedSignal()
+	r := NewRegistry()
+	contended := make(chan Claim, 1)
 	coarse := startHolder(context.Background(), r, writeOf(fsKey(ws)))
 	coarse.waitEntered(t)
 	done := make(chan error, 1)
 	go func() {
-		done <- r.HoldResource(context.Background(), Request{Resource: FS("a.go"), Workspace: ws, Mode: Read},
-			func(context.Context) error { return nil })
+		req := Request{Resource: FS("a.go"), Workspace: ws, Mode: Read, OnContended: func(c Claim) { contended <- c }}
+		done <- r.HoldResource(context.Background(), req, func(context.Context) error { return nil })
 	}()
 	awaitContended(t, contended, readOf(fsKey(filepath.Join(ws, "a.go"))))
 	coarse.finish(t)
@@ -493,10 +494,10 @@ func TestHoldResourceRejectsInvalid(t *testing.T) {
 }
 
 // A request's own OnContended hook reports contention to the caller that
-// is actually waiting, instead of the Registry-wide hook.
+// is actually waiting, and nothing else hears about it.
 func TestHoldResourceRequestHookReportsItsOwnContention(t *testing.T) {
 	registryWide := make(chan Claim, 1)
-	r := NewRegistry(OnContended(func(c Claim) { registryWide <- c }))
+	r := newObservedRegistry(func(c Claim) { registryWide <- c })
 	name := "db"
 	key := logicalKey(name)
 	first := startHolder(context.Background(), r, writeOf(key))
@@ -515,7 +516,7 @@ func TestHoldResourceRequestHookReportsItsOwnContention(t *testing.T) {
 	}
 	select {
 	case c := <-registryWide:
-		t.Fatalf("registry-wide hook fired for %v although the request carried its own", c)
+		t.Fatalf("the first holder's observer heard %v, the second request's contention", c)
 	default:
 	}
 	assertIdle(t, r)

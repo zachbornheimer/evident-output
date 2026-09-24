@@ -38,8 +38,8 @@ func (o *Output) Fact(name, value string) {
 
 // Warn records a run-scoped warning on the default instance — evo.Warn's
 // package-level form. See Output.Warn.
-func Warn(summary string) {
-	Default().Warn(summary)
+func Warn(summary string, options ...ProblemOption) {
+	Default().Warn(summary, options...)
 }
 
 // Warn accumulates a run-scoped warning annotation (P8 symmetry with
@@ -48,12 +48,13 @@ func Warn(summary string) {
 // never a headline of its own (evo-rec.md "warnings annotate lifecycle;
 // they do not replace it"). summary is a printf format when fmt args are
 // present, matching TaskHandle.Warn's C6 shape. A nil Output is safe and
-// records nothing.
-func (o *Output) Warn(summary string) {
+// records nothing. It takes the same structured ProblemOptions as
+// TaskHandle.Warn and Output.Fail.
+func (o *Output) Warn(summary string, options ...ProblemOption) {
 	if o == nil {
 		return
 	}
-	p := applyProblemOptions(txt.Text(summary), nil)
+	p := applyProblemOptions(txt.Text(summary), options)
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {

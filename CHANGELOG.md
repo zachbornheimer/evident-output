@@ -10,6 +10,40 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Added
 
+- **`evo.Effect(ctx, EffectSpec, fn) error`:** the one way to perform an
+  opaque mutation (a ref deletion, a push, an API change) inside `Define`.
+  `EffectSpec{Verb, Object, Quantity, Resource}` names it; `EffectVerb` is
+  a closed set (`EffectAdd`, `EffectCreate`, `EffectDelete`,
+  `EffectInstall`, `EffectPush`, `EffectRemove`, `EffectUninstall`,
+  `EffectUpdate`). Dry run records the plan and skips `fn`. Invalid specs
+  fail with `ErrEffectVerbInvalid`, `ErrEffectObjectMissing`,
+  `ErrEffectQuantityNotPositive`, or `ErrEffectCallbackMissing`.
+- **`evo.PartialEffect(committed int, err error) error`:** an Effect
+  callback returns it when only part of the work committed, so the ledger
+  records exactly that subset (`ErrInvalidPartialEffect` for a bad count).
+- **`Resource`, `evo.FSResource(path)`, `evo.LogicalResource(name)`:**
+  declare what an Effect writes; overlapping claims wait for each other and
+  the waiting row shows "waiting for <resource>". Acquiring a second
+  resource inside a held one fails with `ErrNestedResourceAcquisition`;
+  `ErrInvalidResource` rejects one that names no state (an empty path or
+  name, or a relative path with no workspace to anchor it).
+- **`evo.Patch(ctx, diff []byte) (FileSet, error)` and
+  `evo.Files(ctx, FileSet) error`:** derive the desired files from a
+  unified diff, then commit them through the same reconcile path as
+  `evo.File`. `Files` refuses to overwrite a source that changed since the
+  diff was read (`ErrStaleBasis`). Patch errors: `ErrPatchMalformed`,
+  `ErrPatchDoesNotApply`, `ErrPatchUnsupported`, `ErrPatchDeleteUnsupported`,
+  `ErrPatchRenameUnsupported`, `ErrPatchBinaryUnsupported`.
+- **`GroupHandle.Wait() error` and `SequenceHandle.Wait() error`:** wait for
+  every descendant; `nil` only when every one ran and succeeded,
+  `ErrNotStarted` when work never ran (including a Task nobody Defined).
+- **`TaskHandle.Summary(text string) *TaskHandle`:** one line of result text
+  for the terminal row. It never resolves the Task (it replaces
+  `Done(text)`).
+- **`ExecResult`:** what `evo.Exec` now returns: whether the child ran, its
+  exit code, and its captured `Stdout`/`Stderr` (with `Truncated`).
+- **`Output.Events() []Event`:** a copy of the durable event journal for
+  `EncodeJSONL` and other machine projections.
 - **`TaskHandle.Problem(summary string, opts ...ProblemOption) *TaskHandle`:**
   a Task can own zero, one, or many blocking `Problem`s before it resolves,
   instead of a caller-invented `Task` per finding or every finding
@@ -25,6 +59,17 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   now takes the same `ProblemOption`s `Problem`/`Fail`/`Block` do and
   returns `*TaskHandle` to chain. Every existing `task.Warn("x")` call site
   still compiles unchanged.
+- **`Output.Warn` and `evo.Warn`** take the same `ProblemOption`s, and
+  **`TaskHandle.Fact`** returns `*TaskHandle` to chain like `Warn`,
+  `Problem`, and `Summary`. Existing calls compile unchanged.
+- **`evo.Exec(ctx, ExecSpec) (ExecResult, error)`** (breaking): it returned
+  only `error`. Assign or discard the result.
+- **`TaskHandle.Define(fn) *TaskHandle`** (breaking for method values and
+  interfaces): it returned nothing; it now returns the Task so a call can
+  chain, e.g. `task.Define(fn).Wait()`.
+- **An unmanaged-mode `evo.File`/`evo.Files` write keeps the file's
+  permissions**, and a new file gets `0666` less the umask. A content-only
+  patch of a `0755` script no longer leaves it `-rw-rw-rw-`.
 
 - **A `Kept` record now concludes `warned` (contract §18).** Any Task that
   records `Kept(reason)` sets `Conclusion.Warned`, the `--json`

@@ -150,10 +150,14 @@ func (s EffectSpec) validate(fn func(context.Context) error) error {
 }
 
 // runEffectCallback invokes an Effect's fn with the task marked as having an
-// Effect in flight, and reports whether fn disowned the work by resolving its
-// own task as anything but Done while it ran. Each invocation compares the
-// task's denial count at its own entry and exit, so concurrent Effects in one
-// Define never clobber each other's verdict.
+// Effect in flight, and reports whether the work was disowned: the task
+// resolved itself as anything but Done from inside a callback while fn ran.
+// Each invocation compares the task's denial count at its own entry and
+// exit. The count is per task, and a resolving call cannot say which
+// callback it came from, so when one Define runs Effects concurrently, a
+// denial from any of them disowns every Effect in flight at that moment:
+// their rows record nothing, matching the task's own "I handled it"
+// verdict.
 func (o *Output) runEffectCallback(ctx context.Context, taskID string, fn func(context.Context) error) (disowned bool, err error) {
 	o.mu.Lock()
 	st := o.taskByRef[taskID]
