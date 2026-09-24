@@ -64,6 +64,7 @@ var docFixtures = []docexamples.DocFixture{
 	{Doc: "docs/guides/teaching-ladder.md", FenceIndex: 5, Fixture: "fixtures/teaching_ladder_6"},
 
 	{Doc: "docs/guides/exit-code-fidelity.md", FenceIndex: 0, Fixture: "fixtures/exit_code_fidelity_1"},
+	{Doc: "docs/guides/http-embedding.md", FenceIndex: 0, Fixture: "fixtures/http_embedding_1"},
 
 	// docs/migration/1.0.md is README.md's primary upgrade doc ("every
 	// breaking change with before/after code") and the doc most likely to

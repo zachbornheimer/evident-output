@@ -1,8 +1,10 @@
 // Command launch-agent-http proves spec §53: one launch-agent model serves
-// both a CLI and an HTTP endpoint. The CLI runs it on the package-default
-// Output in any --format; --serve runs it once per request on an Isolated
-// FormatExternal Output and answers with the same "evo.run" document
-// FormatJSON prints:
+// both a CLI and an HTTP endpoint. Run once, it declares the model on the
+// package-default Output in any --format. With --serve, the process's own
+// run is the server: evo.Main owns SIGINT/SIGTERM and turns them into a
+// graceful shutdown, while each request runs the model on its own Isolated
+// FormatExternal Output and answers with the "evo.run" document FormatJSON
+// prints:
 //
 //	go run ./examples/launch-agent-http --format json
 //	go run ./examples/launch-agent-http --serve 127.0.0.1:8080
@@ -17,9 +19,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -34,20 +34,25 @@ const (
 	readHeaderTimeout = 5 * time.Second
 	// launchPath is the one endpoint --serve exposes.
 	launchPath = "POST /launch"
+	// stateDirMode keeps the manifest and agent state private.
+	stateDirMode = 0o700
 )
 
 type options struct {
 	stateDir string
 	serve    string
-	format   string
+	format   evo.Format
 	budget   time.Duration
 }
 
 func parseOptions() options {
-	var o options
+	o := options{format: evo.FormatHuman}
 	flag.StringVar(&o.stateDir, "state-dir", filepath.Join(os.TempDir(), "evo-launch-agent-http-example"), "manifest and agent state directory")
-	flag.StringVar(&o.serve, "serve", "", "listen address; empty runs once as a CLI")
-	flag.StringVar(&o.format, "format", "human", "CLI output format: human, json, or jsonl")
+	flag.StringVar(&o.serve, "serve", "", "listen address; empty runs the model once")
+	flag.Func("format", "output format: human, json, or jsonl", func(s string) (err error) {
+		o.format, err = evo.ParseFormat(s)
+		return err
+	})
 	flag.DurationVar(&o.budget, "budget", defaultBudget, "per-request run budget in --serve mode")
 	flag.Parse()
 	return o
@@ -55,40 +60,27 @@ func parseOptions() options {
 
 func main() {
 	o := parseOptions()
-	if err := os.MkdirAll(o.stateDir, 0o700); err != nil {
-		fmt.Fprintln(os.Stderr, "create state dir:", err)
-		os.Exit(1)
-	}
-	a := newAgent(o.stateDir)
-	if o.serve == "" {
-		os.Exit(runCLI(o, a))
-	}
-	if err := serve(o, a); err != nil {
-		fmt.Fprintln(os.Stderr, "serve:", err)
-		os.Exit(1)
-	}
-}
-
-// runCLI runs the model once on the package-default Output.
-func runCLI(o options, a agent) int {
-	format, err := evo.ParseFormat(o.format)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 2
-	}
-	evo.Init(evo.Config{Title: "launch agent", Format: format, StateDir: o.stateDir})
-	return evo.Main(func(context.Context) error {
-		launchAgent(evo.Default(), a)
+	evo.Init(evo.Config{Title: "launch agent", Format: o.format, StateDir: o.stateDir})
+	os.Exit(evo.Main(func(context.Context) error {
+		if err := os.MkdirAll(o.stateDir, stateDirMode); err != nil {
+			return fmt.Errorf("create state dir %s: %w", o.stateDir, err)
+		}
+		a := newAgent(o.stateDir)
+		if o.serve == "" {
+			launchAgent(evo.Default(), a)
+			return nil
+		}
+		evo.Task("serve " + o.serve).Define(func(ctx context.Context) error {
+			return serve(ctx, o, a)
+		})
 		return nil
-	})
+	}))
 }
 
-// serve answers POST /launch until SIGINT/SIGTERM, then lets in-flight runs
-// finish — the server owns process signals, not the per-request Outputs.
-func serve(o options, a agent) error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
+// serve answers POST /launch until ctx ends — evo.Main cancels it on
+// SIGINT/SIGTERM — then lets in-flight requests finish. The per-request
+// Outputs register no signal handlers of their own.
+func serve(ctx context.Context, o options, a agent) error {
 	mux := http.NewServeMux()
 	mux.Handle(launchPath, runHandler{agent: a, stateDir: o.stateDir, budget: o.budget, log: slog.Default()})
 	srv := &http.Server{Addr: o.serve, Handler: mux, ReadHeaderTimeout: readHeaderTimeout}
@@ -97,16 +89,16 @@ func serve(o options, a agent) error {
 	go func() { listenErr <- srv.ListenAndServe() }()
 	select {
 	case err := <-listenErr:
-		return err
+		return fmt.Errorf("listen on %s: %w", o.serve, err)
 	case <-ctx.Done():
 	}
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownGrace)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return err
+		return fmt.Errorf("shut down %s: %w", o.serve, err)
 	}
 	if err := <-listenErr; !errors.Is(err, http.ErrServerClosed) {
-		return err
+		return fmt.Errorf("serve %s: %w", o.serve, err)
 	}
 	return nil
 }

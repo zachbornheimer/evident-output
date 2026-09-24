@@ -126,23 +126,36 @@ func TestWriteJSON_WriterFailureNamesOperationAndKeepsCause(t *testing.T) {
 // truth a ^C produces — and queued work is reported not started instead
 // of running on after the request is gone.
 func TestOutputRun_CallerContextEndConcludesCancelled(t *testing.T) {
-	cases := map[string]func() (context.Context, func()){
-		"cancel": func() (context.Context, func()) {
-			return context.WithCancel(context.Background())
+	// Each case yields the caller's ctx and the trigger that ends it from
+	// inside the running Task; a deadline ends on its own.
+	cases := map[string]struct {
+		makeCtx func() (ctx context.Context, trigger, cleanup func())
+		cause   string
+	}{
+		"cancel": {
+			makeCtx: func() (context.Context, func(), func()) {
+				ctx, cancel := context.WithCancel(context.Background())
+				return ctx, cancel, cancel
+			},
+			cause: "by caller",
 		},
-		"deadline": func() (context.Context, func()) {
-			return context.WithTimeout(context.Background(), 20*time.Millisecond)
+		"deadline": {
+			makeCtx: func() (context.Context, func(), func()) {
+				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+				return ctx, func() {}, cancel
+			},
+			cause: "deadline exceeded",
 		},
 	}
-	for name, makeCtx := range cases {
+	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			ctx, end := makeCtx()
-			defer end()
+			ctx, trigger, cleanup := tc.makeCtx()
+			defer cleanup()
 			out := embedderOutput()
 			result := out.Run(ctx, func(context.Context) error {
 				seq := out.Sequence("launch agent")
 				seq.Task("register").Define(func(ctx context.Context) error {
-					end()
+					trigger()
 					<-ctx.Done()
 					return ctx.Err()
 				})
@@ -155,6 +168,9 @@ func TestOutputRun_CallerContextEndConcludesCancelled(t *testing.T) {
 
 			if result.Conclusion.State != evo.StateCancelled || result.ExitCode() != evo.ExitCancelled {
 				t.Fatalf("conclusion = %s/%d, want %s/%d", result.Conclusion.State, result.ExitCode(), evo.StateCancelled, evo.ExitCancelled)
+			}
+			if result.Conclusion.Explanation != tc.cause {
+				t.Fatalf("cancellation cause = %q, want %q", result.Conclusion.Explanation, tc.cause)
 			}
 			var body bytes.Buffer
 			if err := evo.WriteJSON(&body, result); err != nil {

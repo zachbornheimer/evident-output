@@ -257,3 +257,15 @@ func TestStatusFor_MapsConclusionState(t *testing.T) {
 		}
 	}
 }
+
+// serve shuts down cleanly when its run's context ends — the path
+// evo.Main takes on SIGINT/SIGTERM.
+func TestServe_ContextEndShutsDownCleanly(t *testing.T) {
+	dir := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	o := options{stateDir: dir, serve: "127.0.0.1:0", budget: testBudget}
+	if err := serve(ctx, o, newAgent(dir)); err != nil {
+		t.Fatalf("serve after context end = %v, want clean shutdown", err)
+	}
+}

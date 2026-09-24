@@ -41,6 +41,7 @@ func TestEmbeddedDocsMatchSource(t *testing.T) {
 		"mcp.md":                filepath.Join(root, "docs", "mcp.md"),
 		"adoption-ladder.md":    filepath.Join(root, "docs", "guides", "teaching-ladder.md"),
 		"exit-code-fidelity.md": filepath.Join(root, "docs", "guides", "exit-code-fidelity.md"),
+		"http-embedding.md":     filepath.Join(root, "docs", "guides", "http-embedding.md"),
 	}
 	for embeddedName, srcPath := range cases {
 		want, err := os.ReadFile(srcPath)
@@ -70,6 +71,8 @@ func sectionIDForFile(file string) string {
 		return "adoption-ladder"
 	case "exit-code-fidelity.md":
 		return "exit-code-fidelity"
+	case "http-embedding.md":
+		return "http-embedding"
 	default:
 		return ""
 	}

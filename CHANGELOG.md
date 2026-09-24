@@ -8,6 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
+### Embedding behind HTTP (spec §53, ZYS-946)
+
+No new public API. See [`docs/guides/http-embedding.md`](docs/guides/http-embedding.md)
+and `examples/launch-agent-http`.
+
+- **Caller context end concludes `cancelled` (exit 130).** When the `ctx`
+  passed to `Run`/`Output.Run` ends, running Tasks are marked cancelled,
+  queued Tasks never start, and `Conclusion.Explanation` is `by caller` or
+  `deadline exceeded`. Previously the run concluded `failed` (exit 2) with a
+  `context canceled` problem and let queued work keep running.
+- **A signal arriving after the run callback returns still stops the run.**
+  SIGINT/SIGTERM were watched only until `run` returned, so in the ordinary
+  shape — declare Tasks, return, let Define work execute during Finish — a
+  long Define (a server, a slow install) ignored ^C.
+- **`FormatExternal` runs leave SIGINT/SIGTERM to the host.** A server's
+  graceful shutdown no longer cancels every in-flight request. Other
+  formats still own ^C.
+- **`run_id` is unique per run.** It was `out_1` for every run in every
+  process; it is now `run_` plus a random suffix.
+- **`WriteJSON` and `FormatJSON` share one writer,** so their documents are
+  byte-identical for the same run. `WriteJSON` errors now name the failed
+  step and wrap the writer's error.
+- **MCP API-062:** package-level `evo.Task`/`Group`/`Sequence`/`Fact`/
+  `Warn`/`Print*`/`Confirm` inside an Isolated Output's `Run` callback
+  declare on the package default, not the Output being run.
+
 ### Added
 
 - **`TaskHandle.Problem(summary string, opts ...ProblemOption) *TaskHandle`:**
