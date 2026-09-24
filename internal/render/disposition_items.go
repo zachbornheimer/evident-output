@@ -53,18 +53,6 @@ func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.D
 	return col, items
 }
 
-// collapsedRowName reports the name a child collection renders its one row
-// under when it collapses into its same-named only child (after its
-// disposition items fold into a tally), so a header-less parent can align
-// that row with its sibling rows.
-func collapsedRowName(col core.TasksSnapshot) (string, bool) {
-	rest, _ := withoutDispositionItems(col)
-	if !collapsesIntoOnlyChild(rest) {
-		return "", false
-	}
-	return rest.Name, true
-}
-
 // headerlessRowNameWidth is the shared name column of a header-less
 // Group's rows: its own Tasks plus every child collection that collapses
 // into one row. Zero when fewer than two rows share it.
@@ -74,7 +62,7 @@ func headerlessRowNameWidth(col core.TasksSnapshot) int {
 		width = max(width, len([]rune(t.Name)))
 	}
 	for _, child := range col.Collections {
-		if name, ok := collapsedRowName(child); ok {
+		if name, ok := ownTaskRowName(child); ok {
 			rows++
 			width = max(width, len([]rune(name)))
 		}

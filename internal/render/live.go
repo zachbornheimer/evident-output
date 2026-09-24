@@ -149,7 +149,7 @@ func liveRegionFitsColumns(text string, columns int) bool {
 
 func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
 	col, items := withoutDispositionItems(col)
-	if collapsesIntoOnlyChild(col) {
+	if rendersAsOwnTask(col) {
 		writeLiveTaskLine(b, col.Tasks[0], 0, 0, width, spin, color, now, profile)
 		writeDispositions(b, taskAnnotationIndent, items, "", false, color, profile)
 		return
@@ -234,47 +234,6 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "   %s\n", line)
 		}
-	}
-}
-
-// hasOnlyChild reports whether a group's whole visible content is one
-// explicitly declared child: no nested collection, and
-// no Summary of its own. A caller's own Summary is never collapsible — it
-// is the group's answer ("nothing to clean") and no child row can carry it.
-func hasOnlyChild(col core.TasksSnapshot) bool {
-	return !col.Sequential && col.Summary == "" && len(col.Tasks) == 1 && len(col.Collections) == 0
-}
-
-// collapsesIntoOnlyChild reports whether a one-child group may render as
-// just that child's row — which requires the child to answer to the group's
-// own name, because a differently named child cannot stand in for the
-// subject. Collapsing on count alone turned three sibling subjects that
-// each declared one `classify` child into three indistinguishable
-// `classify` rows naming no subject at all, for the whole classify phase.
-// Live and durable share this rule: a transient frame the reader watches in
-// context still has to say which subject it is about.
-func collapsesIntoOnlyChild(col core.TasksSnapshot) bool {
-	return hasOnlyChild(col) && col.Tasks[0].Name == col.Name
-}
-
-// promotesLoneChildOntoHeader reports whether a group's one differently
-// named child is still in flight (Running or Pending). The live frame then
-// keeps both names on a single row — `<spin> worktrees  classify  [██░░]
-// 24/111  <path> — 12s` while it runs, `○ branches  classify  waiting`
-// while it is blocked — rather than spending a header line on a count of
-// one (`0/1 complete — 18s`) and an indented line on the only child. The
-// child's evidence rides the header; the subject survives; a blocked group
-// does not spin. Done/Failed/Skipped children still take the header+child
-// shape when they need their own evidence.
-func promotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
-	if !hasOnlyChild(col) || col.Tasks[0].Name == col.Name {
-		return false
-	}
-	switch col.Tasks[0].State {
-	case core.Running, core.Pending:
-		return true
-	default:
-		return false
 	}
 }
 

@@ -784,7 +784,7 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 // parent's rows line up (headerlessRowNameWidth).
 func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidth int, color, verbose bool, profile txt.GlyphProfile) {
 	col, items := withoutDispositionItems(col)
-	if collapsesIntoOnlyChild(col) {
+	if rendersAsOwnTask(col) {
 		WriteTaskAligned(b, col.Tasks[0], nameWidth, color, verbose, profile)
 		writeDispositions(b, taskAnnotationIndent, items, "", verbose, color, profile)
 		return
