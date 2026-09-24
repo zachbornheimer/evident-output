@@ -296,10 +296,11 @@ type taskState struct {
 	submitted   bool
 	runningWork bool
 	workFn      func() error
-	// effectDenied records that this task's own mutation callback resolved
-	// the row as something other than Done, so the effect it was given must
-	// not reach the ledger (see deniesItsOwnEffect).
-	effectDenied bool
+	// effectDenials counts the times this task's own mutation callback
+	// resolved the row as something other than Done while an Effect ran, so
+	// that Effect's work must not reach the ledger (see deniesItsOwnEffect).
+	// Every in-flight Effect compares it at entry and exit.
+	effectDenials int
 	// effectsInFlight counts evo.Effect callbacks currently running for this
 	// task; a non-Done resolution while one runs disowns that Effect.
 	effectsInFlight int

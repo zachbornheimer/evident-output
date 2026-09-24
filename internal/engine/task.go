@@ -549,7 +549,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		return t
 	}
 	if deniesItsOwnEffect(st, state, authority) {
-		st.effectDenied = true
+		st.effectDenials++
 	}
 	if st.submitted && authority == byCaller && declaresSuccess(state) {
 		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}

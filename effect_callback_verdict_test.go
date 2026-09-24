@@ -99,3 +99,44 @@ func TestEffect_CallbackThatSummarizesItsOwnTaskKeepsTheEffect(t *testing.T) {
 
 // createModule is the one-module Effect these verdict tests share.
 var createModule = evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: 1}
+
+// TestEffect_ConcurrentEffectsBothHonorTheRowsDenial pins that the denial
+// verdict belongs to every Effect in flight when the row disowns its work,
+// not to whichever Effect happens to exit first: a second Effect running
+// concurrently in the same Define once saw the first one's exit reset the
+// shared flag and recorded work its row had disowned.
+func TestEffect_ConcurrentEffectsBothHonorTheRowsDenial(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Title: "setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+
+	broken := out.Task("broken")
+	broken.Define(func(ctx context.Context) error {
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		second := make(chan error, 1)
+		go func() {
+			second <- evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "cache", Quantity: 1}, func(context.Context) error {
+				close(entered)
+				<-release
+				return nil
+			})
+		}()
+		first := evo.Effect(ctx, createModule, func(context.Context) error {
+			<-entered
+			broken.Fail("uv rejected the package")
+			return nil
+		})
+		close(release)
+		if err := <-second; err != nil {
+			return err
+		}
+		return first
+	})
+	if err := out.Finish(); err != nil {
+		t.Log(err)
+	}
+	if got := buf.String(); strings.Contains(got, "[changed]") {
+		t.Fatalf("no Effect may record work its row disowned:\n%s", got)
+	}
+}

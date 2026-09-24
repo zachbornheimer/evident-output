@@ -90,7 +90,7 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 		return err
 	}
 	if !dryRun {
-		disowned, err := task.out.runEffectCallback(task.id, ctx, func(ctx context.Context) error {
+		disowned, err := task.out.runEffectCallback(ctx, task.id, func(ctx context.Context) error {
 			return task.out.performEffect(ctx, spec.Resource, fn)
 		})
 		if err != nil {
@@ -149,13 +149,16 @@ func (s EffectSpec) validate(fn func(context.Context) error) error {
 
 // runEffectCallback invokes an Effect's fn with the task marked as having an
 // Effect in flight, and reports whether fn disowned the work by resolving its
-// own task as anything but Done while it ran.
-func (o *Output) runEffectCallback(taskID string, ctx context.Context, fn func(context.Context) error) (disowned bool, err error) {
+// own task as anything but Done while it ran. Each invocation compares the
+// task's denial count at its own entry and exit, so concurrent Effects in one
+// Define never clobber each other's verdict.
+func (o *Output) runEffectCallback(ctx context.Context, taskID string, fn func(context.Context) error) (disowned bool, err error) {
 	o.mu.Lock()
 	st := o.taskByRef[taskID]
+	var deniedAtEntry int
 	if st != nil {
 		st.effectsInFlight++
-		st.effectDenied = false
+		deniedAtEntry = st.effectDenials
 	}
 	o.mu.Unlock()
 	defer func() {
@@ -165,8 +168,7 @@ func (o *Output) runEffectCallback(taskID string, ctx context.Context, fn func(c
 			return
 		}
 		st.effectsInFlight--
-		disowned = st.effectDenied
-		st.effectDenied = false
+		disowned = st.effectDenials != deniedAtEntry
 	}()
 	return false, fn(ctx)
 }
