@@ -562,6 +562,28 @@ func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 	}
 }
 
+// TestWireEvents_RunWarningCarriesItsProblemOptions proves a run-level
+// Output.Warn's warning.recorded line carries the same structured fields
+// a Task warning's does, not just its summary.
+func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out.Warn("disk nearly full", Code("W_DISK"), Detail("92% used"), Location("/var", 0, 0))
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	idx := indexOfType(events, wire.EventWarningRecorded)
+	if idx == -1 {
+		t.Fatalf("warning.recorded must fire, got: %v", wireEventTypes(events))
+	}
+	payload := events[idx].Payload
+	if payload["code"] != "W_DISK" || payload["detail"] != "92% used" || payload["location"] == nil {
+		t.Fatalf("run warning.recorded payload = %+v, want code, detail and location", payload)
+	}
+}
+
 // TestWireEvents_VerificationObservedCarriesFacts is ZYS-823 gap 8:
 // attachVerificationLocked (output.go) recorded a Task's per-attribute
 // File/Patch VerificationDetails for Snapshot/JSON but emitted no
