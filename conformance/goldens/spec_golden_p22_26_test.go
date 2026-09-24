@@ -871,7 +871,7 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 // describes.
 //
 //	✓ branches 40 del
-//	! skipped 6
+//	- skipped 6
 func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -898,7 +898,7 @@ func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6") was
 	// removed with Each in 1.0 (§3.1) — each plain Group child renders its
 	// own line.
-	if n := strings.Count(collapsed, "! skipped 1"); n != 6 {
+	if n := strings.Count(collapsed, "- skipped 1"); n != 6 {
 		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
 	}
 }

@@ -249,7 +249,7 @@ type taskState struct {
 	evidence *evidence
 
 	// skipped/kept hold disposition taxonomy accumulated by Skipped/Kept —
-	// the model that "! skipped N (...)" / "! kept N (...)" are derived from
+	// the model that "- skipped N (...)" / "! kept N (...)" are derived from
 	// at render time, never a hand-built summary string. Disposition side of
 	// the model, not the mutation ledger (Plan/Changes).
 	skipped []TaxonomyRecord

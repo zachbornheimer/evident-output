@@ -438,9 +438,9 @@ func inlineTaskTaxonomy(t core.TaskSnapshot) (text, verb string, ok bool) {
 	var records []core.TaxonomyRecord
 	switch {
 	case len(t.Skipped) > 0 && len(t.Kept) == 0:
-		verb, records = "skipped", t.Skipped
+		verb, records = taxonomySkipped, t.Skipped
 	case len(t.Kept) > 0 && len(t.Skipped) == 0:
-		verb, records = "kept", t.Kept
+		verb, records = taxonomyKept, t.Kept
 	default:
 		return "", "", false
 	}
@@ -570,7 +570,7 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, co
 	case hasInlineWarning:
 		fmt.Fprintf(b, "%s %s  %s\n", glyph, annotatedLabel, inlineWarningText(inlineWarning, color, profile))
 	case hasInlineTaxonomy:
-		fmt.Fprintf(b, "%s %s  %s\n", glyph, annotatedLabel, inlineWarningText(inlineTaxonomy, color, profile))
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, annotatedLabel, inlineTaxonomyText(inlineTaxonomy, inlineTaxonomyVerb, color, profile))
 	case hasInlineFact:
 		fmt.Fprintf(b, "%s %s  %s\n", glyph, annotatedLabel, inlineFactText(inlineFact, color))
 	case runningDetail != "":
@@ -616,8 +616,8 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, co
 			Unit:    "failures",
 		}, color, emphasize, profile)
 	}
-	writeTaxonomy(b, taskAnnotationIndent, "skipped", t.Skipped, hasInlineTaxonomy && inlineTaxonomyVerb == "skipped", verbose, color, profile)
-	writeTaxonomy(b, taskAnnotationIndent, "kept", t.Kept, hasInlineTaxonomy && inlineTaxonomyVerb == "kept", verbose, color, profile)
+	writeTaxonomy(b, taskAnnotationIndent, taxonomySkipped, t.Skipped, hasInlineTaxonomy && inlineTaxonomyVerb == taxonomySkipped, verbose, color, profile)
+	writeTaxonomy(b, taskAnnotationIndent, taxonomyKept, t.Kept, hasInlineTaxonomy && inlineTaxonomyVerb == taxonomyKept, verbose, color, profile)
 	writeVerificationDetails(b, t.Verification, taskAnnotationIndent, t.State == core.Failed, verbose, color, profile)
 	writeNestedTaskWarnings(b, nestedWarnings, taskAnnotationIndent, color, profile)
 	writeNestedTaskFacts(b, nestedFacts, taskAnnotationIndent, color)
@@ -658,7 +658,7 @@ func progressCountText(p core.Progress) string {
 	}
 }
 
-// writeTaxonomy emits the derived "!  skipped N  (...)" / "!  kept N  (...)"
+// writeTaxonomy emits the derived "- skipped N (...)" / "! kept N (...)"
 // line for a task's accumulated disposition records. Count and reason
 // partition are computed here, mechanically, from the records themselves —
 // there is nothing for a caller to hand-assemble (and thereby miscount).
@@ -676,8 +676,7 @@ func writeTaxonomy(b *strings.Builder, indent, verb string, records []core.Taxon
 		return
 	}
 	if !skipSummary {
-		glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
-		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, taxonomySummaryText(verb, records))
+		fmt.Fprintf(b, "%s%s %s\n", indent, taxonomyGlyph(verb, color, profile), taxonomySummaryText(verb, records))
 	}
 	writeTaxonomyCauses(b, indent, records, verbose, color, profile)
 	if !verbose {
@@ -687,6 +686,32 @@ func writeTaxonomy(b *strings.Builder, indent, verb string, records []core.Taxon
 	for _, reason := range order {
 		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, reason, txt.TruncateNames(names[reason], 0, profile))
 	}
+}
+
+// Disposition verbs a taxonomy tally reads as ("skipped 3 (...)", "kept 2
+// (...)").
+const (
+	taxonomySkipped = "skipped"
+	taxonomyKept    = "kept"
+)
+
+// taxonomyGlyph is a tally's leading glyph. A Kept tally is attention — the
+// run left something in place the reader may have expected gone — so it
+// wears the warning bang (contract §26/§27: "! kept 13 (...)"). A Skipped
+// tally is skip detail, never a warning: contract §20 "Use a plain,
+// widely-rendered `-` for an already-satisfied/skipped detail", and §41
+// reserves "!" for Warning.
+func taxonomyGlyph(verb string, color bool, profile txt.GlyphProfile) string {
+	if verb == taxonomySkipped {
+		return txt.Dim(txt.GlyphSkipDetail.Render(profile), color)
+	}
+	return txt.StyleGlyph(txt.GlyphWarningState.Render(profile), txt.SGRYellow, color)
+}
+
+// inlineTaxonomyText is a tally inlined on its task's row, with the same
+// glyph its nested line would carry (taxonomyGlyph).
+func inlineTaxonomyText(text, verb string, color bool, profile txt.GlyphProfile) string {
+	return txt.Dim(taxonomyGlyph(verb, color, profile)+" "+text, color)
 }
 
 // taxonomySummaryText derives the "<verb> N (<reason breakdown>)" text shared
@@ -833,8 +858,8 @@ func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEac
 		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, detail)
 	}
 	skipped, kept := collectEachTaxonomy(fromEach)
-	writeTaxonomy(b, problemTreeIndent, "skipped", skipped, false, verbose, color, profile)
-	writeTaxonomy(b, problemTreeIndent, "kept", kept, false, verbose, color, profile)
+	writeTaxonomy(b, problemTreeIndent, taxonomySkipped, skipped, false, verbose, color, profile)
+	writeTaxonomy(b, problemTreeIndent, taxonomyKept, kept, false, verbose, color, profile)
 	var surfaced []core.TaskSnapshot
 	var omitted int
 	if verbose {
@@ -913,7 +938,7 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int
 		fmt.Fprintf(&row, "   %s %s  %s", tg, annotatedName, inlineWarningText(inlineWarning, color, profile))
 		nestedWarnings = nil
 	case hasInlineTaxonomy:
-		fmt.Fprintf(&row, "   %s %s  %s", tg, annotatedName, inlineWarningText(inlineTaxonomy, color, profile))
+		fmt.Fprintf(&row, "   %s %s  %s", tg, annotatedName, inlineTaxonomyText(inlineTaxonomy, inlineTaxonomyVerb, color, profile))
 	case hasInlineFact:
 		fmt.Fprintf(&row, "   %s %s  %s", tg, annotatedName, inlineFactText(inlineFact, color))
 		nestedFacts = nil
@@ -959,8 +984,8 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int
 			Unit:    "failures",
 		}, color, emphasize, profile)
 	}
-	writeTaxonomy(b, problemTreeIndent, "skipped", t.Skipped, hasInlineTaxonomy && inlineTaxonomyVerb == "skipped", verbose, color, profile)
-	writeTaxonomy(b, problemTreeIndent, "kept", t.Kept, hasInlineTaxonomy && inlineTaxonomyVerb == "kept", verbose, color, profile)
+	writeTaxonomy(b, problemTreeIndent, taxonomySkipped, t.Skipped, hasInlineTaxonomy && inlineTaxonomyVerb == taxonomySkipped, verbose, color, profile)
+	writeTaxonomy(b, problemTreeIndent, taxonomyKept, t.Kept, hasInlineTaxonomy && inlineTaxonomyVerb == taxonomyKept, verbose, color, profile)
 	writeVerificationDetails(b, t.Verification, problemTreeIndent, t.State == core.Failed, verbose, color, profile)
 	writeNestedTaskWarnings(b, nestedWarnings, problemTreeIndent, color, profile)
 	writeNestedTaskFacts(b, nestedFacts, problemTreeIndent, color)

@@ -106,7 +106,7 @@ type TaskSnapshot struct {
 	Verification []VerificationDetail
 	Actions      []Action
 	// Skipped/Kept are the disposition taxonomy accumulated by
-	// TaskHandle.Skipped/Kept — the source the "! skipped N (...)" / "!  kept
+	// TaskHandle.Skipped/Kept — the source the "- skipped N (...)" / "! kept
 	// N (...)" render lines derive counts and reason partitions from.
 	Skipped     []TaxonomyRecord
 	Kept        []TaxonomyRecord

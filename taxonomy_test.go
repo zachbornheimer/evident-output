@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -254,5 +255,34 @@ func TestTaskSnapshot_ExposesSkippedAndKeptTaxonomy(t *testing.T) {
 	keepSnap := kept.Snapshot()
 	if len(keepSnap.Kept) != 1 || keepSnap.Kept[0].Reason != "protected" || keepSnap.Kept[0].Name != "feat/a" {
 		t.Fatalf("Kept taxonomy not exposed on snapshot: %+v", keepSnap.Kept)
+	}
+}
+
+// TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning pins contract §41
+// ("Warning | ! | [!]") and §20 ("Use a plain, widely-rendered `-` for an
+// already-satisfied/skipped detail"): a Skipped tally is skip detail, not a
+// warning, so it renders "-" and never feeds the "· warned" band — unlike a
+// Kept tally, which §26/§27 render as "! kept N (...)".
+func TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	scan := out.Task("branches")
+	scan.Define(func(context.Context) error {
+		scan.Skipped(evo.Reason("protected"))
+		return nil
+	})
+	_ = scan.Wait()
+	succeed(out.Task("worktrees"), "3 checked")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "- skipped 1 (protected)") || strings.Contains(got, "! skipped") {
+		t.Fatalf("a Skipped tally renders the skip-detail dash, never the warning bang:\n%s", got)
+	}
+	if out.Conclusion().Warned || strings.Contains(got, "warned") {
+		t.Fatalf("a Skipped tally must not feed the warned band:\n%s", got)
 	}
 }

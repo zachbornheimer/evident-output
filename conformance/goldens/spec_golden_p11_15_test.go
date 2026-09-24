@@ -540,7 +540,7 @@ func TestSpecP13_LiveFrame_Step2(t *testing.T) {
 // the spec's own literal text exactly.
 //
 //	✓ install  40/40
-//	! skipped 2 (optional)
+//	- skipped 2 (optional)
 func TestSpecP13_Retry_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -554,7 +554,7 @@ func TestSpecP13_Retry_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓ install  40/40", "! skipped 1 (optional)"} {
+	for _, want := range []string{"✓ install  40/40", "- skipped 1 (optional)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
