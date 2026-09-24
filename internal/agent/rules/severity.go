@@ -55,11 +55,11 @@ func (s *Severity) UnmarshalText(text []byte) error {
 	return fmt.Errorf("rules: unknown severity %q", text)
 }
 
-// severityIndex maps each rule ID to its catalog severity, built once.
-var severityIndex = sync.OnceValue(func() map[string]Severity {
-	idx := make(map[string]Severity)
+// catalogIndex maps each rule ID to its catalog entry, built once.
+var catalogIndex = sync.OnceValue(func() map[string]Rule {
+	idx := make(map[string]Rule)
 	for _, r := range All() {
-		idx[r.ID] = r.Severity
+		idx[r.ID] = r
 	}
 	return idx
 })
@@ -67,6 +67,13 @@ var severityIndex = sync.OnceValue(func() map[string]Severity {
 // SeverityOf returns the catalog severity for rule id, and false when no
 // catalog rule has that id.
 func SeverityOf(id string) (Severity, bool) {
-	sev, ok := severityIndex()[id]
-	return sev, ok
+	r, ok := catalogIndex()[id]
+	return r.Severity, ok
+}
+
+// MinDialectOf returns rule id's MinDialect ("" for any release), and
+// false when no catalog rule has that id.
+func MinDialectOf(id string) (string, bool) {
+	r, ok := catalogIndex()[id]
+	return r.MinDialect, ok
 }

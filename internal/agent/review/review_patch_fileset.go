@@ -117,12 +117,11 @@ func patchFileSetDiscardedFinding(filename string, pos token.Position, varName s
 		suggestion = fmt.Sprintf("commit through evo.Files(ctx, %s) instead of building a new FileSpec", varName)
 	}
 	return Finding{
-		RuleID:          "API-059",
-		Message:         fmt.Sprintf("%s is never passed to evo.Files; this evo.File call reconstructs a fresh FileSpec instead, discarding the Patch-derived source Basis and stale-write guard", subject),
-		File:            filename,
-		Line:            pos.Line,
-		Column:          pos.Column,
-		Suggestion:      suggestion,
-		RequiredVersion: dialectOneOne,
+		RuleID:     "API-059",
+		Message:    fmt.Sprintf("%s is never passed to evo.Files; this evo.File call reconstructs a fresh FileSpec instead, discarding the Patch-derived source Basis and stale-write guard", subject),
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: suggestion,
 	}
 }

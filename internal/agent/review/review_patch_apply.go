@@ -98,13 +98,12 @@ func argvAppliesPatch(argv []string) bool {
 // so the finding names exactly what the reviewed code invoked.
 func directWorkspacePatchApplyFinding(filename string, pos token.Position, program string) Finding {
 	return Finding{
-		RuleID:          "API-058",
-		Message:         "exec.Command(" + goQuote(program) + ", ...) applies a patch straight to the real workspace, bypassing evo.Patch's Basis derivation and evo.Files/evo.File's stale-write guard, dry-run planning, and already-satisfied resolution",
-		File:            filename,
-		Line:            pos.Line,
-		Column:          pos.Column,
-		Suggestion:      "derive desired file states with files, err := evo.Patch(ctx, diff), then commit them with evo.Files(ctx, files) instead of shelling out to " + program,
-		RequiredVersion: dialectOneOne,
+		RuleID:     "API-058",
+		Message:    "exec.Command(" + goQuote(program) + ", ...) applies a patch straight to the real workspace, bypassing evo.Patch's Basis derivation and evo.Files/evo.File's stale-write guard, dry-run planning, and already-satisfied resolution",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "derive desired file states with files, err := evo.Patch(ctx, diff), then commit them with evo.Files(ctx, files) instead of shelling out to " + program,
 	}
 }
 

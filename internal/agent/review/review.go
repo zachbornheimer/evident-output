@@ -83,8 +83,8 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	}
 	var findings []Finding
 	for _, d := range fileDetectors {
-		if d.gate.admits(in) {
-			findings = append(findings, d.run(in)...)
+		if d.admits(in) {
+			findings = append(findings, admitDialect(d.run(in), desiredVersion)...)
 		}
 	}
 

@@ -159,13 +159,12 @@ func deprecatedRecordCallFinding(filename string, pos token.Position, sel *ast.S
 		suggestion = rewrite + "; " + recordRouting
 	}
 	return Finding{
-		RuleID:          "API-061",
-		Message:         verb + " was removed in 1.1 with no record-only replacement (ZYS-974)",
-		File:            filename,
-		Line:            pos.Line,
-		Column:          pos.Column,
-		Suggestion:      suggestion,
-		RequiredVersion: dialectOneOne,
+		RuleID:     "API-061",
+		Message:    verb + " was removed in 1.1 with no record-only replacement (ZYS-974)",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: suggestion,
 	}
 }
 

@@ -11,14 +11,6 @@ import (
 	"strings"
 )
 
-// evoDagEvidenceRequiredVersion is the minimum evident-output release whose
-// public API supports every fix these detectors suggest (Verify, evo.File,
-// evo.Exec, Sequence/After) — 1.0.0 also removes Task.Each and MainWith, so
-// no earlier release's dialect matches this guidance (spec §57/§62). Shares
-// dialectOneZero, the same cutoff GoSourceAt gates these detectors on, so
-// the Suggestion's version and the firing version can never drift apart.
-const evoDagEvidenceRequiredVersion = dialectOneZero
-
 // evoRawMutationCallNames are side effects Evo's runtime cannot intercept —
 // a Define/Verify/Evidence callback that promises dry-run safety or
 // read-only observation must route mutation through evo.File, evo.Exec, or
@@ -256,13 +248,12 @@ func detectMutatingLegacyEvidence(filename string, file *ast.File, fset *token.F
 		}
 		recv := exprDottedNameOrDefault(sel.X, "task")
 		findings = append(findings, Finding{
-			RuleID:          "EVO-EVIDENCE-001",
-			Message:         recv + ".Evidence's callback calls " + name + "; the legacy named-Evidence shape is superseded and was never the place mutation belongs",
-			File:            filename,
-			Line:            fset.Position(pos).Line,
-			Column:          fset.Position(pos).Column,
-			Suggestion:      "move " + name + " into " + recv + ".Define(func(ctx context.Context) error { ... }); add " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) only if the resulting state can be observed directly",
-			RequiredVersion: evoDagEvidenceRequiredVersion,
+			RuleID:     "EVO-EVIDENCE-001",
+			Message:    recv + ".Evidence's callback calls " + name + "; the legacy named-Evidence shape is superseded and was never the place mutation belongs",
+			File:       filename,
+			Line:       fset.Position(pos).Line,
+			Column:     fset.Position(pos).Column,
+			Suggestion: "move " + name + " into " + recv + ".Define(func(ctx context.Context) error { ... }); add " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) only if the resulting state can be observed directly",
 		})
 		return true
 	})
@@ -292,13 +283,12 @@ func detectMutatingVerify(filename string, file *ast.File, fset *token.FileSet) 
 		}
 		recv := exprDottedNameOrDefault(sel.X, "task")
 		findings = append(findings, Finding{
-			RuleID:          "EVO-VERIFY-001",
-			Message:         recv + ".Verify's callback calls " + name + "; Verify must be read-only",
-			File:            filename,
-			Line:            fset.Position(pos).Line,
-			Column:          fset.Position(pos).Column,
-			Suggestion:      "move " + name + " into " + recv + ".Define(...) and keep " + recv + ".Verify(...) limited to observation, e.g. `return checkFn(ctx)`",
-			RequiredVersion: evoDagEvidenceRequiredVersion,
+			RuleID:     "EVO-VERIFY-001",
+			Message:    recv + ".Verify's callback calls " + name + "; Verify must be read-only",
+			File:       filename,
+			Line:       fset.Position(pos).Line,
+			Column:     fset.Position(pos).Column,
+			Suggestion: "move " + name + " into " + recv + ".Define(...) and keep " + recv + ".Verify(...) limited to observation, e.g. `return checkFn(ctx)`",
 		})
 		return true
 	})
@@ -331,13 +321,12 @@ func detectRawMutationInDefine(filename string, file *ast.File, fset *token.File
 		}
 		recv := exprDottedNameOrDefault(sel.X, "task")
 		findings = append(findings, Finding{
-			RuleID:          "EVO-DRYRUN-001",
-			Message:         recv + ".Define raw-calls " + name + "; Evo cannot intercept an arbitrary side effect, so this callback is unsafe under dry-run",
-			File:            filename,
-			Line:            fset.Position(pos).Line,
-			Column:          fset.Position(pos).Column,
-			Suggestion:      rawMutationRoute(name),
-			RequiredVersion: evoDagEvidenceRequiredVersion,
+			RuleID:     "EVO-DRYRUN-001",
+			Message:    recv + ".Define raw-calls " + name + "; Evo cannot intercept an arbitrary side effect, so this callback is unsafe under dry-run",
+			File:       filename,
+			Line:       fset.Position(pos).Line,
+			Column:     fset.Position(pos).Column,
+			Suggestion: rawMutationRoute(name),
 		})
 		return true
 	})

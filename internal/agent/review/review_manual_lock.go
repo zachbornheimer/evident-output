@@ -53,11 +53,10 @@ func detectManualLockAroundEvoFile(filename string, file *ast.File, fset *token.
 func manualLockFinding(filename string, pos token.Position, r lockRegion) Finding {
 	pair := r.recv + "." + r.lock + "/" + r.recv + "." + r.unlock
 	f := Finding{
-		RuleID:          "API-055",
-		File:            filename,
-		Line:            pos.Line,
-		Column:          pos.Column,
-		RequiredVersion: "1.1.0",
+		RuleID: "API-055",
+		File:   filename,
+		Line:   pos.Line,
+		Column: pos.Column,
 	}
 	if r.guardsOther {
 		f.Message = r.recv + " is held across an evo.File call; File may wait on its own resource claim while the caller's lock is held, a wait Evo cannot see"

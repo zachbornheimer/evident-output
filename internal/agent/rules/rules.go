@@ -17,9 +17,15 @@ type Rule struct {
 	RelatedGuidance []string `json:"related_guidance,omitempty"`
 	VerificationIDs []string `json:"verification_ids,omitempty"`
 	Since           string   `json:"since"` // first version (MCP-028)
-	Deprecated      bool     `json:"deprecated"`
-	Replacement     string   `json:"replacement,omitempty"`
-	Certainty       string   `json:"certainty,omitempty"` // deterministic | heuristic
+	// MinDialect is the oldest evident-output release whose API can apply
+	// this rule's GoodCode and Remediation; empty means any. Review never
+	// reports the rule for an older desired_version, and every finding of
+	// it carries this as RequiredVersion. It is stated here once, never on
+	// a detector.
+	MinDialect  string `json:"min_dialect,omitempty"`
+	Deprecated  bool   `json:"deprecated"`
+	Replacement string `json:"replacement,omitempty"`
+	Certainty   string `json:"certainty,omitempty"` // deterministic | heuristic
 	// Detection is "guidance" when no cheap, honest static detector exists
 	// for this rule — agent/review never emits this ID, and the catalog/
 	// docs teach it by example only. Empty means a detector may exist;
@@ -486,11 +492,12 @@ go func() { <-c; task.Cancel("interrupted") }()
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "SIG-002",
-			Category:  "SIG",
-			Severity:  SeverityWarning,
-			Invariant: "evo.Main/evo.Run own SIGINT/SIGTERM/os.Interrupt cancellation; a host does not build a second interrupt layer around them",
-			Why:       "evo.Main/evo.Run cancel RunFunc's context.Context on SIGINT/SIGTERM/os.Interrupt as of 1.0.0; a host-built signal.NotifyContext/signal.Notify wired for the same signals solely to wrap that call duplicates the lifecycle and can let the ledger's ■ glyph and the process's real exit path diverge.",
+			ID:         "SIG-002",
+			MinDialect: "1.0.0",
+			Category:   "SIG",
+			Severity:   SeverityWarning,
+			Invariant:  "evo.Main/evo.Run own SIGINT/SIGTERM/os.Interrupt cancellation; a host does not build a second interrupt layer around them",
+			Why:        "evo.Main/evo.Run cancel RunFunc's context.Context on SIGINT/SIGTERM/os.Interrupt as of 1.0.0; a host-built signal.NotifyContext/signal.Notify wired for the same signals solely to wrap that call duplicates the lifecycle and can let the ledger's ■ glyph and the process's real exit path diverge.",
 			BadCode: `ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 defer stop()
 os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
@@ -1410,11 +1417,12 @@ fixGroup.Task("fix Go formatting").Define(func(ctx context.Context) error { retu
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-047",
-			Category:  "API",
-			Severity:  SeverityError,
-			Invariant: "a Task/Group/Sequence's default §3.1 identity folds its kind into the stable key (kind:parentKey/name); a sibling name reused across different kinds under one parent is two distinct runtime identities sharing one visible display name",
-			Why:       "`out.Task(\"build\")` and `out.Group(\"build\")` never collide at runtime — failDuplicateSiblingLocked's dedup check only compares within one kind's own name index — so both declare successfully and render as two rows a reader cannot tell apart by name alone, even though provenance/manifest lookups by display name now resolve ambiguously between them.",
+			ID:         "API-047",
+			MinDialect: "1.0.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a Task/Group/Sequence's default §3.1 identity folds its kind into the stable key (kind:parentKey/name); a sibling name reused across different kinds under one parent is two distinct runtime identities sharing one visible display name",
+			Why:        "`out.Task(\"build\")` and `out.Group(\"build\")` never collide at runtime — failDuplicateSiblingLocked's dedup check only compares within one kind's own name index — so both declare successfully and render as two rows a reader cannot tell apart by name alone, even though provenance/manifest lookups by display name now resolve ambiguously between them.",
 			BadCode: `out.Task("build")
 out.Group("build")`,
 			GoodCode: `out.Task("build")
@@ -1448,11 +1456,12 @@ remote.After(branches).Define(func(ctx context.Context) error { return nil })`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-049",
-			Category:  "API",
-			Severity:  SeverityError,
-			Invariant: "a Define callback's context.Context parameter is the scheduler's authoritative cancellation context; a callback that discards it and calls cancellable work with a captured outer ctx never observes the scheduler's cancellation",
-			Why:       "`task.Define(func(context.Context) error { return run(ctx) })` compiles and runs — the captured outer ctx is a real context — but it is not the Define callback's own context, so cancelling this task through the scheduler (timeout, second SIGINT, a sibling failure under a Group) never reaches run's cancellable work.",
+			ID:         "API-049",
+			MinDialect: "1.0.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a Define callback's context.Context parameter is the scheduler's authoritative cancellation context; a callback that discards it and calls cancellable work with a captured outer ctx never observes the scheduler's cancellation",
+			Why:        "`task.Define(func(context.Context) error { return run(ctx) })` compiles and runs — the captured outer ctx is a real context — but it is not the Define callback's own context, so cancelling this task through the scheduler (timeout, second SIGINT, a sibling failure under a Group) never reaches run's cancellable work.",
 			BadCode: `task.Define(func(context.Context) error {
   return run(ctx) // captured outer ctx
 })`,
@@ -1466,11 +1475,12 @@ remote.After(branches).Define(func(ctx context.Context) error { return nil })`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-051",
-			Category:  "API",
-			Severity:  SeverityError,
-			Invariant: "a real check Task owns zero, one, or many structured Problems before it resolves once; findings are never flattened into one joined error string, and a finding is never given its own fake Task",
-			Why:       "Without TaskHandle.Problem, a caller with several structured findings has only two theater shapes: `errors.New(strings.Join(lines, \"\\n\"))` collapses every finding's own location/code/detail into one string at the Evo boundary (zq's blockStagedGolangciFindings), or `group.Task(f.File).Fail(f.Message)` inside a loop spawns one Task per finding that is never independently schedulable or awaited (zq's reportFileIntegrityIssues) — both destroy the one-Task-many-findings model ZYS-848 built Problem for.",
+			ID:         "API-051",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a real check Task owns zero, one, or many structured Problems before it resolves once; findings are never flattened into one joined error string, and a finding is never given its own fake Task",
+			Why:        "Without TaskHandle.Problem, a caller with several structured findings has only two theater shapes: `errors.New(strings.Join(lines, \"\\n\"))` collapses every finding's own location/code/detail into one string at the Evo boundary (zq's blockStagedGolangciFindings), or `group.Task(f.File).Fail(f.Message)` inside a loop spawns one Task per finding that is never independently schedulable or awaited (zq's reportFileIntegrityIssues) — both destroy the one-Task-many-findings model ZYS-848 built Problem for.",
 			BadCode: `var lines []string
 for _, f := range findings {
   lines = append(lines, formatFinding(f))
@@ -1492,11 +1502,12 @@ task.Define(func(context.Context) error { return nil })`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-052",
-			Category:  "API",
-			Severity:  SeverityError,
-			Invariant: "the container that owns child Task scheduling also owns waiting for its descendants and deriving their aggregate outcome; a caller does not store child handles merely to loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count failures",
-			Why:       "zq's runParallel (internal/app/app.go) keeps []*evo.TaskHandle, loops task.Wait(), Snapshots the Group, counts failed children, and builds its own \"N of N failed\" error; waitDefinedRunOperations (internal/app/run_execute.go) loops Tasks, special-cases evo.ErrNotStarted, and returns the first remaining error. Both reimplement exactly what GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849) now does natively, including ErrNotStarted-from-a-failed-predecessor suppression and declaration-order error joining.",
+			ID:         "API-052",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "the container that owns child Task scheduling also owns waiting for its descendants and deriving their aggregate outcome; a caller does not store child handles merely to loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count failures",
+			Why:        "zq's runParallel (internal/app/app.go) keeps []*evo.TaskHandle, loops task.Wait(), Snapshots the Group, counts failed children, and builds its own \"N of N failed\" error; waitDefinedRunOperations (internal/app/run_execute.go) loops Tasks, special-cases evo.ErrNotStarted, and returns the first remaining error. Both reimplement exactly what GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849) now does natively, including ErrNotStarted-from-a-failed-predecessor suppression and declaration-order error joining.",
 			BadCode: `var handles []*evo.TaskHandle
 for _, item := range items {
   t := jobs.Task(item.Name)
@@ -1523,11 +1534,12 @@ return jobs.Wait()`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-053",
-			Category:  "API",
-			Severity:  SeverityError,
-			Invariant: "generic resource access holds at most one Resource at a time (ZYS-840); code that already holds a Resource — directly, or through any helper it hands its context to — never asks for a second one",
-			Why:       "evo.Effect only claims spec.Resource for its fn callback's duration when spec.Resource is set; a second evo.File or Resource-claiming evo.Effect call made with that same held context — moving a worktree's Effect whose fn also writes a marker File at the destination, say — fails deterministically with evo.ErrNestedResourceAcquisition at apply time, even when the second resource is free, because holding at most one Resource at a time is what makes deadlock impossible by construction. Catching it in review turns a runtime failure into a review finding before it ships.",
+			ID:         "API-053",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "generic resource access holds at most one Resource at a time (ZYS-840); code that already holds a Resource — directly, or through any helper it hands its context to — never asks for a second one",
+			Why:        "evo.Effect only claims spec.Resource for its fn callback's duration when spec.Resource is set; a second evo.File or Resource-claiming evo.Effect call made with that same held context — moving a worktree's Effect whose fn also writes a marker File at the destination, say — fails deterministically with evo.ErrNestedResourceAcquisition at apply time, even when the second resource is free, because holding at most one Resource at a time is what makes deadlock impossible by construction. Catching it in review turns a runtime failure into a review finding before it ships.",
 			BadCode: `spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
 return evo.Effect(ctx, spec, func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}) // nested: ctx already holds "from"
@@ -1546,11 +1558,12 @@ return evo.Effect(ctx, spec, func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-054",
-			Category:  "API",
-			Severity:  SeverityError,
-			Invariant: "a raw os/exec.Cmd wired to an Evo Task's Writer() does not hand-roll bytes.Buffer/io.MultiWriter capture or recognize cancellation by comparing captured output strings; evo.Exec already owns spawning, capture, liveness, sanitized/redacted bounded retention, and context-based cancellation, and returns an inspectable ExecResult",
-			Why:       "zq's run_captured_task.go allocates its own bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter, falls back to Result.Output when live redirection is unavailable, recognizes cancellation by comparing captured output strings, classifies nonzero exit itself, and manually attaches captured evidence through Failf — all of it now redundant with the ExecResult{Ran, ExitCode, Stdout, Stderr, Truncated} that evo.Exec returns (ZYS-850), plus errors.Is(err, evo.ErrExecNonzeroExit) for exit classification.",
+			ID:         "API-054",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a raw os/exec.Cmd wired to an Evo Task's Writer() does not hand-roll bytes.Buffer/io.MultiWriter capture or recognize cancellation by comparing captured output strings; evo.Exec already owns spawning, capture, liveness, sanitized/redacted bounded retention, and context-based cancellation, and returns an inspectable ExecResult",
+			Why:        "zq's run_captured_task.go allocates its own bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter, falls back to Result.Output when live redirection is unavailable, recognizes cancellation by comparing captured output strings, classifies nonzero exit itself, and manually attaches captured evidence through Failf — all of it now redundant with the ExecResult{Ran, ExitCode, Stdout, Stderr, Truncated} that evo.Exec returns (ZYS-850), plus errors.Is(err, evo.ErrExecNonzeroExit) for exit classification.",
 			BadCode: `var buf bytes.Buffer
 cmd.Stdout = io.MultiWriter(task.Writer(), &buf)
 cmd.Stderr = io.MultiWriter(task.Writer(), &buf)
@@ -1573,11 +1586,12 @@ return err`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-055",
-			Category:  "API",
-			Severity:  SeverityWarning,
-			Invariant: "application code does not manage mutexes, lock files, or unlock lifecycle around an Evo-managed File path; File claims write-side ownership of its own path automatically, and overlapping File/Basis/Effect claims already wait on each other",
-			Why:       "A caller-managed sync.Mutex/RWMutex wrapped around an evo.File call (ZYS-931) is invisible to Evo's own resource coordination (ZYS-840): it cannot see a contended wait, cannot render \"waiting for <path>\" the way a real resource claim does, and is pure redundancy once File already serializes writers on its own Path — or a false sense of safety if the two coordination layers ever disagree about ordering. Remove the lock and let File own the path; when the work is not itself a File write, claim the same path explicitly with evo.FSResource so it still overlaps File/Basis on that path.",
+			ID:         "API-055",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityWarning,
+			Invariant:  "application code does not manage mutexes, lock files, or unlock lifecycle around an Evo-managed File path; File claims write-side ownership of its own path automatically, and overlapping File/Basis/Effect claims already wait on each other",
+			Why:        "A caller-managed sync.Mutex/RWMutex wrapped around an evo.File call (ZYS-931) is invisible to Evo's own resource coordination (ZYS-840): it cannot see a contended wait, cannot render \"waiting for <path>\" the way a real resource claim does, and is pure redundancy once File already serializes writers on its own Path — or a false sense of safety if the two coordination layers ever disagree about ordering. Remove the lock and let File own the path; when the work is not itself a File write, claim the same path explicitly with evo.FSResource so it still overlaps File/Basis on that path.",
 			BadCode: `type Writer struct {
   mu   sync.Mutex
   path string
@@ -1607,11 +1621,12 @@ func (w *Writer) archive(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-056",
-			Category:  "API",
-			Severity:  SeverityWarning,
-			Invariant: "a child.After(parent) edge exists to declare a real semantic dependency; it is never kept only to avoid a data race that File/FSResource/LogicalResource's own automatic resource claim (ZYS-840) already serializes AND whose overlapping writes are order-invariant (identical writes, or an idempotent Verb like Delete) — a resource claim only coordinates the overlap, it never decides which write wins, so an edge guarding two writes with different outcomes stays",
-			Why:       "Before ZYS-840, two Tasks writing the same file/shared state had no automatic exclusion, so pinning one After the other was the only way to avoid a race, and the reason usually shows up as a comment (\"same file\", \"avoid race\", \"exclusive access\") next to the edge. Now that File/FSResource/LogicalResource auto-claim and serialize any overlapping write, an edge guarding two IDENTICAL writes no longer does anything a resource claim doesn't already do — it only couples two Tasks' scheduling that would otherwise run concurrently, which costs wall-clock time and reads as a real dependency to the next person who touches the DAG. An edge guarding two DIFFERENT writes (different Contents, or conflicting Verbs like Update vs Delete) is not this case: the resource claim only prevents concurrent corruption, it does not pin which write is final, so deleting .After there would make the outcome nondeterministic across runs — that edge is a real dependency and must stay.",
+			ID:         "API-056",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityWarning,
+			Invariant:  "a child.After(parent) edge exists to declare a real semantic dependency; it is never kept only to avoid a data race that File/FSResource/LogicalResource's own automatic resource claim (ZYS-840) already serializes AND whose overlapping writes are order-invariant (identical writes, or an idempotent Verb like Delete) — a resource claim only coordinates the overlap, it never decides which write wins, so an edge guarding two writes with different outcomes stays",
+			Why:        "Before ZYS-840, two Tasks writing the same file/shared state had no automatic exclusion, so pinning one After the other was the only way to avoid a race, and the reason usually shows up as a comment (\"same file\", \"avoid race\", \"exclusive access\") next to the edge. Now that File/FSResource/LogicalResource auto-claim and serialize any overlapping write, an edge guarding two IDENTICAL writes no longer does anything a resource claim doesn't already do — it only couples two Tasks' scheduling that would otherwise run concurrently, which costs wall-clock time and reads as a real dependency to the next person who touches the DAG. An edge guarding two DIFFERENT writes (different Contents, or conflicting Verbs like Update vs Delete) is not this case: the resource claim only prevents concurrent corruption, it does not pin which write is final, so deleting .After there would make the outcome nondeterministic across runs — that edge is a real dependency and must stay.",
 			BadCode: `configTask.Define(func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
 })
@@ -1635,11 +1650,12 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-057",
-			Category:  "API",
-			Severity:  SeverityError,
-			Invariant: "an evo.Effect callback never mutates the filesystem directly; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively (a git ref, a remote API call, a database row), and file-backed state always routes through evo.File",
-			Why:       "evo.Write and its sibling TaskHandle mutation verbs were removed outright in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). evo.File is the route for file-backed state, including writes derived from an existing file's own contents; a write derived from a unified diff instead goes through evo.Patch/evo.Files (API-058/API-059, ZYS-934/ZYS-935/ZYS-841) — neither is a second write API layered under Effect.",
+			ID:         "API-057",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "an evo.Effect callback never mutates the filesystem directly; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively (a git ref, a remote API call, a database row), and file-backed state always routes through evo.File",
+			Why:        "evo.Write and its sibling TaskHandle mutation verbs were removed outright in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). evo.File is the route for file-backed state, including writes derived from an existing file's own contents; a write derived from a unified diff instead goes through evo.Patch/evo.Files (API-058/API-059, ZYS-934/ZYS-935/ZYS-841) — neither is a second write API layered under Effect.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
     return os.WriteFile(path, contents, 0o644)
@@ -1655,11 +1671,12 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-058",
-			Category:  "API",
-			Severity:  SeverityError,
-			Invariant: "a patch is never applied straight to the real workspace through os/exec; the call site derives desired file states with evo.Patch and commits them through evo.Files/evo.File",
-			Why:       "evo.Patch(ctx, diff) reads each referenced source once under its own read claim and mutates nothing; evo.Files(ctx, files) then commits each derived state through evo.File, so dry-run planning, the stale-write guard (ErrStaleBasis), desired-state comparison, and already-satisfied all apply exactly as they do for a single File call (ZYS-934). Shelling out to `patch` or `git apply`/`git am` bypasses every one of those guarantees at once — the workspace is mutated whether or not a dry run was requested, a source that changed after the diff was derived is overwritten instead of failing with ErrStaleBasis, and there is no Effect record of what changed. Domain code that only parses or reads a patch's hunks, with no exec and no direct filesystem mutation, is not this rule's target — evo.Patch itself is exactly that shape.",
+			ID:         "API-058",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a patch is never applied straight to the real workspace through os/exec; the call site derives desired file states with evo.Patch and commits them through evo.Files/evo.File",
+			Why:        "evo.Patch(ctx, diff) reads each referenced source once under its own read claim and mutates nothing; evo.Files(ctx, files) then commits each derived state through evo.File, so dry-run planning, the stale-write guard (ErrStaleBasis), desired-state comparison, and already-satisfied all apply exactly as they do for a single File call (ZYS-934). Shelling out to `patch` or `git apply`/`git am` bypasses every one of those guarantees at once — the workspace is mutated whether or not a dry run was requested, a source that changed after the diff was derived is overwritten instead of failing with ErrStaleBasis, and there is no Effect record of what changed. Domain code that only parses or reads a patch's hunks, with no exec and no direct filesystem mutation, is not this rule's target — evo.Patch itself is exactly that shape.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   cmd := exec.Command("patch", "-p1", "-i", diffPath)
   return cmd.Run()
@@ -1678,11 +1695,12 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-059",
-			Category:  "API",
-			Severity:  SeverityError,
-			Invariant: "a FileSet evo.Patch returns is opaque so its source Basis and stale-write guard cannot be stripped before commit; a function that derives one from a diff always commits it through evo.Files, never by building a fresh evo.FileSpec and calling evo.File",
-			Why:       "evo.Patch(ctx, diff) parses a unified diff into a FileSet carrying each touched file's Basis — the content it was read against — so evo.Files(ctx, fileSet) can refuse a write when the file changed underneath the diff since Patch derived it (ZYS-841 Decisions, 2026-09-23). A function that calls evo.Patch, then re-derives the same file's desired contents another way and commits through evo.File directly, reconstructs a fresh FileSpec with no Basis at all — the stale-write guard Patch computed is silently discarded, and evo.File happily overwrites a file another writer changed in the meantime. The FileSet is opaque specifically to prevent this: there is no field to read the derived contents back out of it and hand to evo.File, so the only way to lose the guard is to ignore the FileSet and reconstruct the write from scratch, which is exactly the shape this rule flags.",
+			ID:         "API-059",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a FileSet evo.Patch returns is opaque so its source Basis and stale-write guard cannot be stripped before commit; a function that derives one from a diff always commits it through evo.Files, never by building a fresh evo.FileSpec and calling evo.File",
+			Why:        "evo.Patch(ctx, diff) parses a unified diff into a FileSet carrying each touched file's Basis — the content it was read against — so evo.Files(ctx, fileSet) can refuse a write when the file changed underneath the diff since Patch derived it (ZYS-841 Decisions, 2026-09-23). A function that calls evo.Patch, then re-derives the same file's desired contents another way and commits through evo.File directly, reconstructs a fresh FileSpec with no Basis at all — the stale-write guard Patch computed is silently discarded, and evo.File happily overwrites a file another writer changed in the meantime. The FileSet is opaque specifically to prevent this: there is no field to read the derived contents back out of it and hand to evo.File, so the only way to lose the guard is to ignore the FileSet and reconstruct the write from scratch, which is exactly the shape this rule flags.",
 			BadCode: `func applyPatch(ctx context.Context, diff string) error {
   fileSet, err := evo.Patch(ctx, diff)
   if err != nil {
@@ -1708,11 +1726,12 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-060",
-			Category:  "API",
-			Severity:  SeverityWarning,
-			Invariant: "TaskHandle.Summary/GroupHandle.Summary carries the caller's own result metadata, not mutation, dry-run, or already-satisfied narration that belongs to File/Effect/AlreadySatisfied/Facts",
-			Why:       "Summary is non-terminal result metadata (1.1/ZYS-971 Decisions, 2026-09-23): it never resolves the Task, and Define/the evo-native operation outcome remains the only normal success resolution path. A caller who reaches for it as a replacement stamp channel — narrating what a mutation did (\"wrote config.json\"), what a dry run would do (\"would add 3 refs\"), that nothing changed (\"nothing to write\"), or that a precondition already held (\"already up to date\") — recreates the exact success-stamp footgun Done(text) was removed in 1.1 for, one call away: that narration belongs to evo.File/evo.Effect's own Basis-tracked record, ResolutionAlreadySatisfied, or evo.Fact, each of which carries structured evidence Summary's bare string cannot.",
+			ID:         "API-060",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityWarning,
+			Invariant:  "TaskHandle.Summary/GroupHandle.Summary carries the caller's own result metadata, not mutation, dry-run, or already-satisfied narration that belongs to File/Effect/AlreadySatisfied/Facts",
+			Why:        "Summary is non-terminal result metadata (1.1/ZYS-971 Decisions, 2026-09-23): it never resolves the Task, and Define/the evo-native operation outcome remains the only normal success resolution path. A caller who reaches for it as a replacement stamp channel — narrating what a mutation did (\"wrote config.json\"), what a dry run would do (\"would add 3 refs\"), that nothing changed (\"nothing to write\"), or that a precondition already held (\"already up to date\") — recreates the exact success-stamp footgun Done(text) was removed in 1.1 for, one call away: that narration belongs to evo.File/evo.Effect's own Basis-tracked record, ResolutionAlreadySatisfied, or evo.Fact, each of which carries structured evidence Summary's bare string cannot.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if err := evo.File(ctx, spec); err != nil {
     return err
@@ -1735,12 +1754,13 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-061",
-			Category:  "API",
-			Severity:  SeverityWarning,
-			Invariant: "a call site never uses the record-only verbs Record/RecordLabel/RecordName; each has no record-only replacement",
-			Why:       "Record/RecordLabel/RecordName report a mutation, classification, or named object after the fact instead of performing it through a primitive with dry-run planning, desired-state comparison, and AlreadySatisfied (ZYS-974 Decisions, 2026-09-23b). There is no drop-in record-only replacement: the call is migrated by what it actually reports — a real mutation moves into evo.Effect's callback, information/classification with no state change moves to evo.Fact, and a file write moves to evo.File/evo.Patch.",
-			BadCode:   `task.Record("install", 1, "package")`,
+			ID:         "API-061",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityWarning,
+			Invariant:  "a call site never uses the record-only verbs Record/RecordLabel/RecordName; each has no record-only replacement",
+			Why:        "Record/RecordLabel/RecordName report a mutation, classification, or named object after the fact instead of performing it through a primitive with dry-run planning, desired-state comparison, and AlreadySatisfied (ZYS-974 Decisions, 2026-09-23b). There is no drop-in record-only replacement: the call is migrated by what it actually reports — a real mutation moves into evo.Effect's callback, information/classification with no state change moves to evo.Fact, and a file write moves to evo.File/evo.Patch.",
+			BadCode:    `task.Record("install", 1, "package")`,
 			GoodCode: `evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectInstall, Quantity: 1, Object: "package"}, func(ctx context.Context) error {
   return installPackage(ctx)
 })`,
@@ -1768,11 +1788,12 @@ task.Kept(reasonProtected)`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "EVO-EVIDENCE-001",
-			Category:  "EVO",
-			Severity:  SeverityError,
-			Invariant: "a legacy named Evidence callback never performs mutation; Evidence is a boolean current-state conclusion, not a place to do work",
-			Why:       "task.Evidence(\"write\", func() error { return os.WriteFile(...) }) is the pre-1.0 collection-of-named-callbacks shape (spec §2); it is superseded, and naming a mutating callback \"Evidence\" hides a side effect behind a word that now means a read conclusion.",
+			ID:         "EVO-EVIDENCE-001",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityError,
+			Invariant:  "a legacy named Evidence callback never performs mutation; Evidence is a boolean current-state conclusion, not a place to do work",
+			Why:        "task.Evidence(\"write\", func() error { return os.WriteFile(...) }) is the pre-1.0 collection-of-named-callbacks shape (spec §2); it is superseded, and naming a mutating callback \"Evidence\" hides a side effect behind a word that now means a read conclusion.",
 			BadCode: `task.Evidence("write", func() error {
   return os.WriteFile(path, data, 0o644)
 })`,
@@ -1786,11 +1807,12 @@ task.Kept(reasonProtected)`,
 			Certainty:       "deterministic",
 		},
 		{
-			ID:        "EVO-VERIFY-001",
-			Category:  "EVO",
-			Severity:  SeverityError,
-			Invariant: "Verify is read-only; it observes current state and never mutates it",
-			Why:       "Verify may run before Define (to skip it) and again after Define (as a postcondition); a Verify that mutates state changes the very thing it is asked to judge and can never be safely retried or ANDed with another verifier (spec §9.1).",
+			ID:         "EVO-VERIFY-001",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityError,
+			Invariant:  "Verify is read-only; it observes current state and never mutates it",
+			Why:        "Verify may run before Define (to skip it) and again after Define (as a postcondition); a Verify that mutates state changes the very thing it is asked to judge and can never be safely retried or ANDed with another verifier (spec §9.1).",
 			BadCode: `task.Verify(func(ctx context.Context) (bool, error) {
   os.RemoveAll(staleDir)
   return true, nil
@@ -1805,11 +1827,12 @@ task.Kept(reasonProtected)`,
 			Certainty:       "deterministic",
 		},
 		{
-			ID:        "EVO-DRYRUN-001",
-			Category:  "EVO",
-			Severity:  SeverityError,
-			Invariant: "a Define callback that promises Evo dry-run safety routes file state through evo.File, commands through evo.Exec, and other opaque mutations through evo.Effect — never a raw os/exec/db call left bare in Define",
-			Why:       "Evo cannot intercept an arbitrary Go side effect — a raw os.WriteFile, exec.Command, or direct database mutation inside Define runs even in dry-run mode, because the runtime has no way to see or suppress it (spec §32.2).",
+			ID:         "EVO-DRYRUN-001",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityError,
+			Invariant:  "a Define callback that promises Evo dry-run safety routes file state through evo.File, commands through evo.Exec, and other opaque mutations through evo.Effect — never a raw os/exec/db call left bare in Define",
+			Why:        "Evo cannot intercept an arbitrary Go side effect — a raw os.WriteFile, exec.Command, or direct database mutation inside Define runs even in dry-run mode, because the runtime has no way to see or suppress it (spec §32.2).",
 			BadCode: `task.Define(func(ctx context.Context) error {
   return os.WriteFile(path, data, 0o644)
 })`,
@@ -1823,11 +1846,12 @@ task.Kept(reasonProtected)`,
 			Certainty:       "deterministic",
 		},
 		{
-			ID:        "EVO-DAG-001",
-			Category:  "EVO",
-			Severity:  SeverityWarning,
-			Invariant: "application code does not create a goroutine merely to make Evo Tasks run in parallel; Group already schedules independent children concurrently",
-			Why:       "a goroutine wrapping a call that itself submits work to Evo's scheduler (.Define) is redundant parallelism the scheduler already provides, and it forfeits Evo's own concurrency limits and cancellation handling (spec §4).",
+			ID:         "EVO-DAG-001",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityWarning,
+			Invariant:  "application code does not create a goroutine merely to make Evo Tasks run in parallel; Group already schedules independent children concurrently",
+			Why:        "a goroutine wrapping a call that itself submits work to Evo's scheduler (.Define) is redundant parallelism the scheduler already provides, and it forfeits Evo's own concurrency limits and cancellation handling (spec §4).",
 			BadCode: `for _, pkg := range pkgs {
   go func(pkg Package) {
     task := group.Task(pkg.Name)
@@ -1845,11 +1869,12 @@ task.Kept(reasonProtected)`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "EVO-DAG-002",
-			Category:  "EVO",
-			Severity:  SeverityWarning,
-			Invariant: "a hand-chained sequence of .After(...) calls is expressed as an evo.Sequence instead",
-			Why:       "After is the exceptional explicit DAG edge (spec §6); a chain of two or more .After(...) calls reproduces exactly the linear ordering Sequence already gives its children automatically, with no exceptional edge left to justify hand-wiring it.",
+			ID:         "EVO-DAG-002",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityWarning,
+			Invariant:  "a hand-chained sequence of .After(...) calls is expressed as an evo.Sequence instead",
+			Why:        "After is the exceptional explicit DAG edge (spec §6); a chain of two or more .After(...) calls reproduces exactly the linear ordering Sequence already gives its children automatically, with no exceptional edge left to justify hand-wiring it.",
 			BadCode: `register := seq.Task("register")
 register.After(write)
 start := seq.Task("start")
@@ -1865,11 +1890,12 @@ start := seq.Task("start")`,
 			Certainty:       "deterministic",
 		},
 		{
-			ID:        "EVO-DAG-003",
-			Category:  "EVO",
-			Severity:  SeverityWarning,
-			Invariant: "a visible producer/consumer resource relationship between two Tasks has an explicit first-run scheduler edge (Sequence or After)",
-			Why:       "known-producer freshness barriers only delay Evidence evaluation once a manifest already exists; on a first run there is no prior manifest to consult, so an unordered producer/consumer pair can race (spec §11.5, §47's \"first-run producer/consumer ordering still requires Sequence/After\").",
+			ID:         "EVO-DAG-003",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityWarning,
+			Invariant:  "a visible producer/consumer resource relationship between two Tasks has an explicit first-run scheduler edge (Sequence or After)",
+			Why:        "known-producer freshness barriers only delay Evidence evaluation once a manifest already exists; on a first run there is no prior manifest to consult, so an unordered producer/consumer pair can race (spec §11.5, §47's \"first-run producer/consumer ordering still requires Sequence/After\").",
 			BadCode: `producer.Define(func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
 })
@@ -1889,11 +1915,12 @@ consumer.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-046",
-			Category:  "API",
-			Severity:  SeverityWarning,
-			Invariant: "Skipped means a check never applied; ResolutionAlreadySatisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
-			Why:       "task.Skipped(evo.Reason(\"already up to date\")) reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison resolve ResolutionAlreadySatisfied for exactly this case, and collapsing it into Skipped hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Skipped.",
+			ID:         "API-046",
+			MinDialect: "1.0.0",
+			Category:   "API",
+			Severity:   SeverityWarning,
+			Invariant:  "Skipped means a check never applied; ResolutionAlreadySatisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
+			Why:        "task.Skipped(evo.Reason(\"already up to date\")) reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison resolve ResolutionAlreadySatisfied for exactly this case, and collapsing it into Skipped hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Skipped.",
 			BadCode: `if installedVersion == latestVersion {
   task.Skipped(evo.Reason("already up to date"))
   return
