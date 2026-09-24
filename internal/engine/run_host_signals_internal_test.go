@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 )
 
 // recordSignalRegistration replaces the notifySignals facade for the
@@ -39,5 +40,37 @@ func TestRun_HumanFormatStillOwnsProcessSignals(t *testing.T) {
 	out.Run(context.Background(), func(context.Context) error { return nil })
 	if !registered() {
 		t.Fatal("an Isolated human-format run no longer registers SIGINT/SIGTERM handlers")
+	}
+}
+
+// The ordinary evo shape declares Tasks and returns; the Define work then
+// executes while Run finishes. A ^C in that window must still stop the
+// run — previously the signal was only watched until the run callback
+// returned, so a long Define (a server, a slow install) ignored it.
+func TestRun_SignalDuringFinishStopsDeclaredWork(t *testing.T) {
+	interrupt := sendOneSignal(t)
+	out := Init(Config{Isolated: true, Plain: true, Stdout: io.Discard, Stderr: io.Discard})
+	started := make(chan struct{})
+	code := make(chan int, 1)
+	go func() {
+		code <- out.Run(context.Background(), func(context.Context) error {
+			out.Task("serve").Define(func(ctx context.Context) error {
+				close(started)
+				<-ctx.Done()
+				return nil
+			})
+			return nil
+		}).ExitCode()
+	}()
+
+	<-started
+	interrupt()
+	select {
+	case got := <-code:
+		if got != ExitCancelled {
+			t.Fatalf("exit %d, want %d (ExitCancelled)", got, ExitCancelled)
+		}
+	case <-time.After(interruptBudget):
+		t.Fatal("a signal arriving after the run callback returned never stopped the declared work")
 	}
 }

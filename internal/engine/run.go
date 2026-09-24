@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 )
 
 // Run executes a CLI presentation lifecycle against this Output and returns
@@ -93,11 +94,14 @@ func Main(run RunFunc) int {
 // runInterruptible executes run to completion, turning SIGINT/SIGTERM and
 // the end of the caller's ctx into one ordered interrupt of the active
 // task (or the output itself) — and of the derived ctx passed to run — so
-// the ledger and exit code always agree. A second signal returns
-// ExitCancelled immediately instead of waiting for run to unwind — the
-// process-level os.Exit that wraps a caller's os.Exit(evo.Main(run)) is
-// what actually terminates. An embedded (FormatExternal) Output leaves
-// signals to its host and stops only through ctx (spec §53).
+// the ledger and exit code always agree. Both are watched until the run
+// concludes, not just until run returns: the ordinary shape declares
+// Tasks and returns, and their Define work executes while Finish waits.
+// A second signal returns ExitCancelled immediately instead of waiting for
+// the work to unwind — the process-level os.Exit that wraps a caller's
+// os.Exit(evo.Main(run)) is what actually terminates. An embedded
+// (FormatExternal) Output leaves signals to its host and stops only
+// through ctx (spec §53).
 func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 	signals := out.subscribeProcessSignals()
 	defer signals.stop()
@@ -110,31 +114,34 @@ func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 	// interrupt.
 	runCtx := out.beginRunContext(detachCancellation(ctx))
 
-	done := make(chan error, 1)
+	var signalled atomic.Bool
+	concluded := make(chan Result, 1)
 	go func() {
-		var err error
+		var runErr error
 		if run != nil {
-			err = run(runCtx)
+			runErr = run(runCtx)
 		}
-		done <- err
+		if signalled.Load() || caller.ended() {
+			concluded <- concludeCancelled(out, runErr)
+			return
+		}
+		concluded <- concludeRun(out, runErr)
 	}()
 
 	select {
-	case runErr := <-done:
-		if caller.ended() {
-			return concludeCancelled(out, runErr)
-		}
-		return concludeRun(out, runErr)
+	case result := <-concluded:
+		return result
 	case <-signals.received:
 		// out.interrupt cancels o.cancelRun, the same cancel beginRunContext
 		// installed above — no separate local cancel is needed.
+		signalled.Store(true)
 		out.interrupt(interruptionBySignal)
-		select {
-		case runErr := <-done:
-			return concludeCancelled(out, runErr)
-		case <-signals.received:
-			return Result{Conclusion: Conclusion{State: StateCancelled, Cancelled: true, ExitCode: ExitCancelled}}
-		}
+	}
+	select {
+	case result := <-concluded:
+		return result
+	case <-signals.received:
+		return Result{Conclusion: Conclusion{State: StateCancelled, Cancelled: true, ExitCode: ExitCancelled}}
 	}
 }
 
