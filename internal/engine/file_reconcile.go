@@ -2,9 +2,9 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -234,7 +234,7 @@ func inspectFilePath(fsys FileFS, path string) (info fs.FileInfo, exists bool, e
 		return nil, false, fmt.Errorf("%w: %s is a directory", ErrFilePathTypeMismatch, path)
 	case statErr == nil && !info.Mode().IsRegular():
 		return nil, false, fmt.Errorf("%w: %s", ErrFilePathTypeMismatch, path)
-	case statErr != nil && !os.IsNotExist(statErr):
+	case statErr != nil && !errors.Is(statErr, fs.ErrNotExist):
 		return nil, false, fmt.Errorf("evo: File inspect %q: %w", path, statErr)
 	}
 	return info, statErr == nil, nil
