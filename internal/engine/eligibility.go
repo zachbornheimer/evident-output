@@ -35,12 +35,24 @@ func (o *Output) settleLocked(st *taskState) {
 		o.admitIfEligibleLocked(dep)
 	}
 	for col := st.collection; col != nil; col = col.parent {
-		for _, dep := range o.schedDependents[predecessor{groupID: col.id}] {
-			o.admitIfEligibleLocked(dep)
-		}
+		o.releaseCollectionDependentsLocked(col)
 	}
 	if st.collection != nil && st.collection.sequential {
 		o.admitIfEligibleLocked(nextSibling(st))
+	}
+}
+
+// releaseCollectionDependentsLocked admits the Tasks waiting on col once
+// col has succeeded. It tests col once per settle, not once per dependent:
+// while a member is still unsettled no dependent can start, and testing
+// each would rescan col's members for every one of them.
+func (o *Output) releaseCollectionDependentsLocked(col *tasksState) {
+	deps := o.schedDependents[predecessor{groupID: col.id}]
+	if len(deps) == 0 || !collectionSucceeded(col) {
+		return
+	}
+	for _, dep := range deps {
+		o.admitIfEligibleLocked(dep)
 	}
 }
 
