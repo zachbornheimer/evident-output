@@ -54,3 +54,47 @@ func TestOwnTask_DifferentlyNamedTaskNeverStandsInForItsGroup(t *testing.T) {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
 }
+
+// renderSkippedFetch renders zq prune's --skip-fetch run: branches does
+// its work, remote-tracking resolves Skipped with nothing else to say.
+// ownGroups declares each category as a Group plus its own Task;
+// otherwise the categories are peer Tasks under one Group.
+func renderSkippedFetch(t *testing.T, ownGroups bool) string {
+	t.Helper()
+	var buf bytes.Buffer
+	out := newPlainOutput(&buf, false)
+	t.Cleanup(func() { _ = out.Close() })
+	categories := out.Group("categories")
+	task := func(name string) *evo.TaskHandle {
+		if ownGroups {
+			return categories.Group(name).Task(name)
+		}
+		return categories.Task(name)
+	}
+	succeed(task("branches"), "3 checked")
+	task("remote-tracking").Skipped(evo.Reason("--skip-fetch"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.String()
+}
+
+// TestOwnTask_IsNeverFoldedAsAnItem: a category's own Task that resolved
+// Skipped is the category's row, not one of its items, so it keeps its
+// own glyph and name.
+func TestOwnTask_IsNeverFoldedAsAnItem(t *testing.T) {
+	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n\n[ready]  prune\n"
+	if got := renderSkippedFetch(t, true); got != want {
+		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+	}
+}
+
+// TestOwnTask_LoneSkippedPeerKeepsItsRow: one Skipped Task beside other
+// work is no aggregate, so it keeps its named row and the header-less
+// Group does not grow a header to carry a nameless tally.
+func TestOwnTask_LoneSkippedPeerKeepsItsRow(t *testing.T) {
+	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n\n[ready]  prune\n"
+	if got := renderSkippedFetch(t, false); got != want {
+		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+	}
+}

@@ -1,7 +1,6 @@
 package render
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -17,10 +16,12 @@ import (
 // item under its reason. Machine output never calls this; JSON and JSONL
 // keep every child Task.
 
-// isDispositionItem reports whether t's only information is its Kept or
-// Skipped record, so its row would say nothing its Group's tally does not.
-func isDispositionItem(t core.TaskSnapshot) bool {
-	if t.State != core.Done && t.State != core.Skipped || t.Synthetic() {
+// isDispositionItem reports whether t is one of col's items whose only
+// information is its Kept or Skipped record, so its row would say nothing
+// its Group's tally does not. The Group's own Task is never an item: it is
+// the row the tally hangs under.
+func isDispositionItem(col core.TasksSnapshot, t core.TaskSnapshot) bool {
+	if t.State != core.Done && t.State != core.Skipped || t.Synthetic() || isOwnTask(col, t) {
 		return false
 	}
 	if len(t.Kept) == 0 && len(t.Skipped) == 0 {
@@ -31,21 +32,46 @@ func isDispositionItem(t core.TaskSnapshot) bool {
 		len(t.Actions) == 0 && len(t.Verification) == 0
 }
 
+// minFoldedItems is the fewest disposition items a tally replaces. One
+// item's own row already is its count, and it carries the item's name: a
+// lone Skipped peer ("○ remote-tracking  - skipped 1 (--skip-fetch)")
+// must not become a nameless "- skipped 1" under a header its Group never
+// had.
+const minFoldedItems = 2
+
+// foldsItems reports whether col's disposition items fold into a tally. A
+// Sequence keeps every row: its rows state an order the tally cannot (§5,
+// and the zero-information rule's same exemption).
+func foldsItems(col core.TasksSnapshot) bool {
+	if col.Sequential {
+		return false
+	}
+	items := 0
+	for _, t := range col.Tasks {
+		if isDispositionItem(col, t) {
+			items++
+			if items == minFoldedItems {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // withoutDispositionItems returns col without its disposition items, and
-// their summed tallies — one pass over the children, in child order, with
-// no sorting, so a live frame can afford it every tick. A Sequence keeps
-// every row: its rows state an order the tally cannot (§5, and the
-// zero-information rule's same exemption).
+// their summed tallies, when it folds them (foldsItems) — linear in the
+// children, in child order, with no sorting, so a live frame can afford
+// it every tick.
 func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.Dispositions) {
 	var items core.Dispositions
-	if col.Sequential || !slices.ContainsFunc(col.Tasks, isDispositionItem) {
+	if !foldsItems(col) {
 		return col, items
 	}
 	// No preallocation: a TaskSnapshot is large, and the rows that survive
 	// are typically the one work Task, not the thousand items.
 	var rest []core.TaskSnapshot
 	for _, t := range col.Tasks {
-		if isDispositionItem(t) {
+		if isDispositionItem(col, t) {
 			items.AddTask(t)
 			continue
 		}
