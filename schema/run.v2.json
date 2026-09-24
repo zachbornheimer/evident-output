@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://evident-output.dev/schema/v2/run.json",
   "title": "Evident Output final JSON v2 (evo.run)",
+  "$comment": "v2 keeps one $id, so a field added after 1.1 (data.metrics, collection.peak_concurrency, task.operation_counts, and the timing phase fields) is optional here: a document 1.1.x wrote still conforms. evo 1.2 and later always writes them.",
   "type": "object",
   "required": [
     "object",
@@ -29,7 +30,7 @@
     "exit_code": { "type": "integer" },
     "data": {
       "type": "object",
-      "required": ["collections", "tasks", "facts", "problems", "effects", "actions", "metrics"],
+      "required": ["collections", "tasks", "facts", "problems", "effects", "actions"],
       "properties": {
         "collections": { "type": "array", "items": { "$ref": "#/$defs/collection" } },
         "tasks": { "type": "array", "items": { "$ref": "#/$defs/task" } },
@@ -119,7 +120,7 @@
     },
     "collection": {
       "type": "object",
-      "required": ["id", "name", "kind", "state", "children", "peak_concurrency"],
+      "required": ["id", "name", "kind", "state", "children"],
       "properties": {
         "id": { "type": "string" },
         "key": { "type": "string" },
@@ -161,22 +162,7 @@
     },
     "timing": {
       "type": "object",
-      "required": [
-        "queued_ms",
-        "running_ms",
-        "total_ms",
-        "awaiting_definition_ms",
-        "dependency_wait_ms",
-        "scheduler_wait_ms",
-        "definition_ms",
-        "evidence_ms",
-        "provenance_ms",
-        "tracked_state_ms",
-        "definition_entries",
-        "evidence_entries",
-        "provenance_entries",
-        "tracked_state_entries"
-      ],
+      "required": ["queued_ms", "running_ms", "total_ms"],
       "properties": {
         "queued_ms": { "type": "integer" },
         "running_ms": { "type": "integer" },
@@ -290,8 +276,7 @@
         "basis",
         "facts",
         "problems",
-        "operations",
-        "operation_counts"
+        "operations"
       ],
       "properties": {
         "id": { "type": "string" },
