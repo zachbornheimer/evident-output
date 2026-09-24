@@ -269,3 +269,53 @@ func TestServe_ContextEndShutsDownCleanly(t *testing.T) {
 		t.Fatalf("serve after context end = %v, want clean shutdown", err)
 	}
 }
+
+// lockWaitDeadline bounds how long a queued request may take to answer
+// once its budget ran out while it waited on the state lock.
+const lockWaitDeadline = 5 * shortBudget
+
+// Every request shares one StateDir, so a request queues on the exclusive
+// per-manifest lock (spec §11.3) while another run holds it — and its
+// budget keeps running down while it waits. When the budget runs out in
+// the queue, the request answers 503 Cancelled at once; it neither waits
+// for the holder to finish nor reports work it never started.
+func TestLaunchHTTP_BudgetRunsOutWhileQueuedOnStateLock(t *testing.T) {
+	dir := t.TempDir()
+	holder, load := blockingAgent(dir)
+	holderCtx, releaseHolder := context.WithCancel(context.Background())
+	defer releaseHolder()
+	holderDone := make(chan struct{})
+	go func() {
+		defer close(holderDone)
+		_, _, _ = postLaunch(holderCtx, t, newServer(t, holder, dir, testBudget))
+	}()
+	<-load.started
+
+	answered := make(chan struct{})
+	var (
+		status int
+		body   []byte
+		err    error
+	)
+	go func() {
+		defer close(answered)
+		status, body, err = postLaunch(context.Background(), t, newServer(t, newAgent(dir), dir, shortBudget))
+	}()
+	select {
+	case <-answered:
+	case <-time.After(lockWaitDeadline):
+		releaseHolder()
+		<-holderDone
+		t.Fatal("a request whose budget ran out while queued on the state lock never answered")
+	}
+	releaseHolder()
+	<-holderDone
+
+	if err != nil || status != http.StatusServiceUnavailable {
+		t.Fatalf("queued POST /launch = %d, %v, want 503\n%s", status, err, body)
+	}
+	doc := decodeLaunch(t, body)
+	if doc.Outcome != "cancelled" || doc.state("write plist") != "cancelled" || doc.state("load agent") != string(evo.NotStarted) {
+		t.Fatalf("outcome %q, tasks %+v; want cancelled with write plist cancelled and load agent not started\n%s", doc.Outcome, doc.Data.Tasks, body)
+	}
+}

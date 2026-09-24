@@ -21,7 +21,10 @@ import (
 // Backpressure: nothing is written to the client while the run executes;
 // the run's human rendering goes to io.Discard. The document is encoded
 // once, after the run, so a slow client can delay only its own response,
-// never the scheduler.
+// never the scheduler. Every request shares stateDir, so requests queue on
+// its exclusive manifest lock (spec §11.3) and run one at a time; the
+// budget covers that wait, and a request whose budget runs out in the
+// queue answers Cancelled at once.
 //
 // Errors: the HTTP status comes from the structured Conclusion state, never
 // from message text; the body carries the full outcome either way. A

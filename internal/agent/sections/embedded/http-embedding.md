@@ -84,6 +84,16 @@ with the run. `WriteJSON` encodes the whole document once, after the run,
 on the handler's goroutine — a slow client delays only its own response,
 never the scheduler.
 
+Requests that share a `StateDir` queue on its state lock. The first
+`evo.File` or `evo.Exec` in a run takes an exclusive lock on the
+workspace's manifest (spec §11.3) and holds it until the run ends, so two
+requests over the same workspace run one after the other, not side by
+side. A queued request's budget keeps running down while it waits: if it
+runs out in the queue, the request answers `cancelled` (exit code 130)
+right away, with the waiting Task cancelled and the Tasks after it
+`not_started`. Size the budget for the wait as well as the work, or give
+independent workspaces their own `StateDir`.
+
 Streaming `FormatJSONL` over HTTP is not a supported projection: each
 event line is written synchronously as it happens, so a slow reader would
 throttle the run itself.
