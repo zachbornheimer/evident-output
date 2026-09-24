@@ -41,14 +41,35 @@ func (p *partialEffect) Error() string {
 
 func (p *partialEffect) Unwrap() error { return p.cause }
 
+// claimPartialEffect consumes and returns the first PartialEffect in err's
+// tree (depth first, as errors.As walks it) that no Effect has consumed
+// yet, or nil. An inner Effect's consumed one never hides an unconsumed one
+// joined after it.
+func claimPartialEffect(err error) *partialEffect {
+	if p, ok := err.(*partialEffect); ok && !p.consumed.Swap(true) {
+		return p
+	}
+	switch wrapped := err.(type) {
+	case interface{ Unwrap() error }:
+		return claimPartialEffect(wrapped.Unwrap())
+	case interface{ Unwrap() []error }:
+		for _, e := range wrapped.Unwrap() {
+			if p := claimPartialEffect(e); p != nil {
+				return p
+			}
+		}
+	}
+	return nil
+}
+
 // committedOf reads the committed subset an Effect callback's err claims
 // against spec, consuming the PartialEffect. A callback error that is not
 // a PartialEffect, or carries one another Effect already consumed,
 // committed nothing. An invalid PartialEffect yields ErrInvalidPartialEffect (still
 // wrapping the cause) and zero, so no invented count reaches the ledger.
 func (s EffectSpec) committedOf(err error) (int, error) {
-	var p *partialEffect
-	if !errors.As(err, &p) || p.consumed.Swap(true) {
+	p := claimPartialEffect(err)
+	if p == nil {
 		return 0, err
 	}
 	switch {
