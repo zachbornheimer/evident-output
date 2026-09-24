@@ -51,9 +51,9 @@ and `examples/launch-agent-http`.
   concluding cancelled. A ^C on any other format still cancels the run at
   any point before it concludes.
 - **The `"evo.run"` document names why a run was cancelled.** A cancelled
-  document carries `"cancellation": {"cause": "caller" | "deadline" |
-"user"}`, and the JSONL `run.finished` payload carries the same object.
-  Absent on every other outcome; `schema_version` stays `2.0`
+  document carries a `cancellation` object whose `cause` is `caller`,
+  `deadline`, or `user`, and the JSONL `run.finished` payload carries the
+  same object. Absent on every other outcome; `schema_version` stays `2.0`
   (schema-additive, DEC-CANCEL-007).
 - **A signal that lands after the run concluded is a no-op.** It could
   mark an already-concluded Output cancelled behind the exit-0 `Result`
