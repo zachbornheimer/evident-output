@@ -17,6 +17,10 @@ const metricsLabel = "timing"
 // metricsSeparator joins the timing line's clauses.
 const metricsSeparator = " · "
 
+// spanDisplayResolution is the smallest span formatSpan can show; a shorter
+// span would render as a misleading "0ms" and is omitted instead.
+const spanDisplayResolution = time.Millisecond
+
 // WriteMetrics renders the run's derived §39 aggregate as one dim line:
 // how work and tracked operations resolved, where time went (running,
 // waiting on dependencies, waiting on scheduler capacity, inside
@@ -43,7 +47,7 @@ func (c *clauseList) add(ok bool, clause string) {
 }
 
 func (c *clauseList) addSpan(d time.Duration, label string) {
-	c.add(d > 0, formatSpan(d)+" "+label)
+	c.add(d >= spanDisplayResolution, formatSpan(d)+" "+label)
 }
 
 func resolutionClauses(m core.RunMetrics) clauseList {
