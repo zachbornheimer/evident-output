@@ -630,7 +630,9 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// Record/RecordLabel/RecordName, which have no record-only
 	// replacement (ZYS-974) — steer it to Effect (mutation), Fact
 	// (information), or File/Patch (file writes).
-	findings = append(findings, detectDeprecatedRecordCall(filename, f, fset)...)
+	if hasEvo {
+		findings = append(findings, detectDeprecatedRecordCall(filename, f, fset)...)
+	}
 
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {

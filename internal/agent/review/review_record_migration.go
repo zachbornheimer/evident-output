@@ -6,11 +6,14 @@
 // belongs in evo.Fact, and a file write belongs in evo.File/evo.Patch. The
 // suggestion spells the exact rewrite when the verb literal names one.
 //
-// Detection is structural, by method name and call shape, matching the
-// removed signatures: Record(verb string, quantity int, object string),
+// Detection is structural: the method name and arg count must match the
+// removed signatures (Record(verb string, quantity int, object string),
 // RecordLabel(label string, quantity int, object string), RecordName(verb,
-// object string). A call with a different arg count for that method name
-// is not this detector's target and stays silent.
+// object string)), and the receiver must trace back to an evo Task value —
+// an identifier or field typed *<evo>.TaskHandle, a variable assigned from
+// a .Task(...) call, or a .Task(...) call itself. A same-shaped method on
+// anything else (OpenTelemetry's histogram.Record(ctx, v, opts), a local
+// recorder) is not this detector's target and stays silent.
 package review
 
 import (
@@ -31,8 +34,14 @@ var recordVerbArgCount = map[string]int{
 }
 
 // detectDeprecatedRecordCall is API-061: a call to .Record/.RecordLabel/
-// .RecordName whose arg count matches that verb's declared signature.
+// .RecordName on an evo Task value whose arg count matches that verb's
+// declared signature.
 func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	evoPkg := evoImportName(file)
+	if evoPkg == "" {
+		return nil
+	}
+	tasks := evoTaskHandleNames(file, evoPkg)
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -44,7 +53,7 @@ func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.Fil
 			return true
 		}
 		want, isRecordVerb := recordVerbArgCount[sel.Sel.Name]
-		if !isRecordVerb || len(call.Args) != want {
+		if !isRecordVerb || len(call.Args) != want || !isEvoTaskValue(sel.X, tasks) {
 			return true
 		}
 		pos := fset.Position(call.Pos())
@@ -52,6 +61,81 @@ func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.Fil
 		return true
 	})
 	return findings
+}
+
+// evoTaskHandleNames returns the identifiers and field names that hold an
+// evo Task in file: anything declared with type *evoPkg.TaskHandle
+// (parameters, struct fields, var declarations) and every variable
+// assigned from a .Task(...) call on the package, a Group, or a Sequence.
+func evoTaskHandleNames(file *ast.File, evoPkg string) map[string]bool {
+	names := map[string]bool{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.Field:
+			if isEvoTaskHandleType(n.Type, evoPkg) {
+				for _, name := range n.Names {
+					names[name.Name] = true
+				}
+			}
+		case *ast.ValueSpec:
+			if n.Type != nil && isEvoTaskHandleType(n.Type, evoPkg) {
+				for _, name := range n.Names {
+					names[name.Name] = true
+				}
+			}
+			for i, v := range n.Values {
+				if i < len(n.Names) && isTaskDeclarationCall(v) {
+					names[n.Names[i].Name] = true
+				}
+			}
+		case *ast.AssignStmt:
+			if len(n.Lhs) != len(n.Rhs) {
+				return true
+			}
+			for i, rhs := range n.Rhs {
+				if id, ok := n.Lhs[i].(*ast.Ident); ok && isTaskDeclarationCall(rhs) {
+					names[id.Name] = true
+				}
+			}
+		}
+		return true
+	})
+	return names
+}
+
+// isEvoTaskHandleType reports whether t spells *evoPkg.TaskHandle.
+func isEvoTaskHandleType(t ast.Expr, evoPkg string) bool {
+	star, ok := t.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := star.X.(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == "TaskHandle" && isEvoIdent(sel.X, evoPkg)
+}
+
+// isTaskDeclarationCall reports whether e is a .Task(...) call, the only
+// way to obtain an evo Task value.
+func isTaskDeclarationCall(e ast.Expr) bool {
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == "Task"
+}
+
+// isEvoTaskValue reports whether recv, a method call's receiver, traces
+// back to an evo Task: a known Task identifier, a field named like one, or
+// a .Task(...) call itself.
+func isEvoTaskValue(recv ast.Expr, tasks map[string]bool) bool {
+	switch r := recv.(type) {
+	case *ast.Ident:
+		return tasks[r.Name]
+	case *ast.SelectorExpr:
+		return tasks[r.Sel.Name]
+	default:
+		return isTaskDeclarationCall(recv)
+	}
 }
 
 // recordRouting is the three-way migration every removed Record* call
