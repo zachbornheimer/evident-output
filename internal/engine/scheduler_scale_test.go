@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"testing"
-	"time"
 )
 
 // scheduleContainer declares n no-op Tasks under one Group or Sequence,
@@ -51,34 +50,49 @@ func BenchmarkScheduleSequence(b *testing.B) {
 	}
 }
 
-// TestSchedulingScalesLinearly guards against a super-linear scheduler:
-// four times the Tasks must cost well under sixteen times the time.
-func TestSchedulingScalesLinearly(t *testing.T) {
-	if testing.Short() {
-		t.Skip("timing guard")
-	}
+// TestSchedulingWorkIsLinear guards against a super-linear scheduler
+// deterministically: the queue entries every scheduling pass examines must
+// stay within a constant per submitted Task, for a Group and a Sequence,
+// at 1k and 4k Tasks. (Wall-clock ratios are too noisy under a loaded
+// `go test ./...`; BenchmarkScheduleGroup/Sequence report the timings.)
+func TestSchedulingWorkIsLinear(t *testing.T) {
 	for _, sequential := range []bool{false, true} {
-		small := timeSchedule(t, 1000, sequential)
-		large := timeSchedule(t, 4000, sequential)
-		ratio := float64(large) / float64(small)
-		t.Logf("sequential=%v: 1000=%v 4000=%v x%.1f", sequential, small, large, ratio)
-		if ratio > linearScaleCeiling {
-			t.Errorf("sequential=%v: 4000 Tasks took %v, 1000 took %v (x%.1f, want <= x%.0f)", sequential, large, small, ratio, linearScaleCeiling)
+		for _, n := range []int{1000, 4000} {
+			if visits := scheduleVisits(t, n, sequential); visits > visitsPerTaskCeiling*n {
+				t.Errorf("sequential=%v n=%d: scheduler examined %d queue entries (%.1f per Task), want <= %d per Task",
+					sequential, n, visits, float64(visits)/float64(n), visitsPerTaskCeiling)
+			}
 		}
 	}
 }
 
-// linearScaleCeiling is the largest 4x-input cost ratio accepted: 4 is
-// linear, 16 is quadratic; the margin absorbs timer and GC noise.
-const linearScaleCeiling = 8.0
+// visitsPerTaskCeiling is the most queue entries the scheduler may examine
+// per submitted Task. A linear scheduler stays at a small constant; the
+// quadratic one this replaced examined O(n) per Task.
+const visitsPerTaskCeiling = 8
 
-func timeSchedule(t *testing.T, n int, sequential bool) time.Duration {
+// scheduleVisits runs scheduleContainer's workload and returns how many
+// queue entries the scheduler examined.
+func scheduleVisits(t *testing.T, n int, sequential bool) int {
 	t.Helper()
-	best := time.Duration(1<<63 - 1)
-	for range 3 {
-		start := time.Now()
-		scheduleContainer(t, n, sequential)
-		best = min(best, time.Since(start))
+	out := Init(Config{Isolated: true, StateDir: t.TempDir(), Stdout: io.Discard, Stderr: io.Discard})
+	defer func() { _ = out.Close() }()
+	var task func(string) *TaskHandle
+	var wait func() error
+	if sequential {
+		s := out.Sequence("steps")
+		task, wait = s.Task, s.Wait
+	} else {
+		g := out.Group("items")
+		task, wait = g.Task, g.Wait
 	}
-	return best
+	for i := range n {
+		task(fmt.Sprintf("item %d", i)).Define(func(context.Context) error { return nil })
+	}
+	if err := wait(); err != nil {
+		t.Fatalf("Wait: %v", err)
+	}
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	return out.schedQueue.visits
 }
