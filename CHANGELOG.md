@@ -153,10 +153,18 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 - A Sequence's nested `Group`/`Sequence` is one step: it starts after the
   step before it ends, the step after it waits for all of it, and a failed
-  step leaves the nested members after it `NotStarted`.
+  step leaves the nested members after it `NotStarted`. A Sequence of n
+  nested steps holds n predecessors, not n²/2.
+
+- A `Group`/`Sequence` with a `Blocked` child snapshots as `Blocked`, not
+  `Incomplete`, matching what Tasks `After` it and its `Wait` see.
 
 - MCP `review` with `kind=package` honors `desired_version`, and an
   oversize request gets a JSON-RPC error instead of stopping the server.
+  A clean multi-file package now reviews clean: only type errors in the
+  package's own declarations report `MCP-017`, never an unloaded import.
+  `kind=go` and `kind=package` with absolute paths, and conformance on a
+  file, lint as the nearest `go.mod` pin, exactly as `kind=directory` does.
 
 ## [1.0.0] — Define as the scheduling boundary; File/Fingerprint; MainWith and Each removed
 
