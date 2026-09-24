@@ -11,7 +11,6 @@ import (
 	"os"
 	"regexp"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -154,7 +153,7 @@ func runStdioServer(in io.Reader, out io.Writer) {
 	outW = out
 	outMode = frameNDJSON
 	outMu.Unlock()
-	initialized := false
+	var srv server
 	r := bufio.NewReaderSize(in, 1024*1024)
 	for {
 		msg, mode, err := readMCPMessage(r)
@@ -175,176 +174,89 @@ func runStdioServer(in io.Reader, out io.Writer) {
 		outMu.Lock()
 		outMode = mode
 		outMu.Unlock()
+		srv.handle(msg, mode)
+	}
+}
 
-		var req map[string]any
-		if err := json.Unmarshal(msg, &req); err != nil {
-			fmt.Fprintf(os.Stderr, "parse error (%v): %q\n", mode, truncateForLog(msg, 120))
-			writeRPCError(nil, -32700, "parse error")
-			continue
+// server is one stdio session's lifecycle state.
+type server struct {
+	initialized bool
+}
+
+// handle answers one JSON-RPC message.
+func (s *server) handle(msg []byte, mode framingMode) {
+	var req map[string]any
+	if err := json.Unmarshal(msg, &req); err != nil {
+		fmt.Fprintf(os.Stderr, "parse error (%v): %q\n", mode, truncateForLog(msg, 120))
+		writeRPCError(nil, -32700, "parse error")
+		return
+	}
+	method, _ := req["method"].(string)
+	id := req["id"]
+	// MCP-001: reject out-of-lifecycle tool/resource calls before initialize.
+	if !s.initialized && method != "initialize" && method != "ping" {
+		if id != nil {
+			writeRPCError(id, -32002, "server not initialized; call initialize first")
 		}
-		method, _ := req["method"].(string)
-		id := req["id"]
-		// MCP-001: reject out-of-lifecycle tool/resource calls before initialize.
-		if !initialized && method != "initialize" && method != "ping" {
-			if id != nil {
-				writeRPCError(id, -32002, "server not initialized; call initialize first")
-			}
-			continue
+		return
+	}
+	switch method {
+	case "initialize":
+		s.initialized = true
+		handleInitialize(id, req)
+	case "tools/list":
+		writeRPC(id, map[string]any{"tools": toolList()})
+	case "tools/call":
+		safeToolCall(id, req)
+	case "resources/list":
+		writeRPC(id, map[string]any{
+			"resources": []map[string]any{
+				{"uri": "evident-output://guides/common-api", "name": "common-api", "mimeType": "text/plain"},
+				{"uri": "evident-output://rules/API-006", "name": "API-006", "mimeType": "application/json"},
+				{"uri": "evident-output://meta/catalog-checksum", "name": "catalog-checksum", "mimeType": "text/plain"}}})
+	case "resources/read":
+		handleResourceRead(id, req)
+	case "notifications/initialized", "initialized", "ping":
+		// notifications/initialized has no id and no response.
+		// ping may carry an id (utilities/ping).
+		if id != nil {
+			writeRPC(id, map[string]any{})
 		}
-		switch method {
-		case "initialize":
-			params, _ := req["params"].(map[string]any)
-			clientProto, _ := params["protocolVersion"].(string)
-			negotiated := "2024-11-05"
-			if clientProto != "" {
-				if supportedProtocols[clientProto] {
-					negotiated = clientProto
-				} else {
-					// Unknown/newer client version: per spec, negotiate down to
-					// our latest supported version rather than erroring — the
-					// client decides whether our version works for it.
-					negotiated = latestProtocol
-				}
-			}
-			initialized = true
-			// serverInfo: only name/version/title per lifecycle schema — no custom fields
-			// (strict hosts reject unknown InitializeResult properties).
-			writeRPC(id, map[string]any{
-				"protocolVersion": negotiated,
-				"capabilities": map[string]any{
-					// Empty objects advertise the capability groups we implement.
-					"tools":     map[string]any{},
-					"resources": map[string]any{}},
-				"serverInfo": map[string]any{
-					"name":    "evident-output-mcp",
-					"version": resolvedVersion()},
-				// Optional human hint (allowed on InitializeResult).
-				"instructions": serverInstructions})
-		case "tools/list":
-			writeRPC(id, map[string]any{"tools": toolList()})
-		case "tools/call":
-			safeToolCall(id, req)
-		case "resources/list":
-			writeRPC(id, map[string]any{
-				"resources": []map[string]any{
-					{"uri": "evident-output://guides/common-api", "name": "common-api", "mimeType": "text/plain"},
-					{"uri": "evident-output://rules/API-006", "name": "API-006", "mimeType": "application/json"},
-					{"uri": "evident-output://meta/catalog-checksum", "name": "catalog-checksum", "mimeType": "text/plain"}}})
-		case "resources/read":
-			handleResourceRead(id, req)
-		case "notifications/initialized", "initialized", "ping":
-			// notifications/initialized has no id and no response.
-			// ping may carry an id (utilities/ping).
-			if id != nil {
-				writeRPC(id, map[string]any{})
-			}
-		default:
-			if id != nil {
-				writeRPCError(id, -32601, "method not found: "+method)
-			}
+	default:
+		if id != nil {
+			writeRPCError(id, -32601, "method not found: "+method)
 		}
 	}
 }
 
-// errFrameTooLarge is a message over maxFrameBytes. readMCPMessage has
-// already skipped past it, so the server answers it and keeps reading.
-var errFrameTooLarge = fmt.Errorf("message exceeds %d bytes", maxFrameBytes)
-
-// readMCPMessage reads one JSON-RPC message from r.
-// Supports NDJSON (spec) and LSP-style Content-Length frames (some clients).
-func readMCPMessage(r *bufio.Reader) ([]byte, framingMode, error) {
-	// Peek for Content-Length without consuming a bare JSON line.
-	for {
-		// Skip leading CR/LF.
-		b, err := r.ReadByte()
-		if err != nil {
-			return nil, frameNDJSON, err
+// handleInitialize answers initialize with the negotiated protocol.
+func handleInitialize(id any, req map[string]any) {
+	params, _ := req["params"].(map[string]any)
+	clientProto, _ := params["protocolVersion"].(string)
+	negotiated := "2024-11-05"
+	if clientProto != "" {
+		if supportedProtocols[clientProto] {
+			negotiated = clientProto
+		} else {
+			// Unknown/newer client version: per spec, negotiate down to
+			// our latest supported version rather than erroring — the
+			// client decides whether our version works for it.
+			negotiated = latestProtocol
 		}
-		if b == '\n' || b == '\r' {
-			continue
-		}
-		if err := r.UnreadByte(); err != nil {
-			return nil, frameNDJSON, err
-		}
-		break
 	}
-
-	peek, err := r.Peek(1)
-	if err != nil {
-		return nil, frameNDJSON, err
-	}
-	// Content-Length header (case-insensitive) — used by some MCP client SDKs.
-	if peek[0] == 'C' || peek[0] == 'c' {
-		headerLine, err := r.ReadString('\n')
-		if err != nil {
-			return nil, frameContentLength, err
-		}
-		headerLine = strings.TrimRight(headerLine, "\r\n")
-		if !strings.HasPrefix(strings.ToLower(headerLine), "content-length:") {
-			// Not a content-length header; treat as broken NDJSON starting with C.
-			return []byte(headerLine), frameNDJSON, nil
-		}
-		nStr := strings.TrimSpace(headerLine[len("Content-Length:"):])
-		// header may be "content-length:" with different case
-		if i := strings.Index(strings.ToLower(headerLine), ":"); i >= 0 {
-			nStr = strings.TrimSpace(headerLine[i+1:])
-		}
-		n, err := strconv.Atoi(nStr)
-		if err != nil || n < 0 {
-			return nil, frameContentLength, fmt.Errorf("invalid Content-Length %q", nStr)
-		}
-		// Consume optional additional headers until blank line.
-		for {
-			line, err := r.ReadString('\n')
-			if err != nil {
-				return nil, frameContentLength, err
-			}
-			if line == "\n" || line == "\r\n" {
-				break
-			}
-		}
-		if n > maxFrameBytes {
-			// Discard the body so the next message can resync.
-			if _, err := io.CopyN(io.Discard, r, int64(n)); err != nil {
-				return nil, frameContentLength, err
-			}
-			return nil, frameContentLength, fmt.Errorf("%w: Content-Length %d", errFrameTooLarge, n)
-		}
-		body := make([]byte, n)
-		if _, err := io.ReadFull(r, body); err != nil {
-			return nil, frameContentLength, err
-		}
-		return body, frameContentLength, nil
-	}
-
-	// NDJSON: one JSON object per line, hard-capped.
-	var buf bytes.Buffer
-	for {
-		b, err := r.ReadByte()
-		if err != nil {
-			if buf.Len() == 0 {
-				return nil, frameNDJSON, err
-			}
-			// Incomplete final frame without newline.
-			break
-		}
-		if b == '\n' {
-			break
-		}
-		if buf.Len() >= maxFrameBytes {
-			// Drain until newline or EOF so the next message can resync.
-			for {
-				bb, e2 := r.ReadByte()
-				if e2 != nil || bb == '\n' {
-					break
-				}
-			}
-			return nil, frameNDJSON, fmt.Errorf("%w: ndjson frame", errFrameTooLarge)
-		}
-		buf.WriteByte(b)
-	}
-	line := bytes.TrimRight(buf.Bytes(), "\r")
-	return line, frameNDJSON, nil
+	// serverInfo: only name/version/title per lifecycle schema — no custom fields
+	// (strict hosts reject unknown InitializeResult properties).
+	writeRPC(id, map[string]any{
+		"protocolVersion": negotiated,
+		"capabilities": map[string]any{
+			// Empty objects advertise the capability groups we implement.
+			"tools":     map[string]any{},
+			"resources": map[string]any{}},
+		"serverInfo": map[string]any{
+			"name":    "evident-output-mcp",
+			"version": resolvedVersion()},
+		// Optional human hint (allowed on InitializeResult).
+		"instructions": serverInstructions})
 }
 
 // truncateForLog reports only length metadata — never payload bytes (may hold secrets/source).
