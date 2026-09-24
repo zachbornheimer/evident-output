@@ -289,10 +289,7 @@ func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 // errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use Failf
 // to build and return a %w-wrapped error in one line.
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
-	p := applyProblemOptions(txt.Text(summary), options)
-	if t != nil {
-		t.finish(Failed, txt.Text(summary), []Problem{p})
-	}
+	t.resolveWithProblem(Failed, summary, options)
 }
 
 // Failf resolves the task as failed with a formatted summary and returns a
@@ -303,14 +300,24 @@ func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 // splitWrappedMessage for how a trailing ": %w"/", %w" splits the formatted
 // text into the rendered summary and evidence line.
 func (t *TaskHandle) Failf(format string, args ...any) *Failure {
+	return t.resolveFormatted(Failed, format, args)
+}
+
+// resolveWithProblem is Fail and Block: resolve as state with one Problem
+// built from summary and options.
+func (t *TaskHandle) resolveWithProblem(state EntityState, summary string, options []ProblemOption) {
+	p := applyProblemOptions(txt.Text(summary), options)
+	t.finish(state, txt.Text(summary), []Problem{p})
+}
+
+// resolveFormatted is Failf and Blockf: resolve as state from a
+// fmt.Errorf-formatted error and return it as a *Failure.
+func (t *TaskHandle) resolveFormatted(state EntityState, format string, args []any) *Failure {
 	err := fmt.Errorf(format, args...)
 	summary, evidence := core.SplitWrappedMessage(format, err)
 	problem := Problem{Summary: summary, Detail: evidence}
 	t.attachRetainedEvidenceTail(&problem)
-	p := core.SanitizeProblem(problem)
-	if t != nil {
-		t.finish(Failed, summary, []Problem{p})
-	}
+	t.finish(state, summary, []Problem{core.SanitizeProblem(problem)})
 	return newFailure(t, err)
 }
 
@@ -336,28 +343,18 @@ func (t *TaskHandle) attachRetainedEvidenceTail(p *Problem) {
 // errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use
 // Blockf to build and return a %w-wrapped error in one line.
 func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
-	p := applyProblemOptions(txt.Text(summary), options)
-	if t != nil {
-		t.finish(Blocked, txt.Text(summary), []Problem{p})
-	}
+	t.resolveWithProblem(Blocked, summary, options)
 }
 
 // Blockf resolves the task as blocked with a formatted summary and returns a
 // *Failure exactly like Failf — see Failf for the fmt.Errorf %w,
 // summary/evidence split, and Next/NextCommand remedy-attachment contract.
 func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
-	err := fmt.Errorf(format, args...)
-	summary, evidence := core.SplitWrappedMessage(format, err)
-	problem := Problem{Summary: summary, Detail: evidence}
-	t.attachRetainedEvidenceTail(&problem)
-	p := core.SanitizeProblem(problem)
-	if t != nil {
-		t.finish(Blocked, summary, []Problem{p})
-	}
-	return newFailure(t, err)
+	return t.resolveFormatted(Blocked, format, args)
 }
 
-// Cancel resolves the task as cancelled.
+// Cancel resolves the task as cancelled. A nil *TaskHandle is safe and
+// resolves nothing.
 func (t *TaskHandle) Cancel(reason string) {
 	t.finish(Cancelled, txt.Text(reason), nil)
 }
@@ -514,6 +511,9 @@ func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAu
 }
 
 func (t *TaskHandle) resolve(state EntityState, summary string, problems []Problem, authority resolutionAuthority) *TaskHandle {
+	if t == nil || t.out == nil {
+		return t
+	}
 	t.out.holdRunningPaint(t.id)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
