@@ -502,6 +502,7 @@ func newOutput(subject string, options ...Option) *Output {
 	o := &Output{
 		cfg:        cfg,
 		outputID:   newRunID(),
+		idSeq:      runIDSeqSlot,
 		taskByRef:  make(map[string]*taskState),
 		tasksByRef: make(map[string]*tasksState),
 		keys:       make(map[string]struct{}),

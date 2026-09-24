@@ -28,6 +28,7 @@ type runDoc struct {
 	ExitCode int    `json:"exit_code"`
 	Data     struct {
 		Tasks []struct {
+			ID    string `json:"id"`
 			Name  string `json:"name"`
 			State string `json:"state"`
 		} `json:"tasks"`
@@ -267,5 +268,23 @@ func TestOutputRun_PreCancelledCallerContextNeverHangs(t *testing.T) {
 		}
 	case <-time.After(preCancelledProbeBudget):
 		t.Fatal("a run on a pre-cancelled caller ctx hung: its run context was installed after the interrupt and never cancelled")
+	}
+}
+
+// firstTaskID is the wire id 1.1 gave a run's first Task: the id sequence
+// spent 1 on the run itself. A random run_id must not renumber every
+// Task, Group, and message a consumer already correlates on.
+const firstTaskID = "task_2"
+
+func TestRunDocument_TaskIDsKeepTheirNumbering(t *testing.T) {
+	var stdout bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Format: evo.FormatJSON, Stdout: &stdout, Stderr: io.Discard})
+	out.Run(context.Background(), func(context.Context) error {
+		out.Task("register").Define(func(context.Context) error { return nil })
+		return nil
+	})
+	doc := decodeRunDoc(t, stdout.Bytes())
+	if len(doc.Data.Tasks) != 1 || doc.Data.Tasks[0].ID != firstTaskID {
+		t.Fatalf("tasks = %+v, want one Task with id %q", doc.Data.Tasks, firstTaskID)
 	}
 }
