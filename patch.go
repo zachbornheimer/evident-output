@@ -21,7 +21,12 @@ type FileSet = engine.FileSet
 // the line it names. Modifications, mode changes, and file creation are
 // supported; deletion, rename/copy, binary, and symlink or submodule forms
 // fail with ErrPatchUnsupported (or its specific forms below) rather than
-// being approximated. Callers that already know the desired bytes call
+// being approximated.
+//
+// A patch edits only real paths beneath the workspace: a path beyond a
+// symlinked directory fails with ErrPatchUnsupported, and Patch never
+// creates directories, so a file whose parent directory is missing fails
+// with ErrPatchDoesNotApply before Files commits anything. Callers that already know the desired bytes call
 // File directly instead of building a diff.
 func Patch(ctx context.Context, diff []byte) (FileSet, error) { return engine.Patch(ctx, diff) }
 

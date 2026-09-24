@@ -17,15 +17,14 @@ type FileSet struct {
 	files []desiredFile
 }
 
-// desiredFile is one derived state: the path as the diff named it, its
-// resolved workspace path, the desired bytes and permission bits (0 leaves
-// the mode alone), and the observed source identity they derive from.
+// desiredFile is one derived state: the workspace file the diff named,
+// the desired bytes and permission bits (0 leaves the mode alone), and the
+// observed source identity they derive from.
 type desiredFile struct {
-	displayPath string
-	path        string
-	contents    []byte
-	mode        fs.FileMode
-	basis       fingerprint.FingerprintValue
+	target   workspaceFile
+	contents []byte
+	mode     fs.FileMode
+	basis    fingerprint.FingerprintValue
 }
 
 // Patch errors. Every unsupported form wraps ErrPatchUnsupported.
@@ -79,9 +78,13 @@ func (o *Output) derivePatch(ctx context.Context, diff []byte) (FileSet, error) 
 // deriveFile observes edit's source under a read claim on its path and
 // applies edit to exactly the bytes observed.
 func (o *Output) deriveFile(ctx context.Context, edit patch.File) (desiredFile, error) {
-	path := o.resolveWorkspacePath(edit.Path)
+	target := workspaceFile{root: o.workspace(), rel: edit.Path}
+	path := target.path()
 	var source observedSource
 	claimErr := o.holdResource(ctx, FSResource(path), resourceRead, func(context.Context) error {
+		if parentErr := target.checkParents(o.fileFS()); parentErr != nil {
+			return parentErr
+		}
 		observed, observeErr := observeSource(o.fileFS(), path)
 		source = observed
 		return observeErr
@@ -99,7 +102,7 @@ func (o *Output) deriveFile(ctx context.Context, edit patch.File) (desiredFile, 
 	if applyErr != nil {
 		return desiredFile{}, applyErr
 	}
-	return desiredFile{displayPath: edit.Path, path: path, contents: contents, mode: edit.Mode, basis: source.basis}, nil
+	return desiredFile{target: target, contents: contents, mode: edit.Mode, basis: source.basis}, nil
 }
 
 // observedSource is one patch source as read: whether it exists, its

@@ -28,7 +28,7 @@ func Files(ctx context.Context, files FileSet) error {
 	}
 	for _, file := range files.files {
 		if commitErr := task.out.establishFile(ctx, file.operation(task.id)); commitErr != nil {
-			return fmt.Errorf("evo: Files %q: %w", file.displayPath, commitErr)
+			return fmt.Errorf("evo: Files %q: %w", file.target.rel, commitErr)
 		}
 	}
 	return nil
@@ -37,25 +37,32 @@ func Files(ctx context.Context, files FileSet) error {
 // operation is the File operation that establishes f for taskID, carrying
 // the source f was derived from.
 func (f desiredFile) operation(taskID string) fileOperation {
+	path := f.target.path()
 	return fileOperation{
 		taskID:      taskID,
-		spec:        FileSpec{Path: f.displayPath, Contents: f.contents, Mode: f.mode},
-		path:        f.path,
-		derivedFrom: &derivation{basis: f.basis, desired: fingerprint.ObservedFile(f.path, f.contents)},
+		spec:        FileSpec{Path: f.target.rel, Contents: f.contents, Mode: f.mode},
+		path:        path,
+		derivedFrom: &derivation{target: f.target, basis: f.basis, desired: fingerprint.ObservedFile(path, f.contents)},
 	}
 }
 
-// derivation is where a desired file state came from: the Basis its
-// contents were derived from and the identity of those desired contents.
+// derivation is where a desired file state came from: the workspace file
+// it targets, the Basis its contents were derived from, and the identity
+// of those desired contents.
 type derivation struct {
+	target  workspaceFile
 	basis   fingerprint.FingerprintValue
 	desired fingerprint.FingerprintValue
 }
 
-// revalidate observes path now and fails with ErrStaleBasis unless it is
-// still the derivation's source or already holds the desired contents
+// revalidate observes path now and fails unless every parent is still a
+// real directory beneath the workspace and path is still the derivation's
+// source (ErrStaleBasis otherwise) or already holds the desired contents
 // (an already-satisfied state File then leaves alone).
 func (d derivation) revalidate(fsys FileFS, path string) error {
+	if parentErr := d.target.checkParents(fsys); parentErr != nil {
+		return parentErr
+	}
 	current, observeErr := observeSource(fsys, path)
 	if observeErr != nil {
 		return observeErr

@@ -115,8 +115,12 @@ new file mode 100644
 
 const twoFileDiff = modifyGreetingDiff + createDocDiff
 
+// docsWorkspace holds greeting.txt and the docs directory createDocDiff
+// creates a file in.
+var docsWorkspace = map[string]string{"greeting.txt": "hello\nworld\n", "docs/README.md": "docs\n"}
+
 func TestPatchPerformsNoWorkspaceMutation(t *testing.T) {
-	dir, out := patchWorkspace(t, map[string]string{"greeting.txt": "hello\nworld\n"})
+	dir, out := patchWorkspace(t, docsWorkspace)
 	before := treeSnapshot(t, dir)
 	if _, err := runPatchTask(t, out, twoFileDiff); err != nil {
 		t.Fatalf("Patch: %v", err)
@@ -134,13 +138,13 @@ func TestPatchOneFileDerivesDesiredStateWithSourceBasis(t *testing.T) {
 		t.Fatalf("got %d desired files", len(set.files))
 	}
 	assertDesired(t, set.files[0], desiredFile{
-		displayPath: "greeting.txt", path: filepath.Join(dir, "greeting.txt"), contents: []byte("hello\nthere\n"),
+		target: workspaceFile{root: dir, rel: "greeting.txt"}, contents: []byte("hello\nthere\n"),
 	})
 	assertBasisMatchesFSPath(t, set.files[0])
 }
 
 func TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis(t *testing.T) {
-	dir, out := patchWorkspace(t, map[string]string{"greeting.txt": "hello\nworld\n"})
+	dir, out := patchWorkspace(t, docsWorkspace)
 	set, err := runPatchTask(t, out, twoFileDiff)
 	if err != nil {
 		t.Fatalf("Patch: %v", err)
@@ -149,11 +153,11 @@ func TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis(t *testing.T) {
 		t.Fatalf("got %d desired files", len(set.files))
 	}
 	assertDesired(t, set.files[0], desiredFile{
-		displayPath: "greeting.txt", path: filepath.Join(dir, "greeting.txt"), contents: []byte("hello\nthere\n"),
+		target: workspaceFile{root: dir, rel: "greeting.txt"}, contents: []byte("hello\nthere\n"),
 	})
 	created := filepath.Join(dir, "docs", "new.md")
 	assertDesired(t, set.files[1], desiredFile{
-		displayPath: filepath.Join("docs", "new.md"), path: created, contents: []byte("# New\n"), mode: 0o644,
+		target: workspaceFile{root: dir, rel: filepath.Join("docs", "new.md")}, contents: []byte("# New\n"), mode: 0o644,
 	})
 	for _, f := range set.files {
 		assertBasisMatchesFSPath(t, f)
@@ -165,10 +169,9 @@ func TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis(t *testing.T) {
 
 func assertDesired(t *testing.T, got, want desiredFile) {
 	t.Helper()
-	if got.displayPath != want.displayPath || got.path != want.path || string(got.contents) != string(want.contents) || got.mode != want.mode {
-		t.Fatalf("desired file = {%q %q %q %v}, want {%q %q %q %v}",
-			got.displayPath, got.path, got.contents, got.mode,
-			want.displayPath, want.path, want.contents, want.mode)
+	if got.target != want.target || string(got.contents) != string(want.contents) || got.mode != want.mode {
+		t.Fatalf("desired file = {%+v %q %v}, want {%+v %q %v}",
+			got.target, got.contents, got.mode, want.target, want.contents, want.mode)
 	}
 }
 
@@ -176,12 +179,12 @@ func assertDesired(t *testing.T, got, want desiredFile) {
 // current FSPath identity, so a later revalidation compares like with like.
 func assertBasisMatchesFSPath(t *testing.T, f desiredFile) {
 	t.Helper()
-	want, err := fingerprint.FSPath(f.path).Fingerprint(context.Background())
+	want, err := fingerprint.FSPath(f.target.path()).Fingerprint(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if f.basis != want {
-		t.Fatalf("Basis for %s = %+v, want FSPath identity %+v", f.path, f.basis, want)
+		t.Fatalf("Basis for %s = %+v, want FSPath identity %+v", f.target.path(), f.basis, want)
 	}
 }
 
