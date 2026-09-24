@@ -41,6 +41,17 @@ func hasUnfinishedTask(col core.TasksSnapshot) bool {
 	return slices.ContainsFunc(col.Collections, hasUnfinishedTask)
 }
 
+// liveProgressAddsInformation reports whether a live Group header's
+// "N/M complete" says something its rows do not: it counts the Group's own
+// child Tasks (total of them), so it informs only while one of them, or
+// work below them, is unfinished. A Group that holds only nested Groups
+// counts nothing — each nested Group paints its own progress — so its
+// header would read "0/0 complete" for the whole run (zq prune's
+// "categories" Group of category Groups, contract §18's live frame).
+func liveProgressAddsInformation(col core.TasksSnapshot, total int) bool {
+	return total > 0 && hasUnfinishedTask(col)
+}
+
 // writeHeaderlessGroup renders a Group's children as siblings of the
 // surrounding rows, aligned to one name column, then any nested containers
 // the same way.

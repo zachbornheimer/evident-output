@@ -72,26 +72,6 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, style Style) 
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// maxRootTaskNameWidth is the live renderer's own sibling-column-alignment
-// width — mirroring the durable/plain projection's identically-named helper
-// (internal/engine/progressive.go): two or more concurrently-declared
-// standalone (non-collection) root tasks share a name column ("branches" /
-// "worktrees" / "remote-tracking" padded to "remote-tracking"'s width, spec
-// §23's live parallel example), same as a Group's own children already do.
-// A single standalone task is never padded (nothing to align against).
-func maxRootTaskNameWidth(tasks []core.TaskSnapshot) int {
-	if len(tasks) < 2 {
-		return 0
-	}
-	width := 0
-	for _, t := range tasks {
-		if n := len([]rune(t.Name)); n > width {
-			width = n
-		}
-	}
-	return width
-}
-
 // renderArmedTitleLine is the honest placeholder painted after arm() when the
 // caller has not declared any entity yet — e.g. still parsing config. Falls
 // back to a generic label rather than an empty string so the paint stays

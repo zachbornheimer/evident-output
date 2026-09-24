@@ -58,6 +58,14 @@ var (
 // many it wrote. It exceeds height only below a Group's floor (see
 // minLiveChildRows).
 func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height int, st liveStyle) (rows int) {
+	return writeAlignedLiveCollection(b, col, height, 0, st)
+}
+
+// writeAlignedLiveCollection is writeLiveCollection for a collection whose
+// one row shares its siblings' name column (nameWidth; 0 for none): a
+// Group rendering as its own Task, under a header-less parent, aligns like
+// a sibling Task row (§18's "branches" / "remote-tracking").
+func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, nameWidth int, st liveStyle) (rows int) {
 	start := b.Len()
 	// Count before folding: a folded item is still a completed child, so
 	// "N/M complete" never drops when the items fold.
@@ -65,7 +73,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height int,
 	col, items := withoutDispositionItems(col)
 	switch {
 	case rendersAsOwnTask(col):
-		taskRows := writeLiveTaskLine(b, col.Tasks[0], 0, 0, st)
+		taskRows := writeLiveTaskLine(b, col.Tasks[0], 0, nameWidth, st)
 		writeLiveDispositions(b, taskAnnotationIndent, items, height-taskRows, st.Style)
 	case promotesLoneChildOntoHeader(col):
 		unit := liveTaskUnit(col.Tasks[0], 0, st)
@@ -101,6 +109,9 @@ func writeLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level
 // reports how many Tasks it left out.
 func fillLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level liveBodyLevel, st liveStyle) (omitted int) {
 	fill := liveFill{b: b, left: budget, level: level, st: st}
+	if level.indent == 0 {
+		fill.nameWidth = headerlessRowNameWidth(col)
+	}
 	if level.groupsFirst {
 		fill.groups(col.Collections)
 		fill.tasks(col.Tasks)
@@ -112,27 +123,25 @@ func fillLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level 
 }
 
 // liveFill is one body's row budget as it is spent: what is left, and how
-// many Tasks did not fit.
+// many Tasks did not fit. A body at indent 0 aligns its rows — its Tasks
+// and the nested Groups that render as one row — to one name column.
 type liveFill struct {
-	b       *strings.Builder
-	left    int
-	omitted int
-	level   liveBodyLevel
-	st      liveStyle
+	b         *strings.Builder
+	left      int
+	omitted   int
+	nameWidth int
+	level     liveBodyLevel
+	st        liveStyle
 }
 
 // tasks writes child Tasks in selectLiveChildren's attention order until
 // the next one's rows (an activity child counts) no longer fit.
 func (f *liveFill) tasks(tasks []core.TaskSnapshot) {
-	nameWidth := 0
-	if f.level.indent == 0 {
-		nameWidth = maxRootTaskNameWidth(tasks)
-	}
 	selected, omitted := selectLiveChildren(tasks, max(f.left, 0))
 	f.omitted += omitted
 	for i, t := range selected {
 		var row strings.Builder
-		rows := writeLiveTaskLine(&row, t, f.level.indent, nameWidth, f.st)
+		rows := writeLiveTaskLine(&row, t, f.level.indent, f.nameWidth, f.st)
 		if rows > f.left {
 			f.omitted += len(selected) - i
 			return
@@ -148,7 +157,7 @@ func (f *liveFill) groups(cols []core.TasksSnapshot) {
 	for i, child := range cols {
 		var nested strings.Builder
 		share := f.left / (len(cols) - i)
-		rows := writeLiveCollection(&nested, child, share, f.st)
+		rows := writeAlignedLiveCollection(&nested, child, share, f.nameWidth, f.st)
 		if rows > f.left {
 			f.omitted += taskCount(child)
 			continue

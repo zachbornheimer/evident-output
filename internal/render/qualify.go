@@ -18,11 +18,13 @@ import (
 // out, renders without its header. Plain and live differ only in this.
 type headerRule func(col core.TasksSnapshot, items core.Dispositions) bool
 
-// liveFlattensHeader is the live frame's rule: while any Task under the
-// Group is unfinished, its header carries the aggregate "N/M complete"
-// count, which is information the rows alone do not state.
+// liveFlattensHeader is the live frame's rule: the header stays only
+// while its aggregate "N/M complete" count says something the rows do not
+// (liveProgressAddsInformation) — never "0/0 complete" for a Group that
+// holds only nested Groups.
 func liveFlattensHeader(col core.TasksSnapshot, items core.Dispositions) bool {
-	return flattensHeader(col, items) && !hasUnfinishedTask(col)
+	_, total := completion(col)
+	return flattensHeader(col, items) && !liveProgressAddsInformation(col, total)
 }
 
 // qualifyFlattenedRows returns s with every flattened row whose name
