@@ -11,7 +11,9 @@
 // (elapsed := time.Since(start)). A duration of a domain timestamp (a
 // file's age, time.Since(info.ModTime())) is a fact about the domain, not
 // a stopwatch, and stays silent; so does a stopwatch that drives domain
-// logic (a deadline) and never reaches Summary/Fact.
+// logic (a deadline) and never reaches Summary/Fact. Locals are matched by
+// the object they resolve to, not by name, so a start in one closure never
+// makes a same-named local in another scope a stopwatch.
 package review
 
 import (
@@ -27,12 +29,13 @@ var timingNarrationMethods = map[string]bool{"Summary": true, "Fact": true}
 // detectManualTaskTiming is API-062.
 func detectManualTaskTiming(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
+	objects := resolveLocals(fset, file)
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil {
 			continue
 		}
-		sw := newStopwatches(fn.Body)
+		sw := newStopwatches(fn.Body, objects)
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
@@ -51,40 +54,74 @@ func detectManualTaskTiming(filename string, file *ast.File, fset *token.FileSet
 	return findings
 }
 
+// localObjects resolves an identifier to the object it declares or uses.
+type localObjects struct{ info *types.Info }
+
+// resolveLocals type-checks file on its own. Imports are stubbed and type
+// errors ignored: only the identity of each local is needed.
+func resolveLocals(fset *token.FileSet, file *ast.File) localObjects {
+	info := &types.Info{Defs: map[*ast.Ident]types.Object{}, Uses: map[*ast.Ident]types.Object{}}
+	conf := types.Config{Importer: stubImporter{}, Error: func(error) {}}
+	_, _ = conf.Check(file.Name.Name, fset, []*ast.File{file}, info)
+	return localObjects{info: info}
+}
+
+// of is id's object, or nil when id resolves to nothing.
+func (l localObjects) of(id *ast.Ident) types.Object {
+	if obj := l.info.Defs[id]; obj != nil {
+		return obj
+	}
+	return l.info.Uses[id]
+}
+
 // stopwatches are one function's stopwatch locals: starts hold a
 // time.Now(), readings hold a stopwatch read of a start.
 type stopwatches struct {
-	starts   map[string]bool
-	readings map[string]bool
+	objects  localObjects
+	starts   map[types.Object]bool
+	readings map[types.Object]bool
 }
 
 // newStopwatches collects body's starts, then the locals assigned a
 // reading of one (the one hop an elapsed variable adds).
-func newStopwatches(body *ast.BlockStmt) stopwatches {
-	sw := stopwatches{starts: map[string]bool{}, readings: map[string]bool{}}
-	forEachLocalAssignment(body, func(name string, value ast.Expr) {
+func newStopwatches(body *ast.BlockStmt, objects localObjects) stopwatches {
+	sw := stopwatches{objects: objects, starts: map[types.Object]bool{}, readings: map[types.Object]bool{}}
+	forEachLocalAssignment(body, func(name *ast.Ident, value ast.Expr) {
 		if call, ok := value.(*ast.CallExpr); ok && isTimeNow(call) {
-			sw.starts[name] = true
+			sw.mark(sw.starts, name)
 		}
 	})
-	forEachLocalAssignment(body, func(name string, value ast.Expr) {
+	forEachLocalAssignment(body, func(name *ast.Ident, value ast.Expr) {
 		if sw.readsStart(value) {
-			sw.readings[name] = true
+			sw.mark(sw.readings, name)
 		}
 	})
 	return sw
 }
 
+// mark records name's object in set, when it resolves to one.
+func (sw stopwatches) mark(set map[types.Object]bool, name *ast.Ident) {
+	if obj := sw.objects.of(name); obj != nil {
+		set[obj] = true
+	}
+}
+
+// is reports whether id resolves to an object in set.
+func (sw stopwatches) is(set map[types.Object]bool, id *ast.Ident) bool {
+	obj := sw.objects.of(id)
+	return obj != nil && set[obj]
+}
+
 // forEachLocalAssignment visits every name = value pairing in body, from
 // assignments and var declarations alike.
-func forEachLocalAssignment(body *ast.BlockStmt, visit func(name string, value ast.Expr)) {
+func forEachLocalAssignment(body *ast.BlockStmt, visit func(name *ast.Ident, value ast.Expr)) {
 	pair := func(names []ast.Expr, values []ast.Expr) {
 		if len(names) != len(values) {
 			return
 		}
 		for i, lhs := range names {
 			if id, ok := lhs.(*ast.Ident); ok {
-				visit(id.Name, values[i])
+				visit(id, values[i])
 			}
 		}
 	}
@@ -117,7 +154,7 @@ func (sw stopwatches) anyReads(args []ast.Expr) bool {
 func (sw stopwatches) namesReading(expr ast.Expr) bool {
 	return containsNode(expr, func(n ast.Node) bool {
 		id, ok := n.(*ast.Ident)
-		return ok && sw.readings[id.Name]
+		return ok && sw.is(sw.readings, id)
 	})
 }
 
@@ -130,7 +167,7 @@ func (sw stopwatches) readsStart(expr ast.Expr) bool {
 			return false
 		}
 		start, ok := call.Args[0].(*ast.Ident)
-		return ok && sw.starts[start.Name]
+		return ok && sw.is(sw.starts, start)
 	})
 }
 

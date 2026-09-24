@@ -152,3 +152,33 @@ func TestAPI062_StartFromParameter_Silent(t *testing.T) {
 	res := review.GoSource("timing_param.go", manualTimingParamStartSrc)
 	assertNoFinding(t, res, "API-062")
 }
+
+// Two closures may each declare their own start. A stopwatch in one scope
+// never turns a same-named domain timestamp in another into a stopwatch.
+const manualTimingShadowedStartSrc = `package p
+import (
+  "context"
+  "os"
+  "time"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(out *evo.Output, task *evo.TaskHandle, info os.FileInfo) {
+  out.Task("poll").Define(func(ctx context.Context) error {
+    start := time.Now()
+    for time.Since(start) < time.Minute {
+      poll(ctx)
+    }
+    return nil
+  })
+  task.Define(func(ctx context.Context) error {
+    start := info.ModTime()
+    task.Summary("cache is " + time.Since(start).String() + " old")
+    return nil
+  })
+}
+`
+
+func TestAPI062_SameNameInAnotherScope_Silent(t *testing.T) {
+	res := review.GoSource("timing_shadowed.go", manualTimingShadowedStartSrc)
+	assertNoFinding(t, res, "API-062")
+}
