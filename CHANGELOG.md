@@ -4,17 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## [1.2.0] — Unreleased: embedding behind HTTP (spec §53, ZYS-946)
 
-See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
-
-### Embedding behind HTTP (spec §53, ZYS-946)
+See [`docs/migration/1.2.md`](docs/migration/1.2.md) for the upgrade guide and
+[`docs/decisions/caller-cancellation.md`](docs/decisions/caller-cancellation.md)
+for the decision record.
 
 No new public API. See [`docs/guides/http-embedding.md`](docs/guides/http-embedding.md)
 and `examples/launch-agent-http`.
 
-- **Caller context end concludes `cancelled` (exit 130).** When the `ctx`
-  passed to `Run`/`Output.Run` ends, running Tasks are marked cancelled,
+- **Breaking behavior: caller context end concludes `cancelled` (exit
+  130).** When the `ctx` passed to `Run`/`Output.Run` ends, running Tasks are marked cancelled,
   queued Tasks never start, and `Conclusion.Explanation` is `by caller` or
   `deadline exceeded`. Previously the run concluded `failed` (exit 2) with a
   `context canceled` problem and let queued work keep running.
@@ -30,9 +30,16 @@ and `examples/launch-agent-http`.
 - **`WriteJSON` and `FormatJSON` share one writer,** so their documents are
   byte-identical for the same run. `WriteJSON` errors now name the failed
   step and wrap the writer's error.
+- **A caller cancel that lands after every Task finished changes nothing.**
+  The completed run keeps its own verdict instead of concluding cancelled.
 - **MCP API-062:** package-level `evo.Task`/`Group`/`Sequence`/`Fact`/
   `Warn`/`Print*`/`Confirm` inside an Isolated Output's `Run` callback
-  declare on the package default, not the Output being run.
+  declare on the package default, not the Output being run. Fires for
+  1.2.0+ pins only.
+
+## [1.1.0] — Unreleased
+
+See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Added
 
