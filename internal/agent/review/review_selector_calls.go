@@ -182,20 +182,25 @@ func debugWriterForEvidence(c selectorCall) []Finding {
 // exitBypassingConclusion is API-018 and EVO-EXIT-001 (spec §57's ID for
 // the same bypass; both fire so existing API-018 consumers see no change):
 // os.Exit with a code not derived from evo.Main/Run (evo.MainWith was
-// removed in 1.0).
+// removed in 1.0). Both carry one suggestion, so the one defect has one
+// fix, and it names only spellings that compile.
 func exitBypassingConclusion(c selectorCall) []Finding {
 	if id, ok := c.sel.X.(*ast.Ident); !ok || id.Name != "os" || c.name != "Exit" || isPresentationExitArg(c.call, c.runCodes) {
 		return nil
 	}
 	return []Finding{
 		c.finding("API-018",
-			"os.Exit in evo-using code; prefer os.Exit(evo.Main(run)) or os.Exit(evo.Run(run).../Conclusion().ExitCode) (evo.MainWith was removed in 1.0)",
-			"wrap evo.Main(run) in os.Exit (os.Exit(evo.Main(run))) where run(ctx) returns error — Main derives the code but does not exit itself"),
+			"os.Exit in evo-using code; prefer os.Exit(evo.Main(run)) or os.Exit(evo.Run(ctx, run).ExitCode()) (evo.MainWith was removed in 1.0)",
+			exitFromConclusionSuggestion),
 		c.finding("EVO-EXIT-001",
 			"os.Exit bypasses the Evo-derived conclusion (evo.MainWith was removed in 1.0)",
-			"derive the exit code from evo.Main(run) or a Run result's ExitCode(); never pass a literal or independently computed code to os.Exit"),
+			exitFromConclusionSuggestion),
 	}
 }
+
+// exitFromConclusionSuggestion is the one fix API-018 and EVO-EXIT-001
+// share.
+const exitFromConclusionSuggestion = "derive the exit code from the run: os.Exit(evo.Main(run)), or os.Exit(evo.Run(ctx, run).ExitCode()), where run(ctx) returns error; never pass a literal or independently computed code to os.Exit"
 
 // advanceDeltaCounter is PROG-001: Advance is a delta counter that
 // double-counts on retries, so any use is flagged in favor of one Task per
