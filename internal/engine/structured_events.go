@@ -1,50 +1,6 @@
 package engine
 
-import (
-	"encoding/json"
-
-	"github.com/zachbornheimer/evident-output/internal/wire"
-)
-
-// wireProblemPayloadLocked builds the "evo.event" payload for a
-// problem.recorded/warning.recorded line (spec §38), carrying the same
-// machine truth a FormatJSON/FormatJSON-run consumer sees for this
-// Problem, not a narrower subset. It reuses wire.ToProblemDoc — the one
-// owner of the core.Problem->wire projection, including Sensitive-Field
-// redaction — instead of rebuilding that projection independently.
-func wireProblemPayloadLocked(p Problem) map[string]any {
-	return problemDocPayload(wire.ToProblemDoc(p))
-}
-
-// problemDocPayload builds this event stream's payload from doc's own JSON
-// encoding (spec §38: a field the Problem never set is omitted, not
-// present-but-empty — the same `omitempty` tags ProblemDoc already carries
-// decide that here too). JSONL's own field is "summary", one name
-// different from ProblemDoc's "message" (§36's "evo.run" field); every
-// other key carries doc's already-redacted, already-projected value
-// straight through, unrenamed.
-//
-// Marshaling doc itself (instead of copying its fields one at a time) is
-// deliberate: the next field ToProblemDoc gains is in this payload for
-// free, so JSONL cannot silently fall behind evo.run the way ZYS-823 found
-// it had — see problemDocPayload_test.go's json-tag coverage check.
-func problemDocPayload(doc wire.ProblemDoc) map[string]any {
-	raw, err := json.Marshal(doc)
-	if err != nil {
-		// ProblemDoc's fields are all JSON-marshalable primitives/structs;
-		// this is unreachable outside a future field breaking that
-		// invariant, at which point a test should catch it before this
-		// runs in production.
-		return map[string]any{"summary": doc.Message}
-	}
-	payload := map[string]any{}
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return map[string]any{"summary": doc.Message}
-	}
-	payload["summary"] = doc.Message
-	delete(payload, "message")
-	return payload
-}
+import "github.com/zachbornheimer/evident-output/internal/wire"
 
 // emitWireEventLocked appends one §38 "evo.event" JSONL line for eventType,
 // scoped to entityID (empty for a run-level event) with payload as its

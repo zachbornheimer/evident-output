@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -509,9 +508,7 @@ func TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail(t *testing.T) {
 	}
 }
 
-// TestWireEvents_ProblemRecordedCarriesEvidenceTail proves
-// wireProblemPayloadLocked's evidence_tail branch (structured_events.go:17):
-// a Problem carrying a capture's DetailTail() must surface evidence_tail on
+// TestWireEvents_ProblemRecordedCarriesEvidenceTail proves a Problem carrying a capture's DetailTail() must surface evidence_tail on
 // the problem.recorded JSONL line, not just detail.
 func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
@@ -534,74 +531,6 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	got, _ := events[idx].Payload["evidence_tail"].(string)
 	if !strings.Contains(got, "undefined symbol foo") {
 		t.Fatalf("problem.recorded payload evidence_tail = %v, want it to contain the capture tail (full payload: %+v)", got, events[idx].Payload)
-	}
-}
-
-// TestWireProblemPayloadLocked_CarriesLocationAndRemedies is ZYS-823's
-// JSONL guard on the same projection internal/render's and internal/wire's
-// Location/Remedies tests cover: this function must carry both onto the
-// problem.recorded/warning.recorded payload, not just
-// summary/detail/evidence_tail.
-func TestWireProblemPayloadLocked_CarriesLocationAndRemedies(t *testing.T) {
-	payload := wireProblemPayloadLocked(Problem{
-		Summary:  "build failed",
-		Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
-		Actions:  []core.Action{{Label: "rerun"}},
-	})
-	if _, ok := payload["location"]; !ok {
-		t.Fatalf("payload missing location (full payload: %+v)", payload)
-	}
-	if _, ok := payload["remedies"]; !ok {
-		t.Fatalf("payload missing remedies (full payload: %+v)", payload)
-	}
-}
-
-// TestWireProblemPayloadLocked_CoversEveryProblemDocJSONTag is ZYS-823's
-// guard against the JSON/JSONL split this ticket exists to close:
-// problemDocPayload builds the JSONL payload from wire.ProblemDoc's own
-// JSON encoding, so the next field ToProblemDoc gains must appear here
-// automatically. This test pins that mechanism by reflecting over
-// ProblemDoc's json tags and failing if one goes missing from the payload
-// — a regression to per-field copying would still pass every other test in
-// this file yet silently drop the new tag, which is exactly the bug this
-// test exists to catch.
-func TestWireProblemPayloadLocked_CoversEveryProblemDocJSONTag(t *testing.T) {
-	payload := wireProblemPayloadLocked(Problem{
-		Summary: "build failed", Code: "A1", Subject: "main.go",
-		Detail: "compiler error", EvidenceTail: "tail", Count: 1, Unit: "line",
-		Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
-		Actions:  []core.Action{{Label: "rerun"}},
-	})
-	rt := reflect.TypeFor[wire.ProblemDoc]()
-	for i := 0; i < rt.NumField(); i++ {
-		tag := rt.Field(i).Tag.Get("json")
-		name, _, _ := strings.Cut(tag, ",")
-		if name == "" || name == "-" || name == "message" {
-			continue // "message" renames to "summary" in the JSONL payload.
-		}
-		if _, ok := payload[name]; !ok {
-			t.Fatalf("payload missing %q, a json tag ProblemDoc carries (full payload: %+v)", name, payload)
-		}
-	}
-	if _, ok := payload["summary"]; !ok {
-		t.Fatalf("payload missing summary (ProblemDoc's message, renamed): %+v", payload)
-	}
-}
-
-// TestVerificationObservedPayload_CarriesFacts proves
-// verificationObservedPayload's reuse of wire.ToVerificationDoc still
-// carries a VerificationDetail's Facts onto the verification.observed
-// JSONL payload.
-func TestVerificationObservedPayload_CarriesFacts(t *testing.T) {
-	payload := verificationObservedPayload(core.VerificationDetail{
-		Name: "permissions", Status: core.VerificationError,
-		Facts: []core.Fact{{Name: "error", Value: "operation not permitted"}},
-	})
-	if payload["name"] != "permissions" || payload["status"] != "error" {
-		t.Fatalf("payload = %+v, want name=permissions status=error", payload)
-	}
-	if _, ok := payload["facts"]; !ok {
-		t.Fatalf("payload missing facts: %+v", payload)
 	}
 }
 

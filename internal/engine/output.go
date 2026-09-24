@@ -684,38 +684,10 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 	}
 	stored := core.StoreVerificationDetails(details)
 	st.verification = append(st.verification, stored...)
-	// Emit from stored, not the raw details argument: stored has already
-	// run through core.StoreVerificationDetails' sanitization (text.Text
-	// over every Fact value), the same copy toVerificationDocs later reads
-	// for the final "evo.run" JSON document. Emitting from the raw
-	// argument would let a Fact value carrying control/ANSI bytes reach
-	// JSONL unsanitized while JSON carries the sanitized form — the same
-	// one-runtime-truth split ZYS-823 exists to close.
+	// Emit the sanitized copy evo.run projects, so JSONL and JSON agree.
 	for _, d := range stored {
-		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, verificationObservedPayload(d))
+		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, wire.ToVerificationDoc(d).EventPayload())
 	}
-}
-
-// verificationObservedPayload builds one attachVerificationLocked detail's
-// "verification.observed" payload (spec §38), carrying its Facts alongside
-// name/status — the same per-attribute machine truth wire.toVerificationDocs
-// already projects into the final "evo.run" document's tasks[].verification
-// (ZYS-823: FormatJSONL must see the same facts a FormatJSON consumer
-// does, not a subset). It reuses wire.ToVerificationDoc — the one owner of
-// the core.VerificationDetail->wire projection — then copies that doc's
-// own fields into this event's payload shape (they already share
-// name/status/facts and each Fact's name/value, so no renaming is needed).
-func verificationObservedPayload(d core.VerificationDetail) map[string]any {
-	doc := wire.ToVerificationDoc(d)
-	payload := map[string]any{"name": doc.Name, "status": doc.Status}
-	if len(doc.Facts) > 0 {
-		facts := make([]map[string]any, len(doc.Facts))
-		for i, f := range doc.Facts {
-			facts[i] = map[string]any{"name": f.Name, "value": f.Value}
-		}
-		payload["facts"] = facts
-	}
-	return payload
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first

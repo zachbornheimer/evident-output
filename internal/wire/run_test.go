@@ -237,14 +237,9 @@ func TestToRunDocument_VerificationProjectsPerAttributeFactsToo(t *testing.T) {
 	}
 }
 
-// TestToProblemDoc_ProjectsLocationAndRemedies is ZYS-823's guard on the
-// wire-format ("evo.run") side of the same projection internal/render's
-// toJSONProblems test covers: Location and Remedies must both reach
-// ProblemDoc, not just the Code/EvidenceTail fields other tests in this
-// file already exercise. Severity/Evidence/Fields are not asserted here:
-// ProblemDoc no longer projects them at all, because core.Problem has no
-// exported ProblemOption that can ever set them (see ProblemDoc's doc
-// comment).
+// TestToProblemDoc_ProjectsLocationAndRemedies proves Location and
+// Remedies reach ProblemDoc; evo.run is the only machine document that
+// carries them (output.v1 is frozen at 1.1).
 func TestToProblemDoc_ProjectsLocationAndRemedies(t *testing.T) {
 	got := ToProblemDoc(core.Problem{
 		Summary:  "build failed",

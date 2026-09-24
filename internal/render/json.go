@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // JSONSchemaVersion is the final JSON document schema version.
@@ -62,36 +63,9 @@ type JSONProblem struct {
 	Subject string `json:"subject,omitempty"`
 	Summary string `json:"summary,omitempty"`
 	Detail  string `json:"detail,omitempty"`
-	// EvidenceTail mirrors core.Problem.EvidenceTail (ZYS-823 gap 2): the
-	// plain/TTY renderer shows this evidence line alongside (or in place
-	// of) Detail, and a machine consumer must see the same untruncated
-	// text — dropping it here was machine-truth loss, not a display-only
-	// omission.
-	EvidenceTail string `json:"evidence_tail,omitempty"`
-	Count        int64  `json:"count,omitempty"`
-	Unit         string `json:"unit,omitempty"`
-	Code         string `json:"code,omitempty"`
-	// Location and Remedies mirror core.Problem's remaining structured
-	// data that has a real producer (ZYS-823: "Problems retain code/rule,
-	// location, summary/detail and remedies in Snapshot/JSON/JSONL").
-	// Location was dropped entirely from this projection, and a Problem's
-	// own remedies (core.Action) reached machine output only as run-level
-	// Conclusion.Actions — detached from the Problem they explain, so a
-	// consumer could not tell which remedy fixed which problem.
-	//
-	// core.Problem.Severity/Evidence/Fields have no exported ProblemOption
-	// producer (internal/engine/problem_option.go), so a projection for
-	// them here would be permanent public surface for data no caller can
-	// ever set — dropped rather than shipped unreachable (ZYS-823 review).
-	Location *JSONLocation `json:"location,omitempty"`
-	Remedies []JSONAction  `json:"remedies,omitempty"`
-}
-
-// JSONLocation is a wire-format source position (mirrors core.SourceLocation).
-type JSONLocation struct {
-	Path   string `json:"path"`
-	Line   int    `json:"line,omitempty"`
-	Column int    `json:"column,omitempty"`
+	Count   int64  `json:"count,omitempty"`
+	Unit    string `json:"unit,omitempty"`
+	Code    string `json:"code,omitempty"`
 }
 
 // JSONTask is a wire-format task.
@@ -109,26 +83,6 @@ type JSONTask struct {
 	Warnings []JSONProblem `json:"warnings,omitempty"`
 	Progress *JSONProgress `json:"progress,omitempty"`
 	Problems []JSONProblem `json:"problems,omitempty"`
-	// Verification mirrors internal/wire's TaskDoc.Verification (ZYS-823):
-	// the same per-attribute File/Patch reconciliation outcome — with the
-	// Facts that explain a non-satisfied attribute — that evo.run already
-	// carries. Public evo.EncodeJSON must not lose this machine truth just
-	// because it is the legacy output.v1 projection.
-	Verification []JSONVerification `json:"verification,omitempty"`
-}
-
-// JSONVerification is one wire-format per-attribute verification outcome
-// (mirrors internal/wire.VerificationDoc).
-type JSONVerification struct {
-	Name   string     `json:"name"`
-	Status string     `json:"status"`
-	Facts  []JSONFact `json:"facts,omitempty"`
-}
-
-// JSONFact is a wire-format name/value Fact annotation.
-type JSONFact struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
 }
 
 // JSONProgress is wire-format progress.
@@ -311,9 +265,6 @@ func toJSONTask(t core.TaskSnapshot) JSONTask {
 	if len(t.Warnings) > 0 {
 		jt.Warnings = toJSONProblems(t.Warnings)
 	}
-	if len(t.Verification) > 0 {
-		jt.Verification = toJSONVerifications(t.Verification)
-	}
 	if t.Progress.Kind != "" && t.Progress.Kind != core.Indeterminate {
 		jt.Progress = &JSONProgress{
 			Kind: t.Progress.Kind, Completed: t.Progress.Completed, Total: t.Progress.Total,
@@ -332,44 +283,8 @@ func toJSONProblems(in []core.Problem) []JSONProblem {
 	for i, p := range in {
 		out[i] = JSONProblem{
 			Subject: p.Subject, Summary: p.Summary, Detail: p.Detail,
-			EvidenceTail: p.EvidenceTail,
-			Count:        p.Count, Unit: p.Unit, Code: p.Code,
-			Location: toJSONLocation(p.Location),
-			Remedies: toJSONActions(p.Actions),
+			Count: p.Count, Unit: p.Unit, Code: p.Code,
 		}
-	}
-	return out
-}
-
-func toJSONLocation(loc *core.SourceLocation) *JSONLocation {
-	if loc == nil {
-		return nil
-	}
-	return &JSONLocation{Path: loc.Path, Line: loc.Line, Column: loc.Column}
-}
-
-func toJSONActions(in []core.Action) []JSONAction {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]JSONAction, len(in))
-	for i, a := range in {
-		out[i] = toJSONAction(a)
-	}
-	return out
-}
-
-func toJSONVerifications(in []core.VerificationDetail) []JSONVerification {
-	out := make([]JSONVerification, len(in))
-	for i, d := range in {
-		v := JSONVerification{Name: d.Name, Status: string(d.Status)}
-		if len(d.Facts) > 0 {
-			v.Facts = make([]JSONFact, len(d.Facts))
-			for j, f := range d.Facts {
-				v.Facts[j] = JSONFact{Name: f.Name, Value: f.Value}
-			}
-		}
-		out[i] = v
 	}
 	return out
 }
@@ -387,13 +302,15 @@ func toJSONEffects(in []core.EffectRecord) []JSONEffectRecord {
 	return out
 }
 
+// toJSONAction adapts wire's one core.Action projection to the frozen
+// output.v1 type. The JSONCommand conversion compiles only while
+// JSONCommand and wire.CommandDoc keep identical fields.
 func toJSONAction(a core.Action) JSONAction {
-	ja := JSONAction{Label: a.Label, URL: a.URL}
-	if a.Command != nil {
-		ja.Command = &JSONCommand{
-			Executable: a.Command.Executable,
-			Args:       append([]string(nil), a.Command.Args...),
-		}
+	doc := wire.ToActionDoc(a)
+	ja := JSONAction{Label: doc.Label, URL: doc.URL}
+	if doc.Command != nil {
+		cmd := JSONCommand(*doc.Command)
+		ja.Command = &cmd
 	}
 	return ja
 }

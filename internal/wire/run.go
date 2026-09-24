@@ -146,27 +146,6 @@ type TimingDoc struct {
 	TotalMs   int64 `json:"total_ms"`
 }
 
-// VerificationDoc is one diagnostic sub-result (spec §36): a managed
-// attribute an evo.File/Patch/Exec operation reconciled, satisfied or not.
-// Facts explains a non-satisfied entry (error/path/mode, mirroring
-// core.VerificationDetail.Facts, §8.2's worked example) so a machine
-// consumer never needs to parse the human "failed: permissions" row to
-// learn why (ZYS-823 decisions: "normal human truncation/collapse never
-// truncates machine truth").
-type VerificationDoc struct {
-	Name   string    `json:"name"`
-	Status string    `json:"status"`
-	Facts  []FactDoc `json:"facts,omitempty"`
-}
-
-// Verification statuses (spec §36).
-const (
-	VerificationSatisfied   = "satisfied"
-	VerificationUnsatisfied = "unsatisfied"
-	VerificationError       = "error"
-	VerificationUnknown     = "unknown"
-)
-
 // TrackedResourceDoc is one observable, fingerprintable resource (spec §36).
 // The runtime model has no tracked-resource instrumentation yet (that is
 // increment 2's File/manifest work) — always an empty slice for now.
@@ -214,47 +193,6 @@ type TaskDoc struct {
 	Operations         []OperationDoc       `json:"operations"`
 }
 
-// FactDoc is a wire-format Fact annotation (spec §36/§39's "Facts" data).
-type FactDoc struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-// ProblemDoc is a wire-format Problem: stable code plus a human message a
-// machine consumer must not parse (spec §37).
-type ProblemDoc struct {
-	Code    string `json:"code,omitempty"`
-	Message string `json:"message,omitempty"`
-	Subject string `json:"subject,omitempty"`
-	Detail  string `json:"detail,omitempty"`
-	// EvidenceTail mirrors core.Problem.EvidenceTail (ZYS-823 gap 2, same
-	// projection bug internal/render's JSONProblem had): the plain/TTY
-	// row can show this evidence line, so the full-fidelity §36 document
-	// must carry it too rather than dropping it.
-	EvidenceTail string `json:"evidence_tail,omitempty"`
-	Count        int64  `json:"count,omitempty"`
-	Unit         string `json:"unit,omitempty"`
-	// Location and Remedies mirror render.JSONProblem's same-named fields
-	// (ZYS-823: "Problems retain code/rule, location, summary/detail and
-	// remedies in Snapshot/JSON/JSONL") — the full-fidelity §36 document
-	// must not drop what the legacy output.v1 projection carries.
-	//
-	// core.Problem.Severity/Evidence/Fields have no exported ProblemOption
-	// producer, so a §36 projection for them would be permanent public
-	// surface for data no caller can ever set — dropped rather than
-	// shipped unreachable, the same call render.JSONProblem makes
-	// (ZYS-823 review).
-	Location *LocationDoc `json:"location,omitempty"`
-	Remedies []ActionDoc  `json:"remedies,omitempty"`
-}
-
-// LocationDoc is a wire-format source position (mirrors core.SourceLocation).
-type LocationDoc struct {
-	Path   string `json:"path"`
-	Line   int    `json:"line,omitempty"`
-	Column int    `json:"column,omitempty"`
-}
-
 // EffectDoc is one flattened change/plan row (spec §35's top-level
 // "effects"), tagged with which ledger it came from so a machine consumer
 // gets the human [planned]/[changed] distinction without parsing verb tense.
@@ -264,19 +202,6 @@ type EffectDoc struct {
 	Verb     string `json:"verb"`
 	Quantity *int64 `json:"quantity,omitempty"`
 	Object   string `json:"object"`
-}
-
-// ActionDoc is a wire-format next-step Action.
-type ActionDoc struct {
-	Label   string      `json:"label,omitempty"`
-	Command *CommandDoc `json:"command,omitempty"`
-	URL     string      `json:"url,omitempty"`
-}
-
-// CommandDoc is argv for display.
-type CommandDoc struct {
-	Executable string   `json:"executable"`
-	Args       []string `json:"args,omitempty"`
 }
 
 // ToRunDocument builds the "evo.run" wire document from a finished Result
@@ -319,7 +244,7 @@ func ToRunDocument(result core.Result, evoVersion string) RunDocument {
 		doc.Data.Effects = append(doc.Data.Effects, toEffectDocs(p.Subject, EffectStatusPlanned, p.Records)...)
 	}
 	for _, a := range c.Actions {
-		doc.Data.Actions = append(doc.Data.Actions, toActionDoc(a))
+		doc.Data.Actions = append(doc.Data.Actions, ToActionDoc(a))
 	}
 	return doc
 }
@@ -441,78 +366,6 @@ func toEvidencePhaseDoc(p core.EvidencePhase) EvidencePhaseDoc {
 	return EvidencePhaseDoc{Evaluated: p.Evaluated, Satisfied: p.Satisfied, Source: p.Source}
 }
 
-func toFactDocs(in []core.Fact) []FactDoc {
-	out := make([]FactDoc, 0, len(in))
-	for _, f := range in {
-		out = append(out, FactDoc{Name: f.Name, Value: f.Value})
-	}
-	return out
-}
-
-func toVerificationDocs(in []core.VerificationDetail) []VerificationDoc {
-	out := make([]VerificationDoc, 0, len(in))
-	for _, d := range in {
-		out = append(out, ToVerificationDoc(d))
-	}
-	return out
-}
-
-// ToVerificationDoc projects one core.VerificationDetail into its wire
-// form. Exported so a caller outside this package — internal/engine's
-// JSONL "verification.observed" event, in particular — can reuse this
-// package's own Fact-carrying projection instead of hand-building an
-// equivalent map[string]any, which is what let that JSONL payload and this
-// package's toVerificationDocs drift into two separate copies of the same
-// projection.
-func ToVerificationDoc(d core.VerificationDetail) VerificationDoc {
-	return VerificationDoc{Name: d.Name, Status: string(d.Status), Facts: toFactDocs(d.Facts)}
-}
-
-func toProblemDocs(in []core.Problem) []ProblemDoc {
-	out := make([]ProblemDoc, 0, len(in))
-	for _, p := range in {
-		out = append(out, ToProblemDoc(p))
-	}
-	return out
-}
-
-// ToProblemDoc projects one core.Problem into its wire form. Exported for
-// the same reason as ToVerificationDoc: internal/engine's JSONL
-// "problem.recorded"/"warning.recorded" events reuse this single
-// projection (via ProblemDoc's own JSON encoding) instead of rebuilding it
-// as a third hand-written map[string]any alongside this function and
-// render.toJSONProblems.
-func ToProblemDoc(p core.Problem) ProblemDoc {
-	return ProblemDoc{
-		Code: p.Code, Message: p.Summary, Subject: p.Subject,
-		Detail: p.Detail, EvidenceTail: p.EvidenceTail,
-		Count: p.Count, Unit: p.Unit,
-		Location: toLocationDoc(p.Location),
-		Remedies: toActionDocs(p.Actions),
-	}
-}
-
-// toLocationDoc projects a core.SourceLocation into its wire form, nil-safe
-// since most Problems never carry one.
-func toLocationDoc(loc *core.SourceLocation) *LocationDoc {
-	if loc == nil {
-		return nil
-	}
-	return &LocationDoc{Path: loc.Path, Line: loc.Line, Column: loc.Column}
-}
-
-// toActionDocs projects a Problem's remedy Actions into their wire form.
-func toActionDocs(in []core.Action) []ActionDoc {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]ActionDoc, len(in))
-	for i, a := range in {
-		out[i] = toActionDoc(a)
-	}
-	return out
-}
-
 func toEffectDocs(subject, status string, in []core.EffectRecord) []EffectDoc {
 	out := make([]EffectDoc, 0, len(in))
 	for _, r := range in {
@@ -524,15 +377,4 @@ func toEffectDocs(subject, status string, in []core.EffectRecord) []EffectDoc {
 		out = append(out, rec)
 	}
 	return out
-}
-
-func toActionDoc(a core.Action) ActionDoc {
-	ad := ActionDoc{Label: a.Label, URL: a.URL}
-	if a.Command != nil {
-		ad.Command = &CommandDoc{
-			Executable: a.Command.Executable,
-			Args:       append([]string(nil), a.Command.Args...),
-		}
-	}
-	return ad
 }
