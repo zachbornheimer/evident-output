@@ -33,30 +33,42 @@ ZYS-945 — §39 optimization data.
   zero) with every span, phase time, and phase entry count
   (`definition_entries` and siblings), adds each Task's own
   `operation_counts`, and adds `data.metrics` (with `operations` and
-  `rates`); JSONL `run.finished` carries the same
-  `metrics`, typed in `schema/event.v2.json`, and `task.eligible` now fires
-  when a Task becomes eligible rather than when a scheduler slot frees.
-  Human output shows one dim `timing` line under `VerbosityVerbose` only.
-- **Eligibility is event-driven:** a Task becomes eligible, and its work
-  starts, the moment its last predecessor settles, including one settled on
-  the caller's stack by `Kept`/`Skipped`/`Fail`/`Cancel`. Previously such a
-  dependent waited for an unrelated slot to free (often `Finish`) and
-  reported that stall as `DependencyWait`.
-- **Exec change tracking:** an `Exec` that reruns and writes byte-identical
-  outputs now finishes unchanged (propagation stopped). A dry-run `Exec`
-  never ran, so it counts as neither changed nor unchanged.
+  `rates`); JSONL `run.finished` carries the same `metrics`, typed in
+  `schema/event.v2.json`. Every new field is optional under the unchanged
+  `run.v2`/`event.v2` `$id`, so 1.1 documents still conform.
+- **JSONL `operation.finished` for a dry-run `Exec`:** the payload adds
+  `planned: true` beside the 1.1 `changed: true`
+  (`$defs/operationPlannedPayload`). A 1.1 host reads the same `changed`
+  as before; a 1.2 host that tallies outcomes keys on `planned`.
 - **MCP API-062:** flags a stopwatch a function started with `time.Now()`
   and narrated through `Summary`/`Fact` (`time.Since`, `time.Now().Sub`,
   directly or through one local). A domain timestamp's age stays silent.
 
 ### Changed (1.2)
 
-- **JSONL `operation.finished` for a dry-run `Exec`:** the payload is now
-  `{"kind":"exec","executable":…,"planned":true}` instead of
-  `{"changed":true}`: the command never ran, so it claims no outcome.
-  `schema/event.v2.json` types both shapes as `$defs/operationObservedPayload`
-  and `$defs/operationPlannedPayload`. Consumers that read `changed` must
-  treat a missing `changed` with `planned: true` as "not run".
+These keep the `event.v2` and `run.v2` `$id`s but change behavior a 1.1 host
+can observe. Each is a fix; check the ones your host depends on.
+
+- **Exec change tracking:** a non-dry `Exec` that reruns and writes
+  byte-identical outputs now finishes `changed: false` (propagation stopped)
+  and counts as `Unchanged`. 1.1 always reported `changed: true`.
+  _Impact:_ a host that triggers downstream work on `changed: true` now
+  skips that work when the outputs did not change. An `Exec` with no
+  declared `Outputs` tracks nothing and still reports `changed: true`.
+- **Eligibility is event-driven:** a Task becomes eligible, and its work
+  starts, the moment its last predecessor settles, including one settled on
+  the caller's stack by `Kept`/`Skipped`/`Fail`/`Cancel`. Previously such a
+  dependent waited for an unrelated slot to free (often `Finish`) and
+  reported that stall as `DependencyWait`. JSONL `task.eligible` now fires
+  at that moment, not when a scheduler slot frees.
+  _Impact:_ under a concurrency ceiling, several `task.eligible` events can
+  appear before any `task.started`, so the JSONL event order differs from
+  1.1. Order consumers by `seq` and pair events by `entity_id`, not by
+  adjacency.
+- **Verbose human output:** plain and live terminals add one dim `timing`
+  line above the conclusion band under `VerbosityVerbose` only.
+  _Impact:_ golden tests on verbose output see one new line. Default and
+  quieter verbosities are unchanged.
 
 ## Unreleased
 
