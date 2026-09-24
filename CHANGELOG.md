@@ -26,6 +26,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   returns `*TaskHandle` to chain. Every existing `task.Warn("x")` call site
   still compiles unchanged.
 
+- **A `Kept` record now concludes `warned` (contract §18).** Any Task that
+  records `Kept(reason)` sets `Conclusion.Warned`, the `--json`
+  `conclusion.warned` field, and the `· warned` band, so a run that kept
+  items it was asked to clean no longer reads as a plain `ready`. A
+  `Skipped` record renders `- skipped N (...)` and never warns.
+
 - **The renderer decides which rows deserve a line (no new API; callers just
   stop choosing):**
   - A `Group` with no `Summary` of its own renders no header row in human

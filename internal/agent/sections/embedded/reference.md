@@ -113,6 +113,14 @@ how many Problems it owns.
 `On`, `Location`, `Next`, ...) for a non-blocking finding with the same
 structured metadata — it never resolves the task either.
 
+A `Kept(reason)` record warns the run the same way (contract §18): the
+Task left items it was asked to act on, so it renders `! kept N (...)` and
+sets `Conclusion().Warned`, the `--json` document's `conclusion.warned`,
+and the `· warned` band, even on a single Task (`repositories  ! kept 13
+(unpushed)` concludes `[ready · warned]`). `Skipped(reason)` is skip
+detail, not a warning: it renders `- skipped N (...)` and never sets
+`warned`.
+
 Every accumulated Problem survives in `Snapshot`/JSON/JSONL even when the
 plain human view bounds how many render inline (5 by default) behind an
 `and N more failures` line — the count is always authoritative, and a
