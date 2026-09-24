@@ -45,6 +45,7 @@ var docSections = []docSection{
 	{id: "mcp", title: "MCP server wiring", file: "mcp.md", source: "docs/mcp.md", concepts: []string{"mcp", "wire", "tools", "hosts"}},
 	{id: "adoption-ladder", title: "Teaching / adoption ladder", file: "adoption-ladder.md", source: "docs/guides/teaching-ladder.md", concepts: []string{"adoption", "ladder", "onboarding"}},
 	{id: "exit-code-fidelity", title: "Exit-code fidelity", file: "exit-code-fidelity.md", source: "docs/guides/exit-code-fidelity.md", concepts: []string{"exit-code", "os.Exit", "lifecycle", "run"}},
+	{id: "large-platform-adoption", title: "Large-platform adoption", file: "large-platform-adoption.md", source: "docs/guides/large-platform-adoption.md", concepts: []string{"adoption", "docker", "npm", "homebrew", "reconciler"}},
 }
 
 // List returns every section the server can return via Get, sorted by ID —

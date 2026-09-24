@@ -3,6 +3,7 @@ package sections_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/sections"
@@ -36,11 +37,12 @@ func TestEveryListedSectionIDResolves(t *testing.T) {
 func TestEmbeddedDocsMatchSource(t *testing.T) {
 	root := repoRoot(t)
 	cases := map[string]string{
-		"reference.md":          filepath.Join(root, "docs", "reference.md"),
-		"development.md":        filepath.Join(root, "docs", "development.md"),
-		"mcp.md":                filepath.Join(root, "docs", "mcp.md"),
-		"adoption-ladder.md":    filepath.Join(root, "docs", "guides", "teaching-ladder.md"),
-		"exit-code-fidelity.md": filepath.Join(root, "docs", "guides", "exit-code-fidelity.md"),
+		"reference.md":               filepath.Join(root, "docs", "reference.md"),
+		"development.md":             filepath.Join(root, "docs", "development.md"),
+		"mcp.md":                     filepath.Join(root, "docs", "mcp.md"),
+		"adoption-ladder.md":         filepath.Join(root, "docs", "guides", "teaching-ladder.md"),
+		"exit-code-fidelity.md":      filepath.Join(root, "docs", "guides", "exit-code-fidelity.md"),
+		"large-platform-adoption.md": filepath.Join(root, "docs", "guides", "large-platform-adoption.md"),
 	}
 	for embeddedName, srcPath := range cases {
 		want, err := os.ReadFile(srcPath)
@@ -70,8 +72,24 @@ func sectionIDForFile(file string) string {
 		return "adoption-ladder"
 	case "exit-code-fidelity.md":
 		return "exit-code-fidelity"
+	case "large-platform-adoption.md":
+		return "large-platform-adoption"
 	default:
 		return ""
+	}
+}
+
+// TestLargePlatformAdoptionSectionIsListed guards ZYS-1020: the large-scale
+// adoption guide must be reachable through the same list/get contract as
+// every other doc-backed section, and must still carry its "porting a
+// reconciler" guidance in the served body.
+func TestLargePlatformAdoptionSectionIsListed(t *testing.T) {
+	got, ok := sections.Get("large-platform-adoption")
+	if !ok {
+		t.Fatal(`Get("large-platform-adoption") not found — is it registered in docSections?`)
+	}
+	if !strings.Contains(got.Body, "Porting a reconciler") {
+		t.Errorf("large-platform-adoption body missing %q", "Porting a reconciler")
 	}
 }
 
