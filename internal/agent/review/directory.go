@@ -20,6 +20,7 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 	dialect := DialectFor(dir, desiredVersion)
 	ver := dialect.Lint()
 	var all []Finding
+	var pkgs packageSources
 	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walk %s: %w", path, err)
@@ -39,11 +40,13 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 		}
 		r := GoSourceAt(path, string(src), ver)
 		all = append(all, r.Findings...)
+		pkgs.add(path, src)
 		return nil
 	})
 	if walkErr != nil {
 		return Result{}, fmt.Errorf("review directory %s: %w", dir, walkErr)
 	}
+	all = append(all, pkgs.findings(ver)...)
 	return dialect.Stamp(newResult(all)), nil
 }
 

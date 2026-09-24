@@ -223,6 +223,10 @@ var fileDetectors = []detector{
 	// the per-item shape is group.Task(item).Kept(reason) (contract §25
 	// renderer aggregation folds those children into one tally).
 	{needsEvo: true, run: astRule(detectRepeatedDisposition)},
+	// API-063: a package-level evo declaration inside an Isolated Output's
+	// Run callback lands on the package default instead of the Output being
+	// run (spec §53, ZYS-946).
+	{needsEvo: true, run: astRule(detectPackageFacadeInIsolatedRun)},
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	{needsEvo: true, run: astRule(detectMutatingLegacyEvidence)},
 	// EVO-VERIFY-001: Verify callback performs a raw mutation; Verify must
