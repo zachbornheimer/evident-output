@@ -313,4 +313,9 @@ func TestFormatJSON_WriterFailureIsRendererErrorAndKeepsCause(t *testing.T) {
 	if !errors.Is(err, evo.ErrRenderer) || !errors.Is(err, errClientGone) {
 		t.Fatalf("Finish error = %v, want errors.Is both evo.ErrRenderer and the writer's error", err)
 	}
+	// The 1.1 text is part of the contract a FormatJSON host may already
+	// compare: "<ErrRenderer>: <writer error>", with no new step name.
+	if want := evo.ErrRenderer.Error() + ": " + errClientGone.Error(); err.Error() != want {
+		t.Fatalf("Finish error text = %q, want the 1.1 text %q", err.Error(), want)
+	}
 }

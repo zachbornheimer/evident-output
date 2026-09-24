@@ -37,15 +37,21 @@ func WriteRunDocument(w io.Writer, result Result) error {
 	return nil
 }
 
-// writeWireRunLocked is FormatJSON's end-of-run write of conc to w. A nil w
-// is a no-op. Failures are wrapped in ErrRenderer, matching
-// writeMachinePresentation's legacy-wire contract (spec §32.2: "a genuine
-// Run failure, not an ignored logging error").
+// writeWireRunLocked is FormatJSON's end-of-run write of conc to w: the
+// same bytes as WriteRunDocument. A nil w is a no-op. Failures are wrapped
+// in ErrRenderer (spec §32.2: "a genuine Run failure, not an ignored
+// logging error") with the cause's own text directly after it, the 1.1
+// text a FormatJSON host may already compare; the cause also stays
+// reachable through errors.Is.
 func writeWireRunLocked(w io.Writer, conc Conclusion) error {
 	if w == nil {
 		return nil
 	}
-	if err := WriteRunDocument(w, core.Result{Conclusion: conc}); err != nil {
+	body, err := wire.EncodeRunLine(core.Result{Conclusion: conc}, wireEvoVersion)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrRenderer, err)
+	}
+	if _, err := w.Write(body); err != nil {
 		return fmt.Errorf("%w: %w", ErrRenderer, err)
 	}
 	if f, ok := w.(flusher); ok {
