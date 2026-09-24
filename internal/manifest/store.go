@@ -6,15 +6,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // Store is one Run's exclusive handle on a single manifest file. Open
 // acquires the lock; every other Run attempting the same manifest path
-// blocks (or is cancelled) until Close releases it.
+// blocks (or is cancelled) until Close releases it. It is safe for
+// concurrent use: parallel Tasks consult and commit their own records at
+// the same time.
 type Store struct {
 	path string
 	lock *fileLock
-	doc  Document
+	// mu guards doc: readers consult prior records while another Task
+	// commits its own.
+	mu  sync.RWMutex
+	doc Document
 	// missWarning is non-nil when Open found an existing manifest file it
 	// could not trust (ErrCorrupt) — a safe cache miss, surfaced to the
 	// caller instead of silently treated as "no history" with no signal.
@@ -74,6 +80,8 @@ func (s *Store) Warning() error {
 // §11.4: "matched by current semantic definition fingerprint ... within
 // the Task").
 func (s *Store) Operation(taskKey string, i int) (OperationRecord, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	task, ok := s.doc.Tasks[taskKey]
 	if !ok || i < 0 || i >= len(task.Operations) {
 		return OperationRecord{}, false
@@ -86,6 +94,8 @@ func (s *Store) Operation(taskKey string, i int) (OperationRecord, bool) {
 // (including its own DefinitionFingerprint, ZYS-817) rather than one
 // operation within it.
 func (s *Store) Task(taskKey string) (TaskRecord, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	task, ok := s.doc.Tasks[taskKey]
 	return task, ok
 }
@@ -99,6 +109,8 @@ func (s *Store) CommitTask(ctx context.Context, app ApplicationRecord, task Task
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("manifest: commit task %q: %w", task.Key, err)
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.doc.Application = app
 	if s.doc.Tasks == nil {
 		s.doc.Tasks = map[string]TaskRecord{}
