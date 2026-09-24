@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
@@ -91,6 +92,9 @@ type execEvaluation struct {
 	Skip                  bool
 	DefinitionFingerprint string
 	Basis                 []manifest.BasisRecord
+	// PriorOutputs is the prior record's output digests, which the fresh
+	// run is compared with to tell a changed output from an identical one.
+	PriorOutputs []manifest.OutputRecord
 }
 
 // Exec declares/reconciles one managed-state subprocess invocation: it
@@ -191,15 +195,22 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 	})
 	o.mu.Unlock()
 	if o.DryRun() {
-		o.recordExecEffect(taskID, spec.Executable)
-		o.mu.Lock()
-		o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
-			"kind": "exec", "executable": spec.Executable, "changed": true,
-		})
-		o.mu.Unlock()
+		o.planExec(taskID, spec)
 		return execEvaluation{Skip: true}, nil
 	}
-	return execEvaluation{DefinitionFingerprint: defFingerprint, Basis: basis}, nil
+	return execEvaluation{DefinitionFingerprint: defFingerprint, Basis: basis, PriorOutputs: prior.Outputs}, nil
+}
+
+// planExec records a dry run's planned Exec. The command never runs, so its
+// finished event is marked planned and claims no changed or identical
+// output (§39 tallies count neither).
+func (o *Output) planExec(taskID string, spec ExecSpec) {
+	o.recordExecEffect(taskID, spec.Executable)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
+		"kind": "exec", "executable": spec.Executable, "planned": true,
+	})
 }
 
 // execRunAndRecord spawns the child, verifies its declared Outputs after a
@@ -240,10 +251,18 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 	o.mu.Lock()
 	o.appendManifestOperationLocked(taskID, rec)
 	o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
-		"kind": "exec", "executable": spec.Executable, "changed": true,
+		"kind": "exec", "executable": spec.Executable, "changed": execOutputsChanged(eval.PriorOutputs, outputRecords),
 	})
 	o.mu.Unlock()
 	return result, nil
+}
+
+// execOutputsChanged reports whether a successful run changed its tracked
+// outputs. Identical digests to the prior record stop propagation (§39);
+// an Exec with no declared Outputs tracks nothing, so it always counts as
+// changed.
+func execOutputsChanged(prior, fresh []manifest.OutputRecord) bool {
+	return len(fresh) == 0 || !slices.Equal(prior, fresh)
 }
 
 // observeVerifiedExecOutputs wraps verifiedExecOutputs with one

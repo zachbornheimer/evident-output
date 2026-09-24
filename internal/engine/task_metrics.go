@@ -52,6 +52,14 @@ func (o *Output) timePhase(taskID string, phase runtimePhase) (stop func()) {
 	}
 }
 
+// enterDefinition runs a Define callback inside its Definition phase. The
+// phase ends even when the callback panics (runWork recovers the panic), so
+// a crashed callback still counts as entered.
+func (o *Output) enterDefinition(taskID string, callback func() error) error {
+	defer o.timePhase(taskID, phaseDefinition)()
+	return callback()
+}
+
 // tallyOperationLocked folds one §38 operation event into its Task's
 // OperationCounts, so the tallies come from the same events the JSONL
 // stream carries instead of a second instrumentation path.
@@ -75,9 +83,13 @@ func (o *Output) tallyOperationLocked(eventType, taskID string, payload map[stri
 			ops.BasisDrift++
 		}
 	case wire.EventOperationFinished:
-		if changed, _ := payload["changed"].(bool); changed {
+		// A planned (dry-run) Exec never ran, so it reports no outcome.
+		changed, observed := payload["changed"].(bool)
+		switch {
+		case !observed:
+		case changed:
 			ops.Changed++
-		} else {
+		default:
 			ops.Unchanged++
 		}
 	}

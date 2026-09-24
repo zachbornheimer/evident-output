@@ -7,6 +7,7 @@ type OperationCounts struct {
 	// Current counts operations the manifest proved current and skipped.
 	Current int
 	// Executed counts operations Evo ran because no current proof existed.
+	// In a dry run it counts the operations Evo would run.
 	Executed int
 	// BasisDrift counts the Executed operations whose Basis inputs changed
 	// since the manifest recorded them.
@@ -14,7 +15,8 @@ type OperationCounts struct {
 	// Changed counts finished operations that changed their tracked output.
 	Changed int
 	// Unchanged counts finished operations whose tracked output came out
-	// identical, so nothing downstream needs to revalidate.
+	// identical, so nothing downstream needs to revalidate. A dry-run Exec
+	// never runs, so it counts as neither Changed nor Unchanged.
 	Unchanged int
 }
 
