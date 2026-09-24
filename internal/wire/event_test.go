@@ -1,7 +1,9 @@
 package wire
 
 import (
+	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -71,5 +73,44 @@ func TestEventFamilies_AreDistinctFromLegacyEventTypes(t *testing.T) {
 	}
 	if len(seen) != 21 {
 		t.Fatalf("got %d distinct §38 event families, want 21", len(seen))
+	}
+}
+
+func TestRunFinishedPayload_ValidatesAgainstItsSchemaDef(t *testing.T) {
+	schema, err := os.ReadFile("../../schema/event.v2.json")
+	if err != nil {
+		t.Fatalf("read schema/event.v2.json: %v", err)
+	}
+	conclusion := runFixtures()["success"].Conclusion
+	payload, err := json.Marshal(RunFinishedPayload(OutcomeOK, conclusion))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wireschema.ValidateDef(schema, payload, "runFinishedPayload"); err != nil {
+		t.Fatalf("run.finished payload does not conform to $defs/runFinishedPayload:\n%v\n\npayload:\n%s", err, payload)
+	}
+}
+
+// The metrics shape is published twice (final document and run.finished
+// payload); the two schema files must describe it identically.
+func TestMetricsSchemaDefs_MatchAcrossRunAndEventSchemas(t *testing.T) {
+	defsOf := func(path string) map[string]any {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc struct {
+			Defs map[string]any `json:"$defs"`
+		}
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		return doc.Defs
+	}
+	run, event := defsOf("../../schema/run.v2.json"), defsOf("../../schema/event.v2.json")
+	for _, name := range []string{"metrics", "operationCounts", "rates"} {
+		if !reflect.DeepEqual(run[name], event[name]) {
+			t.Errorf("$defs/%s differs between run.v2.json and event.v2.json", name)
+		}
 	}
 }

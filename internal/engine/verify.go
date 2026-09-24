@@ -145,7 +145,9 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 	o.mu.Lock()
 	o.emitWireEventLocked(wire.EventDefinitionStarted, t.id, nil)
 	o.mu.Unlock()
+	stopDefinition := o.timePhase(t.id, phaseDefinition)
 	callbackErr := fn(withTaskScope(o.Context(), scope))
+	stopDefinition()
 	o.mu.Lock()
 	closeTaskScopeLocked(scope)
 	o.emitWireEventLocked(wire.EventDefinitionFinished, t.id, map[string]any{"failed": callbackErr != nil})
@@ -221,6 +223,7 @@ func passthroughCallbackOutcome(err error) error {
 // verifier's own outcome is emitted as verification.observed (spec §38),
 // named by its registration order since Verify registers anonymous funcs.
 func evaluateVerifiers(ctx context.Context, o *Output, taskID string, verifiers []verifierFunc) (allSatisfied bool, err error) {
+	defer o.timePhase(taskID, phaseEvidence)()
 	allSatisfied = true
 	for i, v := range verifiers {
 		ok, verifyErr := v(ctx)

@@ -12,6 +12,7 @@ import (
 // lock before File claims any resource — and observes spec.Basis under
 // read claims (see observeBasis).
 func (o *Output) fileObserveBasis(ctx context.Context, taskID string, spec FileSpec, path string) ([]manifest.BasisRecord, error) {
+	defer o.timePhase(taskID, phaseProvenance)()
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
 		return nil, fmt.Errorf("evo: File %q: %w", path, openErr)
@@ -37,6 +38,7 @@ func (o *Output) fileObserveBasis(ctx context.Context, taskID string, spec FileS
 // prior is always returned so the caller can carry it forward unchanged on
 // a current hit.
 func (o *Output) fileConsultManifest(ctx context.Context, taskID string, spec FileSpec, path string, basis []manifest.BasisRecord) (current bool, prior manifest.OperationRecord, reason string, err error) {
+	defer o.timePhase(taskID, phaseProvenance)()
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
 		return false, manifest.OperationRecord{}, "", fmt.Errorf("evo: File %q: %w", path, openErr)
@@ -64,6 +66,7 @@ func (o *Output) fileConsultManifest(ctx context.Context, taskID string, spec Fi
 // before the commit: a Basis that changes during the write is drift the
 // next Run must see, not state to paper over.
 func (o *Output) fileRecordOperation(ctx context.Context, op fileOperation) error {
+	defer o.timePhase(op.taskID, phaseProvenance)()
 	defFingerprint := fileDefinitionFingerprint(op.path, op.contentsManaged(), op.spec.Contents, uint32(op.spec.Mode), op.basis)
 	outputDigest, digestErr := pathOutputDigest(ctx, op.path)
 	if digestErr != nil {

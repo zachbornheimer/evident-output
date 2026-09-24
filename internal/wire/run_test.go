@@ -40,12 +40,16 @@ func runFixtures() map[string]core.Result {
 					ID: "task_1", Key: "build", Name: "build", State: core.Done,
 					Resolution: core.ResolutionExecuted,
 					Timing: core.TaskTiming{
-						DeclaredAt: testStart,
-						EligibleAt: testStart.Add(40 * time.Millisecond),
-						StartedAt:  testStart.Add(50 * time.Millisecond),
-						SettledAt:  testStart.Add(1250 * time.Millisecond),
+						DeclaredAt:  testStart,
+						SubmittedAt: testStart.Add(10 * time.Millisecond),
+						EligibleAt:  testStart.Add(40 * time.Millisecond),
+						StartedAt:   testStart.Add(50 * time.Millisecond),
+						SettledAt:   testStart.Add(1250 * time.Millisecond),
+						Definition:  core.PhaseTime{Entries: 1, Duration: 1100 * time.Millisecond},
+						Provenance:  core.PhaseTime{Entries: 2, Duration: 30 * time.Millisecond},
 					},
-				}, time.Time{}, false, false),
+					Operations: core.OperationCounts{Current: 1, Executed: 1, Changed: 1},
+				}, core.TaskInternals{}),
 			}
 		})},
 		"already_satisfied": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -58,7 +62,7 @@ func runFixtures() map[string]core.Result {
 					Evidence: core.TaskEvidence{
 						Before: core.EvidencePhase{Evaluated: true, Satisfied: true, Source: "verify"},
 					},
-				}, time.Time{}, false, false),
+				}, core.TaskInternals{}),
 			}
 		})},
 		"failure": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -68,7 +72,7 @@ func runFixtures() map[string]core.Result {
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_1", Key: "deploy", Name: "deploy", State: core.Failed,
 					Problems: []core.Problem{{Code: "deploy.write", Summary: "failed to write"}},
-				}, time.Time{}, false, false),
+				}, core.TaskInternals{}),
 			}
 		})},
 		"blocked": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -77,7 +81,7 @@ func runFixtures() map[string]core.Result {
 			c.Tasks = []core.TaskSnapshot{
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_1", Key: "confirm", Name: "confirm", State: core.Blocked,
-				}, time.Time{}, false, false),
+				}, core.TaskInternals{}),
 			}
 		})},
 		"cancelled": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -87,10 +91,10 @@ func runFixtures() map[string]core.Result {
 			c.Tasks = []core.TaskSnapshot{
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_1", Key: "scan", Name: "scan", State: core.Done,
-				}, time.Time{}, false, false),
+				}, core.TaskInternals{}),
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_2", Key: "venv", Name: "venv", State: core.Cancelled,
-				}, time.Time{}, false, false),
+				}, core.TaskInternals{}),
 			}
 		})},
 		"dry_run": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -115,7 +119,7 @@ func runFixtures() map[string]core.Result {
 						Before: core.EvidencePhase{Evaluated: false},
 						After:  core.EvidencePhase{Evaluated: true, Satisfied: true, Source: "operations"},
 					},
-				}, time.Time{}, false, false),
+				}, core.TaskInternals{}),
 			}
 		})},
 		"partial_effects": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -223,7 +227,7 @@ func TestToRunDocument_EvidenceOmitsAfterWhenBeforeSatisfied(t *testing.T) {
 				Evidence: core.TaskEvidence{
 					Before: core.EvidencePhase{Evaluated: true, Satisfied: true, Source: "verify"},
 				},
-			}, time.Time{}, false, false),
+			}, core.TaskInternals{}),
 		}
 	})}
 	doc := ToRunDocument(result, testEvoVersion)

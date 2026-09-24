@@ -130,6 +130,7 @@ func execOperationCurrent(ctx context.Context, prior manifest.OperationRecord, h
 // always returned so the caller can forward a current hit unchanged, or
 // carry the fresh definition into the post-spawn success record.
 func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (current bool, prior manifest.OperationRecord, defFingerprint, reason string, basis []manifest.BasisRecord, err error) {
+	defer o.timePhase(taskID, phaseProvenance)()
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
 		return false, manifest.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, openErr)

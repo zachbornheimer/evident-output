@@ -172,6 +172,7 @@ func (o *Output) applyFile(ctx context.Context, op fileOperation) error {
 // inspectFile observes op's path read-only and reports what reconciling
 // it must change.
 func (o *Output) inspectFile(fsys FileFS, op fileOperation) (fileDelta, error) {
+	defer o.timePhase(op.taskID, phaseTrackedState)()
 	spec, path := op.spec, op.path
 	info, exists, statErr := inspectFilePath(fsys, path)
 	if statErr != nil {

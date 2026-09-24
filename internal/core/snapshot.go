@@ -118,9 +118,13 @@ type TaskSnapshot struct {
 	// Evidence preserves both Verify observation phases this Task recorded,
 	// if any (§30) — the zero value when Verify was never called.
 	Evidence TaskEvidence
-	// Timing is when this Task crossed each lifecycle boundary (§39) — the
-	// runtime truth Conclusion.Metrics and every projection derive from.
+	// Timing is when this Task crossed each lifecycle boundary and how long
+	// it spent in each runtime phase (§39) — the runtime truth
+	// Conclusion.Metrics and every projection derive from.
 	Timing TaskTiming
+	// Operations tallies this Task's tracked operations by how the
+	// operation manifest resolved them (§39).
+	Operations OperationCounts
 	// synthetic marks a task the library invented to carry an output-level
 	// outcome (Output.Failf/Cancel) rather than one the caller declared —
 	// presentation-internal bookkeeping (coalescing), never part of the
@@ -129,16 +133,34 @@ type TaskSnapshot struct {
 	// fromEach marks a child created by Group/Sequence.Each. Presentation
 	// aggregates these onto the parent row; JSON still lists every child.
 	fromEach bool
+	// after holds the IDs of the Tasks and collections this Task was
+	// declared After — the dependency edges Conclusion.Metrics walks for
+	// the critical path.
+	after []string
 }
 
-// NewTaskSnapshot returns base with its presentation-internal bookkeeping
-// fields set — the only way to populate them from outside this package
-// (they are deliberately unexported: never part of the public snapshot
-// contract). Called once, by the root package's taskState.snapshot().
-func NewTaskSnapshot(base TaskSnapshot, liveFirstSeenAt time.Time, synthetic, fromEach bool) TaskSnapshot {
-	base.liveFirstSeenAt = liveFirstSeenAt
-	base.synthetic = synthetic
-	base.fromEach = fromEach
+// TaskInternals is a TaskSnapshot's runtime bookkeeping: deliberately
+// unexported on the snapshot, never part of the public snapshot contract.
+type TaskInternals struct {
+	// LiveFirstSeenAt is when the live region first painted the Task.
+	LiveFirstSeenAt time.Time
+	// Synthetic marks a Task the library invented to carry an
+	// output-level outcome.
+	Synthetic bool
+	// FromEach marks a child created by Group/Sequence.Each.
+	FromEach bool
+	// After holds the IDs of the Task's After predecessors.
+	After []string
+}
+
+// NewTaskSnapshot returns base with its runtime bookkeeping set — the only
+// way to populate it from outside this package. Called once, by the
+// engine's taskState.snapshot().
+func NewTaskSnapshot(base TaskSnapshot, in TaskInternals) TaskSnapshot {
+	base.liveFirstSeenAt = in.LiveFirstSeenAt
+	base.synthetic = in.Synthetic
+	base.fromEach = in.FromEach
+	base.after = append([]string(nil), in.After...)
 	return base
 }
 

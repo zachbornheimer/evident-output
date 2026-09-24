@@ -314,9 +314,10 @@ type taskState struct {
 	resolution Resolution
 	// verifyEvidence preserves both Verify observation phases (§30).
 	verifyEvidence TaskEvidence
-	// timing holds this Task's lifecycle boundary stamps (§39; see
-	// task_timing.go).
-	timing core.TaskTiming
+	// timing holds this Task's lifecycle boundary stamps and phase times,
+	// operations its tracked-operation tallies (§39; see task_timing.go).
+	timing     core.TaskTiming
+	operations core.OperationCounts
 	// workErr is the callback's own return value, kept so TaskHandle.Wait
 	// returns exactly what the work returned rather than a state guess.
 	workErr error
@@ -1508,8 +1509,14 @@ func (t *taskState) snapshot() TaskSnapshot {
 		Resolution:   t.resolution,
 		Evidence:     t.verifyEvidence,
 		Timing:       t.timing,
+		Operations:   t.operations,
 	}
-	return core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic, t.fromEach)
+	return core.NewTaskSnapshot(base, core.TaskInternals{
+		LiveFirstSeenAt: t.liveFirstSeenAt,
+		Synthetic:       t.synthetic,
+		FromEach:        t.fromEach,
+		After:           t.predecessorIDs(),
+	})
 }
 
 func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
@@ -1969,11 +1976,7 @@ func (o *Output) Finish() error {
 	// run.finished (spec §38) fires on every path through Finish, including
 	// failure and cancel — conc.State already reflects whichever outcome
 	// this run reached, the same single choke point output.finished uses.
-	o.emitWireEventLocked(wire.EventRunFinished, "", map[string]any{
-		"outcome":   wireRunOutcome(conc.State),
-		"exit_code": conc.ExitCode,
-		"metrics":   wire.ToMetricsDoc(conc),
-	})
+	o.emitWireEventLocked(wire.EventRunFinished, "", wire.RunFinishedPayload(wireRunOutcome(conc.State), conc))
 	writer := o.cfg.primary
 	cfg := o.cfg
 	misuse := o.misuse

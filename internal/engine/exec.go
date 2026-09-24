@@ -251,6 +251,7 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 // File's single tracked_resource.observed for its one managed path — Exec
 // has as many tracked resources as it has declared Outputs.
 func (o *Output) observeVerifiedExecOutputs(ctx context.Context, taskID string, outputs []string) ([]manifest.OutputRecord, error) {
+	defer o.timePhase(taskID, phaseTrackedState)()
 	for _, out := range outputs {
 		_, statErr := os.Stat(out)
 		o.mu.Lock()

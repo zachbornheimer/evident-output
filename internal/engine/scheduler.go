@@ -93,6 +93,7 @@ func (t *TaskHandle) submitWork(fn func() error) {
 		return
 	}
 	st.submitted = true
+	st.markSubmitted(o.cfg.clock.Now())
 	st.workFn = fn
 	o.schedWG.Add(1)
 	// §48: a predecessor that already failed before this task was even
@@ -108,7 +109,6 @@ func (t *TaskHandle) submitWork(fn func() error) {
 
 func (o *Output) kick() {
 	o.abandonUnreachableWork()
-	o.noteNewlyEligible()
 	for {
 		st, fn := o.takeEligible()
 		if st == nil {
@@ -136,6 +136,11 @@ func (o *Output) abandonUnreachableWork() {
 	o.cascadeIneligibleLocked()
 }
 
+// takeEligible claims the next Task the scheduler may start, if capacity
+// allows. Its one scan over the queue also stamps eligibility on every
+// claimable Task, whether or not a slot is free, so a Task held only by
+// capacity records the moment its dependencies cleared (see
+// noteEligibleLocked).
 func (o *Output) takeEligible() (st *taskState, fn func() error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -145,36 +150,22 @@ func (o *Output) takeEligible() (st *taskState, fn func() error) {
 		// completion behind one cancelled row.
 		return nil, nil
 	}
-	max := o.concurrencyCeilingLocked()
-	if o.schedInflight >= max {
-		return nil, nil
-	}
+	var next *taskState
 	for _, cand := range o.tasks {
-		if !cand.submitted || cand.runningWork || core.IsTerminalTask(cand.state) {
+		if !o.claimableLocked(cand) {
 			continue
-		}
-		if !o.eligibleLocked(cand) {
-			continue
-		}
-		if o.schedInflight >= max {
-			return nil, nil
 		}
 		o.noteEligibleLocked(cand)
-		cand.runningWork = true
-		o.schedInflight++
-		o.schedExecuting++
-		if o.schedInflight > o.schedMaxObserved {
-			o.schedMaxObserved = o.schedInflight
+		if next == nil && o.schedInflight < o.concurrencyCeilingLocked() {
+			next = cand
 		}
-		o.schedStartOrder = append(o.schedStartOrder, cand.name)
-		if cand.state == Pending {
-			o.promoteRunningLocked(cand)
-		}
-		o.bumpLocked()
-		o.signalLiveLocked(true)
-		return cand, cand.workFn
 	}
-	return nil, nil
+	if next == nil {
+		return nil, nil
+	}
+	o.schedInflight++
+	o.schedMaxObserved = max(o.schedMaxObserved, o.schedInflight)
+	return o.beginWorkLocked(next)
 }
 
 func (o *Output) concurrencyCeilingLocked() int {
@@ -573,7 +564,15 @@ func (o *Output) claimableLocked(cand *taskState) bool {
 // claimLocked is takeEligible's start bookkeeping without the concurrency
 // ceiling and without the in-flight accounting (see executeClaimed).
 func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error, claimed bool) {
+	st, fn = o.beginWorkLocked(cand)
+	return st, fn, true
+}
+
+// beginWorkLocked starts cand's submitted work: the start bookkeeping the
+// scheduler and an inline Wait share.
+func (o *Output) beginWorkLocked(cand *taskState) (*taskState, func() error) {
 	o.noteEligibleLocked(cand)
+	cand.markClaimed(o.cfg.clock.Now())
 	cand.runningWork = true
 	o.schedExecuting++
 	o.schedStartOrder = append(o.schedStartOrder, cand.name)
@@ -582,7 +581,7 @@ func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error, c
 	}
 	o.bumpLocked()
 	o.signalLiveLocked(true)
-	return cand, cand.workFn, true
+	return cand, cand.workFn
 }
 
 func (o *Output) drainScheduler() {

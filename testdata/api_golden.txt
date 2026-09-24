@@ -215,8 +215,10 @@ type LogLevel
 type LogRecord
 type MessageSnapshot
 type NoopRedactor
+type OperationCounts
 type Option
 type Output
+type PhaseTime
 type PlainOptions
 type PlanSnapshot
 type Printer

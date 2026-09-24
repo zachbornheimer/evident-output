@@ -35,8 +35,13 @@
           "queued_ms": 0,
           "running_ms": 0,
           "total_ms": 0,
+          "awaiting_definition_ms": 0,
           "dependency_wait_ms": 0,
-          "scheduler_wait_ms": 0
+          "scheduler_wait_ms": 0,
+          "definition_ms": 0,
+          "evidence_ms": 0,
+          "provenance_ms": 0,
+          "tracked_state_ms": 0
         },
         "verification": [],
         "tracked_resources": [],
@@ -55,10 +60,34 @@
       "executed": 1,
       "already_satisfied": 0,
       "no_work": 0,
+      "defined": 0,
+      "entered": 0,
+      "verified": 0,
+      "verified_current": 0,
       "dependency_wait_ms": 0,
       "scheduler_wait_ms": 0,
       "running_ms": 0,
-      "peak_concurrency": 0
+      "definition_ms": 0,
+      "evidence_ms": 0,
+      "provenance_ms": 0,
+      "tracked_state_ms": 0,
+      "critical_path_ms": 0,
+      "peak_concurrency": 0,
+      "operations": {
+        "current": 0,
+        "executed": 0,
+        "basis_drift": 0,
+        "changed": 0,
+        "unchanged": 0
+      },
+      "rates": {
+        "callback_entry": 0,
+        "verify_satisfied": 0,
+        "manifest_hit": 0,
+        "basis_invalidation": 0,
+        "tracked_change": 0,
+        "propagation_stopped": 0
+      }
     }
   }
 }

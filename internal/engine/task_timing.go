@@ -7,21 +7,30 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
-// Lifecycle timing (§39): each boundary is stamped once, from the run's
-// Clock, at the moment the runtime itself moves the Task across it. The
-// stamps are the one runtime truth TaskSnapshot.Timing, Conclusion.Metrics,
-// the final JSON, and the JSONL stream all read — no projection keeps a
-// second stopwatch.
+// Lifecycle timing (§39): each boundary is stamped from the run's Clock at
+// the moment the runtime itself moves the Task across it. The stamps are
+// the one runtime truth TaskSnapshot.Timing, Conclusion.Metrics, the final
+// JSON, and the JSONL stream all read.
 
 // markDeclared stamps declaration.
 func (st *taskState) markDeclared(now time.Time) { st.timing.DeclaredAt = now }
 
-// markStarted stamps entry into Running.
+// markSubmitted stamps Define's submission of the Task's work.
+func (st *taskState) markSubmitted(now time.Time) { st.timing.SubmittedAt = now }
+
+// markStarted stamps entry into Running. It is the start boundary only for
+// a Task that never submits work; markClaimed overrides it when the
+// scheduler starts submitted work.
 func (st *taskState) markStarted(now time.Time) {
 	if st.timing.StartedAt.IsZero() {
 		st.timing.StartedAt = now
 	}
 }
+
+// markClaimed stamps the scheduler starting the Task's submitted work. A
+// Doing before Define promotes the row to Running earlier, but the work
+// itself starts here, so this stamp replaces that one.
+func (st *taskState) markClaimed(now time.Time) { st.timing.StartedAt = now }
 
 // markSettled stamps the first terminal state; a later re-resolution
 // (misuse) never moves it.
@@ -31,29 +40,16 @@ func (st *taskState) markSettled(now time.Time) {
 	}
 }
 
-// noteEligibleLocked records that cand's predecessors have all settled:
-// it stamps EligibleAt and emits task.eligible (§38), once per Task, at the
-// moment eligibility is observed — before any wait for scheduler capacity,
-// so DependencyWait and SchedulerWait stay distinct.
+// noteEligibleLocked records that cand's submitted work has every
+// predecessor settled: it stamps EligibleAt and emits task.eligible (§38)
+// once per Task, when eligibility is observed and before any wait for
+// scheduler capacity, so DependencyWait and SchedulerWait stay distinct.
 func (o *Output) noteEligibleLocked(cand *taskState) {
 	if !cand.timing.EligibleAt.IsZero() {
 		return
 	}
 	cand.timing.EligibleAt = o.cfg.clock.Now()
 	o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
-}
-
-// noteNewlyEligible observes eligibility for every queued Task, whether or
-// not a scheduler slot is free. kick calls it on every submission and
-// settlement — the only events that can make a Task eligible.
-func (o *Output) noteNewlyEligible() {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	for _, cand := range o.tasks {
-		if cand.timing.EligibleAt.IsZero() && o.claimableLocked(cand) {
-			o.noteEligibleLocked(cand)
-		}
-	}
 }
 
 // settleUnstampedLocked stamps SettledAt on every terminal Task Finish's

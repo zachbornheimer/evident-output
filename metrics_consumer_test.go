@@ -36,7 +36,8 @@ func runPruneMetricsFixture(t *testing.T, cfg evo.Config) pruneMetricsRun {
 	clock := testkit.NewClock()
 	var buf bytes.Buffer
 	cfg.Isolated, cfg.Stdout, cfg.Stderr = true, &buf, io.Discard
-	cfg.Title, cfg.Color, cfg.Plain = "prune", evo.ColorNever, true
+	// A caller-supplied Terminal renders the live (TTY) projection instead.
+	cfg.Title, cfg.Color, cfg.Plain = "prune", evo.ColorNever, cfg.Terminal == nil
 	cfg.Clock, cfg.MaxConcurrency = clock, 1
 	out := evo.Init(cfg)
 	t.Cleanup(func() { _ = out.Close() })
@@ -93,10 +94,17 @@ func TestMetrics_ConclusionDerivesTheRunAggregate(t *testing.T) {
 		Tasks:            4,
 		Executed:         3,
 		AlreadySatisfied: 1,
+		Defined:          4,
+		Entered:          3,
+		Verified:         1,
+		VerifiedCurrent:  1,
 		DependencyWait:   ticks(2),
 		SchedulerWait:    ticks(3),
 		Running:          ticks(3),
-		PeakConcurrency:  1,
+		Definition:       ticks(3),
+		// fetch waits on the slowest category: one tick, then its own.
+		CriticalPath:    ticks(2),
+		PeakConcurrency: 1,
 	}
 	if got := run.out.Conclusion().Metrics(); got != want {
 		t.Fatalf("Conclusion().Metrics() =\n%+v\nwant\n%+v", got, want)
@@ -112,22 +120,30 @@ func TestMetrics_FinalJSONCarriesTaskTimingAndRunMetrics(t *testing.T) {
 				Name   string           `json:"name"`
 				Timing map[string]int64 `json:"timing"`
 			} `json:"tasks"`
-			Metrics map[string]int64 `json:"metrics"`
+			Metrics map[string]any `json:"metrics"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal([]byte(machineDocument(t, run.out)), &doc); err != nil {
 		t.Fatal(err)
 	}
-	wantMetrics := map[string]int64{
-		"tasks": 4, "executed": 3, "already_satisfied": 1, "no_work": 0,
-		"dependency_wait_ms": 2000, "scheduler_wait_ms": 3000, "running_ms": 3000, "peak_concurrency": 1,
+	wantMetrics := map[string]float64{
+		"tasks": 4, "executed": 3, "already_satisfied": 1, "defined": 4, "entered": 3,
+		"verified": 1, "verified_current": 1, "dependency_wait_ms": 2000, "scheduler_wait_ms": 3000,
+		"running_ms": 3000, "definition_ms": 3000, "critical_path_ms": 2000, "peak_concurrency": 1,
 	}
-	if !mapsEqual(doc.Data.Metrics, wantMetrics) {
-		t.Fatalf("data.metrics = %v, want %v", doc.Data.Metrics, wantMetrics)
+	for key, want := range wantMetrics {
+		if got, _ := doc.Data.Metrics[key].(float64); got != want {
+			t.Errorf("data.metrics.%s = %v, want %v", key, doc.Data.Metrics[key], want)
+		}
+	}
+	rates, _ := doc.Data.Metrics["rates"].(map[string]any)
+	if got, _ := rates["callback_entry"].(float64); got != 0.75 {
+		t.Errorf("data.metrics.rates.callback_entry = %v, want 0.75", rates["callback_entry"])
 	}
 	wantFetch := map[string]int64{
-		"queued_ms": 2000, "running_ms": 1000, "total_ms": 3000,
-		"dependency_wait_ms": 2000, "scheduler_wait_ms": 0,
+		"queued_ms": 2000, "running_ms": 1000, "total_ms": 3000, "awaiting_definition_ms": 0,
+		"dependency_wait_ms": 2000, "scheduler_wait_ms": 0, "definition_ms": 1000,
+		"evidence_ms": 0, "provenance_ms": 0, "tracked_state_ms": 0,
 	}
 	for _, task := range doc.Data.Tasks {
 		if task.Name == "fetch" && !mapsEqual(task.Timing, wantFetch) {
@@ -179,6 +195,7 @@ func TestMetrics_JSONLStreamsEligibilityWhenItHappensAndMetricsAtRunFinished(t *
 	if got, _ := metrics["scheduler_wait_ms"].(float64); got != 3000 {
 		t.Fatalf("run.finished metrics = %v, want scheduler_wait_ms 3000", finished)
 	}
+	assertRunFinishedPayloadConforms(t, finished)
 }
 
 func (r pruneMetricsRun) nameOf(id string) string {
@@ -197,19 +214,6 @@ func indexOf(xs []string, want string) int {
 		}
 	}
 	return -1
-}
-
-func TestMetrics_HumanProjectionShowsTimingOnlyUnderVerbose(t *testing.T) {
-	t.Parallel()
-	const want = "timing  3 executed · 1 already satisfied · 3s running · 2s waiting on dependencies · 3s waiting on capacity · peak 1 concurrent\n"
-	verbose := runPruneMetricsFixture(t, evo.Config{Verbosity: evo.VerbosityVerbose})
-	if !strings.Contains(verbose.rendered, want) {
-		t.Fatalf("verbose output lacks the timing line %q:\n%s", want, verbose.rendered)
-	}
-	normal := runPruneMetricsFixture(t, evo.Config{})
-	if strings.Contains(normal.rendered, "timing  ") {
-		t.Fatalf("rows are scarce: normal output must not render timing:\n%s", normal.rendered)
-	}
 }
 
 func TestMetrics_PeakConcurrencyReflectsOverlappingGroupSiblings(t *testing.T) {

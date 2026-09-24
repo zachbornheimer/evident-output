@@ -48,3 +48,29 @@ func ExampleRunMetrics() {
 	// Output:
 	// 1 1 3s 3s
 }
+
+// ExamplePhaseTime reads how long a Task spent inside its Define callback.
+// Evo times the phase itself; the callback records nothing.
+func ExamplePhaseTime() {
+	clock := testkit.NewClock()
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true, Clock: clock})
+	task := out.Task("render docs").Define(func(context.Context) error {
+		clock.Advance(2 * time.Second)
+		return nil
+	})
+	_ = out.Finish()
+	definition := task.Snapshot().Timing.Definition
+	fmt.Println(definition.Entries, definition.Duration)
+	// Output:
+	// 1 2s
+}
+
+// ExampleOperationCounts reads the §39 rates Evo derives from a run's
+// tracked-operation tallies: here three of four operations were proven
+// current by the manifest, and the one that ran produced identical output.
+func ExampleOperationCounts() {
+	ops := evo.OperationCounts{Current: 3, Executed: 1, Unchanged: 1}
+	fmt.Println(ops.HitRate(), ops.PropagationStoppedRate())
+	// Output:
+	// 0.75 1
+}

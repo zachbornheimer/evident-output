@@ -13,5 +13,92 @@
     "type": { "type": "string" },
     "entity_id": { "type": "string" },
     "payload": { "type": "object" }
+  },
+  "$comment": "The envelope types payload loosely because its shape depends on type. $defs name the typed payloads; a run.finished payload conforms to runFinishedPayload. metrics, operationCounts, and rates are kept identical to schema/run.v2.json (a test enforces it).",
+  "$defs": {
+    "runFinishedPayload": {
+      "type": "object",
+      "required": ["outcome", "exit_code", "metrics"],
+      "properties": {
+        "outcome": { "type": "string" },
+        "exit_code": { "type": "integer" },
+        "metrics": { "$ref": "#/$defs/metrics" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "tasks",
+        "executed",
+        "already_satisfied",
+        "no_work",
+        "defined",
+        "entered",
+        "verified",
+        "verified_current",
+        "dependency_wait_ms",
+        "scheduler_wait_ms",
+        "running_ms",
+        "definition_ms",
+        "evidence_ms",
+        "provenance_ms",
+        "tracked_state_ms",
+        "critical_path_ms",
+        "peak_concurrency",
+        "operations",
+        "rates"
+      ],
+      "properties": {
+        "tasks": { "type": "integer" },
+        "executed": { "type": "integer" },
+        "already_satisfied": { "type": "integer" },
+        "no_work": { "type": "integer" },
+        "defined": { "type": "integer" },
+        "entered": { "type": "integer" },
+        "verified": { "type": "integer" },
+        "verified_current": { "type": "integer" },
+        "dependency_wait_ms": { "type": "integer" },
+        "scheduler_wait_ms": { "type": "integer" },
+        "running_ms": { "type": "integer" },
+        "definition_ms": { "type": "integer" },
+        "evidence_ms": { "type": "integer" },
+        "provenance_ms": { "type": "integer" },
+        "tracked_state_ms": { "type": "integer" },
+        "critical_path_ms": { "type": "integer" },
+        "peak_concurrency": { "type": "integer" },
+        "operations": { "$ref": "#/$defs/operationCounts" },
+        "rates": { "$ref": "#/$defs/rates" }
+      }
+    },
+    "operationCounts": {
+      "type": "object",
+      "required": ["current", "executed", "basis_drift", "changed", "unchanged"],
+      "properties": {
+        "current": { "type": "integer" },
+        "executed": { "type": "integer" },
+        "basis_drift": { "type": "integer" },
+        "changed": { "type": "integer" },
+        "unchanged": { "type": "integer" }
+      }
+    },
+    "rates": {
+      "type": "object",
+      "required": [
+        "callback_entry",
+        "verify_satisfied",
+        "manifest_hit",
+        "basis_invalidation",
+        "tracked_change",
+        "propagation_stopped"
+      ],
+      "properties": {
+        "callback_entry": { "type": "number" },
+        "verify_satisfied": { "type": "number" },
+        "manifest_hit": { "type": "number" },
+        "basis_invalidation": { "type": "number" },
+        "tracked_change": { "type": "number" },
+        "propagation_stopped": { "type": "number" }
+      }
+    }
   }
 }

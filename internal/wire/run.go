@@ -138,16 +138,22 @@ type EvidenceDoc struct {
 }
 
 // TimingDoc is a task's duration breakdown (spec §36), projected from
-// core.TaskTiming (§39): queued is declaration to start, split into the
-// dependency wait (declaration to eligibility) and the scheduler wait
-// (eligibility to start); running is start to settlement; total is
-// declaration to settlement. An uncrossed boundary contributes 0.
+// core.TaskTiming (§39). total splits into awaiting_definition (the
+// caller's gap before Define), queued, and running; queued is exactly
+// dependency_wait plus scheduler_wait. The *_ms phase times are spent
+// inside the Define callback or its Verify checks. An uncrossed boundary
+// contributes 0.
 type TimingDoc struct {
-	QueuedMs         int64 `json:"queued_ms"`
-	RunningMs        int64 `json:"running_ms"`
-	TotalMs          int64 `json:"total_ms"`
-	DependencyWaitMs int64 `json:"dependency_wait_ms"`
-	SchedulerWaitMs  int64 `json:"scheduler_wait_ms"`
+	QueuedMs             int64 `json:"queued_ms"`
+	RunningMs            int64 `json:"running_ms"`
+	TotalMs              int64 `json:"total_ms"`
+	AwaitingDefinitionMs int64 `json:"awaiting_definition_ms"`
+	DependencyWaitMs     int64 `json:"dependency_wait_ms"`
+	SchedulerWaitMs      int64 `json:"scheduler_wait_ms"`
+	DefinitionMs         int64 `json:"definition_ms"`
+	EvidenceMs           int64 `json:"evidence_ms"`
+	ProvenanceMs         int64 `json:"provenance_ms"`
+	TrackedStateMs       int64 `json:"tracked_state_ms"`
 }
 
 // VerificationDoc is one diagnostic sub-result (spec §36).

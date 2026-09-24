@@ -30,11 +30,16 @@
         "progress": null,
         "activity": null,
         "timing": {
-          "queued_ms": 50,
+          "queued_ms": 40,
           "running_ms": 1200,
           "total_ms": 1250,
-          "dependency_wait_ms": 40,
-          "scheduler_wait_ms": 10
+          "awaiting_definition_ms": 10,
+          "dependency_wait_ms": 30,
+          "scheduler_wait_ms": 10,
+          "definition_ms": 1100,
+          "evidence_ms": 0,
+          "provenance_ms": 30,
+          "tracked_state_ms": 0
         },
         "verification": [],
         "tracked_resources": [],
@@ -53,10 +58,34 @@
       "executed": 1,
       "already_satisfied": 0,
       "no_work": 0,
-      "dependency_wait_ms": 40,
+      "defined": 1,
+      "entered": 1,
+      "verified": 0,
+      "verified_current": 0,
+      "dependency_wait_ms": 30,
       "scheduler_wait_ms": 10,
       "running_ms": 1200,
-      "peak_concurrency": 1
+      "definition_ms": 1100,
+      "evidence_ms": 0,
+      "provenance_ms": 30,
+      "tracked_state_ms": 0,
+      "critical_path_ms": 1200,
+      "peak_concurrency": 1,
+      "operations": {
+        "current": 1,
+        "executed": 1,
+        "basis_drift": 0,
+        "changed": 1,
+        "unchanged": 0
+      },
+      "rates": {
+        "callback_entry": 1,
+        "verify_satisfied": 0,
+        "manifest_hit": 0.5,
+        "basis_invalidation": 0,
+        "tracked_change": 1,
+        "propagation_stopped": 0
+      }
     }
   }
 }

@@ -18,12 +18,14 @@ const metricsLabel = "timing"
 const metricsSeparator = " · "
 
 // WriteMetrics renders the run's derived §39 aggregate as one dim line:
-// how work resolved, then where time went — running, waiting on
-// dependencies, waiting on scheduler capacity — and peak concurrency.
-// Zero clauses are omitted; a run with nothing to say writes nothing. The
-// caller gates it on Verbose: rows are scarce (contract §13).
+// how work and tracked operations resolved, where time went (running,
+// waiting on dependencies, waiting on scheduler capacity, inside
+// definitions, checking provenance, verifying tracked state), the critical
+// path, and peak concurrency. Zero clauses are omitted; a run with nothing
+// to say writes nothing. The caller gates it on Verbose: rows are scarce
+// (contract §13).
 func WriteMetrics(b *strings.Builder, m core.RunMetrics, color bool) {
-	clauses := metricsClauses(m)
+	clauses := append(resolutionClauses(m), timeClauses(m)...)
 	if len(clauses) == 0 {
 		return
 	}
@@ -31,21 +33,42 @@ func WriteMetrics(b *strings.Builder, m core.RunMetrics, color bool) {
 	fmt.Fprintf(b, "%s\n", txt.Dim(factText(line), color))
 }
 
-func metricsClauses(m core.RunMetrics) []string {
-	var clauses []string
-	add := func(ok bool, clause string) {
-		if ok {
-			clauses = append(clauses, clause)
-		}
+// clauseList collects the clauses whose value is worth saying.
+type clauseList []string
+
+func (c *clauseList) add(ok bool, clause string) {
+	if ok {
+		*c = append(*c, clause)
 	}
-	add(m.Executed > 0, fmt.Sprintf("%d executed", m.Executed))
-	add(m.AlreadySatisfied > 0, fmt.Sprintf("%d already satisfied", m.AlreadySatisfied))
-	add(m.NoWork > 0, fmt.Sprintf("%d no work", m.NoWork))
-	add(m.Running > 0, formatSpan(m.Running)+" running")
-	add(m.DependencyWait > 0, formatSpan(m.DependencyWait)+" waiting on dependencies")
-	add(m.SchedulerWait > 0, formatSpan(m.SchedulerWait)+" waiting on capacity")
-	add(m.PeakConcurrency > 0, fmt.Sprintf("peak %d concurrent", m.PeakConcurrency))
-	return clauses
+}
+
+func (c *clauseList) addSpan(d time.Duration, label string) {
+	c.add(d > 0, formatSpan(d)+" "+label)
+}
+
+func resolutionClauses(m core.RunMetrics) clauseList {
+	var c clauseList
+	ops := m.Operations
+	c.add(m.Executed > 0, fmt.Sprintf("%d executed", m.Executed))
+	c.add(m.AlreadySatisfied > 0, fmt.Sprintf("%d already satisfied", m.AlreadySatisfied))
+	c.add(m.NoWork > 0, fmt.Sprintf("%d no work", m.NoWork))
+	c.add(ops.Current > 0, fmt.Sprintf("%d of %d operations current", ops.Current, ops.Current+ops.Executed))
+	c.add(ops.BasisDrift > 0, fmt.Sprintf("%d basis changed", ops.BasisDrift))
+	c.add(ops.Unchanged > 0, fmt.Sprintf("%d identical outputs", ops.Unchanged))
+	return c
+}
+
+func timeClauses(m core.RunMetrics) clauseList {
+	var c clauseList
+	c.addSpan(m.Running, "running")
+	c.addSpan(m.DependencyWait, "waiting on dependencies")
+	c.addSpan(m.SchedulerWait, "waiting on capacity")
+	c.addSpan(m.Definition, "in definitions")
+	c.addSpan(m.Provenance, "checking provenance")
+	c.addSpan(m.Evidence+m.TrackedState, "verifying tracked state")
+	c.addSpan(m.CriticalPath, "critical path")
+	c.add(m.PeakConcurrency > 0, fmt.Sprintf("peak %d concurrent", m.PeakConcurrency))
+	return c
 }
 
 // formatSpan renders a metric duration at a precision that still means
