@@ -859,6 +859,11 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 		col.tasks = append(col.tasks, st)
 	}
 	o.taskByRef[st.id] = st
+	if o.schedDraining {
+		// A never-Defined Task strands its dependents once the run drains,
+		// and the drain's opening cascade ran before this one existed.
+		o.schedCascadeDue = true
+	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
 	o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": name})

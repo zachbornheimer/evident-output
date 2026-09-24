@@ -123,15 +123,16 @@ func (o *Output) kick() {
 }
 
 // abandonUnreachableWork resolves every queued task whose predecessors can
-// no longer succeed, once some task failed since the last cascade or the
-// run is draining. The drain cascaded once at its start, so a task whose
-// predecessor failed *after* that moment stayed queued for a predecessor
-// that would never arrive — and any caller waiting on it stayed blocked
-// with it, which is a hung Finish rather than a reported outcome.
+// no longer succeed, once a cascade is due. A cascade is due only when
+// something could have stranded queued work: a non-success settle
+// (settleLocked), or a Task declared during the drain, which the drain's
+// own opening cascade could not see (declareTaskLocked). Rescanning the
+// queue on every kick while draining made the canonical evo.Main shape
+// quadratic.
 func (o *Output) abandonUnreachableWork() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if !o.schedDraining && !o.schedCascadeDue {
+	if !o.schedCascadeDue {
 		return
 	}
 	o.cascadeIneligibleLocked()
