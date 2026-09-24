@@ -29,6 +29,42 @@ var (
 	interruptionByDeadline = interruption{reason: "deadline exceeded", cause: "deadline exceeded", err: context.DeadlineExceeded}
 )
 
+// interrupt stops the run at the first signal or at the end of the
+// caller's context, in the one order that leaves the ledger honest: the
+// scheduler is closed to new work, every row is put into the state the
+// reader must see, and only then is the run's context cancelled to release
+// the callbacks still in flight. Cancelling first would race a finishing
+// callback into a ✓ row after the ^C.
+func (o *Output) interrupt(why interruption) {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	if o.stopsNothingLocked() {
+		o.mu.Unlock()
+		return
+	}
+	o.schedCancelled = true
+	o.cancelCause = why.cause
+	cancelRun := o.cancelRun
+	o.mu.Unlock()
+
+	o.cancelActive(why.reason)
+	o.abandonQueuedWork()
+
+	if cancelRun != nil {
+		cancelRun(why.err)
+	}
+}
+
+// stopsNothingLocked reports whether an interrupt arriving now has no work
+// to stop: the run already concluded (Finish fixed its Conclusion, so a
+// late ^C must not rewrite the Output behind the Result Run returns), or
+// an embedded run already settled (DEC-CANCEL-004).
+func (o *Output) stopsNothingLocked() bool {
+	return o.finished || o.settledLocked()
+}
+
 // callerInterruption classifies why the caller's context ended.
 func callerInterruption(err error) interruption {
 	if errors.Is(err, context.DeadlineExceeded) {

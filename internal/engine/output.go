@@ -895,44 +895,6 @@ func (o *Output) changesGetOrCreate(subject string) *changeLedger {
 	return c
 }
 
-// cancelActive cancels the currently running task, or the output itself when
-// no task is running, so an interrupt always leaves a typed Cancelled state.
-//
-// A pending Confirm gate takes priority over the generic task scan below: a
-// gate holds sole control of the run (Confirm suspends the live region and
-// blocks on stdin) and its abort channel — not TaskHandle.Cancel — is what
-// unblocks the stdin read. Since a Confirm gate is an ordinary Task while
-// its answer is pending, the generic Pending-task fallback would otherwise
-// resolve it to Cancelled without ever closing that channel, leaving
-// readConfirmLine blocked forever.
-// interrupt stops the run at the first signal or at the end of the
-// caller's context, in the one order that leaves the ledger honest: the
-// scheduler is closed to new work, every row is put into the state the
-// reader must see, and only then is the run's context cancelled to release
-// the callbacks still in flight. Cancelling first would race a finishing
-// callback into a ✓ row after the ^C.
-func (o *Output) interrupt(why interruption) {
-	if o == nil {
-		return
-	}
-	o.mu.Lock()
-	if o.settledLocked() {
-		o.mu.Unlock()
-		return
-	}
-	o.schedCancelled = true
-	o.cancelCause = why.cause
-	cancelRun := o.cancelRun
-	o.mu.Unlock()
-
-	o.cancelActive(why.reason)
-	o.abandonQueuedWork()
-
-	if cancelRun != nil {
-		cancelRun(why.err)
-	}
-}
-
 // abandonQueuedWork resolves every task that had not begun as NotStarted —
 // the interrupt's answer to "and what about the rest?", which the reader
 // would otherwise never get.
@@ -954,6 +916,16 @@ func (o *Output) abandonQueuedWork() {
 	}
 }
 
+// cancelActive cancels the currently running task, or the output itself when
+// no task is running, so an interrupt always leaves a typed Cancelled state.
+//
+// A pending Confirm gate takes priority over the generic task scan below: a
+// gate holds sole control of the run (Confirm suspends the live region and
+// blocks on stdin) and its abort channel — not TaskHandle.Cancel — is what
+// unblocks the stdin read. Since a Confirm gate is an ordinary Task while
+// its answer is pending, the generic Pending-task fallback would otherwise
+// resolve it to Cancelled without ever closing that channel, leaving
+// readConfirmLine blocked forever.
 func (o *Output) cancelActive(reason string) {
 	o.mu.Lock()
 	if o.cancelPendingConfirmLocked(reason) {
