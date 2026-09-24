@@ -6,15 +6,15 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 
 ```text
 1. Task + Define — one atomic operation; Define(fn func(context.Context) error) is the
-   scheduling and execution boundary. Mutation verbs (Delete/Create/Update/…) are the
-   dry-run-aware equivalent for effects.
+   scheduling and execution boundary. Inside it, evo.Effect and evo.File are the
+   dry-run-aware way to report effects.
 2. Group / Sequence — independent vs ordered collections, one named Task per item
    (`Group.Each`/`Sequence.Each` were removed in 1.0); After for a DAG edge nesting
    cannot express.
 3. evo.File for declarative managed-state file content.
-4. evo.Exec for external work with declared outputs (planned; not yet implemented).
-5. A Task's Basis of Fingerprint values (evo.FSPath/evo.Value/evo.App) when freshness
-   depends on semantic external inputs beyond File/Exec's own tracking.
+4. evo.Exec for external work with declared outputs.
+5. FileSpec.Basis / ExecSpec.Basis of Fingerprint values (evo.FSPath/evo.Value/evo.App)
+   when freshness depends on semantic external inputs beyond File/Exec's own tracking.
 6. After for exceptional execution dependencies a Sequence would otherwise express.
 7. Facts / warnings / Effects / dry-run — Task.Fact, Task.Warn, Config.DryRun.
 8. Task.Verify(func(context.Context) (bool, error)) only for domains Evo cannot track

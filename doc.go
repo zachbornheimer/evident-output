@@ -49,10 +49,10 @@
 //     content — Evo creates, rewrites on drift, and no-ops when the desired
 //     state already holds. ctx must come from a Task's Define callback.
 //  4. evo.Exec for external work with declared outputs and a Basis of
-//     Fingerprints that determine freshness (planned; not yet implemented).
-//  5. A Task-level Basis of evo.Fingerprint values (evo.FSPath, evo.Value,
-//     evo.App) when an operation's freshness depends on semantic external
-//     inputs beyond File/Exec's own tracked state.
+//     Fingerprints that determine freshness.
+//  5. FileSpec.Basis / ExecSpec.Basis: evo.Fingerprint values (evo.FSPath,
+//     evo.Value, evo.App) when an operation's freshness depends on semantic
+//     external inputs beyond File/Exec's own tracked state.
 //  6. Task.After for exceptional scheduler edges that a Sequence would
 //     otherwise express more simply.
 //  7. Task.Fact / evo.Fact for discovered information, Task.Warn for a

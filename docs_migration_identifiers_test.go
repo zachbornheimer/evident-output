@@ -23,16 +23,7 @@ var goldenDeclName = regexp.MustCompile(`^(?:func|type|value) (?:\(\w+\) )?(\w+)
 // to call something that never existed.
 func TestMigrationGuidesNameOnlyRealAPI(t *testing.T) {
 	root := moduleRoot(t)
-	known := map[string]bool{}
-	golden, err := os.ReadFile(filepath.Join(root, apisurface.GoldenRelPath))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for line := range strings.SplitSeq(string(golden), "\n") {
-		if m := goldenDeclName.FindStringSubmatch(line); m != nil {
-			known[m[1]] = true
-		}
-	}
+	known := liveAPINames(t, root)
 	for _, name := range retired.ContractNames() {
 		base := strings.TrimSuffix(name[strings.LastIndex(name, ".")+1:], "(")
 		known[base] = true
@@ -55,6 +46,22 @@ func TestMigrationGuidesNameOnlyRealAPI(t *testing.T) {
 			}
 		}
 	}
+}
+
+// liveAPINames is every name the live API contract declares.
+func liveAPINames(t *testing.T, root string) map[string]bool {
+	t.Helper()
+	names := map[string]bool{}
+	golden, err := os.ReadFile(filepath.Join(root, apisurface.GoldenRelPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for line := range strings.SplitSeq(string(golden), "\n") {
+		if m := goldenDeclName.FindStringSubmatch(line); m != nil {
+			names[m[1]] = true
+		}
+	}
+	return names
 }
 
 // releasedGoldenRelPath is the API contract as of PublishedRelease;

@@ -74,13 +74,20 @@ var symbols = []Symbol{
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose
-// (Task.Delete), as a call (task.Delete("worktree", fn)), or as the
-// quantity-first signature (Delete(object, fn)).
+// (Task.Delete), as a call (task.Delete("worktree", fn)), as the
+// quantity-first signature (Delete(object, fn)), or as a member of a verb
+// list ("`Add`/`Delete`/…", "Delete/Create/Update").
 func mutationVerb(verb string) *regexp.Regexp {
 	return regexp.MustCompile(`\bTask\.` + verb + `\b` +
 		`|\.` + verb + `\("[^"]*",\s*(?:func|fn|nil|[a-z]\w*\))` +
-		`|\b` + verb + `\(object, fn`)
+		`|\b` + verb + `\(object, fn` +
+		"|(?:^|[\\s(`/])" + verb + "`?/`?" + removedMutationVerbs + `\b`)
 }
+
+// removedMutationVerbs matches any removed TaskHandle mutation or record
+// verb, so a verb list is recognized by its neighbor ("Delete/Create")
+// while an unrelated pair ("Write/WriteString") is not.
+const removedMutationVerbs = `(?:Add|Create|Delete|Push|Record|Remove|Update|Write)`
 
 // Symbols returns every retired name, in table order.
 func Symbols() []Symbol { return slices.Clone(symbols) }

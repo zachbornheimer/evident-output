@@ -188,15 +188,15 @@ Reads share. Any overlapping pair that includes a write waits: filesystem claims
 
 ## Vocabulary
 
-| Type           | Meaning                                                                                                              |
-| -------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `Task`         | One atomic unit — submitted with Define, or stated directly (Warn/Block/Fail/Skipped)                                |
-| `Group`        | Independent collection of tasks (state is **derived**); scheduler may overlap eligible children                      |
-| `Sequence`     | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                                   |
-| `Problem`      | Structured evidence for warn / block / fail; a Task accumulates many via `Problem(...)` before it resolves once      |
-| Mutation verbs | `Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push` — effects that happened vs would happen, from one call site |
-| `Conclusion`   | Headline + `Changed` / `Partial` / `Cancelled` + exit code                                                           |
-| `Main`         | Finish + Close + process exit code for CLI entrypoints                                                               |
+| Type         | Meaning                                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `Task`       | One atomic unit — submitted with Define, or stated directly (Warn/Block/Fail/Skipped)                                 |
+| `Group`      | Independent collection of tasks (state is **derived**); scheduler may overlap eligible children                       |
+| `Sequence`   | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                                    |
+| `Problem`    | Structured evidence for warn / block / fail; a Task accumulates many via `Problem(...)` before it resolves once       |
+| `Effect`     | One opaque mutation (`EffectSpec{Verb, Object, Quantity}`); `Config.DryRun` picks planned vs changed at one call site |
+| `Conclusion` | Headline + `Changed` / `Partial` / `Cancelled` + exit code                                                            |
+| `Main`       | Finish + Close + process exit code for CLI entrypoints                                                                |
 
 Evo owns scheduling through Group, Sequence, Define, and After (`Group.Each`/`Sequence.Each` were removed in 1.0). Review rule **API-026** flags caller-invented `RunAll`/`Map`/`Retry` only on evo receivers (AST), not `strings.Map`, and does not flag Group/Sequence/Define/After.
 

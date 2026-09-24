@@ -52,7 +52,48 @@ var staleAPIHistoricalFragments = []string{
 
 func TestDocsCarryNoStaleAPI(t *testing.T) {
 	root := moduleRoot(t)
+	for path, body := range currentDocs(t, root) {
+		checkNoUnexplainedStaleAPI(t, path, body)
+	}
+}
 
+// unimplementedClaim marks prose that calls something not built yet.
+var unimplementedClaim = regexp.MustCompile(`(?i)not yet implemented|\(planned[;)]`)
+
+// phantomAPI is prose describing API that never existed: freshness inputs
+// are FileSpec.Basis / ExecSpec.Basis, never a Task-level Basis.
+var phantomAPI = regexp.MustCompile(`(?i)\bTask-level Basis\b|\bTask's Basis\b`)
+
+// TestDocsNeverCallLiveAPIUnimplemented fails when current docs call an
+// exported identifier "planned" or "not yet implemented" (doc.go once said
+// that of evo.Exec, which exists) or describe API that never existed.
+func TestDocsNeverCallLiveAPIUnimplemented(t *testing.T) {
+	root := moduleRoot(t)
+	live := liveAPINames(t, root)
+	for rel, body := range currentDocs(t, root) {
+		lines := strings.Split(body, "\n")
+		for i, line := range lines {
+			if m := phantomAPI.FindString(line); m != "" {
+				t.Errorf("%s:%d: %q describes API that does not exist (FileSpec.Basis / ExecSpec.Basis):\n%s", rel, i+1, m, line)
+			}
+			if !unimplementedClaim.MatchString(line) {
+				continue
+			}
+			// A wrapped sentence names its subject a line earlier.
+			subject := strings.Join(lines[max(i-1, 0):i+1], " ")
+			for _, m := range evoIdentifier.FindAllStringSubmatch(subject, -1) {
+				if live[m[1]] {
+					t.Errorf("%s:%d: calls live API evo.%s unimplemented:\n%s", rel, i+1, m[1], line)
+				}
+			}
+		}
+	}
+}
+
+// currentDocs reads every doc that teaches the current API, keyed by its
+// module-relative path; frozen historical documents are skipped.
+func currentDocs(t *testing.T, root string) map[string]string {
+	t.Helper()
 	files := map[string]struct{}{}
 	for _, f := range staleAPIScanFiles {
 		files[filepath.Join(root, f)] = struct{}{}
@@ -73,6 +114,7 @@ func TestDocsCarryNoStaleAPI(t *testing.T) {
 		}
 	}
 
+	docs := map[string]string{}
 	for path := range files {
 		rel, _ := filepath.Rel(root, path)
 		if isStaleAPIHistorical(rel) {
@@ -82,8 +124,9 @@ func TestDocsCarryNoStaleAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", rel, err)
 		}
-		checkNoUnexplainedStaleAPI(t, rel, string(body))
+		docs[rel] = string(body)
 	}
+	return docs
 }
 
 func isStaleAPIHistorical(rel string) bool {
