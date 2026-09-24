@@ -70,6 +70,15 @@ func detectPlaceholderDoing(filename, src string) []Finding {
 // "(" immediately after the verb name, which "Failf("/"Blockf(" never has).
 var failBlockStmtPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(`)
 
+// returnTheErrorSuggestion is how a Fail/Block site hands its error back.
+// Inside a Define or mutation callback the returned error is what resolves
+// the task (API-040: resolving it first as well double-resolves); outside
+// one, the f-form resolves the task and returns the error in one line.
+func returnTheErrorSuggestion(recv, verb, errVar string) string {
+	return "inside a Define/mutation callback: `return fmt.Errorf(\"<context>: %w\", " + errVar + ")` and drop the " +
+		recv + "." + verb + " call; elsewhere: `return " + recv + "." + verb + "f(\"<context>: %w\", " + errVar + ")`"
+}
+
 // detectFailBlockThenReturnNil is API-034: a statement-form Fail/Block
 // followed immediately by a bare `return nil` discards the error the caller
 // needed to propagate — the most common shape of "the remedy has nowhere to
@@ -94,7 +103,7 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 					Message:    recv + "." + verb + "(...) followed by return nil discards the error the caller needed to propagate",
 					File:       filename,
 					Line:       j + 1,
-					Suggestion: "return " + recv + "." + verb + `f("<context>: %w", err)`,
+					Suggestion: returnTheErrorSuggestion(recv, verb, "err"),
 				})
 			}
 			break
@@ -318,7 +327,7 @@ func detectErrTwice(filename, src string) []Finding {
 				"evo.Cause no longer affects the returned error since Fail/Block are statement-form",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "return " + recv + "." + verb + `f("<context>: %w", ` + errVar + ")",
+			Suggestion: returnTheErrorSuggestion(recv, verb, errVar),
 		})
 	}
 	return findings

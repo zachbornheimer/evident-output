@@ -7,11 +7,16 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
+	"fmt"
 	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
+
+// errUndefinedSymbol is the simulated link failure.
+var errUndefinedSymbol = errors.New("undefined symbol main.Version")
 
 type BuildResult struct {
 	Artifact string `json:"artifact"`
@@ -34,14 +39,13 @@ func main() {
 		link := evo.Task("link")
 		link.Define(func(context.Context) error {
 			if *failLink {
-				link.Fail("undefined symbol main.Version")
-				return nil
+				return fmt.Errorf("link: %w", errUndefinedSymbol)
 			}
 			link.Summary("bin/app")
 			return nil
 		})
 		if err := link.Wait(); err != nil {
-			return nil
+			return err
 		}
 		// Domain payload stays on ResultWriter (stdout); presentation is stderr.
 		result := BuildResult{Artifact: "bin/app", Packages: 14, Duration: "3.2s"}

@@ -327,7 +327,7 @@ out.Task("disk space").Define(checkDiskSpace)`,
 			GoodCode: `if err := validate(cfg); err != nil {
   return task.Failf("validate policy manifest: %w", err)
 }`,
-			Remediation:     `Replace the Fail/Block + return nil pair with return task.Failf/Blockf("<context>: %w", err)`,
+			Remediation:     `Replace the Fail/Block + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere return task.Failf/Blockf("<context>: %w", err)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-034"},
 			Since:           "0.2.17",
