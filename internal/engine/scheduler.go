@@ -647,18 +647,13 @@ func (o *Output) predecessorBlockedLocked(st *taskState) bool {
 }
 
 func (o *Output) markNotStartedLocked(st *taskState) {
-	st.state = NotStarted
-	st.phase = ""
 	st.summary = notStartedSummary
 	st.runningWork = true
 	if st.submitted {
 		st.submitted = false
 		o.schedWG.Done()
 	}
-	st.closeDoneLocked()
-	o.releaseNextStepLocked(st)
-	o.schedCascadeDue = true
-	o.appendEventLocked(Event{Type: "task.not_started", EntityID: st.id})
+	o.settleLocked(st, NotStarted)
 }
 
 func (o *Output) failSequenceFollowers(failed *taskState) {

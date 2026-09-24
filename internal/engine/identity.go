@@ -116,15 +116,12 @@ func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, na
 	if st == nil {
 		return
 	}
-	st.state = Failed
 	st.summary = txt.Text(summary)
 	st.problems = core.StoreProblems([]Problem{{
 		Code:    ProblemCodeDuplicateSiblingName,
 		Subject: name,
 		Summary: summary,
 	}})
-	st.closeDoneLocked()
-	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "task." + string(Failed), EntityID: st.id})
+	o.settleLocked(st, Failed)
 	o.recordMisuseFor(name, ErrDuplicateSiblingName)
 }

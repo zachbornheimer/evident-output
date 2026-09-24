@@ -1002,12 +1002,8 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 		close(abort)
 		delete(o.confirmAbort, id)
 		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.state) {
-			st.state = Cancelled
 			st.summary = txt.Text(reason)
-			o.schedCascadeDue = true
-			o.releaseNextStepLocked(st)
-			o.bumpLocked()
-			o.appendEventLocked(Event{Type: "task.cancelled", EntityID: id})
+			o.settleLocked(st, Cancelled)
 			o.commitResolvedTaskLocked(id)
 		}
 		return true
@@ -1813,16 +1809,14 @@ const unresolvedTaskIncompleteSummary = "incomplete — run concluded before fin
 // at all (see Finish's own !abnormal branch, which resolves every
 // non-terminal task to Incomplete directly instead, regardless of whether it
 // ever reached Running — release-gate round 4 finding 3).
-func resolveUnstartedTaskLocked(t *taskState) {
+func (o *Output) resolveUnstartedTaskLocked(t *taskState) {
 	if t.state == Running {
-		t.state = Cancelled
-		t.phase = ""
 		t.summary = unresolvedTaskCancelledSummary
+		o.settleLocked(t, Cancelled)
 		return
 	}
-	t.state = NotStarted
-	t.phase = ""
 	t.summary = notStartedSummary
+	o.settleLocked(t, NotStarted)
 }
 
 // abnormalFinishLocked reports whether the run already carries a real Failed
@@ -1876,10 +1870,8 @@ func (o *Output) autoResolveGroupsLocked() {
 			if core.IsTerminalTask(t.state) {
 				continue
 			}
-			t.state = NotStarted
-			t.phase = ""
 			t.summary = notStartedSummary
-			o.appendEventLocked(Event{Type: "task.not_started", EntityID: t.id})
+			o.settleLocked(t, NotStarted)
 		}
 	}
 }
@@ -1922,9 +1914,7 @@ func (o *Output) Finish() error {
 			continue
 		}
 		if len(t.problems) == 0 && (o.hasRecordedEffectLocked(t.name) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0) {
-			t.state = Done
-			t.phase = ""
-			o.appendEventLocked(Event{Type: "task.done", EntityID: t.id})
+			o.settleLocked(t, Done)
 			continue
 		}
 		if !abnormal {
@@ -1939,13 +1929,12 @@ func (o *Output) Finish() error {
 			// misuse recorded: this is an honest partial outcome (folded
 			// into Conclusion.Partial), not bookkeeping the caller must fix.
 			// The hint still names the corrective action either way.
-			t.state = Incomplete
-			t.phase = ""
 			t.summary = unresolvedTaskIncompleteSummary
+			o.settleLocked(t, Incomplete)
 			attachUnresolvedTaskHintLocked(t)
 			continue
 		}
-		resolveUnstartedTaskLocked(t)
+		o.resolveUnstartedTaskLocked(t)
 		// A declared task that never started is work the failure or
 		// interrupt took away. That is the answer, not misuse.
 		if t.state == NotStarted {

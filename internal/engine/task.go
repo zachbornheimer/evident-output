@@ -536,101 +536,82 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
 		return t
 	}
-	// ZYS-848: every TaskHandle.Problem accumulated before this terminal
-	// verb merges in now (order preserved, accumulated problems first) and
-	// is cleared — this is the one place every resolution path (finish,
-	// resolveScheduled, failScheduled, doneScheduled) actually finalizes,
-	// so accumulation is never silently dropped regardless of which verb
-	// resolved the task. A resolution that would otherwise be a bare Done
-	// promotes to Failed when accumulated Problems exist: a Task that
-	// recorded blocking evidence cannot quietly report success (contract:
-	// "if a Define callback returns nil but accumulated at least one
-	// blocking Problem, the Task resolves Failed").
-	if len(st.pendingProblems) > 0 {
-		merged := make([]Problem, 0, len(st.pendingProblems)+len(problems))
-		merged = append(merged, st.pendingProblems...)
-		merged = append(merged, problems...)
-		problems = merged
-		st.pendingProblems = nil
-		if state == Done {
-			state = Failed
-		}
-	}
-	st.state = state
-	st.phase = "" // Done clears active phase
-	if predecessorFailed(state) {
-		t.out.schedCascadeDue = true
-	}
+	state, problems = st.promotePendingProblems(state, problems)
 	if summary != "" {
 		st.summary = txt.Text(summary)
 	}
 	if len(problems) > 0 {
-		// Fail/Block with a non-empty evidence ring and no explicit Detail or
-		// EvidenceTail auto-attach the capture tail (beginner-2) — the
-		// evidence a caller already gathered via evidence()/PhaseWriter() is
-		// exactly the detail a Fail/Block row needs, so DetailTail is no
-		// longer an opt-in step a caller has to remember. Skipping when
-		// EvidenceTail is already set (an explicit DetailTail() ran as a
-		// ProblemOption before finishTagged's lock was taken) avoids a
-		// duplicate render and, more importantly, avoids re-entering
-		// st.evidence.detailText — which, for a pending (unterminated-line)
-		// tail, calls back into this Output's redactor lock — while this
-		// method already holds that same lock.
-		if (state == Failed || state == Blocked) && st.evidence != nil && !st.evidence.Empty() {
-			for i := range problems {
-				if problems[i].Detail == "" && problems[i].EvidenceTail == "" {
-					problems[i].Detail = st.evidence.detailText()
-				}
-			}
-		}
-		// storeProblems: shared CSI-safe path (identical to Item).
-		st.problems = core.StoreProblems(problems)
+		st.problems = core.StoreProblems(st.attachEvidenceTail(state, problems))
 	}
-	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task." + string(state), EntityID: t.id})
+	t.out.settleLocked(st, state)
 	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, map[string]any{
 		"state":      string(state),
 		"resolution": string(st.resolution),
 	})
-	// Terminal outcomes: update live ledger for collections (H.20/H.21). A
-	// standalone task commits its own row to durable scrollback right now,
-	// interactive or not, so a later Printf/Println/Confirm can never race
-	// above already-resolved work (P2 / residual order contract;
-	// release-gate round 5 finding 3 — see commitResolvedTaskLocked).
-	if st.collection != nil {
-		t.out.signalLiveLocked(true)
-	} else {
-		t.out.commitResolvedTaskLocked(st.id)
-		// A resolving standalone task's own named (File/Exec) Plan/Changes
-		// rows stream right now too — under this task's own block, the
-		// instant its work is known-final, rather than waiting for every
-		// other task in the run to finish (see commitNamedEffectsLocked).
-		t.out.commitNamedEffectsLocked(st.name)
-	}
-	// The Task manifest commits atomically only once the Task itself settles
-	// Done — never on Failed/Blocked/Cancelled (spec §8.2/§11.3: "a partial
-	// failed operation never receives a success manifest record" and
-	// "cancellation/failure preserves already committed successful Task
-	// records"). A dry run never reaches here with any pending operations,
-	// since File never records one during DryRun.
-	if state == Done {
-		runCtx := t.out.ctx
-		if runCtx == nil {
-			runCtx = context.Background()
-		}
-		t.out.commitManifestTaskLocked(runCtx, t.id)
-	}
-	st.closeDoneLocked()
-	t.out.releaseNextStepLocked(st)
-	// §48: a failed predecessor makes its dependents NotStarted,
-	// deterministically. This must settle here, under the same lock this
-	// resolution already holds — not only later, from kick()'s post-return
-	// cascade — or a dependent already parked in Wait stays parked for as
-	// long as this task's own callback goroutine takes to actually return
-	// the Go call, and a heuristic release (progressPossibleLocked) can be
-	// fooled by unrelated work still executing elsewhere in the run.
+	t.out.commitSettledLocked(st)
+	// §48: a failed predecessor makes its dependents NotStarted under the
+	// lock this resolution already holds, so a dependent parked in Wait
+	// wakes now rather than when this callback's goroutine returns.
 	if predecessorFailed(state) {
 		t.out.cascadeIneligibleLocked()
 	}
 	return t
+}
+
+// promotePendingProblems merges every Problem the Task accumulated before
+// its terminal verb (ZYS-848) ahead of the verb's own, and clears them. A
+// bare Done carrying accumulated Problems becomes Failed: a Task that
+// recorded blocking evidence cannot report success.
+func (st *taskState) promotePendingProblems(state EntityState, problems []Problem) (EntityState, []Problem) {
+	if len(st.pendingProblems) == 0 {
+		return state, problems
+	}
+	merged := make([]Problem, 0, len(st.pendingProblems)+len(problems))
+	merged = append(merged, st.pendingProblems...)
+	merged = append(merged, problems...)
+	st.pendingProblems = nil
+	if state == Done {
+		state = Failed
+	}
+	return state, merged
+}
+
+// attachEvidenceTail gives a Failed or Blocked row's Problems the capture
+// tail the Task already gathered, so the detail a caller collected through
+// evidence()/PhaseWriter() needs no opt-in (beginner-2). A Problem with its
+// own Detail or EvidenceTail keeps it; that also avoids re-entering the
+// redactor lock this resolution already holds for a pending tail.
+func (st *taskState) attachEvidenceTail(state EntityState, problems []Problem) []Problem {
+	if (state != Failed && state != Blocked) || st.evidence == nil || st.evidence.Empty() {
+		return problems
+	}
+	for i := range problems {
+		if problems[i].Detail == "" && problems[i].EvidenceTail == "" {
+			problems[i].Detail = st.evidence.detailText()
+		}
+	}
+	return problems
+}
+
+// commitSettledLocked writes a settled Task where its readers find it. A
+// Group or Sequence child repaints the live ledger; a standalone Task
+// commits its row and its own File/Exec ledger rows to scrollback at once,
+// so later Printf/Confirm output can never land above finished work. A
+// Done Task commits its manifest record; Failed, Blocked, and Cancelled
+// never do (spec §8.2/§11.3).
+func (o *Output) commitSettledLocked(st *taskState) {
+	if st.collection != nil {
+		o.signalLiveLocked(true)
+	} else {
+		o.commitResolvedTaskLocked(st.id)
+		o.commitNamedEffectsLocked(st.name)
+	}
+	if st.state != Done {
+		return
+	}
+	runCtx := o.ctx
+	if runCtx == nil {
+		runCtx = context.Background()
+	}
+	o.commitManifestTaskLocked(runCtx, st.id)
 }
