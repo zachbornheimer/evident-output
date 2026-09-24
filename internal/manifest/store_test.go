@@ -386,3 +386,41 @@ func TestStoreFlushReportsAWriteFailure(t *testing.T) {
 		t.Fatalf("Close() = %v, want %v", err, disk)
 	}
 }
+
+// TestStoreFlushRetriesAWriteThatFailedOnce proves one transient write
+// failure does not lose the Run's history: the next Flush (here, Close's)
+// makes a fresh attempt instead of handing back the stale error.
+func TestStoreFlushRetriesAWriteThatFailedOnce(t *testing.T) {
+	cfg := Config{StateDir: t.TempDir()}
+	s, err := Open(t.Context(), cfg, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transient := errors.New("transient")
+	var writes atomic.Int32
+	s.write = func(raw []byte) error {
+		if writes.Add(1) == 1 {
+			return transient
+		}
+		return s.writeAtomic(raw)
+	}
+	if err := s.CommitTask(t.Context(), ApplicationRecord{ID: "app"}, TaskRecord{Key: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	// The background write may or may not have run yet; either way the
+	// first attempt fails and Close's Flush must try again.
+	for writes.Load() == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close() = %v, want nil after a retried write (writes=%d)", err, writes.Load())
+	}
+	reopened, err := Open(t.Context(), cfg, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = reopened.Close() }()
+	if _, ok := reopened.Task("t"); !ok {
+		t.Fatal(`Task("t") missing after reopen: the retried write never reached disk`)
+	}
+}

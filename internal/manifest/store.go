@@ -154,7 +154,9 @@ func (s *Store) StageTask(app ApplicationRecord, task TaskRecord) {
 
 // Flush waits until every record put so far is on disk, writing any that
 // are only staged, and returns the write's error when it failed. It does
-// nothing when nothing is pending.
+// nothing when nothing is pending. Each Flush makes a fresh attempt at a
+// version the writer already gave up on, so one transient failure (EINTR,
+// a brief ENOSPC) costs a retry, not the Run's history.
 func (s *Store) Flush(ctx context.Context) error {
 	if s == nil {
 		return nil
@@ -167,6 +169,9 @@ func (s *Store) Flush(ctx context.Context) error {
 	}
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("manifest: flush %q: %w", s.path, err)
+	}
+	if !s.w.running {
+		s.w.attempted = s.w.written
 	}
 	s.requestWriteLocked()
 	for s.w.written < target && (s.w.running || s.w.attempted < target) {
@@ -201,7 +206,7 @@ func (s *Store) requestWriteLocked() {
 
 // writeLoop writes the newest version until nothing requested is missing
 // from disk. It gives up on a version after one failed try; the failure
-// stays in failed until a later write succeeds.
+// stays in failed until a later write succeeds, and the next Flush retries.
 func (s *Store) writeLoop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
