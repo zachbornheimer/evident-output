@@ -100,11 +100,13 @@ func (t *TaskHandle) submitWork(fn func() error) {
 	o.schedWG.Add(1)
 	// §48: a predecessor that already failed before this task was even
 	// submitted must settle it NotStarted right now, under the same lock —
-	// not wait for a later kick()/waiter to notice. cascadeIneligibleLocked
-	// is a no-op when nothing is permanently blocked (a predecessor still
-	// running is left alone), so this is safe to run unconditionally on
-	// every submission.
-	o.cascadeIneligibleLocked()
+	// not wait for a later kick()/waiter to notice. Submitting st can block
+	// only st (and, through it, its dependents), so the run-wide cascade
+	// runs only when st itself can never start; testing st alone keeps a
+	// submission from rescanning every Task.
+	if o.blockedForeverLocked(st) {
+		o.cascadeIneligibleLocked()
+	}
 	o.mu.Unlock()
 	o.kick()
 }
@@ -635,19 +637,23 @@ func (o *Output) cascadeIneligibleLocked() {
 	for changed {
 		changed = false
 		for _, st := range o.tasks {
-			if !st.submitted || st.runningWork || core.IsTerminalTask(st.state) {
-				continue
-			}
-			if o.eligibleLocked(st) {
-				continue
-			}
-			if o.canStillBecomeEligibleLocked(st) && !o.predecessorBlockedLocked(st) {
+			if !o.blockedForeverLocked(st) {
 				continue
 			}
 			o.markNotStartedLocked(st)
 			changed = true
 		}
 	}
+}
+
+// blockedForeverLocked reports whether st's submitted work is waiting on
+// predecessors that can no longer all succeed, so it must settle
+// NotStarted.
+func (o *Output) blockedForeverLocked(st *taskState) bool {
+	if !st.submitted || st.runningWork || core.IsTerminalTask(st.state) || o.eligibleLocked(st) {
+		return false
+	}
+	return !o.canStillBecomeEligibleLocked(st) || o.predecessorBlockedLocked(st)
 }
 
 func (o *Output) canStillBecomeEligibleLocked(st *taskState) bool {
