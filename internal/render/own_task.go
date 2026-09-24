@@ -18,9 +18,9 @@ import "github.com/zachbornheimer/evident-output/internal/core"
 // rows. Live and durable output share this rule (docs/reference.md, "own
 // Task").
 
-// isOwnTask reports whether t is col's own Task.
-func isOwnTask(col core.TasksSnapshot, t core.TaskSnapshot) bool {
-	return t.Name == col.Name
+// isOwnTask reports whether t is the own Task of the Group named group.
+func isOwnTask(group string, t *core.TaskSnapshot) bool {
+	return t.Name == group
 }
 
 // hasOnlyChild reports whether a group's whole visible content is one
@@ -34,7 +34,7 @@ func hasOnlyChild(col core.TasksSnapshot) bool {
 
 // rendersAsOwnTask reports whether col renders as its own Task's row.
 func rendersAsOwnTask(col core.TasksSnapshot) bool {
-	return hasOnlyChild(col) && isOwnTask(col, col.Tasks[0])
+	return hasOnlyChild(col) && isOwnTask(col.Name, &col.Tasks[0])
 }
 
 // ownTaskRowName reports the name a child collection renders its one row
@@ -59,7 +59,7 @@ func ownTaskRowName(col core.TasksSnapshot) (string, bool) {
 // blocked group does not spin. Done/Failed/Skipped children still take the
 // header+child shape when they need their own evidence.
 func promotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
-	if !hasOnlyChild(col) || isOwnTask(col, col.Tasks[0]) {
+	if !hasOnlyChild(col) || isOwnTask(col.Name, &col.Tasks[0]) {
 		return false
 	}
 	switch col.Tasks[0].State {

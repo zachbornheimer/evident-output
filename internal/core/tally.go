@@ -71,7 +71,7 @@ type Dispositions struct {
 func (d Dispositions) Empty() bool { return d.Skipped.Total() == 0 && d.Kept.Total() == 0 }
 
 // AddTask counts t's own Skipped and Kept records.
-func (d *Dispositions) AddTask(t TaskSnapshot) {
+func (d *Dispositions) AddTask(t *TaskSnapshot) {
 	d.Skipped.AddAll(t.Skipped)
 	d.Kept.AddAll(t.Kept)
 }

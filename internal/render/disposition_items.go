@@ -20,8 +20,8 @@ import (
 // whose only information is its Kept or Skipped record, so its row would
 // say nothing its Group's tally does not. The Group's own Task is never an item: it is
 // the row the tally hangs under.
-func isDispositionItem(group string, t core.TaskSnapshot) bool {
-	if t.State != core.Done && t.State != core.Skipped || t.Synthetic() || t.Name == group {
+func isDispositionItem(group string, t *core.TaskSnapshot) bool {
+	if t.State != core.Done && t.State != core.Skipped || t.Synthetic() || isOwnTask(group, t) {
 		return false
 	}
 	if len(t.Kept) == 0 && len(t.Skipped) == 0 {
@@ -50,9 +50,10 @@ type childCensus struct {
 
 func censusOf(col core.TasksSnapshot) childCensus {
 	var c childCensus
-	for _, t := range col.Tasks {
+	for i := range col.Tasks {
+		t := &col.Tasks[i]
 		switch {
-		case isOwnTask(col, t):
+		case isOwnTask(col.Name, t):
 			c.ownTask = true
 		case isDispositionItem(col.Name, t):
 			c.items++
@@ -68,8 +69,8 @@ func censusOf(col core.TasksSnapshot) childCensus {
 // presence says the Group's children are peer subjects (categories), not
 // items of one subject. A child still in flight is not one yet: it may
 // still resolve as an item.
-func isWorkPeer(t core.TaskSnapshot) bool {
-	return core.IsTerminalTask(t.State) && !IsZeroInformationTask(t)
+func isWorkPeer(t *core.TaskSnapshot) bool {
+	return core.IsTerminalTask(t.State) && !IsZeroInformationTask(*t)
 }
 
 // foldsItems reports whether col's disposition items fold into a tally:
@@ -101,23 +102,36 @@ func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.D
 	// No preallocation: a TaskSnapshot is large, and the rows that survive
 	// are typically the one work Task, not the thousand items.
 	var rest []core.TaskSnapshot
-	for _, t := range col.Tasks {
+	for i := range col.Tasks {
+		t := &col.Tasks[i]
 		if isDispositionItem(col.Name, t) {
 			items.AddTask(t)
 			continue
 		}
-		rest = append(rest, t)
+		rest = append(rest, *t)
 	}
 	col.Tasks = rest
 	return col, items
 }
 
 // writeLiveDispositions writes items' tallies as the live frame shows them
-// (never verbose) and reports how many rows they took, so the frame's
-// height budget can count them.
-func writeLiveDispositions(b *strings.Builder, items core.Dispositions, color bool, profile txt.GlyphProfile) (rows int) {
+// (never verbose) within maxRows, and reports how many rows they took, so
+// the frame's height budget can count them. When the cause lines do not
+// fit, each tally keeps its headline and drops its causes: the headline is
+// the count, the durable render still carries the evidence.
+func writeLiveDispositions(b *strings.Builder, items core.Dispositions, maxRows int, color bool, profile txt.GlyphProfile) (rows int) {
+	if items.Empty() {
+		return 0
+	}
+	var full strings.Builder
+	writeDispositions(&full, taskAnnotationIndent, items, "", false, color, profile)
+	if rows = strings.Count(full.String(), "\n"); rows <= maxRows {
+		b.WriteString(full.String())
+		return rows
+	}
 	start := b.Len()
-	writeDispositions(b, taskAnnotationIndent, items, "", false, color, profile)
+	writeTaxonomyHeadline(b, taskAnnotationIndent, taxonomySkipped, items.Skipped, color, profile)
+	writeTaxonomyHeadline(b, taskAnnotationIndent, taxonomyKept, items.Kept, color, profile)
 	return strings.Count(b.String()[start:], "\n")
 }
 

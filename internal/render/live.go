@@ -151,11 +151,20 @@ func liveRegionFitsColumns(text string, columns int) bool {
 // budget before its children: the header row and a possible omission line.
 const liveHeaderRows = 2
 
+// minLiveChildRows is the fewest child rows a live Group header keeps,
+// whatever its tallies take. Below liveHeaderRows + two tally headlines +
+// minLiveChildRows rows of height, the frame is taller than the terminal:
+// the header, the headlines and one child are the floor.
+const minLiveChildRows = 1
+
 func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	// Count before folding: a folded item is still a completed child, so
+	// "N/M complete" never drops when the items fold.
+	done, total := completion(col)
 	col, items := withoutDispositionItems(col)
 	if rendersAsOwnTask(col) {
 		writeLiveTaskLine(b, col.Tasks[0], 0, 0, width, spin, color, now, profile)
-		writeLiveDispositions(b, items, color, profile)
+		writeLiveDispositions(b, items, height-1, color, profile)
 		return
 	}
 	if promotesLoneChildOntoHeader(col) {
@@ -163,73 +172,29 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
-		writeLiveDispositions(b, items, color, profile)
+		writeLiveDispositions(b, items, height-1, color, profile)
 		return
 	}
 	if groupHeaderAddsNothing(col) && items.Empty() && !hasUnfinishedTask(col) {
 		writeLiveHeaderlessGroup(b, col, height, width, spin, color, now, profile)
 		return
 	}
-	done, total := 0, len(col.Tasks)
-	for _, t := range col.Tasks {
-		if t.State == core.Done || t.State == core.Skipped {
-			done++
-		}
-	}
-	// Header
-	glyph := TaskGlyph(col.State, profile)
-	if col.State == core.Failed || anyChildFailed(col) {
-		if col.State == core.Failed {
-			glyph = txt.GlyphFailedState.Render(profile)
-		}
-	}
-	// When any running, animate header spinner (H.20 uses FixedClock → stable ⠋).
-	unresolved := anyChildRunning(col) || anyChildPendingActive(col)
-	if unresolved {
-		glyph = spin
-	}
-	headerState := col.State
-	if unresolved {
-		headerState = core.Running
-	}
-	// P5: the same one monotonic elapsed clock a Running/Pending row gets
-	// also ages an unfinished container header — anchored to the earliest
-	// live-first-seen time among its (recursive) children, since that is
-	// when this header itself first painted. A container header is the
-	// same DisplayUnit (P3) a task row is, with Detail populated by the
-	// "N/M complete" count instead of a phase/progress payload.
-	//
-	// Once every child has settled (spec §18's own worked example: "✓ launch
-	// agent", no count), the count is redundant with the ✓ glyph itself and
-	// disappears — an unresolved header still needs it to show how far along
-	// the group is.
-	unit := DisplayUnit{
-		Glyph: txt.StyleGlyph(glyph, StateColor(headerState), color),
-		Name:  col.Name,
-	}
-	if unresolved {
-		unit.Detail = fmt.Sprintf("%d/%d complete", done, total)
-		unit.Elapsed = heartbeatSuffix(now, earliestLiveFirstSeen(col))
-		unit.Detail += unit.Elapsed
-	}
-	b.WriteString(unit.Render(""))
+	b.WriteString(liveGroupHeader(col, done, total, spin, color, now, profile).Render(""))
 	b.WriteByte('\n')
-	tallyRows := writeLiveDispositions(b, items, color, profile)
-
-	// Select children by severity under the height budget, which the
-	// header, the folded tallies, and a possible omission line all spend.
-	maxChildRows := max(height-liveHeaderRows-tallyRows, 1)
-	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
+	// The header, the folded tallies, and a possible omission line all
+	// spend the height budget the children are selected under.
+	tallyRows := writeLiveDispositions(b, items, height-liveHeaderRows-minLiveChildRows, color, profile)
+	selected, omitted := selectLiveChildren(col.Tasks, max(height-liveHeaderRows-tallyRows, minLiveChildRows))
 	for _, t := range selected {
 		writeLiveTaskLine(b, t, 1, 0, width, spin, color, now, profile)
 	}
 	if omitted > 0 {
 		fmt.Fprintf(b, "   %s  %d not shown\n", txt.Dim(txt.GlyphOverflow.Render(profile), color), omitted)
 	}
-	// Nested containers (P3's recursive .Sequence/.DisplayGroup nesting)
-	// render as an indented sub-header + its own children, one level per
-	// nesting depth — rendered into a scratch builder first so the same
-	// three-space child indent writeLiveTaskLine uses applies uniformly.
+	// Nested containers render as an indented sub-header + its own
+	// children, one level per nesting depth — rendered into a scratch
+	// builder first so the same three-space child indent writeLiveTaskLine
+	// uses applies uniformly.
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
@@ -239,6 +204,40 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	}
 }
 
+// completion is how many of col's own child Tasks have completed (Done or
+// Skipped) out of all of them, folded items included.
+func completion(col core.TasksSnapshot) (done, total int) {
+	for i := range col.Tasks {
+		if state := col.Tasks[i].State; state == core.Done || state == core.Skipped {
+			done++
+		}
+	}
+	return done, len(col.Tasks)
+}
+
+// liveGroupHeader is a live Group's header row. While any child is
+// unresolved it spins and carries "N/M complete" plus the one monotonic
+// elapsed clock (P5), anchored to the earliest live-first-seen time among
+// its (recursive) children — when this header itself first painted. Once
+// every child has settled (spec §18's worked example: "✓ launch agent",
+// no count) the count is redundant with the glyph and disappears.
+func liveGroupHeader(col core.TasksSnapshot, done, total int, spin string, color bool, now time.Time, profile txt.GlyphProfile) DisplayUnit {
+	glyph, state := TaskGlyph(col.State, profile), col.State
+	if col.State == core.Failed {
+		glyph = txt.GlyphFailedState.Render(profile)
+	}
+	unresolved := anyChildRunning(col) || anyChildPendingActive(col)
+	if unresolved {
+		glyph, state = spin, core.Running
+	}
+	unit := DisplayUnit{Glyph: txt.StyleGlyph(glyph, StateColor(state), color), Name: col.Name}
+	if unresolved {
+		unit.Elapsed = heartbeatSuffix(now, earliestLiveFirstSeen(col))
+		unit.Detail = fmt.Sprintf("%d/%d complete", done, total) + unit.Elapsed
+	}
+	return unit
+}
+
 func anyChildRunning(col core.TasksSnapshot) bool {
 	for _, t := range col.Tasks {
 		if t.State == core.Running {
@@ -246,15 +245,6 @@ func anyChildRunning(col core.TasksSnapshot) bool {
 		}
 	}
 	return slices.ContainsFunc(col.Collections, anyChildRunning)
-}
-
-func anyChildFailed(col core.TasksSnapshot) bool {
-	for _, t := range col.Tasks {
-		if t.State == core.Failed {
-			return true
-		}
-	}
-	return slices.ContainsFunc(col.Collections, anyChildFailed)
 }
 
 // anyChildPendingActive reports whether the collection has any unresolved

@@ -675,7 +675,7 @@ func writeTaxonomy(b *strings.Builder, indent, verb string, tally core.Tally, sk
 		return
 	}
 	if !skipSummary {
-		fmt.Fprintf(b, "%s%s %s\n", indent, taxonomyGlyph(verb, color, profile), taxonomySummaryText(verb, tally))
+		writeTaxonomyHeadline(b, indent, verb, tally, color, profile)
 	}
 	writeTaxonomyCauses(b, indent, tally.Causes(), verbose, color, profile)
 	if !verbose {
@@ -684,6 +684,15 @@ func writeTaxonomy(b *strings.Builder, indent, verb string, tally core.Tally, sk
 	for _, part := range tally.Reasons() {
 		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, part.Reason, txt.TruncateNames(part.Names, 0, profile))
 	}
+}
+
+// writeTaxonomyHeadline writes tally's one count line ("- skipped 3
+// (...)"), or nothing when it is empty.
+func writeTaxonomyHeadline(b *strings.Builder, indent, verb string, tally core.Tally, color bool, profile txt.GlyphProfile) {
+	if tally.Total() == 0 {
+		return
+	}
+	fmt.Fprintf(b, "%s%s %s\n", indent, taxonomyGlyph(verb, color, profile), taxonomySummaryText(verb, tally))
 }
 
 // writeDispositions writes d's skipped then kept tallies at indent.
@@ -698,7 +707,7 @@ func writeDispositions(b *strings.Builder, indent string, d core.Dispositions, i
 // taskDispositions is t's own two tallies.
 func taskDispositions(t core.TaskSnapshot) core.Dispositions {
 	var d core.Dispositions
-	d.AddTask(t)
+	d.AddTask(&t)
 	return d
 }
 
