@@ -11,11 +11,14 @@ type Option interface {
 }
 
 type config struct {
-	subject           string
-	primary           io.Writer
-	diagnostic        io.Writer
-	result            io.Writer // domain payload (FormatData); never used for presentation
-	plain             bool
+	subject    string
+	primary    io.Writer
+	diagnostic io.Writer
+	result     io.Writer // domain payload (FormatData); never used for presentation
+	plain      bool
+	// hostOwnsSignals marks an embedded Output (external projection): its
+	// host, not Run, owns SIGINT/SIGTERM (spec §53).
+	hostOwnsSignals   bool
 	projection        Projection
 	noColor           bool
 	width             int

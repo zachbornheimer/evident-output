@@ -1,12 +1,10 @@
 package evo
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/zachbornheimer/evident-output/internal/engine"
 	"github.com/zachbornheimer/evident-output/internal/render"
-	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 func init() {
@@ -24,20 +22,14 @@ func ParseFormat(s string) (Format, error) { return engine.ParseFormat(s) }
 
 // WriteJSON serializes result as the stable v2 "evo.run" wire document plus
 // one trailing newline (spec §53) — the HTTP/embedding counterpart of
-// FormatJSON's automatic Stdout write. It never serializes internal
-// snapshots directly, and applies the same redaction Result's Conclusion
-// already carries. HTTP status (or any other transport-level outcome) is
-// the embedding application's own concern; Evo's outcome/exit semantics
-// stay in the body (Conclusion.State/ExitCode).
-func WriteJSON(w io.Writer, result Result) error {
-	body, err := wire.EncodeRun(result, PublishedRelease)
-	if err != nil {
-		return fmt.Errorf("evo: encode evo.run document: %w", err)
-	}
-	body = append(body, '\n')
-	_, err = w.Write(body)
-	return err
-}
+// FormatJSON's automatic Stdout write, and byte-identical to it for the
+// same run. It never serializes internal snapshots directly, and applies
+// the same redaction Result's Conclusion already carries. HTTP status (or
+// any other transport-level outcome) is the embedding application's own
+// concern; Evo's outcome/exit semantics stay in the body
+// (Conclusion.State/ExitCode). A writer failure is returned wrapped, so
+// errors.Is still matches the transport's own error.
+func WriteJSON(w io.Writer, result Result) error { return engine.WriteRunDocument(w, result) }
 
 // JSONSchemaVersion is the final JSON document schema version.
 // Tracks the 0.3 contract series (pre-1.0 wire format may still evolve).

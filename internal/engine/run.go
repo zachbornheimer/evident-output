@@ -3,8 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"os"
-	"syscall"
 )
 
 // Run executes a CLI presentation lifecycle against this Output and returns
@@ -92,22 +90,25 @@ func Main(run RunFunc) int {
 	return Run(context.Background(), run).ExitCode()
 }
 
-// runInterruptible executes run to completion, wiring SIGINT/SIGTERM into
-// cancellation of the active task (or the output itself) — and of the
-// derived ctx passed to run — so the ledger and exit code always agree. A
-// second signal returns ExitCancelled immediately instead of waiting for run
-// to unwind — the process-level os.Exit that wraps a caller's
-// os.Exit(evo.Main(run)) is what actually terminates.
+// runInterruptible executes run to completion, turning SIGINT/SIGTERM and
+// the end of the caller's ctx into one ordered interrupt of the active
+// task (or the output itself) — and of the derived ctx passed to run — so
+// the ledger and exit code always agree. A second signal returns
+// ExitCancelled immediately instead of waiting for run to unwind — the
+// process-level os.Exit that wraps a caller's os.Exit(evo.Main(run)) is
+// what actually terminates. An embedded (FormatExternal) Output leaves
+// signals to its host and stops only through ctx (spec §53).
 func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
-	sigCh := make(chan os.Signal, signalChannelCapacity)
-	notifySignals(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	defer stopSignals(sigCh)
+	signals := out.subscribeProcessSignals()
+	defer signals.stop()
+	caller := watchCaller(ctx, out)
+	defer caller.release()
 
 	// runCtx becomes o.Context() for the duration of this run (see
 	// beginRunContext): every Define/Verify task scope started from here
-	// on descends from the caller's own ctx, not just from run's local
-	// parameter.
-	runCtx := out.beginRunContext(ctx)
+	// on sees the caller's values and deadline, and is cancelled only by
+	// interrupt.
+	runCtx := out.beginRunContext(detachCancellation(ctx))
 
 	done := make(chan error, 1)
 	go func() {
@@ -120,15 +121,18 @@ func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 
 	select {
 	case runErr := <-done:
+		if caller.ended() {
+			return concludeCancelled(out, runErr)
+		}
 		return concludeRun(out, runErr)
-	case <-sigCh:
+	case <-signals.received:
 		// out.interrupt cancels o.cancelRun, the same cancel beginRunContext
 		// installed above — no separate local cancel is needed.
-		out.interrupt("interrupted")
+		out.interrupt(interruptionBySignal)
 		select {
 		case runErr := <-done:
 			return concludeCancelled(out, runErr)
-		case <-sigCh:
+		case <-signals.received:
 			return Result{Conclusion: Conclusion{State: StateCancelled, Cancelled: true, ExitCode: ExitCancelled}}
 		}
 	}

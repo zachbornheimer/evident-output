@@ -118,7 +118,7 @@ type Output struct {
 	// schedCancelled stops the scheduler dispatching anything new: after an
 	// interrupt the queue is abandoned, not drained.
 	schedCancelled bool
-	// cancelCause names who stopped the run ("by user" for a signal). It
+	// cancelCause names who stopped the run (interruption.cause). It
 	// becomes the cancelled Conclusion's Explanation, so the band and the
 	// JSON document state the same cause.
 	cancelCause string
@@ -494,15 +494,13 @@ func newOutput(subject string, options ...Option) *Output {
 	runCtx, cancelRun := context.WithCancel(context.Background())
 	o := &Output{
 		cfg:        cfg,
-		outputID:   "out_1",
+		outputID:   newRunID(),
 		taskByRef:  make(map[string]*taskState),
 		tasksByRef: make(map[string]*tasksState),
 		keys:       make(map[string]struct{}),
 		ctx:        runCtx,
 		cancelRun:  cancelRun,
 	}
-	// Stable-enough id for a process-local output instance.
-	o.outputID = o.nextID("out")
 	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(Event{Type: "output.started", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventRunStarted, "", nil)
@@ -899,22 +897,23 @@ func (o *Output) changesGetOrCreate(subject string) *changeLedger {
 // its answer is pending, the generic Pending-task fallback would otherwise
 // resolve it to Cancelled without ever closing that channel, leaving
 // readConfirmLine blocked forever.
-// interrupt stops the run at the first signal, in the one order that leaves
-// the ledger honest: the scheduler is closed to new work, every row is put
-// into the state the reader must see, and only then is the run's context
-// cancelled to release the callbacks still in flight. Cancelling first would
-// race a finishing callback into a ✓ row after the ^C.
-func (o *Output) interrupt(reason string) {
+// interrupt stops the run at the first signal or at the end of the
+// caller's context, in the one order that leaves the ledger honest: the
+// scheduler is closed to new work, every row is put into the state the
+// reader must see, and only then is the run's context cancelled to release
+// the callbacks still in flight. Cancelling first would race a finishing
+// callback into a ✓ row after the ^C.
+func (o *Output) interrupt(why interruption) {
 	if o == nil {
 		return
 	}
 	o.mu.Lock()
 	o.schedCancelled = true
-	o.cancelCause = cancelCauseUser
+	o.cancelCause = why.cause
 	cancelRun := o.cancelRun
 	o.mu.Unlock()
 
-	o.cancelActive(reason)
+	o.cancelActive(why.reason)
 	o.abandonQueuedWork()
 
 	if cancelRun != nil {
@@ -2164,10 +2163,6 @@ func (o *Output) Conclusion() Conclusion {
 	core.ApplyFailedExitCode(&c, o.cfg.failedExitCode)
 	return c
 }
-
-// cancelCauseUser is the cause an interrupt signal records: the person at
-// the terminal stopped the run.
-const cancelCauseUser = "by user"
 
 // explainCancellationLocked names the cancellation cause on a cancelled
 // conclusion. Any other outcome keeps its own Explanation untouched.

@@ -293,11 +293,21 @@ func ToRunDocument(result core.Result, evoVersion string) RunDocument {
 	return doc
 }
 
-// EncodeRun encodes result as the final "evo.run" document plus no trailing
-// newline (callers that need the newline — WriteJSON, FormatJSON's stdout
-// write — append it themselves; see spec §53).
+// EncodeRun encodes result as the final "evo.run" document with no
+// trailing newline; EncodeRunLine is the form every stream writer uses.
 func EncodeRun(result core.Result, evoVersion string) ([]byte, error) {
 	return json.MarshalIndent(ToRunDocument(result, evoVersion), "", "  ")
+}
+
+// EncodeRunLine is EncodeRun plus the one trailing newline both writers of
+// the document — WriteJSON and FormatJSON's stdout write — emit (spec §53),
+// so the two cannot drift apart byte for byte.
+func EncodeRunLine(result core.Result, evoVersion string) ([]byte, error) {
+	body, err := EncodeRun(result, evoVersion)
+	if err != nil {
+		return nil, err
+	}
+	return append(body, '\n'), nil
 }
 
 func durationMs(started, finished time.Time) int64 {
