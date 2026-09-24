@@ -176,3 +176,37 @@ func fileLines(contents []byte) [][]byte {
 	}
 	return lines
 }
+
+// AppliedTo reports whether current already holds f's result: reversing
+// f's hunks on current succeeds, and applying them forward again yields
+// current exactly (patch -N's already-applied test). A creation also
+// requires the reversed source to be empty.
+func (f File) AppliedTo(current []byte) bool {
+	prior, err := f.reversed().Apply(current)
+	if err != nil || (f.Create && len(prior) != 0) {
+		return false
+	}
+	forward, err := f.Apply(prior)
+	return err == nil && bytes.Equal(forward, current)
+}
+
+// reversed is f with every hunk turned around: old and new ranges swap
+// and removed lines become added ones.
+func (f File) reversed() File {
+	r := File{Path: f.Path, Hunks: make([]Hunk, len(f.Hunks))}
+	for i, h := range f.Hunks {
+		back := Hunk{OldStart: h.NewStart, OldCount: h.NewCount, NewStart: h.OldStart, NewCount: h.OldCount}
+		back.lines = make([]hunkLine, len(h.lines))
+		for j, l := range h.lines {
+			switch l.op {
+			case opAdd:
+				l.op = opRemove
+			case opRemove:
+				l.op = opAdd
+			}
+			back.lines[j] = l
+		}
+		r.Hunks[i] = back
+	}
+	return r
+}

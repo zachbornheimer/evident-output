@@ -92,17 +92,26 @@ func (o *Output) deriveFile(ctx context.Context, edit patch.File) (desiredFile, 
 	if claimErr != nil {
 		return desiredFile{}, claimErr
 	}
-	switch {
-	case edit.Create && source.exists:
-		return desiredFile{}, fmt.Errorf("%w: creates %s, which already exists", ErrPatchDoesNotApply, path)
-	case !edit.Create && !source.exists:
-		return desiredFile{}, fmt.Errorf("%w: modifies %s, which does not exist", ErrPatchDoesNotApply, path)
-	}
-	contents, applyErr := edit.Apply(source.contents)
+	contents, applyErr := desiredContents(edit, source, path)
 	if applyErr != nil {
 		return desiredFile{}, applyErr
 	}
 	return desiredFile{target: target, contents: contents, mode: edit.Mode, basis: source.basis}, nil
+}
+
+// desiredContents is the bytes edit leaves at source. A source that
+// already holds edit's result (the same diff on a second Run) is its own
+// desired state, which Files then reports as already satisfied.
+func desiredContents(edit patch.File, source observedSource, path string) ([]byte, error) {
+	switch {
+	case !edit.Create && !source.exists:
+		return nil, fmt.Errorf("%w: modifies %s, which does not exist", ErrPatchDoesNotApply, path)
+	case source.exists && edit.AppliedTo(source.contents):
+		return source.contents, nil
+	case edit.Create && source.exists:
+		return nil, fmt.Errorf("%w: creates %s, which already exists", ErrPatchDoesNotApply, path)
+	}
+	return edit.Apply(source.contents)
 }
 
 // observedSource is one patch source as read: whether it exists, its

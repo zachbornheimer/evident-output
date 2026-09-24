@@ -26,7 +26,10 @@ type FileSet = engine.FileSet
 // A patch edits only real paths beneath the workspace: a path beyond a
 // symlinked directory fails with ErrPatchUnsupported, and Patch never
 // creates directories, so a file whose parent directory is missing fails
-// with ErrPatchDoesNotApply before Files commits anything. Callers that already know the desired bytes call
+// with ErrPatchDoesNotApply before Files commits anything. A file that
+// already holds the diff's result (the same diff applied on a second Run)
+// is derived as its own desired state, which Files reports as already
+// satisfied. Callers that already know the desired bytes call
 // File directly instead of building a diff.
 func Patch(ctx context.Context, diff []byte) (FileSet, error) { return engine.Patch(ctx, diff) }
 

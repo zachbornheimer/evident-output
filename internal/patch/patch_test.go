@@ -227,3 +227,22 @@ func TestParseIgnoresPreambleAndCRLFContent(t *testing.T) {
 		t.Fatalf("Path = %q", f.Path)
 	}
 }
+
+func TestAppliedToRecognizesOnlyTheExactResult(t *testing.T) {
+	files, err := Parse([]byte("--- a/g.txt\n+++ b/g.txt\n@@ -1,2 +1,2 @@\n hello\n-world\n+there\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := files[0]
+	cases := map[string]bool{
+		"hello\nthere\n":        true,
+		"hello\nworld\n":        false,
+		"hello\nthere\nextra\n": true,
+		"hi\nthere\n":           false,
+	}
+	for current, want := range cases {
+		if got := f.AppliedTo([]byte(current)); got != want {
+			t.Errorf("AppliedTo(%q) = %v, want %v", current, got, want)
+		}
+	}
+}
