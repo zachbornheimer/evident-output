@@ -172,6 +172,71 @@ func TestInventoryDoesNotTreatDefaultsLogfAsFacade(t *testing.T) {
 	}
 }
 
+// TestInventoryFlagsInjectedWriterSink proves adopt reports fmt.Fprint*
+// calls that write through an injected io.Writer sink (a struct field like
+// rt.stderr), not just os.Stdout/os.Stderr directly. testdata/sink mirrors
+// homelabctl's runtime shape (cmd/homelabctl/runtime.go): stdout/stderr
+// live behind struct fields, so every real write site never mentions
+// os.Stdout/os.Stderr — the exact pattern classifyFmtCall's os.Stdout-only
+// check misses (ZYS-1018).
+func TestInventoryFlagsInjectedWriterSink(t *testing.T) {
+	plan, err := adopt.Inventory(filepath.Join("testdata", "sink"))
+	if err != nil {
+		t.Fatalf("Inventory: %v", err)
+	}
+	wantPatterns := map[string]bool{
+		"fmt.Fprintln(rt.stderr, ...)": false,
+		"fmt.Fprintf(rt.stdout, ...)":  false,
+	}
+	for _, f := range plan.Findings {
+		if _, ok := wantPatterns[f.Pattern]; ok {
+			wantPatterns[f.Pattern] = true
+		}
+	}
+	for pattern, found := range wantPatterns {
+		if !found {
+			t.Errorf("Inventory missed injected-sink pattern %q: %+v", pattern, plan.Findings)
+		}
+	}
+}
+
+// TestInventoryDetectsMutationFacade proves adopt reports a facade type
+// whose methods are named for the mutation they perform (Bootstrap/Up/
+// Write*) even when the type holds no io.Writer field at all —
+// testdata/mutationfacade mirrors homelab's launchdfacade/dockerfacade/
+// filesystemfacade shape, where every real call site shells out or writes
+// to disk directly rather than wrapping a writer. adopt's io.Writer-field-
+// only facade detector cannot see this on its own (ZYS-1019).
+func TestInventoryDetectsMutationFacade(t *testing.T) {
+	plan, err := adopt.Inventory(filepath.Join("testdata", "mutationfacade"))
+	if err != nil {
+		t.Fatalf("Inventory: %v", err)
+	}
+	if len(plan.Facades) != 1 {
+		t.Fatalf("want exactly 1 facade, got %d: %+v", len(plan.Facades), plan.Facades)
+	}
+
+	got := plan.Facades[0]
+	if got.Type != "CLI" {
+		t.Errorf("Type = %q, want %q", got.Type, "CLI")
+	}
+	wantMethods := []string{"Bootstrap", "Up", "WriteConfig"}
+	if len(got.Methods) != len(wantMethods) {
+		t.Fatalf("Methods = %v, want %v", got.Methods, wantMethods)
+	}
+	for i, m := range wantMethods {
+		if got.Methods[i] != m {
+			t.Errorf("Methods[%d] = %q, want %q", i, got.Methods[i], m)
+		}
+	}
+	if len(got.CallSites) != 3 {
+		t.Errorf("CallSites = %v, want 3 entries", got.CallSites)
+	}
+	if got.Note == "" {
+		t.Error("mutation facade finding has no migrate-the-facade note")
+	}
+}
+
 // TestInventoryPrefersCmdSubtree proves that when dir/cmd exists, inventory
 // walks that subtree instead of every Go file under dir.
 func TestInventoryPrefersCmdSubtree(t *testing.T) {

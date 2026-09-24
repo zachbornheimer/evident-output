@@ -6,11 +6,44 @@ import (
 	"go/token"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // facadeMigrationNote is templated with a facade's call-site count — see
 // Facade.Note.
 const facadeMigrationNote = "custom output facade: migrate the facade, not each call site — its %d call sites follow"
+
+// mutationFacadeNote is templated with a mutation facade's call-site
+// count — see Facade.Note and mutationVerbPrefixes.
+const mutationFacadeNote = "custom mutation facade: migrate the facade, not each call site — its %d call sites follow"
+
+// mutationVerbPrefixes names the method-name prefixes that mark a *facade
+// package's type as performing a real mutation (launchdfacade.Bootstrap,
+// dockerfacade.ComposeUp, filesystemfacade.WriteFile) rather than routing
+// output through a writer. Detection has no io.Writer field to key off —
+// homelab's launchdfacade.CLI holds none — so the naming convention plus
+// the *facade package convention (facadePackage) together stand in for the
+// type resolution adopt doesn't do (see ZYS-1019).
+var mutationVerbPrefixes = []string{"Write", "Up", "Bootstrap"}
+
+// isMutationVerbMethod reports whether name matches one of
+// mutationVerbPrefixes.
+func isMutationVerbMethod(name string) bool {
+	for _, prefix := range mutationVerbPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// isFacadePackage reports whether pkgName follows the *facade naming
+// convention homelab's dockerfacade/colimafacade/launchdfacade/
+// filesystemfacade packages use — the signal that stands in for an
+// io.Writer field when a candidate's methods are pure mutations.
+func isFacadePackage(pkgName string) bool {
+	return strings.HasSuffix(strings.ToLower(pkgName), "facade")
+}
 
 // facadeInventoryCaveat discloses that facade call-site enumeration is a
 // selector-name heuristic, not full type resolution — see Plan.Caveat.
@@ -31,6 +64,7 @@ type parsedFile struct {
 type facadeCandidate struct {
 	typeName     string
 	file         string
+	pkgName      string
 	writerFields map[string]bool
 	methodBodies map[string]*ast.BlockStmt
 }
@@ -43,12 +77,13 @@ func detectFacades(fset *token.FileSet, files []parsedFile) []Facade {
 	candidates := map[string]*facadeCandidate{}
 	for _, pf := range files {
 		dir := filepath.Dir(pf.Path)
+		pkgName := pf.File.Name.Name
 		ast.Inspect(pf.File, func(n ast.Node) bool {
 			switch node := n.(type) {
 			case *ast.TypeSpec:
-				recordWriterFields(candidates, dir, pf.Path, node)
+				recordWriterFields(candidates, dir, pf.Path, pkgName, node)
 			case *ast.FuncDecl:
-				recordMethodBody(candidates, dir, pf.Path, node)
+				recordMethodBody(candidates, dir, pf.Path, pkgName, node)
 			}
 			return true
 		})
@@ -65,31 +100,56 @@ func detectFacades(fset *token.FileSet, files []parsedFile) []Facade {
 	return facades
 }
 
-// confirmedFacades keeps only candidates with at least one method whose
-// body actually wraps a writer field — a struct merely holding an
-// io.Writer field isn't a facade until something writes through it.
+// confirmedFacades keeps only candidates confirmed one of two ways: an
+// output facade (at least one method whose body actually wraps a writer
+// field — a struct merely holding an io.Writer field isn't a facade until
+// something writes through it), or a mutation facade (a *facade-package
+// type with at least one Write*/Up*/Bootstrap*-named method — see
+// mutationVerbPrefixes for why homelab's launchdfacade/dockerfacade/
+// filesystemfacade need this second path instead of a writer field).
 func confirmedFacades(candidates map[string]*facadeCandidate) []Facade {
 	var facades []Facade
 	for _, c := range candidates {
-		if len(c.writerFields) == 0 {
+		if methods := outputFacadeMethods(c); len(methods) > 0 {
+			facades = append(facades, Facade{Type: c.typeName, File: c.file, Methods: methods, isMutation: false})
 			continue
 		}
-		var methods []string
-		for name, body := range c.methodBodies {
-			if wrapsWriter(body, c.writerFields) {
-				methods = append(methods, name)
-			}
+		if methods := mutationFacadeMethods(c); len(methods) > 0 {
+			facades = append(facades, Facade{Type: c.typeName, File: c.file, Methods: methods, isMutation: true})
 		}
-		if len(methods) == 0 {
-			continue
-		}
-		sort.Strings(methods)
-		facades = append(facades, Facade{Type: c.typeName, File: c.file, Methods: methods})
 	}
 	return facades
 }
 
-func recordWriterFields(candidates map[string]*facadeCandidate, dir, path string, spec *ast.TypeSpec) {
+func outputFacadeMethods(c *facadeCandidate) []string {
+	if len(c.writerFields) == 0 {
+		return nil
+	}
+	var methods []string
+	for name, body := range c.methodBodies {
+		if wrapsWriter(body, c.writerFields) {
+			methods = append(methods, name)
+		}
+	}
+	sort.Strings(methods)
+	return methods
+}
+
+func mutationFacadeMethods(c *facadeCandidate) []string {
+	if !isFacadePackage(c.pkgName) {
+		return nil
+	}
+	var methods []string
+	for name := range c.methodBodies {
+		if isMutationVerbMethod(name) {
+			methods = append(methods, name)
+		}
+	}
+	sort.Strings(methods)
+	return methods
+}
+
+func recordWriterFields(candidates map[string]*facadeCandidate, dir, path, pkgName string, spec *ast.TypeSpec) {
 	st, ok := spec.Type.(*ast.StructType)
 	if !ok || st.Fields == nil {
 		return
@@ -106,13 +166,13 @@ func recordWriterFields(candidates map[string]*facadeCandidate, dir, path string
 	if len(fields) == 0 {
 		return
 	}
-	c := candidateFor(candidates, dir, path, spec.Name.Name)
+	c := candidateFor(candidates, dir, path, pkgName, spec.Name.Name)
 	for _, f := range fields {
 		c.writerFields[f] = true
 	}
 }
 
-func recordMethodBody(candidates map[string]*facadeCandidate, dir, path string, decl *ast.FuncDecl) {
+func recordMethodBody(candidates map[string]*facadeCandidate, dir, path, pkgName string, decl *ast.FuncDecl) {
 	if decl.Recv == nil || len(decl.Recv.List) == 0 || decl.Body == nil {
 		return
 	}
@@ -120,17 +180,18 @@ func recordMethodBody(candidates map[string]*facadeCandidate, dir, path string, 
 	if typeName == "" {
 		return
 	}
-	c := candidateFor(candidates, dir, path, typeName)
+	c := candidateFor(candidates, dir, path, pkgName, typeName)
 	c.methodBodies[decl.Name.Name] = decl.Body
 }
 
-func candidateFor(candidates map[string]*facadeCandidate, dir, path, typeName string) *facadeCandidate {
+func candidateFor(candidates map[string]*facadeCandidate, dir, path, pkgName, typeName string) *facadeCandidate {
 	key := dir + "." + typeName
 	c, ok := candidates[key]
 	if !ok {
 		c = &facadeCandidate{
 			typeName:     typeName,
 			file:         path,
+			pkgName:      pkgName,
 			writerFields: map[string]bool{},
 			methodBodies: map[string]*ast.BlockStmt{},
 		}
@@ -251,6 +312,10 @@ func enumerateCallSites(fset *token.FileSet, files []parsedFile, facades []Facad
 	}
 	for i := range facades {
 		sort.Strings(facades[i].CallSites)
-		facades[i].Note = fmt.Sprintf(facadeMigrationNote, len(facades[i].CallSites))
+		note := facadeMigrationNote
+		if facades[i].isMutation {
+			note = mutationFacadeNote
+		}
+		facades[i].Note = fmt.Sprintf(note, len(facades[i].CallSites))
 	}
 }

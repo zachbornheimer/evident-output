@@ -129,10 +129,20 @@ func classifyFmtCall(s callSite, method string) (Finding, bool) {
 			CertaintyNeedsReview,
 		), true
 	case "Fprint", "Fprintf", "Fprintln":
-		if len(s.call.Args) > 0 && isOsStdout(s.call.Args[0]) {
+		if len(s.call.Args) == 0 {
+			return Finding{}, false
+		}
+		if isOsStdout(s.call.Args[0]) {
 			s.pattern += "(os.Stdout, ...)"
 			return s.finding(RungTaskDefine,
 				"writing os.Stdout directly bypasses evo's live region — route through evo.Init(Config{Stdout: os.Stdout}) and evo.Println/Task instead.",
+				CertaintyNeedsReview,
+			), true
+		}
+		if sink, ok := injectedWriterSinkName(s.call.Args[0]); ok {
+			s.pattern += "(" + sink + ", ...)"
+			return s.finding(RungTaskDefine,
+				"writing an injected stdout/stderr sink bypasses evo's live region the same way os.Stdout would — route it through evo.Init(Config{Stdout: ...}) and evo.Println/Task instead.",
 				CertaintyNeedsReview,
 			), true
 		}
@@ -149,4 +159,39 @@ func isOsStdout(arg ast.Expr) bool {
 	}
 	pkg, ok := sel.X.(*ast.Ident)
 	return ok && pkg.Name == "os" && sel.Sel.Name == "Stdout"
+}
+
+// injectedSinkFieldNames is the small, deliberately narrow set of
+// conventional names an injected stdout/stderr sink carries — a struct
+// field (homelabctl's runtime.stdout/stderr) or a bare parameter — matched
+// case-insensitively. It excludes generic names like "out" or "err" that
+// collide too often with unrelated values (an error variable is almost
+// always named "err") to be a reliable signal on their own.
+var injectedSinkFieldNames = map[string]bool{
+	"stdout": true,
+	"stderr": true,
+}
+
+// injectedWriterSinkName reports whether arg is a struct-field access or
+// bare identifier named for an injected stdout/stderr sink — the shape
+// fmt.Fprintf(rt.stdout, ...) or fmt.Fprintln(stderr, ...) takes when a
+// program wires its own io.Writer field instead of using os.Stdout/
+// os.Stderr directly (see ZYS-1018, homelabctl's cmd/homelabctl/runtime.go).
+// This is a selector-name heuristic, the same kind detectFacades already
+// uses for writer fields — it cannot see through renamed fields or fields
+// whose name doesn't match the convention.
+func injectedWriterSinkName(arg ast.Expr) (string, bool) {
+	switch e := arg.(type) {
+	case *ast.SelectorExpr:
+		if injectedSinkFieldNames[strings.ToLower(e.Sel.Name)] {
+			if base, ok := e.X.(*ast.Ident); ok {
+				return base.Name + "." + e.Sel.Name, true
+			}
+		}
+	case *ast.Ident:
+		if injectedSinkFieldNames[strings.ToLower(e.Name)] {
+			return e.Name, true
+		}
+	}
+	return "", false
 }

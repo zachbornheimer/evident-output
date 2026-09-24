@@ -98,4 +98,9 @@ type Facade struct {
 	// CallSites enumerates every "path:line" that calls one of Methods.
 	CallSites []string `json:"call_sites"`
 	Note      string   `json:"note"`
+	// isMutation marks a mutation facade (Write*/Up*/Bootstrap* methods on
+	// a *facade-package type, see mutationVerbPrefixes) rather than an
+	// output facade — it only picks Note's wording, so it stays unexported
+	// and out of the wire schema.
+	isMutation bool
 }
