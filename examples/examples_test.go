@@ -37,6 +37,8 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 		{name: "debug-pane", args: []string{"--fast"}},
 		{name: "debug-pane", args: []string{"--fast", "--fail"}, allowExit: []int{0, 1}},
 		{name: "terminal-driver", args: []string{"--fast", "--frames"}},
+		{name: "launch-agent-http"},
+		{name: "launch-agent-http", args: []string{"--format", "json"}},
 	}
 	for _, s := range specs {
 		label := s.name
