@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -232,6 +233,92 @@ func TestToRunDocument_VerificationProjectsPerAttributeFactsToo(t *testing.T) {
 			if got[i].Facts[j] != want[i].Facts[j] {
 				t.Errorf("Verification[%d].Facts[%d] = %+v, want %+v", i, j, got[i].Facts[j], want[i].Facts[j])
 			}
+		}
+	}
+}
+
+// TestToProblemDoc_ProjectsLocationSeverityEvidenceFieldsRemedies is
+// ZYS-823's guard on the wire-format ("evo.run") side of the same
+// projection internal/render's toJSONProblems test covers: Location,
+// Severity, Evidence, Fields and Remedies must all reach ProblemDoc, not
+// just the Code/EvidenceTail fields other tests in this file already
+// exercise.
+func TestToProblemDoc_ProjectsLocationSeverityEvidenceFieldsRemedies(t *testing.T) {
+	got := ToProblemDoc(core.Problem{
+		Summary:  "build failed",
+		Severity: "error",
+		Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
+		Evidence: []core.Attachment{{Label: "stderr", Value: "undefined: foo"}},
+		Fields:   []core.Field{{Key: "attempt", Value: "2"}},
+		Actions:  []core.Action{{Label: "rerun", Command: &core.CommandSpec{Executable: "go", Args: []string{"build", "./..."}}}},
+	})
+	if got.Severity != "error" {
+		t.Fatalf("Severity = %q, want %q", got.Severity, "error")
+	}
+	if got.Location == nil || got.Location.Path != "main.go" || got.Location.Line != 12 || got.Location.Column != 3 {
+		t.Fatalf("Location = %+v, want {main.go 12 3}", got.Location)
+	}
+	if len(got.Evidence) != 1 || got.Evidence[0].Label != "stderr" || got.Evidence[0].Value != "undefined: foo" {
+		t.Fatalf("Evidence = %+v, want [{stderr undefined: foo}]", got.Evidence)
+	}
+	if len(got.Fields) != 1 || got.Fields[0].Key != "attempt" || got.Fields[0].Value != "2" {
+		t.Fatalf("Fields = %+v, want [{attempt 2}]", got.Fields)
+	}
+	if len(got.Remedies) != 1 || got.Remedies[0].Label != "rerun" {
+		t.Fatalf("Remedies = %+v, want a [rerun] action", got.Remedies)
+	}
+}
+
+// TestToProblemDoc_RedactsSensitiveFieldValue is the wire-format security
+// invariant: a Sensitive Field's raw value must never reach ProblemDoc,
+// the type EncodeRun marshals straight onto the "evo.run" wire. The fixture
+// value below is an obviously-fake placeholder, never a real credential.
+func TestToProblemDoc_RedactsSensitiveFieldValue(t *testing.T) {
+	const fixtureRawValue = "fixture-raw-value-must-not-leak"
+	got := ToProblemDoc(core.Problem{
+		Summary: "leaked secret",
+		Fields:  []core.Field{{Key: "api_key", Value: fixtureRawValue, Sensitive: true}},
+	})
+	if len(got.Fields) != 1 {
+		t.Fatalf("Fields = %+v, want 1 field", got.Fields)
+	}
+	if got.Fields[0].Value != core.RedactedValue {
+		t.Fatalf("Value = %v, want the redaction sentinel %q (not the raw fixture value)", got.Fields[0].Value, core.RedactedValue)
+	}
+}
+
+// TestEncodeRun_ProblemFieldsAndRedactionSurviveEncoding is the end-to-end
+// proof: Location/Severity/Evidence/Fields/Remedies and Sensitive-Field
+// redaction must all survive a real EncodeRun call, not just the
+// ToProblemDoc unit above — the raw fixture value must never appear
+// anywhere in the encoded "evo.run" bytes.
+func TestEncodeRun_ProblemFieldsAndRedactionSurviveEncoding(t *testing.T) {
+	const fixtureRawValue = "fixture-raw-value-must-not-leak"
+	result := core.Result{Conclusion: withConc(func(c *core.Conclusion) {
+		c.Tasks = []core.TaskSnapshot{
+			core.NewTaskSnapshot(core.TaskSnapshot{
+				ID: "task_1", Name: "build", State: core.Done,
+				Problems: []core.Problem{{
+					Code: "A1", Summary: "finding", Severity: "error",
+					Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
+					Evidence: []core.Attachment{{Label: "stderr", Value: "undefined: foo"}},
+					Fields:   []core.Field{{Key: "api_key", Value: fixtureRawValue, Sensitive: true}},
+					Actions:  []core.Action{{Label: "rerun"}},
+				}},
+			}, time.Time{}, false, false),
+		}
+	})}
+	encoded, err := EncodeRun(result, testEvoVersion)
+	if err != nil {
+		t.Fatalf("EncodeRun: %v", err)
+	}
+	body := string(encoded)
+	if strings.Contains(body, fixtureRawValue) {
+		t.Fatalf("encoded evo.run leaked the raw Sensitive fixture value %q:\n%s", fixtureRawValue, body)
+	}
+	for _, want := range []string{`"severity": "error"`, `"line": 12`, `"stderr"`, `"rerun"`, `"api_key"`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("encoded evo.run missing %q:\n%s", want, body)
 		}
 	}
 }

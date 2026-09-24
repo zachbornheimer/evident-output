@@ -389,7 +389,7 @@ func toJSONFields(in []core.Field) []JSONField {
 	for i, f := range in {
 		v := f.Value
 		if f.Sensitive {
-			v = "***"
+			v = core.RedactedValue
 		}
 		out[i] = JSONField{Key: f.Key, Value: v}
 	}

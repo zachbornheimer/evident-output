@@ -87,11 +87,9 @@
             "$ref": "#/$defs/action"
           }
         }
-      },
-      "additionalProperties": false
+      }
     }
   },
-  "additionalProperties": false,
   "$defs": {
     "collection": {
       "type": "object",
@@ -127,8 +125,7 @@
             "type": "string"
           }
         }
-      },
-      "additionalProperties": false
+      }
     },
     "progress": {
       "type": "object",
@@ -143,8 +140,7 @@
         "total": {
           "type": "integer"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "evidencePhase": {
       "type": "object",
@@ -159,8 +155,7 @@
         "source": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "evidence": {
       "type": "object",
@@ -172,8 +167,7 @@
         "after": {
           "$ref": "#/$defs/evidencePhase"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "timing": {
       "type": "object",
@@ -188,8 +182,7 @@
         "total_ms": {
           "type": "integer"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "verification": {
       "type": "object",
@@ -207,8 +200,7 @@
             "$ref": "#/$defs/fact"
           }
         }
-      },
-      "additionalProperties": false
+      }
     },
     "trackedResource": {
       "type": "object",
@@ -226,8 +218,7 @@
         "mode": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "basis": {
       "type": "object",
@@ -239,8 +230,7 @@
         "value": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "operation": {
       "type": "object",
@@ -255,8 +245,7 @@
         "current": {
           "type": "boolean"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "fact": {
       "type": "object",
@@ -268,8 +257,7 @@
         "value": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "location": {
       "type": "object",
@@ -284,8 +272,7 @@
         "column": {
           "type": "integer"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "attachment": {
       "type": "object",
@@ -297,8 +284,7 @@
         "value": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "field": {
       "type": "object",
@@ -308,8 +294,7 @@
           "type": "string"
         },
         "value": {}
-      },
-      "additionalProperties": false
+      }
     },
     "problem": {
       "type": "object",
@@ -359,8 +344,7 @@
             "$ref": "#/$defs/action"
           }
         }
-      },
-      "additionalProperties": false
+      }
     },
     "effect": {
       "type": "object",
@@ -381,8 +365,7 @@
         "object": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "action": {
       "type": "object",
@@ -406,11 +389,9 @@
                 "type": "string"
               }
             }
-          },
-          "additionalProperties": false
+          }
         }
-      },
-      "additionalProperties": false
+      }
     },
     "task": {
       "type": "object",
@@ -500,8 +481,7 @@
             "$ref": "#/$defs/operation"
           }
         }
-      },
-      "additionalProperties": false
+      }
     }
   }
 }

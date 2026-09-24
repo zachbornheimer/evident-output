@@ -536,6 +536,73 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	}
 }
 
+// TestWireProblemPayloadLocked_CarriesLocationSeverityEvidenceFieldsRemedies
+// is ZYS-823's JSONL guard on the same projection internal/render's and
+// internal/wire's Location/Severity/Evidence/Fields/Remedies tests cover:
+// this function must carry all of them onto the problem.recorded/
+// warning.recorded payload, not just summary/detail/evidence_tail.
+func TestWireProblemPayloadLocked_CarriesLocationSeverityEvidenceFieldsRemedies(t *testing.T) {
+	payload := wireProblemPayloadLocked(Problem{
+		Summary:  "build failed",
+		Severity: "error",
+		Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
+		Evidence: []core.Attachment{{Label: "stderr", Value: "undefined: foo"}},
+		Fields:   []core.Field{{Key: "attempt", Value: "2"}},
+		Actions:  []core.Action{{Label: "rerun"}},
+	})
+	if payload["severity"] != "error" {
+		t.Fatalf("payload[severity] = %v, want %q (full payload: %+v)", payload["severity"], "error", payload)
+	}
+	if _, ok := payload["location"]; !ok {
+		t.Fatalf("payload missing location (full payload: %+v)", payload)
+	}
+	if _, ok := payload["evidence"]; !ok {
+		t.Fatalf("payload missing evidence (full payload: %+v)", payload)
+	}
+	if _, ok := payload["fields"]; !ok {
+		t.Fatalf("payload missing fields (full payload: %+v)", payload)
+	}
+	if _, ok := payload["remedies"]; !ok {
+		t.Fatalf("payload missing remedies (full payload: %+v)", payload)
+	}
+}
+
+// TestWireProblemPayloadLocked_RedactsSensitiveFieldValue is the JSONL
+// security invariant: a Sensitive Field's raw value must never reach the
+// problem.recorded/warning.recorded payload. The fixture value below is an
+// obviously-fake placeholder, never a real credential.
+func TestWireProblemPayloadLocked_RedactsSensitiveFieldValue(t *testing.T) {
+	const fixtureRawValue = "fixture-raw-value-must-not-leak"
+	payload := wireProblemPayloadLocked(Problem{
+		Summary: "leaked secret",
+		Fields:  []core.Field{{Key: "api_key", Value: fixtureRawValue, Sensitive: true}},
+	})
+	fields, ok := payload["fields"].([]wire.FieldDoc)
+	if !ok || len(fields) != 1 {
+		t.Fatalf("payload[fields] = %v (%T), want 1 wire.FieldDoc", payload["fields"], payload["fields"])
+	}
+	if fields[0].Value != core.RedactedValue {
+		t.Fatalf("Value = %v, want the redaction sentinel %q (not the raw fixture value)", fields[0].Value, core.RedactedValue)
+	}
+}
+
+// TestVerificationObservedPayload_CarriesFacts proves
+// verificationObservedPayload's reuse of wire.ToVerificationDoc still
+// carries a VerificationDetail's Facts onto the verification.observed
+// JSONL payload.
+func TestVerificationObservedPayload_CarriesFacts(t *testing.T) {
+	payload := verificationObservedPayload(core.VerificationDetail{
+		Name: "permissions", Status: core.VerificationError,
+		Facts: []core.Fact{{Name: "error", Value: "operation not permitted"}},
+	})
+	if payload["name"] != "permissions" || payload["status"] != "error" {
+		t.Fatalf("payload = %+v, want name=permissions status=error", payload)
+	}
+	if _, ok := payload["facts"]; !ok {
+		t.Fatalf("payload missing facts: %+v", payload)
+	}
+}
+
 // TestWireEvents_WarningRecordedCarriesEvidenceTail is
 // TestWireEvents_ProblemRecordedCarriesEvidenceTail's warning.recorded
 // counterpart (task.go:290 — Warn's own emitWireEventLocked call was

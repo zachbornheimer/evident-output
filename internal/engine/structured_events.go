@@ -1,76 +1,65 @@
 package engine
 
-import "github.com/zachbornheimer/evident-output/internal/wire"
+import (
+	"github.com/zachbornheimer/evident-output/internal/wire"
+)
 
 // wireProblemPayloadLocked builds the "evo.event" payload for a
-// problem.recorded/warning.recorded line (spec §38): summary always, plus
-// every other field the Problem carries. Omitting a non-empty field here
-// is the same machine-truth loss ZYS-823 found in the final JSON
-// projection (toJSONProblems/toProblemDocs) — a JSONL consumer must see
-// the same code/subject/count/unit/location/severity/evidence/fields/
-// remedies a FormatJSON consumer does, not a narrower subset. code and
-// subject in particular are how a JSONL-only consumer identifies which
-// stable problem fired without parsing prose — their absence here (while
-// wire.ProblemDoc/render.JSONProblem carried them) was the sharpest form
-// of this gap.
+// problem.recorded/warning.recorded line (spec §38), carrying every field
+// the Problem carries — the same code/subject/count/unit/location/
+// severity/evidence/fields/remedies machine truth a FormatJSON or
+// FormatJSON-run consumer sees, not a narrower subset. It reuses
+// wire.ToProblemDoc — the one owner of the core.Problem->wire projection,
+// including Sensitive-Field redaction — instead of rebuilding that
+// projection as a third hand-written map[string]any (the duplication
+// ZYS-823's own review found across this function, wire.toProblemDocs and
+// render.toJSONProblems). problemDocPayload then copies ProblemDoc's own
+// fields into this event stream's payload shape.
 func wireProblemPayloadLocked(p Problem) map[string]any {
-	payload := map[string]any{"summary": p.Summary}
-	if p.Code != "" {
-		payload["code"] = p.Code
+	return problemDocPayload(wire.ToProblemDoc(p))
+}
+
+// problemDocPayload copies doc's non-zero fields into this event stream's
+// payload shape (spec §38: a field the Problem never set is omitted, not
+// present-but-empty). JSONL's own field is "summary", one name different
+// from ProblemDoc's "message" (§36's "evo.run" field) — every other key
+// carries doc's already-redacted, already-projected value straight
+// through, so this is a direct copy rather than a second independent
+// projection of core.Problem.
+func problemDocPayload(doc wire.ProblemDoc) map[string]any {
+	payload := map[string]any{"summary": doc.Message}
+	if doc.Code != "" {
+		payload["code"] = doc.Code
 	}
-	if p.Subject != "" {
-		payload["subject"] = p.Subject
+	if doc.Subject != "" {
+		payload["subject"] = doc.Subject
 	}
-	if p.Detail != "" {
-		payload["detail"] = p.Detail
+	if doc.Detail != "" {
+		payload["detail"] = doc.Detail
 	}
-	if p.EvidenceTail != "" {
-		payload["evidence_tail"] = p.EvidenceTail
+	if doc.EvidenceTail != "" {
+		payload["evidence_tail"] = doc.EvidenceTail
 	}
-	if p.Count != 0 {
-		payload["count"] = p.Count
+	if doc.Count != 0 {
+		payload["count"] = doc.Count
 	}
-	if p.Unit != "" {
-		payload["unit"] = p.Unit
+	if doc.Unit != "" {
+		payload["unit"] = doc.Unit
 	}
-	if p.Severity != "" {
-		payload["severity"] = p.Severity
+	if doc.Severity != "" {
+		payload["severity"] = doc.Severity
 	}
-	if p.Location != nil {
-		payload["location"] = map[string]any{
-			"path": p.Location.Path, "line": p.Location.Line, "column": p.Location.Column,
-		}
+	if doc.Location != nil {
+		payload["location"] = doc.Location
 	}
-	if len(p.Evidence) > 0 {
-		evidence := make([]map[string]any, len(p.Evidence))
-		for i, a := range p.Evidence {
-			evidence[i] = map[string]any{"label": a.Label, "value": a.Value}
-		}
-		payload["evidence"] = evidence
+	if len(doc.Evidence) > 0 {
+		payload["evidence"] = doc.Evidence
 	}
-	if len(p.Fields) > 0 {
-		fields := make([]map[string]any, len(p.Fields))
-		for i, f := range p.Fields {
-			v := f.Value
-			if f.Sensitive {
-				v = "***"
-			}
-			fields[i] = map[string]any{"key": f.Key, "value": v}
-		}
-		payload["fields"] = fields
+	if len(doc.Fields) > 0 {
+		payload["fields"] = doc.Fields
 	}
-	if len(p.Actions) > 0 {
-		remedies := make([]map[string]any, len(p.Actions))
-		for i, a := range p.Actions {
-			remedy := map[string]any{"label": a.Label, "url": a.URL}
-			if a.Command != nil {
-				remedy["command"] = map[string]any{
-					"executable": a.Command.Executable, "args": a.Command.Args,
-				}
-			}
-			remedies[i] = remedy
-		}
-		payload["remedies"] = remedies
+	if len(doc.Remedies) > 0 {
+		payload["remedies"] = doc.Remedies
 	}
 	return payload
 }

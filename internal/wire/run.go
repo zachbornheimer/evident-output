@@ -465,24 +465,45 @@ func toFactDocs(in []core.Fact) []FactDoc {
 func toVerificationDocs(in []core.VerificationDetail) []VerificationDoc {
 	out := make([]VerificationDoc, 0, len(in))
 	for _, d := range in {
-		out = append(out, VerificationDoc{Name: d.Name, Status: string(d.Status), Facts: toFactDocs(d.Facts)})
+		out = append(out, ToVerificationDoc(d))
 	}
 	return out
+}
+
+// ToVerificationDoc projects one core.VerificationDetail into its wire
+// form. Exported so a caller outside this package — internal/engine's
+// JSONL "verification.observed" event, in particular — can reuse this
+// package's own Fact-carrying projection instead of hand-building an
+// equivalent map[string]any, which is what let that JSONL payload and this
+// package's toVerificationDocs drift into two separate copies of the same
+// projection.
+func ToVerificationDoc(d core.VerificationDetail) VerificationDoc {
+	return VerificationDoc{Name: d.Name, Status: string(d.Status), Facts: toFactDocs(d.Facts)}
 }
 
 func toProblemDocs(in []core.Problem) []ProblemDoc {
 	out := make([]ProblemDoc, 0, len(in))
 	for _, p := range in {
-		out = append(out, ProblemDoc{
-			Code: p.Code, Message: p.Summary, Subject: p.Subject,
-			Detail: p.Detail, EvidenceTail: p.EvidenceTail,
-			Count: p.Count, Unit: p.Unit,
-			Location: toLocationDoc(p.Location), Severity: p.Severity,
-			Evidence: toAttachmentDocs(p.Evidence), Fields: toFieldDocs(p.Fields),
-			Remedies: toActionDocs(p.Actions),
-		})
+		out = append(out, ToProblemDoc(p))
 	}
 	return out
+}
+
+// ToProblemDoc projects one core.Problem into its wire form. Exported for
+// the same reason as ToVerificationDoc: internal/engine's JSONL
+// "problem.recorded"/"warning.recorded" events reuse this single
+// projection (via ProblemDoc's own JSON encoding) instead of rebuilding it
+// as a third hand-written map[string]any alongside this function and
+// render.toJSONProblems.
+func ToProblemDoc(p core.Problem) ProblemDoc {
+	return ProblemDoc{
+		Code: p.Code, Message: p.Summary, Subject: p.Subject,
+		Detail: p.Detail, EvidenceTail: p.EvidenceTail,
+		Count: p.Count, Unit: p.Unit,
+		Location: toLocationDoc(p.Location), Severity: p.Severity,
+		Evidence: toAttachmentDocs(p.Evidence), Fields: toFieldDocs(p.Fields),
+		Remedies: toActionDocs(p.Actions),
+	}
 }
 
 // toLocationDoc projects a core.SourceLocation into its wire form, nil-safe
@@ -517,7 +538,7 @@ func toFieldDocs(in []core.Field) []FieldDoc {
 	for i, f := range in {
 		v := f.Value
 		if f.Sensitive {
-			v = "***"
+			v = core.RedactedValue
 		}
 		out[i] = FieldDoc{Key: f.Key, Value: v}
 	}

@@ -153,12 +153,29 @@ func TestSchemaCompat_EffectDocOlderShapeDecodesWithNoLoss(t *testing.T) {
 	}
 }
 
-// runSchema reads schema/run.v2.json through schemaDir — the gate the
-// tests below actually enforce: these compat tests previously only
-// exercised encoding/json on Go structs, so they would still pass if the
-// schema added additionalProperties:false or made a new field required
-// without any Go-side signal.
+// runSchema reads schema/run.v2.json through schemaDir and strengthens it
+// with wireschema.Strict — the gate the tests below actually enforce:
+// these compat tests previously only exercised encoding/json on Go
+// structs, so they would still pass if the schema dropped a field it used
+// to declare (a reverted addition) without any Go-side signal. The
+// published schema itself stays permissive (no additionalProperties:false
+// on disk — see wireschema.Strict's doc comment for why); Strict is what
+// turns "declared" into "enforced" for this test's own validation, without
+// making every future additive field a breaking schema_version bump for
+// real consumers.
 func runSchema(t *testing.T) []byte {
+	t.Helper()
+	strict, err := wireschema.Strict(rawRunSchema(t))
+	if err != nil {
+		t.Fatalf("wireschema.Strict(run.v2.json): %v", err)
+	}
+	return strict
+}
+
+// rawRunSchema reads schema/run.v2.json through schemaDir exactly as
+// published, with no strictness overlay — the shape a real consumer
+// pinned to today's schema actually validates against.
+func rawRunSchema(t *testing.T) []byte {
 	t.Helper()
 	schema, err := fs.ReadFile(schemaDir, "run.v2.json")
 	if err != nil {
@@ -318,5 +335,24 @@ func TestSchemaCompat_EffectDocQuantityIsAdditive(t *testing.T) {
 	}
 	if old.Subject != current.Subject || old.Status != current.Status || old.Verb != current.Verb || old.Object != current.Object {
 		t.Fatalf("old consumer decode = %+v, want fields it knows about preserved", old)
+	}
+}
+
+// TestSchemaCompat_PublishedSchemaStaysPermissiveForFutureAdditions is the
+// other half of the additionalProperties fix: this test validates a real
+// document that carries a field never declared in the schema against the
+// raw published schema/run.v2.json (rawRunSchema, not runSchema(t)'s
+// wireschema.Strict-wrapped copy every other test in this file uses), and
+// requires that to still pass — so a consumer pinned to today's schema
+// does not break the day evo adds the next Problem/resource/Patch field.
+func TestSchemaCompat_PublishedSchemaStaysPermissiveForFutureAdditions(t *testing.T) {
+	doc := baseRunDocument(t)
+	firstProblem(doc)["future_field_not_yet_declared"] = "value from a later evo version"
+	encoded, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatalf("marshal spliced document: %v", err)
+	}
+	if err := wireschema.Validate(rawRunSchema(t), encoded); err != nil {
+		t.Fatalf("published schema/run.v2.json must stay additive-compatible, got: %v", err)
 	}
 }

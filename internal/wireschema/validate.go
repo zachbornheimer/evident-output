@@ -18,6 +18,52 @@ import (
 	"strings"
 )
 
+// Strict returns schema with "additionalProperties": false injected into
+// every $def that declares "properties", so Validate(Strict(schema), doc)
+// rejects any field the schema does not declare.
+//
+// The published schema files (schema/run.v2.json, schema/output.v1.json)
+// stay permissive on disk — additionalProperties:false there would turn
+// every future additive field into a breaking schema_version bump, which
+// contradicts the "schema compatibility tests cover additions" contract.
+// Strict exists so tests can still catch the regression that motivated
+// wanting it in the first place: a schema that silently drops a field it
+// used to declare (a reverted addition) would otherwise validate any
+// document, declared field or not. Callers pass Strict's output to
+// Validate instead of relying on the on-disk schema carrying the flag.
+func Strict(schema []byte) ([]byte, error) {
+	var root any
+	if err := json.Unmarshal(schema, &root); err != nil {
+		return nil, fmt.Errorf("wireschema: parse schema: %w", err)
+	}
+	injectAdditionalPropertiesFalse(root)
+	out, err := json.Marshal(root)
+	if err != nil {
+		return nil, fmt.Errorf("wireschema: marshal strict schema: %w", err)
+	}
+	return out, nil
+}
+
+// injectAdditionalPropertiesFalse walks every object node reachable in a
+// decoded JSON Schema document and sets additionalProperties:false on each
+// one that declares "properties" — the shape checkObject treats as an
+// opt-in strict $def.
+func injectAdditionalPropertiesFalse(node any) {
+	switch v := node.(type) {
+	case map[string]any:
+		if _, hasProps := v["properties"]; hasProps {
+			v["additionalProperties"] = false
+		}
+		for _, child := range v {
+			injectAdditionalPropertiesFalse(child)
+		}
+	case []any:
+		for _, child := range v {
+			injectAdditionalPropertiesFalse(child)
+		}
+	}
+}
+
 // Validate reports every way doc fails to conform to schema, or nil when it
 // conforms. Both arguments are raw JSON: schema is a JSON Schema document,
 // doc is the value being checked against it.

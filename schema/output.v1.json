@@ -27,8 +27,7 @@
         "subject": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "conclusion": {
       "type": "object",
@@ -55,8 +54,7 @@
         "explanation": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "task_collections": {
       "type": "array",
@@ -82,8 +80,7 @@
               "type": "string"
             }
           }
-        },
-        "additionalProperties": false
+        }
       }
     },
     "tasks": {
@@ -119,8 +116,7 @@
           "text": {
             "type": "string"
           }
-        },
-        "additionalProperties": false
+        }
       }
     },
     "actions": {
@@ -130,7 +126,6 @@
       }
     }
   },
-  "additionalProperties": false,
   "$defs": {
     "action": {
       "type": "object",
@@ -154,11 +149,9 @@
                 "type": "string"
               }
             }
-          },
-          "additionalProperties": false
+          }
         }
-      },
-      "additionalProperties": false
+      }
     },
     "location": {
       "type": "object",
@@ -173,8 +166,7 @@
         "column": {
           "type": "integer"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "attachment": {
       "type": "object",
@@ -186,8 +178,7 @@
         "value": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "field": {
       "type": "object",
@@ -197,8 +188,7 @@
           "type": "string"
         },
         "value": {}
-      },
-      "additionalProperties": false
+      }
     },
     "problem": {
       "type": "object",
@@ -248,8 +238,7 @@
             "$ref": "#/$defs/action"
           }
         }
-      },
-      "additionalProperties": false
+      }
     },
     "task": {
       "type": "object",
@@ -292,8 +281,7 @@
             "total": {
               "type": "integer"
             }
-          },
-          "additionalProperties": false
+          }
         },
         "problems": {
           "type": "array",
@@ -325,16 +313,13 @@
                     "value": {
                       "type": "string"
                     }
-                  },
-                  "additionalProperties": false
+                  }
                 }
               }
-            },
-            "additionalProperties": false
+            }
           }
         }
-      },
-      "additionalProperties": false
+      }
     },
     "effectRecordSet": {
       "type": "object",
@@ -361,12 +346,10 @@
               "object": {
                 "type": "string"
               }
-            },
-            "additionalProperties": false
+            }
           }
         }
-      },
-      "additionalProperties": false
+      }
     }
   }
 }

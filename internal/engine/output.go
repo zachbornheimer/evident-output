@@ -678,18 +678,19 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 
 // verificationObservedPayload builds one attachVerificationLocked detail's
 // "verification.observed" payload (spec §38), carrying its Facts alongside
-// name/status — the same per-attribute machine truth ToRunDocument's
-// toVerificationDocs already projects into the final "evo.run" document's
-// tasks[].verification (ZYS-823: FormatJSONL must see the same facts a
-// FormatJSON consumer does, not a subset).
+// name/status — the same per-attribute machine truth wire.toVerificationDocs
+// already projects into the final "evo.run" document's tasks[].verification
+// (ZYS-823: FormatJSONL must see the same facts a FormatJSON consumer
+// does, not a subset). It reuses wire.ToVerificationDoc — the one owner of
+// the core.VerificationDetail->wire projection — then copies that doc's
+// own fields into this event's payload shape (they already share
+// name/status/facts and each Fact's name/value, so no renaming is needed).
 func verificationObservedPayload(d core.VerificationDetail) map[string]any {
-	payload := map[string]any{
-		"name":   d.Name,
-		"status": string(d.Status),
-	}
-	if len(d.Facts) > 0 {
-		facts := make([]map[string]any, len(d.Facts))
-		for i, f := range d.Facts {
+	doc := wire.ToVerificationDoc(d)
+	payload := map[string]any{"name": doc.Name, "status": doc.Status}
+	if len(doc.Facts) > 0 {
+		facts := make([]map[string]any, len(doc.Facts))
+		for i, f := range doc.Facts {
 			facts[i] = map[string]any{"name": f.Name, "value": f.Value}
 		}
 		payload["facts"] = facts
@@ -1366,7 +1367,7 @@ func (o *Output) newDebugRecordLocked(levelName, message string, fields []Field,
 	}
 	for i := range rec.Fields {
 		if rec.Fields[i].Sensitive {
-			rec.Fields[i].Value = "***"
+			rec.Fields[i].Value = core.RedactedValue
 		} else if o.cfg.redactor != nil {
 			rec.Fields[i].Value = o.cfg.redactor.RedactString(fmt.Sprint(rec.Fields[i].Value))
 		}

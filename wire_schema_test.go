@@ -25,6 +25,10 @@ func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read schema/output.v1.json: %v", err)
 	}
+	schema, err = wireschema.Strict(schema)
+	if err != nil {
+		t.Fatalf("wireschema.Strict(output.v1.json): %v", err)
+	}
 
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	succeed(out.Task("working tree"))
@@ -51,6 +55,10 @@ func TestWireSchema_TaskVerificationValidates(t *testing.T) {
 	schema, err := os.ReadFile("schema/output.v1.json")
 	if err != nil {
 		t.Fatalf("read schema/output.v1.json: %v", err)
+	}
+	schema, err = wireschema.Strict(schema)
+	if err != nil {
+		t.Fatalf("wireschema.Strict(output.v1.json): %v", err)
 	}
 
 	dir := t.TempDir()
