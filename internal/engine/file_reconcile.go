@@ -99,7 +99,7 @@ func (op fileOperation) manifestManaged() bool { return op.contentsManaged() || 
 // commitFile reconciles op's path while File holds it for writing: the
 // manifest freshness check, the live inspection, and any mutation.
 func (o *Output) commitFile(ctx context.Context, op fileOperation) error {
-	started := map[string]any{"kind": "file", "path": op.path}
+	started := operationEvent{phase: operationStarted, subject: fileSubject(op.path)}
 	if op.manifestManaged() {
 		current, prior, reason, consultErr := o.fileConsultManifest(ctx, op)
 		if consultErr != nil {
@@ -109,10 +109,10 @@ func (o *Output) commitFile(ctx context.Context, op fileOperation) error {
 			o.carryForwardCurrentFile(op, prior, reason)
 			return nil
 		}
-		started["reason"] = reason
+		started.reason = reason
 	}
 	o.mu.Lock()
-	o.emitWireEventLocked(wire.EventOperationStarted, op.taskID, started)
+	o.emitOperationLocked(op.taskID, started)
 	o.mu.Unlock()
 	return o.applyFile(ctx, op)
 }
@@ -127,9 +127,7 @@ func (o *Output) commitFile(ctx context.Context, op fileOperation) error {
 func (o *Output) carryForwardCurrentFile(op fileOperation, prior manifest.OperationRecord, reason string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.emitWireEventLocked(wire.EventOperationSkippedCurrent, op.taskID, map[string]any{
-		"kind": "file", "path": op.path, "reason": reason,
-	})
+	o.emitOperationLocked(op.taskID, operationEvent{phase: operationSkippedCurrent, subject: fileSubject(op.path), reason: reason})
 	if !o.cfg.dryRun {
 		o.appendManifestOperationLocked(op.taskID, prior)
 	}
@@ -243,7 +241,7 @@ func inspectFilePath(fsys FileFS, path string) (info fs.FileInfo, exists bool, e
 // emitFileFinished emits op's operation-finished event.
 func (o *Output) emitFileFinished(op fileOperation, changed bool) {
 	o.mu.Lock()
-	o.emitWireEventLocked(wire.EventOperationFinished, op.taskID, map[string]any{"kind": "file", "path": op.path, "changed": changed})
+	o.emitOperationLocked(op.taskID, operationEvent{phase: operationFinished, subject: fileSubject(op.path), outcome: finishedOutcome(changed)})
 	o.mu.Unlock()
 }
 

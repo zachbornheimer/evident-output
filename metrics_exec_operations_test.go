@@ -118,10 +118,12 @@ func (ws execWorkspace) operationFinishedPayload(t *testing.T, dryRun bool) map[
 	return nil
 }
 
-// The operation.finished payload has two typed shapes (schema/event.v2.json):
-// an observed one that reports changed, and a dry run's planned one that
-// never ran, so it reports no outcome at all.
-func TestMetrics_ExecOperationFinishedPayloadsConformToTheirTypedShapes(t *testing.T) {
+// The operation.finished payload keeps its 1.1 shape (schema/event.v2.json
+// $defs/operationObservedPayload: changed is always present). A dry run's
+// planned Exec adds planned:true beside the 1.1 changed:true, so a 1.1 host
+// that reads changed sees exactly what it saw before, and a 1.2 host tells
+// "planned, never ran" apart by planned ($defs/operationPlannedPayload).
+func TestMetrics_ExecOperationFinishedPayloadsStayAdditiveOver1_1(t *testing.T) {
 	t.Parallel()
 	schema, err := os.ReadFile("schema/event.v2.json")
 	if err != nil {
@@ -129,23 +131,37 @@ func TestMetrics_ExecOperationFinishedPayloadsConformToTheirTypedShapes(t *testi
 	}
 	ws := newExecWorkspace(t)
 	shapes := []struct {
-		def             string
-		dryRun          bool
-		present, absent string
+		dryRun  bool
+		defs    []string
+		want    map[string]any
+		without string
 	}{
-		{def: "operationPlannedPayload", dryRun: true, present: "planned", absent: "changed"},
-		{def: "operationObservedPayload", dryRun: false, present: "changed", absent: "planned"},
+		{
+			dryRun: true,
+			defs:   []string{"operationObservedPayload", "operationPlannedPayload"},
+			want:   map[string]any{"kind": "exec", "changed": true, "planned": true},
+		},
+		{
+			dryRun:  false,
+			defs:    []string{"operationObservedPayload"},
+			want:    map[string]any{"kind": "exec", "changed": true},
+			without: "planned",
+		},
 	}
 	for _, shape := range shapes {
 		payload := ws.operationFinishedPayload(t, shape.dryRun)
-		if err := wireschema.ValidateDef(schema, mustJSON(t, payload), shape.def); err != nil {
-			t.Errorf("dry run %v: payload %v does not conform to $defs/%s: %v", shape.dryRun, payload, shape.def, err)
+		for _, def := range shape.defs {
+			if err := wireschema.ValidateDef(schema, mustJSON(t, payload), def); err != nil {
+				t.Errorf("dry run %v: payload %v does not conform to $defs/%s: %v", shape.dryRun, payload, def, err)
+			}
 		}
-		if _, ok := payload[shape.present]; !ok {
-			t.Errorf("dry run %v: payload %v lacks %q", shape.dryRun, payload, shape.present)
+		for key, want := range shape.want {
+			if got := payload[key]; got != want {
+				t.Errorf("dry run %v: payload[%q] = %v, want %v (payload %v)", shape.dryRun, key, got, want, payload)
+			}
 		}
-		if _, ok := payload[shape.absent]; ok {
-			t.Errorf("dry run %v: payload %v carries %q; the shapes are exclusive", shape.dryRun, payload, shape.absent)
+		if _, ok := payload[shape.without]; shape.without != "" && ok {
+			t.Errorf("dry run %v: payload %v carries %q; only a planned Exec does", shape.dryRun, payload, shape.without)
 		}
 	}
 }

@@ -184,9 +184,7 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 	}
 	if current {
 		o.mu.Lock()
-		o.emitWireEventLocked(wire.EventOperationSkippedCurrent, taskID, map[string]any{
-			"kind": "exec", "executable": spec.Executable, "reason": reason,
-		})
+		o.emitOperationLocked(taskID, operationEvent{phase: operationSkippedCurrent, subject: execSubject(spec.Executable), reason: reason})
 		o.mu.Unlock()
 		if !o.DryRun() {
 			o.mu.Lock()
@@ -196,9 +194,7 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 		return execEvaluation{Skip: true}, nil
 	}
 	o.mu.Lock()
-	o.emitWireEventLocked(wire.EventOperationStarted, taskID, map[string]any{
-		"kind": "exec", "executable": spec.Executable, "reason": reason,
-	})
+	o.emitOperationLocked(taskID, operationEvent{phase: operationStarted, subject: execSubject(spec.Executable), reason: reason})
 	o.mu.Unlock()
 	if o.DryRun() {
 		o.planExec(taskID, spec)
@@ -208,15 +204,13 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 }
 
 // planExec records a dry run's planned Exec. The command never runs, so its
-// finished event is marked planned and claims no changed or identical
-// output (§39 tallies count neither).
+// finished event is planned: the payload keeps 1.1's changed:true and adds
+// planned:true, and §39 tallies count it as neither changed nor identical.
 func (o *Output) planExec(taskID string, spec ExecSpec) {
 	o.recordExecEffect(taskID, spec.Executable)
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
-		"kind": "exec", "executable": spec.Executable, "planned": true,
-	})
+	o.emitOperationLocked(taskID, operationEvent{phase: operationFinished, subject: execSubject(spec.Executable), outcome: outcomePlanned})
 }
 
 // execRunAndRecord spawns the child, verifies its declared Outputs after a
@@ -265,8 +259,9 @@ func (o *Output) recordExecOperation(taskID string, spec ExecSpec, eval execEval
 	}
 	o.mu.Lock()
 	o.appendManifestOperationLocked(taskID, rec)
-	o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
-		"kind": "exec", "executable": spec.Executable, "changed": execOutputsChanged(eval.PriorOutputs, outputRecords),
+	o.emitOperationLocked(taskID, operationEvent{
+		phase: operationFinished, subject: execSubject(spec.Executable),
+		outcome: finishedOutcome(execOutputsChanged(eval.PriorOutputs, outputRecords)),
 	})
 	o.mu.Unlock()
 }

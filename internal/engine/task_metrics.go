@@ -2,7 +2,6 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // Runtime phase time and tracked-operation tallies (§39). Both land on the
@@ -100,41 +99,6 @@ func (o *Output) openOperationSpans(taskID string) operationSpans {
 func (o *Output) enterDefinition(taskID string, callback func() error) error {
 	defer o.timePhase(taskID, phaseDefinition)()
 	return callback()
-}
-
-// tallyOperationLocked folds one §38 operation event into its Task's
-// OperationCounts, so the tallies come from the same events the JSONL
-// stream carries instead of a second instrumentation path.
-func (o *Output) tallyOperationLocked(eventType, taskID string, payload map[string]any) {
-	switch eventType {
-	case wire.EventOperationSkippedCurrent, wire.EventOperationStarted, wire.EventOperationFinished:
-	default:
-		return
-	}
-	st := o.taskByRef[taskID]
-	if st == nil {
-		return
-	}
-	ops := &st.operations
-	switch eventType {
-	case wire.EventOperationSkippedCurrent:
-		ops.Current++
-	case wire.EventOperationStarted:
-		ops.Executed++
-		if payload["reason"] == freshnessReasonBasisDrift {
-			ops.BasisDrift++
-		}
-	case wire.EventOperationFinished:
-		// A planned (dry-run) Exec never ran, so it reports no outcome.
-		changed, observed := payload["changed"].(bool)
-		switch {
-		case !observed:
-		case changed:
-			ops.Changed++
-		default:
-			ops.Unchanged++
-		}
-	}
 }
 
 // predecessorIDs is the IDs of the Tasks and collections this Task was

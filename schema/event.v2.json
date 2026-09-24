@@ -14,7 +14,7 @@
     "entity_id": { "type": "string" },
     "payload": { "type": "object" }
   },
-  "$comment": "The envelope types payload loosely because its shape depends on type. $defs name the typed payloads; a run.finished payload conforms to runFinishedPayload; its metrics is optional so a payload 1.1.x wrote still conforms, though evo 1.2 and later always writes it. An operation.finished payload conforms to exactly one of operationObservedPayload (the operation ran, or was checked, and reports whether its tracked output changed) or operationPlannedPayload (a dry run planned an Exec it never ran, so it reports no outcome: planned is present and changed is absent). metrics, operationCounts, and rates are kept identical to schema/run.v2.json (a test enforces it).",
+  "$comment": "The envelope types payload loosely because its shape depends on type. $defs name the typed payloads; a run.finished payload conforms to runFinishedPayload; its metrics is optional so a payload 1.1.x wrote still conforms, though evo 1.2 and later always writes it. Every operation.finished payload conforms to operationObservedPayload, the 1.1 shape: changed is always present. A dry run's planned Exec, which never ran, also conforms to operationPlannedPayload: it keeps the 1.1 changed:true and adds planned:true, so a consumer that tallies outcomes keys on planned, not on changed. metrics, operationCounts, and rates are kept identical to schema/run.v2.json (a test enforces it).",
   "$defs": {
     "operationObservedPayload": {
       "type": "object",
@@ -23,15 +23,17 @@
         "kind": { "type": "string" },
         "path": { "type": "string" },
         "executable": { "type": "string" },
-        "changed": { "type": "boolean" }
+        "changed": { "type": "boolean" },
+        "planned": { "const": true }
       }
     },
     "operationPlannedPayload": {
       "type": "object",
-      "required": ["kind", "executable", "planned"],
+      "required": ["kind", "executable", "changed", "planned"],
       "properties": {
         "kind": { "const": "exec" },
         "executable": { "type": "string" },
+        "changed": { "const": true },
         "planned": { "const": true }
       }
     },

@@ -22,7 +22,6 @@ import "github.com/zachbornheimer/evident-output/internal/wire"
 // already returns, so "a later write fails; the Run then fails" without
 // discarding the lines already written (see Finish's use of wireEventErr).
 func (o *Output) emitWireEventLocked(eventType, entityID string, payload map[string]any) {
-	o.tallyOperationLocked(eventType, entityID, payload)
 	if o.cfg.wireFormat != FormatJSONL {
 		return
 	}
