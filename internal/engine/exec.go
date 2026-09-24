@@ -95,6 +95,9 @@ type execEvaluation struct {
 	// PriorOutputs is the prior record's output digests, which the fresh
 	// run is compared with to tell a changed output from an identical one.
 	PriorOutputs []manifest.OutputRecord
+	// spans carry the consult's provenance entry into the record step, so
+	// consult and record count as one provenance entry.
+	spans operationSpans
 }
 
 // Exec declares/reconciles one managed-state subprocess invocation: it
@@ -172,7 +175,10 @@ func (o *Output) recordCancelledExec(ctx context.Context, spec ExecSpec) error {
 // Effect), or stale (spawn, carrying the fresh definition/Basis the caller
 // commits after a successful run).
 func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (execEvaluation, error) {
+	spans := o.openOperationSpans(taskID)
+	stopConsult := spans.provenance.stretch()
 	current, prior, defFingerprint, reason, basis, consultErr := o.execConsultManifest(ctx, taskID, spec, target)
+	stopConsult()
 	if consultErr != nil {
 		return execEvaluation{}, consultErr
 	}
@@ -198,7 +204,7 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 		o.planExec(taskID, spec)
 		return execEvaluation{Skip: true}, nil
 	}
-	return execEvaluation{DefinitionFingerprint: defFingerprint, Basis: basis, PriorOutputs: prior.Outputs}, nil
+	return execEvaluation{DefinitionFingerprint: defFingerprint, Basis: basis, PriorOutputs: prior.Outputs, spans: spans}, nil
 }
 
 // planExec records a dry run's planned Exec. The command never runs, so its
@@ -236,11 +242,20 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 		return result, fmt.Errorf("%w (exit %d): %s", ErrExecNonzeroExit, outcome.ExitCode, spec.Executable)
 	}
 
+	stopInspect := eval.spans.trackedState.stretch()
 	outputRecords, verifyErr := o.observeVerifiedExecOutputs(ctx, taskID, target.Outputs)
+	stopInspect()
 	if verifyErr != nil {
 		return result, fmt.Errorf("evo: Exec %q: %w", spec.Executable, verifyErr)
 	}
+	o.recordExecOperation(taskID, spec, eval, outputRecords)
+	return result, nil
+}
 
+// recordExecOperation records a successful run's Effect and commits its
+// fresh operation record, timed as the rest of the operation's provenance.
+func (o *Output) recordExecOperation(taskID string, spec ExecSpec, eval execEvaluation, outputRecords []manifest.OutputRecord) {
+	defer eval.spans.provenance.stretch()()
 	o.recordExecEffect(taskID, spec.Executable)
 	rec := manifest.OperationRecord{
 		Kind:                  "exec",
@@ -254,7 +269,6 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 		"kind": "exec", "executable": spec.Executable, "changed": execOutputsChanged(eval.PriorOutputs, outputRecords),
 	})
 	o.mu.Unlock()
-	return result, nil
 }
 
 // execOutputsChanged reports whether a successful run changed its tracked
@@ -270,7 +284,6 @@ func execOutputsChanged(prior, fresh []manifest.OutputRecord) bool {
 // File's single tracked_resource.observed for its one managed path — Exec
 // has as many tracked resources as it has declared Outputs.
 func (o *Output) observeVerifiedExecOutputs(ctx context.Context, taskID string, outputs []string) ([]manifest.OutputRecord, error) {
-	defer o.timePhase(taskID, phaseTrackedState)()
 	for _, out := range outputs {
 		_, statErr := os.Stat(out)
 		o.mu.Lock()

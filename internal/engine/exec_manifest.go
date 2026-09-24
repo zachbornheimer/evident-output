@@ -128,9 +128,9 @@ func execOperationCurrent(ctx context.Context, prior manifest.OperationRecord, h
 // any) and reports whether it is still current (spec §11.4/§11.5/§8.4),
 // mirroring fileConsultManifest's shape. prior/defFingerprint/basis are
 // always returned so the caller can forward a current hit unchanged, or
-// carry the fresh definition into the post-spawn success record.
+// carry the fresh definition into the post-spawn success record. The
+// caller times it as the operation's provenance.
 func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (current bool, prior manifest.OperationRecord, defFingerprint, reason string, basis []manifest.BasisRecord, err error) {
-	defer o.timePhase(taskID, phaseProvenance)()
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
 		return false, manifest.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, openErr)

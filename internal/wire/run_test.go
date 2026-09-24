@@ -46,7 +46,7 @@ func runFixtures() map[string]core.Result {
 						StartedAt:   testStart.Add(50 * time.Millisecond),
 						SettledAt:   testStart.Add(1250 * time.Millisecond),
 						Definition:  core.PhaseTime{Entries: 1, Duration: 1100 * time.Millisecond},
-						Provenance:  core.PhaseTime{Entries: 2, Duration: 30 * time.Millisecond},
+						Provenance:  core.PhaseTime{Entries: 1, Duration: 30 * time.Millisecond},
 					},
 					Operations: core.OperationCounts{Current: 1, Executed: 1, Changed: 1},
 				}, core.TaskInternals{}),
@@ -122,7 +122,7 @@ func runFixtures() map[string]core.Result {
 					// A Basis edit forced a rerun that regenerated identical output.
 					Timing: core.TaskTiming{
 						Definition:   core.PhaseTime{Entries: 1, Duration: 40 * time.Millisecond},
-						Provenance:   core.PhaseTime{Entries: 2, Duration: 12 * time.Millisecond},
+						Provenance:   core.PhaseTime{Entries: 1, Duration: 12 * time.Millisecond},
 						TrackedState: core.PhaseTime{Entries: 1, Duration: 3 * time.Millisecond},
 					},
 					Operations: core.OperationCounts{Executed: 1, BasisDrift: 1, Unchanged: 1},

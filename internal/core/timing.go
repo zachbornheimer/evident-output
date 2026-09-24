@@ -34,9 +34,12 @@ type TaskTiming struct {
 	// Evidence is time evaluating Verify, before and after the callback.
 	Evidence PhaseTime
 	// Provenance is time fingerprinting Basis inputs and consulting and
-	// recording the operation manifest: checking provenance.
+	// recording the operation manifest: checking provenance. It counts one
+	// entry per tracked operation (File, Exec).
 	Provenance PhaseTime
-	// TrackedState is time inspecting tracked resources live on disk.
+	// TrackedState is time inspecting tracked resources live on disk,
+	// including digesting a fresh output. It counts one entry per tracked
+	// operation that inspected anything.
 	TrackedState PhaseTime
 }
 

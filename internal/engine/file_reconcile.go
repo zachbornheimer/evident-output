@@ -44,6 +44,7 @@ func (o *Output) reconcileFile(ctx context.Context, taskID string, spec FileSpec
 // set, is checked while the path is held for writing, immediately before
 // the commit, so no write can land between the check and the commit.
 func (o *Output) establishFile(ctx context.Context, op fileOperation) error {
+	op.spans = o.openOperationSpans(op.taskID)
 	target := FSResource(op.path)
 	if nestedErr := checkResourceFree(ctx, target, resourceWrite); nestedErr != nil {
 		return fmt.Errorf("evo: File %q: %w", op.spec.Path, nestedErr)
@@ -58,7 +59,7 @@ func (o *Output) establishFile(ctx context.Context, op fileOperation) error {
 	defer o.settleOutputBarrier(op.path)
 
 	if op.manifestManaged() {
-		basis, basisErr := o.fileObserveBasis(ctx, op.taskID, op.spec, op.path)
+		basis, basisErr := o.fileObserveBasis(ctx, op)
 		if basisErr != nil {
 			return basisErr
 		}
@@ -76,13 +77,15 @@ func (o *Output) establishFile(ctx context.Context, op fileOperation) error {
 
 // fileOperation is one File call's resolved inputs: the owning Task, the
 // caller's spec, its canonical path, the Basis observed for it, and, for
-// a derived state, the source it was derived from (nil for plain File).
+// a derived state, the source it was derived from (nil for plain File),
+// and its §39 phase accounting.
 type fileOperation struct {
 	taskID      string
 	spec        FileSpec
 	path        string
 	basis       []manifest.BasisRecord
 	derivedFrom *derivation
+	spans       operationSpans
 }
 
 func (op fileOperation) contentsManaged() bool { return op.spec.Contents != nil }
@@ -98,7 +101,7 @@ func (op fileOperation) manifestManaged() bool { return op.contentsManaged() || 
 func (o *Output) commitFile(ctx context.Context, op fileOperation) error {
 	started := map[string]any{"kind": "file", "path": op.path}
 	if op.manifestManaged() {
-		current, prior, reason, consultErr := o.fileConsultManifest(ctx, op.taskID, op.spec, op.path, op.basis)
+		current, prior, reason, consultErr := o.fileConsultManifest(ctx, op)
 		if consultErr != nil {
 			return consultErr
 		}
@@ -172,7 +175,7 @@ func (o *Output) applyFile(ctx context.Context, op fileOperation) error {
 // inspectFile observes op's path read-only and reports what reconciling
 // it must change.
 func (o *Output) inspectFile(fsys FileFS, op fileOperation) (fileDelta, error) {
-	defer o.timePhase(op.taskID, phaseTrackedState)()
+	defer op.spans.trackedState.stretch()()
 	spec, path := op.spec, op.path
 	info, exists, statErr := inspectFilePath(fsys, path)
 	if statErr != nil {

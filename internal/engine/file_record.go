@@ -11,8 +11,9 @@ import (
 // fileObserveBasis opens this Run's manifest — acquiring its cross-process
 // lock before File claims any resource — and observes spec.Basis under
 // read claims (see observeBasis).
-func (o *Output) fileObserveBasis(ctx context.Context, taskID string, spec FileSpec, path string) ([]manifest.BasisRecord, error) {
-	defer o.timePhase(taskID, phaseProvenance)()
+func (o *Output) fileObserveBasis(ctx context.Context, op fileOperation) ([]manifest.BasisRecord, error) {
+	defer op.spans.provenance.stretch()()
+	taskID, spec, path := op.taskID, op.spec, op.path
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
 		return nil, fmt.Errorf("evo: File %q: %w", path, openErr)
@@ -37,8 +38,9 @@ func (o *Output) fileObserveBasis(ctx context.Context, taskID string, spec FileS
 // vs "tracked output drift" vs no prior record must be distinguishable).
 // prior is always returned so the caller can carry it forward unchanged on
 // a current hit.
-func (o *Output) fileConsultManifest(ctx context.Context, taskID string, spec FileSpec, path string, basis []manifest.BasisRecord) (current bool, prior manifest.OperationRecord, reason string, err error) {
-	defer o.timePhase(taskID, phaseProvenance)()
+func (o *Output) fileConsultManifest(ctx context.Context, op fileOperation) (current bool, prior manifest.OperationRecord, reason string, err error) {
+	defer op.spans.provenance.stretch()()
+	taskID, spec, path, basis := op.taskID, op.spec, op.path, op.basis
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
 		return false, manifest.OperationRecord{}, "", fmt.Errorf("evo: File %q: %w", path, openErr)
@@ -66,12 +68,12 @@ func (o *Output) fileConsultManifest(ctx context.Context, taskID string, spec Fi
 // before the commit: a Basis that changes during the write is drift the
 // next Run must see, not state to paper over.
 func (o *Output) fileRecordOperation(ctx context.Context, op fileOperation) error {
-	defer o.timePhase(op.taskID, phaseProvenance)()
-	defFingerprint := fileDefinitionFingerprint(op.path, op.contentsManaged(), op.spec.Contents, uint32(op.spec.Mode), op.basis)
-	outputDigest, digestErr := pathOutputDigest(ctx, op.path)
+	outputDigest, digestErr := op.outputDigest(ctx)
 	if digestErr != nil {
 		return fmt.Errorf("evo: File %q: %w", op.path, digestErr)
 	}
+	defer op.spans.provenance.stretch()()
+	defFingerprint := fileDefinitionFingerprint(op.path, op.contentsManaged(), op.spec.Contents, uint32(op.spec.Mode), op.basis)
 	rec := manifest.OperationRecord{
 		Kind:                  "file",
 		DefinitionFingerprint: defFingerprint,
@@ -82,4 +84,11 @@ func (o *Output) fileRecordOperation(ctx context.Context, op fileOperation) erro
 	o.appendManifestOperationLocked(op.taskID, rec)
 	o.mu.Unlock()
 	return nil
+}
+
+// outputDigest inspects op's committed output on disk: tracked state, not
+// provenance, so it counts toward the operation's tracked-state entry.
+func (op fileOperation) outputDigest(ctx context.Context) (string, error) {
+	defer op.spans.trackedState.stretch()()
+	return pathOutputDigest(ctx, op.path)
 }

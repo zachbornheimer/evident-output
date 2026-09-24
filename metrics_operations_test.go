@@ -110,8 +110,8 @@ func TestMetrics_TrackedOperationsTallyManifestHitsDriftAndPropagation(t *testin
 		}
 	}
 	timing := config.Timing
-	if timing.Definition.Entries != 1 || timing.Provenance.Entries == 0 || timing.TrackedState.Entries != 1 {
-		t.Errorf("config phases = definition %+v, provenance %+v, tracked state %+v; want one definition, provenance checks, one live inspection",
+	if timing.Definition.Entries != 1 || timing.Provenance.Entries != 1 || timing.TrackedState.Entries != 1 {
+		t.Errorf("config phases = definition %+v, provenance %+v, tracked state %+v; want one entry each",
 			timing.Definition, timing.Provenance, timing.TrackedState)
 	}
 	for _, clause := range []string{"1 of 2 operations current", "1 basis changed", "1 identical outputs"} {

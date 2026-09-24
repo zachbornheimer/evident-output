@@ -101,7 +101,9 @@ func TestFileManifestBasisDriftForcesReconciliation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("observe Basis: %v", err)
 	}
-	current, prior, reason, checkErr := second.fileConsultManifest(context.Background(), task.id, spec2, second.resolveWorkspacePath(path), basis2)
+	current, prior, reason, checkErr := second.fileConsultManifest(context.Background(), fileOperation{
+		taskID: task.id, spec: spec2, path: second.resolveWorkspacePath(path), basis: basis2, spans: second.openOperationSpans(task.id),
+	})
 	if checkErr != nil {
 		t.Fatalf("consult manifest: %v", checkErr)
 	}
