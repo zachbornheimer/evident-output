@@ -43,7 +43,7 @@ func (o *Output) armPlainHeartbeatLocked(st *taskState, now time.Time) {
 	}
 	st.heartbeat.runningAt = now
 	st.heartbeat.due = now.Add(plainHeartbeatInterval)
-	o.schedulePlainHeartbeatCallbackLocked(sched, st.id, plainHeartbeatInterval)
+	o.schedulePlainHeartbeatCallbackLocked(sched, st, plainHeartbeatInterval)
 }
 
 // deferPlainHeartbeatLocked resets st's idle window from a real durable
@@ -70,11 +70,22 @@ func (o *Output) deferPlainHeartbeatLocked(st *taskState, now time.Time) {
 // due after wait. The callback re-enters checkPlainHeartbeat, which decides
 // whether to emit and always re-arms the next check (self-terminating once
 // the task settles — see checkPlainHeartbeat).
-func (o *Output) schedulePlainHeartbeatCallbackLocked(sched Scheduler, id string, wait time.Duration) {
+func (o *Output) schedulePlainHeartbeatCallbackLocked(sched Scheduler, st *taskState, wait time.Duration) {
 	if wait <= 0 {
 		wait = plainHeartbeatInterval
 	}
-	sched.AfterFunc(wait, func() { o.checkPlainHeartbeat(id) })
+	id := st.id
+	st.heartbeat.stop = sched.AfterFunc(wait, func() { o.checkPlainHeartbeat(id) })
+}
+
+// stopPlainHeartbeatLocked cancels st's pending heartbeat check, if any.
+// Called when st settles: a settled task never earns another heartbeat.
+func (o *Output) stopPlainHeartbeatLocked(st *taskState) {
+	if st.heartbeat.stop == nil {
+		return
+	}
+	st.heartbeat.stop()
+	st.heartbeat.stop = nil
 }
 
 // checkPlainHeartbeat is the deferred callback armPlainHeartbeatLocked and
@@ -109,12 +120,12 @@ func (o *Output) checkPlainHeartbeat(id string) {
 	}
 	now := o.cfg.clock.Now()
 	if now.Before(st.heartbeat.due) {
-		o.schedulePlainHeartbeatCallbackLocked(sched, id, st.heartbeat.due.Sub(now))
+		o.schedulePlainHeartbeatCallbackLocked(sched, st, st.heartbeat.due.Sub(now))
 		return
 	}
 	o.emitPlainHeartbeatLocked(st, now)
 	st.heartbeat.due = now.Add(plainHeartbeatInterval)
-	o.schedulePlainHeartbeatCallbackLocked(sched, id, plainHeartbeatInterval)
+	o.schedulePlainHeartbeatCallbackLocked(sched, st, plainHeartbeatInterval)
 }
 
 // emitPlainHeartbeatLocked writes one durable "• <name>  — <N>s" line (spec
@@ -149,4 +160,7 @@ type plainHeartbeat struct {
 	// (deferPlainHeartbeatLocked) so a task that is genuinely narrating its
 	// own progress never also gets a redundant heartbeat row.
 	due time.Time
+	// stop cancels the pending check, so a settled task's timer neither
+	// fires nor keeps its Output reachable until it would have.
+	stop func()
 }

@@ -23,6 +23,7 @@ func (o *Output) settleLocked(st *taskState, state EntityState) {
 	from := stateOutcome(st.state)
 	st.state = state
 	st.phase = ""
+	o.stopPlainHeartbeatLocked(st)
 	st.closeDoneLocked()
 	if st.sched.awaitingStart() {
 		o.abandonLocked(st)
