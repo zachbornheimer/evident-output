@@ -90,3 +90,40 @@ func TestSequenceFailureStopsLaterNestedSteps(t *testing.T) {
 		}
 	}
 }
+
+// A run of empty nested steps forwards the step before them to the step
+// after them, however many there are.
+func TestSequenceStepAfterEmptyNestedChainWaitsForEarlierStep(t *testing.T) {
+	out := isolatedOutput(t)
+	var log stepLog
+	seq := out.Sequence("steps")
+	seq.Task("a").Define(log.step("a", 50*time.Millisecond))
+	seq.Group("empty 1")
+	seq.Sequence("empty 2")
+	seq.Group("empty 3")
+	b := seq.Task("b").Define(log.step("b", 0))
+	if err := waitWithin(t, "b.Wait", b.Wait); err != nil {
+		t.Fatalf("b.Wait = %v", err)
+	}
+	if ev := log.events; slices.Index(ev, "a end") > slices.Index(ev, "b start") {
+		t.Errorf("b started before a ended: %v", ev)
+	}
+}
+
+// A failure before a run of empty nested steps still stops the step after
+// them.
+func TestSequenceFailureCrossesEmptyNestedSteps(t *testing.T) {
+	out := isolatedOutput(t)
+	seq := out.Sequence("steps")
+	boom := errors.New("boom")
+	seq.Task("a").Define(func(context.Context) error { return boom })
+	seq.Group("empty 1")
+	seq.Group("empty 2")
+	b := seq.Task("b").Define(noop)
+	if err := waitWithin(t, "b.Wait", b.Wait); err == nil {
+		t.Fatal("b.Wait = nil, want an error: a failed before it")
+	}
+	if got := b.Snapshot().State; got != NotStarted {
+		t.Errorf("b = %v, want NotStarted", got)
+	}
+}

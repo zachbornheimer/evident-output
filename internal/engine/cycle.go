@@ -31,7 +31,16 @@ func (o *Output) waitsForLocked(n depNode) []depNode {
 			return nil
 		}
 		for _, p := range n.task.sched.preds {
-			if o.outcomeLocked(p) == predPending {
+			if outcome, _ := o.outcomeLocked(p); outcome == predPending {
+				out = append(out, depNode(p))
+			}
+		}
+		return out
+	}
+	if n.col.tally.total == 0 {
+		// An empty collection waits for what it starts after.
+		for _, p := range n.col.entry {
+			if outcome, _ := o.outcomeLocked(p); outcome == predPending {
 				out = append(out, depNode(p))
 			}
 		}
@@ -43,7 +52,7 @@ func (o *Output) waitsForLocked(n depNode) []depNode {
 		}
 	}
 	for _, c := range n.col.children {
-		if o.collectionOutcomeLocked(c) == predPending {
+		if outcome, _ := o.collectionOutcomeLocked(c); outcome == predPending {
 			out = append(out, depNode{col: c})
 		}
 	}

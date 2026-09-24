@@ -113,14 +113,17 @@ func (o *Output) predecessorOfLocked(p any) (pred predecessor, ok bool) {
 	return pred, true
 }
 
-func (o *Output) outcomeLocked(p predecessor) predOutcome {
+// outcomeLocked is p's outcome and, while that is pending, what to park
+// on until it changes: p itself, or for an empty collection that answers
+// for its entry, the pending predecessor inside that entry.
+func (o *Output) outcomeLocked(p predecessor) (predOutcome, predecessor) {
 	switch {
 	case p.task != nil:
-		return o.taskOutcomeLocked(p.task)
+		return o.taskOutcomeLocked(p.task), p
 	case p.col != nil:
 		return o.collectionOutcomeLocked(p.col)
 	default:
-		return predFailed
+		return predFailed, p
 	}
 }
 
@@ -134,26 +137,49 @@ func (o *Output) taskOutcomeLocked(t *taskState) predOutcome {
 	return out
 }
 
-// collectionOutcomeLocked is c's outcome for its dependents. An empty
-// collection is still pending while its caller may populate it: a Task
-// wired After a Group before the Group's children were declared must wait
-// for them. Once Finish drains, or the run proved nothing will populate
-// it, an empty collection has nothing left to wait for.
-func (o *Output) collectionOutcomeLocked(c *tasksState) predOutcome {
+// collectionOutcomeLocked is c's outcome for its dependents, and what to
+// park on while it is pending. An empty collection is still pending while
+// its caller may populate it: a Task wired After a Group before the
+// Group's children were declared must wait for them. Once Finish drains,
+// or the run proved nothing will populate it, an empty collection ran
+// nothing, so it answers for what it starts after (see entryOutcomeLocked).
+//
+// A non-empty collection needs no such forwarding: every member starts
+// after c's entry, so the members succeed only once the entry has.
+func (o *Output) collectionOutcomeLocked(c *tasksState) (predOutcome, predecessor) {
+	self := predecessor{col: c}
 	t := &c.tally
 	switch {
 	case t.failed > 0:
-		return predFailed
+		return predFailed, self
 	case t.total == 0:
 		if o.sched.draining || t.sealed {
-			return predSucceeded
+			return o.entryOutcomeLocked(c)
 		}
-		return predPending
+		return predPending, self
 	case t.succeeded == t.total:
-		return predSucceeded
+		return predSucceeded, self
 	default:
-		return predPending
+		return predPending, self
 	}
+}
+
+// entryOutcomeLocked folds c's entry, the one step c starts after in a
+// Sequence (none elsewhere), with the first predecessor still pending.
+// Holding only that step keeps a Sequence of n nested steps at n
+// predecessors; a chain of empty steps forwards along the chain.
+func (o *Output) entryOutcomeLocked(c *tasksState) (predOutcome, predecessor) {
+	verdict, blocker := predSucceeded, predecessor{}
+	for _, p := range c.entry {
+		out, b := o.outcomeLocked(p)
+		if out == predFailed {
+			return predFailed, b
+		}
+		if out == predPending && verdict == predSucceeded {
+			verdict, blocker = predPending, b
+		}
+	}
+	return verdict, blocker
 }
 
 // predScan says how far predsOutcomeLocked reads a Task's predecessors.
@@ -184,13 +210,13 @@ func (o *Output) predsOutcomeLocked(st *taskState, scan predScan) (predOutcome, 
 	for ; i < len(preds); i++ {
 		p := preds[i]
 		o.sched.predChecks++
-		out := o.outcomeLocked(p)
+		out, parkOn := o.outcomeLocked(p)
 		if out == predFailed {
 			verdict, blocker = predFailed, p
 			break
 		}
 		if out == predPending && verdict == predSucceeded {
-			verdict, blocker = predPending, p
+			verdict, blocker = predPending, parkOn
 		}
 		if out != predSucceeded || p.task == nil {
 			kept = append(kept, p)
@@ -284,7 +310,10 @@ func (o *Output) propagateSettleLocked(st *taskState, from predOutcome) {
 	for c := st.collection; c != nil; c = c.parent {
 		c.tally.count(from, -1)
 		c.tally.count(to, 1)
-		if len(c.tally.dependents) > 0 && o.collectionOutcomeLocked(c) != predPending {
+		if len(c.tally.dependents) == 0 {
+			continue
+		}
+		if out, _ := o.collectionOutcomeLocked(c); out != predPending {
 			deps = append(deps, c.tally.dependents...)
 			c.tally.dependents = nil
 		}

@@ -81,12 +81,16 @@ func (w *inputWalk) expand(t *taskState) {
 	}
 	t.sched.inputsSealed = t.sched.submitted()
 	for _, p := range t.sched.preds {
-		switch {
-		case p.task != nil:
-			w.visitTask(p.task)
-		case p.col != nil:
-			w.visitCollection(p.col)
-		}
+		w.visit(p)
+	}
+}
+
+func (w *inputWalk) visit(p predecessor) {
+	switch {
+	case p.task != nil:
+		w.visitTask(p.task)
+	case p.col != nil:
+		w.visitCollection(p.col)
 	}
 }
 
@@ -113,6 +117,11 @@ func (w *inputWalk) visitCollection(c *tasksState) {
 			t.sealed = true
 			w.wake = append(w.wake, t.dependents...)
 			t.dependents = nil
+		}
+		// A sealed empty collection answers for its entry, so what the
+		// entry waits for is waited for too.
+		for _, p := range c.entry {
+			w.visit(p)
 		}
 		return
 	}

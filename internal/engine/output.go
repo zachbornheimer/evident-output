@@ -350,7 +350,7 @@ type tasksState struct {
 	// nextStepPreds).
 	entry []predecessor
 	// lastStep is, for a Sequence, what its next step starts after: the
-	// step declared most recently, Task or nested collection.
+	// one step declared most recently, Task or nested collection.
 	lastStep []predecessor
 	// tally counts this container's descendant Tasks by outcome, for the
 	// Tasks that run After it.

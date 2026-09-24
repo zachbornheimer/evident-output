@@ -60,12 +60,12 @@ func (c *tasksState) nextStepPreds() []predecessor {
 	return c.entry
 }
 
-// recordStep makes step c's latest step when c is a Sequence. carried are
-// the predecessors step itself starts after: an empty nested collection
-// succeeds without running anything, so the step after it must still wait
-// for what came before it.
-func (c *tasksState) recordStep(step predecessor, carried ...predecessor) {
+// recordStep makes step c's latest step when c is a Sequence. The next
+// step starts after this one alone: an empty nested collection answers for
+// the step before it (see collectionOutcomeLocked), so nothing earlier has
+// to be carried forward.
+func (c *tasksState) recordStep(step predecessor) {
 	if c.sequential {
-		c.lastStep = append([]predecessor{step}, carried...)
+		c.lastStep = []predecessor{step}
 	}
 }

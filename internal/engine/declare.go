@@ -254,7 +254,7 @@ func (o *Output) declareChildContainerLocked(parent *tasksState, name string, se
 		parent:      parent,
 		entry:       parent.nextStepPreds(),
 	}
-	parent.recordStep(predecessor{col: st}, st.entry...)
+	parent.recordStep(predecessor{col: st})
 	o.tasksByRef[st.id] = st
 	parent.children = append(parent.children, st)
 	if parent.namedChildren == nil {
