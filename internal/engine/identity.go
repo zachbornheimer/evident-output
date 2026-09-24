@@ -108,13 +108,14 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 // a duplicate declaration now takes instead of a panic or a silently
 // returned existing handle. col is the parent container the duplicate was
 // declared under, or nil for a root-level declaration. Callers must already
-// hold o.mu.
-func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, name string) {
+// hold o.mu. It returns the refusal the duplicate's rejected handle keeps.
+func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, name string) error {
 	summary := fmt.Sprintf("duplicate %s name: %s", kind, name)
 	h := o.addTaskLocked(summary, col, "", parentKeyOf(col))
+	rejected := fmt.Errorf("%w: %s", ErrDuplicateSiblingName, name)
 	st := o.taskByRef[h.id]
 	if st == nil {
-		return
+		return rejected
 	}
 	st.summary = txt.Text(summary)
 	st.problems = core.StoreProblems([]Problem{{
@@ -124,4 +125,5 @@ func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, na
 	}})
 	o.settleLocked(st, Failed)
 	o.recordMisuseFor(name, ErrDuplicateSiblingName)
+	return rejected
 }

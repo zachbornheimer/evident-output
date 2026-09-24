@@ -36,7 +36,9 @@ func (g *GroupHandle) Task(name string) *TaskHandle {
 // that never started because a failed sibling came first is omitted, since
 // that sibling's error already explains it. When no child ran at all (for
 // example, every child waited on a predecessor outside the Group that
-// failed), Wait returns ErrNotStarted. Per-child detail stays in Snapshot.
+// failed), Wait returns ErrNotStarted. A Group whose declaration was
+// refused (a duplicate name, a closed Output) returns ErrNotStarted wrapping
+// the refusal. Per-child detail stays in Snapshot.
 //
 // Calling Wait while holding a resource claim (inside an Effect, File, or
 // Basis) returns ErrNestedResourceAcquisition without waiting.

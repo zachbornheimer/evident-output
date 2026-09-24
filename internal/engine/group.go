@@ -10,6 +10,9 @@ import (
 type GroupHandle struct {
 	out *Output
 	id  string
+	// rejected is why the declaration was refused (see rejectedGroup); nil
+	// for a declared Group or Sequence.
+	rejected error
 }
 
 // Task declares a child task. A repeated name is a duplicate sibling
@@ -22,7 +25,7 @@ func (g *GroupHandle) Task(name string) *TaskHandle {
 	if g == nil || g.out == nil {
 		return &TaskHandle{}
 	}
-	return g.out.declareGroupTask(g.id, name)
+	return g.out.declareGroupTask(g, name)
 }
 
 // Sequence declares (or returns) an ordered child container nested here.
@@ -44,9 +47,12 @@ func (g *GroupHandle) declareChild(name string, sequential bool) *GroupHandle {
 	defer g.out.mu.Unlock()
 	parent := g.out.tasksByRef[g.id]
 	if parent == nil {
-		return &GroupHandle{out: g.out, id: g.out.nextID("tasks")}
+		return g.out.rejectedGroup(g.rejected)
 	}
-	child := g.out.declareChildContainerLocked(parent, name, sequential)
+	child, rejected := g.out.declareChildContainerLocked(parent, name, sequential)
+	if rejected != nil {
+		return g.out.rejectedGroup(rejected)
+	}
 	h := &GroupHandle{out: g.out, id: child.id}
 	child.handle = h
 	g.out.bumpLocked()

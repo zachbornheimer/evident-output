@@ -14,6 +14,9 @@ import (
 type TaskHandle struct {
 	out *Output
 	id  string
+	// rejected is why the declaration was refused (see rejectedTask); nil
+	// for a declared Task.
+	rejected error
 }
 
 // Doing sets the active current-step live text and starts the task if

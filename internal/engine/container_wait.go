@@ -21,6 +21,9 @@ func (g *GroupHandle) Wait() error {
 	if g == nil || g.out == nil {
 		return nil
 	}
+	if g.rejected != nil {
+		return rejectedWaitOutcome(g.rejected)
+	}
 	var stack waiterStack
 	if err := g.out.refuseWaitUnderClaim(g.id, &stack); err != nil {
 		return err

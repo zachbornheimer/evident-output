@@ -169,6 +169,9 @@ func (t *TaskHandle) Wait() error {
 	if t == nil || t.out == nil {
 		return nil
 	}
+	if t.rejected != nil {
+		return rejectedWaitOutcome(t.rejected)
+	}
 	var stack waiterStack
 	if err := t.out.refuseWaitUnderClaim(t.id, &stack); err != nil {
 		return err

@@ -152,6 +152,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   Defined settles it `NotStarted` too, and the error names it. How a Wait
   answers no longer depends on which Waits ran before it.
 
+- A refused declaration (a duplicate name or key, the entity limit, a
+  closed Output) no longer answers `Wait` with `nil`. Its `Wait`, and the
+  `Wait` of a Group or Sequence it refused, returns `ErrNotStarted`
+  wrapping the refusal, and `Define` on it is misuse instead of a silent
+  drop.
+
 - A Sequence's nested `Group`/`Sequence` is one step: it starts after the
   step before it ends, the step after it waits for all of it, and a failed
   step leaves the nested members after it `NotStarted`. A Sequence of n

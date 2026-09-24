@@ -13,7 +13,7 @@ func (g *SequenceHandle) Task(name string) *TaskHandle {
 	if g == nil || g.tasks == nil {
 		return &TaskHandle{}
 	}
-	return g.tasks.out.declareGroupTask(g.tasks.id, name)
+	return g.tasks.out.declareGroupTask(g.tasks, name)
 }
 
 // Summary sets a success-oriented sequence summary.

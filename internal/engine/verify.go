@@ -93,6 +93,7 @@ func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
 	o.mu.Lock()
 	st := o.taskByRef[t.id]
 	if st == nil {
+		o.recordMisuse(t.rejected)
 		o.mu.Unlock()
 		return t
 	}

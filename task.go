@@ -136,7 +136,8 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 
 // Wait blocks until the Task is terminal and returns the error its callback
 // returned: nil on success, ErrNotStarted when the work never ran (a failed
-// predecessor, or a run that drained first), its cancellation when it was
+// predecessor, a run that drained first, or a refused declaration such as a
+// duplicate name, wrapping the refusal), its cancellation when it was
 // cancelled, and ErrWaitDeadlock when nothing in the run can ever reach it.
 // A waiting callback lends its own goroutine to the awaited work, so nested
 // Define+Wait completes even at MaxConcurrency 1. Calling Wait while holding

@@ -54,14 +54,16 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 	if key != "" {
 		if _, ok := o.taskNameByKey[key]; ok {
 			o.recordMisuse(ErrDuplicateKey)
-			return &TaskHandle{out: o, id: o.nextID("task")}
+			return o.rejectedTask(ErrDuplicateKey)
 		}
 	} else if _, ok := o.namedTasks["\x00"+scope+"\x00"+clean]; ok {
-		o.failDuplicateSiblingLocked(nil, kindTask, clean)
-		return &TaskHandle{out: o, id: o.nextID("task")}
+		return o.rejectedTask(o.failDuplicateSiblingLocked(nil, kindTask, clean))
 	}
 
 	h := o.addTaskLocked(clean, nil, key, scope)
+	if h.rejected != nil {
+		return h
+	}
 	if o.namedTasks == nil {
 		o.namedTasks = make(map[string]*TaskHandle)
 	}
@@ -101,13 +103,13 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey stri
 func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey string) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &TaskHandle{out: o, id: o.nextID("task")}
+		return o.rejectedTask(err)
 	}
 	effectiveKey := key
 	if effectiveKey != "" {
 		if _, ok := o.keys[effectiveKey]; ok {
 			o.recordMisuse(ErrDuplicateKey)
-			return &TaskHandle{out: o, id: o.nextID("task")}
+			return o.rejectedTask(ErrDuplicateKey)
 		}
 		o.keys[effectiveKey] = struct{}{}
 	} else {
@@ -115,7 +117,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 	}
 	if err := o.ensureEntityRoomLocked(); err != nil {
 		o.recordMisuse(err)
-		return &TaskHandle{out: o, id: o.nextID("task")}
+		return o.rejectedTask(err)
 	}
 	st := &taskState{
 		id:          o.nextID("task"),
@@ -153,12 +155,11 @@ func (o *Output) Group(name string) *GroupHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if _, ok := o.namedGroupHandles[clean]; ok {
-		o.failDuplicateSiblingLocked(nil, kindGroup, clean)
-		return &GroupHandle{out: o, id: o.nextID("tasks")}
+		return o.rejectedGroup(o.failDuplicateSiblingLocked(nil, kindGroup, clean))
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &GroupHandle{out: o, id: o.nextID("tasks")}
+		return o.rejectedGroup(err)
 	}
 	st := o.declareContainerLocked(clean, false)
 	o.collections = append(o.collections, st)
@@ -186,12 +187,11 @@ func (o *Output) Sequence(name string) *SequenceHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if _, ok := o.namedGroups[clean]; ok {
-		o.failDuplicateSiblingLocked(nil, kindSequence, clean)
-		return &SequenceHandle{tasks: &GroupHandle{out: o, id: o.nextID("tasks")}}
+		return &SequenceHandle{tasks: o.rejectedGroup(o.failDuplicateSiblingLocked(nil, kindSequence, clean))}
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &SequenceHandle{tasks: &GroupHandle{out: o, id: o.nextID("tasks")}}
+		return &SequenceHandle{tasks: o.rejectedGroup(err)}
 	}
 	st := o.declareContainerLocked(clean, true)
 	o.collections = append(o.collections, st)
@@ -236,14 +236,13 @@ func childKindFor(sequential bool) entityKind {
 // declareChildContainerLocked declares a nested container under parent,
 // scoped to this one parent (path + name is the identity). A repeated name
 // is a duplicate sibling declaration (§3.1); the caller (GroupHandle/
-// SequenceHandle.Group/Sequence) still receives a usable, if orphaned,
-// handle back.
-func (o *Output) declareChildContainerLocked(parent *tasksState, name string, sequential bool) *tasksState {
+// SequenceHandle.Group/Sequence) receives the refusal and hands back a
+// rejected handle.
+func (o *Output) declareChildContainerLocked(parent *tasksState, name string, sequential bool) (*tasksState, error) {
 	clean := declaredName(name)
 	kind := childKindFor(sequential)
 	if _, ok := parent.namedChildren[clean]; ok {
-		o.failDuplicateSiblingLocked(parent, kind, clean)
-		return &tasksState{id: o.nextID("tasks"), name: clean, sequential: sequential}
+		return nil, o.failDuplicateSiblingLocked(parent, kind, clean)
 	}
 	st := &tasksState{
 		id:          o.nextID("tasks"),
@@ -262,31 +261,32 @@ func (o *Output) declareChildContainerLocked(parent *tasksState, name string, se
 	}
 	parent.namedChildren[clean] = st
 	o.emitCollectionDeclaredLocked(st, parent.id)
-	return st
+	return st, nil
 }
 
-// declareGroupTask declares a child task by name in the container backed by
-// groupID — the identity behind Group.Task/Sequence.Task. A repeated name is
-// a duplicate sibling declaration (§3.1), not a get-or-create.
-func (o *Output) declareGroupTask(groupID, name string, opts ...EntityOption) *TaskHandle {
+// declareGroupTask declares a child task by name in the container g — the
+// identity behind Group.Task/Sequence.Task. A repeated name is a duplicate
+// sibling declaration (§3.1), not a get-or-create. A task declared under a
+// refused container is refused for the same reason.
+func (o *Output) declareGroupTask(g *GroupHandle, name string, opts ...EntityOption) *TaskHandle {
 	clean := declaredName(name)
 	o.mu.Lock()
-	col := o.tasksByRef[groupID]
+	defer o.mu.Unlock()
+	col := o.tasksByRef[g.id]
 	if col == nil {
-		o.mu.Unlock()
-		return &TaskHandle{out: o, id: o.nextID("task")}
+		return o.rejectedTask(g.rejected)
 	}
 	if _, ok := col.namedTasks[clean]; ok {
-		o.failDuplicateSiblingLocked(col, kindTask, clean)
-		o.mu.Unlock()
-		return &TaskHandle{out: o, id: o.nextID("task")}
+		return o.rejectedTask(o.failDuplicateSiblingLocked(col, kindTask, clean))
 	}
 	eo := applyEntityOptions(opts)
 	h := o.addTaskLocked(clean, col, eo.key, col.key)
+	if h.rejected != nil {
+		return h
+	}
 	if col.namedTasks == nil {
 		col.namedTasks = make(map[string]*TaskHandle)
 	}
 	col.namedTasks[clean] = h
-	o.mu.Unlock()
 	return h
 }
