@@ -100,3 +100,26 @@ func TestAPIContract_RequiredFileListsSpecFloor(t *testing.T) {
 		}
 	}
 }
+
+// A type alias to an internal type (type Conclusion = core.Conclusion) is
+// the same public API as a declared type: its methods and fields must land
+// in the golden, or they change invisibly to the contract.
+func TestAPIContract_WalkListsAliasTypeMethodsAndFields(t *testing.T) {
+	t.Parallel()
+	live, err := apisurface.Walk(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"func (Conclusion) Metrics()  RunMetrics",
+		"func (TasksSnapshot) PeakConcurrency()  int",
+		"func (OperationCounts) HitRate()  float64",
+		"type TaskSnapshot.Timing",
+		"type TaskSnapshot.Operations",
+		"type RunMetrics.Defined",
+	} {
+		if !slices.Contains(live, want) {
+			t.Errorf("alias surface lacks %q", want)
+		}
+	}
+}

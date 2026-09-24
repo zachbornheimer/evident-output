@@ -21,7 +21,9 @@ import (
 // declaration, its exported struct fields, its exported methods, then
 // top-level exported funcs, consts, and vars — go/doc's own grouping, so
 // a rename or a new exported symbol always lands in a stable, reviewable
-// place in the diff.
+// place in the diff. A type alias to an in-module type (type Conclusion =
+// core.Conclusion) lists its target's fields and methods under the alias
+// name: they are the same public API as a declared type's.
 func Walk(dir string) ([]string, error) {
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -31,28 +33,15 @@ func Walk(dir string) ([]string, error) {
 		return nil, fmt.Errorf("apisurface: %s is not a directory", dir)
 	}
 	fset := token.NewFileSet()
-	matches, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	files, err := parseDir(fset, dir)
 	if err != nil {
-		return nil, fmt.Errorf("apisurface: glob %s: %w", dir, err)
-	}
-	var files []*ast.File
-	for _, name := range matches {
-		if strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		f, err := parser.ParseFile(fset, name, nil, parser.ParseComments)
-		if err != nil {
-			return nil, fmt.Errorf("apisurface: parse %s: %w", name, err)
-		}
-		files = append(files, f)
-	}
-	if len(files) == 0 {
-		return nil, fmt.Errorf("apisurface: no Go source in %s", dir)
+		return nil, err
 	}
 	docPkg, err := doc.NewFromFiles(fset, files, modpin.ModulePath, doc.AllDecls)
 	if err != nil {
 		return nil, fmt.Errorf("apisurface: doc %s: %w", dir, err)
 	}
+	aliases := newAliasResolver(fset, dir, files)
 
 	var lines []string
 	for _, typ := range docPkg.Types {
@@ -60,13 +49,13 @@ func Walk(dir string) ([]string, error) {
 			continue
 		}
 		lines = append(lines, "type "+typ.Name)
-		for _, field := range exportedStructFields(typ) {
-			lines = append(lines, "type "+typ.Name+"."+field)
+		lines = append(lines, memberLines(fset, typ.Name, typ)...)
+		target, err := aliases.target(typ)
+		if err != nil {
+			return nil, err
 		}
-		for _, m := range typ.Methods {
-			if ast.IsExported(m.Name) {
-				lines = append(lines, "func ("+typ.Name+") "+m.Name+renderParams(fset, m.Decl.Type))
-			}
+		if target != nil {
+			lines = append(lines, memberLines(fset, typ.Name, target)...)
 		}
 		// go/doc groups a top-level func under its return type's Funcs
 		// (constructor-style grouping) instead of docPkg.Funcs whenever its
@@ -95,6 +84,44 @@ func Walk(dir string) ([]string, error) {
 	}
 	sort.Strings(lines)
 	return lines, nil
+}
+
+// memberLines renders typ's exported struct fields and methods under the
+// public name.
+func memberLines(fset *token.FileSet, name string, typ *doc.Type) []string {
+	var lines []string
+	for _, field := range exportedStructFields(typ) {
+		lines = append(lines, "type "+name+"."+field)
+	}
+	for _, m := range typ.Methods {
+		if ast.IsExported(m.Name) {
+			lines = append(lines, "func ("+name+") "+m.Name+renderParams(fset, m.Decl.Type))
+		}
+	}
+	return lines
+}
+
+// parseDir parses every non-test .go file in dir.
+func parseDir(fset *token.FileSet, dir string) ([]*ast.File, error) {
+	matches, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	if err != nil {
+		return nil, fmt.Errorf("apisurface: glob %s: %w", dir, err)
+	}
+	var files []*ast.File
+	for _, name := range matches {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, name, nil, parser.ParseComments)
+		if err != nil {
+			return nil, fmt.Errorf("apisurface: parse %s: %w", name, err)
+		}
+		files = append(files, f)
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("apisurface: no Go source in %s", dir)
+	}
+	return files, nil
 }
 
 // renderParams renders a func/method's parameter and result list exactly as

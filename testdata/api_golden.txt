@@ -1,3 +1,5 @@
+func (Conclusion) AnyBlocked()  bool
+func (Conclusion) Metrics()  RunMetrics
 func (Failure) Error()  string
 func (Failure) Next(actions ...Action)  *Failure
 func (Failure) NextCommand(executable string, args ...string)  *Failure
@@ -8,6 +10,10 @@ func (GroupHandle) Snapshot()  TasksSnapshot
 func (GroupHandle) Summary(text string)  *GroupHandle
 func (GroupHandle) Task(name string)  *TaskHandle
 func (GroupHandle) Wait()  error
+func (OperationCounts) BasisInvalidationRate()  float64
+func (OperationCounts) ChangeRate()  float64
+func (OperationCounts) HitRate()  float64
+func (OperationCounts) PropagationStoppedRate()  float64
 func (Output) Cancel(reason string)
 func (Output) Close()  error
 func (Output) Conclusion()  Conclusion
@@ -37,6 +43,9 @@ func (Printer) Print(args ...any)
 func (Printer) Printf(format string, args ...any)
 func (Printer) Println(args ...any)
 func (Printer) Writer()  io.Writer
+func (Result) ExitCode()  int
+func (RunMetrics) CallbackEntryRate()  float64
+func (RunMetrics) VerifySatisfiedRate()  float64
 func (SequenceHandle) Group(name string)  *GroupHandle
 func (SequenceHandle) Sequence(name string)  *SequenceHandle
 func (SequenceHandle) Snapshot()  TasksSnapshot
@@ -68,6 +77,16 @@ func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
 func (TaskHandle) Warn(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Writer()  io.Writer
+func (TaskSnapshot) FromEach()  bool
+func (TaskSnapshot) LiveFirstSeenAt()  time.Time
+func (TaskSnapshot) Synthetic()  bool
+func (TaskTiming) AwaitingDefinition()  time.Duration
+func (TaskTiming) DependencyWait()  time.Duration
+func (TaskTiming) Queued()  time.Duration
+func (TaskTiming) Running()  time.Duration
+func (TaskTiming) SchedulerWait()  time.Duration
+func (TaskTiming) Total()  time.Duration
+func (TasksSnapshot) PeakConcurrency()  int
 func (TaxonomyReason) Name()  string
 func AlsoWrite(w io.Writer)  Option
 func App()  Fingerprint
@@ -161,73 +180,308 @@ func Warn(summary string)
 func Width(columns int)  Option
 func WriteJSON(w io.Writer, result Result)  error
 type Action
+type Action.Command
+type Action.Destructive
+type Action.Explanation
+type Action.File
+type Action.Label
+type Action.RequiresConfirmation
+type Action.URL
 type Attachment
+type Attachment.Label
+type Attachment.Value
 type ChangesSnapshot
+type ChangesSnapshot.ID
+type ChangesSnapshot.IntendedVerb
+type ChangesSnapshot.Records
+type ChangesSnapshot.Subject
 type ColorMode
 type CommandSpec
+type CommandSpec.Args
+type CommandSpec.Executable
+type CommandSpec.WorkingDir
 type Conclusion
+type Conclusion.Actions
+type Conclusion.Cancelled
+type Conclusion.Changed
+type Conclusion.Changes
+type Conclusion.Collections
+type Conclusion.DryRun
+type Conclusion.ExitCode
+type Conclusion.Explanation
+type Conclusion.Facts
+type Conclusion.FinishedAt
+type Conclusion.Partial
+type Conclusion.Plans
+type Conclusion.RunID
+type Conclusion.StartedAt
+type Conclusion.State
+type Conclusion.Subject
+type Conclusion.Tasks
+type Conclusion.Warned
 type ConclusionJSON
+type ConclusionJSON.Cancelled
+type ConclusionJSON.Changed
+type ConclusionJSON.ExitCode
+type ConclusionJSON.Explanation
+type ConclusionJSON.Partial
+type ConclusionJSON.State
+type ConclusionJSON.Warned
 type ConclusionState
 type Config
+type Config.AppID
+type Config.Clock
+type Config.Color
+type Config.Debug
+type Config.DryRun
+type Config.Facts
+type Config.FailedExitCode
+type Config.FileFS
+type Config.Format
+type Config.Glyphs
+type Config.Isolated
+type Config.MaxConcurrency
+type Config.MaxEntities
+type Config.MaxEvents
+type Config.MaxFrameRate
+type Config.Options
+type Config.Plain
+type Config.Preview
+type Config.ProcessRunner
+type Config.Projection
+type Config.Redactor
+type Config.Result
+type Config.StateDir
+type Config.Stderr
+type Config.Stdin
+type Config.Stdout
+type Config.Strict
+type Config.Subject
+type Config.Terminal
+type Config.Title
+type Config.Verbosity
+type Config.VisibilityDelay
+type Config.Width
 type ConfirmOption
 type DebugConfig
+type DebugConfig.AddSource
+type DebugConfig.Level
+type DebugConfig.NewestFirst
+type DebugConfig.PaneHeight
+type DebugConfig.PreserveAlways
+type DebugConfig.View
 type DebugPaneOption
 type DebugPresentation
 type EffectRecord
+type EffectRecord.HasQty
+type EffectRecord.Object
+type EffectRecord.Quantity
+type EffectRecord.Verb
 type EffectSpec
+type EffectSpec.Object
+type EffectSpec.Quantity
+type EffectSpec.Resource
+type EffectSpec.Verb
 type EffectVerb
 type EntityOption
 type EntityState
 type Event
+type Event.Activation
+type Event.Completed
+type Event.EntityID
+type Event.Name
+type Event.OutputID
+type Event.Payload
+type Event.SchemaVersion
+type Event.Sequence
+type Event.State
+type Event.Timestamp
+type Event.Total
+type Event.Type
 type EventJSON
+type EventJSON.Activation
+type EventJSON.Completed
+type EventJSON.EntityID
+type EventJSON.Name
+type EventJSON.OutputID
+type EventJSON.SchemaVersion
+type EventJSON.Sequence
+type EventJSON.State
+type EventJSON.Timestamp
+type EventJSON.Total
+type EventJSON.Type
 type Evidence
 type EvidenceOption
 type EvidencePhase
+type EvidencePhase.Evaluated
+type EvidencePhase.Satisfied
+type EvidencePhase.Source
 type EvidenceStream
 type ExecResult
+type ExecResult.ExitCode
+type ExecResult.Ran
+type ExecResult.Stderr
+type ExecResult.Stdout
+type ExecResult.Truncated
 type ExecSpec
+type ExecSpec.Args
+type ExecSpec.Basis
+type ExecSpec.Dir
+type ExecSpec.Env
+type ExecSpec.Executable
+type ExecSpec.Outputs
 type FactRecord
+type FactRecord.Name
+type FactRecord.Value
 type Failure
 type Field
+type Field.Key
+type Field.Sensitive
+type Field.Value
 type FileFS
 type FileSet
 type FileSpec
+type FileSpec.Basis
+type FileSpec.Contents
+type FileSpec.Mode
+type FileSpec.Path
 type Fingerprint
 type FingerprintValue
+type FingerprintValue.Digest
+type FingerprintValue.Key
+type FingerprintValue.Kind
 type FixedClock
 type Format
 type GlyphProfile
 type GroupHandle
 type JSONAction
+type JSONAction.Command
+type JSONAction.Label
+type JSONAction.URL
 type JSONChanges
+type JSONChanges.ID
+type JSONChanges.Records
+type JSONChanges.Subject
 type JSONCollection
+type JSONCollection.Children
+type JSONCollection.ID
+type JSONCollection.Name
+type JSONCollection.State
+type JSONCollection.Summary
 type JSONCommand
+type JSONCommand.Args
+type JSONCommand.Executable
 type JSONDocument
+type JSONDocument.Actions
+type JSONDocument.Changes
+type JSONDocument.Conclusion
+type JSONDocument.Messages
+type JSONDocument.Output
+type JSONDocument.Plans
+type JSONDocument.SchemaVersion
+type JSONDocument.TaskCollections
+type JSONDocument.Tasks
 type JSONEffectRecord
+type JSONEffectRecord.Object
+type JSONEffectRecord.Quantity
+type JSONEffectRecord.Verb
 type JSONMessage
+type JSONMessage.ID
+type JSONMessage.Text
+type JSONMessage.Visibility
 type JSONOutputMeta
+type JSONOutputMeta.ID
+type JSONOutputMeta.Subject
 type JSONPlan
+type JSONPlan.ID
+type JSONPlan.Records
+type JSONPlan.Subject
 type JSONProblem
+type JSONProblem.Code
+type JSONProblem.Count
+type JSONProblem.Detail
+type JSONProblem.Subject
+type JSONProblem.Summary
+type JSONProblem.Unit
 type JSONProgress
+type JSONProgress.Completed
+type JSONProgress.Kind
+type JSONProgress.Total
 type JSONTask
+type JSONTask.ID
+type JSONTask.Key
+type JSONTask.Name
+type JSONTask.Phase
+type JSONTask.Problems
+type JSONTask.Progress
+type JSONTask.State
+type JSONTask.Summary
+type JSONTask.Warnings
 type LiveSurface
 type LogLevel
 type LogRecord
+type LogRecord.Attrs
+type LogRecord.Level
+type LogRecord.Message
+type LogRecord.PC
+type LogRecord.Time
 type MessageSnapshot
+type MessageSnapshot.ID
+type MessageSnapshot.Text
+type MessageSnapshot.Visibility
 type NoopRedactor
 type OperationCounts
+type OperationCounts.BasisDrift
+type OperationCounts.Changed
+type OperationCounts.Current
+type OperationCounts.Executed
+type OperationCounts.Unchanged
 type Option
 type Output
 type PhaseTime
+type PhaseTime.Duration
+type PhaseTime.Entries
 type PlainOptions
+type PlainOptions.Glyphs
+type PlainOptions.NoColor
+type PlainOptions.Verbose
+type PlainOptions.Width
 type PlanSnapshot
+type PlanSnapshot.ID
+type PlanSnapshot.IntendedVerb
+type PlanSnapshot.Records
+type PlanSnapshot.Subject
 type Printer
 type Problem
+type Problem.Actions
+type Problem.Cause
+type Problem.Code
+type Problem.Count
+type Problem.Detail
+type Problem.Evidence
+type Problem.EvidenceTail
+type Problem.Fields
+type Problem.Location
+type Problem.Sensitive
+type Problem.Severity
+type Problem.Subject
+type Problem.Summary
+type Problem.Unit
 type ProblemOption
 type ProcessCommand
+type ProcessCommand.Args
+type ProcessCommand.Dir
+type ProcessCommand.Env
+type ProcessCommand.Path
+type ProcessCommand.Stderr
+type ProcessCommand.Stdout
 type ProcessOutcome
+type ProcessOutcome.ExitCode
 type ProcessRunner
 type Progress
+type Progress.Completed
+type Progress.Kind
+type Progress.Total
 type ProgressKind
 type Projection
 type ReasonOption
@@ -235,19 +489,103 @@ type Redactor
 type Resolution
 type Resource
 type Result
+type Result.Conclusion
+type Result.Err
 type RunFunc
 type RunMetrics
+type RunMetrics.AlreadySatisfied
+type RunMetrics.CriticalPath
+type RunMetrics.Defined
+type RunMetrics.Definition
+type RunMetrics.DependencyWait
+type RunMetrics.Entered
+type RunMetrics.Evidence
+type RunMetrics.Executed
+type RunMetrics.NoWork
+type RunMetrics.Operations
+type RunMetrics.PeakConcurrency
+type RunMetrics.Provenance
+type RunMetrics.Running
+type RunMetrics.SchedulerWait
+type RunMetrics.Tasks
+type RunMetrics.TrackedState
+type RunMetrics.Verified
+type RunMetrics.VerifiedCurrent
 type SequenceHandle
 type Snapshot
+type Snapshot.Actions
+type Snapshot.Changes
+type Snapshot.Collections
+type Snapshot.Conclusion
+type Snapshot.DryRun
+type Snapshot.DryRunSubject
+type Snapshot.Facts
+type Snapshot.Lines
+type Snapshot.Messages
+type Snapshot.OutputID
+type Snapshot.Plans
+type Snapshot.Preview
+type Snapshot.Subject
+type Snapshot.Tasks
+type Snapshot.Timestamp
+type Snapshot.Version
+type Snapshot.Warnings
 type SourceLocation
+type SourceLocation.Column
+type SourceLocation.Line
+type SourceLocation.Path
 type SystemClock
 type TaskEvidence
+type TaskEvidence.After
+type TaskEvidence.Before
 type TaskHandle
 type TaskSnapshot
+type TaskSnapshot.Actions
+type TaskSnapshot.ActivityAt
+type TaskSnapshot.Collection
+type TaskSnapshot.Declaration
+type TaskSnapshot.Evidence
+type TaskSnapshot.Facts
+type TaskSnapshot.ID
+type TaskSnapshot.Kept
+type TaskSnapshot.Key
+type TaskSnapshot.Name
+type TaskSnapshot.Operations
+type TaskSnapshot.Phase
+type TaskSnapshot.Problems
+type TaskSnapshot.Progress
+type TaskSnapshot.Resolution
+type TaskSnapshot.Skipped
+type TaskSnapshot.State
+type TaskSnapshot.Summary
+type TaskSnapshot.Timing
+type TaskSnapshot.Verification
+type TaskSnapshot.Warnings
 type TaskTiming
+type TaskTiming.DeclaredAt
+type TaskTiming.Definition
+type TaskTiming.EligibleAt
+type TaskTiming.Evidence
+type TaskTiming.Provenance
+type TaskTiming.SettledAt
+type TaskTiming.StartedAt
+type TaskTiming.SubmittedAt
+type TaskTiming.TrackedState
 type TasksSnapshot
+type TasksSnapshot.Collections
+type TasksSnapshot.Declaration
+type TasksSnapshot.ID
+type TasksSnapshot.Key
+type TasksSnapshot.Name
+type TasksSnapshot.Sequential
+type TasksSnapshot.State
+type TasksSnapshot.Summary
+type TasksSnapshot.Tasks
 type TaxonomyReason
 type TaxonomyRecord
+type TaxonomyRecord.Causes
+type TaxonomyRecord.Name
+type TaxonomyRecord.Reason
 type TerminalDriver
 type TimeSource
 type Verbosity
