@@ -264,8 +264,10 @@ value Done
 value EffectAdd
 value EffectCreate
 value EffectDelete
+value EffectInstall
 value EffectPush
 value EffectRemove
+value EffectUninstall
 value EffectUpdate
 value Empty
 value ErrAlreadyResolved

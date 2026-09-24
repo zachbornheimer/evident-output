@@ -14,18 +14,20 @@ type EffectVerb string
 
 // The complete EffectVerb enum.
 const (
-	EffectAdd    EffectVerb = "add"
-	EffectCreate EffectVerb = "create"
-	EffectDelete EffectVerb = "delete"
-	EffectPush   EffectVerb = "push"
-	EffectRemove EffectVerb = "remove"
-	EffectUpdate EffectVerb = "update"
+	EffectAdd       EffectVerb = "add"
+	EffectCreate    EffectVerb = "create"
+	EffectDelete    EffectVerb = "delete"
+	EffectInstall   EffectVerb = "install"
+	EffectPush      EffectVerb = "push"
+	EffectRemove    EffectVerb = "remove"
+	EffectUninstall EffectVerb = "uninstall"
+	EffectUpdate    EffectVerb = "update"
 )
 
 // valid reports whether v is one of the declared EffectVerb constants.
 func (v EffectVerb) valid() bool {
 	switch v {
-	case EffectAdd, EffectCreate, EffectDelete, EffectPush, EffectRemove, EffectUpdate:
+	case EffectAdd, EffectCreate, EffectDelete, EffectInstall, EffectPush, EffectRemove, EffectUninstall, EffectUpdate:
 		return true
 	}
 	return false

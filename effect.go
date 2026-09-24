@@ -12,12 +12,14 @@ type EffectVerb = engine.EffectVerb
 
 // The complete EffectVerb enum.
 const (
-	EffectAdd    = engine.EffectAdd
-	EffectCreate = engine.EffectCreate
-	EffectDelete = engine.EffectDelete
-	EffectPush   = engine.EffectPush
-	EffectRemove = engine.EffectRemove
-	EffectUpdate = engine.EffectUpdate
+	EffectAdd       = engine.EffectAdd
+	EffectCreate    = engine.EffectCreate
+	EffectDelete    = engine.EffectDelete
+	EffectInstall   = engine.EffectInstall
+	EffectPush      = engine.EffectPush
+	EffectRemove    = engine.EffectRemove
+	EffectUninstall = engine.EffectUninstall
+	EffectUpdate    = engine.EffectUpdate
 )
 
 // EffectSpec describes one aggregate opaque mutation Evo cannot model as
