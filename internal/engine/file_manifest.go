@@ -19,34 +19,6 @@ import (
 // Run is a conflict").
 var ErrFileConflictingProducer = errors.New("evo: File output path already claimed by another Task in this Run")
 
-// manifestFor returns this Run's manifest Store, opening it on first use
-// (spec §11.3) — the same lazy-capture pattern workspace already
-// uses for the workspace directory. Every later call, whether it succeeded
-// or failed, returns the same cached result: a manifest miss/open failure
-// degrades this Run to live-filesystem-only File behavior rather than
-// retrying on every call.
-func (o *Output) manifestFor(ctx context.Context) (*manifest.Store, error) {
-	workspace := o.workspace()
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.manifestOpened {
-		return o.manifestStore, o.manifestOpenErr
-	}
-	o.manifestOpened = true
-	cfg := manifest.Config{AppID: o.cfg.appID, StateDir: o.cfg.stateDir, Workspace: workspace}
-	store, err := manifest.Open(ctx, cfg, manifest.NewOSEnvironment())
-	o.manifestStore = store
-	o.manifestOpenErr = err
-	if err == nil {
-		o.manifestApp = manifest.ApplicationRecord{ID: o.cfg.appID}
-		if appFP, appErr := fingerprint.App().Fingerprint(ctx); appErr == nil {
-			o.manifestApp.Fingerprint = "sha256:" + hex.EncodeToString(appFP.Digest[:])
-		}
-		o.manifestAppDone = true
-	}
-	return store, err
-}
-
 // emitManifestWarningOnce surfaces a manifest Store's safe cache-miss
 // warning (corrupt/unknown prior manifest, spec §11.3) as a run-scoped Fact
 // exactly once per Run — never as an error, since a miss is always safe to

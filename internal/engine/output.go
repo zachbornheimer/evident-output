@@ -162,7 +162,10 @@ type Output struct {
 	// (manifestFor) the same way workspaceDir is captured lazily on first
 	// use. manifestOpenErr/manifestOpened distinguish "not yet opened" from
 	// "opened and failed" so a later call does not retry a failed open.
-	manifestStore         *manifest.Store
+	manifestStore *manifest.Store
+	// manifestOpening serializes manifestFor's first open without holding
+	// mu across the blocking lock wait (see manifestFor).
+	manifestOpening       sync.Mutex
 	manifestOpened        bool
 	manifestOpenErr       error
 	manifestWarningIssued bool
