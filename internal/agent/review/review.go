@@ -645,6 +645,13 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectSkippedForAlreadySatisfied(filename, f, fset)...)
 	}
 
+	// API-060: Summary text that is actually mutation/dry-run/already-
+	// satisfied narration rather than the caller's own result metadata.
+	// TaskHandle.Summary only exists from 1.1.0 on.
+	if hasEvoAtOneOne {
+		findings = append(findings, detectSummaryStampNarration(filename, f, fset)...)
+	}
+
 	// EVO-DRYRUN-001: Define callback raw-calls a side effect Evo's runtime
 	// cannot intercept, breaking the dry-run guarantee.
 	if hasEvoAtOneZero {

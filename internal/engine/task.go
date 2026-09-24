@@ -320,6 +320,42 @@ func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
 	return t
 }
 
+// Summary sets non-terminal result metadata for the task's successful
+// terminal row (1.1/ZYS-971 Decisions 2026-09-23b): a single sanitized
+// one-line field, last call wins, empty clears it. It never resolves the
+// task — Define/the evo-native operation outcome remains the only normal
+// success resolution path — and it is not live activity (Doing/Progress/
+// Step/Bytes still own the Running row). It shares its underlying field
+// and projection with the caller's own success text (Done's summary
+// argument, TaskSnapshot.Summary, JSON/JSONL "summary") and follows the
+// same misuse rule as Doing/Warn: calling it after the task has
+// terminally resolved, other than by the interrupt sweep, is misuse
+// rather than a silent no-op. GroupHandle.Summary is the same shape one
+// level up (internal/engine/group.go).
+func (t *TaskHandle) Summary(text string) *TaskHandle {
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return t
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return t
+	}
+	if core.IsTerminalTask(st.state) {
+		if !resolvedByInterrupt(st.state) {
+			t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		}
+		return t
+	}
+	st.summary = txt.Text(text)
+	t.out.bumpLocked()
+	t.out.appendEventLocked(Event{Type: "task.summary_set", EntityID: t.id})
+	t.out.signalLiveLocked(true)
+	return t
+}
+
 // Problem appends one blocking/error Problem to the task (1.1/ZYS-848, new
 // method — see docs/migration/1.1.md) without itself terminal-resolving it,
 // so a Define callback — or any caller before the task's terminal verb —
