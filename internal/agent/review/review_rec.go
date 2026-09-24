@@ -32,6 +32,9 @@ type recSurfaceDetector struct {
 	// doneScope is set only when the target dialect is 1.1+, where
 	// TaskHandle.Done no longer exists (see review_rec_done.go).
 	doneScope *removedDoneScope
+	// effectDialect is set when the target dialect is 1.1+, where the
+	// TaskHandle mutation verbs are gone and evo.Effect/evo.File exist.
+	effectDialect bool
 }
 
 func detectSupersededRecSurface(in fileInput) []Finding {
@@ -44,6 +47,7 @@ func detectSupersededRecSurface(in fileInput) []Finding {
 	if dialectAtLeast(in.desiredVersion, dialectOneOne) {
 		scope := newRemovedDoneScope(f, d)
 		d.doneScope = &scope
+		d.effectDialect = true
 	}
 	ast.Inspect(f, d.inspect)
 	ast.Inspect(f, d.inspectLeftover)

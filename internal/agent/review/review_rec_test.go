@@ -280,3 +280,45 @@ func joinSuggestions(fs []review.Finding) string {
 	}
 	return b.String()
 }
+
+// TestAPI032_MutationVerbsAtPinnedV1_0 pins the dialect gate: evo.Effect
+// and evo.File do not exist at v1.0.0, so a 1.0 pin must see its own
+// object-first mutation verbs as current, and see the 0.x positional
+// shape rewritten to them, never to a 1.1 API.
+func TestAPI032_MutationVerbsAtPinnedV1_0(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle, n int) {
+	task.Delete("worktree", func() error { return remove() })
+	task.Write("config.toml", func() error { return save() }, evo.Affected(2))
+	task.Delete(n, "local tip")
+}
+`
+	found := findAPI032(review.GoSourceAt("pinned.go", src, "v1.0.0"))
+	joined := joinSuggestions(found)
+	if strings.Contains(joined, "Effect") || strings.Contains(joined, "evo.File") {
+		t.Fatalf("a v1.0.0 pin must not be steered to 1.1 evo.Effect/evo.File, got %q", joined)
+	}
+	if len(found) != 1 {
+		t.Fatalf("want exactly the positional Delete flagged at v1.0.0, got %+v", found)
+	}
+	want := `replace task.Delete(n, "local tip") with task.Delete("local tip", fn, evo.Affected(n))`
+	if !strings.Contains(joined, want) {
+		t.Fatalf("positional Delete must rewrite to the 1.0 shape:\nwant %s\ngot  %q", want, joined)
+	}
+}
+
+// TestAPI032_MutationVerbsAtPinnedV1_1 is the gate's other side: from 1.1
+// the object-first verbs are removed and rewrite to evo.Effect.
+func TestAPI032_MutationVerbsAtPinnedV1_1(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+	task.Delete("worktree", func() error { return remove() })
+}
+`
+	joined := joinSuggestions(findAPI032(review.GoSourceAt("pinned.go", src, "v1.1.0")))
+	if !strings.Contains(joined, `evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}`) {
+		t.Fatalf("a v1.1.0 pin must rewrite Delete to evo.Effect, got %q", joined)
+	}
+}

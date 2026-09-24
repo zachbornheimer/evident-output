@@ -72,9 +72,18 @@ func affectedQuantity(args []ast.Expr) ast.Expr {
 	return nil
 }
 
-// reportLegacyMutation reports a removed-verb call site with its
-// mechanically applicable Define + evo.Effect (or evo.File) replacement.
+// reportLegacyMutation reports a removed-verb call site with the
+// replacement that exists at the target pin: Define + evo.Effect (or
+// evo.File) from 1.1, and below 1.1 only the 0.x positional shape, moved
+// to the 1.0 object-first spelling. A 1.0 object-first call is current at
+// a 1.0 pin; steering it to evo.Effect would break the consumer's build.
 func (d *recSurfaceDetector) reportLegacyMutation(recv string, call *ast.CallExpr, m legacyMutation) {
+	if !d.effectDialect {
+		if isOldMutationShape(call) {
+			d.reportPositionalMutation(recv, call, m)
+		}
+		return
+	}
 	old := d.nodeSrc(call)
 	body := d.effectCall(m)
 	msg := m.verb + " was removed in 1.1; opaque mutations use evo.Effect inside Define"
@@ -109,4 +118,18 @@ func (d *recSurfaceDetector) effectCall(m legacyMutation) string {
 func isLegacyMutationCall(name string, call *ast.CallExpr) bool {
 	_, ok := parseLegacyMutation(name, call)
 	return ok
+}
+
+// reportPositionalMutation rewrites a 0.x positional Verb(n, object) to
+// the 1.0 object-first spelling with the evo.Affected(n) option, for a
+// consumer pinned below 1.1 (both were removed in 1.1).
+func (d *recSurfaceDetector) reportPositionalMutation(recv string, call *ast.CallExpr, m legacyMutation) {
+	args := d.nodeSrc(m.object) + ", fn"
+	if qty := d.nodeSrc(m.quantity); qty != "1" {
+		args += ", " + d.pkg + ".Affected(" + qty + ")"
+	}
+	next := recv + "." + m.verb + "(" + args + ")"
+	d.report(call, "positional "+m.verb+"(n, object) was removed in 1.0; the object comes first, with the work callback",
+		"replace "+d.nodeSrc(call)+" with "+next)
+	d.cover(call)
 }
