@@ -95,3 +95,16 @@ func TestAPI062_PackageLevelTaskUnderDefaultInit_Silent(t *testing.T) {
 	res := review.GoSource("main.go", defaultInitPackageLevelTaskSrc)
 	assertNoFinding(t, res, "API-062")
 }
+
+// API-062 is new in 1.2: a consumer pinned to a 1.0.x or 1.1.x release
+// must not get a new error-severity finding its pinned docs never taught.
+func TestAPI062_PrePin_StaysSilent(t *testing.T) {
+	for _, pin := range []string{"1.0.0", "1.1.0"} {
+		res := review.GoSourceAt("handler.go", isolatedRunPackageLevelTaskSrc, pin)
+		for _, f := range res.Findings {
+			if f.RuleID == "API-062" {
+				t.Fatalf("API-062 fired for pin %s, older than the 1.2.0 release that introduced it: %+v", pin, f)
+			}
+		}
+	}
+}

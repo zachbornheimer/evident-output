@@ -35,6 +35,12 @@ const dialectOneZero = "1.0.0"
 // fire for a pin older than this.
 const dialectOneOne = "1.1.0"
 
+// dialectOneTwo is the first release that documents embedding an Isolated
+// Output behind HTTP (spec §53, ZYS-946) — the contract API-062 enforces.
+// A pin older than this was never taught that contract, so API-062 must
+// not fire for it.
+const dialectOneTwo = "1.2.0"
+
 // dialectAtLeast reports whether desired is the current dialect (empty) or
 // a pin at/after cutoff. Pre-cutoff pins do not fire that dialect's findings.
 func dialectAtLeast(desired, cutoff string) bool {

@@ -628,8 +628,9 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 
 	// API-062: a package-level evo declaration inside an Isolated
 	// Output's Run callback lands on the package default instead of the
-	// Output being run (spec §53, ZYS-946).
-	if hasEvoAtOneZero {
+	// Output being run (spec §53, ZYS-946). The §53 embedding contract
+	// ships in 1.2.0, so an older pin does not fire it.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneTwo) {
 		findings = append(findings, detectPackageFacadeInIsolatedRun(filename, f, fset)...)
 	}
 

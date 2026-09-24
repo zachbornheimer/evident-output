@@ -1771,7 +1771,7 @@ result := out.Run(r.Context(), func(ctx context.Context) error {
 			Remediation:     "Declare on the Output being run (out.Task, out.Sequence, out.Fact, ...), or pass that *evo.Output into the shared model function; the CLI passes evo.Default()",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-062"},
-			Since:           "1.0.0",
+			Since:           "1.2.0",
 			Certainty:       "heuristic",
 		},
 		{

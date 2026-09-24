@@ -143,6 +143,6 @@ func packageFacadeInIsolatedRunFinding(filename string, pos token.Position, pkg,
 		Line:            pos.Line,
 		Column:          pos.Column,
 		Suggestion:      "call " + output + "." + fn + "(...) instead, or pass " + output + " (*" + pkg + ".Output) into the shared model function so the CLI and HTTP paths declare on whichever Output drives them",
-		RequiredVersion: dialectOneZero,
+		RequiredVersion: dialectOneTwo,
 	}
 }

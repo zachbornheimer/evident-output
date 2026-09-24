@@ -58,6 +58,9 @@ so they already land on the right Output.
   never start, and the Conclusion is `cancelled` with exit code 130. Work
   already committed stays in the document's `effects`. Tasks see the
   context's values and deadline.
+- **A cancel after the work is done changes nothing.** If the context ends
+  after the run callback returned and every Task finished, the run keeps
+  its own verdict.
 - **The server owns process signals.** A `FormatExternal` run registers no
   SIGINT/SIGTERM handler, so the server's graceful shutdown lets in-flight
   requests finish. Other formats keep the CLI behavior: the run owns ^C.
