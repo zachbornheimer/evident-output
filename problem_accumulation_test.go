@@ -290,3 +290,83 @@ func TestWarn_ReturnsHandleForChaining(t *testing.T) {
 		t.Fatalf("want chained Done to take effect:\n%s", buf.String())
 	}
 }
+
+// finishProblemRun settles a run built by declare and returns the one
+// Task's snapshot plus the human transcript.
+func finishProblemRun(t *testing.T, declare func(out *evo.Output)) (evo.TaskSnapshot, string) {
+	t.Helper()
+	var buf bytes.Buffer
+	out := evo.Init(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.Close() })
+	declare(out)
+	_ = out.Finish()
+	snap := out.Snapshot()
+	if len(snap.Tasks) != 1 {
+		t.Fatalf("want one Task, got %d: %#v", len(snap.Tasks), snap.Tasks)
+	}
+	return snap.Tasks[0], buf.String()
+}
+
+func assertProblemFailsTask(t *testing.T, got evo.TaskSnapshot, human string) {
+	t.Helper()
+	if got.State != evo.Failed {
+		t.Fatalf("a Task holding a blocking Problem must settle Failed, got %v\n%s", got.State, human)
+	}
+	if len(got.Problems) != 1 || got.Problems[0].Summary != "blocking finding" {
+		t.Fatalf("the Problem must survive to the Snapshot, got %#v", got.Problems)
+	}
+	if !strings.Contains(human, "blocking finding") {
+		t.Fatalf("the Problem must reach human output:\n%s", human)
+	}
+}
+
+// TestProblem_SkippedCannotLaunderAProblem: Skipped is a success-class
+// outcome, so a Problem recorded before it still fails the Task.
+func TestProblem_SkippedCannotLaunderAProblem(t *testing.T) {
+	got, human := finishProblemRun(t, func(out *evo.Output) {
+		task := out.Task("scan")
+		task.Define(func(context.Context) error {
+			task.Problem("blocking finding")
+			task.Skipped(evo.Reason("nothing to do"))
+			return nil
+		})
+	})
+	assertProblemFailsTask(t, got, human)
+}
+
+// TestProblem_UnresolvedWarnedTaskKeepsItsProblem: Finish's amnesty for a
+// warned-but-unresolved Task must not settle it Done over a Problem.
+func TestProblem_UnresolvedWarnedTaskKeepsItsProblem(t *testing.T) {
+	got, human := finishProblemRun(t, func(out *evo.Output) {
+		out.Task("scan").Problem("blocking finding").Warn("also a warning")
+	})
+	assertProblemFailsTask(t, got, human)
+}
+
+// TestProblem_UnresolvedTaskKeepsItsProblem: a Task that recorded a
+// Problem and was never resolved still fails; the Problem is its story.
+func TestProblem_UnresolvedTaskKeepsItsProblem(t *testing.T) {
+	got, human := finishProblemRun(t, func(out *evo.Output) {
+		out.Task("scan").Problem("blocking finding")
+	})
+	assertProblemFailsTask(t, got, human)
+}
+
+// TestProblem_VisibleInSnapshotWhileRunning: every Problem is kept in the
+// Snapshot from the moment it is recorded, not only after the Task settles.
+func TestProblem_VisibleInSnapshotWhileRunning(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.Close() })
+	task := out.Task("scan")
+	var live evo.TaskSnapshot
+	task.Define(func(context.Context) error {
+		task.Problem("blocking finding")
+		live = task.Snapshot()
+		return nil
+	})
+	_ = out.Finish()
+	if len(live.Problems) != 1 || live.Problems[0].Summary != "blocking finding" {
+		t.Fatalf("a running Task's Snapshot must carry its recorded Problem, got %#v", live.Problems)
+	}
+}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -250,17 +251,16 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 // Problem appends one blocking Problem to the task without resolving it,
 // so a Define callback may accumulate many structured findings: one owning
 // Task retains zero, one, or many Problems instead of a caller-invented
-// Task per finding or one newline-delimited error string. Every
-// accumulated Problem merges into the task's terminal problems when it
-// resolves (mergeAccumulatedProblemsLocked), order preserved, nothing
-// dropped. If the task would otherwise resolve Done (a nil Define return)
-// while it holds a Problem, it resolves Failed instead: a Task that
-// recorded blocking evidence cannot quietly report success. Problem
+// Task per finding or one newline-delimited error string. The Problem is
+// part of the Task from the moment it is recorded (Snapshot, live render,
+// JSON), order preserved, nothing dropped. A Task holding a Problem can
+// never settle success-class: Done, Skipped, or Finish's amnesty for an
+// unresolved Task all settle Failed instead (see honestOutcome). Problem
 // returns t so calls chain: task.Problem(...).Problem(...).
 func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)
 	return t.annotate(func(st *taskState) {
-		st.pendingProblems = append(st.pendingProblems, p)
+		st.problems = append(st.problems, core.StoreProblems([]Problem{p})...)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
@@ -536,12 +536,12 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
 		return t
 	}
-	state, problems = st.promotePendingProblems(state, problems)
+	state = st.honestOutcome(state)
 	if summary != "" {
 		st.summary = txt.Text(summary)
 	}
-	if len(problems) > 0 {
-		st.problems = core.StoreProblems(st.attachEvidenceTail(state, problems))
+	if len(problems) > 0 || len(st.problems) > 0 {
+		st.problems = core.StoreProblems(st.attachEvidenceTail(state, slices.Concat(st.problems, problems)))
 	}
 	t.out.settleLocked(st, state)
 	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, map[string]any{
@@ -552,22 +552,15 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	return t
 }
 
-// promotePendingProblems merges every Problem the Task accumulated before
-// its terminal verb (ZYS-848) ahead of the verb's own, and clears them. A
-// bare Done carrying accumulated Problems becomes Failed: a Task that
-// recorded blocking evidence cannot report success.
-func (st *taskState) promotePendingProblems(state EntityState, problems []Problem) (EntityState, []Problem) {
-	if len(st.pendingProblems) == 0 {
-		return state, problems
+// honestOutcome is the one rule between a Task's blocking evidence and its
+// terminal state: a Task holding any Problem cannot settle success-class,
+// so a Done or Skipped claim over one settles Failed. settleLocked applies
+// it to every path that ends a Task.
+func (st *taskState) honestOutcome(state EntityState) EntityState {
+	if declaresSuccess(state) && len(st.problems) > 0 {
+		return Failed
 	}
-	merged := make([]Problem, 0, len(st.pendingProblems)+len(problems))
-	merged = append(merged, st.pendingProblems...)
-	merged = append(merged, problems...)
-	st.pendingProblems = nil
-	if state == Done {
-		state = Failed
-	}
-	return state, merged
+	return state
 }
 
 // attachEvidenceTail gives a Failed or Blocked row's Problems the capture

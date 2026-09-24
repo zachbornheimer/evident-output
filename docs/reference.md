@@ -103,10 +103,12 @@ task.Define(func(context.Context) error { return nil })
 
 `Problem(summary, opts...)` appends one blocking Problem and returns
 `*TaskHandle` to chain (`task.Problem(...).Problem(...)`); it does not
-resolve the task. If `Define`'s callback returns `nil` while the Task has
-accumulated Problems, the Task resolves
-**Failed**, not Done: accumulated blocking evidence always overrides a
-claimed clean outcome. The Task still resolves exactly once regardless of
+resolve the task. Each Problem is part of the Task as soon as it is
+recorded: `Snapshot`, the live row, and JSON show it while the Task runs.
+A Task holding a Problem never settles Done or Skipped. A `nil` `Define`
+return, a `Skipped` call, or `Finish` settling a Task left unresolved all
+settle it **Failed** instead: accumulated blocking evidence always
+overrides a claimed clean outcome. The Task still resolves exactly once regardless of
 how many Problems it owns.
 
 `Warn(summary, opts...)` takes the same `ProblemOption`s (`Detail`, `Code`,

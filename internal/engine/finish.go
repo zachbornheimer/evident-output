@@ -50,9 +50,10 @@ func (o *Output) Finish() error {
 // settleUnresolvedTasksLocked gives every Task still unresolved at Finish
 // its honest outcome.
 //
-// A task with no problems of its own told an honest, complete story
-// already — the caller just never called a terminal verb — whenever it
-// also carries at least one of: a recorded Effect/File ledger row, a
+// A task told an honest, complete story already — the caller just never
+// called a terminal verb — whenever it carries at least one of: a recorded
+// Problem (it settles Failed: settleLocked's evidence rule turns the Done
+// below into Failed), a recorded Effect/File ledger row, a
 // sealed absolute progress (a completed Progress/Step loop reached its
 // total), recorded taxonomy (Skipped/Kept), or a recorded warning (P2:
 // TaskHandle.Warn never itself resolves the task, so a warned-but-
@@ -67,7 +68,7 @@ func (o *Output) settleUnresolvedTasksLocked() {
 		if core.IsTerminalTask(t.state) {
 			continue
 		}
-		if len(t.problems) == 0 && (o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0) {
+		if len(t.problems) > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0 {
 			o.settleLocked(t, Done)
 			continue
 		}

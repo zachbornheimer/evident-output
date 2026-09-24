@@ -152,6 +152,6 @@ func (o *Output) blockCyclesLocked() bool {
 func (o *Output) blockInCycleLocked(st *taskState, path string) {
 	summary := txt.Text("dependency cycle: " + path)
 	st.summary = summary
-	st.problems = core.StoreProblems([]Problem{{Subject: st.name, Summary: summary}})
+	st.problems = append(st.problems, core.StoreProblems([]Problem{{Subject: st.name, Summary: summary}})...)
 	o.settleLocked(st, Blocked)
 }

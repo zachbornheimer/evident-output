@@ -47,9 +47,10 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 - **`TaskHandle.Problem(summary string, opts ...ProblemOption) *TaskHandle`:**
   a Task can own zero, one, or many blocking `Problem`s before it resolves,
   instead of a caller-invented `Task` per finding or every finding
-  flattened into one `errors.New` string. If the Task would otherwise
-  resolve `Done` (a nil `Define` return) while it
-  accumulated at least one `Problem`, it resolves `Failed` instead.
+  flattened into one `errors.New` string. A Task holding a `Problem`
+  never settles `Done` or `Skipped`: a nil `Define` return, a `Skipped`
+  call, or `Finish` settling it unresolved all settle it `Failed`. The
+  `Problem` shows in `Snapshot` as soon as it is recorded.
 - **`wire.EventProblemRecorded`:** distinct wire event for `Problem`
   accumulation (previously would have collided with `EventWarningRecorded`).
 

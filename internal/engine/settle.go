@@ -13,9 +13,13 @@ package engine
 //   - its collections' tallies move, and every Task parked on it (or on a
 //     collection it just resolved) is placed again (see wakeLocked).
 //
+// It also owns the evidence rule (honestOutcome): a success-class target
+// over a Task holding a Problem settles Failed, whichever path asked.
+//
 // Callers own only what differs between paths: the summary, the Problems,
 // and where the settled row is committed. Callers must already hold o.mu.
 func (o *Output) settleLocked(st *taskState, state EntityState) {
+	state = st.honestOutcome(state)
 	from := stateOutcome(st.state)
 	st.state = state
 	st.phase = ""
