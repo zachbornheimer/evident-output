@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"sort"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
@@ -48,9 +49,19 @@ func (o *Output) heldBackAsNoOpLocked(t TaskSnapshot) bool {
 // insertByLedgerOrder places section after every section whose order is
 // less than or equal to its own, keeping ties in arrival order.
 func insertByLedgerOrder(sections []*ledgerSection, section *ledgerSection) []*ledgerSection {
-	at := slices.IndexFunc(sections, func(existing *ledgerSection) bool { return existing.order() > section.order() })
-	if at < 0 {
-		return append(sections, section)
+	return insertAfterOrder(sections, section, (*ledgerSection).order)
+}
+
+// insertAfterOrder inserts item into items, which are sorted by order,
+// after every element whose order is less than or equal to item's.
+// Sections mostly open in declaration order, so the common case is an
+// append checked against the last element; otherwise a binary search
+// finds the slot.
+func insertAfterOrder[T any](items []T, item T, order func(T) int) []T {
+	key := order(item)
+	if len(items) == 0 || order(items[len(items)-1]) <= key {
+		return append(items, item)
 	}
-	return slices.Insert(sections, at, section)
+	at := sort.Search(len(items), func(i int) bool { return order(items[i]) > key })
+	return slices.Insert(items, at, item)
 }
