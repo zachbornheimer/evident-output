@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
@@ -89,15 +88,19 @@ func callerInterruption(err error) interruption {
 	return interruptionByCaller
 }
 
-// scopeCaller is the context this run's Tasks descend from. A CLI run
-// hands Tasks the caller's ctx unchanged (the 1.1 contract: its end fails
-// the running Define). An embedded run hands them a callerScope, so the
-// caller's end reaches Tasks only through interrupt (DEC-CANCEL-002/005).
+// scopeCaller is the context this run's Tasks descend from. A run that did
+// not opt into Embedded hands Tasks the caller's ctx unchanged (the 1.1
+// contract: its end fails the running Define). An Embedded run hands them
+// the caller's values without its cancellation or its deadline: both reach
+// the run only through interrupt (DEC-CANCEL-002/006). A Task that saw the
+// deadline could time itself out (as net.Dialer does) and fail its row
+// before the interrupt marks it cancelled. context.Cause on a Task's ctx
+// still reports context.DeadlineExceeded when the deadline stopped the run.
 func (o *Output) scopeCaller(ctx context.Context) context.Context {
 	if !o.cfg.embedded {
 		return ctx
 	}
-	return callerScope{value: ctx.Value}
+	return context.WithoutCancel(ctx)
 }
 
 // callerWatch turns the end of an embedded run's caller context into the
@@ -140,28 +143,6 @@ func (w callerWatch) interruptIfEnded() bool {
 
 // release stops watching: a run that already concluded is not interrupted.
 func (w callerWatch) release() { w.stop() }
-
-// callerScope exposes the caller's values to Define/Verify, and neither
-// its cancellation nor its deadline. Both reach the run only through
-// interrupt: a Task that saw the deadline could time itself out (as
-// net.Dialer does) and fail its row before the interrupt marks it
-// cancelled (DEC-CANCEL-006). context.Cause on a Task's ctx still reports
-// context.DeadlineExceeded when the deadline is why the run stopped.
-type callerScope struct {
-	value func(key any) any
-}
-
-// Deadline is unset; see callerScope.
-func (callerScope) Deadline() (deadline time.Time, ok bool) { return }
-
-// Done is nil: the caller's cancellation never ends the scope directly.
-func (callerScope) Done() <-chan struct{} { return nil }
-
-// Err is always nil for the same reason.
-func (callerScope) Err() error { return nil }
-
-// Value reads through to the caller's values.
-func (s callerScope) Value(key any) any { return s.value(key) }
 
 // endRunCallback records that the run callback returned. If an embedded
 // run's caller ctx was still live at that moment, the run is settling:

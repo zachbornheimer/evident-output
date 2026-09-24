@@ -19,16 +19,45 @@ func recordSignalRegistration(t *testing.T) (registered func() bool) {
 	return func() bool { return calls > 0 }
 }
 
-// Spec §53 (ZYS-946): an embedded FormatExternal Output belongs to a host
-// (an HTTP server) that owns process signals — SIGTERM there means
-// graceful shutdown, which must let in-flight requests finish. Cancellation
-// reaches the run only through the caller's context.
-func TestRun_ExternalProjectionLeavesProcessSignalsToHost(t *testing.T) {
-	registered := recordSignalRegistration(t)
-	out := Init(Config{Isolated: true, Format: FormatExternal, Stdout: io.Discard, Stderr: io.Discard})
-	out.Run(context.Background(), func(context.Context) error { return nil })
-	if registered() {
-		t.Fatal("a FormatExternal run registered SIGINT/SIGTERM handlers; the embedding host owns process signals")
+// Spec §53 (ZYS-946): an Embedded Output belongs to a host (an HTTP
+// server) that owns process signals — SIGTERM there means graceful
+// shutdown, which must let in-flight requests finish. Cancellation reaches
+// the run only through the caller's context. Both construction paths honor
+// the opt-in, as they do Isolated.
+func TestRun_EmbeddedLeavesProcessSignalsToHost(t *testing.T) {
+	configs := map[string]Config{
+		"config":  {Isolated: true, Embedded: true, Format: FormatExternal, Stdout: io.Discard, Stderr: io.Discard},
+		"options": {Isolated: true, Embedded: true, Options: []Option{ExternalProjection(), To(io.Discard)}},
+	}
+	for name, cfg := range configs {
+		t.Run(name, func(t *testing.T) {
+			registered := recordSignalRegistration(t)
+			out := Init(cfg)
+			out.Run(context.Background(), func(context.Context) error { return nil })
+			if registered() {
+				t.Fatal("an Embedded run registered SIGINT/SIGTERM handlers; the embedding host owns process signals")
+			}
+		})
+	}
+}
+
+// DEC-CANCEL-005: FormatExternal alone is a rendering choice. A 1.1 host
+// that renders Snapshot() itself and never opted in keeps evo's ^C
+// handling, on both construction paths.
+func TestRun_FormatExternalWithoutEmbeddedStillOwnsProcessSignals(t *testing.T) {
+	configs := map[string]Config{
+		"config":  {Isolated: true, Format: FormatExternal, Stdout: io.Discard, Stderr: io.Discard},
+		"options": {Isolated: true, Options: []Option{ExternalProjection(), To(io.Discard)}},
+	}
+	for name, cfg := range configs {
+		t.Run(name, func(t *testing.T) {
+			registered := recordSignalRegistration(t)
+			out := Init(cfg)
+			out.Run(context.Background(), func(context.Context) error { return nil })
+			if !registered() {
+				t.Fatal("a FormatExternal run that did not opt into Embedded stopped handling SIGINT/SIGTERM (1.1 contract)")
+			}
+		})
 	}
 }
 

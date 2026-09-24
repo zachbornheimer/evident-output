@@ -1,11 +1,12 @@
 package evo_test
 
-// Scope of the 1.2 caller-context change (DEC-CANCEL-005/006): only an
-// embedded FormatExternal run treats the end of its caller's ctx as an
-// interrupt. Every other format keeps the 1.1 contract, so a minor release
-// changes no existing caller's exit code.
+// Scope of the 1.2 caller-context change (DEC-CANCEL-005/006): only a run
+// whose Config opts in with Embedded treats the end of its caller's ctx as
+// an interrupt. Every other run, FormatExternal included, keeps the 1.1
+// contract, so a minor release changes no existing caller's exit code.
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -18,13 +19,40 @@ import (
 // callerBudget is a caller deadline short enough to end mid-Define.
 const callerBudget = 20 * time.Millisecond
 
-// A human-format run whose ctx ends keeps the 1.1 verdict: the Define sees
-// the caller's cancellation and the run concludes failed (exit 2), never
-// cancelled (130).
-func TestOutputRun_NonExternalCallerCancelKeeps11Verdict(t *testing.T) {
+// A run that did not opt in keeps the 1.1 verdict when its ctx ends, on
+// every format: the Define sees the caller's cancellation and the run
+// concludes failed (exit 2), never cancelled (130). FormatExternal is a
+// rendering choice, not a lifecycle one (DEC-CANCEL-005).
+func TestOutputRun_CallerCancelWithoutEmbeddedKeeps11Verdict(t *testing.T) {
+	formats := map[string]evo.Format{"human": evo.FormatHuman, "external": evo.FormatExternal}
+	for name, format := range formats {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			out := evo.Init(evo.Config{Isolated: true, Plain: true, Format: format, Stdout: io.Discard, Stderr: io.Discard})
+			result := out.Run(ctx, func(context.Context) error {
+				out.Task("wait").Define(func(taskCtx context.Context) error {
+					cancel()
+					<-taskCtx.Done()
+					return taskCtx.Err()
+				})
+				return nil
+			})
+			if result.Conclusion.State != evo.StateFailed || result.ExitCode() != evo.ExitFailed {
+				t.Fatalf("conclusion = %s/%d, want %s/%d (1.1 contract)", result.Conclusion.State, result.ExitCode(), evo.StateFailed, evo.ExitFailed)
+			}
+		})
+	}
+}
+
+// Embedded is the whole opt-in, independent of Format: a host that
+// streams the FormatJSON document itself gets the same lifecycle as a
+// FormatExternal one, and the document names the caller as the cause.
+func TestOutputRun_EmbeddedOptsAnyFormatIntoCallerCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: io.Discard, Stderr: io.Discard})
+	var stdout bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Embedded: true, Format: evo.FormatJSON, Stdout: &stdout, Stderr: io.Discard})
 	result := out.Run(ctx, func(context.Context) error {
 		out.Task("wait").Define(func(taskCtx context.Context) error {
 			cancel()
@@ -33,8 +61,11 @@ func TestOutputRun_NonExternalCallerCancelKeeps11Verdict(t *testing.T) {
 		})
 		return nil
 	})
-	if result.Conclusion.State != evo.StateFailed || result.ExitCode() != evo.ExitFailed {
-		t.Fatalf("conclusion = %s/%d, want %s/%d (1.1 contract)", result.Conclusion.State, result.ExitCode(), evo.StateFailed, evo.ExitFailed)
+	if result.Conclusion.State != evo.StateCancelled || result.ExitCode() != evo.ExitCancelled {
+		t.Fatalf("conclusion = %s/%d, want %s/%d", result.Conclusion.State, result.ExitCode(), evo.StateCancelled, evo.ExitCancelled)
+	}
+	if doc := decodeRunDoc(t, stdout.Bytes()); doc.Cancellation == nil || doc.Cancellation.Cause != "caller" {
+		t.Fatalf("cancellation = %+v, want cause caller\n%s", doc.Cancellation, stdout.Bytes())
 	}
 }
 

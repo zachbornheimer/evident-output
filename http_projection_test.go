@@ -1,7 +1,7 @@
 package evo_test
 
 // Spec §53 (ZYS-946): CLI and HTTP use the same model. An embedder builds
-// one Isolated, FormatExternal Output per request, drives it with
+// one Isolated, Embedded, FormatExternal Output per request, drives it with
 // Output.Run(r.Context(), ...), and serializes the Result with WriteJSON.
 // These tests pin the lifecycle, isolation, and error semantics that
 // contract depends on.
@@ -60,6 +60,7 @@ func (d runDoc) taskState(name string) string {
 func embedderOutput() *evo.Output {
 	return evo.Init(evo.Config{
 		Isolated: true,
+		Embedded: true,
 		Format:   evo.FormatExternal,
 		Stdout:   io.Discard,
 		Stderr:   io.Discard,

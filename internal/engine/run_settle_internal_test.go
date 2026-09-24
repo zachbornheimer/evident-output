@@ -13,7 +13,7 @@ var reasonAlreadyCurrent = Reason("already current")
 // and the run reading its Conclusion.
 func settledRun(t *testing.T, callerEndedAtReturn bool) *Output {
 	t.Helper()
-	out := Init(Config{Isolated: true, Format: FormatExternal, Stdout: io.Discard, Stderr: io.Discard})
+	out := Init(Config{Isolated: true, Embedded: true, Format: FormatExternal, Stdout: io.Discard, Stderr: io.Discard})
 	out.beginRunContext(context.Background())
 	out.Task("install agent").Kept(reasonAlreadyCurrent)
 	out.endRunCallback(func() bool { return callerEndedAtReturn })

@@ -501,7 +501,7 @@ func newOutput(subject string, options ...Option) *Output {
 	runCtx, cancelRun := context.WithCancelCause(context.Background())
 	o := &Output{
 		cfg:        cfg,
-		outputID:   newRunID(),
+		outputID:   cfg.issueRunID(),
 		idSeq:      runIDSeqSlot,
 		taskByRef:  make(map[string]*taskState),
 		tasksByRef: make(map[string]*tasksState),

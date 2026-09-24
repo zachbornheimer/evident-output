@@ -20,7 +20,7 @@ import (
 //
 // A nil ctx runs as context.Background(). What the end of ctx means
 // depends on the Output (DEC-CANCEL-005):
-//   - an embedded (FormatExternal) Output treats ctx as its request
+//   - an Embedded (Config.Embedded) Output treats ctx as its request
 //     lifecycle. Tasks never see ctx's cancellation or deadline directly;
 //     when ctx ends, the run is interrupted exactly as ^C interrupts a CLI
 //     (running Tasks cancelled, queued Tasks not_started). Such a run

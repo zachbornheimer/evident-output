@@ -251,9 +251,31 @@ type Config struct {
 	// applies identically whether or not Options is also set.
 	Isolated bool
 
+	// Embedded says a host drives this Output's run lifecycle (spec §53),
+	// as an HTTP server does with one Output per request. evo then
+	// registers no SIGINT/SIGTERM handler (the host owns process signals),
+	// and the end of Run's ctx interrupts the run like a ^C: running Tasks
+	// are cancelled, queued Tasks never start, and the run concludes
+	// cancelled (exit 130), naming "caller" or "deadline" as the cause.
+	// Tasks see the caller's values but neither its cancellation nor its
+	// deadline. Without Embedded, Run's ctx reaches Tasks unchanged and its
+	// end fails the running Define, as in 1.1. Independent of Format, and
+	// honored whether or not Options is set.
+	Embedded bool
+
+	// RunID pins the run's identity: "run_id" on the wire, Conclusion.RunID,
+	// and Snapshot().OutputID. Empty (the default) draws a random identity,
+	// unique per run. Set it where the identity must be reproducible — a
+	// golden test, alongside Clock — or where the host already has one,
+	// such as a request id; a consumer that correlates on run_id then
+	// relies on the host to keep it unique. Honored whether or not Options
+	// is set.
+	RunID string
+
 	// Options is the advanced, raw Option escape hatch for tests and
 	// specialized embedding. When set, every other Config field except
-	// Title, DryRun, Preview, and Subject is ignored.
+	// Title, DryRun, Preview, Subject, Isolated, Embedded, and RunID is
+	// ignored.
 	Options []Option
 
 	// MaxConcurrency is the scheduler ceiling. Zero means GOMAXPROCS.
@@ -572,6 +594,16 @@ func configToOptions(c Config) []Option {
 	if c.FailedExitCode != 0 {
 		opts = append(opts, withFailedExitCode(c.FailedExitCode))
 	}
+	opts = append(opts, additiveOptions(c)...)
+	opts = append(opts, Glyphs(c.Glyphs))
+	return opts
+}
+
+// additiveOptions are the Config fields both construction paths honor,
+// because none of them can conflict with a caller's own Options: the
+// dry-run/preview tense, the lifecycle owner, and the run identity.
+func additiveOptions(c Config) []Option {
+	var opts []Option
 	if c.DryRun || c.Preview {
 		opts = append(opts, dryRun())
 		if c.Subject != "" {
@@ -581,7 +613,12 @@ func configToOptions(c Config) []Option {
 	if c.Preview {
 		opts = append(opts, preview())
 	}
-	opts = append(opts, Glyphs(c.Glyphs))
+	if c.Embedded {
+		opts = append(opts, embedded())
+	}
+	if c.RunID != "" {
+		opts = append(opts, withRunID(c.RunID))
+	}
 	return opts
 }
 

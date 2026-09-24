@@ -36,7 +36,7 @@ type processSignals struct {
 }
 
 // subscribeProcessSignals registers this run for SIGINT/SIGTERM unless the
-// Output is embedded (FormatExternal): an HTTP server's SIGTERM means
+// Output is Embedded (Config.Embedded): an HTTP server's SIGTERM means
 // graceful shutdown, which must let in-flight requests finish (spec §53).
 func (o *Output) subscribeProcessSignals() processSignals {
 	if o.cfg.embedded {

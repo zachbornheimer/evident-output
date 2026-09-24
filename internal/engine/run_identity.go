@@ -11,8 +11,15 @@ const runIDPrefix = "run_"
 // (the first Task stays "task_2") now that run_id is random.
 const runIDSeqSlot = 1
 
-// newRunID is the facade every Output draws its run identity from. The
-// identity is random, not a per-process counter: concurrent embedded runs
-// (spec §53, one Output per HTTP request) and runs from separate processes
-// must never share a run_id a machine consumer correlates on.
-var newRunID = func() string { return runIDPrefix + rand.Text() }
+// issueRunID is the run's identity: the one Config.RunID pinned, or a
+// fresh random one. The default is random, not a per-process counter:
+// concurrent embedded runs (spec §53, one Output per HTTP request) and runs
+// from separate processes must never share a run_id a machine consumer
+// correlates on. A golden test pins it through Config.RunID, the way it
+// pins time through Config.Clock.
+func (c *config) issueRunID() string {
+	if c.runID != "" {
+		return c.runID
+	}
+	return runIDPrefix + rand.Text()
+}

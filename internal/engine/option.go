@@ -16,10 +16,12 @@ type config struct {
 	diagnostic io.Writer
 	result     io.Writer // domain payload (FormatData); never used for presentation
 	plain      bool
-	// embedded marks an Output a host drives (external projection, spec
-	// §53): the host owns SIGINT/SIGTERM, and the end of Run's ctx is the
-	// request ending — an interrupt, not a failure.
-	embedded          bool
+	// embedded mirrors Config.Embedded (spec §53): the host owns
+	// SIGINT/SIGTERM, and the end of Run's ctx is the request ending — an
+	// interrupt, not a failure.
+	embedded bool
+	// runID mirrors Config.RunID; empty draws a random identity.
+	runID             string
 	projection        Projection
 	noColor           bool
 	width             int
@@ -213,6 +215,16 @@ func dryRunHeader(text string) Option {
 // plumbing only.
 func preview() Option {
 	return optionFunc(func(c *config) { c.preview = true })
+}
+
+// embedded mirrors Config.Embedded: a host owns this run's lifecycle.
+func embedded() Option {
+	return optionFunc(func(c *config) { c.embedded = true })
+}
+
+// withRunID mirrors Config.RunID; empty keeps the random identity.
+func withRunID(id string) Option {
+	return optionFunc(func(c *config) { c.runID = id })
 }
 
 // Stdin injects the reader Confirm reads answers from (facade rule — no

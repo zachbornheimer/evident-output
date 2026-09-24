@@ -12,7 +12,7 @@ import (
 
 // runHandler serves one launch-agent run per request (spec §53).
 //
-// Lifecycle: each request gets its own Isolated FormatExternal Output, so
+// Lifecycle: each request gets its own Isolated, Embedded Output, so
 // concurrent requests share no runtime state and the server, not Evo, owns
 // process signals. The request context — bounded by budget — is the run's
 // only cancellation: a disconnected client or an exhausted budget concludes
@@ -45,6 +45,7 @@ func (h runHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Title:    "launch agent",
 		StateDir: h.stateDir,
 		Isolated: true,
+		Embedded: true,
 		Format:   evo.FormatExternal,
 		Stdout:   io.Discard,
 		Stderr:   io.Discard,
