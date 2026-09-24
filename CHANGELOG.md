@@ -20,8 +20,9 @@ and `examples/launch-agent-http`.
   `deadline exceeded`. Tasks no longer see that `ctx`'s cancellation or
   deadline directly; `context.Cause` on a Task's ctx reports
   `context.DeadlineExceeded` when the deadline stopped the run. Every other
-  format keeps the 1.1 behavior exactly (the end of `ctx` fails the running
-  Define, exit 2), so no existing CLI caller changes in this minor release.
+  format keeps the 1.1 behavior (the end of `ctx` fails the running
+  Define, exit 2); the changes below that reach every format are listed in
+  the migration guide.
 - **A signal arriving after the run callback returns still stops the run.**
   SIGINT/SIGTERM were watched only until `run` returned, so in the ordinary
   shape — declare Tasks, return, let Define work execute during Finish — a
@@ -30,12 +31,20 @@ and `examples/launch-agent-http`.
   graceful shutdown no longer cancels every in-flight request. Other
   formats still own ^C.
 - **`run_id` is unique per run.** It was `out_1` for every run in every
-  process; it is now `run_` plus a random suffix.
+  process; it is now `run_` plus a random suffix. Task, Group, and message
+  ids keep their 1.1 numbering (the first Task is still `task_2`).
 - **`WriteJSON` and `FormatJSON` share one writer,** so their documents are
   byte-identical for the same run. `WriteJSON` errors now name the failed
-  step and wrap the writer's error.
-- **A caller cancel that lands after every Task finished changes nothing.**
-  The completed run keeps its own verdict instead of concluding cancelled.
+  step and wrap the writer's error; a `FormatJSON` write failure now
+  matches both `ErrRenderer` and the writer's error under `errors.Is`.
+- **A run queued on the state lock stays interruptible.** A run waiting
+  for another run's exclusive manifest lock (spec §11.3) ignored ^C and
+  its caller's deadline until the other run finished; it now stops at
+  once.
+- **`FormatExternal`: a caller cancel that lands after every Task finished
+  changes nothing.** The completed run keeps its own verdict instead of
+  concluding cancelled. A ^C on any other format still cancels the run at
+  any point before it concludes.
 - **MCP API-062:** package-level `evo.Task`/`Group`/`Sequence`/`Fact`/
   `Warn`/`Print*`/`Confirm` inside an Isolated Output's `Run` callback
   declare on the package default, not the Output being run. Fires for

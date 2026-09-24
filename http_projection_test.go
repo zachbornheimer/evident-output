@@ -66,6 +66,9 @@ func embedderOutput() *evo.Output {
 // One runtime truth: the document FormatJSON writes to Stdout at the end of
 // a run and the document WriteJSON produces from that same run's Result are
 // the same bytes — the HTTP projection cannot drift from the CLI one.
+// Both already matched in 1.1; this guards the shared writer against
+// future drift. TestFormatJSON_WriterFailureIsRendererErrorAndKeepsCause
+// pins what sharing it changed.
 func TestWriteJSON_MatchesFormatJSONDocumentForSameRun(t *testing.T) {
 	var stdout bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Format: evo.FormatJSON, Stdout: &stdout, Stderr: io.Discard})
@@ -286,5 +289,18 @@ func TestRunDocument_TaskIDsKeepTheirNumbering(t *testing.T) {
 	doc := decodeRunDoc(t, stdout.Bytes())
 	if len(doc.Data.Tasks) != 1 || doc.Data.Tasks[0].ID != firstTaskID {
 		t.Fatalf("tasks = %+v, want one Task with id %q", doc.Data.Tasks, firstTaskID)
+	}
+}
+
+// FormatJSON and WriteJSON share one writer, so FormatJSON's end-of-run
+// write failure is as classifiable as WriteJSON's: it is a renderer
+// failure (errors.Is ErrRenderer) and still the transport's own error.
+func TestFormatJSON_WriterFailureIsRendererErrorAndKeepsCause(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Format: evo.FormatJSON, Stdout: failingWriter{}, Stderr: io.Discard})
+	out.Task("register").Define(func(context.Context) error { return nil })
+
+	err := out.Finish()
+	if !errors.Is(err, evo.ErrRenderer) || !errors.Is(err, errClientGone) {
+		t.Fatalf("Finish error = %v, want errors.Is both evo.ErrRenderer and the writer's error", err)
 	}
 }
