@@ -38,14 +38,25 @@
           "definition_ms": 0,
           "evidence_ms": 0,
           "provenance_ms": 0,
-          "tracked_state_ms": 0
+          "tracked_state_ms": 0,
+          "definition_entries": 0,
+          "evidence_entries": 0,
+          "provenance_entries": 0,
+          "tracked_state_entries": 0
         },
         "verification": [],
         "tracked_resources": [],
         "basis": [],
         "facts": [],
         "problems": [],
-        "operations": []
+        "operations": [],
+        "operation_counts": {
+          "current": 0,
+          "executed": 0,
+          "basis_drift": 0,
+          "changed": 0,
+          "unchanged": 0
+        }
       }
     ],
     "facts": [],

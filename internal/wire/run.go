@@ -157,6 +157,11 @@ type TimingDoc struct {
 	EvidenceMs           int64 `json:"evidence_ms"`
 	ProvenanceMs         int64 `json:"provenance_ms"`
 	TrackedStateMs       int64 `json:"tracked_state_ms"`
+
+	DefinitionEntries   int `json:"definition_entries"`
+	EvidenceEntries     int `json:"evidence_entries"`
+	ProvenanceEntries   int `json:"provenance_entries"`
+	TrackedStateEntries int `json:"tracked_state_entries"`
 }
 
 // VerificationDoc is one diagnostic sub-result (spec §36).
@@ -218,6 +223,9 @@ type TaskDoc struct {
 	Facts              []FactDoc            `json:"facts"`
 	Problems           []ProblemDoc         `json:"problems"`
 	Operations         []OperationDoc       `json:"operations"`
+	// OperationCounts is this Task's share of data.metrics.operations, so
+	// a consumer can find the Task behind a low manifest hit rate.
+	OperationCounts OperationCountDoc `json:"operation_counts"`
 }
 
 // FactDoc is a wire-format Fact annotation (spec §36/§39's "Facts" data).
@@ -393,6 +401,7 @@ func toTaskDoc(parentID string, t core.TaskSnapshot) TaskDoc {
 		Facts:              toFactDocs(t.Facts),
 		Problems:           toProblemDocs(t.Problems),
 		Operations:         []OperationDoc{},
+		OperationCounts:    toOperationCountDoc(t.Operations),
 	}
 	return td
 }

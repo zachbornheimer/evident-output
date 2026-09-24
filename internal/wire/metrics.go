@@ -103,8 +103,8 @@ func toRatesDoc(m core.RunMetrics) RatesDoc {
 	}
 }
 
-// toTimingDoc projects one Task's lifecycle spans and phase times (spec
-// §36 "timing", §39).
+// toTimingDoc projects one Task's lifecycle spans and phase times and
+// entries (spec §36 "timing", §39).
 func toTimingDoc(t core.TaskTiming) TimingDoc {
 	return TimingDoc{
 		QueuedMs:             ms(t.Queued()),
@@ -117,6 +117,10 @@ func toTimingDoc(t core.TaskTiming) TimingDoc {
 		EvidenceMs:           ms(t.Evidence.Duration),
 		ProvenanceMs:         ms(t.Provenance.Duration),
 		TrackedStateMs:       ms(t.TrackedState.Duration),
+		DefinitionEntries:    t.Definition.Entries,
+		EvidenceEntries:      t.Evidence.Entries,
+		ProvenanceEntries:    t.Provenance.Entries,
+		TrackedStateEntries:  t.TrackedState.Entries,
 	}
 }
 

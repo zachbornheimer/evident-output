@@ -171,7 +171,11 @@
         "definition_ms",
         "evidence_ms",
         "provenance_ms",
-        "tracked_state_ms"
+        "tracked_state_ms",
+        "definition_entries",
+        "evidence_entries",
+        "provenance_entries",
+        "tracked_state_entries"
       ],
       "properties": {
         "queued_ms": { "type": "integer" },
@@ -183,7 +187,11 @@
         "definition_ms": { "type": "integer" },
         "evidence_ms": { "type": "integer" },
         "provenance_ms": { "type": "integer" },
-        "tracked_state_ms": { "type": "integer" }
+        "tracked_state_ms": { "type": "integer" },
+        "definition_entries": { "type": "integer" },
+        "evidence_entries": { "type": "integer" },
+        "provenance_entries": { "type": "integer" },
+        "tracked_state_entries": { "type": "integer" }
       }
     },
     "verification": {
@@ -282,7 +290,8 @@
         "basis",
         "facts",
         "problems",
-        "operations"
+        "operations",
+        "operation_counts"
       ],
       "properties": {
         "id": { "type": "string" },
@@ -300,7 +309,8 @@
         "basis": { "type": "array", "items": { "$ref": "#/$defs/basis" } },
         "facts": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
         "problems": { "type": "array", "items": { "$ref": "#/$defs/problem" } },
-        "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } }
+        "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } },
+        "operation_counts": { "$ref": "#/$defs/operationCounts" }
       }
     }
   }

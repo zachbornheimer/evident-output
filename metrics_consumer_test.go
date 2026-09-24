@@ -144,6 +144,7 @@ func TestMetrics_FinalJSONCarriesTaskTimingAndRunMetrics(t *testing.T) {
 		"queued_ms": 2000, "running_ms": 1000, "total_ms": 3000, "awaiting_definition_ms": 0,
 		"dependency_wait_ms": 2000, "scheduler_wait_ms": 0, "definition_ms": 1000,
 		"evidence_ms": 0, "provenance_ms": 0, "tracked_state_ms": 0,
+		"definition_entries": 1, "evidence_entries": 0, "provenance_entries": 0, "tracked_state_entries": 0,
 	}
 	for _, task := range doc.Data.Tasks {
 		if task.Name == "fetch" && !mapsEqual(task.Timing, wantFetch) {

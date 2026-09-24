@@ -3,7 +3,9 @@ package evo_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,8 +44,18 @@ func (ws provenanceWorkspace) editSource(t *testing.T, text string) {
 	}
 }
 
+// provenanceRun is one reconcile: its finished Output, the config Task's
+// snapshot, and the Verbose plain rendering.
+type provenanceRun struct {
+	out      *evo.Output
+	config   evo.TaskSnapshot
+	rendered string
+}
+
+func (r provenanceRun) metrics() evo.RunMetrics { return r.out.Conclusion().Metrics() }
+
 // run reconciles both files once, rendering Verbose plain output.
-func (ws provenanceWorkspace) run(t *testing.T) (evo.RunMetrics, evo.TaskSnapshot, string) {
+func (ws provenanceWorkspace) run(t *testing.T) provenanceRun {
 	t.Helper()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -63,24 +75,25 @@ func (ws provenanceWorkspace) run(t *testing.T) (evo.RunMetrics, evo.TaskSnapsho
 	if err := out.Close(); err != nil {
 		t.Fatal(err)
 	}
-	return out.Conclusion().Metrics(), config.Snapshot(), buf.String()
+	return provenanceRun{out: out, config: config.Snapshot(), rendered: buf.String()}
 }
 
 func TestMetrics_TrackedOperationsTallyManifestHitsDriftAndPropagation(t *testing.T) {
 	t.Parallel()
 	ws := newProvenanceWorkspace(t)
 
-	first, _, _ := ws.run(t)
+	first := ws.run(t).metrics()
 	if want := (evo.OperationCounts{Executed: 2, Changed: 2}); first.Operations != want {
 		t.Fatalf("first run Operations = %+v, want %+v", first.Operations, want)
 	}
-	second, _, _ := ws.run(t)
+	second := ws.run(t).metrics()
 	if second.Operations != (evo.OperationCounts{Current: 2}) || second.Operations.HitRate() != 1 {
 		t.Fatalf("second run Operations = %+v, want both current (hit rate 1)", second.Operations)
 	}
 
 	ws.editSource(t, "v2")
-	third, config, rendered := ws.run(t)
+	run := ws.run(t)
+	third, config, rendered := run.metrics(), run.config, run.rendered
 	want := evo.OperationCounts{Current: 1, Executed: 1, BasisDrift: 1, Unchanged: 1}
 	if third.Operations != want {
 		t.Fatalf("third run Operations = %+v, want %+v", third.Operations, want)
@@ -105,5 +118,43 @@ func TestMetrics_TrackedOperationsTallyManifestHitsDriftAndPropagation(t *testin
 		if !strings.Contains(rendered, clause) {
 			t.Errorf("verbose timing line lacks %q:\n%s", clause, rendered)
 		}
+	}
+}
+
+// A JSON consumer finds which Task drove a low manifest hit rate from each
+// Task's own operation counts and phase entries, without the Go API.
+func TestMetrics_FinalJSONAttributesOperationsAndPhaseEntriesToEachTask(t *testing.T) {
+	t.Parallel()
+	ws := newProvenanceWorkspace(t)
+	ws.run(t)
+	ws.editSource(t, "v2")
+	run := ws.run(t)
+
+	var doc struct {
+		Data struct {
+			Tasks []struct {
+				Name            string           `json:"name"`
+				OperationCounts map[string]int   `json:"operation_counts"`
+				Timing          map[string]int64 `json:"timing"`
+			} `json:"tasks"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(machineDocument(t, run.out)), &doc); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]map[string]int{
+		"config": {"current": 0, "executed": 1, "basis_drift": 1, "changed": 0, "unchanged": 1},
+		"readme": {"current": 1, "executed": 0, "basis_drift": 0, "changed": 0, "unchanged": 0},
+	}
+	for _, task := range doc.Data.Tasks {
+		if !maps.Equal(task.OperationCounts, want[task.Name]) {
+			t.Errorf("%s operation_counts = %v, want %v", task.Name, task.OperationCounts, want[task.Name])
+		}
+		if got := task.Timing["definition_entries"]; got != 1 {
+			t.Errorf("%s timing.definition_entries = %d, want 1", task.Name, got)
+		}
+	}
+	if got, want := doc.Data.Tasks[0].Timing["tracked_state_entries"], int64(run.config.Timing.TrackedState.Entries); got != want {
+		t.Errorf("config timing.tracked_state_entries = %d, want %d (the Go snapshot's count)", got, want)
 	}
 }

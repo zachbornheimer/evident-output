@@ -119,6 +119,13 @@ func runFixtures() map[string]core.Result {
 						Before: core.EvidencePhase{Evaluated: false},
 						After:  core.EvidencePhase{Evaluated: true, Satisfied: true, Source: "operations"},
 					},
+					// A Basis edit forced a rerun that regenerated identical output.
+					Timing: core.TaskTiming{
+						Definition:   core.PhaseTime{Entries: 1, Duration: 40 * time.Millisecond},
+						Provenance:   core.PhaseTime{Entries: 2, Duration: 12 * time.Millisecond},
+						TrackedState: core.PhaseTime{Entries: 1, Duration: 3 * time.Millisecond},
+					},
+					Operations: core.OperationCounts{Executed: 1, BasisDrift: 1, Unchanged: 1},
 				}, core.TaskInternals{}),
 			}
 		})},
