@@ -5,7 +5,7 @@ package rules
 type Rule struct {
 	ID              string   `json:"id"`
 	Category        string   `json:"category"`
-	Severity        string   `json:"severity"`
+	Severity        Severity `json:"severity"`
 	Invariant       string   `json:"invariant"`
 	Why             string   `json:"why"`
 	BadCode         string   `json:"bad_code"`
@@ -17,9 +17,15 @@ type Rule struct {
 	RelatedGuidance []string `json:"related_guidance,omitempty"`
 	VerificationIDs []string `json:"verification_ids,omitempty"`
 	Since           string   `json:"since"` // first version (MCP-028)
-	Deprecated      bool     `json:"deprecated"`
-	Replacement     string   `json:"replacement,omitempty"`
-	Certainty       string   `json:"certainty,omitempty"` // deterministic | heuristic
+	// MinDialect is the oldest evident-output release whose API can apply
+	// this rule's GoodCode and Remediation; empty means any. Review never
+	// reports the rule for an older desired_version, and every finding of
+	// it carries this as RequiredVersion. It is stated here once, never on
+	// a detector.
+	MinDialect  string `json:"min_dialect,omitempty"`
+	Deprecated  bool   `json:"deprecated"`
+	Replacement string `json:"replacement,omitempty"`
+	Certainty   string `json:"certainty,omitempty"` // deterministic | heuristic
 	// Detection is "guidance" when no cheap, honest static detector exists
 	// for this rule — agent/review never emits this ID, and the catalog/
 	// docs teach it by example only. Empty means a detector may exist;
@@ -61,7 +67,7 @@ func coreRules() []Rule {
 		{
 			ID:        "API-006",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "explicit Start is optional",
 			Why:       "Doing/Progress/Define already activate the task; Start is redundant noise for agents and readers.",
 			BadCode: `t := out.Task("scan")
@@ -79,7 +85,7 @@ t.Doing("walking")`,
 		{
 			ID:        "API-026",
 			Category:  "API",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "caller-invented RunAll/Map/Retry/Parallel/Timeout are forbidden on evo receivers; Group/Sequence/Define/After are not (Group.Each/Sequence.Each were removed in 1.0 — one named Task per item is the current shape)",
 			Why:       "Evo owns scheduling through Group, Sequence, Define, and After. Callers must not invent RunAll/Map/Retry/Parallel/Timeout on evo receivers. Substring detection false-positives on strings.Map; review uses AST on evo receivers only.",
 			BadCode: `out.Group("jobs").Map(func() {})
@@ -98,7 +104,7 @@ for _, path := range paths {
 		{
 			ID:        "API-027",
 			Category:  "API",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "Task cannot contain children; Group/Sequence have no leaf lifecycle",
 			Why:       "Collection state is derived from children; calling Done/Fail on Group/Sequence invents false authority.",
 			BadCode: `g := out.Group("deps")
@@ -115,7 +121,7 @@ g.Task("b").Define(installB)`,
 		{
 			ID:        "STREAM-003",
 			Category:  "STREAM",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "progress must not contaminate structured stdout",
 			Why:       "fmt.Print during live UI corrupts managed streams and breaks machine consumers.",
 			BadCode: `out := evo.Init(evo.Config{})
@@ -135,7 +141,7 @@ out.Printf("progress %d\n", n)
 		{
 			ID:        "STREAM-004",
 			Category:  "STREAM",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "one task wires subprocess capture through Writer, not a hand-rolled Evidence() pair",
 			Why: "Task.Writer tees cmd.Stdout/cmd.Stderr into the live doing-text and the evidence ring. Wiring a separate Evidence handle by " +
 				"hand on the same task is easy to get half-right — evidence for the rule: four hand-rolled subprocess " +
@@ -152,7 +158,7 @@ cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
   return task.Failf("build failed: %w", err)
 }`,
-			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer(); do not call unexported Task.Run or Evidence from application code",
+			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer() (Task.Run was removed in 1.0); do not call Evidence from application code",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"STREAM-004"},
 			Since:           "0.2.17",
@@ -165,7 +171,7 @@ if err := cmd.Run(); err != nil {
 		{
 			ID:        "API-028",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "Failf/Blockf require a format directive — every other *f method is deleted",
 			Why: "Failf(\"boom\") with no directive at all is ceremony; Fail(\"boom\") is the intent. " +
 				"C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf entirely — " +
@@ -183,7 +189,7 @@ task.Failf("boom: %w", err)`,
 		{
 			ID:        "API-029",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "subprocess evidence uses Task.Writer, not DebugWriter",
 			Why:       "DebugWriter is filtered by DebugLevel and is the wrong dialect for failure evidence.",
 			BadCode: `dbg := out.DebugWriter()
@@ -202,7 +208,7 @@ if err := cmd.Run(); err != nil {
 		{
 			ID:              "SEC-001",
 			Category:        "SEC",
-			Severity:        "error",
+			Severity:        SeverityError,
 			Invariant:       "untrusted text cannot control the terminal",
 			Why:             "Raw ESC/CSI from user data can hijack the terminal or inject fake UI.",
 			BadCode:         `out.Task(userInput).Define(work) // userInput may contain ESC`,
@@ -216,7 +222,7 @@ if err := cmd.Run(); err != nil {
 		{
 			ID:        "DOM-011",
 			Category:  "DOM",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "expected blocked items are presentation outcomes, not Go application errors",
 			Why:       "Block means evaluation succeeded and found a blocker. Returning errors.New after Block confuses agents and callers about failure vs blocked.",
 			BadCode: `it := out.Task("working tree")
@@ -238,7 +244,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 		{
 			ID:              "TERM-001",
 			Category:        "TERM",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "instant completion does not flash spinner",
 			Why:             "A sub-threshold Task should not paint a live spinner that disappears immediately.",
 			BadCode:         `// custom spinner without VisibilityDelay`,
@@ -252,7 +258,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 		{
 			ID:        "FP-001",
 			Category:  "FP",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "visible state paints within 100ms of process start",
 			Why:       "A blank terminal for the first seconds of a run is indistinguishable from a hang; the user re-runs or ^C's healthy work.",
 			BadCode: `func main() {
@@ -274,7 +280,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 		{
 			ID:        "FP-002",
 			Category:  "FP",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "no I/O before the first entity is declared",
 			Why:       "Declare-before-compute is what makes FP-001 achievable; I/O ahead of the first Task/Item/Sequence reintroduces the blank window.",
 			BadCode: `func main() {
@@ -297,9 +303,9 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 		{
 			ID:        "LOOP-001",
 			Category:  "LOOP",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "real work loops live only inside a task definition — never before Task/Group/Sequence",
-			Why:       "A for/range that walks disk (or otherwise does the job) before any Task leaves the consumer UI blank: the purge/prune silent-pre-output FAIL class. Group.Each / Task.Define make the good path the only path.",
+			Why:       "A for/range that walks disk (or otherwise does the job) before any Task leaves the consumer UI blank: the purge/prune silent-pre-output FAIL class. Group.Task(...).Define per item makes the good path the only path.",
 			BadCode: `func previewPurge() {
   out := evo.Init(evo.Config{Isolated: true, DryRun: true})
   for _, root := range roots {
@@ -320,7 +326,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
     return nil
   })
 }`,
-			Remediation:     "Declare Task/Group/Sequence first; put the loop inside Task.Define or range Group/Sequence.Each so every iteration is visible work",
+			Remediation:     "Declare Task/Group/Sequence first; put the loop inside Task.Define, or declare one Group.Task(item) per iteration, so every iteration is visible work",
 			RelatedGuidance: []string{"first-paint", "tasks"},
 			VerificationIDs: []string{"LOOP-001"},
 			Since:           "0.5.1",
@@ -329,7 +335,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 		{
 			ID:        "CALL-001",
 			Category:  "CALL",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "evo.Init/Task/Group arguments are named values, never inline make/new",
 			Why:       "Inline make() or new() inside an evo construct call hides the value the call site is passing. Extract a named local before the call so the argument list stays readable and reviewable.",
 			BadCode: `out := evo.Init(evo.Config{Facts: make([]evo.Fact, 0)})
@@ -346,7 +352,7 @@ _ = out.Task("scan")`,
 		{
 			ID:        "LAYOUT-001",
 			Category:  "LAYOUT",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a cobra command's file and identifiers match Use; leftover clean-repo naming is not a second primary name",
 			Why:       "A file named clean_repo.go, or an identifier such as cleanRepoCommandName = \"prune\", that registers cobra Use \"prune\" keeps two names for one command. Reviewers and agents cannot tell which is canonical.",
 			BadCode: `// file: clean_repo.go
@@ -366,7 +372,7 @@ cmd := &cobra.Command{
 		{
 			ID:        "LAYOUT-002",
 			Category:  "LAYOUT",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "cobra Use purge/prune RunE lives in internal/<cmd>/, not internal/app/",
 			Why:       "A real RunE body under internal/app/ hides the command behind a catch-all folder. The owning package is internal/purge or internal/prune; app may only return that Command().",
 			BadCode: `// file: internal/app/purge.go
@@ -391,7 +397,7 @@ func purgeCommand() *cobra.Command { return purge.Command() }`,
 		{
 			ID:        "FP-003",
 			Category:  "FP",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "phases advance on evidence; a stale phase is a defect",
 			Why:       "A spinner whose text never changes is animation, not evidence — the user cannot tell slow from hung.",
 			BadCode: `t := evo.Task("salvage")
@@ -410,7 +416,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 		{
 			ID:              "API-000",
 			Category:        "API",
-			Severity:        "error",
+			Severity:        SeverityError,
 			Invariant:       "source must parse before any other finding is trustworthy",
 			Why:             "A parse failure means every AST-based rule below it saw a broken tree; reporting anything else is noise the agent cannot act on.",
 			BadCode:         `func f( { // syntax error`,
@@ -424,7 +430,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 		{
 			ID:        "API-018",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "process exit codes come only from os.Exit(evo.Main(run)), or evo.Run/Output.Run's returned Result.ExitCode() (evo.MainWith, which restated the same os.Exit facade for an Isolated *Output, was removed in 1.0 — see Output.Run)",
 			Why:       "A hand-mapped os.Exit int bypasses the Outcome→exit-code contract; a Blocked run (1) can silently read as success, or a real failure can read as blocked.",
 			BadCode: `if err != nil {
@@ -441,7 +447,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 		{
 			ID:              "DOM-014",
 			Category:        "DOM",
-			Severity:        "error",
+			Severity:        SeverityError,
 			Invariant:       "Detail is user-visible string; wrap a diagnostic error with Blockf/Failf's trailing %w",
 			Why:             "Detail(err) exposes error internals as UI copy; Blockf/Failf's %w renders the wrapped error as its own evidence line instead.",
 			BadCode:         `it.Block("dirty", evo.Detail(err))`,
@@ -455,7 +461,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 		{
 			ID:              "MCP-017",
 			Category:        "MCP",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "cross-file package review resolves shared types across files when possible",
 			Why:             "Without cross-file resolution, collection-leaf misuse (API-027) and other typed checks can miss real defects hidden behind local type aliases.",
 			BadCode:         `// caller submits files independently to GoSource, losing cross-file type info`,
@@ -469,7 +475,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 		{
 			ID:        "SIG-001",
 			Category:  "SIG",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "signal handling reconciles through Cancel, not a bespoke exit path",
 			Why:       "evo.Main (or Output.Run for a held *Output) already wires SIGINT/SIGTERM into Cancel so the ledger's ■ glyph and the 130 exit code agree; a hand-rolled signal.Notify without Cancel reopens that gap.",
 			BadCode: `c := make(chan os.Signal, 1)
@@ -486,11 +492,12 @@ go func() { <-c; task.Cancel("interrupted") }()
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "SIG-002",
-			Category:  "SIG",
-			Severity:  "warning",
-			Invariant: "evo.Main/evo.Run own SIGINT/SIGTERM/os.Interrupt cancellation; a host does not build a second interrupt layer around them",
-			Why:       "evo.Main/evo.Run cancel RunFunc's context.Context on SIGINT/SIGTERM/os.Interrupt as of 1.0.0; a host-built signal.NotifyContext/signal.Notify wired for the same signals solely to wrap that call duplicates the lifecycle and can let the ledger's ■ glyph and the process's real exit path diverge.",
+			ID:         "SIG-002",
+			MinDialect: "1.0.0",
+			Category:   "SIG",
+			Severity:   SeverityWarning,
+			Invariant:  "evo.Main/evo.Run own SIGINT/SIGTERM/os.Interrupt cancellation; a host does not build a second interrupt layer around them",
+			Why:        "evo.Main/evo.Run cancel RunFunc's context.Context on SIGINT/SIGTERM/os.Interrupt as of 1.0.0; a host-built signal.NotifyContext/signal.Notify wired for the same signals solely to wrap that call duplicates the lifecycle and can let the ledger's ■ glyph and the process's real exit path diverge.",
 			BadCode: `ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 defer stop()
 os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
@@ -506,7 +513,7 @@ os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
 		{
 			ID:              "TERM-008",
 			Category:        "TERM",
-			Severity:        "error",
+			Severity:        SeverityError,
 			Invariant:       "cursor hide is always paired with cursor show in a transcript",
 			Why:             "An unmatched hide sequence leaves the terminal cursor invisible after the process exits, corrupting the user's shell.",
 			BadCode:         `// transcript: \x1b[?25l ... (no matching \x1b[?25h)`,
@@ -520,7 +527,7 @@ os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
 		{
 			ID:              "TERM-014",
 			Category:        "TERM",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "transcripts contain only text evo itself wrote through managed streams",
 			Why:             "A NUL byte means something wrote raw/binary data into the terminal stream outside evo's sanitize path.",
 			BadCode:         `// transcript contains \x00 from an unmanaged binary write`,
@@ -534,7 +541,7 @@ os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
 		{
 			ID:              "SCHEMA-001",
 			Category:        "SCHEMA",
-			Severity:        "error",
+			Severity:        SeverityError,
 			Invariant:       "structured snapshot documents declare schema_version and a conclusion object",
 			Why:             "Machine consumers need a stable version marker and a conclusion payload to parse snapshots safely across releases.",
 			BadCode:         `{"foo": 1}`,
@@ -548,7 +555,7 @@ os.Exit(evo.Main(func(context.Context) error { return run(ctx) }))`,
 		{
 			ID:        "TERM-015",
 			Category:  "TERM",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "child processes run through Task.Writer, never inherited stdout",
 			Why:       "A child that inherits os.Stdout paints on the same TTY as the live row. Capture it so the spinner keeps moving and the child's lines become Doing. Turning the spinner off is not a product state.",
 			BadCode: `cmd := exec.Command("zq", "setup")
@@ -570,7 +577,7 @@ if err := cmd.Run(); err != nil {
 		{
 			ID:        "CONFIRM-001",
 			Category:  "CONFIRM",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "confirmation gates go through evo.Confirm, not a hand-rolled stdin prompt",
 			Why:       "A hand-rolled bufio/fmt.Scan prompt redraws under the live spinner, hangs CI when non-interactive, and reports a declined answer as a Go error instead of Blocked.",
 			BadCode: `reader := bufio.NewReader(os.Stdin)
@@ -586,7 +593,7 @@ answer, _ := reader.ReadString('\n')`,
 		{
 			ID:              "GLYPH-001",
 			Category:        "GLYPH",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "glyph selection uses a terminal capability profile, measured in cells, not rune counts",
 			Why:             "■ ○ → … are East Asian Ambiguous-width families; counting runes instead of measuring terminal cells misjudges layout on affected terminals.",
 			BadCode:         `if len([]rune(sym)) == 1 { return sym } // rune count guesses width`,
@@ -601,7 +608,7 @@ answer, _ := reader.ReadString('\n')`,
 		{
 			ID:        "TAX-001",
 			Category:  "TAX",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "reason partitions sum to the headline count; taxonomy is derived, never hand-assembled",
 			Why:       "A bare \"skipped 6\" or a hand-built \"already mutated\" string can't be trusted — it can miscount, and the user can't tell why items were skipped.",
 			BadCode:   `msg := fmt.Sprintf("skipped %d", n) // hand-assembled, no reason partition`,
@@ -617,7 +624,7 @@ task.Skipped(evo.Reason("dirty"), "feature/x")
 		{
 			ID:        "PROG-001",
 			Category:  "PROG",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "indeterminate to determinate progress happens once; a sealed total is immutable",
 			Why:       "Re-sealing a total (14/40 becoming 14/53) or letting completed exceed total makes the bar impossible to trust.",
 			BadCode: `task.Progress(14, 40)
@@ -634,7 +641,7 @@ task.Progress(14, 40) // sealed once discovery completes; never re-sealed`,
 		{
 			ID:        "CON-001",
 			Category:  "CON",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "Partial is a completeness modifier; exit codes come from Outcome alone, and 130 is reserved for interruption",
 			Detection: "guidance", // no cheap single-file detector: correct exit code use is unobservable from source (evo.Main hides the mapping)
 			Why:       "Hand-mapping an exit code outside 0/1/2/130, or using 130 for something other than an actual interrupt, breaks the contract wrapping scripts and CI rely on.",
@@ -654,7 +661,7 @@ if partial {
 		{
 			ID:        "BOUND-001",
 			Category:  "BOUND",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "slice-derived text into Detail/Doing is bounded before rendering",
 			Why:       "strings.Join of an unbounded slice dumped into Detail/Doing reproduces the 500-name terminal flood evo-rec.md \"bounded effect rows\" already fixed for Plan/Changes.",
 			BadCode: `task.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))
@@ -670,7 +677,7 @@ task.Doing(evo.TruncateNames(reasons, 8))`,
 		{
 			ID:        "API-030",
 			Category:  "API",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "Task/Group.Task is predeclared before fan-out, never called inside the worker closure",
 			Why:       "Declaring a Task inside a goroutine or g.Go closure races task creation with rendering and produces the exact unordered five-spinner defect evo-rec.md \"sequential presentation\" forbids.",
 			BadCode: `for _, j := range jobs {
@@ -692,7 +699,7 @@ for _, j := range jobs {
 		{
 			ID:        "API-031",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "child-process phase narration uses Task.Writer, never a hand-rolled io.Writer",
 			Why:       "A caller-defined io.Writer whose Write method calls TaskHandle.Doing reimplements the exact 30-line line-splitting adapter Task.Writer already owns (evo-rec.md \"#6\").",
 			BadCode: `type livePhase struct{ task *evo.TaskHandle }
@@ -710,7 +717,7 @@ func (w *livePhase) Write(p []byte) (int, error) {
 		{
 			ID:        "API-032",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, Capture, Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), the TaskHandle mutation verbs (Add/Create/Delete/Push/Remove/Update/Write), evo.Affected, and TaskHandle.Done (removed in 1.1), the retired independent-collection constructor, Skip, evo.ID, evo.StartPhase, evo.MainWith (removed in 1.0)",
 			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were removed in 1.0; Isolated *Output uses Output.Run); Config fields replaced Option funcs; the TaskHandle mutation verbs were removed in 1.1 — an opaque mutation is evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) inside Define and file state is evo.File, so neither the 0.x positional Delete(n, object) nor the 1.0 Delete(object, fn, Affected(n)) compiles; the independent collection constructor is Group; Item folded into Task; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr; Skip is Skipped; ID/StartPhase are unexported (Task takes only the name; Doing sets the first phase).",
 			BadCode: `func main() {
@@ -736,7 +743,7 @@ func run(ctx context.Context) error {
 	evo.Task("tip").Skipped(reason)
 	return evo.Task("z").Failf("failed: %w", err)
 }`,
-			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every removed TaskHandle mutation verb (either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer(); replace TaskHandle.Done() with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
+			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every TaskHandle mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer(); replace TaskHandle.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
@@ -745,7 +752,7 @@ func run(ctx context.Context) error {
 		{
 			ID:        "API-033",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "an entity's name is not also its own skip/verb evidence",
 			Why:       "out.Task(note).Skip(note) tells the reader nothing a bare \"skipped 1 (note)\" wouldn't already — the name and the reason/verb argument are the identical expression, so the second one carries zero new information.",
 			BadCode:   `out.Task(note).Skip(note)`,
@@ -760,7 +767,7 @@ item.Skipped(reason)`,
 		{
 			ID:              "CONFIRM-002",
 			Category:        "CONFIRM",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "a destructive confirm question is marked evo.Destructive()",
 			Why:             "A remote force-delete or trash confirm rendered like an ordinary yes/no question lets a user approve a severe action without the \"(destructive)\" cue evo-rec.md \"confirm gate\" requires.",
 			BadCode:         `evo.Confirm("delete origin/production-hotfix?")`,
@@ -774,7 +781,7 @@ item.Skipped(reason)`,
 		{
 			ID:        "CON-002",
 			Category:  "CON",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a failure summary is printed once, from Conclusion, not hand-assembled from a collected list",
 			Why:       "fmt/out.Print(strings.Join(failures, ...)) duplicates the exact summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows.",
 			BadCode:   `out.Println(strings.Join(failures, "\n")) // duplicates Conclusion`,
@@ -791,7 +798,7 @@ item.Skipped(reason)`,
 		{
 			ID:              "FP-004",
 			Category:        "FP",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "a Doing string names the domain object in motion, not a generic placeholder",
 			Why:             "\"starting\"/\"working\"/\"running\"/\"please wait\" tells the user nothing changed since the last frame — the same illegible-spinner defect FP-003 covers for a silent subprocess.",
 			BadCode:         `task.Doing("working")`,
@@ -805,7 +812,7 @@ item.Skipped(reason)`,
 		{
 			ID:        "EV-001",
 			Category:  "EV",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a failure summary does not manually embed the retained evidence text",
 			Why:       "task.Failf(\"install failed: %s\", capture.Text()) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time as evidence underneath it (user-13-problems.md Problem 7: \"execution owns evidence, callers provide context\").",
 			BadCode:   `task.Failf("install failed: %s", capture.Text())`,
@@ -821,7 +828,7 @@ return task.Failf("install dependencies: %w", err)`,
 		{
 			ID:              "MCP-021",
 			Category:        "MCP",
-			Severity:        "error",
+			Severity:        SeverityError,
 			Invariant:       "agents stop only when recheck_required is false",
 			Why:             "Stopping while recheck_required is true leaves known defects unfixed.",
 			BadCode:         `// agent: one review call then ship`,
@@ -835,7 +842,7 @@ return task.Failf("install dependencies: %w", err)`,
 		{
 			ID:        "API-001",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "the minimal Task happy path (Init/Task/Define/Block/Finish) compiles with a zero Config",
 			Why:       "Requiring a populated Config struct for the common single-task check adds ceremony that discourages the minimal, correct spelling.",
 			BadCode: `out := evo.Init(evo.Config{Title: "tool"}) // fields filled in for no reason
@@ -852,7 +859,7 @@ out.Task("disk space").Define(checkDiskSpace)`,
 		{
 			ID:        "DOM-006",
 			Category:  "DOM",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "Item.OK/Block is a direct legal terminal transition; explicit Start is not required",
 			Why:       "An Item is pending until it resolves; calling Start first is redundant ceremony and risks a spinner flash for a transition that finishes instantly.",
 			BadCode: `it := out.Task("disk space")
@@ -869,7 +876,7 @@ it.Define(checkDiskSpace)`,
 		{
 			ID:              "DOM-007",
 			Category:        "DOM",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "Task.Block(summary, options...) builds exactly one Problem from ProblemOptions; do not hand-build a Problem literal for the common single-blocker case",
 			Why:             "Hand-building a Problem{} literal duplicates what Block(summary, evo.On(...), evo.Count(...), ...) already does automatically and can drift from the sanitized/anonymous shape Block guarantees.",
 			BadCode:         `task.Block("disk full", evo.Cause(fmt.Errorf("hand-built: %w", err)))`,
@@ -884,7 +891,7 @@ it.Define(checkDiskSpace)`,
 		{
 			ID:        "DOM-016",
 			Category:  "DOM",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "Task.Doing without a prior Start activates the task directly into running, indeterminate state",
 			Why:       "Requiring Start before Doing is the same redundant ceremony API-006 already forbids for Define; Doing alone carries enough information to activate the task.",
 			BadCode: `t := out.Task("scan")
@@ -902,7 +909,7 @@ t.Doing("walking")`,
 		{
 			ID:        "DOM-017",
 			Category:  "DOM",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "Task.Progress(completed, total) stores absolute values, never a delta",
 			Why:       "Hand-driving Progress from a loop index invites the exact bug it's meant to prevent — a re-run or retry that resets the counter reads as stuck, not incrementing.",
 			BadCode: `for range items {
@@ -923,7 +930,7 @@ for _, item := range items {
 		{
 			ID:              "LOG-001",
 			Category:        "LOG",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "log level markers render as a stable uppercase bracketed tag ([DEBUG], [WARN], [ERROR])",
 			Why:             "A hand-formatted or lowercase level prefix breaks golden-stable log parsing and reads inconsistently against every other line evo emits.",
 			BadCode:         `fmt.Fprintf(w, "warn: %s\n", msg)`,
@@ -938,7 +945,7 @@ for _, item := range items {
 		{
 			ID:              "OUT-001",
 			Category:        "OUT",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "the final human report writes through the configured human writer; transient live-region output never corrupts it",
 			Why:             "Printing the final report through a different writer than Config wires, or interleaving it with live-region redraws, can duplicate or garble the report the human reads at exit.",
 			BadCode:         `fmt.Println(finalReportText) // bypasses out's configured human writer`,
@@ -953,7 +960,7 @@ for _, item := range items {
 		{
 			ID:        "OUT-003",
 			Category:  "OUT",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "progress and live-UI bytes never reach stdout while a data projection (FormatData) is active",
 			Why:       "A data command's stdout is a machine payload contract; any progress byte on stdout corrupts a JSON/line consumer downstream.",
 			BadCode: `out := evo.Init(evo.Config{Stdout: os.Stdout})
@@ -970,7 +977,7 @@ out.FormatData(...) // progress/UI route to Stderr; only the payload reaches Std
 		{
 			ID:              "OUT-004",
 			Category:        "OUT",
-			Severity:        "error",
+			Severity:        SeverityError,
 			Invariant:       "Plain mode emits no ANSI escape or cursor-control bytes",
 			Why:             "A hand-rolled escape sequence written outside evo's managed writer survives Plain mode and corrupts non-TTY/CI output that Plain exists to keep clean.",
 			BadCode:         `fmt.Fprint(os.Stdout, "\x1b[32mok\x1b[0m") // raw ANSI bypasses Plain mode`,
@@ -985,7 +992,7 @@ out.FormatData(...) // progress/UI route to Stderr; only the payload reaches Std
 		{
 			ID:        "SEC-006",
 			Category:  "SEC",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "displayed shell/command arguments are quoted so argv boundaries survive presentation",
 			Why:       "Naively space-joining a []string for display can misrepresent argv boundaries — an argument containing a space reads as two arguments — which misleads a human approving a destructive action.",
 			BadCode:   `task.Doing(strings.Join(args, " ")) // "rm -rf my file.txt" reads as 4 words, not 3 args`,
@@ -1004,7 +1011,7 @@ task.Doing(strings.Join(quoted, " "))`,
 		{
 			ID:              "TERM-006",
 			Category:        "TERM",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "a debug/log line written during live UI erases the region, appends the line, and redraws — never interleaves raw",
 			Why:             "A log line written straight to the terminal while a spinner/live region is open tears the frame and corrupts the display until the next redraw.",
 			BadCode:         `fmt.Fprintln(os.Stderr, "[DEBUG] cache miss") // interleaves under the live spinner`,
@@ -1019,7 +1026,7 @@ task.Doing(strings.Join(quoted, " "))`,
 		{
 			ID:              "TXT-007",
 			Category:        "TXT",
-			Severity:        "error",
+			Severity:        SeverityError,
 			Invariant:       "ESC/CSI byte sequences embedded in any caller-supplied text field are neutralized before rendering",
 			Why:             "A malicious or fuzzed ESC/CSI sequence embedded in a name/detail/phase string must never survive into the terminal write; evo's sanitize layer is the single point that guarantees this, so nothing should bypass it with a raw write of untrusted text.",
 			BadCode:         `fmt.Fprint(w, rawUserText) // bypasses evo's sanitize layer entirely`,
@@ -1034,7 +1041,7 @@ task.Doing(strings.Join(quoted, " "))`,
 		{
 			ID:        "API-034",
 			Category:  "API",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "a statement-form Fail/Block that must propagate an error returns that error, not nil",
 			Why:       "return nil immediately after Fail/Block discards the error the caller needed to propagate — the most common shape of \"the remedy has nowhere to attach\" (49 dotfiles + 41 zq sites).",
 			BadCode: `if err := validate(cfg); err != nil {
@@ -1053,7 +1060,7 @@ task.Doing(strings.Join(quoted, " "))`,
 		{
 			ID:        "API-035",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a function that Fails/Blocks wires its checked command's output somewhere, never io.Discard",
 			Why:       "io.Discard as a sink in a function that also Fails/Blocks is an evidence-free security-gate shape: the verdict has nothing to show for itself when it matters most.",
 			BadCode: `cmd.Stdout = io.Discard
@@ -1074,7 +1081,7 @@ if err := cmd.Run(); err != nil {
 		{
 			ID:              "API-036",
 			Category:        "API",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "a Fail/Block/Warn summary uses the matching *f method instead of hand-calling fmt.Sprintf",
 			Why:             "fmt.Sprintf as Fail/Block/Warn's sole argument is ceremony around a formatting method (Failf/Blockf/Warnf) that already exists.",
 			BadCode:         `task.Fail(fmt.Sprintf("delete failed on %s", branch))`,
@@ -1088,7 +1095,7 @@ if err := cmd.Run(); err != nil {
 		{
 			ID:        "API-037",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a method that only forwards to one Task/Item verb call is inlined at its callers, not wrapped",
 			Why:       "A method whose entire body is one call on a Task/Item handle adds a name and a stack frame with no behavior of its own (zq's resolutionPhase wrapper).",
 			BadCode: `func (r *runner) resolutionPhase(text string) {
@@ -1104,7 +1111,7 @@ if err := cmd.Run(); err != nil {
 		{
 			ID:              "DOM-018",
 			Category:        "DOM",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "an error surfaces once per resolution, not as both the summary text and evo.Cause",
 			Why:             "err.Error() as the summary alongside evo.Cause(err) surfaces the same error twice — and since Fail/Block are statement-form, evo.Cause no longer affects the returned error at all, so the two are now the identical dead-and-live text.",
 			BadCode:         `task.Fail(err.Error(), evo.Cause(err))`,
@@ -1118,7 +1125,7 @@ if err := cmd.Run(); err != nil {
 		{
 			ID:              "TAX-002",
 			Category:        "TAX",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "evo.Reason's argument is a fixed string literal or a const/package-level var, never a computed expression",
 			Why:             "evo.Reason built from a computed expression (Sprintf, Join, concatenation) opens one taxonomy bucket per distinct rendered value instead of one per classification (live instance: joining per-item counts into the reason text).",
 			BadCode:         `task.Skipped(evo.Reason(strings.Join(names, ", ")), name)`,
@@ -1132,7 +1139,7 @@ if err := cmd.Run(); err != nil {
 		{
 			ID:        "TXT-020",
 			Category:  "TXT",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "an entity name is a short noun phrase; narration lives in Doing/Summary",
 			Why:       "An entity name over ~40 characters, or narrating a transition (into/->), reads as narration squeezed into a label instead of a name.",
 			BadCode:   `out.Task("copying build artifacts from staging into the production release bucket")`,
@@ -1147,7 +1154,7 @@ t.Doing("copying staging -> production release bucket")`,
 		{
 			ID:        "DOM-019",
 			Category:  "DOM",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a live Task/Item handle variable is resolved before it is reassigned to a new declaration",
 			Why:       "Reassigning a variable from a new Task/Item declaration before the previous handle it held was resolved orphans the earlier row Running forever — a double row hiding under one variable name.",
 			BadCode: `t := out.Task("scan")
@@ -1166,7 +1173,7 @@ t = out.Task("build")`,
 		{
 			ID:        "TXT-021",
 			Category:  "TXT",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a Fail/Warn/Block summary is short text; cause and remedy are Detail/Next, never hand-assembled into the summary",
 			Why:       "A summary hand-assembling \" — cause:\"/\" — action:\" fragments reimplements Detail/Next inside plain text, losing their structured rendering and truncation.",
 			BadCode:   `task.Fail("policy check failed — cause: manifest missing — action: run zq init")`,
@@ -1181,7 +1188,7 @@ t = out.Task("build")`,
 		{
 			ID:        "API-038",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "fmt.Sprintf(...) is never passed to a method that is already printf-variadic itself",
 			Why: "Task/Group/Sequence/Warn/Doing/Failf all already accept " +
 				"(format string, args ...any) directly (P1/P2, C6: their separate *f siblings — Warnf included — " +
@@ -1198,7 +1205,7 @@ t = out.Task("build")`,
 		{
 			ID:        "FP-005",
 			Category:  "FP",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a Task that will complete submits its work through Define — never created already Done",
 			Why:       "A tool row that first appears as ✓ looks like a lie: the work happened off-screen. Narrating with Doing before an unrelated Done is the same lie with extra steps (FP-006); the real fix is to let evo run the work via Define.",
 			BadCode:   `out.Task("go@1.25.11").Done(path)`,
@@ -1215,7 +1222,7 @@ t.Define(func(ctx context.Context) error {
 		{
 			ID:        "FP-006",
 			Category:  "FP",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "Doing narrates work in flight; a Done that immediately follows it with no Define submitting work between them is theater over work that already happened off-row",
 			Why:       "`.Doing(\"fixing\").Done(...)` after the fix already ran (zq fix.go:58,265) makes the row narrate a job it never actually gave to evo; FP-005's old suggestion (\"Doing before Done\") prescribed exactly this theater instead of naming Define.",
 			BadCode:   `a.out.Task("file integrity").Doing("fixing").Done("%d files changed", fixed)`,
@@ -1234,7 +1241,7 @@ t.Define(func(ctx context.Context) error {
 		{
 			ID:        "API-039",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a Group with exactly one child is a lone Task",
 			Why:       "A 1-child group paints a 0/1 complete header over a single row and steals the command name. Use Task, or add more children.",
 			BadCode: `jobs := out.Group("run")
@@ -1250,7 +1257,7 @@ t.Doing("running install:fresh-start")`,
 		{
 			ID:              "DOM-020",
 			Category:        "DOM",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "usage/user mistakes resolve Block (exit 1); evaluation failures resolve Fail (exit 2)",
 			Why:             "Block and Fail carry different exit codes for a reason: a caller reading the exit code needs \"you did something wrong\" (1) and \"something broke while checking\" (2) to stay distinguishable. Routing a usage mistake through Fail reports a user error as a system failure.",
 			BadCode:         `task.Fail("missing required --repo flag")`,
@@ -1268,7 +1275,7 @@ t.Doing("running install:fresh-start")`,
 		{
 			ID:        "API-040",
 			Category:  "API",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "Failf/Blockf inside a Define or mutation callback whose return value reaches that same callback resolves the task twice",
 			Why:       "Define's own contract is \"a non-nil return fails the task\"; calling Failf/Fail on the same task and then also returning that error double-resolves it — the row is correct but a spurious second misuse line appears, and zq's taskAlreadyResolved guard exists only to paper over this (app.go:162-167).",
 			BadCode: `task.Define(func() error {
@@ -1292,7 +1299,7 @@ t.Doing("running install:fresh-start")`,
 		{
 			ID:        "API-041",
 			Category:  "API",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "a goroutine/fan-out closure resolves a predeclared Task (Doing/Fail/Progress) only through Define; a bare go func/.Go(func with no Define races the scheduler",
 			Why:       "`go func(){ task.Doing(\"x\"); task.Fail(\"x\") }()` over a predeclared Task compiles and renders identically to scheduled work (zq axis-11 P1) — nothing tells the author evo never scheduled it, so the row and the actual concurrency model silently disagree.",
 			BadCode: `t := out.Task("a")
@@ -1313,7 +1320,7 @@ for _, name := range []string{"a"} {
 		{
 			ID:        "API-042",
 			Category:  "API",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "an evo.Effect callback does the mutation; nil or a no-op callback is theater over work that ran elsewhere",
 			Why:       "A nil Effect callback (zq README.md:39's old Create(\"module\", nil)) and one that only returns installedPythonModuleCount(name, n) (zq setup_python.go:172-181, where the named func only validates a count) both let the bulk work already run outside the callback, then hand Effect an empty gesture the ledger records as a real mutation.",
 			BadCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
@@ -1322,10 +1329,8 @@ evo.Effect(ctx, spec, func(context.Context) error { return installedPythonModule
 			GoodCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
 evo.Effect(ctx, spec, func(ctx context.Context) error {
   return invokeUV(ctx, root, packages)
-})
-// or, when the work already ran:
-task.Record("create", n, "module")`,
-			Remediation:     "Move the real mutation into the Effect callback, or use task.Record(verb, n, object) when the work already happened",
+})`,
+			Remediation:     "Move the real mutation into the Effect callback. When the work already ran elsewhere and only information remains, report it with task.Fact instead of an Effect",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-042"},
 			Since:           "0.4.7",
@@ -1334,7 +1339,7 @@ task.Record("create", n, "module")`,
 		{
 			ID:              "API-043",
 			Category:        "API",
-			Severity:        "warning",
+			Severity:        SeverityWarning,
 			Invariant:       "an EffectSpec.Object literal names the singular; evo pluralizes it from Quantity",
 			Why:             "`EffectSpec{Verb: EffectDelete, Object: \"worktrees\", Quantity: 1}` renders \"deleted 1 worktrees\" (zq axis-14 P17) because Pluralize treats an already-plural literal as unchanged; Object must stay singular so pluralization has one job.",
 			BadCode:         `evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktrees", Quantity: 1}`,
@@ -1348,7 +1353,7 @@ task.Record("create", n, "module")`,
 		{
 			ID:        "API-044",
 			Category:  "API",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "a caller waiting for a Define result on this stack uses task.Wait(); a hand-rolled channel wrapper around Define hangs when the task is already terminal",
 			Why:       "zq's defineAndWait (setup_python.go:190-210) — make(chan error, 1) + Define + <-done — hangs when the task is already terminal before Define runs (submitWork never calls fn) and deadlocks when nested under MaxConcurrency:1 (axis-3, axis-15, P15/P16 confirmed).",
 			BadCode: `done := make(chan error, 1)
@@ -1371,7 +1376,7 @@ return task.Wait()`,
 		{
 			ID:        "API-045",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a Task names one independently schedulable promise whose outcome is independently meaningful to the user, not a subject label or a container wearing one Task's clothes",
 			Why:       "`Task(\"file integrity\")` (ZYS-838, also this codebase's own FP-006 fixture) names what the Task is about, not what it will determine; `Task(\"fix\")` (zq internal/app/app.go:80's a.task(\"fix\", ...) command family) reads as one row but really organizes several independently meaningful operations. Neither answers ZYS-838's own test: does the name alone tell the user what failed?",
 			BadCode: `out.Task("file integrity").Define(checkIntegrity)
@@ -1390,7 +1395,7 @@ prep.Task("stabilize Go source").Define(stabilizeGo)`,
 		{
 			ID:        "API-050",
 			Category:  "API",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a Task named for a generic phase/category (fix/check/classify/resolve/finalize) performs one independently meaningful action, not several sequenced behind one row",
 			Why:       "Task(\"fix\") (zq internal/app/app.go:80's a.task(\"fix\", ...) command family, ZYS-937) that sequences two or more independently erroring steps in its own Define callback exists primarily to own child-looking work or force a row — API-045 flags the bare word on sight, but the callback's own shape is the structural proof: each guarded step could fail, wait, and report independently, so each deserves its own Task under a Group.",
 			BadCode: `out.Task("fix").Define(func(ctx context.Context) error {
@@ -1412,11 +1417,12 @@ fixGroup.Task("fix Go formatting").Define(func(ctx context.Context) error { retu
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-047",
-			Category:  "API",
-			Severity:  "error",
-			Invariant: "a Task/Group/Sequence's default §3.1 identity folds its kind into the stable key (kind:parentKey/name); a sibling name reused across different kinds under one parent is two distinct runtime identities sharing one visible display name",
-			Why:       "`out.Task(\"build\")` and `out.Group(\"build\")` never collide at runtime — failDuplicateSiblingLocked's dedup check only compares within one kind's own name index — so both declare successfully and render as two rows a reader cannot tell apart by name alone, even though provenance/manifest lookups by display name now resolve ambiguously between them.",
+			ID:         "API-047",
+			MinDialect: "1.0.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a Task/Group/Sequence's default §3.1 identity folds its kind into the stable key (kind:parentKey/name); a sibling name reused across different kinds under one parent is two distinct runtime identities sharing one visible display name",
+			Why:        "`out.Task(\"build\")` and `out.Group(\"build\")` never collide at runtime — failDuplicateSiblingLocked's dedup check only compares within one kind's own name index — so both declare successfully and render as two rows a reader cannot tell apart by name alone, even though provenance/manifest lookups by display name now resolve ambiguously between them.",
 			BadCode: `out.Task("build")
 out.Group("build")`,
 			GoodCode: `out.Task("build")
@@ -1430,7 +1436,7 @@ out.Group("build assets")`,
 		{
 			ID:        "API-048",
 			Category:  "API",
-			Severity:  "suggestion",
+			Severity:  SeveritySuggestion,
 			Invariant: "a Group/Sequence Task referenced later (After, a second Define, ...) keeps its first handle in a variable; re-declaring by the same string literal is a duplicate sibling, not a get-or-create",
 			Why:       "GroupHandle.Task(name)'s second call with an already-used name fails as a duplicate sibling (declareGroupTask, §3.1) rather than returning the earlier handle, so `prune.Task(\"branches\")` called again later to pass into After silently breaks the second Task instead of referencing the first. The product contract's own zq prune fixture (§18/§21) extracts these into a typed var (...) block instead.",
 			BadCode: `prune.Task("branches").Define(func(ctx context.Context) error { return nil })
@@ -1450,11 +1456,12 @@ remote.After(branches).Define(func(ctx context.Context) error { return nil })`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-049",
-			Category:  "API",
-			Severity:  "error",
-			Invariant: "a Define callback's context.Context parameter is the scheduler's authoritative cancellation context; a callback that discards it and calls cancellable work with a captured outer ctx never observes the scheduler's cancellation",
-			Why:       "`task.Define(func(context.Context) error { return run(ctx) })` compiles and runs — the captured outer ctx is a real context — but it is not the Define callback's own context, so cancelling this task through the scheduler (timeout, second SIGINT, a sibling failure under a Group) never reaches run's cancellable work.",
+			ID:         "API-049",
+			MinDialect: "1.0.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a Define callback's context.Context parameter is the scheduler's authoritative cancellation context; a callback that discards it and calls cancellable work with a captured outer ctx never observes the scheduler's cancellation",
+			Why:        "`task.Define(func(context.Context) error { return run(ctx) })` compiles and runs — the captured outer ctx is a real context — but it is not the Define callback's own context, so cancelling this task through the scheduler (timeout, second SIGINT, a sibling failure under a Group) never reaches run's cancellable work.",
 			BadCode: `task.Define(func(context.Context) error {
   return run(ctx) // captured outer ctx
 })`,
@@ -1468,11 +1475,12 @@ remote.After(branches).Define(func(ctx context.Context) error { return nil })`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-051",
-			Category:  "API",
-			Severity:  "error",
-			Invariant: "a real check Task owns zero, one, or many structured Problems before it resolves once; findings are never flattened into one joined error string, and a finding is never given its own fake Task",
-			Why:       "Without TaskHandle.Problem, a caller with several structured findings has only two theater shapes: `errors.New(strings.Join(lines, \"\\n\"))` collapses every finding's own location/code/detail into one string at the Evo boundary (zq's blockStagedGolangciFindings), or `group.Task(f.File).Fail(f.Message)` inside a loop spawns one Task per finding that is never independently schedulable or awaited (zq's reportFileIntegrityIssues) — both destroy the one-Task-many-findings model ZYS-848 built Problem for.",
+			ID:         "API-051",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a real check Task owns zero, one, or many structured Problems before it resolves once; findings are never flattened into one joined error string, and a finding is never given its own fake Task",
+			Why:        "Without TaskHandle.Problem, a caller with several structured findings has only two theater shapes: `errors.New(strings.Join(lines, \"\\n\"))` collapses every finding's own location/code/detail into one string at the Evo boundary (zq's blockStagedGolangciFindings), or `group.Task(f.File).Fail(f.Message)` inside a loop spawns one Task per finding that is never independently schedulable or awaited (zq's reportFileIntegrityIssues) — both destroy the one-Task-many-findings model ZYS-848 built Problem for.",
 			BadCode: `var lines []string
 for _, f := range findings {
   lines = append(lines, formatFinding(f))
@@ -1494,11 +1502,12 @@ task.Define(func(context.Context) error { return nil })`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-052",
-			Category:  "API",
-			Severity:  "error",
-			Invariant: "the container that owns child Task scheduling also owns waiting for its descendants and deriving their aggregate outcome; a caller does not store child handles merely to loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count failures",
-			Why:       "zq's runParallel (internal/app/app.go) keeps []*evo.TaskHandle, loops task.Wait(), Snapshots the Group, counts failed children, and builds its own \"N of N failed\" error; waitDefinedRunOperations (internal/app/run_execute.go) loops Tasks, special-cases evo.ErrNotStarted, and returns the first remaining error. Both reimplement exactly what GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849) now does natively, including ErrNotStarted-from-a-failed-predecessor suppression and declaration-order error joining.",
+			ID:         "API-052",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "the container that owns child Task scheduling also owns waiting for its descendants and deriving their aggregate outcome; a caller does not store child handles merely to loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count failures",
+			Why:        "zq's runParallel (internal/app/app.go) keeps []*evo.TaskHandle, loops task.Wait(), Snapshots the Group, counts failed children, and builds its own \"N of N failed\" error; waitDefinedRunOperations (internal/app/run_execute.go) loops Tasks, special-cases evo.ErrNotStarted, and returns the first remaining error. Both reimplement exactly what GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849) now does natively, including ErrNotStarted-from-a-failed-predecessor suppression and declaration-order error joining.",
 			BadCode: `var handles []*evo.TaskHandle
 for _, item := range items {
   t := jobs.Task(item.Name)
@@ -1525,11 +1534,12 @@ return jobs.Wait()`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-053",
-			Category:  "API",
-			Severity:  "error",
-			Invariant: "generic resource access holds at most one Resource at a time (ZYS-840); code that already holds a Resource — directly, or through any helper it hands its context to — never asks for a second one",
-			Why:       "evo.Effect only claims spec.Resource for its fn callback's duration when spec.Resource is set; a second evo.File or Resource-claiming evo.Effect call made with that same held context — moving a worktree's Effect whose fn also writes a marker File at the destination, say — fails deterministically with evo.ErrNestedResourceAcquisition at apply time, even when the second resource is free, because holding at most one Resource at a time is what makes deadlock impossible by construction. Catching it in review turns a runtime failure into a review finding before it ships.",
+			ID:         "API-053",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "generic resource access holds at most one Resource at a time (ZYS-840); code that already holds a Resource — directly, or through any helper it hands its context to — never asks for a second one",
+			Why:        "evo.Effect only claims spec.Resource for its fn callback's duration when spec.Resource is set; a second evo.File or Resource-claiming evo.Effect call made with that same held context — moving a worktree's Effect whose fn also writes a marker File at the destination, say — fails deterministically with evo.ErrNestedResourceAcquisition at apply time, even when the second resource is free, because holding at most one Resource at a time is what makes deadlock impossible by construction. Catching it in review turns a runtime failure into a review finding before it ships.",
 			BadCode: `spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
 return evo.Effect(ctx, spec, func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}) // nested: ctx already holds "from"
@@ -1548,11 +1558,12 @@ return evo.Effect(ctx, spec, func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-054",
-			Category:  "API",
-			Severity:  "error",
-			Invariant: "a raw os/exec.Cmd wired to an Evo Task's Writer() does not hand-roll bytes.Buffer/io.MultiWriter capture or recognize cancellation by comparing captured output strings; evo.Exec already owns spawning, capture, liveness, sanitized/redacted bounded retention, and context-based cancellation, and returns an inspectable ExecResult",
-			Why:       "zq's run_captured_task.go allocates its own bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter, falls back to Result.Output when live redirection is unavailable, recognizes cancellation by comparing captured output strings, classifies nonzero exit itself, and manually attaches captured evidence through Failf — all of it now redundant with the ExecResult{Ran, ExitCode, Stdout, Stderr, Truncated} that evo.Exec returns (ZYS-850), plus errors.Is(err, evo.ErrExecNonzeroExit) for exit classification.",
+			ID:         "API-054",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a raw os/exec.Cmd wired to an Evo Task's Writer() does not hand-roll bytes.Buffer/io.MultiWriter capture or recognize cancellation by comparing captured output strings; evo.Exec already owns spawning, capture, liveness, sanitized/redacted bounded retention, and context-based cancellation, and returns an inspectable ExecResult",
+			Why:        "zq's run_captured_task.go allocates its own bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter, falls back to Result.Output when live redirection is unavailable, recognizes cancellation by comparing captured output strings, classifies nonzero exit itself, and manually attaches captured evidence through Failf — all of it now redundant with the ExecResult{Ran, ExitCode, Stdout, Stderr, Truncated} that evo.Exec returns (ZYS-850), plus errors.Is(err, evo.ErrExecNonzeroExit) for exit classification.",
 			BadCode: `var buf bytes.Buffer
 cmd.Stdout = io.MultiWriter(task.Writer(), &buf)
 cmd.Stderr = io.MultiWriter(task.Writer(), &buf)
@@ -1575,11 +1586,12 @@ return err`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-055",
-			Category:  "API",
-			Severity:  "error",
-			Invariant: "application code does not manage mutexes, lock files, or unlock lifecycle around an Evo-managed File path; File claims write-side ownership of its own path automatically, and overlapping File/Basis/Effect claims already wait on each other",
-			Why:       "A caller-managed sync.Mutex/RWMutex wrapped around an evo.File call (ZYS-931) is invisible to Evo's own resource coordination (ZYS-840): it cannot see a contended wait, cannot render \"waiting for <path>\" the way a real resource claim does, and is pure redundancy once File already serializes writers on its own Path — or a false sense of safety if the two coordination layers ever disagree about ordering. Remove the lock and let File own the path; when the work is not itself a File write, claim the same path explicitly with evo.FSResource so it still overlaps File/Basis on that path.",
+			ID:         "API-055",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityWarning,
+			Invariant:  "application code does not manage mutexes, lock files, or unlock lifecycle around an Evo-managed File path; File claims write-side ownership of its own path automatically, and overlapping File/Basis/Effect claims already wait on each other",
+			Why:        "A caller-managed sync.Mutex/RWMutex wrapped around an evo.File call (ZYS-931) is invisible to Evo's own resource coordination (ZYS-840): it cannot see a contended wait, cannot render \"waiting for <path>\" the way a real resource claim does, and is pure redundancy once File already serializes writers on its own Path — or a false sense of safety if the two coordination layers ever disagree about ordering. Remove the lock and let File own the path; when the work is not itself a File write, claim the same path explicitly with evo.FSResource so it still overlaps File/Basis on that path.",
 			BadCode: `type Writer struct {
   mu   sync.Mutex
   path string
@@ -1602,18 +1614,19 @@ func (w *Writer) archive(ctx context.Context) error {
     Resource: evo.FSResource(w.path),
   }, func(ctx context.Context) error { return archive(w.path) })
 }`,
-			Remediation:     "Delete the sync.Mutex/RWMutex field and its Lock()/Unlock() calls around the evo.File call; File already claims its own path for writing. For an opaque (non-File) mutation over the same path, claim it with evo.Effect's EffectSpec.Resource: evo.FSResource(path) instead of a caller lock — never a bare Write(func...) callback for tracked file state.",
+			Remediation:     "When the Lock()/Unlock() pair guards nothing but the evo.File call, drop the pair; File already claims its own path for writing. When the lock also guards other shared state, keep it and end the critical section before calling evo.File, because File can wait on its resource claim while the caller lock is held. Never delete a mutex field on this rule alone; other methods may depend on it. For an opaque (non-File) mutation over the same path, claim it with evo.Effect's EffectSpec.Resource: evo.FSResource(path) instead of a caller lock — never a bare Write(func...) callback for tracked file state.",
 			RelatedGuidance: []string{"evo-file-exec", "common-api"},
 			VerificationIDs: []string{"API-055"},
 			Since:           "1.1.0",
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-056",
-			Category:  "API",
-			Severity:  "warning",
-			Invariant: "a child.After(parent) edge exists to declare a real semantic dependency; it is never kept only to avoid a data race that File/FSResource/LogicalResource's own automatic resource claim (ZYS-840) already serializes AND whose overlapping writes are order-invariant (identical writes, or an idempotent Verb like Delete) — a resource claim only coordinates the overlap, it never decides which write wins, so an edge guarding two writes with different outcomes stays",
-			Why:       "Before ZYS-840, two Tasks writing the same file/shared state had no automatic exclusion, so pinning one After the other was the only way to avoid a race, and the reason usually shows up as a comment (\"same file\", \"avoid race\", \"exclusive access\") next to the edge. Now that File/FSResource/LogicalResource auto-claim and serialize any overlapping write, an edge guarding two IDENTICAL writes no longer does anything a resource claim doesn't already do — it only couples two Tasks' scheduling that would otherwise run concurrently, which costs wall-clock time and reads as a real dependency to the next person who touches the DAG. An edge guarding two DIFFERENT writes (different Contents, or conflicting Verbs like Update vs Delete) is not this case: the resource claim only prevents concurrent corruption, it does not pin which write is final, so deleting .After there would make the outcome nondeterministic across runs — that edge is a real dependency and must stay.",
+			ID:         "API-056",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityWarning,
+			Invariant:  "a child.After(parent) edge exists to declare a real semantic dependency; it is never kept only to avoid a data race that File/FSResource/LogicalResource's own automatic resource claim (ZYS-840) already serializes AND whose overlapping writes are order-invariant (identical writes, or an idempotent Verb like Delete) — a resource claim only coordinates the overlap, it never decides which write wins, so an edge guarding two writes with different outcomes stays",
+			Why:        "Before ZYS-840, two Tasks writing the same file/shared state had no automatic exclusion, so pinning one After the other was the only way to avoid a race, and the reason usually shows up as a comment (\"same file\", \"avoid race\", \"exclusive access\") next to the edge. Now that File/FSResource/LogicalResource auto-claim and serialize any overlapping write, an edge guarding two IDENTICAL writes no longer does anything a resource claim doesn't already do — it only couples two Tasks' scheduling that would otherwise run concurrently, which costs wall-clock time and reads as a real dependency to the next person who touches the DAG. An edge guarding two DIFFERENT writes (different Contents, or conflicting Verbs like Update vs Delete) is not this case: the resource claim only prevents concurrent corruption, it does not pin which write is final, so deleting .After there would make the outcome nondeterministic across runs — that edge is a real dependency and must stay.",
 			BadCode: `configTask.Define(func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
 })
@@ -1637,11 +1650,12 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-057",
-			Category:  "API",
-			Severity:  "error",
-			Invariant: "an evo.Effect callback never mutates the filesystem directly; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively (a git ref, a remote API call, a database row), and file-backed state always routes through evo.File",
-			Why:       "evo.Write and its sibling TaskHandle mutation verbs were removed outright in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). evo.File is the route for file-backed state, including writes derived from an existing file's own contents; a write derived from a unified diff instead goes through evo.Patch/evo.Files (API-058/API-059, ZYS-934/ZYS-935/ZYS-841) — neither is a second write API layered under Effect.",
+			ID:         "API-057",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "an evo.Effect callback never mutates the filesystem directly; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively (a git ref, a remote API call, a database row), and file-backed state always routes through evo.File",
+			Why:        "evo.Write and its sibling TaskHandle mutation verbs were removed outright in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). evo.File is the route for file-backed state, including writes derived from an existing file's own contents; a write derived from a unified diff instead goes through evo.Patch/evo.Files (API-058/API-059, ZYS-934/ZYS-935/ZYS-841) — neither is a second write API layered under Effect.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
     return os.WriteFile(path, contents, 0o644)
@@ -1657,11 +1671,12 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-058",
-			Category:  "API",
-			Severity:  "error",
-			Invariant: "a patch is never applied straight to the real workspace through os/exec; the call site derives desired file states with evo.Patch and commits them through evo.Files/evo.File",
-			Why:       "evo.Patch(ctx, diff) reads each referenced source once under its own read claim and mutates nothing; evo.Files(ctx, files) then commits each derived state through evo.File, so dry-run planning, the stale-write guard (ErrStaleBasis), desired-state comparison, and already-satisfied all apply exactly as they do for a single File call (ZYS-934). Shelling out to `patch` or `git apply`/`git am` bypasses every one of those guarantees at once — the workspace is mutated whether or not a dry run was requested, a source that changed after the diff was derived is overwritten instead of failing with ErrStaleBasis, and there is no Effect record of what changed. Domain code that only parses or reads a patch's hunks, with no exec and no direct filesystem mutation, is not this rule's target — evo.Patch itself is exactly that shape.",
+			ID:         "API-058",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a patch is never applied straight to the real workspace through os/exec; the call site derives desired file states with evo.Patch and commits them through evo.Files/evo.File",
+			Why:        "evo.Patch(ctx, diff) reads each referenced source once under its own read claim and mutates nothing; evo.Files(ctx, files) then commits each derived state through evo.File, so dry-run planning, the stale-write guard (ErrStaleBasis), desired-state comparison, and already-satisfied all apply exactly as they do for a single File call (ZYS-934). Shelling out to `patch` or `git apply`/`git am` bypasses every one of those guarantees at once — the workspace is mutated whether or not a dry run was requested, a source that changed after the diff was derived is overwritten instead of failing with ErrStaleBasis, and there is no Effect record of what changed. Domain code that only parses or reads a patch's hunks, with no exec and no direct filesystem mutation, is not this rule's target — evo.Patch itself is exactly that shape.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   cmd := exec.Command("patch", "-p1", "-i", diffPath)
   return cmd.Run()
@@ -1680,11 +1695,12 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-059",
-			Category:  "API",
-			Severity:  "error",
-			Invariant: "a FileSet evo.Patch returns is opaque so its source Basis and stale-write guard cannot be stripped before commit; a function that derives one from a diff always commits it through evo.Files, never by building a fresh evo.FileSpec and calling evo.File",
-			Why:       "evo.Patch(ctx, diff) parses a unified diff into a FileSet carrying each touched file's Basis — the content it was read against — so evo.Files(ctx, fileSet) can refuse a write when the file changed underneath the diff since Patch derived it (ZYS-841 Decisions, 2026-09-23). A function that calls evo.Patch, then re-derives the same file's desired contents another way and commits through evo.File directly, reconstructs a fresh FileSpec with no Basis at all — the stale-write guard Patch computed is silently discarded, and evo.File happily overwrites a file another writer changed in the meantime. The FileSet is opaque specifically to prevent this: there is no field to read the derived contents back out of it and hand to evo.File, so the only way to lose the guard is to ignore the FileSet and reconstruct the write from scratch, which is exactly the shape this rule flags.",
+			ID:         "API-059",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityError,
+			Invariant:  "a FileSet evo.Patch returns is opaque so its source Basis and stale-write guard cannot be stripped before commit; a function that derives one from a diff always commits it through evo.Files, never by building a fresh evo.FileSpec and calling evo.File",
+			Why:        "evo.Patch(ctx, diff) parses a unified diff into a FileSet carrying each touched file's Basis — the content it was read against — so evo.Files(ctx, fileSet) can refuse a write when the file changed underneath the diff since Patch derived it (ZYS-841 Decisions, 2026-09-23). A function that calls evo.Patch, then re-derives the same file's desired contents another way and commits through evo.File directly, reconstructs a fresh FileSpec with no Basis at all — the stale-write guard Patch computed is silently discarded, and evo.File happily overwrites a file another writer changed in the meantime. The FileSet is opaque specifically to prevent this: there is no field to read the derived contents back out of it and hand to evo.File, so the only way to lose the guard is to ignore the FileSet and reconstruct the write from scratch, which is exactly the shape this rule flags.",
 			BadCode: `func applyPatch(ctx context.Context, diff string) error {
   fileSet, err := evo.Patch(ctx, diff)
   if err != nil {
@@ -1710,11 +1726,12 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-060",
-			Category:  "API",
-			Severity:  "warning",
-			Invariant: "TaskHandle.Summary/GroupHandle.Summary carries the caller's own result metadata, not mutation, dry-run, or already-satisfied narration that belongs to File/Effect/AlreadySatisfied/Facts",
-			Why:       "Summary is non-terminal result metadata (1.1/ZYS-971 Decisions, 2026-09-23): it never resolves the Task, and Define/the evo-native operation outcome remains the only normal success resolution path. A caller who reaches for it as a replacement stamp channel — narrating what a mutation did (\"wrote config.json\"), what a dry run would do (\"would add 3 refs\"), that nothing changed (\"nothing to write\"), or that a precondition already held (\"already up to date\") — recreates the exact success-stamp footgun Done(text) was removed in 1.1 for, one call away: that narration belongs to evo.File/evo.Effect's own Basis-tracked record, ResolutionAlreadySatisfied, or evo.Fact, each of which carries structured evidence Summary's bare string cannot.",
+			ID:         "API-060",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityWarning,
+			Invariant:  "TaskHandle.Summary/GroupHandle.Summary carries the caller's own result metadata, not mutation, dry-run, or already-satisfied narration that belongs to File/Effect/AlreadySatisfied/Facts",
+			Why:        "Summary is non-terminal result metadata (1.1/ZYS-971 Decisions, 2026-09-23): it never resolves the Task, and Define/the evo-native operation outcome remains the only normal success resolution path. A caller who reaches for it as a replacement stamp channel — narrating what a mutation did (\"wrote config.json\"), what a dry run would do (\"would add 3 refs\"), that nothing changed (\"nothing to write\"), or that a precondition already held (\"already up to date\") — recreates the exact success-stamp footgun Done(text) was removed in 1.1 for, one call away: that narration belongs to evo.File/evo.Effect's own Basis-tracked record, ResolutionAlreadySatisfied, or evo.Fact, each of which carries structured evidence Summary's bare string cannot.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if err := evo.File(ctx, spec); err != nil {
     return err
@@ -1737,12 +1754,13 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-061",
-			Category:  "API",
-			Severity:  "warning",
-			Invariant: "a call site never uses the record-only verbs Record/RecordLabel/RecordName; each has no record-only replacement",
-			Why:       "Record/RecordLabel/RecordName report a mutation, classification, or named object after the fact instead of performing it through a primitive with dry-run planning, desired-state comparison, and AlreadySatisfied (ZYS-974 Decisions, 2026-09-23b). There is no drop-in record-only replacement: the call is migrated by what it actually reports — a real mutation moves into evo.Effect's callback, information/classification with no state change moves to evo.Fact, and a file write moves to evo.File/evo.Patch.",
-			BadCode:   `task.Record("install", 1, "package")`,
+			ID:         "API-061",
+			MinDialect: "1.1.0",
+			Category:   "API",
+			Severity:   SeverityWarning,
+			Invariant:  "a call site never uses the record-only verbs Record/RecordLabel/RecordName; each has no record-only replacement",
+			Why:        "Record/RecordLabel/RecordName report a mutation, classification, or named object after the fact instead of performing it through a primitive with dry-run planning, desired-state comparison, and AlreadySatisfied (ZYS-974 Decisions, 2026-09-23b). There is no drop-in record-only replacement: the call is migrated by what it actually reports — a real mutation moves into evo.Effect's callback, information/classification with no state change moves to evo.Fact, and a file write moves to evo.File/evo.Patch.",
+			BadCode:    `task.Record("install", 1, "package")`,
 			GoodCode: `evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectInstall, Quantity: 1, Object: "package"}, func(ctx context.Context) error {
   return installPackage(ctx)
 })`,
@@ -1755,7 +1773,7 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 		{
 			ID:        "TAX-003",
 			Category:  "TAX",
-			Severity:  "warning",
+			Severity:  SeverityWarning,
 			Invariant: "a reason used more than as a one-off literal is a compile-time name; a reason names why, not the verb it accompanies",
 			Why:       "evo.Reason(\"x\") is legal inline (duplicate strings merge into one bucket), but an inline literal can typo apart into two buckets across call sites, and a reason that only restates the verb (`Skipped(evo.Reason(\"skipped\"))`, zq cmd/zq-build/main.go:81) tells the user nothing they didn't already know from the glyph.",
 			BadCode: `task.Skipped(evo.Reason("skipped"))
@@ -1770,11 +1788,12 @@ task.Kept(reasonProtected)`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "EVO-EVIDENCE-001",
-			Category:  "EVO",
-			Severity:  "error",
-			Invariant: "a legacy named Evidence callback never performs mutation; Evidence is a boolean current-state conclusion, not a place to do work",
-			Why:       "task.Evidence(\"write\", func() error { return os.WriteFile(...) }) is the pre-1.0 collection-of-named-callbacks shape (spec §2); it is superseded, and naming a mutating callback \"Evidence\" hides a side effect behind a word that now means a read conclusion.",
+			ID:         "EVO-EVIDENCE-001",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityError,
+			Invariant:  "a legacy named Evidence callback never performs mutation; Evidence is a boolean current-state conclusion, not a place to do work",
+			Why:        "task.Evidence(\"write\", func() error { return os.WriteFile(...) }) is the pre-1.0 collection-of-named-callbacks shape (spec §2); it is superseded, and naming a mutating callback \"Evidence\" hides a side effect behind a word that now means a read conclusion.",
 			BadCode: `task.Evidence("write", func() error {
   return os.WriteFile(path, data, 0o644)
 })`,
@@ -1788,11 +1807,12 @@ task.Kept(reasonProtected)`,
 			Certainty:       "deterministic",
 		},
 		{
-			ID:        "EVO-VERIFY-001",
-			Category:  "EVO",
-			Severity:  "error",
-			Invariant: "Verify is read-only; it observes current state and never mutates it",
-			Why:       "Verify may run before Define (to skip it) and again after Define (as a postcondition); a Verify that mutates state changes the very thing it is asked to judge and can never be safely retried or ANDed with another verifier (spec §9.1).",
+			ID:         "EVO-VERIFY-001",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityError,
+			Invariant:  "Verify is read-only; it observes current state and never mutates it",
+			Why:        "Verify may run before Define (to skip it) and again after Define (as a postcondition); a Verify that mutates state changes the very thing it is asked to judge and can never be safely retried or ANDed with another verifier (spec §9.1).",
 			BadCode: `task.Verify(func(ctx context.Context) (bool, error) {
   os.RemoveAll(staleDir)
   return true, nil
@@ -1807,11 +1827,12 @@ task.Kept(reasonProtected)`,
 			Certainty:       "deterministic",
 		},
 		{
-			ID:        "EVO-DRYRUN-001",
-			Category:  "EVO",
-			Severity:  "error",
-			Invariant: "a Define callback that promises Evo dry-run safety routes file state through evo.File, commands through evo.Exec, and other opaque mutations through evo.Effect — never a raw os/exec/db call left bare in Define",
-			Why:       "Evo cannot intercept an arbitrary Go side effect — a raw os.WriteFile, exec.Command, or direct database mutation inside Define runs even in dry-run mode, because the runtime has no way to see or suppress it (spec §32.2).",
+			ID:         "EVO-DRYRUN-001",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityError,
+			Invariant:  "a Define callback that promises Evo dry-run safety routes file state through evo.File, commands through evo.Exec, and other opaque mutations through evo.Effect — never a raw os/exec/db call left bare in Define",
+			Why:        "Evo cannot intercept an arbitrary Go side effect — a raw os.WriteFile, exec.Command, or direct database mutation inside Define runs even in dry-run mode, because the runtime has no way to see or suppress it (spec §32.2).",
 			BadCode: `task.Define(func(ctx context.Context) error {
   return os.WriteFile(path, data, 0o644)
 })`,
@@ -1825,11 +1846,12 @@ task.Kept(reasonProtected)`,
 			Certainty:       "deterministic",
 		},
 		{
-			ID:        "EVO-DAG-001",
-			Category:  "EVO",
-			Severity:  "warning",
-			Invariant: "application code does not create a goroutine merely to make Evo Tasks run in parallel; Group already schedules independent children concurrently",
-			Why:       "a goroutine wrapping a call that itself submits work to Evo's scheduler (.Define) is redundant parallelism the scheduler already provides, and it forfeits Evo's own concurrency limits and cancellation handling (spec §4).",
+			ID:         "EVO-DAG-001",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityWarning,
+			Invariant:  "application code does not create a goroutine merely to make Evo Tasks run in parallel; Group already schedules independent children concurrently",
+			Why:        "a goroutine wrapping a call that itself submits work to Evo's scheduler (.Define) is redundant parallelism the scheduler already provides, and it forfeits Evo's own concurrency limits and cancellation handling (spec §4).",
 			BadCode: `for _, pkg := range pkgs {
   go func(pkg Package) {
     task := group.Task(pkg.Name)
@@ -1847,11 +1869,12 @@ task.Kept(reasonProtected)`,
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "EVO-DAG-002",
-			Category:  "EVO",
-			Severity:  "warning",
-			Invariant: "a hand-chained sequence of .After(...) calls is expressed as an evo.Sequence instead",
-			Why:       "After is the exceptional explicit DAG edge (spec §6); a chain of two or more .After(...) calls reproduces exactly the linear ordering Sequence already gives its children automatically, with no exceptional edge left to justify hand-wiring it.",
+			ID:         "EVO-DAG-002",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityWarning,
+			Invariant:  "a hand-chained sequence of .After(...) calls is expressed as an evo.Sequence instead",
+			Why:        "After is the exceptional explicit DAG edge (spec §6); a chain of two or more .After(...) calls reproduces exactly the linear ordering Sequence already gives its children automatically, with no exceptional edge left to justify hand-wiring it.",
 			BadCode: `register := seq.Task("register")
 register.After(write)
 start := seq.Task("start")
@@ -1867,11 +1890,12 @@ start := seq.Task("start")`,
 			Certainty:       "deterministic",
 		},
 		{
-			ID:        "EVO-DAG-003",
-			Category:  "EVO",
-			Severity:  "warning",
-			Invariant: "a visible producer/consumer resource relationship between two Tasks has an explicit first-run scheduler edge (Sequence or After)",
-			Why:       "known-producer freshness barriers only delay Evidence evaluation once a manifest already exists; on a first run there is no prior manifest to consult, so an unordered producer/consumer pair can race (spec §11.5, §47's \"first-run producer/consumer ordering still requires Sequence/After\").",
+			ID:         "EVO-DAG-003",
+			MinDialect: "1.0.0",
+			Category:   "EVO",
+			Severity:   SeverityWarning,
+			Invariant:  "a visible producer/consumer resource relationship between two Tasks has an explicit first-run scheduler edge (Sequence or After)",
+			Why:        "known-producer freshness barriers only delay Evidence evaluation once a manifest already exists; on a first run there is no prior manifest to consult, so an unordered producer/consumer pair can race (spec §11.5, §47's \"first-run producer/consumer ordering still requires Sequence/After\").",
 			BadCode: `producer.Define(func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
 })
@@ -1891,11 +1915,12 @@ consumer.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
-			ID:        "API-046",
-			Category:  "API",
-			Severity:  "warning",
-			Invariant: "Skipped means a check never applied; ResolutionAlreadySatisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
-			Why:       "task.Skipped(evo.Reason(\"already up to date\")) reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison resolve ResolutionAlreadySatisfied for exactly this case, and collapsing it into Skipped hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Skipped.",
+			ID:         "API-046",
+			MinDialect: "1.0.0",
+			Category:   "API",
+			Severity:   SeverityWarning,
+			Invariant:  "Skipped means a check never applied; ResolutionAlreadySatisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
+			Why:        "task.Skipped(evo.Reason(\"already up to date\")) reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison resolve ResolutionAlreadySatisfied for exactly this case, and collapsing it into Skipped hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Skipped.",
 			BadCode: `if installedVersion == latestVersion {
   task.Skipped(evo.Reason("already up to date"))
   return

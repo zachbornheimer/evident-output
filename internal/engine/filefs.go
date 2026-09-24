@@ -18,7 +18,8 @@ type FileFS interface {
 	ReadFile(path string) ([]byte, error)
 	// WriteAtomic replaces path's contents with contents at mode, atomically
 	// (spec §8.2's "write replacement contents") — never a partial write a
-	// concurrent reader could observe.
+	// concurrent reader could observe. mode 0 means ordinary creation
+	// semantics: 0666 less the process umask.
 	WriteAtomic(path string, contents []byte, mode fs.FileMode) error
 	// Chmod sets path's permission bits.
 	Chmod(path string, mode fs.FileMode) error

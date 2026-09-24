@@ -17,22 +17,9 @@ const dialectFold = "0.4.0"
 // Options). Those callbacks were removed in 1.1 in favor of evo.Effect.
 const dialectRec = "0.4.7"
 
-// dialectOneZero is the first release whose public surface supports Verify,
-// evo.File, evo.Exec, and Sequence/After — the APIs every EVO-EVIDENCE-001/
-// VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestion recommends. A pin older
-// than this cannot apply those suggestions, so the rules must not fire for it.
-const dialectOneZero = "1.0.0"
-
-// dialectOneOne is the first release whose public surface supports
-// evo.Exec returning an inspectable ExecResult (ZYS-850) — the structured
-// capture/exit-code surface API-054 recommends in place of hand-rolled
-// bytes.Buffer/io.MultiWriter capture and string-match cancellation — plus
-// TaskHandle.Problem/Warn accumulating many structured Problems on one Task
-// before it resolves once (ZYS-848 Decisions 2026-09-23; docs/migration/1.1.md
-// "TaskHandle.Problem — a Task can now own many blocking findings"), and
-// GroupHandle.Wait/SequenceHandle.Wait (ZYS-849), the container wait/result
-// surface. API-051 and API-052 recommend these APIs, so those rules must not
-// fire for a pin older than this.
+// dialectOneOne is the first release without TaskHandle.Done, so API-032
+// names Done as superseded only for a pin at or after it. Which release a
+// whole rule needs is its catalog MinDialect, not a constant here.
 const dialectOneOne = "1.1.0"
 
 // dialectAtLeast reports whether desired is the current dialect (empty) or

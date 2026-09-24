@@ -161,13 +161,11 @@ func openFileFlagIsWriteMode(flag ast.Expr) bool {
 // File path, so evo.File is never the wrong suggestion.
 func fileWriteInEffectFinding(filename string, pos token.Position, calleeName string) Finding {
 	return Finding{
-		RuleID:          "API-057",
-		Severity:        "error",
-		Message:         calleeName + " mutates the filesystem directly inside an evo.Effect callback; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively, not a second file-write API",
-		File:            filename,
-		Line:            pos.Line,
-		Column:          pos.Column,
-		Suggestion:      "delete the evo.Effect wrapping this file write; call evo.File(ctx, evo.FileSpec{Path: path, Contents: contents}) directly for the desired file state",
-		RequiredVersion: dialectOneOne,
+		RuleID:     "API-057",
+		Message:    calleeName + " mutates the filesystem directly inside an evo.Effect callback; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively, not a second file-write API",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "delete the evo.Effect wrapping this file write; call evo.File(ctx, evo.FileSpec{Path: path, Contents: contents}) directly for the desired file state",
 	}
 }

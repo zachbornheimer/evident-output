@@ -66,717 +66,33 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
 	if err != nil {
-		return Result{
-			Findings: []Finding{{
-				RuleID:   "API-000",
-				Severity: "error",
-				Message:  "parse error: " + err.Error(),
-				File:     filename,
-			}},
-			RecheckRequired: true,
-		}
+		return newResult([]Finding{{
+			RuleID:  "API-000",
+			Message: "parse error: " + err.Error(),
+			File:    filename,
+		}})
 	}
 
-	hasEvo := false
-	for _, imp := range f.Imports {
-		path := strings.Trim(imp.Path.Value, `"`)
-		if strings.HasSuffix(path, "evident-output") || path == "github.com/zachbornheimer/evident-output" {
-			hasEvo = true
-		}
+	in := fileInput{
+		filename:       filename,
+		src:            src,
+		desiredVersion: desiredVersion,
+		file:           f,
+		fset:           fset,
+		hasEvo:         evoImportName(f) != "",
 	}
-
-	safeWriterVars := localSafeWriterVars(f)
-	runCodeVars := runExitCodeVars(f)
-
 	var findings []Finding
-	ast.Inspect(f, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
+	for _, d := range fileDetectors {
+		if d.admits(in) {
+			findings = append(findings, admitDialect(d.run(in), desiredVersion)...)
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		pos := fset.Position(n.Pos())
-		name := sel.Sel.Name
-
-		// API-006: redundant Start on presentation handles
-		if name == "Start" && isLikelyEvoReceiver(sel.X) {
-			recv := exprDottedName(sel.X)
-			suggestion := "remove .Start(); Doing/Progress/Done already activate the task"
-			if recv != "" {
-				suggestion = "remove " + recv + ".Start(); " + recv + ".Doing(...)/" + recv + ".Progress(...) already activate it"
-			}
-			findings = append(findings, Finding{
-				RuleID:     "API-006",
-				Severity:   "warning",
-				Message:    "explicit Start is usually redundant; prefer Doing/Progress or direct terminal resolution",
-				File:       filename,
-				Line:       pos.Line,
-				Column:     pos.Column,
-				Suggestion: suggestion,
-			})
-		}
-
-		// API-026: forbidden execution helpers on evo receivers only (AST, not substring).
-		// Must not false-positive on strings.Map, comments, or user methods on other types.
-		if hasEvo && isForbiddenExecutionHelper(name) && isEvoExecutionReceiver(sel.X) {
-			findings = append(findings, Finding{
-				RuleID:     "API-026",
-				Severity:   "error",
-				Message:    "forbidden execution helper ." + name + "( — callers do not invent RunAll/Map/Retry; use Group/Sequence/Define/Each/After",
-				File:       filename,
-				Line:       pos.Line,
-				Column:     pos.Column,
-				Suggestion: "replace ." + name + "( with Group.Each/Define/After or keep the loop in application code",
-			})
-		}
-
-		// STREAM-003: fmt.Print* calls when evo is imported
-		if hasEvo {
-			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "fmt" {
-				switch name {
-				case "Print", "Printf", "Println", "Fprint", "Fprintf", "Fprintln":
-					// Allow fmt on os.Stderr for flag.Usage / pre-session errors.
-					skip := false
-					if (name == "Fprint" || name == "Fprintf" || name == "Fprintln") && len(call.Args) > 0 {
-						skip = isOSStderrArg(call.Args[0]) || isSafeWriterArg(call.Args[0], safeWriterVars)
-					}
-					if !skip {
-						findings = append(findings, Finding{
-							RuleID:     "STREAM-003",
-							Severity:   "error",
-							Message:    "fmt." + name + " alongside evo may contaminate managed streams; use out.Print/Printf/Println (or Verbose) for human text",
-							File:       filename,
-							Line:       pos.Line,
-							Column:     pos.Column,
-							Suggestion: "replace fmt." + name + "(...) with out.Print/Printf/Println/Verbose",
-						})
-						// EVO-LIVE-001 (spec §57): the same call site, tagged
-						// under the catalog ID that specifically calls out
-						// competing with the live region; fires alongside
-						// STREAM-003 so existing STREAM-003 consumers see no
-						// behavior change.
-						findings = append(findings, Finding{
-							RuleID:     "EVO-LIVE-001",
-							Severity:   "error",
-							Message:    "fmt." + name + " competes with Evo's live rendering and can tear the live-region frame",
-							File:       filename,
-							Line:       pos.Line,
-							Column:     pos.Column,
-							Suggestion: "replace fmt." + name + "(...) with out.Print/Printf/Println/Verbose",
-						})
-					}
-				}
-			}
-
-			// STREAM-003 (indirection widening, evo-rec.md "B"): a direct
-			// Write/WriteString on a field or variable named like a stream
-			// (services.Err, w.Stdout, ...) is the same contamination one
-			// hop removed from fmt.Fprint*, and the original detector only
-			// matched the literal os.Stdout/os.Stderr identifier. Scoped to
-			// stream-shaped names (not every io.Writer) to stay an honest
-			// detector rather than a false-positive generator on ordinary
-			// bytes.Buffer/strings.Builder writers.
-			if (name == "Write" || name == "WriteString") && !isOSStdStreamExpr(sel.X) && !isEvoOwnedWriterExpr(sel.X) {
-				if recv := exprDottedName(sel.X); recv != "" && looksLikeStreamWriterName(recv) {
-					findings = append(findings, Finding{
-						RuleID:     "STREAM-003",
-						Severity:   "error",
-						Message:    recv + "." + name + " writes directly to a stream-named field/variable alongside evo; route through out.Print/Printf/Println or a Task writer instead",
-						File:       filename,
-						Line:       pos.Line,
-						Column:     pos.Column,
-						Suggestion: "replace " + recv + "." + name + "(...) with out.Print/Printf/Println (or the owning Task's Capture/Writer)",
-					})
-				}
-			}
-		}
-
-		// API-028: *f methods with no format directives
-		if hasEvo && isFormatMethod(name) && len(call.Args) >= 1 {
-			if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-				if s, err := strconvUnquote(lit.Value); err == nil && !strings.Contains(s, "%") {
-					recv := exprDottedName(sel.X)
-					plain := strings.TrimSuffix(name, "f")
-					suggestion := "replace " + name + "(...) with " + plain + "(...)"
-					if recv != "" {
-						suggestion = "replace " + recv + "." + name + "(...) with " + recv + "." + plain + "(...)"
-					}
-					findings = append(findings, Finding{
-						RuleID:     "API-028",
-						Severity:   "warning",
-						Message:    name + " has no format directive; prefer non-formatting method (e.g. Done(\"text\") not Donef(\"text\"))",
-						File:       filename,
-						Line:       pos.Line,
-						Column:     pos.Column,
-						Suggestion: suggestion,
-					})
-				}
-			}
-		}
-
-		// API-029: DebugWriter for child-process evidence (prefer Task.Evidence)
-		if hasEvo && name == "DebugWriter" && isLikelyEvoReceiver(sel.X) {
-			findings = append(findings, Finding{
-				RuleID:     "API-029",
-				Severity:   "warning",
-				Message:    "DebugWriter is for intentional DEBUG journal lines; use task.Evidence() for subprocess stdout/stderr evidence",
-				File:       filename,
-				Line:       pos.Line,
-				Column:     pos.Column,
-				Suggestion: `replace DebugWriter() with task.Evidence(), then return task.Failf("...: %w", err) on failure`,
-			})
-		}
-
-		// API-018 / EVO-EXIT-001: os.Exit without presentation exit-code
-		// (os.Exit(evo.Main(run)) or os.Exit(...ExitCode()) is OK;
-		// evo.MainWith was removed in 1.0). EVO-EXIT-001 is the spec §57
-		// catalog ID for this same bypass; both fire together so existing
-		// API-018 consumers see no behavior change.
-		if hasEvo {
-			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "os" && name == "Exit" {
-				if !isPresentationExitArg(call, runCodeVars) {
-					findings = append(findings, Finding{
-						RuleID:     "API-018",
-						Severity:   "warning",
-						Message:    "os.Exit in evo-using code; prefer os.Exit(evo.Main(run)) or os.Exit(evo.Run(run).../Conclusion().ExitCode) (evo.MainWith was removed in 1.0)",
-						File:       filename,
-						Line:       pos.Line,
-						Column:     pos.Column,
-						Suggestion: "wrap evo.Main(run) in os.Exit (os.Exit(evo.Main(run))) where run(ctx) returns error — Main derives the code but does not exit itself",
-					})
-					findings = append(findings, Finding{
-						RuleID:     "EVO-EXIT-001",
-						Severity:   "error",
-						Message:    "os.Exit bypasses the Evo-derived conclusion (evo.MainWith was removed in 1.0)",
-						File:       filename,
-						Line:       pos.Line,
-						Column:     pos.Column,
-						Suggestion: "derive the exit code from evo.Main(run) or a Run result's ExitCode(); never pass a literal or independently computed code to os.Exit",
-					})
-				}
-			}
-		}
-
-		// PROG-001: Advance is a delta counter that double-counts on retries;
-		// conservative flag on any use so callers reach for one Task per
-		// item/absolute Progress instead (evo-rec.md "Progress invariants";
-		// Group.Each/Sequence.Each, the pre-1.0 spelling of "one Task per
-		// item", were removed in 1.0).
-		if hasEvo && name == "Advance" && isLikelyEvoReceiver(sel.X) {
-			recv := exprDottedName(sel.X)
-			suggestion := "prefer a named Task per item under Group(...)/Sequence(...) with " + recv + ".Define(fn) for loop progress, or " + recv + ".Progress(completed, total) for an absolute count"
-			if recv == "" {
-				suggestion = "prefer a named Task per item under Group(...)/Sequence(...) with task.Define(fn) for loop progress, or Progress(completed, total) for an absolute count"
-			}
-			findings = append(findings, Finding{
-				RuleID:     "PROG-001",
-				Severity:   "error",
-				Message:    "Advance is a delta counter that double-counts on retries; prefer one Task per item for loop progress or absolute Progress(completed, total)",
-				File:       filename,
-				Line:       pos.Line,
-				Column:     pos.Column,
-				Suggestion: suggestion,
-			})
-		}
-		return true
-	})
-
-	// LAYOUT-001/LAYOUT-002: cobra command naming and folder ownership.
-	// These fire without an evo import — the fixtures are cobra command files.
-	findings = append(findings, detectDualCommandNaming(filename, fset, f)...)
-	findings = append(findings, detectCommandInWrongFolder(filename, fset, f)...)
-
-	// SIG-001: a hand-rolled signal.Notify in a file that never calls Cancel
-	// reintroduces the exact bug evo.Main already closes — the visual ledger
-	// and the exit code can disagree because the signal path never reconciles
-	// through Conclusion (evo-rec.md "Interrupts").
-	if hasEvo {
-		findings = append(findings, detectSignalNotifyWithoutCancel(filename, src)...)
-	}
-
-	// SIG-002: signal.Notify/NotifyContext wired for SIGINT/SIGTERM/
-	// os.Interrupt in a file that also calls evo.Main/evo.Run — those
-	// entrypoints have owned that exact lifecycle since 1.0.0 (RunFunc's
-	// context.Context is cancelled on SIGINT/SIGTERM internally), so a
-	// second interrupt layer built solely to duplicate it can let the
-	// ledger and the process's actual exit path diverge (Decisions
-	// 2026-09-23, ZYS-939). Pre-1.0.0 pins predate that ownership.
-	if hasEvo && dialectAtLeast(desiredVersion, dialectOneZero) {
-		findings = append(findings, detectDuplicateSignalWiringAroundMain(filename, f, fset)...)
-	}
-
-	// TERM-015: a child that owns the terminal (tty passthrough) must run
-	// inside out.Suspend, or its own UI glues onto the parent's live
-	// spinner — no in-process fix helps once two processes share one tty
-	// (evo-rec.md "#7b").
-	if hasEvo {
-		findings = append(findings, detectTTYPassthroughWithoutSuspend(filename, src)...)
-	}
-
-	// CONFIRM-001: a hand-rolled stdin prompt reintroduces the exact bugs
-	// evo.Confirm already closes (spinner tearing, CI hangs, declined
-	// answers reported as errors instead of Blocked).
-	if hasEvo {
-		findings = append(findings, detectHandRolledConfirm(filename, src)...)
-	}
-
-	// FP-001/FP-002: heavy I/O ahead of evo.Init/New (FP-001) or between
-	// init and the first declared entity (FP-002) reopens the blank-terminal
-	// window evo-rec.md "First paint" exists to close.
-	if hasEvo {
-		findings = append(findings, detectFirstPaintGaps(filename, src)...)
-	}
-
-	// LOOP-001: a work loop (for/range with I/O) before any Task/Group/Sequence
-	// is the purge/prune silent-pre-output class — real work must live inside
-	// the task definition (Define/Each), not before entity creation.
-	if hasEvo {
-		findings = append(findings, detectSilentPreTaskLoops(filename, src)...)
-	}
-
-	// CALL-001: make/new inline inside evo.Init/Task/Group arguments; a
-	// named local extracted before the call is the clean form.
-	if hasEvo {
-		findings = append(findings, detectInlineConstructAtEvoCall(filename, fset, f)...)
-	}
-
-	// FP-003: a task's only Doing call precedes a subprocess run with no
-	// further Doing/Progress/Writer — the spinner keeps spinning over a
-	// silent child with no way to tell slow from hung.
-	if hasEvo {
-		findings = append(findings, detectStaleDoingBeforeSubprocess(filename, src)...)
-	}
-
-	// TAX-001: a hand-assembled "%d skipped/kept/retained" string bypasses
-	// the reason-partitioned taxonomy evo derives from Skipped/Kept.
-	if hasEvo {
-		findings = append(findings, detectHandAssembledTaxonomyCount(filename, src)...)
-	}
-
-	// PROG-001 (Doing form): a Doing string smuggling "%d/%d" is progress
-	// hidden in narration text instead of a real Progress call.
-	if hasEvo {
-		findings = append(findings, detectProgressInDoingString(filename, src)...)
-	}
-
-	// BOUND-001: an unbounded slice joined straight into Because/Detail/Doing
-	// reproduces the terminal flood evo-rec.md's bounded-rows fix already
-	// closed for Plan/Changes.
-	if hasEvo {
-		findings = append(findings, detectUnboundedSliceIntoNarration(filename, src)...)
-	}
-
-	// API-030: Task/Group.Task declared inside a goroutine or g.Go closure
-	// races task creation with rendering (evo-rec.md "predeclare Tasks").
-	if hasEvo {
-		findings = append(findings, detectTaskDeclaredInsideFanOut(filename, src)...)
-	}
-
-	// API-031: a hand-rolled io.Writer whose Write calls TaskHandle.Doing
-	// reimplements Task.Writer (evo-rec.md "#6").
-	if hasEvo {
-		findings = append(findings, detectHandRolledWriter(filename, src)...)
-	}
-
-	// CONFIRM-002: a destructive-sounding Confirm question missing Destructive().
-	if hasEvo {
-		findings = append(findings, detectConfirmMissingDestructive(filename, src)...)
-	}
-
-	// CON-002: a joined failure list printed directly duplicates Conclusion.
-	if hasEvo {
-		findings = append(findings, detectHandAssembledFailureSummary(filename, src)...)
-	}
-
-	// EV-001: Failf/Blockf embedding the retained evidence ring's own .Text()/
-	// .Tail() in the summary duplicates what auto-attach already renders.
-	if hasEvo {
-		findings = append(findings, detectFailfEmbeddedEvidenceText(filename, src)...)
-	}
-
-	// FP-004: a Doing string with no domain object is an illegible placeholder.
-	if hasEvo {
-		findings = append(findings, detectPlaceholderDoing(filename, src)...)
-	}
-
-	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
-	// rec-surface Options/To/Plain, the mutation verbs removed in 1.1, Skip/MainWith (removed in 1.0)) gets a derived fix, not a lecture.
-	if hasEvo {
-		findings = append(findings, detectDeprecatedSpellings(filename, src, desiredVersion)...)
-	}
-
-	// API-033: an entity's own name reused verbatim as its skip/verb argument.
-	if hasEvo {
-		findings = append(findings, detectNameEqualsVerbArgument(filename, src)...)
-	}
-
-	// API-034: a statement-form Fail/Block immediately followed by return nil
-	// discards the error the caller needed to propagate.
-	if hasEvo {
-		findings = append(findings, detectFailBlockThenReturnNil(filename, src)...)
-	}
-
-	// API-035: io.Discard wired as a sink in a function that itself Fails/
-	// Blocks is an evidence-free security-gate shape — the verdict has
-	// nothing to show for itself.
-	if hasEvo {
-		findings = append(findings, detectDiscardSinkInFailingBlock(filename, src)...)
-	}
-
-	// API-036: Fail/Block summary built via fmt.Sprintf instead of the
-	// matching Failf/Blockf.
-	if hasEvo {
-		findings = append(findings, detectSprintfInVerb(filename, src)...)
-	}
-
-	// API-038: fmt.Sprintf(...) passed to a printf-variadic evo method
-	// (Task/Group/Sequence/Summary/Done/Warn/Doing/Skip/Failf) should
-	// flatten into that method's own format + args.
-	if hasEvo {
-		findings = append(findings, detectSprintfIntoVariadicVerb(filename, src)...)
-	}
-
-	// API-037: a method whose whole body is one call on a Task/Item handle —
-	// pure ceremony over the handle's own verb.
-	if hasEvo {
-		findings = append(findings, detectWrapperMethod(filename, src)...)
-	}
-
-	// DOM-018: err.Error() as the summary alongside evo.Cause(err) surfaces
-	// the same error twice; evo.Cause no longer affects the returned error.
-	if hasEvo {
-		findings = append(findings, detectErrTwice(filename, src)...)
-	}
-
-	// TAX-002: evo.Reason built from a computed expression opens one
-	// taxonomy bucket per distinct rendered value instead of one per
-	// classification.
-	if hasEvo {
-		findings = append(findings, detectDynamicReason(filename, src)...)
-	}
-
-	// EVO-UI-001: routine Fact hand-printed as a "label: value" line.
-	if hasEvo {
-		findings = append(findings, detectFactPrintedAsUIText(fset, f, filename)...)
-	}
-
-	// EVO-UI-002: passing verification hand-printed on the success path.
-	if hasEvo {
-		findings = append(findings, detectPassingVerificationPrinted(fset, f, filename)...)
-	}
-
-	// EVO-UI-003: collection/progress/status text hand-built instead of
-	// derived from Task/Group/Sequence state.
-	if hasEvo {
-		findings = append(findings, detectHandBuiltProgressText(fset, f, filename)...)
-	}
-
-	// EVO-WIRE-001: internal Snapshot marshaled directly instead of through
-	// the sanctioned JSON encoder.
-	if hasEvo {
-		findings = append(findings, detectMarshalOfInternalSnapshot(fset, f, filename)...)
-	}
-
-	// EVO-WIRE-003: JSON/JSONL stdout mixed with human presentation.
-	if hasEvo {
-		findings = append(findings, detectJSONStdoutMixedWithHumanText(filename, src)...)
-	}
-
-	// TXT-020: an entity name too long, or narrating a transition (into/->)
-	// instead of naming a noun — that detail belongs in Doing/Donef.
-	if hasEvo {
-		findings = append(findings, detectLongEntityName(filename, src)...)
-	}
-
-	// DOM-019: a Task/Item handle variable reassigned from a new declaration
-	// before the previous one was resolved — the earlier row is orphaned
-	// Running forever (a double row under one variable name).
-	if hasEvo {
-		findings = append(findings, detectShadowedHandle(filename, src)...)
-	}
-
-	// TXT-021: a Fail/Warn/Block summary hand-assembles a " — cause:"/
-	// " — action:" fragment instead of using Detail/Next.
-	if hasEvo {
-		findings = append(findings, detectCrammedSummary(filename, src)...)
-	}
-
-	// FP-005: Task created and Done with no Doing/Progress/Writer window.
-	if hasEvo {
-		findings = append(findings, detectInstantDone(filename, f, fset)...)
-	}
-
-	// FP-006: Doing(...) immediately followed by Done(...) with no
-	// Define submitting work between them (theater).
-	if hasEvo {
-		findings = append(findings, detectDoingDoneTheater(filename, f, fset)...)
-	}
-
-	// API-040: Failf/Fail inside a Define callback whose result
-	// reaches that same callback — double-resolves the task.
-	if hasEvo {
-		findings = append(findings, detectFailInResolvedCallback(filename, f, fset)...)
-	}
-
-	// API-041: goroutine/fan-out closure resolves a predeclared Task with
-	// no Define inside it.
-	if hasEvo {
-		findings = append(findings, detectGoroutineResolvesPredeclaredTask(filename, src)...)
-	}
-
-	// API-042: evo.Effect with a nil or no-op callback.
-	if hasEvo {
-		findings = append(findings, detectNoOpEffectCallback(filename, f, fset)...)
-	}
-
-	// API-043: plural EffectSpec.Object literal.
-	if hasEvo {
-		findings = append(findings, detectPluralEffectObject(filename, f, fset)...)
-	}
-
-	// API-044: channel-wait wrapper around Define.
-	if hasEvo {
-		findings = append(findings, detectChannelWaitWrapperAroundDefine(filename, src)...)
-	}
-
-	// API-048: a Group/Sequence Task re-declared by the same string literal
-	// to obtain a later dependency reference (duplicate sibling, not a
-	// get-or-create) — recommend a typed variable instead.
-	if hasEvo {
-		findings = append(findings, detectRedeclaredTaskLiteral(filename, f, fset)...)
-	}
-
-	// TAX-003: inline evo.Reason("...") literal, or a reason that restates
-	// its own verb.
-	if hasEvo {
-		findings = append(findings, detectInlineReasonLiteral(filename, f, fset)...)
-	}
-
-	// API-045: Task(name) where name is a bare subject label or a generic
-	// container/phase word, not one independently meaningful action.
-	if hasEvo {
-		findings = append(findings, detectSubjectOnlyOrContainerTaskName(filename, f, fset)...)
-	}
-
-	// API-050: a generic phase/category-named Task (fix/check/classify/
-	// resolve/finalize) sequences 2+ independently erroring steps in its own
-	// Define callback — structural evidence it owns child-looking work.
-	if hasEvo {
-		findings = append(findings, detectPhaseTaskOwningChildWork(filename, f, fset)...)
-	}
-
-	// The EVO-EVIDENCE-001/VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestions
-	// all recommend 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence);
-	// a pin older than that cannot apply them, so none of these six may fire
-	// for it — mirroring detectDeprecatedSpellings' dialectAtLeast gating.
-	hasEvoAtOneZero := hasEvo && dialectAtLeast(desiredVersion, dialectOneZero)
-
-	// API-047: Task/Group/Sequence declaration reuses a sibling literal name
-	// already used by a different entity kind under the same parent.
-	// Sequence only exists from 1.0.0 on, so a pin older than that cannot
-	// have a cross-kind collision involving it.
-	if hasEvoAtOneZero {
-		findings = append(findings, detectCrossKindDuplicateSiblingName(filename, f, fset)...)
-	}
-
-	// API-049: Define callback discards its scheduler-provided context.
-	// context.Context-typed Define only exists from 1.0.0 on, so a pin older
-	// than that cannot have this shape.
-	if hasEvoAtOneZero {
-		findings = append(findings, detectDefineDiscardsSchedulerContext(filename, f, fset)...)
-	}
-
-	// API-051: a loop flattens structured findings into one joined error,
-	// or creates one fake Task per finding, instead of accumulating them
-	// with TaskHandle.Problem. Problem's multi-finding accumulation
-	// (ZYS-848 Decisions 2026-09-23) is 1.1.0-only, so a pin older than
-	// that cannot apply this rule's suggested fix.
-	hasEvoAtOneOne := hasEvo && dialectAtLeast(desiredVersion, dialectOneOne)
-	if hasEvoAtOneOne {
-		findings = append(findings, detectPerFindingFakeTask(filename, f, fset)...)
-		findings = append(findings, detectFlattenedDiagnosticsLoop(filename, src)...)
-	}
-
-	// API-057: a filesystem mutator call hidden inside an evo.Effect
-	// callback — Effect is the opaque-mutation escape hatch, not a second
-	// file-write API; evo.File is 1.1.0-only (ZYS-851 Decisions), so a pin
-	// older than that cannot apply this rule's suggested fix.
-	if hasEvoAtOneOne {
-		findings = append(findings, detectFileWriteInEffectCallback(filename, f, fset)...)
-	}
-
-	// API-058: a patch applied straight to the real workspace through
-	// os/exec (`patch`, `git apply`, `git am`) instead of deriving desired
-	// file states with evo.Patch and committing them through
-	// evo.Files/evo.File (ZYS-934). evo.Patch/evo.Files are 1.1.0-only, so
-	// a pin older than that cannot apply this rule's suggested fix.
-	if hasEvoAtOneOne {
-		findings = append(findings, detectDirectWorkspacePatchApply(filename, f, fset)...)
-	}
-
-	// API-059: a Patch-derived FileSet is never passed to evo.Files, and
-	// the same function commits a freshly built FileSpec through evo.File
-	// instead, discarding the source Basis/stale-write guard the FileSet
-	// carried (ZYS-935). evo.Patch/evo.Files are 1.1.0-only, so a pin
-	// older than that cannot have this shape.
-	if hasEvoAtOneOne {
-		findings = append(findings, detectPatchFileSetDiscardedBeforeCommit(filename, f, fset)...)
-	}
-
-	// API-061: a call site still uses the record-only mutation verbs
-	// Record/RecordLabel/RecordName, which have no record-only
-	// replacement (ZYS-974) — steer it to Effect (mutation), Fact
-	// (information), or File/Patch (file writes).
-	findings = append(findings, detectDeprecatedRecordCall(filename, f, fset)...)
-
-	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
-	if hasEvoAtOneZero {
-		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)
-	}
-
-	// EVO-VERIFY-001: Verify callback performs a raw mutation; Verify must
-	// be read-only.
-	if hasEvoAtOneZero {
-		findings = append(findings, detectMutatingVerify(filename, f, fset)...)
-	}
-
-	// API-046: Skipped(evo.Reason("...")) whose reason names an
-	// already-satisfied condition instead of true inapplicability —
-	// ResolutionAlreadySatisfied (via Verify or evo.File/evo.Exec) is
-	// 1.0.0-only, so this recommendation cannot fire for an older pin.
-	if hasEvoAtOneZero {
-		findings = append(findings, detectSkippedForAlreadySatisfied(filename, f, fset)...)
-	}
-
-	// API-060: Summary text that is actually mutation/dry-run/already-
-	// satisfied narration rather than the caller's own result metadata.
-	// TaskHandle.Summary only exists from 1.1.0 on.
-	if hasEvoAtOneOne {
-		findings = append(findings, detectSummaryStampNarration(filename, f, fset)...)
-	}
-
-	// EVO-DRYRUN-001: Define callback raw-calls a side effect Evo's runtime
-	// cannot intercept, breaking the dry-run guarantee.
-	if hasEvoAtOneZero {
-		findings = append(findings, detectRawMutationInDefine(filename, f, fset)...)
-	}
-
-	// EVO-DAG-001: a goroutine exists only to make Evo Tasks parallel.
-	if hasEvoAtOneZero {
-		findings = append(findings, detectGoroutineWrappingDefine(filename, src)...)
-	}
-
-	// EVO-DAG-002: a chained .After(...) reproduces evo.Sequence.
-	if hasEvoAtOneZero {
-		findings = append(findings, detectAfterChainDuplicatesSequence(filename, f, fset)...)
-	}
-
-	// API-054: raw os/exec.Cmd wired to an Evo Task's Writer() reimplements
-	// Exec's own capture/liveness/cancellation with hand-rolled
-	// bytes.Buffer/io.MultiWriter plumbing or output-string cancellation
-	// matching instead of inspecting the ExecResult evo.Exec now returns
-	// (ZYS-850). That inspectable ExecResult surface only exists from
-	// 1.1.0 on, so a pin older than that cannot apply this recommendation.
-	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
-		findings = append(findings, detectManualSubprocessCaptureAroundTask(filename, src)...)
-	}
-
-	// API-052: caller-owned Wait loop over stored Task handles, filtering
-	// ErrNotStarted/snapshotting/hand-counting failures instead of using
-	// GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849). That container
-	// Wait surface only exists from 1.1.0 on, so a pin older than that
-	// cannot apply this recommendation.
-	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
-		findings = append(findings, detectCallerWaitLoopOverContainerChildren(filename, src)...)
-	}
-
-	// API-053: a second evo.File/Resource-claiming evo.Effect call made
-	// with a context an enclosing evo.Effect already holds a Resource on
-	// (ZYS-840), directly or one call away through a same-file helper.
-	// EffectSpec.Resource only exists from 1.1.0 on, so a pin older than
-	// that cannot have this shape.
-	if hasEvoAtOneOne {
-		findings = append(findings, detectNestedResourceAcquisition(filename, f, fset)...)
-	}
-
-	// API-055: caller-managed sync.Mutex/RWMutex Lock/Unlock wrapped around
-	// an evo.File call — File's automatic resource claim (ZYS-840) only
-	// exists from 1.1.0 on, so a pin older than that cannot apply this
-	// recommendation.
-	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
-		findings = append(findings, detectManualLockAroundEvoFile(filename, src)...)
-	}
-
-	// EVO-DAG-003: a visible producer/consumer relationship has no
-	// first-run scheduler ordering.
-	if hasEvoAtOneZero {
-		findings = append(findings, detectMissingProducerConsumerOrdering(filename, f, fset)...)
-	}
-
-	// API-056: a .After(...) edge whose comment and both Tasks' own
-	// resource declarations show the only reason is shared-resource
-	// exclusion, not a semantic dependency. File/FSResource/LogicalResource
-	// automatic claim coordination (ZYS-840) only exists from 1.1.0 on, so
-	// a pin older than that cannot apply this rule's remediation.
-	if hasEvoAtOneOne {
-		findings = append(findings, detectAfterOnlyForResourceContention(filename, src, f, fset)...)
-	}
-
-	// API-027: Done/Fail/Progress on Group/Sequence (name-match).
-	if hasEvo {
-		findings = append(findings, detectCollectionLeafMisuse(filename, f, fset)...)
-	}
-
-	// API-039: Group that only ever has one child in source.
-	if hasEvo {
-		findings = append(findings, detectSingletonGroup(filename, f, fset)...)
-	}
-
-	// EVO-FILE-001: manual write/chmod file reconciliation, and expensive
-	// work already run before a trailing evo.File/evo.Exec return.
-	if hasEvo {
-		findings = append(findings, detectManualFileReconciliation(filename, f, fset)...)
-		findings = append(findings, detectExpensiveWorkBeforeFileOp(filename, f, fset)...)
-	}
-
-	// EVO-EXEC-001: raw exec guarded by a hand-rolled freshness check.
-	if hasEvo {
-		findings = append(findings, detectRawExecWithManualFreshness(filename, f, fset)...)
-	}
-
-	// EVO-PROVENANCE-001: a literal path visibly read or passed as a
-	// literal Exec Arg that the call's own Basis omits.
-	if hasEvo {
-		findings = append(findings, detectOmittedBasisPath(filename, f, fset)...)
-	}
-
-	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
-	if hasEvo {
-		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
-		if strings.Contains(src, "Detail(err)") || strings.Contains(src, "evo.Detail(err)") {
-			findings = append(findings, Finding{
-				RuleID:     "DOM-014",
-				Severity:   "error",
-				Message:    "Detail must be user-visible string; wrap the error with Failf/Blockf's trailing %w instead",
-				File:       filename,
-				Suggestion: `replace Detail(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,
-			})
-		}
-		// MCP-014 / DOM-011: expected blocked item treated as application error.
-		findings = append(findings, detectBlockedAsError(filename, src)...)
 	}
 
 	// GoSource implements its rules fully via AST. Partial is reserved for incomplete
 	// typecheck / multi-file analysis — not "evo is imported".
-	return Result{
-		Findings:        dedupe(findings),
-		RecheckRequired: hasRequired(findings),
-		Partial:         false,
-		DesiredVersion:  desiredVersion,
-	}
+	res := newResult(findings)
+	res.DesiredVersion = desiredVersion
+	return res
 }
 
 // GoPackage reviews multiple Go files in one package with go/types for
@@ -785,9 +101,7 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 // stays local to the provided sources.
 func GoPackage(files map[string]string) Result {
 	if len(files) == 0 {
-		return Result{RecheckRequired: true, Findings: []Finding{{
-			RuleID: "API-000", Severity: "error", Message: "no files provided",
-		}}}
+		return newResult([]Finding{{RuleID: "API-000", Message: "no files provided"}})
 	}
 	// Package-level evo import (cross-file): STREAM rules apply if any file imports evo.
 	pkgHasEvo := false
@@ -806,10 +120,9 @@ func GoPackage(files map[string]string) Result {
 		if pkgHasEvo && !strings.Contains(src, "evident-output") {
 			if strings.Contains(src, "fmt.Print") || strings.Contains(src, "fmt.Fprint") {
 				all = append(all, Finding{
-					RuleID:   "STREAM-003",
-					Severity: "error",
-					Message:  "fmt.Print* in package that imports evo may contaminate managed streams (cross-file)",
-					File:     name,
+					RuleID:  "STREAM-003",
+					Message: "fmt.Print* in package that imports evo may contaminate managed streams (cross-file)",
+					File:    name,
 				})
 			}
 		}
@@ -823,9 +136,8 @@ func GoPackage(files map[string]string) Result {
 		f, err := parser.ParseFile(fset, name, src, parser.SkipObjectResolution)
 		if err != nil {
 			all = append(all, Finding{
-				RuleID: "API-000", Severity: "error",
-				Message: "parse error in " + name + ": " + err.Error(),
-				File:    name,
+				RuleID: "API-000", Message: "parse error in " + name + ": " + err.Error(),
+				File: name,
 			})
 			continue
 		}
@@ -833,7 +145,9 @@ func GoPackage(files map[string]string) Result {
 		parsed = append(parsed, f)
 	}
 	if len(parsed) == 0 {
-		return Result{Findings: dedupe(all), RecheckRequired: true, Partial: true}
+		res := newResult(all)
+		res.Partial = true
+		return res
 	}
 
 	conf := types.Config{
@@ -865,12 +179,11 @@ func GoPackage(files map[string]string) Result {
 				if (strings.Contains(tn, "GroupHandle") || strings.Contains(tn, "SequenceHandle")) && (sel.Sel.Name == "Done" || sel.Sel.Name == "Fail" || sel.Sel.Name == "Progress") {
 					pos := fset.Position(n.Pos())
 					all = append(all, Finding{
-						RuleID:   "API-027",
-						Severity: "error",
-						Message:  fmt.Sprintf("typed: %s.%s on collection type %s is forbidden", tn, sel.Sel.Name, tn),
-						File:     pos.Filename,
-						Line:     pos.Line,
-						Column:   pos.Column,
+						RuleID:  "API-027",
+						Message: fmt.Sprintf("typed: %s.%s on collection type %s is forbidden", tn, sel.Sel.Name, tn),
+						File:    pos.Filename,
+						Line:    pos.Line,
+						Column:  pos.Column,
 					})
 				}
 			}
@@ -886,16 +199,13 @@ func GoPackage(files map[string]string) Result {
 		// Still mark that cross-file parse ran; type errors may be from stubs.
 		partial = true
 		all = append(all, Finding{
-			RuleID:   "MCP-017",
-			Severity: "warning",
-			Message:  "cross-file typecheck incomplete: " + err.Error(),
+			RuleID:  "MCP-017",
+			Message: "cross-file typecheck incomplete: " + err.Error(),
 		})
 	}
-	return Result{
-		Findings:        dedupe(all),
-		RecheckRequired: hasRequired(all),
-		Partial:         partial,
-	}
+	res := newResult(all)
+	res.Partial = partial
+	return res
 }
 
 // stubImporter satisfies go/types for external imports without loading code.
@@ -912,24 +222,19 @@ func Transcript(filename, text string) Result {
 	// Split live/final corruption: ESC without matching reset often ok in our driver
 	if strings.Count(text, "\x1b[?25l") > strings.Count(text, "\x1b[?25h") {
 		findings = append(findings, Finding{
-			RuleID:   "TERM-008",
-			Severity: "error",
-			Message:  "cursor hide without matching show in transcript",
-			File:     filename,
+			RuleID:  "TERM-008",
+			Message: "cursor hide without matching show in transcript",
+			File:    filename,
 		})
 	}
 	if strings.Contains(text, "\x00") {
 		findings = append(findings, Finding{
-			RuleID:   "TERM-014",
-			Severity: "warning",
-			Message:  "NUL byte in transcript suggests unmanaged binary writes",
-			File:     filename,
+			RuleID:  "TERM-014",
+			Message: "NUL byte in transcript suggests unmanaged binary writes",
+			File:    filename,
 		})
 	}
-	return Result{
-		Findings:        findings,
-		RecheckRequired: hasRequired(findings),
-	}
+	return newResult(findings)
 }
 
 // StructuredDocument reviews a JSON snapshot/document for schema basics (MCP-019).
@@ -937,27 +242,19 @@ func StructuredDocument(filename string, raw []byte) Result {
 	var findings []Finding
 	var doc map[string]any
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return Result{
-			Findings: []Finding{{
-				RuleID: "SCHEMA-001", Severity: "error",
-				Message: "invalid JSON: " + err.Error(), File: filename,
-			}},
-			RecheckRequired: true,
-		}
+		return newResult([]Finding{{RuleID: "SCHEMA-001", Message: "invalid JSON: " + err.Error(), File: filename}})
 	}
 	if v, ok := doc["schema_version"].(string); !ok || v == "" {
 		findings = append(findings, Finding{
-			RuleID: "SCHEMA-001", Severity: "error",
-			Message: "missing schema_version", File: filename,
+			RuleID: "SCHEMA-001", Message: "missing schema_version", File: filename,
 		})
 	}
 	if _, ok := doc["conclusion"]; !ok {
 		findings = append(findings, Finding{
-			RuleID: "SCHEMA-001", Severity: "error",
-			Message: "missing conclusion object", File: filename,
+			RuleID: "SCHEMA-001", Message: "missing conclusion object", File: filename,
 		})
 	}
-	return Result{Findings: findings, RecheckRequired: hasRequired(findings)}
+	return newResult(findings)
 }
 
 // isFormatMethod names the surviving *f methods (C6: Donef/Summaryf/Itemf/
@@ -1350,7 +647,6 @@ func detectBlockedAsError(filename, src string) []Finding {
 			if strings.Contains(line, pat) {
 				return []Finding{{
 					RuleID:     "DOM-011",
-					Severity:   "error",
 					Message:    "expected blocked item returned as application error; Block/BlockedBy is a presentation outcome — return nil after Finish, use conclusion ExitCode for process status (MCP-014)",
 					File:       filename,
 					Line:       i + 1,
@@ -1371,7 +667,6 @@ func detectBlockedAsError(filename, src string) []Finding {
 			if !finishAssigned {
 				return []Finding{{
 					RuleID:     "DOM-011",
-					Severity:   "error",
 					Message:    "return err after Block treats expected blocked item as application error; Finish then use ExitCode (MCP-014)",
 					File:       filename,
 					Line:       i + 1,
@@ -1401,7 +696,6 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 	}
 	return []Finding{{
 		RuleID:     "SIG-001",
-		Severity:   "warning",
 		Message:    "signal.Notify without a Cancel call in this file; prefer evo.Main/Output.Run, which already wire SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
 		File:       filename,
 		Line:       line,
@@ -1496,7 +790,6 @@ func callArgsIncludeLifecycleSignal(args []ast.Expr) bool {
 func duplicateSignalWiringFinding(filename string, pos token.Position, pkg, verb string) Finding {
 	return Finding{
 		RuleID:     "SIG-002",
-		Severity:   "warning",
 		Message:    "signal." + verb + " wires SIGINT/SIGTERM/os.Interrupt in a file that also calls " + pkg + ".Main/" + pkg + ".Run; those entrypoints already cancel RunFunc's context on the same signals, so this duplicate layer can let the ledger and the process's actual exit path diverge",
 		File:       filename,
 		Line:       pos.Line,
@@ -1532,7 +825,6 @@ func detectTTYPassthroughWithoutSuspend(filename, src string) []Finding {
 	}
 	return []Finding{{
 		RuleID:     "TERM-015",
-		Severity:   "warning",
 		Message:    "tty-passthrough child (Stdout/Stderr inherited); capture it with task.Writer() so the live row keeps moving",
 		File:       filename,
 		Line:       line,
@@ -1554,7 +846,6 @@ func detectHandRolledConfirm(filename, src string) []Finding {
 	line := 1 + strings.Count(src[:idx], "\n")
 	return []Finding{{
 		RuleID:     "CONFIRM-001",
-		Severity:   "warning",
 		Message:    "hand-rolled stdin confirm prompt in a file that imports evo; use evo.Confirm for spinner-pause + OK/declined/blocked resolution",
 		File:       filename,
 		Line:       line,
@@ -1562,139 +853,9 @@ func detectHandRolledConfirm(filename, src string) []Finding {
 	}}
 }
 
-// firstPaintIOMarkers are calls heavy enough to blank the terminal for a
-// visible interval when run ahead of the first paint. Domain inventory
-// (purge.Inventory) is the canary that stdlib-only markers missed.
-var firstPaintIOMarkers = []string{
-	"os.ReadFile(", "os.ReadDir(", "os.Open(", "filepath.Walk(",
-	"filepath.WalkDir(", "exec.Command(", "http.Get(", "net.Dial(",
-	".Inventory(",
-}
-
-// firstPaintInitMarkers arm the display (evo-rec.md "First paint").
-var firstPaintInitMarkers = []string{"evo.Init("}
-
-// firstPaintEntityMarkers declare the first presentation entity.
-var firstPaintEntityMarkers = []string{".Task(", ".Group(", ".Sequence(", ".Item("}
-
-// detectFirstPaintGaps flags heavy I/O that runs ahead of evo's init call
-// (FP-001: nothing is armed yet, so nothing can paint) or between init and
-// the first declared Task/Group/Sequence (FP-002: armed but still blank).
-// Every function that calls evo.Init is in scope — Isolated nested inits
-// (previewPurge) are the pit-of-success miss, not only main/run.
-func detectFirstPaintGaps(filename, src string) []Finding {
-	var findings []Finding
-	for _, fn := range allFuncBodies(src) {
-		if earliestIndex(fn.body, firstPaintInitMarkers) < 0 && !strings.Contains(fn.body, "evo.New(") {
-			continue
-		}
-		findings = append(findings, firstPaintGapsInBody(filename, src, fn.body, fn.offset)...)
-	}
-	return findings
-}
-
-func firstPaintGapsInBody(filename, src, body string, offset int) []Finding {
-	ioIdx, ioMarker := earliestMarker(body, firstPaintIOMarkers)
-	if ioIdx < 0 {
-		return nil
-	}
-	initIdx := earliestIndex(body, firstPaintInitMarkers)
-	if initIdx < 0 {
-		initIdx = earliestIndex(body, []string{"evo.New("})
-	}
-	var findings []Finding
-	if initIdx < 0 || ioIdx < initIdx {
-		findings = append(findings, Finding{
-			RuleID:     "FP-001",
-			Severity:   "warning",
-			Message:    "heavy I/O runs before evo.Init/New; nothing is armed to paint within 100ms of process start",
-			File:       filename,
-			Line:       lineAt(src, offset+ioIdx),
-			Suggestion: "call evo.Init(...) before " + ioMarker + "...)",
-		})
-		return findings
-	}
-	entityIdx := earliestIndex(body, firstPaintEntityMarkers)
-	if entityIdx < 0 || (ioIdx > initIdx && ioIdx < entityIdx) {
-		findings = append(findings, Finding{
-			RuleID:     "FP-002",
-			Severity:   "warning",
-			Message:    "heavy I/O runs between evo.Init/New and the first Task/Group/Sequence; declare the first entity before this I/O",
-			File:       filename,
-			Line:       lineAt(src, offset+ioIdx),
-			Suggestion: "declare the first Task/Group/Sequence before " + ioMarker + "...)",
-		})
-	}
-	return findings
-}
-
 // detectStaleDoingBeforeSubprocess flags a task whose only Doing call sits
 // ahead of a subprocess run with no further Doing/Progress/Writer — the
 // spinner keeps animating over a silent child (evo-rec.md "FP-003").
-// detectSilentPreTaskLoops flags a for/range work loop that runs after
-// evo.Init/New but before the first Task/Group/Sequence. That is the
-// purge/prune FAIL class: scanning looks dead because the loop never
-// lived inside a task definition.
-func detectSilentPreTaskLoops(filename, src string) []Finding {
-	var findings []Finding
-	for _, fn := range allFuncBodies(src) {
-		if earliestIndex(fn.body, firstPaintInitMarkers) < 0 && !strings.Contains(fn.body, "evo.New(") {
-			continue
-		}
-		findings = append(findings, silentPreTaskLoopsInBody(filename, src, fn.body, fn.offset)...)
-	}
-	return findings
-}
-
-func silentPreTaskLoopsInBody(filename, src, body string, offset int) []Finding {
-	initIdx := earliestIndex(body, firstPaintInitMarkers)
-	if initIdx < 0 {
-		initIdx = earliestIndex(body, []string{"evo.New("})
-	}
-	if initIdx < 0 {
-		return nil
-	}
-	entityIdx := earliestIndex(body, firstPaintEntityMarkers)
-	searchEnd := len(body)
-	if entityIdx >= 0 {
-		searchEnd = entityIdx
-	}
-	window := body[initIdx:searchEnd]
-	loopIdx := strings.Index(window, "for ")
-	if loopIdx < 0 {
-		return nil
-	}
-	// Require range + an I/O marker so tiny in-memory for-loops are not flagged.
-	loopTail := window[loopIdx:]
-	if !strings.Contains(loopTail, " range ") {
-		return nil
-	}
-	ioIdx, ioMarker := earliestMarker(loopTail, firstPaintIOMarkers)
-	if ioIdx < 0 {
-		// Also treat bare multi-iteration domain walks as work when they call
-		// known walk helpers without the stdlib marker spelling.
-		for _, walk := range []string{"FindWorktree", "FindCache", "ListWorktree", "WalkDir", "Walk("} {
-			if strings.Contains(loopTail, walk) {
-				ioMarker = walk
-				ioIdx = strings.Index(loopTail, walk)
-				break
-			}
-		}
-	}
-	if ioIdx < 0 {
-		return nil
-	}
-	abs := offset + initIdx + loopIdx
-	return []Finding{{
-		RuleID:     "LOOP-001",
-		Severity:   "error",
-		Message:    "work loop runs before any Task/Group/Sequence; silent pre-output loops are a pit-of-success FAIL — put the loop inside Task.Define, or declare Group/Sequence first and give each item its own named Task",
-		File:       filename,
-		Line:       lineAt(src, abs),
-		Suggestion: "declare Task/Group/Sequence first, then run the loop inside task.Define(...) or for _, x := range items { group.Task(x).Define(...) }; move " + ioMarker + " into the task body",
-	}}
-}
-
 func detectStaleDoingBeforeSubprocess(filename, src string) []Finding {
 	var findings []Finding
 	for _, fn := range allFuncBodies(src) {
@@ -1723,7 +884,6 @@ func detectStaleDoingBeforeSubprocess(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "FP-003",
-			Severity:   "warning",
 			Message:    "Doing is set once before a subprocess run with no further Doing/Progress/Writer; wire child output through Task.Writer or advance Doing as evidence arrives",
 			File:       filename,
 			Line:       lineAt(src, fn.offset+doingIdx),
@@ -1762,7 +922,6 @@ func detectHandAssembledTaxonomyCount(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "TAX-001",
-			Severity:   "warning",
 			Message:    "hand-assembled skip/keep count string; record reason + name via task.Skipped/Kept and let evo derive and sum the partition",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1793,7 +952,6 @@ func detectProgressInDoingString(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "PROG-001",
-			Severity:   "error",
 			Message:    "Doing string smuggles a %d/%d count; use Progress(completed, total) so the count is structured, not narration text",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1820,7 +978,6 @@ func detectUnboundedSliceIntoNarration(filename, src string) []Finding {
 		method := src[m[2]:m[3]]
 		findings = append(findings, Finding{
 			RuleID:     "BOUND-001",
-			Severity:   "warning",
 			Message:    "strings.Join of an unbounded slice passed to " + method + "; wrap it in evo.TruncateNames before rendering",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1854,7 +1011,6 @@ func detectTaskDeclaredInsideFanOut(filename, src string) []Finding {
 			if strings.Contains(body, ".Task(") {
 				findings = append(findings, Finding{
 					RuleID:     "API-030",
-					Severity:   "error",
 					Message:    "Task declared inside a goroutine/fan-out closure; predeclare all children before starting any goroutine",
 					File:       filename,
 					Line:       lineAt(src, start),
@@ -1884,7 +1040,6 @@ func detectHandRolledWriter(filename, src string) []Finding {
 		if strings.Contains(body, ".Doing(") {
 			findings = append(findings, Finding{
 				RuleID:     "API-031",
-				Severity:   "warning",
 				Message:    "hand-rolled io.Writer.Write calls TaskHandle.Doing; use Task.Writer() instead",
 				File:       filename,
 				Line:       lineAt(src, start),
@@ -1941,7 +1096,6 @@ func detectConfirmMissingDestructive(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "CONFIRM-002",
-			Severity:   "warning",
 			Message:    "Confirm question reads as destructive but is missing evo.Destructive()",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1968,7 +1122,6 @@ func detectFailfEmbeddedEvidenceText(filename, src string) []Finding {
 	for _, m := range failfCaptureTextPattern.FindAllStringIndex(src, -1) {
 		findings = append(findings, Finding{
 			RuleID:     "EV-001",
-			Severity:   "warning",
 			Message:    "Failf/Blockf argument calls .Text()/.Tail() on the retained evidence ring — that text is already auto-attached as a separate evidence line, so embedding it in the summary too duplicates it",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1988,7 +1141,6 @@ func detectHandAssembledFailureSummary(filename, src string) []Finding {
 	for _, m := range printJoinPattern.FindAllStringIndex(src, -1) {
 		findings = append(findings, Finding{
 			RuleID:     "CON-002",
-			Severity:   "warning",
 			Message:    "printing a joined list duplicates the Conclusion summary; resolve each item on its own Item/Task instead",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -2039,7 +1191,8 @@ var okCallPattern = regexp.MustCompile(`(\w+)\.OK\(\)`)
 // (Failf/Blockf's trailing %w since Fail/Block are statement-form), Capture
 // (renamed to Evidence), and the rec-surface spellings (Config.Options,
 // Option funcs, the mutation verbs removed in 1.1, Skip, ID, StartPhase).
-func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
+func detectDeprecatedSpellings(in fileInput) []Finding {
+	filename, src, desiredVersion := in.filename, in.src, in.desiredVersion
 	var findings []Finding
 	if dialectAtLeast(desiredVersion, dialectFold) {
 
@@ -2047,7 +1200,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			if idx := strings.Index(body, "evo.New("); idx >= 0 {
 				findings = append(findings, Finding{
 					RuleID:     "API-032",
-					Severity:   "warning",
 					Message:    "evo.New was removed with the item/task fold; evo.Init is the sole constructor",
 					File:       filename,
 					Line:       lineAt(src, offset+idx),
@@ -2060,7 +1212,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			recv := src[m[2]:m[3]]
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "Item folded into Task — Item was removed",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -2075,7 +1226,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "Plan was removed in v0.4 — use evo.Effect, evo.File, or Task.Fact",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -2090,7 +1240,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "Changes was removed in v0.4 — use evo.Effect, evo.File, or Task.Fact",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -2102,7 +1251,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			recv := src[m[2]:m[3]]
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "OK was retired with Item — a Task resolves by running its Define callback",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -2113,7 +1261,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 		for _, m := range becauseCallPattern.FindAllStringIndex(src, -1) {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "Because was retired with Item — its text is now the resolving verb's own argument",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -2132,7 +1279,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use " + verb + "f's trailing %w",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -2145,7 +1291,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use Failf/Blockf's trailing %w",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -2160,7 +1305,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -2170,7 +1314,7 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 
 	}
 	if dialectAtLeast(desiredVersion, dialectRec) {
-		findings = append(findings, detectSupersededRecSurface(filename, src, desiredVersion)...)
+		findings = append(findings, detectSupersededRecSurface(in)...)
 	}
 	return findings
 }
@@ -2193,7 +1337,6 @@ func detectNameEqualsVerbArgument(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-033",
-			Severity:   "warning",
 			Message:    "the same expression (" + nameArg + ") is used as both the entity name and the ." + verb + "(...) argument — the second carries no new information",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -2225,7 +1368,6 @@ func detectPlaceholderDoing(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "FP-004",
-			Severity:   "warning",
 			Message:    `Doing("` + lit + `") names no domain object; the user can't tell this frame from the last one`,
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -2261,7 +1403,6 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 			if trimmed == "return nil" {
 				findings = append(findings, Finding{
 					RuleID:     "API-034",
-					Severity:   "error",
 					Message:    recv + "." + verb + "(...) followed by return nil discards the error the caller needed to propagate",
 					File:       filename,
 					Line:       j + 1,
@@ -2289,7 +1430,6 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 		idx := strings.Index(fb.body, "io.Discard")
 		findings = append(findings, Finding{
 			RuleID:     "API-035",
-			Severity:   "warning",
 			Message:    "io.Discard sink in a function that also Fails/Blocks discards the evidence a security gate needs to explain its own verdict",
 			File:       filename,
 			Line:       lineAt(src, fb.offset+idx),
@@ -2329,7 +1469,6 @@ func detectSprintfInVerb(filename, src string) []Finding {
 			// still a real finding, but no cheap derived Verbf substitution.
 			findings = append(findings, Finding{
 				RuleID:     "API-036",
-				Severity:   "warning",
 				Message:    recv + "." + verb + "(fmt.Sprintf(...), ...) should build its summary via " + recv + "." + verb + "f(...)",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -2339,7 +1478,6 @@ func detectSprintfInVerb(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-036",
-			Severity:   "warning",
 			Message:    recv + "." + verb + "(fmt.Sprintf(...)) should be " + recv + "." + verb + "f(...) directly",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -2379,7 +1517,6 @@ func detectSprintfIntoVariadicVerb(filename, src string) []Finding {
 			// a real finding, but no cheap derived flattened call.
 			findings = append(findings, Finding{
 				RuleID:     "API-038",
-				Severity:   "warning",
 				Message:    recv + "." + verb + "(fmt.Sprintf(...), ...) should flatten fmt.Sprintf into " + recv + "." + verb + "'s own format + args",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -2389,7 +1526,6 @@ func detectSprintfIntoVariadicVerb(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-038",
-			Severity:   "warning",
 			Message:    recv + "." + verb + "(fmt.Sprintf(...)) should flatten into " + recv + "." + verb + "(...) directly",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -2432,7 +1568,6 @@ func detectWrapperMethod(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-037",
-			Severity:   "warning",
 			Message:    "method " + name + " wraps a single call (." + call[1] + "(...)) on a Task/Item handle with no added behavior",
 			File:       filename,
 			Line:       lineAt(src, start),
@@ -2492,8 +1627,7 @@ func detectErrTwice(filename, src string) []Finding {
 			continue
 		}
 		findings = append(findings, Finding{
-			RuleID:   "DOM-018",
-			Severity: "warning",
+			RuleID: "DOM-018",
 			Message: errVar + ".Error() as the summary and evo.Cause(" + errVar + ") as an option surface the same error twice; " +
 				"evo.Cause no longer affects the returned error since Fail/Block are statement-form",
 			File:       filename,
@@ -2535,8 +1669,7 @@ func detectDynamicReason(filename, src string) []Finding {
 			continue
 		}
 		findings = append(findings, Finding{
-			RuleID:   "TAX-002",
-			Severity: "warning",
+			RuleID: "TAX-002",
 			Message: "evo.Reason built from a computed expression (" + firstArg +
 				") is a cardinality bug — each distinct rendered value opens a new taxonomy bucket",
 			File:       filename,
@@ -2578,7 +1711,6 @@ func detectLongEntityName(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "TXT-020",
-			Severity:   "warning",
 			Message:    fmt.Sprintf("entity name %q %s", name, reason),
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -2607,13 +1739,12 @@ func detectShadowedHandle(filename, src string) []Finding {
 				resolved := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.(Done|Fail|Warn|Block|Cancel|Skip)\(`).MatchString(between)
 				if !resolved {
 					findings = append(findings, Finding{
-						RuleID:   "DOM-019",
-						Severity: "warning",
+						RuleID: "DOM-019",
 						Message: "variable " + name + " is reassigned from a new Task/Item declaration before the previous one was resolved; " +
 							"the earlier row is orphaned Running forever",
 						File:       filename,
 						Line:       lineAt(src, fb.offset+m[0]),
-						Suggestion: "resolve " + name + " (Done/Fail/Block/Warn/Cancel/Skip) before reassigning it, or give the second declaration its own variable name",
+						Suggestion: "resolve " + name + " (Define, Fail, Block, Cancel, or Skipped) before reassigning it, or give the second declaration its own variable name",
 					})
 				}
 			}
@@ -2641,7 +1772,6 @@ func detectCrammedSummary(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "TXT-021",
-			Severity:   "warning",
 			Message:    verb + " summary hand-assembles a cause/action fragment into the text instead of using Detail/Next",
 			File:       filename,
 			Line:       lineAt(src, m[0]),

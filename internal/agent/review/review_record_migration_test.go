@@ -15,7 +15,11 @@ import (
 // A setup_python/install-shaped call: task.Record reports a mutation that
 // already ran elsewhere, which the acceptance checklist calls out by name.
 const recordInstallShapedSrc = `package p
-func run(task *TaskHandle, n int) {
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(task *evo.TaskHandle, n int) {
   task.Record("install", n, "module")
 }
 `
@@ -43,7 +47,11 @@ func TestAPI061_RecordInstallShaped_Fires(t *testing.T) {
 // An uninstall-shaped call fires the same way — Record's migration does
 // not depend on which imperative verb string it carries.
 const recordUninstallShapedSrc = `package p
-func run(task *TaskHandle, n int) {
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(task *evo.TaskHandle, n int) {
   task.Record("uninstall", n, "module")
 }
 `
@@ -56,7 +64,11 @@ func TestAPI061_RecordUninstallShaped_Fires(t *testing.T) {
 // RecordLabel reports a classification, not a mutation — its migration
 // path is evo.Fact specifically, and the suggestion says so.
 const recordLabelInformationShapedSrc = `package p
-func run(task *TaskHandle, n int) {
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(task *evo.TaskHandle, n int) {
   task.RecordLabel("ready", n, "worker")
 }
 `
@@ -74,7 +86,11 @@ func TestAPI061_RecordLabelInformationShaped_Fires(t *testing.T) {
 
 // RecordName is the two-arg named-object verb; it fires the same rule.
 const recordNameFileWriteShapedSrc = `package p
-func run(task *TaskHandle, path string) {
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(task *evo.TaskHandle, path string) {
   task.RecordName("write", path)
 }
 `
@@ -152,7 +168,7 @@ func TestAPI061_SuggestsExactRewrite(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			src := "package p\nfunc run(task *TaskHandle, n int, path string) {\n  " + tc.call + "\n}\n"
+			src := "package p\nimport evo \"github.com/zachbornheimer/evident-output\"\nfunc run(task *evo.TaskHandle, n int, path string) {\n  " + tc.call + "\n}\n"
 			f := findingByID(t, review.GoSource("p.go", src), "API-061")
 			if !strings.Contains(f.Suggestion, tc.want) {
 				t.Fatalf("suggestion missing exact rewrite:\nwant %s\ngot  %s", tc.want, f.Suggestion)
@@ -162,4 +178,51 @@ func TestAPI061_SuggestsExactRewrite(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A file that never imports evident-output is not evo code: an unrelated
+// Record method with the removed verb's arity stays silent.
+const recordWithoutEvoImportSrc = `package p
+func run(rec *Recorder, n int) {
+  rec.Record("add", n, "item")
+}
+`
+
+func TestAPI061_WithoutEvoImport_Silent(t *testing.T) {
+	assertNoRule(t, review.GoSource("recorder.go", recordWithoutEvoImportSrc), "API-061")
+}
+
+// OpenTelemetry's histogram.Record(ctx, v, opts...) shares the three-arg
+// shape. In a file that does import evo, a receiver that is not an evo
+// Task value stays silent.
+const recordOTelHistogramSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+  "go.opentelemetry.io/otel/metric"
+)
+func run(ctx context.Context, histogram metric.Int64Histogram, task *evo.TaskHandle, attrs metric.RecordOption) {
+  histogram.Record(ctx, 42, attrs)
+  task.Summary("ok")
+}
+`
+
+func TestAPI061_OTelHistogramRecord_Silent(t *testing.T) {
+	assertNoRule(t, review.GoSource("metrics.go", recordOTelHistogramSrc), "API-061")
+}
+
+// assertNoRule fails when res carries any finding for ruleID.
+func assertNoRule(t *testing.T, res review.Result, ruleID string) {
+	t.Helper()
+	for _, f := range res.Findings {
+		if f.RuleID == ruleID {
+			t.Fatalf("%s fired: %+v", ruleID, f)
+		}
+	}
+}
+
+// Record* still exists at a 1.0.x pin, so an explicit older pin must not be
+// told it was removed.
+func TestAPI061_PreOneOnePin_Silent(t *testing.T) {
+	assertNoRule(t, review.GoSourceAt("setup_python.go", recordInstallShapedSrc, "1.0.0"), "API-061")
 }

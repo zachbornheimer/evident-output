@@ -112,7 +112,6 @@ func detectOmittedBasisPath(filename string, file *ast.File, fset *token.FileSet
 func omittedBasisFinding(filename string, pos token.Position, path string) Finding {
 	return Finding{
 		RuleID:     "EVO-PROVENANCE-001",
-		Severity:   "warning",
 		Message:    fmt.Sprintf("Basis omits %s, which this callback visibly reads", path),
 		File:       filename,
 		Line:       pos.Line,

@@ -8,7 +8,7 @@ func processRules() []Rule {
 		{
 			ID:              "EVO-EXIT-001",
 			Category:        "EXIT",
-			Severity:        "error",
+			Severity:        SeverityError,
 			Invariant:       "the process exit code always derives from the Evo conclusion, never a caller-chosen literal",
 			Why:             "A literal os.Exit(1) (or any exit not derived from evo.Main/evo.Run's result) can disagree with the ledger the human/JSON report just showed — evo.MainWith, the earlier shortcut for this, was removed in 1.0 because it hid the same bypass behind a wrapper instead of closing it.",
 			BadCode:         `os.Exit(1) // literal, disagrees with what the report just showed`,
@@ -22,7 +22,7 @@ func processRules() []Rule {
 		{
 			ID:        "EVO-LIVE-001",
 			Category:  "LIVE",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "fmt.Print* never writes while Evo owns the live region",
 			Why:       "Evo's live renderer redraws the terminal in place; an unmanaged fmt.Print* call lands mid-redraw and tears the frame — the same class of corruption STREAM-003 already flags for any managed stream, called out here specifically for the active live-rendering case the spec's migration guidance targets.",
 			BadCode: `out := evo.Init(evo.Config{})

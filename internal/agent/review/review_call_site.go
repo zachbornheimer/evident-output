@@ -32,7 +32,6 @@ func detectInlineConstructAtEvoCall(filename string, fset *token.FileSet, file *
 		}
 		findings = append(findings, Finding{
 			RuleID:     ruleInlineConstruct,
-			Severity:   "warning",
 			Message:    "inline " + builtin + "() inside evo.Init/Task/Group argument; extract a named local before the call",
 			File:       filename,
 			Line:       fset.Position(pos).Line,

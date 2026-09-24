@@ -258,14 +258,12 @@ func detectAfterOnlyForResourceContention(filename, src string, file *ast.File, 
 		}
 		pos := fset.Position(e.pos)
 		findings = append(findings, Finding{
-			RuleID:          "API-056",
-			Severity:        "warning",
-			Message:         e.child + ".After(" + e.parent + ") exists only to avoid a race on " + strconv.Quote(resource) + "; both Tasks already claim that resource, so Evo's automatic resource coordination already serializes them without this edge",
-			File:            filename,
-			Line:            pos.Line,
-			Column:          pos.Column,
-			Suggestion:      "delete " + e.child + ".After(" + e.parent + ") — the overlapping claim on " + strconv.Quote(resource) + " (File/FSResource/LogicalResource) already waits out the conflict; keep .After only for a real ordering dependency",
-			RequiredVersion: dialectOneOne,
+			RuleID:     "API-056",
+			Message:    e.child + ".After(" + e.parent + ") exists only to avoid a race on " + strconv.Quote(resource) + "; both Tasks already claim that resource, so Evo's automatic resource coordination already serializes them without this edge",
+			File:       filename,
+			Line:       pos.Line,
+			Column:     pos.Column,
+			Suggestion: "delete " + e.child + ".After(" + e.parent + ") — the overlapping claim on " + strconv.Quote(resource) + " (File/FSResource/LogicalResource) already waits out the conflict; keep .After only for a real ordering dependency",
 		})
 	}
 	return findings

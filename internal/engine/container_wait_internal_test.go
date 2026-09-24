@@ -272,3 +272,56 @@ func TestTaskHandle_Define_ReturnsHandleForChaining(t *testing.T) {
 		t.Fatalf("exit %d, want ExitOK; output:\n%s", res.ExitCode(), buf.String())
 	}
 }
+
+// TestGroupHandle_Wait_ExternalPredecessorFailure pins that Wait never
+// reports success for a container none of whose children ran: when every
+// child is NotStarted because a predecessor OUTSIDE the container failed,
+// that cause is not in the container's own join, so the NotStarted outcome
+// must surface rather than be dropped as "already represented".
+func TestGroupHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
+	out := Init(Config{
+		Isolated: true, Plain: true, Color: ColorNever,
+		MaxConcurrency: 2, Stdout: io.Discard, Stderr: io.Discard,
+	})
+	var ran atomic.Bool
+	var waitErr error
+	out.Run(context.Background(), func(ctx context.Context) error {
+		pre := out.Task("prepare")
+		pre.Define(func(ctx context.Context) error { return errors.New("boom") })
+		jobs := out.Group("jobs")
+		jobs.Task("a").After(pre).Define(func(ctx context.Context) error {
+			ran.Store(true)
+			return nil
+		})
+		waitErr = jobs.Wait()
+		return nil
+	})
+	if ran.Load() {
+		t.Fatal("child ran despite its failed predecessor")
+	}
+	if !errors.Is(waitErr, ErrNotStarted) {
+		t.Fatalf("Group.Wait = %v, want ErrNotStarted when no child ran", waitErr)
+	}
+}
+
+// TestSequenceHandle_Wait_ExternalPredecessorFailure is the Sequence
+// counterpart of TestGroupHandle_Wait_ExternalPredecessorFailure.
+func TestSequenceHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
+	out := Init(Config{
+		Isolated: true, Plain: true, Color: ColorNever,
+		MaxConcurrency: 2, Stdout: io.Discard, Stderr: io.Discard,
+	})
+	var waitErr error
+	out.Run(context.Background(), func(ctx context.Context) error {
+		pre := out.Task("prepare")
+		pre.Define(func(ctx context.Context) error { return errors.New("boom") })
+		seq := out.Sequence("steps")
+		seq.Task("first").After(pre).Define(func(ctx context.Context) error { return nil })
+		seq.Task("second").Define(func(ctx context.Context) error { return nil })
+		waitErr = seq.Wait()
+		return nil
+	})
+	if !errors.Is(waitErr, ErrNotStarted) {
+		t.Fatalf("Sequence.Wait = %v, want ErrNotStarted when no step ran", waitErr)
+	}
+}

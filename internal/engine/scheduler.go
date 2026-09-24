@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"runtime"
 	"slices"
-	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -96,13 +95,15 @@ func (t *TaskHandle) submitWork(fn func() error) {
 	st.submitted = true
 	st.workFn = fn
 	o.schedWG.Add(1)
+	o.enqueueLocked(st)
 	// §48: a predecessor that already failed before this task was even
 	// submitted must settle it NotStarted right now, under the same lock —
-	// not wait for a later kick()/waiter to notice. cascadeIneligibleLocked
-	// is a no-op when nothing is permanently blocked (a predecessor still
-	// running is left alone), so this is safe to run unconditionally on
-	// every submission.
-	o.cascadeIneligibleLocked()
+	// not wait for a later kick()/waiter to notice. Only this task is new
+	// to the queue, so only it needs checking, unless some earlier failure
+	// left the whole queue due for a cascade.
+	if o.schedCascadeDue || o.unreachableLocked(st) {
+		o.cascadeIneligibleLocked()
+	}
 	o.mu.Unlock()
 	o.kick()
 }
@@ -121,16 +122,16 @@ func (o *Output) kick() {
 	o.releaseUnsatisfiableWaits()
 }
 
-// abandonUnreachableWork resolves, once the run is draining, every queued
-// task whose predecessors can no longer succeed. The drain cascaded once at
-// its start, so a task whose predecessor failed *after* that moment stayed
-// queued for a predecessor that would never arrive — and any caller waiting
-// on it stayed blocked with it, which is a hung Finish rather than a
-// reported outcome.
+// abandonUnreachableWork resolves every queued task whose predecessors can
+// no longer succeed, once some task failed since the last cascade or the
+// run is draining. The drain cascaded once at its start, so a task whose
+// predecessor failed *after* that moment stayed queued for a predecessor
+// that would never arrive — and any caller waiting on it stayed blocked
+// with it, which is a hung Finish rather than a reported outcome.
 func (o *Output) abandonUnreachableWork() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if !o.schedDraining {
+	if !o.schedDraining && !o.schedCascadeDue {
 		return
 	}
 	o.cascadeIneligibleLocked()
@@ -145,20 +146,10 @@ func (o *Output) takeEligible() (st *taskState, fn func() error) {
 		// completion behind one cancelled row.
 		return nil, nil
 	}
-	max := o.concurrencyCeilingLocked()
-	if o.schedInflight >= max {
+	if o.schedInflight >= o.concurrencyCeilingLocked() {
 		return nil, nil
 	}
-	for _, cand := range o.tasks {
-		if !cand.submitted || cand.runningWork || core.IsTerminalTask(cand.state) {
-			continue
-		}
-		if !o.eligibleLocked(cand) {
-			continue
-		}
-		if o.schedInflight >= max {
-			return nil, nil
-		}
+	if cand := o.schedQueue.first(o.eligibleLocked); cand != nil {
 		o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
 		cand.runningWork = true
 		o.schedInflight++
@@ -291,69 +282,21 @@ func (o *Output) taskIsTerminal(st *taskState) bool {
 }
 
 // runCallback is the single frame every task callback runs beneath, so a
-// goroutine parked in Wait can count — on its own stack, without asking who
-// it is — how many callbacks it is holding still. That count is the one
-// thing separating "a callback is stuck waiting" from "a plain caller is
-// waiting while callbacks run", and Go offers no goroutine-scoped storage
-// to carry it instead (see callbackDepth).
+// goroutine parked in Wait can count how many callbacks it is holding
+// still. That count is the one thing separating "a callback is stuck
+// waiting" from "a plain caller is waiting while callbacks run".
 func runCallback(fn func() error) error {
-	noteCallbackFrame()
+	callbackFrames.note()
 	return fn()
 }
 
-// callbackFrame is runCallback's own qualified name, learned from
-// runCallback rather than spelled as a literal so a rename or a package
-// move cannot silently blind the deadlock check. Empty until the first
-// callback runs, which is exactly when the count is still zero anyway.
-var callbackFrame atomic.Pointer[string]
-
-func noteCallbackFrame() {
-	if callbackFrame.Load() != nil {
-		return
-	}
-	var pcs [1]uintptr
-	// Skip runtime.Callers and noteCallbackFrame itself: the caller is
-	// runCallback, the frame every callback sits beneath.
-	if runtime.Callers(2, pcs[:]) == 0 {
-		return
-	}
-	frame, _ := runtime.CallersFrames(pcs[:]).Next()
-	name := frame.Function
-	callbackFrame.Store(&name)
-}
-
-// stackSampleFrames is the initial depth one stack sample reads. A deeper
-// stack is resampled with a doubled buffer rather than truncated, because a
-// missed frame would under-count parked callbacks and call a live run dead.
-const stackSampleFrames = 64
+// callbackFrames marks runCallback (see frameMarker).
+var callbackFrames frameMarker
 
 // callbackDepth counts the task callbacks the calling goroutine is
 // currently inside: zero for a plain caller, one for a callback, more when
 // a waiter donated its goroutine to nested work before parking.
-func callbackDepth() int {
-	name := callbackFrame.Load()
-	if name == nil {
-		return 0
-	}
-	for size := stackSampleFrames; ; size *= 2 {
-		pcs := make([]uintptr, size)
-		n := runtime.Callers(2, pcs)
-		if n == size {
-			continue
-		}
-		depth := 0
-		frames := runtime.CallersFrames(pcs[:n])
-		for {
-			frame, more := frames.Next()
-			if frame.Function == *name {
-				depth++
-			}
-			if !more {
-				return depth
-			}
-		}
-	}
-}
+func callbackDepth() int { return callbackFrames.depth() }
 
 // beginWait registers this goroutine's park and re-tests the run: a newly
 // parked waiter may be the last thing that could have moved it.
@@ -422,7 +365,7 @@ func (o *Output) parkedCallbacksLocked() int {
 }
 
 func (o *Output) anyClaimableLocked() bool {
-	return slices.ContainsFunc(o.tasks, o.claimableLocked)
+	return !o.schedCancelled && o.schedQueue.first(o.eligibleLocked) != nil
 }
 
 // anyAwaitedTaskResolvedLocked reports whether some parked waiter's task is
@@ -553,10 +496,10 @@ func (o *Output) claimForWaiter(taskID string) (st *taskState, fn func() error, 
 func (o *Output) claimAnyForWaiter() (st *taskState, fn func() error, claimed bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	for _, cand := range o.tasks {
-		if !o.claimableLocked(cand) {
-			continue
-		}
+	if o.schedCancelled {
+		return nil, nil, false
+	}
+	if cand := o.schedQueue.first(o.eligibleLocked); cand != nil {
 		return o.claimLocked(cand)
 	}
 	return nil, nil, false
@@ -587,6 +530,7 @@ func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error, c
 func (o *Output) drainScheduler() {
 	o.mu.Lock()
 	o.schedDraining = true
+	o.unparkAllLocked()
 	o.cascadeIneligibleLocked()
 	o.mu.Unlock()
 	o.kick()
@@ -624,24 +568,31 @@ func (o *Output) predsSatisfiedLocked(st *taskState) bool {
 	return true
 }
 
+// cascadeIneligibleLocked settles NotStarted every queued task that can
+// never become eligible, repeating until nothing changes (one settling can
+// strand the tasks queued behind it).
 func (o *Output) cascadeIneligibleLocked() {
-	changed := true
-	for changed {
+	for changed := true; changed; {
 		changed = false
-		for _, st := range o.tasks {
-			if !st.submitted || st.runningWork || core.IsTerminalTask(st.state) {
-				continue
-			}
-			if o.eligibleLocked(st) {
-				continue
-			}
-			if o.canStillBecomeEligibleLocked(st) && !o.predecessorBlockedLocked(st) {
+		for _, st := range o.schedQueue.live() {
+			if !awaitingStart(st) || !o.unreachableLocked(st) {
 				continue
 			}
 			o.markNotStartedLocked(st)
 			changed = true
 		}
 	}
+	o.schedCascadeDue = false
+}
+
+// unreachableLocked reports whether queued st can never become eligible:
+// not eligible now, and either no predecessor is still pending or one has
+// already failed.
+func (o *Output) unreachableLocked(st *taskState) bool {
+	if o.eligibleLocked(st) {
+		return false
+	}
+	return !o.canStillBecomeEligibleLocked(st) || o.predecessorBlockedLocked(st)
 }
 
 func (o *Output) canStillBecomeEligibleLocked(st *taskState) bool {
@@ -705,6 +656,8 @@ func (o *Output) markNotStartedLocked(st *taskState) {
 		o.schedWG.Done()
 	}
 	st.closeDoneLocked()
+	o.releaseNextStepLocked(st)
+	o.schedCascadeDue = true
 	o.appendEventLocked(Event{Type: "task.not_started", EntityID: st.id})
 }
 
@@ -728,17 +681,7 @@ func (o *Output) failSequenceFollowers(failed *taskState) {
 }
 
 func previousSibling(st *taskState) *taskState {
-	if st.collection == nil {
-		return nil
-	}
-	var prev *taskState
-	for _, sib := range st.collection.tasks {
-		if sib == st {
-			return prev
-		}
-		prev = sib
-	}
-	return nil
+	return st.prevSibling
 }
 
 func predecessorSucceeded(s EntityState) bool {
@@ -816,6 +759,10 @@ func (st *taskState) closeDoneLocked() {
 // returns ErrNotStarted rather than nil, and a cancelled one returns its
 // cancellation: Wait never reports success for work that did not happen.
 //
+// Wait called while the calling goroutine holds a resource claim (inside an
+// Effect, File, or Basis hold) returns ErrNestedResourceAcquisition without
+// waiting: the awaited work could need that claim, and neither could move.
+//
 // A waiter has stopped doing work, so the concurrency ceiling must not be
 // the reason the task it waits on cannot start (P16). Wait therefore runs
 // that task, and whatever is holding it back, on its own goroutine when the
@@ -825,6 +772,9 @@ func (st *taskState) closeDoneLocked() {
 func (t *TaskHandle) Wait() error {
 	if t == nil || t.out == nil {
 		return nil
+	}
+	if err := t.out.refuseWaitUnderClaim(t.id); err != nil {
+		return err
 	}
 	t.out.runWaitedWork(t.id)
 	if !t.waitSubmitted() {
@@ -861,6 +811,9 @@ func (o *Output) waitOutcome(taskID string) error {
 		return st.workErr
 	case st.state == NotStarted:
 		return ErrNotStarted
+	case !st.submitted && !st.runningWork && !core.IsTerminalTask(st.state):
+		// Declared but never Defined: there is no work to have succeeded.
+		return fmt.Errorf("%w: %s was never defined", ErrNotStarted, st.name)
 	case st.state == Cancelled:
 		return cancelledWaitOutcome(st.summary)
 	case st.state == Failed || st.state == Blocked:

@@ -48,11 +48,13 @@ type ExecSpec struct {
 // status" semantics for the spawn-failure/cancellation case (those return
 // only an error, ExecResult zero-valued).
 //
-// Stdout/Stderr are the same sanitized/redacted, bounded (spec §8.4: at
-// most 200 completed lines / ~256KiB) capture Exec already retains as
-// evidence — never a second unbounded copy, and never the human-facing
-// truncation marker DetailTail adds; Truncated reports that loss instead so
-// a caller parsing Stdout/Stderr as data is never handed prose mixed in.
+// Stdout/Stderr are the evidence tail Exec already retains: sanitized,
+// redacted, and bounded (at most 200 completed lines / ~256KiB) — never a
+// second unbounded copy, and never the human-facing truncation marker
+// DetailTail adds. Truncated reports that the bound dropped earlier output.
+// They suit line-oriented diagnostics that tolerate a tail; they are not a
+// data channel. A caller that needs a tool's complete machine output (a
+// JSON report) has the tool write it to a file and reads that file.
 type ExecResult struct {
 	Ran       bool
 	ExitCode  int
@@ -210,19 +212,12 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 // nonzero — only a spawn/cancellation failure (runErr != nil) leaves it
 // zero-valued, matching ProcessOutcome's own terminal-status semantics.
 func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecSpec, target execTarget, eval execEvaluation) (ExecResult, error) {
-	outcome, capture, runErr := o.spawnExec(ctx, taskID, spec, target)
+	result, runErr := o.spawnExec(ctx, taskID, spec, target)
 	if runErr != nil {
 		return ExecResult{}, fmt.Errorf("evo: Exec %q: %w", spec.Executable, runErr)
 	}
-	result := ExecResult{
-		Ran:       true,
-		ExitCode:  outcome.ExitCode,
-		Stdout:    capture.Stdout,
-		Stderr:    capture.Stderr,
-		Truncated: capture.Truncated,
-	}
-	if outcome.ExitCode != 0 {
-		return result, fmt.Errorf("%w (exit %d): %s", ErrExecNonzeroExit, outcome.ExitCode, spec.Executable)
+	if result.ExitCode != 0 {
+		return result, fmt.Errorf("%w (exit %d): %s", ErrExecNonzeroExit, result.ExitCode, spec.Executable)
 	}
 
 	outputRecords, verifyErr := o.observeVerifiedExecOutputs(ctx, taskID, target.Outputs)
@@ -304,5 +299,5 @@ func verifiedExecOutputs(ctx context.Context, outputs []string) ([]manifest.Outp
 // Effect under taskID's own ledger section — the same routing recordFileEffect
 // uses for File (spec §8.4/§27/§51).
 func (o *Output) recordExecEffect(taskID, displayExecutable string) {
-	(&TaskHandle{out: o, id: taskID}).recordName("run", displayExecutable)
+	o.recordLedgerEntry(taskID, namedEntry("run", displayExecutable))
 }

@@ -12,13 +12,20 @@ import (
 // Aliased into internal/engine alongside the rest of the data model.
 type ExecSpec = engine.ExecSpec
 
-// ExecResult is one Exec attempt's immutable outcome: exit code and
-// captured stdout/stderr, so a caller can derive structured Problems/Facts
-// from a completed subprocess while Evo still owns spawning, capture,
-// liveness, cancellation, sanitization, and provenance (spec §8.4/ZYS-850).
-// Ran is false when Exec skipped spawning (a current manifest hit or a
-// dry-run plan); ordinary callers that don't need the result may ignore it
-// with `_, err := evo.Exec(...)`.
+// ExecResult is one Exec attempt's immutable outcome: exit code and the
+// captured stdout/stderr tail, so a caller can derive structured
+// Problems/Facts from a completed subprocess while Evo still owns spawning,
+// capture, liveness, cancellation, sanitization, and provenance. Ran is
+// false when Exec skipped spawning (a current manifest hit or a dry-run
+// plan); ordinary callers that don't need the result may ignore it with
+// `_, err := evo.Exec(...)`.
+//
+// Stdout and Stderr are the evidence tail Exec retains for the row:
+// sanitized, redacted, and bounded (at most 200 completed lines / about
+// 256 KiB). Truncated reports that the bound dropped earlier output. Parse
+// them only for line-oriented diagnostics that tolerate a tail. When you
+// need a tool's complete machine output, such as a JSON report, have the
+// tool write it to a file and read that file.
 //
 // Aliased into internal/engine alongside the rest of the data model.
 type ExecResult = engine.ExecResult
