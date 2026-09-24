@@ -60,3 +60,33 @@ func TestValidate_ConstMismatchFails(t *testing.T) {
 		t.Fatalf("unexpected violation: %v", err)
 	}
 }
+
+const defsSchema = `{
+  "type": "object",
+  "properties": {"payload": {"type": "object"}},
+  "$defs": {
+    "rate": {
+      "type": "object",
+      "required": ["share"],
+      "properties": {"share": {"type": "number"}}
+    }
+  }
+}`
+
+func TestValidate_NumberAcceptsFractionsAndRejectsStrings(t *testing.T) {
+	if err := wireschema.ValidateDef([]byte(defsSchema), []byte(`{"share":0.25}`), "rate"); err != nil {
+		t.Fatalf("unexpected violation: %v", err)
+	}
+	if err := wireschema.ValidateDef([]byte(defsSchema), []byte(`{"share":"0.25"}`), "rate"); err == nil || !strings.Contains(err.Error(), "want number") {
+		t.Fatalf("want a number violation, got %v", err)
+	}
+}
+
+func TestValidateDef_ChecksTheNamedDefNotTheRoot(t *testing.T) {
+	if err := wireschema.ValidateDef([]byte(defsSchema), []byte(`{}`), "rate"); err == nil || !strings.Contains(err.Error(), `missing required field "share"`) {
+		t.Fatalf("want the def's required field enforced, got %v", err)
+	}
+	if err := wireschema.ValidateDef([]byte(defsSchema), []byte(`{}`), "absent"); err == nil || !strings.Contains(err.Error(), "unresolved $ref") {
+		t.Fatalf("want an unresolved def reported, got %v", err)
+	}
+}

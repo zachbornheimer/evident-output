@@ -4,7 +4,7 @@
 // nothing references that file — make it a gate").
 //
 // It implements only the subset of JSON Schema (draft 2020-12) the wire
-// schema actually uses: object/array/string/integer/boolean, required,
+// schema actually uses: object/array/string/integer/number/boolean, required,
 // properties, items, const, and $ref into $defs. That is a deliberate
 // boundary, not a shortcut — evo owns its own schema and controls what it
 // writes into it, so a full general-purpose validator is a dependency this
@@ -22,6 +22,19 @@ import (
 // conforms. Both arguments are raw JSON: schema is a JSON Schema document,
 // doc is the value being checked against it.
 func Validate(schema, doc []byte) error {
+	return validateAt(schema, doc, "")
+}
+
+// ValidateDef is Validate against one of schema's own $defs instead of its
+// root: how a payload the root types only loosely (a JSONL event's
+// per-type payload) is checked against its named shape.
+func ValidateDef(schema, doc []byte, def string) error {
+	return validateAt(schema, doc, def)
+}
+
+// validateAt validates doc against schema's root, or against its $defs
+// entry def when def is non-empty.
+func validateAt(schema, doc []byte, def string) error {
 	var schemaVal, docVal any
 	if err := json.Unmarshal(schema, &schemaVal); err != nil {
 		return fmt.Errorf("wireschema: parse schema: %w", err)
@@ -35,6 +48,9 @@ func Validate(schema, doc []byte) error {
 	}
 	defs, _ := root["$defs"].(map[string]any)
 	v := &validator{defs: defs}
+	if def != "" {
+		root = map[string]any{"$ref": defRefPrefix + def}
+	}
 	v.check("$", root, docVal)
 	if len(v.errs) == 0 {
 		return nil
@@ -90,6 +106,10 @@ func (v *validator) check(path string, schema map[string]any, value any) {
 		if !isJSONInteger(value) {
 			v.fail(path, "want integer, got %v (%T)", value, value)
 		}
+	case "number":
+		if _, ok := value.(float64); !ok {
+			v.fail(path, "want number, got %v (%T)", value, value)
+		}
 	case "boolean":
 		if _, ok := value.(bool); !ok {
 			v.fail(path, "want boolean, got %T", value)
@@ -97,12 +117,14 @@ func (v *validator) check(path string, schema map[string]any, value any) {
 	}
 }
 
+// defRefPrefix is the only $ref form the wire schema uses.
+const defRefPrefix = "#/$defs/"
+
 func (v *validator) resolveRef(ref string) (map[string]any, bool) {
-	const prefix = "#/$defs/"
-	if !strings.HasPrefix(ref, prefix) {
+	if !strings.HasPrefix(ref, defRefPrefix) {
 		return nil, false
 	}
-	name := strings.TrimPrefix(ref, prefix)
+	name := strings.TrimPrefix(ref, defRefPrefix)
 	def, ok := v.defs[name].(map[string]any)
 	return def, ok
 }
