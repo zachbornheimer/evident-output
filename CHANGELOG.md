@@ -10,34 +10,32 @@ See [`docs/migration/1.2.md`](docs/migration/1.2.md) for the upgrade guide and
 [`docs/decisions/caller-cancellation.md`](docs/decisions/caller-cancellation.md)
 for the decision record.
 
-No new public API. See [`docs/guides/http-embedding.md`](docs/guides/http-embedding.md)
-and `examples/launch-agent-http`.
+No behavior change for existing 1.1 hosts: the caller-cancellation
+lifecycle is opt-in (DEC-CANCEL-005). See
+[`docs/guides/http-embedding.md`](docs/guides/http-embedding.md) and
+`examples/launch-agent-http`.
 
-- **Breaking for 1.1 `FormatExternal` hosts (pending maintainer sign-off,
-  DEC-CANCEL-005).** `FormatExternal` was public in 1.1 for host-owned
-  rendering. Under 1.2 such a run no longer handles SIGINT/SIGTERM, and a
-  cancelled `ctx` concludes `cancelled`/130 instead of `failed`/2. See the
-  two entries below and the migration guide.
-- **`FormatExternal`: caller context end concludes `cancelled` (exit
-  130).** When the `ctx` passed to `Run`/`Output.Run` of a `FormatExternal`
-  Output ends, running Tasks are marked cancelled, queued Tasks never
-  start, and `Conclusion.Explanation` is `by caller` or
-  `deadline exceeded`. Tasks no longer see that `ctx`'s cancellation or
-  deadline directly; `context.Cause` on a Task's ctx reports
-  `context.DeadlineExceeded` when the deadline stopped the run. Every other
-  format keeps the 1.1 behavior (the end of `ctx` fails the running
-  Define, exit 2); the changes below that reach every format are listed in
-  the migration guide.
+- **`Config.Embedded`: the caller's context is the run's lifecycle.** An
+  `Embedded` run registers no SIGINT/SIGTERM handler, and when the `ctx`
+  passed to `Run`/`Output.Run` ends, running Tasks are marked cancelled,
+  queued Tasks never start, and the run concludes `cancelled` (exit 130)
+  with `Conclusion.Explanation` `by caller` or `deadline exceeded`. Tasks
+  see the caller's values but not its cancellation or deadline;
+  `context.Cause` on a Task's ctx reports `context.DeadlineExceeded` when
+  the deadline stopped the run. Independent of `Format`. Without it, every
+  run keeps the 1.1 contract, `FormatExternal` included: the end of `ctx`
+  fails the running Define (exit 2) and the run owns ^C.
+- **`Config.RunID` pins the run identity** for golden tests (alongside
+  `Config.Clock`) or for a host that already has a request id. Empty keeps
+  the random default below.
 - **A signal arriving after the run callback returns still stops the run.**
   SIGINT/SIGTERM were watched only until `run` returned, so in the ordinary
   shape — declare Tasks, return, let Define work execute during Finish — a
   long Define (a server, a slow install) ignored ^C.
-- **`FormatExternal` runs leave SIGINT/SIGTERM to the host.** A server's
-  graceful shutdown no longer cancels every in-flight request. Other
-  formats still own ^C.
 - **`run_id` is unique per run.** It was `out_1` for every run in every
-  process; it is now `run_` plus a random suffix. Task, Group, and message
-  ids keep their 1.1 numbering (the first Task is still `task_2`).
+  process; it is now `run_` plus a random suffix unless `Config.RunID`
+  pins it. Task, Group, and message ids keep their 1.1 numbering (the
+  first Task is still `task_2`).
 - **`WriteJSON` and `FormatJSON` share one writer,** so their documents are
   byte-identical for the same run. `WriteJSON` errors now name the failed
   step and wrap the writer's error; a `FormatJSON` write failure now
@@ -46,10 +44,10 @@ and `examples/launch-agent-http`.
   for another run's exclusive manifest lock (spec §11.3) ignored ^C and
   its caller's deadline until the other run finished; it now stops at
   once.
-- **`FormatExternal`: a caller cancel that lands after every Task finished
+- **`Embedded`: a caller cancel that lands after every Task finished
   changes nothing.** The completed run keeps its own verdict instead of
-  concluding cancelled. A ^C on any other format still cancels the run at
-  any point before it concludes.
+  concluding cancelled. A ^C on a CLI run still cancels the run at any
+  point before it concludes.
 - **The `"evo.run"` document names why a run was cancelled.** A cancelled
   document carries a `cancellation` object whose `cause` is `caller`,
   `deadline`, or `user`, and the JSONL `run.finished` payload carries the

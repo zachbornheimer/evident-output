@@ -1,14 +1,14 @@
 # Decision: An embedded run's caller context end concludes cancelled
 
-**Status:** Accepted, except DEC-CANCEL-005 (Proposed — needs the
-maintainer's sign-off before 1.2.0 ships)
-**Date:** 2026-09-23 (DEC-CANCEL-005 corrected and DEC-CANCEL-007 added
-2026-09-24)
+**Status:** Accepted
+**Date:** 2026-09-23 (DEC-CANCEL-005 accepted by the maintainer and
+DEC-CANCEL-007 added 2026-09-24)
 **IDs:** DEC-CANCEL-001 … DEC-CANCEL-007
 **Ticket:** ZYS-946 (spec §53)
-**Implementation:** `internal/engine/run.go` (`runInterruptible`),
+**Implementation:** `internal/engine/construct.go` (`Config.Embedded`),
+`internal/engine/run.go` (`runInterruptible`),
 `internal/engine/run_interruption.go` (`scopeCaller`, `watchCaller`,
-`callerScope`, `settledLocked`)
+`settledLocked`)
 
 ## Context
 
@@ -27,8 +27,8 @@ When the caller's `ctx` ends, the run stops the same way ^C stops a CLI:
 running Tasks are marked cancelled, queued Tasks resolve `not_started`, and
 the Conclusion is `cancelled` with `ExitCancelled` (130).
 `Conclusion.Explanation` names the cause: `by caller` or
-`deadline exceeded`. This applies to `FormatExternal` Outputs only; see
-DEC-CANCEL-005.
+`deadline exceeded`. This applies only to an Output whose Config sets
+`Embedded: true`; see DEC-CANCEL-005.
 
 ### DEC-CANCEL-002: One ordered interrupt
 
@@ -67,50 +67,51 @@ returning is a no-op, so the Output's own state and the `Result` it
 returned always agree (`Output.stopsNothingLocked`, pinned by
 `TestRun_SignalAfterConclusionLeavesTheResult`).
 
-### DEC-CANCEL-005: 1.2 scopes the change to `FormatExternal` (Proposed)
+### DEC-CANCEL-005: The new lifecycle is opt-in through `Config.Embedded` (Accepted)
+
+**Rule (maintainer, 2026-09-24):** no behavior break for existing 1.1
+`FormatExternal` hosts. The caller-cancellation lifecycle is opt-in,
+through the smallest additive option consistent with existing idioms. The
+default stays 1.1.
 
 Applied to every caller, DEC-CANCEL-001 is a breaking behavior change: a
 `Run`/`Output.Run` caller whose `ctx` ends would get exit 130 instead of
-2, and its queued Tasks would stop running. So 1.2 applies DEC-CANCEL-001
-… 004 only to an Output configured with `Format: FormatExternal`. Every
-other format keeps the 1.1 contract exactly: Tasks receive the caller's
-`ctx` unchanged, and a Define that returns `ctx.Err()` fails its row
-(exit 2).
+2, and its queued Tasks would stop running. An earlier draft scoped it to
+`FormatExternal` on the theory that no 1.1 caller depended on that
+format's cancellation. That was false: `FormatExternal` was public in 1.1
+for host-owned rendering (`FormatExternal` + `out.Snapshot()`), and a 1.1
+host rendering in a terminal would have lost evo's SIGINT/SIGTERM handling
+and seen 130 where it saw 2.
 
-**This scope is itself a break, and needs sign-off.** An earlier version
-of this record said `FormatExternal` callers "have no 1.1 cancellation
-behavior to depend on". That is false: `FormatExternal` was public in
-1.1 (`types.go`, and `docs/reference.md` "Host-owned rendering":
-`FormatExternal` + `out.Snapshot()`). A 1.1 host that renders
-`Snapshot()` itself, such as a TUI in a terminal, changes in two ways
-under 1.2:
+So 1.2 adds one `Config` bool, `Embedded`, alongside `Isolated`:
 
-1. evo no longer registers SIGINT/SIGTERM for its run, so ^C reaches the
-   host's handler or Go's default one. With neither, the process dies
-   with no ledger.
-2. When its `ctx` ends, the run concludes `cancelled`/130 instead of
-   `failed`/2, and queued Tasks stop.
+- `Embedded: true` applies DEC-CANCEL-001 … 004 and 006: evo registers no
+  SIGINT/SIGTERM handler, the end of `ctx` interrupts the run, and Tasks
+  see the caller's values without its cancellation or deadline.
+- Without it, every run keeps the 1.1 contract exactly, `FormatExternal`
+  included: Tasks receive the caller's `ctx` unchanged, a Define that
+  returns `ctx.Err()` fails its row (exit 2), and the run owns ^C.
 
-It also gives run lifecycle to a rendering format. The two ways out are
-the maintainer's call; neither is taken on this branch:
+`Embedded` is independent of `Format`. `FormatExternal` chooses how a run
+renders; `Embedded` chooses who owns its lifecycle. An HTTP handler
+usually sets both (`examples/launch-agent-http`), and a host that streams
+the `FormatJSON` document itself can set `Embedded` alone. Like `Isolated`,
+it is honored on the `Config.Options` path too.
 
-- **Accept the break.** Keep the `FormatExternal` scope, list both
-  changes as breaking for 1.1 `FormatExternal` hosts in the changelog and
-  the migration guide (done on this branch), and ship them in 1.2.
-- **Split lifecycle from format.** Add a `Config` field that says the
-  host owns the run's lifecycle, and restore the 1.1 behavior for
-  `FormatExternal` alone. This is new public API that §53 does not
-  specify.
-
-Widening DEC-CANCEL-001 to every format is a third, separate breaking
+Widening DEC-CANCEL-001 to every run by default is a separate breaking
 decision for a major release. The scope lives in one place:
-`Output.scopeCaller`, `Output.watchCaller`, and
-`Output.subscribeProcessSignals` branch on the `embedded` config bit that
-`externalProjection` sets.
+`Output.scopeCaller`, `Output.watchCaller`, `Output.endRunCallback`, and
+`Output.subscribeProcessSignals` branch on the `embedded` config bit, which
+only `Config.Embedded` sets. Pinned by
+`TestOutputRun_CallerCancelWithoutEmbeddedKeeps11Verdict`,
+`TestOutputRun_EmbeddedOptsAnyFormatIntoCallerCancellation`,
+`TestRun_EmbeddedLeavesProcessSignalsToHost`, and
+`TestRun_FormatExternalWithoutEmbeddedStillOwnsProcessSignals`.
 
 ### DEC-CANCEL-006: An embedded Task sees no caller deadline
 
-`callerScope` carries the caller's values but reports no deadline.
+An embedded run's Tasks descend from `context.WithoutCancel(ctx)`: the
+caller's values, with no cancellation and no deadline.
 Deadline-aware callees (a `net.Dialer` derives its connection deadline
 from `ctx.Deadline()`) would otherwise time out at the same instant the
 deadline's interrupt fires, and could fail their row before the interrupt
@@ -133,20 +134,22 @@ byte-identical, and a v2 reader that ignores unknown keys is unaffected.
 `schema_version` stays `2.0`; `schema/run.v2.json` lists the property.
 
 The code travels on `core.Conclusion` as an unexported field
-(`core.CancelCauseOf`), because §53 adds no public API. Go embedders
-already have the cause: `Conclusion.Explanation`, or the handler's own
-`ctx.Err()`. Promoting it to a public `Conclusion` field is a separate
-API decision. Pinned by `TestOutputRun_CallerContextEndConcludesCancelled`,
+(`core.CancelCauseOf`). Go embedders already have the cause:
+`Conclusion.Explanation`, or the handler's own `ctx.Err()`. Promoting it
+to a public `Conclusion` field is a separate API decision.
+`wire.RunFinishedPayload` builds the JSONL payload from the same
+Conclusion through the same mappings as the document, so the two cannot
+disagree. Pinned by `TestOutputRun_CallerContextEndConcludesCancelled`,
 `TestFormatJSON_SignalledRunNamesUserCause`,
-`TestFormatJSONL_RunFinishedNamesUserCause`, and
-`TestCancellationFor_OnlyOnCancelledRunsWithACause`.
+`TestFormatJSONL_RunFinishedNamesUserCause`,
+`TestCancellationFor_OnlyOnCancelledRunsWithACause`, and
+`TestRunFinishedPayload_AgreesWithTheRunDocument`.
 
 ## Consequences
 
-- A 1.1 `FormatExternal` caller that relied on exit 2 for a cancelled
-  `ctx`, or on evo handling ^C, must change (DEC-CANCEL-005). It branches
-  on `StateCancelled` / exit 130 and installs its own signal handling. See
-  [`docs/migration/1.2.md`](../migration/1.2.md). Other formats are
-  unchanged (`TestOutputRun_NonExternalCallerCancelKeeps11Verdict`).
+- No 1.1 caller changes behavior on upgrade. A host that wants the §53
+  lifecycle sets `Config.Embedded` (DEC-CANCEL-005), then branches on
+  `StateCancelled` / exit 130 and owns SIGINT/SIGTERM itself. See
+  [`docs/migration/1.2.md`](../migration/1.2.md).
 - `Result.Err` still carries whatever the run callback returned, so an
   embedder can tell work failure from cancellation.

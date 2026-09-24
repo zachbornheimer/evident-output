@@ -38,6 +38,7 @@ func (h runHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	out := evo.Init(evo.Config{
 		Isolated: true,
+		Embedded: true,
 		Format:   evo.FormatExternal,
 		Stdout:   io.Discard,
 		Stderr:   io.Discard,

@@ -2,8 +2,8 @@
 
 Spec §53: the CLI and an HTTP endpoint run the same model. One function
 declares the work. The CLI runs it on the package default Output in any
-`--format`. An HTTP handler runs it on a fresh Isolated Output per request
-and answers with `evo.WriteJSON` — the same `"evo.run"` document
+`--format`. An HTTP handler runs it on a fresh Isolated, Embedded Output per
+request and answers with `evo.WriteJSON` — the same `"evo.run"` document
 `FormatJSON` prints, byte for byte, for the same run.
 
 `examples/launch-agent-http` is the working embedder; its tests prove every
@@ -18,6 +18,7 @@ func (h runHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	out := evo.Init(evo.Config{
 		Isolated: true,
+		Embedded: true,
 		Format:   evo.FormatExternal,
 		Stdout:   io.Discard,
 		Stderr:   io.Discard,
@@ -55,7 +56,13 @@ so they already land on the right Output.
 ## Lifecycle
 
 - **One Output per request.** Isolated Outputs share no runtime state, and
-  each run carries its own random `run_id`.
+  each run carries its own random `run_id` (or the one `Config.RunID`
+  pins, such as your request id).
+- **`Embedded` hands the run's lifecycle to the request.** Without it, a
+  run keeps the 1.1 CLI contract on every format, `FormatExternal`
+  included: the end of `ctx` fails the running Define (exit 2), and the run
+  owns ^C (DEC-CANCEL-005). `FormatExternal` only keeps the run from
+  rendering anywhere.
 - **The request context is the only cancellation.** When it ends — the
   client disconnects or the handler's budget runs out — the run stops the
   same way ^C stops a CLI: running Tasks are marked cancelled, queued Tasks
@@ -64,15 +71,13 @@ so they already land on the right Output.
   context's values, but not its cancellation or deadline: both reach them
   only through that interrupt, so a deadline-aware call (a `net.Dialer`)
   cannot time out and fail its row first. `context.Cause(ctx)` in a Task
-  reports `context.DeadlineExceeded` when the budget ran out. This applies
-  to `FormatExternal` only; other formats pass the context through
-  unchanged.
+  reports `context.DeadlineExceeded` when the budget ran out.
 - **A cancel after the work is done changes nothing.** If the context ends
   after the run callback returned and every Task finished, the run keeps
   its own verdict.
-- **The server owns process signals.** A `FormatExternal` run registers no
+- **The server owns process signals.** An `Embedded` run registers no
   SIGINT/SIGTERM handler, so the server's graceful shutdown lets in-flight
-  requests finish. Other formats keep the CLI behavior: the run owns ^C.
+  requests finish.
 - **`Output.Run` finishes and closes the Output.** Build a new one for
   every request.
 
@@ -94,6 +99,14 @@ runs out in the queue, the request answers `cancelled` (exit code 130)
 right away, with the waiting Task cancelled and the Tasks after it
 `not_started`. Size the budget for the wait as well as the work, or give
 independent workspaces their own `StateDir`.
+
+Bound the queue. Every waiting request holds a goroutine and a connection
+until its budget runs out, and evo sets no limit on how many wait. Admit a
+fixed number of requests at a time and turn the rest away at once with
+`503` and `Retry-After`, before they start a run.
+`examples/launch-agent-http` does this with a buffered channel
+(`--max-requests`, default 16); a turned-away request gets a plain-text
+body, not an `"evo.run"` document, because it ran nothing.
 
 Streaming `FormatJSONL` over HTTP is not a supported projection: each
 event line is written synchronously as it happens, so a slow reader would
