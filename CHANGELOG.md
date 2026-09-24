@@ -9,20 +9,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added (1.2, ZYS-945 — §39 optimization data)
 
 - **`TaskSnapshot.Timing` (`TaskTiming`):** Evo stamps when each Task was
-  declared, became eligible, started, and settled, from the run's `Clock`.
-  Span methods `DependencyWait`, `SchedulerWait`, `Queued`, `Running`, and
-  `Total` say where the Task's time went. No caller code.
+  declared, submitted by `Define`, became eligible, started, and settled,
+  from the run's `Clock`. Span methods `AwaitingDefinition`,
+  `DependencyWait`, `SchedulerWait`, `Queued` (= dependency + scheduler
+  wait), `Running`, and `Total` say where the Task's time went, and
+  `PhaseTime` fields time the `Define` callback, `Verify`, provenance
+  checks, and live tracked-state inspection. No caller code.
+- **`TaskSnapshot.Operations` (`OperationCounts`):** `File`/`Exec`
+  operations by manifest outcome, with hit, Basis-invalidation, change, and
+  propagation-stopped rates.
 - **`Conclusion.Metrics()` (`RunMetrics`):** the derived run aggregate —
-  Tasks by resolution, summed dependency wait / scheduler wait / running
-  time, and peak concurrency.
+  resolution and callback counts, callback-entry and Verify-satisfied
+  rates, every span and phase summed, the critical path, peak concurrency,
+  and summed operations.
 - **Projections:** final JSON fills each Task's `timing` (previously all
-  zero) and adds `dependency_wait_ms`/`scheduler_wait_ms` plus
-  `data.metrics`; JSONL `run.finished` carries the same `metrics`, and
-  `task.eligible` now fires when a Task becomes eligible rather than when a
-  scheduler slot frees. Human output shows one dim `timing` line under
-  `VerbosityVerbose` only.
-- **MCP API-062:** flags a caller stopwatch (`time.Since`,
-  `time.Now().Sub`) narrated through `Summary`/`Fact`.
+  zero) with every span and phase and adds `data.metrics` (with
+  `operations` and `rates`); JSONL `run.finished` carries the same
+  `metrics`, typed in `schema/event.v2.json`, and `task.eligible` now fires
+  when a Task becomes eligible rather than when a scheduler slot frees.
+  Human output shows one dim `timing` line under `VerbosityVerbose` only.
+- **MCP API-062:** flags a stopwatch a function started with `time.Now()`
+  and narrated through `Summary`/`Fact` (`time.Since`, `time.Now().Sub`,
+  directly or through one local). A domain timestamp's age stays silent.
 
 See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
