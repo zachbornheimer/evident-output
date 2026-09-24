@@ -7,14 +7,15 @@ import (
 
 // Wait blocks until every task this Group's children (and their nested
 // children, recursively) declared has settled, and returns their aggregate
-// outcome (ZYS-849 Decisions). It does not itself serialize eligible
+// outcome. It does not itself serialize eligible
 // siblings: every descendant Task was already submitted to the scheduler by
 // its own Define call, so Wait only parks on outcomes the scheduler is
 // already free to produce concurrently — the same non-serializing guarantee
 // TaskHandle.Wait already gives a single Task (see runWaitedWork).
 //
 // A caller never snapshots/counts failed children to know whether the
-// container succeeded: Wait alone is the ordinary control-flow answer.
+// container succeeded: Wait alone is the ordinary control-flow answer, and
+// it returns nil only when every descendant actually ran and succeeded.
 // Per-child detail remains available through Snapshot.
 func (g *GroupHandle) Wait() error {
 	if g == nil || g.out == nil {
@@ -75,13 +76,15 @@ func appendDescendantTasksLocked(col *tasksState, out []*taskState) []*taskState
 }
 
 // waitDescendants runs TaskHandle.Wait across every descendant in
-// declaration order and joins the meaningful outcomes (ZYS-849 Decisions):
+// declaration order and joins the meaningful outcomes:
 //
 //   - nil outcomes contribute nothing;
-//   - ErrNotStarted is omitted — it is only ever produced by a
-//     failed/blocked/cancelled predecessor's cascade (see waitOutcome), and
-//     that predecessor's own terminal error is already in this same join, so
-//     the predecessor is the cause already represented;
+//   - ErrNotStarted is derivative: a failed/blocked/cancelled predecessor's
+//     cascade (see waitOutcome). It is omitted only when some other
+//     descendant contributed a real error, because only then is its cause
+//     already represented in this join. When the predecessor sits outside
+//     the container, the join would otherwise be empty and Wait would
+//     report success for work that never ran, so ErrNotStarted surfaces;
 //   - every other outcome, including cancellation, stays visible and
 //     errors.Is-compatible through errors.Join.
 //
@@ -91,19 +94,25 @@ func appendDescendantTasksLocked(col *tasksState, out []*taskState) []*taskState
 // free to produce.
 func waitDescendants(states []*taskState) error {
 	var errs []error
+	var notStarted error
 	for _, st := range states {
 		h := st.handle
 		if h == nil {
 			continue
 		}
 		err := h.Wait()
-		if err == nil {
-			continue
+		switch {
+		case err == nil:
+		case errors.Is(err, ErrNotStarted):
+			if notStarted == nil {
+				notStarted = err
+			}
+		default:
+			errs = append(errs, err)
 		}
-		if errors.Is(err, ErrNotStarted) {
-			continue
-		}
-		errs = append(errs, err)
+	}
+	if len(errs) == 0 {
+		return notStarted
 	}
 	return errors.Join(errs...)
 }
