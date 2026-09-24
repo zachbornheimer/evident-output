@@ -84,7 +84,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   chain, e.g. `task.Define(fn).Wait()`.
 - **An unmanaged-mode `evo.File`/`evo.Files` write keeps the file's
   permissions**, and a new file gets `0666` less the umask. A content-only
-  patch of a `0755` script no longer leaves it `-rw-rw-rw-`.
+  patch of a `0755` script no longer leaves it `-rw-rw-rw-`. An injected
+  `Config.FileFS` keeps the v1.0 contract: `WriteAtomic` always receives a
+  real permission (`0666` for an unmanaged create, which `os.WriteFile`
+  masks by the umask), and an unmanaged rewrite now passes the file's
+  existing mode instead of `0666`.
 
 - **A `Kept` record now concludes `warned` (contract §18).** Any Task that
   records `Kept(reason)` sets `Conclusion.Warned`, the `--json`

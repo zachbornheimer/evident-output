@@ -42,18 +42,8 @@ func (f *FileFS) ReadFile(path string) ([]byte, error) { return os.ReadFile(path
 // to script Chmod outcomes, not to prove atomic-replace semantics (already
 // covered by evo.File's own unit tests).
 func (f *FileFS) WriteAtomic(path string, contents []byte, mode fs.FileMode) error {
-	if mode == 0 {
-		return os.WriteFile(path, contents, defaultCreatePermission)
-	}
-	if err := os.WriteFile(path, contents, mode); err != nil {
-		return err
-	}
-	return os.Chmod(path, mode)
+	return os.WriteFile(path, contents, mode)
 }
-
-// defaultCreatePermission is ordinary creation semantics for WriteAtomic's
-// mode 0: 0666, which the umask then masks.
-const defaultCreatePermission fs.FileMode = 0o666
 
 // Chmod implements evo.FileFS, returning the canned failure scripted via
 // FailChmod for path — never a real syscall for that path — instead of

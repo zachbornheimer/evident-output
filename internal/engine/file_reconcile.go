@@ -125,8 +125,11 @@ type fileDelta struct {
 	writeNeeded bool
 	modeDiffers bool
 	// writeMode is the permission a content write must leave: the managed
-	// Mode, else the existing file's own, else defaultCreateMode.
+	// Mode, else the existing file's own, else unmanagedCreateMode.
 	writeMode fs.FileMode
+	// ordinaryCreate is a new file whose mode is unmanaged: the umask
+	// decides its permission.
+	ordinaryCreate bool
 }
 
 func (d fileDelta) mutates() bool { return d.writeNeeded || d.modeDiffers }
@@ -181,7 +184,13 @@ func (o *Output) inspectFile(fsys FileFS, op fileOperation) (fileDelta, error) {
 		return fileDelta{}, fmt.Errorf("evo: File inspect %q: %w", path, readErr)
 	}
 	modeDiffers := spec.Mode != 0 && (!exists || info.Mode().Perm() != spec.Mode.Perm())
-	return fileDelta{exists: exists, writeNeeded: writeNeeded, modeDiffers: modeDiffers, writeMode: contentWriteMode(spec.Mode, info, exists)}, nil
+	return fileDelta{
+		exists:         exists,
+		writeNeeded:    writeNeeded,
+		modeDiffers:    modeDiffers,
+		writeMode:      contentWriteMode(spec.Mode, info, exists),
+		ordinaryCreate: !exists && spec.Mode == 0,
+	}, nil
 }
 
 // inheritedModeBits are the mode bits an unmanaged rewrite carries over:
@@ -199,7 +208,7 @@ func contentWriteMode(managed fs.FileMode, info fs.FileInfo, exists bool) fs.Fil
 	case exists:
 		return info.Mode() & inheritedModeBits
 	default:
-		return defaultCreateMode
+		return unmanagedCreateMode
 	}
 }
 
@@ -208,7 +217,7 @@ func contentWriteMode(managed fs.FileMode, info fs.FileInfo, exists bool) fs.Fil
 func (o *Output) mutateFile(fsys FileFS, op fileOperation, delta fileDelta) error {
 	spec, path := op.spec, op.path
 	if delta.writeNeeded {
-		if err := fsys.WriteAtomic(path, spec.Contents, delta.writeMode); err != nil {
+		if err := writeContents(fsys, path, spec.Contents, delta); err != nil {
 			return fmt.Errorf("evo: File write %q: %w", path, err)
 		}
 	}
@@ -225,6 +234,15 @@ func (o *Output) mutateFile(fsys FileFS, op fileOperation, delta fileDelta) erro
 		return ErrFilePermissionsFailed
 	}
 	return nil
+}
+
+// writeContents writes contents to path at delta's permission, letting a
+// FileFS that can apply the umask itself create an unmanaged-mode file.
+func writeContents(fsys FileFS, path string, contents []byte, delta fileDelta) error {
+	if creator, ok := fsys.(ordinaryCreator); ok && delta.ordinaryCreate {
+		return creator.createOrdinary(path, contents)
+	}
+	return fsys.WriteAtomic(path, contents, delta.writeMode)
 }
 
 // inspectFilePath Lstats path without following a symlink and rejects

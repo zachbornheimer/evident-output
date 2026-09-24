@@ -100,3 +100,28 @@ func TestFileRewriteKeepsSetuidWhenUnmanaged(t *testing.T) {
 		t.Fatalf("mode after unmanaged rewrite = %v, want -rwsr-xr-x", got)
 	}
 }
+
+// v10FileFS is a consumer FileFS written to the v1.0 WriteAtomic
+// contract: mode is a real permission it hands straight to os.WriteFile.
+type v10FileFS struct{ osFileFS }
+
+func (v10FileFS) WriteAtomic(path string, contents []byte, mode fs.FileMode) error {
+	return os.WriteFile(path, contents, mode)
+}
+
+// TestFileCreateKeepsV10ModeContractForInjectedFileFS proves an injected
+// FileFS still receives a real permission (0666, which the umask masks)
+// for an unmanaged create, as in v1.0, never a mode 0 that would leave
+// the new file ----------.
+func TestFileCreateKeepsV10ModeContractForInjectedFileFS(t *testing.T) {
+	withUmask(t, 0o022)
+	path := filepath.Join(t.TempDir(), "new.txt")
+	out := Init(Config{Isolated: true, StateDir: t.TempDir(), FileFS: v10FileFS{}})
+	t.Cleanup(func() { _ = out.Close() })
+	if err := runFileTask(t, out, "create", FileSpec{Path: path, Contents: []byte("new\n")}); err != nil {
+		t.Fatalf("File: %v", err)
+	}
+	if got := permOf(t, path); got != 0o644 {
+		t.Fatalf("mode after unmanaged create through a v1.0 FileFS = %v, want -rw-r--r--", got)
+	}
+}
