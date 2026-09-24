@@ -20,7 +20,9 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"slices"
 	"strconv"
+	"strings"
 )
 
 // recordVerbArgCount is the exact argument count each deprecated verb
@@ -41,7 +43,7 @@ func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.Fil
 	if evoPkg == "" {
 		return nil
 	}
-	tasks := evoTaskHandleNames(file, evoPkg)
+	tasks := newTaskBindings(file, evoPkg)
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -53,7 +55,7 @@ func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.Fil
 			return true
 		}
 		want, isRecordVerb := recordVerbArgCount[sel.Sel.Name]
-		if !isRecordVerb || len(call.Args) != want || !isEvoTaskValue(sel.X, tasks) {
+		if !isRecordVerb || len(call.Args) != want || !tasks.IsTask(sel.X) {
 			return true
 		}
 		pos := fset.Position(call.Pos())
@@ -63,91 +65,22 @@ func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.Fil
 	return findings
 }
 
-// evoTaskHandleNames returns the identifiers and field names that hold an
-// evo Task in file: anything declared with type *evoPkg.TaskHandle
-// (parameters, struct fields, var declarations) and every variable
-// assigned from a .Task(...) call on the package, a Group, or a Sequence.
-func evoTaskHandleNames(file *ast.File, evoPkg string) map[string]bool {
-	names := map[string]bool{}
-	ast.Inspect(file, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.Field:
-			if isEvoTaskHandleType(n.Type, evoPkg) {
-				for _, name := range n.Names {
-					names[name.Name] = true
-				}
-			}
-		case *ast.ValueSpec:
-			if n.Type != nil && isEvoTaskHandleType(n.Type, evoPkg) {
-				for _, name := range n.Names {
-					names[name.Name] = true
-				}
-			}
-			for i, v := range n.Values {
-				if i < len(n.Names) && isTaskDeclarationCall(v) {
-					names[n.Names[i].Name] = true
-				}
-			}
-		case *ast.AssignStmt:
-			if len(n.Lhs) != len(n.Rhs) {
-				return true
-			}
-			for i, rhs := range n.Rhs {
-				if id, ok := n.Lhs[i].(*ast.Ident); ok && isTaskDeclarationCall(rhs) {
-					names[id.Name] = true
-				}
-			}
-		}
-		return true
-	})
-	return names
-}
-
-// isEvoTaskHandleType reports whether t spells *evoPkg.TaskHandle.
-func isEvoTaskHandleType(t ast.Expr, evoPkg string) bool {
-	star, ok := t.(*ast.StarExpr)
-	if !ok {
-		return false
-	}
-	sel, ok := star.X.(*ast.SelectorExpr)
-	return ok && sel.Sel.Name == "TaskHandle" && isEvoIdent(sel.X, evoPkg)
-}
-
-// isTaskDeclarationCall reports whether e is a .Task(...) call, the only
-// way to obtain an evo Task value.
-func isTaskDeclarationCall(e ast.Expr) bool {
-	call, ok := e.(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	return ok && sel.Sel.Name == "Task"
-}
-
-// isEvoTaskValue reports whether recv, a method call's receiver, traces
-// back to an evo Task: a known Task identifier, a field named like one, or
-// a .Task(...) call itself.
-func isEvoTaskValue(recv ast.Expr, tasks map[string]bool) bool {
-	switch r := recv.(type) {
-	case *ast.Ident:
-		return tasks[r.Name]
-	case *ast.SelectorExpr:
-		return tasks[r.Sel.Name]
-	default:
-		return isTaskDeclarationCall(recv)
-	}
-}
-
 // recordRouting is the three-way migration every removed Record* call
 // shares, appended to each suggestion so the reader sees the whole rule.
 const recordRouting = "Record* has no record-only replacement (ZYS-974): route a real mutation through evo.Effect, information/classification through evo.Fact, and a file write through evo.File/evo.Patch"
 
-// effectVerbConstants maps a Record verb literal to the EffectVerb that
-// replaces it.
-var effectVerbConstants = map[string]string{
-	"add": "EffectAdd", "create": "EffectCreate", "delete": "EffectDelete",
-	"install": "EffectInstall", "push": "EffectPush", "remove": "EffectRemove",
-	"uninstall": "EffectUninstall", "update": "EffectUpdate",
+// effectVerbs are the EffectVerb values a Record verb literal may name.
+// Review does not link the engine, so TestEffectVerbsMatchEngine holds
+// this list to engine.EffectVerbs().
+var effectVerbs = []string{"add", "create", "delete", "install", "push", "remove", "uninstall", "update"}
+
+// effectVerbConstant is the evo constant spelling EffectVerb verb
+// ("EffectDelete"), or false when no EffectVerb is spelled verb.
+func effectVerbConstant(verb string) (string, bool) {
+	if !slices.Contains(effectVerbs, verb) {
+		return "", false
+	}
+	return "Effect" + strings.ToUpper(verb[:1]) + verb[1:], true
 }
 
 // deprecatedRecordCallFinding builds API-061's Finding, with the exact
@@ -189,9 +122,9 @@ func recordRewrite(recv, verb string, args []ast.Expr) string {
 	if lit == "write" {
 		return "move the write into " + recv + ".Define(func(ctx context.Context) error { return evo.File(ctx, evo.FileSpec{Path: " + object + ", Contents: data}) })"
 	}
-	constant, ok := effectVerbConstants[lit]
+	constant, ok := effectVerbConstant(lit)
 	if !ok {
-		return "no EffectVerb is spelled " + strconv.Quote(lit) + "; pick the closest of add/create/delete/install/push/remove/uninstall/update"
+		return "no EffectVerb is spelled " + strconv.Quote(lit) + "; pick the closest of " + strings.Join(effectVerbs, "/")
 	}
 	return "move the mutation into " + recv + ".Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo." + constant +
 		", Object: " + object + ", Quantity: " + quantity + "}, fn) })"

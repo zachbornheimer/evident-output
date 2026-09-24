@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -24,14 +25,15 @@ const (
 	EffectUpdate    EffectVerb = "update"
 )
 
+// effectVerbs is the closed EffectVerb set, in declaration order.
+var effectVerbs = []EffectVerb{EffectAdd, EffectCreate, EffectDelete, EffectInstall, EffectPush, EffectRemove, EffectUninstall, EffectUpdate}
+
+// EffectVerbs returns every EffectVerb constant, the one list anything
+// enumerating verbs (validation, review's Record* rewrite) derives from.
+func EffectVerbs() []EffectVerb { return slices.Clone(effectVerbs) }
+
 // valid reports whether v is one of the declared EffectVerb constants.
-func (v EffectVerb) valid() bool {
-	switch v {
-	case EffectAdd, EffectCreate, EffectDelete, EffectInstall, EffectPush, EffectRemove, EffectUninstall, EffectUpdate:
-		return true
-	}
-	return false
-}
+func (v EffectVerb) valid() bool { return slices.Contains(effectVerbs, v) }
 
 // EffectSpec describes one aggregate opaque mutation Evo cannot model as
 // desired state (a Git ref deletion, a remote push, an API-side change).
