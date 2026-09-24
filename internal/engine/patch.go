@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/patch"
 )
 
@@ -20,13 +22,27 @@ type FileSet struct {
 }
 
 // desiredFile is one derived state: the workspace file the diff named,
-// the desired bytes and permission bits (0 leaves the mode alone), and the
-// observed source identity they derive from.
+// the desired bytes and permission bits (0 leaves the mode alone), the
+// observed source identity they derive from, and the identity of the edit
+// that derived them.
 type desiredFile struct {
 	target   workspaceFile
 	contents []byte
 	mode     fs.FileMode
 	basis    fingerprint.FingerprintValue
+	edit     manifest.BasisRecord
+}
+
+// patchEditBasisKind is the manifest Basis kind that records which edit a
+// Patch-derived File applied, so a later Run can tell its own earlier
+// result of this edit from bytes a different edit left.
+const patchEditBasisKind = "patch-edit"
+
+// editRecord is edit's identity as the Basis record its derived File
+// operation carries.
+func editRecord(path string, edit patch.File) manifest.BasisRecord {
+	identity := edit.Identity()
+	return manifest.BasisRecord{Kind: patchEditBasisKind, Key: path, Digest: hex.EncodeToString(identity[:])}
 }
 
 // Patch errors. Every unsupported form wraps ErrPatchUnsupported.
@@ -94,13 +110,14 @@ func (o *Output) deriveFile(ctx context.Context, taskID string, edit patch.File)
 	if claimErr != nil {
 		return desiredFile{}, claimErr
 	}
+	identity := editRecord(path, edit)
 	contents, applyErr := desiredContents(edit, source, path, func() bool {
-		return o.taskLastLeft(ctx, taskID, source.basis)
+		return o.taskLastLeft(ctx, taskID, source.basis, identity)
 	})
 	if applyErr != nil {
 		return desiredFile{}, applyErr
 	}
-	return desiredFile{target: target, contents: contents, mode: edit.Mode, basis: source.basis}, nil
+	return desiredFile{target: target, contents: contents, mode: edit.Mode, basis: source.basis, edit: identity}, nil
 }
 
 // desiredContents is the bytes edit leaves at source. The diff is applied
@@ -109,7 +126,7 @@ func (o *Output) deriveFile(ctx context.Context, taskID string, edit patch.File)
 // state, which Files then reports as already satisfied: when the forward
 // apply fails and the reverse matches (patch -N), or when source matches
 // both sides and resultOfLastRun confirms these bytes are what this
-// Task's previous Run left there.
+// Task's previous Run left there by applying this same edit.
 func desiredContents(edit patch.File, source observedSource, path string, resultOfLastRun func() bool) ([]byte, error) {
 	applied := source.exists && edit.AppliedTo(source.contents)
 	switch {
@@ -133,9 +150,10 @@ func desiredContents(edit patch.File, source observedSource, path string, result
 }
 
 // taskLastLeft reports whether taskID's previous Run recorded observed as
-// the output it left at observed's path: the manifest's proof that the
-// bytes there are this Task's own earlier result.
-func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed fingerprint.FingerprintValue) bool {
+// the output an operation of edit left at observed's path: the manifest's
+// proof that the bytes there are this Task's own earlier result of this
+// same edit, not of a different diff that happened to leave them.
+func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed fingerprint.FingerprintValue, edit manifest.BasisRecord) bool {
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
 		return false
@@ -152,10 +170,8 @@ func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed finge
 	}
 	digest := hex.EncodeToString(observed.Digest[:])
 	for _, op := range prior.Operations {
-		for _, output := range op.Outputs {
-			if output.Path == observed.Key && output.Digest == digest {
-				return true
-			}
+		if slices.Contains(op.Basis, edit) && slices.Contains(op.Outputs, manifest.OutputRecord{Kind: "file", Path: observed.Key, Digest: digest}) {
+			return true
 		}
 	}
 	return false

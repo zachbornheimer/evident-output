@@ -246,3 +246,31 @@ func TestAppliedToRecognizesOnlyTheExactResult(t *testing.T) {
 		}
 	}
 }
+
+// TestIdentityDistinguishesEdits proves Identity is stable for one edit
+// and differs for any change to what the edit does.
+func TestIdentityDistinguishesEdits(t *testing.T) {
+	parse := func(diff string) File {
+		t.Helper()
+		files, err := Parse([]byte(diff))
+		if err != nil || len(files) != 1 {
+			t.Fatalf("Parse(%q) = %v, %v", diff, files, err)
+		}
+		return files[0]
+	}
+	base := "--- a/x\n+++ b/x\n@@ -2,1 +2,2 @@\n a\n+a\n"
+	again := base
+	if parse(base).Identity() != parse(again).Identity() {
+		t.Fatal("Identity differs for the same edit")
+	}
+	for _, other := range []string{
+		"--- a/y\n+++ b/y\n@@ -2,1 +2,2 @@\n a\n+a\n",
+		"--- a/x\n+++ b/x\n@@ -2,1 +2,2 @@\n a\n+b\n",
+		"--- a/x\n+++ b/x\n@@ -3,1 +3,2 @@\n a\n+a\n",
+		"--- a/x\n+++ b/x\n@@ -2,1 +2,1 @@\n-b\n+a\n",
+	} {
+		if parse(other).Identity() == parse(base).Identity() {
+			t.Errorf("Identity(%q) == Identity(base)", other)
+		}
+	}
+}

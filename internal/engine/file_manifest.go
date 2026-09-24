@@ -202,18 +202,23 @@ func basisRecordsFrom(ctx context.Context, basis []fingerprint.Fingerprint) ([]m
 			Digest: hex.EncodeToString(v.Digest[:]),
 		})
 	}
-	sort.Slice(records, func(i, j int) bool {
-		if records[i].Kind != records[j].Kind {
-			return records[i].Kind < records[j].Kind
-		}
-		return records[i].Key < records[j].Key
-	})
+	sortBasisRecords(records)
 	for i := 1; i < len(records); i++ {
 		if records[i].Kind == records[i-1].Kind && records[i].Key == records[i-1].Key {
 			return nil, fmt.Errorf("evo: Basis: duplicate (kind=%s, key=%s)", records[i].Kind, records[i].Key)
 		}
 	}
 	return records, nil
+}
+
+// sortBasisRecords puts records in canonical (kind, key) order.
+func sortBasisRecords(records []manifest.BasisRecord) {
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].Kind != records[j].Kind {
+			return records[i].Kind < records[j].Kind
+		}
+		return records[i].Key < records[j].Key
+	})
 }
 
 // fileDefinitionFingerprint computes File's operation definition fingerprint

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
 // ErrStaleBasis is returned when a derived file's source changed after its
@@ -42,17 +44,27 @@ func (f desiredFile) operation(taskID string) fileOperation {
 		taskID:      taskID,
 		spec:        FileSpec{Path: f.target.rel, Contents: f.contents, Mode: f.mode},
 		path:        path,
-		derivedFrom: &derivation{target: f.target, basis: f.basis, desired: fingerprint.ObservedFile(path, f.contents)},
+		derivedFrom: &derivation{target: f.target, basis: f.basis, desired: fingerprint.ObservedFile(path, f.contents), edit: f.edit},
 	}
 }
 
 // derivation is where a desired file state came from: the workspace file
-// it targets, the Basis its contents were derived from, and the identity
-// of those desired contents.
+// it targets, the Basis its contents were derived from, the identity of
+// those desired contents, and the edit that derived them.
 type derivation struct {
 	target  workspaceFile
 	basis   fingerprint.FingerprintValue
 	desired fingerprint.FingerprintValue
+	edit    manifest.BasisRecord
+}
+
+// recordedBasis is basis plus d's edit identity, in canonical order: the
+// Basis the derived File operation records, so the next Run can prove
+// which edit left its output.
+func (d derivation) recordedBasis(basis []manifest.BasisRecord) []manifest.BasisRecord {
+	records := append(slices.Clone(basis), d.edit)
+	sortBasisRecords(records)
+	return records
 }
 
 // revalidate observes path now and fails unless every parent is still a

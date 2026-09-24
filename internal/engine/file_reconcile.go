@@ -50,6 +50,9 @@ func (o *Output) establishFile(ctx context.Context, op fileOperation) error {
 			return basisErr
 		}
 		op.basis = basis
+		if op.derivedFrom != nil {
+			op.basis = op.derivedFrom.recordedBasis(basis)
+		}
 	}
 	return o.holdResource(ctx, target, resourceWrite, func(held context.Context) error {
 		if op.derivedFrom != nil {

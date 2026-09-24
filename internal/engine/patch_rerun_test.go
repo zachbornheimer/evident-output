@@ -82,3 +82,38 @@ func TestPatchAmbiguousFirstRunAppliesForward(t *testing.T) {
 		t.Fatalf("run 2 changes = %v, want none", changed)
 	}
 }
+
+// swapToADiff turns "head\nb\na\n" into "head\na\na\n": a different diff
+// whose result is exactly the source duplicateInsertionDiff then matches
+// on both sides.
+const swapToADiff = "--- a/list.txt\n+++ b/list.txt\n@@ -2,1 +2,1 @@\n-b\n+a\n"
+
+// TestPatchAmbiguousSourceTrustsOnlyTheSameDiffsResult proves the
+// ambiguous rerun rule asks whether this Task's previous Run applied this
+// same diff, not merely whether it left these bytes: run 1 applies one
+// diff, run 2 a different one whose old and new sides both match, and run
+// 2 must still apply forward (git apply gives head/a/a/a).
+func TestPatchAmbiguousSourceTrustsOnlyTheSameDiffsResult(t *testing.T) {
+	dir, first := patchWorkspace(t, map[string]string{"list.txt": "head\nb\na\n"})
+	state := first.cfg.stateDir
+	if err := runFilesTask(t, first, swapToADiff, nil); err != nil {
+		t.Fatalf("run 1: %v", err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("close run 1: %v", err)
+	}
+	second := Init(Config{Isolated: true, StateDir: state})
+	t.Cleanup(func() { _ = second.Close() })
+	second.mu.Lock()
+	second.workspaceDir = dir
+	second.mu.Unlock()
+	if err := runFilesTask(t, second, duplicateInsertionDiff, nil); err != nil {
+		t.Fatalf("run 2: %v", err)
+	}
+	if got := readOrFatal(t, filepath.Join(dir, "list.txt")); got != "head\na\na\na\n" {
+		t.Fatalf("list.txt after run 2 = %q, want %q", got, "head\na\na\na\n")
+	}
+	if _, changed := effectObjects(second); len(changed) != 1 {
+		t.Fatalf("run 2 changes = %v, want one", changed)
+	}
+}
