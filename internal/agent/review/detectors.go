@@ -56,11 +56,11 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectSignalNotifyWithoutCancel)},
 	// SIG-002: signal.Notify/NotifyContext wired for SIGINT/SIGTERM/
 	// os.Interrupt in a file that also calls evo.Main/evo.Run — those
-	// entrypoints have owned that exact lifecycle since 1.0.0 (RunFunc's
-	// context.Context is cancelled on SIGINT/SIGTERM internally), so a
+	// entrypoints own that exact lifecycle (RunFunc's context.Context is
+	// cancelled on SIGINT/SIGTERM internally), so a
 	// second interrupt layer built solely to duplicate it can let the
 	// ledger and the process's actual exit path diverge (Decisions
-	// 2026-09-23, ZYS-939). Pre-1.0.0 pins predate that ownership.
+	// 2026-09-23, ZYS-939).
 	{needsEvo: true, run: astRule(detectDuplicateSignalWiringAroundMain)},
 	// TERM-015: a child that owns the terminal (tty passthrough) must run
 	// inside out.Suspend, or its own UI glues onto the parent's live
@@ -195,37 +195,29 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: astRule(detectPhaseTaskOwningChildWork)},
 	// API-047: Task/Group/Sequence declaration reuses a sibling literal name
 	// already used by a different entity kind under the same parent.
-	// Sequence only exists from 1.0.0 on, so a pin older than that cannot
-	// have a cross-kind collision involving it.
 	{needsEvo: true, run: astRule(detectCrossKindDuplicateSiblingName)},
 	// API-049: Define callback discards its scheduler-provided context.
-	// context.Context-typed Define only exists from 1.0.0 on, so a pin older
-	// than that cannot have this shape.
 	{needsEvo: true, run: astRule(detectDefineDiscardsSchedulerContext)},
 	{needsEvo: true, run: astRule(detectPerFindingFakeTask)},
 	{needsEvo: true, run: textRule(detectFlattenedDiagnosticsLoop)},
 	// API-057: a filesystem mutator call hidden inside an evo.Effect
 	// callback — Effect is the opaque-mutation escape hatch, not a second
-	// file-write API; evo.File is 1.1.0-only (ZYS-851 Decisions), so a pin
-	// older than that cannot apply this rule's suggested fix.
+	// file-write API (ZYS-851 Decisions).
 	{needsEvo: true, run: astRule(detectFileWriteInEffectCallback)},
 	// API-058: a patch applied straight to the real workspace through
 	// os/exec (`patch`, `git apply`, `git am`) instead of deriving desired
 	// file states with evo.Patch and committing them through
-	// evo.Files/evo.File (ZYS-934). evo.Patch/evo.Files are 1.1.0-only, so
-	// a pin older than that cannot apply this rule's suggested fix.
+	// evo.Files/evo.File (ZYS-934).
 	{needsEvo: true, run: astRule(detectDirectWorkspacePatchApply)},
 	// API-059: a Patch-derived FileSet is never passed to evo.Files, and
 	// the same function commits a freshly built FileSpec through evo.File
 	// instead, discarding the source Basis/stale-write guard the FileSet
-	// carried (ZYS-935). evo.Patch/evo.Files are 1.1.0-only, so a pin
-	// older than that cannot have this shape.
+	// carried (ZYS-935).
 	{needsEvo: true, run: astRule(detectPatchFileSetDiscardedBeforeCommit)},
 	// API-061: a call site still uses the record-only mutation verbs
 	// Record/RecordLabel/RecordName, which have no record-only
 	// replacement (ZYS-974) — steer it to Effect (mutation), Fact
-	// (information), or File/Patch (file writes). Record* still exists at a
-	// 1.0.x pin, so the rule only fires from 1.1.0 on.
+	// (information), or File/Patch (file writes).
 	{needsEvo: true, run: astRule(detectDeprecatedRecordCall)},
 	// API-062: a second Kept/Skipped on one Task — the item is the Task, so
 	// the per-item shape is group.Task(item).Kept(reason) (contract §25
@@ -237,13 +229,11 @@ var fileDetectors = []detector{
 	// be read-only.
 	{needsEvo: true, run: astRule(detectMutatingVerify)},
 	// API-046: Skipped(evo.Reason("...")) whose reason names an
-	// already-satisfied condition instead of true inapplicability —
-	// ResolutionAlreadySatisfied (via Verify or evo.File/evo.Exec) is
-	// 1.0.0-only, so this recommendation cannot fire for an older pin.
+	// already-satisfied condition instead of true inapplicability
+	// (ResolutionAlreadySatisfied, via Verify or evo.File/evo.Exec).
 	{needsEvo: true, run: astRule(detectSkippedForAlreadySatisfied)},
 	// API-060: Summary text that is actually mutation/dry-run/already-
 	// satisfied narration rather than the caller's own result metadata.
-	// TaskHandle.Summary only exists from 1.1.0 on.
 	{needsEvo: true, run: astRule(detectSummaryStampNarration)},
 	// EVO-DRYRUN-001: Define callback raw-calls a side effect Evo's runtime
 	// cannot intercept, breaking the dry-run guarantee.
@@ -256,34 +246,27 @@ var fileDetectors = []detector{
 	// Exec's own capture/liveness/cancellation with hand-rolled
 	// bytes.Buffer/io.MultiWriter plumbing or output-string cancellation
 	// matching instead of inspecting the ExecResult evo.Exec now returns
-	// (ZYS-850). That inspectable ExecResult surface only exists from
-	// 1.1.0 on, so a pin older than that cannot apply this recommendation.
+	// (ZYS-850).
 	{needsEvo: true, run: textRule(detectManualSubprocessCaptureAroundTask)},
 	// API-052: caller-owned Wait loop over stored Task handles, filtering
 	// ErrNotStarted/snapshotting/hand-counting failures instead of using
-	// GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849). That container
-	// Wait surface only exists from 1.1.0 on, so a pin older than that
-	// cannot apply this recommendation.
+	// GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849).
 	{needsEvo: true, run: textRule(detectCallerWaitLoopOverContainerChildren)},
 	// API-053: a second evo.File/Resource-claiming evo.Effect call made
 	// with a context an enclosing evo.Effect already holds a Resource on
 	// (ZYS-840), directly or one call away through a same-file helper.
-	// EffectSpec.Resource only exists from 1.1.0 on, so a pin older than
-	// that cannot have this shape.
 	{needsEvo: true, run: astRule(detectNestedResourceAcquisition)},
 	// API-055: caller-managed sync.Mutex/RWMutex Lock/Unlock wrapped around
-	// an evo.File call — File's automatic resource claim (ZYS-840) only
-	// exists from 1.1.0 on, so a pin older than that cannot apply this
-	// recommendation.
+	// an evo.File call that File's automatic resource claim (ZYS-840)
+	// already serializes.
 	{needsEvo: true, run: astRule(detectManualLockAroundEvoFile)},
 	// EVO-DAG-003: a visible producer/consumer relationship has no
 	// first-run scheduler ordering.
 	{needsEvo: true, run: astRule(detectMissingProducerConsumerOrdering)},
 	// API-056: a .After(...) edge whose comment and both Tasks' own
 	// resource declarations show the only reason is shared-resource
-	// exclusion, not a semantic dependency. File/FSResource/LogicalResource
-	// automatic claim coordination (ZYS-840) only exists from 1.1.0 on, so
-	// a pin older than that cannot apply this rule's remediation.
+	// exclusion, not a semantic dependency, which File/FSResource/
+	// LogicalResource claim coordination (ZYS-840) already provides.
 	{needsEvo: true, run: func(in fileInput) []Finding {
 		return detectAfterOnlyForResourceContention(in.filename, in.src, in.file, in.fset)
 	}},
