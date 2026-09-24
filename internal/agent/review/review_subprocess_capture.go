@@ -74,11 +74,10 @@ func detectManualSubprocessCaptureAroundTask(filename, src string) []Finding {
 			continue
 		}
 		findings = append(findings, Finding{
-			RuleID:   "API-054",
-			Severity: "error",
-			Message:  "a raw os/exec.Cmd wired to an Evo Task's Writer() reimplements Exec's own capture/liveness/cancellation with hand-rolled " + signal + " plumbing instead of inspecting the ExecResult evo.Exec already returns",
-			File:     filename,
-			Line:     lineAt(src, funcStart+idx),
+			RuleID:  "API-054",
+			Message: "a raw os/exec.Cmd wired to an Evo Task's Writer() reimplements Exec's own capture/liveness/cancellation with hand-rolled " + signal + " plumbing instead of inspecting the ExecResult evo.Exec already returns",
+			File:    filename,
+			Line:    lineAt(src, funcStart+idx),
 			Suggestion: "replace the raw exec.Cmd, its manual bytes.Buffer/io.MultiWriter capture, and any output-string cancellation match with " +
 				"res, err := evo.Exec(ctx, spec); inspect res (ExecResult: Ran/ExitCode/Stdout/Stderr/Truncated) and errors.Is(err, evo.ErrExecNonzeroExit) instead",
 		})

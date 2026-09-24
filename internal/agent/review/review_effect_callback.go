@@ -135,7 +135,6 @@ func noOpEffectFinding(filename string, pos token.Position, shape string) Findin
 	}
 	return Finding{
 		RuleID:     "API-042",
-		Severity:   "error",
 		Message:    message,
 		File:       filename,
 		Line:       pos.Line,
@@ -189,7 +188,6 @@ func detectPluralEffectObject(filename string, file *ast.File, fset *token.FileS
 		pos := fset.Position(lit.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "API-043",
-			Severity:   "warning",
 			Message:    "EffectSpec.Object literal " + strconv.Quote(text) + " is plural; evo pluralizes the singular from Quantity",
 			File:       filename,
 			Line:       pos.Line,

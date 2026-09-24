@@ -61,7 +61,6 @@ func inlineReasonFinding(filename string, pos token.Position, pkg string, outerS
 		if verbWord, restates := taxonomyReasonVerbWords[outerSel.Sel.Name]; restates && strings.EqualFold(strings.TrimSpace(text), verbWord) {
 			return Finding{
 				RuleID:     "TAX-003",
-				Severity:   "warning",
 				Message:    "reason " + strconv.Quote(text) + " merely restates " + outerSel.Sel.Name + "; a reason names why, not what",
 				File:       filename,
 				Line:       pos.Line,
@@ -72,7 +71,6 @@ func inlineReasonFinding(filename string, pos token.Position, pkg string, outerS
 	}
 	return Finding{
 		RuleID:     "TAX-003",
-		Severity:   "warning",
 		Message:    "inline " + pkg + ".Reason(" + strconv.Quote(text) + ") literal; lift it to a package-level var so it is a compile-time name",
 		File:       filename,
 		Line:       pos.Line,
@@ -171,12 +169,11 @@ func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, t
 		recv = "task"
 	}
 	return Finding{
-		RuleID:   "API-046",
-		Severity: "warning",
-		Message:  "Skipped(evo.Reason(" + strconv.Quote(text) + ")) reports \"did not apply\"; the reason names a condition that was checked and already held, which is ResolutionAlreadySatisfied",
-		File:     filename,
-		Line:     pos.Line,
-		Column:   pos.Column,
+		RuleID:  "API-046",
+		Message: "Skipped(evo.Reason(" + strconv.Quote(text) + ")) reports \"did not apply\"; the reason names a condition that was checked and already held, which is ResolutionAlreadySatisfied",
+		File:    filename,
+		Line:    pos.Line,
+		Column:  pos.Column,
 		Suggestion: "add a precondition check via " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) before " + recv +
 			".Define(...) so evo resolves ResolutionAlreadySatisfied on its own, or let evo.File/evo.Exec derive it from their own tracked comparison; reserve Skipped for true inapplicability (no project config, no Go module)",
 	}
@@ -244,12 +241,11 @@ func summaryStampNarrationFinding(filename string, pos token.Position, recv, tex
 		recv = "task"
 	}
 	return Finding{
-		RuleID:   "API-060",
-		Severity: "warning",
-		Message:  recv + ".Summary(" + strconv.Quote(text) + ") reads as mutation/dry-run/already-satisfied narration, not the caller's own result metadata",
-		File:     filename,
-		Line:     pos.Line,
-		Column:   pos.Column,
+		RuleID:  "API-060",
+		Message: recv + ".Summary(" + strconv.Quote(text) + ") reads as mutation/dry-run/already-satisfied narration, not the caller's own result metadata",
+		File:    filename,
+		Line:    pos.Line,
+		Column:  pos.Column,
 		Suggestion: "move this narration to the primitive that owns it — evo.File/evo.Effect's own record, ResolutionAlreadySatisfied (via " + recv +
 			".Verify), or evo.Fact — and reserve " + recv + ".Summary for result metadata such as a count or verdict",
 	}

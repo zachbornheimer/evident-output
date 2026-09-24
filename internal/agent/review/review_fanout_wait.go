@@ -25,7 +25,6 @@ func detectGoroutineResolvesPredeclaredTask(filename, src string) []Finding {
 			if !strings.Contains(body, ".Define(") && containsAny(body, fanOutResolutionVerbMarkers) {
 				findings = append(findings, Finding{
 					RuleID:     "API-041",
-					Severity:   "error",
 					Message:    "goroutine/fan-out closure resolves a predeclared Task (Doing/Done/Fail/Progress) with no Define; evo never received this work to schedule",
 					File:       filename,
 					Line:       lineAt(src, start),
@@ -60,7 +59,6 @@ func detectChannelWaitWrapperAroundDefine(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-044",
-			Severity:   "error",
 			Message:    "a channel-wait wrapper around Define reimplements task.Wait() and hangs when the task is already terminal before Define runs",
 			File:       filename,
 			Line:       lineAt(src, fn.offset+chanIdx),
@@ -110,7 +108,6 @@ func detectCallerWaitLoopOverContainerChildren(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-052",
-			Severity:   "error",
 			Message:    "a caller-owned loop waits on individually stored Task handles, filters ErrNotStarted, snapshots the container, and hand-counts failed children instead of using the container's own Wait",
 			File:       filename,
 			Line:       lineAt(src, fn.offset+loop.offset+waitIdx),

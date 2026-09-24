@@ -161,8 +161,7 @@ func phaseTaskDefineFinding(filename string, pos token.Position, word string, fl
 		return nil
 	}
 	return &Finding{
-		RuleID:   "API-050",
-		Severity: "warning",
+		RuleID: "API-050",
 		Message: "Task(" + strconv.Quote(word) + ") sequences " + strconv.Itoa(steps) +
 			" independently erroring steps in its own Define callback; it exists primarily to own child-looking work, not to perform one action itself",
 		File:   filename,
@@ -297,12 +296,11 @@ func detectSubjectOnlyOrContainerTaskName(filename string, file *ast.File, fset 
 
 func subjectOnlyTaskNameFinding(filename string, pos token.Position, text, corrected string) Finding {
 	return Finding{
-		RuleID:   "API-045",
-		Severity: "warning",
-		Message:  "Task(" + strconv.Quote(text) + ") names a subject, not the work; a Task should name one independently meaningful action",
-		File:     filename,
-		Line:     pos.Line,
-		Column:   pos.Column,
+		RuleID:  "API-045",
+		Message: "Task(" + strconv.Quote(text) + ") names a subject, not the work; a Task should name one independently meaningful action",
+		File:    filename,
+		Line:    pos.Line,
+		Column:  pos.Column,
 		Suggestion: "rename to Task(" + strconv.Quote(corrected) + ") — read the name as an action (verb + concrete object) " +
 			"that answers what this unit of work will accomplish or determine",
 	}
@@ -310,12 +308,11 @@ func subjectOnlyTaskNameFinding(filename string, pos token.Position, text, corre
 
 func containerTaskNameFinding(filename string, pos token.Position, text string) Finding {
 	return Finding{
-		RuleID:   "API-045",
-		Severity: "warning",
-		Message:  "Task(" + strconv.Quote(text) + ") appears to organize several independently meaningful operations, not perform one itself",
-		File:     filename,
-		Line:     pos.Line,
-		Column:   pos.Column,
+		RuleID:  "API-045",
+		Message: "Task(" + strconv.Quote(text) + ") appears to organize several independently meaningful operations, not perform one itself",
+		File:    filename,
+		Line:    pos.Line,
+		Column:  pos.Column,
 		Suggestion: "replace Task(" + strconv.Quote(text) + ") with a Group/Sequence such as Group(\"prepare staged files\") " +
 			"and give each independently meaningful operation its own verb+object Task underneath",
 	}

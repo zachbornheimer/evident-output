@@ -138,8 +138,7 @@ func crossKindDuplicateSiblingFinding(filename string, pos token.Position, recv,
 	renamed := strconv.Quote(name + " " + strings.ToLower(method))
 	quotedName := strconv.Quote(name)
 	return Finding{
-		RuleID:   "API-047",
-		Severity: "error",
+		RuleID: "API-047",
 		Message: recv + "." + method + "(" + quotedName + ") reuses the sibling name already declared as a " + string(prior.kind) +
 			" at line " + strconv.Itoa(prior.pos.Line) + " (" + recv + "." + priorMethod + "(" + quotedName + ")); the same visible name now names two distinct " +
 			string(prior.kind) + "/" + string(kind) + " runtime identities under one parent",
@@ -237,7 +236,6 @@ func redeclaredTaskLiteralFinding(filename string, pos token.Position, recv, lit
 	quoted := strconv.Quote(literal)
 	return Finding{
 		RuleID:     "API-048",
-		Severity:   "suggestion",
 		Message:    recv + ".Task(" + quoted + ") is declared again with the same label; the second call fails as a duplicate sibling rather than returning the first handle",
 		File:       filename,
 		Line:       pos.Line,

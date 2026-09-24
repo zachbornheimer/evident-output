@@ -366,7 +366,6 @@ func detectDefineDiscardsSchedulerContext(filename string, file *ast.File, fset 
 		pos := fset.Position(call.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "API-049",
-			Severity:   "error",
 			Message:    "Define's callback discards its scheduler-provided context and calls cancellable work with a captured outer ctx instead; the scheduler's cancellation never reaches that work",
 			File:       filename,
 			Line:       pos.Line,

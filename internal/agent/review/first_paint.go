@@ -81,7 +81,6 @@ func firstPaintGapsInBody(filename, src, body string, offset int) []Finding {
 	if ioIdx < w.start {
 		return []Finding{{
 			RuleID:     "FP-001",
-			Severity:   "warning",
 			Message:    "heavy I/O runs before evo.Init/New; nothing is armed to paint within 100ms of process start",
 			File:       filename,
 			Line:       lineAt(src, offset+ioIdx),
@@ -93,7 +92,6 @@ func firstPaintGapsInBody(filename, src, body string, offset int) []Finding {
 	}
 	return []Finding{{
 		RuleID:     "FP-002",
-		Severity:   "warning",
 		Message:    "heavy I/O runs between evo.Init/New and the first Task/Group/Sequence; declare the first entity before this I/O",
 		File:       filename,
 		Line:       lineAt(src, offset+ioIdx),
@@ -137,7 +135,6 @@ func silentPreTaskLoopsInBody(filename, src, body string, offset int) []Finding 
 	}
 	return []Finding{{
 		RuleID:     "LOOP-001",
-		Severity:   "error",
 		Message:    "work loop runs before any Task/Group/Sequence; silent pre-output loops are a pit-of-success FAIL — put the loop inside Task.Define, or declare Group/Sequence first and give each item its own named Task",
 		File:       filename,
 		Line:       lineAt(src, offset+w.start+loopIdx),

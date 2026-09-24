@@ -54,7 +54,6 @@ func manualLockFinding(filename string, pos token.Position, r lockRegion) Findin
 	pair := r.recv + "." + r.lock + "/" + r.recv + "." + r.unlock
 	f := Finding{
 		RuleID:          "API-055",
-		Severity:        "warning",
 		File:            filename,
 		Line:            pos.Line,
 		Column:          pos.Column,

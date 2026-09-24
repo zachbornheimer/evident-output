@@ -257,7 +257,6 @@ func detectMutatingLegacyEvidence(filename string, file *ast.File, fset *token.F
 		recv := exprDottedNameOrDefault(sel.X, "task")
 		findings = append(findings, Finding{
 			RuleID:          "EVO-EVIDENCE-001",
-			Severity:        "error",
 			Message:         recv + ".Evidence's callback calls " + name + "; the legacy named-Evidence shape is superseded and was never the place mutation belongs",
 			File:            filename,
 			Line:            fset.Position(pos).Line,
@@ -294,7 +293,6 @@ func detectMutatingVerify(filename string, file *ast.File, fset *token.FileSet) 
 		recv := exprDottedNameOrDefault(sel.X, "task")
 		findings = append(findings, Finding{
 			RuleID:          "EVO-VERIFY-001",
-			Severity:        "error",
 			Message:         recv + ".Verify's callback calls " + name + "; Verify must be read-only",
 			File:            filename,
 			Line:            fset.Position(pos).Line,
@@ -334,7 +332,6 @@ func detectRawMutationInDefine(filename string, file *ast.File, fset *token.File
 		recv := exprDottedNameOrDefault(sel.X, "task")
 		findings = append(findings, Finding{
 			RuleID:          "EVO-DRYRUN-001",
-			Severity:        "error",
 			Message:         recv + ".Define raw-calls " + name + "; Evo cannot intercept an arbitrary side effect, so this callback is unsafe under dry-run",
 			File:            filename,
 			Line:            fset.Position(pos).Line,

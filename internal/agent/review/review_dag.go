@@ -31,7 +31,6 @@ func detectGoroutineWrappingDefine(filename, src string) []Finding {
 			if containsAny(body, []string{".Define("}) {
 				findings = append(findings, Finding{
 					RuleID:          "EVO-DAG-001",
-					Severity:        "warning",
 					Message:         "a goroutine wraps a call that already submits work to Evo's scheduler (.Define); Group/Sequence already run eligible children concurrently",
 					File:            filename,
 					Line:            lineAt(src, start),
@@ -111,7 +110,6 @@ func detectAfterChainDuplicatesSequence(filename string, file *ast.File, fset *t
 	}
 	return []Finding{{
 		RuleID:          "EVO-DAG-002",
-		Severity:        "warning",
 		Message:         "a chain of .After(...) calls reproduces the exact ordering evo.Sequence already gives its children automatically",
 		File:            filename,
 		Line:            fset.Position(pos).Line,
@@ -221,7 +219,6 @@ func detectMissingProducerConsumerOrdering(filename string, file *ast.File, fset
 			}
 			findings = append(findings, Finding{
 				RuleID:          "EVO-DAG-003",
-				Severity:        "warning",
 				Message:         "task " + c.taskVar + " reads " + c.path + ", which task " + p.taskVar + " produces, but nothing orders them; first-run scheduling gives no guarantee " + p.taskVar + " already ran",
 				File:            filename,
 				Line:            fset.Position(c.pos).Line,

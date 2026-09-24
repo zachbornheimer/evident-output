@@ -56,7 +56,6 @@ func detectManualFileReconciliation(filename string, file *ast.File, fset *token
 			p := fset.Position(pos)
 			findings = append(findings, Finding{
 				RuleID:     "EVO-FILE-001",
-				Severity:   "suggestion",
 				Message:    "manual file reconciliation can use evo.File",
 				File:       filename,
 				Line:       p.Line,
@@ -102,7 +101,10 @@ func detectExpensiveWorkBeforeFileOp(filename string, file *ast.File, fset *toke
 				}
 				pos := fset.Position(call.Pos())
 				findings = append(findings, Finding{
-					RuleID:     "EVO-FILE-001",
+					RuleID: "EVO-FILE-001",
+					// The freshness-boundary variant is deliberately stronger than
+					// EVO-FILE-001's catalog suggestion: work already ran that the
+					// trailing File/Exec cannot skip. The only catalog override.
 					Severity:   "warning",
 					Message:    callee.Name + "(...) already ran before the trailing evo.File/evo.Exec call; tracking the operation cannot retroactively skip work that already executed",
 					File:       filename,
@@ -177,7 +179,6 @@ func detectRawExecWithManualFreshness(filename string, file *ast.File, fset *tok
 			pos := fset.Position(call.Pos())
 			findings = append(findings, Finding{
 				RuleID:     "EVO-EXEC-001",
-				Severity:   "suggestion",
 				Message:    "raw exec with a manual freshness check can use evo.Exec",
 				File:       filename,
 				Line:       pos.Line,

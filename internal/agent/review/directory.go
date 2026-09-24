@@ -46,7 +46,7 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 	if walkErr != nil {
 		return Result{}, fmt.Errorf("review directory %s: %w", dir, walkErr)
 	}
-	all = dedupe(all)
+	all = finalize(all)
 	reported := desiredVersion
 	if reported == "" {
 		reported = pin.Version

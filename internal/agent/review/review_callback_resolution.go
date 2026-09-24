@@ -129,7 +129,6 @@ func failResolvedInCallbackFinding(filename string, pos token.Position, recv, ve
 	}
 	return Finding{
 		RuleID:     "API-040",
-		Severity:   "error",
 		Message:    "the callback resolves the task; return the error, do not " + verb + " first (" + shape + " form double-resolves under Define)",
 		File:       filename,
 		Line:       pos.Line,
@@ -225,7 +224,6 @@ func doingDoneTheaterFinding(filename string, pos token.Position, recv string) F
 	}
 	return Finding{
 		RuleID:     "FP-006",
-		Severity:   "error",
 		Message:    "Doing(...) is immediately followed by Done(...) with no Define submitting work between them; the row narrates work that already happened off-screen",
 		File:       filename,
 		Line:       pos.Line,

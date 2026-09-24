@@ -99,7 +99,6 @@ func argvAppliesPatch(argv []string) bool {
 func directWorkspacePatchApplyFinding(filename string, pos token.Position, program string) Finding {
 	return Finding{
 		RuleID:          "API-058",
-		Severity:        "error",
 		Message:         "exec.Command(" + goQuote(program) + ", ...) applies a patch straight to the real workspace, bypassing evo.Patch's Basis derivation and evo.Files/evo.File's stale-write guard, dry-run planning, and already-satisfied resolution",
 		File:            filename,
 		Line:            pos.Line,

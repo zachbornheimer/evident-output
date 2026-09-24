@@ -259,7 +259,6 @@ func detectAfterOnlyForResourceContention(filename, src string, file *ast.File, 
 		pos := fset.Position(e.pos)
 		findings = append(findings, Finding{
 			RuleID:          "API-056",
-			Severity:        "warning",
 			Message:         e.child + ".After(" + e.parent + ") exists only to avoid a race on " + strconv.Quote(resource) + "; both Tasks already claim that resource, so Evo's automatic resource coordination already serializes them without this edge",
 			File:            filename,
 			Line:            pos.Line,

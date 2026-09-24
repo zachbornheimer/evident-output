@@ -160,7 +160,6 @@ func deprecatedRecordCallFinding(filename string, pos token.Position, sel *ast.S
 	}
 	return Finding{
 		RuleID:          "API-061",
-		Severity:        "warning",
 		Message:         verb + " was removed in 1.1 with no record-only replacement (ZYS-974)",
 		File:            filename,
 		Line:            pos.Line,

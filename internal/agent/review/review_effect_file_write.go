@@ -162,7 +162,6 @@ func openFileFlagIsWriteMode(flag ast.Expr) bool {
 func fileWriteInEffectFinding(filename string, pos token.Position, calleeName string) Finding {
 	return Finding{
 		RuleID:          "API-057",
-		Severity:        "error",
 		Message:         calleeName + " mutates the filesystem directly inside an evo.Effect callback; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively, not a second file-write API",
 		File:            filename,
 		Line:            pos.Line,

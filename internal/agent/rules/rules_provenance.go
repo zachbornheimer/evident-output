@@ -30,7 +30,7 @@ func omittedBasisRule() Rule {
 	return Rule{
 		ID:        "EVO-PROVENANCE-001",
 		Category:  "EVO",
-		Severity:  "warning",
+		Severity:  SeverityWarning,
 		Invariant: "every file or value a generator visibly reads is listed in Basis, or the operation's freshness claim is false",
 		Why:       "evo.File/evo.Exec no-op when Basis, identity, and outputs are all current. A generator that reads a config file, template, or environment value the call site never adds to Basis will silently skip re-running after that input changes — the operation reports itself fresh while its actual output is stale.",
 		BadCode: `return evo.Exec(ctx, evo.ExecSpec{
@@ -64,7 +64,7 @@ func opaqueManifestSkipRule() Rule {
 	return Rule{
 		ID:        "EVO-PROVENANCE-002",
 		Category:  "EVO",
-		Severity:  "warning",
+		Severity:  SeverityWarning,
 		Invariant: "a Task/operation may only report already-satisfied on the strength of proof this run observed, never on provenance an opaque callback merely recorded on some earlier run",
 		Why:       "The manifest is a record of what a past run did, not evidence about the current filesystem/process state. An opaque callback (one whose body evo cannot inspect, e.g. a Verify-shaped func with no real current check) that skips work by trusting a prior manifest entry alone reports a false already-satisfied — it never re-observes the state it is claiming to confirm.",
 		BadCode: `task.Verify(func(ctx context.Context) (bool, error) {

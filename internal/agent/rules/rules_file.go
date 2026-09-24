@@ -20,7 +20,7 @@ func fileReconciliationRule() Rule {
 	return Rule{
 		ID:        "EVO-FILE-001",
 		Category:  "EVO",
-		Severity:  "suggestion",
+		Severity:  SeveritySuggestion,
 		Invariant: "ordinary tracked file state is declared once through evo.File, not hand-assembled write/chmod/check boilerplate",
 		Why:       "os.WriteFile followed by os.Chmod (and often a manual existence/hash check to decide whether to skip either) reimplements exactly what evo.File's Path/Contents/Mode/Basis fields already reconcile in one declarative call — the hand-rolled version has no freshness comparison and no dry-run safety.",
 		BadCode: `data := renderConfig(cfg)
@@ -50,7 +50,7 @@ func rawExecFreshnessRule() Rule {
 	return Rule{
 		ID:        "EVO-EXEC-001",
 		Category:  "EVO",
-		Severity:  "suggestion",
+		Severity:  SeveritySuggestion,
 		Invariant: "an external process that produces declared output files is run through evo.Exec, not raw os/exec plus hand-rolled output hashing",
 		Why:       "os/exec.Command run directly, paired with manual stat/hash/mtime comparisons against its declared outputs to decide whether to re-run, reimplements evo.Exec's Executable/Args/Basis/Outputs freshness contract without evo's no-op-when-current guarantee or dry-run safety.",
 		BadCode: `if outputIsStale(inputPath, outPath) {

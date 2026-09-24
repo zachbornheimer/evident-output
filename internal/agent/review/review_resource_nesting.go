@@ -233,7 +233,6 @@ func forwardedParamName(fd *ast.FuncDecl, call *ast.CallExpr, ctxName string) st
 func nestedResourceAcquisitionFinding(filename string, pos token.Position, calleeDotted string) Finding {
 	return Finding{
 		RuleID:     "API-053",
-		Severity:   "error",
 		Message:    calleeDotted + "(...) is called with a context that already holds a Resource from an enclosing evo.Effect's spec.Resource claim; holding at most one Resource at a time is what makes deadlock impossible, so a second acquisition is misuse even when the second resource is free",
 		File:       filename,
 		Line:       pos.Line,

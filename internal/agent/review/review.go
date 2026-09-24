@@ -66,15 +66,11 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
 	if err != nil {
-		return Result{
-			Findings: []Finding{{
-				RuleID:   "API-000",
-				Severity: "error",
-				Message:  "parse error: " + err.Error(),
-				File:     filename,
-			}},
-			RecheckRequired: true,
-		}
+		return newResult([]Finding{{
+			RuleID:  "API-000",
+			Message: "parse error: " + err.Error(),
+			File:    filename,
+		}})
 	}
 
 	in := fileInput{
@@ -94,12 +90,9 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 
 	// GoSource implements its rules fully via AST. Partial is reserved for incomplete
 	// typecheck / multi-file analysis — not "evo is imported".
-	return Result{
-		Findings:        dedupe(findings),
-		RecheckRequired: hasRequired(findings),
-		Partial:         false,
-		DesiredVersion:  desiredVersion,
-	}
+	res := newResult(findings)
+	res.DesiredVersion = desiredVersion
+	return res
 }
 
 // GoPackage reviews multiple Go files in one package with go/types for
@@ -108,9 +101,7 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 // stays local to the provided sources.
 func GoPackage(files map[string]string) Result {
 	if len(files) == 0 {
-		return Result{RecheckRequired: true, Findings: []Finding{{
-			RuleID: "API-000", Severity: "error", Message: "no files provided",
-		}}}
+		return newResult([]Finding{{RuleID: "API-000", Message: "no files provided"}})
 	}
 	// Package-level evo import (cross-file): STREAM rules apply if any file imports evo.
 	pkgHasEvo := false
@@ -129,10 +120,9 @@ func GoPackage(files map[string]string) Result {
 		if pkgHasEvo && !strings.Contains(src, "evident-output") {
 			if strings.Contains(src, "fmt.Print") || strings.Contains(src, "fmt.Fprint") {
 				all = append(all, Finding{
-					RuleID:   "STREAM-003",
-					Severity: "error",
-					Message:  "fmt.Print* in package that imports evo may contaminate managed streams (cross-file)",
-					File:     name,
+					RuleID:  "STREAM-003",
+					Message: "fmt.Print* in package that imports evo may contaminate managed streams (cross-file)",
+					File:    name,
 				})
 			}
 		}
@@ -146,9 +136,8 @@ func GoPackage(files map[string]string) Result {
 		f, err := parser.ParseFile(fset, name, src, parser.SkipObjectResolution)
 		if err != nil {
 			all = append(all, Finding{
-				RuleID: "API-000", Severity: "error",
-				Message: "parse error in " + name + ": " + err.Error(),
-				File:    name,
+				RuleID: "API-000", Message: "parse error in " + name + ": " + err.Error(),
+				File: name,
 			})
 			continue
 		}
@@ -156,7 +145,9 @@ func GoPackage(files map[string]string) Result {
 		parsed = append(parsed, f)
 	}
 	if len(parsed) == 0 {
-		return Result{Findings: dedupe(all), RecheckRequired: true, Partial: true}
+		res := newResult(all)
+		res.Partial = true
+		return res
 	}
 
 	conf := types.Config{
@@ -188,12 +179,11 @@ func GoPackage(files map[string]string) Result {
 				if (strings.Contains(tn, "GroupHandle") || strings.Contains(tn, "SequenceHandle")) && (sel.Sel.Name == "Done" || sel.Sel.Name == "Fail" || sel.Sel.Name == "Progress") {
 					pos := fset.Position(n.Pos())
 					all = append(all, Finding{
-						RuleID:   "API-027",
-						Severity: "error",
-						Message:  fmt.Sprintf("typed: %s.%s on collection type %s is forbidden", tn, sel.Sel.Name, tn),
-						File:     pos.Filename,
-						Line:     pos.Line,
-						Column:   pos.Column,
+						RuleID:  "API-027",
+						Message: fmt.Sprintf("typed: %s.%s on collection type %s is forbidden", tn, sel.Sel.Name, tn),
+						File:    pos.Filename,
+						Line:    pos.Line,
+						Column:  pos.Column,
 					})
 				}
 			}
@@ -209,16 +199,13 @@ func GoPackage(files map[string]string) Result {
 		// Still mark that cross-file parse ran; type errors may be from stubs.
 		partial = true
 		all = append(all, Finding{
-			RuleID:   "MCP-017",
-			Severity: "warning",
-			Message:  "cross-file typecheck incomplete: " + err.Error(),
+			RuleID:  "MCP-017",
+			Message: "cross-file typecheck incomplete: " + err.Error(),
 		})
 	}
-	return Result{
-		Findings:        dedupe(all),
-		RecheckRequired: hasRequired(all),
-		Partial:         partial,
-	}
+	res := newResult(all)
+	res.Partial = partial
+	return res
 }
 
 // stubImporter satisfies go/types for external imports without loading code.
@@ -235,24 +222,19 @@ func Transcript(filename, text string) Result {
 	// Split live/final corruption: ESC without matching reset often ok in our driver
 	if strings.Count(text, "\x1b[?25l") > strings.Count(text, "\x1b[?25h") {
 		findings = append(findings, Finding{
-			RuleID:   "TERM-008",
-			Severity: "error",
-			Message:  "cursor hide without matching show in transcript",
-			File:     filename,
+			RuleID:  "TERM-008",
+			Message: "cursor hide without matching show in transcript",
+			File:    filename,
 		})
 	}
 	if strings.Contains(text, "\x00") {
 		findings = append(findings, Finding{
-			RuleID:   "TERM-014",
-			Severity: "warning",
-			Message:  "NUL byte in transcript suggests unmanaged binary writes",
-			File:     filename,
+			RuleID:  "TERM-014",
+			Message: "NUL byte in transcript suggests unmanaged binary writes",
+			File:    filename,
 		})
 	}
-	return Result{
-		Findings:        findings,
-		RecheckRequired: hasRequired(findings),
-	}
+	return newResult(findings)
 }
 
 // StructuredDocument reviews a JSON snapshot/document for schema basics (MCP-019).
@@ -260,27 +242,19 @@ func StructuredDocument(filename string, raw []byte) Result {
 	var findings []Finding
 	var doc map[string]any
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return Result{
-			Findings: []Finding{{
-				RuleID: "SCHEMA-001", Severity: "error",
-				Message: "invalid JSON: " + err.Error(), File: filename,
-			}},
-			RecheckRequired: true,
-		}
+		return newResult([]Finding{{RuleID: "SCHEMA-001", Message: "invalid JSON: " + err.Error(), File: filename}})
 	}
 	if v, ok := doc["schema_version"].(string); !ok || v == "" {
 		findings = append(findings, Finding{
-			RuleID: "SCHEMA-001", Severity: "error",
-			Message: "missing schema_version", File: filename,
+			RuleID: "SCHEMA-001", Message: "missing schema_version", File: filename,
 		})
 	}
 	if _, ok := doc["conclusion"]; !ok {
 		findings = append(findings, Finding{
-			RuleID: "SCHEMA-001", Severity: "error",
-			Message: "missing conclusion object", File: filename,
+			RuleID: "SCHEMA-001", Message: "missing conclusion object", File: filename,
 		})
 	}
-	return Result{Findings: findings, RecheckRequired: hasRequired(findings)}
+	return newResult(findings)
 }
 
 // isFormatMethod names the surviving *f methods (C6: Donef/Summaryf/Itemf/
@@ -673,7 +647,6 @@ func detectBlockedAsError(filename, src string) []Finding {
 			if strings.Contains(line, pat) {
 				return []Finding{{
 					RuleID:     "DOM-011",
-					Severity:   "error",
 					Message:    "expected blocked item returned as application error; Block/BlockedBy is a presentation outcome — return nil after Finish, use conclusion ExitCode for process status (MCP-014)",
 					File:       filename,
 					Line:       i + 1,
@@ -694,7 +667,6 @@ func detectBlockedAsError(filename, src string) []Finding {
 			if !finishAssigned {
 				return []Finding{{
 					RuleID:     "DOM-011",
-					Severity:   "error",
 					Message:    "return err after Block treats expected blocked item as application error; Finish then use ExitCode (MCP-014)",
 					File:       filename,
 					Line:       i + 1,
@@ -724,7 +696,6 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 	}
 	return []Finding{{
 		RuleID:     "SIG-001",
-		Severity:   "warning",
 		Message:    "signal.Notify without a Cancel call in this file; prefer evo.Main/Output.Run, which already wire SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
 		File:       filename,
 		Line:       line,
@@ -819,7 +790,6 @@ func callArgsIncludeLifecycleSignal(args []ast.Expr) bool {
 func duplicateSignalWiringFinding(filename string, pos token.Position, pkg, verb string) Finding {
 	return Finding{
 		RuleID:     "SIG-002",
-		Severity:   "warning",
 		Message:    "signal." + verb + " wires SIGINT/SIGTERM/os.Interrupt in a file that also calls " + pkg + ".Main/" + pkg + ".Run; those entrypoints already cancel RunFunc's context on the same signals, so this duplicate layer can let the ledger and the process's actual exit path diverge",
 		File:       filename,
 		Line:       pos.Line,
@@ -855,7 +825,6 @@ func detectTTYPassthroughWithoutSuspend(filename, src string) []Finding {
 	}
 	return []Finding{{
 		RuleID:     "TERM-015",
-		Severity:   "warning",
 		Message:    "tty-passthrough child (Stdout/Stderr inherited); capture it with task.Writer() so the live row keeps moving",
 		File:       filename,
 		Line:       line,
@@ -877,7 +846,6 @@ func detectHandRolledConfirm(filename, src string) []Finding {
 	line := 1 + strings.Count(src[:idx], "\n")
 	return []Finding{{
 		RuleID:     "CONFIRM-001",
-		Severity:   "warning",
 		Message:    "hand-rolled stdin confirm prompt in a file that imports evo; use evo.Confirm for spinner-pause + OK/declined/blocked resolution",
 		File:       filename,
 		Line:       line,
@@ -916,7 +884,6 @@ func detectStaleDoingBeforeSubprocess(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "FP-003",
-			Severity:   "warning",
 			Message:    "Doing is set once before a subprocess run with no further Doing/Progress/Writer; wire child output through Task.Writer or advance Doing as evidence arrives",
 			File:       filename,
 			Line:       lineAt(src, fn.offset+doingIdx),
@@ -955,7 +922,6 @@ func detectHandAssembledTaxonomyCount(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "TAX-001",
-			Severity:   "warning",
 			Message:    "hand-assembled skip/keep count string; record reason + name via task.Skipped/Kept and let evo derive and sum the partition",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -986,7 +952,6 @@ func detectProgressInDoingString(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "PROG-001",
-			Severity:   "error",
 			Message:    "Doing string smuggles a %d/%d count; use Progress(completed, total) so the count is structured, not narration text",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1013,7 +978,6 @@ func detectUnboundedSliceIntoNarration(filename, src string) []Finding {
 		method := src[m[2]:m[3]]
 		findings = append(findings, Finding{
 			RuleID:     "BOUND-001",
-			Severity:   "warning",
 			Message:    "strings.Join of an unbounded slice passed to " + method + "; wrap it in evo.TruncateNames before rendering",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1047,7 +1011,6 @@ func detectTaskDeclaredInsideFanOut(filename, src string) []Finding {
 			if strings.Contains(body, ".Task(") {
 				findings = append(findings, Finding{
 					RuleID:     "API-030",
-					Severity:   "error",
 					Message:    "Task declared inside a goroutine/fan-out closure; predeclare all children before starting any goroutine",
 					File:       filename,
 					Line:       lineAt(src, start),
@@ -1077,7 +1040,6 @@ func detectHandRolledWriter(filename, src string) []Finding {
 		if strings.Contains(body, ".Doing(") {
 			findings = append(findings, Finding{
 				RuleID:     "API-031",
-				Severity:   "warning",
 				Message:    "hand-rolled io.Writer.Write calls TaskHandle.Doing; use Task.Writer() instead",
 				File:       filename,
 				Line:       lineAt(src, start),
@@ -1134,7 +1096,6 @@ func detectConfirmMissingDestructive(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "CONFIRM-002",
-			Severity:   "warning",
 			Message:    "Confirm question reads as destructive but is missing evo.Destructive()",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1161,7 +1122,6 @@ func detectFailfEmbeddedEvidenceText(filename, src string) []Finding {
 	for _, m := range failfCaptureTextPattern.FindAllStringIndex(src, -1) {
 		findings = append(findings, Finding{
 			RuleID:     "EV-001",
-			Severity:   "warning",
 			Message:    "Failf/Blockf argument calls .Text()/.Tail() on the retained evidence ring — that text is already auto-attached as a separate evidence line, so embedding it in the summary too duplicates it",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1181,7 +1141,6 @@ func detectHandAssembledFailureSummary(filename, src string) []Finding {
 	for _, m := range printJoinPattern.FindAllStringIndex(src, -1) {
 		findings = append(findings, Finding{
 			RuleID:     "CON-002",
-			Severity:   "warning",
 			Message:    "printing a joined list duplicates the Conclusion summary; resolve each item on its own Item/Task instead",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1240,7 +1199,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			if idx := strings.Index(body, "evo.New("); idx >= 0 {
 				findings = append(findings, Finding{
 					RuleID:     "API-032",
-					Severity:   "warning",
 					Message:    "evo.New was removed with the item/task fold; evo.Init is the sole constructor",
 					File:       filename,
 					Line:       lineAt(src, offset+idx),
@@ -1253,7 +1211,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			recv := src[m[2]:m[3]]
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "Item folded into Task — Item was removed",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -1268,7 +1225,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "Plan was removed in v0.4 — use evo.Effect, evo.File, or Task.Fact",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -1283,7 +1239,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "Changes was removed in v0.4 — use evo.Effect, evo.File, or Task.Fact",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -1295,7 +1250,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			recv := src[m[2]:m[3]]
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "OK was retired with Item — a Task resolves by running its Define callback",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -1306,7 +1260,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 		for _, m := range becauseCallPattern.FindAllStringIndex(src, -1) {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "Because was retired with Item — its text is now the resolving verb's own argument",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -1325,7 +1278,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use " + verb + "f's trailing %w",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -1338,7 +1290,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use Failf/Blockf's trailing %w",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -1353,7 +1304,6 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
-				Severity:   "warning",
 				Message:    "Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -1386,7 +1336,6 @@ func detectNameEqualsVerbArgument(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-033",
-			Severity:   "warning",
 			Message:    "the same expression (" + nameArg + ") is used as both the entity name and the ." + verb + "(...) argument — the second carries no new information",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1418,7 +1367,6 @@ func detectPlaceholderDoing(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "FP-004",
-			Severity:   "warning",
 			Message:    `Doing("` + lit + `") names no domain object; the user can't tell this frame from the last one`,
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1454,7 +1402,6 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 			if trimmed == "return nil" {
 				findings = append(findings, Finding{
 					RuleID:     "API-034",
-					Severity:   "error",
 					Message:    recv + "." + verb + "(...) followed by return nil discards the error the caller needed to propagate",
 					File:       filename,
 					Line:       j + 1,
@@ -1482,7 +1429,6 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 		idx := strings.Index(fb.body, "io.Discard")
 		findings = append(findings, Finding{
 			RuleID:     "API-035",
-			Severity:   "warning",
 			Message:    "io.Discard sink in a function that also Fails/Blocks discards the evidence a security gate needs to explain its own verdict",
 			File:       filename,
 			Line:       lineAt(src, fb.offset+idx),
@@ -1522,7 +1468,6 @@ func detectSprintfInVerb(filename, src string) []Finding {
 			// still a real finding, but no cheap derived Verbf substitution.
 			findings = append(findings, Finding{
 				RuleID:     "API-036",
-				Severity:   "warning",
 				Message:    recv + "." + verb + "(fmt.Sprintf(...), ...) should build its summary via " + recv + "." + verb + "f(...)",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -1532,7 +1477,6 @@ func detectSprintfInVerb(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-036",
-			Severity:   "warning",
 			Message:    recv + "." + verb + "(fmt.Sprintf(...)) should be " + recv + "." + verb + "f(...) directly",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1572,7 +1516,6 @@ func detectSprintfIntoVariadicVerb(filename, src string) []Finding {
 			// a real finding, but no cheap derived flattened call.
 			findings = append(findings, Finding{
 				RuleID:     "API-038",
-				Severity:   "warning",
 				Message:    recv + "." + verb + "(fmt.Sprintf(...), ...) should flatten fmt.Sprintf into " + recv + "." + verb + "'s own format + args",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
@@ -1582,7 +1525,6 @@ func detectSprintfIntoVariadicVerb(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-038",
-			Severity:   "warning",
 			Message:    recv + "." + verb + "(fmt.Sprintf(...)) should flatten into " + recv + "." + verb + "(...) directly",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1625,7 +1567,6 @@ func detectWrapperMethod(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-037",
-			Severity:   "warning",
 			Message:    "method " + name + " wraps a single call (." + call[1] + "(...)) on a Task/Item handle with no added behavior",
 			File:       filename,
 			Line:       lineAt(src, start),
@@ -1685,8 +1626,7 @@ func detectErrTwice(filename, src string) []Finding {
 			continue
 		}
 		findings = append(findings, Finding{
-			RuleID:   "DOM-018",
-			Severity: "warning",
+			RuleID: "DOM-018",
 			Message: errVar + ".Error() as the summary and evo.Cause(" + errVar + ") as an option surface the same error twice; " +
 				"evo.Cause no longer affects the returned error since Fail/Block are statement-form",
 			File:       filename,
@@ -1728,8 +1668,7 @@ func detectDynamicReason(filename, src string) []Finding {
 			continue
 		}
 		findings = append(findings, Finding{
-			RuleID:   "TAX-002",
-			Severity: "warning",
+			RuleID: "TAX-002",
 			Message: "evo.Reason built from a computed expression (" + firstArg +
 				") is a cardinality bug — each distinct rendered value opens a new taxonomy bucket",
 			File:       filename,
@@ -1771,7 +1710,6 @@ func detectLongEntityName(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "TXT-020",
-			Severity:   "warning",
 			Message:    fmt.Sprintf("entity name %q %s", name, reason),
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -1800,8 +1738,7 @@ func detectShadowedHandle(filename, src string) []Finding {
 				resolved := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.(Done|Fail|Warn|Block|Cancel|Skip)\(`).MatchString(between)
 				if !resolved {
 					findings = append(findings, Finding{
-						RuleID:   "DOM-019",
-						Severity: "warning",
+						RuleID: "DOM-019",
 						Message: "variable " + name + " is reassigned from a new Task/Item declaration before the previous one was resolved; " +
 							"the earlier row is orphaned Running forever",
 						File:       filename,
@@ -1834,7 +1771,6 @@ func detectCrammedSummary(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "TXT-021",
-			Severity:   "warning",
 			Message:    verb + " summary hand-assembles a cause/action fragment into the text instead of using Detail/Next",
 			File:       filename,
 			Line:       lineAt(src, m[0]),

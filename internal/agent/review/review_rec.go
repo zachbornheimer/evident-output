@@ -307,7 +307,6 @@ func (d *recSurfaceDetector) evoCall(e ast.Expr) (name string, args []ast.Expr, 
 func (d *recSurfaceDetector) report(n ast.Node, msg, sug string) {
 	d.findings = append(d.findings, Finding{
 		RuleID:     "API-032",
-		Severity:   "warning",
 		Message:    msg,
 		File:       d.filename,
 		Line:       lineAt(d.src, d.offset(n)),

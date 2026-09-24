@@ -39,7 +39,6 @@ func detectSelectorCallRules(in fileInput) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "API-006",
-				Severity:   "warning",
 				Message:    "explicit Start is usually redundant; prefer Doing/Progress or direct terminal resolution",
 				File:       filename,
 				Line:       pos.Line,
@@ -53,7 +52,6 @@ func detectSelectorCallRules(in fileInput) []Finding {
 		if hasEvo && isForbiddenExecutionHelper(name) && isEvoExecutionReceiver(sel.X) {
 			findings = append(findings, Finding{
 				RuleID:     "API-026",
-				Severity:   "error",
 				Message:    "forbidden execution helper ." + name + "( — callers do not invent RunAll/Map/Retry; use Group/Sequence/Define/Each/After",
 				File:       filename,
 				Line:       pos.Line,
@@ -75,7 +73,6 @@ func detectSelectorCallRules(in fileInput) []Finding {
 					if !skip {
 						findings = append(findings, Finding{
 							RuleID:     "STREAM-003",
-							Severity:   "error",
 							Message:    "fmt." + name + " alongside evo may contaminate managed streams; use out.Print/Printf/Println (or Verbose) for human text",
 							File:       filename,
 							Line:       pos.Line,
@@ -89,7 +86,6 @@ func detectSelectorCallRules(in fileInput) []Finding {
 						// behavior change.
 						findings = append(findings, Finding{
 							RuleID:     "EVO-LIVE-001",
-							Severity:   "error",
 							Message:    "fmt." + name + " competes with Evo's live rendering and can tear the live-region frame",
 							File:       filename,
 							Line:       pos.Line,
@@ -112,7 +108,6 @@ func detectSelectorCallRules(in fileInput) []Finding {
 				if recv := exprDottedName(sel.X); recv != "" && looksLikeStreamWriterName(recv) {
 					findings = append(findings, Finding{
 						RuleID:     "STREAM-003",
-						Severity:   "error",
 						Message:    recv + "." + name + " writes directly to a stream-named field/variable alongside evo; route through out.Print/Printf/Println or a Task writer instead",
 						File:       filename,
 						Line:       pos.Line,
@@ -135,7 +130,6 @@ func detectSelectorCallRules(in fileInput) []Finding {
 					}
 					findings = append(findings, Finding{
 						RuleID:     "API-028",
-						Severity:   "warning",
 						Message:    name + " has no format directive; prefer non-formatting method (e.g. Done(\"text\") not Donef(\"text\"))",
 						File:       filename,
 						Line:       pos.Line,
@@ -150,7 +144,6 @@ func detectSelectorCallRules(in fileInput) []Finding {
 		if hasEvo && name == "DebugWriter" && isLikelyEvoReceiver(sel.X) {
 			findings = append(findings, Finding{
 				RuleID:     "API-029",
-				Severity:   "warning",
 				Message:    "DebugWriter is for intentional DEBUG journal lines; use task.Evidence() for subprocess stdout/stderr evidence",
 				File:       filename,
 				Line:       pos.Line,
@@ -169,7 +162,6 @@ func detectSelectorCallRules(in fileInput) []Finding {
 				if !isPresentationExitArg(call, runCodeVars) {
 					findings = append(findings, Finding{
 						RuleID:     "API-018",
-						Severity:   "warning",
 						Message:    "os.Exit in evo-using code; prefer os.Exit(evo.Main(run)) or os.Exit(evo.Run(run).../Conclusion().ExitCode) (evo.MainWith was removed in 1.0)",
 						File:       filename,
 						Line:       pos.Line,
@@ -178,7 +170,6 @@ func detectSelectorCallRules(in fileInput) []Finding {
 					})
 					findings = append(findings, Finding{
 						RuleID:     "EVO-EXIT-001",
-						Severity:   "error",
 						Message:    "os.Exit bypasses the Evo-derived conclusion (evo.MainWith was removed in 1.0)",
 						File:       filename,
 						Line:       pos.Line,
@@ -202,7 +193,6 @@ func detectSelectorCallRules(in fileInput) []Finding {
 			}
 			findings = append(findings, Finding{
 				RuleID:     "PROG-001",
-				Severity:   "error",
 				Message:    "Advance is a delta counter that double-counts on retries; prefer one Task per item for loop progress or absolute Progress(completed, total)",
 				File:       filename,
 				Line:       pos.Line,
@@ -222,7 +212,6 @@ func detectDetailOfError(filename, src string) []Finding {
 	if strings.Contains(src, "Detail(err)") || strings.Contains(src, "evo.Detail(err)") {
 		return []Finding{{
 			RuleID:     "DOM-014",
-			Severity:   "error",
 			Message:    "Detail must be user-visible string; wrap the error with Failf/Blockf's trailing %w instead",
 			File:       filename,
 			Suggestion: `replace Detail(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,

@@ -55,12 +55,11 @@ func detectPerFindingFakeTask(filename string, file *ast.File, fset *token.FileS
 			}
 			pos := fset.Position(call.Pos())
 			findings = append(findings, Finding{
-				RuleID:   "API-051",
-				Severity: "error",
-				Message:  "loop creates one Task per finding and immediately fails it; a Task should own its independent lifecycle, not stand in for one finding",
-				File:     filename,
-				Line:     pos.Line,
-				Column:   pos.Column,
+				RuleID:  "API-051",
+				Message: "loop creates one Task per finding and immediately fails it; a Task should own its independent lifecycle, not stand in for one finding",
+				File:    filename,
+				Line:    pos.Line,
+				Column:  pos.Column,
 				Suggestion: "replace the per-item .Task(...).Fail/Failf(...) with one owning Task that calls " +
 					"task.Problem(summary, evo.Location(path, line, 0), evo.Code(code)) once per finding inside the loop, " +
 					"then Define resolves the Task Failed once if any Problem was accumulated",
@@ -109,8 +108,7 @@ func detectFlattenedDiagnosticsLoop(filename, src string) []Finding {
 				continue
 			}
 			findings = append(findings, Finding{
-				RuleID:   "API-051",
-				Severity: "error",
+				RuleID: "API-051",
 				Message: "loop concatenates structured findings into " + name +
 					", later flattened into one joined error string that discards each finding's own location/code/detail",
 				File: filename,
