@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -17,14 +18,17 @@ const facadeMigrationNote = "custom output facade: migrate the facade, not each 
 // count — see Facade.Note and mutationVerbPrefixes.
 const mutationFacadeNote = "custom mutation facade: migrate the facade, not each call site — its %d call sites follow"
 
-// mutationVerbPrefixes names the method-name prefixes that mark a *facade
-// package's type as performing a real mutation (launchdfacade.Bootstrap,
-// dockerfacade.ComposeUp, filesystemfacade.WriteFile) rather than routing
-// output through a writer. Detection has no io.Writer field to key off —
-// homelab's launchdfacade.CLI holds none — so the naming convention plus
-// the *facade package convention (facadePackage) together stand in for the
-// type resolution adopt doesn't do (see ZYS-1019).
-var mutationVerbPrefixes = []string{"Write", "Up", "Bootstrap"}
+// mutationVerbPrefixes names the method-name prefixes that mark a method as
+// performing a real mutation — homelab's launchdfacade.Bootstrap,
+// dockerfacade.ComposeUp/PullImage, filesystemfacade.WriteFile — rather
+// than routing output through a writer. It is the one named, documented
+// verb list both mutation-facade detection paths key off: a concrete
+// type's declared method (mutationFacadeMethods) and a call through an
+// interface-typed field or parameter with no method body at all
+// (detectInterfaceFacades, ZYS-1019). "Pull" was added for ZYS-1019's
+// acceptance fixture (deps.Docker.PullImage) — homelab's dockerfacade also
+// calls this PullImage.
+var mutationVerbPrefixes = []string{"Write", "Create", "Up", "Bootstrap", "Chmod", "Mkdir", "Delete", "Remove", "Pull"}
 
 // isMutationVerbMethod reports whether name matches one of
 // mutationVerbPrefixes.
@@ -35,14 +39,6 @@ func isMutationVerbMethod(name string) bool {
 		}
 	}
 	return false
-}
-
-// isFacadePackage reports whether pkgName follows the *facade naming
-// convention homelab's dockerfacade/colimafacade/launchdfacade/
-// filesystemfacade packages use — the signal that stands in for an
-// io.Writer field when a candidate's methods are pure mutations.
-func isFacadePackage(pkgName string) bool {
-	return strings.HasSuffix(strings.ToLower(pkgName), "facade")
 }
 
 // facadeInventoryCaveat discloses that facade call-site enumeration is a
@@ -91,6 +87,7 @@ func detectFacades(fset *token.FileSet, files []parsedFile) []Facade {
 
 	facades := confirmedFacades(candidates)
 	enumerateCallSites(fset, files, facades)
+	facades = append(facades, detectInterfaceFacades(fset, files)...)
 	sort.Slice(facades, func(i, j int) bool {
 		if facades[i].File != facades[j].File {
 			return facades[i].File < facades[j].File
@@ -135,10 +132,12 @@ func outputFacadeMethods(c *facadeCandidate) []string {
 	return methods
 }
 
+// mutationFacadeMethods reports the mutation-verb-named methods declared on
+// a candidate type in ANY package — the *facade-suffixed package
+// restriction was removed for ZYS-1019, since homelabctl's injected
+// facades aren't required to live in a *facade package, only to carry
+// mutation-verb method names.
 func mutationFacadeMethods(c *facadeCandidate) []string {
-	if !isFacadePackage(c.pkgName) {
-		return nil
-	}
 	var methods []string
 	for name := range c.methodBodies {
 		if isMutationVerbMethod(name) {
@@ -318,4 +317,163 @@ func enumerateCallSites(fset *token.FileSet, files []parsedFile, facades []Facad
 		}
 		facades[i].Note = fmt.Sprintf(note, len(facades[i].CallSites))
 	}
+}
+
+// buildInterfaceTypeIndex returns the set of "dir.TypeName" keys for every
+// interface declared across files — the type-resolution ZYS-1019 needs to
+// tell a real, locally declared interface (Docker) from an external,
+// concrete type (strings.Builder) it cannot chase into its declaration.
+func buildInterfaceTypeIndex(files []parsedFile) map[string]bool {
+	types := map[string]bool{}
+	for _, pf := range files {
+		dir := filepath.Dir(pf.Path)
+		ast.Inspect(pf.File, func(n ast.Node) bool {
+			spec, ok := n.(*ast.TypeSpec)
+			if !ok {
+				return true
+			}
+			if _, ok := spec.Type.(*ast.InterfaceType); ok {
+				types[dir+"."+spec.Name.Name] = true
+			}
+			return true
+		})
+	}
+	return types
+}
+
+// interfaceFieldIndex maps "dir.StructTypeName" to its field names that are
+// declared as one of interfaceTypes, to the interface type name that field
+// carries — the resolution deps.Docker needs to know Docker (the field) is
+// the Docker interface (the type), not just any field.
+type interfaceFieldIndex map[string]map[string]string
+
+func buildInterfaceFieldIndex(files []parsedFile, interfaceTypes map[string]bool) interfaceFieldIndex {
+	idx := interfaceFieldIndex{}
+	for _, pf := range files {
+		dir := filepath.Dir(pf.Path)
+		ast.Inspect(pf.File, func(n ast.Node) bool {
+			spec, ok := n.(*ast.TypeSpec)
+			if !ok {
+				return true
+			}
+			st, ok := spec.Type.(*ast.StructType)
+			if !ok || st.Fields == nil {
+				return true
+			}
+			key := dir + "." + spec.Name.Name
+			for _, field := range st.Fields.List {
+				name, ok := resolveNamedType(field.Type)
+				if !ok || !interfaceTypes[dir+"."+name] {
+					continue
+				}
+				for _, fieldName := range field.Names {
+					if idx[key] == nil {
+						idx[key] = map[string]string{}
+					}
+					idx[key][fieldName.Name] = name
+				}
+			}
+			return true
+		})
+	}
+	return idx
+}
+
+// detectInterfaceFacades is ZYS-1019's second mutation-facade path: a call
+// through an interface-typed field (deps.Docker.PullImage) or an
+// interface-typed parameter/receiver directly, matched on a mutation-verb
+// method name (mutationVerbPrefixes), with no requirement that the
+// interface's implementing type even be visible — Docker here never gets a
+// method body, only a declaration. Matching is restricted to receivers
+// resolved to a locally declared interface, so a concrete external type
+// like strings.Builder (WriteString) is never mistaken for a facade.
+func detectInterfaceFacades(fset *token.FileSet, files []parsedFile) []Facade {
+	interfaceTypes := buildInterfaceTypeIndex(files)
+	if len(interfaceTypes) == 0 {
+		return nil
+	}
+	fields := buildInterfaceFieldIndex(files, interfaceTypes)
+
+	byInterface := map[string]*Facade{}
+	for _, pf := range files {
+		dir := filepath.Dir(pf.Path)
+		ast.Inspect(pf.File, func(n ast.Node) bool {
+			decl, ok := n.(*ast.FuncDecl)
+			if !ok || decl.Body == nil {
+				return true
+			}
+			bindings := bindingsFor(decl, dir, interfaceTypes)
+			ast.Inspect(decl.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok || !isMutationVerbMethod(sel.Sel.Name) {
+					return true
+				}
+				ifaceType, ok := resolveInterfaceReceiver(sel.X, dir, bindings, fields)
+				if !ok {
+					return true
+				}
+				f, ok := byInterface[ifaceType]
+				if !ok {
+					f = &Facade{Type: ifaceType, File: pf.Path, isMutation: true}
+					byInterface[ifaceType] = f
+				}
+				if !containsString(f.Methods, sel.Sel.Name) {
+					f.Methods = append(f.Methods, sel.Sel.Name)
+				}
+				pos := fset.Position(call.Pos())
+				f.CallSites = append(f.CallSites, fmt.Sprintf("%s:%d", pf.Path, pos.Line))
+				return true
+			})
+			return true
+		})
+	}
+
+	var facades []Facade
+	for _, f := range byInterface {
+		sort.Strings(f.Methods)
+		sort.Strings(f.CallSites)
+		f.Note = fmt.Sprintf(mutationFacadeNote, len(f.CallSites))
+		facades = append(facades, *f)
+	}
+	return facades
+}
+
+// resolveInterfaceReceiver resolves the interface type name a mutation-verb
+// call's receiver carries: a bare identifier bound directly to an
+// interface-typed parameter/receiver, or a struct-field access whose field
+// is declared as an interface type. Anything it can't resolve syntactically
+// (an external package's concrete type, an unbound local variable) reports
+// ok=false rather than guessing.
+func resolveInterfaceReceiver(expr ast.Expr, dir string, bindings map[string]identBinding, fields interfaceFieldIndex) (string, bool) {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		binding, ok := bindings[e.Name]
+		if ok && binding.interfaceType != "" {
+			return binding.interfaceType, true
+		}
+		return "", false
+	case *ast.SelectorExpr:
+		base, ok := e.X.(*ast.Ident)
+		if !ok {
+			return "", false
+		}
+		binding, ok := bindings[base.Name]
+		if !ok || binding.typeName == "" {
+			return "", false
+		}
+		if name, ok := fields[dir+"."+binding.typeName][e.Sel.Name]; ok {
+			return name, true
+		}
+		return "", false
+	default:
+		return "", false
+	}
+}
+
+func containsString(list []string, s string) bool {
+	return slices.Contains(list, s)
 }

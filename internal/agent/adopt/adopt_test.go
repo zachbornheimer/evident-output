@@ -266,6 +266,35 @@ func TestInventoryFlagsWriterSinkByType(t *testing.T) {
 	}
 }
 
+// TestInventoryDetectsInterfaceMutationFacade proves the mutation-facade
+// detector (ZYS-1019) follows a mutation-verb method call through an
+// interface-typed field (deps.Docker.PullImage) even though Docker declares
+// no method body at all — the shape a concrete-type-with-methods detector
+// can't see. strings.Builder.WriteString must not be reported: it is a
+// concrete, externally-defined type, not a locally declared interface.
+func TestInventoryDetectsInterfaceMutationFacade(t *testing.T) {
+	plan, err := adopt.Inventory(filepath.Join("testdata", "mutationinterface"))
+	if err != nil {
+		t.Fatalf("Inventory: %v", err)
+	}
+	if len(plan.Facades) != 1 {
+		t.Fatalf("want exactly 1 facade, got %d: %+v", len(plan.Facades), plan.Facades)
+	}
+	got := plan.Facades[0]
+	if got.Type != "Docker" {
+		t.Errorf("Type = %q, want %q", got.Type, "Docker")
+	}
+	if len(got.Methods) != 1 || got.Methods[0] != "PullImage" {
+		t.Errorf("Methods = %v, want [PullImage]", got.Methods)
+	}
+	if len(got.CallSites) != 1 {
+		t.Errorf("CallSites = %v, want 1 entry", got.CallSites)
+	}
+	if got.Note == "" {
+		t.Error("interface mutation-facade finding has no migrate-the-facade note")
+	}
+}
+
 // TestInventoryPrefersCmdSubtree proves that when dir/cmd exists, inventory
 // walks that subtree instead of every Go file under dir.
 func TestInventoryPrefersCmdSubtree(t *testing.T) {
