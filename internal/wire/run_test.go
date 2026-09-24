@@ -40,7 +40,7 @@ func runFixtures() map[string]core.Result {
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_1", Key: "build", Name: "build", State: core.Done,
 					Resolution: core.ResolutionExecuted,
-				}, time.Time{}, false, false),
+				}, time.Time{}, false),
 			}
 		})},
 		"already_satisfied": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -53,7 +53,7 @@ func runFixtures() map[string]core.Result {
 					Evidence: core.TaskEvidence{
 						Before: core.EvidencePhase{Evaluated: true, Satisfied: true, Source: "verify"},
 					},
-				}, time.Time{}, false, false),
+				}, time.Time{}, false),
 			}
 		})},
 		"failure": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -63,7 +63,7 @@ func runFixtures() map[string]core.Result {
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_1", Key: "deploy", Name: "deploy", State: core.Failed,
 					Problems: []core.Problem{{Code: "deploy.write", Summary: "failed to write"}},
-				}, time.Time{}, false, false),
+				}, time.Time{}, false),
 			}
 		})},
 		"blocked": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -72,7 +72,7 @@ func runFixtures() map[string]core.Result {
 			c.Tasks = []core.TaskSnapshot{
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_1", Key: "confirm", Name: "confirm", State: core.Blocked,
-				}, time.Time{}, false, false),
+				}, time.Time{}, false),
 			}
 		})},
 		"cancelled": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -82,10 +82,10 @@ func runFixtures() map[string]core.Result {
 			c.Tasks = []core.TaskSnapshot{
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_1", Key: "scan", Name: "scan", State: core.Done,
-				}, time.Time{}, false, false),
+				}, time.Time{}, false),
 				core.NewTaskSnapshot(core.TaskSnapshot{
 					ID: "task_2", Key: "venv", Name: "venv", State: core.Cancelled,
-				}, time.Time{}, false, false),
+				}, time.Time{}, false),
 			}
 		})},
 		"dry_run": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -110,7 +110,7 @@ func runFixtures() map[string]core.Result {
 						Before: core.EvidencePhase{Evaluated: false},
 						After:  core.EvidencePhase{Evaluated: true, Satisfied: true, Source: "operations"},
 					},
-				}, time.Time{}, false, false),
+				}, time.Time{}, false),
 			}
 		})},
 		"partial_effects": {Conclusion: withConc(func(c *core.Conclusion) {
@@ -203,7 +203,7 @@ func TestToRunDocument_VerificationProjectsPerAttributeFactsToo(t *testing.T) {
 						},
 					},
 				},
-			}, time.Time{}, false, false),
+			}, time.Time{}, false),
 		}
 	})}
 	doc := ToRunDocument(result, testEvoVersion)
@@ -272,7 +272,7 @@ func TestEncodeRun_ProblemLocationAndRemediesSurviveEncoding(t *testing.T) {
 					Location: &core.SourceLocation{Path: "main.go", Line: 12, Column: 3},
 					Actions:  []core.Action{{Label: "rerun"}},
 				}},
-			}, time.Time{}, false, false),
+			}, time.Time{}, false),
 		}
 	})}
 	encoded, err := EncodeRun(result, testEvoVersion)
@@ -325,7 +325,7 @@ func TestToRunDocument_EvidenceOmitsAfterWhenBeforeSatisfied(t *testing.T) {
 				Evidence: core.TaskEvidence{
 					Before: core.EvidencePhase{Evaluated: true, Satisfied: true, Source: "verify"},
 				},
-			}, time.Time{}, false, false),
+			}, time.Time{}, false),
 		}
 	})}
 	doc := ToRunDocument(result, testEvoVersion)

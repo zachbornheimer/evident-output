@@ -81,7 +81,7 @@ func baseRunDocument(t *testing.T) map[string]any {
 			core.NewTaskSnapshot(core.TaskSnapshot{
 				ID: "task_1", Name: "build", State: core.Done,
 				Problems: []core.Problem{{Code: "A1", Summary: "finding", Subject: "file.go", Detail: "why", Count: 2, Unit: "line"}},
-			}, time.Time{}, false, false),
+			}, time.Time{}, false),
 		}
 	})}
 	encoded, err := EncodeRun(result, testEvoVersion)
