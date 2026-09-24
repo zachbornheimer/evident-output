@@ -59,9 +59,12 @@ and `examples/launch-agent-http`.
   mark an already-concluded Output cancelled behind the exit-0 `Result`
   that `Run` returned.
 - **MCP API-062:** package-level `evo.Task`/`Group`/`Sequence`/`Fact`/
-  `Warn`/`Print*`/`Confirm` inside an Isolated Output's `Run` callback
-  declare on the package default, not the Output being run. Fires for
-  1.2.0+ pins only.
+  `Warn`/`Print*`/`Confirm` reached from an Isolated Output's `Run`
+  callback declare on the package default, not the Output being run. The
+  rule follows the callback into the package's own functions (the §53
+  `launchAgent` shape) and recognizes `var` Outputs, Config variables,
+  `*evo.Output` parameters, and Output struct fields. Fires for 1.2.0+
+  pins only.
 
 ## [1.1.0] — Unreleased
 

@@ -36,9 +36,14 @@ forbids expanding the public surface before one embedder proves it
 necessary. `examples/launch-agent-http` is that embedder, and it needs
 only the method form.
 
-MCP rule API-062 flags the package-level spelling inside an Isolated
-Output's `Run` callback, so the §53 sample shape is caught mechanically
-for 1.2.0+ pins.
+MCP rule API-062 flags the package-level spelling reached from an
+Isolated Output's `Run` callback for 1.2.0+ pins. It follows the callback
+into the package's own top-level functions, so the literal §53 sample —
+`evo.Task` inside `launchAgent`, called from `out.Run` — is caught
+(`TestAPI062_Spec53Sample_FiresInsideTheModelFunction`). A `go` review
+follows functions in the same file; a `directory` review follows them
+across the package's files. Methods, function values, and other packages
+are not followed; the rule's explain text lists what it does not detect.
 
 ## Consequences
 

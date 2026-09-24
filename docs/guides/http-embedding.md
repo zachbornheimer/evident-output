@@ -43,7 +43,8 @@ Package-level `evo.Task`, `evo.Group`, `evo.Sequence`, `evo.Fact`,
 `evo.Warn`, `evo.Print*`, and `evo.Confirm` always reach the package
 default, so inside an Isolated run they would put every request's work on
 one shared Output and leave the request's own document empty. The MCP
-reports that shape as API-062. Spec §53's sample writes
+reports that shape as API-062, including inside the model functions the
+handler calls. Spec §53's sample writes
 `launchAgent(ctx, agent)`; the `*evo.Output` parameter is the recorded
 deviation that makes it work
 ([`decisions/http-embedding-declaration-target.md`](../decisions/http-embedding-declaration-target.md)).
