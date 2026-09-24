@@ -12,7 +12,8 @@ import (
 //
 // The steps run in the order that leaves every row most truthful:
 //
-//  1. an empty collection nothing will populate stops being waited on;
+//  1. what a parked Wait still waits for and nothing will now supply — a
+//     Task nobody Defined, an empty collection — is sealed;
 //  2. a Task in an After cycle settles Blocked, naming the cycle;
 //  3. a parked Wait is released with ErrWaitDeadlock;
 //  4. once draining, any Task still parked settles NotStarted.
@@ -25,7 +26,7 @@ func (o *Output) resolveStall() bool {
 	if o.progressPossibleLocked() {
 		return false
 	}
-	if !o.sched.draining && o.sealEmptyPredecessorsLocked() {
+	if !o.sched.draining && o.sealWaitedInputsLocked() {
 		return true
 	}
 	if o.blockCyclesLocked() {
@@ -71,8 +72,7 @@ func (o *Output) abandonStrandedLocked() bool {
 func (o *Output) progressPossibleLocked() bool {
 	return o.sched.executing > o.parkedCallbacksLocked() ||
 		o.anyClaimableLocked() ||
-		o.anyAwaitedTaskResolvedLocked() ||
-		o.anyCallerResolvableLocked()
+		o.anyAwaitedTaskResolvedLocked()
 }
 
 // parkedCallbacksLocked counts the callbacks currently held still by a
@@ -95,23 +95,6 @@ func (o *Output) anyClaimableLocked() bool {
 func (o *Output) anyAwaitedTaskResolvedLocked() bool {
 	for ticket := range o.sched.waits {
 		if st := o.taskByRef[ticket.taskID]; st != nil && core.IsTerminalTask(st.state) {
-			return true
-		}
-	}
-	return false
-}
-
-// anyCallerResolvableLocked reports whether a task remains that only code
-// outside the run can resolve — declared but never defined, so its verb is
-// still to come from the caller. Until Finish starts draining, such a task
-// means the run is waiting on its caller rather than on itself, and from
-// the inside evo cannot tell that apart from a cycle.
-func (o *Output) anyCallerResolvableLocked() bool {
-	if o.sched.draining {
-		return false
-	}
-	for _, st := range o.tasks {
-		if st.neverDefined() {
 			return true
 		}
 	}

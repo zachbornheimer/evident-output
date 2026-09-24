@@ -39,8 +39,11 @@ func stateOutcome(s EntityState) predOutcome {
 type collectionTally struct {
 	total, succeeded, failed int
 	// sealed records that the run proved nothing will declare into this
-	// still-empty collection (see sealEmptyPredecessorsLocked).
+	// still-empty collection (see sealInputsLocked).
 	sealed bool
+	// walked is total as of the last Wait that sealed this collection's
+	// members: until a member is added, walking them again finds nothing.
+	walked int
 	// dependents are the Tasks parked until this collection stops pending.
 	dependents []*taskState
 }
@@ -284,62 +287,4 @@ func (o *Output) replaceParkedLocked() {
 			o.placeLocked(st)
 		}
 	}
-}
-
-// sealAwaitedInputs seals every still-empty collection the awaited Task
-// waits for, directly or through the Tasks it runs After. A Wait asks for
-// the answer now: a Group nobody populated before the Wait has nothing
-// left to wait for, and treating it as pending would park the caller on
-// children only the caller could still declare.
-//
-// A submitted Task's predecessors are frozen, so each is walked once per
-// run however many Waits reach it.
-func (o *Output) sealAwaitedInputs(taskID string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskByRef[taskID]
-	if st == nil {
-		return
-	}
-	var deps []*taskState
-	stack := []*taskState{st}
-	for len(stack) > 0 {
-		t := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if t.sched.inputsSealed || core.IsTerminalTask(t.state) {
-			continue
-		}
-		t.sched.inputsSealed = t.sched.submitted()
-		for _, p := range t.sched.preds {
-			switch {
-			case p.task != nil:
-				stack = append(stack, p.task)
-			case p.col != nil && p.col.tally.total == 0 && !p.col.tally.sealed:
-				p.col.tally.sealed = true
-				deps = append(deps, p.col.tally.dependents...)
-				p.col.tally.dependents = nil
-			}
-		}
-	}
-	o.wakeLocked(deps)
-}
-
-// sealEmptyPredecessorsLocked seals every still-empty collection a Task is
-// parked on, once the run proved it cannot move: a waiter is parked, no
-// callback runs, and no Task is left for the caller to Define. Nothing
-// will populate those collections now, so waiting on them is waiting on
-// nothing. It reports whether it woke anyone. It backs sealAwaitedInputs
-// for an empty collection reached only through another collection's
-// members.
-func (o *Output) sealEmptyPredecessorsLocked() bool {
-	var deps []*taskState
-	for _, col := range o.tasksByRef {
-		if col.tally.total == 0 && !col.tally.sealed && len(col.tally.dependents) > 0 {
-			col.tally.sealed = true
-			deps = append(deps, col.tally.dependents...)
-			col.tally.dependents = nil
-		}
-	}
-	o.wakeLocked(deps)
-	return len(deps) > 0
 }

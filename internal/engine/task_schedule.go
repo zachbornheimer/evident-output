@@ -34,8 +34,8 @@ type taskSchedule struct {
 	preds []predecessor
 	// dependents are the Tasks parked until this one resolves.
 	dependents []*taskState
-	// inputsSealed records that a Wait already sealed the empty
-	// collections this Task waits for (see sealAwaitedInputs).
+	// inputsSealed records that a Wait already sealed what this Task
+	// waits for (see sealInputsLocked).
 	inputsSealed bool
 }
 
