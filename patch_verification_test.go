@@ -50,17 +50,16 @@ func TestPatch_FileVerification_SurvivesEncodeRun(t *testing.T) {
 	const diff = "--- a/notes.txt\n+++ b/notes.txt\n@@ -1 +1 @@\n-draft\n+final\n"
 
 	out := evo.Init(evo.Config{Isolated: true, StateDir: dir, Stdout: io.Discard, Stderr: io.Discard})
-	task := out.Task("finalize notes")
-	task.Define(func(ctx context.Context) error {
-		set, err := evo.Patch(ctx, []byte(diff))
-		if err != nil {
-			return err
-		}
-		return evo.Files(ctx, set)
-	})
 	result := out.Run(context.Background(), func(context.Context) error {
-		_ = task.Wait()
-		return nil
+		task := out.Task("finalize notes")
+		task.Define(func(ctx context.Context) error {
+			set, err := evo.Patch(ctx, []byte(diff))
+			if err != nil {
+				return err
+			}
+			return evo.Files(ctx, set)
+		})
+		return task.Wait()
 	})
 
 	var body bytes.Buffer
