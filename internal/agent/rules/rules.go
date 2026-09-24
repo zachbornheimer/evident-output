@@ -1716,6 +1716,22 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Certainty:       "heuristic",
 		},
 		{
+			ID:        "API-060",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a call site never uses the record-only verbs Record/RecordLabel/RecordName; each has no record-only replacement",
+			Why:       "Record/RecordLabel/RecordName report a mutation, classification, or named object after the fact instead of performing it through a primitive with dry-run planning, desired-state comparison, and AlreadySatisfied (ZYS-974 Decisions, 2026-09-23b). There is no drop-in record-only replacement: the call is migrated by what it actually reports — a real mutation moves into evo.Effect's callback, information/classification with no state change moves to evo.Fact, and a file write moves to evo.File/evo.Patch.",
+			BadCode:   `task.Record("install", 1, "package")`,
+			GoodCode: `evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectInstall, Quantity: 1, Object: "package"}, func(ctx context.Context) error {
+  return installPackage(ctx)
+})`,
+			Remediation:     "Route the call by what it reports: a real mutation into evo.Effect's callback, information/classification into evo.Fact, a file write into evo.File/evo.Patch — Record/RecordLabel/RecordName have no record-only replacement",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-060"},
+			Since:           "1.1.0",
+			Certainty:       "heuristic",
+		},
+		{
 			ID:        "TAX-003",
 			Category:  "TAX",
 			Severity:  "warning",
