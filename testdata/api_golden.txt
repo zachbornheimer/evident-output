@@ -67,6 +67,7 @@ func (TaskHandle) RecordName(verb, object string)
 func (TaskHandle) Skipped(reason TaxonomyReason)
 func (TaskHandle) Snapshot()  TaskSnapshot
 func (TaskHandle) Step(completed, total int, name string)  *TaskHandle
+func (TaskHandle) Summary(text string)  *TaskHandle
 func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
 func (TaskHandle) Warn(summary string, options ...ProblemOption)  *TaskHandle

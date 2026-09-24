@@ -167,6 +167,7 @@ var dialectSurface = map[string][]string{
 		"Skipped(reason TaxonomyReason)",
 		"Snapshot()",
 		"Step(completed int, total int, name string)",
+		"Summary(text string)",
 		"Verify(fn func(context.Context) (bool, error))",
 		"Wait()",
 		"Warn(summary string, options ...ProblemOption)",

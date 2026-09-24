@@ -118,6 +118,14 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 	return t
 }
 
+// Summary sets non-terminal result metadata rendered after the Task name
+// on its successful terminal row — see internal/engine.TaskHandle.Summary
+// (1.1/ZYS-971).
+func (t *TaskHandle) Summary(text string) *TaskHandle {
+	t.impl().Summary(text)
+	return t
+}
+
 func (t *TaskHandle) Wait() error {
 	if t == nil || t.inner == nil {
 		return nil
