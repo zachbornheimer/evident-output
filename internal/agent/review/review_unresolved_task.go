@@ -87,33 +87,80 @@ func chainResolvesTask(e ast.Expr) bool {
 	}
 }
 
+// taskHandleBuilders are the TaskHandle methods that return the same
+// handle, so a chain of them used as a value (passed, returned, stored)
+// hands the Task on just as the bare variable would.
+var taskHandleBuilders = map[string]bool{
+	"After": true, "Bytes": true, "Define": true, "Doing": true, "Fact": true, "Key": true,
+	"Next": true, "NextCommand": true, "Problem": true, "Progress": true, "Step": true,
+	"Summary": true, "Verify": true, "Warn": true,
+}
+
 // taskSettledIn reports whether body resolves the Task bound to name or
-// lets it escape: any use of name other than as a method receiver
-// (returned, passed, stored, sent) hands it to code this function cannot
-// see.
+// lets it escape. Each use of name is read as the whole method chain it
+// roots, so fetch.After(x).Define(fn) resolves fetch. A chain settles the
+// Task when any link resolves it, or when the bare variable or a chain of
+// handle-returning builders is used as a value (returned, passed, stored,
+// sent) and so handed to code this function cannot see.
 func taskSettledIn(body *ast.BlockStmt, name string) bool {
 	settled := false
-	receivers := map[*ast.Ident]bool{}
+	var parents []ast.Node
 	ast.Inspect(body, func(n ast.Node) bool {
-		if settled {
+		if n == nil {
+			parents = parents[:len(parents)-1]
 			return false
 		}
-		switch n := n.(type) {
-		case *ast.SelectorExpr:
-			if id, ok := n.X.(*ast.Ident); ok && id.Name == name {
-				receivers[id] = true
-				settled = taskResolvingMethods[n.Sel.Name]
-			}
-		case *ast.AssignStmt:
-			for _, lhs := range n.Lhs {
-				if id, ok := lhs.(*ast.Ident); ok && id.Name == name {
-					receivers[id] = true // the binding itself, not a use
-				}
-			}
-		case *ast.Ident:
-			settled = n.Name == name && !receivers[n]
+		if id, ok := n.(*ast.Ident); ok && id.Name == name && !settled {
+			settled = useSettlesTask(id, parents)
 		}
-		return true
+		parents = append(parents, n)
+		return !settled
 	})
 	return settled
+}
+
+// useSettlesTask climbs from one use of the Task variable through the
+// method chain it roots (parents is the path from body down to use) and
+// reports whether that chain resolves or hands on the Task.
+func useSettlesTask(use *ast.Ident, parents []ast.Node) bool {
+	var current ast.Expr = use
+	builders := true
+	for i := len(parents) - 1; i >= 0; i-- {
+		switch p := parents[i].(type) {
+		case *ast.SelectorExpr:
+			if p.X != current {
+				return false // use is the selected name, not a receiver
+			}
+			if taskResolvingMethods[p.Sel.Name] {
+				return true
+			}
+			builders = builders && taskHandleBuilders[p.Sel.Name]
+			current = p
+			continue
+		case *ast.CallExpr:
+			if p.Fun == current {
+				current = p
+				continue
+			}
+		case *ast.AssignStmt:
+			if current == use && isAssignTarget(p, use) {
+				return false // the binding itself, not a use
+			}
+		case *ast.ExprStmt:
+			return false // a statement-level chain that never resolved
+		}
+		_, isCall := current.(*ast.CallExpr)
+		return current == use || (isCall && builders)
+	}
+	return false
+}
+
+// isAssignTarget reports whether id is one of assign's left-hand sides.
+func isAssignTarget(assign *ast.AssignStmt, id *ast.Ident) bool {
+	for _, lhs := range assign.Lhs {
+		if lhs == id {
+			return true
+		}
+	}
+	return false
 }

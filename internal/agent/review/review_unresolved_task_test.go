@@ -62,6 +62,12 @@ func run(ctx context.Context) error {
 	fetched.Fact("remote", "origin")
 	legacy := evo.Task("legacy") // pinned to a pre-1.1 release
 	legacy.Delete("worktree", remove)
+	ordered := evo.Task("ordered")
+	ordered.After(fetched).Define(fetch)
+	keyed := evo.Task("keyed")
+	keyed.Key("build:main").Define(fetch)
+	chained := evo.Task("chained")
+	schedule(chained.Key("push"))
 	return nil
 }
 
@@ -81,5 +87,25 @@ func TestDOM021_ResolvedOrHandedOnTask_StaysSilent(t *testing.T) {
 		if f.RuleID == "DOM-021" {
 			t.Fatalf("false positive DOM-021: %+v", f)
 		}
+	}
+}
+
+const chainedButUnresolvedTaskSrc = `package main
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func run() {
+	t := evo.Task("fetch")
+	t.Key("fetch:origin").Fact("remote", "origin")
+}
+`
+
+// TestDOM021_ChainWithoutResolvingLink_Fires proves the chain walk that
+// accepts t.After(x).Define(fn) still reports a chain none of whose links
+// resolve the Task or hand it on.
+func TestDOM021_ChainWithoutResolvingLink_Fires(t *testing.T) {
+	res := review.GoSource("main.go", chainedButUnresolvedTaskSrc)
+	if f := findingByID(t, res, "DOM-021"); f.Line != 6 {
+		t.Fatalf("DOM-021 line = %d, want 6 (the declaration)", f.Line)
 	}
 }
