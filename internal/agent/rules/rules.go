@@ -1757,7 +1757,7 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Category:  "API",
 			Severity:  "warning",
 			Invariant: "a caller never narrates a stopwatch through Summary or Fact; Evo stamps every Task's lifecycle and derives the run's timing aggregate",
-			Why:       "Evo stamps each Task's declared/eligible/started/settled boundaries from the run's Clock and derives where time went — waiting on dependencies, waiting on scheduler capacity, running — plus resolution counts and peak concurrency (contract §39, ZYS-945). A time.Since reading pasted into a Summary or Fact duplicates that truth as prose: it measures from wherever the caller happened to start the stopwatch, conflates queueing with running, and reaches JSON/JSONL as a string no machine consumer can aggregate.",
+			Why:       "Evo stamps each Task's declared/submitted/eligible/started/settled boundaries from the run's Clock and derives where time went — waiting on dependencies, waiting on scheduler capacity, running, inside definitions, checking provenance, verifying tracked state — plus resolution counts, the critical path, and peak concurrency (contract §39, ZYS-945). A stopwatch reading pasted into a Summary or Fact duplicates that truth as prose: it measures from wherever the caller happened to start the stopwatch, conflates queueing with running, and reaches JSON/JSONL as a string no machine consumer can aggregate. The rule fires only on a time.Now() the same function stored and then read with time.Since/time.Now().Sub, directly or through one local; the age of a domain timestamp (time.Since(info.ModTime())) is a real Fact and stays silent.",
 			BadCode: `start := time.Now()
 task.Define(func(ctx context.Context) error {
   err := build(ctx)

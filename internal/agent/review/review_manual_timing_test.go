@@ -40,7 +40,9 @@ import (
   "time"
   evo "github.com/zachbornheimer/evident-output"
 )
-func run(task *evo.TaskHandle, start time.Time) {
+func run(task *evo.TaskHandle) {
+  start := time.Now()
+  sync()
   task.Fact("duration", time.Now().Sub(start).String())
 }
 `
@@ -55,7 +57,9 @@ import (
   "time"
   evo "github.com/zachbornheimer/evident-output"
 )
-func run(start time.Time) {
+func run() {
+  var start = time.Now()
+  sync()
   evo.Fact("elapsed", time.Since(start).String())
 }
 `
@@ -89,5 +93,62 @@ func TestAPI062_DeadlineAndCountSummary_Silent(t *testing.T) {
 
 func TestAPI062_PinBeforeOneTwo_Silent(t *testing.T) {
 	res := review.GoSourceAt("timing_summary.go", manualTimingSummarySrc, "1.1.0")
+	assertNoFinding(t, res, "API-062")
+}
+
+// The common indirect form: the reading lands in a local first.
+const manualTimingIndirectSrc = `package p
+import (
+  "fmt"
+  "time"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(task *evo.TaskHandle) {
+  start := time.Now()
+  sync()
+  elapsed := time.Since(start)
+  task.Summary(fmt.Sprint(elapsed))
+}
+`
+
+func TestAPI062_ElapsedLocalInSummary_Fires(t *testing.T) {
+	res := review.GoSource("timing_indirect.go", manualTimingIndirectSrc)
+	findingByID(t, res, "API-062")
+}
+
+// A duration of a domain timestamp is a fact about the domain, not a Task
+// stopwatch.
+const manualTimingDomainAgeSrc = `package p
+import (
+  "os"
+  "time"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(task *evo.TaskHandle, info os.FileInfo) {
+  task.Fact("cache age", time.Since(info.ModTime()).String())
+  age := time.Since(info.ModTime())
+  task.Summary(age.String())
+}
+`
+
+func TestAPI062_DomainTimestampAge_Silent(t *testing.T) {
+	res := review.GoSource("timing_domain_age.go", manualTimingDomainAgeSrc)
+	assertNoFinding(t, res, "API-062")
+}
+
+// A start handed in from elsewhere is not a stopwatch this function took:
+// it may be a domain timestamp (a deploy time, a lease start).
+const manualTimingParamStartSrc = `package p
+import (
+  "time"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(task *evo.TaskHandle, deployedAt time.Time) {
+  task.Fact("deployed", time.Since(deployedAt).String())
+}
+`
+
+func TestAPI062_StartFromParameter_Silent(t *testing.T) {
+	res := review.GoSource("timing_param.go", manualTimingParamStartSrc)
 	assertNoFinding(t, res, "API-062")
 }
