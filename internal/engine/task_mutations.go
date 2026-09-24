@@ -6,37 +6,12 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
-// Record records an arbitrary imperative verb/quantity/object mutation
-// directly, resolving the target task's dry-run status the same way
-// evo.Effect does (it does not bypass Plan/Changes routing — only the
-// call/error boundary Effect wraps around an executed callback). The
-// low-level primitive Effect (and the conformance goldens) share. Nil-safe: a nil TaskHandle, or one whose Output is already gone,
-// records nothing instead of panicking.
-func (t *TaskHandle) Record(verb string, quantity int, object string) {
-	if t == nil || t.out == nil {
-		return
-	}
-	t.out.recordMutation(t.id, verb, int64(quantity), true, object)
-}
-
-// RecordLabel records quantity of object (singular; see EffectSpec.Object) under
-// label, verbatim, into the task's Changes ledger. Unlike Record's mutation
-// verbs, label is a classification result (e.g. "ready", "blocked") rather
-// than an imperative action, so it is never conjugated to past tense, and
-// it never moves under [planned] during DryRun — classifying/observing
-// already happened whether or not other mutations on this run are a dry
-// run. Nil-safe: see Record.
-func (t *TaskHandle) RecordLabel(label string, quantity int, object string) {
-	if t == nil || t.out == nil {
-		return
-	}
-	t.out.recordClassification(t.id, label, int64(quantity), object)
-}
-
-// RecordName records an arbitrary imperative verb and one named object
-// without a quantity. Quantity is for collapsed counts; RecordName is one
-// named object. Nil-safe: see Record.
-func (t *TaskHandle) RecordName(verb, object string) {
+// recordName records an imperative verb and one named object, without a
+// quantity, into the task's Plan (DryRun) or Changes (applied) ledger — the
+// row evo.File ("write <path>") and evo.Exec ("run <executable>") commit
+// for the operation they just performed. Nil-safe: a nil TaskHandle, or
+// one whose Output is already gone, records nothing.
+func (t *TaskHandle) recordName(verb, object string) {
 	if t == nil || t.out == nil {
 		return
 	}
@@ -46,7 +21,7 @@ func (t *TaskHandle) RecordName(verb, object string) {
 // resolveLedgerTarget resolves the task named by taskID and reports the
 // ledger subject it mutates into (see ledgerSubjectFor) plus whether this
 // run is a dry run — the shared guard (open, not yet resolved) behind
-// Effect, recordMutation, and recordClassification. err is
+// Effect and recordMutation. err is
 // non-nil (already recorded as misuse where the cause is not simply "the
 // task no longer exists") when the caller should record nothing further.
 func (o *Output) resolveLedgerTarget(taskID string) (subject string, dryRun bool, err error) {
@@ -69,7 +44,7 @@ func (o *Output) resolveLedgerTarget(taskID string) (subject string, dryRun bool
 
 // recordMutation resolves the task named by taskID, then forwards verb to
 // the Plan (DryRun) or Changes (applied) section sharing the task's name —
-// the single-resolve entry point Record/RecordName use (their call carries
+// the single-resolve entry point recordName uses (their call carries
 // no callback, so there is no window for the double-resolve race
 // recordResolvedMutation's callers avoid; see Effect).
 func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool, object string) {
@@ -86,17 +61,16 @@ func (o *Output) recordMutation(taskID, verb string, quantity int64, hasQty bool
 // rather than re-resolving taskID itself (E2.5 finding 5): Effect resolves
 // once, before running its callback, and passes that result straight
 // through here — re-resolving after the call would re-open the terminal-task
-// check to a state a concurrent Done may have legitimately changed in the
-// meantime, dropping a real effect as spurious misuse. A zero-quantity
+// check to a state a concurrent resolution may have legitimately changed in
+// the meantime, dropping a real effect as spurious misuse. A zero-quantity
 // Effect never reaches here at all (EffectSpec validation rejects it, E2.5
-// finding 4) — Record's own zero-quantity call still does, and
-// keeps declaring its intended verb so an empty Record section still renders
-// evo-rec.md Problem 18's "nothing to <verb> <subject>" empty-section
-// grammar.
+// finding 4). The intended verb is still declared first, so a section that
+// ends up with zero rows renders evo-rec.md Problem 18's "nothing to <verb>
+// <subject>" empty-section grammar.
 func (o *Output) recordResolvedMutation(taskID, subject string, dryRun bool, verb string, quantity int64, hasQty bool, object string) {
 	if dryRun {
 		sec := o.planGetOrCreate(subject)
-		// Declare with the caller's imperative verb before Record runs, so a
+		// Declare with the caller's imperative verb before recording, so a
 		// section that ends up with zero rows still reads "nothing to delete
 		// <subject>" (evo-rec.md "empty effect section grammar").
 		sec.declareIntendedVerb(verb)
@@ -132,18 +106,4 @@ func effectPayload(verb string, quantity int64, hasQty bool, object string) map[
 		payload["quantity"] = quantity
 	}
 	return payload
-}
-
-// recordClassification resolves the task named by taskID, then records
-// quantity of object under label verbatim into the task's Changes ledger —
-// always Changes, never Plan, and never conjugated (see
-// TaskHandle.RecordLabel).
-func (o *Output) recordClassification(taskID, label string, quantity int64, object string) {
-	subject, _, err := o.resolveLedgerTarget(taskID)
-	if err != nil {
-		return
-	}
-	sec := o.changesGetOrCreate(subject)
-	sec.declareIntendedVerb(label)
-	sec.record(label, int(quantity), object)
 }

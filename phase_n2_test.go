@@ -3,7 +3,6 @@ package evo_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -26,7 +25,6 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
 	branches.Define(effectOf(evo.EffectDelete, "local branch", 8))
-	branches.Done()
 	out.Cancel("interrupted")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -83,7 +81,6 @@ func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
 	branches.Define(effectOf(evo.EffectDelete, "local branch", 8))
-	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -102,12 +99,8 @@ func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
-	branches := out.Task("branches")
 	const total = 500
-	for i := range total {
-		branches.RecordName("delete", fmt.Sprintf("feat/branch-%d", i))
-	}
-	branches.Done()
+	commit(out.Task("branches"), distinctBranchDeletes(total)...)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +124,7 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var uniBuf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &uniBuf, Glyphs: evo.GlyphsUnicode, Color: evo.ColorNever, Plain: true})
 	done := out.Task("done")
-	done.Done()
+	succeed(done)
 	done.Next(evo.Label("repo-retire --retire demo"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -143,7 +136,7 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var asciiBuf strings.Builder
 	out2 := evo.Init(evo.Config{Isolated: true, Stdout: &asciiBuf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
 	done2 := out2.Task("done")
-	done2.Done()
+	succeed(done2)
 	done2.Next(evo.Label("repo-retire --retire demo"))
 	if err := out2.Finish(); err != nil {
 		t.Fatal(err)

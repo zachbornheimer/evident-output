@@ -69,7 +69,7 @@ func TestMCP_InitializeAndToolsListStdoutPurity(t *testing.T) {
 func listedToolNames(t *testing.T, stdout string) map[string]bool {
 	t.Helper()
 	out := map[string]bool{}
-	for _, line := range strings.Split(strings.TrimSpace(stdout), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
 		var msg map[string]any
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			continue

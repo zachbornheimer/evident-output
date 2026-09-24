@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -54,13 +55,7 @@ func TestToolRegistryMatchesToolList(t *testing.T) {
 		if advertised[name] {
 			continue
 		}
-		isAlias := false
-		for _, alias := range callableAliasNames {
-			if name == alias {
-				isAlias = true
-				break
-			}
-		}
+		isAlias := slices.Contains(callableAliasNames, name)
 		if !isAlias {
 			t.Errorf("validateArgs has an entry for %q, which is neither advertised nor an alias", name)
 		}
@@ -93,7 +88,7 @@ func TestMCP_ToolsListIncludesUpdateWithSchema(t *testing.T) {
 	}, "\n") + "\n"
 	out := runMCP(t, bin, in)
 	var update map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
 		var msg map[string]any
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			continue

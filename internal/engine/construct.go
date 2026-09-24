@@ -223,7 +223,7 @@ type Config struct {
 	FailedExitCode int
 
 	// DryRun declares this run a dry run once, for the whole process: every
-	// evo.Effect, evo.File, and TaskHandle.Record/RecordName call renders as
+	// evo.Effect, evo.File, and evo.Exec call renders as
 	// a [planned] row with the imperative verb
 	// instead of a [changed] row with the past-tense verb. No call site writes
 	// its own tense.

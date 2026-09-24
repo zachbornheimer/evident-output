@@ -21,7 +21,7 @@ func run(ctx context.Context) error {
 	evo.Println("Reading configuration")
 	evo.Printf("Found %d packages\n", 18)
 
-	evo.Task("working tree").Done()
+	evo.Task("working tree").Define(checkWorkingTree)
 	evo.Task("branches").Block(
 		"local-only branch",
 		evo.Detail("commit or stash before continuing"),
@@ -41,10 +41,12 @@ func run(ctx context.Context) error {
 
 // docexamples:snippet end
 
-// The fenced block above references these three names without defining
+// The fenced block above references these four names without defining
 // them (the doc leaves them to the reader's own program); the fixture
 // supplies trivial stand-ins purely so the snippet type-checks.
 var packages = []string{"example-pkg"}
+
+func checkWorkingTree(ctx context.Context) error { return nil }
 
 func removeStaleBranches(ctx context.Context) error { return nil }
 

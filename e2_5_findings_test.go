@@ -31,7 +31,7 @@ func TestE2_5Finding1_WarnedGroupChildReachesConclusion(t *testing.T) {
 	group := out.Group("dependencies")
 	child := group.Task("cache")
 	child.Warn("stale entry ignored")
-	child.Done()
+	succeed(child)
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -61,7 +61,7 @@ func TestE2_5Finding2_MutationOnResolvedTaskReturnsErrorNeverNil(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
-	task.Done()
+	succeed(task)
 	task.Define(effectOf(evo.EffectDelete, "stale local branch", 1))
 	if !errors.Is(out.Err(), evo.ErrAlreadyResolved) {
 		t.Fatalf("Err() = %v, want ErrAlreadyResolved for a mutation on an already-resolved task", out.Err())
@@ -81,7 +81,7 @@ func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Warn("kept 11 (7 protected, 4 unpushed)")
-	branches.Done()
+	succeed(branches)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -98,11 +98,11 @@ func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 
 // --- Finding 5: LOW-MED — double-resolve race ------------------------------
 
-// TestE2_5Finding5_ConcurrentDoneDuringMutationCallDoesNotDropEffect proves
-// the ledger target resolves once: a concurrent Done racing an Effect's
+// TestE2_5Finding5_ConcurrentSummaryDuringMutationCallDoesNotDropEffect proves
+// the ledger target resolves once: a concurrent Summary racing an Effect's
 // in-flight call must not cause the effect that call just committed
 // to be silently dropped as spurious misuse.
-func TestE2_5Finding5_ConcurrentDoneDuringMutationCallDoesNotDropEffect(t *testing.T) {
+func TestE2_5Finding5_ConcurrentSummaryDuringMutationCallDoesNotDropEffect(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
@@ -117,7 +117,7 @@ func TestE2_5Finding5_ConcurrentDoneDuringMutationCallDoesNotDropEffect(t *testi
 		})
 	})
 	<-started
-	branches.Done()
+	branches.Summary("2 deleted")
 	close(release)
 	_ = out.Finish()
 	snap := out.Snapshot()
@@ -148,7 +148,7 @@ func TestE2_5Finding6_InlineThresholdMeasuresDisplayWidthNotBytes(t *testing.T) 
 	warning := strings.Repeat("é", 30)
 	branches := out.Task("branches")
 	branches.Warn(warning)
-	branches.Done()
+	succeed(branches)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -157,25 +157,6 @@ func TestE2_5Finding6_InlineThresholdMeasuresDisplayWidthNotBytes(t *testing.T) 
 	if !strings.Contains(got, "✓ branches  ! "+warning) {
 		t.Fatalf("want the warning inlined (display-width under threshold), got:\n%s", got)
 	}
-}
-
-// --- Finding 7: LOW — Record/RecordName/RecordLabel nil-safety ------------
-
-// TestE2_5Finding7_RecordFamilyNilSafe proves Record/RecordName/RecordLabel
-// never panic on a nil TaskHandle or a TaskHandle whose Output is gone — the
-// same nil-safety the mutation verbs already have.
-func TestE2_5Finding7_RecordFamilyNilSafe(t *testing.T) {
-	var nilHandle *evo.TaskHandle
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Fatalf("Record panicked on a nil TaskHandle: %v", r)
-			}
-		}()
-		nilHandle.Record("delete", 2, "branch")
-		nilHandle.RecordName("delete", "branch")
-		nilHandle.RecordLabel("ready", 1, "branch")
-	}()
 }
 
 // --- Addendum item 8: 3-level nested container rendering golden -----------
@@ -192,7 +173,7 @@ func TestE2_5Item8_ThreeLevelNestedContainerPlainByteShape(t *testing.T) {
 	root := out.Sequence("release")
 	python := root.Sequence("python")
 	venv := python.Sequence("venv")
-	venv.Task("install").Done()
+	succeed(venv.Task("install"))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -251,6 +232,6 @@ func TestE2_5Item8_ThreeLevelNestedContainerLiveByteShape(t *testing.T) {
 			releaseIndent, pythonIndent, venvIndent, installIndent, frame)
 	}
 
-	install.Done()
+	succeed(install)
 	_ = out.Finish()
 }

@@ -15,7 +15,7 @@ func ExampleGroup() {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true}))
 	install := evo.Group("install")
-	install.Task("curl").Done()
+	install.Task("curl").Define(func(context.Context) error { return nil })
 	_ = evo.Default().Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -27,7 +27,7 @@ func ExampleGroup() {
 func ExampleGroupHandle() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	group := out.Group("packages")
-	group.Task("curl").Done()
+	group.Task("curl").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Println(group.Snapshot().Name)
 	// Output:
@@ -105,7 +105,7 @@ func ExampleSequenceHandle_Wait() {
 func ExampleTasksSnapshot() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	group := out.Group("packages")
-	group.Task("curl").Done()
+	group.Task("curl").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	snap := group.Snapshot()
 	fmt.Println(snap.Name, len(snap.Tasks))

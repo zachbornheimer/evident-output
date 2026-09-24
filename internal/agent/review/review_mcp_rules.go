@@ -468,7 +468,7 @@ func noOpEffectFinding(filename string, pos token.Position, shape string) Findin
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
-		Suggestion: "move the mutation into the Effect callback, or call task.Record(verb, n, object) when the work already happened",
+		Suggestion: "move the mutation itself inside the Effect callback (or an Evo-native File/Patch); do not report it after the fact with Record/RecordLabel/RecordName — those have no record-only replacement (ZYS-974)",
 	}
 }
 
@@ -1715,8 +1715,8 @@ func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, t
 // ===== API-060: a TaskHandle.Summary/GroupHandle.Summary literal whose text
 // is actually mutation/dry-run/already-satisfied narration (1.1/ZYS-971
 // Decisions, 2026-09-23) — Summary is non-terminal result metadata, not a
-// replacement for the success-stamp channel Done(text) is being retired
-// for. That narration belongs to evo.File/evo.Effect's own record,
+// replacement for the success-stamp channel Done(text) removed in 1.1.
+// That narration belongs to evo.File/evo.Effect's own record,
 // ResolutionAlreadySatisfied, or evo.Fact instead.
 
 // summaryStampMarkers are substrings (checked case-insensitive against the

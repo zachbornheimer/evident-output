@@ -15,7 +15,7 @@ import (
 func TestMain_ReturnsCodeWithoutExiting(t *testing.T) {
 	SetDefault(Init(Config{Isolated: true}))
 	code := Main(func(context.Context) error {
-		Task("x").Done()
+		Task("x").succeed("")
 		return nil
 	})
 	if code != ExitOK {

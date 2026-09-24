@@ -29,7 +29,7 @@ func main() {
 		evo.Verbose().Printf("Cache: %s\n", "/var/cache/packages")
 		evo.Verbose().Println("Using registry mirror us-east-1")
 
-		evo.Task("lockfile").Done()
+		evo.Task("lockfile").Define(func(context.Context) error { return nil })
 		return nil
 	}))
 }

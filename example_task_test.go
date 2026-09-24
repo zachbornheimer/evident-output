@@ -13,7 +13,7 @@ import (
 func ExampleTask() {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true}))
-	evo.Task("working tree").Done()
+	evo.Task("working tree").Define(func(context.Context) error { return nil })
 	_ = evo.Default().Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -51,7 +51,7 @@ func ExampleTaskHandle_Define_wait() {
 func ExampleTaskSnapshot() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	task := out.Task("apply patch")
-	task.Done()
+	task.Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	snap := task.Snapshot()
 	fmt.Println(snap.Name, snap.State)

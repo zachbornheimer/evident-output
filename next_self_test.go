@@ -16,7 +16,7 @@ func TestTaskHandle_NextSelf_UsesOwnIdentity(t *testing.T) {
 
 	task := out.Task("dry run")
 	task.NextSelfForTest("--apply")
-	task.Done()
+	succeed(task)
 
 	item := out.Snapshot().Tasks[0]
 	if len(item.Actions) == 0 || item.Actions[0].Command == nil {

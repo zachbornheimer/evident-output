@@ -14,7 +14,7 @@ import (
 // JSONDocument (§25.1).
 func ExampleEncodeJSON() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("apply patch").Done()
+	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	data, err := evo.EncodeJSON(out.Snapshot())
 	var doc evo.JSONDocument
@@ -176,7 +176,7 @@ func ExampleParseFormat() {
 func ExampleWriteJSON() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	result := out.Run(context.Background(), func(ctx context.Context) error {
-		out.Task("apply patch").Done()
+		out.Task("apply patch").Define(func(context.Context) error { return nil })
 		return nil
 	})
 	var buf bytes.Buffer

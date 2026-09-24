@@ -626,6 +626,12 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectPatchFileSetDiscardedBeforeCommit(filename, f, fset)...)
 	}
 
+	// API-061: a call site still uses the record-only mutation verbs
+	// Record/RecordLabel/RecordName, which have no record-only
+	// replacement (ZYS-974) — steer it to Effect (mutation), Fact
+	// (information), or File/Patch (file writes).
+	findings = append(findings, detectDeprecatedRecordCall(filename, f, fset)...)
+
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingLegacyEvidence(filename, f, fset)...)
@@ -2013,7 +2019,7 @@ var captureCallPattern = regexp.MustCompile(`(\w+)\.Capture\(`)
 var itemCallPattern = regexp.MustCompile(`(\w+)\.Item\(`)
 
 // planCallPattern / changesCallPattern match the retired v0.2 Plan/Changes
-// surfaces. Suggestion is evo.Effect / evo.File / Task.Record, not a new Plan/Changes API.
+// surfaces. Suggestion is evo.Effect / evo.File / Task.Fact, not a new Plan/Changes API.
 var planCallPattern = regexp.MustCompile(`(\w+)\.Plan\(`)
 var changesCallPattern = regexp.MustCompile(`(\w+)\.Changes\(`)
 
@@ -2029,7 +2035,7 @@ var okCallPattern = regexp.MustCompile(`(\w+)\.OK\(\)`)
 // with a fix, not a lecture — evo.New (evo.Init is the sole constructor;
 // evo.MainWith was removed in 1.0 — ordinary main uses evo.Main, Isolated
 // instances use Output.Run), Item/.OK/.Because (Item folded into Task:
-// Item(name).OK().Because(text) is now Task(name).Done(text)), evo.Cause
+// Item(name).OK().Because(text) is now Task(name).Summary(text).Define(...)), evo.Cause
 // (Failf/Blockf's trailing %w since Fail/Block are statement-form), Capture
 // (renamed to Evidence), and the rec-surface spellings (Config.Options,
 // Option funcs, the mutation verbs removed in 1.1, Skip, ID, StartPhase).
@@ -2070,10 +2076,10 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
 				Severity:   "warning",
-				Message:    "Plan was removed in v0.4 — use evo.Effect, evo.File, or Task.Record",
+				Message:    "Plan was removed in v0.4 — use evo.Effect, evo.File, or Task.Fact",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
-				Suggestion: "replace " + recv + ".Plan(...) with evo.Effect (opaque mutations), evo.File (file state), or Task.Record, not a new Plan API",
+				Suggestion: "replace " + recv + ".Plan(...) with evo.Effect (opaque mutations), evo.File (file state), or Task.Fact (information), not a new Plan API",
 			})
 		}
 
@@ -2085,10 +2091,10 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
 				Severity:   "warning",
-				Message:    "Changes was removed in v0.4 — use evo.Effect, evo.File, or Task.Record",
+				Message:    "Changes was removed in v0.4 — use evo.Effect, evo.File, or Task.Fact",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
-				Suggestion: "replace " + recv + ".Changes(...) with evo.Effect (opaque mutations), evo.File (file state), or Task.Record, not a new Changes API",
+				Suggestion: "replace " + recv + ".Changes(...) with evo.Effect (opaque mutations), evo.File (file state), or Task.Fact (information), not a new Changes API",
 			})
 		}
 
@@ -2097,10 +2103,10 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
 				Severity:   "warning",
-				Message:    "OK was retired with Item — Task's spelling for the same outcome is Done",
+				Message:    "OK was retired with Item — a Task resolves by running its Define callback",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
-				Suggestion: "replace " + recv + ".OK() with " + recv + ".Done()",
+				Suggestion: "replace " + recv + ".OK() with " + recv + ".Define(func(ctx context.Context) error { ... })",
 			})
 		}
 
@@ -2111,7 +2117,7 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 				Message:    "Because was retired with Item — its text is now the resolving verb's own argument",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
-				Suggestion: `replace OK().Because("text") with Done("text") (or fold into Warn/Block/Fail's summary)`,
+				Suggestion: `replace OK().Because("text") with Summary("text").Define(...) (or fold into Warn/Block/Fail's summary)`,
 			})
 		}
 
@@ -2164,7 +2170,7 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 
 	}
 	if dialectAtLeast(desiredVersion, dialectRec) {
-		findings = append(findings, detectSupersededRecSurface(filename, src)...)
+		findings = append(findings, detectSupersededRecSurface(filename, src, desiredVersion)...)
 	}
 	return findings
 }
