@@ -41,7 +41,10 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	for _, name := range eachSkipNames("skip", 6) {
 		worktrees.Task(name).Skipped(protected)
 	}
-	worktrees.Task("remove").Fail("remove failed", evo.Detail("path locked: ../.worktrees/app-sah-1"))
+	// The category's own Task (docs/reference.md, "own Task") owns the
+	// failing removal, so the skipped items fold under it: "✗ worktrees
+	// remove failed" as the spec block reads.
+	worktrees.Task("worktrees").Fail("remove failed", evo.Detail("path locked: ../.worktrees/app-sah-1"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -51,21 +54,19 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	// taxonomy line is always derived with a reason partition
 	// (task_taxonomy.go: "the taxonomy line... is derived from every
 	// accumulated record at render time"). Each's own collection-level
-	// rollup summing that partition across many same-shaped children
-	// (collectEachTaxonomy) was removed with Each in 1.0 (§3.1: get-or-create
-	// reliance is unsound); each plain Group child now renders its own
-	// "skipped 1 (protected)" line individually.
+	// rollup was removed with Each in 1.0 (§3.1: get-or-create reliance is
+	// unsound); per-item Group children now fold into one tally under their
+	// Group (contract §25 renderer aggregation).
 	for _, want := range []string{
 		"✓ branches 8 deleted",
-		"✗ remove",
-		"remove failed",
+		"✗ worktrees remove failed",
 		"path locked: ../.worktrees/app-sah-1"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if n := strings.Count(collapsed, "skipped 1 (protected)"); n != 6 {
-		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
+	if n := strings.Count(collapsed, "skipped 6 (protected)"); n != 1 {
+		t.Fatalf("want one aggregated skipped tally, got %d:\n%s", n, got)
 	}
 }
 
@@ -82,7 +83,9 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	g := out.Group("branches")
-	g.Task("deleted").Define(effectOf(evo.EffectDelete, "branch", 8))
+	// The category's own Task (docs/reference.md, "own Task") does the
+	// deletion, so the skipped items fold under the category.
+	g.Task("branches").Define(effectOf(evo.EffectDelete, "branch", 8))
 	protected := evo.Reason("protected")
 	for _, name := range eachSkipNames("skip", 6) {
 		g.Task(name).Skipped(protected)
@@ -97,9 +100,8 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	// reachable literal — the real taxonomy line always carries a mechanical
 	// reason partition instead (see the Failure cell above), which still
 	// proves the same underlying contract: the skip count survives the
-	// error, uncorrupted. Each's own cross-child rollup (collectEachTaxonomy)
-	// was removed with Each in 1.0 (§3.1) — each plain Group child renders
-	// its own line, asserted by count below.
+	// error, uncorrupted. Per-item Group children fold into one tally under
+	// their Group (contract §25 renderer aggregation).
 	for _, want := range []string{
 		"8 branches deleted",
 		"git: cannot lock ref 'refs/heads/feat/x'",
@@ -108,8 +110,8 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if n := strings.Count(collapsed, "skipped 1 (protected)"); n != 6 {
-		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
+	if n := strings.Count(collapsed, "skipped 6 (protected)"); n != 1 {
+		t.Fatalf("want one aggregated skipped tally, got %d:\n%s", n, got)
 	}
 }
 
@@ -544,7 +546,8 @@ func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever, Verbosity: evo.VerbosityVerbose})
 	scan := out.Task("scan")
 	scan.Progress(40, 128)
 	scan.Fact("ready", "39 repos")

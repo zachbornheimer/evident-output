@@ -77,7 +77,7 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectFirstPaintGaps)},
 	// LOOP-001: a work loop (for/range with I/O) before any Task/Group/Sequence
 	// is the purge/prune silent-pre-output class — real work must live inside
-	// the task definition (Define/Each), not before entity creation.
+	// the task definition (Define, or one Task per item), not before entity creation.
 	{needsEvo: true, run: textRule(detectSilentPreTaskLoops)},
 	// CALL-001: make/new inline inside evo.Init/Task/Group arguments; a
 	// named local extracted before the call is the clean form.
@@ -227,6 +227,10 @@ var fileDetectors = []detector{
 	// (information), or File/Patch (file writes). Record* still exists at a
 	// 1.0.x pin, so the rule only fires from 1.1.0 on.
 	{needsEvo: true, run: astRule(detectDeprecatedRecordCall)},
+	// API-062: a second Kept/Skipped on one Task — the item is the Task, so
+	// the per-item shape is group.Task(item).Kept(reason) (contract §25
+	// renderer aggregation folds those children into one tally).
+	{needsEvo: true, run: astRule(detectRepeatedDisposition)},
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	{needsEvo: true, run: astRule(detectMutatingLegacyEvidence)},
 	// EVO-VERIFY-001: Verify callback performs a raw mutation; Verify must

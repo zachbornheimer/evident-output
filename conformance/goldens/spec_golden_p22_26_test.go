@@ -871,7 +871,7 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 // describes.
 //
 //	✓ branches 40 del
-//	! skipped 6
+//	- skipped 6
 func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -895,11 +895,10 @@ func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 	if !strings.Contains(collapsed, "✓ branches 40 del") {
 		t.Fatalf("want %q in:\n%s", "✓ branches 40 del", got)
 	}
-	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6") was
-	// removed with Each in 1.0 (§3.1) — each plain Group child renders its
-	// own line.
-	if n := strings.Count(collapsed, "! skipped 1"); n != 6 {
-		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	if n := strings.Count(collapsed, "- skipped 6 (4 protected, 2 dirty)"); n != 1 {
+		t.Fatalf("want one aggregated skipped tally, got %d:\n%s", n, got)
 	}
 }
 

@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -254,5 +255,68 @@ func TestTaskSnapshot_ExposesSkippedAndKeptTaxonomy(t *testing.T) {
 	keepSnap := kept.Snapshot()
 	if len(keepSnap.Kept) != 1 || keepSnap.Kept[0].Reason != "protected" || keepSnap.Kept[0].Name != "feat/a" {
 		t.Fatalf("Kept taxonomy not exposed on snapshot: %+v", keepSnap.Kept)
+	}
+}
+
+// TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning pins contract §41
+// ("Warning | ! | [!]") and §20 ("Use a plain, widely-rendered `-` for an
+// already-satisfied/skipped detail"): a Skipped tally is skip detail, not a
+// warning, so it renders "-" and never feeds the "· warned" band — unlike a
+// Kept tally, which §26/§27 render as "! kept N (...)".
+func TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	scan := out.Task("branches")
+	scan.Define(func(context.Context) error {
+		scan.Skipped(evo.Reason("protected"))
+		return nil
+	})
+	_ = scan.Wait()
+	succeed(out.Task("worktrees"), "3 checked")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "- skipped 1 (protected)") || strings.Contains(got, "! skipped") {
+		t.Fatalf("a Skipped tally renders the skip-detail dash, never the warning bang:\n%s", got)
+	}
+	if out.Conclusion().Warned || strings.Contains(got, "warned") {
+		t.Fatalf("a Skipped tally must not feed the warned band:\n%s", got)
+	}
+}
+
+// TestGroup_KeptChildrenAggregateUnderGroupRow pins contract §25 ("Rendering
+// every child is not a correctness requirement; retaining every child in
+// the model is") for per-item disposition children: a Group whose children
+// only resolved Kept renders its own row plus one "! kept N (...)" tally,
+// indented under it (§26/§27), never one row per item.
+func TestGroup_KeptChildrenAggregateUnderGroupRow(t *testing.T) {
+	for _, summary := range []string{"6 checked", ""} {
+		var buf bytes.Buffer
+		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+		t.Cleanup(func() { _ = out.Close() })
+
+		unpushed, protected := evo.Reason("unpushed"), evo.Reason("protected")
+		branches := out.Group("branches")
+		if summary != "" {
+			branches.Summary(summary)
+		}
+		branches.Task("feat/a").Kept(unpushed)
+		branches.Task("main").Kept(protected)
+		branches.Task("feat/b").Kept(unpushed)
+		if err := out.Finish(); err != nil {
+			t.Fatal(err)
+		}
+
+		row := "✓ branches\n"
+		if summary != "" {
+			row = "✓ branches  " + summary + "\n"
+		}
+		want := row + "  ! kept 3 (2 unpushed, 1 protected)\n\n[ready · warned]\n"
+		if got := buf.String(); got != want {
+			t.Fatalf("summary %q mismatch:\n--- want ---\n%s\n--- got ---\n%s", summary, want, got)
+		}
 	}
 }

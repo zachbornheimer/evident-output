@@ -42,8 +42,8 @@ func (e ledgerEntry) payload(verb string) map[string]any {
 	return payload
 }
 
-// ledgerTarget is where a Task's ledger rows go: its ledger subject (see
-// ledgerSubjectFor) and whether the run is a dry run.
+// ledgerTarget is where a Task's ledger rows go: its ledger subject (the
+// Task's own name) and whether the run is a dry run.
 type ledgerTarget struct {
 	subject string
 	dryRun  bool
@@ -69,7 +69,7 @@ func (o *Output) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
 		o.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return ledgerTarget{}, ErrAlreadyResolved
 	}
-	return ledgerTarget{subject: ledgerSubjectFor(st), dryRun: o.cfg.dryRun}, nil
+	return ledgerTarget{subject: st.name, dryRun: o.cfg.dryRun}, nil
 }
 
 // recordLedgerEntry resolves taskID's ledger target and records e there —

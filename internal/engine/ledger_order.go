@@ -64,7 +64,7 @@ func (o *Output) ledgerOrderLocked(subject string) int {
 // whether the run has anything else to show, and prints the row only if not.
 // Caller must hold o.mu.
 func (o *Output) heldBackAsNoOpLocked(t TaskSnapshot) bool {
-	if !render.IsProvenNoOpRootTask(t) {
+	if !render.IsProvenNoOpRootTask(render.TaskAtVerbosity(t, o.cfg.verbosity >= VerbosityVerbose)) {
 		return false
 	}
 	return !o.ledger.sections[t.Name]

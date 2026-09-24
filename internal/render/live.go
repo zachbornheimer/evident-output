@@ -61,16 +61,9 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, color bool, p
 		height = 24
 	}
 	var b strings.Builder
-	spin := txt.SpinnerGlyph(now, profile)
+	st := liveStyle{width: width, spin: txt.SpinnerGlyph(now, profile), color: color, now: now, profile: profile}
 
-	// Prefer collections for multi-task progress display.
-	for _, col := range s.Collections {
-		writeLiveCollection(&b, col, height, width, spin, color, now, profile)
-	}
-	nameWidth := maxRootTaskNameWidth(s.Tasks)
-	for _, t := range s.Tasks {
-		writeLiveTaskLine(&b, t, 0, nameWidth, width, spin, color, now, profile)
-	}
+	writeLiveBody(&b, liveRoot(s), height, atRoot, st)
 	if hasTaskRows(s) && hasEffectSections(s) {
 		b.WriteByte('\n')
 	}
@@ -147,131 +140,27 @@ func liveRegionFitsColumns(text string, columns int) bool {
 	return txt.VisibleCells(text[start:]) <= columns
 }
 
-func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
-	if collapsesIntoOnlyChild(col) {
-		writeLiveTaskLine(b, col.Tasks[0], 0, 0, width, spin, color, now, profile)
-		return
+// liveGroupHeader is a live Group's header row. While any child is
+// unresolved it spins and carries "N/M complete" plus the one monotonic
+// elapsed clock (P5), anchored to the earliest live-first-seen time among
+// its (recursive) children — when this header itself first painted. Once
+// every child has settled (spec §18's worked example: "✓ launch agent",
+// no count) the count is redundant with the glyph and disappears.
+func liveGroupHeader(col core.TasksSnapshot, done, total int, spin string, color bool, now time.Time, profile txt.GlyphProfile) DisplayUnit {
+	glyph, state := TaskGlyph(col.State, profile), col.State
+	if col.State == core.Failed {
+		glyph = txt.GlyphFailedState.Render(profile)
 	}
-	if promotesLoneChildOntoHeader(col) {
-		unit := liveTaskUnit(col.Tasks[0], 0, width, spin, color, now, profile)
-		unit.Name = col.Name + "  " + unit.Name
-		b.WriteString(unit.Render(""))
-		b.WriteByte('\n')
-		return
-	}
-	if groupHeaderAddsNothing(col) && !hasUnfinishedTask(col) {
-		writeLiveHeaderlessGroup(b, col, height, width, spin, color, now, profile)
-		return
-	}
-	done, total := 0, len(col.Tasks)
-	for _, t := range col.Tasks {
-		if t.State == core.Done || t.State == core.Skipped {
-			done++
-		}
-	}
-	// Header
-	glyph := TaskGlyph(col.State, profile)
-	if col.State == core.Failed || anyChildFailed(col) {
-		if col.State == core.Failed {
-			glyph = txt.GlyphFailedState.Render(profile)
-		}
-	}
-	// When any running, animate header spinner (H.20 uses FixedClock → stable ⠋).
 	unresolved := anyChildRunning(col) || anyChildPendingActive(col)
 	if unresolved {
-		glyph = spin
+		glyph, state = spin, core.Running
 	}
-	headerState := col.State
+	unit := DisplayUnit{Glyph: txt.StyleGlyph(glyph, StateColor(state), color), Name: col.Name}
 	if unresolved {
-		headerState = core.Running
-	}
-	// P5: the same one monotonic elapsed clock a Running/Pending row gets
-	// also ages an unfinished container header — anchored to the earliest
-	// live-first-seen time among its (recursive) children, since that is
-	// when this header itself first painted. A container header is the
-	// same DisplayUnit (P3) a task row is, with Detail populated by the
-	// "N/M complete" count instead of a phase/progress payload.
-	//
-	// Once every child has settled (spec §18's own worked example: "✓ launch
-	// agent", no count), the count is redundant with the ✓ glyph itself and
-	// disappears — an unresolved header still needs it to show how far along
-	// the group is.
-	unit := DisplayUnit{
-		Glyph: txt.StyleGlyph(glyph, StateColor(headerState), color),
-		Name:  col.Name,
-	}
-	if unresolved {
-		unit.Detail = fmt.Sprintf("%d/%d complete", done, total)
 		unit.Elapsed = heartbeatSuffix(now, earliestLiveFirstSeen(col))
-		unit.Detail += unit.Elapsed
+		unit.Detail = fmt.Sprintf("%d/%d complete", done, total) + unit.Elapsed
 	}
-	b.WriteString(unit.Render(""))
-	b.WriteByte('\n')
-
-	// Select children by severity under height budget.
-	// Budget: height includes header; leave room for omission line.
-	maxChildRows := max(
-		// header + possible omission
-		height-2, 1)
-	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
-	for _, t := range selected {
-		writeLiveTaskLine(b, t, 1, 0, width, spin, color, now, profile)
-	}
-	if omitted > 0 {
-		fmt.Fprintf(b, "   %s  %d not shown\n", txt.Dim(txt.GlyphOverflow.Render(profile), color), omitted)
-	}
-	// Nested containers (P3's recursive .Sequence/.DisplayGroup nesting)
-	// render as an indented sub-header + its own children, one level per
-	// nesting depth — rendered into a scratch builder first so the same
-	// three-space child indent writeLiveTaskLine uses applies uniformly.
-	for _, child := range col.Collections {
-		var nested strings.Builder
-		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
-		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
-			fmt.Fprintf(b, "   %s\n", line)
-		}
-	}
-}
-
-// hasOnlyChild reports whether a group's whole visible content is one
-// explicitly declared child: no Each aggregate, no nested collection, and
-// no Summary of its own. A caller's own Summary is never collapsible — it
-// is the group's answer ("nothing to clean") and no child row can carry it.
-func hasOnlyChild(col core.TasksSnapshot) bool {
-	return !col.Sequential && col.Summary == "" && len(col.Tasks) == 1 && len(col.Collections) == 0
-}
-
-// collapsesIntoOnlyChild reports whether a one-child group may render as
-// just that child's row — which requires the child to answer to the group's
-// own name, because a differently named child cannot stand in for the
-// subject. Collapsing on count alone turned three sibling subjects that
-// each declared one `classify` child into three indistinguishable
-// `classify` rows naming no subject at all, for the whole classify phase.
-// Live and durable share this rule: a transient frame the reader watches in
-// context still has to say which subject it is about.
-func collapsesIntoOnlyChild(col core.TasksSnapshot) bool {
-	return hasOnlyChild(col) && col.Tasks[0].Name == col.Name
-}
-
-// promotesLoneChildOntoHeader reports whether a group's one differently
-// named child is still in flight (Running or Pending). The live frame then
-// keeps both names on a single row — `<spin> worktrees  classify  [██░░]
-// 24/111  <path> — 12s` while it runs, `○ branches  classify  waiting`
-// while it is blocked — rather than spending a header line on a count of
-// one (`0/1 complete — 18s`) and an indented line on the only child. The
-// child's evidence rides the header; the subject survives; a blocked group
-// does not spin. Done/Failed/Skipped children still take the header+child
-// shape when they need their own evidence.
-func promotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
-	if !hasOnlyChild(col) || col.Tasks[0].Name == col.Name {
-		return false
-	}
-	switch col.Tasks[0].State {
-	case core.Running, core.Pending:
-		return true
-	default:
-		return false
-	}
+	return unit
 }
 
 func anyChildRunning(col core.TasksSnapshot) bool {
@@ -281,15 +170,6 @@ func anyChildRunning(col core.TasksSnapshot) bool {
 		}
 	}
 	return slices.ContainsFunc(col.Collections, anyChildRunning)
-}
-
-func anyChildFailed(col core.TasksSnapshot) bool {
-	for _, t := range col.Tasks {
-		if t.State == core.Failed {
-			return true
-		}
-	}
-	return slices.ContainsFunc(col.Collections, anyChildFailed)
 }
 
 // anyChildPendingActive reports whether the collection has any unresolved
@@ -373,10 +253,7 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 	// there happens to be vertical room left repeats what the header already
 	// said, one row at a time, for a Group large enough that its own
 	// aggregation was already necessary (spec §25: "aggregation is
-	// renderer-owned and automatic" — the same rule Each's
-	// selectEachAttentionChildren already applied before Task.Each was
-	// removed as a public API; an ordinary Group of explicit children gets
-	// no lesser treatment now that Each is gone).
+	// renderer-owned and automatic").
 	const attentionRankCount = 4
 	for r := 0; r < attentionRankCount && len(selected) < max; r++ {
 		for _, t := range buckets[r] {
@@ -389,7 +266,9 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 	return selected, len(tasks) - len(selected)
 }
 
-// writeLiveTaskLine renders one task row at the given indent.
+// writeLiveTaskLine renders one task row at the given indent and reports
+// how many rows it wrote: the row, plus any activity child, nested
+// warnings, and verification detail rows beneath it.
 //
 // A Running task with a determinate bar/count AND a current-activity Phase
 // gets spec §23's stable-parent-plus-one-activity-child shape at any
@@ -398,7 +277,9 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 // the parent line owns the bar/count/timer only, and the current activity
 // becomes its own indented spinner line beneath it — so the child can
 // change/truncate independently without moving the timer horizontally.
-func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth int, st liveStyle) (rows int) {
+	start := b.Len()
+	width, spin, color, now, profile := st.width, st.spin, st.color, st.now, st.profile
 	pad := ""
 	if indent > 0 {
 		pad = "   "
@@ -431,6 +312,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	if t.State == core.Failed {
 		writeVerificationDetails(b, t.Verification, pad+"   ", true, false, color, profile)
 	}
+	return rowsSince(b, start)
 }
 
 // padRootName right-pads a standalone (indent == 0) row's name to nameWidth

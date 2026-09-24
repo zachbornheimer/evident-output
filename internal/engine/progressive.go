@@ -421,7 +421,7 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 
 	if includeEntities {
 		residualNameWidth := maxRootTaskNameWidth(o.tasks)
-		hidden := render.ZeroInformationTaskIDs(snap)
+		hidden := render.ZeroInformationTaskIDs(render.SnapshotAtVerbosity(snap, verbose))
 		for _, t := range o.tasks {
 			if t.collection != nil || t.coreEmitted {
 				continue
@@ -458,7 +458,7 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 		render.WriteEffects(&b, "planned", p.subject, planNameWidth, p.records, p.intendedVerb, width, color, profile)
 	}
 	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {
-		render.WriteConclusion(&b, *snap.Conclusion, color, profile)
+		render.WriteConclusion(&b, render.StandaloneConclusion(snap), color, profile)
 	}
 	// Pane mode: optional diagnostic tail under final result (§21.3.2) — the
 	// default preserveOnBad path only ever fires when debugPaneActive is

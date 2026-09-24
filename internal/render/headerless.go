@@ -1,10 +1,8 @@
 package render
 
 import (
-	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -37,33 +35,15 @@ func hasUnfinishedTask(col core.TasksSnapshot) bool {
 	return slices.ContainsFunc(col.Collections, hasUnfinishedTask)
 }
 
-// writeLiveHeaderlessGroup is writeHeaderlessGroup for the live region: each
-// child paints as its own root-level row (spinner, bar, count, and the one
-// indented activity row under it), aligned to one name column. Rows beyond
-// the height budget collapse into one "not shown" line, as under a header.
-func writeLiveHeaderlessGroup(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
-	nameWidth := maxRootTaskNameWidth(col.Tasks)
-	selected, omitted := selectLiveChildren(col.Tasks, max(height-1, 1))
-	for _, t := range selected {
-		writeLiveTaskLine(b, t, 0, nameWidth, width, spin, color, now, profile)
-	}
-	if omitted > 0 {
-		fmt.Fprintf(b, "%s  %d not shown\n", txt.Dim(txt.GlyphOverflow.Render(profile), color), omitted)
-	}
-	for _, child := range col.Collections {
-		writeLiveCollection(b, child, height, width, spin, color, now, profile)
-	}
-}
-
 // writeHeaderlessGroup renders a Group's children as siblings of the
 // surrounding rows, aligned to one name column, then any nested containers
 // the same way.
 func writeHeaderlessGroup(b *strings.Builder, col core.TasksSnapshot, color, verbose bool, profile txt.GlyphProfile) {
-	nameWidth := maxTaskNameWidth(col.Tasks)
+	nameWidth := headerlessRowNameWidth(col)
 	for _, t := range col.Tasks {
 		WriteTaskAligned(b, t, nameWidth, color, verbose, profile)
 	}
 	for _, child := range col.Collections {
-		WriteCollection(b, child, color, verbose, profile)
+		writeCollectionAligned(b, child, nameWidth, color, verbose, profile)
 	}
 }

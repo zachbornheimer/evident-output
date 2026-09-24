@@ -19,10 +19,6 @@ import (
 // each scheduling pass would rescan all of them.
 type schedQueue struct {
 	tasks []*taskState
-	// visits counts entries every pass has examined — the scheduler's
-	// bookkeeping cost, which must grow linearly with the Tasks a run
-	// submits (TestSchedulingWorkIsLinear).
-	visits int
 }
 
 // awaitingStart reports whether st is submitted work nobody has started
@@ -45,12 +41,10 @@ func (q *schedQueue) push(st *taskState) {
 // to the live queue.
 func (q *schedQueue) first(ok func(*taskState) bool) *taskState {
 	for len(q.tasks) > 0 && !awaitingStart(q.tasks[0]) {
-		q.visits++
 		q.tasks[0] = nil
 		q.tasks = q.tasks[1:]
 	}
 	for _, st := range q.tasks {
-		q.visits++
 		if awaitingStart(st) && ok(st) {
 			return st
 		}
@@ -61,7 +55,6 @@ func (q *schedQueue) first(ok func(*taskState) bool) *taskState {
 // live compacts the queue and returns its live entries. The slice is only
 // valid until the next push.
 func (q *schedQueue) live() []*taskState {
-	q.visits += len(q.tasks)
 	q.tasks = slices.DeleteFunc(q.tasks, func(st *taskState) bool { return !awaitingStart(st) })
 	return q.tasks
 }

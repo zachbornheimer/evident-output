@@ -66,7 +66,7 @@ func TestSpecP16_CompactLayout_Step2(t *testing.T) {
 //
 //	✓ branches 14 del
 //	✓ worktrees 2 rm
-//	! skipped 6 (protected)
+//	- skipped 6 (protected)
 //
 // writeTaxonomy (plain.go) always appends "(<reason>)", even for a single
 // reason — every skip/keep taxonomy row includes its reason(s) in
@@ -93,11 +93,10 @@ func TestSpecP16_CompactLayout_Success(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6
-	// (protected)") was removed with Each in 1.0 (§3.1) — each plain Group
-	// child renders its own line.
-	if n := strings.Count(got, "! skipped 1 (protected)"); n != 6 {
-		t.Fatalf("want 6 individual (parenthesized-reason) taxonomy lines, got %d:\n%s", n, got)
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	if n := strings.Count(got, "- skipped 6 (protected)"); n != 1 {
+		t.Fatalf("want one aggregated skipped tally, got %d:\n%s", n, got)
 	}
 }
 
@@ -238,17 +237,12 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 	if !strings.Contains(got, "✓ branches 14 deleted") {
 		t.Fatalf("want %q in:\n%s", "✓ branches 14 deleted", buf.String())
 	}
-	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6 (4
-	// protected, 2 dirty)"/"kept 3 (unpushed)") was removed with Each in
-	// 1.0 (§3.1) — each plain Group child renders its own line.
-	if n := strings.Count(got, "! skipped 1 (protected)"); n != 4 {
-		t.Fatalf("want 4 individual skipped-protected lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "! skipped 1 (dirty)"); n != 2 {
-		t.Fatalf("want 2 individual skipped-dirty lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "! kept 1 (unpushed)"); n != 3 {
-		t.Fatalf("want 3 individual kept-unpushed lines, got %d:\n%s", n, buf.String())
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	for _, want := range []string{"- skipped 6 (4 protected, 2 dirty)", "! kept 3 (unpushed)"} {
+		if strings.Count(got, want) != 1 {
+			t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
+		}
 	}
 }
 
@@ -290,16 +284,12 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	// Each's own cross-child rollup (collectEachTaxonomy) was removed with
-	// Each in 1.0 (§3.1) — each plain Group child renders its own line.
-	if n := strings.Count(got, "! skipped 1 (protected)"); n != 4 {
-		t.Fatalf("want 4 individual skipped-protected lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "! skipped 1 (dirty)"); n != 2 {
-		t.Fatalf("want 2 individual skipped-dirty lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "! kept 1 (unpushed)"); n != 3 {
-		t.Fatalf("want 3 individual kept-unpushed lines, got %d:\n%s", n, buf.String())
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	for _, want := range []string{"- skipped 6 (4 protected, 2 dirty)", "! kept 3 (unpushed)"} {
+		if strings.Count(got, want) != 1 {
+			t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
+		}
 	}
 }
 
@@ -309,7 +299,7 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 // unchanged skip/keep taxonomy declared as plain Group children with
 // distinct names (§3.1: Each is retired — a repeated child name is now a
 // duplicate sibling declaration, not a get-or-create). Each's own
-// aggregated "! skipped N (...)" collapse was Each-specific presentation
+// aggregated "- skipped N (...)" collapse was Each-specific presentation
 // (writeLiveEachAggregate/writePlainEachAggregate key off the fromEach
 // marker); a plain Group child renders its own taxonomy line individually,
 // so this pins one line per child instead of one collapsed count.
@@ -324,7 +314,9 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever}))
 	out := evo.Default()
 	g := out.Group("branches")
-	commit(g.Task("deleted").Summary("10 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 10})
+	// The category's own Task (docs/reference.md, "own Task") does the
+	// deletion, so the per-item children fold under the category.
+	commit(g.Task("branches").Summary("10 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 10})
 	g.Task("feat/x").Fail("delete failed on feat/x")
 	unchanged := evo.Reason("unchanged")
 	notAttempted := evo.Reason("unpushed, not attempted")
@@ -343,8 +335,8 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		"10 deleted",
 		"✗",
 		"delete failed on feat/x",
-		"! skipped 1 (unchanged)",
-		"! kept 1 (unpushed, not attempted)"} {
+		"- skipped 6 (unchanged)",
+		"! kept 3 (unpushed, not attempted)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -601,7 +593,8 @@ func TestSpecP19_FirstPaint_Step2(t *testing.T) {
 func TestSpecP19_FirstPaint_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever, Verbosity: evo.VerbosityVerbose})
 	scan := out.Task("scan")
 	scan.Fact("ready", "40 repos")
 	succeed(scan, "128 checked")

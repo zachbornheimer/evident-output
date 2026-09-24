@@ -269,7 +269,7 @@ type taskState struct {
 	evidence *evidence
 
 	// skipped/kept hold disposition taxonomy accumulated by Skipped/Kept —
-	// the model that "! skipped N (...)" / "! kept N (...)" are derived from
+	// the model that "- skipped N (...)" / "! kept N (...)" are derived from
 	// at render time, never a hand-built summary string. Disposition side of
 	// the model, not the mutation ledger (Plan/Changes).
 	skipped []TaxonomyRecord
@@ -617,10 +617,10 @@ func (o *Output) hasRecordedEffectLocked(subject string) bool {
 }
 
 // hasSealedProgress reports whether t's absolute progress reached the total
-// it declared — a completed Each/EachN/Progress loop — same unresolved-task
+// it declared — a completed Progress/Step loop — same unresolved-task
 // amnesty rationale as hasRecordedEffectLocked (beginner-gate-2 findings
 // 1/2). Total must be positive and the kind explicitly set (Determinate or
-// BytesKind): a task that never called Progress/Bytes/Each carries the zero
+// BytesKind): a task that never called Progress/Bytes/Step carries the zero
 // value (Total 0, Kind "") and must not read as sealed.
 func hasSealedProgress(t *taskState) bool {
 	if t.progress.Kind == "" || t.progress.Kind == Indeterminate {
@@ -695,7 +695,7 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first
-// unit of evidence (Phase/Progress/Advance/Bytes/Each iteration/PhaseWriter
+// unit of evidence (Phase/Progress/Advance/Bytes/Step/Writer
 // write, or a work callback starting — see promoteRunningForActivity).
 // For a sequential collection (Sequence), it records misuse when a sibling is
 // already Running, enforcing the heart contract "one Running child"
@@ -803,23 +803,6 @@ func declaredTaskState(col *tasksState) EntityState {
 	return Pending
 }
 
-// ledgerSubjectFor names the subject an effect belongs to. An explicitly
-// declared task is semantically named work and owns its own ledger line. An
-// Each child does not: it is one item of a collection, and the collection is
-// the subject the plan is about. Cleaning 33 branches recorded 33 separate
-// `[planned] feat/old-03  delete 1 local tip` rows, one per item name and
-// unbounded, where the dialect's own Recommended UI for that run shows one:
-// `[planned] branches  delete 33 local tips`.
-//
-// Attributing at the record site rather than folding rows in the renderer is
-// what makes the rest fall out: the existing identical-record merge does the
-// tally, and item names (evo.File/evo.Exec named rows) land
-// under the collection's subject, inside the same bounded viewport and
-// `… +N more (not shown)` overflow every other subject has.
-func ledgerSubjectFor(st *taskState) string {
-	return st.name
-}
-
 func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey string) *TaskHandle {
 	h := o.declareTaskLocked(name, col, key, parentKey)
 	if _, ok := o.taskByRef[h.id]; ok {
@@ -828,9 +811,8 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey stri
 	return h
 }
 
-// declareTaskLocked records a child without painting. Each uses this to
-// declare every item before the first yield so the first live frame already
-// shows 0/N rather than growing 0/1, 0/2, … as children appear.
+// declareTaskLocked records a child without painting; addTaskLocked
+// paints it.
 //
 // When key is empty, the task's §3.1 stable identity defaults to
 // kind+parentKey+normalized-name; an explicit key replaces that derivation
@@ -1926,7 +1908,7 @@ func (o *Output) Finish() error {
 	// honest, complete story already — the caller just never called a
 	// terminal verb — whenever it also carries at least one of: a recorded
 	// Effect/File/Record ledger row, a sealed absolute
-	// progress (a completed Each/EachN/Progress loop reached its total),
+	// progress (a completed Progress/Step loop reached its total),
 	// recorded taxonomy (Skipped/Kept), or a recorded warning (P2:
 	// TaskHandle.Warn never itself resolves the task, so a warned-but-
 	// unresolved task earns the same amnesty). The easiest path (forgetting
@@ -1964,9 +1946,8 @@ func (o *Output) Finish() error {
 			continue
 		}
 		resolveUnstartedTaskLocked(t)
-		// A declared-but-never-defined task never started — Each children
-		// the loop did not yield, or work the interrupt took away. That is
-		// the answer, not misuse.
+		// A declared task that never started is work the failure or
+		// interrupt took away. That is the answer, not misuse.
 		if t.state == NotStarted {
 			continue
 		}
