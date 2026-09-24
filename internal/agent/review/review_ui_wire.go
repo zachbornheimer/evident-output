@@ -145,11 +145,11 @@ func detectPassingVerificationPrinted(fset *token.FileSet, f *ast.File, filename
 		findings = append(findings, Finding{
 			RuleID:     "EVO-UI-002",
 			Severity:   "warning",
-			Message:    "manually printed success/verified line duplicates the glyph task.Done already renders on the passing path",
+			Message:    "manually printed success/verified line duplicates the glyph the Task's success row already renders on the passing path",
 			File:       filename,
 			Line:       pos.Line,
 			Column:     pos.Column,
-			Suggestion: "delete the manual success line; let task.Done() render the passing state",
+			Suggestion: "delete the manual success line; let the Task's Define outcome render the passing state",
 		})
 		return true
 	})
