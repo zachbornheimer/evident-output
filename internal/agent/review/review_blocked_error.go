@@ -3,6 +3,28 @@ package review
 
 import "strings"
 
+// blockedErrorReturns are application-error constructors that, returned
+// after a blocked resolution, turn it into a Go error.
+var blockedErrorReturns = []string{
+	"return errors.New(",
+	"return fmt.Errorf(",
+	"return errors.Join(",
+	"return fmt.Error",
+}
+
+// blockedScanWindow is how many lines after the Block the detector reads
+// for a return, stopping early at the next func.
+const blockedScanWindow = 40
+
+// blockedReturnKind is how a return after a Block turned it into an error.
+type blockedReturnKind uint8
+
+const (
+	noBlockedReturn blockedReturnKind = iota
+	returnsNewError
+	returnsErr
+)
+
 // detectBlockedAsError flags control-flow that converts an expected Block/BlockedBy
 // presentation outcome into a Go application error (MCP-014 / DOM-011).
 // Real evaluation failures that use Fail/return before Block are not flagged.
@@ -11,70 +33,76 @@ func detectBlockedAsError(filename, src string) []Finding {
 	if !strings.Contains(src, ".Block(") && !strings.Contains(src, ".BlockedBy(") {
 		return nil
 	}
-	// Application-error constructors used after a blocked resolution.
-	errorReturns := []string{
-		"return errors.New(",
-		"return fmt.Errorf(",
-		"return errors.Join(",
-		"return fmt.Error",
-	}
-	// Split into rough statements by newline for local ordering.
 	lines := strings.Split(src, "\n")
-	blockLine := -1
-	for i, line := range lines {
-		if strings.Contains(line, ".Block(") || strings.Contains(line, ".BlockedBy(") {
-			// Fail path is application error — skip if same line is Fail.
-			if strings.Contains(line, ".Fail(") {
-				continue
-			}
-			blockLine = i
-			break
-		}
-	}
+	blockLine := firstBlockLine(lines)
 	if blockLine < 0 {
 		return nil
 	}
-	// Scan subsequent lines in the same function-ish region (until next func or EOF).
-	for i := blockLine + 1; i < len(lines) && i < blockLine+40; i++ {
+	line, kind := blockedReturnAfter(lines, blockLine)
+	if kind == noBlockedReturn {
+		return nil
+	}
+	return []Finding{blockedAsErrorFinding(filename, line+1, kind)}
+}
+
+// firstBlockLine is the index of the first line resolving a Task Blocked,
+// or -1. A line that also Fails is an application error, not a Block.
+func firstBlockLine(lines []string) int {
+	for i, line := range lines {
+		if (strings.Contains(line, ".Block(") || strings.Contains(line, ".BlockedBy(")) && !strings.Contains(line, ".Fail(") {
+			return i
+		}
+	}
+	return -1
+}
+
+// blockedReturnAfter finds the first return after blockLine, within the
+// same function, that hands the Block back as an error. Finish, Conclusion
+// and ExitCode lines are the correct presentation closeout and never match.
+func blockedReturnAfter(lines []string, blockLine int) (int, blockedReturnKind) {
+	for i := blockLine + 1; i < len(lines) && i < blockLine+blockedScanWindow; i++ {
 		line := strings.TrimSpace(lines[i])
 		if strings.HasPrefix(line, "func ") {
 			break
 		}
-		// Returning Finish/conclusion is correct presentation closeout — not a false positive.
 		if strings.Contains(line, "Finish(") || strings.Contains(line, "Conclusion()") || strings.Contains(line, "ExitCode") {
 			continue
 		}
-		for _, pat := range errorReturns {
+		for _, pat := range blockedErrorReturns {
 			if strings.Contains(line, pat) {
-				return []Finding{{
-					RuleID:     "DOM-011",
-					Message:    "expected blocked item returned as application error; Block/BlockedBy is a presentation outcome — return nil after Finish, use conclusion ExitCode for process status (MCP-014)",
-					File:       filename,
-					Line:       i + 1,
-					Suggestion: "replace this return with `return out.Finish()` and read the process status from Conclusion().ExitCode",
-				}}
+				return i, returnsNewError
 			}
 		}
-		// `return err` after Block when err is not from Finish — common misuse.
-		if line == "return err" || strings.HasPrefix(line, "return err //") || line == "return err;" {
-			// Allow if earlier line assigned err from Finish only in the window.
-			finishAssigned := false
-			for j := blockLine; j < i; j++ {
-				if strings.Contains(lines[j], "Finish()") && strings.Contains(lines[j], "err") {
-					finishAssigned = true
-					break
-				}
-			}
-			if !finishAssigned {
-				return []Finding{{
-					RuleID:     "DOM-011",
-					Message:    "return err after Block treats expected blocked item as application error; Finish then use ExitCode (MCP-014)",
-					File:       filename,
-					Line:       i + 1,
-					Suggestion: "replace `return err` with `return out.Finish()` and read the process status from Conclusion().ExitCode",
-				}}
-			}
+		if isBareReturnErr(line) && !errFromFinish(lines[blockLine:i]) {
+			return i, returnsErr
 		}
 	}
-	return nil
+	return -1, noBlockedReturn
+}
+
+func isBareReturnErr(line string) bool {
+	return line == "return err" || strings.HasPrefix(line, "return err //") || line == "return err;"
+}
+
+// errFromFinish reports whether err was assigned from Finish in lines.
+func errFromFinish(lines []string) bool {
+	for _, l := range lines {
+		if strings.Contains(l, "Finish()") && strings.Contains(l, "err") {
+			return true
+		}
+	}
+	return false
+}
+
+// blockedAsErrorFinding is the DOM-011 finding for a return of kind at line.
+func blockedAsErrorFinding(filename string, line int, kind blockedReturnKind) Finding {
+	f := Finding{RuleID: "DOM-011", File: filename, Line: line}
+	if kind == returnsErr {
+		f.Message = "return err after Block treats expected blocked item as application error; Finish then use ExitCode (MCP-014)"
+		f.Suggestion = "replace `return err` with `return out.Finish()` and read the process status from Conclusion().ExitCode"
+		return f
+	}
+	f.Message = "expected blocked item returned as application error; Block/BlockedBy is a presentation outcome — return nil after Finish, use conclusion ExitCode for process status (MCP-014)"
+	f.Suggestion = "replace this return with `return out.Finish()` and read the process status from Conclusion().ExitCode"
+	return f
 }

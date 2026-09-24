@@ -23,6 +23,27 @@ import (
 // a rename or a new exported symbol always lands in a stable, reviewable
 // place in the diff.
 func Walk(dir string) ([]string, error) {
+	fset := token.NewFileSet()
+	docPkg, err := parsePackageDoc(fset, dir)
+	if err != nil {
+		return nil, err
+	}
+	var lines []string
+	for _, typ := range docPkg.Types {
+		lines = append(lines, typeLines(fset, typ)...)
+	}
+	lines = append(lines, funcLines(fset, docPkg.Funcs)...)
+	for _, group := range [][]*doc.Value{docPkg.Consts, docPkg.Vars} {
+		lines = append(lines, valueLines(group)...)
+	}
+	sort.Strings(lines)
+	return lines, nil
+}
+
+// parsePackageDoc parses every non-test .go file in dir into go/doc's
+// view of the package, keeping unexported declarations so grouping
+// matches the source.
+func parsePackageDoc(fset *token.FileSet, dir string) (*doc.Package, error) {
 	info, err := os.Stat(dir)
 	if err != nil {
 		return nil, fmt.Errorf("apisurface: stat %s: %w", dir, err)
@@ -30,7 +51,6 @@ func Walk(dir string) ([]string, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("apisurface: %s is not a directory", dir)
 	}
-	fset := token.NewFileSet()
 	matches, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
 		return nil, fmt.Errorf("apisurface: glob %s: %w", dir, err)
@@ -53,48 +73,53 @@ func Walk(dir string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("apisurface: doc %s: %w", dir, err)
 	}
+	return docPkg, nil
+}
 
-	var lines []string
-	for _, typ := range docPkg.Types {
-		if !ast.IsExported(typ.Name) {
-			continue
-		}
-		lines = append(lines, "type "+typ.Name)
-		for _, field := range exportedStructFields(typ) {
-			lines = append(lines, "type "+typ.Name+"."+field)
-		}
-		for _, m := range typ.Methods {
-			if ast.IsExported(m.Name) {
-				lines = append(lines, "func ("+typ.Name+") "+m.Name+renderParams(fset, m.Decl.Type))
-			}
-		}
-		// go/doc groups a top-level func under its return type's Funcs
-		// (constructor-style grouping) instead of docPkg.Funcs whenever its
-		// first result is that type — e.g. func ParseFormat(string) (Format,
-		// error) lands here, not below. Missing this loop lets such a func
-		// join the public surface invisibly to this golden.
-		for _, fn := range typ.Funcs {
-			if ast.IsExported(fn.Name) {
-				lines = append(lines, "func "+fn.Name+renderParams(fset, fn.Decl.Type))
-			}
+// typeLines is one exported type's surface: the type, its exported struct
+// fields and methods, and the funcs go/doc groups under it. go/doc files a
+// top-level func under its return type's Funcs (constructor-style
+// grouping) whenever its first result is that type — e.g. func
+// ParseFormat(string) (Format, error) lands here — so missing them would
+// let such a func join the public surface invisibly to this golden.
+func typeLines(fset *token.FileSet, typ *doc.Type) []string {
+	if !ast.IsExported(typ.Name) {
+		return nil
+	}
+	lines := []string{"type " + typ.Name}
+	for _, field := range exportedStructFields(typ) {
+		lines = append(lines, "type "+typ.Name+"."+field)
+	}
+	for _, m := range typ.Methods {
+		if ast.IsExported(m.Name) {
+			lines = append(lines, "func ("+typ.Name+") "+m.Name+renderParams(fset, m.Decl.Type))
 		}
 	}
-	for _, fn := range docPkg.Funcs {
+	return append(lines, funcLines(fset, typ.Funcs)...)
+}
+
+// funcLines is each exported func with its signature.
+func funcLines(fset *token.FileSet, funcs []*doc.Func) []string {
+	var lines []string
+	for _, fn := range funcs {
 		if ast.IsExported(fn.Name) {
 			lines = append(lines, "func "+fn.Name+renderParams(fset, fn.Decl.Type))
 		}
 	}
-	for _, group := range [][]*doc.Value{docPkg.Consts, docPkg.Vars} {
-		for _, v := range group {
-			for _, name := range v.Names {
-				if ast.IsExported(name) {
-					lines = append(lines, "value "+name)
-				}
+	return lines
+}
+
+// valueLines is each exported const or var name.
+func valueLines(values []*doc.Value) []string {
+	var lines []string
+	for _, v := range values {
+		for _, name := range v.Names {
+			if ast.IsExported(name) {
+				lines = append(lines, "value "+name)
 			}
 		}
 	}
-	sort.Strings(lines)
-	return lines, nil
+	return lines
 }
 
 // renderParams renders a func/method's parameter and result list exactly as
