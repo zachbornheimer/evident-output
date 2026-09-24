@@ -17,6 +17,10 @@ const metricsLabel = "timing"
 // metricsSeparator joins the timing line's clauses.
 const metricsSeparator = " · "
 
+// nestedSeparator joins the spans a clause contains, inside its
+// parentheses.
+const nestedSeparator = ", "
+
 // spanDisplayResolution is the smallest span formatSpan can show; a shorter
 // span would render as a misleading "0ms" and is omitted instead.
 const spanDisplayResolution = time.Millisecond
@@ -28,8 +32,10 @@ const secondsSpanPrecision = 100 * time.Millisecond
 // WriteMetrics renders the run's derived §39 aggregate as one dim line:
 // how work and tracked operations resolved, where time went (running,
 // waiting on dependencies, waiting on scheduler capacity, inside
-// definitions, checking provenance, verifying tracked state), the critical
-// path, and peak concurrency. Zero clauses are omitted; a run with nothing
+// definitions, evaluating Verify), the critical path, and peak
+// concurrency. Checking provenance and verifying tracked state happen
+// inside Define callbacks, so they print in parentheses after the
+// definitions span they are part of, never as sibling buckets. Zero clauses are omitted; a run with nothing
 // to say writes nothing. The caller gates it on Verbose: rows are scarce
 // (contract §13).
 func WriteMetrics(b *strings.Builder, m core.RunMetrics, color bool) {
@@ -51,8 +57,13 @@ func (c *clauseList) add(ok bool, clause string) {
 }
 
 func (c *clauseList) addSpan(d time.Duration, label string) {
-	c.add(d >= spanDisplayResolution, formatSpan(d)+" "+label)
+	c.add(showsSpan(d), spanClause(d, label))
 }
+
+// showsSpan reports whether d is long enough to show at display precision.
+func showsSpan(d time.Duration) bool { return d >= spanDisplayResolution }
+
+func spanClause(d time.Duration, label string) string { return formatSpan(d) + " " + label }
 
 func resolutionClauses(m core.RunMetrics) clauseList {
 	var c clauseList
@@ -71,12 +82,24 @@ func timeClauses(m core.RunMetrics) clauseList {
 	c.addSpan(m.Running, "running")
 	c.addSpan(m.DependencyWait, "waiting on dependencies")
 	c.addSpan(m.SchedulerWait, "waiting on capacity")
-	c.addSpan(m.Definition, "in definitions")
-	c.addSpan(m.Provenance, "checking provenance")
-	c.addSpan(m.Evidence+m.TrackedState, "verifying tracked state")
+	c.add(showsSpan(m.Definition), definitionClause(m))
+	c.addSpan(m.Evidence, "evaluating Verify")
 	c.addSpan(m.CriticalPath, "critical path")
 	c.add(m.PeakConcurrency > 0, fmt.Sprintf("peak %d concurrent", m.PeakConcurrency))
 	return c
+}
+
+// definitionClause renders time inside Define callbacks, followed by the
+// provenance and tracked-state spans nested inside it.
+func definitionClause(m core.RunMetrics) string {
+	var nested clauseList
+	nested.addSpan(m.Provenance, "checking provenance")
+	nested.addSpan(m.TrackedState, "verifying tracked state")
+	clause := spanClause(m.Definition, "in definitions")
+	if len(nested) == 0 {
+		return clause
+	}
+	return clause + " (" + strings.Join(nested, nestedSeparator) + ")"
 }
 
 // formatSpan renders a metric duration at a precision that still means

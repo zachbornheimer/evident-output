@@ -67,7 +67,7 @@ type OperationCounts = core.OperationCounts
 // RunMetrics is the run-level optimization aggregate (§39) that
 // Conclusion.Metrics derives from every Task: resolution and callback
 // counts, where the run's time went (waiting on dependencies or capacity,
-// running, inside definitions, checking provenance, verifying tracked
-// state), the critical path, peak concurrency, and tracked-operation
+// running, inside definitions (checking provenance and verifying tracked
+// state happen there), evaluating Verify), the critical path, peak concurrency, and tracked-operation
 // tallies, with the rates derived from them.
 type RunMetrics = core.RunMetrics
