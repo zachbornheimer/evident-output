@@ -169,7 +169,7 @@ func (t *TaskHandle) capture(opts ...CaptureOption) *capture {
 }
 
 // capture returns a session-level retained/redacted writer with no owning
-// Task. Prefer Task.Capture so failure output attaches to an entity.
+// Task. Prefer task.Writer() so failure output attaches to an entity.
 // Session-level capture is advanced; ordinary call sites should not use it.
 func (o *Output) capture(opts ...CaptureOption) *capture {
 	return newCapture(o, "", "", opts...)
