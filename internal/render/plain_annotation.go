@@ -34,6 +34,17 @@ func warningText(w core.Problem) string {
 	return w.Subject + "  " + w.Summary
 }
 
+// WarningLine is a run-scoped warning's full durable "! subject  summary"
+// line, glyph and subject rendered exactly as a task warning's own row
+// reads (E-109 parity) — the one place outside this package allowed to
+// build that line, so a caller that streams a run-scoped Output.Problem
+// immediately (engine's warnLocked, which writes durable text before a
+// snapshot's own RenderPlain pass ever runs) never hand-rolls the glyph or
+// drops the subject.
+func WarningLine(s Style, w core.Problem) string {
+	return s.warningGlyph() + " " + warningText(w)
+}
+
 // inlineWarningText renders an inline warning with the same "! " bang the
 // nested writeNestedTaskWarnings line uses (E2.5 finding 3): the normative
 // repo-retire dry-run fixture inlines a warning as "! kept 13 (...)" — an

@@ -53,3 +53,21 @@ func TestWarningSeverity_OnSubjectReachesEveryProjection(t *testing.T) {
 		}
 	}
 }
+
+// TestRunWarningSeverity_OnSubjectReachesLiveStream pins the run-scoped
+// sibling of E-109: Output.Problem("x", evo.On("disk"),
+// evo.Severity(evo.SeverityWarning)) must print the same "subject  summary"
+// shape on the live human stream that a task-scoped warning prints, not a
+// bare "! x" that drops which subject the warning is about.
+func TestRunWarningSeverity_OnSubjectReachesLiveStream(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "warning", Color: evo.ColorNever, Plain: true})
+	out.Problem("x", evo.On("disk"), evo.Severity(evo.SeverityWarning))
+	_ = out.Finish()
+	_ = out.Close()
+
+	human := buf.String()
+	if !strings.Contains(human, "disk  x") {
+		t.Errorf("run-scoped warning human output drops the On subject:\n%s", human)
+	}
+}

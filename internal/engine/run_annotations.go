@@ -2,6 +2,7 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -68,6 +69,5 @@ func (o *Output) warnLocked(p Problem) {
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "run.warned", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventWarningRecorded, "", wire.ToProblemDoc(p).EventPayload())
-	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(o.cfg.glyphs), txt.SGRYellow, !o.cfg.noColor)
-	o.writeDurableTextLocked(glyph + " " + p.Summary + "\n")
+	o.writeDurableTextLocked(render.WarningLine(o.humanStyle(), p) + "\n")
 }
