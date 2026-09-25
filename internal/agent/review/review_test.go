@@ -2139,6 +2139,26 @@ func (r *runner) resolutionPhase(text string) {
 	}
 }
 
+func TestAPI037_WrapperMethodOverProblemVerb(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+type runner struct{ task *evo.TaskHandle }
+func (r *runner) resolutionPhase(msg string) {
+  r.task.Problem(msg)
+}
+`
+	res := review.GoSource("wrapper_problem.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-037" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-037 on a Problem wrapper: %+v", res.Findings)
+	}
+}
+
 func TestAPI037_NoFalsePositiveOnMultiStatementMethod(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
