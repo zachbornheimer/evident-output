@@ -155,7 +155,7 @@ func TestSequenceHandle_Wait_FailedStepOmitsNotStartedFollowers(t *testing.T) {
 
 // TestGroupHandle_Wait_BlockedChildSurfacesFailure pins the "blocked ...
 // descendants have defined semantics" acceptance line: a child that resolves
-// Blocked (via the standard `return task.Blockf(...)` Define idiom) makes
+// Blocked (via the standard Block-then-return Define idiom) makes
 // the container Wait fail deterministically, exactly like a Failed child.
 func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 	var buf strings.Builder
@@ -169,7 +169,8 @@ func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 		jobs.Task("a").Define(func(ctx context.Context) error { return nil })
 		blocked := jobs.Task("b")
 		blocked.Define(func(ctx context.Context) error {
-			return blocked.Blockf("needs manual review: %w", errors.New("ambiguous"))
+			blocked.Block("needs manual review", Detail("ambiguous"))
+			return nil
 		})
 		err := jobs.Wait()
 		if err == nil {
@@ -186,7 +187,7 @@ func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 		nested := out.Group("outer")
 		inner := nested.Group("inner")
 		innerBlocked := inner.Task("c")
-		innerBlocked.Define(func(ctx context.Context) error { return innerBlocked.Blockf("held") })
+		innerBlocked.Define(func(ctx context.Context) error { innerBlocked.Block("held"); return nil })
 		_ = nested.Wait()
 		if got := nested.Snapshot().State; got != Blocked {
 			t.Errorf("outer group state = %v, want Blocked from its nested Group", got)

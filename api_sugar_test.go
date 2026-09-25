@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -107,7 +108,7 @@ func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
 	}
 }
 
-// --- Item 0: Fail/Block are statement-form; Failf/Blockf return %w errors ---
+// --- Item 0: Fail/Block are statement-form; Actions attach as ProblemOptions ---
 
 func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard})
@@ -123,74 +124,32 @@ func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
 	}
 }
 
-func TestAPISugar_TaskFailfWrapsAndReturnsError(t *testing.T) {
+// TestAPISugar_FailNextOptionAttachesRemedy pins the one way an Action
+// attaches to a Fail: the Next ProblemOption on the Fail call itself.
+func TestAPISugar_FailNextOptionAttachesRemedy(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
-	cause := errors.New("manifest missing")
-	err := task.Failf("validate policy manifest: %w", cause)
-	if err == nil {
-		t.Fatal("expected non-nil error")
-	}
-	if !strings.Contains(err.Error(), "validate policy manifest") {
-		t.Fatalf("error message = %q, want it to contain the summary", err.Error())
-	}
-	if !errors.Is(err, cause) {
-		t.Fatalf("errors.Is(err, cause) = false, want true (must wrap with %%w)")
-	}
-	if got := task.Snapshot().Summary; got != "validate policy manifest" {
-		t.Fatalf("summary = %q, want the text before the trailing %%w split off", got)
+	task.Fail("validate policy manifest", evo.Next(evo.Label("re-run with --force")))
+	if got := remedyLabels(task.Snapshot()); len(got) != 1 || got[0] != "re-run with --force" {
+		t.Fatalf("remedies = %q, want the Next label attached", got)
 	}
 }
 
-// TestAPISugar_TaskFailfNextAttachesRemedy pins L2: Failf/Blockf return a
-// *Failure so the remedy for a failure has somewhere to attach at the return
-// site — `return task.Failf("...: %w", err).Next(...)` — instead of a second
-// statement (the zq clean_repo.go build break this closes).
-func TestAPISugar_TaskFailfNextAttachesRemedy(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("validate")
-	cause := errors.New("manifest missing")
-
-	run := func() error {
-		return task.Failf("validate policy manifest: %w", cause).
-			Next(evo.Label("re-run with --force"))
-	}
-	err := run()
-
-	if err == nil {
-		t.Fatal("expected non-nil error")
-	}
-	if !errors.Is(err, cause) {
-		t.Fatalf("errors.Is(err, cause) = false, want true through *Failure.Unwrap")
-	}
-	var failure *evo.Failure
-	if !errors.As(err, &failure) {
-		t.Fatalf("errors.As(err, *evo.Failure) = false, want true")
-	}
-	snap := task.Snapshot()
-	if len(snap.Actions) != 1 || snap.Actions[0].Label != "re-run with --force" {
-		t.Fatalf("actions = %#v, want the Next label attached", snap.Actions)
-	}
-}
-
-// TestAPISugar_TaskBlockfNextCommandAttachesRemedy exercises Blockf's
-// matching Next/NextCommand contract.
-func TestAPISugar_TaskBlockfNextCommandAttachesRemedy(t *testing.T) {
+// TestAPISugar_BlockNextCommandOptionAttachesRemedy is the Block half.
+func TestAPISugar_BlockNextCommandOptionAttachesRemedy(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("apply")
-	err := task.Blockf("dirty working tree").NextCommand("git", "status")
-	if err == nil {
-		t.Fatal("expected non-nil error")
-	}
+	task.Block("dirty working tree", evo.NextCommand("git", "status"))
 	snap := task.Snapshot()
-	if len(snap.Actions) != 1 || snap.Actions[0].Command == nil || snap.Actions[0].Command.Executable != "git" {
-		t.Fatalf("actions = %#v, want the NextCommand attached", snap.Actions)
+	if snap.State != evo.Blocked {
+		t.Fatalf("state = %q, want Blocked", snap.State)
+	}
+	if got := remedyLabels(snap); len(got) != 1 || got[0] != "git status" {
+		t.Fatalf("remedies = %q, want the NextCommand attached", got)
 	}
 }
 
@@ -299,43 +258,12 @@ func TestStep_IsolatedPlainDoesNotEmitPerNamePhase(t *testing.T) {
 	}
 }
 
-func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("validate")
-	err := task.Failf("validate %s: exit %d", "manifest", 1)
-	if err == nil || err.Error() != "validate manifest: exit 1" {
-		t.Fatalf("err = %v, want formatted summary", err)
-	}
-	if got := task.Snapshot().Summary; got != "validate manifest: exit 1" {
-		t.Fatalf("summary = %q, want the whole formatted text (no %%w to split on)", got)
-	}
-}
-
-func TestAPISugar_ItemBlockfWrapsAndReturnsError(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	item := out.Task("policy gate")
-	cause := errors.New("denied")
-	err := item.Blockf("blocked by policy: %w", cause)
-	if err == nil || !errors.Is(err, cause) {
-		t.Fatalf("err = %v, want it to wrap cause", err)
-	}
-}
-
 func TestAPISugar_FailNilHandleIsSafe(t *testing.T) {
 	var task *evo.TaskHandle
 	task.Fail("summary") // must not panic
 
 	var item *evo.TaskHandle
 	item.Block("summary") // must not panic
-
-	var itemF *evo.TaskHandle
-	if err := itemF.Blockf("summary: %w", errors.New("boom")); err == nil {
-		t.Fatal("expected non-nil error even on a nil handle")
-	}
 }
 
 // --- Item 3: task.Run subprocess facade ---
@@ -447,4 +375,22 @@ func TestAPISugar_RunRedactsSecrets(t *testing.T) {
 	if strings.Contains(task.EvidenceForTest().Text(), "s3kr3t") {
 		t.Fatalf("capture tail leaked the redacted secret: %q", task.EvidenceForTest().Text())
 	}
+}
+
+// remedyLabels lists every Action on snap, the Task's own and those its
+// Problems carry, as a command line or its label.
+func remedyLabels(snap evo.TaskSnapshot) []string {
+	actions := slices.Clone(snap.Actions)
+	for _, p := range snap.Problems {
+		actions = append(actions, p.Actions...)
+	}
+	labels := make([]string, 0, len(actions))
+	for _, a := range actions {
+		if a.Command != nil {
+			labels = append(labels, strings.Join(append([]string{a.Command.Executable}, a.Command.Args...), " "))
+			continue
+		}
+		labels = append(labels, a.Label)
+	}
+	return labels
 }

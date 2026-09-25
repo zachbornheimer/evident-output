@@ -124,7 +124,6 @@ var dialectSurface = map[string][]string{
 		"Events()",
 		"Fact(name string, value string)",
 		"Fail(summary string, options ...ProblemOption)",
-		"Failf(format string, args ...any)",
 		"Finish()",
 		"Group(name string)",
 		"Next(actions ...Action)",
@@ -144,7 +143,6 @@ var dialectSurface = map[string][]string{
 	"*TaskHandle": {
 		"After(preds ...any)",
 		"Block(summary string, options ...ProblemOption)",
-		"Blockf(format string, args ...any)",
 		"Bytes(completed int64, total int64)",
 		"Cancel(reason string)",
 		"Context()",
@@ -153,7 +151,6 @@ var dialectSurface = map[string][]string{
 		"Doing(text string, args ...any)",
 		"Fact(name string, value string)",
 		"Fail(summary string, options ...ProblemOption)",
-		"Failf(format string, args ...any)",
 		"Kept(reason TaxonomyReason)",
 		"Next(actions ...Action)",
 		"NextCommand(executable string, args ...string)",
@@ -189,12 +186,6 @@ var dialectSurface = map[string][]string{
 		"Printf(format string, args ...any)",
 		"Println(args ...any)",
 		"Writer()",
-	},
-	"*Failure": {
-		"Error()",
-		"Next(actions ...Action)",
-		"NextCommand(executable string, args ...string)",
-		"Unwrap()",
 	},
 	"TaxonomyReason": {
 		"Name()",

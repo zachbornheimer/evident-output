@@ -312,7 +312,7 @@ func (o *Output) emitPlannedHeaderLocked() {
 // attachVerificationLocked appends details onto taskID's own running
 // record — evo.File/evo.Exec's per-attribute reconciliation evidence
 // (spec §2/§8.2), recorded before the task resolves so it is already
-// present by the time Fail/Failf's terminal verb reads the task's state
+// present by the time Fail's terminal verb reads the task's state
 // (the same "annotate before terminal" timing Fact/Warn require). A no-op
 // once the task has already resolved or does not exist.
 func (o *Output) attachVerificationLocked(taskID string, details []core.VerificationDetail) {

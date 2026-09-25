@@ -14,20 +14,13 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	return t
 }
 
-// Block resolves the Task Blocked: a refusal, not a failure. Use it as a
-// statement; to return the refusal in the same line (including from a
-// Define callback), use Blockf.
+// Block resolves the Task Blocked: a policy or precondition refused the
+// work (a refusal, not a failure). It is a statement. Attach the remedy as
+// a ProblemOption: `task.Block("worktree is dirty", evo.NextCommand("git",
+// "status"))`. Inside a Define callback, Block and then return: the Task
+// stays Blocked, where a returned error alone would conclude it Failed.
 func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	t.impl().Block(summary, options...)
-}
-
-// Blockf resolves the Task Blocked with a formatted summary and returns
-// the refusal as a *Failure, meant to be returned (and chained with Next).
-// Inside a Define callback `return task.Blockf(...)` is how the callback
-// refuses: the Task concludes Blocked, where a plain returned error would
-// conclude it Failed. As a bare statement use Block.
-func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
-	return wrapFailure(t.impl().Blockf(format, args...))
 }
 
 func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
@@ -71,19 +64,12 @@ func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	return t
 }
 
-// Fail resolves the Task Failed. Use it as a statement; to return the
-// failure as an error in the same line, use Failf.
+// Fail resolves the Task Failed. It is a statement. Attach the remedy as a
+// ProblemOption: `task.Fail("offline", evo.Next(evo.Label("check network
+// access")))`. Inside a Define callback, fail with a cause by returning the
+// error instead: the callback's error resolves the Task.
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	t.impl().Fail(summary, options...)
-}
-
-// Failf resolves the Task Failed with a formatted summary and returns the
-// failure as a *Failure, meant to be returned (and chained with Next) from
-// code outside a Define callback. Inside a Define callback return an error
-// instead: the callback's error resolves the Task. As a bare statement use
-// Fail.
-func (t *TaskHandle) Failf(format string, args ...any) *Failure {
-	return wrapFailure(t.impl().Failf(format, args...))
 }
 
 func (t *TaskHandle) Kept(reason TaxonomyReason) { t.impl().Kept(reason.inner) }

@@ -17,15 +17,16 @@ import (
 // happened".
 var errProbe = errors.New("probe failure")
 
-// TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve pins the P13
-// probe: a callback that resolves itself and returns that error is one
+// TestScheduler_P13_SelfResolvedDefineDoesNotDoubleResolve pins the P13
+// probe: a callback that resolves itself and then returns an error is one
 // outcome, not two — the scheduler must not re-Fail it or record misuse.
-func TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve(t *testing.T) {
+func TestScheduler_P13_SelfResolvedDefineDoesNotDoubleResolve(t *testing.T) {
 	t.Parallel()
 	out := isolatedScheduler(t, 1, io.Discard, false)
 	task := out.Task("lint")
 	task.Define(func(ctx context.Context) error {
-		return task.Failf("lint failed: %w", errProbe)
+		task.Fail("lint failed")
+		return errProbe
 	})
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)

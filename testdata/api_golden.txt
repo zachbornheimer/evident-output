@@ -1,7 +1,3 @@
-func (Failure) Error()  string
-func (Failure) Next(actions ...Action)  *Failure
-func (Failure) NextCommand(executable string, args ...string)  *Failure
-func (Failure) Unwrap()  error
 func (GroupHandle) Group(name string)  *GroupHandle
 func (GroupHandle) Sequence(name string)  *SequenceHandle
 func (GroupHandle) Snapshot()  TasksSnapshot
@@ -17,7 +13,6 @@ func (Output) Err()  error
 func (Output) Events()  []Event
 func (Output) Fact(name, value string)
 func (Output) Fail(summary string, options ...ProblemOption)
-func (Output) Failf(format string, args ...any)
 func (Output) Finish()  error
 func (Output) Group(name string)  *GroupHandle
 func (Output) Next(actions ...Action)
@@ -45,7 +40,6 @@ func (SequenceHandle) Task(name string)  *TaskHandle
 func (SequenceHandle) Wait()  error
 func (TaskHandle) After(preds ...any)  *TaskHandle
 func (TaskHandle) Block(summary string, options ...ProblemOption)
-func (TaskHandle) Blockf(format string, args ...any)  *Failure
 func (TaskHandle) Bytes(completed, total int64)  *TaskHandle
 func (TaskHandle) Cancel(reason string)
 func (TaskHandle) Context()  context.Context
@@ -53,7 +47,6 @@ func (TaskHandle) Define(fn func(context.Context) error)  *TaskHandle
 func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
 func (TaskHandle) Fact(name, value string)  *TaskHandle
 func (TaskHandle) Fail(summary string, options ...ProblemOption)
-func (TaskHandle) Failf(format string, args ...any)  *Failure
 func (TaskHandle) Kept(reason TaxonomyReason)
 func (TaskHandle) Key(key string)  *TaskHandle
 func (TaskHandle) Next(actions ...Action)  *TaskHandle
@@ -184,7 +177,6 @@ type EvidenceStream
 type ExecResult
 type ExecSpec
 type FactRecord
-type Failure
 type Field
 type FileFS
 type FileSet

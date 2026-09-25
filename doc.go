@@ -77,7 +77,7 @@
 //
 // evo.Init/evo.Main/evo.Run, Output.Run for a hosted/Isolated instance,
 // Print*, evo.Task/evo.Group/evo.Sequence, Task.Define / evo.Effect / evo.File /
-// Task.Writer, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
+// Task.Writer, Task.Fail / Task.Block,
 // evo.Confirm, evo.Reason, slog via SlogHandler (level from Config.Debug.Level).
 //
 // # Advanced surface

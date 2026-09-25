@@ -126,7 +126,7 @@ type TaskSnapshot struct {
 	// if any (§30) — the zero value when Verify was never called.
 	Evidence TaskEvidence
 	// synthetic marks a task the library invented to carry an output-level
-	// outcome (Output.Failf/Cancel) rather than one the caller declared —
+	// outcome (Output.Fail/Cancel) rather than one the caller declared —
 	// presentation-internal bookkeeping (coalescing), never part of the
 	// public snapshot contract. Set via NewTaskSnapshot, read via Synthetic.
 	synthetic bool
@@ -147,7 +147,7 @@ func NewTaskSnapshot(base TaskSnapshot, liveFirstSeenAt time.Time, synthetic boo
 func (t TaskSnapshot) LiveFirstSeenAt() time.Time { return t.liveFirstSeenAt }
 
 // Synthetic reports whether the library invented this task to carry an
-// output-level outcome (Output.Failf/Cancel) rather than the caller having
+// output-level outcome (Output.Fail/Cancel) rather than the caller having
 // declared it.
 func (t TaskSnapshot) Synthetic() bool { return t.synthetic }
 

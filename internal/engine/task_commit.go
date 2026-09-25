@@ -19,14 +19,20 @@ func (st *taskState) honestOutcome(state EntityState) EntityState {
 // tail the Task already gathered, so the detail a caller collected through
 // evidence()/PhaseWriter() needs no opt-in (beginner-2). A Problem with its
 // own Detail or EvidenceTail keeps it; that also avoids re-entering the
-// redactor lock this resolution already holds for a pending tail.
+// redactor lock this resolution already holds for a pending tail. It fills
+// EvidenceTail, not Detail: render's effectiveDetailAndTail already shows
+// EvidenceTail alone as the detail body when Detail is empty (identical to
+// filling Detail directly), but routing through EvidenceTail is what lets
+// render's dedupeEvidenceTailAgainstRow catch the case where a caller's own
+// summary already embeds the retained text (P7) — that dedup only ever
+// inspects EvidenceTail.
 func (st *taskState) attachEvidenceTail(state EntityState, problems []Problem) []Problem {
 	if (state != Failed && state != Blocked) || st.evidence == nil || st.evidence.Empty() {
 		return problems
 	}
 	for i := range problems {
 		if problems[i].Detail == "" && problems[i].EvidenceTail == "" {
-			problems[i].Detail = st.evidence.detailText()
+			problems[i].EvidenceTail = st.evidence.detailText()
 		}
 	}
 	return problems

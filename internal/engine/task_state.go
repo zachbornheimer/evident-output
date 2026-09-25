@@ -58,7 +58,7 @@ type taskState struct {
 	coreEmitted bool
 
 	// synthetic marks a task the library invented to carry an output-level
-	// outcome (Output.Failf/Cancel's synthetic "command" task) rather than
+	// outcome (Output.Fail/Cancel's synthetic "command" task) rather than
 	// one the caller declared. shouldSuppressRepeatedCondition (I2) must
 	// never drop the standalone conclusion band for one of these: it is the
 	// only place the run's outcome is ever stated, unlike a caller-declared

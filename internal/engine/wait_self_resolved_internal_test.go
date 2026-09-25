@@ -9,7 +9,7 @@ import (
 )
 
 // TestTaskHandle_Wait_SelfResolvedBeforeReturn_IsNotSuccess pins the window
-// between a callback resolving its own row (Blockf/Failf close the task's
+// between a callback resolving its own row (Block/Fail close the task's
 // done channel at once) and that callback actually returning (when its error
 // is recorded). A waiter released inside that window used to see a Blocked
 // row with no recorded error and report success — the race that made
@@ -21,8 +21,8 @@ func TestTaskHandle_Wait_SelfResolvedBeforeReturn_IsNotSuccess(t *testing.T) {
 		name    string
 		resolve func(task *TaskHandle) error
 	}{
-		{"Blockf", func(task *TaskHandle) error { return task.Blockf("needs review: %w", errors.New("ambiguous")) }},
-		{"Failf", func(task *TaskHandle) error { return task.Failf("compile: %w", errors.New("syntax")) }},
+		{"Block", func(task *TaskHandle) error { task.Block("needs review"); return nil }},
+		{"Fail", func(task *TaskHandle) error { task.Fail("compile"); return errors.New("syntax") }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf strings.Builder

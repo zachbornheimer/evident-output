@@ -66,7 +66,7 @@ func TestE1P1_MutationVerb_CallErrorCommitsNothing(t *testing.T) {
 
 	branches := out.Task("branches")
 	wantErr := errors.New("permission denied")
-	_ = branches.Failf("delete stale branches: %w", wantErr)
+	branches.Fail("delete stale branches", evo.Detail(wantErr.Error()))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

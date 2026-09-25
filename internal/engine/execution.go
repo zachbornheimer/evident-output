@@ -170,10 +170,10 @@ func (o *Output) executeWork(st *taskState, fn func() error) {
 		err = o.runTrackedCallback(fn)
 	}
 	o.recordWorkOutcome(st, err)
-	// A callback that resolved its own task (Failf/Fail/Block inside fn, or
+	// A callback that resolved its own task (Fail/Block inside fn, or
 	// an interrupt that cancelled the row) already stated one outcome. The
 	// scheduler neither restates it nor calls it misuse (P13) — returning
-	// the same error it already reported is the documented Failf shape.
+	// the same error it already reported is the documented self-resolved shape.
 	if !o.taskIsTerminal(st) {
 		o.resolveObserved(st, err)
 	}

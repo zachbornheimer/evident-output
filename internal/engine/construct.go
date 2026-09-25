@@ -20,7 +20,7 @@ var processArgv0 = func() string {
 }
 
 // identityFallbackName is the executable's own basename, used only when an
-// output-level outcome (Output.Failf/Cancel) has no named task and no
+// output-level outcome (Output.Fail/Cancel) has no named task and no
 // explicit Config.Title to identify it with — replacing the generic literal
 // "command" with the caller's actual binary name (I2). This is deliberately
 // NOT plumbed into Snapshot.Subject / the conclusion band's Subject: Config.

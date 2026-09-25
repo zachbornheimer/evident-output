@@ -143,16 +143,3 @@ func ExampleNextCommand() {
 	// [failed]
 	// →  git pull --rebase
 }
-
-// ExampleFailure shows the value TaskHandle.Failf/Blockf return: one
-// recorded error built and returned in a single line, further chainable
-// with Next/NextCommand.
-func ExampleFailure() {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Plain: true})
-	task := out.Task("clone repository")
-	err := task.Failf("clone failed: %w", fmt.Errorf("connection refused"))
-	_ = out.Finish()
-	fmt.Println(err.Error())
-	// Output:
-	// clone failed: connection refused
-}

@@ -48,8 +48,6 @@ func (o *Output) Fail(summary string, options ...ProblemOption) {
 	o.impl().Fail(summary, options...)
 }
 
-func (o *Output) Failf(format string, args ...any) { o.impl().Failf(format, args...) }
-
 func (o *Output) Finish() error {
 	if o == nil || o.inner == nil {
 		return nil

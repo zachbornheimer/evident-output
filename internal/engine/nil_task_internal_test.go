@@ -9,8 +9,6 @@ func TestNilTaskTerminalVerbsAreSafe(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			h.Fail("f")
 			h.Block("b")
-			_ = h.Failf("f %d", 1)
-			_ = h.Blockf("b %d", 1)
 			h.Cancel("c")
 			h.skip("s")
 		})

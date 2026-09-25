@@ -12,7 +12,6 @@ type TaskHandle struct{ inner *engine.TaskHandle }
 type SequenceHandle struct{ inner *engine.SequenceHandle }
 type GroupHandle struct{ inner *engine.GroupHandle }
 type Printer struct{ inner *engine.Printer }
-type Failure struct{ inner *engine.Failure }
 
 type Config = engine.Config
 type Option = engine.Option

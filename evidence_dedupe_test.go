@@ -9,20 +9,20 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestFailf_EvidenceDedupedAgainstSummary is red-first for P7's dedupe
+// TestFail_EvidenceDedupedAgainstSummary is red-first for P7's dedupe
 // addition (user-13-problems.md Problem 7: "deduplicate it against the
 // failure message"). The exact anti-pattern the doc names —
-// task.Failf("install failed: %s", capture.Text()) — folds the retained
+// a Fail whose summary embeds capture.Text() — folds the retained
 // output straight into the summary; the auto-attached evidence tail must
 // not then render the same text a second time underneath it.
-func TestFailf_EvidenceDedupedAgainstSummary(t *testing.T) {
+func TestFail_EvidenceDedupedAgainstSummary(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("install")
 	output := task.EvidenceForTest()
 	_, _ = fmt.Fprint(output, "npm ERR! 404 not found")
-	_ = task.Failf("install failed: %s", output.Text())
+	task.Fail("install failed: " + output.Text())
 
 	_ = out.Finish()
 
@@ -32,11 +32,11 @@ func TestFailf_EvidenceDedupedAgainstSummary(t *testing.T) {
 	}
 }
 
-// TestFailf_EvidenceStillRenders_WhenNotContainedInSummary proves the
+// TestFail_EvidenceStillRenders_WhenNotContainedInSummary proves the
 // dedupe only skips a tail that IS already in the summary — genuinely new
-// evidence (the paved-path Failf("...: %w", err) + auto-attach shape) still
+// evidence (the paved-path Fail + auto-attach shape) still
 // renders underneath.
-func TestFailf_EvidenceStillRenders_WhenNotContainedInSummary(t *testing.T) {
+func TestFail_EvidenceStillRenders_WhenNotContainedInSummary(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 

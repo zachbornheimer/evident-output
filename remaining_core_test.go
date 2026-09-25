@@ -2,7 +2,6 @@ package evo_test
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -89,7 +88,7 @@ func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
 func TestDOM049_OutputFail(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Failf("stopped: %w", errors.New("disk"))
+	out.Fail("stopped", evo.Detail("disk"))
 	_ = out.Finish()
 	if out.Conclusion().State != evo.StateFailed {
 		t.Fatal(out.Conclusion().State)

@@ -71,6 +71,15 @@ var symbols = []Symbol{
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+
+	// E-118 lane B: Failf/Blockf and the *Failure-returning path are gone
+	// with no compatibility alias. A %w-wrapped error returned from Define
+	// stays the way to fail with a cause; a remedy attaches to a
+	// statement-form Fail/Block via Next/NextCommand.
+	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "return a %w-wrapped error from Define, or Fail plus Next/NextCommand", Taught: regexp.MustCompile(`\bFailf\(`)},
+	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block plus a Next/NextCommand ProblemOption, then return the cause", Taught: regexp.MustCompile(`\bBlockf\(`)},
+	{Contract: "Output.Failf(", RemovedIn: Release1_1, Replacement: "Output.Fail", Taught: regexp.MustCompile(`\bOutput\.Failf\b`)},
+	{Contract: "Failure", RemovedIn: Release1_1, Replacement: "the returned error (errors.Is/As reach its %w cause directly)", Taught: regexp.MustCompile(`\bevo\.Failure\b|\*Failure\b`)},
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose
