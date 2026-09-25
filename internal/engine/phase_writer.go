@@ -11,7 +11,7 @@ import (
 // process: each complete line (CR or LF terminated, trimmed, non-empty)
 // becomes the task's live doing-text (see Doing), and every byte is also
 // retained in the task's capture ring (get-or-create, shared with
-// Task.Capture) so DetailTail has proof after Fail. Lines pass through the
+// task.Writer()'s other callers) so DetailTail has proof after Fail. Lines pass through the
 // same sanitize layer as Task.Doing, so hostile escape sequences never reach
 // the display. Off a TTY, these mirrored lines update the live status only —
 // they never force their own durable row the way an explicit

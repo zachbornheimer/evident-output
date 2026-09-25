@@ -1,7 +1,7 @@
 # API reference
 
 Detail behind the README quickstart: construction, config, lifecycle, the
-severity dialect, evidence capture, and platform adapters. Verified against
+severity dialect, output capture, and platform adapters. Verified against
 `doc.go` and the test suite — if this drifts from behavior, the test suite is
 wrong or this doc is; file it either way.
 
@@ -18,7 +18,7 @@ wrong or this doc is; file it either way.
 **Partial commits:** an `Effect` callback that committed part of its aggregate before failing returns `evo.PartialEffect(committed, err)`. `Effect` records one changed row with the spec's Verb and Object and `Quantity: committed` (none for 0), then returns an error that keeps `err` reachable through `errors.Is`/`errors.As`, so the Task fails while the ledger stays truthful — human rows, JSON, and the JSONL `effect.committed` payload all carry the committed count. A nil `err`, a negative `committed`, or more than `EffectSpec.Quantity` returns `ErrInvalidPartialEffect` and records nothing. Dry runs never call the callback, so they plan the full `Quantity`. `PartialEffect` is not a retry protocol and implies no rollback.
 **Loops and taxonomy:** declare one named child per item under `Group`/`Sequence` (`group.Task(name)`), then `Task.Define` submits that item's atomic work — `Group.Each`/`Sequence.Each` were removed in 1.0; `Task.Skipped(reason)` / `Task.Kept(reason)` own the counted, summed skip/keep partition (the item name is the Task name): call one per item Task, `group.Task(item).Kept(reason)`, never twice on one Task. Human output folds a Group's Kept/Skipped item children (two or more; a lone one keeps its named row) into one tally under the Group's row (`! kept N (...)` / `- skipped N (...)`) when the Group's own row names their subject — its own Task (below) or its own `Summary` — or when no sibling finished work of its own. Beside such a work peer, a Skipped/Kept child is a peer category and keeps its named row. `--verbose` lists the items under each reason; JSON/JSONL keep every child. **Own Task:** a Group's child Task named for the Group itself (`items := g.Group("branches"); work := items.Task("branches")`) is the Group's _own Task_ — the category's own work (classify, `Summary`, `Effect`), not one of its items. A Group has no `Define`, and an `Effect`'s ledger subject is its Task's name, so a category's plan (`[planned] branches  delete 87 local tips`) is owned by the Task that shares the category's name. When the own Task is the Group's only row after its items fold (no Group `Summary`, no nested Group/Sequence), the Group renders as that one row plus its tally. The own Task is never folded as an item, even when it only resolved `Skipped`; a child with any other name never stands in for its Group. `Task.Step(completed, total, name)` sets the count and the live item name together under one lock; Isolated+Plain does not stream a durable phase line per name.
 **Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error. `question` is literal text, not a printf format — Confirm is the one entity-text spelling that takes no variadic fmt args (every other one — Task/Warn/Doing/Sequence/Group/Reason — is printf-variadic), so build the string yourself (`fmt.Sprintf`) before calling. A decline resolves `[blocked]` → exit `1` (see the README's exit-code table) — pass `AssumeYes` (or check a separate flag before calling Confirm at all) if declining should exit `0` instead. The default policy hint names a `--yes` flag; pass `evo.PolicyFlag("--apply")` when your program's real flag is spelled differently.
-**Capture:** `cmd.Stdout = task.Writer()` (and stderr the same way) turns a talkative child's last line into the live doing-text and retains a bounded, redacted ring for Fail evidence. `Config.Redactor` applies before retention. Do not clear the live region around a child.
+**Capture:** `cmd.Stdout = task.Writer()` (and stderr the same way) turns a talkative child's last line into the live doing-text and retains a bounded, redacted ring for Fail detail. `Config.Redactor` applies before retention. Do not clear the live region around a child.
 **Platform:** `Format: FormatData` keeps domain payload on stdout and presentation on stderr.
 
 ## Lifecycles
@@ -39,8 +39,8 @@ plus the application error `run` returned, and something must do something
 with it (`os.Exit(result.ExitCode())`, assert on it in a test, or fold it
 into a larger program's own decision).
 
-For `Init` alone: nothing renders the final Conclusion band, and evidence
-capture / redaction never flush, until `Finish` runs — an embedding caller
+For `Init` alone: nothing renders the final Conclusion band, and capture
+/redaction never flush, until `Finish` runs — an embedding caller
 that forgets to call it (or `Close`, which calls it for you) gets an Output
 that never reports its own outcome. `Close` is safe to call unconditionally
 and more than once (idempotent); prefer `defer out.Close()` right after
