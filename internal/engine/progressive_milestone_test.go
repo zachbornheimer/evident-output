@@ -39,7 +39,9 @@ func TestTaskDoing_NarratesAfterProgressSeals(t *testing.T) {
 // signal can tell the two apart (see emitPlainProgressLocked), so a
 // counted Task's Doing never forces a durable line at all (reportsCount)
 // and every milestone streams its own item-free line instead. The prelude
-// step still narrates, and the final count prints exactly once.
+// step still narrates. The bare milestone tick for 20/20 streams once; the
+// loop's own last Doing (w-20) narrates its own separate line right after,
+// same as any post-loop step once a count has sealed.
 func TestPlainProgress_PreludeDoing_ThenCanonicalLoop(t *testing.T) {
 	var buf strings.Builder
 	out := Init(Config{Isolated: true, Title: "demo", Plain: true, Stdout: &buf, Stderr: &buf})
@@ -66,14 +68,17 @@ func TestPlainProgress_PreludeDoing_ThenCanonicalLoop(t *testing.T) {
 		}
 	}
 	lines := nonEmptyLines(got)
-	seenFinal := 0
+	bareFinal := 0
 	for _, l := range lines {
-		if strings.Contains(l, "20/20") {
-			seenFinal++
+		if strings.Contains(l, "20/20") && !strings.Contains(l, "w-20") {
+			bareFinal++
 		}
 	}
-	if seenFinal != 1 {
-		t.Fatalf("want the final milestone to appear exactly once, got %d:\n%s", seenFinal, got)
+	if bareFinal != 1 {
+		t.Fatalf("want the bare final milestone to appear exactly once, got %d:\n%s", bareFinal, got)
+	}
+	if !strings.Contains(got, "20/20  w-20") {
+		t.Fatalf("want the loop's own last Doing to narrate once the count has sealed, got:\n%s", got)
 	}
 }
 
