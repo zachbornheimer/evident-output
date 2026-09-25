@@ -94,7 +94,7 @@ func (pkg parsedPackage) localTypeError() string {
 		Importer: emptyImporter{},
 		Error: func(err error) {
 			te, ok := err.(types.Error)
-			if first != "" || (ok && qualifiers[te.Pos]) {
+			if first != "" || (ok && qualifiers.unresolved(te)) {
 				return
 			}
 			if ok && strings.Contains(te.Msg, "imported and not used") {
@@ -107,20 +107,44 @@ func (pkg parsedPackage) localTypeError() string {
 	return first
 }
 
+// importQualifierSet is importQualifiers' result, by position.
+type importQualifierSet map[token.Pos]qualifierKind
+
+// qualifierKind says how sure importQualifiers is that a position is an
+// import qualifier.
+type qualifierKind int
+
+const (
+	// qualifierKnown is a name an import supplies for certain.
+	qualifierKnown qualifierKind = iota + 1
+	// qualifierIfUndefined is a selector base that is an import qualifier
+	// exactly when no scope declares it.
+	qualifierIfUndefined
+)
+
 // importQualifiers is the position of every package qualifier in the
 // package: the X of a selector whose name is one of its file's imports.
-func (pkg parsedPackage) importQualifiers() map[token.Pos]bool {
-	out := map[token.Pos]bool{}
+// An unaliased import's package name is not always its last path element
+// (gopkg.in/yaml.v3 is yaml, go-git/v5 is git), and imports are never
+// loaded to learn it, so in a file with any unaliased import every
+// selector base is a candidate qualifier too; the type checker's
+// "undefined" error then says whether one was (E-042).
+func (pkg parsedPackage) importQualifiers() importQualifierSet {
+	out := importQualifierSet{}
 	for _, f := range pkg.files {
-		names := importNames(f)
+		names, guessed := importNames(f)
 		ast.Inspect(f, func(n ast.Node) bool {
 			sel, ok := n.(*ast.SelectorExpr)
 			if !ok {
 				return true
 			}
-			if id, ok := sel.X.(*ast.Ident); ok && names[id.Name] {
-				out[id.Pos()] = true
-				out[sel.Sel.Pos()] = true
+			id, ok := sel.X.(*ast.Ident)
+			switch {
+			case ok && names[id.Name]:
+				out[id.Pos()] = qualifierKnown
+				out[sel.Sel.Pos()] = qualifierKnown
+			case ok && guessed:
+				out[id.Pos()] = qualifierIfUndefined
 			}
 			return true
 		})
@@ -128,10 +152,24 @@ func (pkg parsedPackage) importQualifiers() map[token.Pos]bool {
 	return out
 }
 
+// unresolved reports whether te is only an unloaded import's doing.
+func (q importQualifierSet) unresolved(te types.Error) bool {
+	switch q[te.Pos] {
+	case qualifierKnown:
+		return true
+	case qualifierIfUndefined:
+		return strings.HasPrefix(te.Msg, "undefined: ")
+	default:
+		return false
+	}
+}
+
 // importNames is the set of names file f can qualify an import by: its
-// alias, else the last path element, and evo for this module.
-func importNames(f *ast.File) map[string]bool {
-	names := map[string]bool{}
+// alias, else the last path element, and evo for this module. guessed
+// reports whether any name came from an unaliased path, whose real
+// package name only loading the import could confirm.
+func importNames(f *ast.File) (names map[string]bool, guessed bool) {
+	names = map[string]bool{}
 	for _, imp := range f.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
 		if imp.Name != nil {
@@ -139,11 +177,12 @@ func importNames(f *ast.File) map[string]bool {
 			continue
 		}
 		names[path[strings.LastIndex(path, "/")+1:]] = true
+		guessed = true
 	}
 	if name := evoImportName(f); name != "" {
 		names[name] = true
 	}
-	return names
+	return names, guessed
 }
 
 // importsEvo reports whether any parsed file imports evo, so STREAM rules

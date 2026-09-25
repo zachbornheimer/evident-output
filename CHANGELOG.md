@@ -179,6 +179,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   when a return follows, and suggests one `return task.Failf(...)` (or, in a
   Define callback, `return fmt.Errorf(...)`).
 
+- Package and directory review no longer reports MCP-017 `undefined: yaml`
+  (partial, recheck required) for an unaliased import whose package name is
+  not its last path element, such as `gopkg.in/yaml.v3` or
+  `github.com/go-git/go-git/v5`. The MUST-loop could never end on such a
+  package.
+
 - Review rules API-034, API-036 and API-040 agree on one way to refuse
   inside `Define`: `return task.Blockf(...)`. API-034 and API-036 suggested
   `return fmt.Errorf(...)` for a `Block` site, which turned a `[blocked]`
