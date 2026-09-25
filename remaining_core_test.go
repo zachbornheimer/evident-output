@@ -114,7 +114,7 @@ func TestDOM048_BlockedWithNilErrorReturn(t *testing.T) {
 	}
 }
 
-func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
+func TestLOG014_LogMessageDistinctFromTaskWarningProblem(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })

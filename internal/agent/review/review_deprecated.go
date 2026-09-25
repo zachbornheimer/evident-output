@@ -128,22 +128,13 @@ var retiredSpellings = []retiredSpelling{
 		message:         "Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr",
 		suggest:         func(recv string) string { return "replace " + recv + ".Capture(...) with " + recv + ".Evidence(...)" },
 	},
-	{
-		// Problem wins over Warn (owner vocabulary freeze, 2026-09-25):
-		// warning is a Problem severity, not a separate verb.
-		pattern:         regexp.MustCompile(`(\w+)\.Warn\(`),
-		evoReceiverOnly: true,
-		ruleID:          "API-070",
-		message:         "Warn was removed in 1.1 — Problem wins over Warn; warning is a Problem severity",
-		suggest: func(recv string) string {
-			if recv == "evo" {
-				// evo.Problem is a type, not a function -- the package-level
-				// replacement goes through the default instance.
-				return `replace evo.Warn("summary", opts...) (removed in 1.1) with evo.Default().Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
-			}
-			return "replace " + recv + `.Warn("summary", opts...) with ` + recv + `.Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
-		},
-	},
+	// Warn (TaskHandle.Warn/Output.Warn/evo.Warn) was removed in 1.1 and is
+	// detected by detectWarnRemoved (review_warn.go), an AST walk over the
+	// receiver's declared/inferred type instead of a fixed receiver-name
+	// allowlist — a regex anchored on `\w+` right before `.Warn(` never
+	// matches a chained call like `out.Task("x").Warn("y")`, and
+	// evoReceiverOnly's name list missed every real-world receiver spelled
+	// branches/remotes/services/cleanup/worktrees (AGENTS.md E-117 notes).
 }
 
 // findings reports every match of r in src.

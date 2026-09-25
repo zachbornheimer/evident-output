@@ -503,10 +503,11 @@ func detectShadowedHandle(filename, src string) []Finding {
 	return findings
 }
 
-// crammedSummaryPattern matches a Fail/Block string literal summary (Warn
-// was removed in 1.1; a warning is now Problem(summary,
-// evo.Severity(evo.SeverityWarning)), out of scope for this pattern).
-var crammedSummaryPattern = regexp.MustCompile(`\.(Fail|Block)\(\s*"([^"]*)"`)
+// crammedSummaryPattern matches a Fail/Problem/Block string literal
+// summary — Problem covers both severities (Warn was removed in 1.1; a
+// warning is now Problem(summary, evo.Severity(evo.SeverityWarning)), and
+// a crammed cause/action fragment is exactly as wrong at either severity).
+var crammedSummaryPattern = regexp.MustCompile(`\.(Fail|Problem|Block)\(\s*"([^"]*)"`)
 
 // detectCrammedSummary is TXT-021: a summary that hand-assembles a
 // " — cause:"/" — action:" fragment reimplements Detail/Next inside plain text.

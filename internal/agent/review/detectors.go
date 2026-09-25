@@ -117,6 +117,13 @@ var fileDetectors = []detector{
 	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
 	// rec-surface Options/To/Plain, the mutation verbs removed in 1.1, Skip/MainWith (removed in 1.0)) gets a derived fix, not a lecture.
 	{needsEvo: true, run: detectDeprecatedSpellings},
+	// API-070: TaskHandle.Warn, Output.Warn, and evo.Warn were removed in 1.1.
+	// Problem wins over Warn. Resolved by the receiver's evo-ness (param
+	// type, chained constructor, or traced local assignment), not a fixed
+	// receiver-name allowlist, so it catches a chained call
+	// (out.Task("x").Warn(...)) and a custom receiver name (branches,
+	// remotes, cleanup) alike, while still skipping a real *slog.Logger.
+	{needsEvo: true, run: astRule(detectWarnRemoved)},
 	// API-033: an entity's own name reused verbatim as its skip/verb argument.
 	{needsEvo: true, run: textRule(detectNameEqualsVerbArgument)},
 	// API-034: a statement-form Fail/Block immediately followed by return nil

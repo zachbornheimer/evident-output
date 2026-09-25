@@ -146,11 +146,12 @@ Secrets: set `Config.Redactor`.
 
 ## Severity
 
-| Outcome   | Meaning                               |
-| --------- | ------------------------------------- |
-| **Warn**  | Soft / optional                       |
-| **Block** | Stop before mutation (not a Go error) |
-| **Fail**  | Evaluation / required tool failed     |
+| Outcome                                   | Meaning                                |
+| ----------------------------------------- | -------------------------------------- |
+| **Problem** (default `SeverityError`)     | Evaluation / required condition failed |
+| **Problem** (`Severity(SeverityWarning)`) | Soft / optional — never fails Define   |
+| **Block**                                 | Stop before mutation (not a Go error)  |
+| **Fail**                                  | Evaluation / required tool failed      |
 
 ## Review
 

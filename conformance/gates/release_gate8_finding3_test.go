@@ -42,13 +42,14 @@ func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
 	}
 }
 
-// TestConclusion_WarnOnlyRunStillCarriesWarnedModifier is
+// TestConclusion_WarningSeverityOnlyRunStillCarriesWarnedModifier is
 // TestConclusion_WarningOnlyHeadlineOmitsRedundantModifier's P2 replacement:
-// Warn no longer resolves its task (13-problem doc P2), so a task that only
-// ever calls Warn auto-resolves Done at Finish — the same amnesty a
-// recorded effect gets — and the run reads StateReady, not a StateWarning
-// headline. The "· warned" modifier still carries the warning forward.
-func TestConclusion_WarnOnlyRunStillCarriesWarnedModifier(t *testing.T) {
+// a warning-severity Problem no longer resolves its task (13-problem doc
+// P2), so a task that only ever calls a Severity(SeverityWarning) Problem
+// auto-resolves Done at Finish — the same amnesty a recorded effect gets —
+// and the run reads StateReady, not a StateWarning headline. The
+// "· warned" modifier still carries the warning forward.
+func TestConclusion_WarningSeverityOnlyRunStillCarriesWarnedModifier(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
@@ -61,7 +62,7 @@ func TestConclusion_WarnOnlyRunStillCarriesWarnedModifier(t *testing.T) {
 
 	conc := out.Conclusion()
 	if conc.State != evo.StateReady {
-		t.Fatalf("state = %v, want StateReady (Warn auto-resolves Done, P2)", conc.State)
+		t.Fatalf("state = %v, want StateReady (a warning-severity Problem auto-resolves Done, P2)", conc.State)
 	}
 	if !conc.Warned {
 		t.Fatal("Conclusion.Warned = false, want true")

@@ -1764,6 +1764,61 @@ func f() {
 	}
 }
 
+// TestAPI070_CustomReceiverName pins the review-gap report directly: a
+// *evo.GroupHandle spelled "branches" (the repo's own pre-migration
+// fixtures also used remotes/services/cleanup/worktrees) must fire exactly
+// like a receiver named task/out/o — API-070 resolves by the receiver's
+// evo-ness, not by matching its identifier against a fixed word list.
+func TestAPI070_CustomReceiverName(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) {
+  branches := out.Group("branches")
+  branches.Warn("kept 11")
+}
+`
+	res := review.GoSource("custom_receiver.go", src)
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			found = append(found, f)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected one API-070 finding for branches.Warn, got %+v", found)
+	}
+	want := `replace branches.Warn("summary", opts...) with branches.Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	if found[0].Suggestion != want {
+		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
+	}
+}
+
+// TestAPI070_ChainedCall pins the review-gap report's other missed shape:
+// `out.Task("x").Warn("y")` has no bare identifier immediately before
+// `.Warn(`, so a `\w+\.Warn\(` regex never matches it at all.
+func TestAPI070_ChainedCall(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) {
+  out.Task("x").Warn("y")
+}
+`
+	res := review.GoSource("chained.go", src)
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			found = append(found, f)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected one API-070 finding for a chained Warn call, got %+v", found)
+	}
+	want := `replace out.Task("x").Warn("summary", opts...) with out.Task("x").Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	if found[0].Suggestion != want {
+		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
+	}
+}
+
 func TestAPI070_NoFalsePositiveOnSlogWarn(t *testing.T) {
 	src := `package p
 import "log/slog"

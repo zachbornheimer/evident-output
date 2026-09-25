@@ -28,10 +28,11 @@ func TestFail_NoDetail_DropsRedundantProblemRow(t *testing.T) {
 	}
 }
 
-// TestWarn_MessagePlacement_MatchesFailBlock is beginner-3: Warn's message
-// gets the same summary placement as Fail/Block (the task's own glyph row
-// carries it), with the same de-echo dropping the redundant problem row.
-func TestWarn_MessagePlacement_MatchesFailBlock(t *testing.T) {
+// TestProblem_WarningSeverityMessagePlacement_MatchesFailBlock is
+// beginner-3: a Severity(SeverityWarning) Problem's message gets the same
+// summary placement as Fail/Block (the task's own glyph row carries it),
+// with the same de-echo dropping the redundant problem row.
+func TestProblem_WarningSeverityMessagePlacement_MatchesFailBlock(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 

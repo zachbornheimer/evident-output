@@ -105,17 +105,9 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   declare the children before the `After`, or call `g.Wait()` before the
   dependent should start. See
   [`docs/migration/1.1.md`](docs/migration/1.1.md#after-on-a-group-or-sequence-waits-for-its-members).
-- **`TaskHandle.Warn(summary string, opts ...ProblemOption) *TaskHandle`**
-  (breaking for method values and interfaces): now takes the same
-  `ProblemOption`s `Problem`/`Fail`/`Block` do and returns `*TaskHandle` to
-  chain. A `task.Warn("x")` call statement compiles unchanged;
-  `var warn func(string) = task.Warn` and `interface{ Warn(string) }` do not.
-- **`Output.Warn` and `evo.Warn`** (breaking for method values and
-  interfaces) take the same `ProblemOption`s:
-  `var warn func(string) = out.Warn` no longer compiles.
 - **`TaskHandle.Fact(name, value string) *TaskHandle`** (breaking for method
-  values and interfaces) returns the Task to chain like `Warn`, `Problem`,
-  and `Summary`: `var fact func(string, string) = task.Fact` and
+  values and interfaces) returns the Task to chain like `Problem` and
+  `Summary`: `var fact func(string, string) = task.Fact` and
   `interface{ Fact(string, string) }` no longer compile.
 - **`evo.Exec(ctx, ExecSpec) (ExecResult, error)`** (breaking): it returned
   only `error`. Assign or discard the result.
