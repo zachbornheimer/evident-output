@@ -86,6 +86,64 @@ func TestDiagnoseFindsEveryRemovedName(t *testing.T) {
 	}
 }
 
+const variadicWarnFixtureSrc = `package main
+
+import (
+	"context"
+	"fmt"
+
+	evo "github.com/zachbornheimer/evident-output"
+)
+
+func run() error {
+	out := evo.Init(evo.Config{Title: "demo"})
+	t := out.Task("check")
+	opts := []evo.ProblemOption{}
+	t.Define(func(ctx context.Context) error {
+		t.Warn("stale cache", opts...)
+		return nil
+	})
+	return out.Finish()
+}
+
+func main() { fmt.Println(run()) }
+`
+
+// TestWarnAnalyzerSkipsVariadicSpread guards the API-070 fix against
+// producing NewText that appends a plain arg after a spread trailing
+// argument (t.Warn("x", opts...) -> t.Problem("x", opts, evo.Severity(...)...)),
+// which does not compile: "too many arguments in call". A spread call
+// site gets a diagnostic with no auto-fix instead.
+func TestWarnAnalyzerSkipsVariadicSpread(t *testing.T) {
+	dir := t.TempDir()
+	writeModule(t, dir, variadicWarnFixtureSrc)
+
+	pkgs, err := fix.Load(dir, ".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	results, err := fix.Diagnose(pkgs, true)
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("want 1 package result, got %d", len(results))
+	}
+	var found bool
+	for _, d := range results[0].Diagnostics {
+		if d.RuleID != "API-070" {
+			continue
+		}
+		found = true
+		if d.Fixed {
+			t.Fatalf("variadic Warn call must not have been auto-fixed: %+v", d)
+		}
+	}
+	if !found {
+		t.Fatal("missing API-070 diagnostic for variadic Warn call")
+	}
+}
+
 const optionsFixtureSrc = `package main
 
 import evo "github.com/zachbornheimer/evident-output"

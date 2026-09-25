@@ -95,6 +95,15 @@ func runWarn(pass *analysis.Pass) (any, error) {
 
 func reportWarn(pass *analysis.Pass, call *ast.CallExpr, sel *ast.SelectorExpr, isTask bool) {
 	if isTask {
+		if call.Ellipsis != token.NoPos {
+			// A spread trailing arg (Warn(s, opts...)) can't take a
+			// mechanical ", evo.Severity(...)" append after it without
+			// producing a second variadic spread, which does not
+			// compile. Leave it for a manual rewrite.
+			pass.Report(diag("API-070", call,
+				"(*evo.TaskHandle).Warn was removed in 1.1: rewrite to Problem(summary, append(opts, evo.Severity(evo.SeverityWarning))...) by hand — the spread trailing argument isn't a mechanical rewrite"))
+			return
+		}
 		pass.Report(diag("API-070", call,
 			"(*evo.TaskHandle).Warn was removed in 1.1: Problem wins over Warn, warning is a Problem severity",
 			warnTaskFix(pass, call, sel)))

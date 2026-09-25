@@ -140,6 +140,11 @@ func (s *repeatedDispositionScan) report(call *ast.CallExpr, recv string) {
 	}
 	s.reported[call.Pos()] = true
 	method := call.Fun.(*ast.SelectorExpr).Sel.Name
+	// The per-item rewrite always names Skipped: Kept was removed in 1.1
+	// (the fixer rewrites it to Skipped), so suggesting group.Task(item).Kept(...)
+	// here would teach the removed verb even when the finding fired on a
+	// pre-1.1 Kept call site.
+	suggestedMethod := "Skipped"
 	pos := s.fset.Position(call.Pos())
 	s.findings = append(s.findings, Finding{
 		RuleID:  "API-062",
@@ -147,7 +152,7 @@ func (s *repeatedDispositionScan) report(call *ast.CallExpr, recv string) {
 		File:    s.filename,
 		Line:    pos.Line,
 		Column:  pos.Column,
-		Suggestion: "declare one Task per item and record its disposition there: group.Task(item)." + method +
+		Suggestion: "declare one Task per item and record its disposition there: group.Task(item)." + suggestedMethod +
 			"(reason) — evo folds the Group's item children into one tally under its row",
 	})
 }
