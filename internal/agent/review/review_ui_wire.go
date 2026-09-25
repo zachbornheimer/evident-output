@@ -254,7 +254,7 @@ func detectMarshalOfInternalSnapshot(filename string, f *ast.File, fset *token.F
 			File:       filename,
 			Line:       pos.Line,
 			Column:     pos.Column,
-			Suggestion: "replace json." + fn + "(" + snapshotCall + ") with render.EncodeJSON(" + snapshotCall + ")",
+			Suggestion: "replace json." + fn + "(" + snapshotCall + ") with evo.EncodeJSON(" + snapshotCall + ")",
 		})
 		return true
 	})

@@ -34,25 +34,32 @@ host that owns its own stdout payload.
   data independent of `Format`. `EncodeJSON`/`EncodeJSONL`/`EncodeEventJSON`
   are that encoder.
 
-`evo.run`/`evo.event` do not serve this case: they are Result-shaped
-(`wire.EncodeRun(result, version)`, spec §35/§38), produced only at Finish
-for `FormatJSON`/`FormatJSONL`, and never exposed as a raw Snapshot/Event
-encoder a host can call mid-run.
+`evo.run`/`evo.event` do not serve this narrower mid-run case: there is no
+public Snapshot or per-event `evo.event` encoder — `wire.EncodeRun`/
+`wire.EncodeEvent` are internal (spec §35/§38) and reachable only through
+`evo.WriteJSON`, which is Result-shaped and written automatically only at
+Finish for `FormatJSON`/`FormatJSONL`. The engine itself still emits
+output.v1, not `evo.run`/`evo.event`, through `EVO_OUTPUT` for
+`FormatData`/`FormatExternal` (`internal/engine/machine.go`). Any host
+_can_ still get an `evo.run` document by calling `evo.Run(...)` and then
+`evo.WriteJSON(w, result)` at the end of a run — the gap this decision
+closes is a mid-run/per-event encoder, not "no host can ever use evo.run".
 
 ## Classification (api_vocabulary)
 
 Encoders and the pinned schema version:
 
-| Symbol                             | Class            | Rationale                                                    |
-| ---------------------------------- | ---------------- | ------------------------------------------------------------ |
-| `evo.JSONDocument`                 | Kept, documented | output.v1 root shape for `FormatData`/`FormatExternal` hosts |
-| `evo.EncodeJSON`                   | Kept, documented | Snapshot -> output.v1, called directly by such hosts         |
-| `evo.EncodeJSONL`                  | Kept, documented | Events -> output.v1 JSONL, same hosts                        |
-| `evo.EncodeEventJSON`              | Kept, documented | single-event output.v1 encoder, same hosts                   |
-| `evo.JSONSchemaVersion` ("0.4")    | Kept, documented | pinned output.v1 schema_version                              |
-| `evo.EventSchemaVersion` ("0.3")   | Kept, documented | pinned durable-event schema_version stamped into `EventJSON` |
-| `wire.EncodeRun` / `evo.WriteJSON` | Canonical        | `evo.run`, spec §35, `FormatJSON` default                    |
-| `wire.EncodeEvent`                 | Canonical        | `evo.event`, spec §38, `FormatJSONL` default                 |
+| Symbol                           | Class            | Rationale                                                    |
+| -------------------------------- | ---------------- | ------------------------------------------------------------ |
+| `evo.JSONDocument`               | Kept, documented | output.v1 root shape for `FormatData`/`FormatExternal` hosts |
+| `evo.EncodeJSON`                 | Kept, documented | Snapshot -> output.v1, called directly by such hosts         |
+| `evo.EncodeJSONL`                | Kept, documented | Events -> output.v1 JSONL, same hosts                        |
+| `evo.EncodeEventJSON`            | Kept, documented | single-event output.v1 encoder, same hosts                   |
+| `evo.JSONSchemaVersion` ("0.4")  | Kept, documented | pinned output.v1 schema_version                              |
+| `evo.EventSchemaVersion` ("0.3") | Kept, documented | pinned durable-event schema_version stamped into `EventJSON` |
+| `evo.WriteJSON`                  | Canonical        | writes the `evo.run` document, spec §35                      |
+| `evo.FormatJSON`                 | Canonical        | `evo.run` default at Finish, spec §35                        |
+| `evo.FormatJSONL`                | Canonical        | `evo.event` default at Finish, spec §38                      |
 
 `JSONDocument`'s field type family below is reachable only through a
 `JSONDocument` or `EventJSON` value, never constructed standalone by a

@@ -109,7 +109,8 @@ jsonl, _ := evo.EncodeJSONL(out.Events())
 ```
 
 Schemas: `../schema/run.v2.json`, `../schema/event.v2.json` (default),
-`../schema/output.v1.json` (`FormatData`/`FormatExternal` side channel).
+`../schema/output.v1.json`, `../schema/event.v1.json` (`FormatData`/
+`FormatExternal` side channel).
 
 ## Production ANSI driver
 

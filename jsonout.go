@@ -48,12 +48,13 @@ const JSONSchemaVersion = render.JSONSchemaVersion
 
 // JSONDocument is the output.v1 machine projection (§25.1,
 // schema_version "0.4"), kept in 1.1 alongside the newer evo.run/evo.event
-// wire vocabulary (WriteJSON): it is the only encoder a FormatData/
-// FormatExternal host — one that owns stdout for its own payload and calls
-// out.Snapshot()/out.Events() directly — can use. evo.run/evo.event are
-// Result-shaped and written automatically only at Finish for
-// FormatJSON/FormatJSONL. See docs/decisions/output-v1-retention.md
-// (ZYS-946).
+// wire vocabulary (WriteJSON): it is the only mid-run encoder a
+// FormatData/FormatExternal host — one that owns stdout for its own
+// payload and calls out.Snapshot()/out.Events() directly — can use. There
+// is no public Snapshot or per-event evo.event encoder (wire.EncodeRun/
+// wire.EncodeEvent are internal), and the engine itself still writes
+// output.v1, not evo.run/evo.event, through EVO_OUTPUT for FormatData/
+// FormatExternal. See docs/decisions/output-v1-retention.md (ZYS-946).
 //
 // Aliased into internal/render alongside the JSON encoding machinery that
 // produces it — see EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md §38.

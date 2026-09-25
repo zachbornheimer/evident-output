@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -70,6 +71,43 @@ func TestWireSchema_RichProblemStaysWithinFrozenOutputV1(t *testing.T) {
 	}
 	if err := wireschema.Validate(schema, doc); err != nil {
 		t.Fatalf("output.v1 grew past its frozen schema:\n%v\n\ndocument:\n%s", err, doc)
+	}
+}
+
+// TestWireSchema_EncodeJSONLRowsValidate is the gate schema/event.v1.json
+// never had: a real evo.EncodeJSONL(out.Events()) document must validate
+// against evo's own published event.v1 JSON Schema, so a future EventJSON
+// or EventSchemaVersion change that drifts from the schema fails here
+// instead of only being caught by a downstream consumer (E-122 lane F3).
+func TestWireSchema_EncodeJSONLRowsValidate(t *testing.T) {
+	schema, err := os.ReadFile("schema/event.v1.json")
+	if err != nil {
+		t.Fatalf("read schema/event.v1.json: %v", err)
+	}
+
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	succeed(out.Task("working tree"))
+	out.Task("branches").Problem("2 branches need attention", evo.Severity(evo.SeverityWarning))
+	_ = out.Finish()
+
+	events := out.Events()
+	if len(events) == 0 {
+		t.Fatal("expected at least one event")
+	}
+
+	jsonl, err := evo.EncodeJSONL(events)
+	if err != nil {
+		t.Fatalf("EncodeJSONL: %v", err)
+	}
+
+	rows := bytes.Split(bytes.TrimRight(jsonl, "\n"), []byte("\n"))
+	for i, row := range rows {
+		if len(row) == 0 {
+			continue
+		}
+		if err := wireschema.Validate(schema, row); err != nil {
+			t.Fatalf("row %d does not conform to schema/event.v1.json:\n%v\n\nrow:\n%s", i, err, row)
+		}
 	}
 }
 
