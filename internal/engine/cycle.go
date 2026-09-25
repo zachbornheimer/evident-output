@@ -149,9 +149,12 @@ func (o *Output) blockCyclesLocked() bool {
 	return len(cycles) > 0
 }
 
+// blockInCycleLocked settles st Blocked the way Block does: one Problem
+// with no Subject of its own, so the row states the cycle once rather
+// than again on a child line under the Task's own name.
 func (o *Output) blockInCycleLocked(st *taskState, path string) {
 	summary := txt.Text("dependency cycle: " + path)
 	st.summary = summary
-	st.problems = append(st.problems, core.StoreProblems([]Problem{{Subject: st.name, Summary: summary}})...)
+	st.problems = append(st.problems, core.StoreProblems([]Problem{{Summary: summary}})...)
 	o.settleLocked(st, Blocked)
 }
