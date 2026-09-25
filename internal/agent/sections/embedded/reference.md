@@ -130,6 +130,15 @@ remedy (`evo.Next(...)`/`evo.NextCommand(...)`) attached to any Problem
 still reaches the run's own Next-steps output. See
 [docs/migration/1.1.md](migration/1.1.md) for the exact 1.0→1.1 signatures.
 
+`Output.Problem(summary, opts...)` is the run-scoped counterpart: a
+`Severity(SeverityWarning)` `Output.Problem` records a run-level warning
+(`Conclusion.Warned`, the `· warned` band) without naming any Task — the
+run-scope replacement for `Output.Warn`, removed in 1.1 (see
+[docs/migration/1.1.md](migration/1.1.md)). A default-severity
+`Output.Problem` records the same run-level failure `Output.Fail` does —
+that overlap is intentional, not an accidental second way to do the same
+thing; migration/1.1.md explains why both forms stay.
+
 ## Child processes / tool-backed gates
 
 Evidence belongs to the **entity** (a `Task`, whether it ran or was resolved as a

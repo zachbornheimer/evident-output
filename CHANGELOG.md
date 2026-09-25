@@ -15,6 +15,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   defaults to `SeverityError` (fails its owning Define, like today); a
   `Severity(SeverityWarning)` Problem sets `warned` and never fails
   anything. This is the `Warn` replacement — see Removed.
+- **`Output.Problem(summary string, opts ...ProblemOption)`:** the
+  run-scoped counterpart to `TaskHandle.Problem`, the `Output.Warn`
+  replacement at `Severity(SeverityWarning)`. At the default
+  `SeverityError` it records the same run-level failure `Output.Fail`
+  does — see [docs/migration/1.1.md](docs/migration/1.1.md) for why that
+  overlap is intentional.
 - **Review rule API-070:** flags `TaskHandle.Warn`, `Output.Warn`, and
   `evo.Warn` (all removed in 1.1) and suggests the mechanical
   `Problem(summary, append(opts, evo.Severity(evo.SeverityWarning))...)`

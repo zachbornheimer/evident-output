@@ -9,8 +9,9 @@ import (
 )
 
 // TestConclusion_WarnedModifierSurvivesOKHeadline is release-gate round 8
-// finding 3: a run with one Done task and one Warn task must not read as
-// silently clean — a [ready] band may not hide a warning that occurred
+// finding 3: a run with one Done task and one warning-severity-Problem task
+// must not read as silently clean — a [ready] band may not hide a warning
+// that occurred
 // during the run. Conclusion.Warned and the "· warned" band modifier make
 // it visible without changing the exit code (precedent: "· partial").
 func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
@@ -30,7 +31,7 @@ func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
 		t.Fatalf("state = %v, want StateReady (warning must not override an OK headline)", conc.State)
 	}
 	if !conc.Warned {
-		t.Fatal("Conclusion.Warned = false, want true: a resolved Warn task must be visible on the conclusion")
+		t.Fatal("Conclusion.Warned = false, want true: a resolved warning-severity-Problem task must be visible on the conclusion")
 	}
 	if conc.ExitCode != evo.ExitOK {
 		t.Fatalf("exit code = %d, want %d — warned must never change the exit code", conc.ExitCode, evo.ExitOK)

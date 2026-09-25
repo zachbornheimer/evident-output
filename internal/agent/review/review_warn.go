@@ -21,7 +21,7 @@ func detectWarnRemoved(filename string, file *ast.File, fset *token.FileSet) []F
 	if file == nil {
 		return nil
 	}
-	alias := evoImportAlias(file)
+	alias := evoImportName(file)
 	if alias == "" {
 		return nil
 	}
@@ -54,40 +54,17 @@ func detectWarnRemoved(filename string, file *ast.File, fset *token.FileSet) []F
 }
 
 // warnSuggestion mirrors the retiredSpelling table's derived-rewrite shape:
-// the package-level evo.Warn(...) call (removed in 1.1) has no
-// package-level evo.Problem function (Problem is a type), so its
+// the package-level alias.Warn(...) call (removed in 1.1) has no
+// package-level alias.Problem function (Problem is a type), so its
 // replacement goes through the default instance; every other receiver
-// rewrites in place.
+// rewrites in place. Both branches build the suggestion from alias, never a
+// hard-coded "evo.", so a file that imports the package under a different
+// name still gets a suggestion it can paste as-is.
 func warnSuggestion(recv, alias string) string {
 	if recv == alias {
-		return `replace evo.Warn("summary", opts...) (removed in 1.1) with evo.Default().Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+		return `replace ` + alias + `.Warn("summary", opts...) (removed in 1.1) with ` + alias + `.Default().Problem("summary", append(opts, ` + alias + `.Severity(` + alias + `.SeverityWarning))...)`
 	}
-	return "replace " + recv + `.Warn("summary", opts...) with ` + recv + `.Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
-}
-
-// evoImportAlias returns the local name this file imports the evo package
-// under (its declared alias, or the default "evo" package-name binding),
-// or "" when the file does not import it at all.
-func evoImportAlias(file *ast.File) string {
-	for _, imp := range file.Imports {
-		path := importPathValue(imp)
-		if path != "github.com/zachbornheimer/evident-output" {
-			continue
-		}
-		if imp.Name != nil {
-			return imp.Name.Name
-		}
-		return "evo"
-	}
-	return ""
-}
-
-func importPathValue(imp *ast.ImportSpec) string {
-	v := imp.Path.Value
-	if len(v) >= 2 {
-		v = v[1 : len(v)-1]
-	}
-	return v
+	return "replace " + recv + `.Warn("summary", opts...) with ` + recv + `.Problem("summary", append(opts, ` + alias + `.Severity(` + alias + `.SeverityWarning))...)`
 }
 
 // evoValuedIdents collects every identifier this file assigns a value the

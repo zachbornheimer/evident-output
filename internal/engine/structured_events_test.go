@@ -536,8 +536,8 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 
 // TestWireEvents_WarningRecordedCarriesEvidenceTail is
 // TestWireEvents_ProblemRecordedCarriesEvidenceTail's warning.recorded
-// counterpart (task.go:290 — Warn's own emitWireEventLocked call was
-// untested).
+// counterpart (task.go:290 — the warning-severity Problem's own
+// emitWireEventLocked call was untested).
 func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
@@ -562,9 +562,9 @@ func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 	}
 }
 
-// TestWireEvents_RunWarningCarriesItsProblemOptions proves a run-level
-// Output.Warn's warning.recorded line carries the same structured fields
-// a Task warning's does, not just its summary.
+// TestWireEvents_RunWarningCarriesItsProblemOptions proves a run-level,
+// warning-severity Output.Problem's warning.recorded line carries the same
+// structured fields a Task warning's does, not just its summary.
 func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
 	var stdout nopFlushWriter
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})

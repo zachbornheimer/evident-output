@@ -195,7 +195,8 @@ func InferConclusion(s Snapshot) Conclusion {
 		}
 	}
 	// hasWarning reads TaskSnapshot.Warnings (P2), never a lifecycle
-	// EntityState — Warn annotates a task, it never resolves one.
+	// EntityState — a warning-severity Problem annotates a task, it never
+	// resolves one.
 	hasWarning := anyTaskWarned(s.Tasks) || anyCollectionWarned(s.Collections)
 
 	// Headline precedence: failed > blocked > cancelled > changed > planned >
@@ -206,9 +207,12 @@ func InferConclusion(s Snapshot) Conclusion {
 	// warning is not one of those four — it is visible attention on its own
 	// "!" row, never a headline that overrides an otherwise-OK verdict. It
 	// only becomes the headline when nothing else in the run classifies —
-	// which, since Warn no longer resolves its task, requires an as-yet
-	// unbuilt output-level Warn (P8/Facts territory); kept for that future
-	// reachability and because it costs nothing to keep the algebra total.
+	// hasWarning is task/collection-scoped only (a run-level
+	// Output.Problem at Severity(SeverityWarning) feeds warnedModifier
+	// below via s.Warnings, not this case), and a warning-severity Problem
+	// never resolves the task that carries it, so no task/collection ever
+	// reaches this branch as its sole classification today. Kept so the
+	// algebra stays total rather than partial.
 	switch {
 	case hasFailed:
 		c.State = StateFailed

@@ -70,12 +70,10 @@ var bareCausePattern = regexp.MustCompile(`evo\.Cause\(`)
 type retiredSpelling struct {
 	pattern *regexp.Regexp
 	// evoReceiverOnly restricts matches to receivers isEvoSurfaceRecv
-	// accepts, for names common outside evo (Plan, Changes, Capture, Warn).
+	// accepts, for names common outside evo (Plan, Changes, Capture).
 	evoReceiverOnly bool
 	message         string
 	suggest         func(recv string) string
-	// ruleID overrides the default API-032 finding id; empty keeps API-032.
-	ruleID string
 }
 
 // retiredSpellings are the removed spellings with a mechanical rewrite. A
@@ -148,12 +146,8 @@ func (r retiredSpelling) findings(filename, src string) []Finding {
 		if r.evoReceiverOnly && !isEvoSurfaceRecv(recv) {
 			continue
 		}
-		ruleID := "API-032"
-		if r.ruleID != "" {
-			ruleID = r.ruleID
-		}
 		out = append(out, Finding{
-			RuleID:     ruleID,
+			RuleID:     "API-032",
 			Message:    r.message,
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -163,13 +157,15 @@ func (r retiredSpelling) findings(filename, src string) []Finding {
 	return out
 }
 
-// detectDeprecatedSpellings is API-032 (plus API-070 for Warn): it catches
-// every superseded spelling with a fix, not a lecture — evo.New (evo.Init is
-// the sole constructor), the retiredSpellings table (Item, Plan, Changes,
-// OK, Because, Capture, Warn), evo.Cause (Failf/Blockf's trailing %w since
+// detectDeprecatedSpellings is API-032: it catches every superseded
+// spelling with a fix, not a lecture — evo.New (evo.Init is the sole
+// constructor), the retiredSpellings table (Item, Plan, Changes, OK,
+// Because, Capture), evo.Cause (Failf/Blockf's trailing %w since
 // Fail/Block are statement-form), and the rec-surface spellings
 // (Config.Options, Option funcs, the mutation verbs removed in 1.1, Skip,
-// ID, StartPhase).
+// ID, StartPhase). Warn (TaskHandle.Warn/Output.Warn/evo.Warn, removed in
+// 1.1) is API-070, detected separately by detectWarnRemoved
+// (review_warn.go) — see the comment above retiredSpellings for why.
 func detectDeprecatedSpellings(in fileInput) []Finding {
 	var findings []Finding
 	if dialectAtLeast(in.desiredVersion, dialectFold) {
