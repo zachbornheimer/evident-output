@@ -339,8 +339,8 @@ const conclusionPartialModifier = " · partial"
 // conclusionWarnedModifier marks the printed band with the same "modifier,
 // not a new headline" treatment as conclusionPartialModifier (release-gate
 // round 8 finding 3): a run that carries at least one warning-severity
-// Problem annotation (TaskHandle.Warn was removed in 1.1; P2: a
-// warning-severity Problem never resolves its own lifecycle state) while its
+// Problem annotation (P2: a warning-severity Problem never resolves its
+// own lifecycle state) while its
 // headline settled on an OK-family state (e.g. [ready]) must not read as
 // silently clean — the exit code is unchanged, only the band gains this
 // suffix. core.Conclusion.Warned is already false when State is itself

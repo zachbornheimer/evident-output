@@ -10,7 +10,7 @@ import (
 )
 
 // ExampleProblem shows the structured evidence shape explaining a negative
-// task outcome — the payload Fail/Block/Warn build from ProblemOptions.
+// task outcome — the payload Fail/Block/Problem build from ProblemOptions.
 func ExampleProblem() {
 	p := evo.Problem{Summary: "schema mismatch", Code: "E_SCHEMA"}
 	fmt.Println(p.Summary, p.Code)

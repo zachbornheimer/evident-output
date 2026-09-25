@@ -114,9 +114,9 @@ func TestE1P1_MutationVerb_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
 
 // --- P2: warnings annotate, never resolve -------------------------------
 
-// TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow proves the documented
+// TestE1P2_WarningSeverity_SingleShortWarningInlinesOnDoneRow proves the documented
 // compact form: one short warning renders directly on the task's own ✓ row.
-func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
+func TestE1P2_WarningSeverity_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
@@ -139,10 +139,10 @@ func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	}
 }
 
-// TestE1P2_Warn_MultipleWarningsNestUnderneath proves the second documented
+// TestE1P2_WarningSeverity_MultipleWarningsNestUnderneath proves the second documented
 // form: more than one warning moves off the row onto its own nested "!"
 // lines below it.
-func TestE1P2_Warn_MultipleWarningsNestUnderneath(t *testing.T) {
+func TestE1P2_WarningSeverity_MultipleWarningsNestUnderneath(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
@@ -163,15 +163,16 @@ func TestE1P2_Warn_MultipleWarningsNestUnderneath(t *testing.T) {
 	}
 }
 
-// TestE1P2_Warn_DoesNotResolveTask proves Warn is non-terminal: the task
-// stays Pending immediately after Warn, and a later Done still resolves it.
-func TestE1P2_Warn_DoesNotResolveTask(t *testing.T) {
+// TestE1P2_WarningSeverity_DoesNotResolveTask proves a warning-severity Problem
+// is non-terminal: the task stays Pending immediately after it, and a later
+// resolution still resolves the task.
+func TestE1P2_WarningSeverity_DoesNotResolveTask(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 
 	task := out.Task("cache")
 	task.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 	if got := task.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
-		t.Fatalf("state = %v, want non-terminal (Warn must not resolve the task)", got)
+		t.Fatalf("state = %v, want non-terminal (a warning-severity Problem must not resolve the task)", got)
 	}
 	succeed(task)
 	if got := task.Snapshot().State; got != evo.Done {
@@ -180,15 +181,16 @@ func TestE1P2_Warn_DoesNotResolveTask(t *testing.T) {
 	_ = out.Finish()
 }
 
-// TestE1P2_Warn_UnresolvedTaskAutoResolvesDoneAtFinish proves a task that
-// only ever calls Warn (no terminal verb) auto-resolves Done at Finish, the
-// same amnesty a recorded effect or sealed progress already gets.
-func TestE1P2_Warn_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
+// TestE1P2_WarningSeverity_UnresolvedTaskAutoResolvesDoneAtFinish proves a task
+// that only ever accumulates a warning-severity Problem (no terminal verb)
+// auto-resolves Done at Finish, the same amnesty a recorded effect or sealed
+// progress already gets.
+func TestE1P2_WarningSeverity_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 
 	out.Task("cache").Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 	if err := out.Finish(); err != nil {
-		t.Fatalf("Finish() = %v, want nil (Warn-only task should auto-resolve Done)", err)
+		t.Fatalf("Finish() = %v, want nil (warning-only task should auto-resolve Done)", err)
 	}
 	conc := out.Conclusion()
 	if conc.State != evo.StateReady {

@@ -10,11 +10,12 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// warnSubjectRun is one Task that warns count times, each On("job").
+// warnSubjectRun is one Task that accumulates count warning-severity
+// Problems, each On("job").
 func warnSubjectRun(t *testing.T, count int) (human string, doc map[string]any) {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "warn", Color: evo.ColorNever, Plain: true})
+	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "warning", Color: evo.ColorNever, Plain: true})
 	task := out.Task("check jobs")
 	task.Define(func(context.Context) error {
 		for range count {
@@ -34,11 +35,12 @@ func warnSubjectRun(t *testing.T, count int) (human string, doc map[string]any) 
 	return buf.String(), doc
 }
 
-// TestWarn_OnSubjectReachesEveryProjection pins E-109: Warn("x",
-// evo.On("job")) rendered "✓ check jobs  ! x" — the subject dropped from
-// the inline row — and the run.v2 task entry carried no trace of the
-// warning. Every projection now carries the warning with its subject.
-func TestWarn_OnSubjectReachesEveryProjection(t *testing.T) {
+// TestWarningSeverity_OnSubjectReachesEveryProjection pins E-109:
+// Problem("x", evo.On("job"), evo.Severity(evo.SeverityWarning)) rendered
+// "✓ check jobs  ! x" — the subject dropped from the inline row — and the
+// run.v2 task entry carried no trace of the warning. Every projection now
+// carries the warning with its subject.
+func TestWarningSeverity_OnSubjectReachesEveryProjection(t *testing.T) {
 	for _, count := range []int{1, 2} {
 		human, doc := warnSubjectRun(t, count)
 		if !strings.Contains(human, "job  x") {

@@ -1741,6 +1741,29 @@ func f(task *evo.TaskHandle) {
 	}
 }
 
+func TestAPI070_PackageLevelWarnSuggestsDefaultInstance(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  evo.Warn("disk nearly full")
+}
+`
+	res := review.GoSource("warn.go", src)
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			found = append(found, f)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected one API-070 finding for evo.Warn, got %+v", found)
+	}
+	want := `replace evo.Warn("summary", opts...) (removed in 1.1) with evo.Default().Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	if found[0].Suggestion != want {
+		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
+	}
+}
+
 func TestAPI070_NoFalsePositiveOnSlogWarn(t *testing.T) {
 	src := `package p
 import "log/slog"

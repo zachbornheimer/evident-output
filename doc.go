@@ -41,8 +41,8 @@
 //
 //  1. evo.Task(name) + Task.Define(func(context.Context) error) for one atomic
 //     unit of work — the scheduling and execution boundary (§7). A Task resolved
-//     directly with no Define call (Problem/Block/Fail/Skipped; Warn
-//     removed in 1.1) renders as a fact row instead of a spinner.
+//     directly with no Define call (Problem/Block/Fail/Skipped) renders as
+//     a fact row instead of a spinner.
 //  2. evo.Group(name) / evo.Sequence(name) for collections: one named child
 //     Task per item (group.Task(name)), not a hand-maintained counter — Group's
 //     children may overlap, Sequence's run in declaration order and cascade a
@@ -60,9 +60,8 @@
 //  6. Task.After for exceptional scheduler edges that a Sequence would
 //     otherwise express more simply.
 //  7. Task.Fact / evo.Fact for discovered information, Task.Problem(summary,
-//     evo.Severity(evo.SeverityWarning)) for a non-terminal annotation (Warn
-//     removed in 1.1), Output Effects, and Config.DryRun for the would/did
-//     split.
+//     evo.Severity(evo.SeverityWarning)) for a non-terminal annotation,
+//     Output Effects, and Config.DryRun for the would/did split.
 //  8. Task.Verify(func(context.Context) (bool, error)) only for domains Evo
 //     cannot track automatically — the one boolean, read-only escape hatch; a
 //     Verify that reports the desired state already holds skips Define and

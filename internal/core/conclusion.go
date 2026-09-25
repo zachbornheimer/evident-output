@@ -102,8 +102,8 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 }
 
 // anyTaskWarned reports whether any task in tasks carries at least one
-// warning-severity Problem annotation (TaskHandle.Warn removed in 1.1;
-// use Problem(summary, evo.Severity(evo.SeverityWarning))) or Kept tally
+// warning-severity Problem annotation (Problem(summary,
+// evo.Severity(evo.SeverityWarning))) or Kept tally
 // (P2: conclusion algebra reads annotations, never a lifecycle state —
 // Warning is not one of the terminal EntityState values). A Kept tally
 // renders the same "! kept N (...)" row a warning-severity Problem does,
@@ -241,13 +241,12 @@ func InferConclusion(s Snapshot) Conclusion {
 	}
 	// warnedModifier feeds the "· warned" band from BOTH sources at warning
 	// severity — a task's Problem(summary, evo.Severity(evo.SeverityWarning))
-	// and the run's own evo.Problem at the same severity (TaskHandle.Warn and
-	// evo.Warn were removed in 1.1; P8 symmetry) — while hasWarning above
-	// (task/collection only) still governs
+	// and the run's own evo.Problem at the same severity (P8 symmetry) —
+	// while hasWarning above (task/collection only) still governs
 	// the (dead, reserved-unreachable) StateWarning headline case alone, so a
-	// bare evo.Warn on a run with no tasks never invents a new headline —
-	// it only modifies whatever the run otherwise concludes (evo-rec.md
-	// "warnings annotate lifecycle; they do not replace it").
+	// bare warning-severity Problem on a run with no tasks never invents a
+	// new headline — it only modifies whatever the run otherwise concludes
+	// (evo-rec.md "warnings annotate lifecycle; they do not replace it").
 	warnedModifier := hasWarning || len(s.Warnings) > 0
 	if warnedModifier && c.State != StateWarning {
 		c.Warned = true

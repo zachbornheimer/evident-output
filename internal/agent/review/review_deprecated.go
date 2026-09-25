@@ -136,6 +136,11 @@ var retiredSpellings = []retiredSpelling{
 		ruleID:          "API-070",
 		message:         "Warn was removed in 1.1 — Problem wins over Warn; warning is a Problem severity",
 		suggest: func(recv string) string {
+			if recv == "evo" {
+				// evo.Problem is a type, not a function -- the package-level
+				// replacement goes through the default instance.
+				return `replace evo.Warn("summary", opts...) (removed in 1.1) with evo.Default().Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+			}
 			return "replace " + recv + `.Warn("summary", opts...) with ` + recv + `.Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
 		},
 	},

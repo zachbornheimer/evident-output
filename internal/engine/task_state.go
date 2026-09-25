@@ -66,9 +66,9 @@ type taskState struct {
 	synthetic bool
 
 	// warnings accumulates the task's warning-severity Problem annotations
-	// (TaskHandle.Warn was removed in 1.1; use Problem(summary,
-	// evo.Severity(evo.SeverityWarning))) (P2: warnings annotate lifecycle,
-	// they never replace it — a warning-severity Problem does not itself
+	// (Problem(summary, evo.Severity(evo.SeverityWarning))) (P2: warnings
+	// annotate lifecycle, they never replace it — a warning-severity
+	// Problem does not itself
 	// resolve the task). A task with warnings but no terminal verb by
 	// Finish auto-resolves Done (see hasRecordedEffectLocked's amnesty
 	// siblings in Finish).

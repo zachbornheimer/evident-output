@@ -71,18 +71,19 @@ Effect quantities tally and always render at Finish; a named row (evo.File "writ
 streams the instant its owning task resolves, bounded by the same viewport cap and "… +N more (not shown)"
 overflow the Finish ledger uses.
 
-Severity: Warn = non-terminal annotation (does not resolve the task — call it any number of times before the
-Task resolves); Block = stop before mutate; Fail = evaluation failed.
-One Task, many Problems (1.1/ZYS-848): task.Problem(summary, opts...) appends one blocking Problem without
-resolving the task — call it once per finding instead of a Task per finding. A nil Define return
-after any accumulated Problem resolves the Task Failed, never Done. Warn also takes the same ProblemOptions
-(Detail/Code/On/Location/Next) as Problem/Fail/Block. See docs/migration/1.1.md.
+Severity (1.1, ZYS-848/API-070): Problem wins over Warn — warning is a Problem severity, not a separate verb.
+task.Problem(summary, opts...) appends one Problem without resolving the task — call it once per finding
+instead of a Task per finding; evo.Severity(evo.SeverityWarning) marks a Problem non-blocking (it does not
+fail the Task), while the default (no Severity option, or evo.SeverityError) blocks. A nil Define return
+after any accumulated blocking Problem resolves the Task Failed, never Done. Problem takes ProblemOptions
+(Detail/Code/On/Location/Next/Severity) shared with Fail/Block. Warn (TaskHandle.Warn, Output.Warn,
+evo.Warn) was removed in 1.1 with no compatibility alias (API-070) — see docs/migration/1.1.md.
 Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) so a caller can tell "you did
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Failf/Blockf need % (API-028; Warn/Task/Sequence/Reason
-are printf-variadic themselves — there is no separate Warnf/Taskf/Reasonf; Summary takes one literal string); Capture not DebugWriter (API-029).
+Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Failf/Blockf need % (API-028; Task/Sequence/Reason
+are printf-variadic themselves — there is no separate Taskf/Reasonf; Summary takes one literal string); Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
 failure on its own Task and use Next(evo.Label(...)) for follow-up guidance instead.`,

@@ -185,8 +185,7 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 // sprintfInVerbPattern matches Fail/Block called with fmt.Sprintf as (the
 // start of) its argument list. Problem/Doing are deliberately excluded:
 // they have no *f sibling and take fmt.Sprintf as an ordinary summary/text
-// argument (Warn was removed in 1.1 and would have been excluded the same
-// way).
+// argument.
 var sprintfInVerbPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*fmt\.Sprintf\(`)
 
 // detectSprintfInVerb is API-036: a Fail/Block(fmt.Sprintf(...))

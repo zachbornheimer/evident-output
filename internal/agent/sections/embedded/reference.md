@@ -111,10 +111,9 @@ settle it **Failed** instead: accumulated blocking evidence always
 overrides a claimed clean outcome. The Task still resolves exactly once regardless of
 how many Problems it owns.
 
-`Problem(summary, opts..., evo.Severity(evo.SeverityWarning))` records the same finding as a
+`Problem(summary, append(opts, evo.Severity(evo.SeverityWarning))...)` records the same finding as a
 non-blocking warning with the same structured `ProblemOption`s (`Detail`, `Code`, `On`, `Location`,
-`Next`, ...) — it sets `warned` and never fails the owning `Define`. (`Warn` was removed in 1.1: Problem
-wins over Warn — warning is a Problem severity, not a separate verb.)
+`Next`, ...) — it sets `warned` and never fails the owning `Define`.
 
 A `Kept(reason)` record warns the run the same way (contract §18): the
 Task left items it was asked to act on, so it renders `! kept N (...)` and

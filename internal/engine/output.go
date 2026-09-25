@@ -45,8 +45,7 @@ type Output struct {
 	// contradict what the printed band showed (beginner-1).
 	misuseSubject string
 	// misuseRejectedSummary is the summary text a second terminal verb
-	// (Fail/Block/Cancel/Skipped; TaskHandle.Warn was removed in 1.1 and was
-	// never terminal) tried to attach to an
+	// (Fail/Block/Cancel/Skipped) tried to attach to an
 	// already-resolved task, captured on the first recorded misuse only —
 	// the same "first ever recorded" scope as misuseSubject. Empty when the
 	// rejected call carried no summary, or the first misuse wasn't this kind
@@ -315,8 +314,7 @@ func (o *Output) emitPlannedHeaderLocked() {
 // record — evo.File/evo.Exec's per-attribute reconciliation evidence
 // (spec §2/§8.2), recorded before the task resolves so it is already
 // present by the time Fail/Failf's terminal verb reads the task's state
-// (the same "annotate before terminal" timing Fact/Problem require —
-// TaskHandle.Warn was removed in 1.1). A no-op
+// (the same "annotate before terminal" timing Fact/Problem require). A no-op
 // once the task has already resolved or does not exist.
 func (o *Output) attachVerificationLocked(taskID string, details []core.VerificationDetail) {
 	st := o.taskByRef[taskID]

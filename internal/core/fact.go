@@ -6,8 +6,7 @@ import "github.com/zachbornheimer/evident-output/internal/text"
 // to a Task or to the run itself, never a lifecycle state (user-13-problems.md
 // Problem 8: "Tasks are work. Facts are information."). Fact and Problem are
 // evo-rec.md's one annotation shape at two severities — info (Fact) and
-// warning (Problem at Severity(SeverityWarning); TaskHandle.Warn/Output.Warn/
-// evo.Warn were removed in 1.1) — sharing one placement/rendering rule (dim
+// warning (Problem at Severity(SeverityWarning)) — sharing one placement/rendering rule (dim
 // "name value" lines, nested under the owning scope) even though they are
 // stored as two Go types today: Problem already carries the richer
 // Fail/Block shape (Detail, Evidence, Actions, ...) that a bare name/value

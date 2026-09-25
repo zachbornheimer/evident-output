@@ -11,9 +11,9 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestDOM030_CollectionWarning is updated for P2: Warn annotates a task
-// instead of resolving it, so a task that only ever calls Warn stays
-// non-terminal (Pending) until Finish's amnesty resolves it — before
+// TestDOM030_CollectionWarning: a warning-severity Problem annotates a task
+// instead of resolving it, so a task that only ever accumulates a warning
+// stays non-terminal (Pending) until Finish's amnesty resolves it — before
 // Finish, the collection reads Incomplete (one unresolved child), and the
 // warning itself lives on that child's Warnings field.
 func TestDOM030_CollectionWarning(t *testing.T) {
@@ -24,7 +24,7 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 	g.Task("b").Problem("soft", evo.Severity(evo.SeverityWarning))
 	snap := g.Snapshot()
 	if snap.State != evo.Running && snap.State != evo.Incomplete {
-		t.Fatalf("state = %v, want Running or Incomplete (Warn no longer resolves its task)", snap.State)
+		t.Fatalf("state = %v, want Running or Incomplete (a warning-severity Problem does not resolve its task)", snap.State)
 	}
 	if warnings := snap.Tasks[1].Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
 		t.Fatalf("child warnings = %+v, want one warning %q", warnings, "soft")
@@ -34,7 +34,7 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 // TestDOM030b_CollectionWarningDetailIsRendered guards against a regression
 // where writeCollection only special-cased Failed children: a group glyph
 // like "!" rendered with no explanation of which child warned or why,
-// because the Warn() message was recorded but never printed under the
+// because the warning-severity Problem's message was recorded but never printed under the
 // group summary line.
 func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 	var buf bytes.Buffer
