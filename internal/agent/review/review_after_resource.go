@@ -241,7 +241,8 @@ func containsContentionSignal(comment string) bool {
 // shared claim whose writes conflict (differing File Contents, conflicting
 // Effect Verbs) — a case where deleting .After would leave the outcome
 // nondeterministic rather than merely redundant (ZYS-936).
-func detectAfterOnlyForResourceContention(filename, src string, file *ast.File, fset *token.FileSet) []Finding {
+func detectAfterOnlyForResourceContention(in fileInput) []Finding {
+	filename, src, file, fset := in.filename, in.src, in.file, in.fset
 	pkg := evoImportName(file)
 	if pkg == "" {
 		return nil

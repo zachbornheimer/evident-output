@@ -29,7 +29,7 @@ type cobraCommand struct {
 
 // detectDualCommandNaming flags leftover clean-repo file/identifier naming
 // on cobra Use prune/purge. Aliases {"clean-repo"} on prune.go is allowed.
-func detectDualCommandNaming(filename string, fset *token.FileSet, file *ast.File) []Finding {
+func detectDualCommandNaming(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	consts := fileStringConsts(file)
 	stemLeftover := fileStemLooksLeftover(filename)
 	var findings []Finding
@@ -62,7 +62,7 @@ func detectDualCommandNaming(filename string, fset *token.FileSet, file *ast.Fil
 
 // detectCommandInWrongFolder flags cobra Use prune/purge whose RunE body
 // lives under internal/app/. A one-return *.Command() delegate there is clean.
-func detectCommandInWrongFolder(filename string, fset *token.FileSet, file *ast.File) []Finding {
+func detectCommandInWrongFolder(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	if !pathHasDir(filename, appCommandDir) {
 		return nil
 	}

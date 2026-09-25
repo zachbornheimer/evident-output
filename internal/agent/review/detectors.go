@@ -47,8 +47,8 @@ var fileDetectors = []detector{
 	{run: detectSelectorCallRules},
 	// LAYOUT-001/LAYOUT-002: cobra command naming and folder ownership.
 	// These fire without an evo import — the fixtures are cobra command files.
-	{run: func(in fileInput) []Finding { return detectDualCommandNaming(in.filename, in.fset, in.file) }},
-	{run: func(in fileInput) []Finding { return detectCommandInWrongFolder(in.filename, in.fset, in.file) }},
+	{run: astRule(detectDualCommandNaming)},
+	{run: astRule(detectCommandInWrongFolder)},
 	// SIG-001: a hand-rolled signal.Notify in a file that never calls Cancel
 	// reintroduces the exact bug evo.Main already closes — the visual ledger
 	// and the exit code can disagree because the signal path never reconciles
@@ -84,7 +84,7 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectSilentPreTaskLoops)},
 	// CALL-001: make/new inline inside evo.Init/Task/Group arguments; a
 	// named local extracted before the call is the clean form.
-	{needsEvo: true, run: func(in fileInput) []Finding { return detectInlineConstructAtEvoCall(in.filename, in.fset, in.file) }},
+	{needsEvo: true, run: astRule(detectInlineConstructAtEvoCall)},
 	// FP-003: a task's only Doing call precedes a subprocess run with no
 	// further Doing/Progress/Writer — the spinner keeps spinning over a
 	// silent child with no way to tell slow from hung.
@@ -144,15 +144,15 @@ var fileDetectors = []detector{
 	// classification.
 	{needsEvo: true, run: textRule(detectDynamicReason)},
 	// EVO-UI-001: routine Fact hand-printed as a "label: value" line.
-	{needsEvo: true, run: func(in fileInput) []Finding { return detectFactPrintedAsUIText(in.fset, in.file, in.filename) }},
+	{needsEvo: true, run: astRule(detectFactPrintedAsUIText)},
 	// EVO-UI-002: passing verification hand-printed on the success path.
-	{needsEvo: true, run: func(in fileInput) []Finding { return detectPassingVerificationPrinted(in.fset, in.file, in.filename) }},
+	{needsEvo: true, run: astRule(detectPassingVerificationPrinted)},
 	// EVO-UI-003: collection/progress/status text hand-built instead of
 	// derived from Task/Group/Sequence state.
-	{needsEvo: true, run: func(in fileInput) []Finding { return detectHandBuiltProgressText(in.fset, in.file, in.filename) }},
+	{needsEvo: true, run: astRule(detectHandBuiltProgressText)},
 	// EVO-WIRE-001: internal Snapshot marshaled directly instead of through
 	// the sanctioned JSON encoder.
-	{needsEvo: true, run: func(in fileInput) []Finding { return detectMarshalOfInternalSnapshot(in.fset, in.file, in.filename) }},
+	{needsEvo: true, run: astRule(detectMarshalOfInternalSnapshot)},
 	// EVO-WIRE-003: JSON/JSONL stdout mixed with human presentation.
 	{needsEvo: true, run: textRule(detectJSONStdoutMixedWithHumanText)},
 	// TXT-020: an entity name too long, or narrating a transition (into/->)
@@ -275,9 +275,7 @@ var fileDetectors = []detector{
 	// resource declarations show the only reason is shared-resource
 	// exclusion, not a semantic dependency, which File/FSResource/
 	// LogicalResource claim coordination (ZYS-840) already provides.
-	{needsEvo: true, run: func(in fileInput) []Finding {
-		return detectAfterOnlyForResourceContention(in.filename, in.src, in.file, in.fset)
-	}},
+	{needsEvo: true, run: detectAfterOnlyForResourceContention},
 	// API-027: Done/Fail/Progress on Group/Sequence (name-match).
 	{needsEvo: true, run: astRule(detectCollectionLeafMisuse)},
 	// API-039: Group that only ever has one child in source.

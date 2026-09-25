@@ -68,7 +68,7 @@ var factLineLiteralPattern = regexp.MustCompile(`^([A-Za-z][\w ./-]{0,60}):\s*%[
 // detectFactPrintedAsUIText flags a manually printed "label: value" line on
 // an evo Task/Output handle — the renderer/JSON both already derive from
 // Facts, and a hand-printed line is unstructured text neither can rely on.
-func detectFactPrintedAsUIText(fset *token.FileSet, f *ast.File, filename string) []Finding {
+func detectFactPrintedAsUIText(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -125,7 +125,7 @@ func isSuccessConfirmationLine(literal string) bool {
 // line on fmt or an evo Task/Output handle, which duplicates the glyph
 // Task.Done already renders on the passing path and drifts from it under
 // Plain/JSON/verbosity modes.
-func detectPassingVerificationPrinted(fset *token.FileSet, f *ast.File, filename string) []Finding {
+func detectPassingVerificationPrinted(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -182,7 +182,7 @@ func isHandBuiltProgressLine(literal string) bool {
 // or an evo Task/Output handle, which duplicates counts evo already
 // derives from Task/Group/Sequence state and can silently disagree with
 // them.
-func detectHandBuiltProgressText(fset *token.FileSet, f *ast.File, filename string) []Finding {
+func detectHandBuiltProgressText(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -218,7 +218,7 @@ func detectHandBuiltProgressText(fset *token.FileSet, f *ast.File, filename stri
 // .Result() accessor (Run/Output.Run return a Result value directly), so
 // only .Snapshot() is a real evo misuse shape; the receiver check keeps
 // this from firing on an unrelated type's own Snapshot() method.
-func detectMarshalOfInternalSnapshot(fset *token.FileSet, f *ast.File, filename string) []Finding {
+func detectMarshalOfInternalSnapshot(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
