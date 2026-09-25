@@ -148,7 +148,7 @@ func liveGroupHeader(col core.TasksSnapshot, done, total int, st liveStyle) Disp
 }
 
 func anyChildRunning(col core.TasksSnapshot) bool {
-	if ownCounts(col).Running {
+	if ownCounts(col).Running || core.CollectionTallyOf(col).Tasks.Running {
 		return true
 	}
 	return slices.ContainsFunc(col.Collections, anyChildRunning)
@@ -165,6 +165,9 @@ func anyChildPendingActive(col core.TasksSnapshot) bool {
 	if counts := ownCounts(col); counts.Running || counts.Pending {
 		return true
 	}
+	if left := core.CollectionTallyOf(col).Tasks; left.Running || left.Pending {
+		return true
+	}
 	return slices.ContainsFunc(col.Collections, anyChildPendingActive)
 }
 
@@ -173,17 +176,20 @@ func anyChildPendingActive(col core.TasksSnapshot) bool {
 // this header itself was first actually painted, and so the anchor its own
 // elapsed-time suffix measures from (P5).
 func earliestLiveFirstSeen(col core.TasksSnapshot) time.Time {
-	earliest := ownCounts(col).EarliestSeen
+	earliest := earlierSeen(ownCounts(col).EarliestSeen, core.CollectionTallyOf(col).Tasks.EarliestSeen)
 	for _, child := range col.Collections {
-		ts := earliestLiveFirstSeen(child)
-		if ts.IsZero() {
-			continue
-		}
-		if earliest.IsZero() || ts.Before(earliest) {
-			earliest = ts
-		}
+		earliest = earlierSeen(earliest, earliestLiveFirstSeen(child))
 	}
 	return earliest
+}
+
+// earlierSeen is the earlier of two live-first-seen stamps, where zero
+// means never seen.
+func earlierSeen(a, b time.Time) time.Time {
+	if a.IsZero() || (!b.IsZero() && b.Before(a)) {
+		return b
+	}
+	return a
 }
 
 // attentionRankCount is how many liveRank classes can fill a frame's rows

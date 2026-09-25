@@ -101,3 +101,61 @@ func RootTallyOf(s Snapshot) (ChildTally, bool) {
 	}
 	return *s.rootTally, true
 }
+
+// CollectionTally is what a live projection of a collection knows about
+// the child collections it left out of Collections: a frame paints nested
+// collections in declaration order and reaches at most one more of them
+// than it has rows, so the rest need only be counted.
+type CollectionTally struct {
+	// Count is how many child collections were left out.
+	Count int
+	// Tasks counts every Task at or below them.
+	Tasks ChildCounts
+	// OwnRows is how many of them render as one own-Task row, and
+	// OwnRowNameWidth the widest such row's name, in runes: they still
+	// set a header-less parent's name column.
+	OwnRows, OwnRowNameWidth int
+}
+
+// Empty reports whether the tally counts nothing.
+func (t CollectionTally) Empty() bool { return t.Count == 0 }
+
+// WithCollectionTally is col whose Collections are a partial list tallied
+// by t.
+func WithCollectionTally(col TasksSnapshot, t CollectionTally) TasksSnapshot {
+	if t.Empty() {
+		col.collectionTally = nil
+		return col
+	}
+	col.collectionTally = &t
+	return col
+}
+
+// CollectionTallyOf is the tally of the child collections col's
+// projection left out; the zero tally when Collections is complete.
+func CollectionTallyOf(col TasksSnapshot) CollectionTally {
+	if col.collectionTally == nil {
+		return CollectionTally{}
+	}
+	return *col.collectionTally
+}
+
+// WithRootCollectionTally is s whose root collections are a partial list
+// tallied by t.
+func WithRootCollectionTally(s Snapshot, t CollectionTally) Snapshot {
+	if t.Empty() {
+		s.rootCollectionTally = nil
+		return s
+	}
+	s.rootCollectionTally = &t
+	return s
+}
+
+// RootCollectionTallyOf is the tally of the root collections s's
+// projection left out; the zero tally when Collections is complete.
+func RootCollectionTallyOf(s Snapshot) CollectionTally {
+	if s.rootCollectionTally == nil {
+		return CollectionTally{}
+	}
+	return *s.rootCollectionTally
+}

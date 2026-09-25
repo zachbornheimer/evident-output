@@ -113,11 +113,11 @@ func fillLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level 
 		fill.nameWidth = headerlessRowNameWidth(col)
 	}
 	if level.groupsFirst {
-		fill.groups(col.Collections)
+		fill.groups(col)
 		fill.tasks(col)
 	} else {
 		fill.tasks(col)
-		fill.groups(col.Collections)
+		fill.groups(col)
 	}
 	return fill.omitted
 }
@@ -151,12 +151,23 @@ func (f *liveFill) tasks(col core.TasksSnapshot) {
 	}
 }
 
-// groups gives each nested Group a fair share of what is left; what one
-// does not use rolls to the next, and one that does not fit is counted.
-func (f *liveFill) groups(cols []core.TasksSnapshot) {
+// groups gives each of col's nested Groups a fair share of what is left;
+// what one does not use rolls to the next, and one that does not fit is
+// counted. Every nested Group paints at least a row once it has a Task,
+// so it examines at most one more of them than it has rows: the rest are
+// counted unpainted, which is what lets a live projection leave them out
+// (LiveCollections).
+func (f *liveFill) groups(col core.TasksSnapshot) {
+	cols, left := col.Collections, core.CollectionTallyOf(col)
+	total, reach := len(cols)+left.Count, f.left+1
+	defer func() { f.omitted += left.Tasks.Total }()
 	for i, child := range cols {
+		if i >= reach {
+			f.omitted += taskCount(child)
+			continue
+		}
 		var nested strings.Builder
-		share := f.left / (len(cols) - i)
+		share := f.left / (total - i)
 		rows := writeAlignedLiveCollection(&nested, child, share, f.nameWidth, f.st)
 		if rows > f.left {
 			f.omitted += taskCount(child)
@@ -178,7 +189,7 @@ func completion(col core.TasksSnapshot) (done, total int) {
 
 // taskCount is every Task at or below col.
 func taskCount(col core.TasksSnapshot) int {
-	n := ownCounts(col).Total
+	n := ownCounts(col).Total + core.CollectionTallyOf(col).Tasks.Total
 	for _, child := range col.Collections {
 		n += taskCount(child)
 	}
@@ -198,5 +209,5 @@ func liveRoot(s core.Snapshot) core.TasksSnapshot {
 	if tally, ok := core.RootTallyOf(s); ok {
 		root = core.WithChildTally(root, tally)
 	}
-	return root
+	return core.WithCollectionTally(root, core.RootCollectionTallyOf(s))
 }

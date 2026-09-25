@@ -18,10 +18,9 @@ var projectionEpoch = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 // rows: every collection, and the root Tasks, through LiveChildren.
 func projectLive(s core.Snapshot, rows int) core.Snapshot {
 	out := s
-	out.Collections = nil
-	for _, col := range s.Collections {
-		out.Collections = append(out.Collections, projectCollection(col, rows))
-	}
+	cols := projectCollections(s.Collections, rows)
+	out.Collections = cols.Kept()
+	out = core.WithRootCollectionTally(out, cols.Tally())
 	root := projectTasks(core.TasksSnapshot{Tasks: s.Tasks}, rows)
 	out.Tasks = root.Tasks
 	if tally, ok := core.ChildTallyOf(root); ok {
@@ -31,12 +30,36 @@ func projectLive(s core.Snapshot, rows int) core.Snapshot {
 }
 
 func projectCollection(col core.TasksSnapshot, rows int) core.TasksSnapshot {
-	nested := col.Collections
-	col.Collections = nil
-	for _, child := range nested {
-		col.Collections = append(col.Collections, projectCollection(child, rows))
+	return projectTasks(projectCollections(col.Collections, rows).Into(col), rows)
+}
+
+// projectCollections is cols through LiveCollections, as the engine
+// feeds it: the reachable ones projected, the rest omitted whole.
+func projectCollections(cols []core.TasksSnapshot, rows int) *LiveCollections {
+	lc := NewLiveCollections(rows)
+	for _, child := range cols {
+		if lc.Admit() {
+			lc.Keep(projectCollection(child, rows))
+		} else {
+			lc.Omit(child)
+		}
 	}
-	return projectTasks(col, rows)
+	return lc
+}
+
+// perItemGroups is a Group of n per-item Groups, two Tasks each, in the
+// states a live frame ranks (E-091's nested shape).
+func perItemGroups(name string, n int, summary string) core.TasksSnapshot {
+	col := core.TasksSnapshot{Name: name, State: core.Running}
+	for i := range n {
+		item := core.TasksSnapshot{Name: fmt.Sprintf("item-%d", i), State: core.Running, Summary: summary,
+			Tasks: mixedTasks(fmt.Sprintf("i%d", i), 2)}
+		if i%4 == 0 {
+			item.Tasks = []core.TaskSnapshot{seen(core.TaskSnapshot{Name: fmt.Sprintf("item-%d", i), State: core.Done}, time.Duration(i)*time.Second)}
+		}
+		col.Collections = append(col.Collections, item)
+	}
+	return col
 }
 
 func projectTasks(col core.TasksSnapshot, rows int) core.TasksSnapshot {
@@ -134,6 +157,9 @@ func projectionShapes() map[string]core.Snapshot {
 				}
 				return ts
 			}()}}},
+		"per-item groups":             {Collections: []core.TasksSnapshot{perItemGroups("items", 300, "")}},
+		"per-item groups with header": {Collections: []core.TasksSnapshot{perItemGroups("items", 300, "checking")}},
+		"root per-item groups":        {Collections: perItemGroups("items", 300, "").Collections},
 		"pending queue": {Collections: []core.TasksSnapshot{{Name: "queue", State: core.Running, Tasks: func() []core.TaskSnapshot {
 			var ts []core.TaskSnapshot
 			for i := range 1000 {

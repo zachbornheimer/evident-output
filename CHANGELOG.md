@@ -179,6 +179,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   when a return follows, and suggests one `return task.Failf(...)` (or, in a
   Define callback, `return fmt.Errorf(...)`).
 
+- A live frame over a Group of many per-item Groups no longer snapshots
+  every nested Task: nested collections project through the same row
+  budget as flat children, so 16000 per-item Groups paint in about 20ms a
+  frame instead of 651ms. A live body now examines at most one more nested
+  Group than it has rows; the rest count toward `N not shown`.
+
 - Package and directory review no longer reports MCP-017 `undefined: yaml`
   (partial, recheck required) for an unaliased import whose package name is
   not its last path element, such as `gopkg.in/yaml.v3` or

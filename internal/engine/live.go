@@ -460,9 +460,9 @@ func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
 	for _, p := range o.plans {
 		s.Plans = append(s.Plans, p.planSnapshot())
 	}
-	for _, col := range o.collections {
-		s.Collections = append(s.Collections, col.liveSnapshot(rows, now))
-	}
+	cols := liveCollections(o.collections, rows, now)
+	s.Collections = cols.Kept()
+	s = core.WithRootCollectionTally(s, cols.Tally())
 	root := render.NewLiveChildren("", rows)
 	for _, t := range o.tasks {
 		if t.collection != nil {

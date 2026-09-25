@@ -298,8 +298,47 @@ func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
 			children.Keep(t.snapshot())
 		}
 	}
-	for _, child := range g.children {
-		ts.Collections = append(ts.Collections, child.liveSnapshot(rows, now))
-	}
+	ts = liveCollections(g.children, rows, now).Into(ts)
 	return children.Collection(ts)
+}
+
+// liveCollections projects cols for a live frame of rows rows: the ones
+// the frame can reach through liveSnapshot, the rest tallied from views
+// (see render.LiveCollections).
+func liveCollections(cols []*tasksState, rows int, now time.Time) *render.LiveCollections {
+	projected := render.NewLiveCollections(rows)
+	for _, col := range cols {
+		if projected.Admit() {
+			projected.Keep(col.liveSnapshot(rows, now))
+			continue
+		}
+		col.stampLiveFirstSeen(now)
+		projected.Omit(col.view())
+	}
+	return projected
+}
+
+// view is g's header and its Tasks' views, recursively: what a live
+// projection tallies of a collection the frame cannot reach, without the
+// cost of a snapshot.
+func (g *tasksState) view() TasksSnapshot {
+	ts := g.header()
+	for _, t := range g.tasks {
+		ts.Tasks = append(ts.Tasks, t.view())
+	}
+	for _, child := range g.children {
+		ts.Collections = append(ts.Collections, child.view())
+	}
+	return ts
+}
+
+// stampLiveFirstSeen stamps every Task at or below g, as a frame that
+// counted them does (see taskState.stampLiveFirstSeen).
+func (g *tasksState) stampLiveFirstSeen(now time.Time) {
+	for _, t := range g.tasks {
+		t.stampLiveFirstSeen(now)
+	}
+	for _, child := range g.children {
+		child.stampLiveFirstSeen(now)
+	}
 }

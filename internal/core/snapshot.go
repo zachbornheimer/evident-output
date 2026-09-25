@@ -62,6 +62,9 @@ type Snapshot struct {
 	// rootTally mirrors TasksSnapshot's tally for the standalone root
 	// Tasks of a live projection. See WithRootTally.
 	rootTally *ChildTally
+	// rootCollectionTally mirrors TasksSnapshot's collectionTally for the
+	// root collections of a live projection. See WithRootCollectionTally.
+	rootCollectionTally *CollectionTally
 }
 
 // TaskSnapshot is an immutable task view.
@@ -191,6 +194,10 @@ type TasksSnapshot struct {
 	// child it was built from. Unexported presentation bookkeeping; see
 	// WithChildTally.
 	tally *ChildTally
+	// collectionTally, when set, marks Collections as a partial list: a
+	// live projection left out the child collections a frame cannot
+	// reach, and collectionTally sums them. See WithCollectionTally.
+	collectionTally *CollectionTally
 }
 
 // ChangesSnapshot is an immutable changes section.

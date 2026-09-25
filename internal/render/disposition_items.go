@@ -190,6 +190,8 @@ func headerlessRowNameWidth(col core.TasksSnapshot) int {
 			width = max(width, len([]rune(name)))
 		}
 	}
+	left := core.CollectionTallyOf(col)
+	rows, width = rows+left.OwnRows, max(width, left.OwnRowNameWidth)
 	if rows < 2 {
 		return 0
 	}
