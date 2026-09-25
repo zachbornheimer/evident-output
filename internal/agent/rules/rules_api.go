@@ -328,7 +328,7 @@ out.Task("disk space").Define(checkDiskSpace)`,
 			GoodCode: `if err := validate(cfg); err != nil {
   return fmt.Errorf("validate policy manifest: %w", err)
 }`,
-			Remediation:     `Replace the Fail + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere keep the Fail statement and return err instead of nil. Replace a Block + return nil pair the same way — always keep the Block statement (a plain returned error would conclude the Task Failed, not Blocked) and return err instead of nil so the caller still sees the cause`,
+			Remediation:     `Replace the Fail + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere keep the Fail statement and return err instead of nil. A Block + return nil pair is different: inside a Define/mutation callback, keep the Block statement and return err instead of nil, the same as Fail; outside Define, return nil after Block is already correct (DOM-011) — there is no Output/Finish return value in scope to hand the error to, so leave it as return nil`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-034"},
 			Since:           "0.2.17",
@@ -348,7 +348,7 @@ if err := cmd.Run(); err != nil {
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
   task.Block("policy check failed", evo.NextCommand("git", "status"))
-  return err
+  return nil // Block resolved the task; return nil outside Define (DOM-011)
 }`,
 			Remediation:     "Wire the checked command's output through task.Writer() instead of io.Discard, so Block/Fail can attach evidence",
 			RelatedGuidance: []string{"streams"},
@@ -508,8 +508,8 @@ return task.Wait()`,
 			Why:       "TaskHandle.Blockf and the *Failure value it returned (with its own Next/NextCommand/Unwrap) were removed in 1.1 with no compatibility alias (E-118 lane B). A remedy attaches to Block itself as an evo.Next/evo.NextCommand ProblemOption, not to a chained return value.",
 			BadCode:   `return task.Blockf("worktree dirty: %w", err).NextCommand("git", "status")`,
 			GoodCode: `task.Block("worktree dirty", evo.NextCommand("git", "status"))
-return err`,
-			Remediation:     "Replace Blockf(...) (removed in 1.1) plus its chained .NextCommand(...)/.Next(...) with Block(summary, evo.NextCommand(...)/evo.Next(...)) followed by a plain return of the cause — Block already resolved the task Blocked, so the return only lets the caller see the cause",
+return nil // Block already resolved the task; outside Define there is no Output/Finish return value to hand back, so return nil (DOM-011)`,
+			Remediation:     "Replace Blockf(...) (removed in 1.1) plus its chained .NextCommand(...)/.Next(...) with Block(summary, evo.NextCommand(...)/evo.Next(...)). Inside a Define/mutation callback, keep returning the cause afterward (`return err`; Block resolved the task, the return only lets Define hand the cause up, DOM-011 exempts this shape). Everywhere else, return nil — a returned error there is DOM-011's expected-blocked-treated-as-application-error shape, not Block's remedy",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-081"},
 			Since:           "1.1.0",

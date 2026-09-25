@@ -109,10 +109,14 @@ func handBackSuggestion(recv, verb, errVar string) string {
 	return returnTheErrorSuggestion(recv, errVar)
 }
 
-// detectFailBlockThenReturnNil is API-034: a statement-form Fail/Block
-// followed immediately by a bare `return nil` discards the error the caller
-// needed to propagate — the most common shape of "the remedy has nowhere to
-// attach" (49 dotfiles + 41 zq sites).
+// detectFailBlockThenReturnNil is API-034: a statement-form Fail, or a
+// statement-form Block inside a Define/mutation callback, followed
+// immediately by a bare `return nil` discards the error the caller needed to
+// propagate — the most common shape of "the remedy has nowhere to attach"
+// (49 dotfiles + 41 zq sites). A Block outside Define is exempt: there is no
+// Output/Finish return value in scope there, so `return nil` after Block is
+// the correct closeout (DOM-011) — flagging it would put API-034 and DOM-011
+// in an unconvergeable rewrite loop.
 func detectFailBlockThenReturnNil(filename, src string) []Finding {
 	var findings []Finding
 	lines := strings.Split(src, "\n")
@@ -122,6 +126,9 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 			continue
 		}
 		recv, verb := m[1], m[2]
+		if verb == "Block" && !insideDefineCallback(lines, i) {
+			continue
+		}
 		suggestion := returnTheErrorSuggestion(recv, "err")
 		if verb == "Block" {
 			suggestion = returnTheRefusalSuggestion(recv + ".Block(...)")
