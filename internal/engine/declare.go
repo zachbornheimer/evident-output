@@ -40,15 +40,15 @@ func (o *Output) Task(name string) *TaskHandle {
 	if names.taskTaken(clean) {
 		return o.rejectedTask(o.failDuplicateSiblingLocked(nil, kindTask, clean))
 	}
-	h := o.addTaskLocked(clean, nil, "", "")
+	h := o.addTaskLocked(clean, nil)
 	if h.rejected == nil {
 		names.claimTask(clean)
 	}
 	return h
 }
 
-func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey string) *TaskHandle {
-	h := o.declareTaskLocked(name, col, key, parentKey)
+func (o *Output) addTaskLocked(name string, col *tasksState) *TaskHandle {
+	h := o.declareTaskLocked(name, col)
 	if _, ok := o.taskByRef[h.id]; ok {
 		o.signalLiveLocked(true)
 	}
@@ -58,24 +58,13 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key, parentKey stri
 // declareTaskLocked records a child without painting; addTaskLocked
 // paints it.
 //
-// When key is empty, the task's §3.1 stable identity defaults to
-// kind+parentKey+normalized-name; an explicit key replaces that derivation
-// entirely and is registered instead. parentKey is the declaring parent's
-// own stable key (a Group/Sequence's key, or "" for a root-level Task).
-func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey string) *TaskHandle {
+// The task's §3.1 stable identity is kind + the declaring parent's key
+// (parentKeyOf) + name, for every declaration, a refused duplicate's row
+// included; TaskHandle.Key replaces it later.
+func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return o.rejectedTask(err)
-	}
-	effectiveKey := key
-	if effectiveKey != "" {
-		if _, ok := o.keys[effectiveKey]; ok {
-			o.recordMisuse(ErrDuplicateKey)
-			return o.rejectedTask(ErrDuplicateKey)
-		}
-		o.keys[effectiveKey] = struct{}{}
-	} else {
-		effectiveKey = stableKey(kindTask, parentKey, name)
 	}
 	if err := o.ensureEntityRoomLocked(); err != nil {
 		o.recordMisuse(err)
@@ -83,7 +72,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 	}
 	st := &taskState{
 		id:          o.nextID("task"),
-		key:         effectiveKey,
+		key:         stableKey(kindTask, parentKeyOf(col), name),
 		name:        name,
 		state:       Pending,
 		progress:    Progress{Kind: Indeterminate},
@@ -200,7 +189,7 @@ func (o *Output) declareGroupTask(g *GroupHandle, name string) *TaskHandle {
 	if col.names.taskTaken(clean) {
 		return o.rejectedTask(o.failDuplicateSiblingLocked(col, kindTask, clean))
 	}
-	h := o.addTaskLocked(clean, col, "", col.key)
+	h := o.addTaskLocked(clean, col)
 	if h.rejected == nil {
 		col.names.claimTask(clean)
 	}

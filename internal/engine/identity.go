@@ -118,7 +118,7 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 // Callers must already hold o.mu. It returns the refusal the duplicate's
 // rejected handle keeps.
 func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, name string) error {
-	h := o.addTaskLocked(name, col, "", parentKeyOf(col))
+	h := o.addTaskLocked(name, col)
 	rejected := fmt.Errorf("%w: %s", ErrDuplicateSiblingName, name)
 	st := o.taskByRef[h.id]
 	if st == nil {

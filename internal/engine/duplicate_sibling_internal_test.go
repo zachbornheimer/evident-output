@@ -73,3 +73,33 @@ func TestRootContainerNamesShareOneRegistry(t *testing.T) {
 		})
 	}
 }
+
+// TestDuplicateSiblingRefusalRowSharesItsSiblingsIdentity: the refusal row
+// derives its identity exactly as the original declaration did, at the
+// root and under a Group, so one rule decides both.
+func TestDuplicateSiblingRefusalRowSharesItsSiblingsIdentity(t *testing.T) {
+	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	t.Cleanup(func() { _ = out.Close() })
+	g := out.Group("g")
+	pairs := [][2]*TaskHandle{
+		{out.Task("t"), out.Task("t")},
+		{g.Task("c"), g.Task("c")},
+	}
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	for _, p := range pairs {
+		original := out.taskByRef[p[0].id]
+		var refusal *taskState
+		for _, st := range out.tasks {
+			if st.name == original.name && st.collection == original.collection && st != original {
+				refusal = st
+			}
+		}
+		if refusal == nil {
+			t.Fatalf("%s: no refusal row recorded", original.name)
+		}
+		if refusal.key != original.key {
+			t.Errorf("%s: refusal key %q, original key %q", original.name, refusal.key, original.key)
+		}
+	}
+}
