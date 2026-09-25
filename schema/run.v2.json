@@ -264,7 +264,7 @@
       "required": ["disposition", "reason", "name"],
       "properties": {
         "disposition": {
-          "enum": ["kept", "skipped"]
+          "const": "skipped"
         },
         "reason": {
           "type": "string"

@@ -1369,7 +1369,7 @@ Execution truth and mutation truth should not compete in the same visual grammar
 
 ```text
 ✓ branches  50 checked
-  ! kept 13 (8 protected, 5 unpushed)
+  - skipped 13 (8 protected, 5 unpushed)
 
 [changed] branches  deleted 8 local tips
 ```
@@ -1408,9 +1408,9 @@ Read-only discovery inside `Define` is allowed in dry-run. This is what lets the
 [dry-run] repo  ~/Developer/zq
 
 ✓ worktrees  100 checked
-  ! kept 6 (4 dirty, 2 unpushed)
+  - skipped 6 (4 dirty, 2 unpushed)
 ✓ branches  50 checked
-  ! kept 13 (8 protected, 5 unpushed)
+  - skipped 13 (8 protected, 5 unpushed)
 
 [planned] worktrees  remove 6 worktrees
 [planned] branches   delete 8 local tips

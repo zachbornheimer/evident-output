@@ -44,21 +44,9 @@ func ExampleTaxonomyRecord() {
 	// protected branch main
 }
 
-// ExampleForSkip shows constructing the ReasonOption that restricts a
-// taxonomy Reason to TaskHandle.Skipped (recording it via Kept is misuse).
-// evo.Reason itself takes no options today — this constrained-reason form is
-// reachable only through the internal reasonGetOrCreate a future advanced
-// entrypoint would expose; the option value is still real and constructible.
-func ExampleForSkip() {
-	opt := evo.ForSkip()
-	fmt.Println(opt != nil)
-	// Output:
-	// true
-}
-
 // ExampleOnTask shows constructing the ReasonOption that restricts a
-// taxonomy Reason to one named task (see ExampleForSkip for why it isn't
-// wired through evo.Reason yet).
+// taxonomy Reason to one named task. evo.Reason itself takes no options
+// today; the option value is still real and constructible.
 func ExampleOnTask() {
 	opt := evo.OnTask("integration tests")
 	fmt.Println(opt != nil)
@@ -67,9 +55,9 @@ func ExampleOnTask() {
 }
 
 // ExampleReasonOption shows the interface every Reason constraint
-// (ForSkip, OnTask) implements.
+// (OnTask) implements.
 func ExampleReasonOption() {
-	opt := evo.ForSkip()
+	var opt = evo.OnTask("integration tests")
 	fmt.Println(opt != nil)
 	// Output:
 	// true

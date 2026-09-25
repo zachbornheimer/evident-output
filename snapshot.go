@@ -18,7 +18,7 @@ type Snapshot = core.Snapshot
 type TaskSnapshot = core.TaskSnapshot
 
 // TaxonomyRecord is one accumulated (reason, name) disposition entry —
-// recorded by TaskHandle.Skipped or TaskHandle.Kept, never assembled by hand.
+// recorded by TaskHandle.Skipped, never assembled by hand.
 type TaxonomyRecord = core.TaxonomyRecord
 
 // TasksSnapshot is an immutable collection view.

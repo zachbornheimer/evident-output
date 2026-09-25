@@ -89,8 +89,8 @@ var fileDetectors = []detector{
 	// further Doing/Progress/Writer — the spinner keeps spinning over a
 	// silent child with no way to tell slow from hung.
 	{needsEvo: true, run: textRule(detectStaleDoingBeforeSubprocess)},
-	// TAX-001: a hand-assembled "%d skipped/kept/retained" string bypasses
-	// the reason-partitioned taxonomy evo derives from Skipped/Kept.
+	// TAX-001: a hand-assembled "%d skipped" string bypasses the
+	// reason-partitioned taxonomy evo derives from Skipped.
 	{needsEvo: true, run: textRule(detectHandAssembledTaxonomyCount)},
 	// PROG-001 (Doing form): a Doing string smuggling "%d/%d" is progress
 	// hidden in narration text instead of a real Progress call.
@@ -235,12 +235,16 @@ var fileDetectors = []detector{
 	// API-110..API-116: a capture-meaning Evidence* name removed in 1.1
 	// (E-121); retained process output is spelled Capture.
 	{needsEvo: true, run: astRule(detectRemovedCaptureName)},
-	// API-062: a second Kept/Skipped on one Task — the item is the Task, so
-	// the per-item shape is group.Task(item).Kept(reason) (contract §25
+	// API-062: a second Skipped on one Task — the item is the Task, so
+	// the per-item shape is group.Task(item).Skipped(reason) (contract §25
 	// renderer aggregation folds those children into one tally).
 	{needsEvo: true, run: astRule(detectRepeatedDisposition)},
 	// API-063: a Verify callback that returns a constant observes nothing.
 	{needsEvo: true, run: astRule(detectConstantVerify)},
+	// API-100: TaskHandle.Kept was removed in 1.1 with no alias.
+	{needsEvo: true, run: astRule(detectKeptCall)},
+	// API-101: evo.ForSkip was removed in 1.1 with no alias.
+	{needsEvo: true, run: astRule(detectForSkipUsage)},
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
 	{needsEvo: true, run: astRule(detectMutatingLegacyEvidence)},
 	// EVO-VERIFY-001: Verify callback performs a raw mutation; Verify must

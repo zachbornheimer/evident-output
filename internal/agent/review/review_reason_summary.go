@@ -14,7 +14,7 @@ import (
 // taxonomyReasonVerbWords maps the taxonomy verb to the word it must not be
 // restated by its own reason (zq cmd/zq-build/main.go:81's
 // Skipped(evo.Reason("skipped"))).
-var taxonomyReasonVerbWords = map[string]string{"Skipped": "skipped", "Kept": "kept"}
+var taxonomyReasonVerbWords = map[string]string{"Skipped": "skipped"}
 
 func detectInlineReasonLiteral(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	if strings.HasSuffix(filename, "_test.go") {

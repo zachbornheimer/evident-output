@@ -24,7 +24,7 @@ func groupHeaderAddsNothing(col core.TasksSnapshot) bool {
 // flattensHeader reports whether col, with items already folded out of it,
 // renders without its header row: its children then render as siblings of
 // the rows around it. Folded tallies need the header to hang under.
-func flattensHeader(col core.TasksSnapshot, items core.Dispositions) bool {
+func flattensHeader(col core.TasksSnapshot, items core.Tally) bool {
 	return groupHeaderAddsNothing(col) && items.Empty()
 }
 

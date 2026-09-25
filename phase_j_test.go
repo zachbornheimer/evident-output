@@ -123,7 +123,7 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Title: "repo-retire", Color: evo.ColorNever, Plain: true})
 	succeed(out.Task("clean"))
-	out.Task("kept").Problem("kept 1", evo.Severity(evo.SeverityWarning))
+	out.Task("flagged").Problem("held back 1", evo.Severity(evo.SeverityWarning))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestConclusion_WarningSeverityOnlyAutoResolvesDoneAndStaysWarned(t *testing
 }
 
 // TestConformance_Problem1SuccessBlock pinned evo-rec.md's Problem 1
-// "success" block — the *aggregated* "! skipped 6 (...)"/"! kept 3 (...)"
+// "success" block — the *aggregated* "! skipped 6 (...)"/"! held back 3 (...)"
 // collapse across many same-shaped children. That collapse was Each-owned
 // presentation (writePlainEachAggregate keys off the fromEach marker); 1.0
 // removed Each outright (§3.1: its get-or-create reliance is unsound), and

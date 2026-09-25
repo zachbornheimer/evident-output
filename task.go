@@ -86,8 +86,6 @@ func (t *TaskHandle) Failf(format string, args ...any) *Failure {
 	return wrapFailure(t.impl().Failf(format, args...))
 }
 
-func (t *TaskHandle) Kept(reason TaxonomyReason) { t.impl().Kept(reason.inner) }
-
 // Key sets an advanced override for this Task's stable identity, so a
 // rename or refactor keeps its manifest history. Call it before Define; a
 // call after Define or after the Task settled records ErrKeyAfterDefine and
@@ -128,6 +126,12 @@ func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	return t
 }
 
+// Skipped resolves the Task Skipped: its work did not apply or was
+// intentionally not executed, such as a per-candidate Task that policy
+// excludes. Name why with evo.Reason ("checked out", "dirty"); a Group
+// folds its Skipped children into one "- skipped N (reason counts)" tally.
+// Skipped never sets warned, and it is never AlreadySatisfied. A count
+// such as "kept 383" is information: a Fact or part of the Summary.
 func (t *TaskHandle) Skipped(reason TaxonomyReason) { t.impl().Skipped(reason.inner) }
 
 func (t *TaskHandle) Snapshot() TaskSnapshot {
@@ -178,7 +182,7 @@ func (t *TaskHandle) Wait() error {
 // AlreadySatisfied without running it) and again after a successful
 // callback (any false fails the Task with ProblemCodeVerificationUnsatisfied).
 // The after-check is skipped in two cases only: Define resolved the Task
-// itself (Block, or Kept/Skipped with no Effect committed first), or a dry
+// itself (Block, or Skipped with no Effect committed first), or a dry
 // run or preview skipped an Effect Define planned. A planned run whose
 // Define planned nothing is checked like a real one.
 func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {

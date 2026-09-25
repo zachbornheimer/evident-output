@@ -8,9 +8,10 @@ import (
 
 // taskResolvingMethods are the TaskHandle methods that give a Task its
 // outcome (or its work): after any of them the row resolves on its own.
-// The removed pre-1.1 spellings (Done, the mutation verbs, Run, Each)
-// resolved a Task too; a program pinned to an older release still uses
-// them, and API-032 already reports them against the current one.
+// The removed spellings (Done, the mutation verbs, Run, Each from 1.0;
+// Kept from 1.1) resolved a Task too; a program pinned to an older release
+// still uses them, and the retired-symbol review rules (API-032, API-100)
+// already report them against the current one.
 var taskResolvingMethods = map[string]bool{
 	"Define": true, "Verify": true, "Fail": true, "Failf": true, "Block": true, "Blockf": true,
 	"Skipped": true, "Kept": true, "Cancel": true, "Problem": true,

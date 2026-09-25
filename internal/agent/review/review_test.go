@@ -2098,7 +2098,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func f(task *evo.TaskHandle, n int) {
-  task.Doing(fmt.Sprintf("kept %d", n))
+  task.Doing(fmt.Sprintf("%d stale locks", n))
 }
 `
 	res := review.GoSource("sprintfdoing.go", src)
@@ -2106,7 +2106,7 @@ func f(task *evo.TaskHandle, n int) {
 		if f.RuleID == "API-036" {
 			t.Fatalf("API-036 must not fire on Doing (Doingf does not exist): %+v", f)
 		}
-		if f.RuleID == "API-038" && f.Suggestion != `task.Doing("kept %d", n)` {
+		if f.RuleID == "API-038" && f.Suggestion != `task.Doing("%d stale locks", n)` {
 			t.Fatalf("suggestion = %q", f.Suggestion)
 		}
 	}
@@ -2144,6 +2144,30 @@ func (r *runner) resolutionPhase(text string) {
 	}
 	if !found {
 		t.Fatalf("expected API-037: %+v", res.Findings)
+	}
+}
+
+// 1.1 swapped the removed Kept verb for Skipped in the wrapper-verb
+// pattern (Kept is gone; a policy-excluded item is Skipped). A method
+// whose entire body is one Skipped call is the same "inline the verb"
+// wrapper API-037 already catches for Doing/Fail/etc.
+func TestAPI037_WrapperMethodOverSkipped(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+type runner struct{ item *evo.TaskHandle }
+func (r *runner) excluded(reason evo.Reason) {
+  r.item.Skipped(reason)
+}
+`
+	res := review.GoSource("skippedwrapper.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "API-037" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected API-037 on a Skipped-only wrapper method: %+v", res.Findings)
 	}
 }
 

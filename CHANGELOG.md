@@ -128,12 +128,6 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   masks by the umask), and an unmanaged rewrite now passes the file's
   existing mode instead of `0666`.
 
-- **A `Kept` record now concludes `warned` (contract §18).** Any Task that
-  records `Kept(reason)` sets `Conclusion.Warned`, the `--json`
-  `conclusion.warned` field, and the `· warned` band, so a run that kept
-  items it was asked to clean no longer reads as a plain `ready`. A
-  `Skipped` record renders `- skipped N (...)` and never warns.
-
 - **The renderer decides which rows deserve a line (no new API; callers just
   stop choosing):**
   - A `Group` with no `Summary` of its own renders no header row in human
@@ -174,10 +168,24 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   deliberate wire-compat decision, since existing `run.v2` payloads already
   use that key and this rename is Go-API-only.
 
-- **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
-  and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
-  guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`
-  takes only its name. Review rule API-064 flags the old calls.
+- **`TaskHandle.Kept`, `evo.ForSkip`, and `ErrReasonSkipOnly`** were removed
+  with no compatibility alias (vocabulary freeze: `Summary`/`Skipped`/`Kept`
+  were never three equivalent outcomes — `Kept` is domain information,
+  never a resolution verb). A per-candidate Task a policy excludes is
+  `Skipped` with a `Reason`; a count such as "kept 383" is a `Fact` (e.g.
+  `task.Fact("kept", "383")` — `Fact` takes a string value) or part of the
+  `Summary`. `evo.ForSkip()` restricted a `Reason` to skip-only use so it
+  could not also be handed to `Kept`; `ErrReasonSkipOnly` was the error
+  that constraint returned. With `Kept` gone, `Skipped` is the only
+  disposition a `Reason` ever names, so both guard nothing and are removed
+  together. `evo.OnTask` and `evo.ReasonOption` are unrelated to this
+  removal and stay: they scope a `Reason` to one `Task`, not to a
+  disposition. Review rules API-100/API-101 flag the removed
+  `Kept`/`ForSkip` call shapes with the exact `Skipped`/`Fact` rewrite. A
+  `Kept` record's glyph was `! kept`; a `Skipped` record renders
+  `- skipped` — under v1.0.0, `Kept` never set `Conclusion().Warned` (only
+  the glyph changes here). See
+  [`docs/migration/1.1.md`](docs/migration/1.1.md#taskhandlekept-and-evoforskip-were-removed-in-11).
 - **`TaskHandle.Add/Create/Delete/Push/Remove/Update/Write`, `evo.Affected`,
   and `evo.MutationOption`** were removed with no aliases (ZYS-950). Opaque
   mutations use `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)`
@@ -231,10 +239,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   name is now guessed from its path (`gopkg.in/yaml.v3` is `yaml`,
   `go-git/v5` is `git`), and only an import none of whose guesses the
   file uses makes an undefined selector base ambiguous.
-- A Fact on a kept or skipped item Task no longer breaks its Group's fold
-  under verbose: the Group still shows one `! kept N (...)` tally, and the
+- A Fact on a skipped item Task no longer breaks its Group's fold under
+  verbose: the Group still shows one `- skipped N (...)` tally, and the
   verbose item list shows each item's Facts at one column past the widest
-  name. Each item rendered its own `✓ name  why ...` row and `! kept 1`.
+  name. Each item rendered its own `✓ name  why ...` row and
+  `- skipped 1`.
 
 - Review rule API-036 no longer rewrites a bare `task.Block(fmt.Sprintf(...))`
   or `task.Fail(fmt.Sprintf(...))` statement into `Blockf`/`Failf`, whose
@@ -248,15 +257,15 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   of problem records (subject, detail, remedies), so a Task's warnings reach
   machine output; `schema/run.v2.json` declares it. The change is additive.
 
-- A Task whose `Define` resolves it itself (`Kept`, `Skipped`, `Block`) is
-  no longer re-checked against its `Verify` afterwards. A false `Verify`
-  failed the Kept or Skipped Task `postcondition not satisfied` with exit
-  2, and printed a spurious "resolve each task once" line under a Blocked
-  one: a Task that chose not to converge has no change to verify. A
-  `Define` that committed an Effect before calling `Kept` or `Skipped`
-  did change state, so its `Verify` still runs and a false result still
-  fails the Task. A `Define` that calls `Kept` or `Skipped` and then
-  returns an error fails with that error and no misuse line.
+- A Task whose `Define` resolves it itself (`Skipped`, `Block`) is no
+  longer re-checked against its `Verify` afterwards. A false `Verify`
+  failed the Skipped Task `postcondition not satisfied` with exit 2, and
+  printed a spurious "resolve each task once" line under a Blocked one: a
+  Task that chose not to converge has no change to verify. A `Define` that
+  committed an Effect before calling `Skipped` did change state, so its
+  `Verify` still runs and a false result still fails the Task. A `Define`
+  that calls `Skipped` and then returns an error fails with that error and
+  no misuse line.
 
 - Review rule API-063 resolves a `Verify(check)` argument in the call's
   own scope. It keyed local function literals by name across the whole
@@ -264,8 +273,8 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   bound a constant `check`, and its "drop Verify" suggestion would delete
   a real postcondition.
 
-- Under verbose, one Fact on one kept or skipped item no longer lists
-  every item of its reason on its own line: only items with Facts get a
+- Under verbose, one Fact on one skipped item no longer lists every item
+  of its reason on its own line: only items with Facts get a
   row (at most three), and the rest fold into the bounded
   `a, b, c … +N more` list. A value-only Fact (`evo.Fact("", v)`) no longer
   renders with a stray leading separator.
@@ -302,9 +311,9 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   ignored a container whose derived state was Blocked; a container whose
   children all never started now marks the run partial, as a root Task does.
 
-- A lone kept or skipped item under a Group's own Task folds into the
-  Group's tally (`✓ branches  2 checked` / `  ! kept 1 (protected)`)
-  instead of printing as its own success row. A live Group that holds
+- A lone skipped item under a Group's own Task folds into the Group's
+  tally (`✓ branches  2 checked` / `  - skipped 1 (protected)`) instead
+  of printing as its own success row. A live Group that holds
   only nested Groups no longer paints `0/0 complete`. Opening a ledger
   section is O(log N), so one Effect per Task no longer grows
   quadratically.

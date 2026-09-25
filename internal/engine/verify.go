@@ -49,7 +49,7 @@ var errVerificationUnsatisfied = errors.New("evo: postcondition not satisfied")
 // plainly. Neither check commits a success record on its own; only a fully
 // satisfied pass (pre- or post-) does. The after-check is skipped in two
 // cases only (hasPostStateToVerify): Define resolved the Task itself
-// (Block, or Kept/Skipped with no Effect committed first), or a dry run or
+// (Block, or Skipped with no Effect committed first), or a dry run or
 // preview skipped an Effect Define planned, so the observed state is the
 // one before the plan. A planned run whose Define planned nothing is
 // checked like a real one.
@@ -190,7 +190,7 @@ func (t *TaskHandle) checkAfterDefine(verifiers []verifierFunc, scope *taskScope
 
 // hasPostStateToVerify reports whether the state after this Task's
 // Define is one its postcondition can judge. It is not when Define
-// resolved the Task itself without committing a change (Kept, Skipped,
+// resolved the Task itself without committing a change (Skipped,
 // Block: it chose not to converge, so there is no change to verify,
 // E-110, E-112), nor when a dry run
 // or preview skipped a mutation Define planned (the observed state is
@@ -202,14 +202,14 @@ func (t *TaskHandle) hasPostStateToVerify() bool {
 	o.mu.Lock()
 	st := o.taskByRef[t.id]
 	// Block resolves at once, so its terminal Task is never re-checked. A
-	// Kept or Skipped inside Define is held as an unratified proposal
-	// until the callback's return confirms it; it claims "no change" only
-	// while Define committed no Effect (E-112): a Kept after a real
-	// mutation still owes its postcondition.
+	// Skipped inside Define is held as an unratified proposal until the
+	// callback's return confirms it; it claims "no change" only while
+	// Define committed no Effect (E-112): a Skipped after a real mutation
+	// still owes its postcondition.
 	blocked := st != nil && core.IsTerminalTask(st.state)
-	keptUnchanged := st != nil && st.proposed != nil && !o.hasRecordedEffectLocked(t.id)
+	skippedUnchanged := st != nil && st.proposed != nil && !o.hasRecordedEffectLocked(t.id)
 	o.mu.Unlock()
-	if blocked || keptUnchanged {
+	if blocked || skippedUnchanged {
 		return false
 	}
 	return !o.cfg.dryRun || !o.hasPlannedEffect(t.id)

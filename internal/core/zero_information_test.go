@@ -39,7 +39,6 @@ var zeroInformationFields = map[string]taskFieldRole{
 	"Verification":    roleInformation,
 	"Actions":         roleInformation,
 	"Skipped":         roleInformation,
-	"Kept":            roleInformation,
 	"Collection":      roleIdentity,
 	"Declaration":     roleIdentity,
 	"Resolution":      roleOutcome,

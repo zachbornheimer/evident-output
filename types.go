@@ -110,7 +110,6 @@ var (
 	ErrInvalidConfig        = engine.ErrInvalidConfig
 	ErrRenderer             = engine.ErrRenderer
 	ErrLimitExceeded        = engine.ErrLimitExceeded
-	ErrReasonSkipOnly       = engine.ErrReasonSkipOnly
 	ErrReasonWrongTask      = engine.ErrReasonWrongTask
 	ErrConcurrentRunning    = engine.ErrConcurrentRunning
 	ErrDryRunDeclaredLate   = engine.ErrDryRunDeclaredLate

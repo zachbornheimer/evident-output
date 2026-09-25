@@ -4,15 +4,14 @@ import (
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// TaxonomyReason names why a task skipped or kept an item. It is the opaque
+// TaxonomyReason names why a Task was skipped. It is the opaque
 // handle returned by evo.Reason — duplicate strings merge into one taxonomy
 // bucket so a caller can construct one inline at every call site
 // (evo.Reason("dirty")) without hand-tracking identity, or lift it to a
 // package var once it repeats.
 type TaxonomyReason struct {
-	name    string
-	forSkip bool
-	onTask  string // empty means usable from any task
+	name   string
+	onTask string // empty means usable from any task
 }
 
 // Name returns the reason's display label.
@@ -27,11 +26,6 @@ type ReasonOption interface {
 type reasonOptionFunc func(*TaxonomyReason)
 
 func (f reasonOptionFunc) apply(r *TaxonomyReason) { f(r) }
-
-// ForSkip restricts a reason to TaskHandle.Skipped — recording it via Kept is misuse.
-func ForSkip() ReasonOption {
-	return reasonOptionFunc(func(r *TaxonomyReason) { r.forSkip = true })
-}
 
 // OnTask restricts a reason to the named task — recording it from a
 // different task is misuse.

@@ -46,16 +46,15 @@ const (
 	inlineNone inlineAnnotation = iota
 	inlineWarning
 	inlineFact
-	inlineTaxonomy
 )
 
 // write renders the row and its nested evidence and annotations.
 func (r taskRow) write(b *strings.Builder, s Style) {
 	r.t = TaskAtVerbosity(r.t, s.Verbose)
-	head, taxonomyVerb := r.head(s)
+	head := r.head(s)
 	r.writeLine(b, head, s)
 	r.writeProblems(b, head.headline, s)
-	r.writeNested(b, head.inlined, taxonomyVerb, s)
+	r.writeNested(b, head.inlined, s)
 }
 
 // headline is the one sentence a row states for its Task: the Task's own
@@ -70,27 +69,24 @@ func headline(t core.TaskSnapshot) string {
 // head chooses the row's detail, first match wins: the already-satisfied
 // resolution, the headline, one short inline annotation, the in-flight
 // progress/phase, or nothing.
-func (r taskRow) head(s Style) (rowHead, disposition) {
+func (r taskRow) head(s Style) rowHead {
 	t := r.t
 	if t.Resolution == core.ResolutionAlreadySatisfied {
-		return rowHead{detail: alreadySatisfiedRowDetail(t, s.Color), headline: alreadySatisfiedDetail}, noDisposition
+		return rowHead{detail: alreadySatisfiedRowDetail(t, s.Color), headline: alreadySatisfiedDetail}
 	}
 	if line := headline(t); line != "" {
-		return rowHead{detail: headlineDetail(t, line, s), headline: line}, noDisposition
+		return rowHead{detail: headlineDetail(t, line, s), headline: line}
 	}
 	if msg, ok := inlineTaskWarning(t); ok {
-		return rowHead{detail: inlineWarningText(msg, s), annotated: true, inlined: inlineWarning}, noDisposition
-	}
-	if text, verb, ok := inlineTaskTaxonomy(t); ok {
-		return rowHead{detail: inlineTaxonomyText(text, verb, s), annotated: true, inlined: inlineTaxonomy}, verb
+		return rowHead{detail: inlineWarningText(msg, s), annotated: true, inlined: inlineWarning}
 	}
 	if f, ok := inlineTaskFact(t); ok {
-		return rowHead{detail: inlineFactText(f, s), annotated: true, inlined: inlineFact}, noDisposition
+		return rowHead{detail: inlineFactText(f, s), annotated: true, inlined: inlineFact}
 	}
 	if t.State == core.Running {
-		return rowHead{detail: runningTaskDetail(t)}, noDisposition
+		return rowHead{detail: runningTaskDetail(t)}
 	}
-	return rowHead{}, noDisposition
+	return rowHead{}
 }
 
 // headlineDetail renders a row's headline. A Failed or Blocked headline is
@@ -155,7 +151,7 @@ func (r taskRow) writeProblems(b *strings.Builder, rowHeadline string, s Style) 
 
 // writeNested writes the row's tallies, verification details, warnings and
 // facts, leaving out whichever annotation the row's own line inlined.
-func (r taskRow) writeNested(b *strings.Builder, inlined inlineAnnotation, taxonomyVerb disposition, s Style) {
+func (r taskRow) writeNested(b *strings.Builder, inlined inlineAnnotation, s Style) {
 	t := r.t
 	warnings, facts := t.Warnings, t.Facts
 	switch inlined {
@@ -164,7 +160,7 @@ func (r taskRow) writeNested(b *strings.Builder, inlined inlineAnnotation, taxon
 	case inlineFact:
 		facts = nil
 	}
-	writeDispositions(b, r.nested, taskDispositions(t), taxonomyVerb, s)
+	writeTaxonomy(b, r.nested, taskTally(t), s)
 	writeVerificationDetails(b, t.Verification, r.nested, t.State == core.Failed, s)
 	writeNestedTaskWarnings(b, warnings, r.nested, s)
 	writeNestedTaskFacts(b, facts, r.nested, s)

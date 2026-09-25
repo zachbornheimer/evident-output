@@ -12,9 +12,9 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/wireschema"
 )
 
-// factsAndKeptRun is a run whose human output hides a Task Fact, a run
-// Fact, and a kept child's reason by default (§13/§21).
-func factsAndKeptRun(t *testing.T, mode string) string {
+// factsAndSkippedRun is a run whose human output hides a Task Fact, a run
+// Fact, and a skipped child's reason by default (§13/§21).
+func factsAndSkippedRun(t *testing.T, mode string) string {
 	t.Helper()
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": mode})
 	var buf bytes.Buffer
@@ -22,7 +22,7 @@ func factsAndKeptRun(t *testing.T, mode string) string {
 	out.Fact("language", "go")
 	out.Task("measure").Fact("on disk", "8.0 KB").Define(func(context.Context) error { return nil })
 	g := out.Group("branches")
-	g.Task("main").Kept(evo.Reason("protected"))
+	g.Task("main").Skipped(evo.Reason("protected"))
 	g.Task("merged1").Skipped(evo.Reason("merged"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -31,12 +31,12 @@ func factsAndKeptRun(t *testing.T, mode string) string {
 }
 
 // TestEVOOutput_JSONCarriesFactsAndDispositions pins E-090: the
-// EVO_OUTPUT=json document dropped Task and run Facts and every Kept /
-// Skipped record, so a machine consumer lost what human verbosity hides.
+// EVO_OUTPUT=json document dropped Task and run Facts and every Skipped
+// record, so a machine consumer lost what human verbosity hides.
 // Contract §13: JSON/JSONL retain structured Facts regardless of human
 // verbosity. EVO_OUTPUT=json now selects the evo.run document.
 func TestEVOOutput_JSONCarriesFactsAndDispositions(t *testing.T) {
-	got := factsAndKeptRun(t, "json")
+	got := factsAndSkippedRun(t, "json")
 	schema, err := os.ReadFile("schema/run.v2.json")
 	if err != nil {
 		t.Fatalf("read schema/run.v2.json: %v", err)
@@ -48,17 +48,20 @@ func TestEVOOutput_JSONCarriesFactsAndDispositions(t *testing.T) {
 	if err := wireschema.Validate(strict, []byte(got)); err != nil {
 		t.Errorf("EVO_OUTPUT=json document does not conform to schema/run.v2.json: %v", err)
 	}
-	for _, want := range []string{`"on disk"`, `"8.0 KB"`, `"language"`, `"protected"`, `"merged"`} {
+	for _, want := range []string{`"on disk"`, `"8.0 KB"`, `"language"`, `"protected"`, `"merged"`, `"disposition": "skipped"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("EVO_OUTPUT=json lacks %s:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, `"kept"`) {
+		t.Errorf("EVO_OUTPUT=json carries a kept disposition; Skipped is the only one:\n%s", got)
 	}
 }
 
 // TestEVOOutput_JSONLCarriesFactsAndDispositions is E-090 for the event
 // lines.
 func TestEVOOutput_JSONLCarriesFactsAndDispositions(t *testing.T) {
-	got := factsAndKeptRun(t, "jsonl")
+	got := factsAndSkippedRun(t, "jsonl")
 	for _, want := range []string{`"on disk"`, `"8.0 KB"`, `"language"`, `"protected"`, `"merged"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("EVO_OUTPUT=jsonl lacks %s:\n%s", want, got)

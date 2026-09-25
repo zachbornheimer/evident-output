@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,24 +24,16 @@ import (
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-// TestV8_DryRunPlanOnly is the golden for the "Dry-run (plan-only)" tab: a
-// Config.Subject header, three checked/kept summary tasks, and a
+// TestV8_DryRunPlanOnly is the golden for the "Dry-run (plan-only)" tab,
+// held to the contract §18 dry-run fixture: a Config.Subject header, three
+// category Groups whose own Task classifies, summarizes and owns the
+// Effect, one Skipped child Task per policy-excluded candidate, and a
 // three-section [planned] ledger.
 //
-// Two deliberate departures from the transcribed frame, both because the
-// normative spec text (higher authority than a hand-transcribed frame)
-// already settles them:
-//   - the header carries evo's own "[dry-run]" tag before the subject
-//     (spec §27's own worked example: "[dry-run] repo  ~/Developer/zq");
-//     the mockup's frame omits it, most plausibly because the real zq
-//     Subject string was composed with the word "prune" already implying
-//     dry-run intent to a human reader, not because evo should stop
-//     tagging dry runs.
-//   - a trailing "[planned · warned]" band still appears: existing,
-//     already-tested behavior (TestCoalesce_DryRunWarned_KeepsTrailingConclusion)
-//     deliberately keeps the trailing band whenever a warned task's
-//     modifier would otherwise vanish along with it — true here too, since
-//     inline "! kept" lines are evidence, not a "· warned" outcome marker.
+// The header carries evo's own "[dry-run]" tag before the subject (§27's
+// worked example: "[dry-run] repo  ~/Developer/zq"). Policy-excluded items
+// are Skipped and never warn, so the run concludes a pure [planned], and
+// under the [dry-run] Subject header that verdict prints no band at all.
 func TestV8_DryRunPlanOnly(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -50,24 +43,29 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
-	// All three declared up front, matching the real CLI's three
-	// concurrently-checked subjects: plain mode's shared name-column width
-	// for a run of sibling standalone tasks (rootColumn) is
-	// computed from every task declared so far at the moment each one
-	// resolves — declaring all three before any resolves is what produces
-	// the mockup's aligned name column.
-	branches := out.Task("branches")
-	worktrees := out.Task("worktrees")
-	remotes := out.Task("remote-tracking")
-
-	branches.Problem("kept 419 (283 checked out, 135 unpushed, 1 protected)", evo.Severity(evo.SeverityWarning))
-	commit(branches.Summary("459 checked"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40})
-
-	worktrees.Problem("kept 292 (163 dirty, 89 unpushed, 40 ignored files)", evo.Severity(evo.SeverityWarning))
-	commit(worktrees.Summary("294 checked"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1})
-
-	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
-
+	checkedOut, unpushed, protected := evo.Reason("checked out"), evo.Reason("unpushed"), evo.Reason("protected")
+	dirty, ignored := evo.Reason("dirty"), evo.Reason("ignored files")
+	categories := out.Group("categories")
+	for _, category := range []*evo.TaskHandle{
+		pruneCategory{
+			name: "branches", summary: "459 checked",
+			effect:  &evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40},
+			skipped: skippedItems("branch", checkedOut, 283, unpushed, 135, protected, 1),
+		}.declare(categories),
+		pruneCategory{
+			name: "worktrees", summary: "294 checked",
+			effect:  &evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1},
+			skipped: skippedItems("worktree", dirty, 163, unpushed, 89, ignored, 40),
+		}.declare(categories),
+		pruneCategory{
+			name: "remote-tracking", summary: "4 stale refs",
+			effect: &evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4},
+		}.declare(categories),
+	} {
+		if err := category.Wait(); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -75,32 +73,47 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	want := "[dry-run] zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading\n" +
 		"\n" +
 		"✓ branches         459 checked\n" +
-		"  ! kept 419 (283 checked out, 135 unpushed, 1 protected)\n" +
+		"  - skipped 419 (283 checked out, 135 unpushed, 1 protected)\n" +
 		"✓ worktrees        294 checked\n" +
-		"  ! kept 292 (163 dirty, 89 unpushed, 40 ignored files)\n" +
+		"  - skipped 292 (163 dirty, 89 unpushed, 40 ignored files)\n" +
 		"✓ remote-tracking  4 stale refs\n" +
 		"\n" +
 		"[planned] branches         delete 40 local tips\n" +
 		"[planned] worktrees        remove 1 worktree\n" +
-		"[planned] remote-tracking  delete 4 stale origin/*\n" +
-		"\n" +
-		"[planned · warned]\n"
+		"[planned] remote-tracking  delete 4 stale origin/*\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
 }
 
+// skippedItems is count candidates per reason, named prefix-1, prefix-2,
+// ..., each Skipped for its reason: pairs alternate reason, count.
+func skippedItems(prefix string, pairs ...any) []skippedItem {
+	var items []skippedItem
+	for i := 0; i+1 < len(pairs); i += 2 {
+		reason, count := pairs[i].(evo.TaxonomyReason), pairs[i+1].(int)
+		for range count {
+			items = append(items, skippedItem{fmt.Sprintf("%s-%d", prefix, len(items)+1), reason})
+		}
+	}
+	return items
+}
+
 // TestV8_NothingToClean is the golden for the "Nothing to clean" tab: three
-// checked subjects, none with any effect, and a closing summary line.
+// checked subjects, none with any effect, and a closing summary line. The
+// one policy-excluded branch is a Skipped child that folds under its
+// category's row (§13), so nothing warns and the band reads a plain
+// [ready]. The closing "prune  nothing to clean" line is the application's
+// own Println of its verdict, layered on top of evo's conclusion band.
 //
-// The frame's closing "prune  nothing to clean" line (no bracket tag, no
-// glyph) is not evo's own conclusion band shape — every other tab's closing
-// band is bracket-tagged ("[dry-run]", "[cancelled]", "[planned · warned]"),
-// and a warned run (branches did warn "kept 1") always keeps its own
-// "· warned" band per the same rule TestV8_DryRunPlanOnly documents. Read
-// as the application's own convenience Println of its "nothing to clean"
-// verdict — layered on top of, not instead of, evo's own standard
-// conclusion band, which the mockup's frame simply did not also transcribe.
+// Getting the per-item Skipped fold onto "branches" (contract §18's "own
+// Task" shape) requires a Group (pruneCategory.declareGroup's own nested
+// per-category Group, not the shared "categories" parent), unlike the
+// base (pre-1.1) version's flat standalone Tasks. A Group's own rows
+// aren't durable until Finish, so the test calls out.Finish() before
+// out.Println — the application does the same, printing its own verdict
+// only after the run concludes — keeping the category rows in their real
+// declaration order ahead of the closing summary line.
 func TestV8_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -110,30 +123,34 @@ func TestV8_NothingToClean(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
-	branches := out.Task("branches")
-	worktrees := out.Task("worktrees")
-	remotes := out.Task("remote-tracking")
-
-	branches.Problem("kept 1 (protected)", evo.Severity(evo.SeverityWarning))
-	succeed(branches, "1 checked")
-	succeed(worktrees, "nothing to clean")
-	succeed(remotes, "nothing to clean")
-	out.Println("prune  nothing to clean")
-
+	categories := out.Group("categories")
+	_, branchesTask := pruneCategory{name: "branches", summary: "1 checked", skipped: skippedItems("branch", evo.Reason("protected"), 1)}.declareGroup(categories)
+	_, worktreesTask := pruneCategory{name: "worktrees", summary: "nothing to clean"}.declareGroup(categories)
+	_, remoteTrackingTask := pruneCategory{name: "remote-tracking", summary: "nothing to clean"}.declareGroup(categories)
+	for _, task := range []*evo.TaskHandle{branchesTask, worktreesTask, remoteTrackingTask} {
+		if err := task.Wait(); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
+	out.Println("prune  nothing to clean")
 
+	// See the doc comment above: Finish runs before Println, so the
+	// category rows (Skipped child folded under "branches" with no
+	// warned band) print in their real declaration order, ahead of the
+	// application's own closing summary line.
+	got := buf.String()
 	want := "zq prune  ~/Developer/Personal/zq\n" +
 		"✓ branches         1 checked\n" +
-		"  ! kept 1 (protected)\n" +
+		"  - skipped 1 (protected)\n" +
 		"✓ worktrees        nothing to clean\n" +
 		"✓ remote-tracking  nothing to clean\n" +
-		"prune  nothing to clean\n" +
-		"\n" +
-		"[ready · warned]  prune\n"
-	if got := buf.String(); got != want {
-		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+		"\n[ready]  prune\n" +
+		"prune  nothing to clean\n"
+	if got != want {
+		t.Fatalf("frame mismatch:\ngot:\n%s\nwant:\n%s", got, want)
 	}
 }
 
@@ -439,7 +456,7 @@ func TestV8_StressLive(t *testing.T) {
 	cleanup.Define(func(ctx context.Context) error {
 		cleanup.Doing("feat/cleanup…")
 		cleanup.Progress(7, 18)
-		cleanup.Problem("kept 5 (3 protected, 2 unpushed)", evo.Severity(evo.SeverityWarning))
+		cleanup.Problem("origin remote slow to respond, retrying", evo.Severity(evo.SeverityWarning))
 		err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 12},
 			func(context.Context) error { return nil })
 		close(committed)
@@ -477,7 +494,7 @@ func TestV8_StressLive(t *testing.T) {
 		"        mode   0644\n" +
 		"   " + glyph + " cleanup    [████        ]  7/18 — 8s\n" +
 		"      " + glyph + " feat/cleanup…\n" +
-		"      ! kept 5 (3 protected, 2 unpushed)\n" +
+		"      ! origin remote slow to respond, retrying\n" +
 		"\n" +
 		"[changed] discover  deleted 5 local tips\n" +
 		"[changed] cleanup   deleted 12 stale origin/*"

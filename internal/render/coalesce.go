@@ -9,10 +9,11 @@ import (
 // StandaloneConclusion is the trailing band as a human reader sees it. A
 // DryRun whose Config.Subject header rendered ("[dry-run] zq prune  <path>")
 // has already named the run, so a band that must still appear (warned,
-// partial, ...) carries its tag alone — contract §18's zq prune fixture
-// closes with a bare "[planned · warned]" under a run titled "zq". The
-// same header already suppresses a pure "[planned]" band outright
-// (ShouldSuppressStandaloneConclusion). Machine output keeps Subject.
+// partial, ...) carries its tag alone. Contract §18's zq prune fixture, a
+// Skipped-only run, closes with a plain "[planned]" and prints no band at
+// all under a run titled "zq" — the same header already suppresses a pure
+// "[planned]" band outright (ShouldSuppressStandaloneConclusion). Machine
+// output keeps Subject.
 func StandaloneConclusion(s core.Snapshot) core.Conclusion {
 	c := *s.Conclusion
 	if s.DryRun && s.DryRunSubject != "" {
@@ -125,11 +126,33 @@ func shouldSuppressRepeatedCondition(s core.Snapshot, c core.Conclusion) bool {
 		}
 		name, state = s.Tasks[0].Name, s.Tasks[0].State
 	default:
+		// §13's Skipped fold ("- skipped N (...)") is the tally's whole
+		// point: a Group whose only children resolved Skipped carries that
+		// tally as content its headline State alone doesn't repeat, so the
+		// trailing band must still land (TestGroup_SkippedChildrenAggregateUnderGroupRow).
+		if collectionHasDirectSkippedChild(s.Collections[0]) {
+			return false
+		}
 		name, state = s.Collections[0].Name, s.Collections[0].State
 	}
 
 	subjectRepeatsCondition := c.Subject == "" || normalizeSubject(c.Subject) == normalizeSubject(name)
 	return subjectRepeatsCondition && conclusionRepeatsEntityState(c.State, state)
+}
+
+// collectionHasDirectSkippedChild reports whether col's own direct child
+// Tasks carry a Skipped record — the §13 fold tally content col's headline
+// State doesn't repeat. Scoped to direct children only: no test or contract
+// text asks for a nested-Group recursive form, and the per-item Skipped
+// fold (declare in prune_contract_test.go) always places skipped items as
+// direct siblings of the category's own Task.
+func collectionHasDirectSkippedChild(col core.TasksSnapshot) bool {
+	for _, t := range col.Tasks {
+		if len(t.Skipped) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func conclusionRepeatsEntityState(conclusion core.ConclusionState, entity core.EntityState) bool {

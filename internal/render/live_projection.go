@@ -26,7 +26,7 @@ type LiveChildren struct {
 	keptByRank          [attentionRankCount]int
 
 	all, work core.ChildCounts
-	items     core.Dispositions
+	items     core.Tally
 	census    childCensus
 }
 

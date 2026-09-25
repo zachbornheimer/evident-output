@@ -1,7 +1,7 @@
 package core
 
-// Tally is the counted partition of disposition records (TaskHandle.Kept
-// or TaskHandle.Skipped): how many, split by Reason in first-seen order,
+// Tally is the counted partition of disposition records
+// (TaskHandle.Skipped): how many, split by Reason in first-seen order,
 // with the item names under each reason. It is the one owner of that
 // count, whether the records sit on a single Task or come from a Group's
 // per-item children, so the headline and its reason parts always sum.
@@ -83,22 +83,15 @@ func TallyOf(records []TaxonomyRecord) Tally {
 	return t
 }
 
-// Dispositions are a Task's or a Group's two tallies.
-type Dispositions struct {
-	Skipped Tally
-	Kept    Tally
-}
+// Empty reports whether nothing was skipped. Skipped is the only
+// disposition a Task or a Group folds (contract Vocabulary), so a Tally
+// built from disposition records needs no wrapper type of its own.
+func (t Tally) Empty() bool { return t.Total() == 0 }
 
-// Empty reports whether nothing was skipped or kept.
-func (d Dispositions) Empty() bool { return d.Skipped.Total() == 0 && d.Kept.Total() == 0 }
-
-// AddTask counts t's own Skipped and Kept records, each carrying t's
+// AddTask counts t's own Skipped records, each carrying t's
 // Facts: t is the item the records name.
-func (d *Dispositions) AddTask(t *TaskSnapshot) {
-	for _, rec := range t.Skipped {
-		d.Skipped.addItem(rec, t.Facts)
-	}
-	for _, rec := range t.Kept {
-		d.Kept.addItem(rec, t.Facts)
+func (t *Tally) AddTask(task *TaskSnapshot) {
+	for _, rec := range task.Skipped {
+		t.addItem(rec, task.Facts)
 	}
 }

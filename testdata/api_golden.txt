@@ -54,7 +54,6 @@ func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
 func (TaskHandle) Fact(name, value string)  *TaskHandle
 func (TaskHandle) Fail(summary string, options ...ProblemOption)
 func (TaskHandle) Failf(format string, args ...any)  *Failure
-func (TaskHandle) Kept(reason TaxonomyReason)
 func (TaskHandle) Key(key string)  *TaskHandle
 func (TaskHandle) Next(actions ...Action)  *TaskHandle
 func (TaskHandle) NextCommand(executable string, args ...string)  *TaskHandle
@@ -100,7 +99,6 @@ func FSResource(path string)  Resource
 func Fact(name, value string)
 func File(ctx context.Context, spec FileSpec)  error
 func Files(ctx context.Context, files FileSet)  error
-func ForSkip()  ReasonOption
 func Glyphs(p GlyphProfile)  Option
 func Group(name string)  *GroupHandle
 func Init(configs ...Config)  *Output
@@ -302,7 +300,6 @@ value ErrPatchMalformed
 value ErrPatchRenameUnsupported
 value ErrPatchUnsupported
 value ErrProgressRegression
-value ErrReasonSkipOnly
 value ErrReasonWrongTask
 value ErrRenderer
 value ErrStaleBasis

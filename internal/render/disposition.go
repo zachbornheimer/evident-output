@@ -2,38 +2,12 @@ package render
 
 import txt "github.com/zachbornheimer/evident-output/internal/text"
 
-// disposition is which tally a Kept/Skipped record counts toward. The
-// zero value is noDisposition: no tally, as when a row inlined none.
-type disposition uint8
-
-const (
-	noDisposition disposition = iota
-	dispositionSkipped
-	dispositionKept
-)
-
-// String is the verb a tally reads as ("skipped 3 (...)", "kept 2
-// (...)").
-func (d disposition) String() string {
-	switch d {
-	case dispositionSkipped:
-		return "skipped"
-	case dispositionKept:
-		return "kept"
-	default:
-		return ""
-	}
-}
-
-// glyph is a tally's leading glyph. A Kept tally is attention — the run
-// left something in place the reader may have expected gone — so it wears
-// the warning bang (contract §26/§27: "! kept 13 (...)"). A Skipped tally
-// is skip detail, never a warning: contract §20 "Use a plain,
-// widely-rendered `-` for an already-satisfied/skipped detail", and §41
-// reserves "!" for Warning.
-func (d disposition) glyph(s Style) string {
-	if d == dispositionSkipped {
-		return s.dim(txt.GlyphSkipDetail.Render(s.Profile))
-	}
-	return s.warningGlyph()
+// skippedTaxonomyGlyph is a Skipped tally's leading glyph. A Skipped tally
+// is skip detail, never a warning: contract §20 "Use a plain, widely-
+// rendered `-` for an already-satisfied/skipped detail", §13 "Skipped uses
+// the `-` glyph and never sets warned", and §41 reserves "!" for Warning.
+// Skipped is the only disposition (contract Vocabulary), so this glyph is
+// shared by every taxonomy row rather than selected per-verb.
+func skippedTaxonomyGlyph(s Style) string {
+	return s.dim(txt.GlyphSkipDetail.Render(s.Profile))
 }

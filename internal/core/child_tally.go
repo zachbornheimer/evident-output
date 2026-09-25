@@ -16,8 +16,8 @@ type ChildTally struct {
 	// Folded reports whether the collection's disposition items fold into
 	// Items (the renderer's rule, decided over every child).
 	Folded bool
-	// Items sums the folded items' Skipped and Kept records.
-	Items Dispositions
+	// Items sums the folded items' Skipped records.
+	Items Tally
 	// Rest counts the children that remain once items fold: All when
 	// they do not.
 	Rest ChildCounts

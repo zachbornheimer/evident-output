@@ -124,6 +124,16 @@ var symbols = []Symbol{
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+
+	// Vocabulary freeze: Summary/Skipped/Kept were never three equivalent
+	// outcomes — Kept is domain information, never a resolution verb. A
+	// policy-excluded item is Skipped; a "kept N" count is a Fact or part
+	// of the Summary. ForSkip restricted a Reason to skip-only use so it
+	// could not also be handed to Kept; with Kept gone, the constraint
+	// guards nothing.
+	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: "TaskHandle.Skipped; route a \"kept N\" count through Fact or Summary", Taught: regexp.MustCompile(`\b[\w.]+\.Kept\(`)},
+	{Contract: "ForSkip", RemovedIn: Release1_1, Replacement: "delete the option — a Reason needs no verb constraint", Taught: regexp.MustCompile(`\bForSkip\(`)},
+	{Contract: "ErrReasonSkipOnly", RemovedIn: Release1_1, Replacement: "delete any check against it — ForSkip() is gone", Taught: regexp.MustCompile(`\bErrReasonSkipOnly\b`)},
 }
 
 // warnTaught matches the removed Warn taught as a call on an evo receiver

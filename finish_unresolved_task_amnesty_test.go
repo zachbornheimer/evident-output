@@ -75,7 +75,7 @@ func TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels(t *testing.T) {
 
 // TestFinish_TaxonomyOnlyTaskWithDeclinedConfirm_BlockedNeverEscalates is
 // beginner-gate-2 finding (iii): a task that only recorded taxonomy
-// (Skipped/Kept) and was never given a terminal verb told an honest,
+// (Skipped) and was never given a terminal verb told an honest,
 // complete story already, same as a recorded effect or a sealed loop. And
 // separately: a Confirm gate that resolves Blocked (declined / blocked by
 // policy, per Confirm's own contract) must keep the run's exit code at

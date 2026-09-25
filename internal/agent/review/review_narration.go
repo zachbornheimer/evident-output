@@ -46,19 +46,21 @@ func detectStaleDoingBeforeSubprocess(filename, src string) []Finding {
 	return findings
 }
 
-// taxonomyReasonPattern matches the reason words a hand-assembled skip/keep
+// taxonomyReasonPattern matches the reason word a hand-assembled skip
 // count string typically carries (evo-rec.md "Taxonomy... derived, never
-// assembled").
-var taxonomyReasonPattern = regexp.MustCompile(`(?i)skipped|kept|retained`)
+// assembled"). Kept is not a disposition verb (vocabulary freeze) — a
+// hand-assembled "kept N" string is domain narration, not this rule's
+// target.
+var taxonomyReasonPattern = regexp.MustCompile(`(?i)skipped`)
 
 // sprintfLiteralPattern captures the format-string literal argument of an
 // fmt.Sprintf call.
 var sprintfLiteralPattern = regexp.MustCompile(`fmt\.Sprintf\(\s*"([^"]*)"`)
 
 // detectHandAssembledTaxonomyCount flags fmt.Sprintf strings that bake a
-// count into skip/keep/retain narration (e.g. "%d skipped") instead of
-// recording reason + name via task.Skipped/Kept and letting evo derive and
-// sum the partition.
+// count into skip narration (e.g. "%d skipped") instead of recording
+// reason + name via task.Skipped and letting evo derive and sum the
+// partition.
 func detectHandAssembledTaxonomyCount(filename, src string) []Finding {
 	if !strings.Contains(src, "fmt.Sprintf(") {
 		return nil
@@ -69,16 +71,12 @@ func detectHandAssembledTaxonomyCount(filename, src string) []Finding {
 		if !taxonomyReasonPattern.MatchString(lit) || !strings.Contains(lit, "%d") {
 			continue
 		}
-		verb := "Skipped"
-		if strings.Contains(strings.ToLower(lit), "kept") || strings.Contains(strings.ToLower(lit), "retained") {
-			verb = "Kept"
-		}
 		findings = append(findings, Finding{
 			RuleID:     "TAX-001",
-			Message:    "hand-assembled skip/keep count string; record reason + name via task.Skipped/Kept and let evo derive and sum the partition",
+			Message:    "hand-assembled skip count string; record reason + name via task.Skipped and let evo derive and sum the partition",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "replace with task." + verb + "(evo.Reason(\"...\"), name) for each item; evo derives and sums the count",
+			Suggestion: "replace with task.Skipped(evo.Reason(\"...\"), name) for each item; evo derives and sums the count",
 		})
 	}
 	return findings

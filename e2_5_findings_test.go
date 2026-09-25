@@ -72,7 +72,7 @@ func TestE2_5Finding2_MutationOnResolvedTaskReturnsErrorNeverNil(t *testing.T) {
 
 // TestE2_5Finding3_InlineWarningRendersBangPrefix proves the inline warning
 // on a ✓ row carries the same "! " signal a nested warning line does (the
-// normative fixture's "! kept 13 (...)" typography) instead of dim text with
+// normative fixture's "! 2 remotes unreachable" typography) instead of dim text with
 // no bang at all.
 func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 	var buf bytes.Buffer
@@ -80,14 +80,14 @@ func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
-	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
+	branches.Problem("11 held back (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
 	succeed(branches)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "✓ branches  ! kept 11 (7 protected, 4 unpushed)") {
+	if !strings.Contains(got, "✓ branches  ! 11 held back (7 protected, 4 unpushed)") {
 		t.Fatalf("want the inline warning to carry the \"! \" bang prefix, got:\n%s", got)
 	}
 }

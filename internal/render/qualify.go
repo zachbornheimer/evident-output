@@ -16,7 +16,7 @@ import (
 
 // headerRule reports whether col, its disposition items already folded
 // out, renders without its header. Plain and live differ only in this.
-type headerRule func(col core.TasksSnapshot, items core.Dispositions) bool
+type headerRule func(col core.TasksSnapshot, items core.Tally) bool
 
 // liveFlattensHeader is the live frame's rule for a Group given height
 // rows: the header stays while its aggregate "N/M complete" count says
@@ -24,14 +24,14 @@ type headerRule func(col core.TasksSnapshot, items core.Dispositions) bool
 // complete" for a Group that holds only nested Groups — and whenever its
 // body overflows height, since then the rows cannot all speak for
 // themselves (E-111).
-func liveFlattensHeader(col core.TasksSnapshot, items core.Dispositions, height int) bool {
+func liveFlattensHeader(col core.TasksSnapshot, items core.Tally, height int) bool {
 	_, total := completion(col)
 	return flattensHeader(col, items) && !liveProgressAddsInformation(col, total) && !liveBodyOverflows(col, height)
 }
 
 // liveHeaderRule is liveFlattensHeader for a frame of height rows.
 func liveHeaderRule(height int) headerRule {
-	return func(col core.TasksSnapshot, items core.Dispositions) bool {
+	return func(col core.TasksSnapshot, items core.Tally) bool {
 		return liveFlattensHeader(col, items, height)
 	}
 }

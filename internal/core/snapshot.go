@@ -115,11 +115,10 @@ type TaskSnapshot struct {
 	// satisfied entries surface only under Verbose (spec §49).
 	Verification []VerificationDetail
 	Actions      []Action
-	// Skipped/Kept are the disposition taxonomy accumulated by
-	// TaskHandle.Skipped/Kept — the source the "- skipped N (...)" / "! kept
-	// N (...)" render lines derive counts and reason partitions from.
+	// Skipped is the disposition taxonomy accumulated by
+	// TaskHandle.Skipped — the source the "- skipped N (...)" render line
+	// derives its count and reason partition from.
 	Skipped     []TaxonomyRecord
-	Kept        []TaxonomyRecord
 	Collection  string
 	Declaration int
 	// Resolution names why this Task settled successfully (§29/§30): empty
@@ -155,11 +154,11 @@ func (t TaskSnapshot) LiveFirstSeenAt() time.Time { return t.liveFirstSeenAt }
 func (t TaskSnapshot) Synthetic() bool { return t.synthetic }
 
 // TaxonomyRecord is one accumulated (reason, name) disposition entry —
-// recorded by TaskHandle.Skipped or TaskHandle.Kept, never assembled by hand.
+// recorded by TaskHandle.Skipped, never assembled by hand.
 type TaxonomyRecord struct {
 	Reason string
 	Name   string
-	// Causes holds the sanitized text of any errs passed to Skipped/Kept for
+	// Causes holds the sanitized text of any errs passed to Skipped for
 	// this record — evidence for why the disposition happened, rendered as
 	// one bounded └─ line under the count row (first cause + "(+N more)"),
 	// full list under Verbose.

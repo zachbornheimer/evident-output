@@ -121,7 +121,7 @@ func TestE1P2_WarningSeverity_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
+	branches.Problem("11 held back (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
 	succeed(branches)
 
 	if err := out.Finish(); err != nil {
@@ -129,9 +129,9 @@ func TestE1P2_WarningSeverity_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	}
 	got := buf.String()
 	// E2.5 finding 3: the inline warning carries the same "! " bang the
-	// normative repo-retire dry-run fixture uses ("! kept 13 (...)") — an
+	// normative repo-retire dry-run fixture uses ("! 2 remotes unreachable") — an
 	// inline and a nested warning must signal identically, one row, one line.
-	if !strings.Contains(got, "✓ branches  ! kept 11 (7 protected, 4 unpushed)\n") {
+	if !strings.Contains(got, "✓ branches  ! 11 held back (7 protected, 4 unpushed)\n") {
 		t.Fatalf("want the warning inlined on the ✓ row with its \"! \" prefix, got:\n%s", got)
 	}
 	if strings.Count(got, "!") != 1 {
@@ -147,7 +147,7 @@ func TestE1P2_WarningSeverity_MultipleWarningsNestUnderneath(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
+	branches.Problem("11 held back (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
 	branches.Problem("2 remotes unreachable", evo.Severity(evo.SeverityWarning))
 	succeed(branches)
 
@@ -158,7 +158,7 @@ func TestE1P2_WarningSeverity_MultipleWarningsNestUnderneath(t *testing.T) {
 	if !strings.Contains(got, "✓ branches\n") {
 		t.Fatalf("want a bare ✓ row (warnings moved below it), got:\n%s", got)
 	}
-	if !strings.Contains(got, "! kept 11 (7 protected, 4 unpushed)") || !strings.Contains(got, "! 2 remotes unreachable") {
+	if !strings.Contains(got, "! 11 held back (7 protected, 4 unpushed)") || !strings.Contains(got, "! 2 remotes unreachable") {
 		t.Fatalf("want both warnings nested under the row, got:\n%s", got)
 	}
 }

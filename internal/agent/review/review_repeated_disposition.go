@@ -1,7 +1,7 @@
-// Package review — API-062: Kept/Skipped record a Task's own disposition
-// (the item is the Task, docs/reference.md) and resolve it, so calling
-// either again on the same Task is misuse. The per-item shape is
-// group.Task(item).Kept(reason); the renderer folds those children into
+// Package review — API-062: Skipped records a Task's own disposition
+// (the item is the Task, docs/reference.md) and resolves it, so calling
+// it again on the same Task is misuse. The per-item shape is
+// group.Task(item).Skipped(reason); the renderer folds those children into
 // one tally under the Group's row (contract §25).
 //
 // Detection is structural. A disposition call counts only when its
@@ -26,9 +26,9 @@ import (
 	"go/types"
 )
 
-// dispositionMethods are the TaskHandle verbs that record the Task's own
-// disposition and resolve it.
-var dispositionMethods = map[string]bool{"Kept": true, "Skipped": true}
+// dispositionMethods are the TaskHandle verb that records the Task's own
+// disposition and resolves it.
+var dispositionMethods = map[string]bool{"Skipped": true}
 
 // detectRepeatedDisposition is API-062.
 func detectRepeatedDisposition(filename string, file *ast.File, fset *token.FileSet) []Finding {
@@ -152,10 +152,10 @@ func (s *repeatedDispositionScan) report(call *ast.CallExpr, recv string) {
 	})
 }
 
-// dispositionCall reports whether n is recv.Kept(reason) or
-// recv.Skipped(reason) on a named receiver that certainly holds an evo
-// Task (never a call such as group.Task(item), which is a fresh Task each
-// time, and never another type's Kept/Skipped).
+// dispositionCall reports whether n is recv.Skipped(reason) on a named
+// receiver that certainly holds an evo Task (never a call such as
+// group.Task(item), which is a fresh Task each time, and never another
+// type's Skipped).
 func (s *repeatedDispositionScan) dispositionCall(n ast.Node) (*ast.CallExpr, string, bool) {
 	call, ok := n.(*ast.CallExpr)
 	if !ok || len(call.Args) != 1 {

@@ -103,14 +103,14 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 
 // anyTaskWarned reports whether any task in tasks carries at least one
 // warning-severity Problem annotation (Problem(summary,
-// evo.Severity(evo.SeverityWarning))) or Kept tally
-// (P2: conclusion algebra reads annotations, never a lifecycle state —
-// Warning is not one of the terminal EntityState values). A Kept tally
-// renders the same "! kept N (...)" row a warning-severity Problem does,
-// so it feeds the same "· warned" band (contract §18).
+// evo.Severity(evo.SeverityWarning))) (P2: conclusion algebra reads
+// annotations, never a lifecycle state — Warning is not one of the
+// terminal EntityState values). A Skipped record never warns (contract
+// §13, §18) — Kept, which used to feed this same "· warned" band with a
+// "! kept N (...)" row, was removed in 1.1.
 func anyTaskWarned(tasks []TaskSnapshot) bool {
 	for _, t := range tasks {
-		if len(t.Warnings) > 0 || len(t.Kept) > 0 {
+		if len(t.Warnings) > 0 {
 			return true
 		}
 	}

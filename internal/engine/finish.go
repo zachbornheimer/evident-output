@@ -56,7 +56,7 @@ func (o *Output) Finish() error {
 // Problem (it settles Failed: settleLocked's evidence rule turns the Done
 // below into Failed), a recorded Effect/File ledger row, a
 // sealed absolute progress (a completed Progress/Step loop reached its
-// total), recorded taxonomy (Skipped/Kept), or a recorded warning (P2: a
+// total), recorded taxonomy (Skipped), or a recorded warning (P2: a
 // warning-severity Problem never itself resolves the task, so a
 // warned-but-unresolved task earns the same amnesty). The easiest path (forgetting
 // Done) becomes correct instead of a surprising Cancelled/NotStarted plus
@@ -220,12 +220,12 @@ func hasSealedProgress(t *taskState) bool {
 	return t.progress.Total > 0 && t.progress.Completed >= t.progress.Total
 }
 
-// hasRecordedTaxonomy reports whether t accumulated any Skipped/Kept record
+// hasRecordedTaxonomy reports whether t accumulated any Skipped record
 // — same unresolved-task amnesty rationale as hasRecordedEffectLocked
 // (beginner-gate-2 finding 4): the disposition taxonomy already told an
 // honest, complete story even though nothing called a terminal verb.
 func hasRecordedTaxonomy(t *taskState) bool {
-	return len(t.skipped) > 0 || len(t.kept) > 0
+	return len(t.skipped) > 0
 }
 
 // resolveUnstartedTaskLocked derives a real terminal state for a task Finish

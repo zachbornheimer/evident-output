@@ -239,8 +239,8 @@ func TestPruneContract_LedgerFollowsTaskDeclarationOrderNotCompletionOrder(t *te
 	}
 }
 
-// keptItem is one item a prune category keeps, and why.
-type keptItem struct {
+// skippedItem is one candidate a prune category's policy excludes, and why.
+type skippedItem struct {
 	name   string
 	reason evo.TaxonomyReason
 }
@@ -249,22 +249,32 @@ type keptItem struct {
 // shape: a Group named for the category holding the category's own Task
 // (same name: it classifies, summarizes, and owns the Effect, so the
 // ledger subject is the category — docs/reference.md "own Task") plus one
-// child Task per kept item that resolves Kept (the item is the Task).
+// child Task per policy-excluded candidate that resolves Skipped with an
+// evo.Reason (the item is the Task, contract §18).
 type pruneCategory struct {
 	name, summary string
 	effect        *evo.EffectSpec
 	onDisk        string // routine Fact, verbose-only (§13, §21); "" for none
-	kept          []keptItem
+	skipped       []skippedItem
 }
 
 // declare submits the category under parent and returns its own Task.
 // Every annotation happens inside Define, before the Task resolves.
 func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
+	_, work := c.declareGroup(parent)
+	return work
+}
+
+// declareGroup is declare's full form: it also returns the category's own
+// nested Group (parent.Group(c.name)), the collection contract §18's
+// per-item Skipped fold needs to exist under, distinct from the shared
+// parent Group every category declares into.
+func (c pruneCategory) declareGroup(parent *evo.GroupHandle) (*evo.GroupHandle, *evo.TaskHandle) {
 	items := parent.Group(c.name)
 	work := items.Task(c.name)
 	work.Define(func(ctx context.Context) error {
-		for _, item := range c.kept {
-			items.Task(item.name).Kept(item.reason)
+		for _, item := range c.skipped {
+			items.Task(item.name).Skipped(item.reason)
 		}
 		if c.onDisk != "" {
 			work.Fact("on disk", c.onDisk)
@@ -275,7 +285,7 @@ func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
 		}
 		return evo.Effect(ctx, *c.effect, func(context.Context) error { return nil })
 	})
-	return work
+	return items, work
 }
 
 // renderPruneContract18 runs zq prune's dry-run under zq's own Config
@@ -294,13 +304,13 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 	dirty, unpushed := evo.Reason("dirty"), evo.Reason("unpushed")
 	branches := pruneCategory{
 		name: "branches", summary: "188 checked",
-		effect: &evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 87},
-		kept:   []keptItem{{"feat/wt-a", checkedOut}, {"feat/wt-b", checkedOut}, {"main", protected}},
+		effect:  &evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 87},
+		skipped: []skippedItem{{"feat/wt-a", checkedOut}, {"feat/wt-b", checkedOut}, {"main", protected}},
 	}.declare(categories)
 	worktrees := pruneCategory{
 		name: "worktrees", summary: "168 checked", onDisk: "508.8 MB",
-		effect: &evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 95},
-		kept:   []keptItem{{"../wt-a", dirty}, {"../wt-b", dirty}, {"../wt-c", unpushed}},
+		effect:  &evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 95},
+		skipped: []skippedItem{{"../wt-a", dirty}, {"../wt-b", dirty}, {"../wt-c", unpushed}},
 	}.declare(categories)
 	remotes := pruneCategory{name: "remote-tracking", summary: "nothing to clean"}.declare(categories)
 	for _, category := range []*evo.TaskHandle{branches, worktrees, remotes} {
@@ -314,39 +324,35 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 	return buf.String()
 }
 
-// TestPruneContract_KeptUnderGroupedCategoriesRendersContract18 holds zq
-// prune's contract-correct per-item shape (pruneCategory) to the contract
-// §18 dry-run bytes TestV8_DryRunPlanOnly pins for the warning-severity
-// Problem-authored form.
-// Each category Group's kept children aggregate into one tally under the
-// category's row (§25: "aggregation is a renderer concern"; §26/§27:
-// "  ! kept N (...)"), the tally feeds "[planned · warned]", and the band
-// stays bare because the dry-run Subject header already named the run.
-func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T) {
+// TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18 holds
+// zq prune's contract-correct per-item shape (pruneCategory) to the contract
+// §18 dry-run bytes. Each category Group's policy-excluded children fold
+// into one "  - skipped N (...)" tally under the category's row (§13). A
+// Skipped fold never warns, so the run concludes a pure [planned], and
+// under the dry-run Subject header that verdict prints no band at all.
+func TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18(t *testing.T) {
 	want := "[dry-run] zq prune  ~/repo\n" +
 		"\n" +
 		"✓ branches         188 checked\n" +
-		"  ! kept 3 (2 checked out, 1 protected)\n" +
+		"  - skipped 3 (2 checked out, 1 protected)\n" +
 		"✓ worktrees        168 checked\n" +
-		"  ! kept 3 (2 dirty, 1 unpushed)\n" +
+		"  - skipped 3 (2 dirty, 1 unpushed)\n" +
 		"✓ remote-tracking  nothing to clean\n" +
 		"\n" +
 		"[planned] branches   delete 87 local tips\n" +
-		"[planned] worktrees  remove 95 worktrees\n" +
-		"\n" +
-		"[planned · warned]\n"
+		"[planned] worktrees  remove 95 worktrees\n"
 	if got := renderPruneContract18(t, evo.VerbosityNormal); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
 }
 
-// TestPruneContract_KeptTallyVerboseListsRealItemNames is the --verbose
-// half: the aggregated tally lists each kept child's own name under its
+// TestPruneContract_SkippedTallyVerboseListsRealItemNames is the --verbose
+// half: the aggregated tally lists each skipped child's own name under its
 // reason, and the routine "on disk" Fact appears.
-func TestPruneContract_KeptTallyVerboseListsRealItemNames(t *testing.T) {
+func TestPruneContract_SkippedTallyVerboseListsRealItemNames(t *testing.T) {
 	got := renderPruneContract18(t, evo.VerbosityVerbose)
 	for _, want := range []string{
-		"✓ branches         188 checked\n  ! kept 3 (2 checked out, 1 protected)\n",
+		"✓ branches         188 checked\n  - skipped 3 (2 checked out, 1 protected)\n",
 		"checked out: feat/wt-a, feat/wt-b\n",
 		"protected: main\n",
 		"dirty: ../wt-a, ../wt-b\n",
@@ -359,15 +365,16 @@ func TestPruneContract_KeptTallyVerboseListsRealItemNames(t *testing.T) {
 	}
 }
 
-// TestPruneContract_KeptChildrenStayInMachineOutput proves the aggregation
-// is human-only: JSON keeps every kept child Task.
-func TestPruneContract_KeptChildrenStayInMachineOutput(t *testing.T) {
+// TestPruneContract_SkippedChildrenStayInMachineOutput proves the
+// aggregation is human-only: JSON keeps every skipped child Task, and each
+// carries its own skipped disposition and reason (not just its name).
+func TestPruneContract_SkippedChildrenStayInMachineOutput(t *testing.T) {
 	var buf bytes.Buffer
 	out := newPlainOutput(&buf, true)
 	t.Cleanup(func() { _ = out.Close() })
 	work := pruneCategory{
 		name: "branches", summary: "2 checked",
-		kept: []keptItem{{"feat/a", evo.Reason("unpushed")}, {"main", evo.Reason("protected")}},
+		skipped: []skippedItem{{"feat/a", evo.Reason("unpushed")}, {"main", evo.Reason("protected")}},
 	}.declare(out.Group("categories"))
 	if err := work.Wait(); err != nil {
 		t.Fatal(err)
@@ -376,10 +383,16 @@ func TestPruneContract_KeptChildrenStayInMachineOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(buf.String(), "feat/a") {
-		t.Fatalf("human output must aggregate kept children into the tally:\n%s", buf.String())
+		t.Fatalf("human output must aggregate skipped children into the tally:\n%s", buf.String())
 	}
-	if doc := machineDocument(t, out); !strings.Contains(doc, `"feat/a"`) || !strings.Contains(doc, `"main"`) {
-		t.Fatalf("machine output keeps every kept child:\n%s", doc)
+	doc := machineDocument(t, out)
+	for _, want := range []string{
+		`"feat/a"`, `"main"`,
+		`"disposition": "skipped"`, `"reason": "unpushed"`, `"reason": "protected"`,
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("machine output keeps every skipped child's disposition and reason, missing %s:\n%s", want, doc)
+		}
 	}
 }
 

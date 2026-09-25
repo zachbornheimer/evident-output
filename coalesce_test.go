@@ -86,7 +86,7 @@ func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
-	branches.Problem("kept 13", evo.Severity(evo.SeverityWarning))
+	branches.Problem("stale cache", evo.Severity(evo.SeverityWarning))
 	branches.Define(effectOf(evo.EffectDelete, "local tip", 2))
 
 	if err := out.Finish(); err != nil {

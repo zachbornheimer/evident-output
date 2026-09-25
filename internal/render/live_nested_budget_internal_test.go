@@ -23,8 +23,8 @@ func liveFrame(s core.Snapshot, height int) string {
 }
 
 // runningCategory is one of zq clean-repo's category Groups mid-run:
-// running work children plus folded Kept and Skipped items whose records
-// each carry a cause.
+// running work children plus folded Skipped items whose records each
+// carry a cause.
 func runningCategory(name string, running int) core.TasksSnapshot {
 	col := causedItems(running)
 	col.Name = name
@@ -96,7 +96,7 @@ func TestLiveNestedCategories_CountWhatDoesNotFit(t *testing.T) {
 
 // ownTaskWithActivity is a category that renders as its own Task's row
 // while that Task runs with a bar and an activity child (two rows), plus
-// caused Kept and Skipped items that fold into tallies.
+// caused Skipped items that fold into tallies.
 func ownTaskWithActivity() core.TasksSnapshot {
 	col := causedItems(0)
 	col.Name = "branches"
@@ -124,7 +124,7 @@ func TestLiveOwnTask_TalliesCountTheActivityRow(t *testing.T) {
 	if rows := frameRows(frame); rows > ownTaskActivityHeight {
 		t.Fatalf("live frame is %d rows, over the %d-row height:\n%s", rows, ownTaskActivityHeight, frame)
 	}
-	for _, want := range []string{"feature/x", "- skipped 2 (pinned)", "! kept 2 (pinned)"} {
+	for _, want := range []string{"feature/x", "- skipped 4 (2 pinned, 2 vendored)"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("live frame lacks %q:\n%s", want, frame)
 		}

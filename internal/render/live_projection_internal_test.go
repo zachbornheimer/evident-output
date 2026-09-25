@@ -112,17 +112,13 @@ func mixedTasks(prefix string, n int) []core.TaskSnapshot {
 	return tasks
 }
 
-// items is n disposition items: each resolved Kept or Skipped and nothing
-// else.
+// items is n disposition items: each resolved Skipped and nothing else.
 func items(prefix string, n int) []core.TaskSnapshot {
 	var tasks []core.TaskSnapshot
 	for i := range n {
 		name := fmt.Sprintf("%s-%d", prefix, i)
 		rec := []core.TaxonomyRecord{{Reason: []string{"protected", "merged"}[i%2], Name: name, Causes: []string{"cause of " + name}}}
-		t := core.TaskSnapshot{Name: name, State: core.Done, Kept: rec}
-		if i%3 == 0 {
-			t = core.TaskSnapshot{Name: name, State: core.Skipped, Skipped: rec}
-		}
+		t := core.TaskSnapshot{Name: name, State: core.Skipped, Skipped: rec}
 		tasks = append(tasks, seen(t, time.Duration(i)*time.Second))
 	}
 	return tasks

@@ -10,8 +10,8 @@ import (
 
 // TestFinish_MisuseHint_UsesWarnGlyphStyling is release-gate round 6 finding
 // 6: the misuse hint row's "!" glyph must render with the same warn (yellow)
-// styling every other "!" row uses (writeTaxonomy's skipped/kept lines,
-// writeAlreadyMutated) — asserted on rendered bytes, not left unstyled.
+// styling every other "!" row uses (writeAlreadyMutated's already-mutated
+// note) — asserted on rendered bytes, not left unstyled.
 func TestFinish_MisuseHint_UsesWarnGlyphStyling(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorAlways})

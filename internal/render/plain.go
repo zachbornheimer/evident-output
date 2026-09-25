@@ -146,7 +146,7 @@ const (
 	problemDetailIndent = "      "
 	// taskAnnotationIndent nests a standalone task's annotations — taxonomy
 	// tallies, verification details, warnings, facts — under its row
-	// (spec §26/§27: "✓ branches  50 checked" / "  ! kept 13 (...)").
+	// (spec §26/§27: "✓ branches  50 checked" / "  - skipped 13 (...)").
 	taskAnnotationIndent = "  "
 	// groupChildIndent nests a Group header's children: its child rows and
 	// the tallies its folded items leave behind, in one column.
@@ -209,7 +209,7 @@ const warningInlineMaxCells = compactLayoutMaxWidth
 // prefix — a Fact's inline text stands in this much blank space so its own
 // text starts at the same column a sibling row's "! <text>" would
 // (fixture-repo-retire-dryrun.md, measured byte-for-byte: "remote-tracking"
-// carries a bare Fact while its siblings carry "! kept ..."; all three
+// carries a bare Fact while its siblings carry "! <warning> ..."; all three
 // annotation texts land in one column).
 const bangColumnFiller = "  "
 
@@ -223,7 +223,7 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, s Style) {
 // WriteTaskAligned renders a root task row with its name padded to
 // nameWidth (0 = no padding) before any annotation, so a run of sibling
 // tasks with inline warnings/facts line up in one column ("✓ branches
-// ! kept 13...", fixture-repo-retire-dryrun.md). See taskRow.
+// ! 2 remotes unreachable...", fixture-repo-retire-dryrun.md). See taskRow.
 func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, s Style) {
 	rootRow(t, nameWidth).write(b, s)
 }
@@ -281,12 +281,12 @@ func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidt
 	switch {
 	case rendersAsOwnTask(col):
 		WriteTaskAligned(b, col.Tasks[0], nameWidth, s)
-		writeDispositions(b, taskAnnotationIndent, items, noDisposition, s)
+		writeTaxonomy(b, taskAnnotationIndent, items, s)
 	case flattensHeader(col, items):
 		writeHeaderlessGroup(b, col, s)
 	default:
 		writeCollectionHeader(b, col, s)
-		writeDispositions(b, headerTallyIndent(col), items, noDisposition, s)
+		writeTaxonomy(b, headerTallyIndent(col), items, s)
 		writeCollectionBody(b, col, s)
 	}
 }

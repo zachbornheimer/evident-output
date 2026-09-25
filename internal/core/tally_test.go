@@ -72,21 +72,19 @@ func TestTally(t *testing.T) {
 	}
 }
 
-func TestDispositions_AddTaskSumsBothTallies(t *testing.T) {
+func TestTally_AddTaskSumsEveryItemsRecords(t *testing.T) {
 	t.Parallel()
-	var d core.Dispositions
+	var d core.Tally
 	if !d.Empty() {
-		t.Fatal("zero Dispositions must be Empty")
+		t.Fatal("zero Tally must be Empty")
 	}
-	skipped := []core.TaxonomyRecord{{Reason: "--skip-fetch", Name: "remote-tracking"}}
-	kept := []core.TaxonomyRecord{{Reason: "protected", Name: "main"}}
-	d.AddTask(&core.TaskSnapshot{Name: "remote-tracking", Skipped: skipped})
-	d.AddTask(&core.TaskSnapshot{Name: "main", Kept: kept})
-	d.AddTask(&core.TaskSnapshot{Name: "develop", Kept: []core.TaxonomyRecord{{Reason: "protected", Name: "develop"}}})
-	if d.Empty() || d.Skipped.Total() != 1 || d.Kept.Total() != 2 {
-		t.Fatalf("got skipped %d kept %d, want 1 and 2", d.Skipped.Total(), d.Kept.Total())
+	d.AddTask(&core.TaskSnapshot{Name: "remote-tracking", Skipped: []core.TaxonomyRecord{{Reason: "--skip-fetch", Name: "remote-tracking"}}})
+	d.AddTask(&core.TaskSnapshot{Name: "main", Skipped: []core.TaxonomyRecord{{Reason: "protected", Name: "main"}}})
+	d.AddTask(&core.TaskSnapshot{Name: "develop", Skipped: []core.TaxonomyRecord{{Reason: "protected", Name: "develop"}}})
+	if d.Empty() || d.Total() != 3 {
+		t.Fatalf("got skipped %d, want 3", d.Total())
 	}
-	if names := d.Kept.Reasons()[0].Names; !reflect.DeepEqual(names, []string{"main", "develop"}) {
-		t.Fatalf("kept names = %v, want [main develop]", names)
+	if names := d.Reasons()[1].Names; !reflect.DeepEqual(names, []string{"main", "develop"}) {
+		t.Fatalf("protected names = %v, want [main develop]", names)
 	}
 }

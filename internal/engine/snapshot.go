@@ -65,7 +65,6 @@ func (t *taskState) snapshot() TaskSnapshot {
 	s.Verification = core.CloneVerificationDetails(s.Verification)
 	s.Actions = cloneActions(s.Actions)
 	s.Skipped = cloneTaxonomy(s.Skipped)
-	s.Kept = cloneTaxonomy(s.Kept)
 	return s
 }
 
@@ -93,7 +92,6 @@ func (t *taskState) view() TaskSnapshot {
 		Verification: t.verification,
 		Actions:      t.actions,
 		Skipped:      t.skipped,
-		Kept:         t.kept,
 		Collection:   colID,
 		Declaration:  t.declaration,
 		Resolution:   t.resolution,

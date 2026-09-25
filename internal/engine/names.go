@@ -5,7 +5,7 @@ import txt "github.com/zachbornheimer/evident-output/internal/text"
 // DefaultVisibleNames is how many names TruncateNames keeps before summarizing.
 const DefaultVisibleNames = txt.DefaultVisibleNames
 
-// TruncateNames joins names for a skip/kept-style summary.
+// TruncateNames joins names for a skipped-item summary.
 // Empty names yields "". visible <= 0 uses DefaultVisibleNames.
 // When more names remain than visible, appends the overflow glyph for
 // profile (evo-rec.md's tightened vocabulary: "… +N more", ASCII "... +N

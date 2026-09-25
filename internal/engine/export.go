@@ -74,7 +74,7 @@ func (o *Output) AlsoWriteForTest(w io.Writer) {
 	o.cfg.extraWriters = append(o.cfg.extraWriters, w)
 }
 func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ...error) {
-	t.recordTaxonomy(reason, name, dispositionSkip, errs)
+	t.recordSkip(reason, name, errs)
 }
 func (o *Output) SetDiagnosticSharesTerminalForTest() { o.cfg.diagnosticSharesTerminal = true }
 func (o *Output) DropDiagnosticForTest()              { o.cfg.diagnostic = nil }

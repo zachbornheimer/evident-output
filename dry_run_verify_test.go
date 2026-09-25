@@ -71,12 +71,12 @@ func TestDryRun_UnsatisfiedVerifyWithNothingPlannedFails(t *testing.T) {
 }
 
 // TestVerify_SelfResolvedDefineIsNotRechecked pins E-110 and its
-// follow-ups E-112/E-113: a Task whose Define resolved it itself (Kept,
-// Skipped, Block) without committing a change has nothing to verify, so
+// follow-ups E-112/E-113: a Task whose Define resolved it itself
+// (Skipped, Block) without committing a change has nothing to verify, so
 // the post-Define re-check must not fail it. A Define that committed an
-// Effect before calling Kept did change state, so its postcondition is
+// Effect before calling Skipped did change state, so its postcondition is
 // still checked (E-112). A Define that returns an error replaces its own
-// held Kept proposal without a misuse line (E-113).
+// held Skipped proposal without a misuse line (E-113).
 func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 	updateContainer := func(ctx context.Context) error {
 		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "container", Quantity: 1}, func(context.Context) error { return nil })
@@ -88,10 +88,6 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 		want    []string
 		wantNot []string
 	}{
-		"kept": {
-			define: func(_ context.Context, t *evo.TaskHandle) error { t.Kept(evo.Reason("in use")); return nil },
-			state:  evo.StateReady, exit: evo.ExitOK, wantNot: []string{"postcondition not satisfied"},
-		},
 		"skipped": {
 			define: func(_ context.Context, t *evo.TaskHandle) error { t.Skipped(evo.Reason("not needed")); return nil },
 			state:  evo.StateReady, exit: evo.ExitOK, wantNot: []string{"postcondition not satisfied"},
@@ -99,16 +95,6 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 		"blocked": {
 			define: func(_ context.Context, t *evo.TaskHandle) error { t.Block("refused"); return nil },
 			state:  evo.StateBlocked, exit: evo.ExitBlocked, wantNot: []string{"postcondition not satisfied"},
-		},
-		"effect then kept": {
-			define: func(ctx context.Context, t *evo.TaskHandle) error {
-				if err := updateContainer(ctx); err != nil {
-					return err
-				}
-				t.Kept(evo.Reason("in use"))
-				return nil
-			},
-			state: evo.StateFailed, exit: evo.ExitFailed, want: []string{"postcondition not satisfied"},
 		},
 		"effect then skipped": {
 			define: func(ctx context.Context, t *evo.TaskHandle) error {
@@ -119,14 +105,6 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 				return nil
 			},
 			state: evo.StateFailed, exit: evo.ExitFailed, want: []string{"postcondition not satisfied"},
-		},
-		"kept then error": {
-			define: func(_ context.Context, t *evo.TaskHandle) error {
-				t.Kept(evo.Reason("in use"))
-				return errors.New("boom")
-			},
-			state: evo.StateFailed, exit: evo.ExitFailed, want: []string{"boom"},
-			wantNot: []string{"already resolved", "postcondition not satisfied"},
 		},
 		"skipped then error": {
 			define: func(_ context.Context, t *evo.TaskHandle) error {

@@ -114,7 +114,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 branches.Task("main").Skipped(evo.Reason("protected"))
 branches.Task("feature/x").Skipped(evo.Reason("dirty"))
 // the item is the Task; evo derives each tally from its Reason`,
-			Remediation:     "Declare one Task per item and record its reason via task.Skipped/Kept; let evo count, sum, and print the partition",
+			Remediation:     "Declare one Task per item and record its reason via task.Skipped; let evo count, sum, and print the partition",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-001"},
 			Since:           "0.6.0",
@@ -352,11 +352,11 @@ t.Define(func(ctx context.Context) error {
 			Invariant: "a reason used more than as a one-off literal is a compile-time name; a reason names why, not the verb it accompanies",
 			Why:       "evo.Reason(\"x\") is legal inline (duplicate strings merge into one bucket), but an inline literal can typo apart into two buckets across call sites, and a reason that only restates the verb (`Skipped(evo.Reason(\"skipped\"))`, zq cmd/zq-build/main.go:81) tells the user nothing they didn't already know from the glyph.",
 			BadCode: `task.Skipped(evo.Reason("skipped"))
-task.Kept(evo.Reason("protected"))`,
+other.Skipped(evo.Reason("protected"))`,
 			GoodCode: `var reasonProtected = evo.Reason("protected")
 task.Skipped(evo.Reason("timeout"))
-task.Kept(reasonProtected)`,
-			Remediation:     "Lift a repeated reason to a package-level var so it is a compile-time name; name why the item skipped/was kept, not the verb itself",
+other.Skipped(reasonProtected)`,
+			Remediation:     "Lift a repeated reason to a package-level var so it is a compile-time name; name why the item was skipped, not the verb itself",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-003"},
 			Since:           "0.4.7",
