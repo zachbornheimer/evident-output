@@ -21,7 +21,7 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 		text = fmt.Sprintf(text, args...)
 	}
 	return t.annotate(func(st *taskState) {
-		if reportsCount(st.progress) {
+		if pairsWithMilestone(st) {
 			t.out.setLiveOnlyPhaseLocked(st, text)
 			t.out.emitTaskRunningProgressiveLocked(st, triggerItem)
 			return
@@ -30,10 +30,37 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	})
 }
 
-// reportsCount reports whether p is a count (Progress or Bytes), whose
-// Doing text names the current item rather than a narrated step.
-func reportsCount(p Progress) bool {
-	return p.Kind == Determinate || p.Kind == BytesKind
+// reportsCount reports whether st's Task is mid an open count (Progress or
+// Bytes), whose Doing text names the current item rather than a narrated
+// step. A count that has sealed — reached its total — no longer counts:
+// once a Progress/Bytes loop finishes, further Doing calls are ordinary
+// post-loop narration (download → verify → unpack) and must go back to
+// being durable steps, not stay live-only forever just because the Task
+// once reported a count (E-119 review regression: a sealed count silently
+// swallowed every Doing that followed it).
+func reportsCount(st *taskState) bool {
+	kind := st.progress.Kind
+	return (kind == Determinate || kind == BytesKind) && !hasSealedProgress(st)
+}
+
+// pairsWithMilestone reports whether this Doing names the item of a
+// count's current milestone, rather than narrating an ordinary step. It is
+// true for an open (unsealed) count (reportsCount), and for the one Doing
+// right after a count's FINAL tick, which seals it in the very call that
+// crosses it (emitTaskRunningProgressiveLocked's triggerProgress case):
+// that Doing still owes its item to the milestone that just streamed bare
+// — but only once this Task has genuinely been pairing items with
+// milestones all along (plainStream.namesItems). Without that history
+// check, a caller who calls Bytes/Progress exactly once already sealed
+// (install's `Bytes(400, 400)` before any narration) would have its very
+// first post-seal Doing ("verify checksum") wrongly swallowed as an item
+// pairing instead of narrated (the same regression reportsCount alone
+// guards against, just one milestone later).
+func pairsWithMilestone(st *taskState) bool {
+	if reportsCount(st) {
+		return true
+	}
+	return st.plainStream.owed.pending && st.plainStream.namesItems
 }
 
 // resolvedByInterrupt reports whether this state was reached by the
