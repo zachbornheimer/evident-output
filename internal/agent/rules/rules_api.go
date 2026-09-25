@@ -64,12 +64,13 @@ g.Task("b").Define(installB)`,
 			Invariant: "Failf/Blockf require a format directive — every other *f method is deleted",
 			Why: "Failf(\"boom\") with no directive at all is ceremony; Fail(\"boom\") is the intent. " +
 				"C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf entirely — " +
-				"Task/Group/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now, " +
+				"Task/Group/Sequence/Changes/Plan/Reason are printf-variadic themselves now " +
+				"(Warn itself was removed in 1.1; Problem carries severity instead), " +
 				"so there is nothing left in that family to flag; Failf/Blockf survive for their %w+*Failure semantics.",
 			BadCode: `task.Failf("boom")`,
 			GoodCode: `task.Fail("boom")
 task.Failf("boom: %w", err)`,
-			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Task/Group/Sequence/Changes/Plan/Warn/Reason take printf args directly",
+			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Task/Group/Sequence/Changes/Plan/Reason take printf args directly",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",
@@ -499,6 +500,7 @@ out.Problem("disk nearly full", evo.Severity(evo.SeverityWarning))`,
 			Remediation:     `Replace Warn("summary", opts...) with Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...) on TaskHandle or Output (there is no package-level evo.Problem; the package-level replacement is evo.Default().Problem(...))`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-070"},
+			MinDialect:      "1.1.0",
 			Since:           "1.1.0",
 			Certainty:       CertaintyDeterministic,
 		},

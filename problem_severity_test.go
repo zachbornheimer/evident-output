@@ -78,12 +78,27 @@ func TestOutput_ProblemErrorSeverityFailsRun(t *testing.T) {
 }
 
 // TestFail_IgnoresWarningSeverity pins that Fail is an outcome: a
-// Severity(SeverityWarning) option cannot soften it into a warning.
+// Severity(SeverityWarning) option cannot soften it into a warning. It
+// asserts both the conclusion AND the recorded Problem's own Severity, so
+// deleting applyOutcomeProblemOptions (which is what actually ignores the
+// option) turns this test red even though the conclusion alone would still
+// read Failed.
 func TestFail_IgnoresWarningSeverity(t *testing.T) {
-	_, c := severityRun(t, func(*evo.TaskHandle) {}, func(out *evo.Output) {
-		out.Task("probe").Fail("unreachable", evo.Severity(evo.SeverityWarning))
-	})
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "sev", Color: evo.ColorNever, Plain: true})
+	out.Task("probe").Fail("unreachable", evo.Severity(evo.SeverityWarning))
+	_ = out.Finish()
+	c := out.Conclusion()
+	snap := out.Snapshot()
+	_ = out.Close()
+
 	if c.State != evo.StateFailed {
 		t.Errorf("conclusion = %v, want failed", c.State)
+	}
+	if len(snap.Tasks) != 1 || len(snap.Tasks[0].Problems) != 1 {
+		t.Fatalf("want one Task with one recorded Problem, got %#v", snap.Tasks)
+	}
+	if got := snap.Tasks[0].Problems[0].Severity; got != evo.SeverityError {
+		t.Errorf("recorded Problem Severity = %q, want SeverityError — Fail must ignore Severity(SeverityWarning), not silently accept it", got)
 	}
 }

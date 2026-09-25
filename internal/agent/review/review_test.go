@@ -1779,6 +1779,25 @@ func f(logger *slog.Logger) {
 	}
 }
 
+// TestAPI070_DoesNotFireBelowMinDialect pins the AGENTS.md rule directly:
+// a consumer pinned to v1.0.x, where Warn still exists and evo.Severity
+// does not, must never be told to rewrite Warn into a call that would not
+// compile on that pin.
+func TestAPI070_DoesNotFireBelowMinDialect(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Warn("tool version differs from manifest")
+}
+`
+	res := review.GoSourceAt("warn.go", src, "v1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			t.Fatalf("API-070 must not fire for a v1.0.0 pin, where Warn still exists: %+v", f)
+		}
+	}
+}
+
 func TestAPI033_NameEqualsSkipArgument(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"

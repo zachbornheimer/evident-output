@@ -37,7 +37,7 @@ func TestDOM039_ChangesPlusFailure(t *testing.T) {
 
 // TestDOM046_CallerMutatesProblemSlice guarded a caller-supplied []Problem
 // slice against aliasing (BlockedBy stored the slice by reference). That
-// construction path is gone: Block/Fail/Warn build exactly one Problem
+// construction path is gone: Block/Fail/Problem build exactly one Problem
 // inline (finish's []Problem{p} is always a fresh literal), so the aliasing
 // bug this test caught is now structurally impossible rather than merely
 // untested.
