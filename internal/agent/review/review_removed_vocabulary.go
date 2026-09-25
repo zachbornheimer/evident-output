@@ -6,19 +6,16 @@ package review
 import (
 	"go/ast"
 	"go/token"
-	"go/types"
 )
 
 // removedName is one name the freeze removed. Every entry so far is a
 // package-level export (evo.Name, called or not); add a receiver kind here
 // only when a removed name needs one.
 type removedName struct {
-	rule    string
-	name    string
-	message string
-	// rewrite is the suggestion, given the receiver's source and the call's
-	// argument sources (nil args for a non-call reference).
-	rewrite func(recv string, args []string) string
+	rule       string
+	name       string
+	message    string
+	suggestion string
 }
 
 // removedNames is the table. Adding a removed name adds one entry.
@@ -37,21 +34,21 @@ func detectRemovedVocabulary(filename string, file *ast.File, fset *token.FileSe
 	var findings []Finding
 	called := map[*ast.SelectorExpr]bool{}
 	ast.Inspect(file, func(n ast.Node) bool {
-		sel, args, pos, ok := removedCandidate(n)
+		sel, ok := removedCandidate(n)
 		if !ok || called[sel] {
 			return true
 		}
-		if args != nil {
+		if _, isCall := n.(*ast.CallExpr); isCall {
 			called[sel] = true
 		}
 		for _, r := range removedNames {
 			if r.name != sel.Sel.Name || !isEvoIdent(sel.X, pkg) {
 				continue
 			}
-			p := fset.Position(pos)
+			p := fset.Position(sel.Pos())
 			findings = append(findings, Finding{
 				RuleID: r.rule, Message: r.message, File: filename, Line: p.Line, Column: p.Column,
-				Suggestion: r.rewrite(types.ExprString(sel.X), args),
+				Suggestion: r.suggestion,
 			})
 		}
 		return true
@@ -59,24 +56,16 @@ func detectRemovedVocabulary(filename string, file *ast.File, fset *token.FileSe
 	return findings
 }
 
-// removedCandidate is the selector a node uses, with the call's argument
-// sources when it is called.
-func removedCandidate(n ast.Node) (sel *ast.SelectorExpr, args []string, pos token.Pos, ok bool) {
+// removedCandidate is the selector a node uses: a call (evo.ForSkip(),
+// removed in 1.1) or a bare reference (evo.ReasonOption, removed in 1.1,
+// as a type).
+func removedCandidate(n ast.Node) (*ast.SelectorExpr, bool) {
 	switch v := n.(type) {
 	case *ast.CallExpr:
-		sel, ok = v.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return nil, nil, 0, false
-		}
-		args = make([]string, len(v.Args), len(v.Args)+1)
-		for i, a := range v.Args {
-			args[i] = types.ExprString(a)
-		}
-		return sel, args, v.Pos(), true
+		sel, ok := v.Fun.(*ast.SelectorExpr)
+		return sel, ok
 	case *ast.SelectorExpr:
-		// A bare reference: evo.JSONDocument as a type. A call's own Fun
-		// selector is visited after the call and skipped by the caller.
-		return v, nil, v.Pos(), true
+		return v, true
 	}
-	return nil, nil, 0, false
+	return nil, false
 }

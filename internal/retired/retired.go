@@ -129,8 +129,8 @@ var symbols = []Symbol{
 	{Contract: "ForSkip", RemovedIn: Release1_1, Replacement: "evo.Reason(name)", Taught: regexp.MustCompile(`\bForSkip\(`)},
 	{Contract: "OnTask", RemovedIn: Release1_1, Replacement: "evo.Reason(name)", Taught: regexp.MustCompile(`\bevo\.OnTask\(`)},
 	{Contract: "ReasonOption", RemovedIn: Release1_1, Replacement: "evo.Reason(name)", Taught: regexp.MustCompile(`\bReasonOption\b`)},
-	{Contract: "ErrReasonSkipOnly", RemovedIn: Release1_1, Replacement: "nothing: a Reason has no usage constraints"},
-	{Contract: "ErrReasonWrongTask", RemovedIn: Release1_1, Replacement: "nothing: a Reason has no usage constraints"},
+	{Contract: "ErrReasonSkipOnly", RemovedIn: Release1_1, Replacement: "nothing: a Reason has no usage constraints", Taught: regexp.MustCompile(`\bErrReasonSkipOnly\b`)},
+	{Contract: "ErrReasonWrongTask", RemovedIn: Release1_1, Replacement: "nothing: a Reason has no usage constraints", Taught: regexp.MustCompile(`\bErrReasonWrongTask\b`)},
 }
 
 // warnTaught matches the removed Warn taught as a call on an evo receiver

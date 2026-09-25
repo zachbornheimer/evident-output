@@ -20,9 +20,11 @@ func checkRemoved(t *testing.T, name string, c removedCase) {
 	src := `package main
 import (
 	"context"
+	"errors"
 	evo "github.com/zachbornheimer/evident-output"
 )
 var _ = context.Background
+var _ = errors.Is
 func run(ctx context.Context) error {
 	task := evo.Task("t")
 	_ = task
@@ -42,13 +44,15 @@ func run(ctx context.Context) error {
 	}
 }
 
-// TestRemovedVocabulary_API064 pins E-122: the Reason options the freeze
+// TestRemovedVocabulary_API120 pins E-122: the Reason options the freeze
 // removed are flagged with their rewrite.
-func TestRemovedVocabulary_API064(t *testing.T) {
+func TestRemovedVocabulary_API120(t *testing.T) {
 	for name, c := range map[string]removedCase{
-		"ForSkip":      {"API-120", `	_ = evo.ForSkip()`, "evo.Reason(name)"},
-		"OnTask":       {"API-120", `	_ = evo.OnTask("branches")`, "evo.Reason(name)"},
-		"ReasonOption": {"API-120", `	var _ evo.ReasonOption`, "evo.Reason(name)"},
+		"ForSkip":            {"API-120", `	_ = evo.ForSkip()`, "evo.Reason(name)"},
+		"OnTask":             {"API-120", `	_ = evo.OnTask("branches")`, "evo.Reason(name)"},
+		"ReasonOption":       {"API-120", `	var _ evo.ReasonOption`, "evo.Reason(name)"},
+		"ErrReasonSkipOnly":  {"API-120", `	_ = errors.Is(nil, evo.ErrReasonSkipOnly)`, "evo.Reason(name)"},
+		"ErrReasonWrongTask": {"API-120", `	_ = errors.Is(nil, evo.ErrReasonWrongTask)`, "evo.Reason(name)"},
 	} {
 		checkRemoved(t, name, c)
 	}
