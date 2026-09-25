@@ -162,7 +162,7 @@ docker.Define(func(ctx context.Context) error {
 ```
 
 - **Ownership:** `Task.Writer()` associates child output with that entity.
-- **Silent by default:** the ring retains; a `%w`-wrapped error returned from `Define` renders a summary/evidence split.
+- **Silent by default:** the ring retains; an error returned from `Define` becomes the row's whole summary text (`err.Error()`), with no summary/evidence split — captured writer output is the evidence tail.
 - **Redaction:** `Config.Redactor` applies before ring retention.
 
 ## Platform adapters (contracts, not sugar)

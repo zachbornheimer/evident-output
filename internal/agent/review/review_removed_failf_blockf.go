@@ -7,6 +7,8 @@ package review
 
 import (
 	"fmt"
+	"go/ast"
+	"go/token"
 	"regexp"
 	"slices"
 	"strings"
@@ -20,23 +22,22 @@ var failfCausePattern = regexp.MustCompile(`(\w+)\.Failf\(\s*"([^"]*):\s*%w"\s*,
 
 // blockfCausePattern is the same shape for Blockf (removed in 1.1), with
 // an optional trailing .NextCommand(...)/.Next(...) chain — the remedy-
-// attach methods the returned error value (use the returned error
-// (errors.Is/As reach its %w cause directly) instead) used to carry,
+// attach methods that the removed *Failure return value used to carry,
 // which no longer exist once Blockf is gone.
 var blockfCausePattern = regexp.MustCompile(`(\w+)\.Blockf\(\s*"([^"]*):\s*%w"\s*,\s*([^()]*?)\s*\)(?:\.(NextCommand|Next)\(([^()]*(?:\([^()]*\))?[^()]*)\))?`)
 
-// bareFailfBlockfPattern catches every other call to Failf(/Blockf( or
-// Output.Fail (removed in 1.1, use Output.Fail) with a computed format
-// string, so the removal is still flagged even when a derived rewrite is
-// not cheap.
+// bareFailfBlockfPattern catches every other call to Failf(/Blockf( (both
+// removed in 1.1) — TaskHandle.Failf and Output.Failf alike — with a
+// computed format string, so the removal is still flagged even when a
+// derived rewrite is not cheap.
 var bareFailfBlockfPattern = regexp.MustCompile(`\.(Failf|Blockf)\(`)
 
 // detectRemovedFailfBlockf is API-080 (Failf, removed in 1.1) and API-081
 // (Blockf, removed in 1.1), both removed with no compatibility alias
 // (E-118 lane B). Fail and Block are statement-form now; there is no *f
-// sibling in this family any more, and the value the returned error (use
-// the returned error (errors.Is/As reach its %w cause directly) instead)
-// used to carry (Next/NextCommand/Unwrap) is gone too.
+// sibling in this family any more, and the remedy actions the removed
+// *Failure return value used to carry (Next/NextCommand/Unwrap) attach as
+// ProblemOptions on the Fail/Block call itself instead.
 func detectRemovedFailfBlockf(in fileInput) []Finding {
 	if !dialectAtLeast(in.desiredVersion, dialectOneOne) {
 		return nil
@@ -51,10 +52,10 @@ func detectRemovedFailfBlockf(in fileInput) []Finding {
 			derived = append(derived, m[0]+idx)
 		}
 		var suggestion string
-		if enclosingFuncReturnsError(in.file, in.fset, m[0]) {
+		if insideDefineResolvedCallback(in.file, in.fset, m[0]) && enclosingFuncReturnsError(in.file, in.fset, m[0]) {
 			suggestion = fmt.Sprintf(`return fmt.Errorf(%q, %s)`, summary+": %w", cause)
 		} else {
-			suggestion = fmt.Sprintf(`%s.Fail(%q); return %s (this function has no error result to build with fmt.Errorf — keep the resolving Fail call and return the cause for its caller)`, recv, summary, cause)
+			suggestion = fmt.Sprintf(`%s.Fail(%q); return %s`, recv, summary, cause)
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-080",
@@ -73,11 +74,27 @@ func detectRemovedFailfBlockf(in fileInput) []Finding {
 		blockCall := fmt.Sprintf("%s.Block(%q)", recv, summary)
 		if len(m) >= 12 && m[8] >= 0 {
 			chainVerb, chainArgs := src[m[8]:m[9]], strings.TrimSpace(src[m[10]:m[11]])
-			option := "evo.Next(" + chainArgs + ")"
+			var options string
 			if chainVerb == "NextCommand" {
-				option = "evo.NextCommand(" + chainArgs + ")"
+				// evo.NextCommand(executable string, args ...string) already
+				// takes a variadic tail, so the whole argument list passes
+				// through as one option.
+				options = "evo.NextCommand(" + chainArgs + ")"
+			} else {
+				// evo.Next(action Action) takes a single Action — the
+				// *Failure.Next method (removed in 1.1 along with the rest
+				// of *Failure) took variadic actions, so a
+				// multi-argument chain (`.Next(a, b)`) becomes one
+				// evo.Next(...) option per action, not one evo.Next call
+				// holding both arguments (which would not compile).
+				actions := splitTopLevelArgs(chainArgs)
+				opts := make([]string, len(actions))
+				for i, a := range actions {
+					opts[i] = "evo.Next(" + strings.TrimSpace(a) + ")"
+				}
+				options = strings.Join(opts, ", ")
 			}
-			blockCall = fmt.Sprintf("%s.Block(%q, %s)", recv, summary, option)
+			blockCall = fmt.Sprintf("%s.Block(%q, %s)", recv, summary, options)
 		}
 		suggestion := fmt.Sprintf(`%s; return %s`, blockCall, cause)
 		findings = append(findings, Finding{
@@ -94,17 +111,73 @@ func detectRemovedFailfBlockf(in fileInput) []Finding {
 			continue
 		}
 		verb := src[m[0]:m[1]]
-		ruleID, message := "API-080", "TaskHandle.Failf/Output.Failf was removed in 1.1 with no compatibility alias — Fail is statement-form"
+		ruleID, message, statementVerb := "API-080", "TaskHandle.Failf/Output.Failf was removed in 1.1 with no compatibility alias — Fail is statement-form", "Fail"
 		if strings.Contains(verb, "Blockf") {
-			ruleID, message = "API-081", "TaskHandle.Blockf was removed in 1.1 with no compatibility alias — Block is statement-form"
+			ruleID, message, statementVerb = "API-081", "TaskHandle.Blockf was removed in 1.1 with no compatibility alias — Block is statement-form", "Block"
 		}
 		findings = append(findings, Finding{
 			RuleID:     ruleID,
 			Message:    message,
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "replace the statement-form verb (Fail/Block) plus a returned, %w-wrapped error from Define; attach a remedy as a Next/NextCommand ProblemOption on that same call, not on a chained return value",
+			Suggestion: "replace with the statement-form verb (" + statementVerb + ") plus a returned, %w-wrapped error from Define; attach a remedy as a Next/NextCommand ProblemOption on that same call, not on a chained return value",
 		})
 	}
 	return findings
+}
+
+// insideDefineResolvedCallback reports whether the byte offset off falls
+// inside a Define callback's body — a FuncLit passed directly as Define's
+// argument (evoResolutionCallbacks), or a same-file helper function
+// reachable from one, up to the same depth detectFailInResolvedCallback
+// uses. Only inside such a callback does a bare `return err` (or
+// `return fmt.Errorf(...)`) actually resolve the task; a plain helper
+// that merely happens to return error, but is never called from a
+// Define callback, would leave the row unresolved if the Fail call were
+// dropped, so API-080's rewrite must not drop it there.
+func insideDefineResolvedCallback(file *ast.File, fset *token.FileSet, off int) bool {
+	if file == nil || fset == nil {
+		return false
+	}
+	tf := fset.File(file.Pos())
+	if tf == nil || off < 0 || off > tf.Size() {
+		return false
+	}
+	target := tf.Pos(off)
+
+	funcs := map[string]*ast.BlockStmt{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		if fd, ok := n.(*ast.FuncDecl); ok && fd.Body != nil {
+			funcs[fd.Name.Name] = fd.Body
+		}
+		return true
+	})
+
+	found := false
+	visited := map[*ast.BlockStmt]bool{}
+	var visit func(block *ast.BlockStmt, depth int)
+	visit = func(block *ast.BlockStmt, depth int) {
+		if block == nil || visited[block] || depth > 2 || found {
+			return
+		}
+		visited[block] = true
+		if block.Pos() <= target && target <= block.End() {
+			found = true
+			return
+		}
+		ast.Inspect(block, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			if body, ok := funcs[calledFuncName(call)]; ok {
+				visit(body, depth+1)
+			}
+			return true
+		})
+	}
+	for _, fl := range evoResolutionCallbacks(file) {
+		visit(fl.Body, 0)
+	}
+	return found
 }

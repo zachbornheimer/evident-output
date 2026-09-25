@@ -283,11 +283,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   API-034 and API-036 had suggested `return fmt.Errorf(...)` for a `Block`
   site, which turned a `[blocked]` exit 1 into `[failed]` exit 2 (API-040
   flagged `return task.Blockf` as the redundant-resolve shape). `Failf`/
-  `Blockf` no longer exist; the current agreement is `task.Block(...);
-return err` — Block always stays (it is the only way to conclude the
-  Task Blocked), and the return afterward propagates the cause without
-  double-resolving the row. API-040 continues to flag only `Fail`, never
-  `Block`.
+  `Blockf` no longer exist; the current agreement is
+  `task.Block(...); return err` — Block always stays (it is the only way
+  to conclude the Task Blocked), and the return afterward propagates the
+  cause without double-resolving the row. API-040 continues to flag only
+  `Fail`, never `Block`.
 
 - Under `Config.DryRun` or `Config.Preview`, a Task whose `Verify` is false
   and whose `Define` plans an Effect concludes `[planned]` with exit 0. It

@@ -13,12 +13,12 @@ import (
 // TestRun_ThenFail_RendersChildStderrInFinalReport is beginner-gate-2
 // finding 3, root cause B: a statement-form Fail with no explicit Detail
 // must still render the failed child's captured stderr in the final report
-// — auto-attach fills the Problem's Detail from the Task's retained
-// evidence, the paved path 1.1 replaced TaskHandle.Failf's own automatic
-// evidence attachment with (TaskHandle.Failf is removed with no
-// compatibility alias). Verified on the interactive (live/TTY) rendering
-// path via testkit.Screen, where plain-mode's per-line phase streaming
-// cannot coincidentally echo the same text as a transient progress line.
+// — auto-attach fills the Problem's EvidenceTail from the Task's retained
+// evidence, the paved path 1.1 uses in place of TaskHandle.Failf's own
+// automatic evidence attachment (Failf is removed with no compatibility
+// alias). Verified on the interactive (live/TTY) rendering path via
+// testkit.Screen, where plain-mode's per-line phase streaming cannot
+// coincidentally echo the same text as a transient progress line.
 func TestRun_ThenFail_RendersChildStderrInFinalReport(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})

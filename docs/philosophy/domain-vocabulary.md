@@ -84,12 +84,13 @@ gate.Block("contains local changes", evo.On("working tree"), evo.Detail("stash o
 PHIL-005: `TaskHandle.Failf`/`Blockf` (removed in 1.1, no compatibility alias — use a `%w`-wrapped
 error returned from `Define`, or a statement-form `Fail`/`Block` plus a `Next`/`NextCommand`
 `ProblemOption`) used to split a trailing `": %w"`/`", %w"` into the rendered summary and an
-evidence line for the wrapped error, both user-facing. That split now happens by returning the
-`%w`-wrapped error from `Define` directly: the summary comes from `Fail`/`Block`'s own text (or
-Define's own resolution when nothing calls Fail/Block first), and the auto-attached evidence tail
-still carries the wrapped error's text underneath it. Use `Detail` for stable guidance text that
-isn't derived from an error. Do not bury the only user message in a wrapped error alone with an
-empty summary.
+evidence line for the wrapped error, both user-facing. That split is gone: an error returned from
+`Define` resolves the row with `err.Error()` as its whole summary — there is no wrapped-cause
+evidence line derived from it. The auto-attached evidence tail comes from the task's own retained
+`Writer()` capture, not from the error at all. A statement-form `Fail`/`Block` call supplies the
+summary directly; use `Detail` for stable guidance text that isn't derived from an error, or a
+`Next`/`NextCommand` `ProblemOption` to attach a remedy action. Do not bury the only user message
+in a wrapped error alone with an empty summary.
 
 ```go
 // Right
