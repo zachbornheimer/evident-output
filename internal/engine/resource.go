@@ -59,11 +59,13 @@ func (o *Output) holdResource(ctx context.Context, r Resource, mode resource.Mod
 
 // runHoldingResource is the single frame every granted claim's work runs
 // beneath, so Wait can tell from its own goroutine's stack that the caller
-// holds a claim (see refuseWaitUnderClaim).
+// holds a claim, and from processClaimOwners that the goroutine which
+// started it does (see refuseWaitUnderClaim).
 func runHoldingResource(held context.Context, fn func(context.Context) error) error {
 	holdingFrames.note()
 	heldClaims.Add(1)
 	defer heldClaims.Add(-1)
+	defer processClaimOwners.hold(currentGoroutine())()
 	return fn(held)
 }
 
@@ -75,8 +77,8 @@ var heldClaims atomic.Int64
 var holdingFrames frameMarker
 
 // refuseWaitUnderClaim returns ErrNestedResourceAcquisition, naming the
-// awaited Task or container, when the calling goroutine holds a resource
-// claim. Waiting while holding a claim is nested acquisition in
+// awaited Task or container, when the calling goroutine, or the goroutine
+// that started it, holds a resource claim. Waiting while holding a claim is nested acquisition in
 // disguise: the awaited work may need the held resource, and neither side
 // could then move. Like a second acquisition, it is refused every time,
 // not only when it would actually conflict, so the outcome never depends

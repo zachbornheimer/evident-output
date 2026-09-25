@@ -104,12 +104,18 @@ func (w *waiterStack) load() stackMarks {
 	return w.marks
 }
 
-// holdsClaim reports whether the waiting goroutine holds a resource claim.
+// holdsClaim reports whether the waiting goroutine holds a resource claim,
+// on its own stack or through the goroutine that started it. A claim held
+// further up a chain of goroutines is not seen.
 func (w *waiterStack) holdsClaim() bool {
 	if heldClaims.Load() == 0 {
 		return false
 	}
-	return w.load().claims > 0
+	if w.load().claims > 0 {
+		return true
+	}
+	_, creator := currentGoroutineLineage()
+	return processClaimOwners.holds(creator)
 }
 
 // callbackDepth is how many task callbacks the waiting goroutine is inside.

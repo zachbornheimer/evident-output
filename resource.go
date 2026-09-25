@@ -10,9 +10,9 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // Read claims share; any overlapping pair that includes a write waits.
 // Code already holding a resource that asks for a second one, or calls
 // Wait, fails with ErrNestedResourceAcquisition instead of risking
-// deadlock. Wait reads the claim from its own goroutine's stack, so never
-// Wait from a goroutine started while holding a resource: that shape is not
-// caught.
+// deadlock. That includes Wait from a goroutine the claim holder started
+// (the errgroup shape). A goroutine started by such a goroutine, two or
+// more steps from the claim, is not seen: do not Wait there either.
 //
 // Claims coordinate every Output in one process. Across processes only the
 // manifest lock coordinates, and only for tracked File/Exec state in the

@@ -106,3 +106,70 @@ func TestTaskHandle_Wait_WithoutClaimStillSucceeds(t *testing.T) {
 		t.Fatalf("exit %d, want ExitOK", res.ExitCode())
 	}
 }
+
+// gitClaim is an Effect that holds LogicalResource("git") while fn runs.
+func gitClaim(ctx context.Context, fn func(context.Context) error) error {
+	spec := EffectSpec{Verb: EffectUpdate, Object: "repo", Quantity: 1, Resource: LogicalResource("git")}
+	return Effect(ctx, spec, fn)
+}
+
+// waitFromSpawnedGoroutine runs wait on a goroutine it starts and blocks
+// on it: the errgroup shape, run while the caller holds a claim.
+func waitFromSpawnedGoroutine(wait func() error) error {
+	done := make(chan error, 1)
+	go func() { done <- wait() }()
+	return <-done
+}
+
+// TestGroupHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition
+// pins the errgroup shape under a claim: an Effect holding "git" starts a
+// goroutine that waits on a Group whose child also needs "git". The waiter's
+// own stack holds nothing, but the goroutine that started it does, so the
+// Wait is refused as nested acquisition instead of hanging for good.
+func TestGroupHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *testing.T) {
+	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, MaxConcurrency: 4, Stdout: io.Discard, Stderr: io.Discard})
+	var waitErr error
+	runWithin(t, out, func(ctx context.Context) error {
+		jobs := out.Group("jobs")
+		jobs.Task("c").Define(func(ctx context.Context) error {
+			return gitClaim(ctx, func(context.Context) error { return nil })
+		})
+		a := out.Task("a")
+		a.Define(func(ctx context.Context) error {
+			return gitClaim(ctx, func(context.Context) error {
+				waitErr = waitFromSpawnedGoroutine(jobs.Wait)
+				return waitErr
+			})
+		})
+		_ = a.Wait()
+		return nil
+	})
+	if !errors.Is(waitErr, ErrNestedResourceAcquisition) {
+		t.Fatalf("Group.Wait from a goroutine started under a claim = %v, want ErrNestedResourceAcquisition", waitErr)
+	}
+}
+
+// TestTaskHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition is
+// the single-Task counterpart.
+func TestTaskHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *testing.T) {
+	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, MaxConcurrency: 4, Stdout: io.Discard, Stderr: io.Discard})
+	var waitErr error
+	runWithin(t, out, func(ctx context.Context) error {
+		c := out.Task("c")
+		c.Define(func(ctx context.Context) error {
+			return gitClaim(ctx, func(context.Context) error { return nil })
+		})
+		a := out.Task("a")
+		a.Define(func(ctx context.Context) error {
+			return gitClaim(ctx, func(context.Context) error {
+				waitErr = waitFromSpawnedGoroutine(c.Wait)
+				return waitErr
+			})
+		})
+		_ = a.Wait()
+		return nil
+	})
+	if !errors.Is(waitErr, ErrNestedResourceAcquisition) {
+		t.Fatalf("Wait from a goroutine started under a claim = %v, want ErrNestedResourceAcquisition", waitErr)
+	}
+}
