@@ -62,6 +62,9 @@ var fileDetectors = []detector{
 	// ledger and the process's actual exit path diverge (Decisions
 	// 2026-09-23, ZYS-939).
 	{needsEvo: true, run: astRule(detectDuplicateSignalWiringAroundMain)},
+	// API-120..API-129: every name the 1.1 vocabulary freeze removed, with
+	// its rewrite to the canonical form (review_removed_vocabulary.go).
+	{needsEvo: true, run: astRule(detectRemovedVocabulary)},
 	// EVO-EXIT-002: evo.Main returns the exit code; a bare evo.Main(run)
 	// statement discards it and exits 0 after a failed run (E-114).
 	{needsEvo: true, run: astRule(detectDiscardedMainCode)},

@@ -177,7 +177,7 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 - **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
   guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`
-  takes only its name. Review rule API-064 flags the old calls.
+  takes only its name. Review rule API-120 flags the old calls.
 - **`TaskHandle.Add/Create/Delete/Push/Remove/Update/Write`, `evo.Affected`,
   and `evo.MutationOption`** were removed with no aliases (ZYS-950). Opaque
   mutations use `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)`
