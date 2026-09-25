@@ -1691,10 +1691,14 @@ func run() int {
 }
 
 func TestAPI032_CauseDerivesReturnedErrorSuggestion(t *testing.T) {
+	// Inside a function that returns error (a Define callback), Fail's
+	// resolution can safely be dropped in favor of a returned, wrapped
+	// error — Define resolves the task from that return.
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, err error) {
+func f(task *evo.TaskHandle, err error) error {
   task.Fail("validate policy manifest", evo.Cause(err))
+  return nil
 }
 `
 	res := review.GoSource("cause.go", src)
@@ -1705,6 +1709,49 @@ func f(task *evo.TaskHandle, err error) {
 	want := `return fmt.Errorf("validate policy manifest: %w", err)`
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
+	}
+}
+
+func TestAPI032_CauseOutsideErrorReturningFuncKeepsResolvingCall(t *testing.T) {
+	// Outside any function that returns error, a bare `return
+	// fmt.Errorf(...)` rewrite either does not compile (no error result)
+	// or silently drops the Fail/Block resolution. The suggestion must
+	// keep the resolving call and return the cause for the caller.
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func other(t *evo.TaskHandle, err error) {
+  t.Fail("clone", evo.Cause(err))
+}
+`
+	res := review.GoSource("cause_no_return.go", src)
+	found := findAPI032(res)
+	if len(found) != 1 {
+		t.Fatalf("expected one API-032 finding for evo.Cause, got %+v", found)
+	}
+	got := found[0].Suggestion
+	if strings.Contains(got, "return fmt.Errorf") {
+		t.Fatalf("suggestion must not propose a return this function cannot make: %q", got)
+	}
+	if !strings.Contains(got, `t.Fail("clone")`) || !strings.Contains(got, "return err") {
+		t.Fatalf("suggestion must keep the resolving Fail call and return err: %q", got)
+	}
+}
+
+func TestAPI032_CauseOnBlockOutsideErrorReturningFuncKeepsResolvingCall(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func other(recv *evo.TaskHandle, err error) {
+  recv.Block("ambiguous", evo.Cause(err))
+}
+`
+	res := review.GoSource("cause_block_no_return.go", src)
+	found := findAPI032(res)
+	if len(found) != 1 {
+		t.Fatalf("expected one API-032 finding for evo.Cause, got %+v", found)
+	}
+	got := found[0].Suggestion
+	if !strings.Contains(got, `recv.Block("ambiguous")`) || !strings.Contains(got, "return err") {
+		t.Fatalf("suggestion must keep the resolving Block call and return err: %q", got)
 	}
 }
 
@@ -1855,11 +1902,10 @@ func f(cmd *exec.Cmd) {
 	}
 }
 
-// TestAPI034_SprintfInVerbThenReturnNil: 1.1 removed API-036 (it offered
-// the Failf/Blockf rewrite for exactly this shape, and that family no
-// longer exists) — a Fail(fmt.Sprintf(...)) statement followed by a bare
-// return nil is now API-034's shape alone, same as any other statement-form
-// Fail.
+// TestAPI034_SprintfInVerbThenReturnNil: a Fail(fmt.Sprintf(...)) statement
+// followed by a bare return nil is API-034's shape (discards the error),
+// same as any other statement-form Fail — API-036 covers the sibling shape
+// where the return is non-nil instead.
 func TestAPI034_SprintfInVerbThenReturnNil(t *testing.T) {
 	src := `package p
 import (
@@ -1889,7 +1935,8 @@ func f(task *evo.TaskHandle, branch string) error {
 // TestAPI034_BareStatementFollowedByReturnErrNotFlagged pins E-102's
 // surviving half: a Block/Fail statement (Sprintf summary or not) followed
 // by a returned error, not nil, already propagates the cause and is left
-// alone.
+// alone by API-034 (API-036 is the rule that covers the Sprintf variant of
+// this shape — see below).
 func TestAPI034_BareStatementFollowedByReturnErrNotFlagged(t *testing.T) {
 	src := `package p
 import (
@@ -1907,6 +1954,74 @@ func f(task *evo.TaskHandle, name string, n int) error {
 		if f.RuleID == "API-034" {
 			t.Fatalf("API-034 flags Block followed by a returned error, which already propagates the cause: %+v", f)
 		}
+	}
+}
+
+// TestAPI036_SprintfInVerbThenReturnErr is red-first for API-036's revived
+// shape: Fail/Block(fmt.Sprintf(...)) followed by a non-nil `return <err>`
+// had no rule confirming its keep-the-call-and-return-err rewrite once
+// Failf/Blockf's *f form was removed in 1.1 (E-118 lane B gap).
+func TestAPI036_SprintfInVerbThenReturnErr(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, name string) error {
+  if err := validate(name); err != nil {
+    task.Fail(fmt.Sprintf("validate %s", name))
+    return err
+  }
+  return nil
+}
+func validate(string) error { return nil }
+`
+	res := review.GoSource("sprintfreturn.go", src)
+	var found *review.Finding
+	for i := range res.Findings {
+		if res.Findings[i].RuleID == "API-036" {
+			found = &res.Findings[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected one API-036 finding, got %+v", res.Findings)
+	}
+	if !strings.Contains(found.Suggestion, "return err") {
+		t.Fatalf("suggestion = %q, want it to keep returning err", found.Suggestion)
+	}
+}
+
+// TestAPI036_BlockVariant covers the Block sibling of API-036: the
+// resolving call must stay (Block is the only way to conclude a Task
+// Blocked) and the suggestion must say so, not propose dropping it.
+func TestAPI036_BlockVariant(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, name string) error {
+  if dirty(name) {
+    task.Block(fmt.Sprintf("refused %s", name))
+    return errBoom
+  }
+  return nil
+}
+var errBoom = fmt.Errorf("boom")
+func dirty(string) bool { return false }
+`
+	res := review.GoSource("sprintfblock.go", src)
+	var found *review.Finding
+	for i := range res.Findings {
+		if res.Findings[i].RuleID == "API-036" {
+			found = &res.Findings[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected one API-036 finding, got %+v", res.Findings)
+	}
+	if !strings.Contains(found.Suggestion, "Block") || strings.Contains(found.Suggestion, "drop") {
+		t.Fatalf("suggestion must keep the Block call, not drop it: %q", found.Suggestion)
 	}
 }
 

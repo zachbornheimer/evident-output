@@ -357,6 +357,26 @@ if err := cmd.Run(); err != nil {
 			Certainty:       CertaintyHeuristic,
 		},
 		{
+			ID:        "API-036",
+			Category:  "API",
+			Severity:  SeverityWarning,
+			Invariant: "a statement-form Fail/Block built with fmt.Sprintf(...) that propagates a non-nil error keeps the resolving call and returns that error",
+			Why:       "Failf/Blockf's *f form was removed in 1.1 with no replacement — Fail/Block are statement-form and take a plain summary string, so a Fail/Block(fmt.Sprintf(...)) site followed by a non-nil `return err` has no `*f` call to move the formatting into; the resolving call still has to stay (Block is the only way to conclude Blocked; dropping Fail here inside a non-Define function would leave the task unresolved) and the error still has to reach the caller.",
+			BadCode: `if err := validate(cfg); err != nil {
+  task.Fail(fmt.Sprintf("validate %s", cfg.Name))
+  return err
+}`,
+			GoodCode: `if err := validate(cfg); err != nil {
+  task.Fail(fmt.Sprintf("validate %s", cfg.Name))
+  return err // Fail already resolved the task; the return just hands the cause to the caller
+}`,
+			Remediation:     "Keep the Fail/Block statement as-is and keep returning the error — there is no *f form to rewrite it into; API-034 covers the sibling shape where the return is a bare `nil` instead",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-036"},
+			Since:           "0.2.17",
+			Certainty:       CertaintyHeuristic,
+		},
+		{
 			ID:        "API-037",
 			Category:  "API",
 			Severity:  SeverityWarning,
@@ -474,6 +494,39 @@ return task.Wait()`,
 			Certainty:       CertaintyHeuristic,
 			// Wait is being added to the public API in parallel with this
 			// rule; this entry documents the spelling the MCP now teaches.
+		},
+		{
+			ID:        "API-080",
+			Category:  "API",
+			Severity:  SeverityError,
+			Invariant: "TaskHandle.Failf and Output.Failf (removed in 1.1) are never called — Fail is the sole, statement-form spelling",
+			Why:       "TaskHandle.Failf, Output.Failf, and the *Failure value they returned were removed in 1.1 with no compatibility alias (E-118 lane B) — Fail is statement-form now, and there is no *f sibling left in this family.",
+			BadCode: `if err := validate(cfg); err != nil {
+  return task.Failf("validate policy manifest: %w", err)
+}`,
+			GoodCode: `if err := validate(cfg); err != nil {
+  return fmt.Errorf("validate policy manifest: %w", err) // inside Define: Define resolves the task from the returned error
+}`,
+			Remediation:     `Inside a Define/mutation callback, drop the Fail call and return fmt.Errorf("<context>: %w", err) so Define resolves the task; outside one, keep task.Fail("<context>") and return err so the caller still sees the cause`,
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-080"},
+			Since:           "1.1.0",
+			Certainty:       CertaintyHeuristic,
+		},
+		{
+			ID:        "API-081",
+			Category:  "API",
+			Severity:  SeverityError,
+			Invariant: "TaskHandle.Blockf is never called — Block is the sole, statement-form spelling, and it always stays (it is the only way to conclude a Task Blocked)",
+			Why:       "TaskHandle.Blockf and the *Failure value it returned (with its own Next/NextCommand/Unwrap) were removed in 1.1 with no compatibility alias (E-118 lane B). A remedy attaches to Block itself as an evo.Next/evo.NextCommand ProblemOption, not to a chained return value.",
+			BadCode:   `return task.Blockf("worktree dirty: %w", err).NextCommand("git", "status")`,
+			GoodCode: `task.Block("worktree dirty", evo.NextCommand("git", "status"))
+return err`,
+			Remediation:     "Replace Blockf(...) (removed in 1.1) plus its chained .NextCommand(...)/.Next(...) with Block(summary, evo.NextCommand(...)/evo.Next(...)) followed by a plain return of the cause — Block already resolved the task Blocked, so the return only lets the caller see the cause",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-081"},
+			Since:           "1.1.0",
+			Certainty:       CertaintyHeuristic,
 		},
 	}
 }

@@ -84,11 +84,25 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 	return t
 }
 
+// Next records a remedy Action on this Task's row directly, outside any
+// resolving call — for a Task whose resolution happens elsewhere (Define's
+// returned error, or a verb called from a different site) but still wants
+// a remedy attached before or after that point. It returns this same
+// *TaskHandle so it chains freely.
+//
+// This is not the canonical way to attach a remedy to Fail/Block/Problem:
+// those take it as their own evo.Next(...)/evo.NextCommand(...)
+// ProblemOption argument (see Fail, Block) — prefer that form whenever the
+// remedy and the resolving call are the same statement.
 func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
 	t.impl().Next(actions...)
 	return t
 }
 
+// NextCommand is Next for a single shell command, built the same way
+// NextCommand(executable, args...) builds one for the evo.NextCommand
+// ProblemOption. See Next's doc comment for when to prefer this chained
+// form over the ProblemOption.
 func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle {
 	t.impl().NextCommand(executable, args...)
 	return t
