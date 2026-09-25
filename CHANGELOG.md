@@ -65,6 +65,18 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Changed
 
+- **`After` on a Group or Sequence** (breaking behavior): 1.0 counted an
+  empty collection as done at once, so `out.Task("fetch").After(g)` wired
+  before the loop that fills `g` started immediately. In 1.1 an empty
+  collection named in `After` stays open until `g.Wait()`, a Wait on the
+  dependent, or the end of the run closes it, and it waits for every
+  child declared before then. A collection already populated when it is
+  named is taken as declared: a child declared into it later never gates
+  that edge. A Task declared into a Sequence step the Sequence has already
+  moved past runs after the Sequence's latest step. To keep 1.0's timing,
+  declare the children before the `After`, or call `g.Wait()` before the
+  dependent should start. See
+  [`docs/migration/1.1.md`](docs/migration/1.1.md#after-on-a-group-or-sequence-waits-for-its-members).
 - **`TaskHandle.Warn(summary string, opts ...ProblemOption) *TaskHandle`**
   (breaking for method values and interfaces): now takes the same
   `ProblemOption`s `Problem`/`Fail`/`Block` do and returns `*TaskHandle` to
