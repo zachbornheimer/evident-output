@@ -290,7 +290,7 @@ var methodDeclPattern = regexp.MustCompile(`func\s*\(\s*\w+\s+\*?\w+\s*\)\s+(\w+
 
 // wrapperMethodBodyPattern matches a single statement that is (optionally
 // `return`-ing) exactly one call ending in a known Task-verb method name.
-var wrapperMethodBodyPattern = regexp.MustCompile(`^(?:return\s+)?[\w.]+\.(Doing|Done|Fail|Warn|Block|Cancel|Skip|Kept|Progress|Advance|Step|Evidence|Writer)\([^{}]*\)\s*;?$`)
+var wrapperMethodBodyPattern = regexp.MustCompile(`^(?:return\s+)?[\w.]+\.(Doing|Done|Fail|Warn|Block|Cancel|Skip|Kept|Progress|Advance|Evidence|Writer)\([^{}]*\)\s*;?$`)
 
 // detectWrapperMethod is API-037: a method whose entire body is one call on
 // a Task/Item handle adds a name and a stack frame over calling the verb

@@ -317,7 +317,7 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 			return
 		}
 		st.plainStream.phase = st.phase
-		o.streamPlainRowLocked(st, st.progress, false)
+		o.streamPlainRowLocked(st, st.progress, rowAsIs)
 	case triggerProgress:
 		if !shouldEmitPlainProgressLocked(st) {
 			return
@@ -327,40 +327,38 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 		// this milestone takes its place. Never let a later milestone
 		// silently swallow an earlier one that a Doing might still be
 		// about to name for a count that no longer exists.
-		o.flushOwedMilestoneLocked(st, false)
+		o.flushOwedMilestoneLocked(st, rowAsIs)
 		st.plainStream.progressStarted = true
 		st.plainStream.progressEmitted = st.progress.Completed
 		// The count reaching its total is itself newsworthy the instant it
-		// happens — a caller may go on doing other, unnarrated work for
-		// arbitrarily long after the count completes before the task
-		// itself resolves, and plain mode must not go silent for that
-		// whole stretch (TestPlain_CollectionChildStreamsMilestones: a
-		// pure-Progress collection child's 111/111 streams mid-run, well
-		// before the task's own Done). So the final tick always streams
-		// immediately, same as before — but it stays owed afterward
+		// happens, and plain mode must not go silent while the task goes
+		// on doing other, unnarrated work before it resolves. So the final
+		// tick always streams immediately — but stays owed afterward
 		// (bareStreamed) so a Doing that pairs with this exact tick still
 		// gets to name the item, as an item-only line rather than a
 		// repeated count.
 		//
-		// Every other tick defers instead: the very next Doing on this
-		// task pairs its item onto this same count on ONE line (the
-		// canonical Progress(i,n).Doing(item) shape) rather than the count
-		// streaming bare immediately and a following Doing adding a
-		// second, item-only line behind it (E-119 review: duplicate first
-		// milestone). If no Doing claims it before the next milestone or
-		// resolution, flushOwedMilestoneLocked streams it bare then.
+		// A task that has ever paired a Doing onto one of its own
+		// milestones (namesItems) defers every other tick instead: the
+		// very next Doing pairs its item onto this same count on ONE line,
+		// rather than the count streaming bare immediately and a following
+		// Doing adding a second, item-only line behind it. If no Doing
+		// claims it before the next milestone or resolution,
+		// flushOwedMilestoneLocked streams it bare then.
+		//
+		// A task that has never paired an item — a pure Progress/Bytes
+		// loop with no per-item names — has no Doing coming to pair with,
+		// so deferring would leave the reader looking at a stale count for
+		// a whole milestone. That task streams every milestone
+		// immediately, same as the final tick.
 		final := isFinalProgressTickLocked(st)
-		if final {
-			// Bare, not paired with whatever item text happens to still
-			// be sitting in st.phase from the PREVIOUS milestone's Doing
-			// call — that item belongs to the count before this one, and
-			// pairing it here would misname this milestone's item as the
-			// last one's (api_sugar_test.go's TestProgressDoing_
-			// PlainMilestoneNamesItsOwnItem: "count i names item i, never
-			// the previous one").
-			o.streamPlainRowBlankPhaseLocked(st, st.progress)
+		immediate := final || !st.plainStream.namesItems
+		if immediate {
+			// Blank the phase: it may still hold the PREVIOUS milestone's
+			// item text, which belongs to the count before this one.
+			o.streamPlainRowLocked(st, st.progress, rowBlankPhase)
 		}
-		st.plainStream.owed.claim(st.progress, final)
+		st.plainStream.owed.claim(st.progress, immediate)
 	case triggerItem:
 		if !st.plainStream.owed.pending {
 			// No milestone is currently owed to this item — either no
@@ -381,7 +379,7 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 		if itemOnly {
 			progress = Progress{}
 		}
-		o.streamPlainRowLocked(st, progress, false)
+		o.streamPlainRowLocked(st, progress, rowAsIs)
 		return
 	}
 	o.deferPlainHeartbeatLocked(st, o.cfg.clock.Now())
@@ -396,22 +394,45 @@ func isFinalProgressTickLocked(st *taskState) bool {
 	return st.progress.Total > 0 && st.progress.Completed >= st.progress.Total
 }
 
+// plainRowShape says how streamPlainRowLocked should shape a row's fields
+// beyond its progress — the two ways a deferred/resolving stream diverges
+// from a plain snapshot.
+type plainRowShape int
+
+const (
+	// rowAsIs streams st's row unchanged beyond the given progress.
+	rowAsIs plainRowShape = iota
+	// rowAsResolving forces the row to read as the still-Running phase in
+	// progress rather than any terminal Summary/Problems that may already
+	// be set (commitSettledLocked flushes an owed milestone immediately
+	// before the terminal row itself streams).
+	rowAsResolving
+	// rowBlankPhase clears the row's phase/item text before rendering, for
+	// a milestone that streams immediately (the final tick, or any tick on
+	// a task with no Doing to pair it with) and must not pair progress with
+	// whatever item text a Doing already left on the task from the
+	// previous milestone — that text names the milestone before this one,
+	// not this one.
+	rowBlankPhase
+)
+
 // streamPlainRowLocked renders and writes one durable plain-mode row for st,
 // using progress in place of st.progress — the milestone a deferred count
 // was pinned to may no longer match st.progress's current value by the time
 // it is actually flushed (a later Progress call, or task resolution, can
-// both run first). asResolving, when true, forces the row to read as the
-// still-Running phase in progress rather than any terminal Summary/Problems
-// that may already be set (commitSettledLocked flushes an owed milestone
-// immediately before the terminal row itself streams).
-func (o *Output) streamPlainRowLocked(st *taskState, progress Progress, asResolving bool) {
+// both run first). shape governs how the row diverges from a plain
+// snapshot; see plainRowShape.
+func (o *Output) streamPlainRowLocked(st *taskState, progress Progress, shape plainRowShape) {
 	row := st.snapshot()
 	row.Name = progressiveRowName(st)
 	row.Progress = progress
-	if asResolving {
+	switch shape {
+	case rowAsResolving:
 		row.State = Running
 		row.Summary = ""
 		row.Problems = nil
+	case rowBlankPhase:
+		row.Phase = ""
 	}
 	var b strings.Builder
 	render.WriteTask(&b, row, o.humanStyle())
@@ -421,36 +442,16 @@ func (o *Output) streamPlainRowLocked(st *taskState, progress Progress, asResolv
 	o.writeDurableTextLocked(b.String())
 }
 
-// streamPlainRowBlankPhaseLocked is streamPlainRowLocked's count-only
-// variant: it clears the row's phase/item text before rendering, for the
-// one caller (the final progress tick's immediate stream) that must not
-// pair progress with whatever item text a Doing already left on the task —
-// that text names the milestone before this one, not this one.
-func (o *Output) streamPlainRowBlankPhaseLocked(st *taskState, progress Progress) {
-	row := st.snapshot()
-	row.Name = progressiveRowName(st)
-	row.Progress = progress
-	row.Phase = ""
-	var b strings.Builder
-	render.WriteTask(&b, row, o.humanStyle())
-	if b.Len() == 0 {
-		return
-	}
-	o.writeDurableTextLocked(b.String())
-}
-
-// owedMilestone is the one concept plain-mode progress streaming needs: a
-// milestone's count, pinned the instant it crosses, waiting for the next
-// Doing to pair its item onto the same line — or, if none comes before the
-// next milestone or resolution, streamed bare on its own. It replaces the
-// five interacting booleans (namesItems/itemOwed/bareStreamed/pending*) a
-// prior version of this file spread across three functions: there is
-// exactly one pending count at a time, tracked here alone, and it is either
-// claimed by a pairing Doing or flushed bare — never both. bareStreamed
-// marks the one exception (the final tick, which streams its count
-// immediately rather than waiting — see emitTaskRunningProgressiveLocked):
-// a Doing that still pairs with it afterward gets an item-only line instead
-// of repeating a count that already streamed.
+// owedMilestone tracks the one pending count plain-mode progress streaming
+// can defer at a time: a milestone's count, pinned the instant it crosses,
+// waiting for the next Doing to pair its item onto the same line — or, if
+// none comes before the next milestone or resolution, streamed bare on its
+// own. It is claimed by a pairing Doing or flushed bare, never both.
+// bareStreamed marks a count that already streamed immediately (the final
+// tick, or any tick on a task with no Doing to pair with — see
+// emitTaskRunningProgressiveLocked): a Doing that still pairs with it
+// afterward gets an item-only line instead of repeating a count that
+// already streamed.
 type owedMilestone struct {
 	pending      bool
 	bareStreamed bool
@@ -483,10 +484,11 @@ func (m *owedMilestone) take() (progress Progress, alreadyBare bool) {
 // resolved before its item arrived (evo-rec.md/E-119 review: "final n/n
 // dropped when Doing comes before Progress"). A milestone that already
 // streamed bare (the final-tick fast path) has nothing left to flush; a
-// no-op here would otherwise repeat its count. asResolving is true only
-// when resolution itself is what triggered the flush (commitSettledLocked,
-// ahead of the terminal row) — see streamPlainRowLocked.
-func (o *Output) flushOwedMilestoneLocked(st *taskState, asResolving bool) {
+// no-op here would otherwise repeat its count. shape is rowAsResolving
+// only when resolution itself is what triggered the flush
+// (commitSettledLocked, ahead of the terminal row) — see
+// streamPlainRowLocked.
+func (o *Output) flushOwedMilestoneLocked(st *taskState, shape plainRowShape) {
 	if !st.plainStream.owed.pending {
 		return
 	}
@@ -494,7 +496,7 @@ func (o *Output) flushOwedMilestoneLocked(st *taskState, asResolving bool) {
 	if alreadyBare {
 		return
 	}
-	o.streamPlainRowLocked(st, progress, asResolving)
+	o.streamPlainRowLocked(st, progress, shape)
 	o.deferPlainHeartbeatLocked(st, o.cfg.clock.Now())
 }
 

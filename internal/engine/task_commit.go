@@ -47,7 +47,7 @@ func (o *Output) commitSettledLocked(st *taskState) {
 	// ledger from current state, so an owed milestone must already be
 	// flushed before it runs, not left for a stale next tick that never
 	// comes once this task is terminal.
-	o.flushOwedMilestoneLocked(st, true)
+	o.flushOwedMilestoneLocked(st, rowAsResolving)
 	if st.collection != nil {
 		o.signalLiveLocked(true)
 	} else {
