@@ -57,7 +57,10 @@ func TestEVOOutput_Plain_NoLiveRegionOnTTYShapedWriter(t *testing.T) {
 	}
 }
 
-func TestEVOOutput_JSON_FinishWritesJSONDocument(t *testing.T) {
+// EVO_OUTPUT=json selects the evo.run document (FormatJSON) when the
+// caller chose no Format: the one machine document that carries every
+// structured Fact, disposition and Problem (E-090).
+func TestEVOOutput_JSON_FinishWritesRunDocument(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "json"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
@@ -66,19 +69,23 @@ func TestEVOOutput_JSON_FinishWritesJSONDocument(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	var doc evo.JSONDocument
-	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
-		t.Fatalf("Finish must write a JSONDocument: %v\n%s", err, got)
+	var doc struct {
+		Object        string `json:"object"`
+		SchemaVersion string `json:"schema_version"`
 	}
-	if doc.SchemaVersion == "" {
-		t.Fatalf("JSONDocument missing schema_version: %+v", doc)
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("Finish must write one evo.run document: %v\n%s", err, got)
+	}
+	if doc.Object != "evo.run" || doc.SchemaVersion == "" {
+		t.Fatalf("EVO_OUTPUT=json wrote %q schema %q, want an evo.run document", doc.Object, doc.SchemaVersion)
 	}
 	if hasHumanGlyphs(got) {
-		t.Fatalf("json presentation must not carry human glyphs:\n%s", got)
+		t.Fatalf("json stdout must not carry human glyphs:\n%s", got)
 	}
 }
 
-func TestEVOOutput_JSONL_FinishWritesEventLines(t *testing.T) {
+// EVO_OUTPUT=jsonl selects the evo.event stream (FormatJSONL).
+func TestEVOOutput_JSONL_WritesEventLines(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "jsonl"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
@@ -88,15 +95,19 @@ func TestEVOOutput_JSONL_FinishWritesEventLines(t *testing.T) {
 	}
 	got := strings.TrimSpace(buf.String())
 	if got == "" {
-		t.Fatal("jsonl Finish wrote nothing")
+		t.Fatal("jsonl wrote nothing")
 	}
 	var sawTaskDone bool
 	for line := range strings.SplitSeq(got, "\n") {
-		var ev evo.EventJSON
-		if err := json.Unmarshal([]byte(line), &ev); err != nil {
-			t.Fatalf("jsonl line is not EventJSON: %v\n%s", err, line)
+		var ev struct {
+			Object  string         `json:"object"`
+			Type    string         `json:"type"`
+			Payload map[string]any `json:"payload"`
 		}
-		if ev.Type == "task.done" {
+		if err := json.Unmarshal([]byte(line), &ev); err != nil || ev.Object != "evo.event" {
+			t.Fatalf("jsonl line is not an evo.event (%v):\n%s", err, line)
+		}
+		if ev.Type == "task.finished" && ev.Payload["state"] == "done" {
 			sawTaskDone = true
 		}
 		if hasHumanGlyphs(line) {
@@ -104,7 +115,7 @@ func TestEVOOutput_JSONL_FinishWritesEventLines(t *testing.T) {
 		}
 	}
 	if !sawTaskDone {
-		t.Fatalf("jsonl Finish missing task.done event:\n%s", got)
+		t.Fatalf("jsonl missing a task.finished done event:\n%s", got)
 	}
 }
 

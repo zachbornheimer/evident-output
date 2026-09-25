@@ -3,6 +3,7 @@ package engine
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // dispositionVerb names which accumulation act a Reason's usage constraints
@@ -13,6 +14,14 @@ const (
 	dispositionSkip dispositionVerb = "skip"
 	dispositionKeep dispositionVerb = "keep"
 )
+
+// wireName is v's record kind on the machine wire.
+func (v dispositionVerb) wireName() string {
+	if v == dispositionSkip {
+		return wire.DispositionSkipped
+	}
+	return wire.DispositionKept
+}
 
 // Skipped accumulates a (reason, name) skip record on the task, with an
 // optional trailing errs for evidence of why. It returns nothing —
@@ -61,6 +70,7 @@ func (t *TaskHandle) recordTaxonomyLocked(st *taskState, reason TaxonomyReason, 
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task." + string(verb) + "_recorded", EntityID: t.id})
+	t.out.emitWireEventLocked(wire.EventDispositionRecorded, t.id, wire.ToDispositionDoc(verb.wireName(), rec).EventPayload())
 }
 
 // causesFromErrors renders each non-nil err's text, sanitized like every

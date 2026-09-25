@@ -259,6 +259,27 @@
         }
       }
     },
+    "disposition": {
+      "type": "object",
+      "required": ["disposition", "reason", "name"],
+      "properties": {
+        "disposition": {
+          "enum": ["kept", "skipped"]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "causes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "location": {
       "type": "object",
       "required": ["path"],
@@ -430,6 +451,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/fact"
+          }
+        },
+        "dispositions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/disposition"
           }
         },
         "problems": {

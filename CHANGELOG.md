@@ -65,6 +65,16 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Changed
 
+- **`EVO_OUTPUT=json` and `EVO_OUTPUT=jsonl`** (breaking): with no `Format`
+  chosen, they now select `FormatJSON` (one `evo.run` document on stdout)
+  and `FormatJSONL` (`evo.event` lines on stdout, streamed), with human
+  output on stderr. They wrote the output.v1 `JSONDocument` and 0.4
+  `EventJSON` lines, which carry no Facts and no Kept/Skipped records, so a
+  machine consumer lost what human verbosity hides. The `evo.run` task
+  gains `dispositions` (`{disposition, reason, name, causes}`), and the
+  event stream a `disposition.recorded` event. With `FormatData` or
+  `FormatExternal` chosen, `EVO_OUTPUT` keeps the output.v1 projection on
+  stderr. See [`docs/migration/1.1.md`](docs/migration/1.1.md#evo_outputjson-and-jsonl-write-the-evorun-document).
 - **`After` on a Group or Sequence** (breaking behavior): 1.0 counted an
   empty collection as done at once, so `out.Task("fetch").After(g)` wired
   before the loop that fills `g` started immediately. In 1.1 an empty

@@ -37,6 +37,7 @@
         "tracked_resources": [],
         "basis": [],
         "facts": [],
+        "dispositions": [],
         "problems": [],
         "operations": []
       }

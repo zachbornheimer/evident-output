@@ -189,6 +189,7 @@ type TaskDoc struct {
 	TrackedResources   []TrackedResourceDoc `json:"tracked_resources"`
 	Basis              []BasisDoc           `json:"basis"`
 	Facts              []FactDoc            `json:"facts"`
+	Dispositions       []DispositionDoc     `json:"dispositions"`
 	Problems           []ProblemDoc         `json:"problems"`
 	Operations         []OperationDoc       `json:"operations"`
 }
@@ -331,6 +332,7 @@ func toTaskDoc(parentID string, t core.TaskSnapshot) TaskDoc {
 		TrackedResources:   []TrackedResourceDoc{},
 		Basis:              []BasisDoc{},
 		Facts:              toFactDocs(t.Facts),
+		Dispositions:       toDispositionDocs(t),
 		Problems:           toProblemDocs(t.Problems),
 		Operations:         []OperationDoc{},
 	}
