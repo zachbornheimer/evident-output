@@ -189,7 +189,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   no longer re-checked against its `Verify` afterwards. A false `Verify`
   failed the Kept or Skipped Task `postcondition not satisfied` with exit
   2, and printed a spurious "resolve each task once" line under a Blocked
-  one: a Task that chose not to converge has no change to verify.
+  one: a Task that chose not to converge has no change to verify. A
+  `Define` that committed an Effect before calling `Kept` or `Skipped`
+  did change state, so its `Verify` still runs and a false result still
+  fails the Task. A `Define` that calls `Kept` or `Skipped` and then
+  returns an error fails with that error and no misuse line.
 
 - Review rule API-063 resolves a `Verify(check)` argument in the call's
   own scope. It keyed local function literals by name across the whole

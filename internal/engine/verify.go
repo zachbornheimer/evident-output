@@ -187,8 +187,9 @@ func (t *TaskHandle) checkAfterDefine(verifiers []verifierFunc, scope *taskScope
 
 // hasPostStateToVerify reports whether the state after this Task's
 // Define is one its postcondition can judge. It is not when Define
-// resolved the Task itself (Kept, Skipped, Block: it chose not to
-// converge, so there is no change to verify, E-110), nor when a dry run
+// resolved the Task itself without committing a change (Kept, Skipped,
+// Block: it chose not to converge, so there is no change to verify,
+// E-110, E-112), nor when a dry run
 // or preview skipped a mutation Define planned (the observed state is
 // the state before the plan, E-097). A planned run whose Define planned
 // nothing left the real post-state and is checked as a real run is
@@ -197,11 +198,15 @@ func (t *TaskHandle) hasPostStateToVerify() bool {
 	o := t.out
 	o.mu.Lock()
 	st := o.taskByRef[t.id]
-	// A Kept or Skipped inside Define is held as an unratified proposal
-	// until the callback's return confirms it; Block resolves at once.
-	selfResolved := st != nil && (core.IsTerminalTask(st.state) || st.proposed != nil)
+	// Block resolves at once, so its terminal Task is never re-checked. A
+	// Kept or Skipped inside Define is held as an unratified proposal
+	// until the callback's return confirms it; it claims "no change" only
+	// while Define committed no Effect (E-112): a Kept after a real
+	// mutation still owes its postcondition.
+	blocked := st != nil && core.IsTerminalTask(st.state)
+	keptUnchanged := st != nil && st.proposed != nil && !o.hasRecordedEffectLocked(t.id)
 	o.mu.Unlock()
-	if selfResolved {
+	if blocked || keptUnchanged {
 		return false
 	}
 	return !o.cfg.dryRun || !o.hasPlannedEffect(t.id)

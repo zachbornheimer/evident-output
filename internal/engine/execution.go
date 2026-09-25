@@ -183,15 +183,14 @@ func (o *Output) executeWork(st *taskState, fn func() error) {
 }
 
 // resolveObserved commits the task's outcome from what the callback actually
-// returned, ratifying or rejecting the caller's proposal (see
+// returned, ratifying or discarding the caller's proposal (see
 // TaskHandle.finish). A ratified proposal supplies the row's summary — the
-// caller's own words, now backed by an observation.
+// caller's own words, now backed by an observation. A returned error
+// replaces the proposal: it was never a resolution, so it earns no
+// "resolve each task once" misuse line (E-113).
 func (o *Output) resolveObserved(st *taskState, err error) {
 	proposal := o.takeProposal(st)
 	if err != nil {
-		if proposal != nil {
-			o.rejectProposal(st, proposal)
-		}
 		st.handle.failScheduled(err.Error())
 		return
 	}
@@ -211,15 +210,6 @@ func (o *Output) takeProposal(st *taskState) *proposedOutcome {
 	proposal := st.proposed
 	st.proposed = nil
 	return proposal
-}
-
-// rejectProposal records the misuse a contradicted success claim earns: the
-// caller said the work was done, the work says otherwise, and the reader is
-// told which task and which claim was dropped.
-func (o *Output) rejectProposal(st *taskState, proposal *proposedOutcome) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.recordAlreadyResolvedLocked(st.name, proposal.summary)
 }
 
 // recordWorkOutcome stores the callback's error on the task so a waiter
