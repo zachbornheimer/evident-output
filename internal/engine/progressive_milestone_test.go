@@ -63,6 +63,82 @@ func TestPlainProgress_DoingBeforeProgress_PinsShape(t *testing.T) {
 	}
 }
 
+// TestPlainBytes_DoingPairing_KeepsBytesFormatting is the regression for
+// owedMilestone dropping Progress.Kind: a Bytes milestone that defers to a
+// paired Doing must still render as bytes (MB/GB) on the paired line, not
+// silently fall back to a bare determinate count.
+func TestPlainBytes_DoingPairing_KeepsBytesFormatting(t *testing.T) {
+	var buf strings.Builder
+	out := Init(Config{Isolated: true, Title: "demo", Plain: true, Stdout: &buf, Stderr: &buf})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("dl")
+	task.Bytes(50<<20, 500<<20)
+	task.Doing("mirror-a")
+	task.succeed("")
+
+	got := buf.String()
+	if strings.Contains(got, "52428800") || strings.Contains(got, "524288000") {
+		t.Fatalf("want bytes formatting (MB), got raw byte counts:\n%s", got)
+	}
+	if !strings.Contains(got, "MB") {
+		t.Fatalf("want a paired Bytes/Doing line formatted in MB, got:\n%s", got)
+	}
+}
+
+// TestPlainProgress_DoingBeforeProgress_NarratesEveryPostLoopStep is the
+// regression for the E-119 review's dropped-narration bug: with the
+// Doing-before-Progress loop order, once the loop's final tick seals the
+// count, every further Doing must narrate — not just the first one after
+// the seal (pairsWithMilestone previously took the very next post-seal
+// Doing as an item pairing and discarded it).
+func TestPlainProgress_DoingBeforeProgress_NarratesEveryPostLoopStep(t *testing.T) {
+	var buf strings.Builder
+	out := Init(Config{Isolated: true, Title: "demo", Plain: true, Stdout: &buf, Stderr: &buf})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("mirror")
+	for i := 1; i <= 5; i++ {
+		task.Doing("w-%d", i)
+		task.Progress(i, 5)
+	}
+	task.Doing("verify checksum")
+	task.Doing("unpack")
+	task.succeed("")
+
+	got := buf.String()
+	if !strings.Contains(got, "verify checksum") {
+		t.Fatalf("want a durable line for the post-loop step 'verify checksum', got:\n%s", got)
+	}
+	if !strings.Contains(got, "unpack") {
+		t.Fatalf("want a durable line for the post-loop step 'unpack', got:\n%s", got)
+	}
+}
+
+// TestPlainProgress_FirstTickIsDeferredUntilNextEvent pins the documented
+// 1.1 tradeoff (docs/migration/1.1.md "first progress tick is deferred"):
+// unlike 1.0, a Task's very first Progress/Bytes tick does not stream its
+// own line immediately — it waits for the paired Doing (or, with none
+// coming, the next milestone or resolution) so the canonical
+// Progress(...).Doing(...) chain can print the count and the item on one
+// line instead of two. A lone first tick with nothing narrating it and no
+// further ticks stays silent until the task resolves.
+func TestPlainProgress_FirstTickIsDeferredUntilNextEvent(t *testing.T) {
+	var buf strings.Builder
+	out := Init(Config{Isolated: true, Title: "demo", Plain: true, Stdout: &buf, Stderr: &buf})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("download")
+	task.Bytes(50<<20, 500<<20)
+	if got := buf.String(); got != "" {
+		t.Fatalf("want the first tick deferred (no line yet), got:\n%s", got)
+	}
+	task.succeed("")
+	if got := buf.String(); !strings.Contains(got, "MB") {
+		t.Fatalf("want the deferred first tick to flush at resolution, got:\n%s", got)
+	}
+}
+
 func nonEmptyLines(s string) []string {
 	var out []string
 	for l := range strings.SplitSeq(s, "\n") {

@@ -152,7 +152,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   of a count is `task.Progress(i, total).Doing(item)`. After `Progress` or
   `Bytes`, a plain transcript shows `Doing`'s item only on a progress
   milestone's line (the item at that count), never a line per item. Review
-  rule API-090 rewrites each old call.
+  rule API-090 rewrites each old call. **Breaking behavior change:** plain
+  mode's first `Progress`/`Bytes` tick on a Task is now deferred one call
+  (instead of streaming immediately) so it can pair with the `Doing` that
+  follows on one line; see the migration guide's "first progress tick is
+  deferred" note for the narrower silent window this opens for a lone
+  first tick with no `Doing` and no further activity.
 - **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
   guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`

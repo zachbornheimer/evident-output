@@ -45,22 +45,24 @@ func reportsCount(st *taskState) bool {
 
 // pairsWithMilestone reports whether this Doing names the item of a
 // count's current milestone, rather than narrating an ordinary step. It is
-// true for an open (unsealed) count (reportsCount), and for the one Doing
-// right after a count's FINAL tick, which seals it in the very call that
-// crosses it (emitTaskRunningProgressiveLocked's triggerProgress case):
-// that Doing still owes its item to the milestone that just streamed bare
-// — but only once this Task has genuinely been pairing items with
-// milestones all along (plainStream.namesItems). Without that history
-// check, a caller who calls Bytes/Progress exactly once already sealed
-// (install's `Bytes(400, 400)` before any narration) would have its very
-// first post-seal Doing ("verify checksum") wrongly swallowed as an item
-// pairing instead of narrated (the same regression reportsCount alone
-// guards against, just one milestone later).
+// true only for an open (unsealed) count (reportsCount): once a count
+// seals, every further Doing is ordinary narration (reportsCount's own
+// contract), including the very next one. That Doing may still name the
+// milestone that just streamed bare — e.g. `task.Progress(i, total).
+// Doing(item)`'s last iteration, or install's `Bytes(400, 400)` followed by
+// `Doing("verify checksum")` — but it goes through the ordinary narrated
+// path (setPhaseLocked), which blanks that one line's count instead of
+// repeating it (see emitTaskRunningProgressiveLocked's triggerPhase case).
+// A second history-based branch here — pairing whenever an owed milestone
+// was still pending and this Task had paired items before
+// (plainStream.namesItems) — could not tell that shape apart from an
+// unrelated Doing narrated after the whole loop (a plain "verify checksum"
+// following a Doing-before-Progress loop's final tick): both are, from the
+// engine's view, just "the next Doing after a sealed claim". Swallowing on
+// that ambiguous signal dropped the post-loop narration (E-119 review); the
+// ordinary path plus a blanked count resolves both without ambiguity.
 func pairsWithMilestone(st *taskState) bool {
-	if reportsCount(st) {
-		return true
-	}
-	return st.plainStream.owed.pending && st.plainStream.namesItems
+	return reportsCount(st)
 }
 
 // resolvedByInterrupt reports whether this state was reached by the

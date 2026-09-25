@@ -101,7 +101,21 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 			return
 		}
 		st.plainStream.phase = st.phase
-		o.streamPlainRowLocked(st, st.progress, rowAsIs)
+		shape := rowAsIs
+		if st.plainStream.owed.pending && st.plainStream.owed.alreadyStreamed {
+			// This narrated line arrives right after a milestone that
+			// already streamed its count bare (the first/final-tick fast
+			// path, or a task with no Doing to pair): that count already
+			// has its one durable line. Consume the owed claim so it is
+			// not held onto forever, and blank this line's count so it
+			// never repeats what the milestone line already showed — this
+			// is the sealed-count regression (E-119 review): once a count
+			// is closed, every further Doing is ordinary narration, never
+			// swallowed and never a duplicate count.
+			st.plainStream.owed.take()
+			shape = rowBlankProgress
+		}
+		o.streamPlainRowLocked(st, st.progress, shape)
 	case triggerProgress:
 		if !shouldEmitPlainProgressLocked(st) {
 			return
@@ -207,6 +221,15 @@ const (
 	// previous milestone — that text names the milestone before this one,
 	// not this one.
 	rowBlankPhase
+	// rowBlankProgress clears the row's progress/count before rendering,
+	// for the one ordinary narrated line that immediately follows a
+	// milestone which already streamed its count bare (owedMilestone.
+	// alreadyStreamed): that count already has its one durable line, so
+	// this row shows only the narrated phase text, never a second line
+	// repeating the same count (E-119 review: a sealed count must not
+	// swallow the Doing that follows it, and must not repeat the count
+	// either).
+	rowBlankProgress
 )
 
 // streamPlainRowLocked renders and writes one durable plain-mode row for st,
@@ -227,6 +250,8 @@ func (o *Output) streamPlainRowLocked(st *taskState, progress Progress, shape pl
 		row.Phase = ""
 	case rowBlankPhase:
 		row.Phase = ""
+	case rowBlankProgress:
+		row.Progress = Progress{}
 	}
 	var b strings.Builder
 	render.WriteTask(&b, row, o.humanStyle())
@@ -249,19 +274,21 @@ func (o *Output) streamPlainRowLocked(st *taskState, progress Progress, shape pl
 type owedMilestone struct {
 	pending         bool
 	alreadyStreamed bool
-	completed       int64
-	total           int64
+	progress        Progress
 }
 
 // claim pins p as the milestone now owed, already streamed or not (see
-// alreadyStreamed above). A milestone still owed from before this one
-// crossed means no Doing claimed it in time; it is overwritten here rather
-// than flushed, because streaming it now (from inside the very call that
-// supersedes it) would print a stale count out of order —
-// flushOwedMilestoneLocked is the caller's job to run first.
+// alreadyStreamed above). p is kept whole — Kind included — so a Bytes
+// milestone paired with a later Doing still formats as bytes rather than a
+// bare determinate count (E-119 review: "Bytes stays as Progress formatting
+// sugar"). A milestone still owed from before this one crossed means no
+// Doing claimed it in time; it is overwritten here rather than flushed,
+// because streaming it now (from inside the very call that supersedes it)
+// would print a stale count out of order — flushOwedMilestoneLocked is the
+// caller's job to run first.
 func (m *owedMilestone) claim(p Progress, alreadyStreamed bool) {
 	m.pending, m.alreadyStreamed = true, alreadyStreamed
-	m.completed, m.total = p.Completed, p.Total
+	m.progress = p
 }
 
 // take clears the owed milestone and returns the Progress it was pinned to,
@@ -270,7 +297,7 @@ func (m *owedMilestone) claim(p Progress, alreadyStreamed bool) {
 // instead of repeating that count).
 func (m *owedMilestone) take() (progress Progress, alreadyStreamed bool) {
 	m.pending = false
-	return Progress{Kind: Determinate, Completed: m.completed, Total: m.total}, m.alreadyStreamed
+	return m.progress, m.alreadyStreamed
 }
 
 // flushOwedMilestoneLocked streams a still-owed plain-mode milestone line
