@@ -11,21 +11,21 @@ import (
 // printJoinPattern matches a Print/Println/Printf call fed a joined list —
 // the hand-assembled failure summary evo-rec.md's Conclusion already owns.
 // failfCaptureTextPattern is EV-001: task.Failf("...%s...", capture.Text())
-// (or Blockf) folds the retained evidence ring straight into the summary the
+// (or Blockf) folds the retained Capture ring straight into the summary the
 // row already shows — Failf/Blockf's own auto-attach then renders the exact
-// same text a second time as evidence underneath it (user-13-problems.md
+// same text a second time as a capture tail underneath it (user-13-problems.md
 // Problem 7). Matches any receiver's .Text()/.Tail() call appearing as a
 // Failf/Blockf argument, not just a variable literally named "capture" —
 // the misuse is the method call shape, not the identifier.
 var failfCaptureTextPattern = regexp.MustCompile(`\.(?:Failf|Blockf)\([^)]*\.(?:Text|Tail)\(\)[^)]*\)`)
 
-// detectFailfEmbeddedEvidenceText flags EV-001's anti-pattern.
-func detectFailfEmbeddedEvidenceText(filename, src string) []Finding {
+// detectFailfEmbeddedCaptureText flags EV-001's anti-pattern.
+func detectFailfEmbeddedCaptureText(filename, src string) []Finding {
 	var findings []Finding
 	for _, m := range failfCaptureTextPattern.FindAllStringIndex(src, -1) {
 		findings = append(findings, Finding{
 			RuleID:     "EV-001",
-			Message:    "Failf/Blockf argument calls .Text()/.Tail() on the retained evidence ring — that text is already auto-attached as a separate evidence line, so embedding it in the summary too duplicates it",
+			Message:    "Failf/Blockf argument calls .Text()/.Tail() on the retained Capture ring — that text is already auto-attached as a separate capture-tail line, so embedding it in the summary too duplicates it",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
 			Suggestion: `pass context via the trailing ": %w" wrap instead — e.g. task.Failf("install dependencies: %w", err) — and let Failf/Blockf auto-attach the retained tail`,
@@ -119,12 +119,14 @@ var retiredSpellings = []retiredSpelling{
 		},
 	},
 	{
-		// Capture and Evidence share one parameter list, so this is a pure
-		// spelling substitution.
+		// TaskHandle has no Capture (or Evidence) method: Capture is the
+		// retained-output type, and Writer is the one way to feed it.
 		pattern:         regexp.MustCompile(`(\w+)\.Capture\(`),
 		evoReceiverOnly: true,
-		message:         "Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr",
-		suggest:         func(recv string) string { return "replace " + recv + ".Capture(...) with " + recv + ".Evidence(...)" },
+		message:         "TaskHandle has no Capture method — child-process output reaches the Task's Capture through Writer",
+		suggest: func(recv string) string {
+			return "replace " + recv + ".Capture(...) with " + recv + ".Writer() on cmd.Stdout/cmd.Stderr"
+		},
 	},
 	// Warn (TaskHandle.Warn/Output.Warn/evo.Warn) was removed in 1.1 and is
 	// detected by detectWarnRemoved (review_warn.go), an AST walk over the

@@ -18,8 +18,8 @@ type SourceLocation = core.SourceLocation
 
 // Attachment is an additional label/value problem attachment.
 //
-// Named Attachment (not Evidence) because Evidence names the retained
-// process-output sink (see Evidence in capture.go) — this is a single
+// Named Attachment, not Evidence: Evidence is satisfaction proof (Verify)
+// and Capture is the retained process-output sink. This is a single
 // labeled fact attached to a Problem, a different concept from that sink.
 type Attachment = core.Attachment
 

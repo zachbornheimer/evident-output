@@ -49,26 +49,26 @@ func (t *TaskHandle) resolveFormatted(state EntityState, format string, args []a
 	err := fmt.Errorf(format, args...)
 	summary, evidence := core.SplitWrappedMessage(format, err)
 	problem := Problem{Summary: summary, Detail: evidence}
-	t.attachRetainedEvidenceTail(&problem)
+	t.attachRetainedCaptureTail(&problem)
 	t.finish(state, summary, []Problem{core.SanitizeProblem(problem)})
 	return newFailure(t, err)
 }
 
-// attachRetainedEvidenceTail attaches the task's own retained evidence
-// (Writer/PhaseWriter/evidence() capture) as the Problem's
-// EvidenceTail, the same precedence Evidence.DetailTail() already
+// attachRetainedCaptureTail attaches the task's own retained capture output
+// (Writer/PhaseWriter/capture()) as the Problem's
+// CaptureTail, the same precedence Capture.DetailTail() already
 // documents: an existing Detail line — here, Failf/Blockf's own
 // wrapped-error text — still renders as the primary line, and the retained
-// evidence appends underneath rather than being silently dropped
+// capture output appends underneath rather than being silently dropped
 // (beginner-gate-2 finding 3). Failf/Blockf accept no ProblemOptions, so
-// this is the only way their call sites ever see the proof task.Writer()
+// this is the only way their call sites ever see the output task.Writer()
 // already captured; a bare Fail/Block with no Detail still gets its own auto-attach
 // from finishTagged, unaffected by this.
-func (t *TaskHandle) attachRetainedEvidenceTail(p *Problem) {
+func (t *TaskHandle) attachRetainedCaptureTail(p *Problem) {
 	if t == nil {
 		return
 	}
-	t.evidence().DetailTail().applyProblem(p)
+	t.capture().DetailTail().applyProblem(p)
 }
 
 // Block resolves the task as blocked. This is a statement, not a fluent
@@ -218,7 +218,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		st.summary = txt.Text(summary)
 	}
 	if len(problems) > 0 || len(st.problems) > 0 {
-		st.problems = core.StoreProblems(st.attachEvidenceTail(state, slices.Concat(st.problems, problems)))
+		st.problems = core.StoreProblems(st.attachCaptureTail(state, slices.Concat(st.problems, problems)))
 	}
 	t.out.settleLocked(st, state)
 	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, taskFinishedPayload(st))

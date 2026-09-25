@@ -175,6 +175,11 @@ func f() {
 	for _, f := range res.Findings {
 		if f.RuleID == "API-029" {
 			found = true
+			// TaskHandle has no Evidence method in 1.1; Writer is the one
+			// compiling route for child-process output.
+			if !strings.Contains(f.Suggestion, "task.Writer()") || strings.Contains(f.Suggestion, "Evidence") {
+				t.Fatalf("API-029 suggestion must route to task.Writer(), got %q", f.Suggestion)
+			}
 		}
 	}
 	if !found {
@@ -1061,12 +1066,12 @@ func f(out *evo.Output, failures []string) {
 // TestEV001_FailfEmbedsCaptureText is red-first for P7's MCP detector
 // (user-13-problems.md Problem 7's named anti-pattern):
 // task.Failf("install failed: %s", capture.Text()) folds the retained
-// evidence ring straight into the summary, duplicating what auto-attach
-// already renders as its own evidence line.
+// Capture ring straight into the summary, duplicating what auto-attach
+// already renders as its own capture-tail line.
 func TestEV001_FailfEmbedsCaptureText(t *testing.T) {
 	bad := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, capture *evo.Evidence) {
+func f(task *evo.TaskHandle, capture *evo.Capture) {
   task.Failf("install failed: %s", capture.Text())
 }
 `
@@ -1701,7 +1706,10 @@ func f(task *evo.TaskHandle, err error) {
 	}
 }
 
-func TestAPI032_CaptureRenamedToEvidence(t *testing.T) {
+// TestAPI032_TaskCaptureMethodMigratesToWriter: TaskHandle has no Capture
+// or Evidence method in 1.1 (Capture is the retained-output type, not a
+// verb), so the only compiling rewrite is task.Writer().
+func TestAPI032_TaskCaptureMethodMigratesToWriter(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(task *evo.TaskHandle) {
@@ -1713,7 +1721,7 @@ func f(task *evo.TaskHandle) {
 	if len(found) != 1 {
 		t.Fatalf("expected one API-032 finding for Capture, got %+v", found)
 	}
-	if found[0].Suggestion != "replace task.Capture(...) with task.Evidence(...)" {
+	if found[0].Suggestion != "replace task.Capture(...) with task.Writer() on cmd.Stdout/cmd.Stderr" {
 		t.Fatalf("suggestion = %q", found[0].Suggestion)
 	}
 }

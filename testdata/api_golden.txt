@@ -105,17 +105,17 @@ func Glyphs(p GlyphProfile)  Option
 func Group(name string)  *GroupHandle
 func Init(configs ...Config)  *Output
 func IsCharDevice(w io.Writer)  bool
-func KeepLastLines(n int)  EvidenceOption
+func KeepLastLines(n int)  CaptureOption
 func Label(text string)  Action
 func Location(path string, line, column int)  ProblemOption
 func LogicalResource(name string)  Resource
 func Main(run RunFunc)  int
+func MaxCaptureBytes(n int)  CaptureOption
 func MaxEntities(n int)  Option
 func MaxEvents(n int)  Option
-func MaxEvidenceBytes(n int)  EvidenceOption
 func MaxFrameRate(framesPerSecond int)  Option
-func MirrorToDebug()  EvidenceOption
-func MirrorToDiagnostics()  EvidenceOption
+func MirrorToDebug()  CaptureOption
+func MirrorToDiagnostics()  CaptureOption
 func NewestFirst()  DebugPaneOption
 func Next(action Action)  ProblemOption
 func NextCommand(executable string, args ...string)  ProblemOption
@@ -159,6 +159,9 @@ func Width(columns int)  Option
 func WriteJSON(w io.Writer, result Result)  error
 type Action
 type Attachment
+type Capture
+type CaptureOption
+type CaptureStream
 type ChangesSnapshot
 type ColorMode
 type CommandSpec
@@ -176,10 +179,7 @@ type EffectVerb
 type EntityState
 type Event
 type EventJSON
-type Evidence
-type EvidenceOption
 type EvidencePhase
-type EvidenceStream
 type ExecResult
 type ExecSpec
 type FactRecord
@@ -248,6 +248,9 @@ type Visibility
 value Blocked
 value BytesKind
 value Cancelled
+value CaptureStreamCombined
+value CaptureStreamStderr
+value CaptureStreamStdout
 value ColorAlways
 value ColorAuto
 value ColorNever
@@ -308,9 +311,6 @@ value ErrTerminalWithoutSink
 value ErrUnresolvedTask
 value ErrWaitDeadlock
 value EventSchemaVersion
-value EvidenceStreamCombined
-value EvidenceStreamStderr
-value EvidenceStreamStdout
 value ExitBlocked
 value ExitCancelled
 value ExitFailed

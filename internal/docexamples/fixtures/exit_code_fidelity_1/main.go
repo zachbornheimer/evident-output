@@ -30,7 +30,7 @@ func main() {
 	var childErr *exec.ExitError
 	code := out.Run(ctx, func(ctx context.Context) error {
 		cmd := out.Task("build")
-		err := run(cmd, exec.Command("make", "build")) // wires cmd.Stdout/Stderr into evo evidence
+		err := run(cmd, exec.Command("make", "build")) // wires cmd.Stdout/Stderr into evo capture
 		errors.As(err, &childErr)
 		return err
 	}).ExitCode()
@@ -43,7 +43,7 @@ func main() {
 // docexamples:snippet end
 
 // run is the reader's own helper implied by the doc's "run(cmd, ...)" call:
-// it wires cmd.Stdout/Stderr through task.Writer() (see the "Evidence"
+// it wires cmd.Stdout/Stderr through task.Writer() (see the "Capture"
 // fence in teaching-ladder.md) and runs cmd, propagating cmd.Run's error —
 // including *exec.ExitError when the child exits non-zero, wrapped so
 // errors.As above can still unwrap it. The fixture supplies a trivial

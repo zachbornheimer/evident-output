@@ -75,7 +75,7 @@ func (t *TaskHandle) withTask(apply func(st *taskState)) *TaskHandle {
 // output, and Step's current-item name. Off-TTY, an explicit TaskHandle.Doing call
 // still forces its own durable row (the P10 contract: the one line the
 // caller asked to see); this path never does — a child's full output already
-// has one durable home, the evidence ring (and its failure-path DetailTail),
+// has one durable home, the capture ring (and its failure-path DetailTail),
 // so a row per mirrored line would just repeat it (release-gate round 9
 // finding 4). Step is the same shape: Isolated+Plain must not stream a
 // durable line per unique item name.
@@ -105,7 +105,7 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // the same state transition as setPhaseLocked (promotion, activity clock,
 // live redraw signal), but it never forces its own durable line in plain
 // mode. A talkative child's mirrored output line (Writer) already has one
-// durable home, the evidence ring, so it gets no plain-mode row per line
+// durable home, the capture ring, so it gets no plain-mode row per line
 // (release-gate round 9 finding 4); Step's current-item name is live
 // status for the same reason, never a durable line per item.
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {

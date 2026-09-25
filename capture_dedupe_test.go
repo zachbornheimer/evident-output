@@ -9,18 +9,18 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestFailf_EvidenceDedupedAgainstSummary is red-first for P7's dedupe
+// TestFailf_CaptureDedupedAgainstSummary is red-first for P7's dedupe
 // addition (user-13-problems.md Problem 7: "deduplicate it against the
 // failure message"). The exact anti-pattern the doc names —
 // task.Failf("install failed: %s", capture.Text()) — folds the retained
-// output straight into the summary; the auto-attached evidence tail must
+// output straight into the summary; the auto-attached capture tail must
 // not then render the same text a second time underneath it.
-func TestFailf_EvidenceDedupedAgainstSummary(t *testing.T) {
+func TestFailf_CaptureDedupedAgainstSummary(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("install")
-	output := task.EvidenceForTest()
+	output := task.CaptureForTest()
 	_, _ = fmt.Fprint(output, "npm ERR! 404 not found")
 	_ = task.Failf("install failed: %s", output.Text())
 
@@ -32,22 +32,22 @@ func TestFailf_EvidenceDedupedAgainstSummary(t *testing.T) {
 	}
 }
 
-// TestFailf_EvidenceStillRenders_WhenNotContainedInSummary proves the
+// TestFailf_CaptureStillRenders_WhenNotContainedInSummary proves the
 // dedupe only skips a tail that IS already in the summary — genuinely new
-// evidence (the paved-path Failf("...: %w", err) + auto-attach shape) still
+// capture (the paved-path Failf("...: %w", err) + auto-attach shape) still
 // renders underneath.
-func TestFailf_EvidenceStillRenders_WhenNotContainedInSummary(t *testing.T) {
+func TestFailf_CaptureStillRenders_WhenNotContainedInSummary(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("build")
-	output := task.EvidenceForTest()
+	output := task.CaptureForTest()
 	_, _ = fmt.Fprintln(output, "error: undefined symbol foo")
 	task.Fail("compile failed")
 
 	_ = out.Finish()
 
 	if rendered := buf.String(); !strings.Contains(rendered, "undefined symbol foo") {
-		t.Fatalf("want the distinct evidence line still rendered, got:\n%s", rendered)
+		t.Fatalf("want the distinct capture line still rendered, got:\n%s", rendered)
 	}
 }

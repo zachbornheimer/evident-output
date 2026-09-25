@@ -138,15 +138,15 @@ branches.Task("feature/x").Skipped(evo.Reason("dirty"))
 			ID:        "EV-001",
 			Category:  "EV",
 			Severity:  SeverityWarning,
-			Invariant: "a failure summary does not manually embed the retained evidence text",
-			Why:       "task.Failf(\"install failed: %s\", capture.Text()) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time as evidence underneath it (user-13-problems.md Problem 7: \"execution owns evidence, callers provide context\").",
+			Invariant: "a failure summary does not manually embed the retained captured text",
+			Why:       "task.Failf(\"install failed: %s\", capture.Text()) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time underneath it (user-13-problems.md Problem 7: \"execution owns capture, callers provide context\").",
 			BadCode:   `task.Failf("install failed: %s", capture.Text())`,
-			GoodCode: `cmd.Stdout = task.Writer() // retained as evidence and auto-attached on failure
+			GoodCode: `cmd.Stdout = task.Writer() // retained and auto-attached on failure
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
   return task.Failf("install dependencies: %w", err)
 }`,
-			Remediation:     "Pass context via the trailing \": %w\" wrap instead of interpolating capture.Text()/Evidence().Text() into the summary — Failf/Blockf auto-attach the retained tail as its own evidence line",
+			Remediation:     "Pass context via the trailing \": %w\" wrap instead of interpolating capture.Text() into the summary — Failf/Blockf auto-attach the retained tail as its own detail line",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EV-001"},
 			Since:           "0.4.0",

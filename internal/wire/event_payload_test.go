@@ -10,7 +10,7 @@ import (
 // forgets shows up as a missing key below.
 var fullProblemDoc = ProblemDoc{
 	Code: "E_BUILD", Message: "build failed", Subject: "main.go",
-	Detail: "compiler error", EvidenceTail: "undefined: x",
+	Detail: "compiler error", CaptureTail: "undefined: x",
 	Count: 2, Unit: "error",
 	Location: &LocationDoc{Path: "main.go", Line: 12, Column: 3},
 	Remedies: []ActionDoc{{Label: "rerun", Command: &CommandDoc{Executable: "go", Args: []string{"build"}}}},

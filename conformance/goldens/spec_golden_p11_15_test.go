@@ -795,7 +795,7 @@ func (bearerTokenRedactor) RedactString(s string) string {
 
 // TestSpecP14_Capture_Failure covers Problem 14's failure block: a captured
 // child-process line carrying a bearer token is redacted before it ever
-// reaches Fail's Detail evidence — the documented spelling (Task.Capture +
+// reaches Fail's Detail — the documented spelling (task.Writer() +
 // Redact + DetailTail), same shape as platform_test.go's already-proven
 // TestCapture_RedactsOnRetention.
 //

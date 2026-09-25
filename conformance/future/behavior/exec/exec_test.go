@@ -172,8 +172,8 @@ func TestV06ExecCapturedLineBecomesActivityAndRedactsSecrets(t *testing.T) {
 		t.Fatalf("task phase = %q, want the redacted captured line", phaseDuringRun)
 	}
 	for _, p := range task.Snapshot().Problems {
-		if strings.Contains(p.EvidenceTail, "super-secret") {
-			t.Fatalf("evidence tail leaked the secret: %q", p.EvidenceTail)
+		if strings.Contains(p.CaptureTail, "super-secret") {
+			t.Fatalf("capture tail leaked the secret: %q", p.CaptureTail)
 		}
 	}
 }

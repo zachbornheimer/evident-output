@@ -377,12 +377,12 @@ func TestExecCapturedSecretIsRedactedBeforeRetention(t *testing.T) {
 	task.Define(func(ctx context.Context) error {
 		res, err := Exec(ctx, ExecSpec{Executable: tool})
 		result = res
-		tail = task.EvidenceForTest().Text()
+		tail = task.CaptureForTest().Text()
 		return err
 	})
 	_ = task.Wait()
 	if want := "super-secret-value"; strings.Contains(tail, want) {
-		t.Fatalf("evidence tail leaked the secret: %q", tail)
+		t.Fatalf("capture tail leaked the secret: %q", tail)
 	}
 	if strings.Contains(result.Stdout, "super-secret-value") {
 		t.Fatalf("ExecResult.Stdout leaked the secret: %q", result.Stdout)
@@ -391,7 +391,7 @@ func TestExecCapturedSecretIsRedactedBeforeRetention(t *testing.T) {
 		t.Fatalf("ExecResult.Stdout = %q, want a redaction marker", result.Stdout)
 	}
 	if !strings.Contains(tail, "[redacted]") {
-		t.Fatalf("evidence tail = %q, want a redaction marker", tail)
+		t.Fatalf("capture tail = %q, want a redaction marker", tail)
 	}
 }
 

@@ -35,19 +35,19 @@ func DebugHistory() Option                   { return debugHistory() }
 func DebugPane(opts ...DebugPaneOption) Option {
 	return debugPane(opts...)
 }
-func KeepLastLines(n int) EvidenceOption    { return keepLastLines(n) }
-func MaxEvidenceBytes(n int) EvidenceOption { return maxEvidenceBytes(n) }
-func MirrorToDiagnostics() EvidenceOption   { return mirrorToDiagnostics() }
-func MirrorToDebug() EvidenceOption         { return mirrorToDebug() }
-func PaneHeight(lines int) DebugPaneOption  { return paneHeight(lines) }
-func NewestFirst() DebugPaneOption          { return newestFirst() }
-func OldestFirst() DebugPaneOption          { return oldestFirst() }
-func PreserveDebugTail() DebugPaneOption    { return preserveDebugTail() }
+func KeepLastLines(n int) CaptureOption    { return keepLastLines(n) }
+func MaxCaptureBytes(n int) CaptureOption  { return maxCaptureBytes(n) }
+func MirrorToDiagnostics() CaptureOption   { return mirrorToDiagnostics() }
+func MirrorToDebug() CaptureOption         { return mirrorToDebug() }
+func PaneHeight(lines int) DebugPaneOption { return paneHeight(lines) }
+func NewestFirst() DebugPaneOption         { return newestFirst() }
+func OldestFirst() DebugPaneOption         { return oldestFirst() }
+func PreserveDebugTail() DebugPaneOption   { return preserveDebugTail() }
 func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	return renderPlain(s, opts)
 }
 
-type Evidence = evidence
+type Capture = capture
 type SystemClock = systemClock
 type FixedClock = fixedClock
 type NoopRedactor = noopRedactor
@@ -59,11 +59,11 @@ func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error { return t.run(cmd) }
 func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
 	return t.Step(completed, total, name)
 }
-func (t *TaskHandle) EvidenceForTest(opts ...EvidenceOption) *evidence {
-	return t.evidence(opts...)
+func (t *TaskHandle) CaptureForTest(opts ...CaptureOption) *capture {
+	return t.capture(opts...)
 }
-func (o *Output) EvidenceForTest(opts ...EvidenceOption) *evidence { return o.evidence(opts...) }
-func (o *Output) Events() []Event                                  { return o.copyEvents() }
+func (o *Output) CaptureForTest(opts ...CaptureOption) *capture { return o.capture(opts...) }
+func (o *Output) Events() []Event                               { return o.copyEvents() }
 func (o *Output) DebugForTest(message string, fields ...Field) {
 	o.debug(message, fields...)
 }

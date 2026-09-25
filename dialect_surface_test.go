@@ -72,7 +72,7 @@ var dialectSurface = map[string][]string{
 		"Main(run RunFunc)",
 		"MaxEntities(n int)",
 		"MaxEvents(n int)",
-		"MaxEvidenceBytes(n int)",
+		"MaxCaptureBytes(n int)",
 		"MaxFrameRate(framesPerSecond int)",
 		"MirrorToDebug()",
 		"MirrorToDiagnostics()",

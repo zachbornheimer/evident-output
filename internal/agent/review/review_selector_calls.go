@@ -45,7 +45,7 @@ var selectorRules = []selectorRule{
 	{needsEvo: true, check: fmtPrintAlongsideEvo},
 	{needsEvo: true, check: streamNamedWrite},
 	{needsEvo: true, check: formatMethodWithoutDirective},
-	{needsEvo: true, check: debugWriterForEvidence},
+	{needsEvo: true, check: debugWriterForCapture},
 	{needsEvo: true, check: exitBypassingConclusion},
 	{needsEvo: true, check: advanceDeltaCounter},
 }
@@ -172,15 +172,15 @@ func formatMethodWithoutDirective(c selectorCall) []Finding {
 	return []Finding{c.finding("API-028", c.name+" has no format directive; prefer non-formatting method (e.g. Fail(\"text\") not Failf(\"text\"))", suggestion)}
 }
 
-// debugWriterForEvidence is API-029: DebugWriter used for child-process
-// evidence instead of task.Evidence().
-func debugWriterForEvidence(c selectorCall) []Finding {
+// debugWriterForCapture is API-029: DebugWriter used for child-process
+// output instead of task.Writer(), which feeds the Task's Capture.
+func debugWriterForCapture(c selectorCall) []Finding {
 	if c.name != "DebugWriter" || !isLikelyEvoReceiver(c.sel.X) {
 		return nil
 	}
 	return []Finding{c.finding("API-029",
-		"DebugWriter is for intentional DEBUG journal lines; use task.Evidence() for subprocess stdout/stderr evidence",
-		`replace DebugWriter() with task.Evidence(), then return task.Failf("...: %w", err) on failure`)}
+		"DebugWriter is for intentional DEBUG journal lines; use task.Writer() so subprocess stdout/stderr lands in the Task's Capture",
+		`replace DebugWriter() with task.Writer() on cmd.Stdout/cmd.Stderr, then return task.Failf("...: %w", err) on failure`)}
 }
 
 // exitBypassingConclusion is API-018 and EVO-EXIT-001 (spec §57's ID for

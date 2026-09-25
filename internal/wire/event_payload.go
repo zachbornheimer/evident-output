@@ -17,7 +17,7 @@ func (d ProblemDoc) EventPayload() map[string]any {
 	putNonZero(p, "code", d.Code)
 	putNonZero(p, "subject", d.Subject)
 	putNonZero(p, "detail", d.Detail)
-	putNonZero(p, "evidence_tail", d.EvidenceTail)
+	putNonZero(p, "evidence_tail", d.CaptureTail)
 	putNonZero(p, "count", d.Count)
 	putNonZero(p, "unit", d.Unit)
 	putNonZero(p, "location", d.Location)

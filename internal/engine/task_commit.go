@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-// honestOutcome is the one rule between a Task's blocking evidence and its
+// honestOutcome is the one rule between a Task's blocking Problems and its
 // terminal state: a Task holding any Problem cannot settle success-class,
 // so a Done or Skipped claim over one settles Failed. settleLocked applies
 // it to every path that ends a Task.
@@ -15,18 +15,18 @@ func (st *taskState) honestOutcome(state EntityState) EntityState {
 	return state
 }
 
-// attachEvidenceTail gives a Failed or Blocked row's Problems the capture
+// attachCaptureTail gives a Failed or Blocked row's Problems the capture
 // tail the Task already gathered, so the detail a caller collected through
-// evidence()/PhaseWriter() needs no opt-in (beginner-2). A Problem with its
-// own Detail or EvidenceTail keeps it; that also avoids re-entering the
+// capture()/PhaseWriter() needs no opt-in (beginner-2). A Problem with its
+// own Detail or CaptureTail keeps it; that also avoids re-entering the
 // redactor lock this resolution already holds for a pending tail.
-func (st *taskState) attachEvidenceTail(state EntityState, problems []Problem) []Problem {
-	if (state != Failed && state != Blocked) || st.evidence == nil || st.evidence.Empty() {
+func (st *taskState) attachCaptureTail(state EntityState, problems []Problem) []Problem {
+	if (state != Failed && state != Blocked) || st.capture == nil || st.capture.Empty() {
 		return problems
 	}
 	for i := range problems {
-		if problems[i].Detail == "" && problems[i].EvidenceTail == "" {
-			problems[i].Detail = st.evidence.detailText()
+		if problems[i].Detail == "" && problems[i].CaptureTail == "" {
+			problems[i].Detail = st.capture.detailText()
 		}
 	}
 	return problems

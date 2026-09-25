@@ -109,9 +109,9 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectConfirmMissingDestructive)},
 	// CON-002: a joined failure list printed directly duplicates Conclusion.
 	{needsEvo: true, run: textRule(detectHandAssembledFailureSummary)},
-	// EV-001: Failf/Blockf embedding the retained evidence ring's own .Text()/
+	// EV-001: Failf/Blockf embedding the retained Capture ring's own .Text()/
 	// .Tail() in the summary duplicates what auto-attach already renders.
-	{needsEvo: true, run: textRule(detectFailfEmbeddedEvidenceText)},
+	{needsEvo: true, run: textRule(detectFailfEmbeddedCaptureText)},
 	// FP-004: a Doing string with no domain object is an illegible placeholder.
 	{needsEvo: true, run: textRule(detectPlaceholderDoing)},
 	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
@@ -232,6 +232,9 @@ var fileDetectors = []detector{
 	// replacement (ZYS-974) — steer it to Effect (mutation), Fact
 	// (information), or File/Patch (file writes).
 	{needsEvo: true, run: astRule(detectDeprecatedRecordCall)},
+	// API-110..API-116: a capture-meaning Evidence* name removed in 1.1
+	// (E-121); retained process output is spelled Capture.
+	{needsEvo: true, run: astRule(detectRemovedCaptureName)},
 	// API-062: a second Kept/Skipped on one Task — the item is the Task, so
 	// the per-item shape is group.Task(item).Kept(reason) (contract §25
 	// renderer aggregation folds those children into one tally).

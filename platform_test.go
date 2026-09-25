@@ -27,7 +27,7 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 		Redactor: secretRedactor{},
 	})
 	task := out.Task("fetch")
-	cap := task.EvidenceForTest()
+	cap := task.CaptureForTest()
 	_, _ = fmt.Fprintln(cap, "Authorization: Bearer SECRET_TOKEN")
 	_ = cap.Close()
 
@@ -134,11 +134,11 @@ func TestResultWriter_UnsetIsDiscard(t *testing.T) {
 	}
 }
 
-func TestItem_CaptureBindsEvidence(t *testing.T) {
+func TestItem_CaptureBindsDetailTail(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "gate", Stdout: &buf, Stderr: &buf})
 	docker := out.Task("docker daemon")
-	cap := docker.EvidenceForTest()
+	cap := docker.CaptureForTest()
 	_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon"))
 	docker.Fail("could not inspect the daemon", cap.DetailTail())
 	_ = out.Finish()

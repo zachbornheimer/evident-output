@@ -146,22 +146,22 @@ it already happened bypasses dry-run planning, so the mutation itself moves into
 
 ---
 
-## Evidence ownership
+## Capture ownership
 
-Evidence attaches **tool-backed proof** (command output tails, etc.) to a Task.
-"Stdout" would lie as a name — it also takes stderr and combined writes; Evidence says what
-it is for.
+Capture retains **child-process output** (stdout, stderr, combined writes) on a Task.
+"Stdout" would lie as a name — it also takes stderr and combined writes. It is not
+Evidence: Evidence means only proof that requested state is satisfied (`Verify`).
 
 - Prefer **Writer on the Task** (ordinary lead sheet), whether it's a condition or work.
 - `cmd.Stdout = task.Writer()` (and stderr) wires child chatter into the live doing-text.
-- Retained evidence is **silent on success** (PHIL-005).
+- Retained capture is **silent on success** (PHIL-005).
 
 ```go
 cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 ```
 
-Who owns the handle: the entity whose condition or work the evidence explains. Do not Capture “somewhere nearby” for convenience.
+Who owns the handle: the entity whose condition or work the capture/output explains. Do not Capture “somewhere nearby” for convenience.
 
 ---
 

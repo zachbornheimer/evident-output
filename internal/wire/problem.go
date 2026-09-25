@@ -7,15 +7,19 @@ import "github.com/zachbornheimer/evident-output/internal/core"
 // core.Problem field an exported ProblemOption can set, so the plain/TTY
 // row never shows machine truth this document drops (ZYS-823).
 type ProblemDoc struct {
-	Code         string       `json:"code,omitempty"`
-	Message      string       `json:"message,omitempty"`
-	Subject      string       `json:"subject,omitempty"`
-	Detail       string       `json:"detail,omitempty"`
-	EvidenceTail string       `json:"evidence_tail,omitempty"`
-	Count        int64        `json:"count,omitempty"`
-	Unit         string       `json:"unit,omitempty"`
-	Location     *LocationDoc `json:"location,omitempty"`
-	Remedies     []ActionDoc  `json:"remedies,omitempty"`
+	Code    string `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
+	Subject string `json:"subject,omitempty"`
+	Detail  string `json:"detail,omitempty"`
+	// CaptureTail's wire key stays "evidence_tail": a documented wire-compat
+	// decision (1.1 vocabulary freeze, E-121) — the Go field followed the
+	// capture-meaning Evidence* rename, but run.v2 payloads already on disk
+	// use this key, and the schema itself is not part of that rename.
+	CaptureTail string       `json:"evidence_tail,omitempty"`
+	Count       int64        `json:"count,omitempty"`
+	Unit        string       `json:"unit,omitempty"`
+	Location    *LocationDoc `json:"location,omitempty"`
+	Remedies    []ActionDoc  `json:"remedies,omitempty"`
 }
 
 // LocationDoc is a wire-format source position.
@@ -44,7 +48,7 @@ type CommandDoc struct {
 func ToProblemDoc(p core.Problem) ProblemDoc {
 	return ProblemDoc{
 		Code: p.Code, Message: p.Summary, Subject: p.Subject,
-		Detail: p.Detail, EvidenceTail: p.EvidenceTail,
+		Detail: p.Detail, CaptureTail: p.CaptureTail,
 		Count: p.Count, Unit: p.Unit,
 		Location: toLocationDoc(p.Location),
 		Remedies: toActionDocs(p.Actions),

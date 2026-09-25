@@ -81,9 +81,9 @@ func baseRunDocument(t *testing.T) map[string]any {
 				ID: "task_1", Name: "build", State: core.Done,
 				Problems: []core.Problem{{
 					Code: "A1", Summary: "finding", Subject: "file.go", Detail: "why", Count: 2, Unit: "line",
-					EvidenceTail: "file.go:3:1: why",
-					Location:     &core.SourceLocation{Path: "file.go", Line: 3, Column: 1},
-					Actions:      []core.Action{{Label: "fix", Command: &core.CommandSpec{Executable: "go", Args: []string{"fix"}}}},
+					CaptureTail: "file.go:3:1: why",
+					Location:    &core.SourceLocation{Path: "file.go", Line: 3, Column: 1},
+					Actions:     []core.Action{{Label: "fix", Command: &core.CommandSpec{Executable: "go", Args: []string{"fix"}}}},
 				}},
 			}, time.Time{}, false),
 		}

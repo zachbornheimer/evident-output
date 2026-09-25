@@ -155,6 +155,25 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Removed
 
+- **Capture-meaning `Evidence*` names were renamed to Capture** with no
+  aliases (ZYS-1180 freeze, E-121). Evidence now means only satisfaction
+  proof (`Verify`, `TaskSnapshot.Evidence`, `EvidencePhase`,
+  `TaskEvidence`). The retained stdout/stderr sink is `evo.Capture`; its
+  options are `evo.CaptureOption`; its streams are `evo.CaptureStream`
+  (`CaptureStreamCombined`, `CaptureStreamStdout`, `CaptureStreamStderr`).
+  `evo.MaxEvidenceBytes` is `evo.MaxCaptureBytes`. `evo.KeepLastLines`,
+  `evo.MirrorToDebug`, and `evo.MirrorToDiagnostics` keep their names and
+  now return `CaptureOption`. Removed: `Evidence` (as the capture type),
+  `EvidenceOption`, `EvidenceStream`, `EvidenceStreamCombined`,
+  `EvidenceStreamStdout`, `EvidenceStreamStderr`, `MaxEvidenceBytes`.
+  MCP review (API-110 through API-116) rewrites each old spelling.
+  `Problem.EvidenceTail` — the capture ring's tail attached to a Problem,
+  which collided with the unrelated proof-meaning `Problem.Evidence` field
+  in the same struct — is now `Problem.CaptureTail` (API-117, guidance-only
+  detection). The wire JSON key is unchanged (`"evidence_tail"`): a
+  deliberate wire-compat decision, since existing `run.v2` payloads already
+  use that key and this rename is Go-API-only.
+
 - **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
   guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`

@@ -76,7 +76,7 @@ Use `TruncateNames` for a single skip/kept list when names must stay readable.
 See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.
 Release pin procedure: `docs/guides/cutting-a-release.md`.
 
-## Evidence
+## Capture
 
 ```go
 task.Define(func(ctx context.Context) error {
@@ -87,7 +87,7 @@ task.Define(func(ctx context.Context) error {
 })
 ```
 
-`Writer()` turns the child's last line into live doing-text and retains a bounded ring for Fail evidence. Run the child inside the Task's `Define`, so its result resolves the row.
+`Writer()` turns the child's last line into live doing-text and retains a bounded Capture ring for Fail detail. Run the child inside the Task's `Define`, so its result resolves the row.
 
 ## Confirm
 

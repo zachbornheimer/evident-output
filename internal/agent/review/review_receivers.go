@@ -31,7 +31,7 @@ func strconvUnquote(s string) (string, error) {
 // exprDottedName renders a simple dotted identifier chain (a.b.c) for an
 // Ident or SelectorExpr receiver; returns "" for anything else (e.g. a call
 // result), which intentionally excludes evo's own writer constructors
-// (task.Evidence(), out.Writer()) from the STREAM-003 indirection check —
+// (task.Writer(), out.Writer()) from the STREAM-003 indirection check —
 // their return value is never bound to a stream-named identifier at the call
 // site itself.
 func exprDottedName(e ast.Expr) string {

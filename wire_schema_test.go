@@ -40,7 +40,7 @@ func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 
 // TestWireSchema_RichProblemStaysWithinFrozenOutputV1 pins the 1.1 API
 // freeze on evo.EncodeJSON: a Task whose Problem sets Location, Next and an
-// EvidenceTail, beside a File verification failure with Facts, must still
+// CaptureTail, beside a File verification failure with Facts, must still
 // validate against the Strict output.v1 schema. None of that data may leak
 // into output.v1 as an undeclared field; machine consumers read it from the
 // evo.run document (internal/wire), which carries all of it.
@@ -57,7 +57,7 @@ func TestWireSchema_RichProblemStaysWithinFrozenOutputV1(t *testing.T) {
 		return evo.File(ctx, evo.FileSpec{Path: path, Contents: []byte("x"), Mode: 0o644})
 	})
 	lint := out.Task("lint")
-	capture := lint.EvidenceForTest()
+	capture := lint.CaptureForTest()
 	_, _ = io.WriteString(capture.Stderr(), "main.go:12:3: undefined: x\n")
 	_ = capture.Close()
 	lint.Fail("lint failed", capture.DetailTail(),
