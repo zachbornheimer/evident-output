@@ -54,9 +54,15 @@ func detectBlockedAsError(filename, src string) []Finding {
 	return []Finding{blockedAsErrorFinding(filename, line+1, kind)}
 }
 
-// insideDefineCallback reports whether blockLine sits directly inside a
-// `.Define(func(...) error {` callback literal: scanning backward from
-// blockLine, the nearest unmatched `{` is that callback's opening brace.
+// insideDefineCallback reports whether blockLine sits anywhere inside a
+// `.Define(func(...) error {` callback literal, however many nested blocks
+// (if/for/switch) separate it from that callback's own opening brace:
+// scanning backward from blockLine, each unmatched `{` closes one enclosing
+// scope. A scope whose opening line is the Define callback itself means
+// blockLine is inside it; any other scope is walked past by resuming the
+// scan one level further out, until a top-level `func` declaration line is
+// reached — that bounds the walk to the function blockLine started in,
+// since a Define callback can't enclose a sibling top-level func.
 func insideDefineCallback(lines []string, blockLine int) bool {
 	depth := 0
 	for i := blockLine; i >= 0; i-- {
@@ -69,7 +75,13 @@ func insideDefineCallback(lines []string, blockLine int) bool {
 			}
 		}
 		if depth < 0 {
-			return strings.Contains(lines[i], ".Define(func(")
+			if strings.Contains(lines[i], ".Define(func(") {
+				return true
+			}
+			if strings.HasPrefix(strings.TrimSpace(lines[i]), "func ") {
+				return false
+			}
+			depth = 0
 		}
 	}
 	return false

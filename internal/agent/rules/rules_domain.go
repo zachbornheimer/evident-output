@@ -94,7 +94,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			Category:        "DOM",
 			Severity:        SeverityError,
 			Invariant:       "Detail is user-visible string; a diagnostic error's cause is returned from Define with a trailing %w, not stuffed raw into Detail",
-			Why:             "Detail(err) exposes error internals as UI copy; a %w-wrapped error returned from Define renders the cause as its own evidence line instead.",
+			Why:             "Detail(err) exposes error internals as UI copy; a %w-wrapped error returned from Define resolves the row with err.Error() as its whole summary instead, with no separate wrapped-cause evidence line derived from it (PHIL-005).",
 			BadCode:         `it.Block("dirty", evo.Detail(err))`,
 			GoodCode:        `return fmt.Errorf("dirty: %w", err)`,
 			Remediation:     `Inside Define, return fmt.Errorf("<context>: %w", err) instead of passing err into Detail; reserve Detail for user-visible strings`,

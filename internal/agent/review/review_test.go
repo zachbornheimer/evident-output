@@ -164,6 +164,39 @@ func run(task *evo.TaskHandle, err error) {
 	}
 }
 
+// TestDOM011_NoFalsePositiveOnNestedBlockInsideDefine covers the canonical
+// refusal shape wrapped in a guard clause (`if err := check(); err != nil {
+// task.Block(...); return err }` inside Define) — the same shape
+// TestDOM011_NoFalsePositiveOnCanonicalBlockInsideDefine pins, but with an
+// `if` block separating the Block call from Define's own opening brace.
+// insideDefineCallback used to check only the nearest unmatched `{`, which
+// is the `if` line here, not Define's — so it must walk outward through
+// every enclosing scope, not stop at the first one.
+func TestDOM011_NoFalsePositiveOnNestedBlockInsideDefine(t *testing.T) {
+	src := `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(task *evo.TaskHandle) {
+  task.Define(func(ctx context.Context) error {
+    if err := check(); err != nil {
+      task.Block("worktree dirty", evo.NextCommand("git", "status"))
+      return err
+    }
+    return nil
+  })
+}
+func check() error { return nil }
+`
+	res := review.GoSource("nested.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-011" {
+			t.Fatalf("false positive DOM-011 on nested Block-inside-Define: %+v", f)
+		}
+	}
+}
+
 // TestAPI028_PrintfWithoutFormat is C6's sync: Donef and the rest of the *f
 // family are deleted (Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are
 // printf-variadic themselves now, and 1.1 removed Failf/Blockf too with no
