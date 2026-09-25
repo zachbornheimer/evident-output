@@ -497,7 +497,7 @@ return task.Wait()`,
 out.Warn("disk nearly full")`,
 			GoodCode: `task.Problem("tool version differs from manifest", evo.Severity(evo.SeverityWarning))
 out.Problem("disk nearly full", evo.Severity(evo.SeverityWarning))`,
-			Remediation:     `Replace Warn("summary", opts...) with Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...) on TaskHandle or Output (there is no package-level evo.Problem; the package-level replacement is evo.Default().Problem(...))`,
+			Remediation:     `Replace Warn("summary") with Problem("summary", evo.Severity(evo.SeverityWarning)) on TaskHandle or Output (there is no package-level evo.Problem; the package-level replacement is evo.Default().Problem(...))`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-070"},
 			MinDialect:      "1.1.0",

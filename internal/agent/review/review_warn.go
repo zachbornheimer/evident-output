@@ -59,12 +59,14 @@ func detectWarnRemoved(filename string, file *ast.File, fset *token.FileSet) []F
 // replacement goes through the default instance; every other receiver
 // rewrites in place. Both branches build the suggestion from alias, never a
 // hard-coded "evo.", so a file that imports the package under a different
-// name still gets a suggestion it can paste as-is.
+// name still gets a suggestion it can paste as-is. The 1.0 Warn took only a
+// summary string, no options, so the rewrite is a fixed two-argument
+// Problem(summary, Severity(SeverityWarning)) call, not an opts... splice.
 func warnSuggestion(recv, alias string) string {
 	if recv == alias {
-		return `replace ` + alias + `.Warn("summary", opts...) (removed in 1.1) with ` + alias + `.Default().Problem("summary", append(opts, ` + alias + `.Severity(` + alias + `.SeverityWarning))...)`
+		return `replace ` + alias + `.Warn("summary") (removed in 1.1) with ` + alias + `.Default().Problem("summary", ` + alias + `.Severity(` + alias + `.SeverityWarning))`
 	}
-	return "replace " + recv + `.Warn("summary", opts...) with ` + recv + `.Problem("summary", append(opts, ` + alias + `.Severity(` + alias + `.SeverityWarning))...)`
+	return "replace " + recv + `.Warn("summary") with ` + recv + `.Problem("summary", ` + alias + `.Severity(` + alias + `.SeverityWarning))`
 }
 
 // evoValuedIdents collects every identifier this file assigns a value the

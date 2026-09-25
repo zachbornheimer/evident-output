@@ -1735,7 +1735,7 @@ func f(task *evo.TaskHandle) {
 	if len(found) != 1 {
 		t.Fatalf("expected one API-070 finding for Warn, got %+v", found)
 	}
-	want := `replace task.Warn("summary", opts...) with task.Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	want := `replace task.Warn("summary") with task.Problem("summary", evo.Severity(evo.SeverityWarning))`
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
 	}
@@ -1758,7 +1758,7 @@ func f() {
 	if len(found) != 1 {
 		t.Fatalf("expected one API-070 finding for evo.Warn, got %+v", found)
 	}
-	want := `replace evo.Warn("summary", opts...) (removed in 1.1) with evo.Default().Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	want := `replace evo.Warn("summary") (removed in 1.1) with evo.Default().Problem("summary", evo.Severity(evo.SeverityWarning))`
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
 	}
@@ -1787,7 +1787,7 @@ func f(out *evo.Output) {
 	if len(found) != 1 {
 		t.Fatalf("expected one API-070 finding for branches.Warn, got %+v", found)
 	}
-	want := `replace branches.Warn("summary", opts...) with branches.Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	want := `replace branches.Warn("summary") with branches.Problem("summary", evo.Severity(evo.SeverityWarning))`
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
 	}
@@ -1813,7 +1813,7 @@ func f(out *evo.Output) {
 	if len(found) != 1 {
 		t.Fatalf("expected one API-070 finding for a chained Warn call, got %+v", found)
 	}
-	want := `replace out.Task("x").Warn("summary", opts...) with out.Task("x").Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	want := `replace out.Task("x").Warn("summary") with out.Task("x").Problem("summary", evo.Severity(evo.SeverityWarning))`
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
 	}
@@ -2327,6 +2327,31 @@ func f(out *evo.Output, flag bool) {
 		if f.RuleID == "DOM-019" {
 			t.Fatalf("false positive DOM-019 when the first handle was resolved before reassignment: %+v", res.Findings)
 		}
+	}
+}
+
+func TestDOM019_ProblemDoesNotResolve(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output, flag bool) {
+  t := out.Task("scan")
+  t.Doing("walking")
+  t.Problem("disk almost full")
+  if flag {
+    t := out.Task("build")
+    t.Done()
+  }
+}
+`
+	res := review.GoSource("shadowproblem.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-019" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected DOM-019 when the shadowed handle was only ever Problem'd, never resolved: %+v", res.Findings)
 	}
 }
 

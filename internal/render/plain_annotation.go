@@ -36,8 +36,8 @@ func warningText(w core.Problem) string {
 
 // WarningLine is a run-scoped warning's full durable "! subject  summary"
 // line, glyph and subject rendered exactly as a task warning's own row
-// reads (E-109 parity) — the one place outside this package allowed to
-// build that line, so a caller that streams a run-scoped Output.Problem
+// reads (E-109 parity) — the only way code outside render builds that
+// line, so a caller that streams a run-scoped Output.Problem
 // immediately (engine's warnLocked, which writes durable text before a
 // snapshot's own RenderPlain pass ever runs) never hand-rolls the glyph or
 // drops the subject.

@@ -485,7 +485,7 @@ func detectShadowedHandle(filename, src string) []Finding {
 			name := fb.body[m[2]:m[3]]
 			if prevEnd, ok := lastDeclEnd[name]; ok {
 				between := fb.body[prevEnd:m[0]]
-				resolved := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.(Done|Fail|Problem|Block|Cancel|Skip)\(`).MatchString(between)
+				resolved := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.(Done|Fail|Block|Cancel|Skip)\(`).MatchString(between)
 				if !resolved {
 					findings = append(findings, Finding{
 						RuleID: "DOM-019",
