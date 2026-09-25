@@ -166,6 +166,60 @@ func TestOptionsAnalyzerSkipsUnmappableConstructor(t *testing.T) {
 	}
 }
 
+// aliasedOptionsFixtureSrc imports evo under a non-default alias and uses
+// a Debug sub-option plus VisibilityDelay, both of which used to hardcode
+// a bare "evo." prefix in the generated Config{} literal regardless of the
+// import alias in scope — producing an undefined "evo" reference that
+// failed to compile after -apply.
+const aliasedOptionsFixtureSrc = `package main
+
+import e "github.com/zachbornheimer/evident-output"
+
+func run() error {
+	out := e.Init(e.NoColor(), e.DebugAddSource(), e.Title("t"))
+	_ = out
+	return nil
+}
+
+func main() { _ = run() }
+`
+
+func TestOptionsAnalyzerRewritesUnderImportAlias(t *testing.T) {
+	dir := t.TempDir()
+	writeModule(t, dir, aliasedOptionsFixtureSrc)
+
+	pkgs, err := fix.Load(dir, ".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	results, err := fix.Diagnose(pkgs, true)
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+	if len(results) != 1 || len(results[0].Diagnostics) != 1 {
+		t.Fatalf("want exactly 1 diagnostic, got %+v", results)
+	}
+	if !results[0].Diagnostics[0].Fixed {
+		t.Fatalf("expected the aliased options rewrite to be fixed, got %+v", results[0].Diagnostics[0])
+	}
+	out, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(out)
+	if strings.Contains(src, "\"evo\"") || strings.Contains(src, " evo.") {
+		t.Errorf("expected every generated reference to use the source's own alias \"e\", got:\n%s", src)
+	}
+	if !strings.Contains(src, "e.Config{") || !strings.Contains(src, "e.ColorNever") || !strings.Contains(src, "e.DebugConfig{") {
+		t.Errorf("expected e.Config{...} with e.ColorNever/e.DebugConfig{...}, got:\n%s", src)
+	}
+	cmd := exec.Command("go", "build", "-buildvcs=false", "./...")
+	cmd.Dir = dir
+	if buildOut, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go build after -apply: %v\n%s", err, buildOut)
+	}
+}
+
 func TestDiagnoseApplyConvergesToNoDiagnostics(t *testing.T) {
 	dir := t.TempDir()
 	writeModule(t, dir, fixtureSrc)

@@ -15,25 +15,31 @@ import (
 // the constructor was kept only as the Config.Options escape hatch — no
 // single field represents it, so it gets a diagnostic naming it instead of
 // a guessed fix.
-var optionFields = map[string]func(args []string) string{
-	"Title":              func(a []string) string { return "Title: " + a[0] },
-	"Clock":              func(a []string) string { return "Clock: " + a[0] },
-	"DebugAddSource":     func(a []string) string { return "Debug: evo.DebugConfig{AddSource: true}" },
-	"DebugLevel":         func(a []string) string { return "Debug: evo.DebugConfig{Level: " + a[0] + "}" },
-	"DryRun":             func(a []string) string { return "DryRun: true" },
-	"ExternalProjection": func(a []string) string { return "Plain: true" },
-	"MaxEntities":        func(a []string) string { return "MaxEntities: " + a[0] },
-	"MaxEvents":          func(a []string) string { return "MaxEvents: " + a[0] },
-	"MaxFrameRate":       func(a []string) string { return "MaxFrameRate: " + a[0] },
-	"NoColor":            func(a []string) string { return "Color: evo.ColorNever" },
-	"Plain":              func(a []string) string { return "Plain: true" },
-	"Redact":             func(a []string) string { return "Redactor: " + a[0] },
-	"ResultStream":       func(a []string) string { return "Result: " + a[0] },
-	"Stdin":              func(a []string) string { return "Stdin: " + a[0] },
-	"Strict":             func(a []string) string { return "Strict: true" },
-	"Terminal":           func(a []string) string { return "Terminal: " + a[0] },
-	"To":                 func(a []string) string { return "Stdout: " + a[0] },
-	"Width":              func(a []string) string { return "Width: " + a[0] },
+// optionFields functions take the resolved evo package alias so the
+// generated DebugConfig{} / ColorNever literals qualify with whatever
+// name the source imports evo under, instead of hardcoding "evo." — a
+// call site that imports evo under an alias (e.g. `import e "…/evo"`)
+// must not receive an undefined "evo" reference in its own fix.
+var optionFields = map[string]func(alias string, args []string) string{
+	"Title":              func(_ string, a []string) string { return "Title: " + a[0] },
+	"Clock":              func(_ string, a []string) string { return "Clock: " + a[0] },
+	"DebugAddSource":     func(alias string, a []string) string { return "Debug: " + alias + ".DebugConfig{AddSource: true}" },
+	"DebugLevel":         func(alias string, a []string) string { return "Debug: " + alias + ".DebugConfig{Level: " + a[0] + "}" },
+	"DryRun":             func(_ string, a []string) string { return "DryRun: true" },
+	"ExternalProjection": func(_ string, a []string) string { return "Plain: true" },
+	"MaxEntities":        func(_ string, a []string) string { return "MaxEntities: " + a[0] },
+	"MaxEvents":          func(_ string, a []string) string { return "MaxEvents: " + a[0] },
+	"MaxFrameRate":       func(_ string, a []string) string { return "MaxFrameRate: " + a[0] },
+	"NoColor":            func(alias string, a []string) string { return "Color: " + alias + ".ColorNever" },
+	"Plain":              func(_ string, a []string) string { return "Plain: true" },
+	"Redact":             func(_ string, a []string) string { return "Redactor: " + a[0] },
+	"ResultStream":       func(_ string, a []string) string { return "Result: " + a[0] },
+	"Stdin":              func(_ string, a []string) string { return "Stdin: " + a[0] },
+	"Strict":             func(_ string, a []string) string { return "Strict: true" },
+	"Terminal":           func(_ string, a []string) string { return "Terminal: " + a[0] },
+	"To":                 func(_ string, a []string) string { return "Stdout: " + a[0] },
+	"Width":              func(_ string, a []string) string { return "Width: " + a[0] },
+	"VisibilityDelay":    func(alias string, a []string) string { return "VisibilityDelay: " + alias + ".Delay(" + a[0] + ")" },
 }
 
 // configField names the Config struct field a constructor writes, so two
@@ -48,17 +54,19 @@ var configField = map[string]string{
 	"MaxEvents": "MaxEvents", "MaxFrameRate": "MaxFrameRate", "NoColor": "Color",
 	"Plain": "Plain", "Redact": "Redactor", "ResultStream": "Result", "Stdin": "Stdin",
 	"Strict": "Strict", "Terminal": "Terminal", "To": "Stdout", "Width": "Width",
+	"VisibilityDelay": "VisibilityDelay",
 }
 
 // noFieldOptions lists Option constructors option_api.go still exports
 // that have no single Config field: DataProjection is now a no-op kept
 // for source compatibility, and AlsoWrite/Diagnostics/DebugHistory/
-// DebugPane/Runner/VisibilityDelay either compose with other state or need
-// a value only expressible through Config.Options (the escape hatch), not
-// a scalar field assignment.
+// DebugPane/Runner either compose with other state or need a value only
+// expressible through Config.Options (the escape hatch), not a scalar
+// field assignment. VisibilityDelay DOES have a field
+// (internal/engine/construct.go Config.VisibilityDelay) — see optionFields.
 var noFieldOptions = map[string]bool{
 	"AlsoWrite": true, "DataProjection": true, "Diagnostics": true,
-	"DebugHistory": true, "DebugPane": true, "Runner": true, "VisibilityDelay": true,
+	"DebugHistory": true, "DebugPane": true, "Runner": true,
 }
 
 // OptionsAnalyzer is API-130: an evo.Init/evo.New call built from
@@ -194,20 +202,20 @@ func optionsConfigFix(pass *analysis.Pass, call *ast.CallExpr, sel *ast.Selector
 	var debugSubfields []string
 	for _, o := range opts {
 		if configField[o.name] == "Debug" {
-			sub := optionFields[o.name](argTexts(pass, o.call.Args))
-			// optionFields renders the full "Debug: evo.DebugConfig{...}"
+			sub := optionFields[o.name](alias, argTexts(pass, o.call.Args))
+			// optionFields renders the full "Debug: <alias>.DebugConfig{...}"
 			// text for a lone Debug option; strip that wrapper here so
 			// two Debug options can share one DebugConfig{...} literal
 			// instead of one silently overwriting the other's field.
-			sub = strings.TrimPrefix(sub, "Debug: evo.DebugConfig{")
+			sub = strings.TrimPrefix(sub, "Debug: "+alias+".DebugConfig{")
 			sub = strings.TrimSuffix(sub, "}")
 			debugSubfields = append(debugSubfields, sub)
 			continue
 		}
-		writeField(optionFields[o.name](argTexts(pass, o.call.Args)))
+		writeField(optionFields[o.name](alias, argTexts(pass, o.call.Args)))
 	}
 	if len(debugSubfields) > 0 {
-		writeField("Debug: evo.DebugConfig{" + strings.Join(debugSubfields, ", ") + "}")
+		writeField("Debug: " + alias + ".DebugConfig{" + strings.Join(debugSubfields, ", ") + "}")
 	}
 
 	newText := sel.Sel.Name + "(" + alias + ".Config{" + fields.String() + "})"
