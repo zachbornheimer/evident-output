@@ -311,6 +311,7 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	if interactive {
 		return
 	}
+	itemOnly := false
 	switch trigger {
 	case triggerPhase:
 		if st.phase == st.plainStream.phase {
@@ -321,24 +322,55 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 		if !shouldEmitPlainProgressLocked(st) {
 			return
 		}
+		// A milestone still owed from before this one crossed means no
+		// Doing claimed it in time — flush it now, as a bare line, before
+		// this milestone takes its place. Never let a later milestone
+		// silently swallow an earlier one that a Doing might still be
+		// about to name for a count that no longer exists.
+		o.flushOwedMilestoneLocked(st)
 		st.plainStream.progressStarted = true
 		st.plainStream.progressEmitted = st.progress.Completed
-		st.plainStream.itemOwed = true
 		if st.plainStream.namesItems {
-			// The next item carries this milestone's count, so the line
-			// names the item actually in progress, not the one before it.
+			// Doing has named an item for this task before: the next item
+			// carries this milestone's count, so defer to it rather than
+			// naming the item still in progress from the milestone before.
+			st.plainStream.itemOwed = true
+			st.plainStream.pendingCompleted = st.progress.Completed
+			st.plainStream.pendingTotal = st.progress.Total
 			return
 		}
+		// No Doing has named an item yet for this task, so the count alone
+		// streams now — a task that never calls Doing at all (pure
+		// Progress) must not wait on one. itemOwed stays owed (a Doing
+		// immediately after this still gets to name the item in progress),
+		// but bareStreamed remembers the count already streamed, so that
+		// Doing shows the item alone rather than repeating it (the E-119
+		// review's duplicate-first-milestone bug).
+		st.plainStream.itemOwed = true
+		st.plainStream.bareStreamed = true
 	case triggerItem:
+		wasFirstNamedItem := !st.plainStream.namesItems
 		st.plainStream.namesItems = true
 		if !st.plainStream.itemOwed {
 			return
 		}
 		st.plainStream.itemOwed = false
 		st.plainStream.phase = st.phase
+		if wasFirstNamedItem && st.plainStream.bareStreamed {
+			// This exact count already streamed bare an instant ago (the
+			// triggerProgress branch above, on the task's very first
+			// milestone, before it was known whether Doing would follow).
+			// Naming the item is still worth a line, but repeating the
+			// count would be the duplicate the E-119 review flagged.
+			itemOnly = true
+		}
+		st.plainStream.bareStreamed = false
 	}
 	row := st.snapshot()
 	row.Name = progressiveRowName(st)
+	if itemOnly {
+		row.Progress = Progress{}
+	}
 	var b strings.Builder
 	render.WriteTask(&b, row, o.humanStyle())
 	if b.Len() == 0 {
@@ -348,6 +380,49 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	// This line already proved the task is alive; the §40 heartbeat only
 	// needs to cover the silence that follows real narration, not compete
 	// with it (see deferPlainHeartbeatLocked).
+	o.deferPlainHeartbeatLocked(st, o.cfg.clock.Now())
+}
+
+// flushOwedMilestoneLocked streams a still-owed plain-mode milestone line
+// that no Doing claimed — a later milestone superseded it, or the task
+// resolved before its item arrived (evo-rec.md/E-119 review: "final n/n
+// dropped when Doing comes before Progress"). It renders the pinned
+// pendingCompleted/pendingTotal, not st.progress's current value, since by
+// the time this runs st.progress has typically already moved on to a later
+// count. A milestone that DID get claimed by a Doing (itemOwed already
+// false) is a no-op here — a claimed count must never stream twice.
+func (o *Output) flushOwedMilestoneLocked(st *taskState) {
+	if !st.plainStream.itemOwed {
+		return
+	}
+	st.plainStream.itemOwed = false
+	if st.plainStream.bareStreamed {
+		// Already streamed as a bare line the instant its milestone
+		// crossed (triggerProgress, before namesItems was known) — nothing
+		// left owed to flush, or it would duplicate that count.
+		st.plainStream.bareStreamed = false
+		return
+	}
+	row := st.snapshot()
+	row.Name = progressiveRowName(st)
+	// This milestone belongs to the run's still-Running phase even when
+	// resolution is what finally flushed it (task_commit.go's
+	// commitSettledLocked calls this before the terminal row streams) — the
+	// line is the count in progress at that moment, never the outcome. Clear
+	// Summary/Problems too: by resolution time they may already be set for
+	// the terminal row that is about to follow, and taskRow.head() prefers
+	// a Summary headline over in-flight progress unconditionally.
+	row.State = Running
+	row.Summary = ""
+	row.Problems = nil
+	row.Progress.Completed = st.plainStream.pendingCompleted
+	row.Progress.Total = st.plainStream.pendingTotal
+	var b strings.Builder
+	render.WriteTask(&b, row, o.humanStyle())
+	if b.Len() == 0 {
+		return
+	}
+	o.writeDurableTextLocked(b.String())
 	o.deferPlainHeartbeatLocked(st, o.cfg.clock.Now())
 }
 
@@ -544,4 +619,15 @@ type plainStreamMark struct {
 	// itemOwed is true from a milestone until the next item streams: the
 	// one item line that milestone allows.
 	itemOwed bool
+	// bareStreamed is true when the currently owed milestone already
+	// streamed its count as a bare line (the task's first-ever milestone,
+	// streamed before namesItems was known) — the Doing that claims it
+	// shows the item alone instead of repeating that count.
+	bareStreamed bool
+	// pendingCompleted/pendingTotal pin the exact count an owed milestone
+	// is for, captured the instant the milestone crosses — st.progress has
+	// usually moved on again by the time flushOwedMilestoneLocked actually
+	// streams it (a later Progress call, or task resolution), so the
+	// streamed line must not read the current count off st.progress.
+	pendingCompleted, pendingTotal int64
 }

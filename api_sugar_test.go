@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -286,9 +287,26 @@ func TestProgressDoing_PlainMilestoneNamesItsOwnItem(t *testing.T) {
 	_ = out.Close()
 
 	var itemLines int
+	seenCounts := map[string]string{} // "C/40" -> the whole line it appeared on first
 	for line := range strings.SplitSeq(buf.String(), "\n") {
-		var completed, item int
 		fields := strings.Fields(line)
+		// Every milestone line, bare or item-named, carries its "C/40" count
+		// as the field right after the glyph and task name. A count must
+		// stream on exactly one line — never a bare line and then a
+		// separately-named item line for the same count (the E-119 review's
+		// duplicate-first-milestone bug: namesItems being false on the
+		// first Progress streamed a bare line immediately, then the Doing
+		// that followed streamed the same count again).
+		for _, f := range fields {
+			if !strings.HasSuffix(f, "/"+strconv.Itoa(total)) {
+				continue
+			}
+			if prior, ok := seenCounts[f]; ok {
+				t.Fatalf("count %s streamed on more than one line:\n  %s\n  %s", f, prior, line)
+			}
+			seenCounts[f] = line
+		}
+		var completed, item int
 		if len(fields) < 4 || !strings.HasPrefix(fields[3], "widget-") {
 			continue
 		}
