@@ -58,6 +58,10 @@ type Snapshot struct {
 	// and-forget durable dim lines, rendered once in call order alongside
 	// Lines/Messages.
 	Facts []Fact
+
+	// rootTally mirrors TasksSnapshot's tally for the standalone root
+	// Tasks of a live projection. See WithRootTally.
+	rootTally *ChildTally
 }
 
 // TaskSnapshot is an immutable task view.
@@ -181,6 +185,12 @@ type TasksSnapshot struct {
 	// scheduler may overlap, concurrent Running children expected).
 	Sequential  bool
 	Declaration int
+
+	// tally, when set, marks Tasks as a partial list: a live projection
+	// kept only the children a frame can show, and tally counts every
+	// child it was built from. Unexported presentation bookkeeping; see
+	// WithChildTally.
+	tally *ChildTally
 }
 
 // ChangesSnapshot is an immutable changes section.

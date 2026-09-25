@@ -1,0 +1,103 @@
+package core
+
+import (
+	"time"
+	"unicode/utf8"
+)
+
+// ChildTally is what a live projection of a collection knows about every
+// child Task it was built from, including the ones it left out of Tasks.
+// A live frame shows at most a screen of rows, so a collection of 16000
+// Tasks is projected as the few children the frame could select plus this
+// tally, and frame work stays bound by the screen rather than the run.
+type ChildTally struct {
+	// All counts every child Task.
+	All ChildCounts
+	// Folded reports whether the collection's disposition items fold into
+	// Items (the renderer's rule, decided over every child).
+	Folded bool
+	// Items sums the folded items' Skipped and Kept records.
+	Items Dispositions
+	// Rest counts the children that remain once items fold: All when
+	// they do not.
+	Rest ChildCounts
+}
+
+// ChildCounts summarizes a list of child Tasks.
+type ChildCounts struct {
+	// Total is every child; Done is those that completed (Done or Skipped).
+	Total, Done int
+	// Running, Pending and Unfinished report whether any child is Running,
+	// Pending, or not yet terminal.
+	Running, Pending, Unfinished bool
+	// EarliestSeen is the earliest non-zero LiveFirstSeenAt among them.
+	EarliestSeen time.Time
+	// NameWidth is the widest Name among them, in runes.
+	NameWidth int
+}
+
+// Add counts t.
+func (c *ChildCounts) Add(t *TaskSnapshot) {
+	c.Total++
+	switch t.State {
+	case Done, Skipped:
+		c.Done++
+	case Running:
+		c.Running = true
+	case Pending:
+		c.Pending = true
+	}
+	if !IsTerminalTask(t.State) {
+		c.Unfinished = true
+	}
+	c.NameWidth = max(c.NameWidth, utf8.RuneCountInString(t.Name))
+	if seen := t.liveFirstSeenAt; !seen.IsZero() && (c.EarliestSeen.IsZero() || seen.Before(c.EarliestSeen)) {
+		c.EarliestSeen = seen
+	}
+}
+
+// CountTasks summarizes tasks.
+func CountTasks(tasks []TaskSnapshot) ChildCounts {
+	var c ChildCounts
+	for i := range tasks {
+		c.Add(&tasks[i])
+	}
+	return c
+}
+
+// WithChildTally is col whose Tasks are a partial list tallied by t.
+func WithChildTally(col TasksSnapshot, t ChildTally) TasksSnapshot {
+	col.tally = &t
+	return col
+}
+
+// WithoutChildTally is col whose Tasks are its complete child list.
+func WithoutChildTally(col TasksSnapshot) TasksSnapshot {
+	col.tally = nil
+	return col
+}
+
+// ChildTallyOf is the tally of col's partial Tasks list, or false when
+// Tasks is complete.
+func ChildTallyOf(col TasksSnapshot) (ChildTally, bool) {
+	if col.tally == nil {
+		return ChildTally{}, false
+	}
+	return *col.tally, true
+}
+
+// WithRootTally is s whose standalone root Tasks are a partial list
+// tallied by t.
+func WithRootTally(s Snapshot, t ChildTally) Snapshot {
+	s.rootTally = &t
+	return s
+}
+
+// RootTallyOf is the tally of s's partial root Tasks list, or false when
+// Tasks is complete.
+func RootTallyOf(s Snapshot) (ChildTally, bool) {
+	if s.rootTally == nil {
+		return ChildTally{}, false
+	}
+	return *s.rootTally, true
+}

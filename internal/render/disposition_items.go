@@ -89,11 +89,18 @@ func foldsItems(col core.TasksSnapshot) bool {
 	if col.Sequential {
 		return false
 	}
-	c := censusOf(col)
+	if tally, ok := core.ChildTallyOf(col); ok {
+		return tally.Folded
+	}
+	return censusOf(col).folds(col.Summary)
+}
+
+// folds is foldsItems' rule for a Group with this census and summary.
+func (c childCensus) folds(summary string) bool {
 	if c.ownTask {
 		return c.items >= minFoldedItemsOwnTask
 	}
-	return c.items >= minFoldedItems && (col.Summary != "" || !c.workPeer)
+	return c.items >= minFoldedItems && (summary != "" || !c.workPeer)
 }
 
 // withoutDispositionItems returns col without its disposition items, and
@@ -107,6 +114,7 @@ func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.D
 	}
 	// No preallocation: a TaskSnapshot is large, and the rows that survive
 	// are typically the one work Task, not the thousand items.
+	tally, partial := core.ChildTallyOf(col)
 	var rest []core.TaskSnapshot
 	for i := range col.Tasks {
 		t := &col.Tasks[i]
@@ -117,7 +125,14 @@ func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.D
 		rest = append(rest, *t)
 	}
 	col.Tasks = rest
-	return col, items
+	if !partial {
+		return col, items
+	}
+	// A live projection kept only some items; its tally summed them all.
+	if len(rest) == tally.Rest.Total {
+		return core.WithoutChildTally(col), tally.Items
+	}
+	return core.WithChildTally(col, core.ChildTally{All: tally.Rest, Rest: tally.Rest}), tally.Items
 }
 
 // headerTallyIndent is where a Group header's folded tallies start. Beside
@@ -161,6 +176,11 @@ func headerlessRowNameWidth(col core.TasksSnapshot) int {
 	rows, width := len(col.Tasks), 0
 	for _, t := range col.Tasks {
 		width = max(width, len([]rune(t.Name)))
+	}
+	// A projection's left-out rows still set the column, as they do in
+	// the whole collection.
+	if tally, ok := core.ChildTallyOf(col); ok {
+		rows, width = tally.All.Total, max(width, tally.All.NameWidth)
 	}
 	for _, child := range col.Collections {
 		if name, ok := ownTaskRowName(child); ok {

@@ -35,7 +35,7 @@ func flattensHeader(col core.TasksSnapshot, items core.Dispositions) bool {
 // terminal that count is spent and the header is dropped like the durable
 // one.
 func hasUnfinishedTask(col core.TasksSnapshot) bool {
-	if slices.ContainsFunc(col.Tasks, func(t core.TaskSnapshot) bool { return !core.IsTerminalTask(t.State) }) {
+	if ownCounts(col).Unfinished {
 		return true
 	}
 	return slices.ContainsFunc(col.Collections, hasUnfinishedTask)

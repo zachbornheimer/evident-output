@@ -16,12 +16,12 @@ import (
 // once this long has passed since the row was first actually painted in the
 // live region. It is a single honest clock, not a staleness heuristic —
 // unlike the old phaseStaleAfter heartbeat, it never resets on Phase/Progress
-// activity (see the root package's stampLiveFirstSeenLocked, the only anchor
+// activity (see the root package's taskState.stampLiveFirstSeen, the only anchor
 // this timer reads).
 const elapsedAfter = 5 * time.Second
 
 // activitySince anchors heartbeatSuffix's elapsed measurement to the row's
-// first live-region render (stampLiveFirstSeenLocked) — never to
+// first live-region render (taskState.stampLiveFirstSeen) — never to
 // ActivityAt, so Phase/Progress calls (P5: "never resets on Phase/Progress
 // activity") cannot restart the clock, and a core.Pending row, which never
 // gets ActivityAt, still ages honestly from the moment it became visible.
@@ -57,9 +57,7 @@ func formatElapsed(d time.Duration) string {
 // now selects spinner frames (inject FixedClock in tests for stable glyphs).
 // color applies SGR to glyphs as rows resolve (✓ green, ✗ red, spinner cyan).
 func LiveRegion(s core.Snapshot, height, width int, now time.Time, style Style) string {
-	if height <= 0 {
-		height = 24
-	}
+	height = liveHeight(height)
 	var b strings.Builder
 	style.Verbose = false
 	st := liveStyle{Style: style, width: width, spin: txt.SpinnerGlyph(now, style.Profile), now: now}
@@ -70,6 +68,17 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, style Style) 
 	}
 	writeLedger(&b, s, width, style)
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// defaultLiveHeight is the frame height when the surface reports none.
+const defaultLiveHeight = 24
+
+// liveHeight is the frame height a live region of height rows paints.
+func liveHeight(height int) int {
+	if height <= 0 {
+		return defaultLiveHeight
+	}
+	return height
 }
 
 // renderArmedTitleLine is the honest placeholder painted after arm() when the
@@ -139,10 +148,8 @@ func liveGroupHeader(col core.TasksSnapshot, done, total int, st liveStyle) Disp
 }
 
 func anyChildRunning(col core.TasksSnapshot) bool {
-	for _, t := range col.Tasks {
-		if t.State == core.Running {
-			return true
-		}
+	if ownCounts(col).Running {
+		return true
 	}
 	return slices.ContainsFunc(col.Collections, anyChildRunning)
 }
@@ -155,10 +162,8 @@ func anyChildRunning(col core.TasksSnapshot) bool {
 // core.Incomplete glyph (evo-rec.md core.Problem 9). Recurses into nested
 // containers (P3) so a still-pending grandchild keeps the root header honest.
 func anyChildPendingActive(col core.TasksSnapshot) bool {
-	for _, t := range col.Tasks {
-		if t.State == core.Running || t.State == core.Pending {
-			return true
-		}
+	if counts := ownCounts(col); counts.Running || counts.Pending {
+		return true
 	}
 	return slices.ContainsFunc(col.Collections, anyChildPendingActive)
 }
@@ -168,16 +173,7 @@ func anyChildPendingActive(col core.TasksSnapshot) bool {
 // this header itself was first actually painted, and so the anchor its own
 // elapsed-time suffix measures from (P5).
 func earliestLiveFirstSeen(col core.TasksSnapshot) time.Time {
-	var earliest time.Time
-	for _, t := range col.Tasks {
-		ts := t.LiveFirstSeenAt()
-		if ts.IsZero() {
-			continue
-		}
-		if earliest.IsZero() || ts.Before(earliest) {
-			earliest = ts
-		}
-	}
+	earliest := ownCounts(col).EarliestSeen
 	for _, child := range col.Collections {
 		ts := earliestLiveFirstSeen(child)
 		if ts.IsZero() {
@@ -190,36 +186,45 @@ func earliestLiveFirstSeen(col core.TasksSnapshot) time.Time {
 	return earliest
 }
 
-func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.TaskSnapshot, omitted int) {
-	if len(tasks) <= max {
-		return tasks, 0
+// attentionRankCount is how many liveRank classes can fill a frame's rows
+// once a collection has more children than fit: failed, warned, running,
+// pending.
+const attentionRankCount = 4
+
+// liveRank orders a child for the rows of a frame too small for all of
+// them: failed, warning, active (running), pending, successful, other.
+// Warning is a Done-task annotation (P2), not a lifecycle state, so it
+// ranks ahead of state on len(t.Warnings) rather than t.State.
+func liveRank(t core.TaskSnapshot) int {
+	switch {
+	case t.State == core.Failed:
+		return 0
+	case len(t.Warnings) > 0:
+		return 1
+	case t.State == core.Running:
+		return 2
+	case t.State == core.Pending:
+		return 3
+	case t.State == core.Done, t.State == core.Skipped:
+		return 4
+	default:
+		return 5
 	}
-	// Priority: failed, warning, active(running), pending, successful.
-	// Warning is a Done-task annotation now (P2), not a lifecycle state, so
-	// it ranks ahead of state on len(t.Warnings) rather than t.State.
-	rank := func(t core.TaskSnapshot) int {
-		switch {
-		case t.State == core.Failed:
-			return 0
-		case len(t.Warnings) > 0:
-			return 1
-		case t.State == core.Running:
-			return 2
-		case t.State == core.Pending:
-			return 3
-		case t.State == core.Done, t.State == core.Skipped:
-			return 4
-		default:
-			return 5
-		}
+}
+
+// selectLiveChildren picks at most max of a collection's total children
+// to show, from tasks, which holds all of them or the ones a LiveChildren
+// projection kept.
+func selectLiveChildren(tasks []core.TaskSnapshot, total, max int) (selected []core.TaskSnapshot, omitted int) {
+	if total <= max {
+		return tasks, 0
 	}
 	// Stable: collect by rank preserving declaration order within class.
 	// Only the attention ranks can be selected (below), so routine rows —
 	// nearly every row of a large finished Group — are never copied.
-	const attentionRankCount = 4
 	var buckets [attentionRankCount][]core.TaskSnapshot
 	for _, t := range tasks {
-		if r := rank(t); r < attentionRankCount {
+		if r := liveRank(t); r < attentionRankCount {
 			buckets[r] = append(buckets[r], t)
 		}
 	}
@@ -241,7 +246,7 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 			selected = append(selected, t)
 		}
 	}
-	return selected, len(tasks) - len(selected)
+	return selected, total - len(selected)
 }
 
 // writeLiveTaskLine renders one task row at the given indent and reports

@@ -114,9 +114,9 @@ func fillLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level 
 	}
 	if level.groupsFirst {
 		fill.groups(col.Collections)
-		fill.tasks(col.Tasks)
+		fill.tasks(col)
 	} else {
-		fill.tasks(col.Tasks)
+		fill.tasks(col)
 		fill.groups(col.Collections)
 	}
 	return fill.omitted
@@ -136,8 +136,8 @@ type liveFill struct {
 
 // tasks writes child Tasks in selectLiveChildren's attention order until
 // the next one's rows (an activity child counts) no longer fit.
-func (f *liveFill) tasks(tasks []core.TaskSnapshot) {
-	selected, omitted := selectLiveChildren(tasks, max(f.left, 0))
+func (f *liveFill) tasks(col core.TasksSnapshot) {
+	selected, omitted := selectLiveChildren(col.Tasks, ownCounts(col).Total, max(f.left, 0))
 	f.omitted += omitted
 	for i, t := range selected {
 		var row strings.Builder
@@ -172,17 +172,13 @@ func (f *liveFill) groups(cols []core.TasksSnapshot) {
 // completion is how many of col's own child Tasks have completed (Done or
 // Skipped) out of all of them, folded items included.
 func completion(col core.TasksSnapshot) (done, total int) {
-	for i := range col.Tasks {
-		if state := col.Tasks[i].State; state == core.Done || state == core.Skipped {
-			done++
-		}
-	}
-	return done, len(col.Tasks)
+	counts := ownCounts(col)
+	return counts.Done, counts.Total
 }
 
 // taskCount is every Task at or below col.
 func taskCount(col core.TasksSnapshot) int {
-	n := len(col.Tasks)
+	n := ownCounts(col).Total
 	for _, child := range col.Collections {
 		n += taskCount(child)
 	}
@@ -198,5 +194,9 @@ func rowsSince(b *strings.Builder, start int) int {
 // the standalone root Tasks spend one row budget, the same way a Group's
 // nested Groups and child Tasks do.
 func liveRoot(s core.Snapshot) core.TasksSnapshot {
-	return core.TasksSnapshot{Tasks: s.Tasks, Collections: s.Collections}
+	root := core.TasksSnapshot{Tasks: s.Tasks, Collections: s.Collections}
+	if tally, ok := core.RootTallyOf(s); ok {
+		root = core.WithChildTally(root, tally)
+	}
+	return root
 }
