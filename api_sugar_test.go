@@ -323,6 +323,87 @@ func TestProgressDoing_PlainMilestoneNamesItsOwnItem(t *testing.T) {
 	}
 }
 
+// TestProgressDoing_FinalMilestoneDoingNoOrphanLine is the regression for
+// the canonical `task.Progress(total, total).Doing(item)` chain's last
+// iteration: the final tick streams its count bare ("40/40") the instant it
+// happens (TestProgressDoing_PlainMilestoneNamesItsOwnItem's own final
+// line), and the Doing right after it — naming that same, already-sealed
+// milestone's item — must go unshown, never trail it as a second,
+// item-only line with no count on it at all. A prior regression fed that
+// Doing through the ordinary narrated path once the count was sealed,
+// which streamed exactly that orphan line.
+func TestProgressDoing_FinalMilestoneDoingNoOrphanLine(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+	task := out.Task("sync")
+
+	const total = 20
+	for i := 1; i <= total; i++ {
+		task.Progress(i, total).Doing("widget-%02d", i)
+	}
+	succeed(task)
+	_ = out.Close()
+
+	for line := range strings.SplitSeq(buf.String(), "\n") {
+		if strings.Contains(line, "widget-20") {
+			t.Fatalf("want the final milestone's Doing to stay unshown (already sealed \"20/20\" streamed bare), got an orphan line:\n%s\nfull transcript:\n%s", line, buf.String())
+		}
+	}
+}
+
+// TestDoingProgress_PlainMilestoneNamesItsOwnItem is
+// TestProgressDoing_PlainMilestoneNamesItsOwnItem's sibling for the
+// Doing-before-Progress loop order (`task.Doing(item); task.Progress(i,
+// total)`): the line for count i must still name item i, never the item
+// from the iteration before or after it. A prior regression paired
+// milestone i with item i+1 (streamed a Doing's item on the NEXT
+// milestone's line) once ~10-way progress thinning meant more than one
+// Doing happened between two milestone-crossing Progress calls.
+func TestDoingProgress_PlainMilestoneNamesItsOwnItem(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+	task := out.Task("sync")
+
+	const total = 40
+	for i := 1; i <= total; i++ {
+		task.Doing("widget-%02d", i)
+		task.Progress(i, total)
+	}
+	succeed(task)
+	_ = out.Close()
+
+	var itemLines int
+	seenCounts := map[string]string{} // "C/40" -> the whole line it appeared on first
+	for line := range strings.SplitSeq(buf.String(), "\n") {
+		fields := strings.Fields(line)
+		for _, f := range fields {
+			if !strings.HasSuffix(f, "/"+strconv.Itoa(total)) {
+				continue
+			}
+			if prior, ok := seenCounts[f]; ok {
+				t.Fatalf("count %s streamed on more than one line:\n  %s\n  %s", f, prior, line)
+			}
+			seenCounts[f] = line
+		}
+		var completed, item int
+		if len(fields) < 4 || !strings.HasPrefix(fields[3], "widget-") {
+			continue
+		}
+		itemLines++
+		if _, err := fmt.Sscanf(fields[2]+" "+fields[3], "%d/40 widget-%d", &completed, &item); err != nil {
+			t.Fatalf("unparsable item line %q: %v", line, err)
+		}
+		if completed != item {
+			t.Fatalf("milestone %d/%d names widget-%02d, want widget-%02d:\n%s", completed, total, item, completed, buf.String())
+		}
+	}
+	if itemLines == 0 {
+		t.Fatalf("no milestone line named an item:\n%s", buf.String())
+	}
+}
+
 func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })

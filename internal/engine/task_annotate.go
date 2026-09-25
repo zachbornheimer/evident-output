@@ -45,24 +45,31 @@ func reportsCount(st *taskState) bool {
 
 // pairsWithMilestone reports whether this Doing names the item of a
 // count's current milestone, rather than narrating an ordinary step. It is
-// true only for an open (unsealed) count (reportsCount): once a count
-// seals, every further Doing is ordinary narration (reportsCount's own
-// contract), including the very next one. That Doing may still name the
-// milestone that just streamed bare — e.g. `task.Progress(i, total).
-// Doing(item)`'s last iteration, or install's `Bytes(400, 400)` followed by
-// `Doing("verify checksum")` — but it goes through the ordinary narrated
-// path (setPhaseLocked), which blanks that one line's count instead of
-// repeating it (see emitTaskRunningProgressiveLocked's triggerPhase case).
-// A second history-based branch here — pairing whenever an owed milestone
-// was still pending and this Task had paired items before
-// (plainStream.namesItems) — could not tell that shape apart from an
-// unrelated Doing narrated after the whole loop (a plain "verify checksum"
-// following a Doing-before-Progress loop's final tick): both are, from the
-// engine's view, just "the next Doing after a sealed claim". Swallowing on
-// that ambiguous signal dropped the post-loop narration (E-119 review); the
-// ordinary path plus a blanked count resolves both without ambiguity.
+// true for an open (unsealed) count (reportsCount) — the ordinary case,
+// `task.Progress(i, total).Doing(item)` mid-loop.
+//
+// It is also true once a count has just sealed, but only when this Task
+// has already paired at least one item onto a milestone before
+// (plainStream.namesItems) AND a milestone from that same pairing history
+// is still owed (plainStream.owed.pending): that shape is the loop's own
+// last Doing naming its own final, already-sealed milestone — e.g.
+// `task.Progress(20, 20).Doing(item20)` — which must stay silent rather
+// than print a second, item-only line trailing the "20/20" that already
+// streamed bare (triggerItem's alreadyStreamed case).
+//
+// A sealed count with no pairing history (namesItems false) — install's
+// `Bytes(400, 400)` followed by `Doing("verify checksum")`, with no prior
+// Doing ever paired — is NOT this shape: it is ordinary post-count
+// narration and must go through the narrated path instead (setPhaseLocked),
+// which blanks that one line's count rather than repeating it (see
+// emitTaskRunningProgressiveLocked's triggerPhase case). Gating on
+// namesItems is what tells the two apart; gating on owed.pending alone
+// swallowed genuine post-loop narration (E-119 review regression).
 func pairsWithMilestone(st *taskState) bool {
-	return reportsCount(st)
+	if reportsCount(st) {
+		return true
+	}
+	return st.plainStream.owed.pending && st.plainStream.namesItems
 }
 
 // resolvedByInterrupt reports whether this state was reached by the
