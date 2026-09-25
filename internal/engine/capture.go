@@ -340,8 +340,8 @@ func (c *capture) Empty() bool {
 // the capture tail. Prefers stderr when separate streams were used. Sets
 // Problem.CaptureTail rather than Problem.Detail: when the same Fail/Block
 // call also carries an explicit Detail, that explicit text still renders (as
-// the primary detail line) and this tail renders as an additional evidence
-// line underneath, regardless of which option was passed first.
+// the primary detail line) and this tail renders as an additional
+// capture-tail line underneath, regardless of which option was passed first.
 func (c *capture) DetailTail() ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
 		if text := c.detailText(); text != "" {

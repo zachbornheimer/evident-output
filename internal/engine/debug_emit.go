@@ -17,7 +17,7 @@ import (
 //
 // When Diagnostics is configured and is a different writer than the primary stream,
 // debug lines go to Diagnostics only (not the human Items/Tasks stream). Use
-// Capture for child-process evidence instead of DebugWriter when you need Fail Detail.
+// Capture for child-process capture instead of DebugWriter when you need Fail Detail.
 func (o *Output) debug(message string, fields ...Field) {
 	o.mu.Lock()
 	defer o.mu.Unlock()

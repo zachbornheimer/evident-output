@@ -19,8 +19,8 @@ import (
 // the misuse is the method call shape, not the identifier.
 var failfCaptureTextPattern = regexp.MustCompile(`\.(?:Failf|Blockf)\([^)]*\.(?:Text|Tail)\(\)[^)]*\)`)
 
-// detectFailfEmbeddedEvidenceText flags EV-001's anti-pattern.
-func detectFailfEmbeddedEvidenceText(filename, src string) []Finding {
+// detectFailfEmbeddedCaptureText flags EV-001's anti-pattern.
+func detectFailfEmbeddedCaptureText(filename, src string) []Finding {
 	var findings []Finding
 	for _, m := range failfCaptureTextPattern.FindAllStringIndex(src, -1) {
 		findings = append(findings, Finding{

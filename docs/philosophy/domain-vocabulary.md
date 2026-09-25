@@ -160,7 +160,7 @@ cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 ```
 
-Who owns the handle: the entity whose condition or work the evidence explains. Do not Capture “somewhere nearby” for convenience.
+Who owns the handle: the entity whose condition or work the capture/output explains. Do not Capture “somewhere nearby” for convenience.
 
 ---
 

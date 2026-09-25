@@ -111,7 +111,7 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectHandAssembledFailureSummary)},
 	// EV-001: Failf/Blockf embedding the retained Capture ring's own .Text()/
 	// .Tail() in the summary duplicates what auto-attach already renders.
-	{needsEvo: true, run: textRule(detectFailfEmbeddedEvidenceText)},
+	{needsEvo: true, run: textRule(detectFailfEmbeddedCaptureText)},
 	// FP-004: a Doing string with no domain object is an illegible placeholder.
 	{needsEvo: true, run: textRule(detectPlaceholderDoing)},
 	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
