@@ -108,16 +108,27 @@ func isAncestor(dir, path string) bool {
 	return strings.HasPrefix(path, dir)
 }
 
-// evalSymlinks is the facade canonicalization reads the filesystem through
-// (facade rule), so tests can inject resolution failures.
-var evalSymlinks = filepath.EvalSymlinks
+// resolver canonicalizes Resources into Keys, reading symlinks through
+// evalSymlinks (facade rule). Every claim in the process resolves through
+// the real disk, because a Key names shared state that every Output must
+// agree on; a test builds its own resolver to inject a failure.
+type resolver struct {
+	evalSymlinks func(path string) (string, error)
+}
+
+// diskResolver is the resolver every claim uses.
+var diskResolver = resolver{evalSymlinks: filepath.EvalSymlinks}
 
 // Resolve returns r's canonical Key. workspace anchors a relative FS path
 // and must be absolute when one is given.
 func Resolve(r Resource, workspace string) (Key, error) {
+	return diskResolver.resolve(r, workspace)
+}
+
+func (rv resolver) resolve(r Resource, workspace string) (Key, error) {
 	switch r := r.(type) {
 	case fsResource:
-		return resolveFS(r.path, workspace)
+		return rv.resolveFS(r.path, workspace)
 	case logicalResource:
 		name := strings.TrimSpace(r.name)
 		if name == "" {
@@ -129,7 +140,7 @@ func Resolve(r Resource, workspace string) (Key, error) {
 	}
 }
 
-func resolveFS(path, workspace string) (Key, error) {
+func (rv resolver) resolveFS(path, workspace string) (Key, error) {
 	if path == "" {
 		return Key{}, fmt.Errorf("%w: filesystem resource path is empty", ErrInvalid)
 	}
@@ -139,7 +150,7 @@ func resolveFS(path, workspace string) (Key, error) {
 		}
 		path = filepath.Join(workspace, path)
 	}
-	canonical, err := canonicalPath(filepath.Clean(path))
+	canonical, err := rv.canonicalPath(filepath.Clean(path))
 	if err != nil {
 		return Key{}, fmt.Errorf("evo: resolve filesystem resource %q: %w", path, err)
 	}
@@ -150,10 +161,10 @@ func resolveFS(path, workspace string) (Key, error) {
 // of the absolute, clean path, then re-appends the not-yet-existing tail.
 // A path that does not exist yet (a File about to be created) therefore
 // still shares identity with its real parent directory.
-func canonicalPath(path string) (string, error) {
+func (rv resolver) canonicalPath(path string) (string, error) {
 	existing, tail := path, ""
 	for {
-		resolved, err := evalSymlinks(existing)
+		resolved, err := rv.evalSymlinks(existing)
 		if err == nil {
 			return filepath.Join(resolved, tail), nil
 		}

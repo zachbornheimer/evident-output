@@ -125,11 +125,10 @@ func TestResolveFSSymlinkAliasSharesIdentity(t *testing.T) {
 }
 
 func TestResolveFSPropagatesNonMissingErrors(t *testing.T) {
+	t.Parallel()
 	boom := errors.New("boom")
-	restore := evalSymlinks
-	evalSymlinks = func(string) (string, error) { return "", boom }
-	t.Cleanup(func() { evalSymlinks = restore })
-	if _, err := Resolve(FS("/a"), "/"); !errors.Is(err, boom) {
+	failing := resolver{evalSymlinks: func(string) (string, error) { return "", boom }}
+	if _, err := failing.resolve(FS("/a"), "/"); !errors.Is(err, boom) {
 		t.Fatalf("Resolve error = %v, want wrapping %v", err, boom)
 	}
 }
