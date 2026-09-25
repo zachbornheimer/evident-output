@@ -155,6 +155,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Fixed
 
+- A Task `Block`ed inside a Group or Sequence now concludes `[blocked]`
+  with exit 1. It concluded `[ready]` with exit 0, because the Conclusion
+  ignored a container whose derived state was Blocked; a container whose
+  children all never started now marks the run partial, as a root Task does.
+
 - A lone kept or skipped item under a Group's own Task folds into the
   Group's tally (`✓ branches  2 checked` / `  ! kept 1 (protected)`)
   instead of printing as its own success row. A live Group that holds

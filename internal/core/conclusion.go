@@ -175,15 +175,20 @@ func InferConclusion(s Snapshot) Conclusion {
 			hasDone = true
 		}
 	}
+	// A collection's State is derived from its members (see the root
+	// package's derivedState), so it can surface every verdict a Task can,
+	// and each counts exactly as the same root Task state does.
 	for _, col := range s.Collections {
 		switch col.State {
 		case Failed:
 			hasFailed = true
+		case Blocked:
+			hasBlocked = true
 		case Cancelled:
 			hasCancelled = true
-		case Incomplete, Running, Pending:
+		case Incomplete, Running, Pending, NotStarted:
 			hasIncomplete = true
-		case Done, Empty:
+		case Done, Skipped, Empty:
 			hasDone = true
 		}
 	}
