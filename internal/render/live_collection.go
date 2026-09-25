@@ -81,9 +81,10 @@ func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, heig
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
 		writeLiveDispositions(b, taskAnnotationIndent, items, height-headerRows, st.Style)
-	case liveFlattensHeader(col, items):
+	case liveFlattensHeader(col, items, height):
 		writeLiveBody(b, col, height, inPlace, st)
 	default:
+		done, total = liveHeaderProgress(col, done, total)
 		b.WriteString(liveGroupHeader(col, done, total, st).Render(""))
 		b.WriteByte('\n')
 		tallyRows := writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
@@ -152,22 +153,30 @@ func (f *liveFill) tasks(col core.TasksSnapshot) {
 }
 
 // groups gives each of col's nested Groups a fair share of what is left;
-// what one does not use rolls to the next, and one that does not fit is
-// counted. Every nested Group paints at least a row once it has a Task,
-// so it examines at most one more of them than it has rows: the rest are
-// counted unpainted, which is what lets a live projection leave them out
-// (LiveCollections).
+// what one does not use rolls to the next, and one whose share is not
+// even a row is counted, never painted as a lone "not shown" line
+// (E-111). When there are more nested Groups than rows, only the ones
+// that need attention compete for the rows (attentionGroups), the way
+// selectLiveChildren picks child Tasks. Every nested Group paints at
+// least a row once it has a Task, so it examines at most one more of them
+// than it has rows: the rest are counted unpainted, which is what lets a
+// live projection leave them out (LiveCollections).
 func (f *liveFill) groups(col core.TasksSnapshot) {
 	cols, left := col.Collections, core.CollectionTallyOf(col)
-	total, reach := len(cols)+left.Count, f.left+1
-	defer func() { f.omitted += left.Tasks.Total }()
+	f.omitted += left.Tasks.Total
+	sharers := len(cols) + left.Count
+	if sharers > f.left {
+		cols = f.attentionGroups(cols)
+		sharers = len(cols)
+	}
+	reach := f.left + 1
 	for i, child := range cols {
-		if i >= reach {
+		share := f.left / max(sharers-i, 1)
+		if i >= reach || share < headerRows {
 			f.omitted += taskCount(child)
 			continue
 		}
 		var nested strings.Builder
-		share := f.left / (total - i)
 		rows := writeAlignedLiveCollection(&nested, child, share, f.nameWidth, f.st)
 		if rows > f.left {
 			f.omitted += taskCount(child)
@@ -178,6 +187,85 @@ func (f *liveFill) groups(col core.TasksSnapshot) {
 		}
 		f.left -= rows
 	}
+}
+
+// attentionGroups is the nested Groups that compete for rows when not all
+// of them fit: those holding a failed, warned, running or pending Task, in
+// that order and declaration order within it, as many as there are rows.
+// The rest are counted.
+func (f *liveFill) attentionGroups(cols []core.TasksSnapshot) []core.TasksSnapshot {
+	var buckets [attentionRankCount][]core.TasksSnapshot
+	for _, child := range cols {
+		if r := collectionRank(child); r < attentionRankCount {
+			buckets[r] = append(buckets[r], child)
+			continue
+		}
+		f.omitted += taskCount(child)
+	}
+	selected := make([]core.TasksSnapshot, 0, min(len(cols), max(f.left, 0)))
+	for _, bucket := range buckets {
+		for _, child := range bucket {
+			if len(selected) < f.left {
+				selected = append(selected, child)
+				continue
+			}
+			f.omitted += taskCount(child)
+		}
+	}
+	return selected
+}
+
+// collectionRank is the most urgent liveRank of any Task at or below col.
+func collectionRank(col core.TasksSnapshot) int {
+	rank := attentionRankCount
+	for _, t := range col.Tasks {
+		rank = min(rank, liveRank(t))
+	}
+	if tally, ok := core.ChildTallyOf(col); ok {
+		rank = min(rank, countsRank(tally.All))
+	}
+	rank = min(rank, countsRank(core.CollectionTallyOf(col).Tasks))
+	for _, child := range col.Collections {
+		rank = min(rank, collectionRank(child))
+	}
+	return rank
+}
+
+// countsRank is the liveRank a tally can vouch for: running or pending.
+// Failed and warned Tasks are always kept, never only tallied.
+func countsRank(c core.ChildCounts) int {
+	switch {
+	case c.Running:
+		return liveRank(core.TaskSnapshot{State: core.Running})
+	case c.Pending:
+		return liveRank(core.TaskSnapshot{State: core.Pending})
+	default:
+		return attentionRankCount
+	}
+}
+
+// liveHeaderProgress is the "N/M complete" a live Group header shows: its
+// own child Tasks (done of total), or, for a Group that holds only nested
+// Groups, how many of those have finished.
+func liveHeaderProgress(col core.TasksSnapshot, done, total int) (int, int) {
+	left := core.CollectionTallyOf(col)
+	if total > 0 || len(col.Collections)+left.Count == 0 {
+		return done, total
+	}
+	done = left.Settled
+	for _, child := range col.Collections {
+		if !hasUnfinishedTask(child) {
+			done++
+		}
+	}
+	return done, len(col.Collections) + left.Count
+}
+
+// liveBodyOverflows reports whether col's child Tasks and nested Groups
+// cannot each have one of height rows: its body will leave some out, so
+// only a header can carry what they add up to.
+func liveBodyOverflows(col core.TasksSnapshot, height int) bool {
+	return ownCounts(col).Total+len(col.Collections)+core.CollectionTallyOf(col).Count > height
 }
 
 // completion is how many of col's own child Tasks have completed (Done or

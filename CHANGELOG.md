@@ -174,6 +174,18 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Fixed
 
+- A live Group holding more per-item Groups than the terminal has rows
+  keeps its header with an `N/M complete` count of finished items, shows
+  the failed, warned, running and pending items first, and folds the rest
+  into one `…  N not shown` line. Each nested Group was given a share of
+  0 rows and painted its own `…  1 not shown` line instead, the header
+  disappeared, and the frame stopped changing, so it stopped repainting.
+  A Group whose rows do not all fit keeps its header even after its work
+  finishes.
+- Building a live frame no longer walks every per-item Group it cannot
+  show. Each collection keeps a running count of the Tasks below it, so a
+  Group of 16000 per-item Groups runs about as fast under a live terminal
+  as without one (it took 5m57s, with one frame gap as long as the run).
 - `evident_output_review` with `kind=package` no longer reports MCP-017
   (partial, recheck) for a member a local type promotes from an embedded
   import (`type box struct{ sync.Mutex }` then `b.Lock()`), so correct

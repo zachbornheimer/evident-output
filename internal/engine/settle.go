@@ -20,7 +20,9 @@ package engine
 // and where the settled row is committed. Callers must already hold o.mu.
 func (o *Output) settleLocked(st *taskState, state EntityState) {
 	state = st.honestOutcome(state)
+	from := st.state
 	st.state = state
+	st.censusMoved(from)
 	st.phase = ""
 	o.stopPlainHeartbeatLocked(st)
 	st.closeDoneLocked()

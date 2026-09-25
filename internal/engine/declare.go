@@ -100,7 +100,9 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 		st.sched.preds = o.joinPassedSequencesLocked(st.sched.preds, col, predecessor{task: st})
 		col.recordStep(predecessor{task: st})
 		col.tasks = append(col.tasks, st)
+		col.hasNamesake = col.hasNamesake || name == col.name
 		tallyDeclaredLocked(st)
+		st.censusDeclared()
 	}
 	o.taskByRef[st.id] = st
 	o.bumpLocked()

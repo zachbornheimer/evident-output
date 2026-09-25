@@ -407,8 +407,9 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 // Problem 9). A no-op once set: the field only ever moves from zero once.
 // liveSnapshotLocked calls it on every Task as it builds a frame.
 func (t *taskState) stampLiveFirstSeen(now time.Time) {
-	if (t.state == Running || t.state == Pending) && t.liveFirstSeenAt.IsZero() {
+	if t.unstampedIn(t.state) {
 		t.liveFirstSeenAt = now
+		t.censusStamped()
 	}
 }
 

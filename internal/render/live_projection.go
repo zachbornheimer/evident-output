@@ -88,15 +88,18 @@ func ownCounts(col core.TasksSnapshot) core.ChildCounts {
 
 // LiveCollections projects one collection's child collections for a live
 // frame of at most rows rows. A frame paints nested collections in
-// declaration order and examines at most one more of them than the rows
-// it has left (liveFill.groups), so only the first rows+1 can ever
+// declaration order while they fit, and otherwise only the ones holding a
+// Task that needs attention, in attention order (liveFill.groups). So only
+// the first rows+1, and the first rows of each attention rank, can ever
 // appear: the projection keeps those, each projected in turn, and tallies
-// the rest from a cheap view. Building a frame then costs what the screen
+// the rest from counts. Building a frame then costs what the screen
 // shows, however many per-item collections the run holds (E-091).
 type LiveCollections struct {
-	rows  int
-	kept  []core.TasksSnapshot
-	tally core.CollectionTally
+	rows   int
+	seen   int
+	byRank [attentionRankCount]int
+	kept   []core.TasksSnapshot
+	tally  core.CollectionTally
 }
 
 // NewLiveCollections starts the projection of a collection's child
@@ -106,32 +109,60 @@ func NewLiveCollections(rows int) *LiveCollections {
 }
 
 // Admit reports whether the frame could reach the next child collection,
-// in declaration order. The caller passes an admitted one's live
-// projection to Keep and any other's view to Omit.
-func (c *LiveCollections) Admit() bool { return len(c.kept) <= c.rows }
+// in declaration order, whose most urgent Task has rank (AttentionRank).
+// The caller passes an admitted one's live projection to Keep and any
+// other's counts to Omit.
+func (c *LiveCollections) Admit(rank int) bool {
+	c.seen++
+	admit := c.seen <= c.rows+1
+	if rank < attentionRankCount {
+		c.byRank[rank]++
+		admit = admit || c.byRank[rank] <= c.rows
+	}
+	return admit
+}
+
+// AttentionRank is the rank Admit takes for a collection whose Tasks, at
+// any depth, include a failed, a warned, a running or a pending one: the
+// most urgent that applies, as liveRank orders a single Task.
+func AttentionRank(failed, warned, running, pending bool) int {
+	switch {
+	case failed:
+		return liveRank(core.TaskSnapshot{State: core.Failed})
+	case warned:
+		return 1
+	case running:
+		return liveRank(core.TaskSnapshot{State: core.Running})
+	case pending:
+		return liveRank(core.TaskSnapshot{State: core.Pending})
+	default:
+		return attentionRankCount
+	}
+}
 
 // Keep adds an admitted child collection's live projection.
 func (c *LiveCollections) Keep(col core.TasksSnapshot) { c.kept = append(c.kept, col) }
 
-// Omit tallies a child collection the frame cannot reach. col need hold
-// only its header and its Tasks' views, recursively.
-func (c *LiveCollections) Omit(col core.TasksSnapshot) {
+// Omit tallies a child collection the frame cannot reach from its Tasks'
+// counts at any depth, and ownRow, the name of the one row it renders as
+// when it renders as its own Task ("" otherwise).
+func (c *LiveCollections) Omit(tasks core.ChildCounts, ownRow string) {
 	c.tally.Count++
-	countSubtree(&c.tally.Tasks, col)
-	if name, ok := ownTaskRowName(col); ok {
+	c.tally.Tasks.Merge(tasks)
+	if !tasks.Unfinished {
+		c.tally.Settled++
+	}
+	if ownRow != "" {
 		c.tally.OwnRows++
-		c.tally.OwnRowNameWidth = max(c.tally.OwnRowNameWidth, len([]rune(name)))
+		c.tally.OwnRowNameWidth = max(c.tally.OwnRowNameWidth, len([]rune(ownRow)))
 	}
 }
 
-// countSubtree adds every Task at or below col to counts.
-func countSubtree(counts *core.ChildCounts, col core.TasksSnapshot) {
-	for i := range col.Tasks {
-		counts.Add(&col.Tasks[i])
-	}
-	for _, child := range col.Collections {
-		countSubtree(counts, child)
-	}
+// OwnRowName is the name col renders its one row under when it renders
+// as its own Task, or "".
+func OwnRowName(col core.TasksSnapshot) string {
+	name, _ := ownTaskRowName(col)
+	return name
 }
 
 // Kept is the child collections the frame could reach, in declaration

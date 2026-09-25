@@ -56,6 +56,19 @@ func (c *ChildCounts) Add(t *TaskSnapshot) {
 	}
 }
 
+// Merge adds everything o counted.
+func (c *ChildCounts) Merge(o ChildCounts) {
+	c.Total += o.Total
+	c.Done += o.Done
+	c.Running = c.Running || o.Running
+	c.Pending = c.Pending || o.Pending
+	c.Unfinished = c.Unfinished || o.Unfinished
+	c.NameWidth = max(c.NameWidth, o.NameWidth)
+	if !o.EarliestSeen.IsZero() && (c.EarliestSeen.IsZero() || o.EarliestSeen.Before(c.EarliestSeen)) {
+		c.EarliestSeen = o.EarliestSeen
+	}
+}
+
 // CountTasks summarizes tasks.
 func CountTasks(tasks []TaskSnapshot) ChildCounts {
 	var c ChildCounts
@@ -111,6 +124,8 @@ type CollectionTally struct {
 	Count int
 	// Tasks counts every Task at or below them.
 	Tasks ChildCounts
+	// Settled is how many of them hold no unfinished Task.
+	Settled int
 	// OwnRows is how many of them render as one own-Task row, and
 	// OwnRowNameWidth the widest such row's name, in runes: they still
 	// set a header-less parent's name column.

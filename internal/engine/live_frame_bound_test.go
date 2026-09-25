@@ -97,3 +97,41 @@ func TestLiveFrameBoundHoldsForNestedCollections(t *testing.T) {
 		t.Errorf("a %d-row frame snapshotted %d nested Tasks; want a bound near the screen's rows", rows, large)
 	}
 }
+
+// nestedFrameAllocs is how many allocations building one live frame of
+// rows rows costs for a Group of n per-item Groups, half finished.
+func nestedFrameAllocs(tb testing.TB, n, rows int) float64 {
+	tb.Helper()
+	screen := &countingLiveSurface{}
+	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	out := newOutput("job", withTerminal(screen), visibilityDelay(0), withClock(clock), withNoColor(), maxConcurrency(1))
+	tb.Cleanup(func() { _ = out.Close() })
+	items := out.Group("items")
+	for i := range n / 2 {
+		items.Group(fmt.Sprintf("done %d", i)).Task("check").Define(func(context.Context) error { return nil })
+	}
+	if err := items.Wait(); err != nil {
+		tb.Fatalf("Wait: %v", err)
+	}
+	for i := range n / 2 {
+		items.Group(fmt.Sprintf("queued %d", i)).Task("check")
+	}
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	return testing.AllocsPerRun(3, func() { _ = out.liveSnapshotLocked(rows, clock.t) })
+}
+
+// TestLiveFrameCostHoldsForNestedCollections pins E-091/E-096's round-7
+// re-verify: a frame kept only the reachable per-item Groups but still
+// built a view of every other one (and walked its Tasks) to tally it, on
+// every settle under o.mu, so a Group of per-item Groups ran O(n²) under a
+// live terminal (n=16000: one 5m57s frame gap). A frame now tallies an
+// unreachable collection from its census, so its cost does not grow with n.
+func TestLiveFrameCostHoldsForNestedCollections(t *testing.T) {
+	const rows = 24
+	small, large := nestedFrameAllocs(t, 1000, rows), nestedFrameAllocs(t, 16000, rows)
+	t.Logf("rows=%d allocs/frame: n=1000 %.0f, n=16000 %.0f", rows, small, large)
+	if large > small {
+		t.Errorf("a %d-row frame allocated %.0f times at n=16000 and %.0f at n=1000; want the same bound whatever the run size", rows, large, small)
+	}
+}

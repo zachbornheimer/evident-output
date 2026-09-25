@@ -38,10 +38,12 @@ func projectCollection(col core.TasksSnapshot, rows int) core.TasksSnapshot {
 func projectCollections(cols []core.TasksSnapshot, rows int) *LiveCollections {
 	lc := NewLiveCollections(rows)
 	for _, child := range cols {
-		if lc.Admit() {
+		if lc.Admit(collectionRank(child)) {
 			lc.Keep(projectCollection(child, rows))
 		} else {
-			lc.Omit(child)
+			var counts core.ChildCounts
+			countSubtree(&counts, child)
+			lc.Omit(counts, OwnRowName(child))
 		}
 	}
 	return lc
@@ -70,6 +72,16 @@ func projectTasks(col core.TasksSnapshot, rows int) core.TasksSnapshot {
 		}
 	}
 	return children.Collection(col)
+}
+
+// countSubtree adds every Task at or below col to counts.
+func countSubtree(counts *core.ChildCounts, col core.TasksSnapshot) {
+	for i := range col.Tasks {
+		counts.Add(&col.Tasks[i])
+	}
+	for _, child := range col.Collections {
+		countSubtree(counts, child)
+	}
 }
 
 // seen is t first painted at offset past projectionEpoch.

@@ -139,6 +139,9 @@ func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)
 	return t.annotate(func(st *taskState) {
 		st.warnings = append(st.warnings, p)
+		if len(st.warnings) == 1 {
+			st.censusWarned()
+		}
 		t.out.bumpLocked()
 		t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, wire.ToProblemDoc(p).EventPayload())

@@ -345,7 +345,9 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 		}
 		col.runningSteps = append(col.runningSteps, st)
 	}
+	from := st.state
 	st.state = Running
+	st.censusMoved(from)
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
 	// Every promoteRunningLocked call site already guards on st.state ==
 	// Pending before calling it, and this line immediately advances past

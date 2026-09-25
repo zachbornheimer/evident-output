@@ -62,7 +62,7 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, style Style) 
 	style.Verbose = false
 	st := liveStyle{Style: style, width: width, spin: txt.SpinnerGlyph(now, style.Profile), now: now}
 
-	writeLiveBody(&b, liveRoot(qualifyFlattenedRows(s, liveFlattensHeader)), height, atRoot, st)
+	writeLiveBody(&b, liveRoot(qualifyFlattenedRows(s, liveHeaderRule(height))), height, atRoot, st)
 	if hasTaskRows(s) && hasEffectSections(s) {
 		b.WriteByte('\n')
 	}

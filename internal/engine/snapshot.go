@@ -308,19 +308,18 @@ func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
 func liveCollections(cols []*tasksState, rows int, now time.Time) *render.LiveCollections {
 	projected := render.NewLiveCollections(rows)
 	for _, col := range cols {
-		if projected.Admit() {
+		if projected.Admit(col.census.rank()) {
 			projected.Keep(col.liveSnapshot(rows, now))
 			continue
 		}
 		col.stampLiveFirstSeen(now)
-		projected.Omit(col.view())
+		projected.Omit(col.census.counts(), col.liveOwnRow())
 	}
 	return projected
 }
 
-// view is g's header and its Tasks' views, recursively: what a live
-// projection tallies of a collection the frame cannot reach, without the
-// cost of a snapshot.
+// view is g's header and its Tasks' views, recursively, without the cost
+// of a snapshot.
 func (g *tasksState) view() TasksSnapshot {
 	ts := g.header()
 	for _, t := range g.tasks {
@@ -335,6 +334,9 @@ func (g *tasksState) view() TasksSnapshot {
 // stampLiveFirstSeen stamps every Task at or below g, as a frame that
 // counted them does (see taskState.stampLiveFirstSeen).
 func (g *tasksState) stampLiveFirstSeen(now time.Time) {
+	if g.census.unstamped == 0 {
+		return
+	}
 	for _, t := range g.tasks {
 		t.stampLiveFirstSeen(now)
 	}

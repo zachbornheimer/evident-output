@@ -166,4 +166,9 @@ type tasksState struct {
 	// tally counts this container's descendant Tasks by outcome, for the
 	// Tasks that run After it.
 	tally collectionTally
+	// census counts its descendant Tasks for the live frame (liveCensus).
+	census liveCensus
+	// hasNamesake records that a child Task carries this container's own
+	// name, the only way it can render as its own Task (liveOwnRow).
+	hasNamesake bool
 }
