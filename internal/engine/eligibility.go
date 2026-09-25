@@ -38,8 +38,12 @@ func stateOutcome(s EntityState) predOutcome {
 // collection's outcome costs the same however large the collection grows.
 type collectionTally struct {
 	total, succeeded, failed int
-	// sealed records that the run proved nothing will declare into this
-	// still-empty collection (see sealInputsLocked).
+	// sealed records that the collection's membership is taken as
+	// declared: a Wait asked for its outcome, the run proved nothing will
+	// declare into it (see sealInputsLocked), or it was named as a
+	// predecessor while it already had members (see closeMembershipLocked).
+	// Until then a collection whose members all succeeded is still
+	// pending, because its caller may declare more.
 	sealed bool
 	// dependents are the Tasks parked until this collection stops pending.
 	dependents []*taskState
@@ -74,10 +78,35 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	}
 	for _, p := range preds {
 		if pred, ok := o.predecessorOfLocked(p); ok {
+			o.closeMembershipLocked(pred)
 			st.sched.preds = append(st.sched.preds, pred)
 		}
 	}
 	return t
+}
+
+// closeMembershipLocked takes a collection predecessor's membership as
+// declared once it has members: naming a populated Group or Sequence as a
+// predecessor, by After or as the step before in a Sequence, means the
+// Tasks declared into it so far. An empty one stays open, so a Task wired
+// After a Group before the loop that populates it waits for every child
+// (E-028); a Wait, the drain, or a stall closes it instead.
+func (o *Output) closeMembershipLocked(p predecessor) {
+	if p.col != nil && p.col.tally.total > 0 {
+		o.sealCollectionLocked(p.col)
+	}
+}
+
+// sealCollectionLocked seals c and re-places the Tasks parked on it; any
+// still pending park again.
+func (o *Output) sealCollectionLocked(c *tasksState) {
+	t := &c.tally
+	if t.sealed {
+		return
+	}
+	t.sealed = true
+	o.wakeLocked(t.dependents)
+	t.dependents = nil
 }
 
 // predecessorOfLocked resolves one After argument. ok is false for a nil
@@ -135,9 +164,10 @@ func (o *Output) taskOutcomeLocked(t *taskState) predOutcome {
 }
 
 // collectionOutcomeLocked is c's outcome for its dependents, and what to
-// park on while it is pending. An empty collection is still pending while
-// its caller may populate it: a Task wired After a Group before the
-// Group's children were declared must wait for them. Once Finish drains,
+// park on while it is pending. A collection is still pending while its
+// caller may populate it: a Task wired After a Group before the Group's
+// children were declared must wait for every one of them, even when the
+// children declared so far already finished. Once Finish drains,
 // or the run proved nothing will populate it, an empty collection ran
 // nothing, so it answers for what it starts after (see entryOutcomeLocked).
 //
@@ -154,7 +184,7 @@ func (o *Output) collectionOutcomeLocked(c *tasksState) (predOutcome, predecesso
 			return o.entryOutcomeLocked(c)
 		}
 		return predPending, self
-	case t.succeeded == t.total:
+	case t.succeeded == t.total && (o.sched.draining || t.sealed):
 		return predSucceeded, self
 	default:
 		return predPending, self

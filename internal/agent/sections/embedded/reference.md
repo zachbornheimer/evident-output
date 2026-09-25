@@ -203,6 +203,8 @@ Reads share. Any overlapping pair that includes a write waits: filesystem claims
 
 Evo owns scheduling through Group, Sequence, Define, and After (`Group.Each`/`Sequence.Each` were removed in 1.0). Review rule **API-026** flags caller-invented `RunAll`/`Map`/`Retry` only on evo receivers (AST), not `strings.Map`, and does not flag Group/Sequence/Define/After.
 
+`After(g)` on a Group or Sequence waits for every Task declared into it. A collection already populated when it is named in `After` (or as the step before in a Sequence) is taken as declared. One named while still empty stays open, so a Task wired `After(g)` before the loop that fills `g` waits for every child; `g.Wait()`, a Wait on the dependent, or the end of the run closes it.
+
 ## Status
 
 **Architecture spec:** [v0.5](architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).

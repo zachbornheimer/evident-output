@@ -62,6 +62,17 @@ func (c *tasksState) nextStepPreds() []predecessor {
 	return c.entry
 }
 
+// appendStepPredsLocked appends what the next step declared into c starts
+// after, closing the membership of a populated collection among them (see
+// closeMembershipLocked).
+func (o *Output) appendStepPredsLocked(preds []predecessor, c *tasksState) []predecessor {
+	for _, p := range c.nextStepPreds() {
+		o.closeMembershipLocked(p)
+		preds = append(preds, p)
+	}
+	return preds
+}
+
 // recordStep makes step c's latest step when c is a Sequence. The next
 // step starts after this one alone: an empty nested collection answers for
 // the step before it (see collectionOutcomeLocked), so nothing earlier has

@@ -28,6 +28,7 @@ func (g *GroupHandle) Wait() error {
 	if err := g.out.refuseWaitUnderClaim(g.id, &stack); err != nil {
 		return err
 	}
+	g.out.sealCollection(g.id)
 	return waitDescendants(g.out.collectDescendantTasks(g.id), &stack)
 }
 
@@ -39,6 +40,17 @@ func (s *SequenceHandle) Wait() error {
 		return nil
 	}
 	return s.tasks.Wait()
+}
+
+// sealCollection takes the collection's membership as declared: a Wait
+// asks for its outcome now, so a Task wired After it may start once the
+// members declared so far succeed.
+func (o *Output) sealCollection(id string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if col := o.tasksByRef[id]; col != nil {
+		o.sealCollectionLocked(col)
+	}
 }
 
 // collectDescendantTasks returns every Task declared directly or

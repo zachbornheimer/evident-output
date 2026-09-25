@@ -96,7 +96,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState, key, parentKey 
 	st.handle = h
 	o.appendTaskLocked(st)
 	if col != nil {
-		st.sched.preds = append(st.sched.preds, col.nextStepPreds()...)
+		st.sched.preds = o.appendStepPredsLocked(st.sched.preds, col)
 		col.recordStep(predecessor{task: st})
 		col.tasks = append(col.tasks, st)
 		tallyDeclaredLocked(st)
@@ -158,7 +158,7 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 		o.collections = append(o.collections, st)
 	} else {
 		parentID = parent.id
-		st.entry = parent.nextStepPreds()
+		st.entry = o.appendStepPredsLocked(nil, parent)
 		parent.recordStep(predecessor{col: st})
 		parent.children = append(parent.children, st)
 	}

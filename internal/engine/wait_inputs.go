@@ -66,7 +66,7 @@ func (s *inputSeals) begin(root *taskState) bool {
 // sealInputsLocked walks everything root waits for, directly or through
 // its predecessors and the members of collections it runs After, and
 // seals what nothing will now supply: a Task nobody Defined settles
-// NotStarted, and a still-empty collection stops being waited on. It
+// NotStarted, and a collection's membership is taken as declared. It
 // skips what seen already holds, and reports whether it sealed anything.
 func (o *Output) sealInputsLocked(root *taskState, seen *inputSeals) bool {
 	if !seen.begin(root) {
@@ -133,12 +133,14 @@ func (w *inputWalk) visitCollection(c *tasksState) {
 	}
 	w.seen.cols[c] = struct{}{}
 	t := &c.tally
+	if !t.sealed {
+		// Nothing declared after this Wait walked can gate it: the
+		// collection's membership is taken as declared.
+		t.sealed = true
+		w.wake = append(w.wake, t.dependents...)
+		t.dependents = nil
+	}
 	if t.total == 0 {
-		if !t.sealed {
-			t.sealed = true
-			w.wake = append(w.wake, t.dependents...)
-			t.dependents = nil
-		}
 		// A sealed empty collection answers for its entry, so what the
 		// entry waits for is waited for too.
 		for _, p := range c.entry {
