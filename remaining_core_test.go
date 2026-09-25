@@ -21,7 +21,7 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Group("g")
 	succeed(g.Task("a"))
-	g.Task("b").Warn("soft")
+	g.Task("b").Problem("soft", evo.Severity(evo.SeverityWarning))
 	snap := g.Snapshot()
 	if snap.State != evo.Running && snap.State != evo.Incomplete {
 		t.Fatalf("state = %v, want Running or Incomplete (Warn no longer resolves its task)", snap.State)
@@ -41,7 +41,7 @@ func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	g := out.Group("capture")
 	succeed(g.Task("Brewfile"))
-	g.Task("Zen").Warn("skipped — zen-bootstrap not available")
+	g.Task("Zen").Problem("skipped — zen-bootstrap not available", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
 	_ = out.Close()
 
@@ -119,7 +119,7 @@ func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Println("log warning")
-	out.Task("i").Warn("item warning")
+	out.Task("i").Problem("item warning", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
 	s := buf.String()
 	if !strings.Contains(s, "log warning") || !strings.Contains(s, "item warning") {

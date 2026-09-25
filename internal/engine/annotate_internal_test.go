@@ -14,7 +14,7 @@ var annotationVerbs = map[string]func(*TaskHandle){
 	"Bytes":    func(t *TaskHandle) { t.Bytes(1, 2) },
 	"Step":     func(t *TaskHandle) { t.Step(1, 2, "item") },
 	"Summary":  func(t *TaskHandle) { t.Summary("ok") },
-	"Warn":     func(t *TaskHandle) { t.Warn("careful") },
+	"Warn":     func(t *TaskHandle) { t.Problem("careful", Severity(SeverityWarning)) },
 	"Problem":  func(t *TaskHandle) { t.Problem("broken") },
 	"Fact":     func(t *TaskHandle) { t.Fact("path", "/tmp/x") },
 }

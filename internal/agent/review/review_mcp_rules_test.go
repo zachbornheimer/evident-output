@@ -632,13 +632,13 @@ import evo "github.com/zachbornheimer/evident-output"
 func run(task *evo.TaskHandle) {
   task.Fact("merge markers", "none found")
   task.Fact("symlinks", "valid")
-  task.Warn("generated file looks stale")
+  task.Problem("generated file looks stale", evo.Severity(evo.SeverityWarning))
 }
 `
 	res := review.GoSource("integrity.go", src)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-045" {
-			t.Fatalf("false positive API-045 on Facts/Warn under one Task: %+v", f)
+			t.Fatalf("false positive API-045 on Facts/Problem under one Task: %+v", f)
 		}
 	}
 }

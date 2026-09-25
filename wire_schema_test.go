@@ -24,7 +24,7 @@ func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	succeed(out.Task("working tree"))
-	out.Task("branches").Warn("2 branches need attention")
+	out.Task("branches").Problem("2 branches need attention", evo.Severity(evo.SeverityWarning))
 	seq := out.Sequence("cleanup")
 	succeed(seq.Task("remove tags"))
 	_ = out.Finish()

@@ -4,15 +4,16 @@ import "github.com/zachbornheimer/evident-output/internal/text"
 
 // Fact is a durable, informational annotation — a discovered value attached
 // to a Task or to the run itself, never a lifecycle state (user-13-problems.md
-// Problem 8: "Tasks are work. Facts are information."). Fact and Problem
-// (Warn's payload) are evo-rec.md's one annotation shape at two severities —
-// info (Fact) and warning (Warn) — sharing one placement/rendering rule
-// (dim "name value" lines, nested under the owning scope) even though they
-// are stored as two Go types today: Problem already carries the richer
-// Warn/Fail/Block shape (Detail, Evidence, Actions, ...) that a bare
-// name/value Fact has no use for, so a full type-collapse would force every
-// Fact call to populate fields it never needs. Both flow through the same
-// DisplayUnit annotations slot at render time (see internal/render).
+// Problem 8: "Tasks are work. Facts are information."). Fact and Problem are
+// evo-rec.md's one annotation shape at two severities — info (Fact) and
+// warning (Problem at Severity(SeverityWarning); TaskHandle.Warn/Output.Warn/
+// evo.Warn were removed in 1.1) — sharing one placement/rendering rule (dim
+// "name value" lines, nested under the owning scope) even though they are
+// stored as two Go types today: Problem already carries the richer
+// Fail/Block shape (Detail, Evidence, Actions, ...) that a bare name/value
+// Fact has no use for, so a full type-collapse would force every Fact call
+// to populate fields it never needs. Both flow through the same DisplayUnit
+// annotations slot at render time (see internal/render).
 type Fact struct {
 	Name  string
 	Value string

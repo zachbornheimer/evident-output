@@ -117,9 +117,12 @@ func (o *Output) Suspend(fn func() error) error {
 
 func (o *Output) Task(name string) *TaskHandle { return wrapTask(o.impl().Task(name)) }
 
-// Warn accumulates a run-scoped warning. It takes the same structured
-// ProblemOptions as TaskHandle.Warn and Output.Fail.
-func (o *Output) Warn(summary string, options ...ProblemOption) { o.impl().Warn(summary, options...) }
+// Problem records one run-scoped Problem. With Severity(SeverityWarning)
+// it is a run-level warning that sets "warned"; with the default
+// SeverityError it is a run-level failure, as Fail records.
+func (o *Output) Problem(summary string, options ...ProblemOption) {
+	o.impl().Problem(summary, options...)
+}
 
 func (o *Output) Writer() io.Writer {
 	if o == nil || o.inner == nil {

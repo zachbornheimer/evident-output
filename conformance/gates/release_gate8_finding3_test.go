@@ -19,7 +19,7 @@ func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	succeed(out.Task("fetch"))
-	out.Task("cache").Warn("stale entry ignored")
+	out.Task("cache").Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
@@ -53,7 +53,7 @@ func TestConclusion_WarnOnlyRunStillCarriesWarnedModifier(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("cache").Warn("stale entry ignored")
+	out.Task("cache").Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)

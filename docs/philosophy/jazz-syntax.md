@@ -64,7 +64,7 @@ task.Bytes(24<<20, 80<<20) // byte progress — different measure
 ```
 
 ```go
-out.Task("credentials")  // condition — resolved directly (Done/Warn/Block/Fail/Skip)
+out.Task("credentials")  // condition — resolved directly (Done/Problem/Block/Fail/Skip, Warn removed in 1.1)
 out.Task("authenticate") // work — driven through Doing/Progress
 ```
 

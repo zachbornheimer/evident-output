@@ -13,11 +13,11 @@ One leaf entity, one constructor, plus two structural containers. A `Task` answe
 both questions "is this state acceptable?" and "how is this work going?" —
 which one depends on how it's used, not on a separate type:
 
-| Noun         | Meaning                                                                                                                                                        |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | A named condition or unit of work — its check or work runs in `Define`; `Warn`/`Block`/`Fail`/`Skipped` state a condition, `Doing`/`Progress` narrate **work** |
-| **Sequence** | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                               |
-| **Group**    | Independent collection — no ordering semantics; any number of children may be `Running` at once                                                                |
+| Noun         | Meaning                                                                                                                                                                                                                 |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**     | A named condition or unit of work — its check or work runs in `Define`; `Problem`/`Block`/`Fail`/`Skipped` state a condition (`Warn` removed in 1.1 — see `docs/migration/1.1.md`), `Doing`/`Progress` narrate **work** |
+| **Sequence** | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                                                                                        |
+| **Group**    | Independent collection — no ordering semantics; any number of children may be `Running` at once                                                                                                                         |
 
 Both containers derive their state entirely from their children — never
 `.Fail()` or a success stamp on the container itself (see RULE-002 below).

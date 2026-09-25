@@ -121,7 +121,7 @@ func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Warn("kept 11 (7 protected, 4 unpushed)")
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
 	succeed(branches)
 
 	if err := out.Finish(); err != nil {
@@ -147,8 +147,8 @@ func TestE1P2_Warn_MultipleWarningsNestUnderneath(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Warn("kept 11 (7 protected, 4 unpushed)")
-	branches.Warn("2 remotes unreachable")
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
+	branches.Problem("2 remotes unreachable", evo.Severity(evo.SeverityWarning))
 	succeed(branches)
 
 	if err := out.Finish(); err != nil {
@@ -169,7 +169,7 @@ func TestE1P2_Warn_DoesNotResolveTask(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 
 	task := out.Task("cache")
-	task.Warn("stale entry ignored")
+	task.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 	if got := task.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
 		t.Fatalf("state = %v, want non-terminal (Warn must not resolve the task)", got)
 	}
@@ -186,7 +186,7 @@ func TestE1P2_Warn_DoesNotResolveTask(t *testing.T) {
 func TestE1P2_Warn_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 
-	out.Task("cache").Warn("stale entry ignored")
+	out.Task("cache").Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (Warn-only task should auto-resolve Done)", err)
 	}

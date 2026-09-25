@@ -183,9 +183,10 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 }
 
 // sprintfInVerbPattern matches Fail/Block called with fmt.Sprintf as (the
-// start of) its argument list. Warn is deliberately excluded: it has no
-// Warnf sibling, and Warn(summary, options...) takes fmt.Sprintf as its
-// ordinary summary argument.
+// start of) its argument list. Problem/Doing are deliberately excluded:
+// they have no *f sibling and take fmt.Sprintf as an ordinary summary/text
+// argument (Warn was removed in 1.1 and would have been excluded the same
+// way).
 var sprintfInVerbPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*fmt\.Sprintf\(`)
 
 // detectSprintfInVerb is API-036: a Fail/Block(fmt.Sprintf(...))
@@ -503,8 +504,10 @@ func detectShadowedHandle(filename, src string) []Finding {
 	return findings
 }
 
-// crammedSummaryPattern matches a Fail/Warn/Block string literal summary.
-var crammedSummaryPattern = regexp.MustCompile(`\.(Fail|Warn|Block)\(\s*"([^"]*)"`)
+// crammedSummaryPattern matches a Fail/Block string literal summary (Warn
+// was removed in 1.1; a warning is now Problem(summary,
+// evo.Severity(evo.SeverityWarning)), out of scope for this pattern).
+var crammedSummaryPattern = regexp.MustCompile(`\.(Fail|Block)\(\s*"([^"]*)"`)
 
 // detectCrammedSummary is TXT-021: a summary that hand-assembles a
 // " — cause:"/" — action:" fragment reimplements Detail/Next inside plain text.

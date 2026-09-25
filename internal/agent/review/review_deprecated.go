@@ -70,10 +70,12 @@ var bareCausePattern = regexp.MustCompile(`evo\.Cause\(`)
 type retiredSpelling struct {
 	pattern *regexp.Regexp
 	// evoReceiverOnly restricts matches to receivers isEvoSurfaceRecv
-	// accepts, for names common outside evo (Plan, Changes, Capture).
+	// accepts, for names common outside evo (Plan, Changes, Capture, Warn).
 	evoReceiverOnly bool
 	message         string
 	suggest         func(recv string) string
+	// ruleID overrides the default API-032 finding id; empty keeps API-032.
+	ruleID string
 }
 
 // retiredSpellings are the removed spellings with a mechanical rewrite. A
@@ -115,7 +117,7 @@ var retiredSpellings = []retiredSpelling{
 		pattern: regexp.MustCompile(`\.Because\(`),
 		message: "Because was retired with Item — its text is now the resolving verb's own argument",
 		suggest: func(string) string {
-			return `replace OK().Because("text") with Summary("text").Define(...) (or fold into Warn/Block/Fail's summary)`
+			return `replace OK().Because("text") with Summary("text").Define(...) (or fold into Problem/Block/Fail's summary)`
 		},
 	},
 	{
@@ -125,6 +127,17 @@ var retiredSpellings = []retiredSpelling{
 		evoReceiverOnly: true,
 		message:         "Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr",
 		suggest:         func(recv string) string { return "replace " + recv + ".Capture(...) with " + recv + ".Evidence(...)" },
+	},
+	{
+		// Problem wins over Warn (owner vocabulary freeze, 2026-09-25):
+		// warning is a Problem severity, not a separate verb.
+		pattern:         regexp.MustCompile(`(\w+)\.Warn\(`),
+		evoReceiverOnly: true,
+		ruleID:          "API-070",
+		message:         "Warn was removed in 1.1 — Problem wins over Warn; warning is a Problem severity",
+		suggest: func(recv string) string {
+			return "replace " + recv + `.Warn("summary", opts...) with ` + recv + `.Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+		},
 	},
 }
 
@@ -139,8 +152,12 @@ func (r retiredSpelling) findings(filename, src string) []Finding {
 		if r.evoReceiverOnly && !isEvoSurfaceRecv(recv) {
 			continue
 		}
+		ruleID := "API-032"
+		if r.ruleID != "" {
+			ruleID = r.ruleID
+		}
 		out = append(out, Finding{
-			RuleID:     "API-032",
+			RuleID:     ruleID,
 			Message:    r.message,
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -150,12 +167,13 @@ func (r retiredSpelling) findings(filename, src string) []Finding {
 	return out
 }
 
-// detectDeprecatedSpellings is API-032: it catches every superseded spelling
-// with a fix, not a lecture — evo.New (evo.Init is the sole constructor),
-// the retiredSpellings table (Item, Plan, Changes, OK, Because, Capture),
-// evo.Cause (Failf/Blockf's trailing %w since Fail/Block are
-// statement-form), and the rec-surface spellings (Config.Options, Option
-// funcs, the mutation verbs removed in 1.1, Skip, ID, StartPhase).
+// detectDeprecatedSpellings is API-032 (plus API-070 for Warn): it catches
+// every superseded spelling with a fix, not a lecture — evo.New (evo.Init is
+// the sole constructor), the retiredSpellings table (Item, Plan, Changes,
+// OK, Because, Capture, Warn), evo.Cause (Failf/Blockf's trailing %w since
+// Fail/Block are statement-form), and the rec-surface spellings
+// (Config.Options, Option funcs, the mutation verbs removed in 1.1, Skip,
+// ID, StartPhase).
 func detectDeprecatedSpellings(in fileInput) []Finding {
 	var findings []Finding
 	if dialectAtLeast(in.desiredVersion, dialectFold) {

@@ -102,10 +102,12 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 }
 
 // anyTaskWarned reports whether any task in tasks carries at least one
-// TaskHandle.Warn annotation or Kept tally (P2: conclusion algebra reads
-// annotations, never a lifecycle state — Warning is not one of the terminal
-// EntityState values). A Kept tally renders the same "! kept N (...)" row a
-// Warn does, so it feeds the same "· warned" band (contract §18).
+// warning-severity Problem annotation (TaskHandle.Warn removed in 1.1;
+// use Problem(summary, evo.Severity(evo.SeverityWarning))) or Kept tally
+// (P2: conclusion algebra reads annotations, never a lifecycle state —
+// Warning is not one of the terminal EntityState values). A Kept tally
+// renders the same "! kept N (...)" row a warning-severity Problem does,
+// so it feeds the same "· warned" band (contract §18).
 func anyTaskWarned(tasks []TaskSnapshot) bool {
 	for _, t := range tasks {
 		if len(t.Warnings) > 0 || len(t.Kept) > 0 {
@@ -238,8 +240,10 @@ func InferConclusion(s Snapshot) Conclusion {
 		c.Cancelled = true
 	}
 	// warnedModifier feeds the "· warned" band from BOTH sources at warning
-	// severity — a task's TaskHandle.Warn and the run's own evo.Warn (P8
-	// symmetry) — while hasWarning above (task/collection only) still governs
+	// severity — a task's Problem(summary, evo.Severity(evo.SeverityWarning))
+	// and the run's own evo.Problem at the same severity (TaskHandle.Warn and
+	// evo.Warn were removed in 1.1; P8 symmetry) — while hasWarning above
+	// (task/collection only) still governs
 	// the (dead, reserved-unreachable) StateWarning headline case alone, so a
 	// bare evo.Warn on a run with no tasks never invents a new headline —
 	// it only modifies whatever the run otherwise concludes (evo-rec.md

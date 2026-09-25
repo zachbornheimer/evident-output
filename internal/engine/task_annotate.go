@@ -31,7 +31,7 @@ func resolvedByInterrupt(state EntityState) bool {
 }
 
 // annotate is the one guard every non-terminal annotation verb (Doing,
-// Progress, Bytes, Step, Summary, Warn, Problem, Fact) shares: under o.mu,
+// Progress, Bytes, Step, Summary, Problem, Fact) shares: under o.mu,
 // it applies apply to the task's state only while the task is open. On a
 // closed Output it records that misuse; on a terminal row it records
 // ErrAlreadyResolved, unless the interrupt sweep resolved the row (see
@@ -128,27 +128,6 @@ func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	o.signalLiveLocked(true)
 }
 
-// Warn accumulates a non-blocking warning on the task. It takes the same
-// structured ProblemOption metadata as Problem/Fail/Block
-// (Detail/Code/On/Location/Next). It never resolves the task ("warnings
-// annotate lifecycle; they do not replace it"), so call it any number of
-// times before the task resolves; a warned task that never resolves
-// auto-resolves Done at Finish. It returns t only so a call can chain, and
-// summary is never Sprintf-formatted.
-func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
-	p := applyProblemOptions(txt.Text(summary), opts)
-	return t.annotate(func(st *taskState) {
-		st.warnings = append(st.warnings, p)
-		if len(st.warnings) == 1 {
-			st.censusWarned()
-		}
-		t.out.bumpLocked()
-		t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
-		t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
-		t.out.signalLiveLocked(true)
-	})
-}
-
 // Summary sets one sanitized line of result text for the task's terminal
 // row: last call wins, empty clears it. It never resolves the task (Define
 // or the Evo-native operation outcome does), and it is not live activity
@@ -165,17 +144,22 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 	})
 }
 
-// Problem appends one blocking Problem to the task without resolving it,
-// so a Define callback may accumulate many structured findings: one owning
-// Task retains zero, one, or many Problems instead of a caller-invented
-// Task per finding or one newline-delimited error string. The Problem is
-// part of the Task from the moment it is recorded (Snapshot, live render,
-// JSON), order preserved, nothing dropped. A Task holding a Problem can
-// never settle success-class: Done, Skipped, or Finish's amnesty for an
-// unresolved Task all settle Failed instead (see honestOutcome). Problem
-// returns t so calls chain: task.Problem(...).Problem(...).
+// Problem appends one Problem to the task without resolving it, so a
+// Define callback may accumulate many structured findings: one owning Task
+// retains zero, one, or many Problems instead of a caller-invented Task per
+// finding or one newline-delimited error string. Order is preserved and
+// nothing is dropped. It returns t so calls chain.
+//
+// Severity decides what the Problem does to the Task. The default,
+// SeverityError, means the Task can never settle success-class: Done,
+// Skipped, or Finish's amnesty for an unresolved Task all settle Failed
+// instead (see honestOutcome). SeverityWarning annotates only: it sets
+// "warned", renders as a warning row, and never fails the Task.
 func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)
+	if p.IsWarning() {
+		return t.annotate(func(st *taskState) { t.recordWarningLocked(st, p) })
+	}
 	return t.annotate(func(st *taskState) {
 		st.problems = append(st.problems, core.StoreProblems([]Problem{p})...)
 		t.out.bumpLocked()
@@ -185,11 +169,25 @@ func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle 
 	})
 }
 
-// Fact accumulates a discovered name/value annotation on the task — info
-// severity, Warn's non-terminal sibling (user-13-problems.md Problem 8:
-// "Tasks are work. Facts are information."). Renders as a dim "name  value"
-// line, inline when it is the task's only annotation, nested otherwise.
-// Like Warn, it returns the Task for chaining and never resolves it — call
+// recordWarningLocked stores a warning-severity Problem on st. Warnings
+// annotate lifecycle; they never replace it, so a warned task that never
+// resolves still auto-resolves Done at Finish. Callers hold t.out.mu.
+func (t *TaskHandle) recordWarningLocked(st *taskState, p Problem) {
+	st.warnings = append(st.warnings, p)
+	if len(st.warnings) == 1 {
+		st.censusWarned()
+	}
+	t.out.bumpLocked()
+	t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
+	t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
+	t.out.signalLiveLocked(true)
+}
+
+// Fact accumulates a discovered name/value annotation on the task — info,
+// the non-terminal sibling of a warning Problem (user-13-problems.md
+// Problem 8: "Tasks are work. Facts are information."). Renders as a dim
+// "name  value" line, inline when it is the task's only annotation, nested
+// otherwise. Like Problem, it returns the Task for chaining and never resolves it — call
 // it any number of times before the task's terminal verb.
 func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	f := core.SanitizeFact(FactRecord{Name: txt.Text(name), Value: txt.Text(value)})

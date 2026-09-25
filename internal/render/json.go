@@ -49,8 +49,9 @@ type ConclusionJSON struct {
 	Partial   bool                 `json:"partial"`
 	Cancelled bool                 `json:"cancelled"`
 	// Warned mirrors core.Conclusion.Warned (v0.4.0/P8, wire 0.4): at least
-	// one task warned (or a run-scoped evo.Warn fired) without the run
-	// otherwise failing/blocking. The 0.3 wire had no field for this at
+	// one task warned (or a run-scoped warning-severity Problem fired —
+	// evo.Warn was removed in 1.1) without the run otherwise
+	// failing/blocking. The 0.3 wire had no field for this at
 	// all — a warned run's conclusion band and its JSON document could
 	// disagree for a machine consumer.
 	Warned      bool   `json:"warned"`

@@ -17,7 +17,7 @@ wrong or this doc is; file it either way.
 
 **Partial commits:** an `Effect` callback that committed part of its aggregate before failing returns `evo.PartialEffect(committed, err)`. `Effect` records one changed row with the spec's Verb and Object and `Quantity: committed` (none for 0), then returns an error that keeps `err` reachable through `errors.Is`/`errors.As`, so the Task fails while the ledger stays truthful — human rows, JSON, and the JSONL `effect.committed` payload all carry the committed count. A nil `err`, a negative `committed`, or more than `EffectSpec.Quantity` returns `ErrInvalidPartialEffect` and records nothing. Dry runs never call the callback, so they plan the full `Quantity`. `PartialEffect` is not a retry protocol and implies no rollback.
 **Loops and taxonomy:** declare one named child per item under `Group`/`Sequence` (`group.Task(name)`), then `Task.Define` submits that item's atomic work — `Group.Each`/`Sequence.Each` were removed in 1.0; `Task.Skipped(reason)` / `Task.Kept(reason)` own the counted, summed skip/keep partition (the item name is the Task name): call one per item Task, `group.Task(item).Kept(reason)`, never twice on one Task. Human output folds a Group's Kept/Skipped item children (two or more; a lone one keeps its named row) into one tally under the Group's row (`! kept N (...)` / `- skipped N (...)`) when the Group's own row names their subject — its own Task (below) or its own `Summary` — or when no sibling finished work of its own. Beside such a work peer, a Skipped/Kept child is a peer category and keeps its named row. `--verbose` lists the items under each reason; JSON/JSONL keep every child. **Own Task:** a Group's child Task named for the Group itself (`items := g.Group("branches"); work := items.Task("branches")`) is the Group's _own Task_ — the category's own work (classify, `Summary`, `Effect`), not one of its items. A Group has no `Define`, and an `Effect`'s ledger subject is its Task's name, so a category's plan (`[planned] branches  delete 87 local tips`) is owned by the Task that shares the category's name. When the own Task is the Group's only row after its items fold (no Group `Summary`, no nested Group/Sequence), the Group renders as that one row plus its tally. The own Task is never folded as an item, even when it only resolved `Skipped`; a child with any other name never stands in for its Group. `Task.Step(completed, total, name)` sets the count and the live item name together under one lock; Isolated+Plain does not stream a durable phase line per name.
-**Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error. `question` is literal text, not a printf format — Confirm is the one entity-text spelling that takes no variadic fmt args (every other one — Task/Warn/Doing/Sequence/Group/Reason — is printf-variadic), so build the string yourself (`fmt.Sprintf`) before calling. A decline resolves `[blocked]` → exit `1` (see the README's exit-code table) — pass `AssumeYes` (or check a separate flag before calling Confirm at all) if declining should exit `0` instead. The default policy hint names a `--yes` flag; pass `evo.PolicyFlag("--apply")` when your program's real flag is spelled differently.
+**Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error. `question` is literal text, not a printf format — Confirm is the one entity-text spelling that takes no variadic fmt args (every other one — Task/Doing/Sequence/Group/Reason — is printf-variadic), so build the string yourself (`fmt.Sprintf`) before calling. A decline resolves `[blocked]` → exit `1` (see the README's exit-code table) — pass `AssumeYes` (or check a separate flag before calling Confirm at all) if declining should exit `0` instead. The default policy hint names a `--yes` flag; pass `evo.PolicyFlag("--apply")` when your program's real flag is spelled differently.
 **Capture:** `cmd.Stdout = task.Writer()` (and stderr the same way) turns a talkative child's last line into the live doing-text and retains a bounded, redacted ring for Fail evidence. `Config.Redactor` applies before retention. Do not clear the live region around a child.
 **Platform:** `Format: FormatData` keeps domain payload on stdout and presentation on stderr.
 
@@ -50,7 +50,7 @@ and more than once (idempotent); prefer `defer out.Close()` right after
 
 | Shape        | Use when                                                                                                                                                                         |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | One atomic unit — its check or work submitted with `Define` (success is the callback returning `nil`); `Warn`/`Block`/`Fail`/`Skipped` state a condition directly                |
+| **Task**     | One atomic unit — its check or work submitted with `Define` (success is the callback returning `nil`); `Problem`/`Block`/`Fail`/`Skipped` state a condition directly             |
 | **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children                                                                       |
 | **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both Group and Sequence nest recursively via `.Sequence`/`.Group` |
 
@@ -71,15 +71,15 @@ If the answers are no, it probably is not a Task.
 
 `Group` and `Sequence` **organize** work — they are never themselves fake work created only to earn a success row. `Task("fix")` that really owns several independently meaningful operations should become `Group("prepare staged files")` (or `Sequence`) with each operation as its own verb+object Task underneath; the container header's own visibility is a renderer decision, independent of whether the header deserves a row at all. Human output drops a `Group` header that has no `Summary` of its own (its children render as siblings; while children are still running the live header stays, because its `N/M complete` count is the Group's own progress). A flattened child whose name another row beside it also shows is named by its container path (`g › build`), the same way the ledger names a section, so two Groups' failing `build` rows never read as one; a unique name stays bare. Human output also drops a finished no-op child (Done, no-work or already-satisfied, nothing else on it, no effect named for it) whenever other content is visible and the run did not fail, block or cancel. A root Task that simply finishes stays a landmark; only one proven already-satisfied by `Verify` is dropped there. A `Sequence` keeps its header and steps. JSON and JSONL always keep every Group and Task. `[planned]`/`[changed]` rows print in Task declaration order. A cancelled run ends `[cancelled] <subject>  by user`, plus `! partial changes were applied before cancellation` only when an Effect committed.
 
-One Task may still make several internal observations without promoting each predicate to a sibling Task: `check file integrity` can inspect merge markers, path validity, staged/worktree consistency, symlinks, and generated-file corruption, and report them all as `Fact`/`Warn`/`Problem` evidence under the one Task that answers a single user-meaningful question. Only split an observation into its own Task when it has an independently meaningful lifecycle/remediation and can run on its own. `TaskHandle` intentionally has no `.Task`/`.Group`/`.Sequence` child constructors — only `Output`, `GroupHandle`, and `SequenceHandle` declare children, so a Task cannot structurally grow a container of its own; review (`API-045`) teaches the semantic half of this boundary that a compile-time signature cannot decide.
+One Task may still make several internal observations without promoting each predicate to a sibling Task: `check file integrity` can inspect merge markers, path validity, staged/worktree consistency, symlinks, and generated-file corruption, and report them all as `Fact`/`Problem` evidence under the one Task that answers a single user-meaningful question. Only split an observation into its own Task when it has an independently meaningful lifecycle/remediation and can run on its own. `TaskHandle` intentionally has no `.Task`/`.Group`/`.Sequence` child constructors — only `Output`, `GroupHandle`, and `SequenceHandle` declare children, so a Task cannot structurally grow a container of its own; review (`API-045`) teaches the semantic half of this boundary that a compile-time signature cannot decide.
 
 ## Severity dialect
 
-| Outcome   | Meaning                                                                       |
-| --------- | ----------------------------------------------------------------------------- |
-| **Warn**  | Soft concern or **optional** tool missing; command may continue               |
-| **Block** | Policy / precondition failed; **stop before mutation** (evaluation succeeded) |
-| **Fail**  | Evaluation failed or **required** tool/IO failed                              |
+| Outcome               | Meaning                                                                                       |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| **Problem (warning)** | Soft concern or **optional** tool missing; command may continue — `Severity(SeverityWarning)` |
+| **Block**             | Policy / precondition failed; **stop before mutation** (evaluation succeeded)                 |
+| **Fail**              | Evaluation failed or **required** tool/IO failed                                              |
 
 `Block` ≠ Go `error`. After Block, return nil from `run` and let `Main` exit `1`.
 
@@ -111,9 +111,10 @@ settle it **Failed** instead: accumulated blocking evidence always
 overrides a claimed clean outcome. The Task still resolves exactly once regardless of
 how many Problems it owns.
 
-`Warn(summary, opts...)` takes the same `ProblemOption`s (`Detail`, `Code`,
-`On`, `Location`, `Next`, ...) for a non-blocking finding with the same
-structured metadata — it never resolves the task either.
+`Problem(summary, opts..., evo.Severity(evo.SeverityWarning))` records the same finding as a
+non-blocking warning with the same structured `ProblemOption`s (`Detail`, `Code`, `On`, `Location`,
+`Next`, ...) — it sets `warned` and never fails the owning `Define`. (`Warn` was removed in 1.1: Problem
+wins over Warn — warning is a Problem severity, not a separate verb.)
 
 A `Kept(reason)` record warns the run the same way (contract §18): the
 Task left items it was asked to act on, so it renders `! kept N (...)` and
@@ -193,7 +194,7 @@ Reads share. Any overlapping pair that includes a write waits: filesystem claims
 
 | Type         | Meaning                                                                                                               |
 | ------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `Task`       | One atomic unit — submitted with Define, or stated directly (Warn/Block/Fail/Skipped)                                 |
+| `Task`       | One atomic unit — submitted with Define, or stated directly (Problem/Block/Fail/Skipped)                              |
 | `Group`      | Independent collection of tasks (state is **derived**); scheduler may overlap eligible children                       |
 | `Sequence`   | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                                    |
 | `Problem`    | Structured evidence for warn / block / fail; a Task accumulates many via `Problem(...)` before it resolves once       |

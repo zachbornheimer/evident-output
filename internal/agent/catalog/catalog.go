@@ -106,9 +106,9 @@ names a subject, not the work (API-045); "fix" organizes several independently m
 instead of being one itself (API-045) — prefer a Group/Sequence such as Group("prepare staged files") with real
 verb+object Tasks underneath. One Task may still make several internal observations — "check file integrity" can
 inspect merge markers, path validity, symlinks, generated-file corruption — without turning each predicate into a
-sibling Task: report them as Fact/Warn/Problem evidence under the one Task that answers the single user-meaningful
-question, and only split one out into its own Task when it has an independently meaningful lifecycle/remediation
-and can run on its own.
+sibling Task: report them as Fact/Problem evidence under the one Task that answers the single user-meaningful
+question (Warn removed in 1.1 — a warning is a Problem severity), and only split one out into its own Task when it
+has an independently meaningful lifecycle/remediation and can run on its own.
 
 Do not hand-pick rows: a Group with no Summary renders no header of its own, a finished no-op child is hidden while
 other content shows, [planned]/[changed] rows follow Task declaration order, and a cancelled run prints
@@ -165,10 +165,12 @@ human output bounds how many render inline.
 Facts vs Tasks (v0.4.0/P8): discovered information ("repository /repo", "language go", "config loaded") is not
 work — never fake a checkmark Task to display it. Use task.Fact(name, value) (attached to the Task that
 discovered it) or evo.Fact(name, value) (run-scoped) instead; both render as a durable dim "name  value" line,
-never a lifecycle row, fire-and-forget. task.Warn(...)/evo.Warn(...) are the warning-severity sibling — an
-annotation on the lifecycle, never a replacement for it (a warned-but-unresolved Task auto-resolves Done at
-Finish). Both flow through the same placement rule: inline on the row when it is the only annotation, nested dim
-lines otherwise.`,
+never a lifecycle row, fire-and-forget. task.Problem(summary, evo.Severity(evo.SeverityWarning))/
+out.Problem(summary, evo.Severity(evo.SeverityWarning)) are the warning-severity sibling (Warn was removed in
+1.1 — Problem wins over Warn; warning is a Problem severity; there is no package-level evo.Problem, since Problem
+is already the exported type) — an annotation on the lifecycle, never a replacement for it, and it never fails
+the owning Define. Both flow through the same placement rule: inline on the row when it is the only annotation,
+nested dim lines otherwise.`,
 			TokenEstimate: 320,
 		},
 		{

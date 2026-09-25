@@ -73,7 +73,7 @@ func main() {
 		})
 		check("remotes", func(remotes *evo.TaskHandle) {
 			if !*clean {
-				remotes.Warn("origin was not reachable")
+				remotes.Problem("origin was not reachable", evo.Severity(evo.SeverityWarning))
 			}
 		})
 		check("stashes", passes)

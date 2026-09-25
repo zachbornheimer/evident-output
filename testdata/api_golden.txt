@@ -25,13 +25,13 @@ func (Output) NextCommand(executable string, args ...string)
 func (Output) Print(args ...any)
 func (Output) Printf(format string, args ...any)
 func (Output) Println(args ...any)
+func (Output) Problem(summary string, options ...ProblemOption)
 func (Output) ResultWriter()  io.Writer
 func (Output) Run(ctx context.Context, run RunFunc)  Result
 func (Output) Sequence(name string)  *SequenceHandle
 func (Output) Snapshot()  Snapshot
 func (Output) Suspend(fn func() error)  error
 func (Output) Task(name string)  *TaskHandle
-func (Output) Warn(summary string, options ...ProblemOption)
 func (Output) Writer()  io.Writer
 func (Printer) Print(args ...any)
 func (Printer) Printf(format string, args ...any)
@@ -66,7 +66,6 @@ func (TaskHandle) Step(completed, total int, name string)  *TaskHandle
 func (TaskHandle) Summary(text string)  *TaskHandle
 func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
-func (TaskHandle) Warn(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
 func AlsoWrite(w io.Writer)  Option
@@ -144,6 +143,7 @@ func Run(ctx context.Context, run RunFunc)  Result
 func Runner(r ProcessRunner)  Option
 func Sequence(name string)  *SequenceHandle
 func SetDefault(out *Output)
+func Severity(value ProblemSeverity)  ProblemOption
 func SlogHandler()  slog.Handler
 func Stdin(r io.Reader)  Option
 func Strict()  Option
@@ -155,7 +155,6 @@ func TruncateNames(names []string, visible int)  string
 func Value(name string, v any)  Fingerprint
 func Verbose()  *Printer
 func VisibilityDelay(delay time.Duration)  Option
-func Warn(summary string, options ...ProblemOption)
 func Width(columns int)  Option
 func WriteJSON(w io.Writer, result Result)  error
 type Action
@@ -219,6 +218,7 @@ type PlanSnapshot
 type Printer
 type Problem
 type ProblemOption
+type ProblemSeverity
 type ProcessCommand
 type ProcessOutcome
 type ProcessRunner
@@ -347,6 +347,8 @@ value ResolutionAlreadySatisfied
 value ResolutionExecuted
 value ResolutionNoWork
 value Running
+value SeverityError
+value SeverityWarning
 value Skipped
 value StateBlocked
 value StateCancelled

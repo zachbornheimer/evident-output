@@ -10,6 +10,14 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Added
 
+- **`ProblemSeverity`, `SeverityError`, `SeverityWarning`, and
+  `evo.Severity(value ProblemSeverity) ProblemOption`:** a `Problem`
+  defaults to `SeverityError` (fails its owning Define, like today); a
+  `Severity(SeverityWarning)` Problem sets `warned` and never fails
+  anything. This is the `Warn` replacement — see Removed.
+- **Review rule API-070:** flags `TaskHandle.Warn`, `Output.Warn`, and
+  `evo.Warn` (all removed in 1.1) and suggests the mechanical
+  `Problem(summary, opts..., evo.Severity(evo.SeverityWarning))` rewrite.
 - **Review rule EVO-EXIT-002:** flags `evo.Main(run)` written as a bare
   statement (or `_ = evo.Main(run)`). `Main` returns the exit code and
   never exits the process itself, so that program exits 0 after a failed
@@ -167,6 +175,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `evo.Effect` (closed `EffectVerb` set), information through `Fact`, a file
   write through `evo.File`/`evo.Patch`. MCP review (API-061) names the exact
   replacement for each call shape.
+- **`TaskHandle.Warn`, `Output.Warn`, and `evo.Warn`** were removed with no
+  alias (owner vocabulary freeze, 2026-09-25): Problem wins over Warn — a
+  warning is a `Problem` severity, not a separate verb. Use
+  `Problem(summary, opts..., evo.Severity(evo.SeverityWarning))`; a Problem
+  defaults to the new `SeverityError` and only an error Problem fails its
+  owning Define. MCP review (API-070) rewrites every removed call shape.
 - **`evo.ID`, `evo.StartPhase`, and `evo.EntityOption`** were removed with
   no aliases. `Task` is name-only, so no API accepted an `EntityOption`:
   both constructors built values nothing consumed. Stable identity is

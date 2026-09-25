@@ -22,7 +22,7 @@ func TestLiveCensusMatchesAWalk(t *testing.T) {
 	a.Task("ok").Define(func(context.Context) error { return nil })
 	a.Task("bad").Define(func(context.Context) error { return errors.New("boom") })
 	warned := b.Task("warned")
-	warned.Define(func(context.Context) error { warned.Warn("careful"); return nil })
+	warned.Define(func(context.Context) error { warned.Problem("careful", Severity(SeverityWarning)); return nil })
 	skipped := b.Task("skipped")
 	skipped.Define(func(context.Context) error { skipped.Skipped(Reason("n/a")); return nil })
 	_ = root.Wait()

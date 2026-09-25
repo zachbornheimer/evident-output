@@ -165,8 +165,8 @@ var fileDetectors = []detector{
 	// DOM-021: a Task declared in a function that never Defines,
 	// resolves, or hands it on — its row stays unresolved.
 	{needsEvo: true, run: astRule(detectUnresolvedTask)},
-	// TXT-021: a Fail/Warn/Block summary hand-assembles a " — cause:"/
-	// " — action:" fragment instead of using Detail/Next.
+	// TXT-021: a Fail/Block summary (Warn removed in 1.1) hand-assembles a
+	// " — cause:"/" — action:" fragment instead of using Detail/Next.
 	{needsEvo: true, run: textRule(detectCrammedSummary)},
 	// FP-005: Task created and Done with no Doing/Progress/Writer window.
 	{needsEvo: true, run: astRule(detectInstantDone)},

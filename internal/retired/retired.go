@@ -66,12 +66,24 @@ var symbols = []Symbol{
 	{Contract: "TaskHandle.RecordLabel(", RemovedIn: Release1_1, Replacement: "Fact", Taught: regexp.MustCompile(`\bRecordLabel\(`)},
 	{Contract: "TaskHandle.RecordName(", RemovedIn: Release1_1, Replacement: "Fact", Taught: regexp.MustCompile(`\bRecordName\(`)},
 
+	// Owner vocabulary freeze: a warning is a Problem severity, not a
+	// second verb. One entry covers TaskHandle.Warn, Output.Warn, and
+	// the package-level evo.Warn; slog's Logger.Warn is not evo API.
+	{Contract: "Warn", RemovedIn: Release1_1, Replacement: "Problem(summary, evo.Severity(evo.SeverityWarning))", Taught: warnTaught},
+
 	// Task is name-only, so nothing accepted an EntityOption: ID and
 	// StartPhase built values no API consumed (PHIL-007).
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
 }
+
+// warnTaught matches the removed Warn taught as a call on an evo receiver
+// (task.Warn, evo.Warn, Output.Warn) or as a member of an outcome-verb list
+// ("Fail/Warn/Block"). A bare logger.Warn is slog, not evo.
+var warnTaught = regexp.MustCompile(`\b(?:evo|Output|TaskHandle|[Tt]ask\w*|out)\.Warn\b` +
+	"|\\bWarn`?/`?(?:Block|Fail|Problem|Cancel|Skipped|Fact|Summary)\\b" +
+	"|\\b(?:Block|Fail|Problem|Cancel|Skipped|Fact|Summary)`?/`?Warn\\b")
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose
 // (Task.Delete), as a call (task.Delete("worktree", fn)), as the

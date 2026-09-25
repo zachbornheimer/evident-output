@@ -9,7 +9,7 @@ import (
 
 // Fail records an output-level failure.
 func (o *Output) Fail(summary string, options ...ProblemOption) {
-	o.failWith(applyProblemOptions(txt.Text(summary), options))
+	o.failWith(applyOutcomeProblemOptions(txt.Text(summary), options))
 }
 
 // Failf records an output-level failure with a formatted summary. fmt.Errorf

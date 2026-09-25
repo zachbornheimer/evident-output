@@ -21,16 +21,41 @@ type Problem struct {
 	// When Detail is empty, EvidenceTail alone renders as the problem's detail
 	// body (DetailTail's original, still-supported shape).
 	EvidenceTail string
-	Severity     string
-	Count        int64
-	Unit         string
-	Location     *SourceLocation
-	Evidence     []Attachment
-	Actions      []Action
-	Fields       []Field
-	Cause        error
-	Sensitive    bool
+	// Severity is error (the zero value normalizes to it) or warning. A
+	// warning never fails the Task or run it is recorded on.
+	Severity  ProblemSeverity
+	Count     int64
+	Unit      string
+	Location  *SourceLocation
+	Evidence  []Attachment
+	Actions   []Action
+	Fields    []Field
+	Cause     error
+	Sensitive bool
 }
+
+// ProblemSeverity says whether a Problem fails the work it is recorded on
+// (SeverityError, the default) or only warns (SeverityWarning).
+type ProblemSeverity string
+
+const (
+	// SeverityError fails the owning Define (or the run) when recorded.
+	SeverityError ProblemSeverity = "error"
+	// SeverityWarning sets "warned" and never fails anything.
+	SeverityWarning ProblemSeverity = "warning"
+)
+
+// normalized closes the enum: only SeverityWarning warns; the zero value
+// and any unknown spelling are SeverityError, the side that fails loudly.
+func (s ProblemSeverity) normalized() ProblemSeverity {
+	if s == SeverityWarning {
+		return SeverityWarning
+	}
+	return SeverityError
+}
+
+// IsWarning reports whether p only warns rather than fails.
+func (p Problem) IsWarning() bool { return p.Severity.normalized() == SeverityWarning }
 
 // SourceLocation is a path-based source position. Named SourceLocation
 // (not Location) so the Location(...) ProblemOption constructor can keep
@@ -107,7 +132,7 @@ func SanitizeProblem(p Problem) Problem {
 	p.Subject = text.Text(p.Subject)
 	p.Code = text.Text(p.Code)
 	p.Unit = text.Text(p.Unit)
-	p.Severity = text.Text(p.Severity)
+	p.Severity = p.Severity.normalized()
 	if p.Location != nil {
 		loc := *p.Location
 		loc.Path = text.Text(loc.Path)

@@ -1718,6 +1718,44 @@ func f(task *evo.TaskHandle) {
 	}
 }
 
+func TestAPI070_WarnRemovedInFavorOfProblemSeverity(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Warn("tool version differs from manifest")
+}
+`
+	res := review.GoSource("warn.go", src)
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			found = append(found, f)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected one API-070 finding for Warn, got %+v", found)
+	}
+	want := `replace task.Warn("summary", opts...) with task.Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	if found[0].Suggestion != want {
+		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
+	}
+}
+
+func TestAPI070_NoFalsePositiveOnSlogWarn(t *testing.T) {
+	src := `package p
+import "log/slog"
+func f(logger *slog.Logger) {
+  logger.Warn("registry request slow", "duration", "4s")
+}
+`
+	res := review.GoSource("slogwarn.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			t.Fatalf("API-070 must not fire on a non-evo receiver's Warn: %+v", f)
+		}
+	}
+}
+
 func TestAPI033_NameEqualsSkipArgument(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
@@ -1943,25 +1981,27 @@ func f(task *evo.TaskHandle, path string) {
 	}
 }
 
-// TestAPI038_WarnFlattensNotWarnf proves the Warn case flattens into Warn's
-// own variadic form rather than repeating API-036's now-stale suggestion of
-// a Warnf method that no longer exists (P1/P2 deleted it).
-func TestAPI038_WarnFlattensNotWarnf(t *testing.T) {
+// TestAPI038_DoingFlattensNotDoingf proves the Doing case flattens into
+// Doing's own variadic form rather than repeating API-036's now-stale
+// suggestion of a Doingf method that no longer exists (P1/P2 deleted it).
+// Warn itself was removed in 1.1 (Problem wins over Warn), so this no
+// longer exercises Warn — Doing is printf-variadic the same way.
+func TestAPI038_DoingFlattensNotDoingf(t *testing.T) {
 	src := `package p
 import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output"
 )
 func f(task *evo.TaskHandle, n int) {
-  task.Warn(fmt.Sprintf("kept %d", n))
+  task.Doing(fmt.Sprintf("kept %d", n))
 }
 `
-	res := review.GoSource("sprintfwarn.go", src)
+	res := review.GoSource("sprintfdoing.go", src)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-036" {
-			t.Fatalf("API-036 must not fire on Warn (Warnf does not exist): %+v", f)
+			t.Fatalf("API-036 must not fire on Doing (Doingf does not exist): %+v", f)
 		}
-		if f.RuleID == "API-038" && f.Suggestion != `task.Warn("kept %d", n)` {
+		if f.RuleID == "API-038" && f.Suggestion != `task.Doing("kept %d", n)` {
 			t.Fatalf("suggestion = %q", f.Suggestion)
 		}
 	}
