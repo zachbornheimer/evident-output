@@ -536,15 +536,15 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 
 // TestWireEvents_WarningRecordedCarriesEvidenceTail is
 // TestWireEvents_ProblemRecordedCarriesEvidenceTail's warning.recorded
-// counterpart (task.go:290 — Warn's own emitWireEventLocked call was
-// untested).
+// counterpart (task.go:290 — the warning-severity Problem's own
+// emitWireEventLocked call was untested).
 func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
 	task := out.Task("build")
 	tail := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(tail, "warning: deprecated flag used")
-	task.Warn("non-blocking finding", tail.DetailTail())
+	task.Problem("non-blocking finding", tail.DetailTail(), Severity(SeverityWarning))
 	task.Define(func(context.Context) error { return nil })
 	_ = task.Wait()
 	if err := out.Finish(); err != nil {
@@ -562,13 +562,13 @@ func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 	}
 }
 
-// TestWireEvents_RunWarningCarriesItsProblemOptions proves a run-level
-// Output.Warn's warning.recorded line carries the same structured fields
-// a Task warning's does, not just its summary.
+// TestWireEvents_RunWarningCarriesItsProblemOptions proves a run-level,
+// warning-severity Output.Problem's warning.recorded line carries the same
+// structured fields a Task warning's does, not just its summary.
 func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
 	var stdout nopFlushWriter
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
-	out.Warn("disk nearly full", Code("W_DISK"), Detail("92% used"), Location("/var", 0, 0))
+	out.Problem("disk nearly full", Code("W_DISK"), Detail("92% used"), Location("/var", 0, 0), Severity(SeverityWarning))
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
@@ -724,7 +724,7 @@ func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) 
 	task := out.Task("audit")
 	task.Problem("finding one", Code("A1"))
 	task.Problem("finding two", Code("A2"))
-	task.Warn("heads up", Code("W1"))
+	task.Problem("heads up", Code("W1"), Severity(SeverityWarning))
 	task.Define(func(context.Context) error { return nil })
 	_ = task.Wait()
 	if err := out.Finish(); err != nil {

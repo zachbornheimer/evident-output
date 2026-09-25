@@ -163,7 +163,7 @@ it.Start()
 it.Define(checkDiskSpace)`,
 			GoodCode: `it := out.Task("disk space")
 it.Define(checkDiskSpace)`,
-			Remediation:     "Call Define (or Warn/Block/Fail) directly; remove the explicit Start call",
+			Remediation:     "Call Define (or Problem/Block/Fail) directly; remove the explicit Start call",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-006"},
 			Since:           "0.1.0",

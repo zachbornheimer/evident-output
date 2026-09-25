@@ -84,11 +84,10 @@ func PolicyHint(command string, args ...string) ConfirmOption {
 	return engine.PolicyHint(command, args...)
 }
 
-func Fact(name, value string)                       { engine.Fact(name, value) }
-func Warn(summary string, options ...ProblemOption) { engine.Warn(summary, options...) }
-func Delay(d time.Duration) *time.Duration          { return engine.Delay(d) }
-func DefaultConfig() Config                         { return engine.DefaultConfig() }
-func IsCharDevice(w io.Writer) bool                 { return engine.IsCharDevice(w) }
+func Fact(name, value string)              { engine.Fact(name, value) }
+func Delay(d time.Duration) *time.Duration { return engine.Delay(d) }
+func DefaultConfig() Config                { return engine.DefaultConfig() }
+func IsCharDevice(w io.Writer) bool        { return engine.IsCharDevice(w) }
 func Pluralize(quantity int64, singular string) string {
 	return engine.Pluralize(quantity, singular)
 }

@@ -4,7 +4,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
-// ProblemOption configures a problem constructed by Block/Warn/Fail helpers.
+// ProblemOption configures a Problem recorded by Problem, Fail, or Block.
 type ProblemOption interface {
 	applyProblem(*Problem)
 }
@@ -12,6 +12,13 @@ type ProblemOption interface {
 type problemOptionFunc func(*Problem)
 
 func (f problemOptionFunc) applyProblem(p *Problem) { f(p) }
+
+// Severity sets whether a Problem fails its work (SeverityError, the
+// default) or only warns (SeverityWarning). Fail and Block are outcomes,
+// so their Problem is always SeverityError whatever this says.
+func Severity(value ProblemSeverity) ProblemOption {
+	return problemOptionFunc(func(p *Problem) { p.Severity = value })
+}
 
 // Detail sets user-visible detail text (strings only).
 func Detail(text string) ProblemOption {
@@ -68,4 +75,13 @@ func applyProblemOptions(summary string, opts []ProblemOption) Problem {
 	}
 	// Single CSI/control neutralization boundary for every construction path.
 	return core.SanitizeProblem(p)
+}
+
+// applyOutcomeProblemOptions is applyProblemOptions for Fail and Block: an
+// outcome's Problem is the reason the work failed, so it is always
+// SeverityError.
+func applyOutcomeProblemOptions(summary string, opts []ProblemOption) Problem {
+	p := applyProblemOptions(summary, opts)
+	p.Severity = SeverityError
+	return p
 }

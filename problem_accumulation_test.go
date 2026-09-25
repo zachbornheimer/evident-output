@@ -241,20 +241,22 @@ func TestProblem_SurvivesInJSON(t *testing.T) {
 	}
 }
 
-// TestWarn_AcceptsStructuredProblemOptions is the acceptance item "warning
-// Problems can carry the same useful structured metadata where
-// appropriate" — Warn now takes Detail/Code/Location like Problem/Fail/
-// Block do, and the metadata is retained on the Snapshot's Warnings.
-func TestWarn_AcceptsStructuredProblemOptions(t *testing.T) {
+// TestProblem_WarningSeverityAcceptsStructuredOptions is the acceptance
+// item "warning Problems can carry the same useful structured metadata
+// where appropriate" — a Severity(SeverityWarning) Problem takes the same
+// Detail/Code/Location options an error-severity Problem/Fail/Block does,
+// and the metadata is retained on the Snapshot's Warnings.
+func TestProblem_WarningSeverityAcceptsStructuredOptions(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("cache")
-	task.Warn("stale entry ignored",
+	task.Problem("stale entry ignored",
 		evo.Detail("cache/entry-42.json is 9 days old"),
 		evo.Code("CACHE-001"),
 		evo.Location("cache/entry-42.json", 0, 0),
+		evo.Severity(evo.SeverityWarning),
 	)
 	succeed(task)
 	if err := out.Finish(); err != nil {
@@ -275,14 +277,15 @@ func TestWarn_AcceptsStructuredProblemOptions(t *testing.T) {
 	}
 }
 
-// TestWarn_ReturnsHandleForChaining proves Warn's new *TaskHandle return
-// chains like Next/NextCommand already do.
-func TestWarn_ReturnsHandleForChaining(t *testing.T) {
+// TestProblem_WarningSeverityReturnsHandleForChaining proves a
+// Severity(SeverityWarning) Problem's *TaskHandle return chains like
+// Next/NextCommand already do.
+func TestProblem_WarningSeverityReturnsHandleForChaining(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
-	succeed(out.Task("chain").Warn("heads up"), "finished anyway")
+	succeed(out.Task("chain").Problem("heads up", evo.Severity(evo.SeverityWarning)), "finished anyway")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +341,7 @@ func TestProblem_SkippedCannotLaunderAProblem(t *testing.T) {
 // warned-but-unresolved Task must not settle it Done over a Problem.
 func TestProblem_UnresolvedWarnedTaskKeepsItsProblem(t *testing.T) {
 	got, human := finishProblemRun(t, func(out *evo.Output) {
-		out.Task("scan").Problem("blocking finding").Warn("also a warning")
+		out.Task("scan").Problem("blocking finding").Problem("also a warning", evo.Severity(evo.SeverityWarning))
 	})
 	assertProblemFailsTask(t, got, human)
 }

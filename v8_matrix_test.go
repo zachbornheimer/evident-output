@@ -60,10 +60,10 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	worktrees := out.Task("worktrees")
 	remotes := out.Task("remote-tracking")
 
-	branches.Warn("kept 419 (283 checked out, 135 unpushed, 1 protected)")
+	branches.Problem("kept 419 (283 checked out, 135 unpushed, 1 protected)", evo.Severity(evo.SeverityWarning))
 	commit(branches.Summary("459 checked"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40})
 
-	worktrees.Warn("kept 292 (163 dirty, 89 unpushed, 40 ignored files)")
+	worktrees.Problem("kept 292 (163 dirty, 89 unpushed, 40 ignored files)", evo.Severity(evo.SeverityWarning))
 	commit(worktrees.Summary("294 checked"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1})
 
 	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
@@ -114,7 +114,7 @@ func TestV8_NothingToClean(t *testing.T) {
 	worktrees := out.Task("worktrees")
 	remotes := out.Task("remote-tracking")
 
-	branches.Warn("kept 1 (protected)")
+	branches.Problem("kept 1 (protected)", evo.Severity(evo.SeverityWarning))
 	succeed(branches, "1 checked")
 	succeed(worktrees, "nothing to clean")
 	succeed(remotes, "nothing to clean")
@@ -423,7 +423,7 @@ func TestV8_StressLive(t *testing.T) {
 	services := deploy.Task("services")
 	services.Doing("payments-api")
 	services.Progress(14, 40)
-	services.Warn("audit-stream rollout slower than baseline")
+	services.Problem("audit-stream rollout slower than baseline", evo.Severity(evo.SeverityWarning))
 
 	agent := deploy.Task("write launch agent")
 	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
@@ -439,7 +439,7 @@ func TestV8_StressLive(t *testing.T) {
 	cleanup.Define(func(ctx context.Context) error {
 		cleanup.Doing("feat/cleanup…")
 		cleanup.Progress(7, 18)
-		cleanup.Warn("kept 5 (3 protected, 2 unpushed)")
+		cleanup.Problem("kept 5 (3 protected, 2 unpushed)", evo.Severity(evo.SeverityWarning))
 		err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 12},
 			func(context.Context) error { return nil })
 		close(committed)

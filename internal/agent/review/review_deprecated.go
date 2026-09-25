@@ -115,7 +115,7 @@ var retiredSpellings = []retiredSpelling{
 		pattern: regexp.MustCompile(`\.Because\(`),
 		message: "Because was retired with Item — its text is now the resolving verb's own argument",
 		suggest: func(string) string {
-			return `replace OK().Because("text") with Summary("text").Define(...) (or fold into Warn/Block/Fail's summary)`
+			return `replace OK().Because("text") with Summary("text").Define(...) (or fold into Problem/Block/Fail's summary)`
 		},
 	},
 	{
@@ -126,6 +126,13 @@ var retiredSpellings = []retiredSpelling{
 		message:         "Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr",
 		suggest:         func(recv string) string { return "replace " + recv + ".Capture(...) with " + recv + ".Evidence(...)" },
 	},
+	// Warn (TaskHandle.Warn/Output.Warn/evo.Warn) was removed in 1.1 and is
+	// detected by detectWarnRemoved (review_warn.go), an AST walk over the
+	// receiver's declared/inferred type instead of a fixed receiver-name
+	// allowlist — a regex anchored on `\w+` right before `.Warn(` never
+	// matches a chained call like `out.Task("x").Warn("y")`, and
+	// evoReceiverOnly's name list missed every real-world receiver spelled
+	// branches/remotes/services/cleanup/worktrees (AGENTS.md E-117 notes).
 }
 
 // findings reports every match of r in src.
@@ -150,12 +157,15 @@ func (r retiredSpelling) findings(filename, src string) []Finding {
 	return out
 }
 
-// detectDeprecatedSpellings is API-032: it catches every superseded spelling
-// with a fix, not a lecture — evo.New (evo.Init is the sole constructor),
-// the retiredSpellings table (Item, Plan, Changes, OK, Because, Capture),
-// evo.Cause (Failf/Blockf's trailing %w since Fail/Block are
-// statement-form), and the rec-surface spellings (Config.Options, Option
-// funcs, the mutation verbs removed in 1.1, Skip, ID, StartPhase).
+// detectDeprecatedSpellings is API-032: it catches every superseded
+// spelling with a fix, not a lecture — evo.New (evo.Init is the sole
+// constructor), the retiredSpellings table (Item, Plan, Changes, OK,
+// Because, Capture), evo.Cause (Failf/Blockf's trailing %w since
+// Fail/Block are statement-form), and the rec-surface spellings
+// (Config.Options, Option funcs, the mutation verbs removed in 1.1, Skip,
+// ID, StartPhase). Warn (TaskHandle.Warn/Output.Warn/evo.Warn, removed in
+// 1.1) is API-070, detected separately by detectWarnRemoved
+// (review_warn.go) — see the comment above retiredSpellings for why.
 func detectDeprecatedSpellings(in fileInput) []Finding {
 	var findings []Finding
 	if dialectAtLeast(in.desiredVersion, dialectFold) {

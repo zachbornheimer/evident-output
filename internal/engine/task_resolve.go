@@ -39,7 +39,7 @@ func (t *TaskHandle) Failf(format string, args ...any) *Failure {
 // resolveWithProblem is Fail and Block: resolve as state with one Problem
 // built from summary and options.
 func (t *TaskHandle) resolveWithProblem(state EntityState, summary string, options []ProblemOption) {
-	p := applyProblemOptions(txt.Text(summary), options)
+	p := applyOutcomeProblemOptions(txt.Text(summary), options)
 	t.finish(state, txt.Text(summary), []Problem{p})
 }
 

@@ -386,8 +386,9 @@ func toEffectDocs(subject, status string, in []core.EffectRecord) []EffectDoc {
 }
 
 // warningDocs is a Task's non-blocking warnings on the wire, with every
-// structured option Warn took (Subject, Detail, remedies), or nil when it
-// has none (E-109: §16 machine output keeps warnings, not only Problems).
+// structured option the warning-severity Problem took (Subject, Detail,
+// remedies), or nil when it has none (E-109: §16 machine output keeps
+// warnings, not only Problems).
 func warningDocs(in []core.Problem) []ProblemDoc {
 	if len(in) == 0 {
 		return nil

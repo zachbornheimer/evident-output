@@ -48,8 +48,9 @@ func inlineWarningText(msg string, s Style) string {
 // "✓ branches          ! kept 13 (8 protected, 5 unpushed)" — a taxonomy
 // tally IS a warning in the unified annotation model, so it competes for the
 // same one-inline-annotation-per-row slot and is disqualified by the same
-// conditions: a Summary, an explicit Warn, or an explicit Fact already claims
-// the row. Both dispositions accumulated at once still nest below (rare, and
+// conditions: a Summary, an explicit warning-severity Problem, or an
+// explicit Fact already claims the row. Both dispositions accumulated at
+// once still nest below (rare, and
 // two summaries cannot share one inline slot). The returned verb tells the
 // caller which of Skipped/Kept was inlined, so its causes/Verbose name list
 // (writeTaxonomy's other output) still renders below the row — inlining
@@ -77,7 +78,7 @@ func inlineTaskTaxonomy(t core.TaskSnapshot) (text string, verb disposition, ok 
 // inlineTaskFact mirrors inlineTaskWarning at info severity (P8): a Done
 // task with no summary, no warnings, and exactly one Fact inlines that
 // fact's "name  value" text on its own row instead of nesting it — the same
-// "one short annotation inlines" rule Warn's severity already follows,
+// "one short annotation inlines" rule the warning severity already follows,
 // applied to Fact's severity too (one placement rule, two severities).
 func inlineTaskFact(t core.TaskSnapshot) (core.Fact, bool) {
 	if t.State != core.Done || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 1 {
@@ -269,8 +270,9 @@ func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s S
 	}
 }
 
-// writeRunAnnotations renders evo.Warn/evo.Fact's run-scoped annotations
-// (P8 symmetry with a task's own Warn/Fact) — fire-and-forget durable dim
+// writeRunAnnotations renders evo.Problem's warning-severity results and
+// evo.Fact's run-scoped annotations (P8 symmetry with a task's own
+// Problem/Fact) — fire-and-forget durable dim
 // lines, warnings first: "! <text>" then "<name>  <value>", in call order
 // within each severity.
 func writeRunAnnotations(b *strings.Builder, warnings []core.Problem, facts []core.Fact, s Style) {

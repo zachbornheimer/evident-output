@@ -178,7 +178,7 @@ t.Doing("copying staging -> production release bucket")`,
 			ID:        "TXT-021",
 			Category:  "TXT",
 			Severity:  SeverityWarning,
-			Invariant: "a Fail/Warn/Block summary is short text; cause and remedy are Detail/Next, never hand-assembled into the summary",
+			Invariant: "a Fail/Problem/Block summary is short text; cause and remedy are Detail/Next, never hand-assembled into the summary",
 			Why:       "A summary hand-assembling \" — cause:\"/\" — action:\" fragments reimplements Detail/Next inside plain text, losing their structured rendering and truncation.",
 			BadCode:   `task.Fail("policy check failed — cause: manifest missing — action: run zq init")`,
 			GoodCode: `task.Next(evo.Label("run zq init")).

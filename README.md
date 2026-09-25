@@ -82,22 +82,22 @@ The trailing `[state]` band and the process exit code always agree — never rea
 one without checking the other. `· partial` and `· warned` are modifiers on
 the state, not a state of their own.
 
-| Band                           | Exit code | Meaning                                                                                                                                                    |
-| ------------------------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[changed]`                    | `0`       | An `evo.Effect`/`evo.File`/`evo.Exec` mutation recorded outside `DryRun`                                                                                   |
-| `[planned]`                    | `0`       | A mutation recorded under `Config.DryRun` (would, not did)                                                                                                 |
-| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation recorded                                                                                                           |
-| `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                                                                                                                 |
-| `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                                                                                                           |
-| `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                                                                                                               |
-| any of the above + `· partial` | unchanged | The run also left an unresolved task — same exit code as the state above                                                                                   |
-| any of the above + `· warned`  | unchanged | At least one `Warn` annotated a task without otherwise changing the headline — `Warn` never resolves the task itself; `Define`/`Fail`/`Block`/… still must |
+| Band                           | Exit code | Meaning                                                                                                                                                                    |
+| ------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[changed]`                    | `0`       | An `evo.Effect`/`evo.File`/`evo.Exec` mutation recorded outside `DryRun`                                                                                                   |
+| `[planned]`                    | `0`       | A mutation recorded under `Config.DryRun` (would, not did)                                                                                                                 |
+| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation recorded                                                                                                                           |
+| `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                                                                                                                                 |
+| `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                                                                                                                           |
+| `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                                                                                                                               |
+| any of the above + `· partial` | unchanged | The run also left an unresolved task — same exit code as the state above                                                                                                   |
+| any of the above + `· warned`  | unchanged | At least one warning-severity `Problem` annotated a task without otherwise changing the headline — it never resolves the task itself; `Define`/`Fail`/`Block`/… still must |
 
 ## Pick the entity
 
 | Shape        | Use when                                                                                                                                                                      |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | One atomic unit — its check or work submitted with `Define` (success is the callback returning `nil`); `Warn`/`Block`/`Fail`/`Skipped` state a condition directly             |
+| **Task**     | One atomic unit — its check or work submitted with `Define` (success is the callback returning `nil`); `Problem`/`Block`/`Fail`/`Skipped` state a condition directly          |
 | **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children; one `group.Task(name).Define(...)` per item for homogeneous items |
 | **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest via `.Sequence`/`.Group`                             |
 

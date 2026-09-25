@@ -13,11 +13,11 @@ One leaf entity, one constructor, plus two structural containers. A `Task` answe
 both questions "is this state acceptable?" and "how is this work going?" —
 which one depends on how it's used, not on a separate type:
 
-| Noun         | Meaning                                                                                                                                                        |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | A named condition or unit of work — its check or work runs in `Define`; `Warn`/`Block`/`Fail`/`Skipped` state a condition, `Doing`/`Progress` narrate **work** |
-| **Sequence** | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                               |
-| **Group**    | Independent collection — no ordering semantics; any number of children may be `Running` at once                                                                |
+| Noun         | Meaning                                                                                                                                                                                                                 |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**     | A named condition or unit of work — its check or work runs in `Define`; `Problem`/`Block`/`Fail`/`Skipped` state a condition (`Warn` removed in 1.1 — see `docs/migration/1.1.md`), `Doing`/`Progress` narrate **work** |
+| **Sequence** | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                                                                                        |
+| **Group**    | Independent collection — no ordering semantics; any number of children may be `Running` at once                                                                                                                         |
 
 Both containers derive their state entirely from their children — never
 `.Fail()` or a success stamp on the container itself (see RULE-002 below).
@@ -33,19 +33,20 @@ one entity, one constructor. `ItemHandle` no longer exists; use `TaskHandle`.)
 
 ---
 
-## Warn / Block / Fail
+## Problem severity / Block / Fail
 
 Severity on conditions and terminal outcomes on work — the same verbs either
 way. Success is not a verb the caller calls: a `Define` callback that returns
 `nil` is the Task holding (1.1 removed `Done`; `Summary` carries optional
-result text).
+result text). 1.1 also removed `Warn` as a separate verb (Problem wins over
+Warn): a non-blocking annotation is `Problem(summary, evo.Severity(evo.SeverityWarning))`.
 
-| Outcome                   | User meaning                                          |
-| ------------------------- | ----------------------------------------------------- |
-| **Define returns nil**    | Condition holds; work succeeded                       |
-| **Warn**                  | Proceed, but notice this                              |
-| **Block**                 | Stop until the user acts (not necessarily a Go error) |
-| **Fail** / returned error | Operation failed                                      |
+| Outcome                                     | User meaning                                          |
+| ------------------------------------------- | ----------------------------------------------------- |
+| **Define returns nil**                      | Condition holds; work succeeded                       |
+| **Problem(..., Severity(SeverityWarning))** | Proceed, but notice this                              |
+| **Block**                                   | Stop until the user acts (not necessarily a Go error) |
+| **Fail** / returned error                   | Operation failed                                      |
 
 ```go
 gate.Define(func(ctx context.Context) error {
@@ -54,7 +55,7 @@ gate.Define(func(ctx context.Context) error {
         return fmt.Errorf("could not inspect working tree: %w", err)
     }
     if status.Ignored > 0 {
-        gate.Warn("contains ignored files", evo.Detail("2 files"))
+        gate.Problem("contains ignored files", evo.Detail("2 files"), evo.Severity(evo.SeverityWarning))
     }
     if status.Dirty {
         gate.Block("contains local changes", evo.Detail("stash or commit them"))

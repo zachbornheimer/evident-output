@@ -102,10 +102,12 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 }
 
 // anyTaskWarned reports whether any task in tasks carries at least one
-// TaskHandle.Warn annotation or Kept tally (P2: conclusion algebra reads
-// annotations, never a lifecycle state — Warning is not one of the terminal
-// EntityState values). A Kept tally renders the same "! kept N (...)" row a
-// Warn does, so it feeds the same "· warned" band (contract §18).
+// warning-severity Problem annotation (Problem(summary,
+// evo.Severity(evo.SeverityWarning))) or Kept tally
+// (P2: conclusion algebra reads annotations, never a lifecycle state —
+// Warning is not one of the terminal EntityState values). A Kept tally
+// renders the same "! kept N (...)" row a warning-severity Problem does,
+// so it feeds the same "· warned" band (contract §18).
 func anyTaskWarned(tasks []TaskSnapshot) bool {
 	for _, t := range tasks {
 		if len(t.Warnings) > 0 || len(t.Kept) > 0 {
@@ -193,7 +195,8 @@ func InferConclusion(s Snapshot) Conclusion {
 		}
 	}
 	// hasWarning reads TaskSnapshot.Warnings (P2), never a lifecycle
-	// EntityState — Warn annotates a task, it never resolves one.
+	// EntityState — a warning-severity Problem annotates a task, it never
+	// resolves one.
 	hasWarning := anyTaskWarned(s.Tasks) || anyCollectionWarned(s.Collections)
 
 	// Headline precedence: failed > blocked > cancelled > changed > planned >
@@ -204,9 +207,12 @@ func InferConclusion(s Snapshot) Conclusion {
 	// warning is not one of those four — it is visible attention on its own
 	// "!" row, never a headline that overrides an otherwise-OK verdict. It
 	// only becomes the headline when nothing else in the run classifies —
-	// which, since Warn no longer resolves its task, requires an as-yet
-	// unbuilt output-level Warn (P8/Facts territory); kept for that future
-	// reachability and because it costs nothing to keep the algebra total.
+	// hasWarning is task/collection-scoped only (a run-level
+	// Output.Problem at Severity(SeverityWarning) feeds warnedModifier
+	// below via s.Warnings, not this case), and a warning-severity Problem
+	// never resolves the task that carries it, so no task/collection ever
+	// reaches this branch as its sole classification today. Kept so the
+	// algebra stays total rather than partial.
 	switch {
 	case hasFailed:
 		c.State = StateFailed
@@ -238,12 +244,13 @@ func InferConclusion(s Snapshot) Conclusion {
 		c.Cancelled = true
 	}
 	// warnedModifier feeds the "· warned" band from BOTH sources at warning
-	// severity — a task's TaskHandle.Warn and the run's own evo.Warn (P8
-	// symmetry) — while hasWarning above (task/collection only) still governs
+	// severity — a task's Problem(summary, evo.Severity(evo.SeverityWarning))
+	// and the run's own evo.Problem at the same severity (P8 symmetry) —
+	// while hasWarning above (task/collection only) still governs
 	// the (dead, reserved-unreachable) StateWarning headline case alone, so a
-	// bare evo.Warn on a run with no tasks never invents a new headline —
-	// it only modifies whatever the run otherwise concludes (evo-rec.md
-	// "warnings annotate lifecycle; they do not replace it").
+	// bare warning-severity Problem on a run with no tasks never invents a
+	// new headline — it only modifies whatever the run otherwise concludes
+	// (evo-rec.md "warnings annotate lifecycle; they do not replace it").
 	warnedModifier := hasWarning || len(s.Warnings) > 0
 	if warnedModifier && c.State != StateWarning {
 		c.Warned = true

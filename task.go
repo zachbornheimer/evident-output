@@ -65,7 +65,7 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 
 // Fact records one name/value fact on this Task: information, not a
 // mutation. It never resolves the Task, and returns this *TaskHandle so a
-// call can chain like Warn, Problem, and Summary.
+// call can chain like Problem and Summary.
 func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	t.impl().Fact(name, value)
 	return t
@@ -108,14 +108,16 @@ func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle 
 	return t
 }
 
-// Problem appends one blocking Problem to this Task without resolving it, so
-// one Define can accumulate many structured findings instead of inventing a
+// Problem appends one Problem to this Task without resolving it, so one
+// Define can accumulate many structured findings instead of inventing a
 // Task per finding or flattening them into one error string. Every Problem
 // is kept, in order, in Snapshot and JSON/JSONL; the human view may bound
-// how many render inline. If the Task would otherwise resolve successfully
-// (its Define returns nil) while it holds any Problem, it resolves Failed
-// instead. Calling it after the Task resolved is misuse, unless an
-// interrupt resolved it.
+// how many render inline. Severity defaults to SeverityError: if the Task
+// would otherwise resolve successfully (its Define returns nil) while it
+// holds an error Problem, it resolves Failed instead. A
+// Severity(SeverityWarning) Problem is a warning: it sets "warned" and
+// never fails the Task. Calling it after the Task resolved is misuse,
+// unless an interrupt resolved it.
 func (t *TaskHandle) Problem(summary string, options ...ProblemOption) *TaskHandle {
 	t.impl().Problem(summary, options...)
 	return t
@@ -181,16 +183,6 @@ func (t *TaskHandle) Wait() error {
 // Define planned nothing is checked like a real one.
 func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {
 	t.impl().Verify(fn)
-	return t
-}
-
-// Warn accumulates a non-blocking warning on this Task. It takes the same
-// structured ProblemOptions as Problem, Fail, and Block (Detail, Code, On,
-// Location, Next). It never resolves the Task; call it any number of times.
-// It returns this *TaskHandle only so a call can chain. Calling it after
-// the Task resolved is misuse, unless an interrupt resolved it.
-func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle {
-	t.impl().Warn(summary, options...)
 	return t
 }
 

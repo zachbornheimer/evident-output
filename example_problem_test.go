@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 
@@ -9,7 +10,7 @@ import (
 )
 
 // ExampleProblem shows the structured evidence shape explaining a negative
-// task outcome — the payload Fail/Block/Warn build from ProblemOptions.
+// task outcome — the payload Fail/Block/Problem build from ProblemOptions.
 func ExampleProblem() {
 	p := evo.Problem{Summary: "schema mismatch", Code: "E_SCHEMA"}
 	fmt.Println(p.Summary, p.Code)
@@ -51,6 +52,39 @@ func ExampleProblemOption() {
 	fmt.Println(opt != nil)
 	// Output:
 	// true
+}
+
+// ExampleSeverity records a warning: the Define returns nil and the Task
+// still succeeds, with the warning under it and a "warned" band.
+func ExampleSeverity() {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard, Title: "doctor"})
+	task := out.Task("check toolchain")
+	task.Define(func(context.Context) error {
+		task.Problem("tool version differs from manifest", evo.Severity(evo.SeverityWarning), evo.On("go"))
+		return nil
+	})
+	_ = out.Finish()
+	fmt.Print(buf.String())
+	// Output:
+	// ✓ check toolchain  ! go  tool version differs from manifest
+	//
+	// [ready · warned]  doctor
+}
+
+// ExampleProblemSeverity shows the default: a Problem with no Severity is
+// SeverityError and fails its Task even though Define returned nil.
+func ExampleProblemSeverity() {
+	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: io.Discard, Stderr: io.Discard})
+	task := out.Task("validate config")
+	task.Define(func(context.Context) error {
+		task.Problem("invalid configuration")
+		return nil
+	})
+	_ = out.Finish()
+	fmt.Println(out.Conclusion().State, evo.SeverityError, evo.SeverityWarning)
+	// Output:
+	// failed error warning
 }
 
 // ExampleDetail sets user-visible detail text on a Problem raised via

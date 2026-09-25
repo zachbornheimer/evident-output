@@ -62,16 +62,15 @@ func ExampleFact() {
 	// true go
 }
 
-// ExampleWarn annotates the run itself with a warning, without resolving
-// any task.
-func ExampleWarn() {
+// ExampleOutput_Problem annotates the run itself with a warning-severity
+// Problem, without resolving any task.
+func ExampleOutput_Problem() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	evo.SetDefault(out)
-	evo.Warn("cache directory missing, rebuilding")
+	out.Problem("cache directory missing, rebuilding", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
-	fmt.Println(out.Conclusion().Warned)
+	fmt.Println(out.Conclusion().Warned, out.Conclusion().ExitCode)
 	// Output:
-	// true
+	// true 0
 }
 
 // ExampleDelay returns a non-nil *time.Duration for Config fields where

@@ -56,9 +56,9 @@ func (o *Output) Finish() error {
 // Problem (it settles Failed: settleLocked's evidence rule turns the Done
 // below into Failed), a recorded Effect/File ledger row, a
 // sealed absolute progress (a completed Progress/Step loop reached its
-// total), recorded taxonomy (Skipped/Kept), or a recorded warning (P2:
-// TaskHandle.Warn never itself resolves the task, so a warned-but-
-// unresolved task earns the same amnesty). The easiest path (forgetting
+// total), recorded taxonomy (Skipped/Kept), or a recorded warning (P2: a
+// warning-severity Problem never itself resolves the task, so a
+// warned-but-unresolved task earns the same amnesty). The easiest path (forgetting
 // Done) becomes correct instead of a surprising Cancelled/NotStarted plus
 // a silent exit-code flip (beginner-1, I1; beginner-gate-2 findings 1/2/4).
 // Anything else still reads as misuse, but now names the task so Finish

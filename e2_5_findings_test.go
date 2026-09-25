@@ -30,7 +30,7 @@ func TestE2_5Finding1_WarnedGroupChildReachesConclusion(t *testing.T) {
 
 	group := out.Group("dependencies")
 	child := group.Task("cache")
-	child.Warn("stale entry ignored")
+	child.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 	succeed(child)
 
 	if err := out.Finish(); err != nil {
@@ -80,7 +80,7 @@ func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
-	branches.Warn("kept 11 (7 protected, 4 unpushed)")
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
 	succeed(branches)
 
 	if err := out.Finish(); err != nil {
@@ -147,7 +147,7 @@ func TestE2_5Finding6_InlineThresholdMeasuresDisplayWidthNotBytes(t *testing.T) 
 	// only 30 cells, comfortably under the 40-cell inline threshold.
 	warning := strings.Repeat("é", 30)
 	branches := out.Task("branches")
-	branches.Warn(warning)
+	branches.Problem(warning, evo.Severity(evo.SeverityWarning))
 	succeed(branches)
 
 	if err := out.Finish(); err != nil {

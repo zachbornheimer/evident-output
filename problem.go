@@ -26,8 +26,27 @@ type Attachment = core.Attachment
 // Field is a structured diagnostic or log field.
 type Field = core.Field
 
-// ProblemOption configures a problem constructed by Block/Warn/Fail helpers.
+// ProblemOption configures a Problem recorded by Problem, Fail, or Block.
 type ProblemOption = engine.ProblemOption
+
+// ProblemSeverity says whether a Problem fails the work it is recorded on
+// (SeverityError, the default) or only warns (SeverityWarning).
+type ProblemSeverity = engine.ProblemSeverity
+
+const (
+	// SeverityError fails the owning Define, or the run, when recorded.
+	SeverityError = engine.SeverityError
+	// SeverityWarning sets "warned" and never fails anything.
+	SeverityWarning = engine.SeverityWarning
+)
+
+// Severity sets whether a Problem fails its work (SeverityError, the
+// default) or only warns (SeverityWarning):
+//
+//	task.Problem("tool version differs from manifest", evo.Severity(evo.SeverityWarning))
+//
+// Fail and Block are outcomes, so their Problem is always SeverityError.
+func Severity(value ProblemSeverity) ProblemOption { return engine.Severity(value) }
 
 // Detail sets user-visible detail text (strings only).
 func Detail(text string) ProblemOption { return engine.Detail(text) }

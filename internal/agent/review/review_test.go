@@ -1718,6 +1718,141 @@ func f(task *evo.TaskHandle) {
 	}
 }
 
+func TestAPI070_WarnRemovedInFavorOfProblemSeverity(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Warn("tool version differs from manifest")
+}
+`
+	res := review.GoSource("warn.go", src)
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			found = append(found, f)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected one API-070 finding for Warn, got %+v", found)
+	}
+	want := `replace task.Warn("summary", opts...) with task.Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	if found[0].Suggestion != want {
+		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
+	}
+}
+
+func TestAPI070_PackageLevelWarnSuggestsDefaultInstance(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+  evo.Warn("disk nearly full")
+}
+`
+	res := review.GoSource("warn.go", src)
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			found = append(found, f)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected one API-070 finding for evo.Warn, got %+v", found)
+	}
+	want := `replace evo.Warn("summary", opts...) (removed in 1.1) with evo.Default().Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	if found[0].Suggestion != want {
+		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
+	}
+}
+
+// TestAPI070_CustomReceiverName pins the review-gap report directly: a
+// *evo.GroupHandle spelled "branches" (the repo's own pre-migration
+// fixtures also used remotes/services/cleanup/worktrees) must fire exactly
+// like a receiver named task/out/o — API-070 resolves by the receiver's
+// evo-ness, not by matching its identifier against a fixed word list.
+func TestAPI070_CustomReceiverName(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) {
+  branches := out.Group("branches")
+  branches.Warn("kept 11")
+}
+`
+	res := review.GoSource("custom_receiver.go", src)
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			found = append(found, f)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected one API-070 finding for branches.Warn, got %+v", found)
+	}
+	want := `replace branches.Warn("summary", opts...) with branches.Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	if found[0].Suggestion != want {
+		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
+	}
+}
+
+// TestAPI070_ChainedCall pins the review-gap report's other missed shape:
+// `out.Task("x").Warn("y")` has no bare identifier immediately before
+// `.Warn(`, so a `\w+\.Warn\(` regex never matches it at all.
+func TestAPI070_ChainedCall(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) {
+  out.Task("x").Warn("y")
+}
+`
+	res := review.GoSource("chained.go", src)
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			found = append(found, f)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected one API-070 finding for a chained Warn call, got %+v", found)
+	}
+	want := `replace out.Task("x").Warn("summary", opts...) with out.Task("x").Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...)`
+	if found[0].Suggestion != want {
+		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
+	}
+}
+
+func TestAPI070_NoFalsePositiveOnSlogWarn(t *testing.T) {
+	src := `package p
+import "log/slog"
+func f(logger *slog.Logger) {
+  logger.Warn("registry request slow", "duration", "4s")
+}
+`
+	res := review.GoSource("slogwarn.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			t.Fatalf("API-070 must not fire on a non-evo receiver's Warn: %+v", f)
+		}
+	}
+}
+
+// TestAPI070_DoesNotFireBelowMinDialect pins the AGENTS.md rule directly:
+// a consumer pinned to v1.0.x, where Warn still exists and evo.Severity
+// does not, must never be told to rewrite Warn into a call that would not
+// compile on that pin.
+func TestAPI070_DoesNotFireBelowMinDialect(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Warn("tool version differs from manifest")
+}
+`
+	res := review.GoSourceAt("warn.go", src, "v1.0.0")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-070" {
+			t.Fatalf("API-070 must not fire for a v1.0.0 pin, where Warn still exists: %+v", f)
+		}
+	}
+}
+
 func TestAPI033_NameEqualsSkipArgument(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
@@ -1943,25 +2078,27 @@ func f(task *evo.TaskHandle, path string) {
 	}
 }
 
-// TestAPI038_WarnFlattensNotWarnf proves the Warn case flattens into Warn's
-// own variadic form rather than repeating API-036's now-stale suggestion of
-// a Warnf method that no longer exists (P1/P2 deleted it).
-func TestAPI038_WarnFlattensNotWarnf(t *testing.T) {
+// TestAPI038_DoingFlattensNotDoingf proves the Doing case flattens into
+// Doing's own variadic form rather than repeating API-036's now-stale
+// suggestion of a Doingf method that no longer exists (P1/P2 deleted it).
+// Warn itself was removed in 1.1 (Problem wins over Warn), so this no
+// longer exercises Warn — Doing is printf-variadic the same way.
+func TestAPI038_DoingFlattensNotDoingf(t *testing.T) {
 	src := `package p
 import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output"
 )
 func f(task *evo.TaskHandle, n int) {
-  task.Warn(fmt.Sprintf("kept %d", n))
+  task.Doing(fmt.Sprintf("kept %d", n))
 }
 `
-	res := review.GoSource("sprintfwarn.go", src)
+	res := review.GoSource("sprintfdoing.go", src)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-036" {
-			t.Fatalf("API-036 must not fire on Warn (Warnf does not exist): %+v", f)
+			t.Fatalf("API-036 must not fire on Doing (Doingf does not exist): %+v", f)
 		}
-		if f.RuleID == "API-038" && f.Suggestion != `task.Warn("kept %d", n)` {
+		if f.RuleID == "API-038" && f.Suggestion != `task.Doing("kept %d", n)` {
 			t.Fatalf("suggestion = %q", f.Suggestion)
 		}
 	}

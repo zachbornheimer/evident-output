@@ -316,7 +316,8 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 
 // TestPruneContract_KeptUnderGroupedCategoriesRendersContract18 holds zq
 // prune's contract-correct per-item shape (pruneCategory) to the contract
-// §18 dry-run bytes TestV8_DryRunPlanOnly pins for the Warn-authored form.
+// §18 dry-run bytes TestV8_DryRunPlanOnly pins for the warning-severity
+// Problem-authored form.
 // Each category Group's kept children aggregate into one tally under the
 // category's row (§25: "aggregation is a renderer concern"; §26/§27:
 // "  ! kept N (...)"), the tally feeds "[planned · warned]", and the band

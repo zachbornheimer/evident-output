@@ -11,7 +11,7 @@ import (
 )
 
 // TestMisuse_AlreadyResolvedCarriesRejectedSummary is release-gate round 5
-// finding 4: when a second terminal verb (Done/Fail/Block/Warn/Cancel/Skip)
+// finding 4: when a second terminal verb (Done/Fail/Block/Cancel/Skip)
 // on an already-resolved task carries its own summary text, that text is
 // simply dropped today — the band's severity has no visible cause beyond
 // "was already resolved". Render the rejected call's own summary so the

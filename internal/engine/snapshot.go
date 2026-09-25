@@ -208,11 +208,11 @@ func (g *tasksState) displaySummary(st EntityState) string {
 }
 
 // hasWarnedOrFailedDescendant reports whether g or any nested child
-// container carries a Failed/Cancelled task or a task with a Warn annotation
-// (E2.5 finding 1): the group's own success summary must not paper over a
-// warning or failure living several containers deep — the same suppression
-// this method already gave Failed/Cancelled, restored and extended to
-// Warnings.
+// container carries a Failed/Cancelled task or a task with a
+// warning-severity Problem (E2.5 finding 1): the group's own success
+// summary must not paper over a warning or failure living several
+// containers deep — the same suppression this method already gave
+// Failed/Cancelled, restored and extended to Warnings.
 func (g *tasksState) hasWarnedOrFailedDescendant() bool {
 	for _, t := range g.tasks {
 		if t.state == Failed || t.state == Cancelled || len(t.warnings) > 0 {

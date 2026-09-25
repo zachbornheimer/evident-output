@@ -154,7 +154,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		case 12, 18:
 			task.Doing("downloading")
 		case 20:
-			task.Warn("using cached fallback")
+			task.Problem("using cached fallback", evo.Severity(evo.SeverityWarning))
 		default:
 			succeed(task)
 		}

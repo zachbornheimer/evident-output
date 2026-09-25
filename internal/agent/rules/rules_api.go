@@ -64,12 +64,13 @@ g.Task("b").Define(installB)`,
 			Invariant: "Failf/Blockf require a format directive — every other *f method is deleted",
 			Why: "Failf(\"boom\") with no directive at all is ceremony; Fail(\"boom\") is the intent. " +
 				"C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf entirely — " +
-				"Task/Group/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now, " +
+				"Task/Group/Sequence/Changes/Plan/Reason are printf-variadic themselves now " +
+				"(Warn itself was removed in 1.1; Problem carries severity instead), " +
 				"so there is nothing left in that family to flag; Failf/Blockf survive for their %w+*Failure semantics.",
 			BadCode: `task.Failf("boom")`,
 			GoodCode: `task.Fail("boom")
 task.Failf("boom: %w", err)`,
-			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Task/Group/Sequence/Changes/Plan/Warn/Reason take printf args directly",
+			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Task/Group/Sequence/Changes/Plan/Reason take printf args directly",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",
@@ -390,10 +391,10 @@ if err := cmd.Run(); err != nil {
 			Category:  "API",
 			Severity:  SeverityWarning,
 			Invariant: "fmt.Sprintf(...) is never passed to a method that is already printf-variadic itself",
-			Why: "Task/Group/Sequence/Warn/Doing/Failf all already accept " +
+			Why: "Task/Group/Sequence/Doing/Failf all already accept " +
 				"(format string, args ...any) directly (P1/P2, C6: their separate *f siblings — Warnf included — " +
-				"were deleted) — wrapping the call in fmt.Sprintf is ceremony that also hides the real arguments " +
-				"from evo's own formatting.",
+				"were deleted; Warn itself was removed in 1.1) — wrapping the call in fmt.Sprintf is ceremony that " +
+				"also hides the real arguments from evo's own formatting.",
 			BadCode:         `task.Doing(fmt.Sprintf("scanning %s", path))`,
 			GoodCode:        `task.Doing("scanning %s", path)`,
 			Remediation:     "Flatten fmt.Sprintf(...) into the method's own format + args; never wrap a printf-variadic evo call in fmt.Sprintf",
@@ -485,6 +486,23 @@ return task.Wait()`,
 			Certainty:       CertaintyHeuristic,
 			// Wait is being added to the public API in parallel with this
 			// rule; this entry documents the spelling the MCP now teaches.
+		},
+		{
+			ID:        "API-070",
+			Category:  "API",
+			Severity:  SeverityError,
+			Invariant: "Warn (TaskHandle.Warn, Output.Warn, evo.Warn) was removed in 1.1 — Problem wins over Warn; warning is a Problem severity, not a separate verb. There is no package-level evo.Problem (Problem is already the exported type alias); run-scoped use goes through Output.Problem",
+			Why:       "Owner vocabulary freeze (2026-09-25): one word per semantic concept. Problem already carries severity; a parallel Warn verb duplicated it. Severity defaults to SeverityError; a Severity(SeverityWarning) Problem sets \"warned\" and never fails the owning Define.",
+			BadCode: `task.Warn("tool version differs from manifest")
+out.Warn("disk nearly full")`,
+			GoodCode: `task.Problem("tool version differs from manifest", evo.Severity(evo.SeverityWarning))
+out.Problem("disk nearly full", evo.Severity(evo.SeverityWarning))`,
+			Remediation:     `Replace Warn("summary", opts...) with Problem("summary", append(opts, evo.Severity(evo.SeverityWarning))...) on TaskHandle or Output (there is no package-level evo.Problem; the package-level replacement is evo.Default().Problem(...))`,
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-070"},
+			MinDialect:      "1.1.0",
+			Since:           "1.1.0",
+			Certainty:       CertaintyDeterministic,
 		},
 	}
 }

@@ -38,7 +38,7 @@ func TestTask_SummaryRendersOnTheSuccessfulTerminalRow(t *testing.T) {
 // Summary never resolves the task on its own — only Define's own outcome
 // (or another terminal verb) does. Calling Summary and nothing else must
 // leave the task unresolved (auto-resolved Done only at Finish, per the
-// same contract Warn documents).
+// same contract the warning-severity Problem documents).
 func TestTask_SummaryDoesNotResolveTheTask(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "zq", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})

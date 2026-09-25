@@ -11,9 +11,9 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestDOM030_CollectionWarning is updated for P2: Warn annotates a task
-// instead of resolving it, so a task that only ever calls Warn stays
-// non-terminal (Pending) until Finish's amnesty resolves it — before
+// TestDOM030_CollectionWarning: a warning-severity Problem annotates a task
+// instead of resolving it, so a task that only ever accumulates a warning
+// stays non-terminal (Pending) until Finish's amnesty resolves it — before
 // Finish, the collection reads Incomplete (one unresolved child), and the
 // warning itself lives on that child's Warnings field.
 func TestDOM030_CollectionWarning(t *testing.T) {
@@ -21,10 +21,10 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Group("g")
 	succeed(g.Task("a"))
-	g.Task("b").Warn("soft")
+	g.Task("b").Problem("soft", evo.Severity(evo.SeverityWarning))
 	snap := g.Snapshot()
 	if snap.State != evo.Running && snap.State != evo.Incomplete {
-		t.Fatalf("state = %v, want Running or Incomplete (Warn no longer resolves its task)", snap.State)
+		t.Fatalf("state = %v, want Running or Incomplete (a warning-severity Problem does not resolve its task)", snap.State)
 	}
 	if warnings := snap.Tasks[1].Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
 		t.Fatalf("child warnings = %+v, want one warning %q", warnings, "soft")
@@ -34,14 +34,14 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 // TestDOM030b_CollectionWarningDetailIsRendered guards against a regression
 // where writeCollection only special-cased Failed children: a group glyph
 // like "!" rendered with no explanation of which child warned or why,
-// because the Warn() message was recorded but never printed under the
+// because the warning-severity Problem's message was recorded but never printed under the
 // group summary line.
 func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	g := out.Group("capture")
 	succeed(g.Task("Brewfile"))
-	g.Task("Zen").Warn("skipped — zen-bootstrap not available")
+	g.Task("Zen").Problem("skipped — zen-bootstrap not available", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
 	_ = out.Close()
 
@@ -114,12 +114,12 @@ func TestDOM048_BlockedWithNilErrorReturn(t *testing.T) {
 	}
 }
 
-func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
+func TestLOG014_LogMessageDistinctFromTaskWarningProblem(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Println("log warning")
-	out.Task("i").Warn("item warning")
+	out.Task("i").Problem("item warning", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
 	s := buf.String()
 	if !strings.Contains(s, "log warning") || !strings.Contains(s, "item warning") {
