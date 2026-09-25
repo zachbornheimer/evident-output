@@ -16,14 +16,29 @@ type Tally struct {
 }
 
 // ReasonTally is one Reason's share of a Tally, with its item names in
-// record order.
+// record order. Facts, when set, is aligned with Names: the Facts of the
+// item Task each record came from (nil for an item with none).
 type ReasonTally struct {
 	Reason string
 	Names  []string
+	Facts  [][]Fact
+}
+
+// HasFacts reports whether any item under this Reason carries Facts.
+func (r ReasonTally) HasFacts() bool {
+	for _, f := range r.Facts {
+		if len(f) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // Add counts rec under its Reason.
-func (t *Tally) Add(rec TaxonomyRecord) {
+func (t *Tally) Add(rec TaxonomyRecord) { t.addItem(rec, nil) }
+
+// addItem counts rec, recording facts as its item's Facts.
+func (t *Tally) addItem(rec TaxonomyRecord, facts []Fact) {
 	if t.index == nil {
 		t.index = make(map[string]int)
 	}
@@ -33,7 +48,14 @@ func (t *Tally) Add(rec TaxonomyRecord) {
 		t.index[rec.Reason] = i
 		t.reasons = append(t.reasons, ReasonTally{Reason: rec.Reason})
 	}
-	t.reasons[i].Names = append(t.reasons[i].Names, rec.Name)
+	r := &t.reasons[i]
+	r.Names = append(r.Names, rec.Name)
+	if len(facts) > 0 || r.Facts != nil {
+		for len(r.Facts) < len(r.Names)-1 {
+			r.Facts = append(r.Facts, nil)
+		}
+		r.Facts = append(r.Facts, facts)
+	}
 	t.causes = append(t.causes, rec.Causes...)
 	t.total++
 }
@@ -70,8 +92,13 @@ type Dispositions struct {
 // Empty reports whether nothing was skipped or kept.
 func (d Dispositions) Empty() bool { return d.Skipped.Total() == 0 && d.Kept.Total() == 0 }
 
-// AddTask counts t's own Skipped and Kept records.
+// AddTask counts t's own Skipped and Kept records, each carrying t's
+// Facts: t is the item the records name.
 func (d *Dispositions) AddTask(t *TaskSnapshot) {
-	d.Skipped.AddAll(t.Skipped)
-	d.Kept.AddAll(t.Kept)
+	for _, rec := range t.Skipped {
+		d.Skipped.addItem(rec, t.Facts)
+	}
+	for _, rec := range t.Kept {
+		d.Kept.addItem(rec, t.Facts)
+	}
 }

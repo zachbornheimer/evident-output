@@ -26,8 +26,10 @@ func isDispositionItem(group string, t *core.TaskSnapshot) bool {
 	if len(t.Kept) == 0 && len(t.Skipped) == 0 {
 		return false
 	}
+	// Facts ride the item into its tally (verbose lists them beside the
+	// item's name), so they never break the fold (E-100).
 	return t.Summary == "" && t.Phase == "" && t.Progress.Total == 0 && t.Progress.Completed == 0 &&
-		len(t.Problems) == 0 && len(t.Warnings) == 0 && len(t.Facts) == 0 &&
+		len(t.Problems) == 0 && len(t.Warnings) == 0 &&
 		len(t.Actions) == 0 && len(t.Verification) == 0
 }
 

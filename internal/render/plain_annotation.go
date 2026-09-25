@@ -137,7 +137,37 @@ func writeTaxonomy(b *strings.Builder, indent string, verb disposition, tally co
 		return
 	}
 	for _, part := range tally.Reasons() {
+		if part.HasFacts() {
+			writeItemFacts(b, indent+problemDetailIndent, part, s)
+			continue
+		}
 		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, part.Reason, txt.TruncateNames(part.Names, 0, s.Profile))
+	}
+}
+
+// writeItemFacts lists a Reason's items one per line under it, each
+// item's Facts at one column past the widest name, so a long name never
+// moves them (E-100).
+func writeItemFacts(b *strings.Builder, indent string, part core.ReasonTally, s Style) {
+	fmt.Fprintf(b, "%s%s:\n", indent, part.Reason)
+	width := 0
+	for _, name := range part.Names {
+		width = max(width, txt.VisibleCells(name))
+	}
+	for i, name := range part.Names {
+		var facts []core.Fact
+		if i < len(part.Facts) {
+			facts = part.Facts[i]
+		}
+		if len(facts) == 0 {
+			fmt.Fprintf(b, "%s  %s\n", indent, name)
+			continue
+		}
+		pairs := make([]string, len(facts))
+		for j, f := range facts {
+			pairs[j] = f.Name + "  " + f.Value
+		}
+		fmt.Fprintf(b, "%s  %s  %s\n", indent, txt.PadRight(name, width), s.dim(strings.Join(pairs, "  ")))
 	}
 }
 

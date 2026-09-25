@@ -168,6 +168,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Fixed
 
+- A Fact on a kept or skipped item Task no longer breaks its Group's fold
+  under verbose: the Group still shows one `! kept N (...)` tally, and the
+  verbose item list shows each item's Facts at one column past the widest
+  name. Each item rendered its own `✓ name  why ...` row and `! kept 1`.
+
 - Review rule API-036 no longer rewrites a bare `task.Block(fmt.Sprintf(...))`
   or `task.Fail(fmt.Sprintf(...))` statement into `Blockf`/`Failf`, whose
   returned `*Failure` was then discarded and failed errcheck. It fires only
