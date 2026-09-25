@@ -75,11 +75,11 @@ gate.Block("contains local changes", evo.On("working tree"), evo.Detail("stash o
 
 ## Problem / Detail / returned-error evidence
 
-| Piece                         | Audience            | Role                                                                  |
-| ----------------------------- | ------------------- | --------------------------------------------------------------------- |
-| **Problem**                   | Structured evidence | Subject + summary (+ optional pieces) for one failure unit            |
-| **Detail**                    | **User-facing**     | What the human should know or do                                      |
-| **`%w`-wrapped Define error** | **User-facing**     | Wrapped error's text, rendered as one evidence line under the summary |
+| Piece                         | Audience            | Role                                                                             |
+| ----------------------------- | ------------------- | -------------------------------------------------------------------------------- |
+| **Problem**                   | Structured evidence | Subject + summary (+ optional pieces) for one failure unit                       |
+| **Detail**                    | **User-facing**     | What the human should know or do                                                 |
+| **`%w`-wrapped Define error** | **User-facing**     | Wrapped error's text becomes the row's whole summary — no separate evidence line |
 
 PHIL-005: `TaskHandle.Failf`/`Blockf` (removed in 1.1, no compatibility alias — use a `%w`-wrapped
 error returned from `Define`, or a statement-form `Fail`/`Block` plus a `Next`/`NextCommand`
@@ -93,12 +93,18 @@ summary directly; use `Detail` for stable guidance text that isn't derived from 
 in a wrapped error alone with an empty summary.
 
 ```go
-// Right
-task.Block("contains local changes", evo.Detail("stash or commit them"))
+// Right — inside Define: the wrapped error becomes the row's whole summary
 return fmt.Errorf("download failed: %w", err)
 
-// Wrong — user message only in the wrapped error, empty human summary
-return fmt.Errorf(": %w", err)
+// Right — Block is the only way to conclude Blocked; Detail carries stable
+// guidance the error text does not already say
+task.Block("contains local changes", evo.Detail("stash or commit them"))
+return err
+
+// Wrong — Detail restates the error instead of adding guidance the reader
+// doesn't already have from the summary
+task.Fail("download failed", evo.Detail(err.Error()))
+return err
 ```
 
 `evo.Cause` (a `ProblemOption` from before this split existed) is removed: `Fail`/`Block` are
@@ -247,7 +253,7 @@ Per-file progress is added only when users need confidence during sufficiently l
 Both are valid:
 
 ```go
-task.Fail("tests failed", evo.Detail(err.Error()))
+task.Fail("tests failed", evo.Detail("re-run with -v for the failing case names"))
 return err
 ```
 

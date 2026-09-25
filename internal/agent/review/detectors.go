@@ -128,16 +128,21 @@ var fileDetectors = []detector{
 	// API-034: a statement-form Fail/Block immediately followed by return nil
 	// discards the error the caller needed to propagate.
 	{needsEvo: true, run: textRule(detectFailBlockThenReturnNil)},
+	// API-082 (E-118 lane B): a chained TaskHandle.Next/NextCommand right
+	// after Fail/Block on the same handle — fold it into the resolving
+	// call's own evo.Next/evo.NextCommand ProblemOption instead.
+	{needsEvo: true, run: textRule(detectChainedNextAfterFailBlock)},
 	// API-035: io.Discard wired as a sink in a function that itself Fails/
 	// Blocks is an evidence-free security-gate shape — the verdict has
 	// nothing to show for itself.
 	{needsEvo: true, run: textRule(detectDiscardSinkInFailingBlock)},
-	// API-036: a statement-form Fail/Block(fmt.Sprintf(...)) followed by a
-	// non-nil `return <err>`. API-034 covers the `return nil` sibling of
-	// this shape; this is the `return err` one, which does not discard
-	// anything but still had no rule confirming the keep-the-call-and-
-	// return-err rewrite once Failf/Blockf's `*f` form was removed in 1.1.
-	{needsEvo: true, run: textRule(detectFailBlockSprintfThenReturnErr)},
+	// API-036 was removed: it flagged a statement-form Fail/Block(fmt.
+	// Sprintf(...)) followed by a non-nil `return <err>`, but that shape IS
+	// the correct, final form once Failf/Blockf's `*f` form was removed in
+	// 1.1 — there is no rewrite that clears the finding, so the rule could
+	// never converge (its own Remediation said "keep the statement as-is").
+	// API-034 still covers the actionable sibling: `return nil` after
+	// Fail/Block, which really does discard the error.
 	// API-038: fmt.Sprintf(...) passed to a printf-variadic evo method
 	// (Doing) should flatten into that method's own format + args.
 	{needsEvo: true, run: textRule(detectSprintfIntoVariadicVerb)},

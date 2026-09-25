@@ -38,11 +38,41 @@ func detectBlockedAsError(filename, src string) []Finding {
 	if blockLine < 0 {
 		return nil
 	}
+	// Inside a Define callback, `task.Block(...); return err` is the
+	// canonical, only-correct refusal shape (task.go's Block doc, E-105):
+	// Block resolves the Task Blocked, and the returned error is what lets
+	// Define propagate the failure without overriding that resolution to
+	// Failed. There is no Output/Finish in scope to redirect to, so DOM-011
+	// does not apply there — only at the Run/Main level where Finish exists.
+	if insideDefineCallback(lines, blockLine) {
+		return nil
+	}
 	line, kind := blockedReturnAfter(lines, blockLine)
 	if kind == noBlockedReturn {
 		return nil
 	}
 	return []Finding{blockedAsErrorFinding(filename, line+1, kind)}
+}
+
+// insideDefineCallback reports whether blockLine sits directly inside a
+// `.Define(func(...) error {` callback literal: scanning backward from
+// blockLine, the nearest unmatched `{` is that callback's opening brace.
+func insideDefineCallback(lines []string, blockLine int) bool {
+	depth := 0
+	for i := blockLine; i >= 0; i-- {
+		for _, c := range lines[i] {
+			switch c {
+			case '}':
+				depth++
+			case '{':
+				depth--
+			}
+		}
+		if depth < 0 {
+			return strings.Contains(lines[i], ".Define(func(")
+		}
+	}
+	return false
 }
 
 // firstBlockLine is the index of the first line resolving a Task Blocked,

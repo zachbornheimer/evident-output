@@ -34,7 +34,7 @@ func TestDefine_BlockRefuses(t *testing.T) {
 	gate := steps.Task("gate")
 	gate.Define(func(context.Context) error {
 		gate.Block("needs review", evo.Detail(errAmbiguous.Error()), evo.NextCommand("git", "status"))
-		return nil
+		return errAmbiguous
 	})
 	apply := steps.Task("apply")
 	ran := false

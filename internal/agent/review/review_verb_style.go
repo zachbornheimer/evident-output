@@ -140,55 +140,6 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 	return findings
 }
 
-// failBlockSprintfPattern matches a statement-form Fail/Block whose summary
-// is built with fmt.Sprintf(...).
-var failBlockSprintfPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*fmt\.Sprintf\(`)
-
-// returnStmtPattern matches a bare `return <ident>` — used to find the
-// non-nil error return that follows a Fail/Block(fmt.Sprintf(...)) site.
-var returnStmtPattern = regexp.MustCompile(`^return\s+(\w+)$`)
-
-// detectFailBlockSprintfThenReturnErr is API-036: a statement-form
-// Fail/Block built with fmt.Sprintf(...) immediately followed by
-// `return <err>` for a non-nil identifier. API-034 already covers the
-// `return nil` variant of this shape (the error is discarded there); this
-// is its `return err` sibling, which API-034's `return nil` match leaves
-// unflagged. The rewrite is the same one API-034 and the removal of
-// Failf/Blockf settled on: keep the resolving Fail/Block statement and
-// return the error so the caller still sees the cause — there is no `*f`
-// form to move the formatting into any more.
-func detectFailBlockSprintfThenReturnErr(filename, src string) []Finding {
-	var findings []Finding
-	lines := strings.Split(src, "\n")
-	for i, line := range lines {
-		m := failBlockSprintfPattern.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		recv, verb := m[1], m[2]
-		for j := i + 1; j < len(lines) && j < i+4; j++ {
-			trimmed := strings.TrimSpace(lines[j])
-			if trimmed == "" || trimmed == "}" {
-				continue
-			}
-			rm := returnStmtPattern.FindStringSubmatch(trimmed)
-			if rm == nil || rm[1] == "nil" {
-				break
-			}
-			suggestion := handBackSuggestion(recv, verb, rm[1])
-			findings = append(findings, Finding{
-				RuleID:     "API-036",
-				Message:    recv + "." + verb + "(fmt.Sprintf(...)) followed by `return " + rm[1] + "` — keep the resolving call and return the error itself, no `*f` form exists to move the formatting into",
-				File:       filename,
-				Line:       j + 1,
-				Suggestion: suggestion,
-			})
-			break
-		}
-	}
-	return findings
-}
-
 // detectDiscardSinkInFailingBlock is API-035: io.Discard wired as a sink
 // inside a function that also Fails/Blocks is an evidence-free security-gate
 // shape — the verdict has nothing to show for itself.

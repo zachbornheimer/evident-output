@@ -356,26 +356,13 @@ if err := cmd.Run(); err != nil {
 			Since:           "0.2.17",
 			Certainty:       CertaintyHeuristic,
 		},
-		{
-			ID:        "API-036",
-			Category:  "API",
-			Severity:  SeverityWarning,
-			Invariant: "a statement-form Fail/Block built with fmt.Sprintf(...) that propagates a non-nil error keeps the resolving call and returns that error",
-			Why:       "Failf/Blockf's *f form was removed in 1.1 with no replacement — Fail/Block are statement-form and take a plain summary string, so a Fail/Block(fmt.Sprintf(...)) site followed by a non-nil `return err` has no `*f` call to move the formatting into; the resolving call still has to stay (Block is the only way to conclude Blocked; dropping Fail here inside a non-Define function would leave the task unresolved) and the error still has to reach the caller.",
-			BadCode: `if err := validate(cfg); err != nil {
-  task.Fail(fmt.Sprintf("validate %s", cfg.Name))
-  return err
-}`,
-			GoodCode: `if err := validate(cfg); err != nil {
-  task.Fail(fmt.Sprintf("validate %s", cfg.Name))
-  return err // Fail already resolved the task; the return just hands the cause to the caller
-}`,
-			Remediation:     "Keep the Fail/Block statement as-is and keep returning the error — there is no *f form to rewrite it into; API-034 covers the sibling shape where the return is a bare `nil` instead",
-			RelatedGuidance: []string{"common-api"},
-			VerificationIDs: []string{"API-036"},
-			Since:           "0.2.17",
-			Certainty:       CertaintyHeuristic,
-		},
+		// API-036 was removed (1.1): it flagged a statement-form
+		// Fail/Block(fmt.Sprintf(...)) followed by a non-nil `return err`,
+		// but that shape is the correct final form once Failf/Blockf were
+		// removed — there is no rewrite that clears the finding, so the
+		// review-apply-rereview loop could never converge. API-034 still
+		// covers the actionable sibling (`return nil`, which really does
+		// discard the error).
 		{
 			ID:        "API-037",
 			Category:  "API",
@@ -525,6 +512,21 @@ return err`,
 			Remediation:     "Replace Blockf(...) (removed in 1.1) plus its chained .NextCommand(...)/.Next(...) with Block(summary, evo.NextCommand(...)/evo.Next(...)) followed by a plain return of the cause — Block already resolved the task Blocked, so the return only lets the caller see the cause",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-081"},
+			Since:           "1.1.0",
+			Certainty:       CertaintyHeuristic,
+		},
+		{
+			ID:        "API-082",
+			Category:  "API",
+			Severity:  SeverityWarning,
+			Invariant: "a remedy for the same Fail/Block resolving call attaches as its own evo.Next/evo.NextCommand ProblemOption, not a separate chained TaskHandle.Next/NextCommand call",
+			Why:       "TaskHandle.Next/NextCommand exist for a remedy attached away from the resolving call (Define's returned error, or a verb called elsewhere) — task.go documents the ProblemOption form on Fail/Block itself as canonical whenever the remedy and the resolving call are the same statement. A chained task.Next(...) right after task.Fail(...)/task.Block(...) on the same handle is the one-statement case with two calls instead of one.",
+			BadCode: `task.Block("worktree dirty")
+task.NextCommand("git", "status")`,
+			GoodCode:        `task.Block("worktree dirty", evo.NextCommand("git", "status"))`,
+			Remediation:     "Fold the TaskHandle.Next/NextCommand call into the Fail/Block call it follows, as an evo.Next(...)/evo.NextCommand(...) ProblemOption argument, and delete the chained call",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"API-082"},
 			Since:           "1.1.0",
 			Certainty:       CertaintyHeuristic,
 		},

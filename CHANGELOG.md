@@ -189,9 +189,16 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   API-081 flags a remaining `Blockf` call site (including its chained
   `.NextCommand(...)`/`.Next(...)`) with the `Block` + `ProblemOption`
   rewrite, API-032's `evo.Cause` rewrite drops the same `Fail` call only
-  inside a function that itself returns `error`, and API-034/API-036 cover
-  the `Fail(fmt.Sprintf(...))` shape (`return nil` and `return err`
-  respectively) that never called `Failf`/`Blockf` in the first place.
+  inside a function that itself returns `error`, and API-034 covers the
+  `Fail(fmt.Sprintf(...))` shape whose trailing `return nil` discards the
+  error. (API-036 briefly covered the sibling `return err` shape, but that
+  shape is already the correct final form with no rewrite to suggest, so
+  it never converged and was removed rather than kept as a
+  can-never-clear finding.) DOM-011 (a Block turned into an application
+  error) now skips any Block site inside a `Define` callback: there is no
+  `Output`/`Finish` in scope there to redirect to, and `Block` then
+  `return err` is Block's own documented, only-correct shape inside
+  `Define` (task.go), not an application error.
   `TaskHandle.Next`/`NextCommand` gain doc comments distinguishing them
   from the canonical `evo.Next`/`evo.NextCommand` `ProblemOption` form
   Fail/Block already document (docs/migration/1.1.md and

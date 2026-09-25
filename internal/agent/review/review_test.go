@@ -136,6 +136,34 @@ func check() error {
 	}
 }
 
+// TestDOM011_NoFalsePositiveOnCanonicalBlockInsideDefine pins the canonical
+// refusal shape docs/migration/1.1.md and task.go's Block doc both name as
+// the only correct form (API-081's rewrite target): inside Define,
+// task.Block(...) followed by `return err` is not a Block-turned-error —
+// there is no Output/Finish in scope to redirect to, and the returned error
+// is what lets Define propagate the failure without overriding Block's
+// resolution to Failed (E-105). DOM-011 must not fire on it.
+func TestDOM011_NoFalsePositiveOnCanonicalBlockInsideDefine(t *testing.T) {
+	src := `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(task *evo.TaskHandle, err error) {
+  task.Define(func(ctx context.Context) error {
+    task.Block("refused x", evo.NextCommand("git", "status"))
+    return err
+  })
+}
+`
+	res := review.GoSource("canon.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-011" {
+			t.Fatalf("false positive DOM-011 on canonical Block-inside-Define: %+v", f)
+		}
+	}
+}
+
 // TestAPI028_PrintfWithoutFormat is C6's sync: Donef and the rest of the *f
 // family are deleted (Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are
 // printf-variadic themselves now, and 1.1 removed Failf/Blockf too with no
@@ -1904,8 +1932,7 @@ func f(cmd *exec.Cmd) {
 
 // TestAPI034_SprintfInVerbThenReturnNil: a Fail(fmt.Sprintf(...)) statement
 // followed by a bare return nil is API-034's shape (discards the error),
-// same as any other statement-form Fail — API-036 covers the sibling shape
-// where the return is non-nil instead.
+// same as any other statement-form Fail.
 func TestAPI034_SprintfInVerbThenReturnNil(t *testing.T) {
 	src := `package p
 import (
@@ -1935,8 +1962,7 @@ func f(task *evo.TaskHandle, branch string) error {
 // TestAPI034_BareStatementFollowedByReturnErrNotFlagged pins E-102's
 // surviving half: a Block/Fail statement (Sprintf summary or not) followed
 // by a returned error, not nil, already propagates the cause and is left
-// alone by API-034 (API-036 is the rule that covers the Sprintf variant of
-// this shape — see below).
+// alone by API-034 — that shape is the correct final form, not a finding.
 func TestAPI034_BareStatementFollowedByReturnErrNotFlagged(t *testing.T) {
 	src := `package p
 import (
@@ -1954,74 +1980,6 @@ func f(task *evo.TaskHandle, name string, n int) error {
 		if f.RuleID == "API-034" {
 			t.Fatalf("API-034 flags Block followed by a returned error, which already propagates the cause: %+v", f)
 		}
-	}
-}
-
-// TestAPI036_SprintfInVerbThenReturnErr is red-first for API-036's revived
-// shape: Fail/Block(fmt.Sprintf(...)) followed by a non-nil `return <err>`
-// had no rule confirming its keep-the-call-and-return-err rewrite once
-// Failf/Blockf's *f form was removed in 1.1 (E-118 lane B gap).
-func TestAPI036_SprintfInVerbThenReturnErr(t *testing.T) {
-	src := `package p
-import (
-  "fmt"
-  evo "github.com/zachbornheimer/evident-output"
-)
-func f(task *evo.TaskHandle, name string) error {
-  if err := validate(name); err != nil {
-    task.Fail(fmt.Sprintf("validate %s", name))
-    return err
-  }
-  return nil
-}
-func validate(string) error { return nil }
-`
-	res := review.GoSource("sprintfreturn.go", src)
-	var found *review.Finding
-	for i := range res.Findings {
-		if res.Findings[i].RuleID == "API-036" {
-			found = &res.Findings[i]
-		}
-	}
-	if found == nil {
-		t.Fatalf("expected one API-036 finding, got %+v", res.Findings)
-	}
-	if !strings.Contains(found.Suggestion, "return err") {
-		t.Fatalf("suggestion = %q, want it to keep returning err", found.Suggestion)
-	}
-}
-
-// TestAPI036_BlockVariant covers the Block sibling of API-036: the
-// resolving call must stay (Block is the only way to conclude a Task
-// Blocked) and the suggestion must say so, not propose dropping it.
-func TestAPI036_BlockVariant(t *testing.T) {
-	src := `package p
-import (
-  "fmt"
-  evo "github.com/zachbornheimer/evident-output"
-)
-func f(task *evo.TaskHandle, name string) error {
-  if dirty(name) {
-    task.Block(fmt.Sprintf("refused %s", name))
-    return errBoom
-  }
-  return nil
-}
-var errBoom = fmt.Errorf("boom")
-func dirty(string) bool { return false }
-`
-	res := review.GoSource("sprintfblock.go", src)
-	var found *review.Finding
-	for i := range res.Findings {
-		if res.Findings[i].RuleID == "API-036" {
-			found = &res.Findings[i]
-		}
-	}
-	if found == nil {
-		t.Fatalf("expected one API-036 finding, got %+v", res.Findings)
-	}
-	if !strings.Contains(found.Suggestion, "Block") || strings.Contains(found.Suggestion, "drop") {
-		t.Fatalf("suggestion must keep the Block call, not drop it: %q", found.Suggestion)
 	}
 }
 
@@ -2054,8 +2012,8 @@ func f(task *evo.TaskHandle, path string) {
 }
 
 // TestAPI038_WarnFlattensNotWarnf proves the Warn case flattens into Warn's
-// own variadic form rather than repeating API-036's now-stale suggestion of
-// a Warnf method that no longer exists (P1/P2 deleted it).
+// own variadic form rather than suggesting a Warnf method that no longer
+// exists (P1/P2 deleted it).
 func TestAPI038_WarnFlattensNotWarnf(t *testing.T) {
 	src := `package p
 import (
@@ -2068,9 +2026,6 @@ func f(task *evo.TaskHandle, n int) {
 `
 	res := review.GoSource("sprintfwarn.go", src)
 	for _, f := range res.Findings {
-		if f.RuleID == "API-036" {
-			t.Fatalf("API-036 must not fire on Warn (Warnf does not exist): %+v", f)
-		}
 		if f.RuleID == "API-038" && f.Suggestion != `task.Warn("kept %d", n)` {
 			t.Fatalf("suggestion = %q", f.Suggestion)
 		}
@@ -2432,6 +2387,51 @@ func scan(paths []string) {
 	for _, f := range res.Findings {
 		if f.RuleID == "LOOP-001" {
 			t.Fatalf("false positive LOOP-001 on Group + one Task per item: %+v", res.Findings)
+		}
+	}
+}
+
+// TestAPI082_ChainedNextAfterBlock is red-first for API-082: task.Next/
+// NextCommand chained right after task.Fail/task.Block on the same handle
+// should fold into the resolving call's own ProblemOption, not stay a
+// separate statement — task.go documents that form as canonical.
+func TestAPI082_ChainedNextAfterBlock(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Block("worktree dirty")
+  task.NextCommand("git", "status")
+}
+`
+	res := review.GoSource("chained.go", src)
+	var found *review.Finding
+	for i := range res.Findings {
+		if res.Findings[i].RuleID == "API-082" {
+			found = &res.Findings[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected API-082, got %+v", res.Findings)
+	}
+	if !strings.Contains(found.Suggestion, "evo.NextCommand") {
+		t.Fatalf("suggestion = %q", found.Suggestion)
+	}
+}
+
+// TestAPI082_NoFalsePositiveOnProblemOptionForm pins the fixed shape: the
+// remedy already attached as a ProblemOption on Block itself must not be
+// flagged again.
+func TestAPI082_NoFalsePositiveOnProblemOptionForm(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Block("worktree dirty", evo.NextCommand("git", "status"))
+}
+`
+	res := review.GoSource("noproblem.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-082" {
+			t.Fatalf("false positive API-082 on the already-canonical ProblemOption form: %+v", f)
 		}
 	}
 }

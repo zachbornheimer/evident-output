@@ -68,8 +68,8 @@ func main() {
 				evo.Detail("feat/sdk-full-consolidation: local-only branch (1)\n"+
 					"fix/login-flow: ahead of origin (2)\n"+
 					"Push, merge, or delete local-only work before retiring this repository."),
+				evo.NextCommand("git", "push", "-u", "origin", "feat/sdk-full-consolidation"),
 			)
-			branches.NextCommand("git", "push", "-u", "origin", "feat/sdk-full-consolidation")
 		})
 		check("remotes", func(remotes *evo.TaskHandle) {
 			if !*clean {

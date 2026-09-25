@@ -19,7 +19,7 @@ if err := out.Finish(); err != nil {
 }
 os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCode`,
 			Remediation:     "After Block, Finish and use Conclusion.ExitCode; return nil for successful evaluation that found a blocker",
-			Exceptions:      []string{"wrapping Finish misuse errors", "I/O failures unrelated to Block"},
+			Exceptions:      []string{"wrapping Finish misuse errors", "I/O failures unrelated to Block", "inside a Define callback: `task.Block(\"summary\", ...); return err` is Block's own only-correct shape there (task.go) — there is no Output/Finish in scope to redirect to"},
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"MCP-014", "DOM-011", "DOM-048"},
 			Since:           "0.1.0",
