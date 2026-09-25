@@ -122,14 +122,42 @@ func runAnalyzers(pkg *packages.Package) (*diagBuild, error) {
 // already kept. It returns the accepted edits and the set of owner
 // indices they belong to.
 func resolveEdits(edits []edit) (accepted []edit, owners map[int]bool) {
-	sorted := append([]edit(nil), edits...)
+	// Collapse byte-identical edits (same start, end and replacement
+	// text) into one physical edit before the overlap pass. Two
+	// diagnostics in the same file that each need the same prerequisite
+	// — e.g. two Warn fixes each inserting the same zero-length `import
+	// evo "..."` at the package clause — produce identical edits that
+	// are not really in conflict; applying every copy would duplicate
+	// the import. Every owner in a collapsed group is credited as fixed
+	// once the group's single representative edit survives below.
+	type key struct {
+		start, end int
+		text       string
+	}
+	groupOwners := map[key][]int{}
+	var order []key
+	repr := map[key]edit{}
+	for _, e := range edits {
+		k := key{e.start, e.end, string(e.newText)}
+		if _, ok := repr[k]; !ok {
+			order = append(order, k)
+			repr[k] = e
+		}
+		groupOwners[k] = append(groupOwners[k], e.owner)
+	}
+	deduped := make([]edit, 0, len(order))
+	for _, k := range order {
+		deduped = append(deduped, repr[k])
+	}
+
+	sorted := deduped
 	sort.Slice(sorted, func(i, j int) bool {
 		if sorted[i].start != sorted[j].start {
 			return sorted[i].start < sorted[j].start
 		}
 		return sorted[i].owner < sorted[j].owner
 	})
-	owners = map[int]bool{}
+	repOwners := map[int]bool{}
 	dropped := map[int]bool{}
 	lastEnd := -1
 	for _, e := range sorted {
@@ -138,13 +166,31 @@ func resolveEdits(edits []edit) (accepted []edit, owners map[int]bool) {
 		}
 		if e.start < lastEnd {
 			dropped[e.owner] = true
-			delete(owners, e.owner)
+			delete(repOwners, e.owner)
 			continue
 		}
 		accepted = append(accepted, e)
-		owners[e.owner] = true
+		repOwners[e.owner] = true
 		if e.end > lastEnd {
 			lastEnd = e.end
+		}
+	}
+	owners = map[int]bool{}
+	for _, k := range order {
+		if !repOwners[repr[k].owner] {
+			continue
+		}
+		for _, o := range groupOwners[k] {
+			owners[o] = true
+		}
+	}
+	dropped = map[int]bool{}
+	for _, k := range order {
+		if repOwners[repr[k].owner] {
+			continue
+		}
+		for _, o := range groupOwners[k] {
+			dropped[o] = true
 		}
 	}
 	// An owner with any dropped edit must lose all its edits: a fix's

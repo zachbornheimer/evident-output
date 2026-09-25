@@ -4,7 +4,6 @@ import (
 	"go/ast"
 	"go/token"
 	"os"
-	"strings"
 	"sync"
 
 	"golang.org/x/tools/go/analysis"
@@ -50,13 +49,13 @@ func argTexts(pass *analysis.Pass, args []ast.Expr) []string {
 	return out
 }
 
-// hasVerbW reports whether a printf-style format argument is a string
-// literal containing %w — the one case a rewritten return should still
-// wrap an error instead of returning nil.
-func hasVerbW(pass *analysis.Pass, format ast.Expr) bool {
-	lit, ok := format.(*ast.BasicLit)
-	if !ok || lit.Kind != token.STRING {
-		return false
+// enclosingFile returns the *ast.File among pass.Files that contains at,
+// so a fix can inspect or edit that file's import list.
+func enclosingFile(pass *analysis.Pass, at token.Pos) *ast.File {
+	for _, f := range pass.Files {
+		if f.Pos() <= at && at <= f.End() {
+			return f
+		}
 	}
-	return strings.Contains(lit.Value, "%w")
+	return nil
 }

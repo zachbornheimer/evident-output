@@ -2,6 +2,7 @@ package fix
 
 import (
 	"go/ast"
+	"go/token"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -128,9 +129,36 @@ func warnTaskFix(pass *analysis.Pass, call *ast.CallExpr, sel *ast.SelectorExpr)
 			NewText: []byte(", " + severity),
 		})
 	}
+	if imp := addEvoImport(pass, sel.Pos()); imp.NewText != nil {
+		edits = append(edits, imp)
+	}
 	return analysis.SuggestedFix{
 		Message:   "replace Warn with Problem(..., evo.Severity(evo.SeverityWarning))",
 		TextEdits: edits,
+	}
+}
+
+// addEvoImport inserts `evo "github.com/zachbornheimer/evident-output"`
+// right after the package clause when the file has no evo import at all.
+// warnTaskFix writes literal `evo.Severity(evo.SeverityWarning)` text
+// (evoAlias defaults to "evo" when it cannot find an existing import), so
+// a file reached only through the untyped alias-tracing fallback — one
+// with no evo import to resolve an alias from — needs the import added or
+// the fix leaves `undefined: evo` behind.
+func addEvoImport(pass *analysis.Pass, at token.Pos) analysis.TextEdit {
+	f := enclosingFile(pass, at)
+	if f == nil {
+		return analysis.TextEdit{}
+	}
+	for _, imp := range f.Imports {
+		if importPath(imp) == EvoPackagePath {
+			return analysis.TextEdit{}
+		}
+	}
+	return analysis.TextEdit{
+		Pos:     f.Name.End(),
+		End:     f.Name.End(),
+		NewText: []byte("\n\nimport evo \"" + EvoPackagePath + "\""),
 	}
 }
 

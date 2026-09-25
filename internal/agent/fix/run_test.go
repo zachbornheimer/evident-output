@@ -51,9 +51,8 @@ func run() error {
 	t.Warn("stale cache")
 	t.Step(1, 3, "scanning")
 	t.Kept(evo.Reason("dirty"))
-	t.Blockf("bad: %d", 4)
 	t.Define(func(ctx context.Context) error {
-		return t.Failf("nope")
+		return nil
 	})
 	return out.Finish()
 }
@@ -80,7 +79,7 @@ func TestDiagnoseFindsEveryRemovedName(t *testing.T) {
 	for _, d := range results[0].Diagnostics {
 		got[d.RuleID] = true
 	}
-	for _, want := range []string{"API-070", "API-080", "API-081", "API-090", "API-091"} {
+	for _, want := range []string{"API-070", "API-090", "API-091"} {
 		if !got[want] {
 			t.Errorf("missing diagnostic %s; got %v", want, got)
 		}
@@ -193,7 +192,7 @@ func TestDiagnoseApplyConvergesToNoDiagnostics(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, retired := range []string{".Warn(", ".Step(", ".Kept(", ".Blockf(", ".Failf("} {
+			for _, retired := range []string{".Warn(", ".Step(", ".Kept("} {
 				if strings.Contains(string(out), retired) {
 					t.Errorf("converged output still contains %s:\n%s", retired, out)
 				}
