@@ -10,7 +10,7 @@ import (
 func doWork() {
 	// docexamples:snippet start
 	drv := terminal.NewANSI(os.Stderr, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{Title: "deploy", Options: []evo.Option{evo.Terminal(drv)}})
+	out := evo.Init(evo.Config{Title: "deploy", Terminal: drv})
 	// docexamples:snippet end
 
 	_ = out

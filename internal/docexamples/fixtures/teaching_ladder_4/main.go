@@ -10,7 +10,7 @@ var flagYes bool
 
 func doWork() bool {
 	// docexamples:snippet start
-	ok := evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))
+	ok := evo.Confirm("delete origin/production-hotfix?", evo.Destructive(), evo.AssumeYes(flagYes))
 	// docexamples:snippet end
 	return ok
 }

@@ -90,7 +90,7 @@ per finding, never every finding flattened into a single
 `errors.New(strings.Join(...))` string:
 
 ```go
-task := out.Task("file integrity")
+task := out.Task("check file integrity")
 for _, issue := range issues {
     task.Problem(issue.Summary,
         evo.On(issue.Path),

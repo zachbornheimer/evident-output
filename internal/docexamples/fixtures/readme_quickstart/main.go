@@ -41,13 +41,19 @@ func run(ctx context.Context) error {
 
 // docexamples:snippet end
 
-// The fenced block above references these four names without defining
+// The fenced block above references these four names (plus deleteBranch below) without defining
 // them (the doc leaves them to the reader's own program); the fixture
 // supplies trivial stand-ins purely so the snippet type-checks.
 var packages = []string{"example-pkg"}
 
 func checkWorkingTree(ctx context.Context) error { return nil }
 
-func removeStaleBranches(ctx context.Context) error { return nil }
+// removeStaleBranches does its mutation inside the Effect callback, the
+// shape the README teaches (API-042); deleteBranch stands in for git.
+func removeStaleBranches(ctx context.Context) error {
+	return deleteBranch(ctx, "stale")
+}
+
+func deleteBranch(ctx context.Context, _ string) error { return ctx.Err() }
 
 func install(pkg string) error { return nil }

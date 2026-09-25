@@ -21,7 +21,7 @@ func doWork() {
 	issues := []fileIssue{}
 
 	// docexamples:snippet start
-	task := out.Task("file integrity")
+	task := out.Task("check file integrity")
 	for _, issue := range issues {
 		task.Problem(issue.Summary,
 			evo.On(issue.Path),
