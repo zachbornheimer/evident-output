@@ -33,7 +33,7 @@ func TestDefine_BlockRefuses(t *testing.T) {
 	steps := out.Sequence("converge")
 	gate := steps.Task("gate")
 	gate.Define(func(context.Context) error {
-		gate.Block("needs review", evo.Detail(errAmbiguous.Error()), evo.NextCommand("git", "status"))
+		gate.Block("needs review", evo.Detail("ambiguous changes need a human decision before merge"), evo.NextCommand("git", "status"))
 		return errAmbiguous
 	})
 	apply := steps.Task("apply")
@@ -52,7 +52,7 @@ func TestDefine_BlockRefuses(t *testing.T) {
 	if got := apply.Snapshot().State; got != evo.NotStarted {
 		t.Fatalf("follower state = %s, want %s\n%s", got, evo.NotStarted, buf.String())
 	}
-	for _, want := range []string{"needs review", "ambiguous", "git status"} {
+	for _, want := range []string{"needs review", "human decision", "git status"} {
 		if !strings.Contains(buf.String(), want) {
 			t.Fatalf("output missing %q\n%s", want, buf.String())
 		}

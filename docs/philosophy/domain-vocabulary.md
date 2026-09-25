@@ -96,8 +96,9 @@ in a wrapped error alone with an empty summary.
 // Right — inside Define: the wrapped error becomes the row's whole summary
 return fmt.Errorf("download failed: %w", err)
 
-// Right — Block is the only way to conclude Blocked; Detail carries stable
-// guidance the error text does not already say
+// Right — inside Define: Block is the only way to conclude Blocked; Detail
+// carries stable guidance the error text does not already say. Returning
+// err (not nil) only lets Define hand the cause up (DOM-011).
 task.Block("contains local changes", evo.Detail("stash or commit them"))
 return err
 

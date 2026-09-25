@@ -132,11 +132,11 @@ FSResource	helper	Resource
 Fact	canonical	Fact
 FactRecord	helper	Fact
 Failed	helper	Conclusion
-Failure	helper	Problem
-Failure.Error	helper	Problem
+Failure	removed	Problem
+Failure.Error	removed	Problem
 Failure.Next	removed	Action
 Failure.NextCommand	removed	Action
-Failure.Unwrap	helper	Problem
+Failure.Unwrap	removed	Problem
 Field	helper	Problem
 File	canonical	File
 FileFS	helper	File
