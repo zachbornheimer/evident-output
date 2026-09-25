@@ -94,6 +94,13 @@ go run ./cmd/evident-output version
 
 ## Machine output
 
+`FormatJSON`/`FormatJSONL` write the versioned `evo.run`/`evo.event` wire
+documents automatically at Finish — most programs never call an encoder
+directly (`docs/migration/1.1.md`). Call `EncodeJSON`/`EncodeJSONL` yourself
+only from a `FormatData`/`FormatExternal` host that owns stdout for its own
+payload and needs the output.v1 projection on the side (see
+`docs/decisions/output-v1-retention.md`):
+
 ```go
 snap := out.Snapshot()
 plain, _ := evo.RenderPlain(snap, evo.PlainOptions{Width: 80})
@@ -101,7 +108,8 @@ jsonBytes, _ := evo.EncodeJSON(snap)
 jsonl, _ := evo.EncodeJSONL(out.Events())
 ```
 
-Schemas: `../schema/output.v1.json`, `../schema/event.v1.json`.
+Schemas: `../schema/run.v2.json`, `../schema/event.v2.json` (default),
+`../schema/output.v1.json` (`FormatData`/`FormatExternal` side channel).
 
 ## Production ANSI driver
 

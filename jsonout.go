@@ -15,6 +15,15 @@ func init() {
 	engine.SetWireEvoVersion(PublishedRelease)
 }
 
+// output.v1 (JSONDocument/EncodeJSON/EncodeJSONL/EncodeEventJSON below) is
+// deliberately kept alongside the newer evo.run/evo.event wire vocabulary
+// (WriteJSON, wire.EncodeRun/EncodeEvent): it is the only encoder a
+// FormatData/FormatExternal host — one that owns stdout for its own
+// payload and calls out.Snapshot()/out.Events() directly — can use.
+// evo.run/evo.event are Result-shaped and written automatically only at
+// Finish for FormatJSON/FormatJSONL. See
+// docs/decisions/output-v1-retention.md (ZYS-946).
+
 // ParseFormat parses "human", "data", "external", "json", or "jsonl"
 // (case-insensitive, surrounding whitespace ignored) into a Format — the
 // entry point a host CLI's own --format/--json flag binds to (spec §32.1).
