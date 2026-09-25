@@ -27,7 +27,7 @@ func ExampleSourceLocation() {
 }
 
 // ExampleAttachment shows an additional label/value fact attached to a
-// Problem — a different concept from the Evidence retention sink.
+// Problem — a different concept from the Capture retention sink.
 func ExampleAttachment() {
 	a := evo.Attachment{Label: "stderr", Value: "permission denied"}
 	fmt.Println(a.Label, a.Value)

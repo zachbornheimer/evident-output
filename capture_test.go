@@ -30,7 +30,7 @@ func TestCaptureSuccessIsSilentByDefault(t *testing.T) {
 		t.Fatalf("default Capture must not mirror to Diagnostics:\n%s", diag.String())
 	}
 	if output.Empty() {
-		t.Fatal("evidence must still be retained")
+		t.Fatal("capture must still be retained")
 	}
 	if !strings.Contains(output.Text(), "Downloading bottle...") {
 		t.Fatalf("retained: %q", output.Text())
@@ -204,7 +204,7 @@ func TestDetailTailIncludesUnterminatedStderr(t *testing.T) {
 	if !strings.Contains(primary.String(), "authentication failed") {
 		t.Fatalf("DetailTail must include unterminated stderr:\n%s", primary.String())
 	}
-	// Observation must not require Close for evidence.
+	// Observation must not require Close for capture.
 	if output.Empty() {
 		t.Fatal("Empty must see pending stderr content")
 	}
