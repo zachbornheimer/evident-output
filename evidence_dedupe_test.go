@@ -20,7 +20,7 @@ func TestFailf_EvidenceDedupedAgainstSummary(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("install")
-	output := task.EvidenceForTest()
+	output := task.CaptureForTest()
 	_, _ = fmt.Fprint(output, "npm ERR! 404 not found")
 	_ = task.Failf("install failed: %s", output.Text())
 
@@ -41,7 +41,7 @@ func TestFailf_EvidenceStillRenders_WhenNotContainedInSummary(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("build")
-	output := task.EvidenceForTest()
+	output := task.CaptureForTest()
 	_, _ = fmt.Fprintln(output, "error: undefined symbol foo")
 	task.Fail("compile failed")
 

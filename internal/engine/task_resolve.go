@@ -55,8 +55,8 @@ func (t *TaskHandle) resolveFormatted(state EntityState, format string, args []a
 }
 
 // attachRetainedEvidenceTail attaches the task's own retained evidence
-// (Writer/PhaseWriter/evidence() capture) as the Problem's
-// EvidenceTail, the same precedence Evidence.DetailTail() already
+// (Writer/PhaseWriter/capture()) as the Problem's
+// EvidenceTail, the same precedence Capture.DetailTail() already
 // documents: an existing Detail line — here, Failf/Blockf's own
 // wrapped-error text — still renders as the primary line, and the retained
 // evidence appends underneath rather than being silently dropped
@@ -68,7 +68,7 @@ func (t *TaskHandle) attachRetainedEvidenceTail(p *Problem) {
 	if t == nil {
 		return
 	}
-	t.evidence().DetailTail().applyProblem(p)
+	t.capture().DetailTail().applyProblem(p)
 }
 
 // Block resolves the task as blocked. This is a statement, not a fluent

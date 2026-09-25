@@ -146,7 +146,7 @@ cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
   return task.Failf("install dependencies: %w", err)
 }`,
-			Remediation:     "Pass context via the trailing \": %w\" wrap instead of interpolating capture.Text()/Evidence().Text() into the summary — Failf/Blockf auto-attach the retained tail as its own evidence line",
+			Remediation:     "Pass context via the trailing \": %w\" wrap instead of interpolating capture.Text() into the summary — Failf/Blockf auto-attach the retained tail as its own evidence line",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EV-001"},
 			Since:           "0.4.0",

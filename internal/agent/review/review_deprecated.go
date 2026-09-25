@@ -119,12 +119,14 @@ var retiredSpellings = []retiredSpelling{
 		},
 	},
 	{
-		// Capture and Evidence share one parameter list, so this is a pure
-		// spelling substitution.
+		// TaskHandle has no Capture (or Evidence) method: Capture is the
+		// retained-output type, and Writer is the one way to feed it.
 		pattern:         regexp.MustCompile(`(\w+)\.Capture\(`),
 		evoReceiverOnly: true,
-		message:         "Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr",
-		suggest:         func(recv string) string { return "replace " + recv + ".Capture(...) with " + recv + ".Evidence(...)" },
+		message:         "TaskHandle has no Capture method — child-process output reaches the Task's Capture through Writer",
+		suggest: func(recv string) string {
+			return "replace " + recv + ".Capture(...) with " + recv + ".Writer() on cmd.Stdout/cmd.Stderr"
+		},
 	},
 }
 

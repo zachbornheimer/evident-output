@@ -377,7 +377,7 @@ func TestExecCapturedSecretIsRedactedBeforeRetention(t *testing.T) {
 	task.Define(func(ctx context.Context) error {
 		res, err := Exec(ctx, ExecSpec{Executable: tool})
 		result = res
-		tail = task.EvidenceForTest().Text()
+		tail = task.CaptureForTest().Text()
 		return err
 	})
 	_ = task.Wait()

@@ -10,8 +10,8 @@ import (
 // Writer returns a line-buffered io.Writer for narrating a talkative child
 // process: each complete line (CR or LF terminated, trimmed, non-empty)
 // becomes the task's live doing-text (see Doing), and every byte is also
-// retained in the task's evidence ring (get-or-create, shared with
-// Task.Evidence) so DetailTail has proof after Fail. Lines pass through the
+// retained in the task's capture ring (get-or-create, shared with
+// Task.Capture) so DetailTail has proof after Fail. Lines pass through the
 // same sanitize layer as Task.Doing, so hostile escape sequences never reach
 // the display. Off a TTY, these mirrored lines update the live status only —
 // they never force their own durable row the way an explicit
@@ -26,7 +26,7 @@ func (t *TaskHandle) Writer() io.Writer {
 	if t == nil || t.out == nil {
 		return io.Discard
 	}
-	return &phaseWriter{task: t, evidence: t.evidence()}
+	return &phaseWriter{task: t, capture: t.capture()}
 }
 
 // phaseWriterMaxPendingBytes bounds the pending-line buffer: a child that
@@ -44,16 +44,16 @@ const phaseWriterMaxPendingBytes = 4 * 1024 // 4 KiB
 // phaseWriterMaxPendingBytes so a line-less/oversized child stream cannot
 // grow it without bound.
 type phaseWriter struct {
-	task     *TaskHandle
-	evidence *evidence
+	task    *TaskHandle
+	capture *capture
 
 	mu  sync.Mutex
 	buf []byte
 }
 
 func (w *phaseWriter) Write(p []byte) (int, error) {
-	if w.evidence != nil {
-		_, _ = w.evidence.Write(p)
+	if w.capture != nil {
+		_, _ = w.capture.Write(p)
 	}
 
 	w.mu.Lock()

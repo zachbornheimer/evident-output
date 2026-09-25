@@ -43,9 +43,9 @@ type SourceLocation struct {
 
 // Attachment is an additional label/value problem attachment.
 //
-// Named Attachment (not Evidence) because Evidence names the retained
-// process-output sink — this is a single labeled fact attached to a
-// Problem, a different concept from that sink.
+// Named Attachment, not Evidence: Evidence is satisfaction proof (Verify)
+// and Capture is the retained process-output sink. This is a single
+// labeled fact attached to a Problem.
 type Attachment struct {
 	Label string
 	Value string

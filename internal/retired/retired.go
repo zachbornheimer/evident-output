@@ -71,6 +71,16 @@ var symbols = []Symbol{
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+
+	// E-121 (ZYS-1180 freeze): the capture-meaning Evidence* names. Evidence
+	// means only satisfaction proof; retained process output is Capture.
+	{Contract: "Evidence", RemovedIn: Release1_1, Replacement: "Capture", Taught: regexp.MustCompile(`\bevo\.Evidence\b`)},
+	{Contract: "EvidenceOption", RemovedIn: Release1_1, Replacement: "CaptureOption", Taught: regexp.MustCompile(`\bEvidenceOption\b`)},
+	{Contract: "EvidenceStream", RemovedIn: Release1_1, Replacement: "CaptureStream", Taught: regexp.MustCompile(`\bEvidenceStream\b`)},
+	{Contract: "EvidenceStreamCombined", RemovedIn: Release1_1, Replacement: "CaptureStreamCombined", Taught: regexp.MustCompile(`\bEvidenceStreamCombined\b`)},
+	{Contract: "EvidenceStreamStdout", RemovedIn: Release1_1, Replacement: "CaptureStreamStdout", Taught: regexp.MustCompile(`\bEvidenceStreamStdout\b`)},
+	{Contract: "EvidenceStreamStderr", RemovedIn: Release1_1, Replacement: "CaptureStreamStderr", Taught: regexp.MustCompile(`\bEvidenceStreamStderr\b`)},
+	{Contract: "MaxEvidenceBytes", RemovedIn: Release1_1, Replacement: "MaxCaptureBytes", Taught: regexp.MustCompile(`\bMaxEvidenceBytes\b`)},
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose

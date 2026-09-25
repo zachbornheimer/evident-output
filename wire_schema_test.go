@@ -57,7 +57,7 @@ func TestWireSchema_RichProblemStaysWithinFrozenOutputV1(t *testing.T) {
 		return evo.File(ctx, evo.FileSpec{Path: path, Contents: []byte("x"), Mode: 0o644})
 	})
 	lint := out.Task("lint")
-	capture := lint.EvidenceForTest()
+	capture := lint.CaptureForTest()
 	_, _ = io.WriteString(capture.Stderr(), "main.go:12:3: undefined: x\n")
 	_ = capture.Close()
 	lint.Fail("lint failed", capture.DetailTail(),

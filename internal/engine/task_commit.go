@@ -21,12 +21,12 @@ func (st *taskState) honestOutcome(state EntityState) EntityState {
 // own Detail or EvidenceTail keeps it; that also avoids re-entering the
 // redactor lock this resolution already holds for a pending tail.
 func (st *taskState) attachEvidenceTail(state EntityState, problems []Problem) []Problem {
-	if (state != Failed && state != Blocked) || st.evidence == nil || st.evidence.Empty() {
+	if (state != Failed && state != Blocked) || st.capture == nil || st.capture.Empty() {
 		return problems
 	}
 	for i := range problems {
 		if problems[i].Detail == "" && problems[i].EvidenceTail == "" {
-			problems[i].Detail = st.evidence.detailText()
+			problems[i].Detail = st.capture.detailText()
 		}
 	}
 	return problems

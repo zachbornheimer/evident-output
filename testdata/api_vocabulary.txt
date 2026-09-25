@@ -13,6 +13,12 @@ Attachment	helper	Problem
 Blocked	helper	Conclusion
 BytesKind	helper	Progress
 Cancelled	helper	Conclusion
+Capture	helper	Exec
+CaptureOption	helper	Exec
+CaptureStream	helper	Exec
+CaptureStreamCombined	helper	Exec
+CaptureStreamStderr	helper	Exec
+CaptureStreamStdout	helper	Exec
 ChangesSnapshot	helper	Snapshot
 Clock	removed	Run
 Code	helper	Problem
@@ -183,7 +189,7 @@ JSONProblem	removed	Machine output
 JSONProgress	removed	Machine output
 JSONSchemaVersion	removed	Machine output
 JSONTask	removed	Machine output
-KeepLastLines	removed	Capture
+KeepLastLines	helper	Exec
 Label	helper	Action
 LevelDebug	helper	Debug journal
 LevelError	helper	Debug journal
@@ -197,13 +203,14 @@ LogLevel	helper	Debug journal
 LogRecord	helper	Debug journal
 LogicalResource	helper	Resource
 Main	canonical	Run
+MaxCaptureBytes	helper	Exec
 MaxEntities	removed	Run
 MaxEvents	removed	Run
 MaxEvidenceBytes	removed	Capture
 MaxFrameRate	removed	Run
 MessageSnapshot	helper	Snapshot
-MirrorToDebug	removed	Capture
-MirrorToDiagnostics	removed	Capture
+MirrorToDebug	helper	Exec
+MirrorToDiagnostics	helper	Exec
 NewestFirst	helper	Debug journal
 Next	helper	Action
 NextCommand	helper	Action

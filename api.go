@@ -99,10 +99,10 @@ func TruncateNames(names []string, visible int) string {
 	return engine.TruncateNames(names, visible)
 }
 
-func KeepLastLines(n int) EvidenceOption    { return engine.KeepLastLines(n) }
-func MaxEvidenceBytes(n int) EvidenceOption { return engine.MaxEvidenceBytes(n) }
-func MirrorToDebug() EvidenceOption         { return engine.MirrorToDebug() }
-func MirrorToDiagnostics() EvidenceOption   { return engine.MirrorToDiagnostics() }
+func KeepLastLines(n int) CaptureOption   { return engine.KeepLastLines(n) }
+func MaxCaptureBytes(n int) CaptureOption { return engine.MaxCaptureBytes(n) }
+func MirrorToDebug() CaptureOption        { return engine.MirrorToDebug() }
+func MirrorToDiagnostics() CaptureOption  { return engine.MirrorToDiagnostics() }
 
 func NewestFirst() DebugPaneOption         { return engine.NewestFirst() }
 func OldestFirst() DebugPaneOption         { return engine.OldestFirst() }

@@ -19,21 +19,21 @@ const (
 	truncationMarker    = "[earlier output truncated]"
 )
 
-// EvidenceStream identifies which process stream a line came from.
-type EvidenceStream uint8
+// CaptureStream identifies which process stream a line came from.
+type CaptureStream uint8
 
 const (
-	// EvidenceStreamCombined is Write() on the evidence itself (merged by the runner).
-	EvidenceStreamCombined EvidenceStream = iota
-	// EvidenceStreamStdout is output.Stdout().
-	EvidenceStreamStdout
-	// EvidenceStreamStderr is output.Stderr().
-	EvidenceStreamStderr
+	// CaptureStreamCombined is Write() on the capture itself (merged by the runner).
+	CaptureStreamCombined CaptureStream = iota
+	// CaptureStreamStdout is output.Stdout().
+	CaptureStreamStdout
+	// CaptureStreamStderr is output.Stderr().
+	CaptureStreamStderr
 )
 
 type capturedLine struct {
 	Sequence uint64
-	Stream   EvidenceStream
+	Stream   CaptureStream
 	Text     string
 }
 
@@ -65,7 +65,7 @@ type capturedLine struct {
 //   - Opt in with MirrorToDiagnostics / MirrorToDebug.
 //   - Stdout/Stderr have independent pending buffers (no partial-line merge).
 //   - DetailTail prefers stderr when separate streams were used, else combined.
-type evidence struct {
+type capture struct {
 	out      *Output
 	taskID   string
 	taskName string
@@ -90,8 +90,8 @@ type evidence struct {
 	mirrorDebug bool
 
 	// stream is set only on side writers returned by Stdout/Stderr.
-	stream EvidenceStream
-	parent *evidence
+	stream CaptureStream
+	parent *capture
 
 	// onLine, when set, receives each completed line's sanitized/redacted
 	// text (spec §23: "each complete non-empty line becomes the task's
@@ -101,28 +101,28 @@ type evidence struct {
 	onLine func(text string)
 }
 
-// EvidenceOption configures Evidence.
-type EvidenceOption interface {
-	applyCapture(*evidence)
+// CaptureOption configures a Capture.
+type CaptureOption interface {
+	applyCapture(*capture)
 }
 
-type captureOptionFunc func(*evidence)
+type captureOptionFunc func(*capture)
 
-func (f captureOptionFunc) applyCapture(c *evidence) { f(c) }
+func (f captureOptionFunc) applyCapture(c *capture) { f(c) }
 
 // KeepLastLines sets how many trailing lines are retained (default 200).
-func keepLastLines(n int) EvidenceOption {
-	return captureOptionFunc(func(c *evidence) {
+func keepLastLines(n int) CaptureOption {
+	return captureOptionFunc(func(c *capture) {
 		if n > 0 {
 			c.maxLines = n
 		}
 	})
 }
 
-// MaxEvidenceBytes sets an approximate byte budget for retained lines
+// MaxCaptureBytes sets an approximate byte budget for retained lines
 // (default 256KiB).
-func maxEvidenceBytes(n int) EvidenceOption {
-	return captureOptionFunc(func(c *evidence) {
+func maxCaptureBytes(n int) CaptureOption {
+	return captureOptionFunc(func(c *capture) {
 		if n > 0 {
 			c.maxBytes = n
 		}
@@ -131,52 +131,52 @@ func maxEvidenceBytes(n int) EvidenceOption {
 
 // MirrorToDiagnostics copies each completed line to the Diagnostics writer.
 // Default is off — evidence retains proof without displaying it on success.
-func mirrorToDiagnostics() EvidenceOption {
-	return captureOptionFunc(func(c *evidence) { c.mirrorDiag = true })
+func mirrorToDiagnostics() CaptureOption {
+	return captureOptionFunc(func(c *capture) { c.mirrorDiag = true })
 }
 
 // MirrorToDebug journals each completed line via Debug when DebugLevel allows.
 // Default is off.
-func mirrorToDebug() EvidenceOption {
-	return captureOptionFunc(func(c *evidence) { c.mirrorDebug = true })
+func mirrorToDebug() CaptureOption {
+	return captureOptionFunc(func(c *capture) { c.mirrorDebug = true })
 }
 
 // activityFeed reports each completed, sanitized/redacted line to fn (spec
 // §23) — used only by Exec, which owns turning that line into the Task's
 // current Doing activity. evidence itself stays presentation-agnostic.
-func activityFeed(fn func(text string)) EvidenceOption {
-	return captureOptionFunc(func(c *evidence) { c.onLine = fn })
+func activityFeed(fn func(text string)) CaptureOption {
+	return captureOptionFunc(func(c *capture) { c.onLine = fn })
 }
 
 // evidence returns the retained/redacted writer bound to this Task,
 // get-or-create: the first call (from evidence or PhaseWriter) allocates the
 // ring and every later call returns that same instance, so evidence recorded
 // through either path lands together and survives for DetailTail after Fail.
-func (t *TaskHandle) evidence(opts ...EvidenceOption) *evidence {
+func (t *TaskHandle) capture(opts ...CaptureOption) *capture {
 	if t == nil || t.out == nil {
-		return newEvidence(nil, "", "", opts...)
+		return newCapture(nil, "", "", opts...)
 	}
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
 	if st == nil {
-		return newEvidence(t.out, t.id, "", opts...)
+		return newCapture(t.out, t.id, "", opts...)
 	}
-	if st.evidence == nil {
-		st.evidence = newEvidence(t.out, t.id, st.name, opts...)
+	if st.capture == nil {
+		st.capture = newCapture(t.out, t.id, st.name, opts...)
 	}
-	return st.evidence
+	return st.capture
 }
 
-// evidence returns a session-level retained/redacted writer with no owning
-// Task. Prefer Task.Evidence so failure evidence attaches to an entity.
-// Session-level evidence is advanced; ordinary call sites should not use it.
-func (o *Output) evidence(opts ...EvidenceOption) *evidence {
-	return newEvidence(o, "", "", opts...)
+// capture returns a session-level retained/redacted writer with no owning
+// Task. Prefer Task.Capture so failure output attaches to an entity.
+// Session-level capture is advanced; ordinary call sites should not use it.
+func (o *Output) capture(opts ...CaptureOption) *capture {
+	return newCapture(o, "", "", opts...)
 }
 
-func newEvidence(out *Output, taskID, taskName string, opts ...EvidenceOption) *evidence {
-	c := &evidence{
+func newCapture(out *Output, taskID, taskName string, opts ...CaptureOption) *capture {
+	c := &capture{
 		out:         out,
 		taskID:      taskID,
 		taskName:    taskName,
@@ -184,7 +184,7 @@ func newEvidence(out *Output, taskID, taskName string, opts ...EvidenceOption) *
 		maxBytes:    defaultCaptureBytes,
 		mirrorDiag:  false, // silent by default — release invariant
 		mirrorDebug: false,
-		stream:      EvidenceStreamCombined,
+		stream:      CaptureStreamCombined,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -195,29 +195,29 @@ func newEvidence(out *Output, taskID, taskName string, opts ...EvidenceOption) *
 }
 
 // Stdout returns a writer that records lines as stdout with its own pending buffer.
-func (c *evidence) Stdout() io.Writer {
+func (c *capture) Stdout() io.Writer {
 	if c == nil {
 		return io.Discard
 	}
-	return &evidence{out: c.out, parent: c, stream: EvidenceStreamStdout}
+	return &capture{out: c.out, parent: c, stream: CaptureStreamStdout}
 }
 
 // Stderr returns a writer that records lines as stderr with its own pending buffer.
-func (c *evidence) Stderr() io.Writer {
+func (c *capture) Stderr() io.Writer {
 	if c == nil {
 		return io.Discard
 	}
-	return &evidence{out: c.out, parent: c, stream: EvidenceStreamStderr}
+	return &capture{out: c.out, parent: c, stream: CaptureStreamStderr}
 }
 
 // Write implements io.Writer. Safe for concurrent use with Tail/DetailTail.
-func (c *evidence) Write(p []byte) (int, error) {
+func (c *capture) Write(p []byte) (int, error) {
 	root := c.root()
 	if root == nil || root.out == nil {
 		return len(p), nil
 	}
 	n := len(p)
-	stream := EvidenceStreamCombined
+	stream := CaptureStreamCombined
 	if c.parent != nil {
 		stream = c.stream
 	}
@@ -243,10 +243,10 @@ func (c *evidence) Write(p []byte) (int, error) {
 
 // Close flushes trailing partial lines.
 //
-// On the root evidence (task.evidence()), every stream pending buffer is flushed
+// On the root evidence (task.capture()), every stream pending buffer is flushed
 // so Stdout/Stderr partial lines are retained. On a side writer (Stdout/Stderr),
 // only that stream is flushed.
-func (c *evidence) Close() error {
+func (c *capture) Close() error {
 	root := c.root()
 	if root == nil {
 		return nil
@@ -257,19 +257,19 @@ func (c *evidence) Close() error {
 		root.flushIfPresentLocked(c.stream)
 		return nil
 	}
-	root.flushIfPresentLocked(EvidenceStreamCombined)
-	root.flushIfPresentLocked(EvidenceStreamStdout)
-	root.flushIfPresentLocked(EvidenceStreamStderr)
+	root.flushIfPresentLocked(CaptureStreamCombined)
+	root.flushIfPresentLocked(CaptureStreamStdout)
+	root.flushIfPresentLocked(CaptureStreamStderr)
 	return nil
 }
 
-func (c *evidence) flushIfPresentLocked(stream EvidenceStream) {
+func (c *capture) flushIfPresentLocked(stream CaptureStream) {
 	if c.pendingFor(stream).Len() > 0 {
 		c.flushPendingLocked(stream)
 	}
 }
 
-func (c *evidence) root() *evidence {
+func (c *capture) root() *capture {
 	if c == nil {
 		return nil
 	}
@@ -279,11 +279,11 @@ func (c *evidence) root() *evidence {
 	return c
 }
 
-func (c *evidence) pendingFor(stream EvidenceStream) *bytes.Buffer {
+func (c *capture) pendingFor(stream CaptureStream) *bytes.Buffer {
 	switch stream {
-	case EvidenceStreamStdout:
+	case CaptureStreamStdout:
 		return &c.pendingStdout
-	case EvidenceStreamStderr:
+	case CaptureStreamStderr:
 		return &c.pendingStderr
 	default:
 		return &c.pendingCombined
@@ -291,8 +291,8 @@ func (c *evidence) pendingFor(stream EvidenceStream) *bytes.Buffer {
 }
 
 // Text returns all retained combined lines joined by newlines.
-func (c *evidence) Text() string {
-	lines, truncated := c.snapshotTexts(EvidenceStreamCombined, 0)
+func (c *capture) Text() string {
+	lines, truncated := c.snapshotTexts(CaptureStreamCombined, 0)
 	return joinCaptureLines(lines, truncated)
 }
 
@@ -301,7 +301,7 @@ func (c *evidence) Text() string {
 // ExecResult.Stdout/Stderr, which a caller may parse as machine data
 // (ZYS-850); truncated returns separately as ExecResult.Truncated instead
 // of being prepended into the text.
-func (c *evidence) streamText(stream EvidenceStream) string {
+func (c *capture) streamText(stream CaptureStream) string {
 	lines, _ := c.snapshotTexts(stream, 0)
 	return strings.Join(lines, "\n")
 }
@@ -310,7 +310,7 @@ func (c *evidence) streamText(stream EvidenceStream) string {
 // stay within its bound (spec §8.4's ExecResult.Truncated) — one flag
 // shared across streams because the bound itself is on total retained
 // evidence, not per stream.
-func (c *evidence) wasTruncated() bool {
+func (c *capture) wasTruncated() bool {
 	root := c.root()
 	if root == nil {
 		return false
@@ -321,7 +321,7 @@ func (c *evidence) wasTruncated() bool {
 }
 
 // Empty reports whether no completed lines and no pending fragments exist.
-func (c *evidence) Empty() bool {
+func (c *capture) Empty() bool {
 	root := c.root()
 	if root == nil {
 		return true
@@ -331,9 +331,9 @@ func (c *evidence) Empty() bool {
 	if len(root.lines) > 0 {
 		return false
 	}
-	return root.pendingFor(EvidenceStreamCombined).Len() == 0 &&
-		root.pendingFor(EvidenceStreamStdout).Len() == 0 &&
-		root.pendingFor(EvidenceStreamStderr).Len() == 0
+	return root.pendingFor(CaptureStreamCombined).Len() == 0 &&
+		root.pendingFor(CaptureStreamStdout).Len() == 0 &&
+		root.pendingFor(CaptureStreamStderr).Len() == 0
 }
 
 // DetailTail returns a ProblemOption attaching a user-visible presentation of
@@ -342,7 +342,7 @@ func (c *evidence) Empty() bool {
 // call also carries an explicit Detail, that explicit text still renders (as
 // the primary detail line) and this tail renders as an additional evidence
 // line underneath, regardless of which option was passed first.
-func (c *evidence) DetailTail() ProblemOption {
+func (c *capture) DetailTail() ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
 		if text := c.detailText(); text != "" {
 			p.EvidenceTail = text
@@ -350,7 +350,7 @@ func (c *evidence) DetailTail() ProblemOption {
 	})
 }
 
-func (c *evidence) detailText() string {
+func (c *capture) detailText() string {
 	root := c.root()
 	if root == nil {
 		return ""
@@ -358,24 +358,24 @@ func (c *evidence) detailText() string {
 	root.mu.Lock()
 	defer root.mu.Unlock()
 
-	prefer := EvidenceStreamCombined
+	prefer := CaptureStreamCombined
 	if c.parent != nil {
 		prefer = c.stream
 	} else {
 		// Prefer stderr when both streams have content (including pending).
-		hasOut := root.streamHasContentLocked(EvidenceStreamStdout)
-		hasErr := root.streamHasContentLocked(EvidenceStreamStderr)
+		hasOut := root.streamHasContentLocked(CaptureStreamStdout)
+		hasErr := root.streamHasContentLocked(CaptureStreamStderr)
 		if hasErr && hasOut {
-			prefer = EvidenceStreamStderr
+			prefer = CaptureStreamStderr
 		} else if hasErr {
-			prefer = EvidenceStreamStderr
+			prefer = CaptureStreamStderr
 		}
 	}
 
 	texts := root.textsForStreamLocked(prefer)
 	// If filter emptied, fall back to all combined lines + all pendings.
 	if len(texts) == 0 {
-		texts = root.textsForStreamLocked(EvidenceStreamCombined)
+		texts = root.textsForStreamLocked(CaptureStreamCombined)
 	}
 	if len(texts) == 0 {
 		return ""
@@ -392,7 +392,7 @@ func (c *evidence) detailText() string {
 	return b.String()
 }
 
-func (c *evidence) streamHasContentLocked(stream EvidenceStream) bool {
+func (c *capture) streamHasContentLocked(stream CaptureStream) bool {
 	if c.pendingFor(stream).Len() > 0 {
 		return true
 	}
@@ -405,17 +405,17 @@ func (c *evidence) streamHasContentLocked(stream EvidenceStream) bool {
 }
 
 // textsForStreamLocked returns completed lines plus pending fragments for stream.
-// EvidenceStreamCombined includes every stream's completed lines and all pendings.
+// CaptureStreamCombined includes every stream's completed lines and all pendings.
 // Pending fragments are snapshotted (not flushed) so concurrent Write stays safe.
-func (c *evidence) textsForStreamLocked(stream EvidenceStream) []string {
+func (c *capture) textsForStreamLocked(stream CaptureStream) []string {
 	var texts []string
 	for _, ln := range c.lines {
-		if stream == EvidenceStreamCombined || ln.Stream == stream {
+		if stream == CaptureStreamCombined || ln.Stream == stream {
 			texts = append(texts, ln.Text)
 		}
 	}
-	if stream == EvidenceStreamCombined {
-		for _, s := range []EvidenceStream{EvidenceStreamCombined, EvidenceStreamStdout, EvidenceStreamStderr} {
+	if stream == CaptureStreamCombined {
+		for _, s := range []CaptureStream{CaptureStreamCombined, CaptureStreamStdout, CaptureStreamStderr} {
 			if p := c.pendingNormalizedLocked(s); p != "" {
 				texts = append(texts, p)
 			}
@@ -426,7 +426,7 @@ func (c *evidence) textsForStreamLocked(stream EvidenceStream) []string {
 	return texts
 }
 
-func (c *evidence) snapshotTexts(stream EvidenceStream, limit int) ([]string, bool) {
+func (c *capture) snapshotTexts(stream CaptureStream, limit int) ([]string, bool) {
 	root := c.root()
 	if root == nil {
 		return nil, false
@@ -442,7 +442,7 @@ func (c *evidence) snapshotTexts(stream EvidenceStream, limit int) ([]string, bo
 
 // pendingNormalizedLocked returns a sanitized/redacted view of a pending buffer
 // without flushing it into the ring.
-func (c *evidence) pendingNormalizedLocked(stream EvidenceStream) string {
+func (c *capture) pendingNormalizedLocked(stream CaptureStream) string {
 	raw := c.pendingFor(stream).String()
 	if raw == "" {
 		return ""
@@ -450,7 +450,7 @@ func (c *evidence) pendingNormalizedLocked(stream EvidenceStream) string {
 	return c.normalizeCaptureLine(raw)
 }
 
-func (c *evidence) normalizeCaptureLine(line string) string {
+func (c *capture) normalizeCaptureLine(line string) string {
 	if !utf8.ValidString(line) {
 		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
 	}
@@ -471,7 +471,7 @@ func joinCaptureLines(lines []string, truncated bool) string {
 	return strings.Join(lines, "\n")
 }
 
-func (c *evidence) flushPendingLocked(stream EvidenceStream) {
+func (c *capture) flushPendingLocked(stream CaptureStream) {
 	buf := c.pendingFor(stream)
 	line := buf.String()
 	buf.Reset()
@@ -537,4 +537,4 @@ func (o *Output) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line 
 	}
 }
 
-var _ io.WriteCloser = (*evidence)(nil)
+var _ io.WriteCloser = (*capture)(nil)

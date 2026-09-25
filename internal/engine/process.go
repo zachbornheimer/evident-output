@@ -107,7 +107,7 @@ func mergedExecEnv(overrides map[string]string) []string {
 // actually resolved and tried to run.
 func (o *Output) spawnExec(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (ExecResult, error) {
 	task := &TaskHandle{out: o, id: taskID}
-	ev := task.evidence(activityFeed(func(line string) { task.Doing(line) }))
+	ev := task.capture(activityFeed(func(line string) { task.Doing(line) }))
 
 	cmd := ProcessCommand{
 		Path:   target.ExecutablePath,
@@ -127,8 +127,8 @@ func (o *Output) spawnExec(ctx context.Context, taskID string, spec ExecSpec, ta
 	return ExecResult{
 		Ran:       true,
 		ExitCode:  outcome.ExitCode,
-		Stdout:    ev.streamText(EvidenceStreamStdout),
-		Stderr:    ev.streamText(EvidenceStreamStderr),
+		Stdout:    ev.streamText(CaptureStreamStdout),
+		Stderr:    ev.streamText(CaptureStreamStderr),
 		Truncated: ev.wasTruncated(),
 	}, nil
 }

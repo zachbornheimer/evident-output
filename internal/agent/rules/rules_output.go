@@ -27,8 +27,8 @@ out.Printf("progress %d\n", n)
 			ID:        "STREAM-004",
 			Category:  "STREAM",
 			Severity:  SeverityWarning,
-			Invariant: "one task wires subprocess capture through Writer, not a hand-rolled Evidence() pair",
-			Why: "Task.Writer tees cmd.Stdout/cmd.Stderr into the live doing-text and the evidence ring. Wiring a separate Evidence handle by " +
+			Invariant: "one task wires subprocess capture through Writer, not a hand-rolled capture handle",
+			Why: "Task.Writer tees cmd.Stdout/cmd.Stderr into the live doing-text and the Capture ring. Wiring a separate capture handle by " +
 				"hand on the same task is easy to get half-right — evidence for the rule: four hand-rolled subprocess " +
 				"wirings this pattern replaced starved the capture (two with no fallback: dead port-in-use detection, " +
 				"empty DetailTail on failure).",

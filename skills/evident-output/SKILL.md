@@ -69,7 +69,7 @@ grok mcp doctor evident-output --json
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
 - Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
 - Child process chatter → `cmd.Stdout = task.Writer()` (and stderr)
-- Sanitize is automatic; `Config.Redactor` scrubs the Evidence ring + Debug fields
+- Sanitize is automatic; `Config.Redactor` scrubs the Capture ring + Debug fields
 - `Fail`/`Block` are statements (no return); `Failf`/`Blockf` return a %w-wrapped error
 - Task is name-only: `out.Task("download")`. Child stdio: `cmd.Stdout = task.Writer()`
 - Data commands: `FormatData` + write domain payload to `out.ResultWriter()`

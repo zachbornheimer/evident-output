@@ -148,6 +148,19 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Removed
 
+- **Capture-meaning `Evidence*` names were renamed to Capture** with no
+  aliases (ZYS-1180 freeze, E-121). Evidence now means only satisfaction
+  proof (`Verify`, `TaskSnapshot.Evidence`, `EvidencePhase`,
+  `TaskEvidence`). The retained stdout/stderr sink is `evo.Capture`; its
+  options are `evo.CaptureOption`; its streams are `evo.CaptureStream`
+  (`CaptureStreamCombined`, `CaptureStreamStdout`, `CaptureStreamStderr`).
+  `evo.MaxEvidenceBytes` is `evo.MaxCaptureBytes`. `evo.KeepLastLines`,
+  `evo.MirrorToDebug`, and `evo.MirrorToDiagnostics` keep their names and
+  now return `CaptureOption`. Removed: `Evidence` (as the capture type),
+  `EvidenceOption`, `EvidenceStream`, `EvidenceStreamCombined`,
+  `EvidenceStreamStdout`, `EvidenceStreamStderr`, `MaxEvidenceBytes`.
+  MCP review (API-110 through API-116) rewrites each old spelling.
+
 - **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
   guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`

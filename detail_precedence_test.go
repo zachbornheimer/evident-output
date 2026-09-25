@@ -20,7 +20,7 @@ func TestFail_ExplicitDetailAndDetailTail_BothRender(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("deploy")
-	output := task.EvidenceForTest()
+	output := task.CaptureForTest()
 	_, _ = fmt.Fprintln(output, "raw evidence: connection refused")
 	task.Fail("deploy failed", evo.Detail("friendly summary"), output.DetailTail())
 
@@ -46,7 +46,7 @@ func TestFail_ExplicitDetailTailThenDetail_BothRender(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("deploy")
-	output := task.EvidenceForTest()
+	output := task.CaptureForTest()
 	_, _ = fmt.Fprintln(output, "raw evidence: connection refused")
 	task.Fail("deploy failed", output.DetailTail(), evo.Detail("friendly summary"))
 

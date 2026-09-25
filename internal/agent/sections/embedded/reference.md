@@ -132,7 +132,7 @@ still reaches the run's own Next-steps output. See
 
 ## Child processes / tool-backed gates
 
-Evidence belongs to the **entity** (a `Task`, whether it ran or was resolved as a
+Capture (retained child-process output) belongs to the **entity** (a `Task`, whether it ran or was resolved as a
 fact-check gate), not the whole session — and not `context`.
 For an `*exec.Cmd`, wire stdout/stderr through `Task.Writer()`:
 
