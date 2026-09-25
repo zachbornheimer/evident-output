@@ -39,8 +39,7 @@ plus the application error `run` returned, and something must do something
 with it (`os.Exit(result.ExitCode())`, assert on it in a test, or fold it
 into a larger program's own decision).
 
-For `Init` alone: nothing renders the final Conclusion band, and capture
-/redaction never flush, until `Finish` runs — an embedding caller
+For `Init` alone: nothing renders the final Conclusion band, and capture and redaction never flush, until `Finish` runs — an embedding caller
 that forgets to call it (or `Close`, which calls it for you) gets an Output
 that never reports its own outcome. `Close` is safe to call unconditionally
 and more than once (idempotent); prefer `defer out.Close()` right after

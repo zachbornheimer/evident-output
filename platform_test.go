@@ -134,7 +134,7 @@ func TestResultWriter_UnsetIsDiscard(t *testing.T) {
 	}
 }
 
-func TestItem_CaptureBindsEvidence(t *testing.T) {
+func TestItem_CaptureBindsDetailTail(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "gate", Stdout: &buf, Stderr: &buf})
 	docker := out.Task("docker daemon")
