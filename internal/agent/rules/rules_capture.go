@@ -1,37 +1,46 @@
 package rules
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/zachbornheimer/evident-output/internal/retired"
+)
+
+// captureRenameUse is how each removed capture-meaning name appears in a
+// declaration, with %s for the qualified name, so BadCode/GoodCode are
+// compiling Go. Keyed by retired.CaptureRename.From.
+var captureRenameUse = map[string]string{
+	"Evidence":               "var _ *%s",
+	"EvidenceOption":         "var _ %s = evo.KeepLastLines(200)",
+	"EvidenceStream":         "var _ %s",
+	"EvidenceStreamCombined": "var _ = %s",
+	"EvidenceStreamStdout":   "var _ = %s",
+	"EvidenceStreamStderr":   "var _ = %s",
+	"MaxEvidenceBytes":       "var _ = %s(64 << 10)",
+}
 
 // captureRenameRules are the 1.1 migration rules for the capture-meaning
 // Evidence* names (E-121, ZYS-1180 freeze): Evidence means only
 // satisfaction proof, and retained process output is Capture. Each removed
 // name has its own rule so explain and review name the exact rewrite.
+// retired.CaptureRenames is the one table of names/ids; this file and
+// review_capture_rename.go both derive from it so they cannot drift.
 func captureRenameRules() []Rule {
-	// use is how each name appears in a declaration, with %s for the
-	// qualified name, so BadCode/GoodCode are compiling Go.
-	renames := []struct{ id, from, to, use string }{
-		{"API-110", "Evidence", "Capture", "var _ *%s"},
-		{"API-111", "EvidenceOption", "CaptureOption", "var _ %s = evo.KeepLastLines(200)"},
-		{"API-112", "EvidenceStream", "CaptureStream", "var _ %s"},
-		{"API-113", "EvidenceStreamCombined", "CaptureStreamCombined", "var _ = %s"},
-		{"API-114", "EvidenceStreamStdout", "CaptureStreamStdout", "var _ = %s"},
-		{"API-115", "EvidenceStreamStderr", "CaptureStreamStderr", "var _ = %s"},
-		{"API-116", "MaxEvidenceBytes", "MaxCaptureBytes", "var _ = %s(64 << 10)"},
-	}
-	out := make([]Rule, 0, len(renames)+1)
-	for _, r := range renames {
+	out := make([]Rule, 0, len(retired.CaptureRenames)+1)
+	for _, r := range retired.CaptureRenames {
+		use := captureRenameUse[r.From]
 		out = append(out, Rule{
-			ID:              r.id,
+			ID:              r.RuleID,
 			MinDialect:      "1.1.0",
 			Category:        "API",
 			Severity:        SeverityWarning,
-			Invariant:       "retained process output is spelled " + r.to + "; evo." + r.from + " was removed in 1.1",
-			Why:             "The 1.1 vocabulary freeze gives Evidence one meaning: proof that requested state is satisfied (Verify, TaskSnapshot.Evidence). Retained stdout/stderr is Capture. The capture-meaning evo." + r.from + " was removed in 1.1 with no alias.",
-			BadCode:         fmt.Sprintf(r.use, "evo."+r.from),
-			GoodCode:        fmt.Sprintf(r.use, "evo."+r.to),
-			Remediation:     "Replace evo." + r.from + " (removed in 1.1) with evo." + r.to + "; the behavior is unchanged",
+			Invariant:       "retained process output is spelled " + r.To + "; evo." + r.From + " was removed in 1.1",
+			Why:             "The 1.1 vocabulary freeze gives Evidence one meaning: proof that requested state is satisfied (Verify, TaskSnapshot.Evidence). Retained stdout/stderr is Capture. The capture-meaning evo." + r.From + " was removed in 1.1 with no alias.",
+			BadCode:         fmt.Sprintf(use, "evo."+r.From),
+			GoodCode:        fmt.Sprintf(use, "evo."+r.To),
+			Remediation:     "Replace evo." + r.From + " (removed in 1.1) with evo." + r.To + "; the behavior is unchanged",
 			RelatedGuidance: []string{"common-api"},
-			VerificationIDs: []string{r.id},
+			VerificationIDs: []string{r.RuleID},
 			Since:           "1.1.0",
 			Certainty:       CertaintyDeterministic,
 		})

@@ -43,7 +43,7 @@ func main() {
 // docexamples:snippet end
 
 // run is the reader's own helper implied by the doc's "run(cmd, ...)" call:
-// it wires cmd.Stdout/Stderr through task.Writer() (see the "Evidence"
+// it wires cmd.Stdout/Stderr through task.Writer() (see the "Capture"
 // fence in teaching-ladder.md) and runs cmd, propagating cmd.Run's error —
 // including *exec.ExitError when the child exits non-zero, wrapped so
 // errors.As above can still unwrap it. The fixture supplies a trivial

@@ -24,7 +24,7 @@
 //	    status := evo.Task("git status")
 //	    status.Define(func(ctx context.Context) error {
 //	        cmd := exec.CommandContext(ctx, "git", "status", "--short")
-//	        cmd.Stdout = status.Writer() // the child's output is this row's evidence
+//	        cmd.Stdout = status.Writer() // the child's output is this row's capture
 //	        cmd.Stderr = status.Writer()
 //	        return cmd.Run()
 //	    })

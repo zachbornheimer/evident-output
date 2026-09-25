@@ -10,6 +10,8 @@ package review
 import (
 	"go/ast"
 	"go/token"
+
+	"github.com/zachbornheimer/evident-output/internal/retired"
 )
 
 // captureRename is one removed capture-meaning name and its 1.1 spelling.
@@ -19,16 +21,16 @@ type captureRename struct {
 }
 
 // captureRenames maps each removed Evidence* name to its rule and
-// replacement; internal/agent/rules/rules_capture.go declares the rules.
-var captureRenames = map[string]captureRename{
-	"Evidence":               {ruleID: "API-110", to: "Capture"},
-	"EvidenceOption":         {ruleID: "API-111", to: "CaptureOption"},
-	"EvidenceStream":         {ruleID: "API-112", to: "CaptureStream"},
-	"EvidenceStreamCombined": {ruleID: "API-113", to: "CaptureStreamCombined"},
-	"EvidenceStreamStdout":   {ruleID: "API-114", to: "CaptureStreamStdout"},
-	"EvidenceStreamStderr":   {ruleID: "API-115", to: "CaptureStreamStderr"},
-	"MaxEvidenceBytes":       {ruleID: "API-116", to: "MaxCaptureBytes"},
-}
+// replacement, built from retired.CaptureRenames — the one table shared
+// with the MCP rules in internal/agent/rules/rules_capture.go, so the two
+// cannot drift.
+var captureRenames = func() map[string]captureRename {
+	m := make(map[string]captureRename, len(retired.CaptureRenames))
+	for _, r := range retired.CaptureRenames {
+		m[r.From] = captureRename{ruleID: r.RuleID, to: r.To}
+	}
+	return m
+}()
 
 // detectRemovedCaptureName reports every <evo>.<removed Evidence* name>.
 func detectRemovedCaptureName(filename string, file *ast.File, fset *token.FileSet) []Finding {

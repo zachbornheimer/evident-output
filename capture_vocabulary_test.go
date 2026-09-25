@@ -30,8 +30,8 @@ func TestCaptureVocabulary_RetainsProcessOutputUnderCaptureNames(t *testing.T) {
 		t.Fatalf("KeepLastLines(2) must retain only the tail, got %q", text)
 	}
 	streams := []evo.CaptureStream{evo.CaptureStreamCombined, evo.CaptureStreamStdout, evo.CaptureStreamStderr}
-	if streams[0] == streams[1] || streams[1] == streams[2] {
-		t.Fatalf("CaptureStream values must be distinct, got %v", streams)
+	if streams[0] == streams[1] || streams[0] == streams[2] || streams[1] == streams[2] {
+		t.Fatalf("CaptureStream values must be pairwise distinct, got %v", streams)
 	}
 	succeed(task)
 	if err := out.Finish(); err != nil {

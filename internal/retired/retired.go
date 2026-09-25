@@ -18,6 +18,54 @@ const (
 	Release1_1 Release = "1.1"
 )
 
+// CaptureRename is one capture-meaning Evidence* name removed in 1.1
+// (E-121, ZYS-1180 freeze) and its Capture-vocabulary replacement.
+// rules_capture.go (the MCP migration rules) and review_capture_rename.go
+// (the structural detector) both derive from this table instead of
+// keeping their own copies, so the three cannot drift apart.
+type CaptureRename struct {
+	// RuleID is the MCP migration rule that teaches this rename.
+	RuleID string
+	// From is the removed capture-meaning Evidence* spelling.
+	From string
+	// To is the 1.1 Capture-vocabulary replacement.
+	To string
+}
+
+// CaptureRenames is the one table of capture-meaning renames.
+var CaptureRenames = []CaptureRename{
+	{RuleID: "API-110", From: "Evidence", To: "Capture"},
+	{RuleID: "API-111", From: "EvidenceOption", To: "CaptureOption"},
+	{RuleID: "API-112", From: "EvidenceStream", To: "CaptureStream"},
+	{RuleID: "API-113", From: "EvidenceStreamCombined", To: "CaptureStreamCombined"},
+	{RuleID: "API-114", From: "EvidenceStreamStdout", To: "CaptureStreamStdout"},
+	{RuleID: "API-115", From: "EvidenceStreamStderr", To: "CaptureStreamStderr"},
+	{RuleID: "API-116", From: "MaxEvidenceBytes", To: "MaxCaptureBytes"},
+}
+
+// captureRenameSymbols converts CaptureRenames into retired Symbol entries
+// for the API contract check and the docs stale-API scan.
+func captureRenameSymbols() []Symbol {
+	out := make([]Symbol, len(CaptureRenames))
+	for i, r := range CaptureRenames {
+		// "Evidence" alone is scoped to evo.Evidence: the bare word is
+		// ordinary English prose ("the evidence is...") everywhere else in
+		// the docs corpus, unlike the EvidenceStream*/MaxEvidenceBytes
+		// compounds, which are unambiguous.
+		taught := `\b` + r.From + `\b`
+		if r.From == "Evidence" {
+			taught = `\bevo\.Evidence\b`
+		}
+		out[i] = Symbol{
+			Contract:    r.From,
+			RemovedIn:   Release1_1,
+			Replacement: r.To,
+			Taught:      regexp.MustCompile(taught),
+		}
+	}
+	return out
+}
+
 // Symbol is one retired API name.
 type Symbol struct {
 	// Contract is the spelling the API contract matches against the live
@@ -71,16 +119,13 @@ var symbols = []Symbol{
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+}
 
-	// E-121 (ZYS-1180 freeze): the capture-meaning Evidence* names. Evidence
-	// means only satisfaction proof; retained process output is Capture.
-	{Contract: "Evidence", RemovedIn: Release1_1, Replacement: "Capture", Taught: regexp.MustCompile(`\bevo\.Evidence\b`)},
-	{Contract: "EvidenceOption", RemovedIn: Release1_1, Replacement: "CaptureOption", Taught: regexp.MustCompile(`\bEvidenceOption\b`)},
-	{Contract: "EvidenceStream", RemovedIn: Release1_1, Replacement: "CaptureStream", Taught: regexp.MustCompile(`\bEvidenceStream\b`)},
-	{Contract: "EvidenceStreamCombined", RemovedIn: Release1_1, Replacement: "CaptureStreamCombined", Taught: regexp.MustCompile(`\bEvidenceStreamCombined\b`)},
-	{Contract: "EvidenceStreamStdout", RemovedIn: Release1_1, Replacement: "CaptureStreamStdout", Taught: regexp.MustCompile(`\bEvidenceStreamStdout\b`)},
-	{Contract: "EvidenceStreamStderr", RemovedIn: Release1_1, Replacement: "CaptureStreamStderr", Taught: regexp.MustCompile(`\bEvidenceStreamStderr\b`)},
-	{Contract: "MaxEvidenceBytes", RemovedIn: Release1_1, Replacement: "MaxCaptureBytes", Taught: regexp.MustCompile(`\bMaxEvidenceBytes\b`)},
+// init appends the E-121 (ZYS-1180 freeze) capture-meaning Evidence* renames
+// generated from CaptureRenames, the one table shared with the MCP rules
+// and the structural detector.
+func init() {
+	symbols = append(symbols, captureRenameSymbols()...)
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose
