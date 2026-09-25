@@ -9,21 +9,12 @@ import (
 	"go/types"
 )
 
-// removedReceiver says which receivers a removedName matches.
-type removedReceiver int
-
-const (
-	// onPackage is the evo package itself: evo.Name, called or not.
-	onPackage removedReceiver = iota
-	// onTask is a value certainly holding an evo Task (taskBindings).
-	onTask
-)
-
-// removedName is one name the freeze removed.
+// removedName is one name the freeze removed. Every entry so far is a
+// package-level export (evo.Name, called or not); add a receiver kind here
+// only when a removed name needs one.
 type removedName struct {
 	rule    string
 	name    string
-	on      removedReceiver
 	message string
 	// rewrite is the suggestion, given the receiver's source and the call's
 	// argument sources (nil args for a non-call reference).
@@ -43,7 +34,6 @@ func detectRemovedVocabulary(filename string, file *ast.File, fset *token.FileSe
 	if pkg == "" {
 		return nil
 	}
-	tasks := newTaskBindings(file, pkg)
 	var findings []Finding
 	called := map[*ast.SelectorExpr]bool{}
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -55,7 +45,7 @@ func detectRemovedVocabulary(filename string, file *ast.File, fset *token.FileSe
 			called[sel] = true
 		}
 		for _, r := range removedNames {
-			if r.name != sel.Sel.Name || !r.matches(sel.X, pkg, tasks) {
+			if r.name != sel.Sel.Name || !isEvoIdent(sel.X, pkg) {
 				continue
 			}
 			p := fset.Position(pos)
@@ -89,14 +79,4 @@ func removedCandidate(n ast.Node) (sel *ast.SelectorExpr, args []string, pos tok
 		return v, nil, v.Pos(), true
 	}
 	return nil, nil, 0, false
-}
-
-func (r removedName) matches(x ast.Expr, pkg string, tasks taskBindings) bool {
-	switch r.on {
-	case onPackage:
-		return isEvoIdent(x, pkg)
-	case onTask:
-		return tasks.IsTask(x)
-	}
-	return false
 }
