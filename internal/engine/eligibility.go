@@ -8,6 +8,10 @@ import "github.com/zachbornheimer/evident-output/internal/core"
 type predecessor struct {
 	task *taskState
 	col  *tasksState
+	// through is, for a collection named while populated, the declaration
+	// cursor at that moment: the edge reads only the members declared
+	// through it. 0 for one named while empty (see edgeCursorLocked).
+	through int
 }
 
 // predOutcome is what a predecessor currently tells the Tasks after it.
@@ -33,32 +37,6 @@ func stateOutcome(s EntityState) predOutcome {
 	}
 }
 
-// collectionTally counts a Group/Sequence's descendant Tasks by outcome.
-// declareTaskLocked and settleLocked keep it current, so reading a
-// collection's outcome costs the same however large the collection grows.
-type collectionTally struct {
-	total, succeeded, failed int
-	// sealed records that the collection's membership is taken as
-	// declared: a Wait asked for its outcome, the run proved nothing will
-	// declare into it (see sealInputsLocked), or it was named as a
-	// predecessor while it already had members (see closeMembershipLocked).
-	// Until then a collection whose members all succeeded is still
-	// pending, because its caller may declare more.
-	sealed bool
-	// dependents are the Tasks parked until this collection stops pending.
-	dependents []*taskState
-}
-
-func (t *collectionTally) count(o predOutcome, delta int) {
-	switch o {
-	case predSucceeded:
-		t.succeeded += delta
-	case predFailed:
-		t.failed += delta
-	case predPending:
-	}
-}
-
 // After declares predecessors: this Task starts only once every one of
 // them succeeded, and never starts once one of them cannot.
 func (t *TaskHandle) After(preds ...any) *TaskHandle {
@@ -78,35 +56,49 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	}
 	for _, p := range preds {
 		if pred, ok := o.predecessorOfLocked(p); ok {
-			o.closeMembershipLocked(pred)
-			st.sched.preds = append(st.sched.preds, pred)
+			st.sched.preds = append(st.sched.preds, o.closeMembershipLocked(pred))
 		}
 	}
 	return t
 }
 
-// closeMembershipLocked takes a collection predecessor's membership as
-// declared once it has members: naming a populated Group or Sequence as a
-// predecessor, by After or as the step before in a Sequence, means the
-// Tasks declared into it so far. An empty one stays open, so a Task wired
-// After a Group before the loop that populates it waits for every child
-// (E-028); a Wait, the drain, or a stall closes it instead.
-func (o *Output) closeMembershipLocked(p predecessor) {
-	if p.col != nil && p.col.tally.total > 0 {
-		o.sealCollectionLocked(p.col)
+// closeMembershipLocked is p as an edge takes it: naming a populated
+// Group or Sequence as a predecessor, by After or as the step before in a
+// Sequence, means the Tasks declared into it so far, so the edge records
+// the declaration cursor and a member declared later never gates it
+// (E-093). An empty one stays open, so a Task wired After a Group before
+// the loop that populates it waits for every child (E-028); a Wait, the
+// drain, or a stall closes it instead.
+func (o *Output) closeMembershipLocked(p predecessor) predecessor {
+	if p.col == nil || p.through != 0 || p.col.tally.total() == 0 {
+		return p
 	}
+	p.through = o.declSeq
+	o.sealCollectionLocked(p.col)
+	return p
 }
 
-// sealCollectionLocked seals c and re-places the Tasks parked on it; any
-// still pending park again.
+// sealCollectionLocked seals c's open edges through the current
+// declaration cursor and re-places the Tasks parked on them; any still
+// pending park again.
 func (o *Output) sealCollectionLocked(c *tasksState) {
-	t := &c.tally
-	if t.sealed {
-		return
+	o.wakeLocked(c.tally.seal(o.declSeq))
+}
+
+// edgeCursorLocked is the declaration cursor edge p reads c's members
+// through, or open when p reads a membership nothing has closed yet.
+func (o *Output) edgeCursorLocked(p predecessor) (cursor int, open bool) {
+	t := &p.col.tally
+	switch {
+	case p.through != 0:
+		return p.through, false
+	case t.sealed:
+		return t.sealedThrough, false
+	case o.sched.draining:
+		return throughAll, false
+	default:
+		return 0, true
 	}
-	t.sealed = true
-	o.wakeLocked(t.dependents)
-	t.dependents = nil
 }
 
 // predecessorOfLocked resolves one After argument. ok is false for a nil
@@ -147,7 +139,7 @@ func (o *Output) outcomeLocked(p predecessor) (predOutcome, predecessor) {
 	case p.task != nil:
 		return o.taskOutcomeLocked(p.task), p
 	case p.col != nil:
-		return o.collectionOutcomeLocked(p.col)
+		return o.collectionOutcomeLocked(p)
 	default:
 		return predFailed, p
 	}
@@ -163,31 +155,31 @@ func (o *Output) taskOutcomeLocked(t *taskState) predOutcome {
 	return out
 }
 
-// collectionOutcomeLocked is c's outcome for its dependents, and what to
-// park on while it is pending. A collection is still pending while its
-// caller may populate it: a Task wired After a Group before the Group's
-// children were declared must wait for every one of them, even when the
-// children declared so far already finished. Once Finish drains,
-// or the run proved nothing will populate it, an empty collection ran
-// nothing, so it answers for what it starts after (see entryOutcomeLocked).
+// collectionOutcomeLocked is collection edge p's outcome for its
+// dependents, and what to park on while it is pending. An open edge is
+// still pending while its caller may populate the collection: a Task
+// wired After a Group before the Group's children were declared must wait
+// for every one of them, even when the children declared so far already
+// finished. Once closed, the edge reads the members declared through its
+// cursor; when there are none, the collection ran nothing, so it answers
+// for what it starts after (see entryOutcomeLocked).
 //
-// A non-empty collection needs no such forwarding: every member starts
-// after c's entry, so the members succeed only once the entry has.
-func (o *Output) collectionOutcomeLocked(c *tasksState) (predOutcome, predecessor) {
-	self := predecessor{col: c}
-	t := &c.tally
+// A populated edge needs no such forwarding: every member starts after
+// c's entry, so the members succeed only once the entry has.
+func (o *Output) collectionOutcomeLocked(p predecessor) (predOutcome, predecessor) {
+	t := &p.col.tally
+	cursor, open := o.edgeCursorLocked(p)
 	switch {
-	case t.failed > 0:
-		return predFailed, self
-	case t.total == 0:
-		if o.sched.draining || t.sealed {
-			return o.entryOutcomeLocked(c)
-		}
-		return predPending, self
-	case t.succeeded == t.total && (o.sched.draining || t.sealed):
-		return predSucceeded, self
+	case open && t.firstFailed != 0, !open && t.failedThrough(cursor):
+		return predFailed, p
+	case open:
+		return predPending, p
+	case !t.hasMemberThrough(cursor):
+		return o.entryOutcomeLocked(p.col)
+	case t.succeededThrough(cursor):
+		return predSucceeded, p
 	default:
-		return predPending, self
+		return predPending, p
 	}
 }
 
@@ -290,7 +282,8 @@ func (o *Output) placeLocked(st *taskState, scan predScan) {
 		if blocker.task != nil {
 			blocker.task.sched.dependents = append(blocker.task.sched.dependents, st)
 		} else {
-			blocker.col.tally.dependents = append(blocker.col.tally.dependents, st)
+			cursor, open := o.edgeCursorLocked(blocker)
+			blocker.col.tally.park(st, cursor, open)
 		}
 	case predFailed:
 		o.markNotStartedLocked(st)
@@ -329,21 +322,12 @@ func (o *Output) drainWokenLocked() {
 }
 
 // propagateSettleLocked tells st's dependents and its collections that st
-// settled, having been from before.
-func (o *Output) propagateSettleLocked(st *taskState, from predOutcome) {
+// settled.
+func (o *Output) propagateSettleLocked(st *taskState) {
 	deps := st.sched.dependents
 	st.sched.dependents = nil
-	to := stateOutcome(st.state)
 	for c := st.collection; c != nil; c = c.parent {
-		c.tally.count(from, -1)
-		c.tally.count(to, 1)
-		if len(c.tally.dependents) == 0 {
-			continue
-		}
-		if out, _ := o.collectionOutcomeLocked(c); out != predPending {
-			deps = append(deps, c.tally.dependents...)
-			c.tally.dependents = nil
-		}
+		deps = append(deps, c.tally.settle(st)...)
 	}
 	o.wakeLocked(deps)
 }
@@ -352,8 +336,7 @@ func (o *Output) propagateSettleLocked(st *taskState, from predOutcome) {
 // sits under.
 func tallyDeclaredLocked(st *taskState) {
 	for c := st.collection; c != nil; c = c.parent {
-		c.tally.total++
-		c.tally.count(stateOutcome(st.state), 1)
+		c.tally.declare(st)
 	}
 }
 
@@ -369,7 +352,7 @@ func (o *Output) replaceParkedLocked() {
 		}
 	}
 	for _, col := range o.tasksByRef {
-		col.tally.dependents = nil
+		col.tally.unpark()
 	}
 	for _, st := range parked {
 		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state) {

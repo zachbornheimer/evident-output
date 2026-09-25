@@ -9,9 +9,10 @@ import (
 	"time"
 )
 
-// A Wait seals the same inputs whatever other Waits ran before it: a
-// member declared since an earlier Wait walked the shared predecessor is
-// still found.
+// A Wait seals the same inputs whatever other Waits ran before it. Here
+// m2 is declared into g after b was wired After the populated g, so it is
+// not one of b's inputs (E-093): cold or after an earlier Wait walked b,
+// c.Wait answers once m1 finishes and leaves m2 alone.
 func TestWaitSealsTheSameAfterAnEarlierWait(t *testing.T) {
 	for _, warm := range []bool{false, true} {
 		out := isolatedOutput(t)
@@ -27,12 +28,14 @@ func TestWaitSealsTheSameAfterAnEarlierWait(t *testing.T) {
 			go func() { _ = d.Wait() }()
 			waitForParkedWait(t, out)
 		}
-		g.Task("m2") // never Defined
+		m2 := g.Task("m2") // never Defined
 		c := out.Task("c").After(b).Define(noop)
-		err := waitWithin(t, "c.Wait", c.Wait)
-		releaseM1()
-		if !errors.Is(err, ErrNotStarted) {
-			t.Errorf("warm=%v: c.Wait = %v, want ErrNotStarted", warm, err)
+		time.AfterFunc(20*time.Millisecond, releaseM1)
+		if err := waitWithin(t, "c.Wait", c.Wait); err != nil {
+			t.Errorf("warm=%v: c.Wait = %v, want nil: m2 was declared after b's After(g)", warm, err)
+		}
+		if st := m2.Snapshot().State; st != Pending {
+			t.Errorf("warm=%v: m2 = %s after c.Wait, want Pending: c does not wait for it", warm, st)
 		}
 	}
 }

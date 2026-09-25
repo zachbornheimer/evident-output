@@ -82,3 +82,27 @@ func (c *tasksState) recordStep(step predecessor) {
 		c.lastStep = []predecessor{step}
 	}
 }
+
+// isLastStep reports whether step is c's latest step.
+func (c *tasksState) isLastStep(step *tasksState) bool {
+	return len(c.lastStep) == 1 && c.lastStep[0].col == step
+}
+
+// joinPassedSequencesLocked orders self, declared into c, after every
+// enclosing Sequence that has already moved past the step holding c and
+// taken that step's membership as declared: self is declared after the
+// Sequence's latest step, so it runs after that step and becomes the
+// Sequence's latest step itself. Declaration order and one Running child
+// then hold whatever the step's earlier members took (E-092). A step the
+// Sequence passed while empty is still open, so the later step already
+// waits for self and nothing changes.
+func (o *Output) joinPassedSequencesLocked(preds []predecessor, c *tasksState, self predecessor) []predecessor {
+	for step, seq := c, c.parent; seq != nil; step, seq = seq, seq.parent {
+		if !seq.sequential || !step.tally.sealed || seq.isLastStep(step) {
+			continue
+		}
+		preds = o.appendStepPredsLocked(preds, seq)
+		seq.recordStep(self)
+	}
+	return preds
+}

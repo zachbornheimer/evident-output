@@ -45,7 +45,9 @@ func (o *Output) sealWaitedInputsLocked() bool {
 // answers never depends on what ran before it.
 type inputSeals struct {
 	tasks map[*taskState]struct{}
-	cols  map[*tasksState]struct{}
+	// cols holds, per collection, the cursor its members were walked
+	// through.
+	cols map[*tasksState]int
 }
 
 // begin readies s for a walk from root, and reports false when an earlier
@@ -54,7 +56,7 @@ type inputSeals struct {
 func (s *inputSeals) begin(root *taskState) bool {
 	if s.tasks == nil {
 		s.tasks = map[*taskState]struct{}{}
-		s.cols = map[*tasksState]struct{}{}
+		s.cols = map[*tasksState]int{}
 	}
 	if _, walked := s.tasks[root]; walked {
 		return false
@@ -72,7 +74,7 @@ func (o *Output) sealInputsLocked(root *taskState, seen *inputSeals) bool {
 	if !seen.begin(root) {
 		return false
 	}
-	w := inputWalk{seen: seen, stack: []*taskState{root}}
+	w := inputWalk{seen: seen, stack: []*taskState{root}, cursor: o.declSeq}
 	for len(w.stack) > 0 {
 		t := w.stack[len(w.stack)-1]
 		w.stack = w.stack[:len(w.stack)-1]
@@ -97,6 +99,8 @@ type inputWalk struct {
 	undefined []*taskState
 	// wake are the Tasks parked on a collection the walk sealed.
 	wake []*taskState
+	// cursor is the declaration cursor the walk seals memberships through.
+	cursor int
 }
 
 // expand visits every predecessor of submitted Task t.
@@ -111,7 +115,7 @@ func (w *inputWalk) visit(p predecessor) {
 	case p.task != nil:
 		w.visitTask(p.task)
 	case p.col != nil:
-		w.visitCollection(p.col)
+		w.visitCollection(p)
 	}
 }
 
@@ -127,28 +131,32 @@ func (w *inputWalk) visitTask(t *taskState) {
 	w.stack = append(w.stack, t)
 }
 
-func (w *inputWalk) visitCollection(c *tasksState) {
-	if _, seen := w.seen.cols[c]; seen {
+// visitCollection walks the members edge p waits for: those declared
+// through its cursor. Nothing declared after this Wait walked can gate
+// it, so an open edge's membership is sealed here first.
+func (w *inputWalk) visitCollection(p predecessor) {
+	c, t := p.col, &p.col.tally
+	w.wake = append(w.wake, t.seal(w.cursor)...)
+	cursor := p.through
+	if cursor == 0 {
+		cursor = t.sealedThrough
+	}
+	walked, seen := w.seen.cols[c]
+	if seen && walked >= cursor {
 		return
 	}
-	w.seen.cols[c] = struct{}{}
-	t := &c.tally
-	if !t.sealed {
-		// Nothing declared after this Wait walked can gate it: the
-		// collection's membership is taken as declared.
-		t.sealed = true
-		w.wake = append(w.wake, t.dependents...)
-		t.dependents = nil
-	}
-	if t.total == 0 {
+	w.seen.cols[c] = cursor
+	if !t.hasMemberThrough(cursor) {
 		// A sealed empty collection answers for its entry, so what the
 		// entry waits for is waited for too.
-		for _, p := range c.entry {
-			w.visit(p)
+		if !seen {
+			for _, e := range c.entry {
+				w.visit(e)
+			}
 		}
 		return
 	}
-	for _, member := range appendDescendantTasksLocked(c, nil) {
+	for _, member := range t.membersThrough(walked, cursor) {
 		w.visitTask(member)
 	}
 }
