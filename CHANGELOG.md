@@ -183,7 +183,9 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   and whose `Define` plans an Effect concludes `[planned]` with exit 0. It
   failed `postcondition not satisfied` with exit 2: the after-Define check
   observed state the skipped Effect never changed. A planned run now skips
-  that check.
+  that check only for a Task that planned a mutation; a Task whose Define
+  planned nothing is checked as a real run checks it, so a dry run still
+  fails `postcondition not satisfied` with exit 2 when the real run would.
 
 - A Task `Block`ed inside a Group or Sequence now concludes `[blocked]`
   with exit 1. It concluded `[ready]` with exit 0, because the Conclusion

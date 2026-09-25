@@ -186,6 +186,15 @@ func (o *Output) hasRecordedEffectLocked(taskID string) bool {
 	return false
 }
 
+// hasPlannedEffect reports whether the Task taskID recorded at least one
+// [planned] row: a mutation a dry run or preview skipped.
+func (o *Output) hasPlannedEffect(taskID string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	s, ok := o.ledger.byOwner[ledgerSectionKey{owner: taskID, tense: tensePlanned}]
+	return ok && len(s.records) > 0
+}
+
 // maxSubjectWidth is the widest subject among sections, so their rows
 // align; a lone section needs no alignment.
 func maxSubjectWidth(sections []*ledgerSection) int {

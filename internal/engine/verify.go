@@ -157,11 +157,13 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 func (t *TaskHandle) checkAfterDefine(verifiers []verifierFunc, scope *taskScopeHandle) error {
 	o := t.out
 	switch {
-	case o.cfg.dryRun:
-		// A planned run skipped every mutation callback, so the state the
-		// postcondition observes is the state before the plan: checking it
-		// would fail every Task the plan would change (E-097). The After
-		// phase stays unevaluated.
+	case o.cfg.dryRun && o.hasPlannedEffect(t.id):
+		// This Task's Define planned a mutation the run skipped, so the
+		// state the postcondition observes is the state before the plan:
+		// checking it would fail every Task the plan would change (E-097).
+		// The After phase stays unevaluated. A Define that planned nothing
+		// left the real post-state, so it falls through and is checked as
+		// a real run would check it (E-106).
 	case len(verifiers) > 0:
 		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), o, t.id, verifiers)
 		if obsErr != nil {
