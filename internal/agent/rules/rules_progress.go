@@ -10,7 +10,7 @@ func progressRules() []Rule {
 			Category:        "API",
 			Severity:        SeverityWarning,
 			Invariant:       "a call site never uses TaskHandle.Step (removed in 1.1); a count's current item is Progress(completed, total).Doing(item)",
-			Why:             "Progress is the one count verb and Doing the one current-activity verb (contract Vocabulary: \"Progress wins over Step\"). Step fused the two into a third spelling that taught nothing either verb did not already say. After Progress or Bytes, a plain transcript shows Doing's item only on a thinned progress milestone's line, never a line per item, the property Step used to own.",
+			Why:             "Progress is the one count verb and Doing the one current-activity verb (contract Vocabulary: \"Progress wins over Step\"). Step fused the two into a third spelling that taught nothing either verb did not already say. After Progress or Bytes, and until the count seals, Doing updates only the live/interactive text; a plain transcript streams each thinned progress milestone on its own item-free line, the instant it crosses.",
 			BadCode:         `task.Step(i, len(paths), path)`,
 			GoodCode:        `task.Progress(i, len(paths)).Doing(path)`,
 			Remediation:     "Replace task.Step(completed, total, item) with task.Progress(completed, total).Doing(item)",

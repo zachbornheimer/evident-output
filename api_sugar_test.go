@@ -270,10 +270,16 @@ func TestProgressDoing_IsolatedPlainDoesNotEmitPerItemPhase(t *testing.T) {
 	}
 }
 
-// TestProgressDoing_PlainMilestoneNamesItsOwnItem pins which item a plain
-// milestone line names: in a Progress(i, total).Doing(item) loop, the line
-// for count i names item i, the one in progress, never the previous one.
-func TestProgressDoing_PlainMilestoneNamesItsOwnItem(t *testing.T) {
+// TestProgressDoing_PlainMilestoneNeverNamesItem pins that a plain-mode
+// milestone line never carries a Doing's item text, in either call order
+// (`task.Progress(i, total).Doing(item)` or the reverse): a Doing while a
+// count is open is live-only (reportsCount) and never guessed onto a
+// milestone's own line (E-119 review) — the exception is the loop's own
+// last iteration, where Progress(total, total) seals the count before its
+// chained Doing runs, so that one Doing narrates normally, on its own line,
+// same as any post-loop step. Each milestone still streams its own count
+// exactly once, and the canonical order's final count survives.
+func TestProgressDoing_PlainMilestoneNeverNamesItem(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
@@ -286,105 +292,24 @@ func TestProgressDoing_PlainMilestoneNamesItsOwnItem(t *testing.T) {
 	succeed(task)
 	_ = out.Close()
 
-	var itemLines int
+	rendered := buf.String()
+	for i := 1; i < total; i++ {
+		item := fmt.Sprintf("widget-%02d", i)
+		if strings.Contains(rendered, item) {
+			t.Fatalf("want %q (an open-count item) never shown, got:\n%s", item, rendered)
+		}
+	}
+
+	// Every non-final milestone count streams on exactly one line — the
+	// final count gets two: its own bare milestone tick, then the loop's
+	// last chained Doing narrating normally once the count has sealed
+	// (TestTaskDoing_NarratesAfterProgressSeals).
+	final := strconv.Itoa(total) + "/" + strconv.Itoa(total)
 	seenCounts := map[string]string{} // "C/40" -> the whole line it appeared on first
-	for line := range strings.SplitSeq(buf.String(), "\n") {
-		fields := strings.Fields(line)
-		// Every milestone line, bare or item-named, carries its "C/40" count
-		// as the field right after the glyph and task name. A count must
-		// stream on exactly one line — never a bare line and then a
-		// separately-named item line for the same count (the E-119 review's
-		// duplicate-first-milestone bug: namesItems being false on the
-		// first Progress streamed a bare line immediately, then the Doing
-		// that followed streamed the same count again).
-		for _, f := range fields {
-			if !strings.HasSuffix(f, "/"+strconv.Itoa(total)) {
-				continue
-			}
-			if prior, ok := seenCounts[f]; ok {
-				t.Fatalf("count %s streamed on more than one line:\n  %s\n  %s", f, prior, line)
-			}
-			seenCounts[f] = line
-		}
-		var completed, item int
-		if len(fields) < 4 || !strings.HasPrefix(fields[3], "widget-") {
-			continue
-		}
-		itemLines++
-		if _, err := fmt.Sscanf(fields[2]+" "+fields[3], "%d/40 widget-%d", &completed, &item); err != nil {
-			t.Fatalf("unparsable item line %q: %v", line, err)
-		}
-		if completed != item {
-			t.Fatalf("milestone %d/%d names widget-%02d, want widget-%02d:\n%s", completed, total, item, completed, buf.String())
-		}
-	}
-	if itemLines == 0 {
-		t.Fatalf("no milestone line named an item:\n%s", buf.String())
-	}
-}
-
-// TestProgressDoing_FinalMilestoneDoingNoOrphanLine is the regression for
-// the canonical `task.Progress(total, total).Doing(item)` chain's last
-// iteration: the final tick streams its count bare ("40/40") the instant it
-// happens (TestProgressDoing_PlainMilestoneNamesItsOwnItem's own final
-// line), and the Doing right after it — naming that same, already-sealed
-// milestone's item — must go unshown, never trail it as a second,
-// item-only line with no count on it at all. A prior regression fed that
-// Doing through the ordinary narrated path once the count was sealed,
-// which streamed exactly that orphan line.
-func TestProgressDoing_FinalMilestoneDoingNoOrphanLine(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("sync")
-
-	const total = 20
-	for i := 1; i <= total; i++ {
-		task.Progress(i, total).Doing("widget-%02d", i)
-	}
-	succeed(task)
-	_ = out.Close()
-
-	for line := range strings.SplitSeq(buf.String(), "\n") {
-		if strings.Contains(line, "widget-20") {
-			t.Fatalf("want the final milestone's Doing to stay unshown (already sealed \"20/20\" streamed bare), got an orphan line:\n%s\nfull transcript:\n%s", line, buf.String())
-		}
-	}
-}
-
-// TestDoingProgress_PlainMilestoneNeverPairsWrongItem is
-// TestProgressDoing_PlainMilestoneNamesItsOwnItem's sibling for the
-// Doing-before-Progress loop order (`task.Doing(item); task.Progress(i,
-// total)`). This order is not a supported pairing shape — see
-// docs/migration/1.1.md's "Only task.Progress(i, total).Doing(item) …
-// pairs" note: a Doing that precedes the count ever opening is
-// indistinguishable, from call order alone, between an ordinary narrated
-// step ahead of the loop (`task.Doing("reading manifest")`) and that same
-// loop's own first item (E-119 review's RED repro, r8-red-e119.txt —
-// guessing between the two misclassified the prelude case). So items are
-// never guessed onto a milestone in this order; this test pins that the
-// milestones themselves still survive correctly (each count exactly once,
-// the final tick included) rather than pinning a pairing this order
-// cannot support unambiguously.
-func TestDoingProgress_PlainMilestoneNeverPairsWrongItem(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("sync")
-
-	const total = 40
-	for i := 1; i <= total; i++ {
-		task.Doing("widget-%02d", i)
-		task.Progress(i, total)
-	}
-	succeed(task)
-	_ = out.Close()
-
-	seenCounts := map[string]string{} // "C/40" -> the whole line it appeared on first
-	for line := range strings.SplitSeq(buf.String(), "\n") {
+	for line := range strings.SplitSeq(rendered, "\n") {
 		fields := strings.FieldsSeq(line)
 		for f := range fields {
-			if !strings.HasSuffix(f, "/"+strconv.Itoa(total)) {
+			if !strings.HasSuffix(f, "/"+strconv.Itoa(total)) || f == final {
 				continue
 			}
 			if prior, ok := seenCounts[f]; ok {
@@ -393,9 +318,8 @@ func TestDoingProgress_PlainMilestoneNeverPairsWrongItem(t *testing.T) {
 			seenCounts[f] = line
 		}
 	}
-	final := strconv.Itoa(total) + "/" + strconv.Itoa(total)
-	if _, ok := seenCounts[final]; !ok {
-		t.Fatalf("want the final milestone %s to survive, got:\n%s", final, buf.String())
+	if !strings.Contains(rendered, final) {
+		t.Fatalf("want the final milestone %s to stream, got:\n%s", final, rendered)
 	}
 }
 

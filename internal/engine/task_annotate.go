@@ -12,18 +12,18 @@ import (
 // pending — replaces the previous text, promotes the task to Running, and
 // becomes a durable line per step off-TTY. text is a printf format when args
 // are present (fmt.Sprintf semantics). Chained right after Task, it sets
-// the first step at declaration. Once the Task reports a count (Progress
-// or Bytes), Doing names the current item of that count,
-// `task.Progress(i, total).Doing(item)`: a plain transcript shows the item
-// only on a progress milestone's line, never a line per item.
+// the first step at declaration. Once the Task reports a count (Progress or
+// Bytes) and until that count seals, Doing updates the live/interactive text
+// only — it never forces its own durable line — because a plain-mode
+// milestone (Progress/Bytes) already streams its own count the instant it
+// crosses (see reportsCount).
 func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	if len(args) > 0 {
 		text = fmt.Sprintf(text, args...)
 	}
 	return t.annotate(func(st *taskState) {
-		if pairsWithMilestone(st) {
+		if reportsCount(st) {
 			t.out.setLiveOnlyPhaseLocked(st, text)
-			t.out.emitTaskRunningProgressiveLocked(st, triggerItem)
 			return
 		}
 		t.out.setPhaseLocked(st, text)
@@ -41,35 +41,6 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 func reportsCount(st *taskState) bool {
 	kind := st.progress.Kind
 	return (kind == Determinate || kind == BytesKind) && !hasSealedProgress(st)
-}
-
-// pairsWithMilestone reports whether this Doing names the item of a
-// count's current milestone, rather than narrating an ordinary step. It is
-// true for an open (unsealed) count (reportsCount) — the ordinary case,
-// `task.Progress(i, total).Doing(item)` mid-loop.
-//
-// It is also true once a count has just sealed, but only when this Task
-// has already paired at least one item onto a milestone before
-// (plainStream.namesItems) AND a milestone from that same pairing history
-// is still owed (plainStream.owed.pending): that shape is the loop's own
-// last Doing naming its own final, already-sealed milestone — e.g.
-// `task.Progress(20, 20).Doing(item20)` — which must stay silent rather
-// than print a second, item-only line trailing the "20/20" that already
-// streamed bare (triggerItem's alreadyStreamed case).
-//
-// A sealed count with no pairing history (namesItems false) — install's
-// `Bytes(400, 400)` followed by `Doing("verify checksum")`, with no prior
-// Doing ever paired — is NOT this shape: it is ordinary post-count
-// narration and must go through the narrated path instead (setPhaseLocked),
-// which blanks that one line's count rather than repeating it (see
-// emitTaskRunningProgressiveLocked's triggerPhase case). Gating on
-// namesItems is what tells the two apart; gating on owed.pending alone
-// swallowed genuine post-loop narration (E-119 review regression).
-func pairsWithMilestone(st *taskState) bool {
-	if reportsCount(st) {
-		return true
-	}
-	return st.plainStream.owed.pending && st.plainStream.namesItems
 }
 
 // resolvedByInterrupt reports whether this state was reached by the

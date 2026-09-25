@@ -33,33 +33,6 @@ func TestPlainProgress_StreamsMilestones_NotOnlyFirstTick(t *testing.T) {
 	}
 }
 
-// TestPlainProgress_DoingBeforeProgress_FinalMilestoneNotDropped is
-// beginner-8's "always a final n/n" for the Doing-before-Progress loop
-// order (task.Doing(item); work; task.Progress(i, n)) — the E-119 review's
-// blocker: once the task's first Doing establishes namesItems, every
-// milestone defers to the next Doing to name it, and the loop's very last
-// milestone (total/total) has no Doing left to claim it, so it must be
-// flushed at task resolution instead of silently dropped.
-func TestPlainProgress_DoingBeforeProgress_FinalMilestoneNotDropped(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("sync")
-
-	const total = 40
-	for i := 1; i <= total; i++ {
-		task.Doing("widget-%02d", i)
-		task.Progress(i, total)
-	}
-	succeed(task, "synced")
-	_ = out.Close()
-
-	rendered := buf.String()
-	if !strings.Contains(rendered, "40/40") {
-		t.Fatalf("expected the final 40/40 milestone to stream, got:\n%s", rendered)
-	}
-}
-
 // TestPlainProgress_NoSpinnerGlyph is beginner-8: a plain-mode Running row
 // never shows a spinner-alphabet frame — there is no animation loop behind
 // a durable, one-shot-per-milestone line, so a frozen mid-spin frame is

@@ -35,11 +35,11 @@ func TestTaskDoing_NarratesAfterProgressSeals(t *testing.T) {
 // TestPlainProgress_PreludeDoing_ThenCanonicalLoop is the regression for
 // the E-119 review's RED repro (r8-red-e119.txt): an ordinary narrated
 // Doing that runs before a canonical Progress(...).Doing(...) loop starts
-// must not be mistaken for that loop's own first pairing Doing — no call-
-// order signal can tell the two apart (see emitPlainProgressLocked), so
-// only the canonical order pairs at all. Each milestone must pair with its
-// OWN item, not the previous one, and the final count must print exactly
-// once.
+// must not be mistaken for that loop's own first item — no call-order
+// signal can tell the two apart (see emitPlainProgressLocked), so a
+// counted Task's Doing never forces a durable line at all (reportsCount)
+// and every milestone streams its own item-free line instead. The prelude
+// step still narrates, and the final count prints exactly once.
 func TestPlainProgress_PreludeDoing_ThenCanonicalLoop(t *testing.T) {
 	var buf strings.Builder
 	out := Init(Config{Isolated: true, Title: "demo", Plain: true, Stdout: &buf, Stderr: &buf})
@@ -56,16 +56,13 @@ func TestPlainProgress_PreludeDoing_ThenCanonicalLoop(t *testing.T) {
 	if !strings.Contains(got, "reading manifest") {
 		t.Fatalf("want the prelude step narrated, got:\n%s", got)
 	}
-	// Every milestone must pair with its OWN item — the exact RED defect
-	// was every milestone naming the PREVIOUS item (2/20 named w-01, 4/20
-	// named w-03, ...).
-	// The final milestone (20/20) is the documented exception: its own
-	// chained Doing goes unshown, already covered by
-	// TestProgressDoing_FinalMilestoneDoingNoOrphanLine.
-	for i := 2; i < 20; i += 2 {
-		want := fmt.Sprintf("%d/20  w-%02d", i, i)
-		if !strings.Contains(got, want) {
-			t.Fatalf("want milestone %d paired with its own item (%q), got:\n%s", i, want, got)
+	// Every item but the loop's own last one (w-20) stays live-only: the
+	// count seals on the final Progress(20, 20) before its chained Doing
+	// runs, so that one narrates normally, same as any post-loop step.
+	for i := 1; i < 20; i++ {
+		item := fmt.Sprintf("w-%02d", i)
+		if strings.Contains(got, item) {
+			t.Fatalf("want %q (an open-count item) never shown, got:\n%s", item, got)
 		}
 	}
 	lines := nonEmptyLines(got)
@@ -113,10 +110,10 @@ func TestPlainProgress_DoingBeforeProgress_NeverPairs(t *testing.T) {
 	}
 }
 
-// TestPlainBytes_DoingPairing_KeepsBytesFormatting is the regression for
-// owedMilestone dropping Progress.Kind: a Bytes milestone that defers to a
-// paired Doing must still render as bytes (MB/GB) on the paired line, not
-// silently fall back to a bare determinate count.
+// TestPlainBytes_DoingPairing_KeepsBytesFormatting pins that a Bytes
+// milestone's immediate line still renders as bytes (MB/GB), not a bare
+// determinate count, regardless of a Doing chained after it (which stays
+// live-only while the count is open).
 func TestPlainBytes_DoingPairing_KeepsBytesFormatting(t *testing.T) {
 	var buf strings.Builder
 	out := Init(Config{Isolated: true, Title: "demo", Plain: true, Stdout: &buf, Stderr: &buf})
@@ -164,28 +161,22 @@ func TestPlainProgress_NarratesEveryPostLoopStep(t *testing.T) {
 	}
 }
 
-// TestPlainProgress_FirstTickIsDeferredUntilNextEvent pins the documented
-// 1.1 tradeoff (docs/migration/1.1.md "first progress tick is deferred"):
-// unlike 1.0, a Task's very first Progress/Bytes tick does not stream its
-// own line immediately — it waits for the paired Doing (or, with none
-// coming, the next milestone or resolution) so the canonical
-// Progress(...).Doing(...) chain can print the count and the item on one
-// line instead of two. A lone first tick with nothing narrating it and no
-// further ticks stays silent until the task resolves.
-func TestPlainProgress_FirstTickIsDeferredUntilNextEvent(t *testing.T) {
+// TestPlainProgress_FirstTickStreamsImmediately is always-show-state for a
+// Task's very first Progress/Bytes tick: it streams its own line the
+// instant it happens, the same as every later milestone — never held back
+// waiting for a Doing that may not come, which would leave a lone tick
+// with no further ticks silent until the task resolves.
+func TestPlainProgress_FirstTickStreamsImmediately(t *testing.T) {
 	var buf strings.Builder
 	out := Init(Config{Isolated: true, Title: "demo", Plain: true, Stdout: &buf, Stderr: &buf})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("download")
 	task.Bytes(50<<20, 500<<20)
-	if got := buf.String(); got != "" {
-		t.Fatalf("want the first tick deferred (no line yet), got:\n%s", got)
+	if got := buf.String(); !strings.Contains(got, "MB") {
+		t.Fatalf("want the first tick to stream immediately, got:\n%s", got)
 	}
 	task.succeed("")
-	if got := buf.String(); !strings.Contains(got, "MB") {
-		t.Fatalf("want the deferred first tick to flush at resolution, got:\n%s", got)
-	}
 }
 
 func nonEmptyLines(s string) []string {

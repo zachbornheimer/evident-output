@@ -555,10 +555,13 @@ func TestSpecP10_Step1(t *testing.T) {
 }
 
 // TestSpecP10_Step2 covers evo-rec.md Problem 10's step2 block: a prior Done
-// task stays, and the next task's progress becomes visible.
+// task stays, and the next task's progress becomes visible. install's
+// milestone streams its count the instant Progress crosses it; the Doing
+// that follows updates only the live/interactive view (see
+// docs/migration/1.1.md) — it is not guessed onto the milestone's own line.
 //
 //	✓  scan
-//	•  install  14/40  requests
+//	•  install  14/40
 func TestSpecP10_Step2(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
@@ -573,10 +576,13 @@ func TestSpecP10_Step2(t *testing.T) {
 	if !strings.Contains(got, "✓") || !strings.Contains(got, "scan") {
 		t.Fatalf("want the Done scan row to stream immediately, got:\n%s", got)
 	}
-	for _, want := range []string{"install", "14/40", "requests"} {
+	for _, want := range []string{"install", "14/40"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q streamed for the Running install task, got:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "requests") {
+		t.Fatalf("want the live-only Doing text not to force its own durable line, got:\n%s", got)
 	}
 }
 

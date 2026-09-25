@@ -39,15 +39,6 @@ func (st *taskState) attachEvidenceTail(state EntityState, problems []Problem) [
 // Done Task commits its manifest record; Failed, Blocked, and Cancelled
 // never do (spec §8.2/§11.3).
 func (o *Output) commitSettledLocked(st *taskState) {
-	// A milestone still owed when the task resolves never gets its claiming
-	// Doing — flush it now, before the terminal row, so a Doing-before-
-	// Progress loop's last milestone (beginner-8's "always a final n/n") is
-	// never silently dropped (E-119 review). Applies to a collection child
-	// exactly as it does a standalone task: signalLiveLocked repaints the
-	// ledger from current state, so an owed milestone must already be
-	// flushed before it runs, not left for a stale next tick that never
-	// comes once this task is terminal.
-	o.flushOwedMilestoneLocked(st, rowAsResolving)
 	if st.collection != nil {
 		o.signalLiveLocked(true)
 	} else {
