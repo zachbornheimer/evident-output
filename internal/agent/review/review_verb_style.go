@@ -65,52 +65,42 @@ func detectPlaceholderDoing(filename, src string) []Finding {
 	return findings
 }
 
-// failBlockStmtPattern matches a statement-form Fail/Block call (not
-// Failf/Blockf, which already return the built error — the pattern requires
-// "(" immediately after the verb name, which "Failf("/"Blockf(" never has).
+// failBlockStmtPattern matches a statement-form Fail/Block call. Failf and
+// Blockf were removed in 1.1 with no replacement in this family, so every
+// Fail(/Block( in current source is already this statement form.
 var failBlockStmtPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(`)
 
 // returnTheErrorSuggestion is how a Fail site hands its error back.
-// Inside a Define or mutation callback the returned error is what resolves
-// the task (API-040: resolving it first as well double-resolves); outside
-// one, the f-form resolves the task and returns the error in one line.
+// Inside a Define or mutation callback the returned error alone resolves
+// the task with that error as its cause (API-040: calling Fail first as
+// well is redundant ceremony, not a second bug); outside one, keep the
+// Fail statement — it is the only way to resolve that task — and return
+// the error so the caller's own signature still gets it.
 func returnTheErrorSuggestion(recv, errVar string) string {
 	return "inside a Define/mutation callback: `return fmt.Errorf(\"<context>: %w\", " + errVar + ")` and drop the " +
-		recv + ".Fail call; elsewhere: `return " + recv + ".Failf(\"<context>: %w\", " + errVar + ")`"
+		recv + ".Fail call; elsewhere: keep `" + recv + ".Fail(\"<context>\", evo.Detail(" + errVar + ".Error()))` and `return " + errVar + "`"
 }
 
 // returnTheRefusalSuggestion is how a Block site hands its refusal back,
-// inside a Define callback or not: Blockf resolves the Task Blocked and
-// returns the refusal. A plain error would conclude it Failed instead, so a
-// Block site is never rewritten to fmt.Errorf (E-105).
-func returnTheRefusalSuggestion(blockf string) string {
-	return "`" + blockf + "` in place of both lines: Blockf resolves the Task Blocked and returns the refusal, " +
-		"inside a Define callback too (a plain error there would conclude the Task Failed)"
+// inside a Define callback or not: the Block statement is the only way to
+// resolve the Task Blocked (a plain returned error would conclude it
+// Failed instead, E-105), so it always stays; only the return alongside it
+// changes, from a discarded nil to the propagated error.
+func returnTheRefusalSuggestion(blockStmt string) string {
+	return "keep `" + blockStmt + "` and change the following `return nil` to `return err`: Block already resolved " +
+		"the Task Blocked, so returning the error afterward does not double-resolve it — it only lets the caller " +
+		"still see the cause. Attach a remedy on the Block call itself with evo.Next/evo.NextCommand."
 }
 
 // handBackSuggestion is how a Fail or Block site returns errVar: the error
 // for a Fail, the refusal caused by errVar for a Block.
 func handBackSuggestion(recv, verb, errVar string) string {
 	if verb == "Block" {
-		return "`return " + recv + ".Blockf(\"<context>: %w\", " + errVar + ")`: Blockf resolves the Task Blocked and returns the refusal, " +
-			"inside a Define callback too (a plain error there would conclude the Task Failed)"
+		return "keep `" + recv + ".Block(\"<context>\", evo.Next(...))` and `return " + errVar +
+			"` afterward: Block already resolved the Task Blocked, so the returned error only reaches the caller, " +
+			"it does not flip the Task to Failed"
 	}
 	return returnTheErrorSuggestion(recv, errVar)
-}
-
-// blockfCall rewrites a Block call's argument list as the Blockf call that
-// returns the same refusal. A Block that carries ProblemOptions has no
-// Blockf spelling, so ok is false.
-func blockfCall(recv, args string) (call string, ok bool) {
-	parts := splitTopLevelArgs(args)
-	if len(parts) != 1 || strings.TrimSpace(parts[0]) == "" {
-		return "", false
-	}
-	summary := strings.TrimSpace(parts[0])
-	if !strings.HasPrefix(summary, `"`) || strings.Contains(summary, "%") {
-		summary = `"%s", ` + summary
-	}
-	return "return " + recv + ".Blockf(" + summary + ")", true
 }
 
 // detectFailBlockThenReturnNil is API-034: a statement-form Fail/Block
@@ -126,17 +116,9 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 			continue
 		}
 		recv, verb := m[1], m[2]
-		if sprintfInVerbPattern.MatchString(line) {
-			continue // API-036 hands this one back in one line
-		}
 		suggestion := returnTheErrorSuggestion(recv, "err")
 		if verb == "Block" {
-			args, _, ok := balancedArgs(line, strings.Index(line, recv+".Block(")+len(recv+".Block"))
-			blockf, ok2 := blockfCall(recv, args)
-			if !ok || !ok2 {
-				continue // a Block with ProblemOptions has no Blockf spelling
-			}
-			suggestion = returnTheRefusalSuggestion(blockf)
+			suggestion = returnTheRefusalSuggestion(recv + ".Block(...)")
 		}
 		for j := i + 1; j < len(lines) && j < i+4; j++ {
 			trimmed := strings.TrimSpace(lines[j])
@@ -182,66 +164,12 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 	return findings
 }
 
-// sprintfInVerbPattern matches Fail/Block called with fmt.Sprintf as (the
-// start of) its argument list. Warn is deliberately excluded: it has no
-// Warnf sibling, and Warn(summary, options...) takes fmt.Sprintf as its
-// ordinary summary argument.
-var sprintfInVerbPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*fmt\.Sprintf\(`)
-
-// detectSprintfInVerb is API-036: a Fail/Block(fmt.Sprintf(...))
-// statement followed by a return is the f-form's one job: resolve the task
-// and return the formatted error in one line. Failf/Blockf return a
-// *Failure, so the rewrite is offered only where that value is returned;
-// a bare statement is already the right form (E-102: the rewrite's
-// discarded *Failure failed errcheck), and ProblemOptions after the
-// Sprintf have no f-form at all.
-func detectSprintfInVerb(filename, src string) []Finding {
-	var findings []Finding
-	for _, m := range sprintfInVerbPattern.FindAllStringSubmatchIndex(src, -1) {
-		recv, verb := src[m[2]:m[3]], src[m[4]:m[5]]
-		openIdx := m[1] - 1
-		args, endIdx, ok := balancedArgs(src, openIdx)
-		if !ok {
-			continue
-		}
-		rest := strings.TrimLeft(src[endIdx:], " \t")
-		if !strings.HasPrefix(rest, ")") || !nextStatementReturns(rest[1:]) {
-			continue
-		}
-		f := recv + "." + verb + "f(" + args + ")"
-		suggestion := "outside a Define/mutation callback: `return " + f + "` in place of both lines; " +
-			"inside one: `return fmt.Errorf(" + args + ")` and drop the " + recv + "." + verb + " call"
-		if verb == "Block" {
-			suggestion = returnTheRefusalSuggestion("return " + f)
-		}
-		findings = append(findings, Finding{
-			RuleID:     "API-036",
-			Message:    recv + "." + verb + "(fmt.Sprintf(...)) then return: " + recv + "." + verb + "f resolves the task and returns the error in one line",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: suggestion,
-		})
-	}
-	return findings
-}
-
-// nextStatementReturns reports whether the statement after the one rest
-// ends is a return.
-func nextStatementReturns(rest string) bool {
-	line, after, _ := strings.Cut(rest, "\n")
-	if strings.TrimSpace(line) != "" {
-		return false
-	}
-	next, _, _ := strings.Cut(strings.TrimLeft(after, " \t\n"), "\n")
-	next = strings.TrimSpace(next)
-	return next == "return" || strings.HasPrefix(next, "return ")
-}
-
 // printfVariadicVerbPattern matches a call to one of evo's own printf-
-// variadic TaskHandle methods — Doing, Failf, and Blockf take
-// (format string, args ...any) directly — with fmt.Sprintf as (the start
-// of) its argument list.
-var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Doing|Failf|Blockf)\(\s*fmt\.Sprintf\(`)
+// variadic TaskHandle methods — Doing takes (format string, args ...any)
+// directly (Failf/Blockf were removed in 1.1 with no replacement in this
+// family: Fail/Block take a plain summary plus ProblemOptions) — with
+// fmt.Sprintf as (the start of) its argument list.
+var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Doing)\(\s*fmt\.Sprintf\(`)
 
 // detectSprintfIntoVariadicVerb is API-038: fmt.Sprintf(...) passed to a
 // method that is already printf-variadic itself is ceremony that also hides

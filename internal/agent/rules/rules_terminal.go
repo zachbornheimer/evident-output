@@ -78,7 +78,7 @@ cmd.Run()`,
 cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
-    return task.Failf("build failed: %w", err)
+    return fmt.Errorf("build failed: %w", err)
 }`,
 			Remediation:     "Use cmd.Stdout = task.Writer(); do not inherit os.Stdout and do not clear the live region",
 			RelatedGuidance: []string{"interactive"},

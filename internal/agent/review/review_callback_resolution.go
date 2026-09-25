@@ -8,11 +8,16 @@ import (
 	"go/token"
 )
 
-// ===== API-040: Failf/Fail inside a Define/mutation callback whose result
-// is returned, directly or one call away (zq app.go:308-350's executeCommand,
-// reached from runParallel's Define at app.go:155-176). Double-resolves the
-// task: Define's own "non-nil return fails" collides with Failf's "resolve
-// and return" (evo-dialect-axes-report.md axis 3/6/12).
+// ===== API-040: Fail inside a Define/mutation callback whose result is also
+// returned, directly or one call away (zq app.go:308-350's executeCommand,
+// reached from runParallel's Define at app.go:155-176). This does not
+// double-resolve the row (a callback that self-resolves and then returns
+// the same outcome is documented, safe behavior — Define never restates a
+// terminal task), but it is redundant ceremony: Define's own "non-nil
+// return fails the task" already does what the explicit Fail call did
+// (evo-dialect-axes-report.md axis 3/6/12). Block is exempt: it is the only
+// way to conclude the Task Blocked, so a Block statement followed by a
+// returned error is the correct shape, not flagged here.
 
 func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	funcs := map[string]*ast.BlockStmt{}
@@ -31,7 +36,7 @@ func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.F
 			return
 		}
 		visited[block] = true
-		findings = append(findings, scanBlockForFailfReturn(filename, block, fset)...)
+		findings = append(findings, scanBlockForFailReturn(filename, block, fset)...)
 		ast.Inspect(block, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
@@ -49,39 +54,24 @@ func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.F
 	return findings
 }
 
-// scanBlockForFailfReturn recurses through a block's own control-flow
-// (if/for/range/switch), never into a nested FuncLit, looking for the two
-// double-resolve shapes: `return task.Failf(...)` and `task.Fail(...)`
-// immediately followed by `return <non-nil err>`.
-func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
+// scanBlockForFailReturn recurses through a block's own control-flow
+// (if/for/range/switch), never into a nested FuncLit, looking for the
+// redundant-resolve shape: `task.Fail(...)` immediately followed by
+// `return <non-nil err>`. Block is exempt (see the ===== API-040 comment
+// above): it is the only way to conclude the Task Blocked, so a Block
+// statement followed by a returned error is left alone.
+func scanBlockForFailReturn(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
 	var findings []Finding
 	stmts := block.List
 	for i, stmt := range stmts {
 		switch s := stmt.(type) {
-		case *ast.ReturnStmt:
-			if len(s.Results) != 1 {
-				continue
-			}
-			call, ok := s.Results[0].(*ast.CallExpr)
-			if !ok {
-				continue
-			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
-			// `return task.Blockf(...)` is how a Define refuses: the
-			// returned refusal keeps the Task Blocked (E-105). Only Failf
-			// restates what the returned error already does.
-			if !ok || sel.Sel.Name != "Failf" || !isLikelyEvoReceiver(sel.X) {
-				continue
-			}
-			pos := fset.Position(call.Pos())
-			findings = append(findings, failResolvedInCallbackFinding(filename, pos, exprDottedName(sel.X), sel.Sel.Name, "return"))
 		case *ast.ExprStmt:
 			call, ok := s.X.(*ast.CallExpr)
 			if !ok {
 				continue
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || (sel.Sel.Name != "Fail" && sel.Sel.Name != "Block") || !isLikelyEvoReceiver(sel.X) {
+			if !ok || sel.Sel.Name != "Fail" || !isLikelyEvoReceiver(sel.X) {
 				continue
 			}
 			if i+1 >= len(stmts) {
@@ -96,18 +86,18 @@ func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.
 				continue
 			}
 			pos := fset.Position(call.Pos())
-			findings = append(findings, failResolvedInCallbackFinding(filename, pos, exprDottedName(sel.X), sel.Sel.Name, "statement"))
+			findings = append(findings, failResolvedInCallbackFinding(filename, pos, exprDottedName(sel.X)))
 		case *ast.IfStmt:
-			findings = append(findings, scanBlockForFailfReturn(filename, s.Body, fset)...)
-			findings = append(findings, scanIfElseForFailfReturn(filename, s.Else, fset)...)
+			findings = append(findings, scanBlockForFailReturn(filename, s.Body, fset)...)
+			findings = append(findings, scanIfElseForFailReturn(filename, s.Else, fset)...)
 		case *ast.ForStmt:
-			findings = append(findings, scanBlockForFailfReturn(filename, s.Body, fset)...)
+			findings = append(findings, scanBlockForFailReturn(filename, s.Body, fset)...)
 		case *ast.RangeStmt:
-			findings = append(findings, scanBlockForFailfReturn(filename, s.Body, fset)...)
+			findings = append(findings, scanBlockForFailReturn(filename, s.Body, fset)...)
 		case *ast.SwitchStmt:
 			for _, c := range s.Body.List {
 				if cc, ok := c.(*ast.CaseClause); ok {
-					findings = append(findings, scanBlockForFailfReturn(filename, &ast.BlockStmt{List: cc.Body}, fset)...)
+					findings = append(findings, scanBlockForFailReturn(filename, &ast.BlockStmt{List: cc.Body}, fset)...)
 				}
 			}
 		}
@@ -115,38 +105,26 @@ func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.
 	return findings
 }
 
-func scanIfElseForFailfReturn(filename string, els ast.Stmt, fset *token.FileSet) []Finding {
+func scanIfElseForFailReturn(filename string, els ast.Stmt, fset *token.FileSet) []Finding {
 	switch e := els.(type) {
 	case *ast.BlockStmt:
-		return scanBlockForFailfReturn(filename, e, fset)
+		return scanBlockForFailReturn(filename, e, fset)
 	case *ast.IfStmt:
-		findings := scanBlockForFailfReturn(filename, e.Body, fset)
-		return append(findings, scanIfElseForFailfReturn(filename, e.Else, fset)...)
+		findings := scanBlockForFailReturn(filename, e.Body, fset)
+		return append(findings, scanIfElseForFailReturn(filename, e.Else, fset)...)
 	default:
 		return nil
 	}
 }
 
-func failResolvedInCallbackFinding(filename string, pos token.Position, recv, verb, shape string) Finding {
-	suggestion := "return the error; do not call " + verb + " first"
-	switch {
-	case verb == "Block":
-		// Block then return err keeps the Task Blocked and drops err;
-		// Blockf returns the refusal with err as its cause.
-		return Finding{
-			RuleID:     "API-040",
-			Message:    "Block then return err: the Task concludes Blocked and err is dropped from its refusal",
-			File:       filename,
-			Line:       pos.Line,
-			Column:     pos.Column,
-			Suggestion: returnTheRefusalSuggestion("return " + recv + ".Blockf(\"<context>: %w\", err)"),
-		}
-	case recv != "":
-		suggestion = "replace with `return err` (or the wrapped error) and delete the " + recv + "." + verb + "(...) call; Define resolves the task from the returned error"
+func failResolvedInCallbackFinding(filename string, pos token.Position, recv string) Finding {
+	suggestion := "replace with `return err` (or the wrapped error) and delete the Fail(...) call; Define resolves the task from the returned error"
+	if recv == "" {
+		suggestion = "return the error; do not call Fail first"
 	}
 	return Finding{
 		RuleID:     "API-040",
-		Message:    "the callback resolves the task; return the error, do not " + verb + " first (" + shape + " form double-resolves under Define)",
+		Message:    "the callback resolves the task; return the error, do not Fail first (statement form is redundant once Define resolves it from the returned error)",
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,

@@ -10,25 +10,26 @@ import (
 
 // printJoinPattern matches a Print/Println/Printf call fed a joined list —
 // the hand-assembled failure summary evo-rec.md's Conclusion already owns.
-// failfCaptureTextPattern is EV-001: task.Failf("...%s...", capture.Text())
-// (or Blockf) folds the retained evidence ring straight into the summary the
-// row already shows — Failf/Blockf's own auto-attach then renders the exact
-// same text a second time as evidence underneath it (user-13-problems.md
-// Problem 7). Matches any receiver's .Text()/.Tail() call appearing as a
-// Failf/Blockf argument, not just a variable literally named "capture" —
-// the misuse is the method call shape, not the identifier.
-var failfCaptureTextPattern = regexp.MustCompile(`\.(?:Failf|Blockf)\([^)]*\.(?:Text|Tail)\(\)[^)]*\)`)
+// failCaptureTextPattern is EV-001: a Fail/Block summary built with
+// fmt.Sprintf("...%s...", capture.Text()) (or string concatenation) folds
+// the retained evidence ring straight into the summary the row already
+// shows — the auto-attach then renders the exact same text a second time as
+// evidence underneath it (user-13-problems.md Problem 7). Matches any
+// receiver's .Text()/.Tail() call appearing as a Fail/Block argument, not
+// just a variable literally named "capture" — the misuse is the method call
+// shape, not the identifier.
+var failCaptureTextPattern = regexp.MustCompile(`\.(?:Fail|Block)\([^)]*\.(?:Text|Tail)\(\)[^)]*\)`)
 
-// detectFailfEmbeddedEvidenceText flags EV-001's anti-pattern.
-func detectFailfEmbeddedEvidenceText(filename, src string) []Finding {
+// detectFailEmbeddedEvidenceText flags EV-001's anti-pattern.
+func detectFailEmbeddedEvidenceText(filename, src string) []Finding {
 	var findings []Finding
-	for _, m := range failfCaptureTextPattern.FindAllStringIndex(src, -1) {
+	for _, m := range failCaptureTextPattern.FindAllStringIndex(src, -1) {
 		findings = append(findings, Finding{
 			RuleID:     "EV-001",
-			Message:    "Failf/Blockf argument calls .Text()/.Tail() on the retained evidence ring — that text is already auto-attached as a separate evidence line, so embedding it in the summary too duplicates it",
+			Message:    "Fail/Block argument calls .Text()/.Tail() on the retained evidence ring — that text is already auto-attached as a separate evidence line, so embedding it in the summary too duplicates it",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: `pass context via the trailing ": %w" wrap instead — e.g. task.Failf("install dependencies: %w", err) — and let Failf/Blockf auto-attach the retained tail`,
+			Suggestion: `pass context via a %w-wrapped error returned from Define instead — e.g. return fmt.Errorf("install dependencies: %w", err) — and let the auto-attach carry the retained tail`,
 		})
 	}
 	return findings
@@ -54,13 +55,13 @@ func detectHandAssembledFailureSummary(filename, src string) []Finding {
 }
 
 // causeOptionPattern matches the shape `receiver.Fail("summary", evo.Cause(err))`
-// (or Block) so a derived suggestion can name the exact Failf/Blockf call the
-// site should become, not just a generic pointer at the rule.
+// (or Block) so a derived suggestion can name the exact rewrite the site
+// should become, not just a generic pointer at the rule.
 var causeOptionPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*"([^"]*)"\s*,\s*evo\.Cause\(([^()]*)\)\s*\)`)
 
 // bareCausePattern catches every other evo.Cause( shape (backtick summary,
 // extra options, wrong receiver text) so at least the deprecation itself is
-// still flagged even when a derived Failf/Blockf rewrite isn't cheap.
+// still flagged even when a derived returned-error rewrite isn't cheap.
 var bareCausePattern = regexp.MustCompile(`evo\.Cause\(`)
 
 // retiredSpelling is one removed API-032 call spelling and its
@@ -153,7 +154,7 @@ func (r retiredSpelling) findings(filename, src string) []Finding {
 // detectDeprecatedSpellings is API-032: it catches every superseded spelling
 // with a fix, not a lecture — evo.New (evo.Init is the sole constructor),
 // the retiredSpellings table (Item, Plan, Changes, OK, Because, Capture),
-// evo.Cause (Failf/Blockf's trailing %w since Fail/Block are
+// evo.Cause (a %w-wrapped error returned from Define since Fail/Block are
 // statement-form), and the rec-surface spellings (Config.Options, Option
 // funcs, the mutation verbs removed in 1.1, Skip, ID, StartPhase).
 func detectDeprecatedSpellings(in fileInput) []Finding {
@@ -192,9 +193,9 @@ func newInMainFindings(filename, src string) []Finding {
 	}}
 }
 
-// causeFindings flags evo.Cause: a Fail/Block(summary, evo.Cause(err))
-// site gets its exact Failf/Blockf rewrite, and every other evo.Cause( is
-// still flagged, once, with the generic one.
+// causeFindings flags evo.Cause: a Fail/Block(summary, evo.Cause(err)) site
+// gets its exact rewrite, and every other evo.Cause( is still flagged,
+// once, with the generic one.
 func causeFindings(filename, src string) []Finding {
 	var findings []Finding
 	// derived marks every evo.Cause( the derived pass already covered.
@@ -204,12 +205,16 @@ func causeFindings(filename, src string) []Finding {
 		if idx := strings.Index(src[m[0]:m[1]], "evo.Cause("); idx >= 0 {
 			derived = append(derived, m[0]+idx)
 		}
+		suggestion := fmt.Sprintf(`return fmt.Errorf(%q, %s)`, summary+": %w", cause)
+		if verb == "Block" {
+			suggestion = fmt.Sprintf(`%s.Block(%q); return %s`, recv, summary, cause)
+		}
 		findings = append(findings, Finding{
 			RuleID:     "API-032",
-			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use " + verb + "f's trailing %w",
+			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; return a %w-wrapped error from Define instead",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: fmt.Sprintf(`%s.%sf(%q, %s)`, recv, verb, summary+": %w", cause),
+			Suggestion: suggestion,
 		})
 	}
 	for _, m := range bareCausePattern.FindAllStringIndex(src, -1) {
@@ -218,10 +223,10 @@ func causeFindings(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-032",
-			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use Failf/Blockf's trailing %w",
+			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; return a %w-wrapped error from Define instead",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: `replace evo.Cause(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,
+			Suggestion: `replace evo.Cause(err) with return fmt.Errorf("...: %w", err) from Define, or keep the Block statement and return err`,
 		})
 	}
 	return findings

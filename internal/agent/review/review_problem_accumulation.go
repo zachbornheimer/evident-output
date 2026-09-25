@@ -18,9 +18,9 @@ import (
 // lets one owning Task accumulate every finding as a structured Problem
 // instead, so this rule cannot recommend its fix for a pin older than 1.1.0.
 
-// detectPerFindingFakeTask flags `<expr>.Task(<x>).Fail(...)` /
-// `.Failf(...)` inside a for/range loop body — a fake Task created only to
-// display one finding, never independently schedulable or awaited.
+// detectPerFindingFakeTask flags `<expr>.Task(<x>).Fail(...)` inside a
+// for/range loop body — a fake Task created only to display one finding,
+// never independently schedulable or awaited.
 func detectPerFindingFakeTask(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -42,7 +42,7 @@ func detectPerFindingFakeTask(filename string, file *ast.File, fset *token.FileS
 				return true
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || (sel.Sel.Name != "Fail" && sel.Sel.Name != "Failf") {
+			if !ok || sel.Sel.Name != "Fail" {
 				return true
 			}
 			inner, ok := sel.X.(*ast.CallExpr)
@@ -60,7 +60,7 @@ func detectPerFindingFakeTask(filename string, file *ast.File, fset *token.FileS
 				File:    filename,
 				Line:    pos.Line,
 				Column:  pos.Column,
-				Suggestion: "replace the per-item .Task(...).Fail/Failf(...) with one owning Task that calls " +
+				Suggestion: "replace the per-item .Task(...).Fail(...) with one owning Task that calls " +
 					"task.Problem(summary, evo.Location(path, line, 0), evo.Code(code)) once per finding inside the loop, " +
 					"then Define resolves the Task Failed once if any Problem was accumulated",
 			})
@@ -79,13 +79,13 @@ var flattenedDiagnosticsAppend = regexp.MustCompile(`(\w+)\s*=\s*append\(\s*(\w+
 
 // flattenedDiagnosticsWrap reports whether rest (the function body's text
 // after the accumulating loop) later wraps strings.Join(name, ...) directly
-// inside errors.New(...), fmt.Errorf(...), or a .Fail/.Failf(...) call — the
+// inside errors.New(...), fmt.Errorf(...), or a .Fail(...) call — the
 // three shapes that discard every finding's own location/code/detail down
 // to one flattened string.
 func flattenedDiagnosticsWrap(rest, name string) bool {
 	quoted := regexp.QuoteMeta(name)
 	wrap := regexp.MustCompile(
-		`(?:errors\.New|fmt\.Errorf|\.Failf?)\(\s*(?:"[^"]*",\s*)?strings\.Join\(\s*` + quoted + `\s*,`,
+		`(?:errors\.New|fmt\.Errorf|\.Fail)\(\s*(?:"[^"]*",\s*)?strings\.Join\(\s*` + quoted + `\s*,`,
 	)
 	return wrap.MatchString(rest)
 }

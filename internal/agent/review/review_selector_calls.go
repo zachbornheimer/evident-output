@@ -169,7 +169,7 @@ func formatMethodWithoutDirective(c selectorCall) []Finding {
 	if recv := exprDottedName(c.sel.X); recv != "" {
 		suggestion = "replace " + recv + "." + c.name + "(...) with " + recv + "." + plain + "(...)"
 	}
-	return []Finding{c.finding("API-028", c.name+" has no format directive; prefer non-formatting method (e.g. Fail(\"text\") not Failf(\"text\"))", suggestion)}
+	return []Finding{c.finding("API-028", c.name+" has no format directive; prefer non-formatting method (e.g. Print(\"text\") not Printf(\"text\"))", suggestion)}
 }
 
 // debugWriterForEvidence is API-029: DebugWriter used for child-process
@@ -180,7 +180,7 @@ func debugWriterForEvidence(c selectorCall) []Finding {
 	}
 	return []Finding{c.finding("API-029",
 		"DebugWriter is for intentional DEBUG journal lines; use task.Evidence() for subprocess stdout/stderr evidence",
-		`replace DebugWriter() with task.Evidence(), then return task.Failf("...: %w", err) on failure`)}
+		`replace DebugWriter() with task.Evidence(), then return fmt.Errorf("...: %w", err) from Define on failure`)}
 }
 
 // exitBypassingConclusion is API-018 and EVO-EXIT-001 (spec §57's ID for
@@ -229,9 +229,9 @@ func detectDetailOfError(filename, src string) []Finding {
 	if strings.Contains(src, "Detail(err)") || strings.Contains(src, "evo.Detail(err)") {
 		return []Finding{{
 			RuleID:     "DOM-014",
-			Message:    "Detail must be user-visible string; wrap the error with Failf/Blockf's trailing %w instead",
+			Message:    "Detail must be user-visible string; return a %w-wrapped error from Define instead",
 			File:       filename,
-			Suggestion: `replace Detail(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,
+			Suggestion: `inside Define, replace Detail(err) with return fmt.Errorf("...: %w", err); outside one, keep the Fail/Block statement and return err`,
 		}}
 	}
 	return nil

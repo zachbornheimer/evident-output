@@ -136,18 +136,18 @@ func check() error {
 	}
 }
 
-// TestAPI028_FailfWithoutFormat is C6's sync: Donef and the rest of the *f
+// TestAPI028_PrintfWithoutFormat is C6's sync: Donef and the rest of the *f
 // family are deleted (Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are
-// printf-variadic themselves now); Failf/Blockf survive for their %w+
-// *Failure semantics, and API-028 now flags one of those with no directive
-// at all instead.
-func TestAPI028_FailfWithoutFormat(t *testing.T) {
+// printf-variadic themselves now, and 1.1 removed Failf/Blockf too with no
+// replacement in that family); Printf survives, and API-028 flags a Printf
+// call with no directive at all.
+func TestAPI028_PrintfWithoutFormat(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f() {
-  out := evo.New()
-  _ = out.Task("t").Failf("modules cached")
-  _ = out.Task("u").Failf("%d ok", 1)
+  out := evo.Init(evo.Config{})
+  out.Printf("modules cached")
+  out.Printf("%d ok", 1)
 }
 `
 	res := review.GoSource("x.go", src)
@@ -681,7 +681,7 @@ func run(out *evo.Output) error {
   task := out.Task("build")
   cmd := exec.Command("go", "build", "./...")
   if err := task.Run(cmd); err != nil {
-    return task.Failf("build failed: %w", err)
+    return fmt.Errorf("build failed: %w", err)
   }
   task.Done()
   return nil
@@ -1058,16 +1058,19 @@ func f(out *evo.Output, failures []string) {
 	}
 }
 
-// TestEV001_FailfEmbedsCaptureText is red-first for P7's MCP detector
-// (user-13-problems.md Problem 7's named anti-pattern):
-// task.Failf("install failed: %s", capture.Text()) folds the retained
-// evidence ring straight into the summary, duplicating what auto-attach
-// already renders as its own evidence line.
-func TestEV001_FailfEmbedsCaptureText(t *testing.T) {
+// TestEV001_FailEmbedsCaptureText is red-first for P7's MCP detector
+// (user-13-problems.md Problem 7's named anti-pattern): a Fail summary
+// built as fmt.Sprintf("install failed: %s", capture.Text()) folds the
+// retained evidence ring straight into the summary, duplicating what
+// auto-attach already renders as its own evidence line.
+func TestEV001_FailEmbedsCaptureText(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
 func f(task *evo.TaskHandle, capture *evo.Evidence) {
-  task.Failf("install failed: %s", capture.Text())
+  task.Fail(fmt.Sprintf("install failed: %s", capture.Text()))
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -1081,17 +1084,21 @@ func f(task *evo.TaskHandle, capture *evo.Evidence) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected EV-001 on Failf embedding capture.Text(): %+v", res.Findings)
+		t.Fatalf("expected EV-001 on Fail embedding capture.Text(): %+v", res.Findings)
 	}
 }
 
-// TestEV001_NoFalsePositiveOnPavedPath proves the paved-path Failf("...: %w",
-// err) shape — which lets auto-attach do its one job — never triggers EV-001.
+// TestEV001_NoFalsePositiveOnPavedPath proves the paved-path %w-wrapped
+// error returned from Define — which lets auto-attach do its one job —
+// never triggers EV-001.
 func TestEV001_NoFalsePositiveOnPavedPath(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, err error) *evo.Failure {
-  return task.Failf("install dependencies: %w", err)
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, err error) error {
+  return fmt.Errorf("install dependencies: %w", err)
 }
 `
 	res := review.GoSource("good.go", good)
@@ -1475,7 +1482,7 @@ func run(out *evo.Output) error {
   out.Task("i").Block("b", evo.Detail(err))
   os.Exit(1)
   out.Tasks("jobs").Map(func() {})
-  out.Task("t").Failf("modules cached")
+  out.Printf("modules cached")
   _ = out.DebugWriter()
 
   c := make(chan os.Signal, 1)
@@ -1551,7 +1558,7 @@ func run(out *evo.Output, svc services, task *evo.TaskHandle, done, total int) e
   out.Task("i").Block("b", evo.Detail(err))
   os.Exit(1)
   out.Tasks("jobs").Map(func() {})
-  out.Task("t").Failf("modules cached")
+  out.Printf("modules cached")
   _ = out.DebugWriter()
   task.Advance(1)
   task.Doing(fmt.Sprintf("scanning %d/%d", done, total))
@@ -1683,7 +1690,7 @@ func run() int {
 	}
 }
 
-func TestAPI032_CauseDerivesFailfSuggestion(t *testing.T) {
+func TestAPI032_CauseDerivesReturnedErrorSuggestion(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(task *evo.TaskHandle, err error) {
@@ -1695,7 +1702,7 @@ func f(task *evo.TaskHandle, err error) {
 	if len(found) != 1 {
 		t.Fatalf("expected one API-032 finding for evo.Cause, got %+v", found)
 	}
-	want := `task.Failf("validate policy manifest: %w", err)`
+	want := `return fmt.Errorf("validate policy manifest: %w", err)`
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
 	}
@@ -1781,11 +1788,15 @@ func f(out *evo.Output) error {
 
 func TestAPI034_NoFalsePositiveWhenErrorReturned(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
 func f(out *evo.Output) error {
   task := out.Task("validate")
   if err := check(); err != nil {
-    return task.Failf("validate failed: %w", err)
+    task.Fail("validate failed")
+    return fmt.Errorf("validate failed: %w", err)
   }
   return nil
 }
@@ -1844,9 +1855,12 @@ func f(cmd *exec.Cmd) {
 	}
 }
 
-// TestAPI036_SprintfInVerb: a Fail/Block(fmt.Sprintf(...)) statement
-// followed by a return hands the formatted error back in one line.
-func TestAPI036_SprintfInVerb(t *testing.T) {
+// TestAPI034_SprintfInVerbThenReturnNil: 1.1 removed API-036 (it offered
+// the Failf/Blockf rewrite for exactly this shape, and that family no
+// longer exists) — a Fail(fmt.Sprintf(...)) statement followed by a bare
+// return nil is now API-034's shape alone, same as any other statement-form
+// Fail.
+func TestAPI034_SprintfInVerbThenReturnNil(t *testing.T) {
 	src := `package p
 import (
   "fmt"
@@ -1858,59 +1872,40 @@ func f(task *evo.TaskHandle, branch string) error {
 }
 `
 	res := review.GoSource("sprintfverb.go", src)
-	var api036, api034 int
+	var api034 int
 	for _, f := range res.Findings {
-		switch f.RuleID {
-		case "API-036":
-			api036++
-			if !strings.Contains(f.Suggestion, `return task.Failf("delete failed on %s", branch)`) {
-				t.Fatalf("suggestion = %q", f.Suggestion)
-			}
-		case "API-034":
+		if f.RuleID == "API-034" {
 			api034++
+			if !strings.Contains(f.Suggestion, "return err") {
+				t.Fatalf("suggestion = %q, want it to say return err", f.Suggestion)
+			}
 		}
 	}
-	if api036 != 1 || api034 != 0 {
-		t.Fatalf("want one API-036 and no duplicate API-034, got %d/%d: %+v", api036, api034, res.Findings)
+	if api034 != 1 {
+		t.Fatalf("want one API-034, got %d: %+v", api034, res.Findings)
 	}
 }
 
-// TestAPI036_BareStatementKeepsBlock pins E-102: a bare Block/Fail
-// statement with a Sprintf summary was rewritten to Blockf/Failf, whose
-// *Failure is then discarded and fails errcheck. A bare statement is
-// already the right form, so review says nothing; so does a Sprintf
-// followed by ProblemOptions, which Failf/Blockf cannot take.
-func TestAPI036_BareStatementKeepsBlock(t *testing.T) {
+// TestAPI034_BareStatementFollowedByReturnErrNotFlagged pins E-102's
+// surviving half: a Block/Fail statement (Sprintf summary or not) followed
+// by a returned error, not nil, already propagates the cause and is left
+// alone.
+func TestAPI034_BareStatementFollowedByReturnErrNotFlagged(t *testing.T) {
 	src := `package p
 import (
+  "errors"
   "fmt"
   evo "github.com/zachbornheimer/evident-output"
 )
-func f(task *evo.TaskHandle, name string, n int) {
+func f(task *evo.TaskHandle, name string, n int) error {
   task.Block(fmt.Sprintf("refused %s", name))
-  task.Fail(fmt.Sprintf("lost %d", n), evo.Detail("x"))
-  n++
+  return errors.New("refused")
 }
 `
 	res := review.GoSource("sprintfbare.go", src)
 	for _, f := range res.Findings {
-		if f.RuleID == "API-036" {
-			t.Fatalf("API-036 rewrites a bare statement into a discarded *Failure: %+v", f)
-		}
-	}
-}
-
-func TestAPI036_NoFalsePositiveWithFailf(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, branch string) {
-  task.Failf("delete failed on %s", branch)
-}
-`
-	res := review.GoSource("failfclean.go", src)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-036" {
-			t.Fatalf("false positive API-036 on Failf: %+v", res.Findings)
+		if f.RuleID == "API-034" {
+			t.Fatalf("API-034 flags Block followed by a returned error, which already propagates the cause: %+v", f)
 		}
 	}
 }

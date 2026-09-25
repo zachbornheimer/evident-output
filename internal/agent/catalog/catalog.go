@@ -30,7 +30,7 @@ func All() []Guide {
 			Concepts: []string{"Output", "Task", "Conclusion", "Main", "TaskHandle", "Sequence", "Group"},
 			Rules: []string{
 				"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002",
-				"API-034", "API-035", "API-036", "API-037", "API-038", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
+				"API-034", "API-035", "API-037", "API-038", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
 				"API-057", "API-059", "API-060", "API-061",
 			},
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
@@ -81,8 +81,8 @@ Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) 
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Failf/Blockf need % (API-028; Warn/Task/Sequence/Reason
-are printf-variadic themselves — there is no separate Warnf/Taskf/Reasonf; Summary takes one literal string); Capture not DebugWriter (API-029).
+Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Printf needs % (API-028; Warn/Task/Sequence/Reason
+are printf-variadic themselves — there is no separate Warnf/Taskf/Reasonf; Summary takes one literal string; Failf/Blockf were removed in 1.1 with no replacement in this family); Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
 failure on its own Task and use Next(evo.Label(...)) for follow-up guidance instead.`,
@@ -222,11 +222,11 @@ read cancellation from the ctx Main/Run already passes into the run callback. Si
 else (SIGHUP, SIGUSR1, ...) is unrelated application behavior and stays untouched.
 
 Child processes: cmd.Stdout = task.Writer(); cmd.Stderr = task.Writer(); on error
-task.Failf("...: %w", err) (the trailing %w renders as an evidence line under the summary).
+return fmt.Errorf("...: %w", err) from Define (the auto-attached evidence tail still renders underneath).
 Never implement your own io.Writer whose Write method calls TaskHandle.Doing (API-031): that
 reimplements the exact adapter Writer already owns.
-Evidence is deduplicated for you: never embed capture text into a Failf/Blockf summary
-(task.Failf("install failed: %s", capture.Text()) — EV-001) — auto-attach already renders that same
+Evidence is deduplicated for you: never embed capture text into a Fail/Block summary
+(task.Fail("install failed: " + capture.Text()) — EV-001) — auto-attach already renders that same
 retained tail as its own evidence line underneath; embedding it in the summary too just repeats it.
 Evidence is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
@@ -237,10 +237,10 @@ EncodeJSON/EncodeJSONL for machines. Avoid fmt.Print during live UI — use evo.
 			ID:       "security",
 			Title:    "Terminal safety",
 			UseCases: []string{"sanitize", "esc", "secrets"},
-			Concepts: []string{"sanitize", "Detail", "Failf"},
+			Concepts: []string{"sanitize", "Detail"},
 			Rules:    []string{"SEC-001", "TXT-007", "SEC-006"},
-			Body: `Untrusted text is sanitized. Detail is stable user-visible guidance text; Failf/Blockf's
-trailing %w renders the wrapped error's own text as a separate evidence line, also sanitized.
+			Body: `Untrusted text is sanitized. Detail is stable user-visible guidance text; a %w-wrapped
+error returned from Define renders the wrapped cause as a separate evidence line, also sanitized.
 Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			TokenEstimate: 110,
 		},

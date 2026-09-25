@@ -109,9 +109,9 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectConfirmMissingDestructive)},
 	// CON-002: a joined failure list printed directly duplicates Conclusion.
 	{needsEvo: true, run: textRule(detectHandAssembledFailureSummary)},
-	// EV-001: Failf/Blockf embedding the retained evidence ring's own .Text()/
+	// EV-001: Fail/Block embedding the retained evidence ring's own .Text()/
 	// .Tail() in the summary duplicates what auto-attach already renders.
-	{needsEvo: true, run: textRule(detectFailfEmbeddedEvidenceText)},
+	{needsEvo: true, run: textRule(detectFailEmbeddedEvidenceText)},
 	// FP-004: a Doing string with no domain object is an illegible placeholder.
 	{needsEvo: true, run: textRule(detectPlaceholderDoing)},
 	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
@@ -126,12 +126,13 @@ var fileDetectors = []detector{
 	// Blocks is an evidence-free security-gate shape — the verdict has
 	// nothing to show for itself.
 	{needsEvo: true, run: textRule(detectDiscardSinkInFailingBlock)},
-	// API-036: Fail/Block summary built via fmt.Sprintf instead of the
-	// matching Failf/Blockf.
-	{needsEvo: true, run: textRule(detectSprintfInVerb)},
+	// API-036 was removed in 1.1: it offered the Failf/Blockf rewrite for a
+	// Fail/Block(fmt.Sprintf(...)) statement, and that family has no f-form
+	// any more. The fmt.Sprintf(...) shape API-034 already catches (a
+	// statement-form Fail/Block followed by return nil) covers what remains
+	// of it.
 	// API-038: fmt.Sprintf(...) passed to a printf-variadic evo method
-	// (Doing/Failf/Blockf) should flatten into that method's own format +
-	// args.
+	// (Doing) should flatten into that method's own format + args.
 	{needsEvo: true, run: textRule(detectSprintfIntoVariadicVerb)},
 	// API-037: a method whose whole body is one call on a Task/Item handle —
 	// pure ceremony over the handle's own verb.

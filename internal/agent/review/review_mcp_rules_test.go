@@ -100,10 +100,11 @@ func TestFP006_DefineBetween_StaysSilent(t *testing.T) {
 	}
 }
 
-// API-040: Failf/Fail inside a Define callback whose result is
-// returned double-resolves the task (zq app.go:155-176 -> executeCommand).
+// API-040: a statement-form Fail inside a Define callback whose result is
+// also returned is redundant ceremony — Define's own non-nil-return-fails
+// contract already resolves it (zq app.go:155-176 -> executeCommand).
 
-const failfInDefineSrc = `package p
+const failInDefineSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
 func run(task *evo.TaskHandle) {
   task.Define(func(ctx context.Context) error {
@@ -115,15 +116,16 @@ func run(task *evo.TaskHandle) {
 }
 func doWork(task *evo.TaskHandle) error {
   if err := resolve(); err != nil {
-    return task.Failf("resolve: %w", err)
+    task.Fail("resolve")
+    return err
   }
   return nil
 }
 func resolve() error { return nil }
 `
 
-func TestAPI040_FailfReachableFromDefine_Fires(t *testing.T) {
-	res := review.GoSource("app.go", failfInDefineSrc)
+func TestAPI040_FailReachableFromDefine_Fires(t *testing.T) {
+	res := review.GoSource("app.go", failInDefineSrc)
 	f := findingByID(t, res, "API-040")
 	if f.Severity != "error" {
 		t.Fatalf("API-040 severity = %q, want error", f.Severity)
@@ -1586,8 +1588,7 @@ import evo "github.com/zachbornheimer/evident-output"
 func runChecked(ctx context.Context, spec evo.ExecSpec) error {
   res, err := evo.Exec(ctx, spec)
   if errors.Is(err, evo.ErrExecNonzeroExit) {
-    task.Failf("lint failed: %s", res.Stdout)
-    return nil
+    return fmt.Errorf("lint failed: %s", res.Stdout)
   }
   return err
 }
