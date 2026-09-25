@@ -99,6 +99,10 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   event stream a `disposition.recorded` event. With `FormatData` or
   `FormatExternal` chosen, `EVO_OUTPUT` keeps the output.v1 projection on
   stderr. See [`docs/migration/1.1.md`](docs/migration/1.1.md#evo_outputjson-and-jsonl-write-the-evorun-document).
+  `JSONDocument`/`EncodeJSON`/`EncodeJSONL`/`EncodeEventJSON` are kept, not
+  breaking: they remain the documented direct encoder for a `FormatData`/
+  `FormatExternal` host. See
+  [`docs/decisions/output-v1-retention.md`](docs/decisions/output-v1-retention.md).
 - **`After` on a Group or Sequence** (breaking behavior): 1.0 counted an
   empty collection as done at once, so `out.Task("fetch").After(g)` wired
   before the loop that fills `g` started immediately. In 1.1 an empty

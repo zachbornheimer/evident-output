@@ -29,7 +29,7 @@ ColorNever	helper	Human output
 Command	helper	Action
 CommandSpec	helper	Action
 Conclusion	helper	Conclusion
-ConclusionJSON	removed	Machine output
+ConclusionJSON	helper	Machine output
 ConclusionState	helper	Conclusion
 Config	helper	Run
 Confirm	helper	Human output
@@ -69,9 +69,9 @@ EffectUninstall	helper	Effect
 EffectUpdate	helper	Effect
 EffectVerb	canonical	Effect
 Empty	helper	Conclusion
-EncodeEventJSON	removed	Machine output
-EncodeJSON	removed	Machine output
-EncodeJSONL	removed	Machine output
+EncodeEventJSON	helper	Machine output
+EncodeJSON	helper	Machine output
+EncodeJSONL	helper	Machine output
 EntityState	helper	Conclusion
 ErrAlreadyResolved	helper	Misuse
 ErrClosed	helper	Misuse
@@ -116,8 +116,8 @@ ErrTerminalWithoutSink	helper	Misuse
 ErrUnresolvedTask	helper	Misuse
 ErrWaitDeadlock	helper	Misuse
 Event	helper	Snapshot
-EventJSON	removed	Machine output
-EventSchemaVersion	removed	Machine output
+EventJSON	helper	Machine output
+EventSchemaVersion	helper	Machine output
 Evidence	removed	Capture
 EvidenceOption	removed	Capture
 EvidencePhase	canonical	Evidence
@@ -176,19 +176,19 @@ Incomplete	helper	Conclusion
 Indeterminate	helper	Progress
 Init	canonical	Run
 IsCharDevice	helper	Human output
-JSONAction	removed	Machine output
-JSONChanges	removed	Machine output
-JSONCollection	removed	Machine output
-JSONCommand	removed	Machine output
-JSONDocument	removed	Machine output
-JSONEffectRecord	removed	Machine output
-JSONMessage	removed	Machine output
-JSONOutputMeta	removed	Machine output
-JSONPlan	removed	Machine output
-JSONProblem	removed	Machine output
-JSONProgress	removed	Machine output
-JSONSchemaVersion	removed	Machine output
-JSONTask	removed	Machine output
+JSONAction	helper	Machine output
+JSONChanges	helper	Machine output
+JSONCollection	helper	Machine output
+JSONCommand	helper	Machine output
+JSONDocument	helper	Machine output
+JSONEffectRecord	helper	Machine output
+JSONMessage	helper	Machine output
+JSONOutputMeta	helper	Machine output
+JSONPlan	helper	Machine output
+JSONProblem	helper	Machine output
+JSONProgress	helper	Machine output
+JSONSchemaVersion	helper	Machine output
+JSONTask	helper	Machine output
 KeepLastLines	helper	Exec
 Label	helper	Action
 LevelDebug	helper	Debug journal

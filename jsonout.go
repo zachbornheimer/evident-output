@@ -15,15 +15,6 @@ func init() {
 	engine.SetWireEvoVersion(PublishedRelease)
 }
 
-// output.v1 (JSONDocument/EncodeJSON/EncodeJSONL/EncodeEventJSON below) is
-// deliberately kept alongside the newer evo.run/evo.event wire vocabulary
-// (WriteJSON, wire.EncodeRun/EncodeEvent): it is the only encoder a
-// FormatData/FormatExternal host — one that owns stdout for its own
-// payload and calls out.Snapshot()/out.Events() directly — can use.
-// evo.run/evo.event are Result-shaped and written automatically only at
-// Finish for FormatJSON/FormatJSONL. See
-// docs/decisions/output-v1-retention.md (ZYS-946).
-
 // ParseFormat parses "human", "data", "external", "json", or "jsonl"
 // (case-insensitive, surrounding whitespace ignored) into a Format — the
 // entry point a host CLI's own --format/--json flag binds to (spec §32.1).
@@ -55,7 +46,14 @@ func WriteJSON(w io.Writer, result Result) error {
 // without ever running) is a "tasks" row (CHANGELOG "Unreleased").
 const JSONSchemaVersion = render.JSONSchemaVersion
 
-// JSONDocument is the final machine projection (§25.1).
+// JSONDocument is the output.v1 machine projection (§25.1,
+// schema_version "0.4"), kept in 1.1 alongside the newer evo.run/evo.event
+// wire vocabulary (WriteJSON): it is the only encoder a FormatData/
+// FormatExternal host — one that owns stdout for its own payload and calls
+// out.Snapshot()/out.Events() directly — can use. evo.run/evo.event are
+// Result-shaped and written automatically only at Finish for
+// FormatJSON/FormatJSONL. See docs/decisions/output-v1-retention.md
+// (ZYS-946).
 //
 // Aliased into internal/render alongside the JSON encoding machinery that
 // produces it — see EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md §38.
