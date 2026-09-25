@@ -11,7 +11,7 @@ func vocabularyRules() []Rule {
 			Category:        "API",
 			Severity:        SeverityError,
 			Invariant:       "code uses only exports that serve a concept of the 1.1 vocabulary",
-			Why:             "ForSkip, OnTask, ReasonOption, ErrReasonSkipOnly, and ErrReasonWrongTask were removed in 1.1: they only guarded the removed Kept verb's Reason constraints and no longer compile.",
+			Why:             "ForSkip, OnTask, ReasonOption, ErrReasonSkipOnly, and ErrReasonWrongTask were removed in 1.1: they only guarded Reason usage constraints and no longer compile.",
 			BadCode:         `reason := evo.Reason("dirty", evo.ForSkip())`,
 			GoodCode:        `reason := evo.Reason("dirty")`,
 			Remediation:     "ForSkip, OnTask, ReasonOption, ErrReasonSkipOnly, and ErrReasonWrongTask were removed in 1.1: delete the option or the errors.Is check, since evo.Reason(name) takes only its name and never returns such an error",

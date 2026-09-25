@@ -18,8 +18,7 @@ func (r TaxonomyReason) Name() string { return r.name }
 
 // reasonGetOrCreate returns the Reason previously registered under name on
 // this instance, or registers a new one — the identity backing evo.Reason so
-// repeated calls (inline or lifted to a var) merge into one taxonomy bucket
-// instead of drifting into differently-configured duplicates.
+// repeated calls (inline or lifted to a var) merge into one taxonomy bucket.
 func (o *Output) reasonGetOrCreate(name string) TaxonomyReason {
 	name = txt.Text(name)
 	o.mu.Lock()

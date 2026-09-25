@@ -6,8 +6,8 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
-// dispositionVerb names which accumulation act a Reason's usage constraints
-// are checked against — TaskHandle.Skipped or TaskHandle.Kept.
+// dispositionVerb names which disposition a record has — TaskHandle.Skipped
+// or TaskHandle.Kept — and its wire kind.
 type dispositionVerb string
 
 const (
