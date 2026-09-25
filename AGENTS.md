@@ -210,7 +210,7 @@ anyway; add detectors when they recur:
   iteration (duplicate sibling declaration, not a get-or-create — §3.1)
 
 Caught as of this MCP build (do not re-add to this list): `errgroup`/`go func`
-driving predeclared evo Tasks (API-041), `Failf`/`Fail` inside a
+driving predeclared evo Tasks (API-041), `Fail` inside a
 Define callback whose result is returned (API-040), a nil or no-op
 `evo.Effect` callback (API-042), a plural `EffectSpec.Object` literal
 (API-043), a removed 1.1 mutation verb or `evo.Affected` (API-032), a hand-rolled channel wrapper around Define (API-044),

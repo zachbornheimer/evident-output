@@ -184,10 +184,18 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   double-resolve it (the row already terminated) and just lets the caller
   still see the cause. A remedy attaches to either verb the way it already
   did, as a `Next`/`NextCommand` `ProblemOption` on the call itself. MCP
-  review (API-032, API-034, API-040) rewrites every removed call shape;
-  API-036 (the `Failf`/`Blockf`-rewrite suggestion for a
-  `Fail(fmt.Sprintf(...))` statement) is deleted — API-034 alone now covers
-  that shape.
+  review rewrites every removed call shape: API-080 flags a remaining
+  `Failf`/`Output.Failf` call site with its `Define`-vs-not rewrite,
+  API-081 flags a remaining `Blockf` call site (including its chained
+  `.NextCommand(...)`/`.Next(...)`) with the `Block` + `ProblemOption`
+  rewrite, API-032's `evo.Cause` rewrite drops the same `Fail` call only
+  inside a function that itself returns `error`, and API-034/API-036 cover
+  the `Fail(fmt.Sprintf(...))` shape (`return nil` and `return err`
+  respectively) that never called `Failf`/`Blockf` in the first place.
+  `TaskHandle.Next`/`NextCommand` gain doc comments distinguishing them
+  from the canonical `evo.Next`/`evo.NextCommand` `ProblemOption` form
+  Fail/Block already document (docs/migration/1.1.md and
+  docs/reference.md record the choice).
 - The `ErrInvalidConfig` misuse hint no longer names Done's removed printf
   summary; it reads "configure After and Verify before Define, and Define
   each task once with a non-nil callback". The unresolved-task hint reads
@@ -220,11 +228,14 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   verbose item list shows each item's Facts at one column past the widest
   name. Each item rendered its own `✓ name  why ...` row and `! kept 1`.
 
-- Review rule API-036 no longer rewrites a bare `task.Block(fmt.Sprintf(...))`
-  or `task.Fail(fmt.Sprintf(...))` statement into `Blockf`/`Failf`, whose
-  returned `*Failure` was then discarded and failed errcheck. It fires only
-  when a return follows, and suggests one `return task.Failf(...)` (or, in a
-  Define callback, `return fmt.Errorf(...)`).
+- Review rule API-036, superseded later in this section by the removal of
+  `Failf`/`Blockf` (E-118 lane B): it originally stopped rewriting a bare
+  `task.Block(fmt.Sprintf(...))` or `task.Fail(fmt.Sprintf(...))` statement
+  into `Blockf`/`Failf` and fired only when a return followed, suggesting
+  `Blockf`/`Failf`. `Failf`/`Blockf` no longer exist; API-034 covers the
+  `return nil` shape this rule covered, and API-036 itself now covers the
+  remaining `return err` shape by suggesting `task.Fail(...); return err`
+  (`task.Block(...); return err` for `Block`) instead.
 
 - A warning's `evo.On(subject)` now renders on every human row
   (`✓ check jobs  ! job  x`, nested and run-level warnings too); it was
@@ -266,12 +277,17 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `github.com/go-git/go-git/v5`. The MUST-loop could never end on such a
   package.
 
-- Review rules API-034, API-036 and API-040 agree on one way to refuse
-  inside `Define`: `return task.Blockf(...)`. API-034 and API-036 suggested
-  `return fmt.Errorf(...)` for a `Block` site, which turned a `[blocked]`
-  exit 1 into `[failed]` exit 2, and API-040 flagged `return task.Blockf`.
-  Every `Block` rewrite now suggests `Blockf`, and API-040 flags only
-  `Failf`.
+- Review rules API-034, API-036 and API-040, superseded later in this
+  section by the removal of `Failf`/`Blockf` (E-118 lane B): they agreed on
+  one way to refuse inside `Define`, `return task.Blockf(...)`, after
+  API-034 and API-036 had suggested `return fmt.Errorf(...)` for a `Block`
+  site, which turned a `[blocked]` exit 1 into `[failed]` exit 2 (API-040
+  flagged `return task.Blockf` as the redundant-resolve shape). `Failf`/
+  `Blockf` no longer exist; the current agreement is `task.Block(...);
+return err` — Block always stays (it is the only way to conclude the
+  Task Blocked), and the return afterward propagates the cause without
+  double-resolving the row. API-040 continues to flag only `Fail`, never
+  `Block`.
 
 - Under `Config.DryRun` or `Config.Preview`, a Task whose `Verify` is false
   and whose `Define` plans an Effect concludes `[planned]` with exit 0. It
