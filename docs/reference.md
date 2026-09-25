@@ -86,9 +86,11 @@ One Task may still make several internal observations without promoting each pre
 Attach a remedy to a Fail or Block by passing `evo.Next(...)`/
 `evo.NextCommand(...)` as a `ProblemOption` on the call itself
 (`task.Block("contains local changes", evo.Next("stash or commit them"))`).
-This is the canonical remedy form: `TaskHandle.Next`/`TaskHandle.NextCommand`
-still exist but only chain a remedy onto a Problem already recorded through
-`Problem`/`Warn` — reach for the `ProblemOption` form on `Fail`/`Block` first.
+This is the canonical remedy form. `TaskHandle.Next`/`TaskHandle.NextCommand`
+still exist, but they attach a task-level remedy that is not tied to any
+particular `Problem` — for a `Fail`/`Block` remedy, use the `ProblemOption`
+form above instead (API-082 flags a `TaskHandle.Next`/`TaskHandle.NextCommand`
+call chained straight after `Fail`/`Block`).
 
 ## One check Task, many Problems
 
