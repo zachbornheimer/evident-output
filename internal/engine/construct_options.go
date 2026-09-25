@@ -215,7 +215,7 @@ func runtimeOptions(c Config) []Option {
 	if c.VisibilityDelay != nil {
 		visDelay = *c.VisibilityDelay
 	}
-	return append(opts,
+	opts = append(opts,
 		withClock(c.Clock), redact(c.Redactor), withWidth(c.Width),
 		visibilityDelay(visDelay), maxFrameRate(c.MaxFrameRate),
 		maxEntities(c.MaxEntities), maxEvents(c.MaxEvents),
@@ -224,6 +224,10 @@ func runtimeOptions(c Config) []Option {
 		withProcessRunner(c.ProcessRunner),
 		withFileFS(c.FileFS),
 	)
+	for _, w := range c.AlsoWrite {
+		opts = append(opts, alsoWrite(w))
+	}
+	return opts
 }
 
 // debugOptions configures the debug journal and its presentation.

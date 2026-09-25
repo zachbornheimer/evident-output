@@ -4,37 +4,10 @@ import (
 	"io"
 	"log/slog"
 	"os/exec"
-	"time"
 )
 
 // Exported aliases for the public evo facade.
 
-func To(w io.Writer) Option                  { return to(w) }
-func Diagnostics(w io.Writer) Option         { return withDiagnostics(w) }
-func ResultStream(w io.Writer) Option        { return resultStream(w) }
-func Plain() Option                          { return plain() }
-func NoColor() Option                        { return withNoColor() }
-func Width(columns int) Option               { return withWidth(columns) }
-func Clock(ts TimeSource) Option             { return withClock(ts) }
-func VisibilityDelay(d time.Duration) Option { return visibilityDelay(d) }
-func MaxFrameRate(n int) Option              { return maxFrameRate(n) }
-func Strict() Option                         { return strict() }
-func DryRun() Option                         { return dryRun() }
-func Stdin(r io.Reader) Option               { return stdin(r) }
-func Terminal(driver TerminalDriver) Option  { return withTerminal(driver) }
-func DebugLevel(level LogLevel) Option       { return debugLevel(level) }
-func DebugAddSource() Option                 { return debugAddSource() }
-func MaxEntities(n int) Option               { return maxEntities(n) }
-func MaxEvents(n int) Option                 { return maxEvents(n) }
-func AlsoWrite(w io.Writer) Option           { return alsoWrite(w) }
-func Redact(r Redactor) Option               { return redact(r) }
-func Runner(r ProcessRunner) Option          { return withProcessRunner(r) }
-func DataProjection() Option                 { return dataProjection() }
-func ExternalProjection() Option             { return externalProjection() }
-func DebugHistory() Option                   { return debugHistory() }
-func DebugPane(opts ...DebugPaneOption) Option {
-	return debugPane(opts...)
-}
 func KeepLastLines(n int) CaptureOption    { return keepLastLines(n) }
 func MaxCaptureBytes(n int) CaptureOption  { return maxCaptureBytes(n) }
 func MirrorToDiagnostics() CaptureOption   { return mirrorToDiagnostics() }

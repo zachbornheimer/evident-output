@@ -204,6 +204,31 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   no aliases. `Task` is name-only, so no API accepted an `EntityOption`:
   both constructors built values nothing consumed. Stable identity is
   `TaskHandle.Key`; the first step is `Doing` chained after `Task`.
+- **`Config.Options`, the exported `Option` type, and every `Option`
+  constructor** were removed with no aliases (E-122 lane F2): `Config`
+  fields already duplicated every one of them, so the raw `[]Option`
+  escape hatch was a second spelling for the same knobs and forced the
+  ordinary construction path (stream/TTY/color inference, `DryRun`,
+  `Preview`, `Subject`) to fork around it. Set the `Config` field
+  directly instead. Removed: `AlsoWrite` → `Config.AlsoWrite` (new
+  field), `Clock` → `Config.Clock`, `DataProjection` →
+  `Config.Format: FormatData`, `DebugAddSource` → `Config.Debug.AddSource`,
+  `DebugHistory` → `Config.Debug.View: DebugPresentationHistory`,
+  `DebugLevel` → `Config.Debug.Level`, `DebugPane` → `Config.Debug`
+  (`View`, `PaneHeight`, `NewestFirst`, `PreserveAlways`; the
+  `DebugPaneOption` knobs `NewestFirst`/`OldestFirst`/`PaneHeight`/
+  `PreserveDebugTail` are unchanged, kept for embedders composing their own
+  presentation layer), `Diagnostics` → `Config.Stderr`, `DryRun` → `Config.DryRun`,
+  `ExternalProjection` → `Config.Format: FormatExternal`, `Glyphs` →
+  `Config.Glyphs`, `MaxEntities` → `Config.MaxEntities`, `MaxEvents` →
+  `Config.MaxEvents`, `MaxFrameRate` → `Config.MaxFrameRate`, `NoColor` →
+  `Config.Color: ColorNever`, `Plain` → `Config.Plain`, `Redact` →
+  `Config.Redactor`, `Runner` → `Config.ProcessRunner`, `ResultStream` →
+  `Config.Result`, `Stdin` → `Config.Stdin`, `Strict` → `Config.Strict`,
+  `Terminal` → `Config.Terminal`, `Title` → `Config.Title`, `To` →
+  `Config.Stdout`, `VisibilityDelay` → `Config.VisibilityDelay`, `Width` →
+  `Config.Width`. MCP review (API-130 through API-159) rewrites every
+  removed call shape and the `Config.Options` literal itself.
 - The `ErrInvalidConfig` misuse hint no longer names Done's removed printf
   summary; it reads "configure After and Verify before Define, and Define
   each task once with a non-nil callback". The unresolved-task hint reads

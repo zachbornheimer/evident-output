@@ -79,16 +79,17 @@ func (d *recSurfaceDetector) inspectComposite(cl *ast.CompositeLit) {
 			return
 		}
 		old := d.nodeSrc(cl)
-		d.report(cl, "[]evo.Option is superseded; use Config fields",
+		d.report(cl, "[]evo.Option was removed in 1.1; use Config fields",
 			"replace "+old+" with "+repl)
 		d.cover(cl)
 	}
 }
 
-// inspectConfigOptions flags Config.Options. It offers a rewrite only when
-// every Option maps one-to-one onto a Config field the literal does not
-// already set: a partial rewrite would silently drop the rest, a guessed
-// one changes behavior, and a repeated field does not compile.
+// inspectConfigOptions flags Config.Options (removed in 1.1: API-130..
+// API-159 name the per-constructor Config field). It offers a rewrite only
+// when every Option maps one-to-one onto a Config field the literal does
+// not already set: a partial rewrite would silently drop the rest, a
+// guessed one changes behavior, and a repeated field does not compile.
 func (d *recSurfaceDetector) inspectConfigOptions(cl *ast.CompositeLit) {
 	set := configFieldsSet(cl)
 	for _, elt := range cl.Elts {
@@ -96,7 +97,7 @@ func (d *recSurfaceDetector) inspectConfigOptions(cl *ast.CompositeLit) {
 		if !ok || identName(kv.Key) != "Options" {
 			continue
 		}
-		const msg = "Config.Options is superseded; use Config fields"
+		const msg = "Config.Options was removed in 1.1; use Config fields"
 		old := d.nodeSrc(kv)
 		sl, isSlice := kv.Value.(*ast.CompositeLit)
 		if isSlice && isOptionSliceLit(sl, d.pkg) {

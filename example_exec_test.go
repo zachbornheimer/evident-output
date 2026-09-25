@@ -166,17 +166,17 @@ func ExampleProcessRunner() {
 	// true 0
 }
 
-// ExampleRunner installs a ProcessRunner other than the real spawner — the
-// seam every evo.Exec test in this repo uses to replace the OS process with
-// a deterministic testkit fake.
-func ExampleRunner() {
+// ExampleConfig_processRunner installs a ProcessRunner other than the real
+// spawner — the seam every evo.Exec test in this repo uses to replace the
+// OS process with a deterministic testkit fake.
+func ExampleConfig_processRunner() {
 	runner := testkit.NewProcessRunner()
 	runner.Script("/usr/bin/tool", testkit.ScriptedProcess{ExitCode: 0})
 
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true,
-		Options: []evo.Option{evo.Runner(runner)},
+		ProcessRunner: runner,
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()

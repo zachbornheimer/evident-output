@@ -245,14 +245,13 @@ type Config struct {
 	// package-level default. First paint still arms — Isolated is not a
 	// blank-terminal exemption. Use for parallel tests and embedders that
 	// hold their own *Output instead of going through Default()/Task().
-	// This is the one and only opt-out from default installation — it
-	// applies identically whether or not Options is also set.
 	Isolated bool
 
-	// Options is the advanced, raw Option escape hatch for tests and
-	// specialized embedding. When set, every other Config field except
-	// Title, DryRun, Preview, and Subject is ignored.
-	Options []Option
+	// AlsoWrite mirrors every written byte to additional human-projection
+	// writers beyond Stdout — tee-ing human output to a log file alongside
+	// the terminal. On Finish, each writer receives the plain projection;
+	// a failure on one does not skip the others (CON-009).
+	AlsoWrite []io.Writer
 
 	// MaxConcurrency is the scheduler ceiling: it bounds every executing
 	// callback, including work a waiting goroutine runs itself. Zero means
@@ -368,9 +367,4 @@ func withVerbosity(v Verbosity) Option {
 // withFailedExitCode stores a non-default failed conclusion exit code.
 func withFailedExitCode(code int) Option {
 	return optionFunc(func(c *config) { c.failedExitCode = code })
-}
-
-// Title sets the conclusion subject for Config.Options's raw Option path.
-func Title(subject string) Option {
-	return optionFunc(func(c *config) { c.subject = subject })
 }

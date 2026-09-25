@@ -124,6 +124,44 @@ var symbols = []Symbol{
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+
+	// E-122 lane F2: Config.Options and every Option constructor that only
+	// duplicated a Config field. One Config value replaces the raw
+	// []Option escape hatch entirely; the constructors below built values
+	// nothing but Config.Options ever consumed.
+	{Contract: "Option", RemovedIn: Release1_1, Replacement: "Config (the []Option escape hatch is gone)", Taught: regexp.MustCompile(`\bevo\.Option\b|\[\]evo\.Option\b`)},
+	{Contract: "Options", RemovedIn: Release1_1, Replacement: "set Config fields directly", Taught: regexp.MustCompile(`\bConfig\.Options\b|\bOptions:\s*\[\]evo\.Option\b`)},
+	{Contract: "AlsoWrite", RemovedIn: Release1_1, Replacement: "Config.AlsoWrite", Taught: optionFunc("AlsoWrite")},
+	{Contract: "Clock", RemovedIn: Release1_1, Replacement: "Config.Clock", Taught: optionFunc("Clock")},
+	{Contract: "DataProjection", RemovedIn: Release1_1, Replacement: "Config.Format: FormatData", Taught: optionFunc("DataProjection")},
+	{Contract: "DebugAddSource", RemovedIn: Release1_1, Replacement: "Config.Debug.AddSource", Taught: optionFunc("DebugAddSource")},
+	{Contract: "DebugHistory", RemovedIn: Release1_1, Replacement: "Config.Debug.View: DebugPresentationHistory", Taught: optionFunc("DebugHistory")},
+	{Contract: "DebugLevel", RemovedIn: Release1_1, Replacement: "Config.Debug.Level", Taught: optionFunc("DebugLevel")},
+	{Contract: "DebugPane", RemovedIn: Release1_1, Replacement: "Config.Debug (View, PaneHeight, NewestFirst, PreserveAlways)", Taught: optionFunc("DebugPane")},
+	{Contract: "Diagnostics", RemovedIn: Release1_1, Replacement: "Config.Stderr", Taught: optionFunc("Diagnostics")},
+	{Contract: "DryRun", RemovedIn: Release1_1, Replacement: "Config.DryRun", Taught: optionFunc("DryRun")},
+	{Contract: "ExternalProjection", RemovedIn: Release1_1, Replacement: "Config.Format: FormatExternal", Taught: optionFunc("ExternalProjection")},
+	{Contract: "Glyphs", RemovedIn: Release1_1, Replacement: "Config.Glyphs", Taught: optionFunc("Glyphs")},
+	{Contract: "MaxEntities", RemovedIn: Release1_1, Replacement: "Config.MaxEntities", Taught: optionFunc("MaxEntities")},
+	{Contract: "MaxEvents", RemovedIn: Release1_1, Replacement: "Config.MaxEvents", Taught: optionFunc("MaxEvents")},
+	{Contract: "MaxFrameRate", RemovedIn: Release1_1, Replacement: "Config.MaxFrameRate", Taught: optionFunc("MaxFrameRate")},
+	{Contract: "NoColor", RemovedIn: Release1_1, Replacement: "Config.Color: ColorNever", Taught: optionFunc("NoColor")},
+	{Contract: "Plain", RemovedIn: Release1_1, Replacement: "Config.Plain", Taught: optionFunc("Plain")},
+	{Contract: "Redact", RemovedIn: Release1_1, Replacement: "Config.Redactor", Taught: optionFunc("Redact")},
+	{Contract: "ResultStream", RemovedIn: Release1_1, Replacement: "Config.Result", Taught: optionFunc("ResultStream")},
+	{Contract: "Runner", RemovedIn: Release1_1, Replacement: "Config.ProcessRunner", Taught: optionFunc("Runner")},
+	{Contract: "Stdin", RemovedIn: Release1_1, Replacement: "Config.Stdin", Taught: optionFunc("Stdin")},
+	{Contract: "Strict", RemovedIn: Release1_1, Replacement: "Config.Strict", Taught: optionFunc("Strict")},
+	{Contract: "Terminal", RemovedIn: Release1_1, Replacement: "Config.Terminal", Taught: optionFunc("Terminal")},
+	{Contract: "Title", RemovedIn: Release1_1, Replacement: "Config.Title", Taught: optionFunc("Title")},
+	{Contract: "To", RemovedIn: Release1_1, Replacement: "Config.Stdout", Taught: optionFunc("To")},
+	{Contract: "VisibilityDelay", RemovedIn: Release1_1, Replacement: "Config.VisibilityDelay", Taught: optionFunc("VisibilityDelay")},
+	{Contract: "Width", RemovedIn: Release1_1, Replacement: "Config.Width", Taught: optionFunc("Width")},
+}
+
+// optionFunc matches a removed Option constructor taught as evo.<name>(...).
+func optionFunc(name string) *regexp.Regexp {
+	return regexp.MustCompile(`\bevo\.` + name + `\(`)
 }
 
 // warnTaught matches the removed Warn taught as a call on an evo receiver

@@ -58,7 +58,7 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 	case errors.Is(err, errDependencyCycle):
 		return fmt.Sprintf("After forms a cycle (%s); a task cannot run after itself, directly or through a Group it belongs to", subject)
 	case errors.Is(err, ErrTerminalWithoutSink):
-		return "pass evo.To(w) alongside evo.Terminal(driver), or use a driver whose Sink() reports its writer"
+		return "set Config.Stdout alongside Config.Terminal, or use a driver whose Sink() reports its writer"
 	default:
 		// Every sentinel this package defines has a case above; a caller-
 		// supplied error reaching here (there is no such path today) still

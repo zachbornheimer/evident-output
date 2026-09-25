@@ -1,10 +1,7 @@
 package evo_test
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"io"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -19,7 +16,9 @@ func ExampleDebugConfig() {
 }
 
 // ExampleDebugPresentation selects history vs pane presentation for the
-// debug journal (default History).
+// debug journal (default History). Pane presentation is configured with
+// Config.Debug's View, PaneHeight, NewestFirst, and PreserveAlways fields —
+// see ExampleConfig_debugPane.
 func ExampleDebugPresentation() {
 	view := evo.DebugPresentationPane
 	fmt.Println(view == evo.DebugPresentationPane)
@@ -27,8 +26,11 @@ func ExampleDebugPresentation() {
 	// true
 }
 
-// ExampleDebugPaneOption shows the interface every debug-pane knob
-// (NewestFirst, OldestFirst, PaneHeight, PreserveDebugTail) implements.
+// ExampleDebugPaneOption shows the interface NewestFirst, OldestFirst,
+// PaneHeight, and PreserveDebugTail each implement — retained as build-once
+// values for embedders composing their own presentation layer; ordinary
+// callers set Config.Debug's View/PaneHeight/NewestFirst/PreserveAlways
+// fields directly (see ExampleConfig_debugPane).
 func ExampleDebugPaneOption() {
 	opt := evo.PaneHeight(5)
 	fmt.Println(opt != nil)
@@ -36,60 +38,34 @@ func ExampleDebugPaneOption() {
 	// true
 }
 
-// ExampleNewestFirst orders a debug pane newest-entry-first.
+// ExampleNewestFirst builds the newest-first pane ordering value.
 func ExampleNewestFirst() {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard,
-		Debug:   evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane},
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.NewestFirst())},
-	})
-	out.Task("demo").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
-	fmt.Print(buf.String())
+	opt := evo.NewestFirst()
+	fmt.Println(opt != nil)
 	// Output:
-	// ✓ demo
+	// true
 }
 
-// ExampleOldestFirst orders a debug pane oldest-entry-first.
+// ExampleOldestFirst builds the oldest-first pane ordering value.
 func ExampleOldestFirst() {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.OldestFirst())},
-	})
-	out.Task("demo").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
-	fmt.Print(buf.String())
+	opt := evo.OldestFirst()
+	fmt.Println(opt != nil)
 	// Output:
-	// ✓ demo
+	// true
 }
 
-// ExamplePaneHeight bounds a debug pane's visible line count (default 5).
+// ExamplePaneHeight builds a bounded pane-height value (default 5).
 func ExamplePaneHeight() {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.PaneHeight(3))},
-	})
-	out.Task("demo").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
-	fmt.Print(buf.String())
+	opt := evo.PaneHeight(3)
+	fmt.Println(opt != nil)
 	// Output:
-	// ✓ demo
+	// true
 }
 
-// ExamplePreserveDebugTail forces a diagnostic tail on every Finish in pane
-// mode.
+// ExamplePreserveDebugTail builds the always-preserve-tail value.
 func ExamplePreserveDebugTail() {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.PreserveDebugTail())},
-	})
-	out.Task("demo").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
-	fmt.Print(buf.String())
+	opt := evo.PreserveDebugTail()
+	fmt.Println(opt != nil)
 	// Output:
-	// ✓ demo
+	// true
 }

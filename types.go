@@ -15,7 +15,6 @@ type Printer struct{ inner *engine.Printer }
 type Failure struct{ inner *engine.Failure }
 
 type Config = engine.Config
-type Option = engine.Option
 type Capture = engine.Capture
 type CaptureOption = engine.CaptureOption
 type CaptureStream = engine.CaptureStream
