@@ -83,6 +83,13 @@ One Task may still make several internal observations without promoting each pre
 
 `Block` ≠ Go `error`. After Block, return nil from `run` and let `Main` exit `1`.
 
+Attach a remedy to a Fail or Block by passing `evo.Next(...)`/
+`evo.NextCommand(...)` as a `ProblemOption` on the call itself
+(`task.Block("contains local changes", evo.Next("stash or commit them"))`).
+This is the canonical remedy form: `TaskHandle.Next`/`TaskHandle.NextCommand`
+still exist but only chain a remedy onto a Problem already recorded through
+`Problem`/`Warn` — reach for the `ProblemOption` form on `Fail`/`Block` first.
+
 ## One check Task, many Problems
 
 A Task with several findings owns them all as `Problem`s — never one `Task`

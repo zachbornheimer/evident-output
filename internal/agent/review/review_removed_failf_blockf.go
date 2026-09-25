@@ -129,12 +129,12 @@ func detectRemovedFailfBlockf(in fileInput) []Finding {
 // insideDefineResolvedCallback reports whether the byte offset off falls
 // inside a Define callback's body — a FuncLit passed directly as Define's
 // argument (evoResolutionCallbacks), or a same-file helper function
-// reachable from one, up to the same depth detectFailInResolvedCallback
-// uses. Only inside such a callback does a bare `return err` (or
-// `return fmt.Errorf(...)`) actually resolve the task; a plain helper
-// that merely happens to return error, but is never called from a
-// Define callback, would leave the row unresolved if the Fail call were
-// dropped, so API-080's rewrite must not drop it there.
+// reachable from one, per defineReachableBlocks. Only inside such a
+// callback does a bare `return err` (or `return fmt.Errorf(...)`) actually
+// resolve the task; a plain helper that merely happens to return error, but
+// is never called from a Define callback, would leave the row unresolved
+// if the Fail call were dropped, so API-080's rewrite must not drop it
+// there.
 func insideDefineResolvedCallback(file *ast.File, fset *token.FileSet, off int) bool {
 	if file == nil || fset == nil {
 		return false
@@ -145,39 +145,10 @@ func insideDefineResolvedCallback(file *ast.File, fset *token.FileSet, off int) 
 	}
 	target := tf.Pos(off)
 
-	funcs := map[string]*ast.BlockStmt{}
-	ast.Inspect(file, func(n ast.Node) bool {
-		if fd, ok := n.(*ast.FuncDecl); ok && fd.Body != nil {
-			funcs[fd.Name.Name] = fd.Body
-		}
-		return true
-	})
-
-	found := false
-	visited := map[*ast.BlockStmt]bool{}
-	var visit func(block *ast.BlockStmt, depth int)
-	visit = func(block *ast.BlockStmt, depth int) {
-		if block == nil || visited[block] || depth > 2 || found {
-			return
-		}
-		visited[block] = true
+	for block := range defineReachableBlocks(file) {
 		if block.Pos() <= target && target <= block.End() {
-			found = true
-			return
-		}
-		ast.Inspect(block, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			if body, ok := funcs[calledFuncName(call)]; ok {
-				visit(body, depth+1)
-			}
 			return true
-		})
+		}
 	}
-	for _, fl := range evoResolutionCallbacks(file) {
-		visit(fl.Body, 0)
-	}
-	return found
+	return false
 }

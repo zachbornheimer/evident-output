@@ -75,10 +75,16 @@ var failBlockStmtPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(`)
 // the task with that error as its cause (API-040: calling Fail first as
 // well is redundant ceremony, not a second bug); outside one, keep the
 // Fail statement — it is the only way to resolve that task — and return
-// the error so the caller's own signature still gets it.
+// the error so the caller's own signature still gets it. Leave Detail
+// off: when Detail and EvidenceTail are both empty, attachEvidenceTail
+// (internal/engine/task_commit.go) fills EvidenceTail from the same
+// captured error text, so a hand-written evo.Detail(errVar.Error()) would
+// only restate what the engine already surfaces — Detail is for stable
+// guidance the error text does not already say.
 func returnTheErrorSuggestion(recv, errVar string) string {
 	return "inside a Define/mutation callback: `return fmt.Errorf(\"<context>: %w\", " + errVar + ")` and drop the " +
-		recv + ".Fail call; elsewhere: keep `" + recv + ".Fail(\"<context>\", evo.Detail(" + errVar + ".Error()))` and `return " + errVar + "`"
+		recv + ".Fail call; elsewhere: keep `" + recv + ".Fail(\"<context>\")` (no Detail — the engine already " +
+		"surfaces " + errVar + "'s text as evidence) and `return " + errVar + "`"
 }
 
 // returnTheRefusalSuggestion is how a Block site hands its refusal back,

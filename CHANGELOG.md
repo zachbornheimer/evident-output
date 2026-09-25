@@ -202,7 +202,14 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `TaskHandle.Next`/`NextCommand` gain doc comments distinguishing them
   from the canonical `evo.Next`/`evo.NextCommand` `ProblemOption` form
   Fail/Block already document (docs/migration/1.1.md and
-  docs/reference.md record the choice).
+  docs/reference.md record the choice). Auto-attached capture evidence on
+  a Failed/Blocked Problem (when neither Detail nor EvidenceTail is
+  already set) now fills `Problem.EvidenceTail` instead of `Problem.Detail`
+  — matching what the removed `Failf`/`Blockf`'s own auto-attach already
+  did — so it renders through `render`'s `dedupeEvidenceTailAgainstRow`
+  and reaches the wire as `evidence_tail` rather than `detail`
+  (`internal/wire/problem.go`); a caller's own explicit `Detail` is
+  unaffected.
 - The `ErrInvalidConfig` misuse hint no longer names Done's removed printf
   summary; it reads "configure After and Verify before Define, and Define
   each task once with a non-nil callback". The unresolved-task hint reads
@@ -235,14 +242,13 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   verbose item list shows each item's Facts at one column past the widest
   name. Each item rendered its own `✓ name  why ...` row and `! kept 1`.
 
-- Review rule API-036, superseded later in this section by the removal of
-  `Failf`/`Blockf` (E-118 lane B): it originally stopped rewriting a bare
-  `task.Block(fmt.Sprintf(...))` or `task.Fail(fmt.Sprintf(...))` statement
-  into `Blockf`/`Failf` and fired only when a return followed, suggesting
-  `Blockf`/`Failf`. `Failf`/`Blockf` no longer exist; API-034 covers the
-  `return nil` shape this rule covered, and API-036 itself now covers the
-  remaining `return err` shape by suggesting `task.Fail(...); return err`
-  (`task.Block(...); return err` for `Block`) instead.
+- Review rule API-036 is removed (E-118 lane B): it originally stopped
+  rewriting a bare `task.Block(fmt.Sprintf(...))` or
+  `task.Fail(fmt.Sprintf(...))` statement into `Blockf`/`Failf` and fired
+  only when a return followed, suggesting `Blockf`/`Failf`. `Failf`/`Blockf`
+  no longer exist, so that rewrite target is gone; API-034 covers the
+  remaining `return nil` shape, and the sibling `return err` shape is
+  already Fail/Block's correct final form with nothing left to suggest.
 
 - A warning's `evo.On(subject)` now renders on every human row
   (`✓ check jobs  ! job  x`, nested and run-level warnings too); it was

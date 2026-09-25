@@ -20,6 +20,24 @@ import (
 // returned error is the correct shape, not flagged here.
 
 func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	for block := range defineReachableBlocks(file) {
+		findings = append(findings, scanBlockForFailReturn(filename, block, fset)...)
+	}
+	return findings
+}
+
+// defineReachableBlocks returns every block statement reachable from a
+// Define/resolution callback (a FuncLit passed directly as Define's
+// argument, per evoResolutionCallbacks) — its own body, and any same-file
+// helper function's body it calls, up to two calls away. That depth-2 cutoff
+// is a deliberate breadth/cost tradeoff (not a soundness guarantee): a
+// helper reached only through a third hop, a method value, or a call
+// through an interface or func-typed variable is not walked and so is not
+// in the returned set. This is the one owner of that walk; API-040's
+// redundant-resolve detector and API-080/081's inside-Define check for the
+// removed Failf/Blockf rewrite both read from it instead of re-deriving it.
+func defineReachableBlocks(file *ast.File) map[*ast.BlockStmt]bool {
 	funcs := map[string]*ast.BlockStmt{}
 	ast.Inspect(file, func(n ast.Node) bool {
 		if fd, ok := n.(*ast.FuncDecl); ok && fd.Body != nil {
@@ -28,7 +46,6 @@ func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.F
 		return true
 	})
 
-	var findings []Finding
 	visited := map[*ast.BlockStmt]bool{}
 	var visit func(block *ast.BlockStmt, depth int)
 	visit = func(block *ast.BlockStmt, depth int) {
@@ -36,7 +53,6 @@ func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.F
 			return
 		}
 		visited[block] = true
-		findings = append(findings, scanBlockForFailReturn(filename, block, fset)...)
 		ast.Inspect(block, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
@@ -51,7 +67,7 @@ func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.F
 	for _, fl := range evoResolutionCallbacks(file) {
 		visit(fl.Body, 0)
 	}
-	return findings
+	return visited
 }
 
 // scanBlockForFailReturn recurses through a block's own control-flow
