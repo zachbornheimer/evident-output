@@ -145,7 +145,7 @@ Sugar is forbidden when it:
 Defaults, examples, and ownership make correct behavior the path of least resistance.
 
 - Capture is silent on success.
-- An error flows through `Failf`'s trailing `%w`, diagnostic and redacted by policy; `Detail` is user-facing.
+- An error flows through a `%w`-wrapped error returned from `Define`, diagnostic and redacted by policy; `Detail` is user-facing.
 - `Main` reconciles application errors before final rendering.
 - stdout data contracts remain uncontaminated.
 - concurrent Task declaration order is deterministic.

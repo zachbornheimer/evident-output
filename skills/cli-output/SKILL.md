@@ -86,7 +86,7 @@ go get github.com/zachbornheimer/evident-output@v1.0.0
 
 - `docs/philosophy/jazz-syntax.md` — one spelling per intent
 - `docs/philosophy/presentation-boundary.md` — presentation ≠ execution
-- `docs/philosophy/domain-vocabulary.md` — Task/Effect verbs/Detail/Failf evidence
+- `docs/philosophy/domain-vocabulary.md` — Task/Effect verbs/Detail/returned-error evidence
 - `docs/guides/teaching-ladder.md` — ordinary learning order
 - `docs/roadmap/implementation-basis.md` — polish-phase authority
 

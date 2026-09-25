@@ -73,31 +73,36 @@ gate.Block("contains local changes", evo.On("working tree"), evo.Detail("stash o
 
 ---
 
-## Problem / Detail / Failf evidence
+## Problem / Detail / returned-error evidence
 
-| Piece        | Audience            | Role                                                                  |
-| ------------ | ------------------- | --------------------------------------------------------------------- |
-| **Problem**  | Structured evidence | Subject + summary (+ optional pieces) for one failure unit            |
-| **Detail**   | **User-facing**     | What the human should know or do                                      |
-| **Failf %w** | **User-facing**     | Wrapped error's text, rendered as one evidence line under the summary |
+| Piece                         | Audience            | Role                                                                  |
+| ----------------------------- | ------------------- | --------------------------------------------------------------------- |
+| **Problem**                   | Structured evidence | Subject + summary (+ optional pieces) for one failure unit            |
+| **Detail**                    | **User-facing**     | What the human should know or do                                      |
+| **`%w`-wrapped Define error** | **User-facing**     | Wrapped error's text, rendered as one evidence line under the summary |
 
-PHIL-005: a trailing `": %w"`/`", %w"` on `Failf`/`Blockf` splits the formatted text into the
-rendered summary and an evidence line for the wrapped error — both user-facing. Use `Detail`
-for stable guidance text that isn't derived from an error. Do not bury the only user message in
-a wrapped error alone with an empty summary.
+PHIL-005: `TaskHandle.Failf`/`Blockf` (removed in 1.1, no compatibility alias — use a `%w`-wrapped
+error returned from `Define`, or a statement-form `Fail`/`Block` plus a `Next`/`NextCommand`
+`ProblemOption`) used to split a trailing `": %w"`/`", %w"` into the rendered summary and an
+evidence line for the wrapped error, both user-facing. That split now happens by returning the
+`%w`-wrapped error from `Define` directly: the summary comes from `Fail`/`Block`'s own text (or
+Define's own resolution when nothing calls Fail/Block first), and the auto-attached evidence tail
+still carries the wrapped error's text underneath it. Use `Detail` for stable guidance text that
+isn't derived from an error. Do not bury the only user message in a wrapped error alone with an
+empty summary.
 
 ```go
 // Right
 task.Block("contains local changes", evo.Detail("stash or commit them"))
-return task.Failf("download failed: %w", err)
+return fmt.Errorf("download failed: %w", err)
 
 // Wrong — user message only in the wrapped error, empty human summary
-return task.Failf(": %w", err)
+return fmt.Errorf(": %w", err)
 ```
 
 `evo.Cause` (a `ProblemOption` from before this split existed) is removed: `Fail`/`Block` are
-statement-form, so a wrapped error's diagnostic text flows through `Failf`'s trailing `%w`
-instead.
+statement-form, so a wrapped error's diagnostic text flows through the `%w`-wrapped error
+returned from `Define` instead.
 
 ---
 
@@ -241,16 +246,15 @@ Per-file progress is added only when users need confidence during sufficiently l
 Both are valid:
 
 ```go
-task.Failf("tests failed: %w", err)
+task.Fail("tests failed", evo.Detail(err.Error()))
 return err
 ```
 
 ```go
-task.Failf("one expected operation failed: %w", err)
-return nil
+return fmt.Errorf("one expected operation failed: %w", err) // inside Define: resolves the Task Failed, no bare return nil needed
 ```
 
-Evo must not force application error policy. Present the failure for humans; return (or not) according to the app’s error architecture. `Main` reconciles a returned error into Fail only when nothing has failed yet — hosted code mirrors that explicitly.
+Evo must not force application error policy. Present the failure for humans; return (or not) according to the app’s error architecture. `Main` reconciles a returned error into Fail only when nothing has failed yet — hosted code mirrors that explicitly. `TaskHandle.Failf`/`Blockf` were removed in 1.1 with no compatibility alias.
 
 ---
 

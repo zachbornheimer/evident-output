@@ -171,6 +171,23 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   no aliases. `Task` is name-only, so no API accepted an `EntityOption`:
   both constructors built values nothing consumed. Stable identity is
   `TaskHandle.Key`; the first step is `Doing` chained after `Task`.
+- **`TaskHandle.Failf`, `TaskHandle.Blockf`, `Output.Failf`, and the
+  `*Failure` type they returned (with its `Error`, `Next`, `NextCommand`,
+  and `Unwrap` methods)** were removed with no compatibility alias
+  (E-118 lane B). `Fail`/`Block` win as the one statement-form spelling in
+  this family (vocabulary freeze); the trailing `": %w"`/`", %w"` split
+  that `Failf`/`Blockf` offered is gone with them. To fail with a cause,
+  return a `%w`-wrapped error from `Define` — that return is what resolves
+  the Task Failed, so a statement-form `Fail` call first is redundant
+  ceremony (API-040). `Block` is different: it is the only way to conclude
+  a Task Blocked, so it always stays; a returned error afterward does not
+  double-resolve it (the row already terminated) and just lets the caller
+  still see the cause. A remedy attaches to either verb the way it already
+  did, as a `Next`/`NextCommand` `ProblemOption` on the call itself. MCP
+  review (API-032, API-034, API-040) rewrites every removed call shape;
+  API-036 (the `Failf`/`Blockf`-rewrite suggestion for a
+  `Fail(fmt.Sprintf(...))` statement) is deleted — API-034 alone now covers
+  that shape.
 - The `ErrInvalidConfig` misuse hint no longer names Done's removed printf
   summary; it reads "configure After and Verify before Define, and Define
   each task once with a non-nil callback". The unresolved-task hint reads
