@@ -13,64 +13,108 @@ import (
 
 // detectConstantVerify is API-063.
 func detectConstantVerify(filename string, file *ast.File, fset *token.FileSet) []Finding {
-	lits := localFuncLits(file)
 	var findings []Finding
-	ast.Inspect(file, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok || len(call.Args) != 1 {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "Verify" {
-			return true
-		}
-		lit := funcLitOf(call.Args[0], lits)
-		if lit == nil {
-			return true
-		}
-		if value, ok := constantVerdict(lit); ok {
-			findings = append(findings, Finding{
-				RuleID:     "API-063",
-				Message:    "Verify callback returns a constant " + value + ": it observes nothing, so the Task's evidence is invented",
-				File:       filename,
-				Line:       fset.Position(call.Pos()).Line,
-				Suggestion: "observe the desired state in the Verify callback (stat the file, query the service) and return what you saw; with nothing to check, drop Verify and let Define run",
-			})
+	var scopes []*ast.BlockStmt // enclosing function bodies, innermost last
+	var visit func(n ast.Node) bool
+	visit = func(n ast.Node) bool {
+		switch fn := n.(type) {
+		case *ast.FuncDecl:
+			if fn.Body != nil {
+				return walkScope(fn.Body, &scopes, visit)
+			}
+		case *ast.FuncLit:
+			return walkScope(fn.Body, &scopes, visit)
+		case *ast.CallExpr:
+			if lit := verifyCallback(fn, scopes); lit != nil {
+				if value, ok := constantVerdict(lit); ok {
+					findings = append(findings, Finding{
+						RuleID:     "API-063",
+						Message:    "Verify callback returns a constant " + value + ": it observes nothing, so the Task's evidence is invented",
+						File:       filename,
+						Line:       fset.Position(fn.Pos()).Line,
+						Suggestion: "observe the desired state in the Verify callback (stat the file, query the service) and return what you saw; with nothing to check, drop Verify and let Define run",
+					})
+				}
+			}
 		}
 		return true
-	})
+	}
+	ast.Inspect(file, visit)
 	return findings
 }
 
-// localFuncLits maps each identifier bound by := to a function literal.
-func localFuncLits(file *ast.File) map[string]*ast.FuncLit {
-	lits := map[string]*ast.FuncLit{}
-	ast.Inspect(file, func(n ast.Node) bool {
+// walkScope visits body with it pushed as the innermost function scope,
+// and tells the caller's Inspect not to descend again.
+func walkScope(body *ast.BlockStmt, scopes *[]*ast.BlockStmt, visit func(ast.Node) bool) bool {
+	*scopes = append(*scopes, body)
+	for _, stmt := range body.List {
+		ast.Inspect(stmt, visit)
+	}
+	*scopes = (*scopes)[:len(*scopes)-1]
+	return false
+}
+
+// verifyCallback is the function literal a one-argument Verify call
+// passes, inline or through a local it resolves in scope; nil otherwise.
+func verifyCallback(call *ast.CallExpr, scopes []*ast.BlockStmt) *ast.FuncLit {
+	if len(call.Args) != 1 {
+		return nil
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Verify" {
+		return nil
+	}
+	switch a := call.Args[0].(type) {
+	case *ast.FuncLit:
+		return a
+	case *ast.Ident:
+		return boundFuncLit(a, scopes)
+	default:
+		return nil
+	}
+}
+
+// boundFuncLit resolves id at its use: the last assignment to its name
+// before it in the innermost enclosing function that assigns it, outward.
+// It is the function literal that assignment binds, or nil when the name
+// was last bound to anything else (or not in any enclosing function).
+// Nested function literals are not searched: their bindings are out of
+// scope at id (E-108).
+func boundFuncLit(id *ast.Ident, scopes []*ast.BlockStmt) *ast.FuncLit {
+	for i := len(scopes) - 1; i >= 0; i-- {
+		if rhs, found := lastAssignment(scopes[i], id); found {
+			lit, _ := rhs.(*ast.FuncLit)
+			return lit
+		}
+	}
+	return nil
+}
+
+// lastAssignment is the right-hand side of the last assignment to id's
+// name in body before id, not counting nested function literals.
+func lastAssignment(body *ast.BlockStmt, id *ast.Ident) (rhs ast.Expr, found bool) {
+	ast.Inspect(body, func(n ast.Node) bool {
+		if n == nil || n.Pos() >= id.Pos() {
+			return false
+		}
+		if _, nested := n.(*ast.FuncLit); nested {
+			return false
+		}
 		assign, ok := n.(*ast.AssignStmt)
-		if !ok || len(assign.Lhs) != len(assign.Rhs) {
+		if !ok {
 			return true
 		}
 		for i, lhs := range assign.Lhs {
-			id, isIdent := lhs.(*ast.Ident)
-			lit, isLit := assign.Rhs[i].(*ast.FuncLit)
-			if isIdent && isLit {
-				lits[id.Name] = lit
+			if name, ok := lhs.(*ast.Ident); ok && name.Name == id.Name {
+				rhs, found = nil, true
+				if len(assign.Lhs) == len(assign.Rhs) {
+					rhs = assign.Rhs[i]
+				}
 			}
 		}
 		return true
 	})
-	return lits
-}
-
-func funcLitOf(arg ast.Expr, lits map[string]*ast.FuncLit) *ast.FuncLit {
-	switch a := arg.(type) {
-	case *ast.FuncLit:
-		return a
-	case *ast.Ident:
-		return lits[a.Name]
-	default:
-		return nil
-	}
+	return rhs, found
 }
 
 // constantVerdict reports the literal a (bool, error) callback returns

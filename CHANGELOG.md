@@ -179,6 +179,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   when a return follows, and suggests one `return task.Failf(...)` (or, in a
   Define callback, `return fmt.Errorf(...)`).
 
+- Review rule API-063 resolves a `Verify(check)` argument in the call's
+  own scope. It keyed local function literals by name across the whole
+  file, so an observing `check` was flagged constant when another function
+  bound a constant `check`, and its "drop Verify" suggestion would delete
+  a real postcondition.
+
 - Under verbose, one Fact on one kept or skipped item no longer lists
   every item of its reason on its own line: only items with Facts get a
   row (at most three), and the rest fold into the bounded
