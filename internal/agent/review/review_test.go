@@ -2468,3 +2468,37 @@ func f(task *evo.TaskHandle) {
 		}
 	}
 }
+
+// TestAPI082_SuggestionCompiles is red-first for the applied-suggestion
+// contract: API-082's Suggestion must be the real Fail/Block summary (not a
+// literal "<summary>" placeholder), and a chained TaskHandle.Next(a, b) with
+// two actions must split into two evo.Next(...) options — evo.Next takes
+// exactly one Action, so one evo.Next(a, b) would not compile.
+func TestAPI082_SuggestionCompiles(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+  task.Block("worktree dirty")
+  task.Next(evo.Label("stash"), evo.Label("commit"))
+}
+`
+	res := review.GoSource("chained_multi.go", src)
+	var found *review.Finding
+	for i := range res.Findings {
+		if res.Findings[i].RuleID == "API-082" {
+			found = &res.Findings[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected API-082, got %+v", res.Findings)
+	}
+	if strings.Contains(found.Suggestion, "<summary>") {
+		t.Fatalf("suggestion still has the literal placeholder, not the real summary: %q", found.Suggestion)
+	}
+	if !strings.Contains(found.Suggestion, `"worktree dirty"`) {
+		t.Fatalf("suggestion does not carry the real Block summary: %q", found.Suggestion)
+	}
+	if !strings.Contains(found.Suggestion, "evo.Next(evo.Label(\"stash\")), evo.Next(evo.Label(\"commit\"))") {
+		t.Fatalf("suggestion did not split the two-argument Next into two evo.Next(...) options: %q", found.Suggestion)
+	}
+}

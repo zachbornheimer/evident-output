@@ -85,7 +85,7 @@ One Task may still make several internal observations without promoting each pre
 
 Attach a remedy to a Fail or Block by passing `evo.Next(...)`/
 `evo.NextCommand(...)` as a `ProblemOption` on the call itself
-(`task.Block("contains local changes", evo.Next("stash or commit them"))`).
+(`task.Block("contains local changes", evo.Next(evo.Label("stash or commit them")))`).
 This is the canonical remedy form. `TaskHandle.Next`/`TaskHandle.NextCommand`
 still exist, but they attach a task-level remedy that is not tied to any
 particular `Problem` — for a `Fail`/`Block` remedy, use the `ProblemOption`
