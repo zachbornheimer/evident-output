@@ -28,74 +28,64 @@ const (
 // detectBlockedAsError flags control-flow that converts an expected Block/BlockedBy
 // presentation outcome into a Go application error (MCP-014 / DOM-011).
 // Real evaluation failures that use Fail/return before Block are not flagged.
-func detectBlockedAsError(filename, src string) []Finding {
+//
+// It walks every Block/BlockedBy line in the file, not just the first: a
+// file-wide early return on the first line's Define membership would
+// suppress DOM-011 for every later run-level `Block; return err` in the
+// same file whenever that first Block happened to sit inside Define.
+func detectBlockedAsError(in fileInput) []Finding {
 	// Fast reject: no block resolution → nothing to detect.
-	if !strings.Contains(src, ".Block(") && !strings.Contains(src, ".BlockedBy(") {
+	if !strings.Contains(in.src, ".Block(") && !strings.Contains(in.src, ".BlockedBy(") {
 		return nil
 	}
-	lines := strings.Split(src, "\n")
-	blockLine := firstBlockLine(lines)
-	if blockLine < 0 {
-		return nil
+	lines := strings.Split(in.src, "\n")
+	var findings []Finding
+	for i := range lines {
+		if !isBlockLine(lines[i]) {
+			continue
+		}
+		// Inside a Define callback, `task.Block(...); return err` is the
+		// canonical, only-correct refusal shape (task.go's Block doc,
+		// E-105): Block resolves the Task Blocked, and the returned error
+		// is what lets Define propagate the failure without overriding
+		// that resolution to Failed. There is no Output/Finish in scope to
+		// redirect to, so DOM-011 does not apply there — only at the
+		// Run/Main level where Finish exists.
+		//
+		// This reuses insideDefineResolvedCallback, the same AST-based
+		// Define-membership owner API-080/API-081 use, instead of a
+		// second, independent text brace-counter: a brace-counter can't
+		// see braces inside strings/comments and can't follow a same-file
+		// helper function reachable from a Define callback the way
+		// defineReachableBlocks does.
+		if insideDefineResolvedCallback(in.file, in.fset, lineOffset(lines, i)) {
+			continue
+		}
+		line, kind := blockedReturnAfter(lines, i)
+		if kind == noBlockedReturn {
+			continue
+		}
+		findings = append(findings, blockedAsErrorFinding(in.filename, line+1, kind))
 	}
-	// Inside a Define callback, `task.Block(...); return err` is the
-	// canonical, only-correct refusal shape (task.go's Block doc, E-105):
-	// Block resolves the Task Blocked, and the returned error is what lets
-	// Define propagate the failure without overriding that resolution to
-	// Failed. There is no Output/Finish in scope to redirect to, so DOM-011
-	// does not apply there — only at the Run/Main level where Finish exists.
-	if insideDefineCallback(lines, blockLine) {
-		return nil
-	}
-	line, kind := blockedReturnAfter(lines, blockLine)
-	if kind == noBlockedReturn {
-		return nil
-	}
-	return []Finding{blockedAsErrorFinding(filename, line+1, kind)}
+	return findings
 }
 
-// insideDefineCallback reports whether blockLine sits anywhere inside a
-// `.Define(func(...) error {` callback literal, however many nested blocks
-// (if/for/switch) separate it from that callback's own opening brace:
-// scanning backward from blockLine, each unmatched `{` closes one enclosing
-// scope. A scope whose opening line is the Define callback itself means
-// blockLine is inside it; any other scope is walked past by resuming the
-// scan one level further out, until a top-level `func` declaration line is
-// reached — that bounds the walk to the function blockLine started in,
-// since a Define callback can't enclose a sibling top-level func.
-func insideDefineCallback(lines []string, blockLine int) bool {
-	depth := 0
-	for i := blockLine; i >= 0; i-- {
-		for _, c := range lines[i] {
-			switch c {
-			case '}':
-				depth++
-			case '{':
-				depth--
-			}
-		}
-		if depth < 0 {
-			if strings.Contains(lines[i], ".Define(func(") {
-				return true
-			}
-			if strings.HasPrefix(strings.TrimSpace(lines[i]), "func ") {
-				return false
-			}
-			depth = 0
-		}
+// lineOffset is the byte offset into the joined-by-"\n" src of the start of
+// 0-indexed line i — the same reconstruction lineAt's line-splitting uses,
+// inverted, so a line index found by scanning lines can be handed to the
+// AST-based, byte-offset insideDefineResolvedCallback.
+func lineOffset(lines []string, i int) int {
+	off := 0
+	for _, l := range lines[:i] {
+		off += len(l) + 1 // +1 for the "\n" strings.Split dropped
 	}
-	return false
+	return off
 }
 
-// firstBlockLine is the index of the first line resolving a Task Blocked,
-// or -1. A line that also Fails is an application error, not a Block.
-func firstBlockLine(lines []string) int {
-	for i, line := range lines {
-		if (strings.Contains(line, ".Block(") || strings.Contains(line, ".BlockedBy(")) && !strings.Contains(line, ".Fail(") {
-			return i
-		}
-	}
-	return -1
+// isBlockLine reports whether line resolves a Task Blocked. A line that
+// also Fails is an application error, not a Block.
+func isBlockLine(line string) bool {
+	return (strings.Contains(line, ".Block(") || strings.Contains(line, ".BlockedBy(")) && !strings.Contains(line, ".Fail(")
 }
 
 // blockedReturnAfter finds the first return after blockLine, within the

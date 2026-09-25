@@ -96,7 +96,20 @@ func detectRemovedFailfBlockf(in fileInput) []Finding {
 			}
 			blockCall = fmt.Sprintf("%s.Block(%q, %s)", recv, summary, options)
 		}
-		suggestion := fmt.Sprintf(`%s; return %s`, blockCall, cause)
+		// Mirror the Failf loop's Define check (API-081's own GoodCode):
+		// inside a Define/mutation callback, Block resolves the task and
+		// the returned cause only lets Define hand it up, so `return
+		// <cause>` stays correct there. Outside Define there is no
+		// Output/Finish return value in scope for the cause to reach —
+		// `return <cause>` there is exactly DOM-011's expected-blocked-
+		// treated-as-application-error shape, so the rewrite must drop
+		// the cause and return nil instead.
+		var suggestion string
+		if insideDefineResolvedCallback(in.file, in.fset, m[0]) && enclosingFuncReturnsError(in.file, in.fset, m[0]) {
+			suggestion = fmt.Sprintf(`%s; return %s`, blockCall, cause)
+		} else {
+			suggestion = fmt.Sprintf(`%s; return nil`, blockCall)
+		}
 		findings = append(findings, Finding{
 			RuleID:     "API-081",
 			Message:    "TaskHandle.Blockf was removed in 1.1 with no compatibility alias — Block is statement-form and stays the only way to conclude a Task Blocked; its remedy attaches as a ProblemOption on the Block call itself, not on a chained *Failure return",
@@ -111,16 +124,31 @@ func detectRemovedFailfBlockf(in fileInput) []Finding {
 			continue
 		}
 		verb := src[m[0]:m[1]]
-		ruleID, message, statementVerb := "API-080", "TaskHandle.Failf/Output.Failf was removed in 1.1 with no compatibility alias — Fail is statement-form", "Fail"
+		insideDefine := insideDefineResolvedCallback(in.file, in.fset, m[0]) && enclosingFuncReturnsError(in.file, in.fset, m[0])
+		var ruleID, message, suggestion string
 		if strings.Contains(verb, "Blockf") {
-			ruleID, message, statementVerb = "API-081", "TaskHandle.Blockf was removed in 1.1 with no compatibility alias — Block is statement-form", "Block"
+			// Block always stays (it is the only way to conclude a Task
+			// Blocked). Only the return alongside it differs by location
+			// (API-081's GoodCode): inside Define, return the %w-wrapped
+			// cause so Define resolves the task; outside Define, return
+			// nil — a returned error there is DOM-011's expected-blocked-
+			// treated-as-application-error shape, not Block's remedy.
+			ruleID, message = "API-081", "TaskHandle.Blockf was removed in 1.1 with no compatibility alias — Block is statement-form and stays the only way to conclude a Task Blocked"
+			if insideDefine {
+				suggestion = "replace with Block(...) plus a returned, %w-wrapped error from Define (return err resolves the task via Define, DOM-011 exempts this shape); attach a remedy as a Next/NextCommand ProblemOption on the Block call itself, not on a chained return value"
+			} else {
+				suggestion = "replace with Block(...) plus return nil (there is no Output/Finish return value in scope outside Define, and a returned error here is DOM-011's expected-blocked-as-application-error shape); attach a remedy as a Next/NextCommand ProblemOption on the Block call itself, not on a chained return value"
+			}
+		} else {
+			ruleID, message = "API-080", "TaskHandle.Failf/Output.Failf was removed in 1.1 with no compatibility alias — Fail is statement-form"
+			suggestion = "replace with the statement-form verb (Fail) plus a returned, %w-wrapped error from Define; attach a remedy as a Next/NextCommand ProblemOption on that same call, not on a chained return value"
 		}
 		findings = append(findings, Finding{
 			RuleID:     ruleID,
 			Message:    message,
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "replace with the statement-form verb (" + statementVerb + ") plus a returned, %w-wrapped error from Define; attach a remedy as a Next/NextCommand ProblemOption on that same call, not on a chained return value",
+			Suggestion: suggestion,
 		})
 	}
 	return findings

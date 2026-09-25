@@ -117,7 +117,8 @@ func handBackSuggestion(recv, verb, errVar string) string {
 // Output/Finish return value in scope there, so `return nil` after Block is
 // the correct closeout (DOM-011) — flagging it would put API-034 and DOM-011
 // in an unconvergeable rewrite loop.
-func detectFailBlockThenReturnNil(filename, src string) []Finding {
+func detectFailBlockThenReturnNil(in fileInput) []Finding {
+	filename, src := in.filename, in.src
 	var findings []Finding
 	lines := strings.Split(src, "\n")
 	for i, line := range lines {
@@ -126,7 +127,10 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 			continue
 		}
 		recv, verb := m[1], m[2]
-		if verb == "Block" && !insideDefineCallback(lines, i) {
+		// Reuses insideDefineResolvedCallback, the same AST-based
+		// Define-membership owner API-080/API-081/DOM-011 use, instead of
+		// a second, independent text brace-counter.
+		if verb == "Block" && !insideDefineResolvedCallback(in.file, in.fset, lineOffset(lines, i)) {
 			continue
 		}
 		suggestion := returnTheErrorSuggestion(recv, "err")

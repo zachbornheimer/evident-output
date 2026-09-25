@@ -127,7 +127,7 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectNameEqualsVerbArgument)},
 	// API-034: a statement-form Fail/Block immediately followed by return nil
 	// discards the error the caller needed to propagate.
-	{needsEvo: true, run: textRule(detectFailBlockThenReturnNil)},
+	{needsEvo: true, run: detectFailBlockThenReturnNil},
 	// API-082 (E-118 lane B): a chained TaskHandle.Next/NextCommand right
 	// after Fail/Block on the same handle — fold it into the resolving
 	// call's own evo.Next/evo.NextCommand ProblemOption instead.
@@ -305,5 +305,8 @@ var fileDetectors = []detector{
 	// DOM-014: Detail(err) where Detail expects user-visible text.
 	{needsEvo: true, run: textRule(detectDetailOfError)},
 	// MCP-014 / DOM-011: expected blocked item treated as application error.
-	{needsEvo: true, run: textRule(detectBlockedAsError)},
+	// AST-backed (not textRule): it reuses insideDefineResolvedCallback,
+	// the same Define-membership owner API-080/API-081 use, instead of an
+	// independent text brace-counter.
+	{needsEvo: true, run: detectBlockedAsError},
 }
