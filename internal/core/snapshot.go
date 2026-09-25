@@ -47,7 +47,7 @@ type Snapshot struct {
 	// no Config.Subject, in which case the marker falls back to its plain
 	// announcement text.
 	DryRunSubject string
-	// Warnings holds evo.Problem's run-scoped warning-severity annotations
+	// Warnings holds Output.Problem's run-scoped warning-severity annotations
 	// (P8 symmetry with a task's own
 	// Problem(summary, evo.Severity(evo.SeverityWarning))) — a warning about
 	// the run itself, not about any one task. Feeds Conclusion.Warned/
@@ -95,11 +95,11 @@ type TaskSnapshot struct {
 	Summary         string
 	Problems        []Problem
 	// Warnings holds the task's accumulated warning-severity Problem
-	// annotations (Problem(summary, evo.Severity(evo.SeverityWarning)))
-	// (P2): warnings
-	// annotate the task's lifecycle, they never become a lifecycle state of
-	// their own. Rendering inlines a single short warning on the
-	// task's own row; multiple or long warnings render as nested lines.
+	// annotations (Problem(summary, evo.Severity(evo.SeverityWarning))).
+	// (P2): warnings annotate the task's lifecycle, they never become a
+	// lifecycle state of their own. Rendering inlines a single short
+	// warning on the task's own row; multiple or long warnings render as
+	// nested lines.
 	Warnings []Problem
 	// Facts holds TaskHandle.Fact's accumulated annotations (P8): discovered
 	// information about the task, at info severity — never a lifecycle state,

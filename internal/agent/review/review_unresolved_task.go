@@ -93,7 +93,7 @@ func chainResolvesTask(e ast.Expr) bool {
 var taskHandleBuilders = map[string]bool{
 	"After": true, "Bytes": true, "Define": true, "Doing": true, "Fact": true, "Key": true,
 	"Next": true, "NextCommand": true, "Problem": true, "Progress": true, "Step": true,
-	"Summary": true, "Verify": true, "Warn": true,
+	"Summary": true, "Verify": true,
 }
 
 // taskSettledIn reports whether body resolves the Task bound to name or

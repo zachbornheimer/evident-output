@@ -11,7 +11,7 @@ import (
 // resolved with the identical expression as both its name and its
 // skip/verb argument, e.g. out.Item(note).Skip(note) — the owner's
 // complaint that the second occurrence carries zero new information.
-var nameEqualsVerbArgPattern = regexp.MustCompile(`\.(?:Item|Task)\(([^(),]+)\)\.(Skip|Fail|Warn|Block|Done|Cancel)\(([^(),]+)\)`)
+var nameEqualsVerbArgPattern = regexp.MustCompile(`\.(?:Item|Task)\(([^(),]+)\)\.(Skip|Fail|Block|Done|Cancel)\(([^(),]+)\)`)
 
 // detectNameEqualsVerbArgument is API-033.
 func detectNameEqualsVerbArgument(filename, src string) []Finding {
@@ -290,7 +290,7 @@ var methodDeclPattern = regexp.MustCompile(`func\s*\(\s*\w+\s+\*?\w+\s*\)\s+(\w+
 
 // wrapperMethodBodyPattern matches a single statement that is (optionally
 // `return`-ing) exactly one call ending in a known Task-verb method name.
-var wrapperMethodBodyPattern = regexp.MustCompile(`^(?:return\s+)?[\w.]+\.(Doing|Done|Fail|Warn|Block|Cancel|Skip|Kept|Progress|Advance|Step|Evidence|Writer)\([^{}]*\)\s*;?$`)
+var wrapperMethodBodyPattern = regexp.MustCompile(`^(?:return\s+)?[\w.]+\.(Doing|Done|Fail|Problem|Block|Cancel|Skip|Kept|Progress|Advance|Step|Evidence|Writer)\([^{}]*\)\s*;?$`)
 
 // detectWrapperMethod is API-037: a method whose entire body is one call on
 // a Task/Item handle adds a name and a stack frame over calling the verb
@@ -485,7 +485,7 @@ func detectShadowedHandle(filename, src string) []Finding {
 			name := fb.body[m[2]:m[3]]
 			if prevEnd, ok := lastDeclEnd[name]; ok {
 				between := fb.body[prevEnd:m[0]]
-				resolved := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.(Done|Fail|Warn|Block|Cancel|Skip)\(`).MatchString(between)
+				resolved := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.(Done|Fail|Problem|Block|Cancel|Skip)\(`).MatchString(between)
 				if !resolved {
 					findings = append(findings, Finding{
 						RuleID: "DOM-019",

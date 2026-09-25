@@ -245,7 +245,7 @@ func InferConclusion(s Snapshot) Conclusion {
 	}
 	// warnedModifier feeds the "· warned" band from BOTH sources at warning
 	// severity — a task's Problem(summary, evo.Severity(evo.SeverityWarning))
-	// and the run's own evo.Problem at the same severity (P8 symmetry) —
+	// and the run's own Output.Problem at the same severity (P8 symmetry) —
 	// while hasWarning above (task/collection only) still governs
 	// the (dead, reserved-unreachable) StateWarning headline case alone, so a
 	// bare warning-severity Problem on a run with no tasks never invents a

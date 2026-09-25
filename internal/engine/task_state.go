@@ -68,10 +68,9 @@ type taskState struct {
 	// warnings accumulates the task's warning-severity Problem annotations
 	// (Problem(summary, evo.Severity(evo.SeverityWarning))) (P2: warnings
 	// annotate lifecycle, they never replace it — a warning-severity
-	// Problem does not itself
-	// resolve the task). A task with warnings but no terminal verb by
-	// Finish auto-resolves Done (see hasRecordedEffectLocked's amnesty
-	// siblings in Finish).
+	// Problem does not itself resolve the task). A task with warnings but
+	// no terminal verb by Finish auto-resolves Done (see
+	// hasRecordedEffectLocked's amnesty siblings in Finish).
 	warnings []Problem
 	// facts accumulates TaskHandle.Fact's discovered-information annotations
 	// (P8) — info severity, the same "annotate, never resolve" contract

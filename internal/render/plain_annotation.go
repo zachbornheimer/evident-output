@@ -270,7 +270,7 @@ func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s S
 	}
 }
 
-// writeRunAnnotations renders evo.Problem's warning-severity results and
+// writeRunAnnotations renders Output.Problem's warning-severity results and
 // evo.Fact's run-scoped annotations (P8 symmetry with a task's own
 // Problem/Fact) — fire-and-forget durable dim
 // lines, warnings first: "! <text>" then "<name>  <value>", in call order
