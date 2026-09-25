@@ -1844,28 +1844,59 @@ func f(cmd *exec.Cmd) {
 	}
 }
 
+// TestAPI036_SprintfInVerb: a Fail/Block(fmt.Sprintf(...)) statement
+// followed by a return hands the formatted error back in one line.
 func TestAPI036_SprintfInVerb(t *testing.T) {
 	src := `package p
 import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output"
 )
-func f(task *evo.TaskHandle, branch string) {
+func f(task *evo.TaskHandle, branch string) error {
   task.Fail(fmt.Sprintf("delete failed on %s", branch))
+  return nil
 }
 `
 	res := review.GoSource("sprintfverb.go", src)
-	var found bool
+	var api036, api034 int
 	for _, f := range res.Findings {
-		if f.RuleID == "API-036" {
-			found = true
-			if f.Suggestion != `task.Failf("delete failed on %s", branch)` {
+		switch f.RuleID {
+		case "API-036":
+			api036++
+			if !strings.Contains(f.Suggestion, `return task.Failf("delete failed on %s", branch)`) {
 				t.Fatalf("suggestion = %q", f.Suggestion)
 			}
+		case "API-034":
+			api034++
 		}
 	}
-	if !found {
-		t.Fatalf("expected API-036: %+v", res.Findings)
+	if api036 != 1 || api034 != 0 {
+		t.Fatalf("want one API-036 and no duplicate API-034, got %d/%d: %+v", api036, api034, res.Findings)
+	}
+}
+
+// TestAPI036_BareStatementKeepsBlock pins E-102: a bare Block/Fail
+// statement with a Sprintf summary was rewritten to Blockf/Failf, whose
+// *Failure is then discarded and fails errcheck. A bare statement is
+// already the right form, so review says nothing; so does a Sprintf
+// followed by ProblemOptions, which Failf/Blockf cannot take.
+func TestAPI036_BareStatementKeepsBlock(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, name string, n int) {
+  task.Block(fmt.Sprintf("refused %s", name))
+  task.Fail(fmt.Sprintf("lost %d", n), evo.Detail("x"))
+  n++
+}
+`
+	res := review.GoSource("sprintfbare.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-036" {
+			t.Fatalf("API-036 rewrites a bare statement into a discarded *Failure: %+v", f)
+		}
 	}
 }
 

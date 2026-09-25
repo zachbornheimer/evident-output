@@ -92,6 +92,9 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 			continue
 		}
 		recv, verb := m[1], m[2]
+		if sprintfInVerbPattern.MatchString(line) {
+			continue // API-036 hands this one back in one line
+		}
 		for j := i + 1; j < len(lines) && j < i+4; j++ {
 			trimmed := strings.TrimSpace(lines[j])
 			if trimmed == "" || trimmed == "}" {
@@ -142,45 +145,49 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 // ordinary summary argument.
 var sprintfInVerbPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*fmt\.Sprintf\(`)
 
-// detectSprintfInVerb is API-036: a Fail/Block summary hand-built via
-// fmt.Sprintf should be the matching Failf/Blockf directly — fmt.Sprintf
-// as the sole argument is pure ceremony around a formatting method that
-// already exists.
+// detectSprintfInVerb is API-036: a Fail/Block(fmt.Sprintf(...))
+// statement followed by a return is the f-form's one job: resolve the task
+// and return the formatted error in one line. Failf/Blockf return a
+// *Failure, so the rewrite is offered only where that value is returned;
+// a bare statement is already the right form (E-102: the rewrite's
+// discarded *Failure failed errcheck), and ProblemOptions after the
+// Sprintf have no f-form at all.
 func detectSprintfInVerb(filename, src string) []Finding {
 	var findings []Finding
 	for _, m := range sprintfInVerbPattern.FindAllStringSubmatchIndex(src, -1) {
 		recv, verb := src[m[2]:m[3]], src[m[4]:m[5]]
-		openIdx := strings.Index(src[m[0]:m[1]], "fmt.Sprintf(")
-		if openIdx < 0 {
-			continue
-		}
-		openIdx = m[0] + openIdx + len("fmt.Sprintf")
+		openIdx := m[1] - 1
 		args, endIdx, ok := balancedArgs(src, openIdx)
 		if !ok {
 			continue
 		}
-		rest := strings.TrimLeft(src[endIdx:], " \t\n")
-		if !strings.HasPrefix(rest, ")") {
-			// fmt.Sprintf isn't the sole argument (extra ProblemOptions follow) —
-			// still a real finding, but no cheap derived Verbf substitution.
-			findings = append(findings, Finding{
-				RuleID:     "API-036",
-				Message:    recv + "." + verb + "(fmt.Sprintf(...), ...) should build its summary via " + recv + "." + verb + "f(...)",
-				File:       filename,
-				Line:       lineAt(src, m[0]),
-				Suggestion: recv + "." + verb + "f(" + args + ")",
-			})
+		rest := strings.TrimLeft(src[endIdx:], " \t")
+		if !strings.HasPrefix(rest, ")") || !nextStatementReturns(rest[1:]) {
 			continue
 		}
+		f := recv + "." + verb + "f(" + args + ")"
 		findings = append(findings, Finding{
-			RuleID:     "API-036",
-			Message:    recv + "." + verb + "(fmt.Sprintf(...)) should be " + recv + "." + verb + "f(...) directly",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: recv + "." + verb + "f(" + args + ")",
+			RuleID:  "API-036",
+			Message: recv + "." + verb + "(fmt.Sprintf(...)) then return: " + recv + "." + verb + "f resolves the task and returns the error in one line",
+			File:    filename,
+			Line:    lineAt(src, m[0]),
+			Suggestion: "outside a Define/mutation callback: `return " + f + "` in place of both lines; " +
+				"inside one: `return fmt.Errorf(" + args + ")` and drop the " + recv + "." + verb + " call",
 		})
 	}
 	return findings
+}
+
+// nextStatementReturns reports whether the statement after the one rest
+// ends is a return.
+func nextStatementReturns(rest string) bool {
+	line, after, _ := strings.Cut(rest, "\n")
+	if strings.TrimSpace(line) != "" {
+		return false
+	}
+	next, _, _ := strings.Cut(strings.TrimLeft(after, " \t\n"), "\n")
+	next = strings.TrimSpace(next)
+	return next == "return" || strings.HasPrefix(next, "return ")
 }
 
 // printfVariadicVerbPattern matches a call to one of evo's own printf-

@@ -165,6 +165,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Fixed
 
+- Review rule API-036 no longer rewrites a bare `task.Block(fmt.Sprintf(...))`
+  or `task.Fail(fmt.Sprintf(...))` statement into `Blockf`/`Failf`, whose
+  returned `*Failure` was then discarded and failed errcheck. It fires only
+  when a return follows, and suggests one `return task.Failf(...)` (or, in a
+  Define callback, `return fmt.Errorf(...)`).
+
 - Under `Config.DryRun` or `Config.Preview`, a Task whose `Verify` is false
   and whose `Define` plans an Effect concludes `[planned]` with exit 0. It
   failed `postcondition not satisfied` with exit 2: the after-Define check

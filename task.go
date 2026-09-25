@@ -14,10 +14,18 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	return t
 }
 
+// Block resolves the Task Blocked: a refusal, not a failure. Use it as a
+// statement; to return the refusal as an error in the same line, use
+// Blockf.
 func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	t.impl().Block(summary, options...)
 }
 
+// Blockf resolves the Task Blocked with a formatted summary and returns
+// the refusal as a *Failure, meant to be returned (and chained with Next)
+// from code outside a Define callback. Inside a Define callback return an
+// error instead: the callback's error resolves the Task. As a bare
+// statement use Block.
 func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
 	return wrapFailure(t.impl().Blockf(format, args...))
 }
@@ -63,10 +71,17 @@ func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	return t
 }
 
+// Fail resolves the Task Failed. Use it as a statement; to return the
+// failure as an error in the same line, use Failf.
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	t.impl().Fail(summary, options...)
 }
 
+// Failf resolves the Task Failed with a formatted summary and returns the
+// failure as a *Failure, meant to be returned (and chained with Next) from
+// code outside a Define callback. Inside a Define callback return an error
+// instead: the callback's error resolves the Task. As a bare statement use
+// Fail.
 func (t *TaskHandle) Failf(format string, args ...any) *Failure {
 	return wrapFailure(t.impl().Failf(format, args...))
 }
