@@ -145,30 +145,46 @@ func writeTaxonomy(b *strings.Builder, indent string, verb disposition, tally co
 	}
 }
 
-// writeItemFacts lists a Reason's items one per line under it, each
-// item's Facts at one column past the widest name, so a long name never
-// moves them (E-100).
+// writeItemFacts lists a Reason's items that carry Facts one per line
+// under it, each item's Facts at one column past the widest such name, so
+// a long name never moves them (E-100). Only the first
+// txt.DefaultVisibleNames of them get a row; every other item folds into
+// the same bounded "a, b, c … +N more" list a Reason without Facts shows,
+// so one Fact never turns a thousand kept items into a thousand lines.
 func writeItemFacts(b *strings.Builder, indent string, part core.ReasonTally, s Style) {
 	fmt.Fprintf(b, "%s%s:\n", indent, part.Reason)
-	width := 0
-	for _, name := range part.Names {
-		width = max(width, txt.VisibleCells(name))
-	}
+	var rows []int
+	var rest []string
 	for i, name := range part.Names {
-		var facts []core.Fact
-		if i < len(part.Facts) {
-			facts = part.Facts[i]
-		}
-		if len(facts) == 0 {
-			fmt.Fprintf(b, "%s  %s\n", indent, name)
+		if len(itemFacts(part, i)) > 0 && len(rows) < txt.DefaultVisibleNames {
+			rows = append(rows, i)
 			continue
 		}
+		rest = append(rest, name)
+	}
+	width := 0
+	for _, i := range rows {
+		width = max(width, txt.VisibleCells(part.Names[i]))
+	}
+	for _, i := range rows {
+		facts := itemFacts(part, i)
 		pairs := make([]string, len(facts))
 		for j, f := range facts {
-			pairs[j] = f.Name + "  " + f.Value
+			pairs[j] = factText(f)
 		}
-		fmt.Fprintf(b, "%s  %s  %s\n", indent, txt.PadRight(name, width), s.dim(strings.Join(pairs, "  ")))
+		fmt.Fprintf(b, "%s  %s  %s\n", indent, txt.PadRight(part.Names[i], width), s.dim(strings.Join(pairs, "  ")))
 	}
+	if len(rest) > 0 {
+		fmt.Fprintf(b, "%s  %s\n", indent, txt.TruncateNames(rest, 0, s.Profile))
+	}
+}
+
+// itemFacts is the Facts part's i-th item carries.
+func itemFacts(part core.ReasonTally, i int) []core.Fact {
+	if i < len(part.Facts) {
+		return part.Facts[i]
+	}
+	return nil
 }
 
 // writeTaxonomyHeadline writes tally's one count line ("- skipped 3

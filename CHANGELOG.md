@@ -179,6 +179,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   when a return follows, and suggests one `return task.Failf(...)` (or, in a
   Define callback, `return fmt.Errorf(...)`).
 
+- Under verbose, one Fact on one kept or skipped item no longer lists
+  every item of its reason on its own line: only items with Facts get a
+  row (at most three), and the rest fold into the bounded
+  `a, b, c … +N more` list. A value-only Fact (`evo.Fact("", v)`) no longer
+  renders with a stray leading separator.
+
 - A live frame over a Group of many per-item Groups no longer snapshots
   every nested Task: nested collections project through the same row
   budget as flat children, so 16000 per-item Groups paint in about 20ms a
