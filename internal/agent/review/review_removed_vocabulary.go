@@ -1,6 +1,9 @@
-// Package review — the removed 1.1 vocabulary (ZYS-1180 freeze): every
-// exported name the freeze took out of evo, each with the rule that
-// flags it and its rewrite to the canonical form. One table, one pass.
+// Package review — a generic detector for a removed evo.Name selector,
+// driven by removedNames (populated at init from tables such as
+// retired.ReasonVocabularyRemovals). The Warn (API-070), capture
+// (API-110..116), and Failf/Blockf removals each have their own detector;
+// this one currently covers only the ZYS-1180 usage-constraint removals
+// (API-120).
 package review
 
 import (

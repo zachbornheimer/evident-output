@@ -124,13 +124,65 @@ var symbols = []Symbol{
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+}
 
-	// ZYS-1180 vocabulary freeze (E-122): exports that serve no concept.
-	{Contract: "ForSkip", RemovedIn: Release1_1, Replacement: "evo.Reason(name)", Taught: regexp.MustCompile(`\bForSkip\(`)},
-	{Contract: "OnTask", RemovedIn: Release1_1, Replacement: "evo.Reason(name)", Taught: regexp.MustCompile(`\bevo\.OnTask\(`)},
-	{Contract: "ReasonOption", RemovedIn: Release1_1, Replacement: "evo.Reason(name)", Taught: regexp.MustCompile(`\bReasonOption\b`)},
-	{Contract: "ErrReasonSkipOnly", RemovedIn: Release1_1, Replacement: "nothing: a Reason has no usage constraints", Taught: regexp.MustCompile(`\bErrReasonSkipOnly\b`)},
-	{Contract: "ErrReasonWrongTask", RemovedIn: Release1_1, Replacement: "nothing: a Reason has no usage constraints", Taught: regexp.MustCompile(`\bErrReasonWrongTask\b`)},
+// ReasonVocabularyRemoval is one exported name the ZYS-1180 vocabulary
+// freeze (E-122) removed because it only served evo.Reason's usage
+// constraints, which no longer exist: a Reason has no usage constraints
+// in 1.1, so the freeze removed the options and errors that guarded them.
+// rules_vocabulary.go (the MCP migration rule) and
+// review_removed_vocabulary.go (the structural detector) both derive from
+// this table instead of keeping their own copies, so the three cannot
+// drift apart.
+type ReasonVocabularyRemoval struct {
+	// RuleID is the MCP migration rule that teaches this removal.
+	RuleID string
+	// Name is the removed exported name (evo.Name).
+	Name string
+	// Note distinguishes an option/constructor removal ("a Reason has no
+	// usage constraints") from an error-value removal ("never returns
+	// such an error"), since the detector message reads differently for
+	// each shape.
+	Note string
+}
+
+// ReasonVocabularyRemovals is the one table of names the freeze removed
+// from evo.Reason's usage-constraint surface.
+var ReasonVocabularyRemovals = []ReasonVocabularyRemoval{
+	{RuleID: "API-120", Name: "ForSkip", Note: "a Reason has no usage constraints"},
+	{RuleID: "API-120", Name: "OnTask", Note: "a Reason has no usage constraints"},
+	{RuleID: "API-120", Name: "ReasonOption", Note: "a Reason has no usage constraints"},
+	{RuleID: "API-120", Name: "ErrReasonSkipOnly", Note: "a Reason has no usage constraints and never returns this error"},
+	{RuleID: "API-120", Name: "ErrReasonWrongTask", Note: "a Reason has no usage constraints and never returns this error"},
+}
+
+// reasonVocabularyRemovalSymbols converts ReasonVocabularyRemovals into
+// retired Symbol entries for the API contract check and the docs
+// stale-API scan.
+func reasonVocabularyRemovalSymbols() []Symbol {
+	out := make([]Symbol, len(ReasonVocabularyRemovals))
+	for i, r := range ReasonVocabularyRemovals {
+		taught := `\b` + r.Name + `\b`
+		if r.Name == "ForSkip" || r.Name == "OnTask" {
+			// ForSkip and OnTask alone read as ordinary English prose
+			// ("skip for now", "acting on task...") elsewhere in the
+			// docs corpus; scope both to the qualified evo.Name form so
+			// a bare mention (with or without a call) is still caught,
+			// the way ReasonOption and the Err* entries already are.
+			taught = `\bevo\.` + r.Name + `\b`
+		}
+		out[i] = Symbol{
+			Contract:    r.Name,
+			RemovedIn:   Release1_1,
+			Replacement: "evo.Reason(name): " + r.Note,
+			Taught:      regexp.MustCompile(taught),
+		}
+	}
+	return out
+}
+
+func init() {
+	symbols = append(symbols, reasonVocabularyRemovalSymbols()...)
 }
 
 // warnTaught matches the removed Warn taught as a call on an evo receiver
