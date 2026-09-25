@@ -15,7 +15,7 @@ import (
 // same sanitize layer as Task.Doing, so hostile escape sequences never reach
 // the display. Off a TTY, these mirrored lines update the live status only —
 // they never force their own durable row the way an explicit
-// TaskHandle.Doing call does, since the evidence ring (and its failure-path
+// TaskHandle.Doing call does, since the capture ring (and its failure-path
 // DetailTail) is already the child's one durable home (release-gate round 9
 // finding 4). Concurrent-safe. Named Writer, not PhaseWriter (P6/rename):
 // an io.Writer sink whose lines become the live-status text, following
@@ -33,7 +33,7 @@ func (t *TaskHandle) Writer() io.Writer {
 // never emits a line terminator (or emits one far longer than any phase
 // text should be) would otherwise grow this buffer without limit. Once the
 // pending fragment reaches this size, it is flushed as a phase line on its
-// own — every byte still lands in Capture regardless, so no evidence is
+// own — every byte still lands in Capture regardless, so no output is
 // lost, only the "one line, one phase update" grouping is.
 const phaseWriterMaxPendingBytes = 4 * 1024 // 4 KiB
 

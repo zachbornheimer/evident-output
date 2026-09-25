@@ -134,12 +134,12 @@ func (r taskRow) writeProblems(b *strings.Builder, rowHeadline string, s Style) 
 	omitted := max(len(problems)-maxVisibleProblems, 0)
 	problems = problems[:len(problems)-omitted]
 	for _, p := range problems {
-		p = dedupeEvidenceTailAgainstRow(p, rowHeadline)
+		p = dedupeCaptureTailAgainstRow(p, rowHeadline)
 		repeatsRow := p.Summary != "" && p.Summary == rowHeadline
-		if repeatsRow && p.Detail == "" && p.EvidenceTail == "" && p.Subject == "" {
+		if repeatsRow && p.Detail == "" && p.CaptureTail == "" && p.Subject == "" {
 			continue
 		}
-		if repeatsRow && (p.Detail != "" || p.EvidenceTail != "") {
+		if repeatsRow && (p.Detail != "" || p.CaptureTail != "") {
 			p.Summary = ""
 		}
 		writeProblem(b, p, r.prefix, emphasize, s)

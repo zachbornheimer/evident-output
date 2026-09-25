@@ -11,7 +11,7 @@ import (
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// Default ring bounds for Capture (child process evidence, not a live UI).
+// Default ring bounds for Capture (retained child process output, not a live UI).
 const (
 	defaultCaptureLines = 200
 	defaultCaptureBytes = 256 << 10 // 256 KiB
@@ -37,29 +37,29 @@ type capturedLine struct {
 	Text     string
 }
 
-// evidence is the retained/redacted process-output sink owned by a Task
+// capture is the retained/redacted process-output sink owned by a Task
 // (preferred) or Output. "Stdout" would lie as a name — it also takes
-// stderr and combined writes; evidence says what it is for: durable,
-// sanitized proof a failure can point back to.
+// stderr and combined writes; capture says what it is for: durable,
+// sanitized process output a failure can point back to.
 //
 //	upgrade := out.Task("brew packages")
 //	upgrade.Define(func(ctx context.Context) error {
-//	    return run.Run(ctx, "brew", args, upgrade.evidence())
+//	    return run.Run(ctx, "brew", args, upgrade.capture())
 //	})
 //
 // Prefer evo.Exec, or task.Writer() on an *exec.Cmd's Stdout/Stderr — both
-// wire evidence and Phase together. Reach for evidence directly only when
+// wire capture and Phase together. Reach for capture directly only when
 // the caller already owns stdout/stderr plumbing (a custom runner, a
 // non-exec.Cmd tool integration).
 //
 // Combined streams by default (P1): Write (merged), Stdout(), and Stderr() all
 // feed the same bounded ring used by Text/Tail/DetailTail. Linters and most
 // subprocess tools write diagnostics on stderr — route both streams into
-// evidence (or write the combined pipe into it directly) so failure evidence
+// capture (or write the combined pipe into it directly) so failure output
 // cannot escape the owning Task.
 //
 // Semantics:
-//   - Always retains a bounded ring of sanitized lines (evidence exists even when
+//   - Always retains a bounded ring of sanitized lines (capture retains even when
 //     debug presentation is disabled).
 //   - Default is silent: no Diagnostics/Debug mirror on success.
 //   - Opt in with MirrorToDiagnostics / MirrorToDebug.
@@ -96,7 +96,7 @@ type capture struct {
 	// onLine, when set, receives each completed line's sanitized/redacted
 	// text (spec §23: "each complete non-empty line becomes the task's
 	// current activity") — Exec wires it to TaskHandle.Doing so a running
-	// child's own output narrates progress without evidence needing to know
+	// child's own output narrates progress without capture needing to know
 	// what a Task is.
 	onLine func(text string)
 }
@@ -130,7 +130,7 @@ func maxCaptureBytes(n int) CaptureOption {
 }
 
 // MirrorToDiagnostics copies each completed line to the Diagnostics writer.
-// Default is off — evidence retains proof without displaying it on success.
+// Default is off — capture retains output without displaying it on success.
 func mirrorToDiagnostics() CaptureOption {
 	return captureOptionFunc(func(c *capture) { c.mirrorDiag = true })
 }
@@ -143,14 +143,14 @@ func mirrorToDebug() CaptureOption {
 
 // activityFeed reports each completed, sanitized/redacted line to fn (spec
 // §23) — used only by Exec, which owns turning that line into the Task's
-// current Doing activity. evidence itself stays presentation-agnostic.
+// current Doing activity. capture itself stays presentation-agnostic.
 func activityFeed(fn func(text string)) CaptureOption {
 	return captureOptionFunc(func(c *capture) { c.onLine = fn })
 }
 
-// evidence returns the retained/redacted writer bound to this Task,
-// get-or-create: the first call (from evidence or PhaseWriter) allocates the
-// ring and every later call returns that same instance, so evidence recorded
+// capture returns the retained/redacted writer bound to this Task,
+// get-or-create: the first call (from capture or PhaseWriter) allocates the
+// ring and every later call returns that same instance, so output recorded
 // through either path lands together and survives for DetailTail after Fail.
 func (t *TaskHandle) capture(opts ...CaptureOption) *capture {
 	if t == nil || t.out == nil {
@@ -243,7 +243,7 @@ func (c *capture) Write(p []byte) (int, error) {
 
 // Close flushes trailing partial lines.
 //
-// On the root evidence (task.capture()), every stream pending buffer is flushed
+// On the root capture (task.capture()), every stream pending buffer is flushed
 // so Stdout/Stderr partial lines are retained. On a side writer (Stdout/Stderr),
 // only that stream is flushed.
 func (c *capture) Close() error {
@@ -309,7 +309,7 @@ func (c *capture) streamText(stream CaptureStream) string {
 // wasTruncated reports whether the retained ring has ever dropped a line to
 // stay within its bound (spec §8.4's ExecResult.Truncated) — one flag
 // shared across streams because the bound itself is on total retained
-// evidence, not per stream.
+// output, not per stream.
 func (c *capture) wasTruncated() bool {
 	root := c.root()
 	if root == nil {
@@ -338,14 +338,14 @@ func (c *capture) Empty() bool {
 
 // DetailTail returns a ProblemOption attaching a user-visible presentation of
 // the capture tail. Prefers stderr when separate streams were used. Sets
-// Problem.EvidenceTail rather than Problem.Detail: when the same Fail/Block
+// Problem.CaptureTail rather than Problem.Detail: when the same Fail/Block
 // call also carries an explicit Detail, that explicit text still renders (as
 // the primary detail line) and this tail renders as an additional evidence
 // line underneath, regardless of which option was passed first.
 func (c *capture) DetailTail() ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
 		if text := c.detailText(); text != "" {
-			p.EvidenceTail = text
+			p.CaptureTail = text
 		}
 	})
 }

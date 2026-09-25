@@ -42,7 +42,7 @@ type taskState struct {
 	heartbeat plainHeartbeat
 
 	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
-	// so child-process evidence recorded via either path lands in one ring and
+	// so child-process output recorded via either path lands in one ring and
 	// DetailTail sees it after Fail.
 	capture *capture
 

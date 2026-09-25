@@ -109,7 +109,7 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectConfirmMissingDestructive)},
 	// CON-002: a joined failure list printed directly duplicates Conclusion.
 	{needsEvo: true, run: textRule(detectHandAssembledFailureSummary)},
-	// EV-001: Failf/Blockf embedding the retained evidence ring's own .Text()/
+	// EV-001: Failf/Blockf embedding the retained Capture ring's own .Text()/
 	// .Tail() in the summary duplicates what auto-attach already renders.
 	{needsEvo: true, run: textRule(detectFailfEmbeddedEvidenceText)},
 	// FP-004: a Doing string with no domain object is an illegible placeholder.

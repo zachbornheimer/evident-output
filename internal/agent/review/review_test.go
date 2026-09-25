@@ -1066,12 +1066,12 @@ func f(out *evo.Output, failures []string) {
 // TestEV001_FailfEmbedsCaptureText is red-first for P7's MCP detector
 // (user-13-problems.md Problem 7's named anti-pattern):
 // task.Failf("install failed: %s", capture.Text()) folds the retained
-// evidence ring straight into the summary, duplicating what auto-attach
-// already renders as its own evidence line.
+// Capture ring straight into the summary, duplicating what auto-attach
+// already renders as its own capture-tail line.
 func TestEV001_FailfEmbedsCaptureText(t *testing.T) {
 	bad := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, capture *evo.Evidence) {
+func f(task *evo.TaskHandle, capture *evo.Capture) {
   task.Failf("install failed: %s", capture.Text())
 }
 `

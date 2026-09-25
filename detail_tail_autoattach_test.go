@@ -10,9 +10,9 @@ import (
 )
 
 // TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail is
-// beginner-2: a Fail/Block call with a non-empty evidence ring and no
-// explicit Detail auto-attaches DetailTail — the evidence a caller already
-// gathered via Evidence() is exactly the detail a Fail row needs, so
+// beginner-2: a Fail/Block call with a non-empty capture ring and no
+// explicit Detail auto-attaches DetailTail — the output a caller already
+// gathered via Capture() is exactly the detail a Fail row needs, so
 // DetailTail is no longer an opt-in step a caller has to remember.
 func TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail(t *testing.T) {
 	var buf bytes.Buffer

@@ -20,7 +20,7 @@ type ExecSpec = engine.ExecSpec
 // plan); ordinary callers that don't need the result may ignore it with
 // `_, err := evo.Exec(...)`.
 //
-// Stdout and Stderr are the evidence tail Exec retains for the row:
+// Stdout and Stderr are the capture tail Exec retains for the row:
 // sanitized, redacted, and bounded (at most 200 completed lines / about
 // 256 KiB). Truncated reports that the bound dropped earlier output. Parse
 // them only for line-oriented diagnostics that tolerate a tail. When you

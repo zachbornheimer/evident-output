@@ -13,23 +13,29 @@ type Problem struct {
 	Subject string
 	Summary string
 	Detail  string
-	// EvidenceTail is a raw evidence tail (typically a capture ring via
-	// DetailTail) attached alongside an explicit Detail. When Detail is also
-	// set, both render — Detail first, EvidenceTail as an additional evidence
-	// line underneath — so an explicit Detail is never silently discarded by
-	// an auto-attached or explicitly requested evidence tail (or vice versa).
-	// When Detail is empty, EvidenceTail alone renders as the problem's detail
-	// body (DetailTail's original, still-supported shape).
-	EvidenceTail string
-	Severity     string
-	Count        int64
-	Unit         string
-	Location     *SourceLocation
-	Evidence     []Attachment
-	Actions      []Action
-	Fields       []Field
-	Cause        error
-	Sensitive    bool
+	// CaptureTail is a raw capture-ring tail (typically via Capture.DetailTail)
+	// attached alongside an explicit Detail. When Detail is also set, both
+	// render — Detail first, CaptureTail as an additional line underneath —
+	// so an explicit Detail is never silently discarded by an auto-attached
+	// or explicitly requested capture tail (or vice versa). When Detail is
+	// empty, CaptureTail alone renders as the problem's detail body
+	// (DetailTail's original, still-supported shape). Renamed from
+	// EvidenceTail in the 1.1 vocabulary freeze (E-121): this field holds
+	// retained process output, not satisfaction proof, so it must not share
+	// the Evidence name with the Evidence field below. The wire JSON key
+	// stays "evidence_tail" (internal/wire/problem.go) — a deliberate,
+	// documented wire-compat decision: run.v2 payloads already on disk use
+	// that key, and this Go-level rename does not touch the schema.
+	CaptureTail string
+	Severity    string
+	Count       int64
+	Unit        string
+	Location    *SourceLocation
+	Evidence    []Attachment
+	Actions     []Action
+	Fields      []Field
+	Cause       error
+	Sensitive   bool
 }
 
 // SourceLocation is a path-based source position. Named SourceLocation
@@ -103,7 +109,7 @@ func SplitWrappedMessage(format string, err error) (summary, evidence string) {
 func SanitizeProblem(p Problem) Problem {
 	p.Summary = text.Text(p.Summary)
 	p.Detail = text.Block(p.Detail)
-	p.EvidenceTail = text.Block(p.EvidenceTail)
+	p.CaptureTail = text.Block(p.CaptureTail)
 	p.Subject = text.Text(p.Subject)
 	p.Code = text.Text(p.Code)
 	p.Unit = text.Text(p.Unit)

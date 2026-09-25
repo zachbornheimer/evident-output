@@ -160,6 +160,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `EvidenceOption`, `EvidenceStream`, `EvidenceStreamCombined`,
   `EvidenceStreamStdout`, `EvidenceStreamStderr`, `MaxEvidenceBytes`.
   MCP review (API-110 through API-116) rewrites each old spelling.
+  `Problem.EvidenceTail` — the capture ring's tail attached to a Problem,
+  which collided with the unrelated proof-meaning `Problem.Evidence` field
+  in the same struct — is now `Problem.CaptureTail` (API-117, guidance-only
+  detection). The wire JSON key is unchanged (`"evidence_tail"`): a
+  deliberate wire-compat decision, since existing `run.v2` payloads already
+  use that key and this rename is Go-API-only.
 
 - **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only

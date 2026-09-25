@@ -132,7 +132,7 @@ func TestFlat_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 }
 
 // TestCapture_StderrOnlyFeedsDetailTail is the P1 contract: Task.CaptureForTest()
-// retains stderr into the evidence ring by default; writing only to Stderr()
+// retains stderr into the capture ring by default; writing only to Stderr()
 // still populates DetailTail without a separate writer or Mirror.
 func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 	var primary, diag bytes.Buffer

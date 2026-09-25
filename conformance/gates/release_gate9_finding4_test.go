@@ -12,7 +12,7 @@ import (
 // TestTaskRun_PlainMode_NoPerLineDurableRows is release-gate round 9 finding
 // 4's red case: off a TTY, a talkative child's PhaseWriter/Task.Run-mirrored
 // output lines must not each force their own durable "running" row — the
-// child's full output already has one durable home (the Evidence ring and
+// child's full output already has one durable home (the Capture ring and
 // its failure-path DetailTail). Before the fix, every mirrored line reached
 // the SAME TaskHandle.Phase path an explicit caller call uses, so plain
 // mode's per-line-phase-change streaming (the P10 contract) fired once per

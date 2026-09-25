@@ -483,11 +483,11 @@ func decodeWireEventsWithRunID(t *testing.T, body string) []wireEventLineWithRun
 	return events
 }
 
-// TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail is ZYS-823 gap
+// TestWireEvents_ProblemRecordedCarriesDetailAndCaptureTail is ZYS-823 gap
 // 2's JSONL half: problem.recorded/warning.recorded used to carry only
-// "summary", dropping Detail and EvidenceTail entirely — machine truth a
+// "summary", dropping Detail and CaptureTail entirely — machine truth a
 // plain/TTY reader can see. A JSONL consumer must get the same evidence.
-func TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail(t *testing.T) {
+func TestWireEvents_ProblemRecordedCarriesDetailAndCaptureTail(t *testing.T) {
 	var stdout nopFlushWriter
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
 	task := out.Task("build")
@@ -508,9 +508,9 @@ func TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail(t *testing.T) {
 	}
 }
 
-// TestWireEvents_ProblemRecordedCarriesEvidenceTail proves a Problem carrying a capture's DetailTail() must surface evidence_tail on
+// TestWireEvents_ProblemRecordedCarriesCaptureTail proves a Problem carrying a capture's DetailTail() must surface evidence_tail on
 // the problem.recorded JSONL line, not just detail.
-func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
+func TestWireEvents_ProblemRecordedCarriesCaptureTail(t *testing.T) {
 	var stdout nopFlushWriter
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
 	task := out.Task("build")
@@ -534,11 +534,11 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	}
 }
 
-// TestWireEvents_WarningRecordedCarriesEvidenceTail is
-// TestWireEvents_ProblemRecordedCarriesEvidenceTail's warning.recorded
+// TestWireEvents_WarningRecordedCarriesCaptureTail is
+// TestWireEvents_ProblemRecordedCarriesCaptureTail's warning.recorded
 // counterpart (task.go:290 — Warn's own emitWireEventLocked call was
 // untested).
-func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
+func TestWireEvents_WarningRecordedCarriesCaptureTail(t *testing.T) {
 	var stdout nopFlushWriter
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
 	task := out.Task("build")

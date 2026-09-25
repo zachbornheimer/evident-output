@@ -8,11 +8,11 @@ import (
 )
 
 // Run is the ordinary way to shell out from a Task: it executes cmd as this
-// task's subprocess, wiring cmd.Stdout/cmd.Stderr through the same evidence +
+// task's subprocess, wiring cmd.Stdout/cmd.Stderr through the same capture +
 // PhaseWriter plumbing PhaseWriter uses directly. Each line becomes the
 // task's live Phase, and every byte is retained (redacted, bounded) in the
-// task's evidence ring so DetailTail has proof after Fail — reach for
-// evidence directly only when the caller isn't running an *exec.Cmd. If
+// task's capture ring so DetailTail has proof after Fail — reach for
+// capture directly only when the caller isn't running an *exec.Cmd. If
 // cmd.Stdout/cmd.Stderr already point somewhere (a caller wiring its own log
 // file, say), Run tees into it rather than replacing it.
 //

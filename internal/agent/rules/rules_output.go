@@ -32,9 +32,9 @@ out.Printf("progress %d\n", n)
 				"hand on the same task is easy to get half-right — evidence for the rule: four hand-rolled subprocess " +
 				"wirings this pattern replaced starved the capture (two with no fallback: dead port-in-use detection, " +
 				"empty DetailTail on failure).",
-			BadCode: `proof := task.Evidence()
-cmd.Stdout = proof
-cmd.Stderr = proof
+			BadCode: `ring := task.Capture()
+cmd.Stdout = ring
+cmd.Stderr = ring
 if err := cmd.Run(); err != nil {
   return task.Failf("build failed: %w", err)
 }`,
@@ -43,7 +43,7 @@ cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
   return task.Failf("build failed: %w", err)
 }`,
-			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer() (Task.Run was removed in 1.0); do not call Evidence from application code",
+			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer() (Task.Run was removed in 1.0); do not call Capture from application code",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"STREAM-004"},
 			Since:           "0.2.17",
