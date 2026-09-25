@@ -155,6 +155,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Fixed
 
+- Under `Config.DryRun` or `Config.Preview`, a Task whose `Verify` is false
+  and whose `Define` plans an Effect concludes `[planned]` with exit 0. It
+  failed `postcondition not satisfied` with exit 2: the after-Define check
+  observed state the skipped Effect never changed. A planned run now skips
+  that check.
+
 - A Task `Block`ed inside a Group or Sequence now concludes `[blocked]`
   with exit 1. It concluded `[ready]` with exit 0, because the Conclusion
   ignored a container whose derived state was Blocked; a container whose

@@ -47,7 +47,9 @@ var errVerificationUnsatisfied = errors.New("evo: postcondition not satisfied")
 // once after a successful callback, where any false fails the Task with
 // ProblemCodeVerificationUnsatisfied and an observation error fails it
 // plainly. Neither check commits a success record on its own; only a fully
-// satisfied pass (pre- or post-) does.
+// satisfied pass (pre- or post-) does. A dry run or preview skips the
+// after-check: its mutation callbacks never ran, so there is nothing new
+// to observe.
 func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {
 	if t == nil || t.out == nil || fn == nil {
 		return t
@@ -141,7 +143,26 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 		return passthroughCallbackOutcome(callbackErr)
 	}
 
-	if len(verifiers) > 0 {
+	if err := t.checkAfterDefine(verifiers, scope); err != nil {
+		return err
+	}
+	o.setResolution(t.id, ResolutionExecuted)
+	return nil
+}
+
+// checkAfterDefine is runDefine's post-callback evidence step: every
+// registered Verify must now hold, or, with none, tracked operations
+// supply the After phase. It returns the carrier error when the Task
+// already failed.
+func (t *TaskHandle) checkAfterDefine(verifiers []verifierFunc, scope *taskScopeHandle) error {
+	o := t.out
+	switch {
+	case o.cfg.dryRun:
+		// A planned run skipped every mutation callback, so the state the
+		// postcondition observes is the state before the plan: checking it
+		// would fail every Task the plan would change (E-097). The After
+		// phase stays unevaluated.
+	case len(verifiers) > 0:
 		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), o, t.id, verifiers)
 		if obsErr != nil {
 			o.recordEvidencePhase(t.id, evidencePhaseAfter, true, false)
@@ -153,7 +174,7 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 			t.failScheduledWithCode(ProblemCodeVerificationUnsatisfied, "postcondition not satisfied")
 			return passthroughCallbackOutcome(errVerificationUnsatisfied)
 		}
-	} else {
+	default:
 		// No explicit Verify: derive post-Define Evidence from Evo-native
 		// tracked operations when Define recorded any (§9.2). Every
 		// operation evo.File appended to manifestOps already re-inspected
@@ -164,7 +185,6 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 		// operation this Define touched is already known current.
 		o.recordOperationsEvidence(t.id)
 	}
-	o.setResolution(t.id, ResolutionExecuted)
 	return nil
 }
 
