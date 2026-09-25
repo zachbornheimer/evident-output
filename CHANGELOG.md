@@ -10,6 +10,9 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Added
 
+- **Review rule API-063:** flags a `Verify` callback that returns a constant
+  (`return true, nil`), inline or bound to a local: it observes nothing, so
+  the row claims already-satisfied with no evidence.
 - **`evo.Effect(ctx, EffectSpec, fn) error`:** the one way to perform an
   opaque mutation (a ref deletion, a push, an API change) inside `Define`.
   `EffectSpec{Verb, Object, Quantity, Resource}` names it; `EffectVerb` is
