@@ -157,13 +157,8 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 func (t *TaskHandle) checkAfterDefine(verifiers []verifierFunc, scope *taskScopeHandle) error {
 	o := t.out
 	switch {
-	case o.cfg.dryRun && o.hasPlannedEffect(t.id):
-		// This Task's Define planned a mutation the run skipped, so the
-		// state the postcondition observes is the state before the plan:
-		// checking it would fail every Task the plan would change (E-097).
-		// The After phase stays unevaluated. A Define that planned nothing
-		// left the real post-state, so it falls through and is checked as
-		// a real run would check it (E-106).
+	case !t.hasPostStateToVerify():
+		// The After phase stays unevaluated.
 	case len(verifiers) > 0:
 		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), o, t.id, verifiers)
 		if obsErr != nil {
@@ -188,6 +183,28 @@ func (t *TaskHandle) checkAfterDefine(verifiers []verifierFunc, scope *taskScope
 		o.recordOperationsEvidence(t.id)
 	}
 	return nil
+}
+
+// hasPostStateToVerify reports whether the state after this Task's
+// Define is one its postcondition can judge. It is not when Define
+// resolved the Task itself (Kept, Skipped, Block: it chose not to
+// converge, so there is no change to verify, E-110), nor when a dry run
+// or preview skipped a mutation Define planned (the observed state is
+// the state before the plan, E-097). A planned run whose Define planned
+// nothing left the real post-state and is checked as a real run is
+// (E-106).
+func (t *TaskHandle) hasPostStateToVerify() bool {
+	o := t.out
+	o.mu.Lock()
+	st := o.taskByRef[t.id]
+	// A Kept or Skipped inside Define is held as an unratified proposal
+	// until the callback's return confirms it; Block resolves at once.
+	selfResolved := st != nil && (core.IsTerminalTask(st.state) || st.proposed != nil)
+	o.mu.Unlock()
+	if selfResolved {
+		return false
+	}
+	return !o.cfg.dryRun || !o.hasPlannedEffect(t.id)
 }
 
 // recordOperationsEvidence records the after-Define Evidence phase

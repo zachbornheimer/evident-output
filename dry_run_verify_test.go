@@ -68,3 +68,30 @@ func TestDryRun_UnsatisfiedVerifyWithNothingPlannedFails(t *testing.T) {
 		_ = out.Close()
 	}
 }
+
+// TestVerify_SelfResolvedDefineIsNotRechecked pins E-110: a Task whose
+// Define resolved it itself (Kept, Skipped, Block) made no change to
+// verify, yet the post-Define Verify re-check failed the already-terminal
+// Task "postcondition not satisfied", exit 2.
+func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
+	for name, tc := range map[string]struct {
+		resolve func(*evo.TaskHandle)
+		state   evo.ConclusionState
+		exit    int
+	}{
+		"kept":    {func(t *evo.TaskHandle) { t.Kept(evo.Reason("in use")) }, evo.StateReady, evo.ExitOK},
+		"skipped": {func(t *evo.TaskHandle) { t.Skipped(evo.Reason("not needed")) }, evo.StateReady, evo.ExitOK},
+		"blocked": {func(t *evo.TaskHandle) { t.Block("refused") }, evo.StateBlocked, evo.ExitBlocked},
+	} {
+		var buf bytes.Buffer
+		out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "self", Color: evo.ColorNever, Plain: true})
+		task := out.Task("t")
+		task.Verify(func(context.Context) (bool, error) { return false, nil }).
+			Define(func(context.Context) error { tc.resolve(task); return nil })
+		_ = out.Finish()
+		if c := out.Conclusion(); c.State != tc.state || c.ExitCode != tc.exit || strings.Contains(buf.String(), "postcondition not satisfied") {
+			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d with no re-check\n%s", name, c.State, c.ExitCode, tc.state, tc.exit, buf.String())
+		}
+		_ = out.Close()
+	}
+}

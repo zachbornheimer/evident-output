@@ -179,6 +179,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   when a return follows, and suggests one `return task.Failf(...)` (or, in a
   Define callback, `return fmt.Errorf(...)`).
 
+- A Task whose `Define` resolves it itself (`Kept`, `Skipped`, `Block`) is
+  no longer re-checked against its `Verify` afterwards. A false `Verify`
+  failed the Kept or Skipped Task `postcondition not satisfied` with exit
+  2, and printed a spurious "resolve each task once" line under a Blocked
+  one: a Task that chose not to converge has no change to verify.
+
 - Review rule API-063 resolves a `Verify(check)` argument in the call's
   own scope. It keyed local function literals by name across the whole
   file, so an observing `check` was flagged constant when another function
