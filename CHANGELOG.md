@@ -174,6 +174,14 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Fixed
 
+- `evident_output_review` with `kind=package` no longer reports MCP-017
+  (partial, recheck) for a member a local type promotes from an embedded
+  import (`type box struct{ sync.Mutex }` then `b.Lock()`), so correct
+  code can end the review loop. It again reports a real undefined name
+  such as `cfgg.Name` in a file with an unaliased import: an import's
+  name is now guessed from its path (`gopkg.in/yaml.v3` is `yaml`,
+  `go-git/v5` is `git`), and only an import none of whose guesses the
+  file uses makes an undefined selector base ambiguous.
 - A Fact on a kept or skipped item Task no longer breaks its Group's fold
   under verbose: the Group still shows one `! kept N (...)` tally, and the
   verbose item list shows each item's Facts at one column past the widest

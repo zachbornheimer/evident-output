@@ -85,26 +85,75 @@ func parsePackage(files map[string]string) parsedPackage {
 
 // localTypeError type-checks the package's own declarations and returns
 // the first error that is not caused by an unloaded import, or "". Imports
-// are never loaded, so every selector through one is unresolved by design;
+// are never loaded, so every selector through one is unresolved by design,
+// and so is every member a local type promotes from an embedded import;
 // those errors say nothing about the reviewed code.
 func (pkg parsedPackage) localTypeError() string {
-	qualifiers := pkg.importQualifiers()
-	var first string
+	var errs []error
+	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}}
 	conf := types.Config{
 		Importer: emptyImporter{},
-		Error: func(err error) {
-			te, ok := err.(types.Error)
-			if first != "" || (ok && qualifiers.unresolved(te)) {
-				return
-			}
-			if ok && strings.Contains(te.Msg, "imported and not used") {
-				return
-			}
-			first = err.Error()
-		},
+		Error:    func(err error) { errs = append(errs, err) },
 	}
-	_, _ = conf.Check(pkg.name, pkg.fset, pkg.files, nil)
-	return first
+	_, _ = conf.Check(pkg.name, pkg.fset, pkg.files, info)
+	qualifiers := pkg.importQualifiers()
+	promoted := pkg.importPromotedSelectors(info)
+	for _, err := range errs {
+		te, ok := err.(types.Error)
+		if ok && (qualifiers.unresolved(te) || promoted[te.Pos] || strings.Contains(te.Msg, "imported and not used")) {
+			continue
+		}
+		return err.Error()
+	}
+	return ""
+}
+
+// importPromotedSelectors is the position of every selector name whose
+// receiver's members come in part from an unloaded import: a local type
+// that embeds an imported type (struct{ sync.Mutex }) or is defined from
+// one. Only loading the import could say whether the member exists (E-042).
+func (pkg parsedPackage) importPromotedSelectors(info *types.Info) map[token.Pos]bool {
+	out := map[token.Pos]bool{}
+	for _, f := range pkg.files {
+		ast.Inspect(f, func(n ast.Node) bool {
+			sel, ok := n.(*ast.SelectorExpr)
+			if ok && hasImportedMembers(info.Types[sel.X].Type, map[types.Type]bool{}) {
+				out[sel.Sel.Pos()] = true
+			}
+			return true
+		})
+	}
+	return out
+}
+
+// hasImportedMembers reports whether t's method or field set includes
+// members of a type no loaded package declares: an invalid (unloaded)
+// type, or one embedded at any depth.
+func hasImportedMembers(t types.Type, seen map[types.Type]bool) bool {
+	if t == nil || seen[t] {
+		return false
+	}
+	seen[t] = true
+	if ptr, ok := t.(*types.Pointer); ok {
+		return hasImportedMembers(ptr.Elem(), seen)
+	}
+	switch u := t.Underlying().(type) {
+	case *types.Basic:
+		return u.Kind() == types.Invalid
+	case *types.Struct:
+		for field := range u.Fields() {
+			if field.Embedded() && hasImportedMembers(field.Type(), seen) {
+				return true
+			}
+		}
+	case *types.Interface:
+		for embedded := range u.EmbeddedTypes() {
+			if hasImportedMembers(embedded, seen) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // importQualifierSet is importQualifiers' result, by position.
@@ -126,13 +175,14 @@ const (
 // package: the X of a selector whose name is one of its file's imports.
 // An unaliased import's package name is not always its last path element
 // (gopkg.in/yaml.v3 is yaml, go-git/v5 is git), and imports are never
-// loaded to learn it, so in a file with any unaliased import every
-// selector base is a candidate qualifier too; the type checker's
+// loaded to learn it, so importNames guesses it from the path. Only in a
+// file with an unaliased import none of whose guesses the file uses is
+// every selector base a candidate qualifier; the type checker's
 // "undefined" error then says whether one was (E-042).
 func (pkg parsedPackage) importQualifiers() importQualifierSet {
 	out := importQualifierSet{}
 	for _, f := range pkg.files {
-		names, guessed := importNames(f)
+		names, unmatched := importNames(f)
 		ast.Inspect(f, func(n ast.Node) bool {
 			sel, ok := n.(*ast.SelectorExpr)
 			if !ok {
@@ -143,7 +193,7 @@ func (pkg parsedPackage) importQualifiers() importQualifierSet {
 			case ok && names[id.Name]:
 				out[id.Pos()] = qualifierKnown
 				out[sel.Sel.Pos()] = qualifierKnown
-			case ok && guessed:
+			case ok && unmatched:
 				out[id.Pos()] = qualifierIfUndefined
 			}
 			return true
@@ -165,24 +215,64 @@ func (q importQualifierSet) unresolved(te types.Error) bool {
 }
 
 // importNames is the set of names file f can qualify an import by: its
-// alias, else the last path element, and evo for this module. guessed
-// reports whether any name came from an unaliased path, whose real
-// package name only loading the import could confirm.
-func importNames(f *ast.File) (names map[string]bool, guessed bool) {
+// alias, else every name importNameGuesses derives from its path, and evo
+// for this module. unmatched reports whether an unaliased import has no
+// guess the file uses as a selector base, so its real name is unknown.
+func importNames(f *ast.File) (names map[string]bool, unmatched bool) {
 	names = map[string]bool{}
+	bases := selectorBases(f)
 	for _, imp := range f.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
 		if imp.Name != nil {
 			names[imp.Name.Name] = true
 			continue
 		}
-		names[path[strings.LastIndex(path, "/")+1:]] = true
-		guessed = true
+		matched := false
+		for _, guess := range importNameGuesses(path) {
+			names[guess] = true
+			matched = matched || bases[guess]
+		}
+		unmatched = unmatched || !matched
 	}
 	if name := evoImportName(f); name != "" {
 		names[name] = true
 	}
-	return names, guessed
+	return names, unmatched
+}
+
+// importNameGuesses are the package names Go convention derives from an
+// import path: the last element, or the one before a /vN major version,
+// with a .vN or .go suffix and a go- prefix or -go suffix removed.
+func importNameGuesses(path string) []string {
+	elems := strings.Split(path, "/")
+	last := elems[len(elems)-1]
+	if len(elems) > 1 && isMajorVersion(last) {
+		last = elems[len(elems)-2]
+	}
+	base, _, _ := strings.Cut(last, ".")
+	trimmed := strings.TrimSuffix(strings.TrimPrefix(base, "go-"), "-go")
+	return []string{last, base, trimmed, strings.ReplaceAll(trimmed, "-", ""), strings.ReplaceAll(trimmed, "-", "_")}
+}
+
+// isMajorVersion reports whether elem is a module major-version path
+// element such as v2 or v10.
+func isMajorVersion(elem string) bool {
+	digits, ok := strings.CutPrefix(elem, "v")
+	return ok && digits != "" && strings.Trim(digits, "0123456789") == ""
+}
+
+// selectorBases is every identifier f uses as the X of a selector.
+func selectorBases(f *ast.File) map[string]bool {
+	out := map[string]bool{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		if sel, ok := n.(*ast.SelectorExpr); ok {
+			if id, ok := sel.X.(*ast.Ident); ok {
+				out[id.Name] = true
+			}
+		}
+		return true
+	})
+	return out
 }
 
 // importsEvo reports whether any parsed file imports evo, so STREAM rules
