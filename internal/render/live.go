@@ -214,10 +214,14 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 		}
 	}
 	// Stable: collect by rank preserving declaration order within class.
-	var buckets [6][]core.TaskSnapshot
+	// Only the attention ranks can be selected (below), so routine rows —
+	// nearly every row of a large finished Group — are never copied.
+	const attentionRankCount = 4
+	var buckets [attentionRankCount][]core.TaskSnapshot
 	for _, t := range tasks {
-		r := rank(t)
-		buckets[r] = append(buckets[r], t)
+		if r := rank(t); r < attentionRankCount {
+			buckets[r] = append(buckets[r], t)
+		}
 	}
 	// Once there are more children than fit (the len(tasks) <= max early
 	// return above did not apply), only the attention ranks (0-3: failed,
@@ -229,7 +233,6 @@ func selectLiveChildren(tasks []core.TaskSnapshot, max int) (selected []core.Tas
 	// said, one row at a time, for a Group large enough that its own
 	// aggregation was already necessary (spec §25: "aggregation is
 	// renderer-owned and automatic").
-	const attentionRankCount = 4
 	for r := 0; r < attentionRankCount && len(selected) < max; r++ {
 		for _, t := range buckets[r] {
 			if len(selected) >= max {

@@ -58,38 +58,12 @@ type liveEngine struct {
 	resizeArmed bool
 
 	// forced meters the render work forced paints spent in the current
-	// frame interval (see forcedPaintAllowedLocked).
+	// frame interval.
 	forced renderBudget
-}
 
-// renderBudget bounds the render work forced paints may spend in one
-// frame interval. A forced paint renders the whole live region — every
-// Task, not only the rows on screen — so forcing one per scheduler
-// transition cost O(n) per Task and O(n²) per run (4000 Tasks: 46.9s).
-// Under the budget every transition still paints, which is what a small
-// run and FP-005's spinner-before-check need; past it, forced paints
-// coalesce under the frame-rate cap and the animator paints the latest
-// state on its next tick.
-type renderBudget struct {
-	since time.Time
-	spent int
-}
-
-// forcedRenderRowsPerInterval is the budget, in Task rows rendered, forced
-// paints may spend per frame interval.
-const forcedRenderRowsPerInterval = 4096
-
-// allow reports whether a forced paint of rows fits the budget at now, and
-// charges it when it does.
-func (b *renderBudget) allow(now time.Time, interval time.Duration, rows int) bool {
-	if b.since.IsZero() || now.Sub(b.since) >= interval {
-		b.since, b.spent = now, 0
-	}
-	if b.spent > 0 && b.spent+rows > forcedRenderRowsPerInterval {
-		return false
-	}
-	b.spent += rows
-	return true
+	// cost meters how long each paint held o.mu, so an expensive paint
+	// yields the lock before the next one (see renderCost).
+	cost renderCost
 }
 
 func (o *Output) liveLocked() LiveSurface {
@@ -132,6 +106,12 @@ func (o *Output) signalLiveLocked(force bool) {
 		}
 	}
 	if !o.live.visible {
+		return
+	}
+	if o.live.cost.coolingDown(o.cfg.renderWatch.Now()) {
+		// The animator paints the latest state once the cooldown ends.
+		o.live.pendingRedraw = true
+		o.ensureSpinnerAnimatorLocked()
 		return
 	}
 	minGap := time.Second / time.Duration(max(1, o.cfg.maxFrameRate))
@@ -259,7 +239,11 @@ func (o *Output) renderLiveLocked(force bool) {
 		o.cfg.width = cols
 	}
 	o.stampLiveFirstSeenLocked(now)
+	// Meter the frame build, which grows with every Task in the run; the
+	// write itself is bounded by the screen's rows.
+	began := o.cfg.renderWatch.Now()
 	text := o.renderLiveRegionWithDebugLocked(cols, rows, now)
+	o.live.cost.record(began, o.cfg.renderWatch.Now())
 	// force bypasses min-gap coalescing in signalLiveLocked, but identical
 	// bytes still skip WriteLive (spinner ticks pass force=true; glyph
 	// changes alter the rendered string and still paint).
@@ -301,6 +285,14 @@ func (o *Output) needsSpinnerAnimLocked() bool {
 // and that promotes visibility once VisibilityDelay elapses.
 func (o *Output) ensureSpinnerAnimatorLocked() {
 	if o.live == nil || o.finished || o.closed {
+		return
+	}
+	// A running animator re-checks needsSpinnerAnimLocked on every tick and
+	// stops itself, so skip that O(n) scan on each signal while it runs.
+	o.live.animMu.Lock()
+	running := o.live.animRunning
+	o.live.animMu.Unlock()
+	if running {
 		return
 	}
 	// Waiting for delay: keep a ticker so we can paint when the threshold elapses.
@@ -404,6 +396,12 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 				o.stopSpinnerAnimatorLocked()
 				o.mu.Unlock()
 				return
+			}
+			if o.live.cost.coolingDown(o.cfg.renderWatch.Now()) {
+				// The last paint was expensive; skip ticks until it has
+				// been repaid, keeping any pending redraw for later.
+				o.mu.Unlock()
+				continue
 			}
 			if !o.needsSpinnerAnimLocked() {
 				// Paint the last coalesced change before going quiet, so

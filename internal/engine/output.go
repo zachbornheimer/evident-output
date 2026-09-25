@@ -177,6 +177,7 @@ func newOutput(subject string, options ...Option) *Output {
 	cfg := config{
 		subject:         subject,
 		clock:           systemClock{},
+		renderWatch:     systemClock{},
 		visibilityDelay: defaultVisibilityDelay,
 		maxFrameRate:    defaultMaxFrameRate,
 		width:           defaultWidth,

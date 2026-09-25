@@ -11,15 +11,18 @@ type Option interface {
 }
 
 type config struct {
-	subject           string
-	primary           io.Writer
-	diagnostic        io.Writer
-	result            io.Writer // domain payload (FormatData); never used for presentation
-	plain             bool
-	projection        Projection
-	noColor           bool
-	width             int
-	clock             TimeSource
+	subject    string
+	primary    io.Writer
+	diagnostic io.Writer
+	result     io.Writer // domain payload (FormatData); never used for presentation
+	plain      bool
+	projection Projection
+	noColor    bool
+	width      int
+	clock      TimeSource
+	// renderWatch measures how long live paints hold o.mu. It is wall time
+	// even when clock is a test's fixed domain clock (default systemClock).
+	renderWatch       TimeSource
 	visibilityDelay   time.Duration
 	maxFrameRate      int
 	strict            bool
