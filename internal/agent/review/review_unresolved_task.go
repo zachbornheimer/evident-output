@@ -92,7 +92,7 @@ func chainResolvesTask(e ast.Expr) bool {
 // hands the Task on just as the bare variable would.
 var taskHandleBuilders = map[string]bool{
 	"After": true, "Bytes": true, "Define": true, "Doing": true, "Fact": true, "Key": true,
-	"Next": true, "NextCommand": true, "Problem": true, "Progress": true, "Step": true,
+	"Next": true, "NextCommand": true, "Problem": true, "Progress": true,
 	"Summary": true, "Verify": true, "Warn": true,
 }
 

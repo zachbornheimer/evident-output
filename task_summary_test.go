@@ -114,7 +114,7 @@ func TestTask_SummarySurvivesJSONSnapshot(t *testing.T) {
 }
 
 // Summary must not paper over Running: while a task is still active,
-// Doing/Progress/Step/Bytes own the live row, not the result Summary.
+// Doing/Progress/Bytes own the live row, not the result Summary.
 func TestTask_SummaryDoesNotReplaceDoingWhileRunning(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "zq", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})

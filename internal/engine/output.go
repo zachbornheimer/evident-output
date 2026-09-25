@@ -329,7 +329,7 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first
-// unit of evidence (Phase/Progress/Advance/Bytes/Step/Writer
+// unit of evidence (Phase/Progress/Advance/Bytes/Writer
 // write, or a work callback starting — see promoteRunningForActivity).
 // For a sequential collection (Sequence), it records misuse when a sibling is
 // already Running, enforcing the heart contract "one Running child"

@@ -113,10 +113,6 @@ func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error {
 	return t.inner.RunForTest(cmd)
 }
 
-func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
-	return t.Step(completed, total, name)
-}
-
 func (t *TaskHandle) EvidenceForTest(opts ...EvidenceOption) *Evidence {
 	if t == nil || t.inner == nil {
 		return nil

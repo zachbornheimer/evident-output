@@ -7,7 +7,6 @@ import (
 	"io"
 	"os/exec"
 	"strings"
-	"sync"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -211,15 +210,15 @@ func TestAPISugar_DoingDeclaresWithPhaseSet(t *testing.T) {
 	}
 }
 
-// TestAPISugar_StepSetsProgressAndPhaseUnderOneLock pins L8: Step updates
-// progress count and phase text together, so both always describe the same
-// unit of work even under concurrent callers.
-func TestAPISugar_StepSetsProgressAndPhaseUnderOneLock(t *testing.T) {
+// TestAPISugar_ProgressDoingSetsCountAndItem pins the canonical current-
+// item form that replaced Step in 1.1 (E-119): Progress carries the count
+// and Doing the item.
+func TestAPISugar_ProgressDoingSetsCountAndItem(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("sync")
-	task.StepForTest(3, 10, "syncing widget-3")
+	task.Progress(3, 10).Doing("syncing widget-3")
 
 	snap := task.Snapshot()
 	if snap.Progress.Completed != 3 || snap.Progress.Total != 10 {
@@ -230,42 +229,13 @@ func TestAPISugar_StepSetsProgressAndPhaseUnderOneLock(t *testing.T) {
 	}
 }
 
-// TestAPISugar_StepConcurrentWorkersNeverInterleave races N goroutines each
-// calling Step with a matched (index, name) pair; the final Snapshot's
-// Progress and Phase must always agree with ONE goroutine's own pair — never
-// a mix (the defect two separate Progress+Phase calls under two separate
-// locks allowed).
-func TestAPISugar_StepConcurrentWorkersNeverInterleave(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("sync")
-
-	const n = 50
-	var wg sync.WaitGroup
-	for i := 1; i <= n; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			task.StepForTest(i, n, fmt.Sprintf("item-%d", i))
-		}(i)
-	}
-	wg.Wait()
-
-	snap := task.Snapshot()
-	want := fmt.Sprintf("item-%d", snap.Progress.Completed)
-	if snap.Progress.Completed < 1 || snap.Progress.Completed > n {
-		t.Fatalf("completed = %d out of range", snap.Progress.Completed)
-	}
-	if snap.Phase != want {
-		t.Fatalf("phase = %q, want %q (matched to completed=%d)", snap.Phase, want, snap.Progress.Completed)
-	}
-}
-
-// TestStep_IsolatedPlainDoesNotEmitPerNamePhase pins Step's live-only name:
-// Isolated+Plain may stream thinned progress milestones (~10), but must not
-// emit a durable phase line per unique item name. Snapshot.Phase is still
-// the last name (the TTY bar can show the path without flooding the pipe).
-func TestStep_IsolatedPlainDoesNotEmitPerNamePhase(t *testing.T) {
+// TestProgressDoing_IsolatedPlainDoesNotEmitPerItemPhase pins the item
+// name of Progress(i, total).Doing(item) as live-only, the property Step
+// owned before 1.1 removed it (E-119): Isolated+Plain may stream thinned
+// progress milestones (~10), but must not emit a durable phase line per
+// item. Snapshot.Phase is still the last item (the TTY bar can show the
+// path without flooding the pipe).
+func TestProgressDoing_IsolatedPlainDoesNotEmitPerItemPhase(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
@@ -275,11 +245,11 @@ func TestStep_IsolatedPlainDoesNotEmitPerNamePhase(t *testing.T) {
 	names := make([]string, total)
 	for i := 1; i <= total; i++ {
 		names[i-1] = fmt.Sprintf("widget-%02d", i)
-		task.StepForTest(i, total, names[i-1])
+		task.Progress(i, total).Doing(names[i-1])
 	}
 	last := names[total-1]
 	if got := task.Snapshot().Phase; got != last {
-		t.Fatalf("phase = %q, want last Step name %q", got, last)
+		t.Fatalf("phase = %q, want last item %q", got, last)
 	}
 
 	succeed(task)
@@ -295,7 +265,43 @@ func TestStep_IsolatedPlainDoesNotEmitPerNamePhase(t *testing.T) {
 		}
 	}
 	if namedLines >= total {
-		t.Fatalf("durable transcript contained %d unique Step names (want < %d; progress milestones are allowed):\n%s", namedLines, total, transcript)
+		t.Fatalf("durable transcript contained %d unique item names (want < %d; progress milestones are allowed):\n%s", namedLines, total, transcript)
+	}
+}
+
+// TestProgressDoing_PlainMilestoneNamesItsOwnItem pins which item a plain
+// milestone line names: in a Progress(i, total).Doing(item) loop, the line
+// for count i names item i, the one in progress, never the previous one.
+func TestProgressDoing_PlainMilestoneNamesItsOwnItem(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+	task := out.Task("sync")
+
+	const total = 40
+	for i := 1; i <= total; i++ {
+		task.Progress(i, total).Doing("widget-%02d", i)
+	}
+	succeed(task)
+	_ = out.Close()
+
+	var itemLines int
+	for line := range strings.SplitSeq(buf.String(), "\n") {
+		var completed, item int
+		fields := strings.Fields(line)
+		if len(fields) < 4 || !strings.HasPrefix(fields[3], "widget-") {
+			continue
+		}
+		itemLines++
+		if _, err := fmt.Sscanf(fields[2]+" "+fields[3], "%d/40 widget-%d", &completed, &item); err != nil {
+			t.Fatalf("unparsable item line %q: %v", line, err)
+		}
+		if completed != item {
+			t.Fatalf("milestone %d/%d names widget-%02d, want widget-%02d:\n%s", completed, total, item, completed, buf.String())
+		}
+	}
+	if itemLines == 0 {
+		t.Fatalf("no milestone line named an item:\n%s", buf.String())
 	}
 }
 

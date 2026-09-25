@@ -230,14 +230,14 @@ Evident Output 1.x ships breaking changes in minor releases when the owner's
 API-freeze decisions call for them, with no compatibility shims. `MainWith`
 and `Task.Each` were removed in 1.0 outright (docs/acceptance/v0.6.md,
 "Owner decisions"). Removed in 1.1: the TaskHandle mutation verbs, `Done`,
-`Record*`, and `Affected`/`MutationOption`; 1.1 also changes `Exec` and
+`Record*`, `Step`, and `Affected`/`MutationOption`; 1.1 also changes `Exec` and
 `Define`, per the
 "Decisions (2026-09-23) — 1.1 API freeze" section of the Linear contract doc
 "Evident Output 1.x — Product + Implementation Contract" (project P-ZYS-23).
 
 Every breaking release carries a migration guide under `docs/migration/`
 listing each removed or changed symbol with before/after code, and the MCP
-review rules steer each old call site to its replacement (API-032, API-061).
+review rules steer each old call site to its replacement (API-032, API-061, API-090).
 
 The module path stays `github.com/zachbornheimer/evident-output` (no `/vN`
 suffix). Go's minimal version selection therefore upgrades a consumer to a

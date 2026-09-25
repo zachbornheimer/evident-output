@@ -56,9 +56,6 @@ type NoopRedactor = noopRedactor
 // cannot attach methods to engine types).
 
 func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error { return t.run(cmd) }
-func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
-	return t.Step(completed, total, name)
-}
 func (t *TaskHandle) EvidenceForTest(opts ...EvidenceOption) *evidence {
 	return t.evidence(opts...)
 }

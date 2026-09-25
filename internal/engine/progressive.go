@@ -236,12 +236,16 @@ func (o *Output) humanStyle() render.Style {
 // taskProgressiveTrigger names which evidence call is streaming a Running
 // task's plain-mode line, so emitTaskRunningProgressiveLocked can rate-limit
 // each kind independently (a phase change always streams; a progress tick
-// streams once per milestone).
+// streams once per milestone; a counted Task's item streams only on a
+// milestone's line).
 type taskProgressiveTrigger int
 
 const (
 	triggerPhase taskProgressiveTrigger = iota
 	triggerProgress
+	// triggerItem is Doing on a Task that reports a count: the current item
+	// of Progress(i, total).Doing(item).
+	triggerItem
 )
 
 // plainProgressMilestones is how many roughly-even steps a determinate
@@ -319,6 +323,19 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 		}
 		st.plainStream.progressStarted = true
 		st.plainStream.progressEmitted = st.progress.Completed
+		st.plainStream.itemOwed = true
+		if st.plainStream.namesItems {
+			// The next item carries this milestone's count, so the line
+			// names the item actually in progress, not the one before it.
+			return
+		}
+	case triggerItem:
+		st.plainStream.namesItems = true
+		if !st.plainStream.itemOwed {
+			return
+		}
+		st.plainStream.itemOwed = false
+		st.plainStream.phase = st.phase
 	}
 	row := st.snapshot()
 	row.Name = progressiveRowName(st)
@@ -520,4 +537,11 @@ type plainStreamMark struct {
 	// progressEmitted is the last completed value actually streamed, so a
 	// later tick knows whether it crossed a milestone boundary.
 	progressEmitted int64
+	// namesItems is true once Doing has named a current item of the count,
+	// so a milestone waits for the next item instead of repeating a stale
+	// one.
+	namesItems bool
+	// itemOwed is true from a milestone until the next item streams: the
+	// one item line that milestone allows.
+	itemOwed bool
 }

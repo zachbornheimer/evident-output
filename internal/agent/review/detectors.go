@@ -225,6 +225,9 @@ var fileDetectors = []detector{
 	// replacement (ZYS-974) — steer it to Effect (mutation), Fact
 	// (information), or File/Patch (file writes).
 	{needsEvo: true, run: astRule(detectDeprecatedRecordCall)},
+	// API-090: a call site still uses TaskHandle.Step (removed in 1.1);
+	// the rewrite is Progress(completed, total).Doing(item).
+	{needsEvo: true, run: astRule(detectRemovedStepCall)},
 	// API-062: a second Kept/Skipped on one Task — the item is the Task, so
 	// the per-item shape is group.Task(item).Kept(reason) (contract §25
 	// renderer aggregation folds those children into one tally).

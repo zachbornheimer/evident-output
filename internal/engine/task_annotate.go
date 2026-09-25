@@ -12,12 +12,28 @@ import (
 // pending — replaces the previous text, promotes the task to Running, and
 // becomes a durable line per step off-TTY. text is a printf format when args
 // are present (fmt.Sprintf semantics). Chained right after Task, it sets
-// the first step at declaration.
+// the first step at declaration. Once the Task reports a count (Progress
+// or Bytes), Doing names the current item of that count,
+// `task.Progress(i, total).Doing(item)`: a plain transcript shows the item
+// only on a progress milestone's line, never a line per item.
 func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	if len(args) > 0 {
 		text = fmt.Sprintf(text, args...)
 	}
-	return t.annotate(func(st *taskState) { t.out.setPhaseLocked(st, text) })
+	return t.annotate(func(st *taskState) {
+		if reportsCount(st.progress) {
+			t.out.setLiveOnlyPhaseLocked(st, text)
+			t.out.emitTaskRunningProgressiveLocked(st, triggerItem)
+			return
+		}
+		t.out.setPhaseLocked(st, text)
+	})
+}
+
+// reportsCount reports whether p is a count (Progress or Bytes), whose
+// Doing text names the current item rather than a narrated step.
+func reportsCount(p Progress) bool {
+	return p.Kind == Determinate || p.Kind == BytesKind
 }
 
 // resolvedByInterrupt reports whether this state was reached by the
@@ -31,7 +47,7 @@ func resolvedByInterrupt(state EntityState) bool {
 }
 
 // annotate is the one guard every non-terminal annotation verb (Doing,
-// Progress, Bytes, Step, Summary, Warn, Problem, Fact) shares: under o.mu,
+// Progress, Bytes, Summary, Warn, Problem, Fact) shares: under o.mu,
 // it applies apply to the task's state only while the task is open. On a
 // closed Output it records that misuse; on a terminal row it records
 // ErrAlreadyResolved, unless the interrupt sweep resolved the row (see
@@ -72,13 +88,13 @@ func (t *TaskHandle) withTask(apply func(st *taskState)) *TaskHandle {
 // setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
 // — the shared entry point for every phase source that is NOT the caller's
 // own narrated beat: Writer's per-line mirror of a talkative child's raw
-// output, and Step's current-item name. Off-TTY, an explicit TaskHandle.Doing call
+// output, and a counted Task's current-item name. Off-TTY, an explicit TaskHandle.Doing call
 // still forces its own durable row (the P10 contract: the one line the
 // caller asked to see); this path never does — a child's full output already
 // has one durable home, the evidence ring (and its failure-path DetailTail),
 // so a row per mirrored line would just repeat it (release-gate round 9
-// finding 4). Step is the same shape: Isolated+Plain must not stream a
-// durable line per unique item name.
+// finding 4). A counted Task's item is the same shape: Isolated+Plain must
+// not stream a durable line per item.
 func (t *TaskHandle) setLiveOnlyPhase(text string) {
 	t.annotate(func(st *taskState) { t.out.setLiveOnlyPhaseLocked(st, text) })
 }
@@ -106,7 +122,7 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // live redraw signal), but it never forces its own durable line in plain
 // mode. A talkative child's mirrored output line (Writer) already has one
 // durable home, the evidence ring, so it gets no plain-mode row per line
-// (release-gate round 9 finding 4); Step's current-item name is live
+// (release-gate round 9 finding 4); a counted Task's current item is live
 // status for the same reason, never a durable line per item.
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	text = txt.Text(text)
@@ -152,7 +168,7 @@ func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
 // Summary sets one sanitized line of result text for the task's terminal
 // row: last call wins, empty clears it. It never resolves the task (Define
 // or the Evo-native operation outcome does), and it is not live activity
-// (Doing/Progress/Step/Bytes own the Running row). It is the same field
+// (Doing/Progress/Bytes own the Running row). It is the same field
 // TaskSnapshot.Summary and JSON/JSONL "summary" project. Calling it after
 // the task resolved is misuse unless the interrupt sweep resolved it (see
 // annotate). GroupHandle.Summary is the same shape one level up.

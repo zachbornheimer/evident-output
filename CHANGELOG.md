@@ -148,6 +148,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Removed
 
+- **`TaskHandle.Step`** was removed with no alias (E-119). The current item
+  of a count is `task.Progress(i, total).Doing(item)`. After `Progress` or
+  `Bytes`, a plain transcript shows `Doing`'s item only on a progress
+  milestone's line (the item at that count), never a line per item. Review
+  rule API-090 rewrites each old call.
 - **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
   guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`

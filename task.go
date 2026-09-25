@@ -135,15 +135,10 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 	return t.inner.Snapshot()
 }
 
-func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
-	t.impl().Step(completed, total, name)
-	return t
-}
-
 // Summary sets one line of result text rendered after the Task name on its
 // terminal row, and exposed as "summary" in Snapshot and JSON/JSONL. The
 // last call wins and an empty string clears it. It never resolves the Task
-// and is not live activity (Doing, Progress, Step, and Bytes are). Calling
+// and is not live activity (Doing, Progress, and Bytes are). Calling
 // it after the Task resolved is misuse, unless an interrupt resolved it.
 func (t *TaskHandle) Summary(text string) *TaskHandle {
 	t.impl().Summary(text)

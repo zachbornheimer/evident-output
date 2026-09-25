@@ -55,7 +55,7 @@ func (o *Output) Finish() error {
 // called a terminal verb — whenever it carries at least one of: a recorded
 // Problem (it settles Failed: settleLocked's evidence rule turns the Done
 // below into Failed), a recorded Effect/File ledger row, a
-// sealed absolute progress (a completed Progress/Step loop reached its
+// sealed absolute progress (a completed Progress loop reached its
 // total), recorded taxonomy (Skipped/Kept), or a recorded warning (P2:
 // TaskHandle.Warn never itself resolves the task, so a warned-but-
 // unresolved task earns the same amnesty). The easiest path (forgetting
@@ -208,10 +208,10 @@ func joinErrors(a, b error) error {
 }
 
 // hasSealedProgress reports whether t's absolute progress reached the total
-// it declared — a completed Progress/Step loop — same unresolved-task
+// it declared — a completed Progress loop — same unresolved-task
 // amnesty rationale as hasRecordedEffectLocked (beginner-gate-2 findings
 // 1/2). Total must be positive and the kind explicitly set (Determinate or
-// BytesKind): a task that never called Progress/Bytes/Step carries the zero
+// BytesKind): a task that never called Progress/Bytes carries the zero
 // value (Total 0, Kind "") and must not read as sealed.
 func hasSealedProgress(t *taskState) bool {
 	if t.progress.Kind == "" || t.progress.Kind == Indeterminate {
