@@ -93,14 +93,11 @@ func f(r io.Reader, w io.Writer, d time.Duration) {
 `
 	res := review.GoSource("opts.go", src)
 	joined := joinSuggestions(findAPI032(res))
-	if strings.Contains(joined, "evo.Delay") {
-		t.Fatalf("VisibilityDelay must not name unexported Delay, got %q", joined)
-	}
 	for _, want := range []string{
 		"Color: evo.ColorNever",
 		"Stdin: r",
 		"DryRun: true",
-		"VisibilityDelay: &d",
+		"VisibilityDelay: evo.Delay(d)", // exported; &expr fails for a constant
 		"Stderr: w",
 	} {
 		if !strings.Contains(joined, want) {
