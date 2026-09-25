@@ -67,7 +67,10 @@ func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.
 				continue
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || (sel.Sel.Name != "Failf" && sel.Sel.Name != "Blockf") || !isLikelyEvoReceiver(sel.X) {
+			// `return task.Blockf(...)` is how a Define refuses: the
+			// returned refusal keeps the Task Blocked (E-105). Only Failf
+			// restates what the returned error already does.
+			if !ok || sel.Sel.Name != "Failf" || !isLikelyEvoReceiver(sel.X) {
 				continue
 			}
 			pos := fset.Position(call.Pos())
@@ -126,7 +129,19 @@ func scanIfElseForFailfReturn(filename string, els ast.Stmt, fset *token.FileSet
 
 func failResolvedInCallbackFinding(filename string, pos token.Position, recv, verb, shape string) Finding {
 	suggestion := "return the error; do not call " + verb + " first"
-	if recv != "" {
+	switch {
+	case verb == "Block":
+		// Block then return err keeps the Task Blocked and drops err;
+		// Blockf returns the refusal with err as its cause.
+		return Finding{
+			RuleID:     "API-040",
+			Message:    "Block then return err: the Task concludes Blocked and err is dropped from its refusal",
+			File:       filename,
+			Line:       pos.Line,
+			Column:     pos.Column,
+			Suggestion: returnTheRefusalSuggestion("return " + recv + ".Blockf(\"<context>: %w\", err)"),
+		}
+	case recv != "":
 		suggestion = "replace with `return err` (or the wrapped error) and delete the " + recv + "." + verb + "(...) call; Define resolves the task from the returned error"
 	}
 	return Finding{

@@ -70,13 +70,47 @@ func detectPlaceholderDoing(filename, src string) []Finding {
 // "(" immediately after the verb name, which "Failf("/"Blockf(" never has).
 var failBlockStmtPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(`)
 
-// returnTheErrorSuggestion is how a Fail/Block site hands its error back.
+// returnTheErrorSuggestion is how a Fail site hands its error back.
 // Inside a Define or mutation callback the returned error is what resolves
 // the task (API-040: resolving it first as well double-resolves); outside
 // one, the f-form resolves the task and returns the error in one line.
-func returnTheErrorSuggestion(recv, verb, errVar string) string {
+func returnTheErrorSuggestion(recv, errVar string) string {
 	return "inside a Define/mutation callback: `return fmt.Errorf(\"<context>: %w\", " + errVar + ")` and drop the " +
-		recv + "." + verb + " call; elsewhere: `return " + recv + "." + verb + "f(\"<context>: %w\", " + errVar + ")`"
+		recv + ".Fail call; elsewhere: `return " + recv + ".Failf(\"<context>: %w\", " + errVar + ")`"
+}
+
+// returnTheRefusalSuggestion is how a Block site hands its refusal back,
+// inside a Define callback or not: Blockf resolves the Task Blocked and
+// returns the refusal. A plain error would conclude it Failed instead, so a
+// Block site is never rewritten to fmt.Errorf (E-105).
+func returnTheRefusalSuggestion(blockf string) string {
+	return "`" + blockf + "` in place of both lines: Blockf resolves the Task Blocked and returns the refusal, " +
+		"inside a Define callback too (a plain error there would conclude the Task Failed)"
+}
+
+// handBackSuggestion is how a Fail or Block site returns errVar: the error
+// for a Fail, the refusal caused by errVar for a Block.
+func handBackSuggestion(recv, verb, errVar string) string {
+	if verb == "Block" {
+		return "`return " + recv + ".Blockf(\"<context>: %w\", " + errVar + ")`: Blockf resolves the Task Blocked and returns the refusal, " +
+			"inside a Define callback too (a plain error there would conclude the Task Failed)"
+	}
+	return returnTheErrorSuggestion(recv, errVar)
+}
+
+// blockfCall rewrites a Block call's argument list as the Blockf call that
+// returns the same refusal. A Block that carries ProblemOptions has no
+// Blockf spelling, so ok is false.
+func blockfCall(recv, args string) (call string, ok bool) {
+	parts := splitTopLevelArgs(args)
+	if len(parts) != 1 || strings.TrimSpace(parts[0]) == "" {
+		return "", false
+	}
+	summary := strings.TrimSpace(parts[0])
+	if !strings.HasPrefix(summary, `"`) || strings.Contains(summary, "%") {
+		summary = `"%s", ` + summary
+	}
+	return "return " + recv + ".Blockf(" + summary + ")", true
 }
 
 // detectFailBlockThenReturnNil is API-034: a statement-form Fail/Block
@@ -95,6 +129,15 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 		if sprintfInVerbPattern.MatchString(line) {
 			continue // API-036 hands this one back in one line
 		}
+		suggestion := returnTheErrorSuggestion(recv, "err")
+		if verb == "Block" {
+			args, _, ok := balancedArgs(line, strings.Index(line, recv+".Block(")+len(recv+".Block"))
+			blockf, ok2 := blockfCall(recv, args)
+			if !ok || !ok2 {
+				continue // a Block with ProblemOptions has no Blockf spelling
+			}
+			suggestion = returnTheRefusalSuggestion(blockf)
+		}
 		for j := i + 1; j < len(lines) && j < i+4; j++ {
 			trimmed := strings.TrimSpace(lines[j])
 			if trimmed == "" || trimmed == "}" {
@@ -106,7 +149,7 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 					Message:    recv + "." + verb + "(...) followed by return nil discards the error the caller needed to propagate",
 					File:       filename,
 					Line:       j + 1,
-					Suggestion: returnTheErrorSuggestion(recv, verb, "err"),
+					Suggestion: suggestion,
 				})
 			}
 			break
@@ -166,13 +209,17 @@ func detectSprintfInVerb(filename, src string) []Finding {
 			continue
 		}
 		f := recv + "." + verb + "f(" + args + ")"
+		suggestion := "outside a Define/mutation callback: `return " + f + "` in place of both lines; " +
+			"inside one: `return fmt.Errorf(" + args + ")` and drop the " + recv + "." + verb + " call"
+		if verb == "Block" {
+			suggestion = returnTheRefusalSuggestion("return " + f)
+		}
 		findings = append(findings, Finding{
-			RuleID:  "API-036",
-			Message: recv + "." + verb + "(fmt.Sprintf(...)) then return: " + recv + "." + verb + "f resolves the task and returns the error in one line",
-			File:    filename,
-			Line:    lineAt(src, m[0]),
-			Suggestion: "outside a Define/mutation callback: `return " + f + "` in place of both lines; " +
-				"inside one: `return fmt.Errorf(" + args + ")` and drop the " + recv + "." + verb + " call",
+			RuleID:     "API-036",
+			Message:    recv + "." + verb + "(fmt.Sprintf(...)) then return: " + recv + "." + verb + "f resolves the task and returns the error in one line",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: suggestion,
 		})
 	}
 	return findings
@@ -334,7 +381,7 @@ func detectErrTwice(filename, src string) []Finding {
 				"evo.Cause no longer affects the returned error since Fail/Block are statement-form",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: returnTheErrorSuggestion(recv, verb, errVar),
+			Suggestion: handBackSuggestion(recv, verb, errVar),
 		})
 	}
 	return findings

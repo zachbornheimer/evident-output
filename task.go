@@ -15,17 +15,17 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 }
 
 // Block resolves the Task Blocked: a refusal, not a failure. Use it as a
-// statement; to return the refusal as an error in the same line, use
-// Blockf.
+// statement; to return the refusal in the same line (including from a
+// Define callback), use Blockf.
 func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	t.impl().Block(summary, options...)
 }
 
 // Blockf resolves the Task Blocked with a formatted summary and returns
-// the refusal as a *Failure, meant to be returned (and chained with Next)
-// from code outside a Define callback. Inside a Define callback return an
-// error instead: the callback's error resolves the Task. As a bare
-// statement use Block.
+// the refusal as a *Failure, meant to be returned (and chained with Next).
+// Inside a Define callback `return task.Blockf(...)` is how the callback
+// refuses: the Task concludes Blocked, where a plain returned error would
+// conclude it Failed. As a bare statement use Block.
 func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
 	return wrapFailure(t.impl().Blockf(format, args...))
 }

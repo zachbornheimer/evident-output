@@ -328,7 +328,7 @@ out.Task("disk space").Define(checkDiskSpace)`,
 			GoodCode: `if err := validate(cfg); err != nil {
   return task.Failf("validate policy manifest: %w", err)
 }`,
-			Remediation:     `Replace the Fail/Block + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere return task.Failf/Blockf("<context>: %w", err)`,
+			Remediation:     `Replace the Fail + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere return task.Failf("<context>: %w", err). Replace a Block + return nil pair with return task.Blockf(...), inside a Define callback too: a plain error there would conclude the Task Failed, not Blocked`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-034"},
 			Since:           "0.2.17",
@@ -363,7 +363,7 @@ if err := cmd.Run(); err != nil {
 			Why:             "Failf/Blockf resolve the Task and return its *Failure in one line; a Fail(fmt.Sprintf(...)) statement then a return says it twice. A bare Fail/Block statement is already right: rewriting it to the f-form discards the *Failure (errcheck).",
 			BadCode:         "task.Fail(fmt.Sprintf(\"delete failed on %s\", branch))\nreturn nil",
 			GoodCode:        "func remove(task *evo.TaskHandle, branch string) error {\n\treturn task.Failf(\"delete failed on %s\", branch)\n}",
-			Remediation:     "Outside a Define callback, return task.Failf/Blockf(...) in place of both lines; inside one, return fmt.Errorf(...) and drop the Fail/Block call",
+			Remediation:     "Return task.Blockf(...) in place of a Block pair, inside a Define callback or not. For a Fail pair: outside a Define callback return task.Failf(...); inside one return fmt.Errorf(...) and drop the Fail call",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-036"},
 			Since:           "0.2.17",
@@ -422,7 +422,7 @@ t.Doing("running install:fresh-start")`,
 			ID:        "API-040",
 			Category:  "API",
 			Severity:  SeverityError,
-			Invariant: "Failf/Blockf inside a Define or mutation callback whose return value reaches that same callback resolves the task twice",
+			Invariant: "Failf inside a Define or mutation callback whose return value reaches that same callback resolves the task twice; return task.Blockf(...) is how a Define refuses and is exempt",
 			Why:       "Define's own contract is \"a non-nil return fails the task\"; calling Failf/Fail on the same task and then also returning that error double-resolves it — the row is correct but a spurious second misuse line appears, and zq's taskAlreadyResolved guard exists only to paper over this (app.go:162-167).",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if err := a.executeCommand(ctx, root, task, item); err != nil {

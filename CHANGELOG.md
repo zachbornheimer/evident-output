@@ -179,6 +179,13 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   when a return follows, and suggests one `return task.Failf(...)` (or, in a
   Define callback, `return fmt.Errorf(...)`).
 
+- Review rules API-034, API-036 and API-040 agree on one way to refuse
+  inside `Define`: `return task.Blockf(...)`. API-034 and API-036 suggested
+  `return fmt.Errorf(...)` for a `Block` site, which turned a `[blocked]`
+  exit 1 into `[failed]` exit 2, and API-040 flagged `return task.Blockf`.
+  Every `Block` rewrite now suggests `Blockf`, and API-040 flags only
+  `Failf`.
+
 - Under `Config.DryRun` or `Config.Preview`, a Task whose `Verify` is false
   and whose `Define` plans an Effect concludes `[planned]` with exit 0. It
   failed `postcondition not satisfied` with exit 2: the after-Define check
