@@ -47,9 +47,12 @@ var errVerificationUnsatisfied = errors.New("evo: postcondition not satisfied")
 // once after a successful callback, where any false fails the Task with
 // ProblemCodeVerificationUnsatisfied and an observation error fails it
 // plainly. Neither check commits a success record on its own; only a fully
-// satisfied pass (pre- or post-) does. A dry run or preview skips the
-// after-check: its mutation callbacks never ran, so there is nothing new
-// to observe.
+// satisfied pass (pre- or post-) does. The after-check is skipped in two
+// cases only (hasPostStateToVerify): Define resolved the Task itself
+// (Block, or Kept/Skipped with no Effect committed first), or a dry run or
+// preview skipped an Effect Define planned, so the observed state is the
+// one before the plan. A planned run whose Define planned nothing is
+// checked like a real one.
 func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {
 	if t == nil || t.out == nil || fn == nil {
 		return t

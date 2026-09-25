@@ -175,7 +175,10 @@ func (t *TaskHandle) Wait() error {
 // Define runs every check before the callback (all true resolves the Task
 // AlreadySatisfied without running it) and again after a successful
 // callback (any false fails the Task with ProblemCodeVerificationUnsatisfied).
-// A dry run or preview skips the after-check: its mutations never ran.
+// The after-check is skipped in two cases only: Define resolved the Task
+// itself (Block, or Kept/Skipped with no Effect committed first), or a dry
+// run or preview skipped an Effect Define planned. A planned run whose
+// Define planned nothing is checked like a real one.
 func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {
 	t.impl().Verify(fn)
 	return t
