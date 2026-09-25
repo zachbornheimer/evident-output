@@ -17,11 +17,21 @@ func inlineTaskWarning(t core.TaskSnapshot) (string, bool) {
 	if t.State != core.Done || t.Summary != "" || len(t.Warnings) != 1 {
 		return "", false
 	}
-	msg := t.Warnings[0].Summary
+	msg := warningText(t.Warnings[0])
 	if txt.Cells(msg) > warningInlineMaxCells {
 		return "", false
 	}
 	return msg, true
+}
+
+// warningText is one warning's text on any row: its Summary, after the
+// subject it is On when it has one ("job  x"), the way a Problem's
+// subject row reads (E-109).
+func warningText(w core.Problem) string {
+	if w.Subject == "" {
+		return w.Summary
+	}
+	return w.Subject + "  " + w.Summary
 }
 
 // inlineWarningText renders an inline warning with the same "! " bang the
@@ -108,7 +118,7 @@ func writeNestedTaskFacts(b *strings.Builder, facts []core.Fact, indent string, 
 func writeNestedTaskWarnings(b *strings.Builder, warnings []core.Problem, indent string, s Style) {
 	glyph := s.warningGlyph()
 	for _, w := range warnings {
-		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, w.Summary)
+		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, warningText(w))
 	}
 }
 
@@ -266,7 +276,7 @@ func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s S
 func writeRunAnnotations(b *strings.Builder, warnings []core.Problem, facts []core.Fact, s Style) {
 	glyph := s.warningGlyph()
 	for _, w := range warnings {
-		fmt.Fprintf(b, "%s %s\n", glyph, w.Summary)
+		fmt.Fprintf(b, "%s %s\n", glyph, warningText(w))
 	}
 	for _, f := range facts {
 		fmt.Fprintf(b, "%s\n", s.dim(factText(f)))

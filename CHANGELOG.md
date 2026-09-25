@@ -179,6 +179,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   when a return follows, and suggests one `return task.Failf(...)` (or, in a
   Define callback, `return fmt.Errorf(...)`).
 
+- A warning's `evo.On(subject)` now renders on every human row
+  (`✓ check jobs  ! job  x`, nested and run-level warnings too); it was
+  dropped. The `evo.run` v2 task entry gains an optional `warnings` array
+  of problem records (subject, detail, remedies), so a Task's warnings reach
+  machine output; `schema/run.v2.json` declares it. The change is additive.
+
 - A Task whose `Define` resolves it itself (`Kept`, `Skipped`, `Block`) is
   no longer re-checked against its `Verify` afterwards. A false `Verify`
   failed the Kept or Skipped Task `postcondition not satisfied` with exit

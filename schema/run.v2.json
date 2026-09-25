@@ -465,6 +465,12 @@
             "$ref": "#/$defs/problem"
           }
         },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/problem"
+          }
+        },
         "operations": {
           "type": "array",
           "items": {

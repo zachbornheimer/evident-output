@@ -371,7 +371,7 @@ func liveSettledDetail(t core.TaskSnapshot, st liveStyle) string {
 	case t.State == core.Done && t.Summary != "":
 		return st.dim(t.Summary)
 	case t.State == core.Done && len(t.Warnings) > 0:
-		msg := t.Warnings[0].Summary
+		msg := warningText(t.Warnings[0])
 		if more := len(t.Warnings) - 1; more > 0 {
 			msg = fmt.Sprintf("%s (+%d more)", msg, more)
 		}
