@@ -408,6 +408,9 @@
         "name": {
           "type": "string"
         },
+        "summary": {
+          "type": "string"
+        },
         "state": {
           "type": "string"
         },

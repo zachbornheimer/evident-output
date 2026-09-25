@@ -178,6 +178,7 @@ type TaskDoc struct {
 	Key                string               `json:"key,omitempty"`
 	ParentID           string               `json:"parent_id,omitempty"`
 	Name               string               `json:"name"`
+	Summary            string               `json:"summary,omitempty"`
 	State              string               `json:"state"`
 	Resolution         string               `json:"resolution,omitempty"`
 	DefinitionExecuted bool                 `json:"definition_executed"`
@@ -322,6 +323,7 @@ func toTaskDoc(parentID string, t core.TaskSnapshot) TaskDoc {
 		Key:                t.Key,
 		ParentID:           parentID,
 		Name:               t.Name,
+		Summary:            t.Summary,
 		State:              string(t.State),
 		Resolution:         string(t.Resolution),
 		DefinitionExecuted: t.Resolution == core.ResolutionExecuted,

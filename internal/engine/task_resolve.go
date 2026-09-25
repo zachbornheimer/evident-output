@@ -221,10 +221,20 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		st.problems = core.StoreProblems(st.attachEvidenceTail(state, slices.Concat(st.problems, problems)))
 	}
 	t.out.settleLocked(st, state)
-	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, map[string]any{
-		"state":      string(state),
-		"resolution": string(st.resolution),
-	})
+	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, taskFinishedPayload(st))
 	t.out.commitSettledLocked(st)
 	return t
+}
+
+// taskFinishedPayload is the task.finished event's payload: the settled
+// state, why it settled, and its Summary when it has one (ZYS-971).
+func taskFinishedPayload(st *taskState) map[string]any {
+	payload := map[string]any{
+		"state":      string(st.state),
+		"resolution": string(st.resolution),
+	}
+	if st.summary != "" {
+		payload["summary"] = st.summary
+	}
+	return payload
 }
