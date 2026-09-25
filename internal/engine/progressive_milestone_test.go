@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -31,11 +32,60 @@ func TestTaskDoing_NarratesAfterProgressSeals(t *testing.T) {
 	}
 }
 
-// TestPlainProgress_DoingBeforeProgress_PinsShape pins the exact line shape
-// of the non-canonical Doing-before-Progress loop order — previously
-// unpinned beyond "40/40 appears somewhere" — so a future change cannot
-// silently drop or duplicate a milestone in this order either.
-func TestPlainProgress_DoingBeforeProgress_PinsShape(t *testing.T) {
+// TestPlainProgress_PreludeDoing_ThenCanonicalLoop is the regression for
+// the E-119 review's RED repro (r8-red-e119.txt): an ordinary narrated
+// Doing that runs before a canonical Progress(...).Doing(...) loop starts
+// must not be mistaken for that loop's own first pairing Doing — no call-
+// order signal can tell the two apart (see emitPlainProgressLocked), so
+// only the canonical order pairs at all. Each milestone must pair with its
+// OWN item, not the previous one, and the final count must print exactly
+// once.
+func TestPlainProgress_PreludeDoing_ThenCanonicalLoop(t *testing.T) {
+	var buf strings.Builder
+	out := Init(Config{Isolated: true, Title: "demo", Plain: true, Stdout: &buf, Stderr: &buf})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("sync")
+	task.Doing("reading manifest")
+	for i := 1; i <= 20; i++ {
+		task.Progress(i, 20).Doing("w-%02d", i)
+	}
+	task.succeed("")
+
+	got := buf.String()
+	if !strings.Contains(got, "reading manifest") {
+		t.Fatalf("want the prelude step narrated, got:\n%s", got)
+	}
+	// Every milestone must pair with its OWN item — the exact RED defect
+	// was every milestone naming the PREVIOUS item (2/20 named w-01, 4/20
+	// named w-03, ...).
+	// The final milestone (20/20) is the documented exception: its own
+	// chained Doing goes unshown, already covered by
+	// TestProgressDoing_FinalMilestoneDoingNoOrphanLine.
+	for i := 2; i < 20; i += 2 {
+		want := fmt.Sprintf("%d/20  w-%02d", i, i)
+		if !strings.Contains(got, want) {
+			t.Fatalf("want milestone %d paired with its own item (%q), got:\n%s", i, want, got)
+		}
+	}
+	lines := nonEmptyLines(got)
+	seenFinal := 0
+	for _, l := range lines {
+		if strings.Contains(l, "20/20") {
+			seenFinal++
+		}
+	}
+	if seenFinal != 1 {
+		t.Fatalf("want the final milestone to appear exactly once, got %d:\n%s", seenFinal, got)
+	}
+}
+
+// TestPlainProgress_DoingBeforeProgress_NeverPairs pins that the
+// Doing-before-Progress order (`task.Doing(item); task.Progress(i, n)`) is
+// not a supported pairing shape (only docs/migration/1.1.md's canonical
+// `Progress(...).Doing(...)` is): the final milestone still survives
+// exactly once, but items are never guessed onto the wrong count.
+func TestPlainProgress_DoingBeforeProgress_NeverPairs(t *testing.T) {
 	var buf strings.Builder
 	out := Init(Config{Isolated: true, Title: "demo", Plain: true, Stdout: &buf, Stderr: &buf})
 	t.Cleanup(func() { _ = out.Close() })
@@ -86,21 +136,20 @@ func TestPlainBytes_DoingPairing_KeepsBytesFormatting(t *testing.T) {
 	}
 }
 
-// TestPlainProgress_DoingBeforeProgress_NarratesEveryPostLoopStep is the
-// regression for the E-119 review's dropped-narration bug: with the
-// Doing-before-Progress loop order, once the loop's final tick seals the
-// count, every further Doing must narrate — not just the first one after
-// the seal (pairsWithMilestone previously took the very next post-seal
-// Doing as an item pairing and discarded it).
-func TestPlainProgress_DoingBeforeProgress_NarratesEveryPostLoopStep(t *testing.T) {
+// TestPlainProgress_NarratesEveryPostLoopStep is the regression for the
+// E-119 review's dropped-narration bug under the canonical
+// `task.Progress(i, total).Doing(item)` order: once a loop's final tick
+// seals the count, every further Doing must narrate — not just the first
+// one after the seal (pairsWithMilestone previously took the very next
+// post-seal Doing as an item pairing and discarded it).
+func TestPlainProgress_NarratesEveryPostLoopStep(t *testing.T) {
 	var buf strings.Builder
 	out := Init(Config{Isolated: true, Title: "demo", Plain: true, Stdout: &buf, Stderr: &buf})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("mirror")
 	for i := 1; i <= 5; i++ {
-		task.Doing("w-%d", i)
-		task.Progress(i, 5)
+		task.Progress(i, 5).Doing("w-%d", i)
 	}
 	task.Doing("verify checksum")
 	task.Doing("unpack")

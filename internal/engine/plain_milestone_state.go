@@ -180,12 +180,4 @@ type plainStreamMark struct {
 	// right after is still that final milestone's pairing rather than
 	// ordinary post-loop narration (task_annotate.go's pairsWithMilestone).
 	namesItems bool
-	// doingLedOrder is decided once, at the task's first Progress/Bytes
-	// tick, and held for the task's whole life: true when a Doing already
-	// narrated an item before that first tick (the Doing-before-Progress
-	// loop order, `task.Doing(item); task.Progress(i, n)`), false for the
-	// canonical `task.Progress(i, n).Doing(item)`. See triggerProgress's
-	// firstTick branch for why this can only be decided once, up front,
-	// rather than re-derived from each tick's own state.
-	doingLedOrder bool
 }

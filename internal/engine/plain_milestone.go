@@ -142,40 +142,23 @@ func (o *Output) emitPlainProgressLocked(st *taskState) bool {
 	final := isFinalProgressTickLocked(st)
 	st.plainStream.progressStarted = true
 	st.plainStream.progressEmitted = st.progress.Completed
-	if firstTick {
-		// Which loop order this task uses is decided once, right here, and
-		// held for the task's whole life (doingLedOrder below): true when a
-		// Doing already narrated an item before this, the task's very first
-		// Progress/Bytes tick ever (`task.Doing(item); task.Progress(i,
-		// n)`), false otherwise (the canonical
-		// `task.Progress(i, n).Doing(item)`). A fresh per-tick comparison
-		// instead of one decision made once cannot tell the two apart past
-		// the first iteration: an alternating Progress/Doing call sequence
-		// looks identical either way once milestone thinning is in play,
-		// since exactly one Doing still falls between any two Progress
-		// calls regardless of which order the loop uses — only which one,
-		// the one before or the one after, is that milestone's own item.
-		st.plainStream.doingLedOrder = st.phase != ""
-	}
+	// Only the canonical `task.Progress(i, total).Doing(item)` order is
+	// paired: a Doing while this Task's count is open (reportsCount, in
+	// task_annotate.go's pairsWithMilestone) unambiguously names THIS
+	// milestone's item, because it can only be reached after this call
+	// opened the count. There is no equivalent signal for the reverse
+	// order (`task.Doing(item); task.Progress(i, n)`): an ordinary
+	// narrated Doing that merely precedes a loop's first Progress call
+	// (a "reading manifest" prelude step) is indistinguishable, from call
+	// order alone, from that same loop's own first pairing Doing — both
+	// put a non-empty st.phase directly before the tick. Guessing which
+	// one it was (the previous doingLedOrder heuristic) misclassified the
+	// prelude case (E-119 review) because no such signal exists to guess
+	// from. So this order is not paired at all: every milestone here
+	// streams on its own terms (immediate or deferred, never blended with
+	// item text), and a Doing that happens to precede it is always
+	// ordinary narration.
 	switch {
-	case firstTick && st.plainStream.doingLedOrder:
-		// The task's first-ever Doing already narrated its own line above
-		// (emitPlainPhaseLocked) before this, the task's first
-		// Progress/Bytes tick — nothing is left to pair. Stream this
-		// milestone bare and leave no milestone owed: the very next Doing
-		// belongs to the NEXT iteration's item, not to this one, and must
-		// not be swallowed by a pairing that was never meant for it (see
-		// emitPlainItemLocked).
-		o.streamPlainRowLocked(st, st.progress, rowBlankPhase)
-	case st.plainStream.doingLedOrder:
-		// Doing-before-Progress order, iteration 2 onward: Doing always
-		// runs immediately before its own Progress call in this order, so
-		// st.phase already holds THIS tick's own item — pair them on one
-		// line immediately instead of deferring for a Doing that would
-		// actually belong to the NEXT iteration (the E-119 review's
-		// off-by-one, where milestone i named item i+1).
-		o.streamPlainRowLocked(st, st.progress, rowAsIs)
-		st.plainStream.namesItems = true
 	case final:
 		// A count reaching its total is itself newsworthy the instant it
 		// happens, and plain mode must not go silent while the task goes

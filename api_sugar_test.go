@@ -352,15 +352,21 @@ func TestProgressDoing_FinalMilestoneDoingNoOrphanLine(t *testing.T) {
 	}
 }
 
-// TestDoingProgress_PlainMilestoneNamesItsOwnItem is
+// TestDoingProgress_PlainMilestoneNeverPairsWrongItem is
 // TestProgressDoing_PlainMilestoneNamesItsOwnItem's sibling for the
 // Doing-before-Progress loop order (`task.Doing(item); task.Progress(i,
-// total)`): the line for count i must still name item i, never the item
-// from the iteration before or after it. A prior regression paired
-// milestone i with item i+1 (streamed a Doing's item on the NEXT
-// milestone's line) once ~10-way progress thinning meant more than one
-// Doing happened between two milestone-crossing Progress calls.
-func TestDoingProgress_PlainMilestoneNamesItsOwnItem(t *testing.T) {
+// total)`). This order is not a supported pairing shape — see
+// docs/migration/1.1.md's "Only task.Progress(i, total).Doing(item) …
+// pairs" note: a Doing that precedes the count ever opening is
+// indistinguishable, from call order alone, between an ordinary narrated
+// step ahead of the loop (`task.Doing("reading manifest")`) and that same
+// loop's own first item (E-119 review's RED repro, r8-red-e119.txt —
+// guessing between the two misclassified the prelude case). So items are
+// never guessed onto a milestone in this order; this test pins that the
+// milestones themselves still survive correctly (each count exactly once,
+// the final tick included) rather than pinning a pairing this order
+// cannot support unambiguously.
+func TestDoingProgress_PlainMilestoneNeverPairsWrongItem(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
@@ -374,11 +380,10 @@ func TestDoingProgress_PlainMilestoneNamesItsOwnItem(t *testing.T) {
 	succeed(task)
 	_ = out.Close()
 
-	var itemLines int
 	seenCounts := map[string]string{} // "C/40" -> the whole line it appeared on first
 	for line := range strings.SplitSeq(buf.String(), "\n") {
-		fields := strings.Fields(line)
-		for _, f := range fields {
+		fields := strings.FieldsSeq(line)
+		for f := range fields {
 			if !strings.HasSuffix(f, "/"+strconv.Itoa(total)) {
 				continue
 			}
@@ -387,20 +392,10 @@ func TestDoingProgress_PlainMilestoneNamesItsOwnItem(t *testing.T) {
 			}
 			seenCounts[f] = line
 		}
-		var completed, item int
-		if len(fields) < 4 || !strings.HasPrefix(fields[3], "widget-") {
-			continue
-		}
-		itemLines++
-		if _, err := fmt.Sscanf(fields[2]+" "+fields[3], "%d/40 widget-%d", &completed, &item); err != nil {
-			t.Fatalf("unparsable item line %q: %v", line, err)
-		}
-		if completed != item {
-			t.Fatalf("milestone %d/%d names widget-%02d, want widget-%02d:\n%s", completed, total, item, completed, buf.String())
-		}
 	}
-	if itemLines == 0 {
-		t.Fatalf("no milestone line named an item:\n%s", buf.String())
+	final := strconv.Itoa(total) + "/" + strconv.Itoa(total)
+	if _, ok := seenCounts[final]; !ok {
+		t.Fatalf("want the final milestone %s to survive, got:\n%s", final, buf.String())
 	}
 }
 
