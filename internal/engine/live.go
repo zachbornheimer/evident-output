@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
@@ -60,10 +61,6 @@ type liveEngine struct {
 	// forced meters the render work forced paints spent in the current
 	// frame interval.
 	forced renderBudget
-
-	// cost meters how long each paint held o.mu, so an expensive paint
-	// yields the lock before the next one (see renderCost).
-	cost renderCost
 }
 
 func (o *Output) liveLocked() LiveSurface {
@@ -106,12 +103,6 @@ func (o *Output) signalLiveLocked(force bool) {
 		}
 	}
 	if !o.live.visible {
-		return
-	}
-	if o.live.cost.coolingDown(o.cfg.renderWatch.Now()) {
-		// The animator paints the latest state once the cooldown ends.
-		o.live.pendingRedraw = true
-		o.ensureSpinnerAnimatorLocked()
 		return
 	}
 	minGap := time.Second / time.Duration(max(1, o.cfg.maxFrameRate))
@@ -238,12 +229,7 @@ func (o *Output) renderLiveLocked(force bool) {
 	if cols > 0 {
 		o.cfg.width = cols
 	}
-	o.stampLiveFirstSeenLocked(now)
-	// Meter the frame build, which grows with every Task in the run; the
-	// write itself is bounded by the screen's rows.
-	began := o.cfg.renderWatch.Now()
 	text := o.renderLiveRegionWithDebugLocked(cols, rows, now)
-	o.live.cost.record(began, o.cfg.renderWatch.Now())
 	// force bypasses min-gap coalescing in signalLiveLocked, but identical
 	// bytes still skip WriteLive (spinner ticks pass force=true; glyph
 	// changes alter the rendered string and still paint).
@@ -260,7 +246,7 @@ func (o *Output) renderLiveLocked(force bool) {
 // needsSpinnerAnimLocked reports whether any live row should keep ticking: the
 // armed title-only spinner, or a Pending/Running task still rendered in the
 // current frame — not a standalone task already flushed to durable text and
-// dropped from the ticker (see liveTickerSnapshotLocked's matching filter).
+// dropped from the ticker (see liveSnapshotLocked's matching filter).
 // Counting only Running here used to let an all-Pending frame freeze forever
 // (evo-rec.md Problem 9). Omitting the armed title froze "⠦  zq" during
 // Init-to-first-Task work (ensureReady, fingerprint, Inspect).
@@ -397,12 +383,6 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 				o.mu.Unlock()
 				return
 			}
-			if o.live.cost.coolingDown(o.cfg.renderWatch.Now()) {
-				// The last paint was expensive; skip ticks until it has
-				// been repaid, keeping any pending redraw for later.
-				o.mu.Unlock()
-				continue
-			}
 			if !o.needsSpinnerAnimLocked() {
 				// Paint the last coalesced change before going quiet, so
 				// the frame on screen is never older than the run.
@@ -420,19 +400,15 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 	}
 }
 
-// stampLiveFirstSeenLocked anchors each unresolved task's heartbeat clock to
-// the moment it is actually painted in the live region for the first time —
+// stampLiveFirstSeen anchors an unresolved task's heartbeat clock to the
+// moment it is actually painted in the live region for the first time —
 // never to declaration time, so a task declared up-front but not yet visible
 // does not appear pre-aged the instant it is finally shown (evo-rec.md
 // Problem 9). A no-op once set: the field only ever moves from zero once.
-func (o *Output) stampLiveFirstSeenLocked(now time.Time) {
-	for _, t := range o.tasks {
-		if t.state != Running && t.state != Pending {
-			continue
-		}
-		if t.liveFirstSeenAt.IsZero() {
-			t.liveFirstSeenAt = now
-		}
+// liveSnapshotLocked calls it on every Task as it builds a frame.
+func (t *taskState) stampLiveFirstSeen(now time.Time) {
+	if (t.state == Running || t.state == Pending) && t.liveFirstSeenAt.IsZero() {
+		t.liveFirstSeenAt = now
 	}
 }
 
@@ -469,22 +445,44 @@ func (o *Output) finishLiveLocked(final string) {
 	live.WriteFinal(strings.TrimRight(final, "\n"))
 }
 
-// liveTickerSnapshotLocked is the snapshot the live ticker draws from: every
-// root task except one already durably flushed by commitResolvedTaskLocked
-// (a never-ran "fact-check" resolution — see its doc comment). Without this
-// filter, a task dropped from the ticker onto durable text would reappear on
-// the next unrelated redraw and double-print.
-func (o *Output) liveTickerSnapshotLocked() Snapshot {
-	snap := o.snapshotLocked()
-	visible := snap.Tasks[:0]
-	for _, t := range snap.Tasks {
-		if st := o.taskByRef[t.ID]; st != nil && st.collection == nil && (st.coreEmitted || o.heldBackAsNoOpLocked(t)) {
+// liveSnapshotLocked is what a live frame of rows rows draws from: the
+// effect sections, and every collection and standalone root Task as far
+// as the frame could show it (render.LiveChildren), so building a frame
+// snapshots the rows on screen rather than every Task in the run. A root
+// Task already durably flushed by commitResolvedTaskLocked (a never-ran
+// "fact-check" resolution — see its doc comment) is left out: it would
+// otherwise reappear on the next unrelated redraw and double-print.
+func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
+	var s Snapshot
+	for _, ch := range o.changes {
+		s.Changes = append(s.Changes, ch.changesSnapshot())
+	}
+	for _, p := range o.plans {
+		s.Plans = append(s.Plans, p.planSnapshot())
+	}
+	for _, col := range o.collections {
+		s.Collections = append(s.Collections, col.liveSnapshot(rows, now))
+	}
+	root := render.NewLiveChildren("", rows)
+	for _, t := range o.tasks {
+		if t.collection != nil {
 			continue
 		}
-		visible = append(visible, t)
+		t.stampLiveFirstSeen(now)
+		view := t.view()
+		if t.coreEmitted || o.heldBackAsNoOpLocked(view) {
+			continue
+		}
+		if root.Admit(&view) {
+			root.Keep(t.snapshot())
+		}
 	}
-	snap.Tasks = visible
-	return snap
+	tasks := root.Collection(TasksSnapshot{})
+	s.Tasks = tasks.Tasks
+	if tally, ok := core.ChildTallyOf(tasks); ok {
+		s = core.WithRootTally(s, tally)
+	}
+	return s
 }
 
 // renderLiveRegionWithDebug builds the live ledger plus optional rolling debug pane (§21.3.2).
@@ -502,7 +500,7 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 		}
 		bodyHeight = max(height-paneRows, 1)
 	}
-	body := render.LiveRegion(o.liveTickerSnapshotLocked(), bodyHeight, width, now, style)
+	body := render.LiveRegion(o.liveSnapshotLocked(bodyHeight, now), bodyHeight, width, now, style)
 	if body == "" && o.armedTitleLiveLocked() {
 		body = render.ArmedTitleLine(o.cfg.subject, now, style)
 	}

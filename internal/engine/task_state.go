@@ -33,7 +33,7 @@ type taskState struct {
 	activityAt time.Time
 
 	// liveFirstSeenAt is the domain-clock time this task was first actually
-	// painted in the live region (see stampLiveFirstSeenLocked in live.go) —
+	// painted in the live region (see taskState.stampLiveFirstSeen in live.go) —
 	// the one elapsed-time anchor every row's heartbeat suffix reads (P5),
 	// including a Pending task, which never calls Phase/Progress.
 	liveFirstSeenAt time.Time

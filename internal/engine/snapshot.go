@@ -1,6 +1,11 @@
 package engine
 
-import "github.com/zachbornheimer/evident-output/internal/core"
+import (
+	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
+)
 
 // Snapshot returns an immutable copy of current state.
 func (o *Output) Snapshot() Snapshot {
@@ -53,6 +58,22 @@ func (o *Output) snapshotLocked() Snapshot {
 }
 
 func (t *taskState) snapshot() TaskSnapshot {
+	s := t.view()
+	s.Problems = core.CloneProblems(s.Problems)
+	s.Warnings = core.CloneProblems(s.Warnings)
+	s.Facts = core.CloneFacts(s.Facts)
+	s.Verification = core.CloneVerificationDetails(s.Verification)
+	s.Actions = cloneActions(s.Actions)
+	s.Skipped = cloneTaxonomy(s.Skipped)
+	s.Kept = cloneTaxonomy(s.Kept)
+	return s
+}
+
+// view is t's snapshot sharing t's slices: read it under o.mu and never
+// let it escape, since the next mutation of t can change what it shows.
+// It costs no allocation, so a live frame can classify every Task by its
+// view and snapshot only the ones it shows.
+func (t *taskState) view() TaskSnapshot {
 	colID := ""
 	if t.collection != nil {
 		colID = t.collection.id
@@ -66,13 +87,13 @@ func (t *taskState) snapshot() TaskSnapshot {
 		ActivityAt:   t.activityAt,
 		Progress:     t.progress,
 		Summary:      t.summary,
-		Problems:     core.CloneProblems(t.problems),
-		Warnings:     core.CloneProblems(t.warnings),
-		Facts:        core.CloneFacts(t.facts),
-		Verification: core.CloneVerificationDetails(t.verification),
-		Actions:      cloneActions(t.actions),
-		Skipped:      cloneTaxonomy(t.skipped),
-		Kept:         cloneTaxonomy(t.kept),
+		Problems:     t.problems,
+		Warnings:     t.warnings,
+		Facts:        t.facts,
+		Verification: t.verification,
+		Actions:      t.actions,
+		Skipped:      t.skipped,
+		Kept:         t.kept,
 		Collection:   colID,
 		Declaration:  t.declaration,
 		Resolution:   t.resolution,
@@ -177,9 +198,9 @@ func (v verdictFold) state() EntityState {
 	}
 }
 
-func (g *tasksState) displaySummary() string {
-	// Success summary only when all children done/skipped successfully.
-	st := g.derivedState()
+// displaySummary is g's Summary as its row shows it, given its derived
+// state st: only when all children done/skipped successfully.
+func (g *tasksState) displaySummary(st EntityState) string {
 	if st == Done && g.summary != "" && !g.hasWarnedOrFailedDescendant() {
 		return g.summary
 	}
@@ -241,15 +262,7 @@ func (o *Output) collectActionsLocked() []Action {
 }
 
 func (g *tasksState) snapshot() TasksSnapshot {
-	ts := TasksSnapshot{
-		ID:          g.id,
-		Key:         g.key,
-		Name:        g.name,
-		State:       g.derivedState(),
-		Summary:     g.displaySummary(),
-		Declaration: g.declaration,
-		Sequential:  g.sequential,
-	}
+	ts := g.header()
 	for _, t := range g.tasks {
 		ts.Tasks = append(ts.Tasks, t.snapshot())
 	}
@@ -257,4 +270,36 @@ func (g *tasksState) snapshot() TasksSnapshot {
 		ts.Collections = append(ts.Collections, child.snapshot())
 	}
 	return ts
+}
+
+// header is g's snapshot without its children.
+func (g *tasksState) header() TasksSnapshot {
+	state := g.derivedState()
+	return TasksSnapshot{
+		ID:          g.id,
+		Key:         g.key,
+		Name:        g.name,
+		State:       state,
+		Summary:     g.displaySummary(state),
+		Declaration: g.declaration,
+		Sequential:  g.sequential,
+	}
+}
+
+// liveSnapshot is g as a live frame of rows rows can show it: the
+// children it could select, snapshotted, and a tally of the rest (see
+// render.LiveChildren).
+func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
+	ts := g.header()
+	children := render.NewLiveChildren(g.name, rows)
+	for _, t := range g.tasks {
+		t.stampLiveFirstSeen(now)
+		if view := t.view(); children.Admit(&view) {
+			children.Keep(t.snapshot())
+		}
+	}
+	for _, child := range g.children {
+		ts.Collections = append(ts.Collections, child.liveSnapshot(rows, now))
+	}
+	return children.Collection(ts)
 }

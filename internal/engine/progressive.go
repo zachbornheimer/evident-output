@@ -125,7 +125,7 @@ func (c rootColumn) nameWidth() int {
 // here, unlike task rows above.
 // commitResolvedTaskLocked commits a resolved standalone Task's row to
 // durable scrollback the instant it resolves — interactive or not — and
-// drops it from the live ticker (liveTickerSnapshotLocked already filters
+// drops it from the live ticker (liveSnapshotLocked already filters
 // coreEmitted tasks). Collection children stay with the collection renderer
 // (H.20/H.21 own their ledger via signalLiveLocked instead).
 //

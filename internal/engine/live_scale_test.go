@@ -84,3 +84,28 @@ func TestLiveWallClockDoesNotCollapseAtScale(t *testing.T) {
 		t.Errorf("%d Tasks on a live surface took %s (%d frames); want under %s", n, elapsed, frames, liveWallClockCeiling)
 	}
 }
+
+// BenchmarkLiveFrame measures one live frame build over a finished Group
+// of n Tasks: the per-frame cost E-091 bounds by the screen's rows.
+func BenchmarkLiveFrame(b *testing.B) {
+	for _, n := range []int{1000, 16000} {
+		b.Run(fmt.Sprint(n), func(b *testing.B) {
+			clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+			out := newOutput("job", withTerminal(&countingLiveSurface{}), visibilityDelay(0), withClock(clock), withNoColor(), maxConcurrency(1))
+			g := out.Group("items")
+			for i := range n {
+				g.Task(fmt.Sprintf("item %d", i)).Define(func(context.Context) error { return nil })
+			}
+			if err := g.Wait(); err != nil {
+				b.Fatalf("Wait: %v", err)
+			}
+			out.mu.Lock()
+			b.ReportAllocs()
+			for b.Loop() {
+				_ = out.renderLiveRegionWithDebugLocked(80, 24, clock.t)
+			}
+			out.mu.Unlock()
+			_ = out.Close()
+		})
+	}
+}
