@@ -17,7 +17,7 @@ import (
 // docexamples:snippet start
 func main() {
 	evo.Init(evo.Config{Title: "tool"}) // first statement — arms first paint before any I/O
-	os.Exit(evo.Main(run))              // exits the process itself
+	os.Exit(evo.Main(run))              // Main returns the exit code; os.Exit uses it
 }
 
 func run(ctx context.Context) error {

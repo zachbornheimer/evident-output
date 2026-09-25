@@ -33,7 +33,7 @@ that touches more than one item.
 ```go
 func main() {
     evo.Init(evo.Config{Title: "tool"}) // first statement — arms first paint before any I/O
-    os.Exit(evo.Main(run))               // exits the process itself
+    os.Exit(evo.Main(run))               // Main returns the exit code; os.Exit uses it
 }
 
 func run(ctx context.Context) error {
@@ -48,7 +48,7 @@ func run(ctx context.Context) error {
 ## Hosted (framework owns exit)
 
 `out.Run(ctx, run)` returns a `Result`; `Result.ExitCode()` is the process exit code.
-The host inspects it and exits. `evo.Main` is the process-exit path (row 1) for an
+The host inspects it and exits. `os.Exit(evo.Main(run))` is the process-exit path (row 1) for an
 ordinary `main()`; `Output.Run` is the hosted counterpart for a `Config.Isolated`
 instance, and never exits the process itself.
 

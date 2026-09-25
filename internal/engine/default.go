@@ -19,7 +19,7 @@ var (
 //
 //	func main() {
 //	    evo.Init(evo.Config{Title: "repo-retire"})
-//	    evo.Main(run)
+//	    os.Exit(evo.Main(run))
 //	}
 //
 // evo.Init(evo.Config{}) (or evo.Init(evo.DefaultConfig())) builds an

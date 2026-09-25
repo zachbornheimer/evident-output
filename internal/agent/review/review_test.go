@@ -304,7 +304,7 @@ func TestBeginnerGroupTaskDefine_NoDialectFindings(t *testing.T) {
 import evo "github.com/zachbornheimer/evident-output"
 func main() {
   evo.Init(evo.Config{Title: "tool"})
-  evo.Main(run)
+  os.Exit(evo.Main(run))
 }
 func run() error {
   paths := []string{"a", "b"}

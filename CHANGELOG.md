@@ -10,6 +10,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Added
 
+- **Review rule EVO-EXIT-002:** flags `evo.Main(run)` written as a bare
+  statement (or `_ = evo.Main(run)`). `Main` returns the exit code and
+  never exits the process itself, so that program exits 0 after a failed
+  or blocked run. The fix is `os.Exit(evo.Main(run))`. The README, the
+  reference, the teaching ladder, and both skills said `Main` "exits the
+  process itself"; they now say it returns the code.
 - **Review rule API-063:** flags a `Verify` callback that returns a constant
   (`return true, nil`), inline or bound to a local: it observes nothing, so
   the row claims already-satisfied with no evidence.

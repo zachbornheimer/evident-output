@@ -11,11 +11,15 @@ import (
 var cleanPackage = map[string]string{
 	"main.go": `package main
 
-import evo "github.com/zachbornheimer/evident-output"
+import (
+	"os"
+
+	evo "github.com/zachbornheimer/evident-output"
+)
 
 func main() {
 	evo.Init(evo.Config{Title: "tool"})
-	evo.Main(run)
+	os.Exit(evo.Main(run))
 }
 `,
 	"run.go": `package main
@@ -87,6 +91,7 @@ func TestGoPackageImportNameNotLastPathElement(t *testing.T) {
 			"main.go": `package main
 
 import (
+	"os"
 	` + imp + `
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -94,7 +99,7 @@ import (
 
 func main() {
 	evo.Init(evo.Config{Title: "tool"})
-	evo.Main(run)
+	os.Exit(evo.Main(run))
 }
 `,
 			"run.go": `package main

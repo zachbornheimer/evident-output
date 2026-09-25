@@ -95,8 +95,8 @@ go get github.com/zachbornheimer/evident-output@v1.0.0
 ```text
 evo.Init(Config) → Print/Printf/Println → Verbose()
 → Task.Define / one Task per item under a Group or Sequence → task.Writer()
-→ evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) / evo.File inside Define (Record when the domain verb differs)
-→ slog via SlogHandler → evo.Main(run)
+→ evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) / evo.File inside Define
+→ slog via SlogHandler → os.Exit(evo.Main(run))
 ```
 
 Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
@@ -105,10 +105,10 @@ Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
 
 ```go
 evo.Init(evo.Config{Title: "tool"})
-evo.Main(run) // exits the process itself
+os.Exit(evo.Main(run)) // Main returns the exit code; it never exits itself
 ```
 
-`evo.Init(Config{Isolated: true})` + `out.Run(run)` are the advanced, hosted-instance
+`evo.Init(Config{Isolated: true})` + `out.Run(ctx, run)` are the advanced, hosted-instance
 form of the same lifecycle — reach for them only when a tool needs an `*Output` it
 doesn't install as the package-level default.
 

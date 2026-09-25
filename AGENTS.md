@@ -140,7 +140,7 @@ swallowed by mise’s own `-o`.
 
 ```go
 evo.Init(evo.Config{Title: "tool", DryRun: dry})
-evo.Main(run)
+os.Exit(evo.Main(run)) // Main returns the exit code; it never exits itself
 
 evo.Task("check config").Define(checkConfig)
 

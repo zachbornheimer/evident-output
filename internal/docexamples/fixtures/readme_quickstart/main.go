@@ -13,7 +13,7 @@ import (
 
 func main() {
 	evo.Init(evo.Config{Title: "bpp-csharp"}) // first statement — arms first paint before any I/O
-	os.Exit(evo.Main(run))                    // exits the process itself; evo.Run(ctx, run) if you need the Result without exiting
+	os.Exit(evo.Main(run))                    // Main returns the exit code; evo.Run(ctx, run) if you need the whole Result
 }
 
 func run(ctx context.Context) error {
