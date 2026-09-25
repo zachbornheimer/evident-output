@@ -57,6 +57,11 @@ func Load(dir string, patterns ...string) ([]*packages.Package, error) {
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
 			packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps,
 		Dir: dir,
+		// Tests: true loads each package's _test.go variant alongside the
+		// package proper. Without it, a consumer test file that calls
+		// Step/Kept/Warn or an Option constructor gets no diagnostic and
+		// silently stops compiling the moment those names are removed.
+		Tests: true,
 	}
 	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {
@@ -208,18 +213,55 @@ func resolveEdits(edits []edit) (accepted []edit, owners map[int]bool) {
 	return final, owners
 }
 
+// dedupAcrossVariants drops diagnostics (and their owned edits) already
+// seen under the same (file, line, column, rule) key in seenDiag, then
+// records the ones it keeps. Owner indices in the returned diagBuild's
+// edits are remapped to match the filtered diags slice.
+func dedupAcrossVariants(b *diagBuild, seenDiag map[[4]any]bool) *diagBuild {
+	remap := make(map[int]int, len(b.diags))
+	out := &diagBuild{edits: map[string][]edit{}}
+	for i, d := range b.diags {
+		key := [4]any{d.Filename, d.Line, d.Column, d.RuleID}
+		if seenDiag[key] {
+			continue
+		}
+		seenDiag[key] = true
+		remap[i] = len(out.diags)
+		out.diags = append(out.diags, d)
+	}
+	for filename, edits := range b.edits {
+		for _, e := range edits {
+			newOwner, ok := remap[e.owner]
+			if !ok {
+				continue
+			}
+			e.owner = newOwner
+			out.edits[filename] = append(out.edits[filename], e)
+		}
+	}
+	return out
+}
+
 // Diagnose runs every analyzer in Analyzers over every loaded package and,
 // when apply is true, writes each surviving fix's edits back to disk
 // (gofmt-formatted).
 func Diagnose(pkgs []*packages.Package, apply bool) ([]Result, error) {
 	var results []Result
 	writes := map[string][]edit{}
+	// Tests: true (Load) makes packages.Load return synthetic variants of
+	// each package (pkg, pkg [pkg.test], pkg_test [pkg.test]) that all
+	// share the package's non-test files. Without dedup, a diagnostic on
+	// a shared file would be reported — and, when apply, its edit queued
+	// — once per variant. seenDiag tracks (file, line, col, rule) across
+	// every package this call processes.
+	seenDiag := map[[4]any]bool{}
 
 	for _, pkg := range pkgs {
 		b, err := runAnalyzers(pkg)
 		if err != nil {
 			return nil, err
 		}
+		b = dedupAcrossVariants(b, seenDiag)
 		if len(b.diags) == 0 {
 			continue
 		}
@@ -257,11 +299,13 @@ func Diagnose(pkgs []*packages.Package, apply bool) ([]Result, error) {
 // unified diff, for the `-diff` CLI flag.
 func Diffs(pkgs []*packages.Package) (map[string]string, error) {
 	byFile := map[string][]edit{}
+	seenDiag := map[[4]any]bool{} // see dedupAcrossVariants in Diagnose
 	for _, pkg := range pkgs {
 		b, err := runAnalyzers(pkg)
 		if err != nil {
 			return nil, err
 		}
+		b = dedupAcrossVariants(b, seenDiag)
 		for filename, edits := range b.edits {
 			accepted, _ := resolveEdits(edits)
 			byFile[filename] = append(byFile[filename], accepted...)

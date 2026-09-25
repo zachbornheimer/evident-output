@@ -64,7 +64,16 @@ func runWarn(pass *analysis.Pass) (any, error) {
 		// live call site is a hard compile error: go/types has no Uses
 		// entry to resolve, and the typed path above can never fire.
 		// Fall back to import-alias/evo-local tracing, same as
-		// internal/agent/review's evoWarn detector for the same reason.
+		// internal/agent/review's evoWarn detector for the same reason —
+		// but only when the receiver's type genuinely failed to resolve.
+		// A receiver that resolved to some other package's type
+		// (recvNamedType said "not evo", not "unknown") must never reach
+		// this fallback: it matches on identifier spelling alone and
+		// would misfire on any non-evo type with a same-named Warn
+		// method (e.g. *slog.Logger).
+		if !recvTypeUnresolved(pass.TypesInfo, sel.X) {
+			return true
+		}
 		f := enclosingFile(pass, call.Pos())
 		if f == nil {
 			return true

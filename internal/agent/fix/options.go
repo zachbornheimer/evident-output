@@ -36,6 +36,20 @@ var optionFields = map[string]func(args []string) string{
 	"Width":              func(a []string) string { return "Width: " + a[0] },
 }
 
+// configField names the Config struct field a constructor writes, so two
+// constructors writing the same field can be detected before they collide
+// in a struct literal. DebugAddSource and DebugLevel both write "Debug",
+// but into disjoint DebugConfig sub-fields, so they alone are allowed to
+// coexist — mergeDebug below combines them into one literal instead of one
+// overwriting the other.
+var configField = map[string]string{
+	"Title": "Title", "Clock": "Clock", "DebugAddSource": "Debug", "DebugLevel": "Debug",
+	"DryRun": "DryRun", "ExternalProjection": "Plain", "MaxEntities": "MaxEntities",
+	"MaxEvents": "MaxEvents", "MaxFrameRate": "MaxFrameRate", "NoColor": "Color",
+	"Plain": "Plain", "Redact": "Redactor", "ResultStream": "Result", "Stdin": "Stdin",
+	"Strict": "Strict", "Terminal": "Terminal", "To": "Stdout", "Width": "Width",
+}
+
 // noFieldOptions lists Option constructors option_api.go still exports
 // that have no single Config field: DataProjection is now a no-op kept
 // for source compatibility, and AlsoWrite/Diagnostics/DebugHistory/
@@ -127,18 +141,75 @@ func optionsFinding(pass *analysis.Pass, call *ast.CallExpr, sel *ast.SelectorEx
 		return diag("API-130", call, msg+" — not rewritten: "+names.String()+
 			" has no single Config field; keep it via Config.Options or migrate by hand")
 	}
+	if dup := duplicateField(opts); dup != "" {
+		return diag("API-130", call, msg+" — not rewritten: more than one option writes the "+dup+
+			" Config field, which would produce a duplicate-field struct literal that does not compile; merge them by hand")
+	}
 	return diag("API-130", call, msg, optionsConfigFix(pass, call, sel, opts))
+}
+
+// duplicateField returns the Config field name written by more than one
+// option call, or "" when every option targets a distinct field.
+// DebugAddSource and DebugLevel both target "Debug" but are not a
+// duplicate — they merge into one DebugConfig literal (mergeDebugFields) —
+// so a second occurrence of either of those two specifically is allowed;
+// any other repeat, or a genuine second Debug-field constructor beyond
+// that pair, is refused rather than silently overwritten.
+func duplicateField(opts []optionCall) string {
+	seen := map[string]int{}
+	debugNames := map[string]int{}
+	for _, o := range opts {
+		field := configField[o.name]
+		if field == "Debug" {
+			debugNames[o.name]++
+			continue
+		}
+		seen[field]++
+	}
+	for field, n := range seen {
+		if n > 1 {
+			return field
+		}
+	}
+	for name, n := range debugNames {
+		if n > 1 {
+			return "Debug (" + name + " given more than once)"
+		}
+	}
+	return ""
 }
 
 func optionsConfigFix(pass *analysis.Pass, call *ast.CallExpr, sel *ast.SelectorExpr, opts []optionCall) analysis.SuggestedFix {
 	alias := evoAlias(pass, sel)
 	var fields strings.Builder
-	for i, o := range opts {
-		if i > 0 {
+	first := true
+	writeField := func(text string) {
+		if !first {
 			fields.WriteString(", ")
 		}
-		fields.WriteString(optionFields[o.name](argTexts(pass, o.call.Args)))
+		fields.WriteString(text)
+		first = false
 	}
+
+	var debugSubfields []string
+	for _, o := range opts {
+		if configField[o.name] == "Debug" {
+			sub := optionFields[o.name](argTexts(pass, o.call.Args))
+			// optionFields renders the full "Debug: evo.DebugConfig{...}"
+			// text for a lone Debug option; strip that wrapper here so
+			// two Debug options can share one DebugConfig{...} literal
+			// instead of one silently overwriting the other's field.
+			sub = strings.TrimPrefix(sub, "Debug: evo.DebugConfig{")
+			sub = strings.TrimSuffix(sub, "}")
+			debugSubfields = append(debugSubfields, sub)
+			continue
+		}
+		writeField(optionFields[o.name](argTexts(pass, o.call.Args)))
+	}
+	if len(debugSubfields) > 0 {
+		writeField("Debug: evo.DebugConfig{" + strings.Join(debugSubfields, ", ") + "}")
+	}
+
 	newText := sel.Sel.Name + "(" + alias + ".Config{" + fields.String() + "})"
 	return analysis.SuggestedFix{
 		Message: "replace functional options with a single evo.Config{...}",

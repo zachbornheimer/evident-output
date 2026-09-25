@@ -46,6 +46,19 @@ func recvNamedType(info *types.Info, x ast.Expr) (string, bool) {
 	return obj.Name(), true
 }
 
+// recvTypeUnresolved reports whether x's type failed to resolve at all —
+// info.TypeOf returns nil, or an invalid type — which is the only case a
+// name fully removed from evo (so go/types has no Uses entry) can produce.
+// A receiver whose type DID resolve, just to something outside the evo
+// package (a *slog.Logger, a local type with a same-named method), must
+// never fall through to the untyped alias-tracing fallback: that fallback
+// matches on identifier spelling alone and would rewrite an unrelated
+// type's call into an evo one that does not compile.
+func recvTypeUnresolved(info *types.Info, x ast.Expr) bool {
+	t := info.TypeOf(x)
+	return t == nil || t == types.Typ[types.Invalid]
+}
+
 // packageFunc returns the evo package-level function name a selector's
 // Sel identifier resolves to — evo.Init, evo.Warn (removed in 1.1), and
 // so on — or ("", false) when it resolves to anything else (a method, a
