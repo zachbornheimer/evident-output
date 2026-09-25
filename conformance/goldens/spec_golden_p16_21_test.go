@@ -305,7 +305,7 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 //
 //	✓  branches  10 deleted
 //	✗  branches  delete failed on feat/x
-//	-  skipped 9  (6 unchanged, 3 unpushed - not attempted)
+//	-  skipped 9  (6 unchanged, 3 unpushed, not attempted)
 func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
 	var buf bytes.Buffer
@@ -317,7 +317,7 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	commit(g.Task("branches").Summary("10 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 10})
 	g.Task("feat/x").Fail("delete failed on feat/x")
 	unchanged := evo.Reason("unchanged")
-	notAttempted := evo.Reason("unpushed - not attempted")
+	notAttempted := evo.Reason("unpushed, not attempted")
 	for _, name := range eachSkipNames("unchanged", 6) {
 		g.Task(name).Skipped(unchanged)
 	}
@@ -333,7 +333,7 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		"10 deleted",
 		"✗",
 		"delete failed on feat/x",
-		"- skipped 9 (6 unchanged, 3 unpushed - not attempted)"} {
+		"- skipped 9 (6 unchanged, 3 unpushed, not attempted)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}

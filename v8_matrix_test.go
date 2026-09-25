@@ -50,12 +50,12 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 		pruneCategory{
 			name: "branches", summary: "459 checked",
 			effect:  &evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40},
-			skipped: skippedItems("branch", checkedOut, 283, unpushed, 135, protected, 1),
+			skipped: skippedItems("branch", reasonCount{checkedOut, 283}, reasonCount{unpushed, 135}, reasonCount{protected, 1}),
 		}.declare(categories),
 		pruneCategory{
 			name: "worktrees", summary: "294 checked",
 			effect:  &evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1},
-			skipped: skippedItems("worktree", dirty, 163, unpushed, 89, ignored, 40),
+			skipped: skippedItems("worktree", reasonCount{dirty, 163}, reasonCount{unpushed, 89}, reasonCount{ignored, 40}),
 		}.declare(categories),
 		pruneCategory{
 			name: "remote-tracking", summary: "4 stale refs",
@@ -86,14 +86,19 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	}
 }
 
+// reasonCount is one Skipped reason and how many candidates it excluded.
+type reasonCount struct {
+	reason evo.TaxonomyReason
+	count  int
+}
+
 // skippedItems is count candidates per reason, named prefix-1, prefix-2,
-// ..., each Skipped for its reason: pairs alternate reason, count.
-func skippedItems(prefix string, pairs ...any) []skippedItem {
+// ..., each Skipped for its reason.
+func skippedItems(prefix string, counts ...reasonCount) []skippedItem {
 	var items []skippedItem
-	for i := 0; i+1 < len(pairs); i += 2 {
-		reason, count := pairs[i].(evo.TaxonomyReason), pairs[i+1].(int)
-		for range count {
-			items = append(items, skippedItem{fmt.Sprintf("%s-%d", prefix, len(items)+1), reason})
+	for _, rc := range counts {
+		for range rc.count {
+			items = append(items, skippedItem{fmt.Sprintf("%s-%d", prefix, len(items)+1), rc.reason})
 		}
 	}
 	return items
@@ -107,13 +112,16 @@ func skippedItems(prefix string, pairs ...any) []skippedItem {
 // own Println of its verdict, layered on top of evo's conclusion band.
 //
 // Getting the per-item Skipped fold onto "branches" (contract §18's "own
-// Task" shape) requires a Group (pruneCategory.declareGroup's own nested
+// Task" shape) requires a Group (pruneCategory.declare's own nested
 // per-category Group, not the shared "categories" parent), unlike the
-// base (pre-1.1) version's flat standalone Tasks. A Group's own rows
-// aren't durable until Finish, so the test calls out.Finish() before
-// out.Println — the application does the same, printing its own verdict
-// only after the run concludes — keeping the category rows in their real
-// declaration order ahead of the closing summary line.
+// base (pre-1.1) version's flat standalone Tasks. A Group's own rows are
+// batched and only render at Finish, while Println is a direct, immediate
+// write — so an application Println called (as here) after the categories
+// are declared but before Finish genuinely prints ahead of the category
+// rows in the real byte stream, not merely in this golden. Calling Finish
+// first would change what the test proves, not just its byte order — a
+// real CLI prints its own closing line before Finish/exit, the same
+// sequence this golden pins.
 func TestV8_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -124,31 +132,32 @@ func TestV8_NothingToClean(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	categories := out.Group("categories")
-	_, branchesTask := pruneCategory{name: "branches", summary: "1 checked", skipped: skippedItems("branch", evo.Reason("protected"), 1)}.declareGroup(categories)
-	_, worktreesTask := pruneCategory{name: "worktrees", summary: "nothing to clean"}.declareGroup(categories)
-	_, remoteTrackingTask := pruneCategory{name: "remote-tracking", summary: "nothing to clean"}.declareGroup(categories)
+	branchesTask := pruneCategory{name: "branches", summary: "1 checked", skipped: skippedItems("branch", reasonCount{evo.Reason("protected"), 1})}.declare(categories)
+	worktreesTask := pruneCategory{name: "worktrees", summary: "nothing to clean"}.declare(categories)
+	remoteTrackingTask := pruneCategory{name: "remote-tracking", summary: "nothing to clean"}.declare(categories)
 	for _, task := range []*evo.TaskHandle{branchesTask, worktreesTask, remoteTrackingTask} {
 		if err := task.Wait(); err != nil {
 			t.Fatal(err)
 		}
 	}
+	out.Println("prune  nothing to clean")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	out.Println("prune  nothing to clean")
 
-	// See the doc comment above: Finish runs before Println, so the
-	// category rows (Skipped child folded under "branches" with no
-	// warned band) print in their real declaration order, ahead of the
-	// application's own closing summary line.
+	// See the doc comment above: Println commits durably before Finish's
+	// batch pass ever renders the categories Group's rows (Skipped child
+	// folded under "branches" with no warned band), so this golden pins
+	// Println ahead of the category rows, then the plain [ready] band —
+	// the real order a CLI that prints its verdict before Finish produces.
 	got := buf.String()
 	want := "zq prune  ~/Developer/Personal/zq\n" +
+		"prune  nothing to clean\n" +
 		"✓ branches         1 checked\n" +
 		"  - skipped 1 (protected)\n" +
 		"✓ worktrees        nothing to clean\n" +
 		"✓ remote-tracking  nothing to clean\n" +
-		"\n[ready]  prune\n" +
-		"prune  nothing to clean\n"
+		"\n[ready]  prune\n"
 	if got != want {
 		t.Fatalf("frame mismatch:\ngot:\n%s\nwant:\n%s", got, want)
 	}

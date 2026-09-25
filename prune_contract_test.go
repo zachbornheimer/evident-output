@@ -258,18 +258,12 @@ type pruneCategory struct {
 	skipped       []skippedItem
 }
 
-// declare submits the category under parent and returns its own Task.
+// declare submits the category under parent and returns its own Task. The
+// category gets its own nested Group (parent.Group(c.name)), distinct from
+// the shared parent Group every category declares into, because the
+// collection contract §18's per-item Skipped fold needs to exist under it.
 // Every annotation happens inside Define, before the Task resolves.
 func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
-	_, work := c.declareGroup(parent)
-	return work
-}
-
-// declareGroup is declare's full form: it also returns the category's own
-// nested Group (parent.Group(c.name)), the collection contract §18's
-// per-item Skipped fold needs to exist under, distinct from the shared
-// parent Group every category declares into.
-func (c pruneCategory) declareGroup(parent *evo.GroupHandle) (*evo.GroupHandle, *evo.TaskHandle) {
 	items := parent.Group(c.name)
 	work := items.Task(c.name)
 	work.Define(func(ctx context.Context) error {
@@ -285,7 +279,7 @@ func (c pruneCategory) declareGroup(parent *evo.GroupHandle) (*evo.GroupHandle, 
 		}
 		return evo.Effect(ctx, *c.effect, func(context.Context) error { return nil })
 	})
-	return items, work
+	return work
 }
 
 // renderPruneContract18 runs zq prune's dry-run under zq's own Config
