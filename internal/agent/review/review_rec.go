@@ -74,7 +74,7 @@ func (d *recSurfaceDetector) inspectComposite(cl *ast.CompositeLit) {
 		return
 	}
 	if isOptionSliceLit(cl, d.pkg) && !d.isCovered(cl) {
-		repl, ok := d.optionSliceToFields(cl)
+		repl, ok := d.optionSliceToFields(cl, nil)
 		if !ok {
 			return
 		}
@@ -86,9 +86,11 @@ func (d *recSurfaceDetector) inspectComposite(cl *ast.CompositeLit) {
 }
 
 // inspectConfigOptions flags Config.Options. It offers a rewrite only when
-// every Option maps one-to-one onto a Config field: a partial rewrite
-// would silently drop the rest, and a guessed one changes behavior.
+// every Option maps one-to-one onto a Config field the literal does not
+// already set: a partial rewrite would silently drop the rest, a guessed
+// one changes behavior, and a repeated field does not compile.
 func (d *recSurfaceDetector) inspectConfigOptions(cl *ast.CompositeLit) {
+	set := configFieldsSet(cl)
 	for _, elt := range cl.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok || identName(kv.Key) != "Options" {
@@ -98,14 +100,14 @@ func (d *recSurfaceDetector) inspectConfigOptions(cl *ast.CompositeLit) {
 		old := d.nodeSrc(kv)
 		sl, isSlice := kv.Value.(*ast.CompositeLit)
 		if isSlice && isOptionSliceLit(sl, d.pkg) {
-			if repl, ok := d.optionSliceToFields(sl); ok {
+			if repl, ok := d.optionSliceToFields(sl, set); ok {
 				d.report(kv, msg, "replace "+old+" with "+repl)
 				d.cover(kv)
 				continue
 			}
 		}
 		d.report(kv, msg, "move each Option in "+old+" to its Config field by hand; "+
-			"at least one has no one-to-one field, so no automatic rewrite is offered")
+			"at least one has no one-to-one field, or its field is already set, so no automatic rewrite is offered")
 		d.cover(kv)
 	}
 }
@@ -247,12 +249,15 @@ func (d *recSurfaceDetector) rewriteTaskExtras(recv string, call *ast.CallExpr) 
 }
 
 // optionSliceToFields rewrites an Option slice as Config fields. ok is
-// false when any element has no one-to-one field.
-func (d *recSurfaceDetector) optionSliceToFields(cl *ast.CompositeLit) (string, bool) {
+// false when any element has no one-to-one field, or maps onto a field in
+// set or onto one another element already maps onto: the literal would
+// then name that field twice.
+func (d *recSurfaceDetector) optionSliceToFields(cl *ast.CompositeLit, set map[string]bool) (string, bool) {
 	if len(cl.Elts) == 0 {
 		return "", false
 	}
 	fields := make([]string, 0, len(cl.Elts))
+	named := make(map[string]bool, len(cl.Elts))
 	for _, elt := range cl.Elts {
 		call, ok := elt.(*ast.CallExpr)
 		if !ok {
@@ -262,9 +267,25 @@ func (d *recSurfaceDetector) optionSliceToFields(cl *ast.CompositeLit) (string, 
 		if !ok {
 			return "", false
 		}
+		key, _, _ := strings.Cut(field, ":")
+		if set[key] || named[key] {
+			return "", false
+		}
+		named[key] = true
 		fields = append(fields, field)
 	}
 	return strings.Join(fields, ", "), true
+}
+
+// configFieldsSet is the fields a Config literal sets by key.
+func configFieldsSet(cl *ast.CompositeLit) map[string]bool {
+	set := make(map[string]bool, len(cl.Elts))
+	for _, elt := range cl.Elts {
+		if kv, ok := elt.(*ast.KeyValueExpr); ok {
+			set[identName(kv.Key)] = true
+		}
+	}
+	return set
 }
 
 // optionFieldByArg maps an Option func that takes one value onto the

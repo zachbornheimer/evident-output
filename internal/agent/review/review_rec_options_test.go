@@ -124,3 +124,23 @@ func buildOverlay(t *testing.T, src string) {
 		t.Fatalf("rewritten source does not build: %v\n%s\n%s", err, out, src)
 	}
 }
+
+// TestAPI032_OptionsCollidingWithSetFieldsOfferNoRewrite pins E-095: a
+// rewrite of Options whose fields the Config literal already sets, or
+// that repeat within the slice, emitted duplicate struct fields, which do
+// not compile. It now gets the message-only form.
+func TestAPI032_OptionsCollidingWithSetFieldsOfferNoRewrite(t *testing.T) {
+	for name, cfg := range map[string]string{
+		"already set": `evo.Config{Stdout: os.Stdout, Title: "t", Options: []evo.Option{evo.To(os.Stderr), evo.Title("u")}}`,
+		"repeated":    `evo.Config{Options: []evo.Option{evo.Title("t"), evo.Title("u")}}`,
+	} {
+		src := "package p\nimport (\n\t\"os\"\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\nvar _ = os.Stdout\nfunc f() { _ = evo.Init(" + cfg + ") }\n"
+		found := findAPI032(review.GoSource("p.go", src))
+		if len(found) != 1 {
+			t.Fatalf("%s: want one API-032 finding, got %d: %q", name, len(found), joinSuggestions(found))
+		}
+		if sug := found[0].Suggestion; strings.HasPrefix(sug, "replace ") {
+			t.Errorf("%s: suggestion rewrites into duplicate Config fields: %q", name, sug)
+		}
+	}
+}
