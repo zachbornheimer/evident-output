@@ -19,9 +19,7 @@ package engine
 // Callers own only what differs between paths: the summary, the Problems,
 // and where the settled row is committed. Callers must already hold o.mu.
 func (o *Output) settleLocked(st *taskState, state EntityState) {
-	state = st.honestOutcome(state)
-	from := st.state
-	st.state = state
+	state, from := st.state.Settle(state, len(st.problems) > 0)
 	st.censusMoved(from)
 	st.phase = ""
 	o.stopPlainHeartbeatLocked(st)

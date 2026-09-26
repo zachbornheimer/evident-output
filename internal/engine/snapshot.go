@@ -108,7 +108,7 @@ func (t *taskState) view() TaskSnapshot {
 		ID:           t.id,
 		Key:          t.key,
 		Name:         t.name,
-		State:        t.state,
+		State:        t.state.Current(),
 		Phase:        t.phase,
 		ActivityAt:   t.activityAt,
 		Progress:     t.progress,
@@ -160,7 +160,7 @@ func (g *tasksState) derivedState() EntityState {
 	}
 	var v verdictFold
 	for _, t := range g.tasks {
-		v.add(t.state)
+		v.add(t.state.Current())
 	}
 	for _, child := range g.children {
 		switch s := child.derivedState(); s {
@@ -176,7 +176,7 @@ func (g *tasksState) derivedState() EntityState {
 
 func (g *tasksState) allTasksNotStarted() bool {
 	for _, t := range g.tasks {
-		if t.state != NotStarted {
+		if t.state.Current() != NotStarted {
 			return false
 		}
 	}
@@ -241,7 +241,7 @@ func (g *tasksState) displaySummary(st EntityState) string {
 // Failed/Cancelled, restored and extended to Warnings.
 func (g *tasksState) hasWarnedOrFailedDescendant() bool {
 	for _, t := range g.tasks {
-		if t.state == Failed || t.state == Cancelled || len(t.warnings) > 0 {
+		if t.state.Current() == Failed || t.state.Current() == Cancelled || len(t.warnings) > 0 {
 			return true
 		}
 	}

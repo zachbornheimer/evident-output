@@ -184,7 +184,7 @@ func (c rootColumn) nameWidth() int {
 // never race above already-resolved work.
 func (o *Output) commitResolvedTaskLocked(id string) {
 	st := o.taskByRef[id]
-	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.state) {
+	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.state.Current()) {
 		return
 	}
 	if o.heldBackAsNoOpLocked(st.snapshot()) {
@@ -363,7 +363,7 @@ func progressiveRowName(st *taskState) string {
 // the Running task happens to sit in the tree, and a collection whose
 // children are explicitly named has no aggregate row streaming in its place.
 func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgressiveTrigger) {
-	if st == nil || st.state != Running {
+	if st == nil || st.state.Current() != Running {
 		return
 	}
 	live := o.liveLocked()

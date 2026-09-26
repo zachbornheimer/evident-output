@@ -42,8 +42,8 @@ func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
 			t.out.recordMisuse(err)
 			return
 		}
-		if core.IsTerminalTask(st.state) {
-			if !resolvedByInterrupt(st.state) {
+		if core.IsTerminalTask(st.state.Current()) {
+			if !resolvedByInterrupt(st.state.Current()) {
 				t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 			}
 			return
@@ -88,7 +88,7 @@ func (t *TaskHandle) setLiveOnlyPhase(text string) {
 func (o *Output) setPhaseLocked(st *taskState, text string) {
 	st.phase = txt.Text(text)
 	st.activityAt = o.cfg.clock.Now()
-	if st.state == Pending {
+	if st.state.Current() == Pending {
 		o.promoteRunningLocked(st)
 		if st.progress.Kind == "" {
 			st.progress.Kind = Indeterminate
@@ -117,7 +117,7 @@ func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	}
 	st.phase = text
 	st.activityAt = o.cfg.clock.Now()
-	if st.state == Pending {
+	if st.state.Current() == Pending {
 		o.promoteRunningLocked(st)
 		if st.progress.Kind == "" {
 			st.progress.Kind = Indeterminate

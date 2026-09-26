@@ -59,7 +59,7 @@ func (t *collectionTally) declare(st *taskState) {
 // settle records that member st may have settled and returns the Tasks
 // whose edges it resolved.
 func (t *collectionTally) settle(st *taskState) (woken []*taskState) {
-	switch stateOutcome(st.state) {
+	switch stateOutcome(st.state.Current()) {
 	case predFailed:
 		if t.firstFailed != 0 && t.firstFailed <= st.declaration {
 			return nil
@@ -77,7 +77,7 @@ func (t *collectionTally) settle(st *taskState) (woken []*taskState) {
 		t.parked = t.parked[:i]
 		return woken
 	case predSucceeded:
-		for t.succeededPrefix < len(t.members) && stateOutcome(t.members[t.succeededPrefix].state) == predSucceeded {
+		for t.succeededPrefix < len(t.members) && stateOutcome(t.members[t.succeededPrefix].state.Current()) == predSucceeded {
 			t.succeededPrefix++
 		}
 		n := 0

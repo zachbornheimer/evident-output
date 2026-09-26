@@ -5,14 +5,19 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/lifecycle"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
 type taskState struct {
-	id          string
-	key         string // optional stable machine key (platform ID)
-	name        string
-	state       EntityState
+	id   string
+	key  string // optional stable machine key (platform ID)
+	name string
+	// state is the sole cell this Task's lifecycle state lives in. Its
+	// unexported field lives in package lifecycle, so any write to it
+	// outside settleLocked (State.Settle) and promoteRunningLocked
+	// (State.StartRunning) is a compile error, not a convention.
+	state       lifecycle.State
 	phase       string
 	progress    Progress
 	summary     string

@@ -13,7 +13,7 @@ func (o *Output) sealAwaitedInputs(taskID string, seen *inputSeals) {
 	defer o.mu.Unlock()
 	st := o.taskByRef[taskID]
 	switch {
-	case st == nil || core.IsTerminalTask(st.state):
+	case st == nil || core.IsTerminalTask(st.state.Current()):
 	case st.neverDefined():
 		o.markNotStartedLocked(st)
 	default:
@@ -32,7 +32,7 @@ func (o *Output) sealWaitedInputsLocked() bool {
 	sealed := false
 	for ticket := range o.sched.waits {
 		st := o.taskByRef[ticket.taskID]
-		if st != nil && !core.IsTerminalTask(st.state) && o.sealInputsLocked(st, &seen) {
+		if st != nil && !core.IsTerminalTask(st.state.Current()) && o.sealInputsLocked(st, &seen) {
 			sealed = true
 		}
 	}
@@ -120,7 +120,7 @@ func (w *inputWalk) visit(p predecessor) {
 }
 
 func (w *inputWalk) visitTask(t *taskState) {
-	if _, seen := w.seen.tasks[t]; seen || core.IsTerminalTask(t.state) {
+	if _, seen := w.seen.tasks[t]; seen || core.IsTerminalTask(t.state.Current()) {
 		return
 	}
 	w.seen.tasks[t] = struct{}{}

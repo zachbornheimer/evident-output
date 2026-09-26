@@ -327,7 +327,7 @@ func (o *Output) emitPlannedHeaderLocked() {
 // once the task has already resolved or does not exist.
 func (o *Output) attachVerificationLocked(taskID string, details []core.VerificationDetail) {
 	st := o.taskByRef[taskID]
-	if st == nil || core.IsTerminalTask(st.state) {
+	if st == nil || core.IsTerminalTask(st.state.Current()) {
 		return
 	}
 	stored := core.StoreVerificationDetails(details)
@@ -349,17 +349,16 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 // supported, concurrency-safe pattern there), so it is not policed.
 func (o *Output) promoteRunningLocked(st *taskState) {
 	if col := st.collection; col != nil && col.sequential {
-		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.state != Running })
+		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.state.Current() != Running })
 		if len(col.runningSteps) > 0 {
 			o.recordMisuse(ErrConcurrentRunning)
 		}
 		col.runningSteps = append(col.runningSteps, st)
 	}
-	from := st.state
-	st.state = Running
+	from := st.state.StartRunning()
 	st.censusMoved(from)
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
-	// Every promoteRunningLocked call site already guards on st.state ==
+	// Every promoteRunningLocked call site already guards on st.state.Current() ==
 	// Pending before calling it, and this line immediately advances past
 	// Pending — so task.started fires exactly once per task's lifetime.
 	o.emitWireEventLocked(wire.EventTaskStarted, st.id, nil)

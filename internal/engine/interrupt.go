@@ -52,7 +52,7 @@ func (o *Output) abandonQueuedWork() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, st := range o.tasks {
-		if st.sched.phase == phaseRunning || core.IsTerminalTask(st.state) {
+		if st.sched.phase == phaseRunning || core.IsTerminalTask(st.state.Current()) {
 			continue
 		}
 		o.markNotStartedLocked(st)
@@ -67,7 +67,7 @@ func (o *Output) cancelActive(reason string) {
 	}
 	running := make([]*TaskHandle, 0, len(o.tasks))
 	for _, t := range o.tasks {
-		if t.state == Running {
+		if t.state.Current() == Running {
 			running = append(running, t.handle)
 		}
 	}
@@ -85,7 +85,7 @@ func (o *Output) cancelActive(reason string) {
 	// through to Output-level cancel.
 	var active *TaskHandle
 	for _, t := range o.tasks {
-		if t.state == Pending {
+		if t.state.Current() == Pending {
 			active = t.handle
 			break
 		}
@@ -107,7 +107,7 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	for id, abort := range o.confirmAbort {
 		close(abort)
 		delete(o.confirmAbort, id)
-		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.state) {
+		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.state.Current()) {
 			st.summary = txt.Text(reason)
 			o.settleLocked(st, Cancelled)
 			o.commitResolvedTaskLocked(id)

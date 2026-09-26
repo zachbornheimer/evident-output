@@ -51,11 +51,11 @@ func TestLiveCensusMatchesAWalk(t *testing.T) {
 func walkCensus(col *tasksState, c *liveCensus) {
 	for _, st := range col.tasks {
 		c.total++
-		c.count(st.state, 1)
+		c.count(st.state.Current(), 1)
 		if len(st.warnings) > 0 {
 			c.warned++
 		}
-		if st.unstampedIn(st.state) {
+		if st.unstampedIn(st.state.Current()) {
 			c.unstamped++
 		}
 		c.nameWidth = max(c.nameWidth, len([]rune(st.name)))

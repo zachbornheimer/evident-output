@@ -37,7 +37,7 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	// Regression and sealing guards apply only while re-reporting the same
 	// measurement kind (Determinate or Bytes); switching kind (e.g. Progress
 	// then Bytes) is a deliberate re-declaration and resets both freely.
-	if st.state == Running && st.progress.Kind != Indeterminate && st.progress.Total > 0 && kind == st.progress.Kind {
+	if st.state.Current() == Running && st.progress.Kind != Indeterminate && st.progress.Total > 0 && kind == st.progress.Kind {
 		if completed < st.progress.Completed {
 			t.out.recordMisuse(ErrProgressRegression)
 			return false
@@ -51,7 +51,7 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	}
 	st.progress = Progress{Kind: kind, Completed: completed, Total: total}
 	st.activityAt = t.out.cfg.clock.Now()
-	if st.state == Pending {
+	if st.state.Current() == Pending {
 		t.out.promoteRunningLocked(st)
 	}
 	t.out.bumpLocked()

@@ -154,7 +154,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		t.out.recordMisuse(err)
 		return t
 	}
-	if core.IsTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state.Current()) {
 		t.out.recordAlreadyResolvedLocked(st.name, summary)
 		return t
 	}
@@ -182,7 +182,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 // state, why it settled, and its Summary when it has one (ZYS-971).
 func taskFinishedPayload(st *taskState) map[string]any {
 	payload := map[string]any{
-		"state":      string(st.state),
+		"state":      string(st.state.Current()),
 		"resolution": string(st.resolution),
 	}
 	if st.summary != "" {

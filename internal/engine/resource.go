@@ -149,7 +149,7 @@ func (w *resourceWait) show(resource.Claim) {
 	w.out.mu.Lock()
 	defer w.out.mu.Unlock()
 	st := w.out.taskByRef[w.taskID]
-	if st == nil || core.IsTerminalTask(st.state) {
+	if st == nil || core.IsTerminalTask(st.state.Current()) {
 		return
 	}
 	w.prior = st.phase
@@ -167,7 +167,7 @@ func (w *resourceWait) clear() {
 	w.out.mu.Lock()
 	defer w.out.mu.Unlock()
 	st := w.out.taskByRef[w.taskID]
-	if st == nil || core.IsTerminalTask(st.state) || st.phase != w.text {
+	if st == nil || core.IsTerminalTask(st.state.Current()) || st.phase != w.text {
 		return
 	}
 	w.out.setLiveOnlyPhaseLocked(st, w.prior)

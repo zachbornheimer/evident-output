@@ -258,14 +258,14 @@ func (o *Output) waitOutcome(taskID string) error {
 		return nil
 	case st.workErr != nil:
 		return st.workErr
-	case st.sched.phase == phaseDeclared && (st.state == NotStarted || st.neverDefined()):
+	case st.sched.phase == phaseDeclared && (st.state.Current() == NotStarted || st.neverDefined()):
 		// Declared but never Defined: there is no work to have succeeded.
 		return fmt.Errorf("%w: %s was never defined", ErrNotStarted, st.name)
-	case st.state == NotStarted:
+	case st.state.Current() == NotStarted:
 		return ErrNotStarted
-	case st.state == Cancelled:
+	case st.state.Current() == Cancelled:
 		return cancelledWaitOutcome(st.summary)
-	case st.state == Failed || st.state == Blocked:
+	case st.state.Current() == Failed || st.state.Current() == Blocked:
 		// The row already failed but its callback has not returned yet (it
 		// resolved itself via Fail/Block, which settles the row at once),
 		// or it returned nil after stating its own failure. Either way the
@@ -311,7 +311,7 @@ func (t *TaskHandle) waitSubmitted(stack *waiterStack) error {
 	}
 	// A terminal task closed its doneCh in the same critical section that
 	// set its state, so there is nothing to park for.
-	if core.IsTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state.Current()) {
 		o.mu.Unlock()
 		return nil
 	}
