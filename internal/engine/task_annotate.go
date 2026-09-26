@@ -153,7 +153,7 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 // Severity decides what the Problem does to the Task. The default,
 // SeverityError, means the Task can never settle success-class: Done,
 // Skipped, or Finish's amnesty for an unresolved Task all settle Failed
-// instead (see honestOutcome). SeverityWarning annotates only: it sets
+// instead (see lifecycle.Decide). SeverityWarning annotates only: it sets
 // "warned", renders as a warning row, and never fails the Task.
 func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)

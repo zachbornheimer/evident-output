@@ -7,7 +7,7 @@ import (
 )
 
 // TestDecide pins the pure outcome rule this package extracted from
-// taskState.honestOutcome: a success-class target over a Task holding a
+// taskState.resolve (now lifecycle.Decide directly): a success-class target over a Task holding a
 // Problem settles Failed, every other target passes through unchanged.
 func TestDecide(t *testing.T) {
 	cases := []struct {
@@ -37,9 +37,9 @@ func TestDecide(t *testing.T) {
 }
 
 func TestStateSettleAndStartRunning(t *testing.T) {
-	s := NewState(core.Pending)
+	s := Declared()
 	if got := s.Current(); got != core.Pending {
-		t.Fatalf("Current() after NewState = %s, want pending", got)
+		t.Fatalf("Current() after Declared() = %s, want pending", got)
 	}
 	from := s.StartRunning()
 	if from != core.Pending {
@@ -54,5 +54,17 @@ func TestStateSettleAndStartRunning(t *testing.T) {
 	}
 	if resolved != core.Failed || s.Current() != core.Failed {
 		t.Fatalf("Settle(Done, true) resolved = %s, current = %s, want failed", resolved, s.Current())
+	}
+}
+
+// TestSyntheticConstructorsSeedTerminal pins that the only constructors
+// producing a terminal State (the synthetic Output.Fail/Cancel path) land
+// on the value their name promises, through Decide.
+func TestSyntheticConstructorsSeedTerminal(t *testing.T) {
+	if got := SettledFailed().Current(); got != core.Failed {
+		t.Fatalf("SettledFailed().Current() = %s, want failed", got)
+	}
+	if got := SettledCancelled().Current(); got != core.Cancelled {
+		t.Fatalf("SettledCancelled().Current() = %s, want cancelled", got)
 	}
 }

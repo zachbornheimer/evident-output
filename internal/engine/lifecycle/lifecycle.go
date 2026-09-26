@@ -1,15 +1,19 @@
 // Package lifecycle owns the pure decision of what state a Task settles
 // into, and the sole state cell a Task's outcome lives in. Nothing outside
 // this package can write a Task's terminal outcome: State's field is
-// unexported, so any attempt to set it from engine code other than through
-// Settle or StartRunning is a compile error, not a convention.
+// unexported, and the only constructors that produce a terminal State
+// (SettledFailed, SettledCancelled) go through Decide — there is no
+// general-purpose constructor that accepts an arbitrary EntityState, so a
+// stray `state: lifecycle.NewState(core.Done)` seed can no longer compile
+// its way past this package's rule.
 package lifecycle
 
 import "github.com/zachbornheimer/evident-output/internal/core"
 
 // DeclaresSuccess reports whether target claims the work went well — the
-// class of claim only the scheduler's observation can ratify (mirrors
-// engine.declaresSuccess; kept here so Decide needs no engine import).
+// class of claim only the scheduler's observation can ratify. It is the
+// one place this rule is named: engine no longer keeps its own copy, and
+// asks this function directly wherever it used to.
 func DeclaresSuccess(target core.EntityState) bool {
 	return target == core.Done || target == core.Skipped
 }
@@ -37,11 +41,30 @@ type State struct {
 	current core.EntityState
 }
 
-// NewState returns a State starting at current — used once, when a
-// taskState is constructed, to seed it at its initial value (typically
-// core.NotStarted).
-func NewState(current core.EntityState) State {
-	return State{current: current}
+// Declared returns a State seeded at core.Pending — the value a taskState
+// starts at when a caller declares a new Task. It is the only constructor
+// that seeds a non-terminal State; there is no general-purpose
+// NewState(EntityState) escape hatch, so engine code cannot seed a Task
+// straight into a terminal state without going through Settle.
+func Declared() State {
+	return State{current: core.Pending}
+}
+
+// SettledFailed returns a State already settled Failed, through Decide,
+// for the synthetic failed Task Output.Fail creates — a Task that never
+// ran and so never has a Running/Pending phase of its own.
+func SettledFailed() State {
+	var s State
+	s.Settle(core.Failed, true)
+	return s
+}
+
+// SettledCancelled returns a State already settled Cancelled, through
+// Decide, for the synthetic cancelled Task Output.Cancel creates.
+func SettledCancelled() State {
+	var s State
+	s.Settle(core.Cancelled, false)
+	return s
 }
 
 // Current returns the state's present value.

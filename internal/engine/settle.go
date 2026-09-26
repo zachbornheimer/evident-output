@@ -13,7 +13,7 @@ package engine
 //   - its collections' tallies move, and every Task parked on it (or on a
 //     collection it just resolved) is placed again (see wakeLocked).
 //
-// It also owns the evidence rule (honestOutcome): a success-class target
+// It also owns the evidence rule (via State.Settle, lifecycle.Decide): a success-class target
 // over a Task holding a Problem settles Failed, whichever path asked.
 //
 // Callers own only what differs between paths: the summary, the Problems,

@@ -2,20 +2,7 @@ package engine
 
 import (
 	"context"
-
-	"github.com/zachbornheimer/evident-output/internal/engine/lifecycle"
 )
-
-// honestOutcome is the one rule between a Task's blocking Problems and its
-// terminal state: a Task holding any Problem cannot settle success-class,
-// so a Done or Skipped claim over one settles Failed. settleLocked applies
-// it (via State.Settle) to every path that ends a Task; resolve calls it
-// here too, ahead of settleLocked, only to decide whether a proposed
-// success can still be held pending (see the byCaller/submitted branch in
-// resolve) — the decision itself lives in lifecycle.Decide.
-func (st *taskState) honestOutcome(state EntityState) EntityState {
-	return lifecycle.Decide(state, len(st.problems) > 0)
-}
 
 // attachCaptureTail gives a Failed or Blocked row's Problems the capture
 // tail the Task already gathered, so the detail a caller collected through

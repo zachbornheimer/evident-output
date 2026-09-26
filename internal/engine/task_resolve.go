@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/lifecycle"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -113,12 +114,6 @@ type proposedOutcome struct {
 	problems []Problem
 }
 
-// declaresSuccess reports whether state claims the work went well — the
-// class of claim only the scheduler's observation can ratify.
-func declaresSuccess(state EntityState) bool {
-	return state == Done || state == Skipped
-}
-
 // deniesItsOwnEffect reports whether this resolution is an evo.Effect
 // callback disowning the work it was given: an Effect creating "module"
 // whose fn calls Skipped or Fail and then returns nil rendered both `! skipped 1
@@ -161,11 +156,11 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	if deniesItsOwnEffect(st, state, authority) {
 		st.effectDenials++
 	}
-	if st.sched.submitted() && authority == byCaller && declaresSuccess(state) {
+	if st.sched.submitted() && authority == byCaller && lifecycle.DeclaresSuccess(state) {
 		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
 		return t
 	}
-	state = st.honestOutcome(state)
+	state = lifecycle.Decide(state, len(st.problems) > 0)
 	if summary != "" {
 		st.summary = txt.Text(summary)
 	}

@@ -23,7 +23,7 @@ func (o *Output) failWith(p Problem) {
 	st := &taskState{
 		id:          o.nextID("task"),
 		name:        txt.Text(o.cfg.subject),
-		state:       lifecycle.NewState(Failed),
+		state:       lifecycle.SettledFailed(),
 		problems:    []Problem{p},
 		declaration: o.nextDecl(),
 		synthetic:   true,
@@ -51,7 +51,7 @@ func (o *Output) Cancel(reason string) {
 	t := &taskState{
 		id:          o.nextID("task"),
 		name:        name,
-		state:       lifecycle.NewState(Cancelled),
+		state:       lifecycle.SettledCancelled(),
 		summary:     txt.Text(reason),
 		declaration: o.nextDecl(),
 		synthetic:   true,

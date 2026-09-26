@@ -75,7 +75,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		id:          o.nextID("task"),
 		key:         stableKey(kindTask, parentKeyOf(col), name),
 		name:        name,
-		state:       lifecycle.NewState(Pending),
+		state:       lifecycle.Declared(),
 		progress:    Progress{Kind: Indeterminate},
 		collection:  col,
 		declaration: o.nextDecl(),
