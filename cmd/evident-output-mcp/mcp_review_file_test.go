@@ -160,6 +160,32 @@ func TestReview_PackageKindHonorsDesiredVersion(t *testing.T) {
 
 // A clean multi-file package ends the MUST-loop through the MCP tool:
 // imports are never loaded, and that alone must not force a recheck.
+// TestReview_InlineSourceNoAbsoluteFileReportsPartial pins the review-gap
+// report's BLOCKER: kind=go (the default) with inline `source` and no
+// absolute `file` cannot resolve a module, so it can never evaluate
+// API-070/090/091/120 (removed-name) findings — the same call site the
+// AGENTS.md MUST-loop drives clean must say Partial=true instead of
+// silently reporting a clean result an agent would stop looping on.
+func TestReview_InlineSourceNoAbsoluteFileReportsPartial(t *testing.T) {
+	bin := buildMCP(t)
+	src, _ := json.Marshal(`package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func run(t *evo.TaskHandle) {
+	t.Warn("tool version differs from manifest")
+}
+`)
+	in := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"kind":"go","file":"p.go","source":` + string(src) + `}}}`,
+	}, "\n") + "\n"
+	out := runMCP(t, bin, in)
+	if !strings.Contains(out, `"partial":true`) {
+		t.Fatalf("inline source with no absolute file must report partial:true (API-070/090/091/120 unevaluated): %s", out)
+	}
+}
+
 func TestReview_PackageKindCleanPackageIsClean(t *testing.T) {
 	bin := buildMCP(t)
 	mainSrc, _ := json.Marshal("package main\n\nimport (\n\t\"os\"\n\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\n\nfunc main() {\n\tevo.Init(evo.Config{Title: \"tool\"})\n\tos.Exit(evo.Main(run))\n}\n")

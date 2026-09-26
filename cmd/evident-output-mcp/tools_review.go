@@ -80,7 +80,14 @@ func reviewSource(args map[string]any, kind, file, src string) (review.Result, s
 			}
 		}
 		dialect := review.DialectFor(file, desired)
-		return dialect.Stamp(review.GoSourceAt(file, src, dialect.Lint())), ""
+		res := dialect.Stamp(review.GoSourceAt(file, src, dialect.Lint()))
+		// Inlined `source` with no absolute `file` location cannot resolve a
+		// module to type-check, so the API-070/090/091/120 (removed-name)
+		// findings GoFileAt/GoDirectoryAt report never run here (see
+		// TestNoFileDetectorEmitsRemovedNameRuleIDs) — Partial=true says so
+		// honestly instead of a silent clean result.
+		res.Partial = true
+		return res, ""
 	}
 }
 
