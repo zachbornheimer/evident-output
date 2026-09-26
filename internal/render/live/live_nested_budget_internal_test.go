@@ -1,4 +1,4 @@
-package render
+package live
 
 import (
 	"strings"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -19,7 +20,7 @@ func frameRows(frame string) int {
 
 // liveFrame renders s's live region at height with fixed test settings.
 func liveFrame(s core.Snapshot, height int) string {
-	return LiveRegion(s, height, 80, time.Time{}, Style{Profile: txt.GlyphsUnicode})
+	return LiveRegion(s, height, 80, time.Time{}, render.Style{Profile: txt.GlyphsUnicode})
 }
 
 // runningCategory is one of zq clean-repo's category Groups mid-run:
@@ -136,7 +137,7 @@ func TestLiveOwnTask_SuppressesTalliesWhileRunning(t *testing.T) {
 }
 
 // promotedLoneChildRunning is a category whose lone child is not its own
-// Task (own_task.go's promotesLoneChildOntoHeader), still Running, plus
+// Task (own_task.go's PromotesLoneChildOntoHeader), still Running, plus
 // five caused Skipped items folded into a tally.
 func promotedLoneChildRunning() core.TasksSnapshot {
 	cause := []core.TaxonomyRecord{{Reason: "unpushed", Name: "x", Causes: []string{"x has no upstream"}}}
@@ -151,7 +152,7 @@ func promotedLoneChildRunning() core.TasksSnapshot {
 
 // TestLivePromotedLoneChild_SuppressesTalliesWhileRunning is this slice's
 // RED-then-GREEN case for the promoted-lone-child live shape (contract
-// §18, extended): promotesLoneChildOntoHeader only ever fires while its
+// §18, extended): PromotesLoneChildOntoHeader only ever fires while its
 // lone child is Running or Pending, so the same "would understate" reason
 // the own-Task shape already applies to itself applies here — the folded
 // tally must never paint in this shape.
@@ -172,4 +173,4 @@ func TestLivePromotedLoneChild_SuppressesTalliesWhileRunning(t *testing.T) {
 
 // testLiveStyle is the fixed live paint settings internal tests render
 // with: 80 columns, a fixed spinner, no color, Unicode glyphs.
-var testLiveStyle = liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 80, spin: "⠋"}
+var testLiveStyle = liveStyle{Style: render.Style{Profile: txt.GlyphsUnicode}, width: 80, spin: "⠋"}

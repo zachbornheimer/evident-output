@@ -1,9 +1,10 @@
-package render
+package plain
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -58,19 +59,19 @@ func conclusionBandTag(c core.Conclusion) string {
 	return fmt.Sprintf("[%s]", tag)
 }
 
-func WriteConclusion(b *strings.Builder, c core.Conclusion, s Style) {
+func WriteConclusion(b *strings.Builder, c core.Conclusion, s render.Style) {
 	if c.State == core.StateCancelled {
 		writeCancellationBand(b, c, s)
 		return
 	}
-	tag := s.paint(conclusionBandTag(c), conclusionColor(c.State))
-	// A bare Subject that equals the headline state word itself ("changed",
+	tag := s.Paint(conclusionBandTag(c), conclusionColor(c.State))
+	// A bare Subject that equals the Headline state word itself ("changed",
 	// "failed", ...) says nothing the bracketed tag hasn't already said — it
 	// is what an unconfigured Config.Title falls back to, not a caller's
 	// chosen subject, so printing it stutters the band ("[changed]  changed",
 	// release-gate round 10 finding 1). Suppress it instead of repeating it.
 	if c.Subject != "" && c.Subject != string(c.State) {
-		fmt.Fprintf(b, "\n%s  %s\n", tag, s.paint(c.Subject, txt.SGRBold))
+		fmt.Fprintf(b, "\n%s  %s\n", tag, s.Paint(c.Subject, txt.SGRBold))
 	} else {
 		fmt.Fprintf(b, "\n%s\n", tag)
 	}
@@ -90,41 +91,24 @@ func WriteConclusion(b *strings.Builder, c core.Conclusion, s Style) {
 // when some Effect committed. The cause is the Conclusion's Explanation (for
 // example "by user"), carried on the band line itself instead of a second
 // sentence beneath it.
-func writeCancellationBand(b *strings.Builder, c core.Conclusion, s Style) {
+func writeCancellationBand(b *strings.Builder, c core.Conclusion, s render.Style) {
 	// "cancelled" already says the run stopped short; a "· partial" modifier
 	// beside it would only repeat that (the not-started rows say which part).
 	tagged := c
 	tagged.Partial = false
-	line := s.paint(conclusionBandTag(tagged), conclusionColor(c.State))
+	line := s.Paint(conclusionBandTag(tagged), conclusionColor(c.State))
 	if c.Subject != "" && c.Subject != string(c.State) {
-		line += " " + s.paint(c.Subject, txt.SGRBold)
+		line += " " + s.Paint(c.Subject, txt.SGRBold)
 	}
 	if c.Explanation != "" {
 		line += "  " + c.Explanation
 	}
 	fmt.Fprintf(b, "\n%s\n", line)
 	if _, committed := summarizeAlreadyMutated(c.Changes); committed {
-		fmt.Fprintf(b, "  %s %s\n", s.warningGlyph(), cancellationPartialChangesNote)
+		fmt.Fprintf(b, "  %s %s\n", s.WarningGlyph(), cancellationPartialChangesNote)
 	}
 	for _, a := range c.Actions {
 		writeAction(b, a, s)
-	}
-}
-
-func StateColor(s core.EntityState) string {
-	switch s {
-	case core.Done:
-		return txt.SGRGreen
-	case core.Failed:
-		return txt.SGRRed
-	case core.Blocked:
-		return txt.SGRRed
-	case core.Running:
-		return txt.SGRCyan
-	case core.Pending, core.Skipped, core.Cancelled, core.Incomplete, core.NotStarted:
-		return txt.SGRDim
-	default:
-		return ""
 	}
 }
 

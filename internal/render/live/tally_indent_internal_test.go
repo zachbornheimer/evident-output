@@ -1,11 +1,11 @@
-package render
+package live
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/render"
 )
 
 // branchesWithWorkChild is a Group with its own Summary, two Skipped and
@@ -23,22 +23,6 @@ func branchesWithWorkChild(work core.TaskSnapshot) core.TasksSnapshot {
 	}}
 }
 
-// TestGroupTallies_ShareTheChildColumn: under a Group header, folded
-// tallies are the header's children like the rows that survive, so both
-// start in the same column.
-func TestGroupTallies_ShareTheChildColumn(t *testing.T) {
-	t.Parallel()
-	var b strings.Builder
-	WriteCollection(&b, branchesWithWorkChild(core.TaskSnapshot{Name: "deleted", State: core.Done, Summary: "14 deleted"}), Style{Profile: txt.GlyphsUnicode})
-	want := "✓ branches  14 deleted\n" +
-		"   - skipped 2 (protected)\n" +
-		"   ! kept 2 (unpushed)\n" +
-		"   ✓ deleted  14 deleted\n"
-	if got := b.String(); got != want {
-		t.Fatalf("durable group:\ngot:\n%s\nwant:\n%s", got, want)
-	}
-}
-
 // TestLiveGroupTallies_ShareTheChildColumn is the live frame's same rule,
 // once the category has settled: contract §18 suppresses the folded
 // tallies entirely while any Task in the category is still Running (see
@@ -54,7 +38,7 @@ func TestLiveGroupTallies_ShareTheChildColumn(t *testing.T) {
 		t.Fatalf("live frame: want header, two tallies, one child:\n%s", b.String())
 	}
 	for _, line := range lines[1:] {
-		if !strings.HasPrefix(line, problemTreeIndent) || strings.HasPrefix(line, problemTreeIndent+" ") {
+		if !strings.HasPrefix(line, render.GroupChildIndent) || strings.HasPrefix(line, render.GroupChildIndent+" ") {
 			t.Fatalf("live row %q is not in the child column:\n%s", line, b.String())
 		}
 	}

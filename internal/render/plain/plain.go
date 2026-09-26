@@ -1,30 +1,28 @@
-package render
+package plain
 
 import (
 	"fmt"
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// compactLayoutMaxWidth switches changes/plans to compact rows.
-const compactLayoutMaxWidth = 40
-
-// defaultWidth mirrors the root package's construction default (80 columns,
+// DefaultWidth mirrors the root package's construction default (80 columns,
 // option.go) — duplicated as a literal here (not imported) because render
 // must never import the root package (see glyph.go's package doc).
-const defaultWidth = 80
+const DefaultWidth = 80
 
 // Plain projects a snapshot to plain text without terminal ownership.
-// width <= 0 falls back to defaultWidth.
+// width <= 0 falls back to DefaultWidth.
 func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphProfile) string {
 	var b strings.Builder
 	if width <= 0 {
-		width = defaultWidth
+		width = DefaultWidth
 	}
-	st := Style{Color: !noColor, Verbose: verbose, Profile: profile}
-	s = HumanProjection(s, verbose)
+	st := render.Style{Color: !noColor, Verbose: verbose, Profile: profile}
+	s = render.HumanProjection(s, verbose)
 
 	if s.DryRun {
 		WritePlannedHeader(&b, st.Color, s.Preview, s.DryRunSubject)
@@ -44,31 +42,31 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 		WriteCollection(&b, col, st)
 	}
 
-	if hasTaskRows(s) && hasEffectSections(s) {
+	if HasTaskRows(s) && HasEffectSections(s) {
 		b.WriteByte('\n')
 	}
 
-	writeLedger(&b, s, width, st)
+	WriteLedger(&b, s, width, st)
 
-	if s.Conclusion != nil && !ShouldSuppressStandaloneConclusion(s) {
-		WriteConclusion(&b, StandaloneConclusion(s), st)
+	if s.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(s) {
+		WriteConclusion(&b, render.StandaloneConclusion(s), st)
 	}
 
 	return b.String()
 }
 
-// hasTaskRows reports whether s rendered any task or collection rows above
+// HasTaskRows reports whether s rendered any task or collection rows above
 // the effects ledger — the blank-line separator below only belongs between
 // two real blocks, never floating above an empty task section.
-func hasTaskRows(s core.Snapshot) bool {
+func HasTaskRows(s core.Snapshot) bool {
 	return len(s.Tasks) > 0 || len(s.Collections) > 0
 }
 
-// hasEffectSections reports whether s has a [changed]/[planned] ledger to
+// HasEffectSections reports whether s has a [changed]/[planned] ledger to
 // render — the blank line separating it from the task block above
 // (fixture-repo-retire-dryrun.md: a blank line sits between the last task
 // row and the first ledger row) only belongs when both sides are non-empty.
-func hasEffectSections(s core.Snapshot) bool {
+func HasEffectSections(s core.Snapshot) bool {
 	return len(s.Changes) > 0 || len(s.Plans) > 0
 }
 
@@ -144,16 +142,9 @@ const (
 	problemTreeIndent = "   "
 	// problemDetailIndent continues multi-line Detail under a └─ / │ opener.
 	problemDetailIndent = "      "
-	// taskAnnotationIndent nests a standalone task's annotations — taxonomy
-	// tallies, verification details, warnings, facts — under its row
-	// (spec §26/§27: "✓ branches  50 checked" / "  ! kept 13 (...)").
-	taskAnnotationIndent = "  "
-	// groupChildIndent nests a Group header's children: its child rows and
-	// the tallies its folded items leave behind, in one column.
-	groupChildIndent = "   "
 )
 
-// writeVerificationDetails renders a Task's per-attribute reconciliation
+// WriteVerificationDetails renders a Task's per-attribute reconciliation
 // outcomes (spec §2, §8.2, §20-21, §41, §49) — evo.File/evo.Exec's third
 // evidence layer, which subconditions were satisfied or failed, not just
 // that the operation as a whole did. A satisfied attribute is a muted "-
@@ -164,18 +155,18 @@ const (
 // visibility rule, the same full list renders under Verbose even when the
 // task succeeded; a clean run says nothing extra by default. indent is the
 // row's own nesting indent (matches the value writeNestedTaskFacts/
-// writeNestedTaskWarnings already use at this call site — "  " for a
+// WriteNestedTaskWarnings already use at this call site — "  " for a
 // standalone task, problemTreeIndent for a collection child).
-func writeVerificationDetails(b *strings.Builder, details []core.VerificationDetail, indent string, taskFailed bool, s Style) {
+func WriteVerificationDetails(b *strings.Builder, details []core.VerificationDetail, indent string, taskFailed bool, s render.Style) {
 	if len(details) == 0 || (!taskFailed && !s.Verbose) {
 		return
 	}
 	for _, d := range details {
 		if d.Status == core.VerificationSatisfied {
-			fmt.Fprintf(b, "%s%s %s\n", indent, s.stateGlyph(core.NotStarted), s.dim(d.Name+"  already satisfied"))
+			fmt.Fprintf(b, "%s%s %s\n", indent, s.StateGlyph(core.NotStarted), s.Dim(d.Name+"  already satisfied"))
 			continue
 		}
-		fmt.Fprintf(b, "%s%s %s\n", indent, s.stateGlyph(core.Failed), d.Name)
+		fmt.Fprintf(b, "%s%s %s\n", indent, s.StateGlyph(core.Failed), d.Name)
 		writeVerificationFacts(b, d.Facts, indent+"  ")
 	}
 }
@@ -203,7 +194,7 @@ func writeVerificationFacts(b *strings.Builder, facts []core.Fact, indent string
 // uses for row width, measured in display cells (E2.5 finding 6): a plain
 // byte-length check overcounts multi-byte runes and undercounts wide ones,
 // so it agrees with the compact-layout width check only by coincidence.
-const warningInlineMaxCells = compactLayoutMaxWidth
+const warningInlineMaxCells = render.CompactLayoutMaxWidth
 
 // bangColumnFiller is as wide as inlineWarningText's "! " glyph+space
 // prefix — a Fact's inline text stands in this much blank space so its own
@@ -216,7 +207,7 @@ const bangColumnFiller = "  "
 // WriteTask renders a standalone task row unpadded — see WriteTaskAligned
 // for the sibling-column-alignment form fixture-repo-retire-dryrun.md
 // requires when annotations (inline warnings/facts) sit among peers.
-func WriteTask(b *strings.Builder, t core.TaskSnapshot, s Style) {
+func WriteTask(b *strings.Builder, t core.TaskSnapshot, s render.Style) {
 	WriteTaskAligned(b, t, 0, s)
 }
 
@@ -224,7 +215,7 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, s Style) {
 // nameWidth (0 = no padding) before any annotation, so a run of sibling
 // tasks with inline warnings/facts line up in one column ("✓ branches
 // ! kept 13...", fixture-repo-retire-dryrun.md). See taskRow.
-func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, s Style) {
+func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, s render.Style) {
 	rootRow(t, nameWidth).write(b, s)
 }
 
@@ -235,7 +226,7 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, s 
 // Returns "" for a core.Running task with neither (never happens through the
 // public API, since every path that promotes core.Pending to core.Running sets one).
 func runningTaskDetail(t core.TaskSnapshot) string {
-	count := progressCountText(t.Progress)
+	count := ProgressCountText(t.Progress)
 	switch {
 	case count != "" && t.Phase != "":
 		return count + "  " + t.Phase
@@ -246,16 +237,16 @@ func runningTaskDetail(t core.TaskSnapshot) string {
 	}
 }
 
-// progressCountText renders p as the fixed "C/T" (Determinate) or
+// ProgressCountText renders p as the fixed "C/T" (Determinate) or
 // byte-fraction (BytesKind) count text a core.Running row shows, or "" when p
 // carries neither — the one place that decides "does this progress have a
 // displayable count," shared by runningTaskDetail (core.Running) and writeTask's
 // core.Failed row (release-gate round 8 finding 4) so both projections agree on
 // where and how the count reads.
-func progressCountText(p core.Progress) string {
+func ProgressCountText(p core.Progress) string {
 	switch {
 	case p.Kind == core.BytesKind && p.Total > 0:
-		return formatByteProgressFixed(p.Completed, p.Total)
+		return render.FormatByteProgressFixed(p.Completed, p.Total)
 	case p.Kind == core.Determinate && p.Total > 0:
 		return fmt.Sprintf("%d/%d", p.Completed, p.Total)
 	default:
@@ -269,33 +260,33 @@ func progressCountText(p core.Progress) string {
 // like "✓  branches   14 deleted" instead of the parent collapsing to one
 // line and erasing the children whose evidence lived only in the live
 // region while it was running.
-func WriteCollection(b *strings.Builder, col core.TasksSnapshot, s Style) {
+func WriteCollection(b *strings.Builder, col core.TasksSnapshot, s render.Style) {
 	writeCollectionAligned(b, col, 0, s)
 }
 
 // writeCollectionAligned is WriteCollection with the name column a
 // collapsed one-row collection pads to (0 = its own name), so a header-less
-// parent's rows line up (headerlessRowNameWidth).
-func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidth int, s Style) {
-	col, items := withoutDispositionItems(col)
+// parent's rows line up (render.HeaderlessRowNameWidth).
+func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidth int, s render.Style) {
+	col, items := render.WithoutDispositionItems(col)
 	switch {
-	case rendersAsOwnTask(col):
+	case render.RendersAsOwnTask(col):
 		WriteTaskAligned(b, col.Tasks[0], nameWidth, s)
-		writeDispositions(b, taskAnnotationIndent, items, noDisposition, s)
-	case flattensHeader(col, items):
+		WriteDispositions(b, render.TaskAnnotationIndent, items, render.NoDisposition, s)
+	case render.FlattensHeader(col, items):
 		writeHeaderlessGroup(b, col, s)
 	default:
 		writeCollectionHeader(b, col, s)
-		writeDispositions(b, headerTallyIndent(col), items, noDisposition, s)
+		WriteDispositions(b, render.HeaderTallyIndent(col), items, render.NoDisposition, s)
 		writeCollectionBody(b, col, s)
 	}
 }
 
 // writeCollectionHeader writes a Group or Sequence's own row.
-func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s Style) {
-	unit := DisplayUnit{Glyph: s.stateGlyph(col.State), Name: col.Name}
+func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s render.Style) {
+	unit := render.DisplayUnit{Glyph: s.StateGlyph(col.State), Name: col.Name}
 	if col.Summary != "" {
-		unit.Detail = s.dim(col.Summary)
+		unit.Detail = s.Dim(col.Summary)
 	}
 	b.WriteString(unit.Render(""))
 	b.WriteByte('\n')
@@ -303,7 +294,7 @@ func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s Style) 
 
 // writeCollectionBody writes a headed container's child rows, then its
 // nested containers indented one level per nesting depth (P3).
-func writeCollectionBody(b *strings.Builder, col core.TasksSnapshot, s Style) {
+func writeCollectionBody(b *strings.Builder, col core.TasksSnapshot, s render.Style) {
 	childNameWidth := maxTaskNameWidth(col.Tasks)
 	for _, t := range col.Tasks {
 		childRow(t, childNameWidth).write(b, s)
@@ -312,7 +303,7 @@ func writeCollectionBody(b *strings.Builder, col core.TasksSnapshot, s Style) {
 		var nested strings.Builder
 		WriteCollection(&nested, child, s)
 		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
-			fmt.Fprintf(b, "%s%s\n", groupChildIndent, line)
+			fmt.Fprintf(b, "%s%s\n", render.GroupChildIndent, line)
 		}
 	}
 }
@@ -328,7 +319,7 @@ const maxVisibleEffectRows = maxVisibleProblems
 const dryRunMarkerText = "no changes will be made"
 
 // conclusionPartialModifier is the literal suffix that marks the printed
-// band as evo-rec.md's completeness axis rather than a new headline: a run
+// band as evo-rec.md's completeness axis rather than a new Headline: a run
 // that never invented a State of its own (StatePartial is dead precisely
 // because Partial is a modifier, not a root verdict) still needs an honest
 // band when core.Conclusion.Partial is true (release-gate round 4 finding 1) — an
@@ -337,12 +328,25 @@ const dryRunMarkerText = "no changes will be made"
 const conclusionPartialModifier = " · partial"
 
 // conclusionWarnedModifier marks the printed band with the same "modifier,
-// not a new headline" treatment as conclusionPartialModifier (release-gate
+// not a new Headline" treatment as conclusionPartialModifier (release-gate
 // round 8 finding 3): a run that carries at least one warning-severity
 // Problem annotation (P2: a warning-severity Problem never resolves its
 // own lifecycle state) while its
-// headline settled on an OK-family state (e.g. [ready]) must not read as
+// Headline settled on an OK-family state (e.g. [ready]) must not read as
 // silently clean — the exit code is unchanged, only the band gains this
 // suffix. core.Conclusion.Warned is already false when State is itself
 // core.StateWarning, so the two never double up.
 const conclusionWarnedModifier = " · warned"
+
+// writeHeaderlessGroup renders a Group's children as siblings of the
+// surrounding rows, aligned to one name column, then any nested containers
+// the same way.
+func writeHeaderlessGroup(b *strings.Builder, col core.TasksSnapshot, s render.Style) {
+	nameWidth := render.HeaderlessRowNameWidth(col)
+	for _, t := range col.Tasks {
+		WriteTaskAligned(b, t, nameWidth, s)
+	}
+	for _, child := range col.Collections {
+		writeCollectionAligned(b, child, nameWidth, s)
+	}
+}

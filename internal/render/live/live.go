@@ -1,4 +1,4 @@
-package render
+package live
 
 import (
 	"fmt"
@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/render/plain"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -57,17 +59,17 @@ func formatElapsed(d time.Duration) string {
 // renderLiveRegion builds the interactive ledger text for the current snapshot.
 // now selects spinner frames (inject FixedClock in tests for stable glyphs).
 // color applies SGR to glyphs as rows resolve (✓ green, ✗ red, spinner cyan).
-func LiveRegion(s core.Snapshot, height, width int, now time.Time, style Style) string {
+func LiveRegion(s core.Snapshot, height, width int, now time.Time, style render.Style) string {
 	height = liveHeight(height)
 	var b strings.Builder
 	style.Verbose = false
 	st := liveStyle{Style: style, width: width, spin: txt.SpinnerGlyph(now, style.Profile), now: now}
 
-	writeLiveBody(&b, liveRoot(qualifyFlattenedRows(s, liveHeaderRule(height))), height, atRoot, st)
-	if hasTaskRows(s) && hasEffectSections(s) {
+	writeLiveBody(&b, liveRoot(render.QualifyFlattenedRows(s, liveHeaderRule(height))), height, atRoot, st)
+	if plain.HasTaskRows(s) && plain.HasEffectSections(s) {
 		b.WriteByte('\n')
 	}
-	writeLedger(&b, s, width, style)
+	plain.WriteLedger(&b, s, width, style)
 	return strings.TrimRight(b.String(), "\n")
 }
 
@@ -86,7 +88,7 @@ func liveHeight(height int) int {
 // caller has not declared any entity yet — e.g. still parsing config. Falls
 // back to a generic label rather than an empty string so the paint stays
 // honest (never blank) even before Config.Title is known.
-func ArmedTitleLine(subject string, now time.Time, s Style) string {
+func ArmedTitleLine(subject string, now time.Time, s render.Style) string {
 	title := subject
 	if title == "" {
 		title = "starting"
@@ -96,7 +98,7 @@ func ArmedTitleLine(subject string, now time.Time, s Style) string {
 
 func FitLiveRegion(text string, columns int) string {
 	if columns <= 0 {
-		columns = defaultWidth
+		columns = plain.DefaultWidth
 	}
 	if liveRegionFitsColumns(text, columns) {
 		return text
@@ -130,9 +132,9 @@ func liveRegionFitsColumns(text string, columns int) bool {
 // its (recursive) children — when this header itself first painted. Once
 // every child has settled (spec §18's worked example: "✓ launch agent",
 // no count) the count is redundant with the glyph and disappears.
-func liveGroupHeader(col core.TasksSnapshot, done, total int, st liveStyle) DisplayUnit {
+func liveGroupHeader(col core.TasksSnapshot, done, total int, st liveStyle) render.DisplayUnit {
 	spin, color, now, profile := st.spin, st.Color, st.now, st.Profile
-	glyph, state := TaskGlyph(col.State, profile), col.State
+	glyph, state := render.TaskGlyph(col.State, profile), col.State
 	if col.State == core.Failed {
 		glyph = txt.GlyphFailedState.Render(profile)
 	}
@@ -140,7 +142,7 @@ func liveGroupHeader(col core.TasksSnapshot, done, total int, st liveStyle) Disp
 	if unresolved {
 		glyph, state = spin, core.Running
 	}
-	unit := DisplayUnit{Glyph: txt.StyleGlyph(glyph, StateColor(state), color), Name: col.Name}
+	unit := render.DisplayUnit{Glyph: txt.StyleGlyph(glyph, render.StateColor(state), color), Name: col.Name}
 	if unresolved {
 		unit.Elapsed = heartbeatSuffix(now, earliestLiveFirstSeen(col))
 		unit.Detail = fmt.Sprintf("%d/%d complete", done, total) + unit.Elapsed
@@ -151,7 +153,7 @@ func liveGroupHeader(col core.TasksSnapshot, done, total int, st liveStyle) Disp
 // categoryStillClassifying reports whether col's own state is still in
 // flight — any child Running or Pending, recursively. Contract §18: a
 // folded "- skipped N" / "! kept N" tally names a final count, so it must
-// not paint while more disposition items could still arrive from work the
+// not paint while more render.Disposition items could still arrive from work the
 // category itself has not finished (the same reasoning the own-Task and
 // promoted-lone-child live shapes already apply to their own row).
 func categoryStillClassifying(col core.TasksSnapshot) bool {
@@ -300,8 +302,8 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 		padRootName(&unit, indent, nameWidth)
 		b.WriteString(unit.Render(pad))
 		b.WriteByte('\n')
-		child := DisplayUnit{
-			Glyph: txt.StyleGlyph(st.spin, StateColor(core.Running), st.Color),
+		child := render.DisplayUnit{
+			Glyph: txt.StyleGlyph(st.spin, render.StateColor(core.Running), st.Color),
 			Name:  t.Phase,
 		}
 		b.WriteString(child.Render(pad + activityChildIndent))
@@ -316,7 +318,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	// diagnostic parent line (bar/count or failure summary) and nest each
 	// warning underneath — Done still inlines a short warning on the ✓ row.
 	if t.State == core.Running || t.State == core.Failed {
-		writeNestedTaskWarnings(b, t.Warnings, pad+"   ", st.Style)
+		plain.WriteNestedTaskWarnings(b, t.Warnings, pad+"   ", st.Style)
 		// A standalone task's own accumulated Skipped/Kept taxonomy
 		// (TaskHandle.Skipped/SkippedWithErrs called directly on this
 		// task, not a Group folding still-arriving sibling children) is
@@ -324,11 +326,11 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 		// recorded — the same footing as a Fact or a warning — so it
 		// nests under the row unconditionally, unlike a Group's own
 		// folded tally (categoryStillClassifying), which withholds
-		// while more disposition items could still arrive.
-		writeDispositions(b, pad+"   ", taskDispositions(t), noDisposition, st.Style)
+		// while more render.Disposition items could still arrive.
+		plain.WriteDispositions(b, pad+"   ", plain.TaskDispositions(t), render.NoDisposition, st.Style)
 	}
 	if t.State == core.Failed {
-		writeVerificationDetails(b, t.Verification, pad+"   ", true, st.Style)
+		plain.WriteVerificationDetails(b, t.Verification, pad+"   ", true, st.Style)
 	}
 	return rowsSince(b, start)
 }
@@ -337,7 +339,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 // (maxRootTaskNameWidth) — a no-op for a nested child row, which already
 // has its own fixed-width padding from liveTaskUnit, or when there is no
 // shared column to align (nameWidth == 0, a single standalone task).
-func padRootName(unit *DisplayUnit, indent, nameWidth int) {
+func padRootName(unit *render.DisplayUnit, indent, nameWidth int) {
 	if indent != 0 || nameWidth == 0 {
 		return
 	}
@@ -355,20 +357,20 @@ func splitsActivityChild(t core.TaskSnapshot) bool {
 		t.Phase != ""
 }
 
-// liveTaskUnit composes one task row's DisplayUnit (P3's uniform row
+// liveTaskUnit composes one task row's render.DisplayUnit (P3's uniform row
 // model): the glyph and name slots here, the detail slot by state below.
 // Every case is a slot-filling policy — which fields get populated for
 // this state/progress/indent combination — not a bespoke format string;
-// DisplayUnit.Render owns the one line grammar. Returning the unit rather
+// render.DisplayUnit.Render owns the one line grammar. Returning the unit rather
 // than writing it lets a caller that owns a richer row (a group header
 // promoting its only Running child) reuse the whole policy and re-label
 // just the name slot.
-func liveTaskUnit(t core.TaskSnapshot, indent int, cw countWidths, st liveStyle) DisplayUnit {
-	glyph := TaskGlyph(t.State, st.Profile)
+func liveTaskUnit(t core.TaskSnapshot, indent int, cw countWidths, st liveStyle) render.DisplayUnit {
+	glyph := render.TaskGlyph(t.State, st.Profile)
 	if t.State == core.Running {
 		glyph = st.spin
 	}
-	unit := DisplayUnit{Glyph: txt.StyleGlyph(glyph, StateColor(t.State), st.Color), Name: t.Name}
+	unit := render.DisplayUnit{Glyph: txt.StyleGlyph(glyph, render.StateColor(t.State), st.Color), Name: t.Name}
 	// Child rows pad their name to 9 for stable columns ("react" and
 	// "sharp" share alignment; "esbuild" fills the field); a standalone
 	// row keeps the bare name.
@@ -397,15 +399,15 @@ func liveSettledDetail(t core.TaskSnapshot, st liveStyle) string {
 	case t.State == core.Done && t.Progress.Kind == core.BytesKind:
 		return formatBytes(t.Progress.Completed)
 	case t.Resolution == core.ResolutionAlreadySatisfied:
-		return alreadySatisfiedRowDetail(t, st.Color)
+		return render.AlreadySatisfiedRowDetail(t, st.Color)
 	case t.State == core.Done && t.Summary != "":
-		return st.dim(t.Summary)
+		return st.Dim(t.Summary)
 	case t.State == core.Done && len(t.Warnings) > 0:
-		msg := warningText(t.Warnings[0])
+		msg := plain.WarningText(t.Warnings[0])
 		if more := len(t.Warnings) - 1; more > 0 {
 			msg = fmt.Sprintf("%s (+%d more)", msg, more)
 		}
-		return st.dim(msg)
+		return st.Dim(msg)
 	default:
 		return ""
 	}
@@ -419,7 +421,7 @@ func liveRunningDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) (detai
 	p := t.Progress
 	switch {
 	case p.Kind == core.BytesKind && p.Total > 0:
-		return progressBar(p.Completed, p.Total, 12) + "  " + formatByteProgressFixed(p.Completed, p.Total) + elapsed, elapsed
+		return progressBar(p.Completed, p.Total, 12) + "  " + render.FormatByteProgressFixed(p.Completed, p.Total) + elapsed, elapsed
 	case p.Kind == core.Determinate && p.Total > 0:
 		detail := liveCountDetail(t, cw, st)
 		// The count field's fixed one-space gap belongs to this
@@ -454,7 +456,7 @@ func liveRunningDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) (detai
 		if phase == "" {
 			phase = "working…"
 		}
-		return st.dim(phase) + elapsed, elapsed
+		return st.Dim(phase) + elapsed, elapsed
 	}
 }
 
@@ -462,7 +464,7 @@ func liveRunningDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) (detai
 // muted current Phase. Narrow terminals drop the bar (decoration) before
 // the count (information): evo-rec.md Problem 16/26's compact dialect.
 func liveCountDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) string {
-	wide := st.width <= 0 || st.width >= compactLayoutMaxWidth
+	wide := st.width <= 0 || st.width >= render.CompactLayoutMaxWidth
 	if !wide {
 		// Narrow terminals drop the bar (decoration) before the count
 		// (information): evo-rec.md Problem 16/26's compact dialect. The
@@ -475,7 +477,7 @@ func liveCountDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) string {
 		detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + detail
 	}
 	if t.Phase != "" {
-		detail += "  " + st.dim(t.Phase)
+		detail += "  " + st.Dim(t.Phase)
 	}
 	return detail
 }
@@ -507,9 +509,9 @@ func formatAlignedCount(completed, total int64, cw countWidths) string {
 
 // headerlessCountWidths is the shared count-column width (countWidths) of a
 // header-less body's determinate Running rows: its own Tasks plus every
-// child collection that renders as its own Task row (rendersAsOwnTask).
+// child collection that renders as its own Task row (render.RendersAsOwnTask).
 // Fewer than two such rows share no column, matching
-// headerlessRowNameWidth's own convention.
+// render.HeaderlessRowNameWidth's own convention.
 func headerlessCountWidths(col core.TasksSnapshot) countWidths {
 	var doneWidth, totalWidth, rows int
 	consider := func(t core.TaskSnapshot) {
@@ -524,8 +526,8 @@ func headerlessCountWidths(col core.TasksSnapshot) countWidths {
 		consider(t)
 	}
 	for _, child := range col.Collections {
-		stripped, _ := withoutDispositionItems(child)
-		if rendersAsOwnTask(stripped) {
+		stripped, _ := render.WithoutDispositionItems(child)
+		if render.RendersAsOwnTask(stripped) {
 			consider(stripped.Tasks[0])
 		}
 	}
@@ -543,14 +545,14 @@ func livePendingDetail(t core.TaskSnapshot, st liveStyle) string {
 	if heartbeatSuffix(st.now, activitySince(t)) == "" {
 		return ""
 	}
-	return st.dim("waiting")
+	return st.Dim("waiting")
 }
 
 // liveFailedDetail is a Failed row's headline, after the count it reached
 // when it failed mid-loop (release-gate round 8 finding 4).
 func liveFailedDetail(t core.TaskSnapshot) string {
-	msg := headline(t)
-	count := progressCountText(t.Progress)
+	msg := plain.Headline(t)
+	count := plain.ProgressCountText(t.Progress)
 	switch {
 	case msg != "" && count != "":
 		return count + "  " + msg
@@ -602,9 +604,4 @@ func formatBytes(n int64) string {
 		return fmt.Sprintf("%.1f KB", float64(n)/float64(kb))
 	}
 	return fmt.Sprintf("%d B", n)
-}
-
-func formatByteProgressFixed(completed, total int64) string {
-	const mb = 1_000_000.0
-	return fmt.Sprintf("%.1f/%.1f MB", float64(completed)/mb, float64(total)/mb)
 }

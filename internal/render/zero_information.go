@@ -155,5 +155,5 @@ func collectionsWithoutTasks(cols []core.TasksSnapshot, hidden map[string]bool) 
 func HumanProjection(s core.Snapshot, verbose bool) core.Snapshot {
 	s = SnapshotAtVerbosity(s, verbose)
 	s = WithoutTasks(s, ZeroInformationTaskIDs(s))
-	return qualifyFlattenedRows(s, flattensHeader)
+	return QualifyFlattenedRows(s, FlattensHeader)
 }

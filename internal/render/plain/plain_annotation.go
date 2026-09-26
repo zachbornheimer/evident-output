@@ -1,9 +1,10 @@
-package render
+package plain
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -17,17 +18,17 @@ func inlineTaskWarning(t core.TaskSnapshot) (string, bool) {
 	if t.State != core.Done || t.Summary != "" || len(t.Warnings) != 1 {
 		return "", false
 	}
-	msg := warningText(t.Warnings[0])
+	msg := WarningText(t.Warnings[0])
 	if txt.Cells(msg) > warningInlineMaxCells {
 		return "", false
 	}
 	return msg, true
 }
 
-// warningText is one warning's text on any row: its Summary, after the
+// WarningText is one warning's text on any row: its Summary, after the
 // subject it is On when it has one ("job  x"), the way a Problem's
 // subject row reads (E-109).
-func warningText(w core.Problem) string {
+func WarningText(w core.Problem) string {
 	if w.Subject == "" {
 		return w.Summary
 	}
@@ -35,16 +36,16 @@ func warningText(w core.Problem) string {
 }
 
 // inlineWarningText renders an inline warning with the same "! " bang the
-// nested writeNestedTaskWarnings line uses (E2.5 finding 3): the normative
+// nested WriteNestedTaskWarnings line uses (E2.5 finding 3): the normative
 // repo-retire dry-run fixture inlines a warning as "! kept 13 (...)" — an
 // inline and a nested warning must signal identically, never a dim-only
 // inline row that drops the one glyph the fixture treats as load-bearing.
-func inlineWarningText(msg string, s Style) string {
-	return s.dim(s.warningGlyph() + " " + msg)
+func inlineWarningText(msg string, s render.Style) string {
+	return s.Dim(s.WarningGlyph() + " " + msg)
 }
 
 // inlineTaskTaxonomy mirrors inlineTaskWarning/inlineTaskFact for a task's
-// accumulated Kept/Skipped disposition records (fixture-repo-retire-dryrun.md:
+// accumulated Kept/Skipped render.Disposition records (fixture-repo-retire-dryrun.md:
 // "✓ branches          ! kept 13 (8 protected, 5 unpushed)" — a taxonomy
 // tally IS a warning in the unified annotation model, so it competes for the
 // same one-inline-annotation-per-row slot and is disqualified by the same
@@ -54,23 +55,23 @@ func inlineWarningText(msg string, s Style) string {
 // two summaries cannot share one inline slot). The returned verb tells the
 // caller which of Skipped/Kept was inlined, so its causes/Verbose name list
 // (writeTaxonomy's other output) still renders below the row — inlining
-// only replaces the headline count line, never the evidence under it.
-func inlineTaskTaxonomy(t core.TaskSnapshot) (text string, verb disposition, ok bool) {
+// only replaces the Headline count line, never the evidence under it.
+func inlineTaskTaxonomy(t core.TaskSnapshot) (text string, verb render.Disposition, ok bool) {
 	if t.State != core.Done || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 0 {
-		return "", noDisposition, false
+		return "", render.NoDisposition, false
 	}
 	var records []core.TaxonomyRecord
 	switch {
 	case len(t.Skipped) > 0 && len(t.Kept) == 0:
-		verb, records = dispositionSkipped, t.Skipped
+		verb, records = render.DispositionSkipped, t.Skipped
 	case len(t.Kept) > 0 && len(t.Skipped) == 0:
-		verb, records = dispositionKept, t.Kept
+		verb, records = render.DispositionKept, t.Kept
 	default:
-		return "", noDisposition, false
+		return "", render.NoDisposition, false
 	}
 	text = taxonomySummaryText(verb, core.TallyOf(records))
 	if txt.Cells(text) > warningInlineMaxCells {
-		return "", noDisposition, false
+		return "", render.NoDisposition, false
 	}
 	return text, verb, true
 }
@@ -96,35 +97,35 @@ func inlineTaskFact(t core.TaskSnapshot) (core.Fact, bool) {
 // way an inline warning's "!" does. The leading bangColumnFiller keeps its
 // text aligned with a sibling's inline warning/taxonomy text regardless of
 // whether such a sibling exists on this render.
-func inlineFactText(f core.Fact, s Style) string {
-	return bangColumnFiller + s.dim(factText(f))
+func inlineFactText(f core.Fact, s render.Style) string {
+	return bangColumnFiller + s.Dim(factText(f))
 }
 
 // writeNestedTaskFacts is inlineTaskFact's nested-line sibling: every fact
 // that didn't qualify for inlining renders as its own dim "name  value" line
-// under the task's row, the same indentation writeNestedTaskWarnings uses.
-func writeNestedTaskFacts(b *strings.Builder, facts []core.Fact, indent string, s Style) {
+// under the task's row, the same indentation WriteNestedTaskWarnings uses.
+func writeNestedTaskFacts(b *strings.Builder, facts []core.Fact, indent string, s render.Style) {
 	for _, f := range facts {
-		fmt.Fprintf(b, "%s%s\n", indent, s.dim(factText(f)))
+		fmt.Fprintf(b, "%s%s\n", indent, s.Dim(factText(f)))
 	}
 }
 
-// writeNestedTaskWarnings emits warnings that didn't qualify for
+// WriteNestedTaskWarnings emits warnings that didn't qualify for
 // inlineTaskWarning as their own "!" lines under the task's row (P2:
 // "multiple/long → nested dim ! lines"), indented by indent (two spaces for
 // a standalone task, problemTreeIndent for a collection child). The glyph
 // keeps the same yellow attention color writeTaxonomy's "!" rows use — the
 // one place a warned task still reads as "not silently clean" in a colored
 // terminal, now that its own row glyph is an ordinary green ✓.
-func writeNestedTaskWarnings(b *strings.Builder, warnings []core.Problem, indent string, s Style) {
-	glyph := s.warningGlyph()
+func WriteNestedTaskWarnings(b *strings.Builder, warnings []core.Problem, indent string, s render.Style) {
+	glyph := s.WarningGlyph()
 	for _, w := range warnings {
-		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, warningText(w))
+		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, WarningText(w))
 	}
 }
 
 // writeTaxonomy emits the derived "- skipped N (...)" / "! kept N (...)"
-// line for a task's accumulated disposition records. Count and reason
+// line for a task's accumulated render.Disposition records. Count and reason
 // partition are computed here, mechanically, from the records themselves —
 // there is nothing for a caller to hand-assemble (and thereby miscount).
 // A single reason collapses to its bare name (the count already said N);
@@ -135,13 +136,13 @@ func writeNestedTaskWarnings(b *strings.Builder, warnings []core.Problem, indent
 // skipSummary is true when the caller already rendered this verb's summary
 // text inline on the task's own row (inlineTaskTaxonomy) — the causes
 // evidence line and Verbose name list below are unaffected by where the
-// headline text landed, so only the summary line itself is suppressed.
-func writeTaxonomy(b *strings.Builder, indent string, verb disposition, tally core.Tally, skipSummary bool, s Style) {
+// Headline text landed, so only the summary line itself is suppressed.
+func writeTaxonomy(b *strings.Builder, indent string, verb render.Disposition, tally core.Tally, skipSummary bool, s render.Style) {
 	if tally.Total() == 0 {
 		return
 	}
 	if !skipSummary {
-		writeTaxonomyHeadline(b, indent, verb, tally, s)
+		WriteTaxonomyHeadline(b, indent, verb, tally, s)
 	}
 	writeTaxonomyCauses(b, indent, tally.Causes(), s)
 	if !s.Verbose {
@@ -162,7 +163,7 @@ func writeTaxonomy(b *strings.Builder, indent string, verb disposition, tally co
 // txt.DefaultVisibleNames of them get a row; every other item folds into
 // the same bounded "a, b, c … +N more" list a Reason without Facts shows,
 // so one Fact never turns a thousand kept items into a thousand lines.
-func writeItemFacts(b *strings.Builder, indent string, part core.ReasonTally, s Style) {
+func writeItemFacts(b *strings.Builder, indent string, part core.ReasonTally, s render.Style) {
 	fmt.Fprintf(b, "%s%s:\n", indent, part.Reason)
 	var rows []int
 	var rest []string
@@ -183,7 +184,7 @@ func writeItemFacts(b *strings.Builder, indent string, part core.ReasonTally, s 
 		for j, f := range facts {
 			pairs[j] = factText(f)
 		}
-		fmt.Fprintf(b, "%s  %s  %s\n", indent, txt.PadRight(part.Names[i], width), s.dim(strings.Join(pairs, "  ")))
+		fmt.Fprintf(b, "%s  %s  %s\n", indent, txt.PadRight(part.Names[i], width), s.Dim(strings.Join(pairs, "  ")))
 	}
 	if len(rest) > 0 {
 		fmt.Fprintf(b, "%s  %s\n", indent, txt.TruncateNames(rest, 0, s.Profile))
@@ -198,35 +199,35 @@ func itemFacts(part core.ReasonTally, i int) []core.Fact {
 	return nil
 }
 
-// writeTaxonomyHeadline writes tally's one count line ("- skipped 3
+// WriteTaxonomyHeadline writes tally's one count line ("- skipped 3
 // (...)"), or nothing when it is empty.
-func writeTaxonomyHeadline(b *strings.Builder, indent string, verb disposition, tally core.Tally, s Style) {
+func WriteTaxonomyHeadline(b *strings.Builder, indent string, verb render.Disposition, tally core.Tally, s render.Style) {
 	if tally.Total() == 0 {
 		return
 	}
-	fmt.Fprintf(b, "%s%s %s\n", indent, verb.glyph(s), taxonomySummaryText(verb, tally))
+	fmt.Fprintf(b, "%s%s %s\n", indent, verb.Glyph(s), taxonomySummaryText(verb, tally))
 }
 
-// writeDispositions writes d's skipped then kept tallies at indent.
+// WriteDispositions writes d's skipped then kept tallies at indent.
 // inlinedVerb names the tally the caller already rendered on its own row
-// (inlineTaskTaxonomy), whose headline line is then not repeated; "" when
-// noDisposition when none was inlined.
-func writeDispositions(b *strings.Builder, indent string, d core.Dispositions, inlinedVerb disposition, s Style) {
-	writeTaxonomy(b, indent, dispositionSkipped, d.Skipped, inlinedVerb == dispositionSkipped, s)
-	writeTaxonomy(b, indent, dispositionKept, d.Kept, inlinedVerb == dispositionKept, s)
+// (inlineTaskTaxonomy), whose Headline line is then not repeated; "" when
+// render.NoDisposition when none was inlined.
+func WriteDispositions(b *strings.Builder, indent string, d core.Dispositions, inlinedVerb render.Disposition, s render.Style) {
+	writeTaxonomy(b, indent, render.DispositionSkipped, d.Skipped, inlinedVerb == render.DispositionSkipped, s)
+	writeTaxonomy(b, indent, render.DispositionKept, d.Kept, inlinedVerb == render.DispositionKept, s)
 }
 
-// taskDispositions is t's own two tallies.
-func taskDispositions(t core.TaskSnapshot) core.Dispositions {
+// TaskDispositions is t's own two tallies.
+func TaskDispositions(t core.TaskSnapshot) core.Dispositions {
 	var d core.Dispositions
 	d.AddTask(&t)
 	return d
 }
 
 // inlineTaxonomyText is a tally inlined on its task's row, with the same
-// glyph its nested line would carry (disposition.glyph).
-func inlineTaxonomyText(text string, verb disposition, s Style) string {
-	return s.dim(verb.glyph(s) + " " + text)
+// glyph its nested line would carry (render.Disposition.glyph).
+func inlineTaxonomyText(text string, verb render.Disposition, s render.Style) string {
+	return s.Dim(verb.Glyph(s) + " " + text)
 }
 
 // taxonomySummaryText derives the "<verb> N (<reason breakdown>)" text shared
@@ -235,7 +236,7 @@ func inlineTaxonomyText(text string, verb disposition, s Style) string {
 // byte-identical text (fixture-repo-retire-dryrun.md's "kept 13 (8 protected,
 // 5 unpushed)": single space before the parenthesis, not the two-space form
 // the pre-fixture rendering used).
-func taxonomySummaryText(verb disposition, tally core.Tally) string {
+func taxonomySummaryText(verb render.Disposition, tally core.Tally) string {
 	reasons := tally.Reasons()
 	parts := make([]string, len(reasons))
 	for i, part := range reasons {
@@ -251,11 +252,11 @@ func taxonomySummaryText(verb disposition, tally core.Tally) string {
 // writeTaxonomyCauses renders a tally's accumulated Causes as evidence
 // under the count row: one bounded └─ line normally (first cause + "(+N
 // more)"), the full list under Verbose (one line per cause).
-func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s Style) {
+func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s render.Style) {
 	if len(causes) == 0 {
 		return
 	}
-	evidence := s.evidenceGlyph()
+	evidence := s.EvidenceGlyph()
 	if !s.Verbose {
 		line := causes[0]
 		if more := len(causes) - 1; more > 0 {
@@ -275,13 +276,13 @@ func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s S
 // Problem/Fact) — fire-and-forget durable dim
 // lines, warnings first: "! <text>" then "<name>  <value>", in call order
 // within each severity.
-func writeRunAnnotations(b *strings.Builder, warnings []core.Problem, facts []core.Fact, s Style) {
-	glyph := s.warningGlyph()
+func writeRunAnnotations(b *strings.Builder, warnings []core.Problem, facts []core.Fact, s render.Style) {
+	glyph := s.WarningGlyph()
 	for _, w := range warnings {
-		fmt.Fprintf(b, "%s %s\n", glyph, warningText(w))
+		fmt.Fprintf(b, "%s %s\n", glyph, WarningText(w))
 	}
 	for _, f := range facts {
-		fmt.Fprintf(b, "%s\n", s.dim(factText(f)))
+		fmt.Fprintf(b, "%s\n", s.Dim(factText(f)))
 	}
 }
 

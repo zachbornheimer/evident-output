@@ -1,4 +1,4 @@
-package render
+package plain
 
 // cancellationPartialChangesNote is the one line a cancelled run adds when
 // effects were already committed. It states that changes stand (cancellation

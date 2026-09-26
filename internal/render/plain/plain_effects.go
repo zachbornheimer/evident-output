@@ -1,10 +1,11 @@
-package render
+package plain
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -74,12 +75,12 @@ type EffectSection struct {
 // the honest "nothing to" line when none survived, one collapsed line for
 // a single distinct record, and otherwise a header plus bounded rows,
 // compact on a narrow terminal and leader-aligned elsewhere.
-func WriteEffects(b *strings.Builder, sec EffectSection, s Style) {
+func WriteEffects(b *strings.Builder, sec EffectSection, s render.Style) {
 	if len(sec.Records) == 0 {
 		writeNothingToDo(b, sec)
 		return
 	}
-	tag := s.paint(fmt.Sprintf("[%s]", sec.Kind), effectColor(sec.Kind))
+	tag := s.Paint(fmt.Sprintf("[%s]", sec.Kind), effectColor(sec.Kind))
 	visible := mergeIdenticalEffectRecords(sec.Records)
 	if len(visible) == 1 {
 		writeEffectLine(b, tag, sec, visible[0])
@@ -88,7 +89,7 @@ func WriteEffects(b *strings.Builder, sec EffectSection, s Style) {
 	fmt.Fprintf(b, "%s  %s\n", tag, sec.Subject)
 	omitted := max(len(visible)-maxVisibleEffectRows, 0)
 	visible = visible[:len(visible)-omitted]
-	if sec.Width > 0 && sec.Width < compactLayoutMaxWidth {
+	if sec.Width > 0 && sec.Width < render.CompactLayoutMaxWidth {
 		writeCompactEffects(b, visible)
 	} else {
 		writeAlignedEffects(b, visible, s)
@@ -141,7 +142,7 @@ const maxEffectLeader = 12
 
 // writeAlignedEffects writes rows with verbs and quantities in columns,
 // joined to a quantity-less object by a dim leader when the gap is wide.
-func writeAlignedEffects(b *strings.Builder, visible []core.EffectRecord, s Style) {
+func writeAlignedEffects(b *strings.Builder, visible []core.EffectRecord, s render.Style) {
 	maxVerb, maxQty := 0, 0
 	for _, r := range visible {
 		maxVerb = max(maxVerb, len(r.Verb))
@@ -157,16 +158,16 @@ func writeAlignedEffects(b *strings.Builder, visible []core.EffectRecord, s Styl
 			continue
 		}
 		if gap := min(maxVerb-len(r.Verb), maxEffectLeader); gap > 2 {
-			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, s.dim(strings.Repeat("·", gap)), r.Object)
+			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, s.Dim(strings.Repeat("·", gap)), r.Object)
 			continue
 		}
 		fmt.Fprintf(b, "  %s  %s %s\n", verb, txt.PadLeft("", maxQty), r.Object)
 	}
 }
 
-// writeLedger writes every [changed] then [planned] section of snap, each
+// WriteLedger writes every [changed] then [planned] section of snap, each
 // kind aligned to its own subject column.
-func writeLedger(b *strings.Builder, snap core.Snapshot, width int, s Style) {
+func WriteLedger(b *strings.Builder, snap core.Snapshot, width int, s render.Style) {
 	changeNameWidth := maxEffectSubjectWidth(snap.Changes, func(c core.ChangesSnapshot) string { return c.Subject })
 	for _, ch := range snap.Changes {
 		WriteEffects(b, EffectSection{Kind: "changed", Subject: ch.Subject, Records: ch.Records, IntendedVerb: ch.IntendedVerb, NameWidth: changeNameWidth, Width: width}, s)
@@ -181,11 +182,11 @@ func writeLedger(b *strings.Builder, snap core.Snapshot, width int, s Style) {
 // glyph (txt.Dim "…"/"...") marks it, not "!" — an omitted-count line is a
 // viewport limit, not something demanding attention (evo-rec.md "! is
 // attention only... Overflow is never !").
-func writeEffectOverflow(b *strings.Builder, omitted int, s Style) {
+func writeEffectOverflow(b *strings.Builder, omitted int, s render.Style) {
 	if omitted <= 0 {
 		return
 	}
-	fmt.Fprintf(b, "  %s  +%d more (not shown)\n", s.overflowGlyph(), omitted)
+	fmt.Fprintf(b, "  %s  +%d more (not shown)\n", s.OverflowGlyph(), omitted)
 }
 
 // writeAlreadyMutated renders the early-termination "! already mutated: ..."
@@ -195,12 +196,12 @@ func writeEffectOverflow(b *strings.Builder, omitted int, s Style) {
 // suppressed entirely rather than rendered as "none". The summary is derived
 // mechanically from the Changes ledger, never assembled by the caller
 // (evo-rec.md "Taxonomy and mutation lines are derived, never assembled").
-func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, s Style) {
+func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, s render.Style) {
 	summary, ok := summarizeAlreadyMutated(changes)
 	if !ok {
 		return
 	}
-	fmt.Fprintf(b, "%s  already mutated: %s\n", s.warningGlyph(), summary)
+	fmt.Fprintf(b, "%s  already mutated: %s\n", s.WarningGlyph(), summary)
 }
 
 // summarizeAlreadyMutated derives the "! already mutated: ..." line's

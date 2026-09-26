@@ -1,4 +1,4 @@
-package render
+package live
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -112,7 +113,7 @@ func mixedTasks(prefix string, n int) []core.TaskSnapshot {
 	return tasks
 }
 
-// items is n disposition items: each resolved Kept or Skipped and nothing
+// items is n Disposition items: each resolved Kept or Skipped and nothing
 // else.
 func items(prefix string, n int) []core.TaskSnapshot {
 	var tasks []core.TaskSnapshot
@@ -189,7 +190,7 @@ func projectionShapes() map[string]core.Snapshot {
 func TestLiveProjection_PaintsTheSameFrame(t *testing.T) {
 	t.Parallel()
 	now := projectionEpoch.Add(10 * time.Minute)
-	style := Style{Profile: txt.GlyphsUnicode}
+	style := render.Style{Profile: txt.GlyphsUnicode}
 	for name, s := range projectionShapes() {
 		for _, rows := range []int{4, 8, 24, 60} {
 			want := LiveRegion(s, rows, 80, now, style)
@@ -226,7 +227,7 @@ func TestLiveProjection_SmallCollectionIsWhole(t *testing.T) {
 	if _, partial := core.ChildTallyOf(got); partial || len(got.Tasks) != 10 {
 		t.Errorf("small collection projected to %d children (partial=%v); want all 10, whole", len(got.Tasks), partial)
 	}
-	if !strings.Contains(LiveRegion(core.Snapshot{Collections: []core.TasksSnapshot{got}}, 24, 80, projectionEpoch, Style{Profile: txt.GlyphsUnicode}), "item-9") {
+	if !strings.Contains(LiveRegion(core.Snapshot{Collections: []core.TasksSnapshot{got}}, 24, 80, projectionEpoch, render.Style{Profile: txt.GlyphsUnicode}), "item-9") {
 		t.Errorf("small collection frame lost a child")
 	}
 }

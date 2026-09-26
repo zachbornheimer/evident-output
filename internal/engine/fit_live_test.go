@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	renderlive "github.com/zachbornheimer/evident-output/internal/render/live"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -15,7 +15,7 @@ import (
 func TestFitLiveRegion_UnderWidthReturnsInputUnchanged(t *testing.T) {
 	const columns = 40
 	under := "short line\nanother short\nthird"
-	got := render.FitLiveRegion(under, columns)
+	got := renderlive.FitLiveRegion(under, columns)
 	if got != under {
 		t.Fatalf("under-width fit rewrote input:\nwant %q\ngot  %q", under, got)
 	}
@@ -24,7 +24,7 @@ func TestFitLiveRegion_UnderWidthReturnsInputUnchanged(t *testing.T) {
 	}
 
 	over := strings.Repeat("x", columns+20)
-	fitted := render.FitLiveRegion(over, columns)
+	fitted := renderlive.FitLiveRegion(over, columns)
 	if fitted == over {
 		t.Fatal("over-width line was not truncated")
 	}

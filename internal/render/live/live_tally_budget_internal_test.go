@@ -1,4 +1,4 @@
-package render
+package live
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ func causedItems(running int) core.TasksSnapshot {
 // exercising the folded tallies (which paint only once the category itself
 // has stopped classifying — contract §18) isn't accidentally testing the
 // running-suppression rule instead of what it means to test. Once those
-// children are terminal they are work peers of their own (isWorkPeer), so
+// children are terminal they are work peers of their own (IsWorkPeer), so
 // col gets a Summary too: folds() only tolerates a work peer beside a
 // folded tally when the Group names its own subject with one (the same
 // rule a finished "12 checked" category already relies on).
@@ -58,7 +58,7 @@ func settled(col core.TasksSnapshot) core.TasksSnapshot {
 // cause lines would push a live Group past the terminal height, the frame
 // keeps each tally's headline and drops its causes (the durable render
 // still carries them). settled's filler children outrank neither
-// disposition (they render, if room allows, as ordinary settled rows —
+// Disposition (they render, if room allows, as ordinary settled rows —
 // contract §18's running-suppression rule does not gate them once they,
 // and the whole category, have stopped running), so this only pins the
 // tallies' own row.

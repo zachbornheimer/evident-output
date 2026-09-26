@@ -7,6 +7,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
+	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
 )
 
 // Progressive emission implements the spirit of §1 (live becomes durable) and
@@ -192,7 +193,7 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	}
 	var b strings.Builder
 	nameWidth := o.rootColumn.nameWidth()
-	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, o.humanStyle())
+	renderplain.WriteTaskAligned(&b, st.snapshot(), nameWidth, o.humanStyle())
 	st.coreEmitted = true
 	if b.Len() == 0 {
 		return
@@ -259,7 +260,7 @@ func hasNamedEffectRecord(records []core.EffectRecord) bool {
 // section (Effect) is untouched — it always
 // waits for Finish, exactly as before (see hasNamedEffectRecord).
 //
-// This calls the same render.WriteEffects Finish already uses (merge,
+// This calls the same renderplain.WriteEffects Finish already uses (merge,
 // bounded-rows cap, "+N more" overflow) so a task that records many named
 // items still collapses identical (verb, object) pairs and bounds distinct
 // ones — the model in o.plans/o.changes is the only place records
@@ -273,20 +274,20 @@ func (o *Output) commitNamedEffectsLocked(owner string) {
 			continue
 		}
 		var b strings.Builder
-		render.WriteEffects(&b, o.effectSectionLocked(s, maxSubjectWidth(*o.sectionsLocked(tense))), o.humanStyle())
+		renderplain.WriteEffects(&b, o.effectSectionLocked(s, maxSubjectWidth(*o.sectionsLocked(tense))), o.humanStyle())
 		o.writeDurableTextLocked(b.String())
 		s.namedRowsEmitted = true
 	}
 }
 
-// effectSectionLocked is s laid out for render.WriteEffects — the one
+// effectSectionLocked is s laid out for renderplain.WriteEffects — the one
 // shape both the streamed and the Finish ledger render.
-func (o *Output) effectSectionLocked(s *ledgerSection, nameWidth int) render.EffectSection {
+func (o *Output) effectSectionLocked(s *ledgerSection, nameWidth int) renderplain.EffectSection {
 	width := o.cfg.width
 	if width <= 0 {
 		width = defaultWidth
 	}
-	return render.EffectSection{
+	return renderplain.EffectSection{
 		Kind: s.tense.String(), Subject: s.subject, Records: s.records,
 		IntendedVerb: s.intendedVerb, NameWidth: nameWidth, Width: width,
 	}
@@ -387,7 +388,7 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	row := st.snapshot()
 	row.Name = progressiveRowName(st)
 	var b strings.Builder
-	render.WriteTask(&b, row, o.humanStyle())
+	renderplain.WriteTask(&b, row, o.humanStyle())
 	if b.Len() == 0 {
 		return
 	}
@@ -460,7 +461,7 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 		// (projectMessageLinesLocked), so slicing it here would misalign
 		// this index and, once a Task row precedes it, skip content.
 		for i := linesFrom; i < len(o.lines); i++ {
-			render.WriteDebugOrLine(&b, o.lines[i], style.Color)
+			renderplain.WriteDebugOrLine(&b, o.lines[i], style.Color)
 		}
 	}
 	// hasPendingCollectionRowsLocked's held-back messages (print.go's
@@ -488,7 +489,7 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	}
 	o.writeResidualLedgerLocked(&b, style)
 	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {
-		render.WriteConclusion(&b, render.StandaloneConclusion(snap), style)
+		renderplain.WriteConclusion(&b, render.StandaloneConclusion(snap), style)
 	}
 	o.writeDebugTailLocked(&b, snap, style.Color)
 	return b.String()
@@ -509,12 +510,12 @@ func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, 
 			continue
 		}
 		if shown[t.id] {
-			render.WriteTaskAligned(b, t.snapshot(), nameWidth, style)
+			renderplain.WriteTaskAligned(b, t.snapshot(), nameWidth, style)
 		}
 		t.coreEmitted = true
 	}
 	for _, col := range human.Collections {
-		render.WriteCollection(b, col, style)
+		renderplain.WriteCollection(b, col, style)
 	}
 }
 
@@ -525,7 +526,7 @@ func (o *Output) writeResidualLedgerLocked(b *strings.Builder, style render.Styl
 		nameWidth := maxSubjectWidth(*sections)
 		for _, s := range *sections {
 			if !s.namedRowsEmitted {
-				render.WriteEffects(b, o.effectSectionLocked(s, nameWidth), style)
+				renderplain.WriteEffects(b, o.effectSectionLocked(s, nameWidth), style)
 			}
 		}
 	}

@@ -7,20 +7,20 @@ import (
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// alreadySatisfiedDetail is spec §19's muted done-row suffix. It is the
+// AlreadySatisfiedDetail is spec §19's muted done-row suffix. It is the
 // resolution, not a Summary: runDefine leaves Summary empty, and a
 // caller-written Done("already satisfied") is a different path that must
 // not be how Verify+Define is proven.
-const alreadySatisfiedDetail = "already satisfied"
+const AlreadySatisfiedDetail = "already satisfied"
 
-// alreadySatisfiedRowDetail returns the dim §19 suffix when t settled
+// AlreadySatisfiedRowDetail returns the dim §19 suffix when t settled
 // ResolutionAlreadySatisfied. Summary does not replace it. Empty when
 // this is not that resolution, so callers keep today's Summary behavior.
-func alreadySatisfiedRowDetail(t core.TaskSnapshot, color bool) string {
+func AlreadySatisfiedRowDetail(t core.TaskSnapshot, color bool) string {
 	if t.Resolution != core.ResolutionAlreadySatisfied {
 		return ""
 	}
-	return txt.Dim(alreadySatisfiedDetail, color)
+	return txt.Dim(AlreadySatisfiedDetail, color)
 }
 
 // DisplayUnit is evo-rec.md P3's uniform row model: a task row, a Sequence/
@@ -80,4 +80,11 @@ func trimTrailingSpace(s string) string {
 		end--
 	}
 	return s[:end]
+}
+
+// FormatByteProgressFixed renders a byte-scale progress count fixed at one
+// decimal of MB ("12.3/45.6 MB") — plain and live share this one format.
+func FormatByteProgressFixed(completed, total int64) string {
+	const mb = 1_000_000.0
+	return fmt.Sprintf("%.1f/%.1f MB", float64(completed)/mb, float64(total)/mb)
 }

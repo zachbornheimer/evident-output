@@ -1,4 +1,4 @@
-package render
+package live
 
 import (
 	"strings"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -27,7 +28,7 @@ func TestLiveRunningDetail_AlignedCountNoTrailingSpaceBeforeHeartbeat(t *testing
 		Progress: core.Progress{Kind: core.Determinate, Completed: 3, Total: 10},
 	}, now, false)
 	cw := countWidths{done: 2, total: 2} // shared column, as two+ siblings would produce
-	st := liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 80, now: now}
+	st := liveStyle{Style: render.Style{Profile: txt.GlyphsUnicode}, width: 80, now: now}
 
 	detail, elapsed := liveRunningDetail(snap, cw, st)
 	if elapsed != "" {
@@ -71,7 +72,7 @@ func TestLiveRunningDetail_AlignedCountTwoSpacesBeforeHeartbeat(t *testing.T) {
 		Progress: core.Progress{Kind: core.Determinate, Completed: 3, Total: 10},
 	}, firstSeen, false)
 	cw := countWidths{done: 2, total: 2}
-	st := liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 80, now: now}
+	st := liveStyle{Style: render.Style{Profile: txt.GlyphsUnicode}, width: 80, now: now}
 
 	detail, elapsed := liveRunningDetail(snap, cw, st)
 	if elapsed == "" {
@@ -102,7 +103,7 @@ func TestLiveRunningDetail_LoneCountTwoSpacesBeforeHeartbeat(t *testing.T) {
 		State:    core.Running,
 		Progress: core.Progress{Kind: core.Determinate, Completed: 14, Total: 40},
 	}, firstSeen, false)
-	st := liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 80, now: now}
+	st := liveStyle{Style: render.Style{Profile: txt.GlyphsUnicode}, width: 80, now: now}
 
 	detail, elapsed := liveRunningDetail(snap, countWidths{}, st)
 	if elapsed == "" {
@@ -132,7 +133,7 @@ func TestLiveRunningDetail_NarrowLoneCountTwoSpacesBeforeHeartbeat(t *testing.T)
 			Progress: core.Progress{Kind: core.Determinate, Completed: 3, Total: 10},
 		}, firstSeen, false)
 	}
-	st := liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 30, now: now}
+	st := liveStyle{Style: render.Style{Profile: txt.GlyphsUnicode}, width: 30, now: now}
 
 	lone, _ := liveRunningDetail(newSnap(), countWidths{}, st)
 	aligned, _ := liveRunningDetail(newSnap(), countWidths{done: 2, total: 2}, st)

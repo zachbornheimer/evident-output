@@ -1,4 +1,4 @@
-package render
+package live
 
 import (
 	"fmt"
@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
 )
 
 // liveStyle is how one live frame paints every row: the terminal width,
 // this tick's spinner glyph, color, the clock, and the glyph profile.
 type liveStyle struct {
-	Style
+	render.Style
 	width int
 	spin  string
 	now   time.Time
@@ -49,7 +50,7 @@ type liveBodyLevel struct {
 }
 
 var (
-	underHeader = liveBodyLevel{indent: 1, pad: groupChildIndent}
+	underHeader = liveBodyLevel{indent: 1, pad: render.GroupChildIndent}
 	inPlace     = liveBodyLevel{}
 	atRoot      = liveBodyLevel{groupsFirst: true}
 )
@@ -71,24 +72,24 @@ func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, heig
 	// Count before folding: a folded item is still a completed child, so
 	// "N/M complete" never drops when the items fold.
 	done, total := completion(col)
-	col, items := withoutDispositionItems(col)
+	col, items := render.WithoutDispositionItems(col)
 	switch {
-	case rendersAsOwnTask(col):
+	case render.RendersAsOwnTask(col):
 		taskRows := writeLiveTaskLine(b, col.Tasks[0], 0, nameWidth, cw, st)
 		// Contract §18: no "- skipped N" tally while the category's own
-		// Task is still Running — its disposition items may still be
+		// Task is still Running — its render.Disposition items may still be
 		// arriving, so the count would understate or flap. The tally
 		// appears once the category settles (Done/Failed/Skipped), the
 		// same moment its own row stops spinning.
 		if col.Tasks[0].State != core.Running {
-			writeLiveDispositions(b, taskAnnotationIndent, items, height-taskRows, st.Style)
+			writeLiveDispositions(b, render.TaskAnnotationIndent, items, height-taskRows, st.Style)
 		}
-	case promotesLoneChildOntoHeader(col):
+	case render.PromotesLoneChildOntoHeader(col):
 		unit := liveTaskUnit(col.Tasks[0], 0, countWidths{}, st)
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
-		// Contract §18: promotesLoneChildOntoHeader only ever fires while
+		// Contract §18: render.PromotesLoneChildOntoHeader only ever fires while
 		// its lone child is Running or Pending (own_task.go), so this
 		// shape is always mid-classification — the same "would understate
 		// or flap" reasoning as the own-Task branch above applies
@@ -101,7 +102,7 @@ func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, heig
 		b.WriteByte('\n')
 		var tallyRows int
 		if !categoryStillClassifying(col) {
-			tallyRows = writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
+			tallyRows = writeLiveDispositions(b, render.HeaderTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
 		}
 		writeLiveBody(b, col, max(height-headerRows-tallyRows, minLiveChildRows+omissionRows), underHeader, st)
 	}
@@ -118,7 +119,7 @@ func writeLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level
 		return
 	}
 	omitted := fillLiveBody(b, col, budget-omissionRows, level, st)
-	fmt.Fprintf(b, "%s%s  %d not shown\n", level.pad, st.overflowGlyph(), omitted)
+	fmt.Fprintf(b, "%s%s  %d not shown\n", level.pad, st.OverflowGlyph(), omitted)
 }
 
 // fillLiveBody writes as much of col's body as fits in budget rows and
@@ -126,7 +127,7 @@ func writeLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level
 func fillLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level liveBodyLevel, st liveStyle) (omitted int) {
 	fill := liveFill{b: b, left: budget, level: level, st: st}
 	if level.indent == 0 {
-		fill.nameWidth = headerlessRowNameWidth(col)
+		fill.nameWidth = render.HeaderlessRowNameWidth(col)
 		fill.countW = headerlessCountWidths(col)
 	}
 	if level.groupsFirst {

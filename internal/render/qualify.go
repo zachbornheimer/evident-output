@@ -14,32 +14,14 @@ import (
 // two sections share a name. A unique name stays bare. Rows under a header
 // are a level of their own: the header already says where they are.
 
-// headerRule reports whether col, its disposition items already folded
+// headerRule reports whether col, its Disposition items already folded
 // out, renders without its header. Plain and live differ only in this.
 type headerRule func(col core.TasksSnapshot, items core.Dispositions) bool
 
-// liveFlattensHeader is the live frame's rule for a Group given height
-// rows: the header stays while its aggregate "N/M complete" count says
-// something the rows do not (liveProgressAddsInformation) — never "0/0
-// complete" for a Group that holds only nested Groups — and whenever its
-// body overflows height, since then the rows cannot all speak for
-// themselves (E-111).
-func liveFlattensHeader(col core.TasksSnapshot, items core.Dispositions, height int) bool {
-	_, total := completion(col)
-	return flattensHeader(col, items) && !liveProgressAddsInformation(col, total) && !liveBodyOverflows(col, height)
-}
-
-// liveHeaderRule is liveFlattensHeader for a frame of height rows.
-func liveHeaderRule(height int) headerRule {
-	return func(col core.TasksSnapshot, items core.Dispositions) bool {
-		return liveFlattensHeader(col, items, height)
-	}
-}
-
-// qualifyFlattenedRows returns s with every flattened row whose name
+// QualifyFlattenedRows returns s with every flattened row whose name
 // collides at its level named by its container path. The input is not
 // modified.
-func qualifyFlattenedRows(s core.Snapshot, flattens headerRule) core.Snapshot {
+func QualifyFlattenedRows(s core.Snapshot, flattens headerRule) core.Snapshot {
 	s.Collections = qualifyLevel(s.Tasks, s.Collections, flattens)
 	return s
 }
@@ -67,9 +49,9 @@ func qualifyLevel(tasks []core.TaskSnapshot, cols []core.TasksSnapshot, flattens
 // countLevelRows counts the row names col contributes to its parent's
 // level: its own row, or, when it flattens, its children's.
 func countLevelRows(col core.TasksSnapshot, names map[string]int, flattens headerRule) {
-	rest, items := withoutDispositionItems(col)
+	rest, items := WithoutDispositionItems(col)
 	switch {
-	case rendersAsOwnTask(rest):
+	case RendersAsOwnTask(rest):
 		names[rest.Name]++
 	case flattens(rest, items):
 		for _, t := range rest.Tasks {
@@ -86,9 +68,9 @@ func countLevelRows(col core.TasksSnapshot, names map[string]int, flattens heade
 // qualifyCollection rewrites col for its level. path is the container path
 // of the flattened Groups above col at this level ("" at the top).
 func qualifyCollection(col core.TasksSnapshot, path string, names map[string]int, flattens headerRule) core.TasksSnapshot {
-	rest, items := withoutDispositionItems(col)
+	rest, items := WithoutDispositionItems(col)
 	switch {
-	case rendersAsOwnTask(rest):
+	case RendersAsOwnTask(rest):
 		return col
 	case flattens(rest, items):
 		path = qualifiedName(path, col.Name)
