@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
 	"github.com/zachbornheimer/evident-output/internal/render"
 )
 
@@ -63,11 +64,11 @@ func (o *Output) snapshotLocked() Snapshot {
 			s.Tasks = append(s.Tasks, t.snapshot())
 		}
 	}
-	for _, ch := range o.changes {
-		s.Changes = append(s.Changes, ch.changesSnapshot())
+	for _, ch := range o.book.Sections(ledger.Changed) {
+		s.Changes = append(s.Changes, ch.ChangesSnapshot())
 	}
-	for _, p := range o.plans {
-		s.Plans = append(s.Plans, p.planSnapshot())
+	for _, p := range o.book.Sections(ledger.Planned) {
+		s.Plans = append(s.Plans, p.PlanSnapshot())
 	}
 	for _, m := range o.messages {
 		s.Messages = append(s.Messages, MessageSnapshot{

@@ -1,9 +1,10 @@
 package engine
 
 import (
+	"slices"
+
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // entry is s's ledger row for quantity objects: s.Quantity for a
@@ -71,12 +72,39 @@ func (o *Output) recordResolvedEntry(taskID string, target ledgerTarget, e ledge
 		return
 	}
 	sec := o.ledgerSectionLocked(target.owner, target.tense)
-	if sec.intendedVerb == "" {
-		sec.intendedVerb = txt.Text(e.Verb())
-	}
-	if sec.record(verb, e) {
+	if sec.Record(verb, e) {
 		o.bumpLocked()
-		o.appendEventLocked(Event{Type: target.tense.RecordedEvent(), EntityID: sec.id})
+		o.appendEventLocked(Event{Type: target.tense.RecordedEvent(), EntityID: sec.ID()})
 	}
 	o.emitWireEventLocked(event, taskID, e.Payload(verb))
+}
+
+// ledgerSectionLocked returns owner's section in tense, opening it on first
+// use. Caller must hold o.mu.
+func (o *Output) ledgerSectionLocked(owner *taskState, tense ledger.Tense) *ledger.Section {
+	if s, ok := o.book.Find(owner.id, tense); ok {
+		return s
+	}
+	s, _ := o.book.Open(ledgerOwner(owner), tense, o.nextID(tense.String()))
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: tense.DeclaredEvent(), EntityID: s.ID()})
+	return s
+}
+
+// ledgerOwner is st's ledger.Owner, as fixed at declaration.
+func ledgerOwner(st *taskState) ledger.Owner {
+	var containers []string
+	for col := st.collection; col != nil; col = col.parent {
+		containers = append(containers, col.name)
+	}
+	slices.Reverse(containers)
+	return ledger.Owner{ID: st.id, Name: st.name, Declaration: st.declaration, Containers: containers}
+}
+
+// hasPlannedEffect reports whether the Task taskID recorded at least one
+// [planned] row: a mutation a dry run or preview skipped.
+func (o *Output) hasPlannedEffect(taskID string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.book.HasRecordsIn(taskID, ledger.Planned)
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/render"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -62,14 +63,9 @@ type Output struct {
 
 	tasks       []*taskState
 	collections []*tasksState
-	// changes and plans are the run's [changed] and [planned] sections, in
-	// ledger order (ledger_section.go).
-	changes []*ledgerSection
-	plans   []*ledgerSection
-	// ledger finds a section by its owning Task or shown name without
-	// rescanning (ledger_order.go).
-	ledger ledgerIndex
-	lines  []string
+	// book is the run's [changed] and [planned] ledger sections (ledger_book.go).
+	book  ledger.Book
+	lines []string
 	// deferredTaskRowLines marks indices into lines that hold a standalone
 	// Task's rendered row (commitResolvedTaskLocked's held branch), not a
 	// Println/Printf message. Those indices ride the same ordering queue as

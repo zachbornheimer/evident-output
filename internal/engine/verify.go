@@ -207,7 +207,7 @@ func (t *TaskHandle) hasPostStateToVerify() bool {
 	// while Define committed no Effect (E-112): a Kept after a real
 	// mutation still owes its postcondition.
 	blocked := st != nil && core.IsTerminalTask(st.state.Current())
-	keptUnchanged := st != nil && st.proposed != nil && !o.hasRecordedEffectLocked(t.id)
+	keptUnchanged := st != nil && st.proposed != nil && !o.book.HasRecords(t.id)
 	o.mu.Unlock()
 	if blocked || keptUnchanged {
 		return false

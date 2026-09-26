@@ -192,7 +192,7 @@ func (o *Output) heldBackAsNoOpLocked(t TaskSnapshot) bool {
 	if !core.IsProvenNoOpTask(render.TaskAtVerbosity(t, o.cfg.verbosity >= VerbosityVerbose)) {
 		return false
 	}
-	return !o.hasLedgerSectionLocked(t.ID)
+	return !o.book.Owns(t.ID)
 }
 
 func (o *Output) commitResolvedTaskLocked(id string) {
@@ -248,20 +248,6 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	}
 }
 
-// hasNamedEffectRecord reports whether records holds at least one no-qty
-// (evo.File/evo.Exec named) row — the "named record enumerates" half of
-// "Quantity records tally; named records enumerate": Effect rows always
-// carry a quantity (HasQty true) and stay Finish-only, tallied and bounded
-// there exactly as before.
-func hasNamedEffectRecord(records []core.EffectRecord) bool {
-	for _, r := range records {
-		if !r.HasQty {
-			return true
-		}
-	}
-	return false
-}
-
 // commitNamedEffectsLocked streams owner's Plan/Changes ledger section the
 // instant its owning standalone task resolves (task.go's finish), provided
 // the section holds at least one named (File/Exec) record — evo-rec.md's
@@ -270,38 +256,38 @@ func hasNamedEffectRecord(records []core.EffectRecord) bool {
 // the moment that task's own work finishes, instead of every task's rows
 // piling up at the very end of the whole run's Finish. A pure-quantity
 // section (Effect) is untouched — it always
-// waits for Finish, exactly as before (see hasNamedEffectRecord).
+// waits for Finish, exactly as before (see Section.HasNamedRecord).
 //
 // This calls the same render.WriteEffects Finish already uses (merge,
 // bounded-rows cap, "+N more" overflow) so a task that records many named
 // items still collapses identical (verb, object) pairs and bounds distinct
-// ones — the model in o.plans/o.changes is the only place records
-// accumulate; only the presentation instant moves earlier. Marking the
-// section namedRowsEmitted is what makes residualCompositionLocked's Finish
-// loop skip it — the raw item list must never render twice.
+// ones — the model in o.book is the only place records accumulate; only
+// the presentation instant moves earlier. Marking the section streamed is
+// what makes residualCompositionLocked's Finish loop skip it — the raw
+// item list must never render twice.
 func (o *Output) commitNamedEffectsLocked(owner string) {
 	for _, tense := range []ledger.Tense{ledger.Planned, ledger.Changed} {
-		s, ok := o.ledger.byOwner[ledgerSectionKey{owner: owner, tense: tense}]
-		if !ok || s.namedRowsEmitted || !hasNamedEffectRecord(s.records) {
+		s, ok := o.book.Find(owner, tense)
+		if !ok || s.Streamed() || !s.HasNamedRecord() {
 			continue
 		}
 		var b strings.Builder
-		render.WriteEffects(&b, o.effectSectionLocked(s, maxSubjectWidth(*o.sectionsLocked(tense))), o.humanStyle())
+		render.WriteEffects(&b, o.effectSectionLocked(s, ledger.SubjectWidth(o.book.Sections(tense))), o.humanStyle())
 		o.writeDurableTextLocked(b.String())
-		s.namedRowsEmitted = true
+		s.MarkStreamed()
 	}
 }
 
 // effectSectionLocked is s laid out for render.WriteEffects — the one
 // shape both the streamed and the Finish ledger render.
-func (o *Output) effectSectionLocked(s *ledgerSection, nameWidth int) render.EffectSection {
+func (o *Output) effectSectionLocked(s *ledger.Section, nameWidth int) render.EffectSection {
 	width := o.cfg.width
 	if width <= 0 {
 		width = defaultWidth
 	}
 	return render.EffectSection{
-		Kind: s.tense.String(), Subject: s.subject, Records: s.records,
-		IntendedVerb: s.intendedVerb, NameWidth: nameWidth, Width: width,
+		Kind: s.Tense().String(), Subject: s.Subject(), Records: s.Records(),
+		IntendedVerb: s.IntendedVerb(), NameWidth: nameWidth, Width: width,
 	}
 }
 
@@ -427,17 +413,7 @@ func residualHasTaskRows(o *Output, snap Snapshot) bool {
 // renders nothing further here, so it must not reserve the blank-line
 // separator either.
 func residualHasEffectSections(o *Output) bool {
-	for _, c := range o.changes {
-		if !c.namedRowsEmitted {
-			return true
-		}
-	}
-	for _, p := range o.plans {
-		if !p.namedRowsEmitted {
-			return true
-		}
-	}
-	return false
+	return o.book.Unstreamed()
 }
 
 // residualCompositionLocked is the ONE ordered sequence every human-stream
@@ -534,10 +510,11 @@ func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, 
 // writeResidualLedgerLocked writes every [changed] then [planned] section
 // that did not already stream at its Task's resolution.
 func (o *Output) writeResidualLedgerLocked(b *strings.Builder, style render.Style) {
-	for _, sections := range []*[]*ledgerSection{&o.changes, &o.plans} {
-		nameWidth := maxSubjectWidth(*sections)
-		for _, s := range *sections {
-			if !s.namedRowsEmitted {
+	for _, tense := range []ledger.Tense{ledger.Changed, ledger.Planned} {
+		sections := o.book.Sections(tense)
+		nameWidth := ledger.SubjectWidth(sections)
+		for _, s := range sections {
+			if !s.Streamed() {
 				render.WriteEffects(b, o.effectSectionLocked(s, nameWidth), style)
 			}
 		}

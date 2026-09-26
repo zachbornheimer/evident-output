@@ -80,7 +80,7 @@ type taskState struct {
 	// annotate lifecycle, they never replace it — a warning-severity
 	// Problem does not itself
 	// resolve the task). A task with warnings but no terminal verb by
-	// Finish auto-resolves Done (see hasRecordedEffectLocked's amnesty
+	// Finish auto-resolves Done (see ledger.Book.HasRecords's amnesty
 	// siblings in Finish).
 	warnings []Problem
 	// facts accumulates TaskHandle.Fact's discovered-information annotations

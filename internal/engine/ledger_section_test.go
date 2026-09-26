@@ -4,8 +4,6 @@ import (
 	"io"
 	"strings"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
 )
 
 // TestLedgerKeepsSameNamedTasksInDifferentContainersApart proves a ledger
@@ -48,42 +46,5 @@ func TestLedgerNamesAnUnambiguousNestedTaskBare(t *testing.T) {
 	_ = out.Close()
 	if want := "[changed] prune  deleted 2 branches"; !strings.Contains(buf.String(), want) {
 		t.Fatalf("missing %q in:\n%s", want, buf.String())
-	}
-}
-
-// TestLedgerQualifiesEachSameNamedSectionOnce proves opening a section
-// names only that section (and, when it first makes a name ambiguous, the
-// one section already holding it): a Task's container path is fixed at
-// declaration, so recomputing every earlier same-named section's subject
-// on each open made n same-named sections cost O(n²) under o.mu.
-func TestLedgerQualifiesEachSameNamedSectionOnce(t *testing.T) {
-	out := Init(Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	for _, repo := range []string{"repo 0", "repo 1", "repo 2"} {
-		out.Group(repo).Task("prune")
-	}
-	out.mu.Lock()
-	defer out.mu.Unlock()
-	var opened []*ledgerSection
-	for _, st := range out.tasks {
-		if st.name == "prune" {
-			opened = append(opened, out.ledgerSectionLocked(st, ledger.Changed))
-		}
-		if len(opened) == 2 {
-			for _, s := range opened {
-				s.subject = "already qualified"
-			}
-		}
-	}
-	if len(opened) != 3 {
-		t.Fatalf("opened %d sections, want 3", len(opened))
-	}
-	for _, s := range opened[:2] {
-		if s.subject != "already qualified" {
-			t.Errorf("earlier section recomputed to %q on a later open", s.subject)
-		}
-	}
-	if want := "repo 2 › prune"; opened[2].subject != want {
-		t.Errorf("new section subject = %q, want %q", opened[2].subject, want)
 	}
 }

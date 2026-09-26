@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
 	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
@@ -466,11 +467,11 @@ func (o *Output) finishLiveLocked(final string) {
 // otherwise reappear on the next unrelated redraw and double-print.
 func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
 	var s Snapshot
-	for _, ch := range o.changes {
-		s.Changes = append(s.Changes, ch.changesSnapshot())
+	for _, ch := range o.book.Sections(ledger.Changed) {
+		s.Changes = append(s.Changes, ch.ChangesSnapshot())
 	}
-	for _, p := range o.plans {
-		s.Plans = append(s.Plans, p.planSnapshot())
+	for _, p := range o.book.Sections(ledger.Planned) {
+		s.Plans = append(s.Plans, p.PlanSnapshot())
 	}
 	cols := liveCollections(o.collections, rows, now)
 	s.Collections = cols.Kept()

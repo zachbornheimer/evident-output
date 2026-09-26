@@ -69,7 +69,7 @@ func (o *Output) settleUnresolvedTasksLocked() {
 		if core.IsTerminalTask(t.state.Current()) {
 			continue
 		}
-		if len(t.problems) > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0 {
+		if len(t.problems) > 0 || o.book.HasRecords(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0 {
 			o.settleLocked(t, Done, len(t.problems) > 0)
 			continue
 		}
@@ -209,7 +209,7 @@ func joinErrors(a, b error) error {
 
 // hasSealedProgress reports whether t's absolute progress reached the total
 // it declared — a completed Progress/Step loop — same unresolved-task
-// amnesty rationale as hasRecordedEffectLocked (beginner-gate-2 findings
+// amnesty rationale as ledger.Book.HasRecords (beginner-gate-2 findings
 // 1/2). Total must be positive and the kind explicitly set (Determinate or
 // BytesKind): a task that never called Progress/Bytes/Step carries the zero
 // value (Total 0, Kind "") and must not read as sealed.
@@ -221,7 +221,7 @@ func hasSealedProgress(t *taskState) bool {
 }
 
 // hasRecordedTaxonomy reports whether t accumulated any Skipped/Kept record
-// — same unresolved-task amnesty rationale as hasRecordedEffectLocked
+// — same unresolved-task amnesty rationale as ledger.Book.HasRecords
 // (beginner-gate-2 finding 4): the disposition taxonomy already told an
 // honest, complete story even though nothing called a terminal verb.
 func hasRecordedTaxonomy(t *taskState) bool {
