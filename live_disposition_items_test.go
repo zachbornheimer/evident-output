@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +34,15 @@ func TestLiveGroup_SkippedChildrenAggregateInTheLiveFrame(t *testing.T) {
 	work := branches.Task("branches")
 	release := make(chan struct{})
 	skipped := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseWorker := func() { releaseOnce.Do(func() { close(release) }) }
+	// Registered after out.Close's own t.Cleanup (line above), so it runs
+	// first (t.Cleanup is LIFO): a Fatalf below leaves Define's goroutine
+	// still blocked on <-release, and out.Close's cleanup would otherwise
+	// wait on it forever. Releasing first unblocks Define so out.Close can
+	// complete; sync.Once makes the explicit close(...) later in this test
+	// a no-op instead of a double-close panic.
+	t.Cleanup(releaseWorker)
 	work.Define(func(context.Context) error {
 		for i := range 5 {
 			branches.Task(fmt.Sprintf("feat/%d", i)).Skipped(evo.Reason("unpushed"))
@@ -49,7 +59,7 @@ func TestLiveGroup_SkippedChildrenAggregateInTheLiveFrame(t *testing.T) {
 		t.Fatalf("live frame must show no per-item rows and no tally while the category is still running:\n%s", running)
 	}
 
-	close(release)
+	releaseWorker()
 	_ = work.Wait()
 	clock.Advance(100 * time.Millisecond)
 	settled := screen.LatestLiveText()

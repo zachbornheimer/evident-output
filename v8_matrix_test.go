@@ -503,9 +503,9 @@ func TestV8_StressLive(t *testing.T) {
 	glyph := firstRune(screen.LatestLiveText())
 	want := glyph + " deploy production  1/5 complete — 8s\n" +
 		"   ✓ discover\n" +
-		"   " + glyph + " prepare hosts  [████        ]  31/100 — 8s\n" +
+		"   " + glyph + " prepare hosts  [████        ]  31/100  — 8s\n" +
 		"      " + glyph + " host-031\n" +
-		"   " + glyph + " services   [█████       ]  14/40 — 8s\n" +
+		"   " + glyph + " services   [█████       ]  14/40  — 8s\n" +
 		"      " + glyph + " payments-api\n" +
 		"      ! audit-stream rollout slower than baseline\n" +
 		"   ✗ write launch agent  failed: permissions\n" +
@@ -514,7 +514,7 @@ func TestV8_StressLive(t *testing.T) {
 		"        error  operation not permitted\n" +
 		"        path   " + displayPath + "\n" +
 		"        mode   0644\n" +
-		"   " + glyph + " cleanup    [█████       ]  7/18 — 8s\n" +
+		"   " + glyph + " cleanup    [█████       ]  7/18  — 8s\n" +
 		"      " + glyph + " feat/cleanup…\n" +
 		"      ! kept 5 (3 protected, 2 unpushed)\n" +
 		"\n" +
@@ -548,11 +548,10 @@ func TestV8_DependencyInstall(t *testing.T) {
 	clock.Advance(7 * time.Second)
 	install.Progress(14, 40) // re-render at the advanced clock for the timer.
 
-	// One departure from the frame's literal spacing, matching an
-	// established, already-tested convention elsewhere rather than this one
-	// mockup's exact characters: one space before the elapsed suffix
-	// ("14/40 — 7s"), not two — heartbeatSuffix's own " — <elapsed>"
-	// format, shared by every other elapsed-suffix golden in this suite.
+	// Matches spec §18's own worked example exactly, including its
+	// two-space gap before the elapsed suffix ("14/40  — 7s") — the
+	// same gap a shared count column uses, since §18 draws no
+	// distinction between a lone determinate row and an aligned one.
 	// The activity child's own two-space indent matches contract §18's
 	// normative frame exactly (writeLiveTaskLine's root-level
 	// activityChildIndent).
@@ -561,7 +560,7 @@ func TestV8_DependencyInstall(t *testing.T) {
 	// on (spec §23.1: motion only proves liveness, no specific frame is
 	// normative) — not necessarily the mockup's illustrative "⠋".
 	glyph := firstRune(screen.LatestLiveText())
-	want := glyph + " install dependencies  [█████       ]  14/40 — 7s\n" +
+	want := glyph + " install dependencies  [█████       ]  14/40  — 7s\n" +
 		"  " + glyph + " urllib3"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
@@ -668,7 +667,7 @@ func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
 	want := "✓ write plist\n" +
 		"✓ register\n" +
 		"✓ start\n" +
-		glyph + " install dependencies  [██████      ]  18/40 — 6s\n" +
+		glyph + " install dependencies  [██████      ]  18/40  — 6s\n" +
 		"  " + glyph + " requests"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)

@@ -403,17 +403,22 @@ func liveRunningDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) (detai
 		return progressBar(p.Completed, p.Total, 12) + "  " + formatByteProgressFixed(p.Completed, p.Total) + elapsed, elapsed
 	case p.Kind == core.Determinate && p.Total > 0:
 		detail := liveCountDetail(t, cw, st)
-		// The aligned count column's fixed one-space gap belongs to this
+		// The count field's fixed one-space gap belongs to this
 		// composition, not to formatAlignedCount's own field: it exists
-		// only to combine with heartbeatSuffix's leading space into a
-		// two-space gap before "— Ns" (formatAlignedCount's doc comment),
-		// and only when nothing else (a Phase) already sits between the
-		// count and the elapsed suffix. Before elapsedAfter, elapsed is
-		// still "" and there is nothing to combine with, so an aligned
-		// sibling row never ends its line on bare trailing whitespace for
-		// the run's first few seconds.
+		// only to combine with heartbeatSuffix's leading space into
+		// spec §18's two-space gap before "— Ns" ("14/40  — 7s"), and
+		// only when nothing else (a Phase) already sits between the
+		// count and the elapsed suffix. This applies to every determinate
+		// row alike, aligned or lone — §18's frame draws no distinction
+		// by sibling count, so the gap must not either (a prior form
+		// keyed this off cw.done, which both read the wrong width once
+		// liveCountDetail zeroed cw for a narrow terminal, and left lone
+		// rows one space short of aligned ones for no documented reason).
+		// Before elapsedAfter, elapsed is still "" and there is nothing to
+		// combine with, so a row never ends its line on bare trailing
+		// whitespace for the run's first few seconds.
 		if elapsed != "" {
-			if cw.done != 0 && t.Phase == "" {
+			if t.Phase == "" {
 				detail += " "
 			}
 			detail += elapsed

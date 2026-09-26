@@ -84,3 +84,62 @@ func TestLiveRunningDetail_AlignedCountTwoSpacesBeforeHeartbeat(t *testing.T) {
 		t.Fatalf("aligned count row must not show a three-space gap before the heartbeat em dash, got %q", detail)
 	}
 }
+
+// TestLiveRunningDetail_LoneCountTwoSpacesBeforeHeartbeat is the
+// RED-then-GREEN regression for spec §18's own worked example
+// ("install dependencies  [████        ]  14/40  — 7s"): a lone
+// determinate row (no shared count column, cw == countWidths{}) gets the
+// same two-space gap before "— Ns" as an aligned sibling row. The gap must
+// not depend on whether a count column is shared — §18 draws no such
+// distinction, and keying the gap off cw.done previously left a lone row
+// one space short of the spec's own frame.
+func TestLiveRunningDetail_LoneCountTwoSpacesBeforeHeartbeat(t *testing.T) {
+	t.Parallel()
+	firstSeen := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	now := firstSeen.Add(10 * time.Second)
+	snap := core.NewTaskSnapshot(core.TaskSnapshot{
+		Name:     "aa",
+		State:    core.Running,
+		Progress: core.Progress{Kind: core.Determinate, Completed: 14, Total: 40},
+	}, firstSeen, false)
+	st := liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 80, now: now}
+
+	detail, elapsed := liveRunningDetail(snap, countWidths{}, st)
+	if elapsed == "" {
+		t.Fatalf("expected a heartbeat suffix 10s after first-seen")
+	}
+	if !strings.Contains(detail, "  — ") {
+		t.Fatalf("lone count row must show a two-space gap before the heartbeat em dash, got %q", detail)
+	}
+}
+
+// TestLiveRunningDetail_NarrowLoneCountTwoSpacesBeforeHeartbeat pins the
+// same gap at a narrow terminal width, where liveCountDetail zeroes its own
+// local cw to drop the bar/padding (evo-rec.md Problem 16/26's compact
+// dialect). The heartbeat gap must not read the caller's un-zeroed cw to
+// decide whether to add its space: at width 30 (below compactLayoutMaxWidth)
+// a row sharing a count column with a sibling (cw.done != 0) rendered a
+// two-space gap while an otherwise-identical lone row (cw.done == 0)
+// rendered only one, even though both draw the same bare "N/M" once narrow.
+func TestLiveRunningDetail_NarrowLoneCountTwoSpacesBeforeHeartbeat(t *testing.T) {
+	t.Parallel()
+	firstSeen := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	now := firstSeen.Add(10 * time.Second)
+	newSnap := func() core.TaskSnapshot {
+		return core.NewTaskSnapshot(core.TaskSnapshot{
+			Name:     "aa",
+			State:    core.Running,
+			Progress: core.Progress{Kind: core.Determinate, Completed: 3, Total: 10},
+		}, firstSeen, false)
+	}
+	st := liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 30, now: now}
+
+	lone, _ := liveRunningDetail(newSnap(), countWidths{}, st)
+	aligned, _ := liveRunningDetail(newSnap(), countWidths{done: 2, total: 2}, st)
+	if lone != aligned {
+		t.Fatalf("narrow lone and aligned rows of the same shape must render identically, got lone %q vs aligned %q", lone, aligned)
+	}
+	if !strings.Contains(lone, "  — ") {
+		t.Fatalf("narrow lone count row must show a two-space gap before the heartbeat em dash, got %q", lone)
+	}
+}
