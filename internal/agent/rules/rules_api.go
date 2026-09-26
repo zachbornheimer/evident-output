@@ -570,6 +570,23 @@ out.Problem("disk nearly full", evo.Severity(evo.SeverityWarning))`,
 			Since:           "1.1.0",
 			Certainty:       CertaintyDeterministic,
 		},
+		{
+			ID:        "API-140",
+			Category:  "API",
+			Severity:  SeverityError,
+			Invariant: "TaskHandle.Blockf, TaskHandle.Failf, Output.Failf, and evo.Failure were removed in 1.1 with no alias — Fail/Block are the one statement-form spelling in this family",
+			Why:       "Owner vocabulary freeze (2026-09-25): Failf/Blockf/Failure were compatibility sugar around a same-line %w-wrapped return. There is no mechanical rewrite for a format string plus args, so this rule reports the removal with no fix rather than guessing how to fold the wrapped text into a summary.",
+			BadCode:   `return task.Failf("check branches: %w", err)`,
+			GoodCode: `err = fmt.Errorf("check branches: %w", err)
+task.Fail(err.Error())
+return err`,
+			Remediation:     "Fold the wrapped error text into Fail/Block's plain summary string by hand, then return the error separately (inside Define) or propagate it (fmt.Errorf/errors.Join); a remedy Failure.Next/NextCommand once attached moves to a Next/NextCommand ProblemOption before Fail/Block",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-140"},
+			MinDialect:      "1.1.0",
+			Since:           "1.1.0",
+			Certainty:       CertaintyDeterministic,
+		},
 	}
 }
 

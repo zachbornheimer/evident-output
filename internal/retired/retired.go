@@ -133,6 +133,39 @@ var symbols = []Symbol{
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+
+	// Owner vocabulary freeze (2026-09-25): Fail/Block are the one
+	// statement-form spelling; Blockf/Failf/Failure were compatibility
+	// sugar around a same-line %w-wrapped return, with no mechanical
+	// rewrite (see internal/agent/fix/failf.go, API-140).
+	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary) — fold the wrapped error into the summary string, then return it separately"},
+	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block(summary) — fold the wrapped error into the summary string, then return it separately"},
+	{Contract: "Output.Failf(", RemovedIn: Release1_1, Replacement: "Output.Fail — fold the wrapped error into the summary string, then return it separately"},
+	{Contract: "Failure", RemovedIn: Release1_1, Replacement: "a plain error, with Next/NextCommand ProblemOptions for a remedy"},
+
+	// Owner vocabulary freeze (2026-09-25): Progress+Doing win over Step;
+	// a kept item is domain information (Fact), not a third resolution;
+	// ForSkip/OnTask restricted where a Reason could be used, a
+	// constraint Reason never needed to enforce structurally.
+	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(name)"},
+	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: `Fact("kept", reason.Name())`},
+	{Contract: "ForSkip", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name"},
+	{Contract: "OnTask", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name"},
+	{Contract: "ReasonOption", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name"},
+
+	// Owner vocabulary freeze (2026-09-25): Config already carries every
+	// setting as a field; the parallel functional-options surface
+	// (Config.Options []Option, and each Option-returning constructor)
+	// never reached the public root package — only internal/engine keeps
+	// them, for the fixer/reviewer's own rewrite machinery.
+	{Contract: "Option", RemovedIn: Release1_1, Replacement: "the matching evo.Config field"},
+	// Title/Plain/DryRun as functional-option CALLS (evo.Title("x")) are
+	// gone; Config.Title/Plain/DryRun as struct fields are unaffected and
+	// unambiguous without a call — the Taught patterns require parens so
+	// this table entry never flags the live field spelling.
+	{Contract: "Title(", RemovedIn: Release1_1, Replacement: "Config.Title", Taught: regexp.MustCompile(`\bevo\.Title\(`)},
+	{Contract: "Plain(", RemovedIn: Release1_1, Replacement: "Config.Plain", Taught: regexp.MustCompile(`\bevo\.Plain\(\)`)},
+	{Contract: "DryRun(", RemovedIn: Release1_1, Replacement: "Config.DryRun", Taught: regexp.MustCompile(`\bevo\.DryRun\(\)`)},
 }
 
 // warnTaught matches the removed Warn taught as a call on an evo receiver

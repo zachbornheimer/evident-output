@@ -185,7 +185,7 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 - **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
   guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`
-  takes only its name. Review rule API-064 flags the old calls.
+  takes only its name. Review rule API-120 flags the old calls.
 - **`TaskHandle.Blockf`, `TaskHandle.Failf`, `Output.Failf`, `evo.Failure`,
   and `Failure.Error/Next/NextCommand/Unwrap`** were removed with no alias
   (owner vocabulary freeze, 2026-09-25: `Output.Failf` → `Fail`). All are
