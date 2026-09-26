@@ -8,7 +8,7 @@ import (
 
 // captureRenameUse is how each removed capture-meaning name appears in a
 // declaration, with %s for the qualified name, so BadCode/GoodCode are
-// compiling Go. Keyed by retired.CaptureRename.From.
+// compiling Go. Keyed by CaptureRename.From.
 var captureRenameUse = map[string]string{
 	"Evidence":               "var _ *%s",
 	"EvidenceOption":         "var _ %s = evo.KeepLastLines(200)",

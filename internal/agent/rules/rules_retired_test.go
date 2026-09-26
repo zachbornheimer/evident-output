@@ -16,7 +16,7 @@ func TestCatalogNeverTeachesARetiredSymbol(t *testing.T) {
 			t.Errorf("%s GoodCode teaches retired %q; use %s", r.ID, h.Match, h.Symbol.Replacement)
 		}
 		for field, text := range map[string]string{"Invariant": r.Invariant, "Remediation": r.Remediation} {
-			for _, h := range retired.UnexplainedIn(text) {
+			for _, h := range UnexplainedIn(text) {
 				t.Errorf("%s %s names retired %q without \"removed in %s\"; use %s", r.ID, field, h.Match, h.Symbol.RemovedIn, h.Symbol.Replacement)
 			}
 		}

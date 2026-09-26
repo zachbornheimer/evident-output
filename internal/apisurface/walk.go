@@ -40,6 +40,57 @@ func Walk(dir string) ([]string, error) {
 	return lines, nil
 }
 
+// Names parses dir like Walk but returns each exported identifier's bare
+// name ("Action") or "Receiver.Method" spelling instead of Walk's rendered
+// golden-format line. It reads go/doc's own type/func/value grouping
+// directly, so a caller that only needs identifiers (the vocabulary guard)
+// never re-parses Walk's rendered text — a line-format change here cannot
+// silently drop an identifier from that caller's view the way scanning
+// Walk's own output for known prefixes could.
+func Names(dir string) ([]string, error) {
+	fset := token.NewFileSet()
+	docPkg, err := parsePackageDoc(fset, dir)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, typ := range docPkg.Types {
+		if !ast.IsExported(typ.Name) {
+			continue
+		}
+		names = append(names, typ.Name)
+		for _, m := range typ.Methods {
+			if ast.IsExported(m.Name) {
+				names = append(names, typ.Name+"."+m.Name)
+			}
+		}
+		names = append(names, exportedFuncNames(typ.Funcs)...)
+	}
+	names = append(names, exportedFuncNames(docPkg.Funcs)...)
+	for _, group := range [][]*doc.Value{docPkg.Consts, docPkg.Vars} {
+		for _, v := range group {
+			for _, n := range v.Names {
+				if ast.IsExported(n) {
+					names = append(names, n)
+				}
+			}
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// exportedFuncNames is each exported func's bare name.
+func exportedFuncNames(funcs []*doc.Func) []string {
+	var names []string
+	for _, fn := range funcs {
+		if ast.IsExported(fn.Name) {
+			names = append(names, fn.Name)
+		}
+	}
+	return names
+}
+
 // parsePackageDoc parses every non-test .go file in dir into go/doc's
 // view of the package, keeping unexported declarations so grouping
 // matches the source.

@@ -12,7 +12,7 @@ import (
 // TestLive_DeterminateProgressBarAndIndeterminatePhase asserts the bar's
 // filled cells; it no longer asserts a "░" shaded empty cell, per spec §23
 // ("Empty cells are literal spaces, never shaded/outline glyphs") — fixed
-// in progressBar (internal/render/live.go) alongside this test.
+// in progressBar (internal/render/live/live.go) alongside this test.
 func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})

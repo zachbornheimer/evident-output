@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/engine"
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/render/machine"
 )
 
 // The JSON*ForTest aliases and Encode*ForTest functions below keep the
@@ -17,32 +17,32 @@ import (
 // (2026-09-25) removed JSONDocument/EncodeJSON/EncodeJSONL/EncodeEventJSON
 // and the JSON* wire types from the public dialect (WriteJSON's v2 "evo.run"
 // document is the sanctioned external JSON path), but the internal
-// render.EncodeJSON/EncodeJSONL machinery FormatJSON/FormatJSONL still call
+// machine.EncodeJSON/EncodeJSONL machinery FormatJSON/FormatJSONL still call
 // at Finish (internal/engine/machine.go) is unaffected and stays regression
 // tested through these test-only aliases rather than dropped.
 
-type JSONDocumentForTest = render.JSONDocument
-type JSONMessageForTest = render.JSONMessage
-type JSONOutputMetaForTest = render.JSONOutputMeta
-type ConclusionJSONForTest = render.ConclusionJSON
-type JSONProblemForTest = render.JSONProblem
-type JSONTaskForTest = render.JSONTask
-type JSONProgressForTest = render.JSONProgress
-type JSONCollectionForTest = render.JSONCollection
-type JSONChangesForTest = render.JSONChanges
-type JSONPlanForTest = render.JSONPlan
-type JSONEffectRecordForTest = render.JSONEffectRecord
-type JSONActionForTest = render.JSONAction
-type JSONCommandForTest = render.JSONCommand
-type EventJSONForTest = render.EventJSON
+type JSONDocumentForTest = machine.JSONDocument
+type JSONMessageForTest = machine.JSONMessage
+type JSONOutputMetaForTest = machine.JSONOutputMeta
+type ConclusionJSONForTest = machine.ConclusionJSON
+type JSONProblemForTest = machine.JSONProblem
+type JSONTaskForTest = machine.JSONTask
+type JSONProgressForTest = machine.JSONProgress
+type JSONCollectionForTest = machine.JSONCollection
+type JSONChangesForTest = machine.JSONChanges
+type JSONPlanForTest = machine.JSONPlan
+type JSONEffectRecordForTest = machine.JSONEffectRecord
+type JSONActionForTest = machine.JSONAction
+type JSONCommandForTest = machine.JSONCommand
+type EventJSONForTest = machine.EventJSON
 
-const JSONSchemaVersionForTest = render.JSONSchemaVersion
+const JSONSchemaVersionForTest = machine.JSONSchemaVersion
 
-func EncodeJSONForTest(s Snapshot) ([]byte, error) { return render.EncodeJSON(s) }
+func EncodeJSONForTest(s Snapshot) ([]byte, error) { return machine.EncodeJSON(s) }
 func EncodeJSONLForTest(events []Event) ([]byte, error) {
-	return render.EncodeJSONL(events)
+	return machine.EncodeJSONL(events)
 }
-func EncodeEventJSONForTest(e Event) ([]byte, error) { return render.EncodeEventJSON(e) }
+func EncodeEventJSONForTest(e Event) ([]byte, error) { return machine.EncodeEventJSON(e) }
 
 func SwapLookupEnv(fn func(string) string) func() { return engine.SwapLookupEnv(fn) }
 func MarkWriterAsCharDevice(w io.Writer) func()   { return engine.MarkWriterAsCharDevice(w) }

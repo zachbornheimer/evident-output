@@ -14,8 +14,8 @@ type Style struct {
 	Profile txt.GlyphProfile
 }
 
-// dim demotes subordinate text.
-func (s Style) dim(text string) string { return txt.Dim(text, s.Color) }
+// Dim demotes subordinate text.
+func (s Style) Dim(text string) string { return txt.Dim(text, s.Color) }
 
 // paint applies an SGR code to text.
 func (s Style) paint(text, sgr string) string { return txt.Style(text, sgr, s.Color) }
@@ -25,16 +25,36 @@ func (s Style) stateGlyph(state core.EntityState) string {
 	return txt.StyleGlyph(TaskGlyph(state, s.Profile), StateColor(state), s.Color)
 }
 
-// warningGlyph is the yellow attention bang ("!").
-func (s Style) warningGlyph() string {
+// StateColor is a Task or container state's SGR color code.
+func StateColor(s core.EntityState) string {
+	switch s {
+	case core.Done:
+		return txt.SGRGreen
+	case core.Failed:
+		return txt.SGRRed
+	case core.Blocked:
+		return txt.SGRRed
+	case core.Running:
+		return txt.SGRCyan
+	case core.Pending, core.Skipped, core.Cancelled, core.Incomplete, core.NotStarted:
+		return txt.SGRDim
+	default:
+		return ""
+	}
+}
+
+// WarningGlyph renders the "!" (or profile equivalent) glyph a warning-
+// severity annotation is prefixed with. Exported for plain's
+// writeRunAnnotations, the one caller outside render.
+func (s Style) WarningGlyph() string {
 	return txt.StyleGlyph(txt.GlyphWarningState.Render(s.Profile), txt.SGRYellow, s.Color)
 }
 
 // evidenceGlyph is the dim evidence connector ("└─").
-func (s Style) evidenceGlyph() string { return s.dim(txt.GlyphEvidence.Render(s.Profile)) }
+func (s Style) evidenceGlyph() string { return s.Dim(txt.GlyphEvidence.Render(s.Profile)) }
 
-// overflowGlyph is the dim omission marker ("…").
-func (s Style) overflowGlyph() string { return s.dim(txt.GlyphOverflow.Render(s.Profile)) }
+// OverflowGlyph is the dim omission marker ("…").
+func (s Style) OverflowGlyph() string { return s.Dim(txt.GlyphOverflow.Render(s.Profile)) }
 
 // emphasized keeps evidence at full intensity when emphasize is set, and
 // demotes it otherwise — the one place that decides "is this text
@@ -43,5 +63,5 @@ func (s Style) emphasized(text string, emphasize bool) string {
 	if emphasize {
 		return text
 	}
-	return s.dim(text)
+	return s.Dim(text)
 }

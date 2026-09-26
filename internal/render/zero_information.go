@@ -53,7 +53,7 @@ func (scope hideScope) admits(t core.TaskSnapshot) bool {
 	}
 }
 
-// zeroInformationScan accumulates what ZeroInformationTaskIDs learns while
+// zeroInformationScan accumulates what zeroInformationTaskIDs learns while
 // walking a snapshot's Tasks.
 type zeroInformationScan struct {
 	// ledgerOwners is the ID of every Task that owns a [changed]/[planned]
@@ -92,10 +92,10 @@ func (scan *zeroInformationScan) visitCollection(col core.TasksSnapshot, parent 
 	}
 }
 
-// ZeroInformationTaskIDs returns the IDs of the Tasks in s that human output
+// zeroInformationTaskIDs returns the IDs of the Tasks in s that human output
 // must not render. It returns nil when nothing qualifies or when the run
 // must show everything (see the rule above).
-func ZeroInformationTaskIDs(s core.Snapshot) map[string]bool {
+func zeroInformationTaskIDs(s core.Snapshot) map[string]bool {
 	scan := &zeroInformationScan{
 		ledgerOwners: ledgerOwners(s),
 		candidates:   make(map[string]bool, len(s.Tasks)+len(s.Collections)),
@@ -127,9 +127,9 @@ func ledgerOwners(s core.Snapshot) map[string]bool {
 	return owners
 }
 
-// WithoutTasks returns s with the Tasks in hidden removed from the root and
+// withoutTasks returns s with the Tasks in hidden removed from the root and
 // from every collection. The input is not modified.
-func WithoutTasks(s core.Snapshot, hidden map[string]bool) core.Snapshot {
+func withoutTasks(s core.Snapshot, hidden map[string]bool) core.Snapshot {
 	if len(hidden) == 0 {
 		return s
 	}
@@ -149,11 +149,11 @@ func collectionsWithoutTasks(cols []core.TasksSnapshot, hidden map[string]bool) 
 }
 
 // HumanProjection is s as a human reader should see it at this verbosity:
-// hidden Facts dropped (SnapshotAtVerbosity), zero-information Tasks
+// hidden Facts dropped (snapshotAtVerbosity), zero-information Tasks
 // removed, and a header-less Group's colliding row names qualified by
 // their container path. Machine projections take the snapshot as it is.
 func HumanProjection(s core.Snapshot, verbose bool) core.Snapshot {
-	s = SnapshotAtVerbosity(s, verbose)
-	s = WithoutTasks(s, ZeroInformationTaskIDs(s))
-	return qualifyFlattenedRows(s, flattensHeader)
+	s = snapshotAtVerbosity(s, verbose)
+	s = withoutTasks(s, zeroInformationTaskIDs(s))
+	return QualifyFlattenedRows(s, FlattensHeader)
 }

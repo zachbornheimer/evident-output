@@ -138,11 +138,11 @@ FSResource	helper	Resource
 Fact	canonical	Fact
 FactRecord	helper	Fact
 Failed	helper	Conclusion
-Failure	helper	Problem
-Failure.Error	helper	Problem
+Failure	removed	Problem
+Failure.Error	removed	Problem
 Failure.Next	removed	Action
 Failure.NextCommand	removed	Action
-Failure.Unwrap	helper	Problem
+Failure.Unwrap	removed	Problem
 Field	helper	Problem
 File	canonical	File
 FileFS	helper	File
@@ -239,6 +239,7 @@ Output.NextCommand	helper	Action
 Output.Print	helper	Human output
 Output.Printf	helper	Human output
 Output.Println	helper	Human output
+Output.Problem	canonical	Problem
 Output.ResultWriter	helper	Human output
 Output.Run	canonical	Run
 Output.Sequence	canonical	Sequence
@@ -271,6 +272,7 @@ Problem	canonical	Problem
 ProblemCodeDuplicateSiblingName	helper	Problem
 ProblemCodeVerificationUnsatisfied	helper	Problem
 ProblemOption	helper	Problem
+ProblemSeverity	helper	Problem
 ProcessCommand	helper	Exec
 ProcessOutcome	helper	Exec
 ProcessRunner	helper	Exec
@@ -308,6 +310,9 @@ SequenceHandle.Summary	canonical	Summary
 SequenceHandle.Task	canonical	Task
 SequenceHandle.Wait	canonical	Wait
 SetDefault	helper	Run
+Severity	helper	Problem
+SeverityError	helper	Problem
+SeverityWarning	helper	Problem
 Skipped	helper	Conclusion
 SlogHandler	helper	Debug journal
 Snapshot	helper	Snapshot

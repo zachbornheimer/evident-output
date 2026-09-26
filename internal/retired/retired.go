@@ -1,7 +1,7 @@
-// Package retired is the one table of Evident Output API names that were
-// removed, or that the API never had. The API contract check, the docs
-// stale-API test, and the MCP rule catalog all read it, so a retired name
-// can never come back as live surface or as guidance.
+// RetiredSymbols (below) is the one table of Evident Output API names that
+// were removed, or that the API never had. The API contract check, the
+// docs stale-API test, and the MCP rule catalog all read it, so a retired
+// name can never come back as live surface or as guidance.
 package retired
 
 import (

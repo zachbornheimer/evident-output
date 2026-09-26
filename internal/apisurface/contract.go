@@ -17,7 +17,7 @@ const (
 )
 
 // RetiredNames are identifiers 1.0/1.1 deliberately removed, or never had
-// (retired.Symbols is the one table). A reappearance fails the contract
+// (retired.Symbols() is the one table). A reappearance fails the contract
 // even if testdata/api_golden.txt is rewritten to match, so retiring a name
 // stays retired.
 var RetiredNames = retired.ContractNames()

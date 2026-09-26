@@ -175,17 +175,17 @@ func f() {
 	good := `package p
 import (
   evo "github.com/zachbornheimer/evident-output"
-  "github.com/zachbornheimer/evident-output/internal/render"
+  "github.com/zachbornheimer/evident-output/internal/render/machine"
 )
 func f() {
   out := evo.Init(evo.Config{})
-  b, _ := render.EncodeJSON(out.Snapshot())
+  b, _ := machine.EncodeJSON(out.Snapshot())
   _ = b
 }
 `
 	res = review.GoSource("x.go", good)
 	if hasFinding(res, "EVO-WIRE-001") {
-		t.Fatalf("false positive EVO-WIRE-001 on render.EncodeJSON: %+v", res.Findings)
+		t.Fatalf("false positive EVO-WIRE-001 on machine.EncodeJSON: %+v", res.Findings)
 	}
 }
 

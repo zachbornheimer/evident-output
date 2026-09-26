@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/effectverb"
+	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
 // EffectVerb is the closed set of imperative verbs an opaque Effect may
@@ -16,19 +16,19 @@ type EffectVerb string
 
 // The complete EffectVerb enum.
 const (
-	EffectAdd       EffectVerb = effectverb.Add
-	EffectCreate    EffectVerb = effectverb.Create
-	EffectDelete    EffectVerb = effectverb.Delete
-	EffectInstall   EffectVerb = effectverb.Install
-	EffectPush      EffectVerb = effectverb.Push
-	EffectRemove    EffectVerb = effectverb.Remove
-	EffectUninstall EffectVerb = effectverb.Uninstall
-	EffectUpdate    EffectVerb = effectverb.Update
+	EffectAdd       EffectVerb = core.Add
+	EffectCreate    EffectVerb = core.Create
+	EffectDelete    EffectVerb = core.Delete
+	EffectInstall   EffectVerb = core.Install
+	EffectPush      EffectVerb = core.Push
+	EffectRemove    EffectVerb = core.Remove
+	EffectUninstall EffectVerb = core.Uninstall
+	EffectUpdate    EffectVerb = core.Update
 )
 
 // valid reports whether v is one of the declared EffectVerb constants.
 func (v EffectVerb) valid() bool {
-	_, ok := effectverb.Constant(string(v))
+	_, ok := core.EffectVerbConstant(string(v))
 	return ok
 }
 
