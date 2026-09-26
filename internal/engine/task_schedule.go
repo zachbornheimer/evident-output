@@ -65,6 +65,12 @@ func (st *taskState) neverDefined() bool {
 	return st.sched.phase == phaseDeclared && !core.IsTerminalTask(st.state.Current())
 }
 
+// queued reports whether st is still a live entry in the scheduler queue
+// (was inline in schedQueue.head).
+func (st *taskState) queued() bool {
+	return st.sched.phase == phaseQueued && st.awaitingStart()
+}
+
 // Declaration is st's declaration order, for schedule.Member.
 func (st *taskState) Declaration() int { return st.declaration }
 

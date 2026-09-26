@@ -78,11 +78,11 @@ func (o *Output) kick() {
 // collection it waits for gained a member) is placed again on the way.
 func (o *Output) nextEligibleLocked() *taskState {
 	for {
-		st := o.sched.queue.head()
-		if st == nil || o.eligibleLocked(st) {
+		st, ok := o.sched.queue.Head((*taskState).queued)
+		if !ok || o.eligibleLocked(st) {
 			return st
 		}
-		o.sched.queue.dropHead()
+		o.sched.queue.DropHead()
 		o.placeLocked(st, scanToBlocker)
 	}
 }

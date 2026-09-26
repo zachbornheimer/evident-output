@@ -32,7 +32,7 @@ func scheduleContainer(tb testing.TB, n int, sequential bool) int {
 	}
 	out.mu.Lock()
 	defer out.mu.Unlock()
-	return out.sched.queue.visits
+	return out.sched.queue.Visits()
 }
 
 func BenchmarkScheduleGroup(b *testing.B) {
@@ -104,7 +104,7 @@ func drainContainer(tb testing.TB, n int) int {
 	_ = out.Close()
 	out.mu.Lock()
 	defer out.mu.Unlock()
-	return out.sched.queue.visits
+	return out.sched.queue.Visits()
 }
 
 // TestDrainWorkIsLinear guards the drain path TestSchedulingScalesLinearly
@@ -151,7 +151,7 @@ func fanIn(tb testing.TB, n int) int {
 	}
 	out.mu.Lock()
 	defer out.mu.Unlock()
-	return out.sched.queue.visits
+	return out.sched.queue.Visits()
 }
 
 // TestFanInSchedulingIsLinear guards fan-in: a Task waiting on a Group used

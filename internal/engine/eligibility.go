@@ -257,7 +257,7 @@ func (o *Output) placeLocked(st *taskState, scan predScan) {
 	switch verdict {
 	case schedule.Succeeded:
 		o.enterPhaseLocked(st, phaseQueued)
-		o.sched.queue.push(st)
+		o.sched.queue.Push(st)
 	case schedule.Pending:
 		o.enterPhaseLocked(st, phaseParked)
 		if blocker.task != nil {
