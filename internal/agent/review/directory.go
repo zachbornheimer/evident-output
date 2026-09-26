@@ -45,26 +45,67 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 		return Result{}, fmt.Errorf("review directory %s: %w", dir, walkErr)
 	}
 	// removedNameFindings (API-070/090/091/120) is the directory's single
-	// source of truth for these rule IDs — drop any that slipped in from a
-	// per-file detector before merging its type-checked results, so a
-	// removed name is never reported twice under two different findings.
-	all = filterRuleIDs(all, removedNameRuleIDs)
-	if removed, ok := removedNameFindings(dir); ok {
+	// source of truth for these rule IDs; no per-file detector emits them
+	// (see TestNoFileDetectorEmitsRemovedNameRuleIDs), so there is nothing
+	// to de-duplicate here.
+	removed, found, partial := removedNameFindings(dir)
+	if found {
 		all = append(all, admitDialect(removed, ver)...)
 	}
-	return dialect.Stamp(newResult(all)), nil
+	res := newResult(all)
+	res.Partial = res.Partial || partial
+	return dialect.Stamp(res), nil
 }
 
-// filterRuleIDs drops every finding whose RuleID is in drop.
-func filterRuleIDs(fs []Finding, drop map[string]bool) []Finding {
-	out := fs[:0]
+// GoFileAt reviews the single Go file at path on disk: full AST review via
+// GoSourceAt, plus API-070/090/091/120 (Warn/Step/Kept/ReasonOption) via
+// the same fix.RemovedNameAnalyzers path GoDirectoryAt uses, scoped to
+// path's own module and filtered to path so a single-file review reports
+// the same removed-name findings a directory review of its parent would.
+// Unlike GoSource (source text with no filesystem location), path must be
+// a real file — that's what lets it resolve a module root to type-check.
+func GoFileAt(path, desiredVersion string) (Result, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return Result{}, fmt.Errorf("read %s: %w", path, err)
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return Result{}, fmt.Errorf("resolve %s: %w", path, err)
+	}
+	dialect := DialectFor(abs, desiredVersion)
+	ver := dialect.Lint()
+	all := GoSourceAt(abs, string(src), ver).Findings
+	removed, found, partial := removedNameFindings(filepath.Dir(abs))
+	if found {
+		all = append(all, admitDialect(findingsForFile(removed, abs), ver)...)
+	}
+	res := newResult(all)
+	res.Partial = res.Partial || partial
+	return dialect.Stamp(res), nil
+}
+
+// findingsForFile keeps only the findings whose File matches path, so a
+// single-file review scoped to a module subtree doesn't also report
+// removed-name findings from sibling files fix.Load had to type-check
+// along the way.
+func findingsForFile(fs []Finding, path string) []Finding {
+	out := make([]Finding, 0, len(fs))
 	for _, f := range fs {
-		if drop[f.RuleID] {
-			continue
+		if sameFile(f.File, path) {
+			out = append(out, f)
 		}
-		out = append(out, f)
 	}
 	return out
+}
+
+func sameFile(a, b string) bool {
+	absA, errA := filepath.Abs(a)
+	absB, errB := filepath.Abs(b)
+	if errA != nil || errB != nil {
+		return a == b
+	}
+	return absA == absB
 }
 
 func skipUnreviewed(d os.DirEntry) error {

@@ -14,51 +14,124 @@ package review
 import (
 	"os"
 	"path/filepath"
+	"strings"
+
+	"golang.org/x/tools/go/packages"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/fix"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
 
-// removedNameRuleIDs is the exact set DiagnoseAnalyzers(fix.RemovedNameAnalyzers, ...)
-// can report, used to keep a directory review's per-file findings from
-// ever reporting one of these rule IDs a second time.
-var removedNameRuleIDs = map[string]bool{
-	"API-070": true, // Warn
-	"API-090": true, // Step
-	"API-091": true, // Kept
-	"API-120": true, // ReasonOption/ForSkip/OnTask
+// moduleRootAbove walks up from dir looking for the go.mod that owns it,
+// the same way `go build`/`go vet` resolve a module root from any package
+// inside it. A directory being reviewed is very often a subpackage
+// (internal/app, not the repo root), so a bare os.Stat(dir/go.mod) missed
+// every module whose root sits above dir.
+func moduleRootAbove(dir string) (root string, ok bool) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", false
+	}
+	for cur := abs; ; {
+		if _, err := os.Stat(filepath.Join(cur, "go.mod")); err == nil {
+			return cur, true
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return "", false
+		}
+		cur = parent
+	}
 }
 
-// removedNameFindings type-checks dir as a Go module and runs
-// fix.RemovedNameAnalyzers over every package it contains, returning one
-// Finding per diagnostic. It is best-effort: a directory with no go.mod,
-// an unresolved module graph, or any other load failure yields no
-// findings rather than failing the surrounding directory review — the
-// per-file text/AST detectors already cover everything outside this rule
-// set, and a load failure here is exactly the "could not complete"
-// condition GoDirectoryAt reports as Partial, not an error.
-func removedNameFindings(dir string) ([]Finding, bool) {
-	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
-		return nil, false
+// loadPatternFor turns dir into a `go list`-style pattern rooted at root
+// (dir itself when they're equal), so fix.Load only type-checks the
+// subtree actually under review instead of the whole module.
+func loadPatternFor(root, dir string) (string, error) {
+	rel, err := filepath.Rel(root, dir)
+	if err != nil {
+		return "", err
 	}
-	pkgs, err := fix.Load(dir, "./...")
-	if err != nil || len(pkgs) == 0 {
-		return nil, false
+	if rel == "." {
+		return "./...", nil
+	}
+	return "./" + filepath.ToSlash(rel) + "/...", nil
+}
+
+// removedNameFindings type-checks the Go module owning dir and runs
+// fix.RemovedNameAnalyzers over the packages under dir, returning one
+// Finding per diagnostic. found is false only when dir sits outside any
+// Go module (no go.mod above it at all) — the ordinary case for a
+// non-Go-module directory, where these rule IDs simply don't apply and
+// silence is correct. found is true with partial set when a module root
+// was found but analysis could not complete (unresolved module graph,
+// missing `go mod tidy`, or any other load failure): that is exactly the
+// "could not complete" condition GoDirectoryAt reports as Result.Partial,
+// not silence and not an error.
+func removedNameFindings(dir string) (findings []Finding, found, partial bool) {
+	root, ok := moduleRootAbove(dir)
+	if !ok {
+		return nil, false, false
+	}
+	pattern, err := loadPatternFor(root, dir)
+	if err != nil {
+		return nil, true, true
+	}
+	pkgs, err := fix.Load(root, pattern)
+	if err != nil || len(pkgs) == 0 || hasModuleLoadError(pkgs) {
+		return nil, true, true
 	}
 	results, err := fix.DiagnoseAnalyzers(pkgs, fix.RemovedNameAnalyzers, false)
 	if err != nil {
-		return nil, false
+		return nil, true, true
 	}
-	var findings []Finding
 	for _, r := range results {
 		for _, d := range r.Diagnostics {
 			findings = append(findings, Finding{
-				RuleID:  d.RuleID,
-				Message: d.Message,
-				File:    d.Filename,
-				Line:    d.Line,
-				Column:  d.Column,
+				RuleID:     d.RuleID,
+				Message:    d.Message,
+				File:       d.Filename,
+				Line:       d.Line,
+				Column:     d.Column,
+				Suggestion: removedNameRemediation(d.RuleID),
 			})
 		}
 	}
-	return findings, true
+	return findings, true, false
+}
+
+// hasModuleLoadError reports whether packages.Load could not resolve the
+// module graph itself (missing go.sum entry, unresolved replace, no
+// required module provides package — the `go mod tidy` case the review-gap
+// report calls out). This is deliberately narrower than "any pkg.Errors":
+// a mid-migration consumer's own type errors from calling a name removed
+// in 1.1 are expected input for RemovedNameAnalyzers, not a load failure.
+func hasModuleLoadError(pkgs []*packages.Package) bool {
+	for _, p := range pkgs {
+		for _, e := range p.Errors {
+			// ListError is `go list` itself failing (bad pattern, module
+			// graph errors reported before any package loads). A "could
+			// not import" TypeError is the go/packages driver's own way of
+			// reporting a dependency it could not resolve at all (missing
+			// go.sum entry, broken replace) — indistinguishable in Kind
+			// from a real type error in the reviewed code (e.g. calling a
+			// removed method), which is expected input, not a load
+			// failure, so only this specific message counts.
+			if e.Kind == packages.ListError || strings.Contains(e.Msg, "could not import") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// removedNameRemediation is the rule catalog's general fix for ruleID
+// (API-070/090/091/120's Remediation is already call-site-independent —
+// e.g. "Replace Kept(reason) with Skipped(reason)" — so there is no
+// cheaper per-diagnostic suggestion to derive).
+func removedNameRemediation(ruleID string) string {
+	if r, ok := rules.Explain(ruleID); ok {
+		return r.Remediation
+	}
+	return ""
 }

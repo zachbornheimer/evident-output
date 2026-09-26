@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -104,11 +103,10 @@ func cmdReview(args []string) error {
 			return err
 		}
 	} else {
-		raw, err := os.ReadFile(path)
+		res, err = review.GoFileAt(path, "")
 		if err != nil {
 			return err
 		}
-		res = review.GoSource(filepath.Base(path), string(raw))
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
