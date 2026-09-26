@@ -46,19 +46,6 @@ func recvNamedType(info *types.Info, x ast.Expr) (string, bool) {
 	return obj.Name(), true
 }
 
-// recvTypeUnresolved reports whether x's type failed to resolve at all —
-// info.TypeOf returns nil, or an invalid type — which is the only case a
-// name fully removed from evo (so go/types has no Uses entry) can produce.
-// A receiver whose type DID resolve, just to something outside the evo
-// package (a *slog.Logger, a local type with a same-named method), must
-// never fall through to the untyped alias-tracing fallback: that fallback
-// matches on identifier spelling alone and would rewrite an unrelated
-// type's call into an evo one that does not compile.
-func recvTypeUnresolved(info *types.Info, x ast.Expr) bool {
-	t := info.TypeOf(x)
-	return t == nil || t == types.Typ[types.Invalid]
-}
-
 // packageFunc returns the evo package-level function name a selector's
 // Sel identifier resolves to — evo.Init, evo.Warn (removed in 1.1), and
 // so on — or ("", false) when it resolves to anything else (a method, a
@@ -97,51 +84,6 @@ func diag(category string, node ast.Node, message string, fixes ...analysis.Sugg
 		Message:        message,
 		SuggestedFixes: fixes,
 	}
-}
-
-// aliasReceiver reports whether a call receiver expression plausibly holds
-// an evo value, used only as a fallback when a name has already been
-// fully removed from the evo package (so go/types has no Uses entry to
-// resolve at all — the identifier is a compile error, not a type
-// mismatch): the import alias itself, or a local whose declared type or
-// most recent assignment chains back to it. This mirrors
-// internal/agent/review's evoImportName/evoValuedIdents tracing — the
-// established pattern in this codebase for names that may not type-check
-// — rather than inventing a second heuristic.
-func aliasReceiver(alias string, x ast.Expr, evoLocals map[string]bool) bool {
-	switch e := x.(type) {
-	case *ast.Ident:
-		return e.Name == alias || evoLocals[e.Name]
-	case *ast.CallExpr:
-		if sel, ok := e.Fun.(*ast.SelectorExpr); ok {
-			return aliasReceiver(alias, sel.X, evoLocals)
-		}
-	case *ast.ParenExpr:
-		return aliasReceiver(alias, e.X, evoLocals)
-	}
-	return false
-}
-
-// evoImportAlias returns the local name the enclosing file imports the
-// evo package under, or "" when the file does not import it.
-func evoImportAlias(pass *analysis.Pass, at ast.Node) string {
-	f := enclosingFile(pass, at.Pos())
-	if f == nil {
-		return ""
-	}
-	for _, imp := range f.Imports {
-		if importPath(imp) != EvoPackagePath {
-			continue
-		}
-		if imp.Name != nil {
-			if imp.Name.Name == "_" || imp.Name.Name == "." {
-				return ""
-			}
-			return imp.Name.Name
-		}
-		return "evo"
-	}
-	return ""
 }
 
 // exprEnclosingFunc finds the nearest enclosing func literal on an

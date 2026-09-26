@@ -278,6 +278,78 @@ func TestOptionsAnalyzerRewritesUnderImportAlias(t *testing.T) {
 	}
 }
 
+// lookalikeFixtureSrc defines a local type whose methods spell the exact
+// names the 1.1 vocabulary freeze retired or renamed on evo's own types —
+// Warn, Step, Kept, Blockf — but which has nothing to do with evo. It also
+// calls the real evo.Task/Reason to prove those still get flagged in the
+// same file. Detection in this package must resolve every call through
+// pass.TypesInfo back to a declared evo type or function, never by
+// matching an identifier's spelling: a false positive here would rewrite
+// an unrelated type's call into text that does not compile.
+const lookalikeFixtureSrc = `package main
+
+import evo "github.com/zachbornheimer/evident-output"
+
+type logger struct{}
+
+func (l *logger) Warn(msg string)                   {}
+func (l *logger) Step(completed, total int, s string) {}
+func (l *logger) Kept(reason string)                 {}
+func (l *logger) Blockf(format string, args ...any)  {}
+
+func run() error {
+	l := &logger{}
+	l.Warn("stale cache")
+	l.Step(1, 3, "scanning")
+	l.Kept("dirty")
+	l.Blockf("boom %d", 1)
+
+	out := evo.Init(evo.Config{Title: "demo"})
+	out.Task("check").Kept(evo.Reason("dirty"))
+	return nil
+}
+
+func main() { _ = run() }
+`
+
+// TestLookalikeMethodsOnNonEvoTypeAreNeverFlagged is the negative test for
+// the typed-only detection contract: a non-evo type with methods named
+// Warn/Step/Kept/Blockf must never be flagged by any analyzer in this
+// package, even though its method names alias every retired evo name
+// (plus Blockf, which is not retired at all). The real evo.TaskHandle.Kept
+// call in the same fixture is the positive control confirming the
+// analyzers still ran.
+func TestLookalikeMethodsOnNonEvoTypeAreNeverFlagged(t *testing.T) {
+	dir := t.TempDir()
+	writeModule(t, dir, lookalikeFixtureSrc)
+
+	pkgs, err := fix.Load(dir, ".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	results, err := fix.Diagnose(pkgs, false)
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("want 1 package result, got %d", len(results))
+	}
+	var sawRealKept bool
+	for _, d := range results[0].Diagnostics {
+		if d.Line == 0 {
+			t.Fatalf("unexpected diagnostic with no source line: %+v", d)
+		}
+		if d.RuleID == "API-091" {
+			sawRealKept = true
+			continue
+		}
+		t.Errorf("lookalike method on non-evo type was flagged: %+v", d)
+	}
+	if !sawRealKept {
+		t.Fatal("expected the real evo.TaskHandle.Kept call to still be flagged (API-091); analyzers may not have run")
+	}
+}
+
 func TestDiagnoseApplyConvergesToNoDiagnostics(t *testing.T) {
 	dir := t.TempDir()
 	writeModule(t, dir, fixtureSrc)

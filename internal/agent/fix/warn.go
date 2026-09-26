@@ -9,25 +9,20 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-// evoLocalsCache memoizes evoValuedIdents per file within one analyzer
-// run, since several calls in the same file each need it.
-type evoLocalsCache map[*ast.File]map[string]bool
-
-func (c evoLocalsCache) get(f *ast.File, alias string) map[string]bool {
-	if locals, ok := c[f]; ok {
-		return locals
-	}
-	locals := evoValuedIdents(f, alias)
-	c[f] = locals
-	return locals
-}
-
 // WarnAnalyzer is API-070: Warn was removed in 1.1 — Problem wins over
 // Warn, warning is a Problem severity. (*evo.TaskHandle).Warn has a
 // mechanical rewrite to .Problem(..., evo.Severity(evo.SeverityWarning)).
 // evo.Output.Warn and the package-level evo.Warn have no Task to attach
 // the Problem to, so attaching one is not mechanical: those report the
 // removal with no SuggestedFix and name the manual step.
+//
+// Detection is purely typed: it resolves the receiver expression's own
+// type (recvNamedType), never the removed Warn selector itself. That
+// works even though Warn no longer exists on any evo type — go/types
+// still records a valid type for the receiver expression (e.g. the
+// *evo.TaskHandle a prior assignment declared) independent of whether the
+// method call built on top of it type-checks, so no identifier-spelling
+// or import-alias tracing is needed to find these call sites.
 var WarnAnalyzer = &analysis.Analyzer{
 	Name:     "evowarn",
 	Doc:      "flags evo Warn calls removed in 1.1 (API-070) and fixes the TaskHandle case",
@@ -37,58 +32,19 @@ var WarnAnalyzer = &analysis.Analyzer{
 
 func runWarn(pass *analysis.Pass) (any, error) {
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	locals := evoLocalsCache{}
-	insp.WithStack([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
-		if !push {
-			return true
-		}
+	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
 		call := n.(*ast.CallExpr)
 		sel := callSelector(call)
 		if sel == nil || sel.Sel.Name != "Warn" {
-			return true
+			return
 		}
-
-		// The typed path: fires when the file still type-checks around
-		// this call (a receiver that resolves to evo.TaskHandle/Output,
-		// or the package-level evo.Warn — removed in 1.1 — as a still-resolvable symbol).
 		if recv, ok := recvNamedType(pass.TypesInfo, sel.X); ok {
 			reportWarn(pass, call, sel, recv == "TaskHandle")
-			return true
+			return
 		}
 		if _, ok := packageFunc(pass.TypesInfo, sel); ok {
 			reportWarn(pass, call, sel, false)
-			return true
 		}
-
-		// Warn was fully removed from evo (not merely deprecated), so a
-		// live call site is a hard compile error: go/types has no Uses
-		// entry to resolve, and the typed path above can never fire.
-		// Fall back to import-alias/evo-local tracing, same as
-		// internal/agent/review's evoWarn detector for the same reason —
-		// but only when the receiver's type genuinely failed to resolve.
-		// A receiver that resolved to some other package's type
-		// (recvNamedType said "not evo", not "unknown") must never reach
-		// this fallback: it matches on identifier spelling alone and
-		// would misfire on any non-evo type with a same-named Warn
-		// method (e.g. *slog.Logger).
-		if !recvTypeUnresolved(pass.TypesInfo, sel.X) {
-			return true
-		}
-		f := enclosingFile(pass, call.Pos())
-		if f == nil {
-			return true
-		}
-		alias := evoImportAlias(pass, call)
-		if alias == "" {
-			return true
-		}
-		known := locals.get(f, alias)
-		if !aliasReceiver(alias, sel.X, known) {
-			return true
-		}
-		isTask := isLikelyTaskReceiver(sel.X, alias, known, stack)
-		reportWarn(pass, call, sel, isTask)
-		return true
 	})
 	return nil, nil
 }
@@ -111,19 +67,6 @@ func reportWarn(pass *analysis.Pass, call *ast.CallExpr, sel *ast.SelectorExpr, 
 	}
 	pass.Report(diag("API-070", call,
 		"evo.Warn was removed in 1.1: declare a Task and call its Problem(summary, evo.Severity(evo.SeverityWarning)) instead — attaching a run-scoped warning to a Task is not mechanical"))
-}
-
-// isLikelyTaskReceiver distinguishes a Task receiver from Output/package
-// receiver when only structural tracing is available (the removed-name
-// fallback): the bare import alias itself is never a Task; everything
-// else known evo-valued (a Group/Task chain result, a traced local) is
-// treated as a Task, since Output.Warn (also removed in 1.1) call sites
-// are rare and the worst case is an offered TaskHandle fix the reader declines.
-func isLikelyTaskReceiver(x ast.Expr, alias string, known map[string]bool, _ []ast.Node) bool {
-	if id, ok := x.(*ast.Ident); ok && id.Name == alias {
-		return false
-	}
-	return true
 }
 
 // warnTaskFix rewrites task.Warn(summary, opts...) (removed in 1.1) to
@@ -160,9 +103,9 @@ func warnTaskFix(pass *analysis.Pass, call *ast.CallExpr, sel *ast.SelectorExpr)
 // right after the package clause when the file has no evo import at all.
 // warnTaskFix writes literal `evo.Severity(evo.SeverityWarning)` text
 // (evoAlias defaults to "evo" when it cannot find an existing import), so
-// a file reached only through the untyped alias-tracing fallback — one
-// with no evo import to resolve an alias from — needs the import added or
-// the fix leaves `undefined: evo` behind.
+// a package-level evo.Warn (removed in 1.1) call reached via a dot-import
+// — one with no named evo import to resolve an alias from — needs the
+// import added or the fix leaves `undefined: evo` behind.
 func addEvoImport(pass *analysis.Pass, at token.Pos) analysis.TextEdit {
 	f := enclosingFile(pass, at)
 	if f == nil {
