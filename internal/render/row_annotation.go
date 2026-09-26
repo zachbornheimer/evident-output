@@ -40,7 +40,7 @@ func WarningText(w core.Problem) string {
 // inline and a nested warning must signal identically, never a dim-only
 // inline row that drops the one glyph the fixture treats as load-bearing.
 func inlineWarningText(msg string, s Style) string {
-	return s.Dim(s.WarningGlyph() + " " + msg)
+	return s.Dim(s.warningGlyph() + " " + msg)
 }
 
 // inlineTaskTaxonomy mirrors inlineTaskWarning/inlineTaskFact for a task's
@@ -117,7 +117,7 @@ func writeNestedTaskFacts(b *strings.Builder, facts []core.Fact, indent string, 
 // one place a warned task still reads as "not silently clean" in a colored
 // terminal, now that its own row glyph is an ordinary green ✓.
 func WriteNestedTaskWarnings(b *strings.Builder, warnings []core.Problem, indent string, s Style) {
-	glyph := s.WarningGlyph()
+	glyph := s.warningGlyph()
 	for _, w := range warnings {
 		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, WarningText(w))
 	}
@@ -255,7 +255,7 @@ func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s S
 	if len(causes) == 0 {
 		return
 	}
-	evidence := s.EvidenceGlyph()
+	evidence := s.evidenceGlyph()
 	if !s.Verbose {
 		line := causes[0]
 		if more := len(causes) - 1; more > 0 {
@@ -276,7 +276,7 @@ func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s S
 // lines, warnings first: "! <text>" then "<name>  <value>", in call order
 // within each severity.
 func writeRunAnnotations(b *strings.Builder, warnings []core.Problem, facts []core.Fact, s Style) {
-	glyph := s.WarningGlyph()
+	glyph := s.warningGlyph()
 	for _, w := range warnings {
 		fmt.Fprintf(b, "%s %s\n", glyph, WarningText(w))
 	}

@@ -200,7 +200,7 @@ func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, s S
 	if !ok {
 		return
 	}
-	fmt.Fprintf(b, "%s  already mutated: %s\n", s.WarningGlyph(), summary)
+	fmt.Fprintf(b, "%s  already mutated: %s\n", s.warningGlyph(), summary)
 }
 
 // summarizeAlreadyMutated derives the "! already mutated: ..." line's

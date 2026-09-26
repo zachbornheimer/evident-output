@@ -35,5 +35,5 @@ func (d Disposition) Glyph(s Style) string {
 	if d == DispositionSkipped {
 		return s.Dim(txt.GlyphSkipDetail.Render(s.Profile))
 	}
-	return s.WarningGlyph()
+	return s.warningGlyph()
 }

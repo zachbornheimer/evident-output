@@ -73,7 +73,7 @@ func Headline(t core.TaskSnapshot) string {
 func (r taskRow) head(s Style) (rowHead, Disposition) {
 	t := r.t
 	if t.Resolution == core.ResolutionAlreadySatisfied {
-		return rowHead{detail: AlreadySatisfiedRowDetail(t, s.Color), Headline: AlreadySatisfiedDetail}, NoDisposition
+		return rowHead{detail: AlreadySatisfiedRowDetail(t, s.Color), Headline: alreadySatisfiedDetail}, NoDisposition
 	}
 	if line := Headline(t); line != "" {
 		return rowHead{detail: headlineDetail(t, line, s), Headline: line}, NoDisposition
@@ -119,7 +119,7 @@ func (r taskRow) writeLine(b *strings.Builder, head rowHead, s Style) {
 	if head.annotated {
 		width += taskNameColumnMargin
 	}
-	unit := DisplayUnit{Glyph: s.StateGlyph(r.t.State), Name: txt.PadRight(r.t.Name, width), Detail: head.detail}
+	unit := DisplayUnit{Glyph: s.stateGlyph(r.t.State), Name: txt.PadRight(r.t.Name, width), Detail: head.detail}
 	b.WriteString(unit.Render(r.prefix))
 	b.WriteByte('\n')
 }

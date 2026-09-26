@@ -42,7 +42,7 @@ func writeProblem(b *strings.Builder, p core.Problem, indent string, emphasize b
 		}
 		return
 	}
-	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.EvidenceGlyph(), s.Emphasized(p.Summary, emphasize))
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.evidenceGlyph(), s.emphasized(p.Summary, emphasize))
 }
 
 // dedupeCaptureTailAgainstRow is P7's addition (user-13-problems.md
@@ -95,7 +95,7 @@ func effectiveDetailAndTail(p core.Problem) (detail, tail string) {
 // same problem rather than a new one.
 func writeCaptureTailLines(b *strings.Builder, tail, indent string, emphasize bool, s Style) {
 	for _, line := range splitPresentationLines(tail) {
-		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.Emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.emphasized(line, emphasize))
 	}
 }
 
@@ -111,9 +111,9 @@ func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string,
 		}
 		summary, lines = lines[0], lines[1:]
 	}
-	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.EvidenceGlyph(), s.Emphasized(summary, emphasize))
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.evidenceGlyph(), s.emphasized(summary, emphasize))
 	for _, line := range lines {
-		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.Emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.emphasized(line, emphasize))
 	}
 }
 
@@ -121,7 +121,7 @@ func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string,
 func writeProblemDetailLines(b *strings.Builder, detail, indent string, emphasize bool, s Style) {
 	pipe := s.Dim("│")
 	for _, line := range splitPresentationLines(detail) {
-		fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, pipe, s.Emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, pipe, s.emphasized(line, emphasize))
 	}
 }
 

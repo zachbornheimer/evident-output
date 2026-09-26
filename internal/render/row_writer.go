@@ -162,10 +162,10 @@ func WriteVerificationDetails(b *strings.Builder, details []core.VerificationDet
 	}
 	for _, d := range details {
 		if d.Status == core.VerificationSatisfied {
-			fmt.Fprintf(b, "%s%s %s\n", indent, s.StateGlyph(core.NotStarted), s.Dim(d.Name+"  already satisfied"))
+			fmt.Fprintf(b, "%s%s %s\n", indent, s.stateGlyph(core.NotStarted), s.Dim(d.Name+"  already satisfied"))
 			continue
 		}
-		fmt.Fprintf(b, "%s%s %s\n", indent, s.StateGlyph(core.Failed), d.Name)
+		fmt.Fprintf(b, "%s%s %s\n", indent, s.stateGlyph(core.Failed), d.Name)
 		writeVerificationFacts(b, d.Facts, indent+"  ")
 	}
 }
@@ -283,7 +283,7 @@ func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidt
 
 // writeCollectionHeader writes a Group or Sequence's own row.
 func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s Style) {
-	unit := DisplayUnit{Glyph: s.StateGlyph(col.State), Name: col.Name}
+	unit := DisplayUnit{Glyph: s.stateGlyph(col.State), Name: col.Name}
 	if col.Summary != "" {
 		unit.Detail = s.Dim(col.Summary)
 	}

@@ -104,7 +104,7 @@ func writeCancellationBand(b *strings.Builder, c core.Conclusion, s Style) {
 	}
 	fmt.Fprintf(b, "\n%s\n", line)
 	if _, committed := summarizeAlreadyMutated(c.Changes); committed {
-		fmt.Fprintf(b, "  %s %s\n", s.WarningGlyph(), cancellationPartialChangesNote)
+		fmt.Fprintf(b, "  %s %s\n", s.warningGlyph(), cancellationPartialChangesNote)
 	}
 	for _, a := range c.Actions {
 		writeAction(b, a, s)
