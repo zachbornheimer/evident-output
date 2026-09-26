@@ -22,7 +22,7 @@ func factsAndKeptRun(t *testing.T, mode string) string {
 	out.Fact("language", "go")
 	out.Task("measure").Fact("on disk", "8.0 KB").Define(func(context.Context) error { return nil })
 	g := out.Group("branches")
-	g.Task("main").Kept(evo.Reason("protected"))
+	g.Task("main").Skipped(evo.Reason("protected"))
 	g.Task("merged1").Skipped(evo.Reason("merged"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

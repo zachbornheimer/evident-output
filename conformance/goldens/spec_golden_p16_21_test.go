@@ -205,12 +205,14 @@ func TestSpecP17_Taxonomy_Step1(t *testing.T) {
 }
 
 // TestSpecP17_Taxonomy_Step2 covers Problem 17's step2 block: a Done task
-// with a multi-reason skip partition and a single-reason keep partition,
-// each derived (never caller-assembled) from accumulated records.
+// with a multi-reason skip partition, derived (never caller-assembled) from
+// accumulated records. Kept is not canonical vocabulary in the 1.1
+// vocabulary freeze (E-121): a Task intentionally not executed is
+// Skipped(reason), so the formerly separate "unpushed" keep partition now
+// folds into the same skipped tally as the other reasons.
 //
 //	✓  branches  14 deleted
-//	!  skipped 6  (4 protected, 2 dirty)
-//	!  kept 3     (unpushed)
+//	!  skipped 9  (4 protected, 2 dirty, 3 unpushed)
 func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
 	var buf bytes.Buffer
@@ -228,7 +230,7 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 		g.Task(name).Skipped(dirty)
 	}
 	for _, name := range eachSkipNames("unpushed", 3) {
-		g.Task(name).Kept(unpushed)
+		g.Task(name).Skipped(unpushed)
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -239,19 +241,19 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 	}
 	// Per-item disposition children fold into one tally under their Group
 	// (contract §25 renderer aggregation), as the spec block above shows.
-	for _, want := range []string{"- skipped 6 (4 protected, 2 dirty)", "! kept 3 (unpushed)"} {
-		if strings.Count(got, want) != 1 {
-			t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
-		}
+	if want := "- skipped 9 (4 protected, 2 dirty, 3 unpushed)"; strings.Count(got, want) != 1 {
+		t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
 	}
 }
 
 // TestSpecP17_Taxonomy_Success covers Problem 17's success block: the same
-// step2 taxonomy plus a next-action row.
+// step2 taxonomy plus a next-action row. Kept is not canonical vocabulary in
+// the 1.1 vocabulary freeze (E-121): a Task intentionally not executed is
+// Skipped(reason), so the formerly separate "unpushed" keep partition now
+// folds into the same skipped tally as the other reasons.
 //
 //	✓  branches  14 deleted
-//	!  skipped 6  (4 protected, 2 dirty)
-//	!  kept 3     (unpushed)
+//	!  skipped 9  (4 protected, 2 dirty, 3 unpushed)
 //	→  repo-retire salvage --dry-run
 func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
@@ -270,7 +272,7 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 		g.Task(name).Skipped(dirty)
 	}
 	for _, name := range eachSkipNames("unpushed", 3) {
-		g.Task(name).Kept(unpushed)
+		g.Task(name).Skipped(unpushed)
 	}
 	out.NextCommand("repo-retire", "salvage", "--dry-run")
 	if err := out.Finish(); err != nil {
@@ -286,28 +288,27 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	}
 	// Per-item disposition children fold into one tally under their Group
 	// (contract §25 renderer aggregation), as the spec block above shows.
-	for _, want := range []string{"- skipped 6 (4 protected, 2 dirty)", "! kept 3 (unpushed)"} {
-		if strings.Count(got, want) != 1 {
-			t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
-		}
+	if want := "- skipped 9 (4 protected, 2 dirty, 3 unpushed)"; strings.Count(got, want) != 1 {
+		t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
 	}
 }
 
 // TestSpecP17_Taxonomy_Failure covers Problem 17's failure block: one
 // "branches" task's partial success (a captured handle, resolved once) sits
 // alongside a distinct "branches feat/x" task's failure, alongside an
-// unchanged skip/keep taxonomy declared as plain Group children with
+// unchanged/not-attempted skip taxonomy declared as plain Group children with
 // distinct names (§3.1: Each is retired — a repeated child name is now a
-// duplicate sibling declaration, not a get-or-create). Each's own
-// aggregated "- skipped N (...)" collapse was Each-specific presentation
-// (writeLiveEachAggregate/writePlainEachAggregate key off the fromEach
-// marker); a plain Group child renders its own taxonomy line individually,
-// so this pins one line per child instead of one collapsed count.
+// duplicate sibling declaration, not a get-or-create). Per-item disposition
+// children fold into one aggregated "- skipped N (...)" tally under their
+// Group regardless of their individual names (contract §25 renderer
+// aggregation). Kept is not canonical vocabulary in the 1.1 vocabulary
+// freeze (E-121): a Task intentionally not executed is Skipped(reason), so
+// the formerly separate "kept" partition now folds into the same skipped
+// tally as "unchanged".
 //
 //	✓  branches  10 deleted
 //	✗  branches  delete failed on feat/x
-//	!  skipped 1  (unchanged)   (one per child, six children)
-//	!  kept 1     (unpushed, not attempted)   (one per child, three children)
+//	!  skipped 9  (6 unchanged, 3 unpushed, not attempted)
 func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
 	var buf bytes.Buffer
@@ -324,7 +325,7 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		g.Task(name).Skipped(unchanged)
 	}
 	for _, name := range eachSkipNames("kept", 3) {
-		g.Task(name).Kept(notAttempted)
+		g.Task(name).Skipped(notAttempted)
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -335,8 +336,7 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		"10 deleted",
 		"✗",
 		"delete failed on feat/x",
-		"- skipped 6 (unchanged)",
-		"! kept 3 (unpushed, not attempted)"} {
+		"- skipped 9 (6 unchanged, 3 unpushed, not attempted)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}

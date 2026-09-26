@@ -89,7 +89,7 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 		wantNot []string
 	}{
 		"kept": {
-			define: func(_ context.Context, t *evo.TaskHandle) error { t.Kept(evo.Reason("in use")); return nil },
+			define: func(_ context.Context, t *evo.TaskHandle) error { t.Skipped(evo.Reason("in use")); return nil },
 			state:  evo.StateReady, exit: evo.ExitOK, wantNot: []string{"postcondition not satisfied"},
 		},
 		"skipped": {
@@ -105,7 +105,7 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 				if err := updateContainer(ctx); err != nil {
 					return err
 				}
-				t.Kept(evo.Reason("in use"))
+				t.Skipped(evo.Reason("in use"))
 				return nil
 			},
 			state: evo.StateFailed, exit: evo.ExitFailed, want: []string{"postcondition not satisfied"},
@@ -122,7 +122,7 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 		},
 		"kept then error": {
 			define: func(_ context.Context, t *evo.TaskHandle) error {
-				t.Kept(evo.Reason("in use"))
+				t.Skipped(evo.Reason("in use"))
 				return errors.New("boom")
 			},
 			state: evo.StateFailed, exit: evo.ExitFailed, want: []string{"boom"},
