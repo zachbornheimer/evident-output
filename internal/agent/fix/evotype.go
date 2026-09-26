@@ -4,9 +4,9 @@
 // resolves a call's receiver or callee through pass.TypesInfo back to a
 // declared type or function in the evo package, never by matching an
 // identifier's spelling against a fixed word list. That is what lets
-// out.Task("x").Blockf(...) and a *evo.TaskHandle stored under any local
-// name both get caught, while a same-named method on an unrelated type
-// never does.
+// out.Task("x").Blockf(...) — Blockf, removed in 1.1 — and a *evo.TaskHandle
+// stored under any local name both get caught, while a same-named method on
+// an unrelated type never does.
 package fix
 
 import (

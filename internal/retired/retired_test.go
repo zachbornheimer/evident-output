@@ -53,6 +53,28 @@ func TestTaughtInCoversEveryOwnerFreezeSymbol(t *testing.T) {
 		"ReasonOption":       "a ReasonOption argument",
 		"Option":             "[]evo.Option{evo.Plain()}",
 	}
+	// The canonical per-item idiom chains straight off Task(...), with no
+	// bare task-named receiver before the verb (§3.1) — the plain
+	// "[Tt]ask\w*\." form alone never sees these, so they get their own
+	// cases rather than sharing the table above.
+	chainedCases := map[string]string{
+		"TaskHandle.Step(":   "out.Task(\"x\").Step(\"a\")",
+		"TaskHandle.Kept(":   "group.Task(item).Kept(reason)",
+		"TaskHandle.Failf(":  "group.Task(item).Failf(\"x: %w\", err)",
+		"TaskHandle.Blockf(": "group.Task(item).Blockf(\"x: %w\", err)",
+	}
+	for contract, text := range chainedCases {
+		found := false
+		for _, h := range TaughtIn(text) {
+			if h.Symbol.Contract == contract {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("TaughtIn(%q) did not match Contract %q", text, contract)
+		}
+	}
 	for contract, text := range cases {
 		found := false
 		for _, h := range TaughtIn(text) {

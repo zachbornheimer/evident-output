@@ -138,8 +138,8 @@ var symbols = []Symbol{
 	// statement-form spelling; Blockf/Failf/Failure were compatibility
 	// sugar around a same-line %w-wrapped return, with no mechanical
 	// rewrite (see internal/agent/fix/failf.go, API-140).
-	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary) — fold the wrapped error into the summary string, then return it separately", Taught: regexp.MustCompile(`\b(?:TaskHandle|[Tt]ask\w*)\.Failf\(`)},
-	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block(summary) — fold the wrapped error into the summary string, then return it separately", Taught: regexp.MustCompile(`\b(?:TaskHandle|[Tt]ask\w*)\.Blockf\(`)},
+	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary) — fold the wrapped error into the summary string, then return it separately", Taught: chainedTaskCall("Failf")},
+	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block(summary) — fold the wrapped error into the summary string, then return it separately", Taught: chainedTaskCall("Blockf")},
 	{Contract: "Output.Failf(", RemovedIn: Release1_1, Replacement: "Output.Fail — fold the wrapped error into the summary string, then return it separately", Taught: regexp.MustCompile(`\b(?:Output|out)\.Failf\(`)},
 	{Contract: "Failure", RemovedIn: Release1_1, Replacement: "a plain error, with Next/NextCommand ProblemOptions for a remedy", Taught: regexp.MustCompile(`\bevo\.Failure\b`)},
 
@@ -147,8 +147,8 @@ var symbols = []Symbol{
 	// a kept item is domain information (Fact), not a third resolution;
 	// ForSkip/OnTask restricted where a Reason could be used, a
 	// constraint Reason never needed to enforce structurally.
-	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(name)", Taught: regexp.MustCompile(`\b(?:TaskHandle|[Tt]ask\w*)\.Step\(`)},
-	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: `Fact("kept", reason.Name())`, Taught: regexp.MustCompile(`\b(?:TaskHandle|[Tt]ask\w*)\.Kept\(`)},
+	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(name)", Taught: chainedTaskCall("Step")},
+	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: `Fact("kept", reason.Name())`, Taught: chainedTaskCall("Kept")},
 	{Contract: "ForSkip", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name", Taught: regexp.MustCompile(`\bForSkip\b`)},
 	{Contract: "OnTask", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name", Taught: regexp.MustCompile(`\bOnTask\b`)},
 	{Contract: "ReasonOption", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name", Taught: regexp.MustCompile(`\bReasonOption\b`)},
@@ -185,6 +185,15 @@ var warnTaught = regexp.MustCompile(`\b(?:evo|Output|TaskHandle|[Tt]ask\w*|out)\
 // and the structural detector.
 func init() {
 	symbols = append(symbols, captureRenameSymbols()...)
+}
+
+// chainedTaskCall matches a removed TaskHandle verb taught as a direct call
+// on a task-named receiver (task.Kept(reason)) or as the canonical per-item
+// chained call group.Task(item).Kept(reason) — the receiver right before
+// the verb is a Task(...) call's closing paren, not a bare identifier, so
+// the plain "[Tt]ask\w*\." form alone never sees it.
+func chainedTaskCall(verb string) *regexp.Regexp {
+	return regexp.MustCompile(`\b(?:TaskHandle|[Tt]ask\w*)\.` + verb + `\(|\.Task\([^)]*\)\.` + verb + `\(`)
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose

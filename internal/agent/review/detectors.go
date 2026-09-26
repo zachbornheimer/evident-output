@@ -234,9 +234,10 @@ var fileDetectors = []detector{
 	// API-110..API-116: a capture-meaning Evidence* name removed in 1.1
 	// (E-121); retained process output is spelled Capture.
 	{needsEvo: true, run: astRule(detectRemovedCaptureName)},
-	// API-062: a second Kept/Skipped on one Task — the item is the Task, so
-	// the per-item shape is group.Task(item).Kept(reason) (contract §25
-	// renderer aggregation folds those children into one tally).
+	// API-062: a second Skipped (or, before its 1.1 removal, Kept) on one
+	// Task — the item is the Task, so the per-item shape is
+	// group.Task(item).Skipped(reason) (contract §25 renderer aggregation
+	// folds those children into one tally).
 	{needsEvo: true, run: astRule(detectRepeatedDisposition)},
 	// API-063: a Verify callback that returns a constant observes nothing.
 	{needsEvo: true, run: astRule(detectConstantVerify)},

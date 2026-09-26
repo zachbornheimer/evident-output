@@ -85,7 +85,7 @@ func runKept(pass *analysis.Pass) (any, error) {
 // receiver) — the only place a Kept rewrite to Fact is safe, because
 // Define's own nil return is what resolves the Task; Fact never does.
 // Receiver identity is checked via go/types object identity, not text: a
-// per-item Kept inside a shared parent's Define (e.g.
+// per-item Kept (removed in 1.1) inside a shared parent's Define (e.g.
 // parent.Define(func(ctx){ for _, it := range items {
 // g.Task(it).Kept(...) } })) or a Kept on an unrelated receiver inside
 // someone else's Define (parent.Define(func(ctx){ other.Kept(r) })) both
