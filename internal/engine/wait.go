@@ -267,7 +267,7 @@ func (o *Output) waitOutcome(taskID string) error {
 		return cancelledWaitOutcome(st.summary)
 	case st.state == Failed || st.state == Blocked:
 		// The row already failed but its callback has not returned yet (it
-		// resolved itself via Failf/Blockf, which settles the row at once),
+		// resolved itself via Fail/Block, which settles the row at once),
 		// or it returned nil after stating its own failure. Either way the
 		// work did not succeed, and Wait must not say it did.
 		return failedWaitOutcome(st.summary)

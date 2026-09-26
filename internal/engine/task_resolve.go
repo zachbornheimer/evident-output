@@ -19,8 +19,7 @@ func (t *TaskHandle) succeed(summary string) {
 
 // Fail resolves the task as failed. This is a statement, not a fluent
 // chain — Fail returns nothing, so a bare `task.Fail("summary")` is
-// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use Failf
-// to build and return a %w-wrapped error in one line.
+// errcheck-clean. A nil *TaskHandle is safe and resolves nothing.
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	t.resolveWithProblem(Failed, summary, options)
 }
@@ -34,8 +33,7 @@ func (t *TaskHandle) resolveWithProblem(state EntityState, summary string, optio
 
 // Block resolves the task as blocked. This is a statement, not a fluent
 // chain — Block returns nothing, so a bare `task.Block("summary")` is
-// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use
-// Blockf to build and return a %w-wrapped error in one line.
+// errcheck-clean. A nil *TaskHandle is safe and resolves nothing.
 func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	t.resolveWithProblem(Blocked, summary, options)
 }

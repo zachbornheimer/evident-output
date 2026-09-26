@@ -309,6 +309,13 @@ func run() error {
 		return nil
 	})
 
+	dirty := out.Task("dirty")
+	parent.Define(func(ctx context.Context) error {
+		f := dirty.Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback on the same receiver` + "`" + `
+		f(evo.Reason("dirty"))
+		return nil
+	})
+
 	return out.Finish()
 }
 `
@@ -367,6 +374,13 @@ func run() error {
 	other := out.Task("other")
 	parent.Define(func(ctx context.Context) error {
 		other.Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback on the same receiver` + "`" + `
+		return nil
+	})
+
+	dirty := out.Task("dirty")
+	parent.Define(func(ctx context.Context) error {
+		f := dirty.Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback on the same receiver` + "`" + `
+		f(evo.Reason("dirty"))
 		return nil
 	})
 

@@ -240,7 +240,8 @@ func (o *Output) recordOperationsEvidence(taskID string) {
 // (executeWork/resolveObserved) completely unchanged — that path renders
 // err.Error() verbatim as the Task's Fail summary, so wrapping it here would
 // prepend internal plumbing text ("runDefine: ...") onto what the reader
-// sees, the same reason Failf/Blockf keep the caller's own wording intact.
+// sees, the same reason a caller's own %w-wrapped Fail/Block error keeps
+// its wording intact.
 // The task itself may already be resolved by the time this runs (a
 // pre/post-Verify failure calls failScheduled/failScheduledWithCode before
 // returning); this is only ever err's carrier back to executeWork's

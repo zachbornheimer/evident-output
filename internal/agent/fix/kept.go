@@ -17,7 +17,7 @@ import (
 // the task's outcome from Done to Skipped.
 var KeptAnalyzer = &analysis.Analyzer{
 	Name:     "evokept",
-	Doc:      "flags and fixes evo TaskHandle.Kept, legacy syntax for Skipped",
+	Doc:      "flags and fixes evo TaskHandle.Kept, removed in 1.1: rewrites to Fact(\"kept\", reason.Name()), not Skipped",
 	Requires: []*analysis.Analyzer{inspect.Analyzer},
 	Run:      runKept,
 }
@@ -186,8 +186,17 @@ func reportKeptValues(pass *analysis.Pass, insp *inspector.Inspector) {
 		// Same resolution concern as runKept's call-site case: a method
 		// value/expression captured outside a Define callback would, once
 		// rewritten to call Fact, never resolve the Task the way Kept
-		// used to.
-		if !isInsideDefineCallback(pass.TypesInfo, nil, stack) {
+		// used to. A method VALUE (f := other.Kept) still names its
+		// receiver in sel.X, so identity can and must be checked the
+		// same way the call-site case checks it; only a true method
+		// EXPRESSION ((*evo.TaskHandle).Kept) has no receiver expression
+		// to compare, which is when nil falls back to the structural
+		// check alone.
+		var keptRecv ast.Expr
+		if !isMethodExprRecv(pass.TypesInfo, sel.X) {
+			keptRecv = sel.X
+		}
+		if !isInsideDefineCallback(pass.TypesInfo, keptRecv, stack) {
 			pass.Report(diag("API-091", sel,
 				msg+" — not rewritten: this Kept reference is outside a Define callback on the same receiver, and Fact never resolves a Task the way Kept used to; wrap the call site in a Define on this same receiver whose callback returns nil before switching to Fact"))
 			return true
