@@ -7,7 +7,7 @@ import (
 )
 
 // TestDecide pins the pure outcome rule this package extracted from
-// taskState.resolve (now lifecycle.Decide directly): a success-class target over a Task holding a
+// taskState.resolve (now lifecycle.decide, called from Settle): a success-class target over a Task holding a
 // Problem settles Failed, every other target passes through unchanged.
 func TestDecide(t *testing.T) {
 	cases := []struct {
@@ -29,8 +29,8 @@ func TestDecide(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := Decide(tc.target, tc.hasProblems); got != tc.want {
-				t.Fatalf("Decide(%s, %v) = %s, want %s", tc.target, tc.hasProblems, got, tc.want)
+			if got := decide(tc.target, tc.hasProblems); got != tc.want {
+				t.Fatalf("decide(%s, %v) = %s, want %s", tc.target, tc.hasProblems, got, tc.want)
 			}
 		})
 	}
@@ -154,10 +154,10 @@ func TestSettleRejectsAlreadyTerminal(t *testing.T) {
 	}
 }
 
-// TestSettleAppliesDecide pins that Settle itself runs Decide against
+// TestSettleAppliesDecide pins that Settle itself runs decide against
 // hasProblems — a caller can no longer settle a Task Done/Skipped over a
-// Problem by forgetting to call Decide first, because Settle is the only
-// way to write the state at all.
+// Problem by forgetting to call decide first, because Settle is the only
+// way to write the state at all, and decide is unexported.
 func TestSettleAppliesDecide(t *testing.T) {
 	s := Declared()
 	s.StartRunning()

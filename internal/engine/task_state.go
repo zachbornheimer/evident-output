@@ -14,9 +14,14 @@ type taskState struct {
 	key  string // optional stable machine key (platform ID)
 	name string
 	// state is the sole cell this Task's lifecycle state lives in. Its
-	// unexported field lives in package lifecycle, so any write to it
-	// outside settleLocked (State.Settle) and promoteRunningLocked
-	// (State.StartRunning) is a compile error, not a convention.
+	// fields are unexported in package lifecycle, so no assignment to
+	// state.current or state.settled compiles outside that package — only
+	// State.Settle (via settleLocked) and State.StartRunning (via
+	// promoteRunningLocked) can move it. A whole-value replacement of
+	// state itself still compiles (see declare.go and run_outcome.go,
+	// both of which construct it via lifecycle.Declared()); the write
+	// guard test TestNoDirectTaskStateAssignment exists because of that
+	// gap, not despite it.
 	state       lifecycle.State
 	phase       string
 	progress    Progress

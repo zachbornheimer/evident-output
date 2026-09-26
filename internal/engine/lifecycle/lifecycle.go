@@ -3,10 +3,10 @@
 // are unexported, so no code outside this package can assign them — the
 // only way in is Declared, StartRunning and Settle, and Settle is the one
 // place a target actually becomes the stored outcome: it runs every
-// target through Decide itself, and it is where "terminal is final" is
+// target through decide itself, and it is where "terminal is final" is
 // enforced, refusing a non-terminal target and refusing to move a State
 // that has already settled. A caller-side Current()==Pending check before
-// StartRunning, or a caller-side Decide call before Settle, is redundant:
+// StartRunning, or a caller-side decide call before Settle, is redundant:
 // both methods already refuse the moves those checks were guarding
 // against.
 package lifecycle
@@ -19,15 +19,14 @@ func DeclaresSuccess(target core.EntityState) bool {
 	return target == core.Done || target == core.Skipped
 }
 
-// Decide is the one rule between a Task's blocking Problems and its
+// decide is the one rule between a Task's blocking Problems and its
 // terminal state: a Task holding any Problem cannot settle success-class,
 // so a Done or Skipped claim over one settles Failed. It is pure — same
 // inputs, same output, no engine types — so the matrix in
-// lifecycle_test.go pins it directly. Settle calls it for every
-// transition it applies; it is exported so a caller that needs to preview
-// the outcome before Settle runs (e.g. to build a Problem's capture tail)
-// can compute the same value Settle will store.
-func Decide(target core.EntityState, hasProblems bool) core.EntityState {
+// lifecycle_test.go pins it directly. Settle is decide's only caller: it
+// is unexported because nothing outside this package needs to preview the
+// outcome before Settle runs — Settle already returns the resolved value.
+func decide(target core.EntityState, hasProblems bool) core.EntityState {
 	if DeclaresSuccess(target) && hasProblems {
 		return core.Failed
 	}
@@ -75,7 +74,7 @@ func (s *State) StartRunning() (from core.EntityState, ok bool) {
 	return from, true
 }
 
-// Settle decides target against hasProblems (via Decide) and moves the
+// Settle decides target against hasProblems (via decide) and moves the
 // state to the result — the one place a Task's terminal outcome is both
 // decided and written, so "only lifecycle sets a Task's outcome" holds
 // for the decision as well as the storage. It is also where "terminal is
@@ -99,7 +98,7 @@ func (s *State) Settle(target core.EntityState, hasProblems bool) (resolved, fro
 	if target == core.Pending || target == core.Running || s.settled {
 		return s.Current(), s.Current(), false
 	}
-	decided := Decide(target, hasProblems)
+	decided := decide(target, hasProblems)
 	from = s.Current()
 	s.current = decided
 	s.settled = true

@@ -135,7 +135,7 @@ func TestLifecycleOutcomeMatrix(t *testing.T) {
 // TestLifecycleOutcomeMatrixHasProblems extends TestLifecycleOutcomeMatrix
 // with the hasProblems axis: a Task carrying a Problem (TaskHandle.Problem)
 // before it resolves success-class (Done via a no-op body, Skipped via the
-// taxonomy verb) must settle Failed per lifecycle.Decide, whichever verb
+// taxonomy verb) must settle Failed per lifecycle.decide, applied inside Settle, whichever verb
 // the body called — the evidence rule engine/lifecycle owns, exercised end
 // to end through the public engine path rather than lifecycle's own pure
 // table.
@@ -189,7 +189,9 @@ func TestLifecycleOutcomeMatrixHasProblems(t *testing.T) {
 // TestLifecycleOutcomeMatrix's body table has no cell for: a Task the
 // program cancels directly (TaskHandle.Cancel), and the two synthetic
 // Output-level paths (Fail, Cancel) that never have a Running/Pending
-// phase of their own (lifecycle.SettledFailed/SettledCancelled).
+// phase of their own — both settle straight from lifecycle.Declared()
+// through State.Settle, with no SettledFailed/SettledCancelled
+// constructor; lifecycle exposes no such shortcut.
 func TestLifecycleOutcomeMatrixCancelled(t *testing.T) {
 	t.Run("task cancel", func(t *testing.T) {
 		var buf strings.Builder

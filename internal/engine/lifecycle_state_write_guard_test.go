@@ -21,10 +21,15 @@ import (
 // at a taskState's construction site is legitimate; every other write goes
 // through State's own methods. This test walks internal/engine's own
 // source (not _test.go files, which may build fixtures) and fails, naming
-// file:line, the moment any AssignStmt targets a `.state` selector — the
-// only way a taskState.state field is ever set today is the composite
-// literal in declareTaskLocked (declare.go), so an assignment anywhere
-// else is exactly the bypass this test exists to catch.
+// file:line, the moment any AssignStmt targets a `.state` selector. Today's
+// legitimate construction sites are all composite literals seeding
+// lifecycle.Declared(): declareTaskLocked (declare.go) and the synthetic
+// Fail/Cancel paths in run_outcome.go; an AssignStmt anywhere is exactly
+// the bypass this test exists to catch. It does not (yet) catch a
+// composite literal that copies another Task's already-settled state
+// (`taskState{state: other.state}`) or a write through a pointer alias of
+// state — no such code exists today, so that is a known gap in coverage,
+// not a live bypass.
 func TestNoDirectTaskStateAssignment(t *testing.T) {
 	dir := "."
 	entries, err := os.ReadDir(dir)
