@@ -52,7 +52,7 @@ func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 		classifying := make(chan struct{})
 		work.Define(func(context.Context) error {
 			for _, kept := range c.kept {
-				items.Task(kept.name).Kept(kept.reason)
+				items.Task(kept.name).Skipped(kept.reason)
 			}
 			work.Doing(c.item)
 			work.Progress(c.done, c.total)
@@ -71,13 +71,13 @@ func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 	glyph := firstRune(screen.LatestLiveText())
 	want := glyph + " branches         [███         ]  120/459 — 8s\n" +
 		"   " + glyph + " feat/style-contract\n" +
-		"  ! kept 2 (1 checked out, 1 protected)\n" +
+		"  - skipped 2 (1 checked out, 1 protected)\n" +
 		glyph + " worktrees        [██          ]  70/294 — 8s\n" +
 		"   " + glyph + " eapp-system-style-contract-heading\n" +
-		"  ! kept 2 (dirty)\n" +
+		"  - skipped 2 (dirty)\n" +
 		glyph + " remote-tracking  [███         ]  1/4 — 8s\n" +
 		"   " + glyph + " origin/old-style\n" +
-		"  ! kept 2 (tracked)"
+		"  - skipped 2 (tracked)"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

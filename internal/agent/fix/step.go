@@ -20,23 +20,30 @@ var StepAnalyzer = &analysis.Analyzer{
 
 func runStep(pass *analysis.Pass) (any, error) {
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
+	insp.WithStack([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
+		if !push {
+			return true
+		}
 		call := n.(*ast.CallExpr)
 		sel := callSelector(call)
 		if sel == nil || sel.Sel.Name != "Step" {
-			return
+			return true
 		}
 		if recv, ok := recvNamedType(pass.TypesInfo, sel.X); !ok || recv != "TaskHandle" {
-			return
+			return true
+		}
+		if isNamedCompatTestShim(stack, "Step") {
+			return true
 		}
 		if len(call.Args) != 3 {
 			pass.Report(diag("API-090", call,
 				"evo.TaskHandle.Step was removed in 1.1: Progress wins over Step — not rewritten: expected 3 arguments (completed, total, name)"))
-			return
+			return true
 		}
 		pass.Report(diag("API-090", call,
 			"evo.TaskHandle.Step was removed in 1.1: Progress wins over Step; current-item text is orthogonal (task.Progress(i, total).Doing(name))",
 			stepFix(pass, call, sel)))
+		return true
 	})
 	reportStepValues(pass, insp)
 	return nil, nil

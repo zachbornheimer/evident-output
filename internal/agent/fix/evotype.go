@@ -101,6 +101,28 @@ func isMethodExprRecv(info *types.Info, x ast.Expr) bool {
 	return ok && tv.IsType()
 }
 
+// isNamedCompatTestShim reports whether stack's innermost enclosing
+// function declaration is exactly <removedName>ForTest — the one-line
+// export_test.go pattern (StepForTest, ...) that re-exposes a name the
+// 1.1 freeze retired from the public surface so package-external tests
+// can still call it during the compatibility window. Unlike an ordinary
+// call site, rewriting the call inside its own eponymous shim does not
+// migrate a caller off the retired name — it deletes the shim's only
+// reason to exist and, for names whose replacement has different
+// semantics (Step's atomic Progress+Phase update vs. Progress().Doing()'s
+// two separate calls — see TestAPISugar_StepConcurrentWorkersNeverInterleave),
+// silently regresses the very behavior the shim exists to keep testable.
+func isNamedCompatTestShim(stack []ast.Node, removedName string) bool {
+	for i := len(stack) - 1; i >= 0; i-- {
+		fn, ok := stack[i].(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		return fn.Name.Name == removedName+"ForTest"
+	}
+	return false
+}
+
 // stripParens removes one layer of enclosing "(" ")" from a method
 // expression receiver's source text ("(*evo.TaskHandle)" -> "*evo.TaskHandle"),
 // so it can be reused verbatim as a func literal parameter's type.

@@ -183,6 +183,13 @@ func run() error {
 
 	return out.Finish()
 }
+
+// StepForTest is the export_test.go compat-shim shape (isNamedCompatTestShim):
+// a call to the removed Step inside its own eponymous ForTest shim is never
+// flagged, since rewriting it would delete the shim's only reason to exist.
+func StepForTest(t *evo.TaskHandle, completed, total int, name string) *evo.TaskHandle {
+	return t.Step(completed, total, name)
+}
 `
 
 const stepFixtureGolden = `package evostep
@@ -231,6 +238,13 @@ func run() error {
 	c.Step(1, 1, "not evo, never flagged")
 
 	return out.Finish()
+}
+
+// StepForTest is the export_test.go compat-shim shape (isNamedCompatTestShim):
+// a call to the removed Step inside its own eponymous ForTest shim is never
+// flagged, since rewriting it would delete the shim's only reason to exist.
+func StepForTest(t *evo.TaskHandle, completed, total int, name string) *evo.TaskHandle {
+	return t.Step(completed, total, name)
 }
 `
 
@@ -356,6 +370,12 @@ func run() error {
 	r := &recorder{}
 	_ = r.EvidenceTail
 
+	// p.Evidence is a live field (satisfaction-proof Attachments), a
+	// different concept from the removed EvidenceTail that merely shares
+	// the "Evidence" spelling API-110 renames at the package level — must
+	// never be flagged on a Problem receiver.
+	_ = p.Evidence
+
 	return nil
 }
 `
@@ -384,6 +404,12 @@ func run() error {
 
 	r := &recorder{}
 	_ = r.EvidenceTail
+
+	// p.Evidence is a live field (satisfaction-proof Attachments), a
+	// different concept from the removed EvidenceTail that merely shares
+	// the "Evidence" spelling API-110 renames at the package level — must
+	// never be flagged on a Problem receiver.
+	_ = p.Evidence
 
 	return nil
 }

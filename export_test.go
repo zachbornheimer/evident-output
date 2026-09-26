@@ -113,6 +113,13 @@ func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error {
 	return t.inner.RunForTest(cmd)
 }
 
+// StepForTest keeps the retired Step (API-090: Progress wins over Step)
+// callable from package-external tests during the compatibility window,
+// specifically so its atomic completed+total+phase update under one lock
+// stays covered (TestAPISugar_StepConcurrentWorkersNeverInterleave) — a
+// property Progress(completed, total).Doing(name)'s two separate calls do
+// not have. The evident-output fix analyzer scopes API-090 to exempt this
+// shim by name (isNamedCompatTestShim) rather than rewriting it.
 func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
 	return t.Step(completed, total, name)
 }

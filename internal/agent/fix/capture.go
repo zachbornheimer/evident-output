@@ -64,7 +64,14 @@ func runCapture(pass *analysis.Pass) (any, error) {
 		// named type resolves to the internal/core package, not the
 		// top-level evo package recvNamedType checks against — hence the
 		// dedicated isProblemReceiver instead of recvNamedType here.
-		if isProblemReceiver(pass.TypesInfo, sel.X) {
+		//
+		// Scoped to API-117 (EvidenceTail) only: Problem.Evidence is a
+		// live, unrelated field (satisfaction-proof Attachments, API-110's
+		// own name collides with it only by spelling), so matching any
+		// rename.From against a Problem receiver would also flag that
+		// live field. sel.Sel.Name already equals rename.From here, so
+		// this check is exactly "is this the EvidenceTail rename".
+		if rename.RuleID == "API-117" && isProblemReceiver(pass.TypesInfo, sel.X) {
 			pass.Report(captureFinding(pass, sel, rename))
 		}
 	})

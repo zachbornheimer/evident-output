@@ -9,9 +9,10 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// keptWithFactsRun is zq prune's in-use shape: one Task per kept item,
+// keptWithFactsRun is zq prune's in-use shape: one Task per skipped item,
 // each with a Fact saying why (row := group.Task(name); row.Fact("why",
-// d); row.Kept(r)).
+// d); row.Skipped(r)). Kept was retired in 1.1 (Skipped wins); the fold
+// this test pins moved with it.
 func keptWithFactsRun(t *testing.T, v evo.Verbosity) string {
 	t.Helper()
 	var buf bytes.Buffer
@@ -22,22 +23,22 @@ func keptWithFactsRun(t *testing.T, v evo.Verbosity) string {
 		if n != "main" {
 			row.Fact("why", "current checkout")
 		}
-		row.Kept(evo.Reason("in use"))
+		row.Skipped(evo.Reason("in use"))
 	}
 	_ = out.Finish()
 	_ = out.Close()
 	return buf.String()
 }
 
-// TestKeptItemFacts_KeepTheFold pins E-100: a Fact on a kept child broke
-// the kept fold under verbose, so each child rendered its own "✓ name
-// why …" row and "! kept 1 (…)". The fold holds; verbose lists each item
-// once with its Facts at one column, whatever the name width.
+// TestKeptItemFacts_KeepTheFold pins E-100: a Fact on a skipped child broke
+// the fold under verbose, so each child rendered its own "✓ name why …"
+// row and "- skipped 1 (…)". The fold holds; verbose lists each item once
+// with its Facts at one column, whatever the name width.
 func TestKeptItemFacts_KeepTheFold(t *testing.T) {
 	for _, v := range []evo.Verbosity{evo.VerbosityNormal, evo.VerbosityVerbose} {
 		got := keptWithFactsRun(t, v)
-		if strings.Count(got, "! kept") != 1 || !strings.Contains(got, "! kept 3 (in use)") {
-			t.Errorf("verbosity %d: want one \"! kept 3 (in use)\" tally:\n%s", v, got)
+		if strings.Count(got, "- skipped") != 1 || !strings.Contains(got, "- skipped 3 (in use)") {
+			t.Errorf("verbosity %d: want one \"- skipped 3 (in use)\" tally:\n%s", v, got)
 		}
 		if strings.Contains(got, "✓ feat1") || strings.Contains(got, "✓ main") {
 			t.Errorf("verbosity %d: a kept item got its own ✓ row:\n%s", v, got)
@@ -58,7 +59,7 @@ func TestKeptItemFacts_KeepTheFold(t *testing.T) {
 	}
 }
 
-// manyKeptOneFactRun is n kept items where only the first carries a Fact,
+// manyKeptOneFactRun is n skipped items where only the first carries a Fact,
 // named name (empty for the value-only spelling evo.Fact("", v)).
 func manyKeptOneFactRun(t *testing.T, n int, name string) string {
 	t.Helper()
@@ -70,7 +71,7 @@ func manyKeptOneFactRun(t *testing.T, n int, name string) string {
 		if i == 0 {
 			row.Fact(name, "8.0 KB")
 		}
-		row.Kept(evo.Reason("in use"))
+		row.Skipped(evo.Reason("in use"))
 	}
 	_ = out.Finish()
 	_ = out.Close()

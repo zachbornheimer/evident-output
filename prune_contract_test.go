@@ -264,7 +264,7 @@ func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
 	work := items.Task(c.name)
 	work.Define(func(ctx context.Context) error {
 		for _, item := range c.kept {
-			items.Task(item.name).Kept(item.reason)
+			items.Task(item.name).Skipped(item.reason)
 		}
 		if c.onDisk != "" {
 			work.Fact("on disk", c.onDisk)
@@ -318,23 +318,24 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 // prune's contract-correct per-item shape (pruneCategory) to the contract
 // §18 dry-run bytes TestV8_DryRunPlanOnly pins for the warning-severity
 // Problem-authored form.
-// Each category Group's kept children aggregate into one tally under the
-// category's row (§25: "aggregation is a renderer concern"; §26/§27:
-// "  ! kept N (...)"), the tally feeds "[planned · warned]", and the band
-// stays bare because the dry-run Subject header already named the run.
+// Each category Group's skipped children aggregate into one tally under
+// the category's row (§25: "aggregation is a renderer concern"; §26/§27:
+// "  - skipped N (...)"). Kept was retired in 1.1 (Skipped wins): unlike
+// the Kept tally this test used to pin, a Skipped tally does not feed
+// warned (§41/§20 — see TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning),
+// so the run closes with no trailing band at all: the dry-run Subject
+// header already named the run, and there is nothing left to report.
 func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T) {
 	want := "[dry-run] zq prune  ~/repo\n" +
 		"\n" +
 		"✓ branches         188 checked\n" +
-		"  ! kept 3 (2 checked out, 1 protected)\n" +
+		"  - skipped 3 (2 checked out, 1 protected)\n" +
 		"✓ worktrees        168 checked\n" +
-		"  ! kept 3 (2 dirty, 1 unpushed)\n" +
+		"  - skipped 3 (2 dirty, 1 unpushed)\n" +
 		"✓ remote-tracking  nothing to clean\n" +
 		"\n" +
 		"[planned] branches   delete 87 local tips\n" +
-		"[planned] worktrees  remove 95 worktrees\n" +
-		"\n" +
-		"[planned · warned]\n"
+		"[planned] worktrees  remove 95 worktrees\n"
 	if got := renderPruneContract18(t, evo.VerbosityNormal); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -346,7 +347,7 @@ func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T)
 func TestPruneContract_KeptTallyVerboseListsRealItemNames(t *testing.T) {
 	got := renderPruneContract18(t, evo.VerbosityVerbose)
 	for _, want := range []string{
-		"✓ branches         188 checked\n  ! kept 3 (2 checked out, 1 protected)\n",
+		"✓ branches         188 checked\n  - skipped 3 (2 checked out, 1 protected)\n",
 		"checked out: feat/wt-a, feat/wt-b\n",
 		"protected: main\n",
 		"dirty: ../wt-a, ../wt-b\n",
