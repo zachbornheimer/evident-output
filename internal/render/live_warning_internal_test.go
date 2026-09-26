@@ -18,7 +18,7 @@ func TestWriteLiveTaskLine_FailedWarningNests(t *testing.T) {
 		Summary:  "failed: permissions",
 		Warnings: []core.Problem{{Summary: "chmod denied"}},
 	}
-	writeLiveTaskLine(&b, snap, 1, 0, testLiveStyle)
+	writeLiveTaskLine(&b, snap, 1, 0, countWidths{}, testLiveStyle)
 	got := b.String()
 	if !strings.Contains(got, "✗ write launch agent  failed: permissions") {
 		t.Fatalf("missing failed parent:\n%s", got)
@@ -37,7 +37,7 @@ func TestWriteLiveTaskLine_GroupChildSplitsActivity(t *testing.T) {
 		Phase:    "host-031",
 		Progress: core.Progress{Kind: core.Determinate, Completed: 31, Total: 100},
 	}
-	writeLiveTaskLine(&b, snap, 1, 0, testLiveStyle)
+	writeLiveTaskLine(&b, snap, 1, 0, countWidths{}, testLiveStyle)
 	got := strings.TrimRight(b.String(), "\n")
 	lines := strings.Split(got, "\n")
 	if len(lines) < 2 {

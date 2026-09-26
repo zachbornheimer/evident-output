@@ -611,11 +611,15 @@ func TestV8_LiveParallelPrune(t *testing.T) {
 	// Bar fill is proportional to completed/total (spec §23: "the bar is
 	// decorative", the count is authoritative) — this matches §18's frame
 	// exactly (120/459 -> 4 filled, 70/294 -> 3 filled, 1/4 -> 3 filled).
-	want := glyph + " branches         [████        ]  120/459 — 5s\n" +
+	// The count column itself is also §18-aligned across these three
+	// siblings: the numerator right-justified to the widest ("120"/" 70"/
+	// "  1") and the denominator left-justified to the widest
+	// ("459"/"294"/"4  "), so every sibling's "/" lands in the same column.
+	want := glyph + " branches         [████        ]  120/459  — 5s\n" +
 		"  " + glyph + " feat/style-contract\n" +
-		glyph + " worktrees        [███         ]  70/294 — 5s\n" +
+		glyph + " worktrees        [███         ]   70/294  — 5s\n" +
 		"  " + glyph + " eapp-system-style-contract-heading\n" +
-		glyph + " remote-tracking  [███         ]  1/4 — 5s\n" +
+		glyph + " remote-tracking  [███         ]    1/4    — 5s\n" +
 		"  " + glyph + " origin/old-style"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)

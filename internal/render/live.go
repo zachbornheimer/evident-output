@@ -269,7 +269,7 @@ func selectLiveChildren(tasks []core.TaskSnapshot, total, max int) (selected []c
 // the parent line owns the bar/count/timer only, and the current activity
 // becomes its own indented spinner line beneath it — so the child can
 // change/truncate independently without moving the timer horizontally.
-func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth int, st liveStyle) (rows int) {
+func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth int, cw countWidths, st liveStyle) (rows int) {
 	start := b.Len()
 	pad := ""
 	// activityChildIndent is the extra indent the activity child adds on
@@ -286,7 +286,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	if splitsActivityChild(t) {
 		parent := t
 		parent.Phase = ""
-		unit := liveTaskUnit(parent, indent, st)
+		unit := liveTaskUnit(parent, indent, cw, st)
 		padRootName(&unit, indent, nameWidth)
 		b.WriteString(unit.Render(pad))
 		b.WriteByte('\n')
@@ -297,7 +297,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 		b.WriteString(child.Render(pad + activityChildIndent))
 		b.WriteByte('\n')
 	} else {
-		unit := liveTaskUnit(t, indent, st)
+		unit := liveTaskUnit(t, indent, cw, st)
 		padRootName(&unit, indent, nameWidth)
 		b.WriteString(unit.Render(pad))
 		b.WriteByte('\n')
@@ -344,7 +344,7 @@ func splitsActivityChild(t core.TaskSnapshot) bool {
 // than writing it lets a caller that owns a richer row (a group header
 // promoting its only Running child) reuse the whole policy and re-label
 // just the name slot.
-func liveTaskUnit(t core.TaskSnapshot, indent int, st liveStyle) DisplayUnit {
+func liveTaskUnit(t core.TaskSnapshot, indent int, cw countWidths, st liveStyle) DisplayUnit {
 	glyph := TaskGlyph(t.State, st.Profile)
 	if t.State == core.Running {
 		glyph = st.spin
@@ -358,7 +358,7 @@ func liveTaskUnit(t core.TaskSnapshot, indent int, st liveStyle) DisplayUnit {
 	}
 	switch t.State {
 	case core.Running:
-		unit.Detail, unit.Elapsed = liveRunningDetail(t, st)
+		unit.Detail, unit.Elapsed = liveRunningDetail(t, cw, st)
 	case core.Pending:
 		unit.Detail = livePendingDetail(t, st)
 	case core.Failed:
@@ -395,14 +395,14 @@ func liveSettledDetail(t core.TaskSnapshot, st liveStyle) string {
 // liveRunningDetail is a Running row's bar/count or phase, and the elapsed
 // suffix every unresolved row earns past elapsedAfter (P5), with or
 // without a Phase.
-func liveRunningDetail(t core.TaskSnapshot, st liveStyle) (detail, elapsed string) {
+func liveRunningDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) (detail, elapsed string) {
 	elapsed = heartbeatSuffix(st.now, activitySince(t))
 	p := t.Progress
 	switch {
 	case p.Kind == core.BytesKind && p.Total > 0:
 		return progressBar(p.Completed, p.Total, 12) + "  " + formatByteProgressFixed(p.Completed, p.Total) + elapsed, elapsed
 	case p.Kind == core.Determinate && p.Total > 0:
-		return liveCountDetail(t, st) + elapsed, elapsed
+		return liveCountDetail(t, cw, st) + elapsed, elapsed
 	case p.Kind == core.BytesKind && t.Phase == "":
 		// A byte stream with no known total and no phase has nothing to
 		// show yet.
@@ -421,15 +421,77 @@ func liveRunningDetail(t core.TaskSnapshot, st liveStyle) (detail, elapsed strin
 // liveCountDetail is a determinate Running row's "[bar]  N/M" and its
 // muted current Phase. Narrow terminals drop the bar (decoration) before
 // the count (information): evo-rec.md Problem 16/26's compact dialect.
-func liveCountDetail(t core.TaskSnapshot, st liveStyle) string {
-	detail := fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
-	if st.width <= 0 || st.width >= compactLayoutMaxWidth {
+func liveCountDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) string {
+	wide := st.width <= 0 || st.width >= compactLayoutMaxWidth
+	if !wide {
+		// Narrow terminals drop the bar (decoration) before the count
+		// (information): evo-rec.md Problem 16/26's compact dialect. The
+		// shared count column is a full-width bar-row alignment (§18); a
+		// compact row keeps its own bare "N/M".
+		cw = countWidths{}
+	}
+	detail := formatAlignedCount(t.Progress.Completed, t.Progress.Total, cw)
+	if wide {
 		detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + detail
 	}
 	if t.Phase != "" {
 		detail += "  " + st.dim(t.Phase)
 	}
 	return detail
+}
+
+// countWidths is the shared count-column width of a group of sibling
+// determinate Running rows (§18's "count field" alignment): the widest
+// completed digit count (right-justified) and the widest total digit count
+// (left-justified), computed once across the siblings that share a name
+// column. Zero when fewer than two rows share it — a lone determinate row
+// keeps its own bare "N/M" width, unpadded.
+type countWidths struct {
+	done, total int
+}
+
+// formatAlignedCount is a determinate Running row's count field: doneStr
+// right-justified to cw.done + "/" + totalStr left-justified to cw.total,
+// plus one fixed trailing space (§18's count-column layout combines with
+// heartbeatSuffix's own leading space in " — Ns" to read as a two-space
+// gap when the total needs no fill, and wider as the total's own left-fill
+// grows it). With no shared column (cw.done == 0) it degrades to the bare
+// "N/M" every other row already used, with no padding.
+func formatAlignedCount(completed, total int64, cw countWidths) string {
+	doneStr, totalStr := fmt.Sprintf("%d", completed), fmt.Sprintf("%d", total)
+	if cw.done == 0 {
+		return doneStr + "/" + totalStr
+	}
+	return txt.PadLeft(doneStr, cw.done) + "/" + txt.PadRight(totalStr, cw.total) + " "
+}
+
+// headerlessCountWidths is the shared count-column width (countWidths) of a
+// header-less body's determinate Running rows: its own Tasks plus every
+// child collection that renders as its own Task row (rendersAsOwnTask).
+// Fewer than two such rows share no column, matching
+// headerlessRowNameWidth's own convention.
+func headerlessCountWidths(col core.TasksSnapshot) countWidths {
+	var doneWidth, totalWidth, rows int
+	consider := func(t core.TaskSnapshot) {
+		if t.State != core.Running || t.Progress.Kind != core.Determinate || t.Progress.Total <= 0 {
+			return
+		}
+		rows++
+		doneWidth = max(doneWidth, len(fmt.Sprintf("%d", t.Progress.Completed)))
+		totalWidth = max(totalWidth, len(fmt.Sprintf("%d", t.Progress.Total)))
+	}
+	for _, t := range col.Tasks {
+		consider(t)
+	}
+	for _, child := range col.Collections {
+		if rendersAsOwnTask(child) {
+			consider(child.Tasks[0])
+		}
+	}
+	if rows < 2 {
+		return countWidths{}
+	}
+	return countWidths{done: doneWidth, total: totalWidth}
 }
 
 // livePendingDetail says "waiting", dim, once a Pending row has stayed on
