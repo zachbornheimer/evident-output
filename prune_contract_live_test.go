@@ -21,14 +21,16 @@ type liveCategory struct {
 
 // TestPruneContract_LiveCategoriesRenderContract18Frame pins the exact §18
 // LIVE frame (Linear doc 9c10b754-895e-4852-aa25-f8cc5cafb2d0 §18)
-// byte-for-byte: three categories, each Running with a determinate
-// bar/count and a current-item activity child, their name column aligned
-// ("branches"/"worktrees"/"remote-tracking") and their count column aligned
-// (numerator right-justified, denominator left-justified, to the widest
-// sibling: 120/459, 70/294, 1/4 share one "/" column). No "- skipped N"
-// tally shows for any of them — §18's own worked LIVE frame shows none
-// while a category's own Task is still Running, whatever Skipped children
-// it already has (the count could still grow before it settles).
+// byte-for-byte, including the "zq prune  ~/repo" durable Subject header
+// and the blank line separating it from the live region: three categories,
+// each Running with a determinate bar/count and a current-item activity
+// child, their name column aligned ("branches"/"worktrees"/
+// "remote-tracking") and their count column aligned (numerator
+// right-justified, denominator left-justified, to the widest sibling:
+// 120/459, 70/294, 1/4 share one "/" column). No "- skipped N" tally shows
+// for any of them — §18's own worked LIVE frame shows none while a
+// category's own Task is still Running, whatever Skipped children it
+// already has (the count could still grow before it settles).
 //
 // One documented departure, already established by TestV8_LiveParallelPrune:
 // the doc's own illustrative frame shows "— 2s", but spec §24 fixes the
@@ -41,6 +43,7 @@ func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 	out := evo.Init(evo.Config{
 		Isolated: true, Clock: clock, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard,
 		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, MaxFrameRate: 1_000_000,
+		Title: "zq", Subject: "zq prune  ~/repo",
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
@@ -85,5 +88,8 @@ func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 		"  " + glyph + " origin/old-style"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
+	}
+	if got, want := screen.PersistedText(), "zq prune  ~/repo\n\n"; got != want {
+		t.Fatalf("subject header mismatch:\n--- want ---\n%q\n--- got ---\n%q", want, got)
 	}
 }

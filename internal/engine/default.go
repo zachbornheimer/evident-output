@@ -47,6 +47,15 @@ func finishInit(out *Output, cfg Config, facts []FactRecord) *Output {
 	out.arm()
 	if cfg.Subject != "" && !cfg.DryRun && !cfg.Preview {
 		out.Println(cfg.Subject)
+		// Contract §18's LIVE frame shows one blank line between the
+		// durable Subject header and the live region's first row — the
+		// same separation dry-run's WritePlannedHeader already gives its
+		// own header. Plain (non-interactive) output has no live region
+		// to separate from, so it keeps the single line
+		// (TestV8_NothingToClean's golden has no gap).
+		if out.hasInteractiveLive() {
+			out.Println()
+		}
 	}
 	for _, fact := range facts {
 		out.Fact(fact.Name, fact.Value)

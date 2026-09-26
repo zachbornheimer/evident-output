@@ -478,7 +478,17 @@ func TestV8_StressLive(t *testing.T) {
 	cleanup.Define(func(ctx context.Context) error {
 		cleanup.Doing("feat/cleanup…")
 		cleanup.Progress(7, 18)
-		cleanup.Problem("kept 5 (3 protected, 2 unpushed)", evo.Severity(evo.SeverityWarning))
+		// Kept is not canonical vocabulary (vocabulary freeze): a
+		// policy-excluded candidate is Skipped. cleanup accumulates its
+		// own Skipped taxonomy directly (SkippedWithErrs, non-terminal)
+		// rather than folding a Group of sibling item Tasks, since
+		// cleanup itself must stay Running for this frame.
+		for _, item := range append(
+			skippedItemsFor(evo.Reason("protected"), nil, 3),
+			skippedItemsFor(evo.Reason("unpushed"), nil, 2)...,
+		) {
+			cleanup.SkippedWithErrs(item.reason, item.name)
+		}
 		err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 12},
 			func(context.Context) error { return nil })
 		close(committed)
@@ -516,7 +526,7 @@ func TestV8_StressLive(t *testing.T) {
 		"        mode   0644\n" +
 		"   " + glyph + " cleanup    [█████       ]  7/18  — 8s\n" +
 		"      " + glyph + " feat/cleanup…\n" +
-		"      ! kept 5 (3 protected, 2 unpushed)\n" +
+		"      - skipped 5 (3 protected, 2 unpushed)\n" +
 		"\n" +
 		"[changed] discover  deleted 5 local tips\n" +
 		"[changed] cleanup   deleted 12 stale origin/*"

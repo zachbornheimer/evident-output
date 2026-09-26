@@ -28,6 +28,37 @@ func TestWriteLiveTaskLine_FailedWarningNests(t *testing.T) {
 	}
 }
 
+// TestWriteLiveTaskLine_SkippedTaxonomyNestsWhileRunning proves a
+// standalone Running task's own accumulated Skipped taxonomy (recorded via
+// TaskHandle.Skipped/SkippedWithErrs on the task itself, not a folded Group
+// tally across still-arriving sibling children) nests under its row the
+// same way a warning does — it is the task's own already-final
+// self-reported information, not a count that could still grow, so it is
+// not subject to the Group-fold "don't paint while classifying" rule
+// (categoryStillClassifying) that guards a Group's own tally.
+func TestWriteLiveTaskLine_SkippedTaxonomyNestsWhileRunning(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	snap := core.TaskSnapshot{
+		Name:     "cleanup",
+		State:    core.Running,
+		Phase:    "feat/cleanup…",
+		Progress: core.Progress{Kind: core.Determinate, Completed: 7, Total: 18},
+		Skipped: []core.TaxonomyRecord{
+			{Reason: "protected", Name: "a"},
+			{Reason: "protected", Name: "b"},
+			{Reason: "protected", Name: "c"},
+			{Reason: "unpushed", Name: "d"},
+			{Reason: "unpushed", Name: "e"},
+		},
+	}
+	writeLiveTaskLine(&b, snap, 1, 0, countWidths{}, testLiveStyle)
+	got := b.String()
+	if !strings.Contains(got, "- skipped 5 (3 protected, 2 unpushed)") {
+		t.Fatalf("Running task's own Skipped taxonomy must nest under its row:\n%s", got)
+	}
+}
+
 func TestWriteLiveTaskLine_GroupChildSplitsActivity(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder

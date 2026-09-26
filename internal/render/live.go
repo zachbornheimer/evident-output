@@ -317,6 +317,15 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	// warning underneath — Done still inlines a short warning on the ✓ row.
 	if t.State == core.Running || t.State == core.Failed {
 		writeNestedTaskWarnings(b, t.Warnings, pad+"   ", st.Style)
+		// A standalone task's own accumulated Skipped/Kept taxonomy
+		// (TaskHandle.Skipped/SkippedWithErrs called directly on this
+		// task, not a Group folding still-arriving sibling children) is
+		// already-final self-reported information the moment it is
+		// recorded — the same footing as a Fact or a warning — so it
+		// nests under the row unconditionally, unlike a Group's own
+		// folded tally (categoryStillClassifying), which withholds
+		// while more disposition items could still arrive.
+		writeDispositions(b, pad+"   ", taskDispositions(t), noDisposition, st.Style)
 	}
 	if t.State == core.Failed {
 		writeVerificationDetails(b, t.Verification, pad+"   ", true, st.Style)

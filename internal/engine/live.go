@@ -70,6 +70,17 @@ func (o *Output) liveLocked() LiveSurface {
 	return asLive(o.cfg.terminal)
 }
 
+// hasInteractiveLive reports whether o is about to paint an interactive
+// live region — the same "live && IsInteractive && !plain" test every other
+// interactive branch in this package applies, exposed for callers (Init's
+// Subject header) that decide presentation shape before any Task exists.
+func (o *Output) hasInteractiveLive() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	live := o.liveLocked()
+	return live != nil && live.IsInteractive()
+}
+
 // signalLiveLocked marks that interactive presentation may need a redraw.
 // force=true bypasses frame-rate coalescing only (not VisibilityDelay).
 // VisibilityDelay withholds the first live paint after activity starts, except
