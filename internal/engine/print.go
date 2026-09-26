@@ -220,22 +220,11 @@ func (o *Output) emitMessageLocked(line string, vis Visibility) {
 		Name:     core.VisibilityName(vis),
 		// State field reused as visibility tag in JSONL path via Name
 	})
-	switch {
-	case !o.projectsVisibilityLocked(vis):
+	if o.projectsVisibilityLocked(vis) {
+		o.emitLineProgressiveLocked()
+	} else {
 		// Hidden verbose: still count as "emitted" for residual bookkeeping of lines.
 		o.linesEmitted = len(o.lines)
-	case o.hasPendingCollectionRowsLocked():
-		// Plain mode defers every collection (Group/Sequence) child row to
-		// Finish (contract §25: "aggregation is a renderer concern" — a
-		// Group's tally can't be known complete until Finish). An immediate
-		// write here would jump ahead of already-resolved collection work
-		// that this Println/Printf call chronologically follows, inverting
-		// the P2 "interleave by call time" contract (residualPlainLocked's
-		// doc comment). Leave linesEmitted where it is so
-		// residualCompositionLocked renders this line, in its declared
-		// order, once the pending collection rows have rendered.
-	default:
-		o.emitLineProgressiveLocked()
 	}
 }
 
