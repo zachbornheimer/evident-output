@@ -44,6 +44,12 @@ func StateColor(s core.EntityState) string {
 }
 
 // warningGlyph is the yellow attention bang ("!").
+// WarningGlyph renders the "!" (or profile equivalent) glyph a warning-
+// severity annotation is prefixed with. Exported for plain's
+// writeRunAnnotations, the one caller outside render (row_annotation.go
+// uses the unexported form for its own in-package calls).
+func (s Style) WarningGlyph() string { return s.warningGlyph() }
+
 func (s Style) warningGlyph() string {
 	return txt.StyleGlyph(txt.GlyphWarningState.Render(s.Profile), txt.SGRYellow, s.Color)
 }

@@ -85,7 +85,7 @@ func inlineTaskFact(t core.TaskSnapshot) (core.Fact, bool) {
 		return core.Fact{}, false
 	}
 	f := t.Facts[0]
-	if txt.Cells(factText(f)) > warningInlineMaxCells {
+	if txt.Cells(FactText(f)) > warningInlineMaxCells {
 		return core.Fact{}, false
 	}
 	return f, true
@@ -97,7 +97,7 @@ func inlineTaskFact(t core.TaskSnapshot) (core.Fact, bool) {
 // text aligned with a sibling's inline warning/taxonomy text regardless of
 // whether such a sibling exists on this row.
 func inlineFactText(f core.Fact, s Style) string {
-	return bangColumnFiller + s.Dim(factText(f))
+	return bangColumnFiller + s.Dim(FactText(f))
 }
 
 // writeNestedTaskFacts is inlineTaskFact's nested-line sibling: every fact
@@ -105,7 +105,7 @@ func inlineFactText(f core.Fact, s Style) string {
 // under the task's row, the same indentation WriteNestedTaskWarnings uses.
 func writeNestedTaskFacts(b *strings.Builder, facts []core.Fact, indent string, s Style) {
 	for _, f := range facts {
-		fmt.Fprintf(b, "%s%s\n", indent, s.Dim(factText(f)))
+		fmt.Fprintf(b, "%s%s\n", indent, s.Dim(FactText(f)))
 	}
 }
 
@@ -181,7 +181,7 @@ func writeItemFacts(b *strings.Builder, indent string, part core.ReasonTally, s 
 		facts := itemFacts(part, i)
 		pairs := make([]string, len(facts))
 		for j, f := range facts {
-			pairs[j] = factText(f)
+			pairs[j] = FactText(f)
 		}
 		fmt.Fprintf(b, "%s  %s  %s\n", indent, txt.PadRight(part.Names[i], width), s.Dim(strings.Join(pairs, "  ")))
 	}
@@ -270,26 +270,11 @@ func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s S
 	}
 }
 
-// writeRunAnnotations renders evo.Problem's warning-severity results and
-// evo.Fact's run-scoped annotations (P8 symmetry with a task's own
-// Problem/Fact) — fire-and-forget durable dim
-// lines, warnings first: "! <text>" then "<name>  <value>", in call order
-// within each severity.
-func writeRunAnnotations(b *strings.Builder, warnings []core.Problem, facts []core.Fact, s Style) {
-	glyph := s.warningGlyph()
-	for _, w := range warnings {
-		fmt.Fprintf(b, "%s %s\n", glyph, WarningText(w))
-	}
-	for _, f := range facts {
-		fmt.Fprintf(b, "%s\n", s.Dim(factText(f)))
-	}
-}
-
-// factText renders a Fact's "<name>  <value>" text — bare Value alone when
+// FactText renders a Fact's "<name>  <value>" text — bare Value alone when
 // Name is empty (evo.Fact("", "1 stale")'s value-only spelling), so an
 // unnamed fact never carries a spurious leading "  " separator with nothing
-// on its left.
-func factText(f core.Fact) string {
+// on its left. Exported for plain's writeRunAnnotations.
+func FactText(f core.Fact) string {
 	if f.Name == "" {
 		return f.Value
 	}

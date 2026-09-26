@@ -13,47 +13,6 @@ import (
 // must never import the root package (see glyph.go's package doc).
 const DefaultWidth = 80
 
-// Plain projects a snapshot to plain text without terminal ownership.
-// width <= 0 falls back to DefaultWidth.
-func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphProfile) string {
-	var b strings.Builder
-	if width <= 0 {
-		width = DefaultWidth
-	}
-	st := Style{Color: !noColor, Verbose: verbose, Profile: profile}
-	s = HumanProjection(s, verbose)
-
-	if s.DryRun {
-		WritePlannedHeader(&b, st.Color, s.Preview, s.DryRunSubject)
-	}
-
-	for _, line := range s.Lines {
-		WriteDebugOrLine(&b, line, st.Color)
-	}
-	writeRunAnnotations(&b, s.Warnings, s.Facts, st)
-
-	taskNameWidth := maxTaskNameWidth(s.Tasks)
-	for _, t := range s.Tasks {
-		WriteTaskAligned(&b, t, taskNameWidth, st)
-	}
-
-	for _, col := range s.Collections {
-		WriteCollection(&b, col, st)
-	}
-
-	if HasTaskRows(s) && HasEffectSections(s) {
-		b.WriteByte('\n')
-	}
-
-	WriteLedger(&b, s, width, st)
-
-	if s.Conclusion != nil && !ShouldSuppressStandaloneConclusion(s) {
-		WriteConclusion(&b, StandaloneConclusion(s), st)
-	}
-
-	return b.String()
-}
-
 // HasTaskRows reports whether s rendered any task or collection rows above
 // the effects ledger — the blank-line separator below only belongs between
 // two real blocks, never floating above an empty task section.
@@ -82,11 +41,13 @@ func HasEffectSections(s core.Snapshot) bool {
 // measured against different fixtures.
 const taskNameColumnMargin = 1
 
-// maxTaskNameWidth returns the shared column sibling root tasks pad their
+// MaxTaskNameWidth returns the shared column sibling root tasks pad their
 // name to (fixture-repo-retire-dryrun.md) — the widest name's cell width. A
 // lone task (or none) needs no alignment, so callers pass the result
 // straight to WriteTaskAligned's nameWidth, where 0 means "don't pad".
-func maxTaskNameWidth(tasks []core.TaskSnapshot) int {
+// Exported for plain's Plain, which pads root tasks the same way
+// writeCollectionBody pads a collection's children below.
+func MaxTaskNameWidth(tasks []core.TaskSnapshot) int {
 	if len(tasks) < 2 {
 		return 0
 	}
@@ -294,7 +255,7 @@ func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s Style) 
 // writeCollectionBody writes a headed container's child rows, then its
 // nested containers indented one level per nesting depth (P3).
 func writeCollectionBody(b *strings.Builder, col core.TasksSnapshot, s Style) {
-	childNameWidth := maxTaskNameWidth(col.Tasks)
+	childNameWidth := MaxTaskNameWidth(col.Tasks)
 	for _, t := range col.Tasks {
 		childRow(t, childNameWidth).write(b, s)
 	}
