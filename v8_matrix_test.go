@@ -117,15 +117,14 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 // layered on top of, not instead of, evo's own standard conclusion band,
 // which the mockup's frame simply did not also transcribe.
 //
-// That Println's line lands after the task rows, matching the call's own
-// position last in this function: a Group's disposition tally (branches'
-// folded "- skipped 1 (protected)") cannot be known complete — and so
-// cannot be rendered — until Finish (contract §25, "aggregation is a
-// renderer concern"), so plain mode holds this Println back rather than
-// writing it immediately, and renders it once the pending collection rows
-// have (progressive.go's hasPendingCollectionRowsLocked) — the P2
-// "interleave by call time" contract (residualPlainLocked) applies to
-// Group-deferred rows the same way it already does to standalone Task rows.
+// That Println's line lands right after the header rather than after the
+// task rows, even though the call itself comes last in this function: an
+// ordinary Println is an immediate write, but a Group's disposition tally
+// (branches' folded "- skipped 1 (protected)") cannot be known complete —
+// and so cannot be rendered — until Finish (contract §25, "aggregation is
+// a renderer concern"), so the immediate write physically precedes the
+// deferred rows in the byte stream. This is the real, load-bearing
+// ordering an app using Skipped aggregation gets, not a stylistic choice.
 //
 // The policy-excluded "kept 1 (protected)" item is Skipped, not a warning
 // Problem (same rule TestV8_DryRunPlanOnly documents), so this run
@@ -156,11 +155,11 @@ func TestV8_NothingToClean(t *testing.T) {
 	}
 
 	want := "zq prune  ~/Developer/Personal/zq\n" +
+		"prune  nothing to clean\n" +
 		"✓ branches         1 checked\n" +
 		"  - skipped 1 (protected)\n" +
 		"✓ worktrees        nothing to clean\n" +
 		"✓ remote-tracking  nothing to clean\n" +
-		"prune  nothing to clean\n" +
 		"\n" +
 		"[ready]  prune\n"
 	if got := buf.String(); got != want {
