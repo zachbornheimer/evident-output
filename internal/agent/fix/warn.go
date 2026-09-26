@@ -50,7 +50,74 @@ func runWarn(pass *analysis.Pass) (any, error) {
 			reportWarn(pass, call, sel, "")
 		}
 	})
+	reportWarnValues(pass, insp)
 	return nil, nil
+}
+
+// reportWarnValues is API-070's method-value/method-expression case: a
+// stand-alone reference to Warn, removed in 1.1 — f := t.Warn, defer
+// t.Warn, or the method expression (*evo.TaskHandle).Warn — is a func
+// value with no CallExpr wrapping the removed name at the reference
+// site, so runWarn's call-based walk above never sees it. The TaskHandle
+// receiver gets a mechanical fix (wrap in a func literal with Warn's own
+// call shape that calls Problem); every other receiver, including the
+// package-level evo.Warn (removed in 1.1) used as a func value, gets a
+// diagnostic naming the manual step, same as the call-based case's
+// unfixable branches.
+func reportWarnValues(pass *analysis.Pass, insp *inspector.Inspector) {
+	insp.WithStack([]ast.Node{(*ast.SelectorExpr)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
+		if !push {
+			return true
+		}
+		sel := n.(*ast.SelectorExpr)
+		if sel.Sel.Name != "Warn" || isSelectorCalled(stack) {
+			return true
+		}
+		recv, ok := recvNamedType(pass.TypesInfo, sel.X)
+		if !ok {
+			if isEvoPackageSelector(pass, sel) {
+				pass.Report(diag("API-070", sel,
+					"evo.Warn was removed in 1.1: this func value has no Task to attach a Problem to — resolve its call sites by hand"))
+			}
+			return true
+		}
+		if recv != "TaskHandle" {
+			pass.Report(diag("API-070", sel,
+				"(*evo."+recv+").Warn was removed in 1.1: "+recv+" has no Task to attach a Problem to — resolve this func value's call sites by hand"))
+			return true
+		}
+		pass.Report(diag("API-070", sel,
+			"(*evo.TaskHandle).Warn was removed in 1.1: Problem wins over Warn, warning is a Problem severity",
+			warnValueFix(pass, sel)))
+		return true
+	})
+}
+
+// warnValueFix wraps the removed Warn method value/expression in a func
+// literal that keeps Warn's own call shape (summary string, opts
+// ...ProblemOption) but calls the canonical Problem(..., evo.Severity(...))
+// rewrite inside — so f := t.Warn keeps working as a func value without
+// every call site of f needing to be tracked down and rewritten
+// individually.
+func warnValueFix(pass *analysis.Pass, sel *ast.SelectorExpr) analysis.SuggestedFix {
+	alias := evoAlias(pass, sel)
+	severity := alias + ".Severity(" + alias + ".SeverityWarning)"
+	var newText string
+	if isMethodExprRecv(pass.TypesInfo, sel.X) {
+		recvType := stripParens(text(pass, sel.X))
+		newText = "func(recv " + recvType + ", summary string, opts ..." + alias + ".ProblemOption) *" + alias + ".TaskHandle {\n\treturn recv.Problem(summary, append(opts, " + severity + ")...)\n}"
+	} else {
+		recv := text(pass, sel.X)
+		newText = "func(summary string, opts ..." + alias + ".ProblemOption) *" + alias + ".TaskHandle {\n\treturn " + recv + ".Problem(summary, append(opts, " + severity + ")...)\n}"
+	}
+	edits := []analysis.TextEdit{{Pos: sel.Pos(), End: sel.End(), NewText: []byte(newText)}}
+	if imp := addEvoImport(pass, sel.Pos()); imp.NewText != nil {
+		edits = append(edits, imp)
+	}
+	return analysis.SuggestedFix{
+		Message:   "replace the Warn method value/expression with a func literal calling Problem(..., evo.Severity(evo.SeverityWarning))",
+		TextEdits: edits,
+	}
 }
 
 // reportWarn reports the API-070 removal for a Warn call whose receiver

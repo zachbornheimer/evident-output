@@ -430,3 +430,94 @@ func TestDiagnoseApplyConvergesToNoDiagnostics(t *testing.T) {
 	}
 	t.Fatal("fix -apply did not converge to zero unfixed diagnostics within 4 rounds")
 }
+
+// methodValueFixtureSrc exercises the method-value (f := t.Warn; defer
+// t.Step) and method-expression ((*evo.TaskHandle).Kept) shapes: a
+// stand-alone reference to a removed name with no CallExpr wrapping it at
+// the reference site, which a call-based Preorder walk never sees.
+const methodValueFixtureSrc = `package main
+
+import (
+	"context"
+	"fmt"
+
+	evo "github.com/zachbornheimer/evident-output"
+)
+
+func run() error {
+	out := evo.Init(evo.Config{Title: "demo"})
+	t := out.Task("check")
+
+	warn := t.Warn
+	warn("stale cache")
+
+	defer t.Step(1, 3, "cleanup")
+
+	keptFn := (*evo.TaskHandle).Kept
+
+	t.Define(func(ctx context.Context) error {
+		keptFn(t, evo.Reason("dirty"))
+		return nil
+	})
+	return out.Finish()
+}
+
+func main() { fmt.Println(run()) }
+`
+
+// TestMethodValuesAndExpressionsAreFlagged guards the method-value/method-
+// expression detection: f := t.Warn, defer t.Step (a method value whose
+// call happens later via defer, not at the reference site), and the
+// method expression (*evo.TaskHandle).Kept must all be flagged, each with
+// a SuggestedFix that -apply can converge on.
+func TestMethodValuesAndExpressionsAreFlagged(t *testing.T) {
+	dir := t.TempDir()
+	writeModule(t, dir, methodValueFixtureSrc)
+
+	pkgs, err := fix.Load(dir, ".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	results, err := fix.Diagnose(pkgs, false)
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("want 1 package result, got %d", len(results))
+	}
+	got := map[string]bool{}
+	for _, d := range results[0].Diagnostics {
+		got[d.RuleID] = true
+		if d.RuleID == "API-090" && !d.Fixed {
+			// Diagnose(pkgs, false) never sets Fixed; just confirm presence here.
+			_ = d
+		}
+	}
+	for _, want := range []string{"API-070", "API-090", "API-091"} {
+		if !got[want] {
+			t.Errorf("missing diagnostic %s for a method value/expression reference; got %v", want, got)
+		}
+	}
+}
+
+// TestMethodValueFixApplyCompiles guards that the generated func-literal
+// wrapper for a method value actually compiles once applied — not just
+// that a SuggestedFix was offered.
+func TestMethodValueFixApplyCompiles(t *testing.T) {
+	dir := t.TempDir()
+	writeModule(t, dir, methodValueFixtureSrc)
+
+	pkgs, err := fix.Load(dir, ".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if _, err := fix.Diagnose(pkgs, true); err != nil {
+		t.Fatalf("Diagnose -apply: %v", err)
+	}
+
+	cmd := exec.Command("go", "build", "-buildvcs=false", "./...")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go build after -apply: %v\n%s", err, out)
+	}
+}

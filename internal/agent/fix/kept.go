@@ -45,5 +45,54 @@ func runKept(pass *analysis.Pass) (any, error) {
 				TextEdits: []analysis.TextEdit{{Pos: call.Pos(), End: call.End(), NewText: []byte(newText)}},
 			}))
 	})
+	reportKeptValues(pass, insp)
 	return nil, nil
+}
+
+// reportKeptValues is API-091's method-value/method-expression case: a
+// stand-alone reference to the removed Kept — f := t.Kept, defer t.Kept,
+// or the method expression (*evo.TaskHandle).Kept — is a func value with
+// no CallExpr wrapping the removed name, so runKept's call-based walk
+// above never sees it. Kept always took exactly one Reason argument, so
+// the rewrite is mechanical the same way runKept's call-site rewrite is.
+func reportKeptValues(pass *analysis.Pass, insp *inspector.Inspector) {
+	insp.WithStack([]ast.Node{(*ast.SelectorExpr)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
+		if !push {
+			return true
+		}
+		sel := n.(*ast.SelectorExpr)
+		if sel.Sel.Name != "Kept" || isSelectorCalled(stack) {
+			return true
+		}
+		if recv, ok := recvNamedType(pass.TypesInfo, sel.X); !ok || recv != "TaskHandle" {
+			return true
+		}
+		pass.Report(diag("API-091", sel,
+			"evo.TaskHandle.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped(reason)",
+			keptValueFix(pass, sel)))
+		return true
+	})
+}
+
+// keptValueFix wraps the removed Kept method value/expression in a func
+// literal with Kept's own call shape (one Reason argument) that calls
+// Skipped(reason) inside.
+func keptValueFix(pass *analysis.Pass, sel *ast.SelectorExpr) analysis.SuggestedFix {
+	alias := evoAlias(pass, sel)
+	var newText string
+	if isMethodExprRecv(pass.TypesInfo, sel.X) {
+		recvType := stripParens(text(pass, sel.X))
+		newText = "func(recv " + recvType + ", reason " + alias + ".TaxonomyReason) {\n\trecv.Skipped(reason)\n}"
+	} else {
+		recv := text(pass, sel.X)
+		newText = "func(reason " + alias + ".TaxonomyReason) {\n\t" + recv + ".Skipped(reason)\n}"
+	}
+	edits := []analysis.TextEdit{{Pos: sel.Pos(), End: sel.End(), NewText: []byte(newText)}}
+	if imp := addEvoImport(pass, sel.Pos()); imp.NewText != nil {
+		edits = append(edits, imp)
+	}
+	return analysis.SuggestedFix{
+		Message:   "replace the Kept method value/expression with a func literal calling Skipped(reason)",
+		TextEdits: edits,
+	}
 }
