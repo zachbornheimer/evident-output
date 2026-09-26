@@ -120,9 +120,7 @@ func (o *Output) takeSlotLocked() {
 func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error) {
 	o.enterPhaseLocked(cand, phaseRunning)
 	o.sched.executing++
-	if cand.state.Current() == Pending {
-		o.promoteRunningLocked(cand)
-	}
+	o.promoteRunningLocked(cand)
 	o.bumpLocked()
 	// Forced, within the live render budget: a start is the spinner FP-005
 	// requires before the check.
@@ -285,7 +283,7 @@ func (o *Output) drainScheduler() {
 // markNotStartedLocked settles st NotStarted: work that will now never run.
 func (o *Output) markNotStartedLocked(st *taskState) {
 	st.summary = notStartedSummary
-	o.settleLocked(st, NotStarted)
+	o.settleLocked(st, NotStarted, false)
 }
 
 // abandonLocked releases the scheduler's hold on submitted work that

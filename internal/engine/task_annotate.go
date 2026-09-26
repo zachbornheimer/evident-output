@@ -88,11 +88,10 @@ func (t *TaskHandle) setLiveOnlyPhase(text string) {
 func (o *Output) setPhaseLocked(st *taskState, text string) {
 	st.phase = txt.Text(text)
 	st.activityAt = o.cfg.clock.Now()
-	if st.state.Current() == Pending {
-		o.promoteRunningLocked(st)
-		if st.progress.Kind == "" {
-			st.progress.Kind = Indeterminate
-		}
+	wasPending := st.state.Current() == Pending
+	o.promoteRunningLocked(st)
+	if wasPending && st.progress.Kind == "" {
+		st.progress.Kind = Indeterminate
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
@@ -117,11 +116,10 @@ func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	}
 	st.phase = text
 	st.activityAt = o.cfg.clock.Now()
-	if st.state.Current() == Pending {
-		o.promoteRunningLocked(st)
-		if st.progress.Kind == "" {
-			st.progress.Kind = Indeterminate
-		}
+	wasPending := st.state.Current() == Pending
+	o.promoteRunningLocked(st)
+	if wasPending && st.progress.Kind == "" {
+		st.progress.Kind = Indeterminate
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})

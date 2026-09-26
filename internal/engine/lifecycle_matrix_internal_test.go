@@ -16,8 +16,10 @@ import (
 // Verify is satisfied, and what the Task's Define callback does
 // (Skipped, Block, a committed Effect, or a plain no-op success). This is
 // the oracle the lifecycle extraction (ZYS-1190 steps 2-3) must not move a
-// single row of: state, exit code and ledger shape stay exactly what this
-// test pins.
+// single row of: the settled state and the run's exit code stay exactly
+// what this test pins for every cell (TestLifecycleOutcomeMatrixHasProblems
+// and TestLifecycleOutcomeMatrixCancelled below additionally assert the
+// rendered ledger text for the axes they cover).
 func TestLifecycleOutcomeMatrix(t *testing.T) {
 	type body func(t *TaskHandle) func(context.Context) error
 

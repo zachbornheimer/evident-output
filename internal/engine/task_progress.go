@@ -51,9 +51,7 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	}
 	st.progress = Progress{Kind: kind, Completed: completed, Total: total}
 	st.activityAt = t.out.cfg.clock.Now()
-	if st.state.Current() == Pending {
-		t.out.promoteRunningLocked(st)
-	}
+	t.out.promoteRunningLocked(st)
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task.progress_changed", EntityID: t.id})
 	// Progress is high-frequency: coalesce unless first frame.

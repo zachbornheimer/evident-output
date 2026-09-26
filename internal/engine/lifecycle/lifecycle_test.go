@@ -36,28 +36,84 @@ func TestDecide(t *testing.T) {
 	}
 }
 
+func TestZeroStateIsPending(t *testing.T) {
+	var s State
+	if got := s.Current(); got != core.Pending {
+		t.Fatalf("zero State Current() = %s, want pending", got)
+	}
+	from, ok := s.StartRunning()
+	if !ok || from != core.Pending {
+		t.Fatalf("StartRunning() on zero State = (%s, %v), want (pending, true)", from, ok)
+	}
+}
+
 func TestStateSettleAndStartRunning(t *testing.T) {
 	s := Declared()
 	if got := s.Current(); got != core.Pending {
 		t.Fatalf("Current() after Declared() = %s, want pending", got)
 	}
-	from := s.StartRunning()
+	from, ok := s.StartRunning()
+	if !ok {
+		t.Fatalf("StartRunning() ok = false, want true")
+	}
 	if from != core.Pending {
 		t.Fatalf("StartRunning from = %s, want pending", from)
 	}
 	if s.Current() != core.Running {
 		t.Fatalf("Current() after StartRunning = %s, want running", s.Current())
 	}
-	resolved, from, ok := s.Settle(Decide(core.Done, true))
+	resolved, from, ok := s.Settle(core.Done, true)
 	if !ok {
-		t.Fatalf("Settle(Decide(Done, true)) ok = false, want true")
+		t.Fatalf("Settle(Done, true) ok = false, want true")
 	}
 	if from != core.Running {
 		t.Fatalf("Settle from = %s, want running", from)
 	}
 	if resolved != core.Failed || s.Current() != core.Failed {
-		t.Fatalf("Settle(Decide(Done, true)) resolved = %s, current = %s, want failed", resolved, s.Current())
+		t.Fatalf("Settle(Done, true) resolved = %s, current = %s, want failed", resolved, s.Current())
 	}
+}
+
+// TestStartRunningRefusesNonPending pins the blocking gap ZYS-1190 review
+// found: StartRunning used to move current to Running unconditionally, so
+// a Task already settled (including Incomplete, which core.IsTerminalTask
+// does not treat as terminal) could be shoved back into Running and left
+// stuck there forever. StartRunning now only moves a State out of
+// Pending.
+func TestStartRunningRefusesNonPending(t *testing.T) {
+	t.Run("already running", func(t *testing.T) {
+		s := Declared()
+		s.StartRunning()
+		if _, ok := s.StartRunning(); ok {
+			t.Fatalf("StartRunning() on an already-Running State ok = true, want false")
+		}
+		if s.Current() != core.Running {
+			t.Fatalf("Current() = %s, want running unchanged", s.Current())
+		}
+	})
+
+	t.Run("settled incomplete", func(t *testing.T) {
+		s := Declared()
+		s.StartRunning()
+		if _, _, ok := s.Settle(core.Incomplete, false); !ok {
+			t.Fatalf("Settle(Incomplete) ok = false, want true")
+		}
+		if _, ok := s.StartRunning(); ok {
+			t.Fatalf("StartRunning() after Settle(Incomplete) ok = true, want false — a settled Task must never re-enter Running")
+		}
+		if s.Current() != core.Incomplete {
+			t.Fatalf("Current() = %s, want incomplete unchanged", s.Current())
+		}
+	})
+
+	t.Run("settled done", func(t *testing.T) {
+		s := Declared()
+		s.StartRunning()
+		s.Settle(core.Done, false)
+		if _, ok := s.StartRunning(); ok {
+			t.Fatalf("StartRunning() after Settle(Done) ok = true, want false")
+		}
+	})
 }
 
 // TestSettleRejectsNonTerminalTarget pins that Settle refuses a target
@@ -66,7 +122,7 @@ func TestStateSettleAndStartRunning(t *testing.T) {
 func TestSettleRejectsNonTerminalTarget(t *testing.T) {
 	s := Declared()
 	s.StartRunning()
-	resolved, _, ok := s.Settle(core.Running)
+	resolved, _, ok := s.Settle(core.Running, false)
 	if ok {
 		t.Fatalf("Settle(Running) ok = true, want false")
 	}
@@ -83,10 +139,10 @@ func TestSettleRejectsNonTerminalTarget(t *testing.T) {
 func TestSettleRejectsAlreadyTerminal(t *testing.T) {
 	s := Declared()
 	s.StartRunning()
-	if _, _, ok := s.Settle(core.Done); !ok {
+	if _, _, ok := s.Settle(core.Done, false); !ok {
 		t.Fatalf("first Settle(Done) ok = false, want true")
 	}
-	resolved, from, ok := s.Settle(core.Cancelled)
+	resolved, from, ok := s.Settle(core.Cancelled, false)
 	if ok {
 		t.Fatalf("second Settle(Cancelled) ok = true, want false")
 	}
@@ -98,14 +154,18 @@ func TestSettleRejectsAlreadyTerminal(t *testing.T) {
 	}
 }
 
-// TestSyntheticConstructorsSeedTerminal pins that the only constructors
-// producing a terminal State (the synthetic Output.Fail/Cancel path) land
-// on the value their name promises, through Decide.
-func TestSyntheticConstructorsSeedTerminal(t *testing.T) {
-	if got := SettledFailed().Current(); got != core.Failed {
-		t.Fatalf("SettledFailed().Current() = %s, want failed", got)
+// TestSettleAppliesDecide pins that Settle itself runs Decide against
+// hasProblems — a caller can no longer settle a Task Done/Skipped over a
+// Problem by forgetting to call Decide first, because Settle is the only
+// way to write the state at all.
+func TestSettleAppliesDecide(t *testing.T) {
+	s := Declared()
+	s.StartRunning()
+	resolved, _, ok := s.Settle(core.Skipped, true)
+	if !ok {
+		t.Fatalf("Settle(Skipped, true) ok = false, want true")
 	}
-	if got := SettledCancelled().Current(); got != core.Cancelled {
-		t.Fatalf("SettledCancelled().Current() = %s, want cancelled", got)
+	if resolved != core.Failed || s.Current() != core.Failed {
+		t.Fatalf("Settle(Skipped, true) resolved = %s, current = %s, want failed", resolved, s.Current())
 	}
 }

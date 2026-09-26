@@ -340,14 +340,22 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 
 // promoteRunningLocked transitions a Pending task to Running on its first
 // unit of evidence (Phase/Progress/Advance/Bytes/Step/Writer
-// write, or a work callback starting — see promoteRunningForActivity).
-// For a sequential collection (Sequence), it records misuse when a sibling is
-// already Running, enforcing the heart contract "one Running child"
-// (evo-rec.md) — callers still get the transition; Strict mode is what
-// escalates the violation to a panic. A plain Group collection
-// documents its children as independent (worker-pool fan-out is a
-// supported, concurrency-safe pattern there), so it is not policed.
+// write, or a work callback starting — see promoteRunningForActivity). It
+// is safe to call unconditionally: State.StartRunning refuses anything
+// but a Pending state, so a call on a Task already Running, or already
+// settled, is a no-op — callers no longer need their own
+// Current()==Pending guard before calling in. For a sequential collection
+// (Sequence), it records misuse when a sibling is already Running,
+// enforcing the heart contract "one Running child" (evo-rec.md) — callers
+// still get the transition; Strict mode is what escalates the violation
+// to a panic. A plain Group collection documents its children as
+// independent (worker-pool fan-out is a supported, concurrency-safe
+// pattern there), so it is not policed.
 func (o *Output) promoteRunningLocked(st *taskState) {
+	from, ok := st.state.StartRunning()
+	if !ok {
+		return
+	}
 	if col := st.collection; col != nil && col.sequential {
 		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.state.Current() != Running })
 		if len(col.runningSteps) > 0 {
@@ -355,12 +363,10 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 		}
 		col.runningSteps = append(col.runningSteps, st)
 	}
-	from := st.state.StartRunning()
 	st.censusMoved(from)
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
-	// Every promoteRunningLocked call site already guards on st.state.Current() ==
-	// Pending before calling it, and this line immediately advances past
-	// Pending — so task.started fires exactly once per task's lifetime.
+	// StartRunning above only returned ok on a Task's first move out of
+	// Pending, so task.started fires exactly once per task's lifetime.
 	o.emitWireEventLocked(wire.EventTaskStarted, st.id, nil)
 }
 

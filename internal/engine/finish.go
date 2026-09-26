@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/engine/lifecycle"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -71,7 +70,7 @@ func (o *Output) settleUnresolvedTasksLocked() {
 			continue
 		}
 		if len(t.problems) > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0 {
-			o.settleLocked(t, lifecycle.Decide(Done, len(t.problems) > 0))
+			o.settleLocked(t, Done, len(t.problems) > 0)
 			continue
 		}
 		if !abnormal {
@@ -87,7 +86,7 @@ func (o *Output) settleUnresolvedTasksLocked() {
 			// into Conclusion.Partial), not bookkeeping the caller must fix.
 			// The hint still names the corrective action either way.
 			t.summary = unresolvedTaskIncompleteSummary
-			o.settleLocked(t, Incomplete)
+			o.settleLocked(t, Incomplete, false)
 			attachUnresolvedTaskHintLocked(t)
 			continue
 		}
@@ -243,11 +242,11 @@ func hasRecordedTaxonomy(t *taskState) bool {
 func (o *Output) resolveUnstartedTaskLocked(t *taskState) {
 	if t.state.Current() == Running {
 		t.summary = unresolvedTaskCancelledSummary
-		o.settleLocked(t, Cancelled)
+		o.settleLocked(t, Cancelled, false)
 		return
 	}
 	t.summary = notStartedSummary
-	o.settleLocked(t, NotStarted)
+	o.settleLocked(t, NotStarted, false)
 }
 
 // abnormalFinishLocked reports whether the run already carries a real Failed
@@ -295,7 +294,7 @@ func (o *Output) autoResolveGroupsLocked() {
 				continue
 			}
 			t.summary = notStartedSummary
-			o.settleLocked(t, NotStarted)
+			o.settleLocked(t, NotStarted, false)
 		}
 	}
 }
