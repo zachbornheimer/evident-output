@@ -119,15 +119,18 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 //
 // The call below is written where the mockup puts it — last, after every
 // collection row is resolved, as a genuine closing line — and the golden
-// now shows it landing there too: a Group's disposition tally (branches'
+// shows it landing there too: a Group's disposition tally (branches'
 // folded "- skipped 1 (protected)") cannot be known complete — and so
 // cannot be rendered — until Finish (contract §25, "aggregation is a
-// renderer concern"), so plain mode holds a message back
-// (hasPendingCollectionRowsLocked, progressive.go) whenever the run has
-// declared any collection, and renders it after the pending collection
-// rows instead of before (the P2 "interleave by call time" contract
-// residualPlainLocked's own doc comment promises, extended from standalone
-// Task rows to Group-deferred ones).
+// renderer concern"), so plain mode holds this particular message back
+// (hasPendingCollectionRowsLocked, progressive.go) because, by the time it
+// is called, every one of the run's collections has already settled to a
+// terminal verdict — its own row is guaranteed to land at Finish, after
+// them. A Println made instead while a collection is still Running streams
+// immediately, ahead of it, exactly as a standalone Task's progressive row
+// would (see TestPrintln_StreamsAheadOfStillRunningGroup) — the P2
+// "interleave by call time" contract (residualPlainLocked's own doc
+// comment) cuts both ways.
 //
 // The policy-excluded "skipped 1 (protected)" item is Skipped, not a
 // warning Problem (same rule TestV8_DryRunPlanOnly documents), so this run
@@ -153,7 +156,7 @@ func TestV8_NothingToClean(t *testing.T) {
 	succeed(remotes, "nothing to clean")
 
 	// Called last, matching the mockup's "closing summary line" — see the
-	// doc comment above for why the golden still shows it first.
+	// doc comment above for why the golden shows it landing there too.
 	out.Println("prune  nothing to clean")
 
 	if err := out.Finish(); err != nil {

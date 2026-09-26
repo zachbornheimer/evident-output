@@ -29,9 +29,9 @@ type liveCategory struct {
 // "categories  0/0 complete" row counting Tasks it does not directly hold.
 //
 // Every category here (including remote-tracking) has Skipped children,
-// but contract §18 is explicit that no "- skipped N" tally shows while a
-// category's own Task is still Running (the count could still grow before
-// it settles) — so this frame, captured mid-run, shows none, matching
+// but §18's own worked LIVE frame shows no "- skipped N" tally on any
+// still-Running category — the count could still grow before it settles —
+// so this frame, captured mid-run, shows none too, matching
 // TestPruneContract_LiveCategoriesRenderContract18Frame's own live shape.
 // This fixture's counts still legitimately differ from §18's own worked
 // numbers (all three categories share one skip reason set here, and

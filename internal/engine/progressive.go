@@ -17,15 +17,31 @@ type flusher interface {
 	Flush() error
 }
 
-// hasPendingCollectionRowsLocked reports whether this run has declared any
-// Group/Sequence: in plain/non-interactive mode a collection's rows never
-// stream progressively (writeResidualEntitiesLocked's comment; a Group's
-// disposition tally can't be known complete until Finish), so any of the
-// run's collections still hold rows that only Finish will render. Interactive
-// mode is unaffected — its live region owns collection rows through its own
-// H.20/H.21 path, not this residual one.
+// hasPendingCollectionRowsLocked reports whether this run holds a
+// collection whose verdict has already settled but whose rows have not
+// rendered yet: in plain/non-interactive mode a collection never streams
+// progressively (writeResidualEntitiesLocked's comment; a Group's
+// disposition tally can't be known complete until Finish), so a settled
+// collection's rows are guaranteed to land at Finish, after this call. A
+// Println/Printf call made while a collection is still Running (or before
+// any of its children have even started) is NOT chronologically after that
+// collection's eventual row — the P2 "interleave by call time" contract
+// (residualPlainLocked's doc comment) says it must stream now, ahead of
+// work that is still in flight, exactly as a standalone Task's progressive
+// row would. Only a collection that has already reached a terminal verdict
+// obligates a later call to wait behind it. Interactive mode is unaffected
+// — its live region owns collection rows through its own H.20/H.21 path,
+// not this residual one.
 func (o *Output) hasPendingCollectionRowsLocked() bool {
-	return o.cfg.plain && len(o.collections) > 0
+	if !o.cfg.plain {
+		return false
+	}
+	for _, col := range o.collections {
+		if core.IsTerminalTask(col.derivedState()) {
+			return true
+		}
+	}
+	return false
 }
 
 // emitLineProgressiveLocked streams a newly appended Line() to the human stream.

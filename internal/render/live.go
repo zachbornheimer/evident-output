@@ -402,7 +402,18 @@ func liveRunningDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) (detai
 	case p.Kind == core.BytesKind && p.Total > 0:
 		return progressBar(p.Completed, p.Total, 12) + "  " + formatByteProgressFixed(p.Completed, p.Total) + elapsed, elapsed
 	case p.Kind == core.Determinate && p.Total > 0:
-		return liveCountDetail(t, cw, st) + elapsed, elapsed
+		// formatAlignedCount's shared-column form always right-pads its
+		// count field with one fixed space, meant to combine with
+		// heartbeatSuffix's own leading space into a two-space gap before
+		// "— Ns" (formatAlignedCount's doc comment). Before elapsedAfter,
+		// elapsed is still "" and there is nothing left to combine with —
+		// trim it back off so an aligned sibling row does not end the line
+		// on trailing whitespace for the run's first few seconds.
+		detail := liveCountDetail(t, cw, st) + elapsed
+		if elapsed == "" {
+			detail = strings.TrimRight(detail, " ")
+		}
+		return detail, elapsed
 	case p.Kind == core.BytesKind && t.Phase == "":
 		// A byte stream with no known total and no phase has nothing to
 		// show yet.
