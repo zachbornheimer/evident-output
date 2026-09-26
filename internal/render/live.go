@@ -402,16 +402,21 @@ func liveRunningDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) (detai
 	case p.Kind == core.BytesKind && p.Total > 0:
 		return progressBar(p.Completed, p.Total, 12) + "  " + formatByteProgressFixed(p.Completed, p.Total) + elapsed, elapsed
 	case p.Kind == core.Determinate && p.Total > 0:
-		// formatAlignedCount's shared-column form always right-pads its
-		// count field with one fixed space, meant to combine with
-		// heartbeatSuffix's own leading space into a two-space gap before
-		// "— Ns" (formatAlignedCount's doc comment). Before elapsedAfter,
-		// elapsed is still "" and there is nothing left to combine with —
-		// trim it back off so an aligned sibling row does not end the line
-		// on trailing whitespace for the run's first few seconds.
-		detail := liveCountDetail(t, cw, st) + elapsed
-		if elapsed == "" {
-			detail = strings.TrimRight(detail, " ")
+		detail := liveCountDetail(t, cw, st)
+		// The aligned count column's fixed one-space gap belongs to this
+		// composition, not to formatAlignedCount's own field: it exists
+		// only to combine with heartbeatSuffix's leading space into a
+		// two-space gap before "— Ns" (formatAlignedCount's doc comment),
+		// and only when nothing else (a Phase) already sits between the
+		// count and the elapsed suffix. Before elapsedAfter, elapsed is
+		// still "" and there is nothing to combine with, so an aligned
+		// sibling row never ends its line on bare trailing whitespace for
+		// the run's first few seconds.
+		if elapsed != "" {
+			if cw.done != 0 && t.Phase == "" {
+				detail += " "
+			}
+			detail += elapsed
 		}
 		return detail, elapsed
 	case p.Kind == core.BytesKind && t.Phase == "":
@@ -462,18 +467,18 @@ type countWidths struct {
 }
 
 // formatAlignedCount is a determinate Running row's count field: doneStr
-// right-justified to cw.done + "/" + totalStr left-justified to cw.total,
-// plus one fixed trailing space (§18's count-column layout combines with
-// heartbeatSuffix's own leading space in " — Ns" to read as a two-space
-// gap when the total needs no fill, and wider as the total's own left-fill
-// grows it). With no shared column (cw.done == 0) it degrades to the bare
-// "N/M" every other row already used, with no padding.
+// right-justified to cw.done + "/" + totalStr left-justified to cw.total.
+// It carries no trailing space of its own — liveRunningDetail's composition
+// owns the fixed gap that combines with heartbeatSuffix's leading space into
+// §18's two-space gap before "— Ns" once an elapsed suffix exists to combine
+// with. With no shared column (cw.done == 0) it degrades to the bare "N/M"
+// every other row already used, with no padding.
 func formatAlignedCount(completed, total int64, cw countWidths) string {
 	doneStr, totalStr := fmt.Sprintf("%d", completed), fmt.Sprintf("%d", total)
 	if cw.done == 0 {
 		return doneStr + "/" + totalStr
 	}
-	return txt.PadLeft(doneStr, cw.done) + "/" + txt.PadRight(totalStr, cw.total) + " "
+	return txt.PadLeft(doneStr, cw.done) + "/" + txt.PadRight(totalStr, cw.total)
 }
 
 // headerlessCountWidths is the shared count-column width (countWidths) of a
