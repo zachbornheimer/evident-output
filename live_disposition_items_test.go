@@ -15,8 +15,8 @@ import (
 // TestLiveGroup_SkippedChildrenAggregateInTheLiveFrame pins §25 for the
 // live region too: while the category's own work is still running, its
 // already skipped per-item children are one tally line, never one live row
-// each. Kept was retired in 1.1 (Skipped wins); the fold this test pins
-// moved with it.
+// each. Ordinary call sites moved to Skipped in 1.1; the fold this test
+// pins moved with it.
 func TestLiveGroup_SkippedChildrenAggregateInTheLiveFrame(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()

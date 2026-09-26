@@ -22,7 +22,7 @@ type liveCategory struct {
 // TestPruneContract_LiveCategoriesRenderContract18Frame holds the live
 // phase of zq prune's grouped categories (the same out.Group("categories")
 // → per-category Group → same-named work Task + Kept item Tasks shape as
-// TestPruneContract_KeptUnderGroupedCategoriesRendersContract18) to the
+// TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18) to the
 // contract §18 live frame: each category is a root row with its own bar,
 // count, timer and current item. The summary-less "categories" Group owns
 // no information of its own, so it paints no header — never a

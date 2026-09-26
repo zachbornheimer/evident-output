@@ -314,18 +314,19 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 	return buf.String()
 }
 
-// TestPruneContract_KeptUnderGroupedCategoriesRendersContract18 holds zq
-// prune's contract-correct per-item shape (pruneCategory) to the contract
-// §18 dry-run bytes TestV8_DryRunPlanOnly pins for the warning-severity
-// Problem-authored form.
+// TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18 holds zq
+// prune's contract-correct per-item shape (pruneCategory) to the same
+// grouped-category structure §18's fixture uses; the run bytes below now
+// differ from TestV8_DryRunPlanOnly's own bytes because Skipped does not
+// feed warned, so there is no equivalence claim between the two.
 // Each category Group's skipped children aggregate into one tally under
 // the category's row (§25: "aggregation is a renderer concern"; §26/§27:
-// "  - skipped N (...)"). Kept was retired in 1.1 (Skipped wins): unlike
-// the Kept tally this test used to pin, a Skipped tally does not feed
-// warned (§41/§20 — see TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning),
+// "  - skipped N (...)"). Ordinary call sites moved to Skipped in 1.1:
+// unlike the Kept tally this test used to pin, a Skipped tally does not
+// feed warned (§41/§20 — see TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning),
 // so the run closes with no trailing band at all: the dry-run Subject
 // header already named the run, and there is nothing left to report.
-func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T) {
+func TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18(t *testing.T) {
 	want := "[dry-run] zq prune  ~/repo\n" +
 		"\n" +
 		"✓ branches         188 checked\n" +
@@ -341,10 +342,10 @@ func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T)
 	}
 }
 
-// TestPruneContract_KeptTallyVerboseListsRealItemNames is the --verbose
-// half: the aggregated tally lists each kept child's own name under its
+// TestPruneContract_SkippedTallyVerboseListsRealItemNames is the --verbose
+// half: the aggregated tally lists each skipped child's own name under its
 // reason, and the routine "on disk" Fact appears.
-func TestPruneContract_KeptTallyVerboseListsRealItemNames(t *testing.T) {
+func TestPruneContract_SkippedTallyVerboseListsRealItemNames(t *testing.T) {
 	got := renderPruneContract18(t, evo.VerbosityVerbose)
 	for _, want := range []string{
 		"✓ branches         188 checked\n  - skipped 3 (2 checked out, 1 protected)\n",

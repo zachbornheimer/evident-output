@@ -18,10 +18,10 @@ const liveBudgetHeight = 8
 // frame to the terminal height once a Group's per-item Skipped children
 // fold into a tally line (§25): that line is a row too, so the child rows
 // the frame selects shrink to make room for it, and the omission line
-// still accounts for what did not fit. Kept was retired in 1.1 (Skipped
-// wins, §"Duplicate decisions"): this test used to hold two dispositions
-// (Kept and Skipped) to the same budget; both reasons now fold into the
-// one Skipped tally.
+// still accounts for what did not fit. Ordinary call sites moved to
+// Skipped in 1.1 (§"Duplicate decisions"): this test used to hold two
+// dispositions (Kept and Skipped) to the same budget; both reasons now
+// fold into the one Skipped tally.
 func TestLiveGroup_AggregatedTalliesCountAgainstTheRowBudget(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(liveBudgetHeight), testkit.NoColor())
 	out := evo.Init(evo.Config{

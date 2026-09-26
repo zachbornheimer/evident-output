@@ -11,7 +11,7 @@ import (
 
 // skippedWithFactsRun is zq prune's in-use shape: one Task per skipped item,
 // each with a Fact saying why (row := group.Task(name); row.Fact("why",
-// d); row.Skipped(r)). ordinary call sites moved to Skipped(reason) in 1.1; the fold
+// d); row.Skipped(r)). Ordinary call sites moved to Skipped(reason) in 1.1; the fold
 // this test pins moved with it.
 func skippedWithFactsRun(t *testing.T, v evo.Verbosity) string {
 	t.Helper()

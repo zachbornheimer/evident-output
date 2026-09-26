@@ -73,9 +73,10 @@ func TestTaskHandle_SkippedNonVerboseOmitsNameList(t *testing.T) {
 // count individually — Each's collection-level rollup across many
 // same-shaped children was a distinct, separately-owned feature (removed
 // in 1.0, §3.1) that this test never needed for its own regression guard.
-// Kept was retired in 1.1 (Skipped wins): this test used to pin Kept's own
-// tally line; it now pins the same structural guarantee (per-child
-// rendering, not silently dropped) against Skipped's tally instead.
+// Ordinary call sites moved to Skipped in 1.1: this test used to pin
+// Kept's own tally line; it now pins the same structural guarantee
+// (per-child rendering, not silently dropped) against Skipped's tally
+// instead.
 func TestSequence_ChildRendersSkippedTaxonomyLine(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
@@ -244,12 +245,11 @@ func TestTaskHandle_SkippedNoCauseOmitsEvidenceLine(t *testing.T) {
 
 // TestTaskSnapshot_ExposesSkippedTaxonomy pins the structural exposure
 // requirement: Skipped taxonomy lives in TaskSnapshot (disposition side of
-// the model), not the mutation ledger (Plan/Changes). Kept was retired in
-// 1.1 (Skipped wins, §"Duplicate decisions"): the public API has no way to
-// record a Kept taxonomy row any more, so a second Task recording via the
-// same public Skipped call must land in the same Skipped field, not a
-// separate Kept one — this pins that merge instead of pinning Kept's
-// now-unreachable field.
+// the model), not the mutation ledger (Plan/Changes). Ordinary call sites
+// moved to Skipped in 1.1 (§"Duplicate decisions"): a second Task recording
+// via the same public Skipped call must land in the same Skipped field,
+// not a separate Kept one — this pins that merge instead of pinning
+// Kept's now-rarely-used field.
 func TestTaskSnapshot_ExposesSkippedTaxonomy(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever})
 	evo.SetDefault(out)
@@ -305,10 +305,10 @@ func TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning(t *testing.T) {
 // child in the model is") for per-item disposition children: a Group whose
 // children only resolved Skipped renders its own row plus one
 // "- skipped N (...)" tally, indented under it, never one row per item.
-// Kept was retired in 1.1 (Skipped wins): unlike the Kept tally this test
-// used to pin, a Skipped tally is skip detail, not a warning (§41/§20 —
-// see TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning), so the run
-// stays "[ready]", never "[ready · warned]".
+// Ordinary call sites moved to Skipped in 1.1: unlike the Kept tally this
+// test used to pin, a Skipped tally is skip detail, not a warning (§41/§20
+// — see TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning), so the
+// run stays "[ready]", never "[ready · warned]".
 func TestGroup_SkippedChildrenAggregateUnderGroupRow(t *testing.T) {
 	for _, summary := range []string{"6 checked", ""} {
 		var buf bytes.Buffer
