@@ -2,6 +2,7 @@ package fix
 
 import (
 	"go/ast"
+	"go/types"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -21,12 +22,14 @@ var captureRenames = func() map[string]retired.CaptureRename {
 	return m
 }()
 
-// CaptureAnalyzer is API-110..API-116: a call site still spells one of the
+// CaptureAnalyzer is API-110..API-117: a call site still spells one of the
 // capture-meaning Evidence* names removed in 1.1 (Evidence now means only
 // satisfaction proof; retained process output is Capture). It fixes
-// selectors on the evo package (evo.Evidence, evo.EvidenceOption, ...);
-// (*evo.TaskHandle).Evidence is a method rename with the same From/To
-// spelling, resolved through recvNamedType instead of a package selector.
+// selectors on the evo package (evo.Evidence, evo.EvidenceOption, ...) and
+// the one struct field rename, Problem.EvidenceTail -> Problem.CaptureTail
+// (API-117), resolved through recvNamedType against "Problem" instead of a
+// package selector. There is no TaskHandle method rename in this table:
+// evo.TaskHandle never had a public Evidence/Capture method to rename.
 var CaptureAnalyzer = &analysis.Analyzer{
 	Name:     "evocapture",
 	Doc:      "flags and fixes the capture-meaning Evidence* names removed in 1.1 (E-121)",
@@ -54,15 +57,41 @@ func runCapture(pass *analysis.Pass) (any, error) {
 			return
 		}
 
-		// (*evo.TaskHandle).Evidence(...): the one method spelling among
-		// the renames (the rest are package-level types/consts/funcs).
-		// recvNamedType likewise only needs sel.X's type, which resolves
-		// even when the member itself is unknown.
-		if recv, ok := recvNamedType(pass.TypesInfo, sel.X); ok && recv == "TaskHandle" {
+		// p.EvidenceTail (removed in 1.1): the one struct-field spelling
+		// among the renames (the rest are package-level types/consts/funcs).
+		// evo.Problem is a
+		// type alias to internal/core.Problem (types.go), so its receiver's
+		// named type resolves to the internal/core package, not the
+		// top-level evo package recvNamedType checks against — hence the
+		// dedicated isProblemReceiver instead of recvNamedType here.
+		if isProblemReceiver(pass.TypesInfo, sel.X) {
 			pass.Report(captureFinding(pass, sel, rename))
 		}
 	})
 	return nil, nil
+}
+
+// isProblemReceiver reports whether x's type is evo.Problem (or *evo.Problem)
+// — the type alias's underlying internal/core.Problem, unwrapping one
+// pointer level the same way recvNamedType does.
+func isProblemReceiver(info *types.Info, x ast.Expr) bool {
+	t := info.TypeOf(x)
+	if t == nil {
+		return false
+	}
+	t = types.Unalias(t)
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+	named, ok := t.(*types.Named)
+	if !ok {
+		return false
+	}
+	obj := named.Obj()
+	if obj.Name() != "Problem" || obj.Pkg() == nil {
+		return false
+	}
+	return obj.Pkg().Path() == EvoPackagePath+"/internal/core"
 }
 
 func captureFinding(pass *analysis.Pass, sel *ast.SelectorExpr, rename retired.CaptureRename) analysis.Diagnostic {

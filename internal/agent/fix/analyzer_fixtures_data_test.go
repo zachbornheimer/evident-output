@@ -334,88 +334,58 @@ func run() error {
 const captureFixtureSrc = `package evocapture
 
 import (
-	"context"
-
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// recorder has its own Evidence method, unrelated to evo, and must never be
-// flagged.
-type recorder struct{}
-
-func (r *recorder) Evidence(name string) {}
+// recorder has its own EvidenceTail field, unrelated to evo.Problem, and
+// must never be flagged.
+type recorder struct{ EvidenceTail string }
 
 func run() error {
-	out := evo.Init(evo.Config{Title: "demo"})
-	t := out.Task("check")
-
-	t.Evidence("build log") // want ` + "`" + `t\.Evidence was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
-
-	t.Doing("prep").Evidence("chained") // want ` + "`" + `t\.Doing\("prep"\)\.Evidence was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
-
-	t.Define(func(ctx context.Context) error {
-		t.Evidence("inside define") // want ` + "`" + `t\.Evidence was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
-		return nil
-	})
-
-	t.Evidence( // want ` + "`" + `t\.Evidence was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
-		"multi\n" + "line",
-	)
-
 	var opt evo.EvidenceOption // want ` + "`" + `evo\.EvidenceOption was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
 	_ = opt
 
-	const maxBytes = evo.MaxEvidenceBytes // want ` + "`" + `evo\.MaxEvidenceBytes was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
+	var maxBytes = evo.MaxEvidenceBytes // want ` + "`" + `evo\.MaxEvidenceBytes was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
 	_ = maxBytes
 
-	r := &recorder{}
-	r.Evidence("not evo, never flagged")
+	p := evo.Problem{}
+	if p.EvidenceTail != "" { // want ` + "`" + `p\.EvidenceTail was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
+		_ = p.EvidenceTail // want ` + "`" + `p\.EvidenceTail was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
+	}
 
-	return out.Finish()
+	r := &recorder{}
+	_ = r.EvidenceTail
+
+	return nil
 }
 `
 
 const captureFixtureGolden = `package evocapture
 
 import (
-	"context"
-
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// recorder has its own Evidence method, unrelated to evo, and must never be
-// flagged.
-type recorder struct{}
-
-func (r *recorder) Evidence(name string) {}
+// recorder has its own EvidenceTail field, unrelated to evo.Problem, and
+// must never be flagged.
+type recorder struct{ EvidenceTail string }
 
 func run() error {
-	out := evo.Init(evo.Config{Title: "demo"})
-	t := out.Task("check")
-
-	t.Capture("build log") // want ` + "`" + `t\.Evidence was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
-
-	t.Doing("prep").Capture("chained") // want ` + "`" + `t\.Doing\("prep"\)\.Evidence was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
-
-	t.Define(func(ctx context.Context) error {
-		t.Capture("inside define") // want ` + "`" + `t\.Evidence was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
-		return nil
-	})
-
-	t.Capture( // want ` + "`" + `t\.Evidence was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
-		"multi\n" + "line",
-	)
-
 	var opt evo.CaptureOption // want ` + "`" + `evo\.EvidenceOption was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
 	_ = opt
 
-	const maxBytes = evo.MaxCaptureBytes // want ` + "`" + `evo\.MaxEvidenceBytes was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
+	var maxBytes = evo.MaxCaptureBytes // want ` + "`" + `evo\.MaxEvidenceBytes was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
 	_ = maxBytes
 
-	r := &recorder{}
-	r.Evidence("not evo, never flagged")
+	p := evo.Problem{}
+	if p.CaptureTail != "" { // want ` + "`" + `p\.EvidenceTail was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
+		_ = p.CaptureTail // want ` + "`" + `p\.EvidenceTail was removed in 1.1: Evidence means satisfaction proof, retained process output is Capture` + "`" + `
+	}
 
-	return out.Finish()
+	r := &recorder{}
+	_ = r.EvidenceTail
+
+	return nil
 }
 `
 
@@ -441,7 +411,7 @@ func run() error {
 	t.Skipped(r1)
 
 	t.Define(func(ctx context.Context) error {
-		r2 := evo.Reason("busy", evo.OnTask()) // want ` + "`" + `evo\.OnTask was removed in 1.1: a Reason has no usage constraints` + "`" + `
+		r2 := evo.Reason("busy", evo.OnTask("check")) // want ` + "`" + `evo\.OnTask was removed in 1.1: a Reason has no usage constraints` + "`" + `
 		t.Skipped(r2)
 		return nil
 	})
@@ -454,8 +424,8 @@ func run() error {
 
 	// a bare reference is not a direct evo.Reason(...) argument, so it is
 	// reported with no fix.
-	var opt evo.ReasonOption // want ` + "`" + `evo\.ReasonOption was removed in 1.1: a Reason has no usage constraints — not rewritten: not a direct evo\.Reason\(\.\.\.\) argument` + "`" + `
-	opt = evo.OnTask()       // want ` + "`" + `evo\.OnTask was removed in 1.1: a Reason has no usage constraints — not rewritten: not a direct evo\.Reason\(\.\.\.\) argument` + "`" + `
+	var opt evo.ReasonOption  // want ` + "`" + `evo\.ReasonOption was removed in 1.1: a Reason has no usage constraints — not rewritten: not a direct evo\.Reason\(\.\.\.\) argument` + "`" + `
+	opt = evo.OnTask("check") // want ` + "`" + `evo\.OnTask was removed in 1.1: a Reason has no usage constraints — not rewritten: not a direct evo\.Reason\(\.\.\.\) argument` + "`" + `
 	_ = opt
 
 	s := &scope{}
@@ -499,8 +469,8 @@ func run() error {
 
 	// a bare reference is not a direct evo.Reason(...) argument, so it is
 	// reported with no fix.
-	var opt evo.ReasonOption // want ` + "`" + `evo\.ReasonOption was removed in 1.1: a Reason has no usage constraints — not rewritten: not a direct evo\.Reason\(\.\.\.\) argument` + "`" + `
-	opt = evo.OnTask()       // want ` + "`" + `evo\.OnTask was removed in 1.1: a Reason has no usage constraints — not rewritten: not a direct evo\.Reason\(\.\.\.\) argument` + "`" + `
+	var opt evo.ReasonOption  // want ` + "`" + `evo\.ReasonOption was removed in 1.1: a Reason has no usage constraints — not rewritten: not a direct evo\.Reason\(\.\.\.\) argument` + "`" + `
+	opt = evo.OnTask("check") // want ` + "`" + `evo\.OnTask was removed in 1.1: a Reason has no usage constraints — not rewritten: not a direct evo\.Reason\(\.\.\.\) argument` + "`" + `
 	_ = opt
 
 	s := &scope{}
