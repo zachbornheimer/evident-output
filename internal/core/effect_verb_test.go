@@ -1,4 +1,4 @@
-package effectverb
+package core
 
 import "testing"
 

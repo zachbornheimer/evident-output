@@ -1,8 +1,8 @@
-// Package effectverb is the closed set of imperative verbs an opaque
-// evo.Effect may declare. It has no dependencies, so the engine (which
+// EffectVerbs is the closed set of imperative verbs an opaque evo.Effect
+// may declare, defined here (not in internal/engine) so the engine (which
 // defines evo.EffectVerb from it) and the review autofixer (which must not
 // link the engine) share one list.
-package effectverb
+package core
 
 import "slices"
 

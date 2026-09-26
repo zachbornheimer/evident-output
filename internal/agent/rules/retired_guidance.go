@@ -1,4 +1,4 @@
-package retired
+package rules
 
 import (
 	"regexp"

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/zachbornheimer/evident-output/internal/retired"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
 
 // GoldenRelPath and RequiredRelPath are the module-root-relative contract files.
@@ -17,10 +17,10 @@ const (
 )
 
 // RetiredNames are identifiers 1.0/1.1 deliberately removed, or never had
-// (retired.Symbols is the one table). A reappearance fails the contract
+// (rules.Symbols is the one table). A reappearance fails the contract
 // even if testdata/api_golden.txt is rewritten to match, so retiring a name
-// stays retired.
-var RetiredNames = retired.ContractNames()
+// stays rules.
+var RetiredNames = rules.ContractNames()
 
 // Report is the four-bucket result of Check. Empty buckets mean that
 // dimension passed. OK is true only when every bucket is empty.
@@ -31,7 +31,7 @@ type Report struct {
 	RetiredPresent  []string
 }
 
-// OK reports whether the live surface satisfies golden, required, and retired.
+// OK reports whether the live surface satisfies golden, required, and rules.
 func (r Report) OK() bool {
 	return len(r.Extra) == 0 && len(r.Missing) == 0 && len(r.RequiredMissing) == 0 && len(r.RetiredPresent) == 0
 }

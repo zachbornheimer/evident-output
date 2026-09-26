@@ -8,15 +8,15 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 
-	"github.com/zachbornheimer/evident-output/internal/retired"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
 
-// captureRenames indexes retired.CaptureRenames by the removed spelling —
+// captureRenames indexes rules.CaptureRenames by the removed spelling —
 // the one table shared with internal/agent/review and internal/agent/rules
 // (E-121), so this analyzer's mapping can never drift from theirs.
-var captureRenames = func() map[string]retired.CaptureRename {
-	m := make(map[string]retired.CaptureRename, len(retired.CaptureRenames))
-	for _, r := range retired.CaptureRenames {
+var captureRenames = func() map[string]rules.CaptureRename {
+	m := make(map[string]rules.CaptureRename, len(rules.CaptureRenames))
+	for _, r := range rules.CaptureRenames {
 		m[r.From] = r
 	}
 	return m
@@ -103,7 +103,7 @@ func isProblemReceiver(info *types.Info, x ast.Expr) bool {
 	return obj.Pkg().Path() == EvoPackagePath+"/internal/core"
 }
 
-func captureFinding(pass *analysis.Pass, sel *ast.SelectorExpr, rename retired.CaptureRename) analysis.Diagnostic {
+func captureFinding(pass *analysis.Pass, sel *ast.SelectorExpr, rename rules.CaptureRename) analysis.Diagnostic {
 	recv := text(pass, sel.X)
 	newText := recv + "." + rename.To
 	return diag(rename.RuleID, sel,

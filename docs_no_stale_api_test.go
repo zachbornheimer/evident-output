@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/internal/retired"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
 
-// Every retired.Symbol with a Taught pattern is checked (spec §46's public
+// Every rules.Symbol with a Taught pattern is checked (spec §46's public
 // API drift test, mirrored here for prose: docs, README, doc.go, and the
 // agent sections corpus). A hit is only legitimate inside a note that says
 // "removed in <release>" for that symbol's release — teaching it as
@@ -64,15 +64,15 @@ func TestRemovedInPatternAcceptsOnlyCHANGELOGBareTense(t *testing.T) {
 	cases := []struct {
 		rel     string
 		text    string
-		release retired.Release
+		release rules.Release
 		want    bool
 	}{
-		{"CHANGELOG.md", "TaskHandle.Record was removed", retired.Release1_1, true},
-		{"CHANGELOG.md", "TaskHandle.Add renamed to Effect", retired.Release1_1, true},
-		{"CHANGELOG.md", "no migration note here", retired.Release1_1, false},
-		{"docs/reference.md", "TaskHandle.Record was removed", retired.Release1_1, false},
-		{"docs/reference.md", "TaskHandle.Add renamed to Effect", retired.Release1_1, false},
-		{"docs/reference.md", "TaskHandle.Record removed in 1.1", retired.Release1_1, true},
+		{"CHANGELOG.md", "TaskHandle.Record was removed", rules.Release1_1, true},
+		{"CHANGELOG.md", "TaskHandle.Add renamed to Effect", rules.Release1_1, true},
+		{"CHANGELOG.md", "no migration note here", rules.Release1_1, false},
+		{"docs/reference.md", "TaskHandle.Record was removed", rules.Release1_1, false},
+		{"docs/reference.md", "TaskHandle.Add renamed to Effect", rules.Release1_1, false},
+		{"docs/reference.md", "TaskHandle.Record removed in 1.1", rules.Release1_1, true},
 	}
 	for _, c := range cases {
 		if got := removedInPattern(c.rel, c.release).MatchString(c.text); got != c.want {
@@ -196,7 +196,7 @@ func checkNoUnexplainedStaleAPI(t *testing.T, rel, body string, lineOffset int) 
 	t.Helper()
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
-		for _, hit := range retired.TaughtIn(line) {
+		for _, hit := range rules.TaughtIn(line) {
 			if allowedNearby(lines, i, removedInPattern(rel, hit.Symbol.RemovedIn)) {
 				continue
 			}
@@ -216,7 +216,7 @@ func checkNoUnexplainedStaleAPI(t *testing.T, rel, body string, lineOffset int) 
 // all) already carries the release — every other doc still needs the
 // symbol's own release named, so a stray "renamed" elsewhere can't excuse
 // teaching a retired name as current.
-func removedInPattern(rel string, release retired.Release) *regexp.Regexp {
+func removedInPattern(rel string, release rules.Release) *regexp.Regexp {
 	pattern := `(?i)removed in ` + regexp.QuoteMeta(string(release))
 	if filepath.Base(rel) == "CHANGELOG.md" {
 		pattern += `|\b(?:was|were) removed\b|\brenamed\b`
