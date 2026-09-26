@@ -14,8 +14,8 @@ import (
 type scheduler struct {
 	// queue holds the Tasks ready to start (see schedule.Queue).
 	queue schedule.Queue[*taskState]
-	// parked counts Tasks waiting off the queue on a predecessor.
-	parked int
+	// board counts Tasks waiting off the queue on a predecessor.
+	board schedule.Board
 	// woken is the worklist wakeLocked drains; waking marks it in use.
 	woken  []*taskState
 	waking bool

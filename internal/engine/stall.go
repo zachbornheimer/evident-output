@@ -2,6 +2,7 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
 )
 
 // resolveStall ends a stall: nothing in the run can move on its own, yet a
@@ -81,11 +82,11 @@ func (o *Output) spawnedWaitsLocked() []*waitTicket {
 // drain can move no further: what it waits for will never resolve (a
 // collection whose member nobody Defined). It reports whether any was.
 func (o *Output) abandonStrandedLocked() bool {
-	if o.sched.parked == 0 {
+	if o.sched.board.Parked() == 0 {
 		return false
 	}
 	for _, st := range o.tasks {
-		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state.Current()) {
+		if st.sched.standing.Phase() == schedule.Parked && !core.IsTerminalTask(st.state.Current()) {
 			o.markNotStartedLocked(st)
 		}
 	}

@@ -30,7 +30,7 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	if st == nil {
 		return t
 	}
-	if st.sched.submitted() {
+	if st.sched.standing.Submitted() {
 		o.recordMisuse(ErrInvalidConfig)
 		return t
 	}
@@ -238,14 +238,8 @@ func (o *Output) eligibleLocked(st *taskState) bool {
 }
 
 // enterPhaseLocked moves st to phase, keeping the parked count true.
-func (o *Output) enterPhaseLocked(st *taskState, phase schedPhase) {
-	if st.sched.phase == phaseParked {
-		o.sched.parked--
-	}
-	if phase == phaseParked {
-		o.sched.parked++
-	}
-	st.sched.phase = phase
+func (o *Output) enterPhaseLocked(st *taskState, phase schedule.Phase) {
+	o.sched.board.Move(&st.sched.standing, phase)
 }
 
 // placeLocked routes submitted st by what its predecessors say: queued
@@ -256,10 +250,10 @@ func (o *Output) placeLocked(st *taskState, scan predScan) {
 	verdict, blocker := o.predsOutcomeLocked(st, scan)
 	switch verdict {
 	case schedule.Succeeded:
-		o.enterPhaseLocked(st, phaseQueued)
+		o.enterPhaseLocked(st, schedule.Queued)
 		o.sched.queue.Push(st)
 	case schedule.Pending:
-		o.enterPhaseLocked(st, phaseParked)
+		o.enterPhaseLocked(st, schedule.Parked)
 		if blocker.task != nil {
 			blocker.task.sched.dependents = append(blocker.task.sched.dependents, st)
 		} else {
@@ -294,7 +288,7 @@ func (o *Output) drainWokenLocked() {
 	for i := 0; i < len(o.sched.woken); i++ {
 		st := o.sched.woken[i]
 		o.sched.woken[i] = nil
-		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state.Current()) {
+		if st.sched.standing.Phase() == schedule.Parked && !core.IsTerminalTask(st.state.Current()) {
 			o.placeLocked(st, scanToBlocker)
 		}
 	}
@@ -328,7 +322,7 @@ func (o *Output) replaceParkedLocked() {
 	var parked []*taskState
 	for _, st := range o.tasks {
 		st.sched.dependents = nil
-		if st.sched.phase == phaseParked {
+		if st.sched.standing.Phase() == schedule.Parked {
 			parked = append(parked, st)
 		}
 	}
@@ -336,7 +330,7 @@ func (o *Output) replaceParkedLocked() {
 		col.tally.Unpark()
 	}
 	for _, st := range parked {
-		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state.Current()) {
+		if st.sched.standing.Phase() == schedule.Parked && !core.IsTerminalTask(st.state.Current()) {
 			o.placeLocked(st, scanAll)
 		}
 	}

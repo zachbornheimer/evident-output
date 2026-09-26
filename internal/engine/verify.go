@@ -64,7 +64,7 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 	if st == nil {
 		return t
 	}
-	if st.sched.submitted() {
+	if st.sched.standing.Submitted() {
 		o.recordMisuseFor(st.name, ErrInvalidConfig)
 		return t
 	}
