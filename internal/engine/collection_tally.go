@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"math"
 	"slices"
+
+	"github.com/zachbornheimer/evident-output/internal/ordered"
 )
 
 // collectionTally tracks a Group/Sequence's descendant Tasks for the
@@ -137,7 +139,7 @@ func (t *collectionTally) park(st *taskState, cursor int, open bool) {
 		t.open = append(t.open, st)
 		return
 	}
-	t.parked = insertAfterOrder(t.parked, parkedTask{st: st, cursor: cursor}, func(p parkedTask) int { return p.cursor })
+	t.parked = ordered.Insert(t.parked, parkedTask{st: st, cursor: cursor}, func(p parkedTask) int { return p.cursor })
 }
 
 // unpark drops every parked Task: the drain re-places them all.
