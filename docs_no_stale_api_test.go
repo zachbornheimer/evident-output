@@ -36,6 +36,7 @@ var staleAPIScanFiles = []string{
 	"README.md",
 	"AGENTS.md",
 	"doc.go",
+	"CHANGELOG.md",
 }
 
 // staleAPIHistoricalFragments mark frozen/verbatim documents — old design
@@ -126,7 +127,16 @@ func currentDocs(t *testing.T, root string) map[string]string {
 		if err != nil {
 			t.Fatalf("read %s: %v", rel, err)
 		}
-		docs[rel] = string(body)
+		text := string(body)
+		if filepath.Base(rel) == "CHANGELOG.md" {
+			// Every already-released version section is a dated record of
+			// what that release changed, in the same frozen-history class
+			// as docs/architecture and the ADRs: it teaches nothing about
+			// today's live surface. Only "## Unreleased" — the section
+			// about the release this branch is building — is scanned.
+			text = unreleasedSection(text)
+		}
+		docs[rel] = text
 	}
 	for _, guide := range catalog.All() {
 		docs["internal/agent/catalog guide "+guide.ID] = guide.Body
@@ -159,9 +169,14 @@ func checkNoUnexplainedStaleAPI(t *testing.T, rel, body string) {
 }
 
 // removedInPattern is the migration-note marker for release: a retired
-// symbol is only legitimate within staleAPIWindow lines of it.
+// symbol is only legitimate within staleAPIWindow lines of it. The
+// release-qualified "removed in X" phrasing (docs/migration/*.md section
+// headers) and the bare past-tense "was/were removed"/"renamed" phrasing
+// (CHANGELOG.md's dated Removed sections, which already carry the release
+// via their own heading) both count: either one marks the name as history,
+// not live surface.
 func removedInPattern(release retired.Release) *regexp.Regexp {
-	return regexp.MustCompile(`(?i)removed in ` + regexp.QuoteMeta(string(release)))
+	return regexp.MustCompile(`(?i)removed in ` + regexp.QuoteMeta(string(release)) + `|\b(?:was|were) removed\b|\brenamed\b`)
 }
 
 // allowedNearby reports whether allow matches line i or any of the

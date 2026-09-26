@@ -171,8 +171,8 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   (`CaptureStreamCombined`, `CaptureStreamStdout`, `CaptureStreamStderr`).
   `evo.MaxEvidenceBytes` is `evo.MaxCaptureBytes`. `evo.KeepLastLines`,
   `evo.MirrorToDebug`, and `evo.MirrorToDiagnostics` keep their names and
-  now return `CaptureOption`. Removed: `Evidence` (as the capture type),
-  `EvidenceOption`, `EvidenceStream`, `EvidenceStreamCombined`,
+  now return `CaptureOption`. Removed in 1.1: `Evidence` (as the capture
+  type), `EvidenceOption`, `EvidenceStream`, `EvidenceStreamCombined`,
   `EvidenceStreamStdout`, `EvidenceStreamStderr`, `MaxEvidenceBytes`.
   MCP review (API-110 through API-116) rewrites each old spelling.
   `Problem.EvidenceTail` — the capture ring's tail attached to a Problem,
