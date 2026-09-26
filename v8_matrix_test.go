@@ -24,23 +24,25 @@ import (
 )
 
 // TestV8_DryRunPlanOnly is the golden for the "Dry-run (plan-only)" tab: a
-// Config.Subject header, three checked/kept summary tasks, and a
+// Config.Subject header, three checked/skipped summary tasks, and a
 // three-section [planned] ledger.
 //
-// Two deliberate departures from the transcribed frame, both because the
+// One deliberate departure from the transcribed frame, because the
 // normative spec text (higher authority than a hand-transcribed frame)
-// already settles them:
-//   - the header carries evo's own "[dry-run]" tag before the subject
-//     (spec §27's own worked example: "[dry-run] repo  ~/Developer/zq");
-//     the mockup's frame omits it, most plausibly because the real zq
-//     Subject string was composed with the word "prune" already implying
-//     dry-run intent to a human reader, not because evo should stop
-//     tagging dry runs.
-//   - a trailing "[planned · warned]" band still appears: existing,
-//     already-tested behavior (TestCoalesce_DryRunWarned_KeepsTrailingConclusion)
-//     deliberately keeps the trailing band whenever a warned task's
-//     modifier would otherwise vanish along with it — true here too, since
-//     inline "! kept" lines are evidence, not a "· warned" outcome marker.
+// already settles it: the header carries evo's own "[dry-run]" tag before
+// the subject (spec §27's own worked example: "[dry-run] repo
+// ~/Developer/zq"); the mockup's frame omits it, most plausibly because the
+// real zq Subject string was composed with the word "prune" already
+// implying dry-run intent to a human reader, not because evo should stop
+// tagging dry runs.
+//
+// The policy-excluded "kept 419 (...)" / "kept 292 (...)" items are Skipped
+// (vocabulary freeze §"Summary / Skipped / Kept are not three equivalent
+// outcomes": a per-candidate Task intentionally not executed because
+// policy excludes it is Skipped, never a warning Problem), so this run
+// concludes plain "[planned]" and prints no trailing band at all — the
+// dry-run Subject header already named the run, and Skipped never feeds
+// warned (contract §18/§20/§41).
 func TestV8_DryRunPlanOnly(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -50,20 +52,37 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
+	checkedOut, protected := evo.Reason("checked out"), evo.Reason("protected")
+	dirty, unpushed := evo.Reason("dirty"), evo.Reason("unpushed")
+	ignoredFiles := evo.Reason("ignored files")
+
+	// Each category is a Group named for the category holding the
+	// category's own Task (same name), plus its policy-excluded items
+	// as Skipped children — the same per-item shape
+	// TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18
+	// pins, at the counts this mockup transcribed.
 	// All three declared up front, matching the real CLI's three
 	// concurrently-checked subjects: plain mode's shared name-column width
-	// for a run of sibling standalone tasks (rootColumn) is
-	// computed from every task declared so far at the moment each one
-	// resolves — declaring all three before any resolves is what produces
-	// the mockup's aligned name column.
-	branches := out.Task("branches")
-	worktrees := out.Task("worktrees")
-	remotes := out.Task("remote-tracking")
+	// for a run of sibling standalone tasks (rootColumn) is computed from
+	// every task declared so far at the moment each one resolves —
+	// declaring all three before any resolves is what produces the
+	// mockup's aligned name column.
+	categories := out.Group("categories")
+	branchItems := categories.Group("branches")
+	branches := branchItems.Task("branches")
+	worktreeItems := categories.Group("worktrees")
+	worktrees := worktreeItems.Task("worktrees")
+	remoteItems := categories.Group("remote-tracking")
+	remotes := remoteItems.Task("remote-tracking")
 
-	branches.Problem("kept 419 (283 checked out, 135 unpushed, 1 protected)", evo.Severity(evo.SeverityWarning))
+	skipItems(branchItems, "branch-checked-out", checkedOut, 283)
+	skipItems(branchItems, "branch-unpushed", unpushed, 135)
+	skipItems(branchItems, "branch-protected", protected, 1)
 	commit(branches.Summary("459 checked"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40})
 
-	worktrees.Problem("kept 292 (163 dirty, 89 unpushed, 40 ignored files)", evo.Severity(evo.SeverityWarning))
+	skipItems(worktreeItems, "worktree-dirty", dirty, 163)
+	skipItems(worktreeItems, "worktree-unpushed", unpushed, 89)
+	skipItems(worktreeItems, "worktree-ignored-files", ignoredFiles, 40)
 	commit(worktrees.Summary("294 checked"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1})
 
 	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
@@ -75,16 +94,14 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	want := "[dry-run] zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading\n" +
 		"\n" +
 		"✓ branches         459 checked\n" +
-		"  ! kept 419 (283 checked out, 135 unpushed, 1 protected)\n" +
+		"  - skipped 419 (283 checked out, 135 unpushed, 1 protected)\n" +
 		"✓ worktrees        294 checked\n" +
-		"  ! kept 292 (163 dirty, 89 unpushed, 40 ignored files)\n" +
+		"  - skipped 292 (163 dirty, 89 unpushed, 40 ignored files)\n" +
 		"✓ remote-tracking  4 stale refs\n" +
 		"\n" +
 		"[planned] branches         delete 40 local tips\n" +
 		"[planned] worktrees        remove 1 worktree\n" +
-		"[planned] remote-tracking  delete 4 stale origin/*\n" +
-		"\n" +
-		"[planned · warned]\n"
+		"[planned] remote-tracking  delete 4 stale origin/*\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -95,12 +112,23 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 //
 // The frame's closing "prune  nothing to clean" line (no bracket tag, no
 // glyph) is not evo's own conclusion band shape — every other tab's closing
-// band is bracket-tagged ("[dry-run]", "[cancelled]", "[planned · warned]"),
-// and a warned run (branches did warn "kept 1") always keeps its own
-// "· warned" band per the same rule TestV8_DryRunPlanOnly documents. Read
-// as the application's own convenience Println of its "nothing to clean"
-// verdict — layered on top of, not instead of, evo's own standard
-// conclusion band, which the mockup's frame simply did not also transcribe.
+// band is bracket-tagged ("[dry-run]", "[cancelled]", "[ready]"). It is the
+// application's own convenience Println of its "nothing to clean" verdict,
+// layered on top of, not instead of, evo's own standard conclusion band,
+// which the mockup's frame simply did not also transcribe.
+//
+// That Println's line lands right after the header rather than after the
+// task rows, even though the call itself comes last in this function: an
+// ordinary Println is an immediate write, but a Group's disposition tally
+// (branches' folded "- skipped 1 (protected)") cannot be known complete —
+// and so cannot be rendered — until Finish (contract §25, "aggregation is
+// a renderer concern"), so the immediate write physically precedes the
+// deferred rows in the byte stream. This is the real, load-bearing
+// ordering an app using Skipped aggregation gets, not a stylistic choice.
+//
+// The policy-excluded "kept 1 (protected)" item is Skipped, not a warning
+// Problem (same rule TestV8_DryRunPlanOnly documents), so this run
+// concludes plain "[ready]" with no "· warned" modifier.
 func TestV8_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -110,11 +138,13 @@ func TestV8_NothingToClean(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
-	branches := out.Task("branches")
-	worktrees := out.Task("worktrees")
-	remotes := out.Task("remote-tracking")
+	categories := out.Group("categories")
+	branchItems := categories.Group("branches")
+	branches := branchItems.Task("branches")
+	worktrees := categories.Group("worktrees").Task("worktrees")
+	remotes := categories.Group("remote-tracking").Task("remote-tracking")
 
-	branches.Problem("kept 1 (protected)", evo.Severity(evo.SeverityWarning))
+	skipItems(branchItems, "branch-protected", evo.Reason("protected"), 1)
 	succeed(branches, "1 checked")
 	succeed(worktrees, "nothing to clean")
 	succeed(remotes, "nothing to clean")
@@ -125,13 +155,13 @@ func TestV8_NothingToClean(t *testing.T) {
 	}
 
 	want := "zq prune  ~/Developer/Personal/zq\n" +
+		"prune  nothing to clean\n" +
 		"✓ branches         1 checked\n" +
-		"  ! kept 1 (protected)\n" +
+		"  - skipped 1 (protected)\n" +
 		"✓ worktrees        nothing to clean\n" +
 		"✓ remote-tracking  nothing to clean\n" +
-		"prune  nothing to clean\n" +
 		"\n" +
-		"[ready · warned]  prune\n"
+		"[ready]  prune\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

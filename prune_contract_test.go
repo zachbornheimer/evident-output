@@ -249,7 +249,8 @@ type keptItem struct {
 // shape: a Group named for the category holding the category's own Task
 // (same name: it classifies, summarizes, and owns the Effect, so the
 // ledger subject is the category — docs/reference.md "own Task") plus one
-// child Task per kept item that resolves Kept (the item is the Task).
+// child Task per kept item that resolves Skipped (the item is the Task;
+// TaskHandle.Kept was removed in 1.1 — a policy-excluded item is Skipped).
 type pruneCategory struct {
 	name, summary string
 	effect        *evo.EffectSpec
@@ -316,16 +317,16 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 
 // TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18 holds zq
 // prune's contract-correct per-item shape (pruneCategory) to the same
-// grouped-category structure §18's fixture uses; the run bytes below now
-// differ from TestV8_DryRunPlanOnly's own bytes because Skipped does not
-// feed warned, so there is no equivalence claim between the two.
+// grouped-category structure §18's fixture uses; the run bytes below still
+// differ from TestV8_DryRunPlanOnly's own bytes (different counts/effects),
+// so there is no equivalence claim between the two, only the same shape.
 // Each category Group's skipped children aggregate into one tally under
 // the category's row (§25: "aggregation is a renderer concern"; §26/§27:
-// "  - skipped N (...)"). Ordinary call sites moved to Skipped in 1.1:
-// unlike the Kept tally this test used to pin, a Skipped tally does not
-// feed warned (§41/§20 — see TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning),
-// so the run closes with no trailing band at all: the dry-run Subject
-// header already named the run, and there is nothing left to report.
+// "  - skipped N (...)"). A Skipped tally never feeds warned (§41/§20 —
+// see TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning; contrast the
+// pre-1.1 Kept API, removed in 9ded6eb, which did), so the run closes with
+// no trailing band at all: the dry-run Subject header already named the
+// run, and there is nothing left to report.
 func TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18(t *testing.T) {
 	want := "[dry-run] zq prune  ~/repo\n" +
 		"\n" +
@@ -361,9 +362,9 @@ func TestPruneContract_SkippedTallyVerboseListsRealItemNames(t *testing.T) {
 	}
 }
 
-// TestPruneContract_KeptChildrenStayInMachineOutput proves the aggregation
-// is human-only: JSON keeps every kept child Task.
-func TestPruneContract_KeptChildrenStayInMachineOutput(t *testing.T) {
+// TestPruneContract_SkippedChildrenStayInMachineOutput proves the
+// aggregation is human-only: JSON keeps every Skipped child Task.
+func TestPruneContract_SkippedChildrenStayInMachineOutput(t *testing.T) {
 	var buf bytes.Buffer
 	out := newPlainOutput(&buf, true)
 	t.Cleanup(func() { _ = out.Close() })
@@ -378,10 +379,10 @@ func TestPruneContract_KeptChildrenStayInMachineOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(buf.String(), "feat/a") {
-		t.Fatalf("human output must aggregate kept children into the tally:\n%s", buf.String())
+		t.Fatalf("human output must aggregate skipped children into the tally:\n%s", buf.String())
 	}
 	if doc := machineDocument(t, out); !strings.Contains(doc, `"feat/a"`) || !strings.Contains(doc, `"main"`) {
-		t.Fatalf("machine output keeps every kept child:\n%s", doc)
+		t.Fatalf("machine output keeps every skipped child:\n%s", doc)
 	}
 }
 

@@ -43,6 +43,16 @@ func distinctBranchDeletes(n int) []evo.EffectSpec {
 	return specs
 }
 
+// skipItems declares n children of items, each resolving Skipped with
+// reason, so items' own Task (same name as items — docs/reference.md
+// "own Task") folds them into one "- skipped N (...)" tally row instead of
+// n rows (contract §18/§25/§26).
+func skipItems(items *evo.GroupHandle, prefix string, reason evo.TaxonomyReason, n int) {
+	for i := range n {
+		items.Task(fmt.Sprintf("%s-%d", prefix, i)).Skipped(reason)
+	}
+}
+
 // satisfied resolves task AlreadySatisfied — a Verify that already holds,
 // so its Define callback never runs: the 1.1 zero-information no-op row
 // (a Define'd Task that returns nil executed work and is not a no-op).
