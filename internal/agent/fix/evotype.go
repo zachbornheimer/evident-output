@@ -74,10 +74,12 @@ func callSelector(call *ast.CallExpr) *ast.SelectorExpr {
 // itself the Fun of its immediately enclosing CallExpr — the shape every
 // call-based analyzer's Preorder([]ast.Node{(*ast.CallExpr)(nil)}) walk
 // already sees and handles. When it is not, the selector is a stand-alone
-// reference used as a value: a method value (f := t.Warn; defer t.Step)
-// or a method expression ((*evo.TaskHandle).Kept), both of which produce
-// a func value with no CallExpr wrapping the removed name at the
-// reference site at all, so a call-based walk never finds them.
+// reference used as a value: a method value (f := t.Warn) or a method
+// expression ((*evo.TaskHandle).Kept), both of which produce a func value
+// with no CallExpr wrapping the removed name at the reference site at
+// all, so a call-based walk never finds them. defer always wraps a call
+// (defer t.Step(1, 3, "x")), so it is never this shape — it is a plain
+// call site the call-based walk above already handles.
 func isSelectorCalled(stack []ast.Node) bool {
 	if len(stack) < 2 {
 		return false

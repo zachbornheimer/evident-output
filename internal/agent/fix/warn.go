@@ -55,10 +55,12 @@ func runWarn(pass *analysis.Pass) (any, error) {
 }
 
 // reportWarnValues is API-070's method-value/method-expression case: a
-// stand-alone reference to Warn, removed in 1.1 — f := t.Warn, defer
-// t.Warn, or the method expression (*evo.TaskHandle).Warn — is a func
-// value with no CallExpr wrapping the removed name at the reference
-// site, so runWarn's call-based walk above never sees it. The TaskHandle
+// stand-alone reference to Warn, removed in 1.1 — f := t.Warn, or the
+// method expression (*evo.TaskHandle).Warn — is a func value with no
+// CallExpr wrapping the removed name at the reference site, so runWarn's
+// call-based walk above never sees it. (defer always wraps a call, e.g.
+// defer t.Warn("x"), so that shape is a plain call site the call-based
+// walk above already finds — not this case.) The TaskHandle
 // receiver gets a mechanical fix (wrap in a func literal with Warn's own
 // call shape that calls Problem); every other receiver, including the
 // package-level evo.Warn (removed in 1.1) used as a func value, gets a
@@ -94,21 +96,33 @@ func reportWarnValues(pass *analysis.Pass, insp *inspector.Inspector) {
 }
 
 // warnValueFix wraps the removed Warn method value/expression in a func
-// literal that keeps Warn's own call shape (summary string, opts
-// ...ProblemOption) but calls the canonical Problem(..., evo.Severity(...))
-// rewrite inside — so f := t.Warn keeps working as a func value without
-// every call site of f needing to be tracked down and rewritten
-// individually.
+// literal matching Warn's own call shape — func(summary string), the
+// v1.0.0 signature (*TaskHandle).Warn(summary string), with no return
+// value and no opts — that calls the canonical
+// Problem(..., evo.Severity(...)) rewrite inside, so f := t.Warn keeps
+// working as a func value without every call site of f needing to be
+// tracked down and rewritten individually.
+//
+// A method value (t.Warn) evaluates its receiver expression exactly once,
+// at the point the value is created (Go spec) — reassigning t afterward,
+// or a receiver expression with side effects, must not change which
+// receiver the returned func acts on. The plain-value branch below
+// captures the receiver once in an outer func literal's local before
+// returning the inner func(summary string) that closes over it, so the
+// generated code preserves that evaluate-once semantics. A method
+// expression ((*evo.TaskHandle).Warn) has no such receiver to capture: it
+// takes the receiver as an explicit first parameter evaluated at each
+// call, which the method-expression branch already mirrors.
 func warnValueFix(pass *analysis.Pass, sel *ast.SelectorExpr) analysis.SuggestedFix {
 	alias := evoAlias(pass, sel)
 	severity := alias + ".Severity(" + alias + ".SeverityWarning)"
 	var newText string
 	if isMethodExprRecv(pass.TypesInfo, sel.X) {
 		recvType := stripParens(text(pass, sel.X))
-		newText = "func(recv " + recvType + ", summary string, opts ..." + alias + ".ProblemOption) *" + alias + ".TaskHandle {\n\treturn recv.Problem(summary, append(opts, " + severity + ")...)\n}"
+		newText = "func(recv " + recvType + ", summary string) {\n\trecv.Problem(summary, " + severity + ")\n}"
 	} else {
 		recv := text(pass, sel.X)
-		newText = "func(summary string, opts ..." + alias + ".ProblemOption) *" + alias + ".TaskHandle {\n\treturn " + recv + ".Problem(summary, append(opts, " + severity + ")...)\n}"
+		newText = "func() func(summary string) {\n\trecv := " + recv + "\n\treturn func(summary string) {\n\t\trecv.Problem(summary, " + severity + ")\n\t}\n}()"
 	}
 	edits := []analysis.TextEdit{{Pos: sel.Pos(), End: sel.End(), NewText: []byte(newText)}}
 	if imp := addEvoImport(pass, sel.Pos()); imp.NewText != nil {

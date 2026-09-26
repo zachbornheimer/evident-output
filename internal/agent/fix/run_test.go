@@ -431,10 +431,14 @@ func TestDiagnoseApplyConvergesToNoDiagnostics(t *testing.T) {
 	t.Fatal("fix -apply did not converge to zero unfixed diagnostics within 4 rounds")
 }
 
-// methodValueFixtureSrc exercises the method-value (f := t.Warn; defer
-// t.Step) and method-expression ((*evo.TaskHandle).Kept) shapes: a
-// stand-alone reference to a removed name with no CallExpr wrapping it at
-// the reference site, which a call-based Preorder walk never sees.
+// methodValueFixtureSrc exercises the method-value (f := t.Warn, s :=
+// t.Step) and method-expression ((*evo.TaskHandle).Step,
+// (*evo.TaskHandle).Kept) shapes: a stand-alone reference to a removed
+// name with no CallExpr wrapping it at the reference site, which a
+// call-based Preorder walk never sees. defer t.Step(...) below is a
+// plain call (defer always wraps a call), not a method value — it
+// exercises the ordinary call-based path alongside the value/expression
+// shapes.
 const methodValueFixtureSrc = `package main
 
 import (
@@ -451,11 +455,14 @@ func run() error {
 	warn := t.Warn
 	warn("stale cache")
 
-	defer t.Step(1, 3, "cleanup")
+	step := t.Step
+	defer step(1, 3, "cleanup")
 
+	stepExpr := (*evo.TaskHandle).Step
 	keptFn := (*evo.TaskHandle).Kept
 
 	t.Define(func(ctx context.Context) error {
+		stepExpr(t, 2, 3, "define")
 		keptFn(t, evo.Reason("dirty"))
 		return nil
 	})
@@ -466,10 +473,10 @@ func main() { fmt.Println(run()) }
 `
 
 // TestMethodValuesAndExpressionsAreFlagged guards the method-value/method-
-// expression detection: f := t.Warn, defer t.Step (a method value whose
-// call happens later via defer, not at the reference site), and the
-// method expression (*evo.TaskHandle).Kept must all be flagged, each with
-// a SuggestedFix that -apply can converge on.
+// expression detection: f := t.Warn, s := t.Step (both method values),
+// and the method expressions (*evo.TaskHandle).Step and
+// (*evo.TaskHandle).Kept must all be flagged, each with a SuggestedFix
+// that -apply can converge on.
 func TestMethodValuesAndExpressionsAreFlagged(t *testing.T) {
 	dir := t.TempDir()
 	writeModule(t, dir, methodValueFixtureSrc)
@@ -488,10 +495,6 @@ func TestMethodValuesAndExpressionsAreFlagged(t *testing.T) {
 	got := map[string]bool{}
 	for _, d := range results[0].Diagnostics {
 		got[d.RuleID] = true
-		if d.RuleID == "API-090" && !d.Fixed {
-			// Diagnose(pkgs, false) never sets Fixed; just confirm presence here.
-			_ = d
-		}
 	}
 	for _, want := range []string{"API-070", "API-090", "API-091"} {
 		if !got[want] {
@@ -519,5 +522,86 @@ func TestMethodValueFixApplyCompiles(t *testing.T) {
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go build after -apply: %v\n%s", err, out)
+	}
+}
+
+// manualWarnValueFixtureSrc exercises the two API-070 method-value/
+// method-expression receivers that have no Task to attach a Problem to:
+// evo.Output.Warn used as a func value, and the package-level evo.Warn
+// used as a func value. Neither is mechanical, so both must be flagged
+// with a diagnostic naming the manual step and no SuggestedFix that
+// rewrites the reference site.
+const manualWarnValueFixtureSrc = `package main
+
+import (
+	"fmt"
+
+	evo "github.com/zachbornheimer/evident-output"
+)
+
+func run() error {
+	out := evo.Init(evo.Config{Title: "demo"})
+
+	outputWarn := out.Warn
+	outputWarn("stale cache")
+
+	pkgWarn := evo.Warn
+	pkgWarn("no task yet")
+
+	return out.Finish()
+}
+
+func main() { fmt.Println(run()) }
+`
+
+// TestManualWarnValueBranchesAreFlaggedWithoutFix guards the two
+// unfixable API-070 method-value receivers: Output.Warn and the
+// package-level evo.Warn, both used as func values. Detection must fire
+// for both, and -apply must leave the reference sites untouched (no
+// SuggestedFix exists to apply), unlike the TaskHandle case in
+// TestMethodValueFixApplyCompiles.
+func TestManualWarnValueBranchesAreFlaggedWithoutFix(t *testing.T) {
+	dir := t.TempDir()
+	writeModule(t, dir, manualWarnValueFixtureSrc)
+
+	pkgs, err := fix.Load(dir, ".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	results, err := fix.Diagnose(pkgs, false)
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("want 1 package result, got %d", len(results))
+	}
+	count := 0
+	for _, d := range results[0].Diagnostics {
+		if d.RuleID == "API-070" {
+			count++
+			if !strings.Contains(d.Message, "by hand") {
+				t.Errorf("expected a manual-step message for an unfixable Warn value, got %q", d.Message)
+			}
+		}
+	}
+	if count != 2 {
+		t.Fatalf("want 2 API-070 diagnostics (Output.Warn and package-level evo.Warn as values), got %d", count)
+	}
+
+	// -apply must not rewrite either reference site: there is no
+	// mechanical fix for a receiver with no Task to attach a Problem to.
+	pkgs, err = fix.Load(dir, ".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if _, err := fix.Diagnose(pkgs, true); err != nil {
+		t.Fatalf("Diagnose -apply: %v", err)
+	}
+	out, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "outputWarn := out.Warn") || !strings.Contains(string(out), "pkgWarn := evo.Warn") {
+		t.Errorf("expected the unfixable Warn value references to remain untouched after -apply:\n%s", out)
 	}
 }

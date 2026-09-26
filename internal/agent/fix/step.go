@@ -43,12 +43,14 @@ func runStep(pass *analysis.Pass) (any, error) {
 }
 
 // reportStepValues is API-090's method-value/method-expression case: a
-// stand-alone reference to the removed Step — f := t.Step, defer t.Step,
-// or the method expression (*evo.TaskHandle).Step — is a func value with
-// no CallExpr wrapping the removed name, so runStep's call-based walk
-// above never sees it. Step always took exactly (completed, total int,
-// name string), so the rewrite is mechanical the same way stepFix's
-// call-site rewrite is.
+// stand-alone reference to the removed Step — f := t.Step, or the method
+// expression (*evo.TaskHandle).Step — is a func value with no CallExpr
+// wrapping the removed name, so runStep's call-based walk above never
+// sees it. (defer t.Step(1, 3, "cleanup") is not this case: defer always
+// wraps a CallExpr, so that shape is a plain call site that runStep's
+// call-based walk above already finds.) Step always took exactly
+// (completed, total int, name string), so the rewrite is mechanical the
+// same way stepFix's call-site rewrite is.
 func reportStepValues(pass *analysis.Pass, insp *inspector.Inspector) {
 	insp.WithStack([]ast.Node{(*ast.SelectorExpr)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
 		if !push {
@@ -71,6 +73,12 @@ func reportStepValues(pass *analysis.Pass, insp *inspector.Inspector) {
 // stepValueFix wraps the removed Step method value/expression in a func
 // literal with Step's own call shape (completed, total int, name string)
 // that calls Progress(completed, total).Doing(name) inside.
+//
+// The plain-value branch captures the receiver once, matching a method
+// value's own evaluate-once-at-creation semantics (see warnValueFix); the
+// method-expression branch takes the receiver as an explicit parameter
+// evaluated per call, which already matches (*evo.TaskHandle).Step's own
+// semantics.
 func stepValueFix(pass *analysis.Pass, sel *ast.SelectorExpr) analysis.SuggestedFix {
 	alias := evoAlias(pass, sel)
 	var newText string
@@ -79,7 +87,7 @@ func stepValueFix(pass *analysis.Pass, sel *ast.SelectorExpr) analysis.Suggested
 		newText = "func(recv " + recvType + ", completed, total int, name string) *" + alias + ".TaskHandle {\n\treturn recv.Progress(completed, total).Doing(name)\n}"
 	} else {
 		recv := text(pass, sel.X)
-		newText = "func(completed, total int, name string) *" + alias + ".TaskHandle {\n\treturn " + recv + ".Progress(completed, total).Doing(name)\n}"
+		newText = "func() func(completed, total int, name string) *" + alias + ".TaskHandle {\n\trecv := " + recv + "\n\treturn func(completed, total int, name string) *" + alias + ".TaskHandle {\n\t\treturn recv.Progress(completed, total).Doing(name)\n\t}\n}()"
 	}
 	edits := []analysis.TextEdit{{Pos: sel.Pos(), End: sel.End(), NewText: []byte(newText)}}
 	if imp := addEvoImport(pass, sel.Pos()); imp.NewText != nil {
