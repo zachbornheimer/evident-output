@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
 )
 
 // waitTicket is one goroutine's registration while it is parked in
@@ -258,7 +259,7 @@ func (o *Output) waitOutcome(taskID string) error {
 		return nil
 	case st.workErr != nil:
 		return st.workErr
-	case st.sched.phase == phaseDeclared && (st.state.Current() == NotStarted || st.neverDefined()):
+	case st.sched.standing.Phase() == schedule.Declared && (st.state.Current() == NotStarted || st.neverDefined()):
 		// Declared but never Defined: there is no work to have succeeded.
 		return fmt.Errorf("%w: %s was never defined", ErrNotStarted, st.name)
 	case st.state.Current() == NotStarted:

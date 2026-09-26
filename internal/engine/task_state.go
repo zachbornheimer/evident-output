@@ -6,6 +6,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/engine/lifecycle"
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
@@ -80,7 +81,7 @@ type taskState struct {
 	// annotate lifecycle, they never replace it — a warning-severity
 	// Problem does not itself
 	// resolve the task). A task with warnings but no terminal verb by
-	// Finish auto-resolves Done (see hasRecordedEffectLocked's amnesty
+	// Finish auto-resolves Done (see ledger.Book.HasRecords's amnesty
 	// siblings in Finish).
 	warnings []Problem
 	// facts accumulates TaskHandle.Fact's discovered-information annotations
@@ -177,7 +178,7 @@ type tasksState struct {
 	stoppedAfter int
 	// tally counts this container's descendant Tasks by outcome, for the
 	// Tasks that run After it.
-	tally collectionTally
+	tally schedule.Tally[*taskState]
 	// census counts its descendant Tasks for the live frame (liveCensus).
 	census liveCensus
 	// hasNamesake records that a child Task carries this container's own

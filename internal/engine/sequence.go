@@ -98,7 +98,8 @@ func (c *tasksState) isLastStep(step *tasksState) bool {
 // waits for self and nothing changes.
 func (o *Output) joinPassedSequencesLocked(preds []predecessor, c *tasksState, self predecessor) []predecessor {
 	for step, seq := c, c.parent; seq != nil; step, seq = seq, seq.parent {
-		if !seq.sequential || !step.tally.sealed || seq.isLastStep(step) {
+		_, sealed := step.tally.SealedThrough()
+		if !seq.sequential || !sealed || seq.isLastStep(step) {
 			continue
 		}
 		preds = o.appendStepPredsLocked(preds, seq)

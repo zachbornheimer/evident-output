@@ -1,52 +1,23 @@
 package engine
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/core"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
-	"github.com/zachbornheimer/evident-output/internal/wire"
-)
+	"slices"
 
-// ledgerEntry is one row an Effect, File, or Exec records into a Task's
-// Plan (dry run) or Changes (applied) ledger.
-type ledgerEntry struct {
-	// verb is the imperative verb ("delete"); the applied ledger conjugates
-	// it to past tense.
-	verb   string
-	object string
-	// quantity counts object when counted; File and Exec name one object
-	// ("write <path>") instead of counting.
-	quantity int
-	counted  bool
-}
+	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
+)
 
 // entry is s's ledger row for quantity objects: s.Quantity for a
 // committed Effect, the committed subset for a PartialEffect.
-func (s EffectSpec) entry(quantity int) ledgerEntry {
-	return ledgerEntry{verb: string(s.Verb), object: s.Object, quantity: quantity, counted: true}
-}
-
-// namedEntry is an uncounted row naming one object: File's "write <path>",
-// Exec's "run <executable>".
-func namedEntry(verb, object string) ledgerEntry {
-	return ledgerEntry{verb: verb, object: object}
-}
-
-// payload is the effect.planned / effect.committed wire payload for e,
-// recorded under verb. It carries the quantity the ledger recorded, so the
-// JSONL stream agrees with the human rows and the final document.
-func (e ledgerEntry) payload(verb string) map[string]any {
-	payload := map[string]any{"verb": verb, "object": e.object}
-	if e.counted {
-		payload["quantity"] = e.quantity
-	}
-	return payload
+func (s EffectSpec) entry(quantity int) ledger.Entry {
+	return ledger.Counted(string(s.Verb), s.Object, quantity)
 }
 
 // ledgerTarget is where a Task's ledger rows go: the Task that owns the
 // section, and the tense the run records in.
 type ledgerTarget struct {
 	owner *taskState
-	tense ledgerTense
+	tense ledger.Tense
 }
 
 // resolveLedgerTarget resolves the task named by taskID to its ledger
@@ -69,14 +40,14 @@ func (o *Output) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
 		o.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return ledgerTarget{}, ErrAlreadyResolved
 	}
-	return ledgerTarget{owner: st, tense: tenseFor(o.cfg.dryRun)}, nil
+	return ledgerTarget{owner: st, tense: ledger.TenseFor(o.cfg.dryRun)}, nil
 }
 
 // recordLedgerEntry resolves taskID's ledger target and records e there —
 // the entry point for File and Exec, whose rows carry no callback, so
 // there is no window between resolving and recording (compare Effect,
 // which resolves before its callback runs).
-func (o *Output) recordLedgerEntry(taskID string, e ledgerEntry) {
+func (o *Output) recordLedgerEntry(taskID string, e ledger.Entry) {
 	target, err := o.resolveLedgerTarget(taskID)
 	if err != nil {
 		return
@@ -92,11 +63,8 @@ func (o *Output) recordLedgerEntry(taskID string, e ledgerEntry) {
 // effect as spurious misuse. The imperative verb is kept as the section's
 // intended verb, so a section that ends up with zero rows renders "nothing
 // to <verb> <subject>" (evo-rec.md Problem 18).
-func (o *Output) recordResolvedEntry(taskID string, target ledgerTarget, e ledgerEntry) {
-	verb, event := e.verb, wire.EventEffectPlanned
-	if target.tense == tenseChanged {
-		verb, event = txt.ConjugatePast(e.verb), wire.EventEffectCommitted
-	}
+func (o *Output) recordResolvedEntry(taskID string, target ledgerTarget, e ledger.Entry) {
+	verb, event := target.tense.Verb(e.Verb()), target.tense.WireEvent()
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -104,12 +72,39 @@ func (o *Output) recordResolvedEntry(taskID string, target ledgerTarget, e ledge
 		return
 	}
 	sec := o.ledgerSectionLocked(target.owner, target.tense)
-	if sec.intendedVerb == "" {
-		sec.intendedVerb = txt.Text(e.verb)
-	}
-	if sec.record(verb, e) {
+	if sec.Record(verb, e) {
 		o.bumpLocked()
-		o.appendEventLocked(Event{Type: target.tense.recordedEvent(), EntityID: sec.id})
+		o.appendEventLocked(Event{Type: target.tense.RecordedEvent(), EntityID: sec.ID()})
 	}
-	o.emitWireEventLocked(event, taskID, e.payload(verb))
+	o.emitWireEventLocked(event, taskID, e.Payload(verb))
+}
+
+// ledgerSectionLocked returns owner's section in tense, opening it on first
+// use. Caller must hold o.mu.
+func (o *Output) ledgerSectionLocked(owner *taskState, tense ledger.Tense) *ledger.Section {
+	if s, ok := o.book.Find(owner.id, tense); ok {
+		return s
+	}
+	s, _ := o.book.Open(ledgerOwner(owner), tense, o.nextID(tense.String()))
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: tense.DeclaredEvent(), EntityID: s.ID()})
+	return s
+}
+
+// ledgerOwner is st's ledger.Owner, as fixed at declaration.
+func ledgerOwner(st *taskState) ledger.Owner {
+	var containers []string
+	for col := st.collection; col != nil; col = col.parent {
+		containers = append(containers, col.name)
+	}
+	slices.Reverse(containers)
+	return ledger.Owner{ID: st.id, Name: st.name, Declaration: st.declaration, Containers: containers}
+}
+
+// hasPlannedEffect reports whether the Task taskID recorded at least one
+// [planned] row: a mutation a dry run or preview skipped.
+func (o *Output) hasPlannedEffect(taskID string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.book.HasRecordsIn(taskID, ledger.Planned)
 }

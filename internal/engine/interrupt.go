@@ -2,6 +2,7 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -52,7 +53,7 @@ func (o *Output) abandonQueuedWork() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, st := range o.tasks {
-		if st.sched.phase == phaseRunning || core.IsTerminalTask(st.state.Current()) {
+		if st.sched.standing.Phase() == schedule.Running || core.IsTerminalTask(st.state.Current()) {
 			continue
 		}
 		o.markNotStartedLocked(st)

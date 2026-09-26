@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
 )
 
 // EffectVerb is the closed set of imperative verbs an opaque Effect may
@@ -85,7 +86,7 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 	if err != nil {
 		return err
 	}
-	if target.tense == tenseChanged {
+	if target.tense == ledger.Changed {
 		disowned, err := task.out.runEffectCallback(ctx, task.id, func(ctx context.Context) error {
 			return task.out.performEffect(ctx, spec.Resource, fn)
 		})

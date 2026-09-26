@@ -6,6 +6,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/engine/lifecycle"
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -128,7 +129,7 @@ type proposedOutcome struct {
 // the resolving goroutine's own stack: callbackDepth is non-zero only
 // inside a task callback, which is precisely "the row resolved itself".
 func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAuthority) bool {
-	if st.effectsInFlight == 0 || st.sched.phase != phaseRunning || authority != byCaller || state == Done {
+	if st.effectsInFlight == 0 || st.sched.standing.Phase() != schedule.Running || authority != byCaller || state == Done {
 		return false
 	}
 	return callbackDepth() > 0
@@ -156,7 +157,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	if deniesItsOwnEffect(st, state, authority) {
 		st.effectDenials++
 	}
-	if st.sched.submitted() && authority == byCaller && lifecycle.DeclaresSuccess(state) {
+	if st.sched.standing.Submitted() && authority == byCaller && lifecycle.DeclaresSuccess(state) {
 		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
 		return t
 	}

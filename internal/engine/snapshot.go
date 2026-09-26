@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
 	renderlive "github.com/zachbornheimer/evident-output/internal/render/live"
 )
 
@@ -63,11 +64,11 @@ func (o *Output) snapshotLocked() Snapshot {
 			s.Tasks = append(s.Tasks, t.snapshot())
 		}
 	}
-	for _, ch := range o.changes {
-		s.Changes = append(s.Changes, ch.changesSnapshot())
+	for _, ch := range o.book.Sections(ledger.Changed) {
+		s.Changes = append(s.Changes, ch.ChangesSnapshot())
 	}
-	for _, p := range o.plans {
-		s.Plans = append(s.Plans, p.planSnapshot())
+	for _, p := range o.book.Sections(ledger.Planned) {
+		s.Plans = append(s.Plans, p.PlanSnapshot())
 	}
 	for _, m := range o.messages {
 		s.Messages = append(s.Messages, MessageSnapshot{
@@ -185,7 +186,7 @@ func (g *tasksState) allTasksNotStarted() bool {
 
 // verdictFold accumulates member states into one container verdict. A
 // Blocked member counts like a Failed one does for the Tasks After the
-// container (see stateOutcome): the container finished and did not
+// container (see schedule.OutcomeOf): the container finished and did not
 // succeed, so its header never reads Incomplete for it.
 type verdictFold struct {
 	running, failed, blocked, cancelled, unresolved bool

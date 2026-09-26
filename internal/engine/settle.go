@@ -35,7 +35,7 @@ func (o *Output) settleLocked(st *taskState, target EntityState, hasProblems boo
 	st.phase = ""
 	o.stopPlainHeartbeatLocked(st)
 	st.closeDoneLocked()
-	if st.sched.awaitingStart() {
+	if st.sched.standing.AwaitingStart() {
 		o.abandonLocked(st)
 	}
 	o.bumpLocked()

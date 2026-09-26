@@ -1,6 +1,10 @@
 package engine
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
+)
 
 // scheduler is the run's scheduling state: the Tasks ready to start, the
 // callbacks in flight, the goroutines parked in Wait, and the flags that
@@ -8,10 +12,10 @@ import "sync"
 // it live on Output (eligibility.go, execution.go, wait.go, stall.go),
 // because every decision also reads Task state.
 type scheduler struct {
-	// queue holds the Tasks ready to start (see schedQueue).
-	queue schedQueue
-	// parked counts Tasks waiting off the queue on a predecessor.
-	parked int
+	// queue holds the Tasks ready to start (see schedule.Queue).
+	queue schedule.Queue[*taskState]
+	// board counts Tasks waiting off the queue on a predecessor.
+	board schedule.Board
 	// woken is the worklist wakeLocked drains; waking marks it in use.
 	woken  []*taskState
 	waking bool

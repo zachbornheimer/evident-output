@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -27,20 +28,20 @@ func (n depNode) name() string {
 func (o *Output) waitsForLocked(n depNode) []depNode {
 	var out []depNode
 	if n.task != nil {
-		if n.task.sched.phase != phaseParked {
+		if n.task.sched.standing.Phase() != schedule.Parked {
 			return nil
 		}
 		for _, p := range n.task.sched.preds {
-			if outcome, _ := o.outcomeLocked(p); outcome == predPending {
+			if outcome, _ := o.outcomeLocked(p); outcome == schedule.Pending {
 				out = append(out, depNode{task: p.task, col: p.col})
 			}
 		}
 		return out
 	}
-	if n.col.tally.total() == 0 {
+	if n.col.tally.Len() == 0 {
 		// An empty collection waits for what it starts after.
 		for _, p := range n.col.entry {
-			if outcome, _ := o.outcomeLocked(p); outcome == predPending {
+			if outcome, _ := o.outcomeLocked(p); outcome == schedule.Pending {
 				out = append(out, depNode{task: p.task, col: p.col})
 			}
 		}
@@ -52,7 +53,7 @@ func (o *Output) waitsForLocked(n depNode) []depNode {
 		}
 	}
 	for _, c := range n.col.children {
-		if outcome, _ := o.collectionOutcomeLocked(predecessor{col: c}); outcome == predPending {
+		if outcome, _ := o.collectionOutcomeLocked(predecessor{col: c}); outcome == schedule.Pending {
 			out = append(out, depNode{col: c})
 		}
 	}
@@ -72,7 +73,7 @@ func (o *Output) dependencyCyclesLocked() [][]depNode {
 	var cycles [][]depNode
 	for _, st := range o.tasks {
 		root := depNode{task: st}
-		if st.sched.phase != phaseParked || color[root] != unvisited {
+		if st.sched.standing.Phase() != schedule.Parked || color[root] != unvisited {
 			continue
 		}
 		color[root] = onPath
@@ -125,7 +126,7 @@ func cycleThrough(path []cycleFrame, to depNode) []depNode {
 // misuse once per cycle. Its dependents then settle NotStarted through the
 // ordinary cascade. It reports whether it found any cycle.
 func (o *Output) blockCyclesLocked() bool {
-	if o.sched.parked == 0 {
+	if o.sched.board.Parked() == 0 {
 		return false
 	}
 	cycles := o.dependencyCyclesLocked()
@@ -140,7 +141,7 @@ func (o *Output) blockCyclesLocked() bool {
 		}
 		path := strings.Join(names, " → ")
 		for _, n := range cycle {
-			if st := n.task; st != nil && st.sched.phase == phaseParked && !core.IsTerminalTask(st.state.Current()) {
+			if st := n.task; st != nil && st.sched.standing.Phase() == schedule.Parked && !core.IsTerminalTask(st.state.Current()) {
 				o.blockInCycleLocked(st, path)
 			}
 		}

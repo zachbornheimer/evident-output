@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -32,14 +33,14 @@ func (t *TaskHandle) submitWork(fn func() error) {
 		o.mu.Unlock()
 		return
 	}
-	if st.sched.submitted() {
+	if st.sched.standing.Submitted() {
 		o.recordMisuse(ErrInvalidConfig)
 		o.mu.Unlock()
 		return
 	}
 	st.sched.work = fn
 	o.sched.wg.Add(1)
-	o.enterPhaseLocked(st, phaseQueued)
+	o.enterPhaseLocked(st, schedule.Queued)
 	if o.sched.cancelled {
 		// Nothing starts after an interrupt, so work submitted after it is
 		// work the interrupt took away (see abandonQueuedWork).
@@ -78,11 +79,11 @@ func (o *Output) kick() {
 // collection it waits for gained a member) is placed again on the way.
 func (o *Output) nextEligibleLocked() *taskState {
 	for {
-		st := o.sched.queue.head()
-		if st == nil || o.eligibleLocked(st) {
+		st, ok := o.sched.queue.Head((*taskState).queued)
+		if !ok || o.eligibleLocked(st) {
 			return st
 		}
-		o.sched.queue.dropHead()
+		o.sched.queue.DropHead()
 		o.placeLocked(st, scanToBlocker)
 	}
 }
@@ -118,7 +119,7 @@ func (o *Output) takeSlotLocked() {
 // (takeEligible, which also takes a slot) or for a waiter that runs it on
 // its own goroutine (see runWaitedWork).
 func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error) {
-	o.enterPhaseLocked(cand, phaseRunning)
+	o.enterPhaseLocked(cand, schedule.Running)
 	o.sched.executing++
 	o.promoteRunningLocked(cand)
 	o.bumpLocked()
@@ -289,7 +290,7 @@ func (o *Output) markNotStartedLocked(st *taskState) {
 // abandonLocked releases the scheduler's hold on submitted work that
 // settled before it ever started.
 func (o *Output) abandonLocked(st *taskState) {
-	o.enterPhaseLocked(st, phaseAbandoned)
+	o.enterPhaseLocked(st, schedule.Abandoned)
 	o.sched.wg.Done()
 }
 
@@ -339,7 +340,7 @@ func (o *Output) stopFollowersLocked(c *tasksState, branch int) {
 // stopUnstartedLocked settles st NotStarted unless it already started or
 // resolved.
 func (o *Output) stopUnstartedLocked(st *taskState) {
-	if core.IsTerminalTask(st.state.Current()) || st.sched.phase == phaseRunning {
+	if core.IsTerminalTask(st.state.Current()) || st.sched.standing.Phase() == schedule.Running {
 		return
 	}
 	o.markNotStartedLocked(st)

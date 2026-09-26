@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -282,5 +283,5 @@ func verifiedExecOutputs(ctx context.Context, outputs []string) ([]manifest.Outp
 // Effect under taskID's own ledger section — the same routing recordFileEffect
 // uses for File (spec §8.4/§27/§51).
 func (o *Output) recordExecEffect(taskID, displayExecutable string) {
-	o.recordLedgerEntry(taskID, namedEntry("run", displayExecutable))
+	o.recordLedgerEntry(taskID, ledger.Named("run", displayExecutable))
 }
