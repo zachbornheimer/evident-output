@@ -64,6 +64,18 @@ func Load(dir string, patterns ...string) ([]*packages.Package, error) {
 // removed-name analysis, not the stale file still on disk. A nil overlay
 // behaves exactly like Load.
 func LoadWithOverlay(dir string, overlay map[string][]byte, patterns ...string) ([]*packages.Package, error) {
+	return LoadWithEnv(dir, overlay, nil, patterns...)
+}
+
+// LoadWithEnv is LoadWithOverlay, additionally running the build system's
+// query tool with env instead of the current process environment (nil
+// behaves exactly like LoadWithOverlay). A caller type-checking a scratch
+// module whose go.mod lists only its replaced module (review's
+// removedNamePackageFindings) needs -mod=mod to let `go list` add its
+// remaining transitive requires itself, GOPROXY=off to keep that resolution
+// to modules already in the local cache, and -buildvcs=false because a
+// scratch directory under os.TempDir has no VCS of its own to stamp.
+func LoadWithEnv(dir string, overlay map[string][]byte, env []string, patterns ...string) ([]*packages.Package, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
 			packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps,
@@ -74,6 +86,7 @@ func LoadWithOverlay(dir string, overlay map[string][]byte, patterns ...string) 
 		// silently stops compiling the moment those names are removed.
 		Tests:   true,
 		Overlay: overlay,
+		Env:     env,
 	}
 	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {

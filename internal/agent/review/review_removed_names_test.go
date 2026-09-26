@@ -342,6 +342,48 @@ func TestGoFileAt_ReportsRemovedNames(t *testing.T) {
 	}
 }
 
+// TestGoPackage_RemovedNameFindingsSurviveReadOnlyModuleCheckout pins the
+// review-gap report's BLOCKER: kind=package's removedNamePackageFindings
+// used to scratch-write a throwaway directory *inside* this checkout's own
+// module root (os.MkdirTemp(root, ...)), which the documented `go install
+// .../cmd/evident-output-mcp@vX` install compiles from a read-only
+// GOMODCACHE tree — silently reporting 0 findings instead of failing
+// loudly, because a permission error there was treated the same as "no
+// removed names here". Making this checkout's own root read-only
+// reproduces that exact condition; the fix must resolve API-070 from a
+// scratch module under os.TempDir instead, never writing into root.
+func TestGoPackage_RemovedNameFindingsSurviveReadOnlyModuleCheckout(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Dir(filepath.Dir(filepath.Dir(wd))) // internal/agent/review -> repo root
+	info, err := os.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(root, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(root, info.Mode()); err != nil {
+			t.Fatalf("restoring %s permissions: %v", root, err)
+		}
+	})
+
+	res := review.GoPackageAt(map[string]string{"main.go": removedNameFixtureSrc}, "")
+	if res.Partial {
+		t.Errorf("read-only module checkout must not degrade removed-name findings to Partial: %+v", res)
+	}
+	got := map[string]bool{}
+	for _, f := range res.Findings {
+		got[f.RuleID] = true
+	}
+	if !got["API-070"] {
+		t.Errorf("missing API-070 for a removed Warn call against a read-only module checkout; findings=%+v", res.Findings)
+	}
+}
+
 // TestNoFileDetectorEmitsRemovedNameRuleIDs guards directory.go's dropped
 // de-duplication step: it was removed because no per-file GoSourceAt
 // detector emits API-070/090/091/120 any more (they're analyzer-only, see

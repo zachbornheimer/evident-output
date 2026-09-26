@@ -55,7 +55,7 @@ func GoPackageAt(files map[string]string, desiredVersion string) Result {
 		all = append(all, admitDialect(removed, desiredVersion)...)
 	}
 	res := newResult(all)
-	res.Partial = len(pkg.files) == 0 || localErr != "" || (found && removedPartial) || !found
+	res.Partial = len(pkg.files) == 0 || localErr != "" || !found || removedPartial
 	res.DesiredVersion = desiredVersion
 	return res
 }
