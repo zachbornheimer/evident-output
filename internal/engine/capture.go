@@ -1,22 +1,9 @@
 package engine
 
 import (
-	"bytes"
-	"fmt"
 	"io"
-	"strings"
-	"sync"
-	"unicode/utf8"
 
-	txt "github.com/zachbornheimer/evident-output/internal/text"
-)
-
-// Default ring bounds for Capture (retained child process output, not a live UI).
-const (
-	defaultCaptureLines = 200
-	defaultCaptureBytes = 256 << 10 // 256 KiB
-	maxCaptureLineLen   = 4096
-	truncationMarker    = "[earlier output truncated]"
+	"github.com/zachbornheimer/evident-output/internal/engine/transcript"
 )
 
 // CaptureStream identifies which process stream a line came from.
@@ -31,10 +18,18 @@ const (
 	CaptureStreamStderr
 )
 
-type capturedLine struct {
-	Sequence uint64
-	Stream   CaptureStream
-	Text     string
+// toTranscript maps the public vocabulary onto the transcript package's
+// stream, kept separate so testdata/api_golden.txt never prints an internal
+// import path.
+func (s CaptureStream) toTranscript() transcript.Stream {
+	switch s {
+	case CaptureStreamStdout:
+		return transcript.Stdout
+	case CaptureStreamStderr:
+		return transcript.Stderr
+	default:
+		return transcript.Combined
+	}
 }
 
 // capture is the retained/redacted process-output sink owned by a Task
@@ -66,53 +61,30 @@ type capturedLine struct {
 //   - Stdout/Stderr have independent pending buffers (no partial-line merge).
 //   - DetailTail prefers stderr when separate streams were used, else combined.
 type capture struct {
-	out      *Output
-	taskID   string
-	taskName string
-
-	mu sync.Mutex
-
-	// Independent pending line assembly per stream.
-	pendingCombined bytes.Buffer
-	pendingStdout   bytes.Buffer
-	pendingStderr   bytes.Buffer
-
-	// Sequenced combined ring (newest at end).
-	lines     []capturedLine
-	seq       uint64
-	maxLines  int
-	maxBytes  int
-	nbytes    int
-	truncated bool
-
-	// Mirror policy (default: all false — silent retention).
-	mirrorDiag  bool
-	mirrorDebug bool
-
-	// stream is set only on side writers returned by Stdout/Stderr.
-	stream CaptureStream
-	parent *capture
-
-	// onLine, when set, receives each completed line's sanitized/redacted
-	// text (spec §23: "each complete non-empty line becomes the task's
-	// current activity") — Exec wires it to TaskHandle.Doing so a running
-	// child's own output narrates progress without capture needing to know
-	// what a Task is.
-	onLine func(text string)
+	tr     *transcript.Transcript // nil when there is no Output: every write is discarded
+	stream CaptureStream          // Combined on the root; Stdout/Stderr on a side writer
 }
 
 // CaptureOption configures a Capture.
 type CaptureOption interface {
-	applyCapture(*capture)
+	applyCapture(*captureConfig)
 }
 
-type captureOptionFunc func(*capture)
+type captureOptionFunc func(*captureConfig)
 
-func (f captureOptionFunc) applyCapture(c *capture) { f(c) }
+func (f captureOptionFunc) applyCapture(c *captureConfig) { f(c) }
+
+// captureConfig collects CaptureOption settings before a capture's backing
+// transcript is constructed.
+type captureConfig struct {
+	maxLines, maxBytes      int
+	mirrorDiag, mirrorDebug bool
+	onLine                  func(string)
+}
 
 // KeepLastLines sets how many trailing lines are retained (default 200).
 func keepLastLines(n int) CaptureOption {
-	return captureOptionFunc(func(c *capture) {
+	return captureOptionFunc(func(c *captureConfig) {
 		if n > 0 {
 			c.maxLines = n
 		}
@@ -122,7 +94,7 @@ func keepLastLines(n int) CaptureOption {
 // MaxCaptureBytes sets an approximate byte budget for retained lines
 // (default 256KiB).
 func maxCaptureBytes(n int) CaptureOption {
-	return captureOptionFunc(func(c *capture) {
+	return captureOptionFunc(func(c *captureConfig) {
 		if n > 0 {
 			c.maxBytes = n
 		}
@@ -132,20 +104,38 @@ func maxCaptureBytes(n int) CaptureOption {
 // MirrorToDiagnostics copies each completed line to the Diagnostics writer.
 // Default is off — capture retains output without displaying it on success.
 func mirrorToDiagnostics() CaptureOption {
-	return captureOptionFunc(func(c *capture) { c.mirrorDiag = true })
+	return captureOptionFunc(func(c *captureConfig) { c.mirrorDiag = true })
 }
 
 // MirrorToDebug journals each completed line via Debug when DebugLevel allows.
 // Default is off.
 func mirrorToDebug() CaptureOption {
-	return captureOptionFunc(func(c *capture) { c.mirrorDebug = true })
+	return captureOptionFunc(func(c *captureConfig) { c.mirrorDebug = true })
 }
 
 // activityFeed reports each completed, sanitized/redacted line to fn (spec
 // §23) — used only by Exec, which owns turning that line into the Task's
 // current Doing activity. capture itself stays presentation-agnostic.
 func activityFeed(fn func(text string)) CaptureOption {
-	return captureOptionFunc(func(c *capture) { c.onLine = fn })
+	return captureOptionFunc(func(c *captureConfig) { c.onLine = fn })
+}
+
+// lineSink builds the transcript.Policy.OnLine callback: the activity feed
+// first (if any), then the mirror projection (if either mirror is on).
+// Returning nil when neither applies skips an empty call on every line.
+func (c captureConfig) lineSink(out *Output, taskName string) func(string) {
+	mirror := c.mirrorDiag || c.mirrorDebug
+	if c.onLine == nil && !mirror {
+		return nil
+	}
+	return func(line string) {
+		if c.onLine != nil {
+			c.onLine(line)
+		}
+		if mirror {
+			out.mirrorCaptureLine(c.mirrorDiag, c.mirrorDebug, taskName, line)
+		}
+	}
 }
 
 // capture returns the retained/redacted writer bound to this Task,
@@ -154,16 +144,16 @@ func activityFeed(fn func(text string)) CaptureOption {
 // through either path lands together and survives for DetailTail after Fail.
 func (t *TaskHandle) capture(opts ...CaptureOption) *capture {
 	if t == nil || t.out == nil {
-		return newCapture(nil, "", "", opts...)
+		return newCapture(nil, "", opts...)
 	}
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
 	if st == nil {
-		return newCapture(t.out, t.id, "", opts...)
+		return newCapture(t.out, "", opts...)
 	}
 	if st.capture == nil {
-		st.capture = newCapture(t.out, t.id, st.name, opts...)
+		st.capture = newCapture(t.out, st.name, opts...)
 	}
 	return st.capture
 }
@@ -172,26 +162,28 @@ func (t *TaskHandle) capture(opts ...CaptureOption) *capture {
 // Task. Prefer task.Writer() so failure output attaches to an entity.
 // Session-level capture is advanced; ordinary call sites should not use it.
 func (o *Output) capture(opts ...CaptureOption) *capture {
-	return newCapture(o, "", "", opts...)
+	return newCapture(o, "", opts...)
 }
 
-func newCapture(out *Output, taskID, taskName string, opts ...CaptureOption) *capture {
-	c := &capture{
-		out:         out,
-		taskID:      taskID,
-		taskName:    taskName,
-		maxLines:    defaultCaptureLines,
-		maxBytes:    defaultCaptureBytes,
-		mirrorDiag:  false, // silent by default — release invariant
-		mirrorDebug: false,
-		stream:      CaptureStreamCombined,
-	}
+func newCapture(out *Output, taskName string, opts ...CaptureOption) *capture {
+	var cfg captureConfig
 	for _, opt := range opts {
 		if opt != nil {
-			opt.applyCapture(c)
+			opt.applyCapture(&cfg)
 		}
 	}
-	return c
+	if out == nil {
+		return &capture{stream: CaptureStreamCombined}
+	}
+	return &capture{
+		tr: transcript.New(transcript.Policy{
+			MaxLines: cfg.maxLines,
+			MaxBytes: cfg.maxBytes,
+			Redact:   out.redactString,
+			OnLine:   cfg.lineSink(out, taskName),
+		}),
+		stream: CaptureStreamCombined,
+	}
 }
 
 // Stdout returns a writer that records lines as stdout with its own pending buffer.
@@ -199,7 +191,7 @@ func (c *capture) Stdout() io.Writer {
 	if c == nil {
 		return io.Discard
 	}
-	return &capture{out: c.out, parent: c, stream: CaptureStreamStdout}
+	return &capture{tr: c.tr, stream: CaptureStreamStdout}
 }
 
 // Stderr returns a writer that records lines as stderr with its own pending buffer.
@@ -207,38 +199,16 @@ func (c *capture) Stderr() io.Writer {
 	if c == nil {
 		return io.Discard
 	}
-	return &capture{out: c.out, parent: c, stream: CaptureStreamStderr}
+	return &capture{tr: c.tr, stream: CaptureStreamStderr}
 }
 
 // Write implements io.Writer. Safe for concurrent use with Tail/DetailTail.
 func (c *capture) Write(p []byte) (int, error) {
-	root := c.root()
-	if root == nil || root.out == nil {
+	if c == nil || c.tr == nil {
 		return len(p), nil
 	}
-	n := len(p)
-	stream := CaptureStreamCombined
-	if c.parent != nil {
-		stream = c.stream
-	}
-
-	root.mu.Lock()
-	defer root.mu.Unlock()
-	buf := root.pendingFor(stream)
-	for len(p) > 0 {
-		i := bytes.IndexByte(p, '\n')
-		if i < 0 {
-			buf.Write(p)
-			break
-		}
-		buf.Write(p[:i])
-		root.flushPendingLocked(stream)
-		p = p[i+1:]
-	}
-	if buf.Len() > maxCaptureLineLen*2 {
-		root.flushPendingLocked(stream)
-	}
-	return n, nil
+	c.tr.Write(c.stream.toTranscript(), p)
+	return len(p), nil
 }
 
 // Close flushes trailing partial lines.
@@ -247,53 +217,23 @@ func (c *capture) Write(p []byte) (int, error) {
 // so Stdout/Stderr partial lines are retained. On a side writer (Stdout/Stderr),
 // only that stream is flushed.
 func (c *capture) Close() error {
-	root := c.root()
-	if root == nil {
+	if c == nil || c.tr == nil {
 		return nil
 	}
-	root.mu.Lock()
-	defer root.mu.Unlock()
-	if c.parent != nil {
-		root.flushIfPresentLocked(c.stream)
-		return nil
+	if c.stream == CaptureStreamCombined {
+		c.tr.FlushAll()
+	} else {
+		c.tr.Flush(c.stream.toTranscript())
 	}
-	root.flushIfPresentLocked(CaptureStreamCombined)
-	root.flushIfPresentLocked(CaptureStreamStdout)
-	root.flushIfPresentLocked(CaptureStreamStderr)
 	return nil
-}
-
-func (c *capture) flushIfPresentLocked(stream CaptureStream) {
-	if c.pendingFor(stream).Len() > 0 {
-		c.flushPendingLocked(stream)
-	}
-}
-
-func (c *capture) root() *capture {
-	if c == nil {
-		return nil
-	}
-	if c.parent != nil {
-		return c.parent
-	}
-	return c
-}
-
-func (c *capture) pendingFor(stream CaptureStream) *bytes.Buffer {
-	switch stream {
-	case CaptureStreamStdout:
-		return &c.pendingStdout
-	case CaptureStreamStderr:
-		return &c.pendingStderr
-	default:
-		return &c.pendingCombined
-	}
 }
 
 // Text returns all retained combined lines joined by newlines.
 func (c *capture) Text() string {
-	lines, truncated := c.snapshotTexts(CaptureStreamCombined, 0)
-	return joinCaptureLines(lines, truncated)
+	if c == nil || c.tr == nil {
+		return ""
+	}
+	return c.tr.Text()
 }
 
 // streamText returns one stream's retained lines joined by newlines, with
@@ -302,8 +242,10 @@ func (c *capture) Text() string {
 // (ZYS-850); truncated returns separately as ExecResult.Truncated instead
 // of being prepended into the text.
 func (c *capture) streamText(stream CaptureStream) string {
-	lines, _ := c.snapshotTexts(stream, 0)
-	return strings.Join(lines, "\n")
+	if c == nil || c.tr == nil {
+		return ""
+	}
+	return c.tr.StreamText(stream.toTranscript())
 }
 
 // wasTruncated reports whether the retained ring has ever dropped a line to
@@ -311,29 +253,18 @@ func (c *capture) streamText(stream CaptureStream) string {
 // shared across streams because the bound itself is on total retained
 // output, not per stream.
 func (c *capture) wasTruncated() bool {
-	root := c.root()
-	if root == nil {
+	if c == nil || c.tr == nil {
 		return false
 	}
-	root.mu.Lock()
-	defer root.mu.Unlock()
-	return root.truncated
+	return c.tr.Truncated()
 }
 
 // Empty reports whether no completed lines and no pending fragments exist.
 func (c *capture) Empty() bool {
-	root := c.root()
-	if root == nil {
+	if c == nil || c.tr == nil {
 		return true
 	}
-	root.mu.Lock()
-	defer root.mu.Unlock()
-	if len(root.lines) > 0 {
-		return false
-	}
-	return root.pendingFor(CaptureStreamCombined).Len() == 0 &&
-		root.pendingFor(CaptureStreamStdout).Len() == 0 &&
-		root.pendingFor(CaptureStreamStderr).Len() == 0
+	return c.tr.Empty()
 }
 
 // DetailTail returns a ProblemOption attaching a user-visible presentation of
@@ -351,157 +282,10 @@ func (c *capture) DetailTail() ProblemOption {
 }
 
 func (c *capture) detailText() string {
-	root := c.root()
-	if root == nil {
+	if c == nil || c.tr == nil {
 		return ""
 	}
-	root.mu.Lock()
-	defer root.mu.Unlock()
-
-	prefer := CaptureStreamCombined
-	if c.parent != nil {
-		prefer = c.stream
-	} else {
-		// Prefer stderr when both streams have content (including pending).
-		hasOut := root.streamHasContentLocked(CaptureStreamStdout)
-		hasErr := root.streamHasContentLocked(CaptureStreamStderr)
-		if hasErr && hasOut {
-			prefer = CaptureStreamStderr
-		} else if hasErr {
-			prefer = CaptureStreamStderr
-		}
-	}
-
-	texts := root.textsForStreamLocked(prefer)
-	// If filter emptied, fall back to all combined lines + all pendings.
-	if len(texts) == 0 {
-		texts = root.textsForStreamLocked(CaptureStreamCombined)
-	}
-	if len(texts) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	if root.truncated {
-		b.WriteString(truncationMarker)
-		b.WriteByte('\n')
-	}
-	if len(texts) > 1 {
-		fmt.Fprintf(&b, "Last %d lines:\n", len(texts))
-	}
-	b.WriteString(strings.Join(texts, "\n"))
-	return b.String()
-}
-
-func (c *capture) streamHasContentLocked(stream CaptureStream) bool {
-	if c.pendingFor(stream).Len() > 0 {
-		return true
-	}
-	for _, ln := range c.lines {
-		if ln.Stream == stream {
-			return true
-		}
-	}
-	return false
-}
-
-// textsForStreamLocked returns completed lines plus pending fragments for stream.
-// CaptureStreamCombined includes every stream's completed lines and all pendings.
-// Pending fragments are snapshotted (not flushed) so concurrent Write stays safe.
-func (c *capture) textsForStreamLocked(stream CaptureStream) []string {
-	var texts []string
-	for _, ln := range c.lines {
-		if stream == CaptureStreamCombined || ln.Stream == stream {
-			texts = append(texts, ln.Text)
-		}
-	}
-	if stream == CaptureStreamCombined {
-		for _, s := range []CaptureStream{CaptureStreamCombined, CaptureStreamStdout, CaptureStreamStderr} {
-			if p := c.pendingNormalizedLocked(s); p != "" {
-				texts = append(texts, p)
-			}
-		}
-	} else if p := c.pendingNormalizedLocked(stream); p != "" {
-		texts = append(texts, p)
-	}
-	return texts
-}
-
-func (c *capture) snapshotTexts(stream CaptureStream, limit int) ([]string, bool) {
-	root := c.root()
-	if root == nil {
-		return nil, false
-	}
-	root.mu.Lock()
-	defer root.mu.Unlock()
-	texts := root.textsForStreamLocked(stream)
-	if limit > 0 && len(texts) > limit {
-		texts = texts[len(texts)-limit:]
-	}
-	return append([]string(nil), texts...), root.truncated
-}
-
-// pendingNormalizedLocked returns a sanitized/redacted view of a pending buffer
-// without flushing it into the ring.
-func (c *capture) pendingNormalizedLocked(stream CaptureStream) string {
-	raw := c.pendingFor(stream).String()
-	if raw == "" {
-		return ""
-	}
-	return c.normalizeCaptureLine(raw)
-}
-
-func (c *capture) normalizeCaptureLine(line string) string {
-	if !utf8.ValidString(line) {
-		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
-	}
-	line = txt.Text(line)
-	if c.out != nil {
-		line = c.out.redactString(line)
-	}
-	return txt.TruncateUTF8(line, maxCaptureLineLen, "…")
-}
-
-func joinCaptureLines(lines []string, truncated bool) string {
-	if len(lines) == 0 {
-		return ""
-	}
-	if truncated {
-		return truncationMarker + "\n" + strings.Join(lines, "\n")
-	}
-	return strings.Join(lines, "\n")
-}
-
-func (c *capture) flushPendingLocked(stream CaptureStream) {
-	buf := c.pendingFor(stream)
-	line := buf.String()
-	buf.Reset()
-	line = c.normalizeCaptureLine(line)
-	if line == "" {
-		return
-	}
-
-	c.seq++
-	c.lines = append(c.lines, capturedLine{Sequence: c.seq, Stream: stream, Text: line})
-	c.nbytes += len(line) + 1
-	for len(c.lines) > c.maxLines || c.nbytes > c.maxBytes {
-		if len(c.lines) == 0 {
-			break
-		}
-		c.truncated = true
-		c.nbytes -= len(c.lines[0].Text) + 1
-		c.lines = c.lines[1:]
-	}
-
-	if c.onLine != nil {
-		c.onLine(line)
-	}
-
-	if c.out == nil {
-		return
-	}
-	if c.mirrorDiag || c.mirrorDebug {
-		c.out.mirrorCaptureLine(c.mirrorDiag, c.mirrorDebug, c.taskName, line)
-	}
+	return c.tr.Detail(c.stream.toTranscript())
 }
 
 // mirrorCaptureLine projects one capture line only when explicitly requested.
