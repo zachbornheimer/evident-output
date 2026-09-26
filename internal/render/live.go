@@ -263,15 +263,25 @@ func selectLiveChildren(tasks []core.TaskSnapshot, total, max int) (selected []c
 // A Running task with a determinate bar/count AND a current-activity Phase
 // gets spec §23's stable-parent-plus-one-activity-child shape at any
 // indent ("⠋ install dependencies  [████        ]  14/40  — 7s" /
-// "  ⠋ urllib3", and the same pair one level deeper under a Group):
+// "  ⠋ urllib3" at root — contract §18's own frame — and the same pair
+// indented three spaces further, six total, one level deeper under a
+// Group):
 // the parent line owns the bar/count/timer only, and the current activity
 // becomes its own indented spinner line beneath it — so the child can
 // change/truncate independently without moving the timer horizontally.
 func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth int, st liveStyle) (rows int) {
 	start := b.Len()
 	pad := ""
+	// activityChildIndent is the extra indent the activity child adds on
+	// top of pad. A root standalone row (indent == 0) has no pad of its
+	// own, so its activity child's whole indent is this value — and
+	// contract §18's normative frame pins that at two spaces
+	// ("⠋ branches ...\n  ⠋ feat/style-contract"), not the three spaces a
+	// nested Group child's own extra indent still uses below.
+	activityChildIndent := "  "
 	if indent > 0 {
 		pad = "   "
+		activityChildIndent = "   "
 	}
 	if splitsActivityChild(t) {
 		parent := t
@@ -284,7 +294,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 			Glyph: txt.StyleGlyph(st.spin, StateColor(core.Running), st.Color),
 			Name:  t.Phase,
 		}
-		b.WriteString(child.Render(pad + "   "))
+		b.WriteString(child.Render(pad + activityChildIndent))
 		b.WriteByte('\n')
 	} else {
 		unit := liveTaskUnit(t, indent, st)

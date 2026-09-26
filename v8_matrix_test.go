@@ -545,21 +545,21 @@ func TestV8_DependencyInstall(t *testing.T) {
 	clock.Advance(7 * time.Second)
 	install.Progress(14, 40) // re-render at the advanced clock for the timer.
 
-	// Two departures from the frame's literal spacing/indent, both matching
-	// established, already-tested conventions elsewhere rather than this
-	// one mockup's exact characters:
-	//   - one space before the elapsed suffix ("14/40 — 7s"), not two —
-	//     heartbeatSuffix's own " — <elapsed>" format, shared by every
-	//     other elapsed-suffix golden in this suite.
-	//   - the activity child indents 3 spaces, matching every other child
-	//     row's indent (writeLiveTaskLine's pad), not the frame's 2.
+	// One departure from the frame's literal spacing, matching an
+	// established, already-tested convention elsewhere rather than this one
+	// mockup's exact characters: one space before the elapsed suffix
+	// ("14/40 — 7s"), not two — heartbeatSuffix's own " — <elapsed>"
+	// format, shared by every other elapsed-suffix golden in this suite.
+	// The activity child's own two-space indent matches contract §18's
+	// normative frame exactly (writeLiveTaskLine's root-level
+	// activityChildIndent).
 	//
 	// The spinner glyph is whichever frame the shared animation clock lands
 	// on (spec §23.1: motion only proves liveness, no specific frame is
 	// normative) — not necessarily the mockup's illustrative "⠋".
 	glyph := firstRune(screen.LatestLiveText())
 	want := glyph + " install dependencies  [█████       ]  14/40 — 7s\n" +
-		"   " + glyph + " urllib3"
+		"  " + glyph + " urllib3"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -612,11 +612,11 @@ func TestV8_LiveParallelPrune(t *testing.T) {
 	// decorative", the count is authoritative) — this matches §18's frame
 	// exactly (120/459 -> 4 filled, 70/294 -> 3 filled, 1/4 -> 3 filled).
 	want := glyph + " branches         [████        ]  120/459 — 5s\n" +
-		"   " + glyph + " feat/style-contract\n" +
+		"  " + glyph + " feat/style-contract\n" +
 		glyph + " worktrees        [███         ]  70/294 — 5s\n" +
-		"   " + glyph + " eapp-system-style-contract-heading\n" +
+		"  " + glyph + " eapp-system-style-contract-heading\n" +
 		glyph + " remote-tracking  [███         ]  1/4 — 5s\n" +
-		"   " + glyph + " origin/old-style"
+		"  " + glyph + " origin/old-style"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -657,7 +657,7 @@ func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
 		"✓ register\n" +
 		"✓ start\n" +
 		glyph + " install dependencies  [██████      ]  18/40 — 6s\n" +
-		"   " + glyph + " requests"
+		"  " + glyph + " requests"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

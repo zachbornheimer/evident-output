@@ -30,12 +30,21 @@ func keptCategory(items int) core.TasksSnapshot {
 	return core.TasksSnapshot{Name: "branches", State: core.Running, Tasks: tasks}
 }
 
-func TestKeptCategory_FoldsEveryItemIntoOneTally(t *testing.T) {
+// TestKeptCategory_FoldsEveryItemAndSuppressesTheTallyWhileRunning folds
+// every one of the category's items rather than paint keptItemCount rows
+// (§25), and — contract §18 — shows none of that fold as a "! kept N"
+// tally while the category's own Task is still Running: the count could
+// still grow before the Task settles.
+func TestKeptCategory_FoldsEveryItemAndSuppressesTheTallyWhileRunning(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
 	writeLiveCollection(&b, keptCategory(keptItemCount), 40, testLiveStyle)
-	if got := b.String(); strings.Contains(got, "feat/branch-") || !strings.Contains(got, "! kept 1000 (334 checked out, 333 unpushed, 333 protected)") {
-		t.Fatalf("want one tally for %d items, got:\n%s", keptItemCount, got)
+	got := b.String()
+	if strings.Contains(got, "feat/branch-") {
+		t.Fatalf("want no per-item rows for %d folded items, got:\n%s", keptItemCount, got)
+	}
+	if strings.Contains(got, "! kept") {
+		t.Fatalf("want no kept tally while the category is still running, got:\n%s", got)
 	}
 }
 

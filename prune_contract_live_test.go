@@ -28,13 +28,16 @@ type liveCategory struct {
 // owns no information of its own, so it paints no header — never a
 // "categories  0/0 complete" row counting Tasks it does not directly hold.
 //
-// This is not the Linear 9c10b754 §18 live frame: unlike §18, this fixture
-// gives every category (including remote-tracking) Skipped children and
-// renders their folded "- skipped N (...)" tally under the bar row, so its
-// counts, indentation and bar fill legitimately differ from §18's own
-// worked numbers. Name it for what it actually pins — this package's live
-// rendering of the grouped-category shape — rather than claim §18
-// conformance a byte-for-byte comparison doesn't support.
+// Every category here (including remote-tracking) has Skipped children,
+// but contract §18 is explicit that no "- skipped N" tally shows while a
+// category's own Task is still Running (the count could still grow before
+// it settles) — so this frame, captured mid-run, shows none, matching
+// TestPruneContract_LiveCategoriesRenderContract18Frame's own live shape.
+// This fixture's counts still legitimately differ from §18's own worked
+// numbers (all three categories share one skip reason set here, and
+// remote-tracking has items §18's worked example does not), so it is named
+// for what it pins — this package's live rendering of the grouped-category
+// shape — rather than claim §18's own byte-for-byte numbers.
 func TestPruneContract_LiveCategoriesRenderGroupedShape(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
@@ -78,14 +81,11 @@ func TestPruneContract_LiveCategoriesRenderGroupedShape(t *testing.T) {
 
 	glyph := firstRune(screen.LatestLiveText())
 	want := glyph + " branches         [████        ]  120/459 — 8s\n" +
-		"   " + glyph + " feat/style-contract\n" +
-		"  - skipped 2 (1 checked out, 1 protected)\n" +
+		"  " + glyph + " feat/style-contract\n" +
 		glyph + " worktrees        [███         ]  70/294 — 8s\n" +
-		"   " + glyph + " eapp-system-style-contract-heading\n" +
-		"  - skipped 2 (dirty)\n" +
+		"  " + glyph + " eapp-system-style-contract-heading\n" +
 		glyph + " remote-tracking  [███         ]  1/4 — 8s\n" +
-		"   " + glyph + " origin/old-style\n" +
-		"  - skipped 2 (tracked)"
+		"  " + glyph + " origin/old-style"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

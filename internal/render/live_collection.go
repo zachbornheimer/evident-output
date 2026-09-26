@@ -74,7 +74,14 @@ func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, heig
 	switch {
 	case rendersAsOwnTask(col):
 		taskRows := writeLiveTaskLine(b, col.Tasks[0], 0, nameWidth, st)
-		writeLiveDispositions(b, taskAnnotationIndent, items, height-taskRows, st.Style)
+		// Contract §18: no "- skipped N" tally while the category's own
+		// Task is still Running — its disposition items may still be
+		// arriving, so the count would understate or flap. The tally
+		// appears once the category settles (Done/Failed/Skipped), the
+		// same moment its own row stops spinning.
+		if col.Tasks[0].State != core.Running {
+			writeLiveDispositions(b, taskAnnotationIndent, items, height-taskRows, st.Style)
+		}
 	case promotesLoneChildOntoHeader(col):
 		unit := liveTaskUnit(col.Tasks[0], 0, st)
 		unit.Name = col.Name + "  " + unit.Name

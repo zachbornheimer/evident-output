@@ -13,10 +13,13 @@ import (
 )
 
 // TestLiveGroup_SkippedChildrenAggregateInTheLiveFrame pins §25 for the
-// live region too: while the category's own work is still running, its
-// already skipped per-item children are one tally line, never one live row
-// each. Ordinary call sites moved to Skipped in 1.1; the fold this test
-// pins moved with it.
+// live region too, and contract §18: while the category's own work is
+// still Running, its already-skipped per-item children show neither one
+// live row each nor a "- skipped N" tally — the tally's count could still
+// be understating what has actually skipped so far, so it waits for the
+// category to settle (the same moment its own row stops spinning) rather
+// than print a number that might still grow. Once the Task resolves, the
+// fold appears as one tally line, never one row per item.
 func TestLiveGroup_SkippedChildrenAggregateInTheLiveFrame(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
@@ -41,13 +44,19 @@ func TestLiveGroup_SkippedChildrenAggregateInTheLiveFrame(t *testing.T) {
 	})
 	<-skipped
 	clock.Advance(100 * time.Millisecond)
-	frame := screen.LatestLiveText()
+	running := screen.LatestLiveText()
+	if strings.Contains(running, "feat/") || strings.Contains(running, "- skipped") {
+		t.Fatalf("live frame must show no per-item rows and no tally while the category is still running:\n%s", running)
+	}
+
 	close(release)
 	_ = work.Wait()
+	clock.Advance(100 * time.Millisecond)
+	settled := screen.LatestLiveText()
 	_ = out.Finish()
 
-	if strings.Contains(frame, "feat/") || !strings.Contains(frame, "- skipped 5 (unpushed)") {
-		t.Fatalf("live frame must show one skipped tally, not per-item rows:\n%s", frame)
+	if strings.Contains(settled, "feat/") || !strings.Contains(settled, "- skipped 5 (unpushed)") {
+		t.Fatalf("live frame must show one skipped tally once the category settles, not per-item rows:\n%s", settled)
 	}
 }
 

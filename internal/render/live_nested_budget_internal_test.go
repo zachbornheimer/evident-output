@@ -110,23 +110,27 @@ func ownTaskWithActivity() core.TasksSnapshot {
 	return col
 }
 
-// ownTaskActivityHeight is a height the own Task's two rows plus both
-// tallies with their cause lines (four rows) overrun by one.
+// ownTaskActivityHeight is a height that comfortably fits the own Task's
+// two rows (bar row plus activity child) with room to spare.
 const ownTaskActivityHeight = 5
 
-// TestLiveOwnTask_TalliesCountTheActivityRow: the own Task's activity
-// child is a row too, so the tallies drop their causes rather than
-// overrun the height.
-func TestLiveOwnTask_TalliesCountTheActivityRow(t *testing.T) {
+// TestLiveOwnTask_SuppressesTalliesWhileRunning: contract §18 — a category's
+// folded Kept/Skipped tally never appears while its own Task is still
+// Running, whatever room the height budget has for it. The activity child
+// still spends its own row.
+func TestLiveOwnTask_SuppressesTalliesWhileRunning(t *testing.T) {
 	t.Parallel()
 	s := core.Snapshot{Collections: []core.TasksSnapshot{ownTaskWithActivity()}}
 	frame := liveFrame(s, ownTaskActivityHeight)
 	if rows := frameRows(frame); rows > ownTaskActivityHeight {
 		t.Fatalf("live frame is %d rows, over the %d-row height:\n%s", rows, ownTaskActivityHeight, frame)
 	}
-	for _, want := range []string{"feature/x", "- skipped 2 (pinned)", "! kept 2 (pinned)"} {
-		if !strings.Contains(frame, want) {
-			t.Fatalf("live frame lacks %q:\n%s", want, frame)
+	if !strings.Contains(frame, "feature/x") {
+		t.Fatalf("live frame lacks the activity child %q:\n%s", "feature/x", frame)
+	}
+	for _, unwanted := range []string{"- skipped", "! kept"} {
+		if strings.Contains(frame, unwanted) {
+			t.Fatalf("live frame must not show a tally while the own Task is Running:\n%s", frame)
 		}
 	}
 }
