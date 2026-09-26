@@ -15,7 +15,7 @@ var (
 	ErrLimitExceeded      = errors.New("evo: resource limit exceeded")
 	ErrConcurrentRunning  = errors.New("evo: two siblings in the same collection are Running simultaneously")
 	ErrDryRunDeclaredLate = errors.New("evo: DeclareDryRun called after a durable row was already emitted")
-	// ErrTerminalWithoutSink is recorded when Config.Options supplies a
+	// ErrTerminalWithoutSink is recorded when Config.Terminal supplies a
 	// Terminal driver but no primary writer (To), and the driver cannot
 	// report its own destination (it does not implement the Sink() io.Writer
 	// accessor) — release-gate round 8 finding 2. Without either, a

@@ -8,10 +8,12 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-// KeptAnalyzer is API-091: Kept is not canonical vocabulary. A per-candidate
-// Task intentionally not executed is Skipped; Kept(reason) rewrites
-// directly to Skipped(reason) — the TaxonomyReason value itself is
-// unchanged, only the outcome verb.
+// KeptAnalyzer is API-091: Kept is not canonical vocabulary. It never meant
+// "this item did not run" (that is Skipped); it recorded a kept item as
+// domain information, so Kept(reason) rewrites to Fact("kept",
+// reason.Name()) — the owner vocabulary freeze's own migration (see
+// CHANGELOG.md and API-062), not to Skipped, which would silently change
+// the task's outcome from Done to Skipped.
 var KeptAnalyzer = &analysis.Analyzer{
 	Name:     "evokept",
 	Doc:      "flags and fixes evo TaskHandle.Kept, legacy syntax for Skipped",
@@ -30,29 +32,28 @@ func runKept(pass *analysis.Pass) (any, error) {
 		if recv, ok := recvNamedType(pass.TypesInfo, sel.X); !ok || recv != "TaskHandle" {
 			return
 		}
-		// Kept is still exported in 1.1 (only ordinary call sites moved to
-		// Skipped; see the vocabulary freeze's "Duplicate decisions"
-		// section), so evo's own tests that pin Kept's own contract —
-		// TestKept_ConcludesWarnedInHumanAndMachineOutput,
-		// TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts — call
-		// it deliberately, not as an unmigrated caller. Rewriting those
-		// call sites to Skipped would test a different method's contract
-		// under the old method's name.
+		// Kept was removed from the public API in 1.1; this fixer only
+		// exists to migrate call sites in consumer code that still
+		// reference the retired method. evo's own test files are excluded
+		// on the same convention every other legacy-API fixer in this
+		// package uses (isEvoOwnTestFile), so a fixture pinning the
+		// removed method's own historical contract is not rewritten out
+		// from under itself.
 		if isEvoOwnTestFile(pass, call.Pos()) {
 			return
 		}
 		if len(call.Args) != 1 {
 			pass.Report(diag("API-091", call,
-				"evo.TaskHandle.Kept was removed in 1.1: Skipped wins — not rewritten: expected exactly one Reason argument"))
+				"evo.TaskHandle.Kept was removed in 1.1: Fact(\"kept\", reason.Name()) wins — not rewritten: expected exactly one Reason argument"))
 			return
 		}
 		recv := text(pass, sel.X)
 		reason := text(pass, call.Args[0])
-		newText := recv + ".Skipped(" + reason + ")"
+		newText := recv + `.Fact("kept", ` + reason + ".Name())"
 		pass.Report(diag("API-091", call,
-			"evo.TaskHandle.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped(reason)",
+			"evo.TaskHandle.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact(\"kept\", reason.Name()), not a third resolution alongside Succeeded/Skipped",
 			analysis.SuggestedFix{
-				Message:   "replace Kept(reason) with Skipped(reason)",
+				Message:   `replace Kept(reason) with Fact("kept", reason.Name())`,
 				TextEdits: []analysis.TextEdit{{Pos: call.Pos(), End: call.End(), NewText: []byte(newText)}},
 			}))
 	})
@@ -85,7 +86,7 @@ func reportKeptValues(pass *analysis.Pass, insp *inspector.Inspector) {
 			return true
 		}
 		pass.Report(diag("API-091", sel,
-			"evo.TaskHandle.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped(reason)",
+			"evo.TaskHandle.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact(\"kept\", reason.Name())",
 			keptValueFix(pass, sel)))
 		return true
 	})
@@ -93,7 +94,7 @@ func reportKeptValues(pass *analysis.Pass, insp *inspector.Inspector) {
 
 // keptValueFix wraps the removed Kept method value/expression in a func
 // literal with Kept's own call shape (one Reason argument) that calls
-// Skipped(reason) inside.
+// Fact("kept", reason.Name()) inside.
 //
 // The plain-value branch captures the receiver once, matching a method
 // value's own evaluate-once-at-creation semantics (see warnValueFix); the
@@ -105,17 +106,17 @@ func keptValueFix(pass *analysis.Pass, sel *ast.SelectorExpr) analysis.Suggested
 	var newText string
 	if isMethodExprRecv(pass.TypesInfo, sel.X) {
 		recvType := stripParens(text(pass, sel.X))
-		newText = "func(recv " + recvType + ", reason " + alias + ".TaxonomyReason) {\n\trecv.Skipped(reason)\n}"
+		newText = "func(recv " + recvType + ", reason " + alias + ".TaxonomyReason) {\n\trecv.Fact(\"kept\", reason.Name())\n}"
 	} else {
 		recv := text(pass, sel.X)
-		newText = "func() func(reason " + alias + ".TaxonomyReason) {\n\trecv := " + recv + "\n\treturn func(reason " + alias + ".TaxonomyReason) {\n\t\trecv.Skipped(reason)\n\t}\n}()"
+		newText = "func() func(reason " + alias + ".TaxonomyReason) {\n\trecv := " + recv + "\n\treturn func(reason " + alias + ".TaxonomyReason) {\n\t\trecv.Fact(\"kept\", reason.Name())\n\t}\n}()"
 	}
 	edits := []analysis.TextEdit{{Pos: sel.Pos(), End: sel.End(), NewText: []byte(newText)}}
 	if imp := addEvoImport(pass, sel.Pos()); imp.NewText != nil {
 		edits = append(edits, imp)
 	}
 	return analysis.SuggestedFix{
-		Message:   "replace the Kept method value/expression with a func literal calling Skipped(reason)",
+		Message:   `replace the Kept method value/expression with a func literal calling Fact("kept", reason.Name())`,
 		TextEdits: edits,
 	}
 }

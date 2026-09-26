@@ -53,8 +53,10 @@ func All() []Guide {
      for independent collections; evo.Sequence for ordered ones (same one-Task-per-item shape;
      Group.Each/Sequence.Each were removed in 1.0); .Writer() as cmd.Stdout so a talkative
      child's last line becomes the live doing-text.
-  4) evo.Task(name).Skipped(reason) / .Kept(reason) — taxonomy counted and summed, never a bare
-     "skipped N". The item name is the Task name (a named Group/Sequence child).
+  4) evo.Task(name).Skipped(reason) — taxonomy counted and summed, never a bare "skipped N";
+     task.Fact("kept", reason.Name()) records an item that ran and was kept (Kept was retired
+     in 1.1 — it is domain information, not a third resolution). The item name is the Task name
+     (a named Group/Sequence child).
   5) evo.Confirm(question, ...) — owns the whole gate (prompt, quiesce, ⊘/OK resolution, exit code).
 
 Types: TaskHandle (work with Doing/Progress/mutations/taxonomy, or a fact-check gate resolved directly with no
@@ -93,7 +95,7 @@ failure on its own Task and use Next(evo.Label(...)) for follow-up guidance inst
 			ID:       "tasks",
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
-			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Each", "Define", "Skipped", "Kept"},
+			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Each", "Define", "Skipped", "Fact"},
 			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "API-045", "API-051", "API-062"},
 			Body: `Task is one independently schedulable promise whose outcome is independently meaningful to the user (ZYS-838) —
 not a display row, not a subject label, not a container. A good Task name answers "what will this unit of work
@@ -141,8 +143,10 @@ Progress to the true completed count directly — there is no relative/delta cou
 Sealed-total invariant: indeterminate → determinate happens once; after a total is sealed it never changes, and
 completed > total is unrepresentable.
 
-Skip/keep taxonomy: task.Skipped(reason) / task.Kept(reason) — evo counts, sums, and truncates the
-reason partition (never a bare "skipped 6"); reasons come from evo.Reason("protected") (get-or-create — repeated
+Skip/keep taxonomy: task.Skipped(reason) — evo counts, sums, and truncates the reason partition (never
+a bare "skipped 6"); an item that ran and was kept is domain information, recorded with
+task.Fact("kept", reason.Name()), never Kept (retired in 1.1 — it is not a third resolution alongside
+Succeeded/Skipped). Reasons come from evo.Reason("protected") (get-or-create — repeated
 calls with the same text merge into one taxonomy bucket, so inline evo.Reason("protected") at every call site is
 correct as written; lifting it to a package-level var is a style choice, never required for correctness).
 

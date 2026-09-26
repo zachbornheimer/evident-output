@@ -164,6 +164,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Removed
 
+- **`evo.EventSchemaVersion`** was removed with no alias. It was a thin
+  re-export of `internal/core.EventSchemaVersion`, not itself part of the
+  public wire contract callers write against — the durable JSONL schema
+  version a program cares about is `internal/wire.EventSchemaVersion`
+  ("evo.event" documents), which is unaffected.
 - **Capture-meaning `Evidence*` names were renamed to Capture** with no
   aliases (ZYS-1180 freeze, E-121). Evidence now means only satisfaction
   proof (`Verify`, `TaskSnapshot.Evidence`, `EvidencePhase`,

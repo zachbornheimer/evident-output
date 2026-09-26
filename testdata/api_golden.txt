@@ -251,7 +251,6 @@ value ErrTaskClosed
 value ErrTerminalWithoutSink
 value ErrUnresolvedTask
 value ErrWaitDeadlock
-value EventSchemaVersion
 value ExitBlocked
 value ExitCancelled
 value ExitFailed

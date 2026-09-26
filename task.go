@@ -62,9 +62,10 @@ func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	return t
 }
 
-// Fail resolves the Task Failed. Use it as a statement; to return the
-// failure as an error from a Define callback, wrap it:
-// task.Fail(summary); return errors.New(summary).
+// Fail resolves the Task Failed. Use it as a statement outside a Define
+// callback. Inside a Define/mutation callback, do not call Fail: just
+// return the error and let Define resolve the task (a nil-returning
+// Define after Fail double-resolves it — see API-040).
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	t.impl().Fail(summary, options...)
 }

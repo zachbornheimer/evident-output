@@ -332,7 +332,7 @@ out.Task("disk space").Define(checkDiskSpace)`,
   task.Fail("validate policy manifest: " + err.Error())
   return err
 }`,
-			Remediation:     `Replace the Fail + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere call task.Fail("<context>: " + err.Error()) then return err. Replace a Block + return nil pair with task.Block(...) followed by return err, inside a Define callback too: a plain error there would conclude the Task Failed, not Blocked — so a Define refusal calls Block and then returns nil`,
+			Remediation:     `Replace the Fail + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere call task.Fail("<context>: " + err.Error()) then return err. Replace a Block + return nil pair with task.Block(...) followed by return err, inside a Define callback too: a plain error there would otherwise conclude the Task Failed, not Blocked, so the Block call must be paired with returning that same error`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-034"},
 			Since:           "0.2.17",
@@ -396,8 +396,8 @@ if err := cmd.Run(); err != nil {
 			Category:  "API",
 			Severity:  SeverityWarning,
 			Invariant: "fmt.Sprintf(...) is never passed to a method that is already printf-variadic itself",
-			Why: "Task/Group/Sequence/Doing/Failf all already accept " +
-				"(format string, args ...any) directly (P1/P2, C6: their separate *f siblings — Warnf included — " +
+			Why: "Task/Group/Sequence/Doing all already accept " +
+				"(format string, args ...any) directly (P1/P2, C6: the separate *f siblings — Failf/Warnf included — " +
 				"were deleted; Warn itself was removed in 1.1) — wrapping the call in fmt.Sprintf is ceremony that " +
 				"also hides the real arguments from evo's own formatting.",
 			BadCode:         `task.Doing(fmt.Sprintf("scanning %s", path))`,
@@ -428,11 +428,12 @@ t.Doing("running install:fresh-start")`,
 			ID:        "API-040",
 			Category:  "API",
 			Severity:  SeverityError,
-			Invariant: "Failf inside a Define or mutation callback whose return value reaches that same callback resolves the task twice; return task.Blockf(...) is how a Define refuses and is exempt",
-			Why:       "Define's own contract is \"a non-nil return fails the task\"; calling Failf/Fail on the same task and then also returning that error double-resolves it — the row is correct but a spurious second misuse line appears, and zq's taskAlreadyResolved guard exists only to paper over this (app.go:162-167).",
+			Invariant: "Fail inside a Define or mutation callback whose return value reaches that same callback resolves the task twice; task.Block(...) followed by return err is how a Define refuses and is exempt (a plain returned error there would conclude the Task Failed, not Blocked)",
+			Why:       "Define's own contract is \"a non-nil return fails the task\"; calling Fail on the same task and then also returning that error double-resolves it — the row is correct but a spurious second misuse line appears, and zq's taskAlreadyResolved guard exists only to paper over this (app.go:162-167).",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if err := a.executeCommand(ctx, root, task, item); err != nil {
-    return task.Failf("resolve %s: %w", item.Name, err)
+    task.Fail(fmt.Sprintf("resolve %s: %v", item.Name, err))
+    return err
   }
   return nil
 })`,
@@ -442,7 +443,7 @@ t.Doing("running install:fresh-start")`,
   }
   return nil
 })`,
-			Remediation:     "Inside a Define/mutation callback, return the error and let Define resolve the task; do not call Failf/Fail on the same task first",
+			Remediation:     "Inside a Define/mutation callback, return the error and let Define resolve the task; do not call Fail on the same task first. Block is the exception: task.Block(...) followed by return err is required, because a plain returned error would conclude the Task Failed, not Blocked",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-040"},
 			Since:           "0.4.7",
@@ -528,11 +529,11 @@ out.Problem("disk nearly full", evo.Severity(evo.SeverityWarning))`,
 			ID:              "API-091",
 			Category:        "API",
 			Severity:        SeverityError,
-			Invariant:       "(*evo.TaskHandle).Kept was removed in 1.1 — a Task intentionally not executed is Skipped(reason), not Kept(reason)",
-			Why:             "Owner vocabulary freeze (2026-09-25): Kept and Skipped named the same outcome twice. Skipped is the canonical verb; the TaxonomyReason value is unchanged.",
+			Invariant:       `(*evo.TaskHandle).Kept was removed in 1.1 — a kept item is domain information, recorded with Fact("kept", reason.Name()), not a third resolution alongside Succeeded/Skipped`,
+			Why:             `Owner vocabulary freeze (2026-09-25): Kept was never canonical vocabulary. Summary/Skipped cover result metadata and genuine non-execution; a kept item is recorded with Fact, and rewriting it to Skipped would silently change the task's outcome from Done to Skipped.`,
 			BadCode:         `task.Kept(evo.Reason("dirty"))`,
-			GoodCode:        `task.Skipped(evo.Reason("dirty"))`,
-			Remediation:     "Replace Kept(reason) with Skipped(reason)",
+			GoodCode:        `task.Fact("kept", evo.Reason("dirty").Name())`,
+			Remediation:     `Replace Kept(reason) with Fact("kept", reason.Name())`,
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-091"},
 			MinDialect:      "1.1.0",
