@@ -80,7 +80,7 @@ func TestChangelogCoversEveryAPIChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unreleased := unreleasedSection(string(changelog))
+	unreleased, _ := unreleasedSection(string(changelog))
 	for line := range symmetricDifference(current, released) {
 		m := goldenDeclName.FindStringSubmatch(line)
 		if m == nil {
@@ -123,14 +123,17 @@ func symmetricDifference(a, b map[string]bool) map[string]bool {
 }
 
 // unreleasedSection is the text between "## Unreleased" and the next
-// "## " heading.
-func unreleasedSection(changelog string) string {
-	_, rest, ok := strings.Cut(changelog, "\n## Unreleased\n")
+// "## " heading, plus how many lines of changelog precede that text — so a
+// caller reporting a line number found inside the returned section can add
+// this back to get the real CHANGELOG.md line number.
+func unreleasedSection(changelog string) (string, int) {
+	before, rest, ok := strings.Cut(changelog, "\n## Unreleased\n")
 	if !ok {
-		return ""
+		return "", 0
 	}
-	if before, _, ok0 := strings.Cut(rest, "\n## "); ok0 {
-		return before
+	offset := strings.Count(before, "\n") + 2 // the cut "\n## Unreleased\n" line itself, plus 1 to land on rest's first line
+	if section, _, ok0 := strings.Cut(rest, "\n## "); ok0 {
+		return section, offset
 	}
-	return rest
+	return rest, offset
 }
