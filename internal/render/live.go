@@ -484,8 +484,9 @@ func headerlessCountWidths(col core.TasksSnapshot) countWidths {
 		consider(t)
 	}
 	for _, child := range col.Collections {
-		if rendersAsOwnTask(child) {
-			consider(child.Tasks[0])
+		stripped, _ := withoutDispositionItems(child)
+		if rendersAsOwnTask(stripped) {
+			consider(stripped.Tasks[0])
 		}
 	}
 	if rows < 2 {
