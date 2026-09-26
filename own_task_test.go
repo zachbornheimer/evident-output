@@ -9,8 +9,9 @@ import (
 )
 
 // readyBand is the trailing band a run with only Skipped tallies closes
-// on (Kept was retired in 1.1 — Skipped wins and does not feed warned;
-// see TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning).
+// on (ordinary call sites moved from Kept to Skipped in 1.1 — Skipped
+// does not feed warned; see
+// TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning).
 const readyBand = "\n[ready]  prune\n"
 
 // renderCategory renders one category Group whose work Task is named

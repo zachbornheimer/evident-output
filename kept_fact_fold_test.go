@@ -9,11 +9,11 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// keptWithFactsRun is zq prune's in-use shape: one Task per skipped item,
+// skippedWithFactsRun is zq prune's in-use shape: one Task per skipped item,
 // each with a Fact saying why (row := group.Task(name); row.Fact("why",
-// d); row.Skipped(r)). Kept was retired in 1.1 (Skipped wins); the fold
+// d); row.Skipped(r)). ordinary call sites moved to Skipped(reason) in 1.1; the fold
 // this test pins moved with it.
-func keptWithFactsRun(t *testing.T, v evo.Verbosity) string {
+func skippedWithFactsRun(t *testing.T, v evo.Verbosity) string {
 	t.Helper()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "prune", Color: evo.ColorNever, Plain: true, Verbosity: v})
@@ -30,21 +30,21 @@ func keptWithFactsRun(t *testing.T, v evo.Verbosity) string {
 	return buf.String()
 }
 
-// TestKeptItemFacts_KeepTheFold pins E-100: a Fact on a skipped child broke
+// TestSkippedItemFacts_KeepTheFold pins E-100: a Fact on a skipped child broke
 // the fold under verbose, so each child rendered its own "✓ name why …"
 // row and "- skipped 1 (…)". The fold holds; verbose lists each item once
 // with its Facts at one column, whatever the name width.
-func TestKeptItemFacts_KeepTheFold(t *testing.T) {
+func TestSkippedItemFacts_KeepTheFold(t *testing.T) {
 	for _, v := range []evo.Verbosity{evo.VerbosityNormal, evo.VerbosityVerbose} {
-		got := keptWithFactsRun(t, v)
+		got := skippedWithFactsRun(t, v)
 		if strings.Count(got, "- skipped") != 1 || !strings.Contains(got, "- skipped 3 (in use)") {
 			t.Errorf("verbosity %d: want one \"- skipped 3 (in use)\" tally:\n%s", v, got)
 		}
 		if strings.Contains(got, "✓ feat1") || strings.Contains(got, "✓ main") {
-			t.Errorf("verbosity %d: a kept item got its own ✓ row:\n%s", v, got)
+			t.Errorf("verbosity %d: a skipped item got its own ✓ row:\n%s", v, got)
 		}
 	}
-	got := keptWithFactsRun(t, evo.VerbosityVerbose)
+	got := skippedWithFactsRun(t, evo.VerbosityVerbose)
 	var cols []int
 	for line := range strings.SplitSeq(got, "\n") {
 		if i := strings.Index(line, "why  current checkout"); i >= 0 {
@@ -59,9 +59,9 @@ func TestKeptItemFacts_KeepTheFold(t *testing.T) {
 	}
 }
 
-// manyKeptOneFactRun is n skipped items where only the first carries a Fact,
+// manySkippedOneFactRun is n skipped items where only the first carries a Fact,
 // named name (empty for the value-only spelling evo.Fact("", v)).
-func manyKeptOneFactRun(t *testing.T, n int, name string) string {
+func manySkippedOneFactRun(t *testing.T, n int, name string) string {
 	t.Helper()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "prune", Color: evo.ColorNever, Plain: true, Verbosity: evo.VerbosityVerbose})
@@ -78,20 +78,20 @@ func manyKeptOneFactRun(t *testing.T, n int, name string) string {
 	return buf.String()
 }
 
-// TestKeptItemFacts_StayBounded pins E-107/E-104: one Fact on one of 1000
-// kept items switched the verbose reason list from the bounded
+// TestSkippedItemFacts_StayBounded pins E-107/E-104: one Fact on one of 1000
+// skipped items switched the verbose reason list from the bounded
 // "a, b, c … +N more" to one unbounded line per item (1005 lines), and a
 // value-only Fact rendered with a stray leading separator. Only the items
 // with Facts get their own rows; the rest fold into the bounded list.
-func TestKeptItemFacts_StayBounded(t *testing.T) {
-	got := manyKeptOneFactRun(t, 1000, "why")
+func TestSkippedItemFacts_StayBounded(t *testing.T) {
+	got := manySkippedOneFactRun(t, 1000, "why")
 	if lines := strings.Count(got, "\n"); lines > 12 {
-		t.Errorf("verbose kept list of 1000 items with one Fact is %d lines; want it bounded:\n%.600s", lines, got)
+		t.Errorf("verbose skipped list of 1000 items with one Fact is %d lines; want it bounded:\n%.600s", lines, got)
 	}
 	if !strings.Contains(got, "wt0000  why  8.0 KB") || !strings.Contains(got, "wt0001, wt0002, wt0003 … +996 more") {
 		t.Errorf("want the Fact item's row and the bounded remainder:\n%.600s", got)
 	}
-	valueOnly := manyKeptOneFactRun(t, 3, "")
+	valueOnly := manySkippedOneFactRun(t, 3, "")
 	if !strings.Contains(valueOnly, "wt0000  8.0 KB") || strings.Contains(valueOnly, "wt0000    8.0 KB") {
 		t.Errorf("a value-only Fact carries a stray separator:\n%s", valueOnly)
 	}
