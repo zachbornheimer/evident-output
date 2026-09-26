@@ -103,17 +103,35 @@ func TestSequence_ChildRendersSkippedTaxonomyLine(t *testing.T) {
 // reliance is unsound). TestTaskHandle_SkippedCauseVerboseListsEveryCause
 // below still covers the still-live per-task Verbose cause list.
 
-// TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts pinned the
-// ForSkip constraint's misuse path: recording a ForSkip-only reason through
-// TaskHandle.Kept was misuse, and production (non-Strict) still counted the
-// record rather than dropping truth. Kept was retired in 1.1 (Skipped
-// wins, §"Duplicate decisions"): the public evo package has no Kept method
-// any more, so this scenario — a ForSkip reason recorded via Kept — is no
-// longer reachable through the public API at all, and there is nothing
-// left to pin here. ForSkip/OnTask/ReasonOption remain exported only
-// because the exports branch that finishes removing them hasn't landed
-// (a later slice's job); the internal engine's own Kept/misuse machinery
-// they still gate is exercised through internal/engine's own tests.
+// TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts is the red-first
+// case for the ForSkip constraint: recording it through Kept is misuse, and
+// production (non-Strict) still counts the record rather than dropping
+// truth. TaskHandle.Kept is still exported in 1.1 (only ordinary call
+// sites moved to Skipped, per the vocabulary freeze's "Duplicate
+// decisions" section); ForSkip/OnTask/ReasonOption remain exported for the
+// same reason — the exports branch that finishes removing them hasn't
+// landed (a later slice's job).
+func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	evo.SetDefault(out)
+	skipOnly := evo.ReasonConstrained("unpushed", evo.ForSkip())
+
+	branches := out.Task("branches")
+	branches.Kept(skipOnly)
+
+	if out.Err() == nil {
+		t.Fatal("want recorded misuse for a ForSkip reason recorded via Kept")
+	}
+	succeed(branches)
+	// Finish returns the recorded misuse (see ErrAlreadyResolved-style
+	// contracts elsewhere); the assertion here is that the record still
+	// rendered, not that Finish reports a clean run.
+	_ = out.Finish()
+	if !strings.Contains(buf.String(), "kept 1 (unpushed)") {
+		t.Fatalf("misuse must still count the record, got:\n%s", buf.String())
+	}
+}
 
 // TestReason_OnTaskWrongTaskPanicsUnderStrict is the red-first case for the
 // OnTask constraint under Strict: a reason scoped to one task, recorded from

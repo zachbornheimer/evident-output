@@ -1,14 +1,51 @@
 package evo_test
 
-// TestKept_ConcludesWarnedInHumanAndMachineOutput pinned the contract §18
-// requirement that a Kept record feeds the conclusion's warned dimension,
-// in both the human "· warned" band and the machine --json
-// conclusion.warned field. Kept was retired in 1.1 (Skipped wins,
-// §"Duplicate decisions" in the vocabulary freeze): the public evo package
-// has no Kept method any more, so a Kept record can no longer be produced
-// through the public API, and there is nothing left here to pin. The
-// counterpart this file existed alongside — a Skipped record does NOT feed
-// warned, in either the human band or the machine conclusion — is still
-// live and covered by TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning
-// (taxonomy_test.go), which asserts both the absent "warned" band in the
-// human transcript and out.Conclusion().Warned == false.
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"testing"
+
+	evo "github.com/zachbornheimer/evident-output"
+)
+
+// TestKept_ConcludesWarnedInHumanAndMachineOutput pins the contract §18
+// change that a Kept record feeds the conclusion's warned dimension, not
+// only the human "· warned" band: a run whose one Task kept items it was
+// asked to clean did less than asked, so a machine consumer reading
+// the --json document's conclusion.warned sees what a human reading the
+// band sees. A run that
+// only Skipped stays unwarned (TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning).
+func TestKept_ConcludesWarnedInHumanAndMachineOutput(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	repos := out.Task("repositories")
+	repos.Define(func(context.Context) error {
+		repos.Kept(evo.Reason("unpushed"))
+		return nil
+	})
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("[ready · warned]")) {
+		t.Fatalf("a Kept record must feed the human warned band:\n%s", buf.String())
+	}
+	var doc struct {
+		Conclusion struct {
+			State  string `json:"state"`
+			Warned bool   `json:"warned"`
+		} `json:"conclusion"`
+	}
+	raw, err := evo.EncodeJSON(out.Snapshot()) // the --json projection
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if !doc.Conclusion.Warned || doc.Conclusion.State != "ready" {
+		t.Fatalf("machine conclusion must read ready + warned for a Kept record, got %+v", doc.Conclusion)
+	}
+}
