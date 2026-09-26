@@ -17,6 +17,17 @@ type flusher interface {
 	Flush() error
 }
 
+// hasPendingCollectionRowsLocked reports whether this run has declared any
+// Group/Sequence: in plain/non-interactive mode a collection's rows never
+// stream progressively (writeResidualEntitiesLocked's comment; a Group's
+// disposition tally can't be known complete until Finish), so any of the
+// run's collections still hold rows that only Finish will render. Interactive
+// mode is unaffected — its live region owns collection rows through its own
+// H.20/H.21 path, not this residual one.
+func (o *Output) hasPendingCollectionRowsLocked() bool {
+	return o.cfg.plain && len(o.collections) > 0
+}
+
 // emitLineProgressiveLocked streams a newly appended Line() to the human stream.
 func (o *Output) emitLineProgressiveLocked() {
 	if o.linesEmitted >= len(o.lines) {
@@ -388,11 +399,25 @@ func residualHasEffectSections(o *Output) bool {
 func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, includeEntities bool) string {
 	style := o.humanStyle()
 	var b strings.Builder
-	for i := linesFrom; i < len(snap.Lines); i++ {
-		render.WriteDebugOrLine(&b, snap.Lines[i], style.Color)
+	writeHeldLines := func() {
+		for i := linesFrom; i < len(snap.Lines); i++ {
+			render.WriteDebugOrLine(&b, snap.Lines[i], style.Color)
+		}
+	}
+	// hasPendingCollectionRowsLocked's held-back messages (print.go's
+	// emitMessageLocked) are calls that chronologically followed the
+	// collection rows below — write those rows first so the P2 "interleave
+	// by call time" contract holds even though neither actually streamed
+	// until now (residualPlainLocked's doc comment).
+	deferredLinesToEntities := includeEntities && o.hasPendingCollectionRowsLocked()
+	if !deferredLinesToEntities {
+		writeHeldLines()
 	}
 	if includeEntities {
 		o.writeResidualEntitiesLocked(&b, snap, style)
+	}
+	if deferredLinesToEntities {
+		writeHeldLines()
 	}
 	// A blank line separates the task block from the [changed]/[planned]
 	// ledger (fixture-repo-retire-dryrun.md: line 12→14) — checked against
