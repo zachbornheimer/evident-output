@@ -31,9 +31,9 @@ func (d Disposition) String() string {
 // is skip detail, never a warning: contract §20 "Use a plain,
 // widely-rendered `-` for an already-satisfied/skipped detail", and §41
 // reserves "!" for Warning.
-func (d Disposition) Glyph(s Style) string {
+func (d Disposition) glyph(s Style) string {
 	if d == DispositionSkipped {
 		return s.Dim(txt.GlyphSkipDetail.Render(s.Profile))
 	}
-	return s.warningGlyph()
+	return s.WarningGlyph()
 }

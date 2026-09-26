@@ -147,7 +147,7 @@ func writeAction(b *strings.Builder, a core.Action, s Style) {
 	glyph := txt.StyleGlyph(txt.GlyphNextAction.Render(s.Profile), txt.SGRCyan, s.Color)
 	if a.Command != nil {
 		cmd := a.Command.Executable + " " + strings.Join(a.Command.Args, " ")
-		fmt.Fprintf(b, "%s  %s\n", glyph, s.Paint(cmd, txt.SGRCyan))
+		fmt.Fprintf(b, "%s  %s\n", glyph, s.paint(cmd, txt.SGRCyan))
 		return
 	}
 	if a.Label != "" {

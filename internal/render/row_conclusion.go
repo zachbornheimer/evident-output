@@ -9,6 +9,30 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
+// dryRunMarkerText is the fixed announcement body for a dry-run run's
+// opening line (evo-rec.md core.Problem 1: "a dry run must announce itself").
+const dryRunMarkerText = "no changes will be made"
+
+// conclusionPartialModifier is the literal suffix that marks the printed
+// band as evo-rec.md's completeness axis rather than a new Headline: a run
+// that never invented a State of its own (StatePartial is dead precisely
+// because Partial is a modifier, not a root verdict) still needs an honest
+// band when core.Conclusion.Partial is true (release-gate round 4 finding 1) — an
+// abandoned per-item loop or a forgotten terminal verb on an otherwise clean
+// finish must not read as silently complete.
+const conclusionPartialModifier = " · partial"
+
+// conclusionWarnedModifier marks the printed band with the same "modifier,
+// not a new Headline" treatment as conclusionPartialModifier (release-gate
+// round 8 finding 3): a run that carries at least one warning-severity
+// Problem annotation (P2: a warning-severity Problem never resolves its
+// own lifecycle state) while its
+// Headline settled on an OK-family state (e.g. [ready]) must not read as
+// silently clean — the exit code is unchanged, only the band gains this
+// suffix. core.Conclusion.Warned is already false when State is itself
+// core.StateWarning, so the two never double up.
+const conclusionWarnedModifier = " · warned"
+
 // WritePlannedHeader emits a planned run's unmissable opening line. It
 // renders once, first — a caller cannot opt out or bury it, because every
 // planned projection (RenderPlain and Finish's residual) calls this before
@@ -63,14 +87,14 @@ func WriteConclusion(b *strings.Builder, c core.Conclusion, s Style) {
 		writeCancellationBand(b, c, s)
 		return
 	}
-	tag := s.Paint(conclusionBandTag(c), conclusionColor(c.State))
+	tag := s.paint(conclusionBandTag(c), conclusionColor(c.State))
 	// A bare Subject that equals the Headline state word itself ("changed",
 	// "failed", ...) says nothing the bracketed tag hasn't already said — it
 	// is what an unconfigured Config.Title falls back to, not a caller's
 	// chosen subject, so printing it stutters the band ("[changed]  changed",
 	// release-gate round 10 finding 1). Suppress it instead of repeating it.
 	if c.Subject != "" && c.Subject != string(c.State) {
-		fmt.Fprintf(b, "\n%s  %s\n", tag, s.Paint(c.Subject, txt.SGRBold))
+		fmt.Fprintf(b, "\n%s  %s\n", tag, s.paint(c.Subject, txt.SGRBold))
 	} else {
 		fmt.Fprintf(b, "\n%s\n", tag)
 	}
@@ -95,16 +119,16 @@ func writeCancellationBand(b *strings.Builder, c core.Conclusion, s Style) {
 	// beside it would only repeat that (the not-started rows say which part).
 	tagged := c
 	tagged.Partial = false
-	line := s.Paint(conclusionBandTag(tagged), conclusionColor(c.State))
+	line := s.paint(conclusionBandTag(tagged), conclusionColor(c.State))
 	if c.Subject != "" && c.Subject != string(c.State) {
-		line += " " + s.Paint(c.Subject, txt.SGRBold)
+		line += " " + s.paint(c.Subject, txt.SGRBold)
 	}
 	if c.Explanation != "" {
 		line += "  " + c.Explanation
 	}
 	fmt.Fprintf(b, "\n%s\n", line)
 	if _, committed := summarizeAlreadyMutated(c.Changes); committed {
-		fmt.Fprintf(b, "  %s %s\n", s.warningGlyph(), cancellationPartialChangesNote)
+		fmt.Fprintf(b, "  %s %s\n", s.WarningGlyph(), cancellationPartialChangesNote)
 	}
 	for _, a := range c.Actions {
 		writeAction(b, a, s)

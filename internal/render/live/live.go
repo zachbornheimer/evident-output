@@ -1,3 +1,7 @@
+// Package live projects a core.Snapshot to interactive TTY frames — the
+// counterpart to render/plain's durable text. It imports render for the
+// shared row vocabulary; render never imports live (see plain.go's package
+// doc for the mirrored rule on the plain side).
 package live
 
 import (

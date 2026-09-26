@@ -40,7 +40,7 @@ func WarningText(w core.Problem) string {
 // inline and a nested warning must signal identically, never a dim-only
 // inline row that drops the one glyph the fixture treats as load-bearing.
 func inlineWarningText(msg string, s Style) string {
-	return s.Dim(s.warningGlyph() + " " + msg)
+	return s.Dim(s.WarningGlyph() + " " + msg)
 }
 
 // inlineTaskTaxonomy mirrors inlineTaskWarning/inlineTaskFact for a task's
@@ -117,7 +117,7 @@ func writeNestedTaskFacts(b *strings.Builder, facts []core.Fact, indent string, 
 // one place a warned task still reads as "not silently clean" in a colored
 // terminal, now that its own row glyph is an ordinary green ✓.
 func WriteNestedTaskWarnings(b *strings.Builder, warnings []core.Problem, indent string, s Style) {
-	glyph := s.warningGlyph()
+	glyph := s.WarningGlyph()
 	for _, w := range warnings {
 		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, WarningText(w))
 	}
@@ -204,7 +204,7 @@ func WriteTaxonomyHeadline(b *strings.Builder, indent string, verb Disposition, 
 	if tally.Total() == 0 {
 		return
 	}
-	fmt.Fprintf(b, "%s%s %s\n", indent, verb.Glyph(s), taxonomySummaryText(verb, tally))
+	fmt.Fprintf(b, "%s%s %s\n", indent, verb.glyph(s), taxonomySummaryText(verb, tally))
 }
 
 // WriteDispositions writes d's skipped then kept tallies at indent.
@@ -226,7 +226,7 @@ func TaskDispositions(t core.TaskSnapshot) core.Dispositions {
 // inlineTaxonomyText is a tally inlined on its task's row, with the same
 // glyph its nested line would carry (Disposition.glyph).
 func inlineTaxonomyText(text string, verb Disposition, s Style) string {
-	return s.Dim(verb.Glyph(s) + " " + text)
+	return s.Dim(verb.glyph(s) + " " + text)
 }
 
 // taxonomySummaryText derives the "<verb> N (<reason breakdown>)" text shared

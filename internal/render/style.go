@@ -17,8 +17,8 @@ type Style struct {
 // Dim demotes subordinate text.
 func (s Style) Dim(text string) string { return txt.Dim(text, s.Color) }
 
-// Paint applies an SGR code to text.
-func (s Style) Paint(text, sgr string) string { return txt.Style(text, sgr, s.Color) }
+// paint applies an SGR code to text.
+func (s Style) paint(text, sgr string) string { return txt.Style(text, sgr, s.Color) }
 
 // stateGlyph is a Task or container state's glyph in its state color.
 func (s Style) stateGlyph(state core.EntityState) string {
@@ -43,14 +43,10 @@ func StateColor(s core.EntityState) string {
 	}
 }
 
-// warningGlyph is the yellow attention bang ("!").
 // WarningGlyph renders the "!" (or profile equivalent) glyph a warning-
 // severity annotation is prefixed with. Exported for plain's
-// writeRunAnnotations, the one caller outside render (row_annotation.go
-// uses the unexported form for its own in-package calls).
-func (s Style) WarningGlyph() string { return s.warningGlyph() }
-
-func (s Style) warningGlyph() string {
+// writeRunAnnotations, the one caller outside render.
+func (s Style) WarningGlyph() string {
 	return txt.StyleGlyph(txt.GlyphWarningState.Render(s.Profile), txt.SGRYellow, s.Color)
 }
 

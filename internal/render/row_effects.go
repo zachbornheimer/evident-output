@@ -79,7 +79,7 @@ func WriteEffects(b *strings.Builder, sec EffectSection, s Style) {
 		writeNothingToDo(b, sec)
 		return
 	}
-	tag := s.Paint(fmt.Sprintf("[%s]", sec.Kind), effectColor(sec.Kind))
+	tag := s.paint(fmt.Sprintf("[%s]", sec.Kind), effectColor(sec.Kind))
 	visible := mergeIdenticalEffectRecords(sec.Records)
 	if len(visible) == 1 {
 		writeEffectLine(b, tag, sec, visible[0])
@@ -200,7 +200,7 @@ func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, s S
 	if !ok {
 		return
 	}
-	fmt.Fprintf(b, "%s  already mutated: %s\n", s.warningGlyph(), summary)
+	fmt.Fprintf(b, "%s  already mutated: %s\n", s.WarningGlyph(), summary)
 }
 
 // summarizeAlreadyMutated derives the "! already mutated: ..." line's
