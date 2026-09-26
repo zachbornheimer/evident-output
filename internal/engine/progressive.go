@@ -44,6 +44,16 @@ func (o *Output) hasPendingCollectionRowsLocked() bool {
 	return false
 }
 
+// hasHeldMessageLocked reports whether a Println/Printf line is currently
+// sitting in o.lines waiting for a pending collection's row to render ahead
+// of it (emitMessageLocked's hasPendingCollectionRowsLocked branch). Only
+// while such a message is actually waiting does a later-resolved standalone
+// Task also need to defer (commitResolvedTaskLocked) to keep the message's
+// own call-time position intact — see that call site's doc comment.
+func (o *Output) hasHeldMessageLocked() bool {
+	return len(o.lines) > o.linesEmitted
+}
+
 // emitLineProgressiveLocked streams a newly appended Line() to the human stream.
 func (o *Output) emitLineProgressiveLocked() {
 	if o.linesEmitted >= len(o.lines) {
@@ -180,6 +190,24 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, o.humanStyle())
 	st.coreEmitted = true
 	if b.Len() == 0 {
+		return
+	}
+	if o.hasPendingCollectionRowsLocked() && o.hasHeldMessageLocked() {
+		// A standalone Task's row always streams immediately, even one
+		// resolved after a collection has settled — TestV8_Stress pins
+		// that a Task declared after a settled Group still jumps ahead of
+		// it, because entities always occupy their own fixed Finish slot
+		// (writeResidualEntitiesLocked: tasks, then collections) regardless
+		// of resolution order. But a Println/Printf call made while a
+		// collection is pending (print.go's emitMessageLocked) instead
+		// holds its line back until that fixed slot renders — and once
+		// such a message is waiting, a Task resolved after it must not
+		// print ahead of it: that would still invert the P2 "interleave by
+		// call time" contract for the message, even though the Task's own
+		// ordering relative to the collection is unaffected. Folding this
+		// Task's row into the same held-lines mechanism as the message
+		// keeps both interleaved in call order.
+		o.lines = append(o.lines, strings.TrimSuffix(b.String(), "\n"))
 		return
 	}
 	o.writeDurableTextLocked(b.String())
