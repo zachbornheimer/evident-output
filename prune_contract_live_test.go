@@ -35,7 +35,7 @@ type liveCategory struct {
 // One documented departure, already established by TestV8_LiveParallelPrune:
 // the doc's own illustrative frame shows "— 2s", but spec §24 fixes the
 // elapsed-suffix threshold at 5 seconds of actual Running time
-// (internal/render/live.go's elapsedAfter) — this advances the clock 5s,
+// (internal/render/live/live.go's elapsedAfter) — this advances the clock 5s,
 // not 2s, and pins "— 5s".
 func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())

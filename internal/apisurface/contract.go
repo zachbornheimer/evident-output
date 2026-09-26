@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/zachbornheimer/evident-output/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/internal/retired"
 )
 
 // GoldenRelPath and RequiredRelPath are the module-root-relative contract files.
@@ -17,10 +17,10 @@ const (
 )
 
 // RetiredNames are identifiers 1.0/1.1 deliberately removed, or never had
-// (rules.Symbols() is the one table). A reappearance fails the contract
+// (retired.Symbols() is the one table). A reappearance fails the contract
 // even if testdata/api_golden.txt is rewritten to match, so retiring a name
 // stays retired.
-var RetiredNames = rules.ContractNames()
+var RetiredNames = retired.ContractNames()
 
 // Report is the four-bucket result of Check. Empty buckets mean that
 // dimension passed. OK is true only when every bucket is empty.

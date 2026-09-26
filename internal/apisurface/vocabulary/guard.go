@@ -5,48 +5,6 @@ import (
 	"strings"
 )
 
-// NamesFromSurface converts apisurface.Walk's golden-format lines
-// ("type X", "type X.Field", "func Name(...)", "func (X) M(...)", "value
-// Name") into the bare/"Receiver.Member" identifier spelling
-// testdata/api_vocabulary.txt names its entries with.
-func NamesFromSurface(lines []string) []string {
-	names := make([]string, 0, len(lines))
-	for _, line := range lines {
-		if name, ok := surfaceName(line); ok {
-			names = append(names, name)
-		}
-	}
-	return names
-}
-
-func surfaceName(line string) (string, bool) {
-	switch {
-	case strings.HasPrefix(line, "type "):
-		return strings.TrimPrefix(line, "type "), true
-	case strings.HasPrefix(line, "value "):
-		return strings.TrimPrefix(line, "value "), true
-	case strings.HasPrefix(line, "func ("):
-		rest := strings.TrimPrefix(line, "func (")
-		recv, rest, ok := strings.Cut(rest, ") ")
-		if !ok {
-			return "", false
-		}
-		method, _, ok := strings.Cut(rest, "(")
-		if !ok {
-			return "", false
-		}
-		return recv + "." + method, true
-	case strings.HasPrefix(line, "func "):
-		name, _, ok := strings.Cut(strings.TrimPrefix(line, "func "), "(")
-		if !ok {
-			return "", false
-		}
-		return name, true
-	default:
-		return "", false
-	}
-}
-
 // Violations is the vocabulary guard's result: every way the vocabulary
 // file and the live exported surface can disagree. Empty means they agree.
 type Violations struct {

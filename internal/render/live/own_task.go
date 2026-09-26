@@ -17,8 +17,7 @@ import (
 // live-frame-only rule: the durable projection never folds a header and
 // its one child onto a single line.
 func promotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
-	hasOnlyChild := !col.Sequential && col.Summary == "" && len(col.Tasks) == 1 && len(col.Collections) == 0
-	if !hasOnlyChild || render.IsOwnTask(col.Name, &col.Tasks[0]) {
+	if !render.HasOnlyChild(col) || render.IsOwnTask(col.Name, &col.Tasks[0]) {
 		return false
 	}
 	switch col.Tasks[0].State {

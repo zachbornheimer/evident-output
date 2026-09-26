@@ -29,6 +29,16 @@ func IsOwnTask(group string, t *core.TaskSnapshot) bool {
 // clean") and no child row can carry it. A Sequence keeps its header: its
 // order is meaning a single row cannot state.
 func hasOnlyChild(col core.TasksSnapshot) bool {
+	return HasOnlyChild(col)
+}
+
+// HasOnlyChild reports whether a group's whole visible content is one
+// child Task: no nested collection and no Summary of its own. render owns
+// this predicate — the live-frame-only lone-child-on-header rule
+// (internal/render/live) reads it here instead of keeping its own copy, so
+// the durable and live projections cannot drift on what counts as "one
+// child" out from under each other.
+func HasOnlyChild(col core.TasksSnapshot) bool {
 	return !col.Sequential && col.Summary == "" && len(col.Tasks) == 1 && len(col.Collections) == 0
 }
 

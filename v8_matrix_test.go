@@ -594,7 +594,7 @@ func firstRune(s string) string {
 // One deliberate departure: the frame shows the elapsed suffix at "— 2s",
 // but spec §24 is explicit that "Elapsed time appears automatically after
 // 5 seconds of actual Running time" — the existing, already-tested
-// elapsedAfter threshold (internal/render/live.go) matches the spec's own
+// elapsedAfter threshold (internal/render/live/live.go) matches the spec's own
 // normative text, not the frame's illustrative "2s". This golden advances
 // the clock 5s instead.
 func TestV8_LiveParallelPrune(t *testing.T) {
@@ -623,7 +623,7 @@ func TestV8_LiveParallelPrune(t *testing.T) {
 	// Bar fill is proportional to completed/total (spec §23: "the bar is
 	// decorative", the count is authoritative) — this matches §18's frame
 	// exactly (120/459 -> 4 filled, 70/294 -> 3 filled, 1/4 -> 3 filled).
-	// progressBar (internal/render/live.go) computes that as a ceiling of
+	// progressBar (internal/render/live/live.go) computes that as a ceiling of
 	// completed/total*width, not nearest-value rounding: nearest would
 	// round 120/459 down to 3/12, hiding real progress that has started
 	// on a 4th cell — see the pinned rounding table in

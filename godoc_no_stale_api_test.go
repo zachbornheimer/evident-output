@@ -13,7 +13,7 @@ import (
 
 // godocStaleAPIExempt holds the one file whose comments must name retired
 // API: the table of retired names itself.
-var godocStaleAPIExempt = []string{"internal/agent/rules/retired.go"}
+var godocStaleAPIExempt = []string{"internal/retired/retired.go"}
 
 // TestGoCommentsCarryNoStaleAPI extends TestDocsCarryNoStaleAPI to Go
 // comments. Engine godoc is read by agents as surely as the docs are, so a

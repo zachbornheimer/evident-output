@@ -89,7 +89,7 @@ func TestWriteLiveTaskLine_GroupChildSplitsActivity(t *testing.T) {
 	}
 }
 
-func TestLiveRegion_ProjectsChangedAndPlannedLedger(t *testing.T) {
+func TestRegion_ProjectsChangedAndPlannedLedger(t *testing.T) {
 	t.Parallel()
 	snap := core.Snapshot{
 		Tasks: []core.TaskSnapshot{{Name: "work", State: core.Done}},

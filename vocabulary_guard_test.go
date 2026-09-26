@@ -3,23 +3,22 @@ package evo_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/agent/vocabulary"
 	"github.com/zachbornheimer/evident-output/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/internal/apisurface/vocabulary"
 )
 
 // TestVocabularyGuard_FlagsUnclassifiedRemovedOrUnexportedNames proves
-// internal/agent/vocabulary.Check is the single source that keeps
+// internal/apisurface/vocabulary.Check is the single source that keeps
 // testdata/api_vocabulary.txt (E-122, ZYS-1190 freeze) honest against the
 // live root-package surface: the guard fails when a live exported
 // identifier is missing from the file, when the file classes a live
 // identifier Removed, and when the file lists a non-Removed name that
 // nothing in the live surface has.
 func TestVocabularyGuard_FlagsUnclassifiedRemovedOrUnexportedNames(t *testing.T) {
-	live, err := apisurface.Walk(".")
+	names, err := apisurface.Names(".")
 	if err != nil {
 		t.Fatal(err)
 	}
-	names := vocabulary.NamesFromSurface(live)
 
 	entries, err := vocabulary.ParseFile("testdata/api_vocabulary.txt")
 	if err != nil {
