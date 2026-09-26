@@ -137,7 +137,7 @@ func TestLiveOwnTask_SuppressesTalliesWhileRunning(t *testing.T) {
 }
 
 // promotedLoneChildRunning is a category whose lone child is not its own
-// Task (own_task.go's PromotesLoneChildOntoHeader), still Running, plus
+// Task (promotesLoneChildOntoHeader, own_task.go), still Running, plus
 // five caused Skipped items folded into a tally.
 func promotedLoneChildRunning() core.TasksSnapshot {
 	cause := []core.TaxonomyRecord{{Reason: "unpushed", Name: "x", Causes: []string{"x has no upstream"}}}
@@ -152,7 +152,7 @@ func promotedLoneChildRunning() core.TasksSnapshot {
 
 // TestLivePromotedLoneChild_SuppressesTalliesWhileRunning is this slice's
 // RED-then-GREEN case for the promoted-lone-child live shape (contract
-// §18, extended): PromotesLoneChildOntoHeader only ever fires while its
+// §18, extended): promotesLoneChildOntoHeader only ever fires while its
 // lone child is Running or Pending, so the same "would understate" reason
 // the own-Task shape already applies to itself applies here — the folded
 // tally must never paint in this shape.

@@ -517,10 +517,10 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 		body = renderlive.ArmedTitleLine(o.cfg.subject, now, style)
 	}
 	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {
-		return renderlive.FitLiveRegion(body, width)
+		return renderlive.FitRegion(body, width)
 	}
 	var b strings.Builder
 	b.WriteString(body)
 	writeDebugPane(&b, o.debugRecords, o.cfg.debugPane, width, style.Color)
-	return renderlive.FitLiveRegion(strings.TrimRight(b.String(), "\n"), width)
+	return renderlive.FitRegion(strings.TrimRight(b.String(), "\n"), width)
 }

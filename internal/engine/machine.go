@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/render/machine"
 )
 
 func writeMachinePresentation(w io.Writer, snap Snapshot, events []Event, proj Projection, misuse error) error {
@@ -13,9 +13,9 @@ func writeMachinePresentation(w io.Writer, snap Snapshot, events []Event, proj P
 	var err error
 	switch proj {
 	case ProjectionJSON:
-		body, err = render.EncodeJSON(snap)
+		body, err = machine.EncodeJSON(snap)
 	case ProjectionJSONL:
-		body, err = render.EncodeJSONL(events)
+		body, err = machine.EncodeJSONL(events)
 	default:
 		return misuse
 	}

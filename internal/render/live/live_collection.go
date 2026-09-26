@@ -84,13 +84,13 @@ func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, heig
 		if col.Tasks[0].State != core.Running {
 			writeLiveDispositions(b, render.TaskAnnotationIndent, items, height-taskRows, st.Style)
 		}
-	case render.PromotesLoneChildOntoHeader(col):
+	case promotesLoneChildOntoHeader(col):
 		unit := liveTaskUnit(col.Tasks[0], 0, countWidths{}, st)
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
-		// Contract §18: render.PromotesLoneChildOntoHeader only ever fires while
-		// its lone child is Running or Pending (own_task.go), so this
+		// Contract §18: promotesLoneChildOntoHeader only ever fires while
+		// its lone child is Running or Pending, so this
 		// shape is always mid-classification — the same "would understate
 		// or flap" reasoning as the own-Task branch above applies
 		// unconditionally here; the tally never paints in this shape.

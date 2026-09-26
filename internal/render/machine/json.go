@@ -1,4 +1,11 @@
-package render
+// Package machine is evident-output's third Snapshot projection: the
+// versioned JSON wire format consumed by other programs (evo --json,
+// review, rules), alongside render/live's interactive frame and
+// render/plain's durable text. It owns the machine-consumer invariant —
+// a stable, versioned document shape — separately from render's shared
+// row vocabulary, which durable and interactive rendering share but a
+// JSON consumer never sees.
+package machine
 
 import (
 	"encoding/json"

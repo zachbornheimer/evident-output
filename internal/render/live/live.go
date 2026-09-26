@@ -99,7 +99,7 @@ func ArmedTitleLine(subject string, now time.Time, s render.Style) string {
 	return fmt.Sprintf("%s  %s", txt.StyleGlyph(txt.SpinnerGlyph(now, s.Profile), txt.SGRCyan, s.Color), title)
 }
 
-func FitLiveRegion(text string, columns int) string {
+func FitRegion(text string, columns int) string {
 	if columns <= 0 {
 		columns = render.DefaultWidth
 	}

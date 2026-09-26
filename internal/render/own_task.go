@@ -48,24 +48,3 @@ func OwnTaskRowName(col core.TasksSnapshot) (string, bool) {
 	}
 	return rest.Name, true
 }
-
-// PromotesLoneChildOntoHeader reports whether a group's one child that is
-// not its own Task is still in flight (Running or Pending). The live frame
-// then keeps both names on a single row — `<spin> worktrees  classify
-// [██░░] 24/111  <path> — 12s` while it runs, `○ branches  classify
-// waiting` while it is blocked — rather than spending a header line on a
-// count of one (`0/1 complete — 18s`) and an indented line on the only
-// child. The child's evidence rides the header; the subject survives; a
-// blocked group does not spin. Done/Failed/Skipped children still take the
-// header+child shape when they need their own evidence.
-func PromotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
-	if !hasOnlyChild(col) || IsOwnTask(col.Name, &col.Tasks[0]) {
-		return false
-	}
-	switch col.Tasks[0].State {
-	case core.Running, core.Pending:
-		return true
-	default:
-		return false
-	}
-}

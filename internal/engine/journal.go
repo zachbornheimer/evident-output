@@ -3,7 +3,7 @@ package engine
 import (
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/render/machine"
 )
 
 // journal is the run's durable event log, bounded under backpressure
@@ -101,7 +101,7 @@ func (o *Output) writeStreamJSONLocked(e Event) {
 	if w == nil {
 		return
 	}
-	row, err := render.EncodeEventJSON(e)
+	row, err := machine.EncodeEventJSON(e)
 	if err != nil {
 		return
 	}
