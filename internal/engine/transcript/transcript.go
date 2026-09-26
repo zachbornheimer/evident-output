@@ -51,6 +51,14 @@ type line struct {
 type Transcript struct {
 	mu sync.Mutex
 
+	// emit serializes OnLine calls and keeps them outside mu: flush
+	// retains a line under mu, then hands over to emit before calling
+	// OnLine, so callback order still matches retention order but a
+	// callback that re-enters the owning engine (e.g. to mirror the line)
+	// never has to wait on a lock resolve already holds while it, in
+	// turn, waits here (§4 C10).
+	emit sync.Mutex
+
 	pending [3]bytes.Buffer // indexed by Stream
 
 	lines     []line
@@ -100,6 +108,7 @@ func (t *Transcript) Write(s Stream, p []byte) {
 		}
 		buf.Write(p[:i])
 		t.flushLocked(s)
+		buf = t.pendingFor(s) // flushLocked released and re-acquired mu
 		p = p[i+1:]
 	}
 	if buf.Len() > maxLineLen*2 {
@@ -139,6 +148,12 @@ func (t *Transcript) normalizeLine(raw string) string {
 	return txt.TruncateUTF8(raw, maxLineLen, "…")
 }
 
+// flushLocked must be called with mu held and returns with mu held. When
+// OnLine is set, it hands over from mu to emit around the callback: the
+// line is retained under mu first, then emit is taken and mu released
+// before OnLine runs, so a callback that re-enters the owning engine never
+// waits on mu while this goroutine holds it. emit still serializes
+// callbacks in retention order (§4 C10).
 func (t *Transcript) flushLocked(s Stream) {
 	buf := t.pendingFor(s)
 	raw := buf.String()
@@ -160,7 +175,13 @@ func (t *Transcript) flushLocked(s Stream) {
 		t.lines = t.lines[1:]
 	}
 
-	if t.onLine != nil {
-		t.onLine(text)
+	onLine := t.onLine
+	if onLine == nil {
+		return
 	}
+	t.emit.Lock()
+	t.mu.Unlock()
+	onLine(text)
+	t.emit.Unlock()
+	t.mu.Lock()
 }
