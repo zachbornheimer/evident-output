@@ -148,6 +148,16 @@ func liveGroupHeader(col core.TasksSnapshot, done, total int, st liveStyle) Disp
 	return unit
 }
 
+// categoryStillClassifying reports whether col's own state is still in
+// flight — any child Running or Pending, recursively. Contract §18: a
+// folded "- skipped N" / "! kept N" tally names a final count, so it must
+// not paint while more disposition items could still arrive from work the
+// category itself has not finished (the same reasoning the own-Task and
+// promoted-lone-child live shapes already apply to their own row).
+func categoryStillClassifying(col core.TasksSnapshot) bool {
+	return anyChildRunning(col) || anyChildPendingActive(col)
+}
+
 func anyChildRunning(col core.TasksSnapshot) bool {
 	if ownCounts(col).Running || core.CollectionTallyOf(col).Tasks.Running {
 		return true

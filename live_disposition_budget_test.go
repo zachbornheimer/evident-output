@@ -21,7 +21,12 @@ const liveBudgetHeight = 8
 // still accounts for what did not fit. Ordinary call sites moved to
 // Skipped in 1.1 (§"Duplicate decisions"): this test used to hold two
 // dispositions (Kept and Skipped) to the same budget; both reasons now
-// fold into the one Skipped tally.
+// fold into the one Skipped tally. The 1.1 slice extends contract §18's
+// running-suppression rule to this shape too: while any package is still
+// downloading the tally must not paint at all (it would understate — more
+// packages could still resolve Skipped), so the row budget it used to
+// spend on the tally line now goes to child rows and the omission line
+// instead.
 func TestLiveGroup_AggregatedTalliesCountAgainstTheRowBudget(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(liveBudgetHeight), testkit.NoColor())
 	out := evo.Init(evo.Config{
@@ -40,10 +45,11 @@ func TestLiveGroup_AggregatedTalliesCountAgainstTheRowBudget(t *testing.T) {
 	}
 
 	frame := screen.LatestLiveText()
-	for _, want := range []string{"- skipped 80 (40 pinned, 40 vendored)", "not shown"} {
-		if !strings.Contains(frame, want) {
-			t.Fatalf("live frame lacks %q:\n%s", want, frame)
-		}
+	if strings.Contains(frame, "skipped 80") {
+		t.Fatalf("live frame must not show the skipped tally while packages are still downloading:\n%s", frame)
+	}
+	if !strings.Contains(frame, "not shown") {
+		t.Fatalf("live frame lacks \"not shown\":\n%s", frame)
 	}
 	if rows := strings.Count(frame, "\n") + 1; rows > liveBudgetHeight {
 		t.Fatalf("live frame is %d rows, over the %d-row budget:\n%s", rows, liveBudgetHeight, frame)

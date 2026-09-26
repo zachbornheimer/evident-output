@@ -135,6 +135,41 @@ func TestLiveOwnTask_SuppressesTalliesWhileRunning(t *testing.T) {
 	}
 }
 
+// promotedLoneChildRunning is a category whose lone child is not its own
+// Task (own_task.go's promotesLoneChildOntoHeader), still Running, plus
+// five caused Skipped items folded into a tally.
+func promotedLoneChildRunning() core.TasksSnapshot {
+	cause := []core.TaxonomyRecord{{Reason: "unpushed", Name: "x", Causes: []string{"x has no upstream"}}}
+	var items []core.TaskSnapshot
+	for i := range 5 {
+		items = append(items, core.TaskSnapshot{Name: "item-" + string(rune('a'+i)), State: core.Skipped, Skipped: cause})
+	}
+	return core.TasksSnapshot{Name: "branches", State: core.Running, Tasks: append([]core.TaskSnapshot{
+		{Name: "classify", State: core.Running, Progress: core.Progress{Kind: core.Determinate, Completed: 3, Total: 10}},
+	}, items...)}
+}
+
+// TestLivePromotedLoneChild_SuppressesTalliesWhileRunning is this slice's
+// RED-then-GREEN case for the promoted-lone-child live shape (contract
+// §18, extended): promotesLoneChildOntoHeader only ever fires while its
+// lone child is Running or Pending, so the same "would understate" reason
+// the own-Task shape already applies to itself applies here — the folded
+// tally must never paint in this shape.
+func TestLivePromotedLoneChild_SuppressesTalliesWhileRunning(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	writeLiveCollection(&b, promotedLoneChildRunning(), 20, testLiveStyle)
+	frame := b.String()
+	if !strings.Contains(frame, "classify") {
+		t.Fatalf("live frame lacks the promoted lone child %q:\n%s", "classify", frame)
+	}
+	for _, unwanted := range []string{"- skipped", "! kept"} {
+		if strings.Contains(frame, unwanted) {
+			t.Fatalf("live frame must not show a tally while the promoted lone child is Running:\n%s", frame)
+		}
+	}
+}
+
 // testLiveStyle is the fixed live paint settings internal tests render
 // with: 80 columns, a fixed spinner, no color, Unicode glyphs.
 var testLiveStyle = liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 80, spin: "⠋"}

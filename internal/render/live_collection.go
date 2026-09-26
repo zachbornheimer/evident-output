@@ -88,14 +88,21 @@ func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, heig
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
-		writeLiveDispositions(b, taskAnnotationIndent, items, height-headerRows, st.Style)
+		// Contract §18: promotesLoneChildOntoHeader only ever fires while
+		// its lone child is Running or Pending (own_task.go), so this
+		// shape is always mid-classification — the same "would understate
+		// or flap" reasoning as the own-Task branch above applies
+		// unconditionally here; the tally never paints in this shape.
 	case liveFlattensHeader(col, items, height):
 		writeLiveBody(b, col, height, inPlace, st)
 	default:
 		done, total = liveHeaderProgress(col, done, total)
 		b.WriteString(liveGroupHeader(col, done, total, st).Render(""))
 		b.WriteByte('\n')
-		tallyRows := writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
+		var tallyRows int
+		if !categoryStillClassifying(col) {
+			tallyRows = writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
+		}
 		writeLiveBody(b, col, max(height-headerRows-tallyRows, minLiveChildRows+omissionRows), underHeader, st)
 	}
 	return rowsSince(b, start)
