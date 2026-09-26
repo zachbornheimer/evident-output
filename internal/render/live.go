@@ -541,9 +541,11 @@ func progressBar(completed, total int64, width int) string {
 		return "[" + strings.Repeat("?", width) + "]"
 	}
 	// §18's frame is normative: 120/459 -> 4/12 filled, 70/294 -> 3/12
-	// filled, 1/4 -> 3/12 filled (exact). That is ceiling of
-	// completed/total*width, not round-half-up (round-half-up would give
-	// 120/459 -> 3, contradicting the doc's own cited value).
+	// filled, 1/4 -> 3/12 filled (exact). Any nonzero fraction of a cell
+	// counts as that cell started — ceiling of completed/total*width — so
+	// the bar never under-represents real progress the way nearest-value
+	// rounding would (nearest would round 120/459 down to 3/12, hiding
+	// work that has, in fact, started on a 4th cell).
 	filled := int(math.Ceil(float64(width) * float64(completed) / float64(total)))
 	if completed > 0 && filled == 0 {
 		filled = 1
