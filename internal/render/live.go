@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -455,9 +456,16 @@ func progressBar(completed, total int64, width int) string {
 	if total <= 0 {
 		return "[" + strings.Repeat("?", width) + "]"
 	}
-	filled := int(float64(width) * float64(completed) / float64(total))
+	// §18's frame is normative: 120/459 -> 4/12 filled, 70/294 -> 3/12
+	// filled, 1/4 -> 3/12 filled (exact). That is ceiling of
+	// completed/total*width, not round-half-up (round-half-up would give
+	// 120/459 -> 3, contradicting the doc's own cited value).
+	filled := int(math.Ceil(float64(width) * float64(completed) / float64(total)))
 	if completed > 0 && filled == 0 {
 		filled = 1
+	}
+	if completed < total && filled >= width {
+		filled = width - 1
 	}
 	if filled > width {
 		filled = width

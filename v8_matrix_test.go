@@ -500,9 +500,9 @@ func TestV8_StressLive(t *testing.T) {
 	glyph := firstRune(screen.LatestLiveText())
 	want := glyph + " deploy production  1/5 complete — 8s\n" +
 		"   ✓ discover\n" +
-		"   " + glyph + " prepare hosts  [███         ]  31/100 — 8s\n" +
+		"   " + glyph + " prepare hosts  [████        ]  31/100 — 8s\n" +
 		"      " + glyph + " host-031\n" +
-		"   " + glyph + " services   [████        ]  14/40 — 8s\n" +
+		"   " + glyph + " services   [█████       ]  14/40 — 8s\n" +
 		"      " + glyph + " payments-api\n" +
 		"      ! audit-stream rollout slower than baseline\n" +
 		"   ✗ write launch agent  failed: permissions\n" +
@@ -511,7 +511,7 @@ func TestV8_StressLive(t *testing.T) {
 		"        error  operation not permitted\n" +
 		"        path   " + displayPath + "\n" +
 		"        mode   0644\n" +
-		"   " + glyph + " cleanup    [████        ]  7/18 — 8s\n" +
+		"   " + glyph + " cleanup    [█████       ]  7/18 — 8s\n" +
 		"      " + glyph + " feat/cleanup…\n" +
 		"      ! kept 5 (3 protected, 2 unpushed)\n" +
 		"\n" +
@@ -558,7 +558,7 @@ func TestV8_DependencyInstall(t *testing.T) {
 	// on (spec §23.1: motion only proves liveness, no specific frame is
 	// normative) — not necessarily the mockup's illustrative "⠋".
 	glyph := firstRune(screen.LatestLiveText())
-	want := glyph + " install dependencies  [████        ]  14/40 — 7s\n" +
+	want := glyph + " install dependencies  [█████       ]  14/40 — 7s\n" +
 		"   " + glyph + " urllib3"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
@@ -609,11 +609,11 @@ func TestV8_LiveParallelPrune(t *testing.T) {
 
 	glyph := firstRune(screen.LatestLiveText())
 	// Bar fill is proportional to completed/total (spec §23: "the bar is
-	// decorative", the count is authoritative) — 70/294 and 1/4 round to
-	// fewer filled cells than the frame's illustrative bars.
-	want := glyph + " branches         [███         ]  120/459 — 5s\n" +
+	// decorative", the count is authoritative) — this matches §18's frame
+	// exactly (120/459 -> 4 filled, 70/294 -> 3 filled, 1/4 -> 3 filled).
+	want := glyph + " branches         [████        ]  120/459 — 5s\n" +
 		"   " + glyph + " feat/style-contract\n" +
-		glyph + " worktrees        [██          ]  70/294 — 5s\n" +
+		glyph + " worktrees        [███         ]  70/294 — 5s\n" +
 		"   " + glyph + " eapp-system-style-contract-heading\n" +
 		glyph + " remote-tracking  [███         ]  1/4 — 5s\n" +
 		"   " + glyph + " origin/old-style"
@@ -656,7 +656,7 @@ func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
 	want := "✓ write plist\n" +
 		"✓ register\n" +
 		"✓ start\n" +
-		glyph + " install dependencies  [█████       ]  18/40 — 6s\n" +
+		glyph + " install dependencies  [██████      ]  18/40 — 6s\n" +
 		"   " + glyph + " requests"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)

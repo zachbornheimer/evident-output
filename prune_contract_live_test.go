@@ -77,10 +77,10 @@ func TestPruneContract_LiveCategoriesRenderGroupedShape(t *testing.T) {
 	}
 
 	glyph := firstRune(screen.LatestLiveText())
-	want := glyph + " branches         [███         ]  120/459 — 8s\n" +
+	want := glyph + " branches         [████        ]  120/459 — 8s\n" +
 		"   " + glyph + " feat/style-contract\n" +
 		"  - skipped 2 (1 checked out, 1 protected)\n" +
-		glyph + " worktrees        [██          ]  70/294 — 8s\n" +
+		glyph + " worktrees        [███         ]  70/294 — 8s\n" +
 		"   " + glyph + " eapp-system-style-contract-heading\n" +
 		"  - skipped 2 (dirty)\n" +
 		glyph + " remote-tracking  [███         ]  1/4 — 8s\n" +
