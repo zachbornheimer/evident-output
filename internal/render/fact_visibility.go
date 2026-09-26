@@ -24,9 +24,9 @@ func TaskAtVerbosity(t core.TaskSnapshot, verbose bool) core.TaskSnapshot {
 	return t
 }
 
-// SnapshotAtVerbosity applies TaskAtVerbosity to every Task in s, at the
+// snapshotAtVerbosity applies TaskAtVerbosity to every Task in s, at the
 // root and in every collection. The input is not modified.
-func SnapshotAtVerbosity(s core.Snapshot, verbose bool) core.Snapshot {
+func snapshotAtVerbosity(s core.Snapshot, verbose bool) core.Snapshot {
 	if verbose {
 		return s
 	}

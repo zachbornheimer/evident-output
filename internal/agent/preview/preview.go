@@ -24,7 +24,7 @@ func DefaultProfiles(snap evo.Snapshot) []Profile {
 	}
 	var out []Profile
 	for _, s := range specs {
-		text := plain.Plain(snap, s.width, true, false, evo.GlyphsUnicode)
+		text := plain.Render(snap, s.width, true, false, evo.GlyphsUnicode)
 		out = append(out, Profile{Name: s.name, Text: text})
 	}
 	return out

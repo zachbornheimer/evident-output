@@ -16,7 +16,7 @@ import (
 var projectionEpoch = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 // projectLive is s as the engine projects it for a live frame of rows
-// rows: every collection, and the root Tasks, through LiveChildren.
+// rows: every collection, and the root Tasks, through Children.
 func projectLive(s core.Snapshot, rows int) core.Snapshot {
 	out := s
 	cols := projectCollections(s.Collections, rows)
@@ -34,10 +34,10 @@ func projectCollection(col core.TasksSnapshot, rows int) core.TasksSnapshot {
 	return projectTasks(projectCollections(col.Collections, rows).Into(col), rows)
 }
 
-// projectCollections is cols through LiveCollections, as the engine
+// projectCollections is cols through Collections, as the engine
 // feeds it: the reachable ones projected, the rest omitted whole.
-func projectCollections(cols []core.TasksSnapshot, rows int) *LiveCollections {
-	lc := NewLiveCollections(rows)
+func projectCollections(cols []core.TasksSnapshot, rows int) *Collections {
+	lc := NewCollections(rows)
 	for _, child := range cols {
 		if lc.Admit(collectionRank(child)) {
 			lc.Keep(projectCollection(child, rows))
@@ -66,7 +66,7 @@ func perItemGroups(name string, n int, summary string) core.TasksSnapshot {
 }
 
 func projectTasks(col core.TasksSnapshot, rows int) core.TasksSnapshot {
-	children := NewLiveChildren(col.Name, rows)
+	children := NewChildren(col.Name, rows)
 	for i := range col.Tasks {
 		if children.Admit(&col.Tasks[i]) {
 			children.Keep(col.Tasks[i])

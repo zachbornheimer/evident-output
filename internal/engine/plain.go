@@ -22,5 +22,5 @@ func renderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	if glyphs == GlyphsAuto {
 		glyphs = GlyphsUnicode
 	}
-	return []byte(plainrender.Plain(s, opts.Width, opts.NoColor, opts.Verbose, glyphs)), nil
+	return []byte(plainrender.Render(s, opts.Width, opts.NoColor, opts.Verbose, glyphs)), nil
 }

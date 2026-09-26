@@ -12,7 +12,7 @@ import (
 func To(w io.Writer) Option                  { return to(w) }
 func Diagnostics(w io.Writer) Option         { return withDiagnostics(w) }
 func ResultStream(w io.Writer) Option        { return resultStream(w) }
-func Plain() Option                          { return plain() }
+func Render() Option                         { return plain() }
 func NoColor() Option                        { return withNoColor() }
 func Width(columns int) Option               { return withWidth(columns) }
 func Clock(ts TimeSource) Option             { return withClock(ts) }

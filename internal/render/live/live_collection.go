@@ -178,7 +178,7 @@ func (f *liveFill) tasks(col core.TasksSnapshot) {
 // selectLiveChildren picks child Tasks. Every nested Group paints at
 // least a row once it has a Task, so it examines at most one more of them
 // than it has rows: the rest are counted unpainted, which is what lets a
-// live projection leave them out (LiveCollections).
+// live projection leave them out (Collections).
 func (f *liveFill) groups(col core.TasksSnapshot) {
 	cols, left := col.Collections, core.CollectionTallyOf(col)
 	f.omitted += left.Tasks.Total

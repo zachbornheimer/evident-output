@@ -13,9 +13,9 @@ import (
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// Plain projects a snapshot to plain text without terminal ownership.
+// Render projects a snapshot to plain text without terminal ownership.
 // width <= 0 falls back to render.DefaultWidth.
-func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphProfile) string {
+func Render(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphProfile) string {
 	var b strings.Builder
 	if width <= 0 {
 		width = render.DefaultWidth

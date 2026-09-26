@@ -235,7 +235,7 @@ func liveRank(t core.TaskSnapshot) int {
 }
 
 // selectLiveChildren picks at most max of a collection's total children
-// to show, from tasks, which holds all of them or the ones a LiveChildren
+// to show, from tasks, which holds all of them or the ones a Children
 // projection kept.
 func selectLiveChildren(tasks []core.TaskSnapshot, total, max int) (selected []core.TaskSnapshot, omitted int) {
 	if total <= max {

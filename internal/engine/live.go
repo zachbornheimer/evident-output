@@ -459,7 +459,7 @@ func (o *Output) finishLiveLocked(final string) {
 
 // liveSnapshotLocked is what a live frame of rows rows draws from: the
 // effect sections, and every collection and standalone root Task as far
-// as the frame could show it (renderlive.LiveChildren), so building a frame
+// as the frame could show it (renderlive.Children), so building a frame
 // snapshots the rows on screen rather than every Task in the run. A root
 // Task already durably flushed by commitResolvedTaskLocked (a never-ran
 // "fact-check" resolution — see its doc comment) is left out: it would
@@ -475,7 +475,7 @@ func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
 	cols := liveCollections(o.collections, rows, now)
 	s.Collections = cols.Kept()
 	s = core.WithRootCollectionTally(s, cols.Tally())
-	root := renderlive.NewLiveChildren("", rows)
+	root := renderlive.NewChildren("", rows)
 	for _, t := range o.tasks {
 		if t.collection != nil {
 			continue

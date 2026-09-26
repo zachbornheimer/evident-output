@@ -314,10 +314,10 @@ func (g *tasksState) header() TasksSnapshot {
 
 // liveSnapshot is g as a live frame of rows rows can show it: the
 // children it could select, snapshotted, and a tally of the rest (see
-// renderlive.LiveChildren).
+// renderlive.Children).
 func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
 	ts := g.header()
-	children := renderlive.NewLiveChildren(g.name, rows)
+	children := renderlive.NewChildren(g.name, rows)
 	for _, t := range g.tasks {
 		t.stampLiveFirstSeen(now)
 		if view := t.view(); children.Admit(&view) {
@@ -330,9 +330,9 @@ func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
 
 // liveCollections projects cols for a live frame of rows rows: the ones
 // the frame can reach through liveSnapshot, the rest tallied from views
-// (see renderlive.LiveCollections).
-func liveCollections(cols []*tasksState, rows int, now time.Time) *renderlive.LiveCollections {
-	projected := renderlive.NewLiveCollections(rows)
+// (see renderlive.Collections).
+func liveCollections(cols []*tasksState, rows int, now time.Time) *renderlive.Collections {
+	projected := renderlive.NewCollections(rows)
 	for _, col := range cols {
 		if projected.Admit(col.census.rank()) {
 			projected.Keep(col.liveSnapshot(rows, now))
