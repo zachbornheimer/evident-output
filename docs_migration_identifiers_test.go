@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 	"github.com/zachbornheimer/evident-output/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/internal/retired"
 )
 
 // evoIdentifier matches an evo.<Exported> reference in prose or code.
@@ -24,7 +24,7 @@ var goldenDeclName = regexp.MustCompile(`^(?:func|type|value) (?:\(\w+\) )?(\w+)
 func TestMigrationGuidesNameOnlyRealAPI(t *testing.T) {
 	root := moduleRoot(t)
 	known := liveAPINames(t, root)
-	for _, name := range rules.ContractNames() {
+	for _, name := range retired.ContractNames() {
 		base := strings.TrimSuffix(name[strings.LastIndex(name, ".")+1:], "(")
 		known[base] = true
 	}

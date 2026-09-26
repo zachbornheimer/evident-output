@@ -11,7 +11,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/zachbornheimer/evident-output/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/internal/retired"
 )
 
 // captureRename is one removed capture-meaning name and its 1.1 spelling.
@@ -21,12 +21,12 @@ type captureRename struct {
 }
 
 // captureRenames maps each removed Evidence* name to its rule and
-// replacement, built from rules.CaptureRenames — the one table shared
+// replacement, built from retired.CaptureRenames — the one table shared
 // with the MCP rules in internal/agent/rules/rules_capture.go, so the two
 // cannot drift.
 var captureRenames = func() map[string]captureRename {
-	m := make(map[string]captureRename, len(rules.CaptureRenames))
-	for _, r := range rules.CaptureRenames {
+	m := make(map[string]captureRename, len(retired.CaptureRenames))
+	for _, r := range retired.CaptureRenames {
 		m[r.From] = captureRename{ruleID: r.RuleID, to: r.To}
 	}
 	return m

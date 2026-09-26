@@ -627,7 +627,7 @@ func TestV8_LiveParallelPrune(t *testing.T) {
 	// completed/total*width, not nearest-value rounding: nearest would
 	// round 120/459 down to 3/12, hiding real progress that has started
 	// on a 4th cell — see the pinned rounding table in
-	// internal/render/progress_bar_rounding_internal_test.go.
+	// internal/render/live/progress_bar_rounding_internal_test.go.
 	// The count column itself is also §18-aligned across these three
 	// siblings: the numerator right-justified to the widest ("120"/" 70"/
 	// "  1") and the denominator left-justified to the widest

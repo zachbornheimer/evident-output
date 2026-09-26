@@ -23,15 +23,6 @@ func IsOwnTask(group string, t *core.TaskSnapshot) bool {
 	return t.Name == group
 }
 
-// hasOnlyChild reports whether a group's whole visible content is one
-// child Task: no nested collection and no Summary of its own. A caller's
-// own Summary is never collapsible — it is the group's answer ("nothing to
-// clean") and no child row can carry it. A Sequence keeps its header: its
-// order is meaning a single row cannot state.
-func hasOnlyChild(col core.TasksSnapshot) bool {
-	return HasOnlyChild(col)
-}
-
 // HasOnlyChild reports whether a group's whole visible content is one
 // child Task: no nested collection and no Summary of its own. render owns
 // this predicate — the live-frame-only lone-child-on-header rule
@@ -44,7 +35,7 @@ func HasOnlyChild(col core.TasksSnapshot) bool {
 
 // RendersAsOwnTask reports whether col renders as its own Task's row.
 func RendersAsOwnTask(col core.TasksSnapshot) bool {
-	return hasOnlyChild(col) && IsOwnTask(col.Name, &col.Tasks[0])
+	return HasOnlyChild(col) && IsOwnTask(col.Name, &col.Tasks[0])
 }
 
 // OwnTaskRowName reports the name a child collection renders its one row

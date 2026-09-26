@@ -2,6 +2,8 @@ package rules
 
 import (
 	"fmt"
+
+	"github.com/zachbornheimer/evident-output/internal/retired"
 )
 
 // captureRenameUse is how each removed capture-meaning name appears in a
@@ -21,11 +23,11 @@ var captureRenameUse = map[string]string{
 // Evidence* names (E-121, ZYS-1180 freeze): Evidence means only
 // satisfaction proof, and retained process output is Capture. Each removed
 // name has its own rule so explain and review name the exact rewrite.
-// CaptureRenames is the one table of names/ids; this file and
+// retired.CaptureRenames is the one table of names/ids; this file and
 // review_capture_rename.go both derive from it so they cannot drift.
 func captureRenameRules() []Rule {
-	out := make([]Rule, 0, len(CaptureRenames)+1)
-	for _, r := range CaptureRenames {
+	out := make([]Rule, 0, len(retired.CaptureRenames)+1)
+	for _, r := range retired.CaptureRenames {
 		// EvidenceTail (removed in 1.1) is the one Problem struct-field
 		// rename in the table; it has its own dedicated Rule below (a different
 		// BadCode/GoodCode shape than "var _ %s"), so the package-level

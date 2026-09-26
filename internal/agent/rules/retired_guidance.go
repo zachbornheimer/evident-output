@@ -3,6 +3,8 @@ package rules
 import (
 	"regexp"
 	"slices"
+
+	"github.com/zachbornheimer/evident-output/internal/retired"
 )
 
 // removedInPhrase is how guidance legitimately names a retired symbol:
@@ -18,13 +20,13 @@ var removedInPhrase = regexp.MustCompile(`(?i)removed in (\d+\.\d+)`)
 // saying "removed in <release>" for that Symbol's release. Guidance (a
 // remediation, a suggestion) may name a retired symbol only to say it is
 // gone; anything else steers the reader to an API that no longer compiles.
-func UnexplainedIn(text string) []Hit {
-	var releases []Release
+func UnexplainedIn(text string) []retired.Hit {
+	var releases []retired.Release
 	for _, m := range removedInPhrase.FindAllStringSubmatch(text, -1) {
-		releases = append(releases, Release(m[1]))
+		releases = append(releases, retired.Release(m[1]))
 	}
-	var hits []Hit
-	for _, h := range TaughtIn(text) {
+	var hits []retired.Hit
+	for _, h := range retired.TaughtIn(text) {
 		if slices.Contains(releases, h.Symbol.RemovedIn) {
 			continue
 		}

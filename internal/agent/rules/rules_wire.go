@@ -27,12 +27,12 @@ func wireRules() []Rule {
 			Severity:  SeverityError,
 			Invariant: "the legacy JSON/JSONL encoder's wire shape changes only alongside its own schema_version bump",
 			Why:       "The 0.4 JSON series and 0.3 JSONL event series are pre-1.0 contracts that machine consumers already parse; editing an encoder's field set without bumping its schema_version constant in the same change is exactly the silent-drop class the 0.3→0.4 bump (warned/Warnings) fixed for the last edit — it must not regress.",
-			BadCode: `// internal/render/json.go: add a field to JSONDocument/JSONTask
+			BadCode: `// internal/render/machine/json.go: add a field to JSONDocument/JSONTask
 // with no change to JSONSchemaVersion in the same diff`,
-			GoodCode: `// internal/render/json.go: add the field AND bump JSONSchemaVersion
+			GoodCode: `// internal/render/machine/json.go: add the field AND bump JSONSchemaVersion
 // (or internal/core/event.go's EventSchemaVersion for JSONL) in the same diff,
 // and record why in the const's doc comment`,
-			Remediation:     "Bump JSONSchemaVersion (internal/render/json.go) or EventSchemaVersion (internal/core/event.go) in the same change that edits the legacy encoder's field set, and document the reason on the const",
+			Remediation:     "Bump JSONSchemaVersion (internal/render/machine/json.go) or EventSchemaVersion (internal/core/event.go) in the same change that edits the legacy encoder's field set, and document the reason on the const",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EVO-WIRE-002"},
 			Since:           "1.0.0",

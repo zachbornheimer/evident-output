@@ -1,6 +1,10 @@
 package rules
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/retired"
+)
 
 func TestUnexplainedInAllowsARemovalNote(t *testing.T) {
 	cases := []struct {
@@ -25,7 +29,7 @@ func TestUnexplainedInAllowsARemovalNote(t *testing.T) {
 }
 
 func TestEverySymbolHasAReleaseAndReplacement(t *testing.T) {
-	for _, s := range Symbols() {
+	for _, s := range retired.Symbols() {
 		if s.Replacement == "" || s.RemovedIn == "" {
 			t.Errorf("%s: Replacement and RemovedIn are required", s.Contract)
 		}
@@ -65,7 +69,7 @@ func TestTaughtInCoversEveryOwnerFreezeSymbol(t *testing.T) {
 	}
 	for contract, text := range chainedCases {
 		found := false
-		for _, h := range TaughtIn(text) {
+		for _, h := range retired.TaughtIn(text) {
 			if h.Symbol.Contract == contract {
 				found = true
 				break
@@ -77,7 +81,7 @@ func TestTaughtInCoversEveryOwnerFreezeSymbol(t *testing.T) {
 	}
 	for contract, text := range cases {
 		found := false
-		for _, h := range TaughtIn(text) {
+		for _, h := range retired.TaughtIn(text) {
 			if h.Symbol.Contract == contract {
 				found = true
 				break

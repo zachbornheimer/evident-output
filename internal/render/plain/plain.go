@@ -1,7 +1,7 @@
 // Package plain projects a core.Snapshot to durable, non-TTY text — the
 // counterpart to render/live's interactive frames. It imports render for
 // the shared row vocabulary; render never imports plain (see render/live's
-// package doc for the mirrored rule on the live side).
+// package doc, live.go, for the mirrored rule on the live side).
 package plain
 
 import (
