@@ -1,6 +1,9 @@
 package engine
 
-import "github.com/zachbornheimer/evident-output/internal/core"
+import (
+	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
+)
 
 // schedPhase is where a Task stands with the scheduler. The phases are
 // closed: every scheduling predicate reads one of them instead of
@@ -61,3 +64,9 @@ func (st *taskState) awaitingStart() bool {
 func (st *taskState) neverDefined() bool {
 	return st.sched.phase == phaseDeclared && !core.IsTerminalTask(st.state.Current())
 }
+
+// Declaration is st's declaration order, for schedule.Member.
+func (st *taskState) Declaration() int { return st.declaration }
+
+// Outcome is st's raw state outcome, for schedule.Member.
+func (st *taskState) Outcome() schedule.Outcome { return schedule.OutcomeOf(st.state.Current()) }

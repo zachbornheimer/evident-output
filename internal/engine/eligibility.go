@@ -1,6 +1,9 @@
 package engine
 
-import "github.com/zachbornheimer/evident-output/internal/core"
+import (
+	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
+)
 
 // predecessor is one thing a Task waits for: another Task, or a whole
 // Group/Sequence. Both nil is a handle this run never declared, which can
@@ -12,29 +15,6 @@ type predecessor struct {
 	// cursor at that moment: the edge reads only the members declared
 	// through it. 0 for one named while empty (see edgeCursorLocked).
 	through int
-}
-
-// predOutcome is what a predecessor currently tells the Tasks after it.
-type predOutcome uint8
-
-const (
-	// predPending: it may still succeed.
-	predPending predOutcome = iota
-	predSucceeded
-	// predFailed: it can never succeed, so its dependents never start.
-	predFailed
-)
-
-// stateOutcome classifies a Task state for the Tasks after it.
-func stateOutcome(s EntityState) predOutcome {
-	switch s {
-	case Done, Skipped:
-		return predSucceeded
-	case Failed, Blocked, Cancelled, NotStarted:
-		return predFailed
-	default:
-		return predPending
-	}
 }
 
 // After declares predecessors: this Task starts only once every one of
@@ -70,7 +50,7 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 // the loop that populates it waits for every child (E-028); a Wait, the
 // drain, or a stall closes it instead.
 func (o *Output) closeMembershipLocked(p predecessor) predecessor {
-	if p.col == nil || p.through != 0 || p.col.tally.total() == 0 {
+	if p.col == nil || p.through != 0 || p.col.tally.Len() == 0 {
 		return p
 	}
 	p.through = o.declSeq
@@ -82,20 +62,21 @@ func (o *Output) closeMembershipLocked(p predecessor) predecessor {
 // declaration cursor and re-places the Tasks parked on them; any still
 // pending park again.
 func (o *Output) sealCollectionLocked(c *tasksState) {
-	o.wakeLocked(c.tally.seal(o.declSeq))
+	o.wakeLocked(c.tally.Seal(o.declSeq))
 }
 
 // edgeCursorLocked is the declaration cursor edge p reads c's members
 // through, or open when p reads a membership nothing has closed yet.
 func (o *Output) edgeCursorLocked(p predecessor) (cursor int, open bool) {
 	t := &p.col.tally
+	sealedThrough, sealed := t.SealedThrough()
 	switch {
 	case p.through != 0:
 		return p.through, false
-	case t.sealed:
-		return t.sealedThrough, false
+	case sealed:
+		return sealedThrough, false
 	case o.sched.draining:
-		return throughAll, false
+		return schedule.ThroughAll, false
 	default:
 		return 0, true
 	}
@@ -134,23 +115,23 @@ func (o *Output) predecessorOfLocked(p any) (pred predecessor, ok bool) {
 // outcomeLocked is p's outcome and, while that is pending, what to park
 // on until it changes: p itself, or for an empty collection that answers
 // for its entry, the pending predecessor inside that entry.
-func (o *Output) outcomeLocked(p predecessor) (predOutcome, predecessor) {
+func (o *Output) outcomeLocked(p predecessor) (schedule.Outcome, predecessor) {
 	switch {
 	case p.task != nil:
 		return o.taskOutcomeLocked(p.task), p
 	case p.col != nil:
 		return o.collectionOutcomeLocked(p)
 	default:
-		return predFailed, p
+		return schedule.Failed, p
 	}
 }
 
 // taskOutcomeLocked is t's outcome for its dependents. Once Finish drains,
 // a Task nobody Defined never will be, so it can no longer succeed.
-func (o *Output) taskOutcomeLocked(t *taskState) predOutcome {
-	out := stateOutcome(t.state.Current())
-	if out == predPending && o.sched.draining && t.neverDefined() {
-		return predFailed
+func (o *Output) taskOutcomeLocked(t *taskState) schedule.Outcome {
+	out := schedule.OutcomeOf(t.state.Current())
+	if out == schedule.Pending && o.sched.draining && t.neverDefined() {
+		return schedule.Failed
 	}
 	return out
 }
@@ -166,20 +147,20 @@ func (o *Output) taskOutcomeLocked(t *taskState) predOutcome {
 //
 // A populated edge needs no such forwarding: every member starts after
 // c's entry, so the members succeed only once the entry has.
-func (o *Output) collectionOutcomeLocked(p predecessor) (predOutcome, predecessor) {
+func (o *Output) collectionOutcomeLocked(p predecessor) (schedule.Outcome, predecessor) {
 	t := &p.col.tally
 	cursor, open := o.edgeCursorLocked(p)
 	switch {
-	case open && t.firstFailed != 0, !open && t.failedThrough(cursor):
-		return predFailed, p
+	case open && t.AnyFailed(), !open && t.FailedThrough(cursor):
+		return schedule.Failed, p
 	case open:
-		return predPending, p
-	case !t.hasMemberThrough(cursor):
+		return schedule.Pending, p
+	case !t.HasMemberThrough(cursor):
 		return o.entryOutcomeLocked(p.col)
-	case t.succeededThrough(cursor):
-		return predSucceeded, p
+	case t.SucceededThrough(cursor):
+		return schedule.Succeeded, p
 	default:
-		return predPending, p
+		return schedule.Pending, p
 	}
 }
 
@@ -187,15 +168,15 @@ func (o *Output) collectionOutcomeLocked(p predecessor) (predOutcome, predecesso
 // Sequence (none elsewhere), with the first predecessor still pending.
 // Holding only that step keeps a Sequence of n nested steps at n
 // predecessors; a chain of empty steps forwards along the chain.
-func (o *Output) entryOutcomeLocked(c *tasksState) (predOutcome, predecessor) {
-	verdict, blocker := predSucceeded, predecessor{}
+func (o *Output) entryOutcomeLocked(c *tasksState) (schedule.Outcome, predecessor) {
+	verdict, blocker := schedule.Succeeded, predecessor{}
 	for _, p := range c.entry {
 		out, b := o.outcomeLocked(p)
-		if out == predFailed {
-			return predFailed, b
+		if out == schedule.Failed {
+			return schedule.Failed, b
 		}
-		if out == predPending && verdict == predSucceeded {
-			verdict, blocker = predPending, b
+		if out == schedule.Pending && verdict == schedule.Succeeded {
+			verdict, blocker = schedule.Pending, b
 		}
 	}
 	return verdict, blocker
@@ -221,8 +202,8 @@ const (
 // never reverts, and rereading it on every wake would make fan-in over n
 // Tasks cost n² reads. A collection predecessor is kept, because a newly
 // declared member can make it pending again.
-func (o *Output) predsOutcomeLocked(st *taskState, scan predScan) (predOutcome, predecessor) {
-	verdict, blocker := predSucceeded, predecessor{}
+func (o *Output) predsOutcomeLocked(st *taskState, scan predScan) (schedule.Outcome, predecessor) {
+	verdict, blocker := schedule.Succeeded, predecessor{}
 	preds := st.sched.preds
 	kept := preds[:0]
 	i := 0
@@ -230,17 +211,17 @@ func (o *Output) predsOutcomeLocked(st *taskState, scan predScan) (predOutcome, 
 		p := preds[i]
 		o.sched.predChecks++
 		out, parkOn := o.outcomeLocked(p)
-		if out == predFailed {
-			verdict, blocker = predFailed, p
+		if out == schedule.Failed {
+			verdict, blocker = schedule.Failed, p
 			break
 		}
-		if out == predPending && verdict == predSucceeded {
-			verdict, blocker = predPending, parkOn
+		if out == schedule.Pending && verdict == schedule.Succeeded {
+			verdict, blocker = schedule.Pending, parkOn
 		}
-		if out != predSucceeded || p.task == nil {
+		if out != schedule.Succeeded || p.task == nil {
 			kept = append(kept, p)
 		}
-		if verdict == predPending && scan == scanToBlocker {
+		if verdict == schedule.Pending && scan == scanToBlocker {
 			i++
 			break
 		}
@@ -253,7 +234,7 @@ func (o *Output) predsOutcomeLocked(st *taskState, scan predScan) (predOutcome, 
 
 func (o *Output) eligibleLocked(st *taskState) bool {
 	verdict, _ := o.predsOutcomeLocked(st, scanToBlocker)
-	return verdict == predSucceeded
+	return verdict == schedule.Succeeded
 }
 
 // enterPhaseLocked moves st to phase, keeping the parked count true.
@@ -274,18 +255,18 @@ func (o *Output) enterPhaseLocked(st *taskState, phase schedPhase) {
 func (o *Output) placeLocked(st *taskState, scan predScan) {
 	verdict, blocker := o.predsOutcomeLocked(st, scan)
 	switch verdict {
-	case predSucceeded:
+	case schedule.Succeeded:
 		o.enterPhaseLocked(st, phaseQueued)
 		o.sched.queue.push(st)
-	case predPending:
+	case schedule.Pending:
 		o.enterPhaseLocked(st, phaseParked)
 		if blocker.task != nil {
 			blocker.task.sched.dependents = append(blocker.task.sched.dependents, st)
 		} else {
 			cursor, open := o.edgeCursorLocked(blocker)
-			blocker.col.tally.park(st, cursor, open)
+			blocker.col.tally.Park(st, cursor, open)
 		}
-	case predFailed:
+	case schedule.Failed:
 		o.markNotStartedLocked(st)
 	}
 }
@@ -327,7 +308,7 @@ func (o *Output) propagateSettleLocked(st *taskState) {
 	deps := st.sched.dependents
 	st.sched.dependents = nil
 	for c := st.collection; c != nil; c = c.parent {
-		deps = append(deps, c.tally.settle(st)...)
+		deps = append(deps, c.tally.Settle(st)...)
 	}
 	o.wakeLocked(deps)
 }
@@ -336,7 +317,7 @@ func (o *Output) propagateSettleLocked(st *taskState) {
 // sits under.
 func tallyDeclaredLocked(st *taskState) {
 	for c := st.collection; c != nil; c = c.parent {
-		c.tally.declare(st)
+		c.tally.Declare(st)
 	}
 }
 
@@ -352,7 +333,7 @@ func (o *Output) replaceParkedLocked() {
 		}
 	}
 	for _, col := range o.tasksByRef {
-		col.tally.unpark()
+		col.tally.Unpark()
 	}
 	for _, st := range parked {
 		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state.Current()) {

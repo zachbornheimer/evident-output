@@ -136,17 +136,17 @@ func (w *inputWalk) visitTask(t *taskState) {
 // it, so an open edge's membership is sealed here first.
 func (w *inputWalk) visitCollection(p predecessor) {
 	c, t := p.col, &p.col.tally
-	w.wake = append(w.wake, t.seal(w.cursor)...)
+	w.wake = append(w.wake, t.Seal(w.cursor)...)
 	cursor := p.through
 	if cursor == 0 {
-		cursor = t.sealedThrough
+		cursor, _ = t.SealedThrough()
 	}
 	walked, seen := w.seen.cols[c]
 	if seen && walked >= cursor {
 		return
 	}
 	w.seen.cols[c] = cursor
-	if !t.hasMemberThrough(cursor) {
+	if !t.HasMemberThrough(cursor) {
 		// A sealed empty collection answers for its entry, so what the
 		// entry waits for is waited for too.
 		if !seen {
@@ -156,7 +156,7 @@ func (w *inputWalk) visitCollection(p predecessor) {
 		}
 		return
 	}
-	for _, member := range t.membersThrough(walked, cursor) {
+	for _, member := range t.MembersThrough(walked, cursor) {
 		w.visitTask(member)
 	}
 }

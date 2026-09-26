@@ -6,6 +6,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/engine/lifecycle"
+	"github.com/zachbornheimer/evident-output/internal/engine/schedule"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
@@ -177,7 +178,7 @@ type tasksState struct {
 	stoppedAfter int
 	// tally counts this container's descendant Tasks by outcome, for the
 	// Tasks that run After it.
-	tally collectionTally
+	tally schedule.Tally[*taskState]
 	// census counts its descendant Tasks for the live frame (liveCensus).
 	census liveCensus
 	// hasNamesake records that a child Task carries this container's own
