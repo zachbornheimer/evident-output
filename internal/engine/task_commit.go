@@ -19,14 +19,18 @@ func (st *taskState) honestOutcome(state EntityState) EntityState {
 // tail the Task already gathered, so the detail a caller collected through
 // capture()/PhaseWriter() needs no opt-in (beginner-2). A Problem with its
 // own Detail or CaptureTail keeps it; that also avoids re-entering the
-// redactor lock this resolution already holds for a pending tail.
+// redactor lock this resolution already holds for a pending tail. It fills
+// CaptureTail, not Detail, so a summary that already folded the same capture
+// text into its own words (e.g. task.Fail("install failed: "+capture.Text()))
+// dedupes against it at render time (dedupeCaptureTailAgainstRow) instead of
+// repeating it underneath.
 func (st *taskState) attachCaptureTail(state EntityState, problems []Problem) []Problem {
 	if (state != Failed && state != Blocked) || st.capture == nil || st.capture.Empty() {
 		return problems
 	}
 	for i := range problems {
 		if problems[i].Detail == "" && problems[i].CaptureTail == "" {
-			problems[i].Detail = st.capture.detailText()
+			problems[i].CaptureTail = st.capture.detailText()
 		}
 	}
 	return problems

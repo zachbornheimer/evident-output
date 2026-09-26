@@ -178,6 +178,30 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
   guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`
   takes only its name. Review rule API-064 flags the old calls.
+- **`TaskHandle.Blockf`, `TaskHandle.Failf`, `evo.Failure`, and
+  `Failure.Error/Next/NextCommand/Unwrap`** were removed with no alias
+  (owner vocabulary freeze, 2026-09-25). Both are compatibility sugar
+  around the same-line `%w`-wrapped return; the paved path is now `Block`/
+  `Fail` as a statement, then `return <plain error>` (inside `Define`) or
+  `return fmt.Errorf(...)`/a returned sentinel elsewhere. `Output.Failf`
+  is unaffected (see its own doc comment for why it stays void).
+- **`TaskHandle.Step`** was removed with no alias (API-090: Progress wins
+  over Step). Use `task.Progress(completed, total).Doing(name)`.
+- **`TaskHandle.Kept`** was removed with no alias. `Kept` was never
+  canonical vocabulary (Summary/Skipped cover result metadata and genuine
+  non-execution); record a keep with `task.Fact("kept", "...")` or fold it
+  into `Summary`.
+- **`Config.Options` and its `evo.Option`-returning constructors**
+  (`AlsoWrite`, `Clock`, `DataProjection`, `DebugAddSource`,
+  `DebugHistory`, `DebugLevel`, `DebugPane`, `Diagnostics`, `DryRun`,
+  `ExternalProjection`, `Glyphs`, `MaxEntities`, `MaxEvents`,
+  `MaxFrameRate`, `NoColor`, `Plain`, `Redact`, `ResultStream`, `Runner`,
+  `Stdin`, `Strict`, `Terminal`, `Title`, `To`, `VisibilityDelay`,
+  `Width`, and the `evo.Option`/`ReasonOption` types themselves) were
+  removed with no alias. Every one of these was ordinary `Config` field
+  data (`Config.Stdout`/`Stderr`/`Plain`/`Color`/`Debug`/`DryRun`/
+  `Preview`/`ProcessRunner`/`Glyphs`/... etc.) reachable only through the
+  raw escape hatch; `Config` itself is unchanged.
 - **`TaskHandle.Add/Create/Delete/Push/Remove/Update/Write`, `evo.Affected`,
   and `evo.MutationOption`** were removed with no aliases (ZYS-950). Opaque
   mutations use `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)`

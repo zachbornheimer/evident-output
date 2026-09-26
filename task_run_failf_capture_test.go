@@ -10,7 +10,7 @@ import (
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-// TestRun_ThenFailf_RendersChildStderrInFinalReport is beginner-gate-2
+// TestRun_ThenFail_RendersChildStderrInFinalReport is beginner-gate-2
 // finding 3, root cause B: task_run.go's own documented spelling —
 //
 //	if err := task.RunForTest(cmd); err != nil {
@@ -29,7 +29,7 @@ import (
 // coincidentally echo the same text as a transient progress line before the
 // bug ever reaches the final report — and, during the manual gate sweep,
 // under a real pty (script(1)) capture too.
-func TestRun_ThenFailf_RendersChildStderrInFinalReport(t *testing.T) {
+func TestRun_ThenFail_RendersChildStderrInFinalReport(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
@@ -37,7 +37,7 @@ func TestRun_ThenFailf_RendersChildStderrInFinalReport(t *testing.T) {
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "echo 'undefined reference to main' 1>&2; exit 1")
 	if err := task.RunForTest(cmd); err != nil {
-		_ = task.Failf("build failed: %w", err)
+		task.Fail("build failed: " + err.Error())
 	}
 
 	if err := out.Finish(); err != nil {

@@ -38,11 +38,11 @@ func ExampleDebugPaneOption() {
 
 // ExampleNewestFirst orders a debug pane newest-entry-first.
 func ExampleNewestFirst() {
+	newestFirst := true
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard,
-		Debug:   evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane},
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.NewestFirst())},
+		Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard, Color: evo.ColorNever,
+		Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, NewestFirst: &newestFirst},
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
@@ -53,10 +53,11 @@ func ExampleNewestFirst() {
 
 // ExampleOldestFirst orders a debug pane oldest-entry-first.
 func ExampleOldestFirst() {
+	oldestFirst := false
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
-		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.OldestFirst())},
+		Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard, Color: evo.ColorNever,
+		Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, NewestFirst: &oldestFirst},
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
@@ -69,8 +70,8 @@ func ExampleOldestFirst() {
 func ExamplePaneHeight() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
-		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.PaneHeight(3))},
+		Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard, Color: evo.ColorNever,
+		Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, PaneHeight: 3},
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
@@ -84,8 +85,8 @@ func ExamplePaneHeight() {
 func ExamplePreserveDebugTail() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
-		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.PreserveDebugTail())},
+		Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard, Color: evo.ColorNever,
+		Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, PreserveAlways: true},
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()

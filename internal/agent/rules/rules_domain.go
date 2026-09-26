@@ -90,14 +90,15 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			Certainty:       CertaintyHeuristic,
 		},
 		{
-			ID:              "DOM-014",
-			Category:        "DOM",
-			Severity:        SeverityError,
-			Invariant:       "Detail is user-visible string; wrap a diagnostic error with Blockf/Failf's trailing %w",
-			Why:             "Detail(err) exposes error internals as UI copy; Blockf/Failf's %w renders the wrapped error as its own evidence line instead.",
-			BadCode:         `it.Block("dirty", evo.Detail(err))`,
-			GoodCode:        `return it.Blockf("dirty: %w", err)`,
-			Remediation:     `Replace Detail(err) with a %w-wrapped Blockf/Failf, e.g. it.Blockf("dirty: %w", err); reserve Detail for user-visible strings`,
+			ID:        "DOM-014",
+			Category:  "DOM",
+			Severity:  SeverityError,
+			Invariant: "Detail is a user-visible string; a diagnostic error's text is folded into the Block/Fail summary, not passed as Detail(err)",
+			Why:       "Detail(err) exposes error internals as UI copy. Fold the error's text into the summary string instead (Blockf/Failf, the %w-wrapping siblings that once did this in one line, were removed in the owner vocabulary freeze, 2026-09-25).",
+			BadCode:   `it.Block("dirty", evo.Detail(err))`,
+			GoodCode: `it.Block("dirty: " + err.Error())
+return err`,
+			Remediation:     `Replace Detail(err) with the error's text folded into the summary, e.g. it.Block("dirty: " + err.Error()); reserve Detail for user-visible strings`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-014"},
 			Since:           "0.1.0",
@@ -114,7 +115,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 branches.Task("main").Skipped(evo.Reason("protected"))
 branches.Task("feature/x").Skipped(evo.Reason("dirty"))
 // the item is the Task; evo derives each tally from its Reason`,
-			Remediation:     "Declare one Task per item and record its reason via task.Skipped/Kept; let evo count, sum, and print the partition",
+			Remediation:     "Declare one Task per item and record its reason via task.Skipped (or task.Fact for a kept item); let evo count, sum, and print the partition",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-001"},
 			Since:           "0.6.0",
@@ -139,14 +140,15 @@ branches.Task("feature/x").Skipped(evo.Reason("dirty"))
 			Category:  "EV",
 			Severity:  SeverityWarning,
 			Invariant: "a failure summary does not manually embed the retained captured text",
-			Why:       "task.Failf(\"install failed: %s\", capture.Text()) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time underneath it (user-13-problems.md Problem 7: \"execution owns capture, callers provide context\").",
-			BadCode:   `task.Failf("install failed: %s", capture.Text())`,
+			Why:       "task.Fail(\"install failed: \" + capture.Text()) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time underneath it (user-13-problems.md Problem 7: \"execution owns capture, callers provide context\").",
+			BadCode:   `task.Fail("install failed: " + capture.Text())`,
 			GoodCode: `cmd.Stdout = task.Writer() // retained and auto-attached on failure
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
-  return task.Failf("install dependencies: %w", err)
+  task.Fail("install dependencies: " + err.Error())
+  return err
 }`,
-			Remediation:     "Pass context via the trailing \": %w\" wrap instead of interpolating capture.Text() into the summary — Failf/Blockf auto-attach the retained tail as its own detail line",
+			Remediation:     "Pass context via the error's own text instead of interpolating capture.Text() into the summary — Fail/Block auto-attach the retained tail as its own detail line",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EV-001"},
 			Since:           "0.4.0",
@@ -224,14 +226,15 @@ for _, item := range items {
 			Detection:       DetectionGuidance, // no cheap detector: a literal "1" argument is not distinguishable from a genuine absolute count by AST alone
 		},
 		{
-			ID:              "DOM-018",
-			Category:        "DOM",
-			Severity:        SeverityWarning,
-			Invariant:       "an error surfaces once per resolution, not as both the summary text and evo.Cause",
-			Why:             "err.Error() as the summary alongside evo.Cause(err) surfaces the same error twice — and since Fail/Block are statement-form, evo.Cause no longer affects the returned error at all, so the two are now the identical dead-and-live text.",
-			BadCode:         `task.Fail(err.Error(), evo.Cause(err))`,
-			GoodCode:        `return task.Failf("validate policy manifest: %w", err)`,
-			Remediation:     `Replace the err.Error()+evo.Cause(err) pair with a single %w-wrapped Failf/Blockf`,
+			ID:        "DOM-018",
+			Category:  "DOM",
+			Severity:  SeverityWarning,
+			Invariant: "an error surfaces once per resolution, not as both the summary text and evo.Cause",
+			Why:       "err.Error() as the summary alongside evo.Cause(err) surfaces the same error twice — and since Fail/Block are statement-form, evo.Cause no longer affects the returned error at all, so the two are now the identical dead-and-live text.",
+			BadCode:   `task.Fail(err.Error(), evo.Cause(err))`,
+			GoodCode: `task.Fail("validate policy manifest: " + err.Error())
+return err`,
+			Remediation:     `Replace the err.Error()+evo.Cause(err) pair with one Fail/Block call whose summary already folds in the error text, then return the error separately (Failf/Blockf, the once-canonical %w-wrapping siblings, were removed in the owner vocabulary freeze, 2026-09-25)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-018"},
 			Since:           "0.2.17",
@@ -352,11 +355,11 @@ t.Define(func(ctx context.Context) error {
 			Invariant: "a reason used more than as a one-off literal is a compile-time name; a reason names why, not the verb it accompanies",
 			Why:       "evo.Reason(\"x\") is legal inline (duplicate strings merge into one bucket), but an inline literal can typo apart into two buckets across call sites, and a reason that only restates the verb (`Skipped(evo.Reason(\"skipped\"))`, zq cmd/zq-build/main.go:81) tells the user nothing they didn't already know from the glyph.",
 			BadCode: `task.Skipped(evo.Reason("skipped"))
-task.Kept(evo.Reason("protected"))`,
+otherTask.Fact("kept", evo.Reason("kept").Name())`,
 			GoodCode: `var reasonProtected = evo.Reason("protected")
 task.Skipped(evo.Reason("timeout"))
-task.Kept(reasonProtected)`,
-			Remediation:     "Lift a repeated reason to a package-level var so it is a compile-time name; name why the item skipped/was kept, not the verb itself",
+otherTask.Fact("kept", reasonProtected.Name())`,
+			Remediation:     "Lift a repeated reason to a package-level var so it is a compile-time name; name why the item skipped or was kept, not the verb itself",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-003"},
 			Since:           "0.4.7",

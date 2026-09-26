@@ -37,13 +37,6 @@ func (t *TaskHandle) Skipped(reason TaxonomyReason) {
 	t.finish(Skipped, "", nil)
 }
 
-// Kept records a keep reason on this Task (the Task name is the kept name)
-// and resolves the Task as Done.
-func (t *TaskHandle) Kept(reason TaxonomyReason) {
-	t.recordTaxonomy(reason, "", dispositionKeep, nil)
-	t.finish(Done, "", nil)
-}
-
 func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {
 	t.withTask(func(st *taskState) { t.recordTaxonomyLocked(st, reason, name, verb, errs) })
 }
@@ -57,7 +50,6 @@ func (t *TaskHandle) recordTaxonomyLocked(st *taskState, reason TaxonomyReason, 
 		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return
 	}
-	t.out.enforceReasonConstraintLocked(reason, st.name, verb)
 	if name == "" {
 		name = st.name
 	}
@@ -87,17 +79,4 @@ func causesFromErrors(errs []error) []string {
 		out = append(out, txt.Text(err.Error()))
 	}
 	return out
-}
-
-// enforceReasonConstraintLocked records misuse when reason's declared
-// constraints (ForSkip, OnTask) don't match how it is being used here.
-// Strict panics via recordMisuse; production still counts the record —
-// a constraint violation degrades to "counted anyway", never a dropped truth.
-func (o *Output) enforceReasonConstraintLocked(reason TaxonomyReason, taskName string, verb dispositionVerb) {
-	if reason.forSkip && verb != dispositionSkip {
-		o.recordMisuse(ErrReasonSkipOnly)
-	}
-	if reason.onTask != "" && reason.onTask != taskName {
-		o.recordMisuse(ErrReasonWrongTask)
-	}
 }

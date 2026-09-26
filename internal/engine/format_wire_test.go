@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseFormat(t *testing.T) {
@@ -165,7 +166,7 @@ func TestFormatJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 	defer MarkWriterAsCharDevice(&stderr)()
 	out := Init(Config{
 		Isolated: true, Title: "demo", Format: FormatJSON,
-		Stdout: &stdout, Stderr: &stderr, VisibilityDelay: Delay(0),
+		Stdout: &stdout, Stderr: &stderr, VisibilityDelay: new(time.Duration(0)),
 	})
 	out.Task("build").succeed("")
 	if err := out.Finish(); err != nil {
@@ -184,7 +185,7 @@ func TestFormatJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 	defer MarkWriterAsCharDevice(&stderr)()
 	out := Init(Config{
 		Isolated: true, Title: "demo", Format: FormatJSONL,
-		Stdout: &stdout, Stderr: &stderr, VisibilityDelay: Delay(0),
+		Stdout: &stdout, Stderr: &stderr, VisibilityDelay: new(time.Duration(0)),
 	})
 	out.Task("build").succeed("")
 	if err := out.Finish(); err != nil {

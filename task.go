@@ -21,15 +21,6 @@ func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	t.impl().Block(summary, options...)
 }
 
-// Blockf resolves the Task Blocked with a formatted summary and returns
-// the refusal as a *Failure, meant to be returned (and chained with Next).
-// Inside a Define callback `return task.Blockf(...)` is how the callback
-// refuses: the Task concludes Blocked, where a plain returned error would
-// conclude it Failed. As a bare statement use Block.
-func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
-	return wrapFailure(t.impl().Blockf(format, args...))
-}
-
 func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
 	t.impl().Bytes(completed, total)
 	return t
@@ -76,17 +67,6 @@ func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	t.impl().Fail(summary, options...)
 }
-
-// Failf resolves the Task Failed with a formatted summary and returns the
-// failure as a *Failure, meant to be returned (and chained with Next) from
-// code outside a Define callback. Inside a Define callback return an error
-// instead: the callback's error resolves the Task. As a bare statement use
-// Fail.
-func (t *TaskHandle) Failf(format string, args ...any) *Failure {
-	return wrapFailure(t.impl().Failf(format, args...))
-}
-
-func (t *TaskHandle) Kept(reason TaxonomyReason) { t.impl().Kept(reason.inner) }
 
 // Key sets an advanced override for this Task's stable identity, so a
 // rename or refactor keeps its manifest history. Call it before Define; a
@@ -135,11 +115,6 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 		return TaskSnapshot{}
 	}
 	return t.inner.Snapshot()
-}
-
-func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
-	t.impl().Step(completed, total, name)
-	return t
 }
 
 // Summary sets one line of result text rendered after the Task name on its

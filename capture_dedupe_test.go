@@ -9,20 +9,20 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestFailf_CaptureDedupedAgainstSummary is red-first for P7's dedupe
+// TestFail_CaptureDedupedAgainstSummary is red-first for P7's dedupe
 // addition (user-13-problems.md Problem 7: "deduplicate it against the
 // failure message"). The exact anti-pattern the doc names —
-// task.Failf("install failed: %s", capture.Text()) — folds the retained
-// output straight into the summary; the auto-attached capture tail must
-// not then render the same text a second time underneath it.
-func TestFailf_CaptureDedupedAgainstSummary(t *testing.T) {
+// task.Fail(fmt.Sprintf("install failed: %s", capture.Text())) — folds the
+// retained output straight into the summary; the auto-attached capture tail
+// must not then render the same text a second time underneath it.
+func TestFail_CaptureDedupedAgainstSummary(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("install")
 	output := task.CaptureForTest()
 	_, _ = fmt.Fprint(output, "npm ERR! 404 not found")
-	_ = task.Failf("install failed: %s", output.Text())
+	task.Fail(fmt.Sprintf("install failed: %s", output.Text()))
 
 	_ = out.Finish()
 
@@ -32,11 +32,10 @@ func TestFailf_CaptureDedupedAgainstSummary(t *testing.T) {
 	}
 }
 
-// TestFailf_CaptureStillRenders_WhenNotContainedInSummary proves the
+// TestFail_CaptureStillRenders_WhenNotContainedInSummary proves the
 // dedupe only skips a tail that IS already in the summary — genuinely new
-// capture (the paved-path Failf("...: %w", err) + auto-attach shape) still
-// renders underneath.
-func TestFailf_CaptureStillRenders_WhenNotContainedInSummary(t *testing.T) {
+// capture still renders underneath.
+func TestFail_CaptureStillRenders_WhenNotContainedInSummary(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 

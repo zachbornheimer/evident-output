@@ -18,10 +18,7 @@ type TestRedactor = engine.NoopRedactor
 type TestCapture = engine.Capture
 
 func DelayForTest(d time.Duration) *time.Duration { return Delay(d) }
-func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
-	return TaxonomyReason{inner: engine.ReasonConstrained(name, opts...)}
-}
-func SlogHandlerForTest() slog.Handler { return SlogHandler() }
+func SlogHandlerForTest() slog.Handler            { return SlogHandler() }
 
 func (o *Output) AboutForTest(text string) {
 	if o != nil && o.inner != nil {
@@ -121,7 +118,11 @@ func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error {
 // not have. The evident-output fix analyzer scopes API-090 to exempt this
 // shim by name (isNamedCompatTestShim) rather than rewriting it.
 func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
-	return t.Step(completed, total, name)
+	if t == nil || t.inner == nil {
+		return t
+	}
+	t.inner.StepForTest(completed, total, name)
+	return t
 }
 
 func (t *TaskHandle) CaptureForTest(opts ...CaptureOption) *Capture {

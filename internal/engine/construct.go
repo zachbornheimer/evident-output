@@ -245,14 +245,7 @@ type Config struct {
 	// package-level default. First paint still arms — Isolated is not a
 	// blank-terminal exemption. Use for parallel tests and embedders that
 	// hold their own *Output instead of going through Default()/Task().
-	// This is the one and only opt-out from default installation — it
-	// applies identically whether or not Options is also set.
 	Isolated bool
-
-	// Options is the advanced, raw Option escape hatch for tests and
-	// specialized embedding. When set, every other Config field except
-	// Title, DryRun, Preview, and Subject is ignored.
-	Options []Option
 
 	// MaxConcurrency is the scheduler ceiling: it bounds every executing
 	// callback, including work a waiting goroutine runs itself. Zero means
@@ -286,8 +279,10 @@ type Config struct {
 //
 //	cfg.VisibilityDelay = evo.Delay(0)                      // immediate
 //	cfg.VisibilityDelay = evo.Delay(80 * time.Millisecond) // explicit default
+//
+//go:fix inline
 func Delay(d time.Duration) *time.Duration {
-	return &d
+	return new(d)
 }
 
 // DefaultConfig returns a fresh ordinary CLI configuration.
@@ -301,7 +296,7 @@ func DefaultConfig() Config {
 			View:  DebugPresentationHistory,
 		},
 		Width:           defaultWidth,
-		VisibilityDelay: Delay(defaultVisibilityDelay),
+		VisibilityDelay: new(defaultVisibilityDelay),
 		MaxFrameRate:    defaultMaxFrameRate,
 		MaxEntities:     defaultMaxEntities,
 		MaxEvents:       defaultMaxEvents,
@@ -329,7 +324,7 @@ func resolveConfig(c Config) Config {
 	}
 	// nil = unspecified → default; non-nil (including 0) is intentional.
 	if c.VisibilityDelay == nil {
-		c.VisibilityDelay = Delay(defaultVisibilityDelay)
+		c.VisibilityDelay = new(defaultVisibilityDelay)
 	}
 	if c.MaxFrameRate <= 0 {
 		c.MaxFrameRate = base.MaxFrameRate

@@ -31,21 +31,21 @@ func TestFail_AutoAttachesDetailTail_WhenCaptureNonEmptyAndNoExplicitDetail(t *t
 	}
 }
 
-// TestBlockf_AutoAttachesDetailTail mirrors the Fail case for Blockf.
-func TestBlockf_AutoAttachesDetailTail(t *testing.T) {
+// TestBlock_AutoAttachesDetailTail mirrors the Fail case for Block.
+func TestBlock_AutoAttachesDetailTail(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("policy check")
 	output := task.CaptureForTest()
 	_, _ = fmt.Fprintln(output, "policy violation: missing signature")
-	_ = task.Blockf("policy check failed")
+	task.Block("policy check failed")
 
 	_ = out.Finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "missing signature") {
-		t.Fatalf("Blockf did not auto-attach the capture tail, got:\n%s", rendered)
+		t.Fatalf("Block did not auto-attach the capture tail, got:\n%s", rendered)
 	}
 }
 
