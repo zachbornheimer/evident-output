@@ -144,6 +144,50 @@ func TestWarnAnalyzerSkipsVariadicSpread(t *testing.T) {
 	}
 }
 
+const packageWarnFixtureSrc = `package main
+
+import (
+	e "github.com/zachbornheimer/evident-output"
+)
+
+func run() error {
+	e.Warn("run-level")
+	return nil
+}
+
+func main() { _ = run() }
+`
+
+// TestWarnAnalyzerFindsPackageLevelWarn guards API-070 detection of the
+// package-level evo.Warn (removed in 1.1) called through a non-default
+// import alias. isEvoPackageSelector resolves the alias identifier's own
+// PkgName through go/types rather than the removed Warn selector, which
+// no longer has a Use — a prior version of this analyzer relied on
+// packageFunc, which needs a Use on the Warn identifier and so never
+// fires once Warn no longer exists in the evo package.
+func TestWarnAnalyzerFindsPackageLevelWarn(t *testing.T) {
+	dir := t.TempDir()
+	writeModule(t, dir, packageWarnFixtureSrc)
+
+	pkgs, err := fix.Load(dir, ".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	results, err := fix.Diagnose(pkgs, false)
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("want 1 package result, got %d", len(results))
+	}
+	for _, d := range results[0].Diagnostics {
+		if d.RuleID == "API-070" {
+			return
+		}
+	}
+	t.Fatal("missing API-070 diagnostic for package-level evo.Warn call")
+}
+
 const optionsFixtureSrc = `package main
 
 import evo "github.com/zachbornheimer/evident-output"

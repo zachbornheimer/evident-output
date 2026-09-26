@@ -16,13 +16,17 @@ import (
 // the Problem to, so attaching one is not mechanical: those report the
 // removal with no SuggestedFix and name the manual step.
 //
-// Detection is purely typed: it resolves the receiver expression's own
-// type (recvNamedType), never the removed Warn selector itself. That
-// works even though Warn no longer exists on any evo type — go/types
-// still records a valid type for the receiver expression (e.g. the
-// *evo.TaskHandle a prior assignment declared) independent of whether the
-// method call built on top of it type-checks, so no identifier-spelling
-// or import-alias tracing is needed to find these call sites.
+// Detection is purely typed: a method call resolves the receiver
+// expression's own type (recvNamedType), never the removed Warn selector
+// itself. That works even though Warn no longer exists on any evo type —
+// go/types still records a valid type for the receiver expression (e.g.
+// the *evo.TaskHandle a prior assignment declared) independent of whether
+// the method call built on top of it type-checks. The package-level
+// evo.Warn case resolves the same way: isEvoPackageSelector only needs
+// sel.X (the "evo" identifier) to resolve to the evo package's PkgName,
+// which go/types still records even though Sel itself — the removed
+// Warn — has no Use. No identifier-spelling or import-alias tracing is
+// needed to find any of these call sites.
 var WarnAnalyzer = &analysis.Analyzer{
 	Name:     "evowarn",
 	Doc:      "flags evo Warn calls removed in 1.1 (API-070) and fixes the TaskHandle case",
@@ -39,18 +43,24 @@ func runWarn(pass *analysis.Pass) (any, error) {
 			return
 		}
 		if recv, ok := recvNamedType(pass.TypesInfo, sel.X); ok {
-			reportWarn(pass, call, sel, recv == "TaskHandle")
+			reportWarn(pass, call, sel, recv)
 			return
 		}
-		if _, ok := packageFunc(pass.TypesInfo, sel); ok {
-			reportWarn(pass, call, sel, false)
+		if isEvoPackageSelector(pass, sel) {
+			reportWarn(pass, call, sel, "")
 		}
 	})
 	return nil, nil
 }
 
-func reportWarn(pass *analysis.Pass, call *ast.CallExpr, sel *ast.SelectorExpr, isTask bool) {
-	if isTask {
+// reportWarn reports the API-070 removal for a Warn call whose receiver
+// resolved to the evo package type named recv — "TaskHandle" for a
+// mechanical Problem(...) rewrite, any other evo type (e.g. "GroupHandle")
+// for a named-but-unfixable removal, or "" for the package-level evo.Warn
+// (removed in 1.1).
+func reportWarn(pass *analysis.Pass, call *ast.CallExpr, sel *ast.SelectorExpr, recv string) {
+	switch recv {
+	case "TaskHandle":
 		if call.Ellipsis != token.NoPos {
 			// A spread trailing arg (Warn(s, opts...)) can't take a
 			// mechanical ", evo.Severity(...)" append after it without
@@ -63,10 +73,13 @@ func reportWarn(pass *analysis.Pass, call *ast.CallExpr, sel *ast.SelectorExpr, 
 		pass.Report(diag("API-070", call,
 			"(*evo.TaskHandle).Warn was removed in 1.1: Problem wins over Warn, warning is a Problem severity",
 			warnTaskFix(pass, call, sel)))
-		return
+	case "":
+		pass.Report(diag("API-070", call,
+			"evo.Warn was removed in 1.1: declare a Task and call its Problem(summary, evo.Severity(evo.SeverityWarning)) instead — attaching a run-scoped warning to a Task is not mechanical"))
+	default:
+		pass.Report(diag("API-070", call,
+			"(*evo."+recv+").Warn was removed in 1.1: "+recv+" has no Task to attach a Problem to — declare a Task and call its Problem(summary, evo.Severity(evo.SeverityWarning)) instead"))
 	}
-	pass.Report(diag("API-070", call,
-		"evo.Warn was removed in 1.1: declare a Task and call its Problem(summary, evo.Severity(evo.SeverityWarning)) instead — attaching a run-scoped warning to a Task is not mechanical"))
 }
 
 // warnTaskFix rewrites task.Warn(summary, opts...) (removed in 1.1) to

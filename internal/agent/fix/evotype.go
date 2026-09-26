@@ -46,24 +46,20 @@ func recvNamedType(info *types.Info, x ast.Expr) (string, bool) {
 	return obj.Name(), true
 }
 
-// packageFunc returns the evo package-level function name a selector's
-// Sel identifier resolves to — evo.Init, evo.Warn (removed in 1.1), and
-// so on — or ("", false) when it resolves to anything else (a method, a
-// local, another package).
-func packageFunc(info *types.Info, sel *ast.SelectorExpr) (string, bool) {
-	use, ok := info.Uses[sel.Sel]
+// isEvoPackageSelector reports whether sel.X is the local import alias for
+// the evo package, resolved through the file's own import declarations
+// rather than a fixed "evo" identifier check. Shared by every analyzer
+// that needs to recognize a package-level evo selector (evo.Warn and
+// evo.Evidence, both removed in 1.1, ...) even when sel.Sel itself no
+// longer resolves to a member of the package (e.g. a removed function):
+// sel.X still resolves as a valid import use.
+func isEvoPackageSelector(pass *analysis.Pass, sel *ast.SelectorExpr) bool {
+	id, ok := sel.X.(*ast.Ident)
 	if !ok {
-		return "", false
+		return false
 	}
-	fn, ok := use.(*types.Func)
-	if !ok || fn.Pkg() == nil || fn.Pkg().Path() != EvoPackagePath {
-		return "", false
-	}
-	sig, ok := fn.Type().(*types.Signature)
-	if !ok || sig.Recv() != nil {
-		return "", false
-	}
-	return fn.Name(), true
+	pkgName, ok := pass.TypesInfo.Uses[id].(*types.PkgName)
+	return ok && pkgName.Imported().Path() == EvoPackagePath
 }
 
 // callSelector splits a call expression into its selector, or (nil, nil)

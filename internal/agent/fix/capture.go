@@ -2,7 +2,6 @@ package fix
 
 import (
 	"go/ast"
-	"go/types"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -64,18 +63,6 @@ func runCapture(pass *analysis.Pass) (any, error) {
 		}
 	})
 	return nil, nil
-}
-
-// isEvoPackageSelector reports whether sel.X is the local import alias for
-// the evo package, resolved through the file's own import declarations
-// rather than a fixed "evo" identifier check.
-func isEvoPackageSelector(pass *analysis.Pass, sel *ast.SelectorExpr) bool {
-	id, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return false
-	}
-	pkgName, ok := pass.TypesInfo.Uses[id].(*types.PkgName)
-	return ok && pkgName.Imported().Path() == EvoPackagePath
 }
 
 func captureFinding(pass *analysis.Pass, sel *ast.SelectorExpr, rename retired.CaptureRename) analysis.Diagnostic {
