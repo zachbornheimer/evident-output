@@ -171,7 +171,7 @@ docker.Define(func(ctx context.Context) error {
 ```
 
 - **Ownership:** `Task.Writer()` associates child output with that entity.
-- **Silent by default:** the ring retains; Failf's trailing `%w` renders a summary/evidence split.
+- **Silent by default:** the ring retains; a `Fail`/`Block` call whose Problem has no `Detail` gets the retained capture text auto-attached as `Problem.CaptureTail`, deduped against a summary that already folded the same text in.
 - **Redaction:** `Config.Redactor` applies before ring retention.
 
 ## Platform adapters (contracts, not sugar)

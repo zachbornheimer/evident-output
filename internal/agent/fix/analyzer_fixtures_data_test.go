@@ -270,25 +270,25 @@ func run() error {
 	out := evo.Init(evo.Config{Title: "demo"})
 	t := out.Task("check")
 
-	t.Kept(evo.Reason("dirty")) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
+	t.Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
 
-	t.Doing("prep").Kept(evo.Reason("dirty")) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
+	t.Doing("prep").Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
 
 	t.Define(func(ctx context.Context) error {
 		t.Kept(evo.Reason("dirty")) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
 		return nil
 	})
 
-	t.Kept( // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
+	t.Kept( // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
 		evo.Reason(
 			"multi\n" + "line",
 		),
 	)
 
-	f := t.Kept // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
+	f := t.Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback` + "`" + `
 	f(evo.Reason("via value"))
 
-	e := (*evo.TaskHandle).Kept // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
+	e := (*evo.TaskHandle).Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback` + "`" + `
 	e(t, evo.Reason("via expression"))
 
 	tl := &tally{}
@@ -316,30 +316,25 @@ func run() error {
 	out := evo.Init(evo.Config{Title: "demo"})
 	t := out.Task("check")
 
-	t.Fact("kept", evo.Reason("dirty").Name()) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
+	t.Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
 
-	t.Doing("prep").Fact("kept", evo.Reason("dirty").Name()) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
+	t.Doing("prep").Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
 
 	t.Define(func(ctx context.Context) error {
 		t.Fact("kept", evo.Reason("dirty").Name()) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
 		return nil
 	})
 
-	t.Fact("kept", evo.Reason(
-		"multi\n"+"line",
-	).Name())
+	t.Kept( // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
+		evo.Reason(
+			"multi\n" + "line",
+		),
+	)
 
-	f := func() func(reason evo.TaxonomyReason) {
-		recv := t
-		return func(reason evo.TaxonomyReason) {
-			recv.Fact("kept", reason.Name())
-		}
-	}() // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
+	f := t.Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback` + "`" + `
 	f(evo.Reason("via value"))
 
-	e := func(recv *evo.TaskHandle, reason evo.TaxonomyReason) {
-		recv.Fact("kept", reason.Name())
-	} // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
+	e := (*evo.TaskHandle).Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback` + "`" + `
 	e(t, evo.Reason("via expression"))
 
 	tl := &tally{}

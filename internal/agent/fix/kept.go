@@ -23,14 +23,17 @@ var KeptAnalyzer = &analysis.Analyzer{
 
 func runKept(pass *analysis.Pass) (any, error) {
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
+	insp.WithStack([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
+		if !push {
+			return true
+		}
 		call := n.(*ast.CallExpr)
 		sel := callSelector(call)
 		if sel == nil || sel.Sel.Name != "Kept" {
-			return
+			return true
 		}
 		if recv, ok := recvNamedType(pass.TypesInfo, sel.X); !ok || recv != "TaskHandle" {
-			return
+			return true
 		}
 		// Kept was removed from the public API in 1.1; this fixer only
 		// exists to migrate call sites in consumer code that still
@@ -40,25 +43,70 @@ func runKept(pass *analysis.Pass) (any, error) {
 		// removed method's own historical contract is not rewritten out
 		// from under itself.
 		if isEvoOwnTestFile(pass, call.Pos()) {
-			return
+			return true
 		}
 		if len(call.Args) != 1 {
 			pass.Report(diag("API-091", call,
 				"evo.TaskHandle.Kept was removed in 1.1: Fact(\"kept\", reason.Name()) wins — not rewritten: expected exactly one Reason argument"))
-			return
+			return true
+		}
+		msg := "evo.TaskHandle.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact(\"kept\", reason.Name()), not a third resolution alongside Succeeded/Skipped"
+		// The old Kept resolved the Task (it called finish(Done)); Fact
+		// never resolves anything. Auto-rewriting Kept(reason) to
+		// Fact("kept", reason.Name()) is only safe inside a Define
+		// callback, where returning nil is what resolves the Task —
+		// Fact simply attaches the "kept" information alongside that
+		// resolution. Outside a Define, the same rewrite would silently
+		// leave the Task unresolved, so this reports without a fix and
+		// tells the caller to add a resolving Define instead.
+		if !isInsideDefineCallback(stack) {
+			pass.Report(diag("API-091", call,
+				msg+" — not rewritten: this Kept call is outside a Define callback, and Fact never resolves a Task the way Kept used to; wrap it in a Define whose callback returns nil (or otherwise resolve the Task) before switching to Fact"))
+			return true
 		}
 		recv := text(pass, sel.X)
 		reason := text(pass, call.Args[0])
 		newText := recv + `.Fact("kept", ` + reason + ".Name())"
-		pass.Report(diag("API-091", call,
-			"evo.TaskHandle.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact(\"kept\", reason.Name()), not a third resolution alongside Succeeded/Skipped",
+		pass.Report(diag("API-091", call, msg,
 			analysis.SuggestedFix{
 				Message:   `replace Kept(reason) with Fact("kept", reason.Name())`,
 				TextEdits: []analysis.TextEdit{{Pos: call.Pos(), End: call.End(), NewText: []byte(newText)}},
 			}))
+		return true
 	})
 	reportKeptValues(pass, insp)
 	return nil, nil
+}
+
+// isInsideDefineCallback reports whether stack's innermost enclosing
+// function literal is passed directly as an argument to a `.Define(...)`
+// call — the only place a Kept rewrite to Fact is safe, because Define's
+// own nil return is what resolves the Task; Fact never does.
+func isInsideDefineCallback(stack []ast.Node) bool {
+	for i := len(stack) - 1; i >= 0; i-- {
+		lit, ok := stack[i].(*ast.FuncLit)
+		if !ok {
+			continue
+		}
+		if i == 0 {
+			return false
+		}
+		call, ok := stack[i-1].(*ast.CallExpr)
+		if !ok {
+			return false
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Define" {
+			return false
+		}
+		for _, arg := range call.Args {
+			if arg == lit {
+				return true
+			}
+		}
+		return false
+	}
+	return false
 }
 
 // reportKeptValues is API-091's method-value/method-expression case: a
@@ -85,9 +133,17 @@ func reportKeptValues(pass *analysis.Pass, insp *inspector.Inspector) {
 		if isEvoOwnTestFile(pass, sel.Pos()) {
 			return true
 		}
-		pass.Report(diag("API-091", sel,
-			"evo.TaskHandle.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact(\"kept\", reason.Name())",
-			keptValueFix(pass, sel)))
+		msg := "evo.TaskHandle.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact(\"kept\", reason.Name())"
+		// Same resolution concern as runKept's call-site case: a method
+		// value/expression captured outside a Define callback would, once
+		// rewritten to call Fact, never resolve the Task the way Kept
+		// used to.
+		if !isInsideDefineCallback(stack) {
+			pass.Report(diag("API-091", sel,
+				msg+" — not rewritten: this Kept reference is outside a Define callback, and Fact never resolves a Task the way Kept used to; wrap the call site in a Define whose callback returns nil before switching to Fact"))
+			return true
+		}
+		pass.Report(diag("API-091", sel, msg, keptValueFix(pass, sel)))
 		return true
 	})
 }

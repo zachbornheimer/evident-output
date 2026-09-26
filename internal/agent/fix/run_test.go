@@ -50,8 +50,8 @@ func run() error {
 	t := out.Task("check")
 	t.Warn("stale cache")
 	t.Step(1, 3, "scanning")
-	t.Kept(evo.Reason("dirty"))
 	t.Define(func(ctx context.Context) error {
+		t.Kept(evo.Reason("dirty"))
 		return nil
 	})
 	return out.Finish()
@@ -459,10 +459,10 @@ func run() error {
 	defer step(1, 3, "cleanup")
 
 	stepExpr := (*evo.TaskHandle).Step
-	keptFn := (*evo.TaskHandle).Kept
 
 	t.Define(func(ctx context.Context) error {
 		stepExpr(t, 2, 3, "define")
+		keptFn := (*evo.TaskHandle).Kept
 		keptFn(t, evo.Reason("dirty"))
 		return nil
 	})

@@ -8,14 +8,17 @@ import "golang.org/x/tools/go/analysis"
 // keeping a parallel text-scan rule per family; `evident-output fix` runs
 // the same list.
 //
-// Blockf/Failf are deliberately not here: task.go documents both as
-// current, kept vocabulary (Blockf is how a Define callback returns a
-// refusal; Failf is the returnable Fail form used outside Define), and
-// internal/agent/review's API-040 check already flags the opposite
-// mistake (Failf misused inside a Define). An earlier analyzer here
-// treated them as legacy and rewrote `return task.Failf(...)` into a
-// Fail+return-error double-resolve, contradicting both task.go and
-// review; it was removed rather than reconciled to a doc that was wrong.
+// TaskHandle.Blockf/Failf and Output.Failf were deleted in 1.1 (owner
+// vocabulary freeze, 2026-09-25: Block/Fail win, Blockf/Failf are legacy),
+// but no BlockfAnalyzer/FailfAnalyzer exists here: unlike Warn/Step/Kept/
+// ReasonOption, a Failf(format, args...) or Blockf(format, args...) call
+// site folds its formatted/wrapped text into the replacement's plain
+// summary string — a semantic rewrite (evaluating the format string
+// against its args, and for %w specifically deciding whether the wrapped
+// error belongs in the summary or a separate Fact/Problem detail) rather
+// than the mechanical method-rename these analyzers do. Consumer call
+// sites still need this migration; it is unclaimed rather than
+// intentionally out of scope.
 var Analyzers = []*analysis.Analyzer{
 	WarnAnalyzer,
 	StepAnalyzer,
