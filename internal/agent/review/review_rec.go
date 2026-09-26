@@ -92,7 +92,7 @@ func (d *recSurfaceDetector) inspectComposite(cl *ast.CompositeLit) {
 // error with removed-in-1.1 wording instead of the rule catalog's default
 // warning, which still fits an older pin where the constructors are merely
 // superseded, not gone.
-func (d *recSurfaceDetector) reportOptionsRemoval(n ast.Node, removedMsg, supersededMsg, sug string) {
+func (d *recSurfaceDetector) reportOptionsRemoval(n ast.Node, removedMsg, recMsg, sug string) {
 	if d.effectDialect {
 		d.findings = append(d.findings, Finding{
 			RuleID:     "API-032",
@@ -104,7 +104,7 @@ func (d *recSurfaceDetector) reportOptionsRemoval(n ast.Node, removedMsg, supers
 		})
 		return
 	}
-	d.report(n, supersededMsg, sug)
+	d.report(n, recMsg, sug)
 }
 
 // inspectConfigOptions flags Config.Options. It offers a rewrite only when
@@ -119,17 +119,17 @@ func (d *recSurfaceDetector) inspectConfigOptions(cl *ast.CompositeLit) {
 			continue
 		}
 		const removedMsg = "Config.Options is removed in 1.1; use Config fields"
-		const supersededMsg = "Config.Options is superseded; use Config fields"
+		const recMsg = "Config.Options is superseded; use Config fields"
 		old := d.nodeSrc(kv)
 		sl, isSlice := kv.Value.(*ast.CompositeLit)
 		if isSlice && isOptionSliceLit(sl, d.pkg) {
 			if repl, ok := d.optionSliceToFields(sl, set); ok {
-				d.reportOptionsRemoval(kv, removedMsg, supersededMsg, "replace "+old+" with "+repl)
+				d.reportOptionsRemoval(kv, removedMsg, recMsg, "replace "+old+" with "+repl)
 				d.cover(kv)
 				continue
 			}
 		}
-		d.reportOptionsRemoval(kv, removedMsg, supersededMsg, "move each Option in "+old+" to its Config field by hand; "+
+		d.reportOptionsRemoval(kv, removedMsg, recMsg, "move each Option in "+old+" to its Config field by hand; "+
 			"at least one has no one-to-one field, or its field is already set, so no automatic rewrite is offered")
 		d.cover(kv)
 	}

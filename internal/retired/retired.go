@@ -130,35 +130,40 @@ var symbols = []Symbol{
 
 	// Task is name-only, so nothing accepted an EntityOption: ID and
 	// StartPhase built values no API consumed (PHIL-007).
-	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
-	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
-	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key", Taught: regexp.MustCompile(`\bevo\.ID\(`)},
+	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step", Taught: regexp.MustCompile(`\bEntityOption\b`)},
+	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing", Taught: regexp.MustCompile(`\bevo\.StartPhase\(|\bStartPhase\(`)},
 
 	// Owner vocabulary freeze (2026-09-25): Fail/Block are the one
 	// statement-form spelling; Blockf/Failf/Failure were compatibility
 	// sugar around a same-line %w-wrapped return, with no mechanical
 	// rewrite (see internal/agent/fix/failf.go, API-140).
-	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary) — fold the wrapped error into the summary string, then return it separately"},
-	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block(summary) — fold the wrapped error into the summary string, then return it separately"},
-	{Contract: "Output.Failf(", RemovedIn: Release1_1, Replacement: "Output.Fail — fold the wrapped error into the summary string, then return it separately"},
-	{Contract: "Failure", RemovedIn: Release1_1, Replacement: "a plain error, with Next/NextCommand ProblemOptions for a remedy"},
+	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary) — fold the wrapped error into the summary string, then return it separately", Taught: regexp.MustCompile(`\b(?:TaskHandle|[Tt]ask\w*)\.Failf\(`)},
+	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block(summary) — fold the wrapped error into the summary string, then return it separately", Taught: regexp.MustCompile(`\b(?:TaskHandle|[Tt]ask\w*)\.Blockf\(`)},
+	{Contract: "Output.Failf(", RemovedIn: Release1_1, Replacement: "Output.Fail — fold the wrapped error into the summary string, then return it separately", Taught: regexp.MustCompile(`\b(?:Output|out)\.Failf\(`)},
+	{Contract: "Failure", RemovedIn: Release1_1, Replacement: "a plain error, with Next/NextCommand ProblemOptions for a remedy", Taught: regexp.MustCompile(`\bevo\.Failure\b`)},
 
 	// Owner vocabulary freeze (2026-09-25): Progress+Doing win over Step;
 	// a kept item is domain information (Fact), not a third resolution;
 	// ForSkip/OnTask restricted where a Reason could be used, a
 	// constraint Reason never needed to enforce structurally.
-	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(name)"},
-	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: `Fact("kept", reason.Name())`},
-	{Contract: "ForSkip", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name"},
-	{Contract: "OnTask", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name"},
-	{Contract: "ReasonOption", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name"},
+	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(name)", Taught: regexp.MustCompile(`\b(?:TaskHandle|[Tt]ask\w*)\.Step\(`)},
+	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: `Fact("kept", reason.Name())`, Taught: regexp.MustCompile(`\b(?:TaskHandle|[Tt]ask\w*)\.Kept\(`)},
+	{Contract: "ForSkip", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name", Taught: regexp.MustCompile(`\bForSkip\b`)},
+	{Contract: "OnTask", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name", Taught: regexp.MustCompile(`\bOnTask\b`)},
+	{Contract: "ReasonOption", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name", Taught: regexp.MustCompile(`\bReasonOption\b`)},
 
 	// Owner vocabulary freeze (2026-09-25): Config already carries every
 	// setting as a field; the parallel functional-options surface
 	// (Config.Options []Option, and each Option-returning constructor)
 	// never reached the public root package — only internal/engine keeps
 	// them, for the fixer/reviewer's own rewrite machinery.
-	{Contract: "Option", RemovedIn: Release1_1, Replacement: "the matching evo.Config field"},
+	// Bare "Config.Options" is deliberately excluded: it also appears in
+	// rec-only guidance for an older (pre-1.1) pin, where the field is
+	// merely superseded, not yet removed for that dialect (see
+	// TestAPI032_OptionsRemovedIn1_1IsError) — "[]evo.Option"/"evo.Option"
+	// name the retired type unambiguously regardless of target dialect.
+	{Contract: "Option", RemovedIn: Release1_1, Replacement: "the matching evo.Config field", Taught: regexp.MustCompile(`\[\]evo\.Option\b|\bevo\.Option\b`)},
 	// Title/Plain/DryRun as functional-option CALLS (evo.Title("x")) are
 	// gone; Config.Title/Plain/DryRun as struct fields are unaffected and
 	// unambiguous without a call — the Taught patterns require parens so

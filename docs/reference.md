@@ -184,7 +184,7 @@ Keep the core vocabulary small. Scale via **Config**, **schema keys**, and **str
 | Secret scrubbing      | `Config.Redactor` — Debug fields + capture ring        |
 | Host-owned rendering  | `FormatExternal` + `out.Snapshot()` (no inline stream) |
 
-Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Prefer one `Config` field or `EntityOption` over a new top-level type.
+Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Prefer one `Config` field over a new top-level type.
 
 ## Shared resources and concurrency
 

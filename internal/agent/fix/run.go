@@ -31,7 +31,8 @@ type Result struct {
 // (owner) so two diagnostics whose edits overlap — a call an outer
 // analyzer rewrites whole while an inner one edits one of its arguments,
 // e.g. KeptAnalyzer's Skipped(reason) rewrite spanning the same bytes
-// ReasonOptionAnalyzer deletes evo.ForSkip() from — can be told apart:
+// ReasonOptionAnalyzer deletes evo.ForSkip() (removed in 1.1) from — can
+// be told apart:
 // resolveEdits keeps the first owner it sees per file and drops every
 // later edit that overlaps it, rather than splicing both into corrupt
 // source.

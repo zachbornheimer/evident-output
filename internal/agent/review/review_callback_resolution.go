@@ -51,7 +51,7 @@ func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.F
 
 // scanBlockForFailfReturn recurses through a block's own control-flow
 // (if/for/range/switch), never into a nested FuncLit, looking for
-// `return task.Failf(...)` — a leftover of the removed Failf spelling.
+// `return task.Failf(...)` — a leftover of the Failf spelling removed in 1.1.
 // `task.Fail(...)`/`task.Block(...)` immediately followed by
 // `return <non-nil err>` is NOT flagged here since 1.1: Failf/Blockf are
 // gone, Fail/Block are statement-form, and folding the wrapped context into

@@ -10,9 +10,10 @@ import (
 
 // FailfAnalyzer is API-140: TaskHandle.Blockf, TaskHandle.Failf,
 // Output.Failf, and the *Failure type they returned (Error/Next/
-// NextCommand/Unwrap) were removed with no alias (owner vocabulary
+// NextCommand/Unwrap) were removed in 1.1 with no alias (owner vocabulary
 // freeze, 2026-09-25: Fail/Block win as the one statement-form spelling
-// in this family). Unlike Warn/Step/Kept/ReasonOption, none of these get
+// in this family). Unlike Warn/Step/Kept/ReasonOption (also removed in
+// 1.1), none of these get
 // a SuggestedFix: folding a *f call's format string and args into a
 // plain summary — and, for a %w verb specifically, deciding whether the
 // wrapped error belongs in the summary text or a separate detail — is a
@@ -127,9 +128,10 @@ func reportFailureType(pass *analysis.Pass, insp *inspector.Inspector) {
 		if sel.Sel.Name != "Failure" || !isEvoPackageSelector(pass, sel) {
 			return true
 		}
-		// A selector call (evo.Failure(...)) never existed — Failure was
-		// a struct type, never a constructor func — but guard it anyway
-		// so a same-named future export is not misreported as this type.
+		// A selector call (evo.Failure(...)) never existed — Failure
+		// (removed in 1.1) was a struct type, never a constructor func —
+		// but guard it anyway so a same-named future export is not
+		// misreported as this type.
 		if isSelectorCalled(stack) {
 			return true
 		}

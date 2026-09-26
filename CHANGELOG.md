@@ -285,7 +285,8 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   or `task.Fail(fmt.Sprintf(...))` statement into `Blockf`/`Failf`, whose
   returned `*Failure` was then discarded and failed errcheck. It fires only
   when a return follows, and suggests one `return task.Failf(...)` (or, in a
-  Define callback, `return fmt.Errorf(...)`).
+  Define callback, `return fmt.Errorf(...)`). (`Failf`/`Blockf` were
+  removed in 1.1, below.)
 
 - A warning's `evo.On(subject)` now renders on every human row
   (`✓ check jobs  ! job  x`, nested and run-level warnings too); it was
@@ -332,7 +333,7 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `return fmt.Errorf(...)` for a `Block` site, which turned a `[blocked]`
   exit 1 into `[failed]` exit 2, and API-040 flagged `return task.Blockf`.
   Every `Block` rewrite now suggests `Blockf`, and API-040 flags only
-  `Failf`.
+  `Failf`. (`Failf`/`Blockf` were removed in 1.1, below.)
 
 - Under `Config.DryRun` or `Config.Preview`, a Task whose `Verify` is false
   and whose `Define` plans an Effect concludes `[planned]` with exit 0. It

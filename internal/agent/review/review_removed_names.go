@@ -1,5 +1,6 @@
 // Package review — removed-name findings (API-070/090/091/120: Warn,
-// Step, Kept, ReasonOption/ForSkip/OnTask) are reported by loading the
+// Step, Kept, ReasonOption/ForSkip/OnTask, all removed in 1.1) are
+// reported by loading the
 // reviewed directory as real Go packages and running
 // internal/agent/fix's RemovedNameAnalyzers over them, instead of a
 // second, review-owned AST walk that can drift from the fixer's typed

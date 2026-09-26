@@ -9,12 +9,12 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-// optionField maps an exported Option constructor (option_api.go) to the
-// Config field assignment it corresponds to, derived by hand against
-// internal/engine/construct.go's Config struct. constructor -> "" means
-// the constructor was kept only as the Config.Options escape hatch — no
-// single field represents it, so it gets a diagnostic naming it instead of
-// a guessed fix.
+// optionField maps an exported Option constructor (option_api.go, removed
+// in 1.1) to the Config field assignment it corresponds to, derived by
+// hand against internal/engine/construct.go's Config struct. constructor
+// -> "" means the constructor was kept only as the Config.Options escape
+// hatch (also removed in 1.1) — no single field represents it, so it gets
+// a diagnostic naming it instead of a guessed fix.
 // optionFields functions take the resolved evo package alias so the
 // generated DebugConfig{} / ColorNever literals qualify with whatever
 // name the source imports evo under, instead of hardcoding "evo." — a
@@ -57,12 +57,13 @@ var configField = map[string]string{
 	"VisibilityDelay": "VisibilityDelay",
 }
 
-// noFieldOptions lists Option constructors option_api.go still exports
-// that have no single Config field: DataProjection is now a no-op kept
-// for source compatibility, and AlsoWrite/Diagnostics/DebugHistory/
-// DebugPane/Runner either compose with other state or need a value only
-// expressible through Config.Options (the escape hatch), not a scalar
-// field assignment. VisibilityDelay DOES have a field
+// noFieldOptions lists the Option constructors (removed in 1.1, along
+// with Config.Options) that had no single Config field: DataProjection
+// is now a no-op kept for source compatibility, and AlsoWrite/
+// Diagnostics/DebugHistory/DebugPane/Runner either compose with other
+// state or needed a value only expressible through the removed
+// Config.Options escape hatch, not a scalar field assignment.
+// VisibilityDelay DOES have a field
 // (internal/engine/construct.go Config.VisibilityDelay) — see optionFields.
 var noFieldOptions = map[string]bool{
 	"AlsoWrite": true, "DataProjection": true, "Diagnostics": true,

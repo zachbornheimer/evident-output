@@ -47,8 +47,10 @@ var staleAPIHistoricalFragments = []string{
 	"docs/architecture/",
 	"docs/adr/",
 	"docs/acceptance/reference/",
-	// The v0.2.8-era planning basis: dated design history, not current API.
+	// The v0.2.8-era planning basis and its polish synthesis: dated design
+	// history, not current API. Both are explicitly labeled "Historical".
 	"docs/roadmap/implementation-basis.md",
+	"docs/roadmap/polish-synthesis.md",
 	"/COMPLETENESS_",
 }
 
