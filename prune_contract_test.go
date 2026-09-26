@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -279,8 +280,31 @@ func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
 	return work
 }
 
+// keptItemsFor builds count keptItems under reason: the first len(named)
+// carry the given real names (so a verbose assertion can pin the exact
+// leading names txt.TruncateNames shows before its "+N more" fold), the
+// rest are filler names distinct only by index — Linear 9c10b754 §18's
+// counts (283 checked out, 135 unpushed, ...) are too large to name
+// individually, and TruncateNames bounds the verbose listing regardless.
+func keptItemsFor(reason evo.TaxonomyReason, named []string, count int) []keptItem {
+	items := make([]keptItem, 0, count)
+	for i := range count {
+		name := fmt.Sprintf("%s-item-%d", reason.Name(), i)
+		if i < len(named) {
+			name = named[i]
+		}
+		items = append(items, keptItem{name, reason})
+	}
+	return items
+}
+
 // renderPruneContract18 runs zq prune's dry-run under zq's own Config
-// (Title "zq", a Subject header) at verbosity.
+// (Title "zq", a Subject header) at verbosity, at the exact counts Linear
+// 9c10b754 §18 specifies: 459 checked/419 skipped (283 checked out, 135
+// unpushed, 1 protected), 294 checked/292 skipped (163 dirty, 89 unpushed,
+// 40 ignored files), and a remote-tracking category with its own "4 stale
+// refs" summary and delete effect (§18 has no remote-tracking Kept/Skipped
+// items at all).
 func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 	t.Helper()
 	var buf bytes.Buffer
@@ -293,17 +317,29 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 	categories := out.Group("categories")
 	checkedOut, protected := evo.Reason("checked out"), evo.Reason("protected")
 	dirty, unpushed := evo.Reason("dirty"), evo.Reason("unpushed")
+	ignoredFiles := evo.Reason("ignored files")
+	var branchKept []keptItem
+	branchKept = append(branchKept, keptItemsFor(checkedOut, []string{"feat/wt-a", "feat/wt-b"}, 283)...)
+	branchKept = append(branchKept, keptItemsFor(unpushed, nil, 135)...)
+	branchKept = append(branchKept, keptItemsFor(protected, []string{"main"}, 1)...)
 	branches := pruneCategory{
-		name: "branches", summary: "188 checked",
-		effect: &evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 87},
-		kept:   []keptItem{{"feat/wt-a", checkedOut}, {"feat/wt-b", checkedOut}, {"main", protected}},
+		name: "branches", summary: "459 checked",
+		effect: &evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40},
+		kept:   branchKept,
 	}.declare(categories)
+	var worktreeKept []keptItem
+	worktreeKept = append(worktreeKept, keptItemsFor(dirty, []string{"../wt-a", "../wt-b"}, 163)...)
+	worktreeKept = append(worktreeKept, keptItemsFor(unpushed, []string{"../wt-c"}, 89)...)
+	worktreeKept = append(worktreeKept, keptItemsFor(ignoredFiles, nil, 40)...)
 	worktrees := pruneCategory{
-		name: "worktrees", summary: "168 checked", onDisk: "508.8 MB",
-		effect: &evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 95},
-		kept:   []keptItem{{"../wt-a", dirty}, {"../wt-b", dirty}, {"../wt-c", unpushed}},
+		name: "worktrees", summary: "294 checked", onDisk: "508.8 MB",
+		effect: &evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1},
+		kept:   worktreeKept,
 	}.declare(categories)
-	remotes := pruneCategory{name: "remote-tracking", summary: "nothing to clean"}.declare(categories)
+	remotes := pruneCategory{
+		name: "remote-tracking", summary: "4 stale refs",
+		effect: &evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4},
+	}.declare(categories)
 	for _, category := range []*evo.TaskHandle{branches, worktrees, remotes} {
 		if err := category.Wait(); err != nil {
 			t.Fatal(err)
@@ -330,14 +366,15 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 func TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18(t *testing.T) {
 	want := "[dry-run] zq prune  ~/repo\n" +
 		"\n" +
-		"✓ branches         188 checked\n" +
-		"  - skipped 3 (2 checked out, 1 protected)\n" +
-		"✓ worktrees        168 checked\n" +
-		"  - skipped 3 (2 dirty, 1 unpushed)\n" +
-		"✓ remote-tracking  nothing to clean\n" +
+		"✓ branches         459 checked\n" +
+		"  - skipped 419 (283 checked out, 135 unpushed, 1 protected)\n" +
+		"✓ worktrees        294 checked\n" +
+		"  - skipped 292 (163 dirty, 89 unpushed, 40 ignored files)\n" +
+		"✓ remote-tracking  4 stale refs\n" +
 		"\n" +
-		"[planned] branches   delete 87 local tips\n" +
-		"[planned] worktrees  remove 95 worktrees\n"
+		"[planned] branches         delete 40 local tips\n" +
+		"[planned] worktrees        remove 1 worktree\n" +
+		"[planned] remote-tracking  delete 4 stale origin/*\n"
 	if got := renderPruneContract18(t, evo.VerbosityNormal); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -349,11 +386,11 @@ func TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18(t *testing
 func TestPruneContract_SkippedTallyVerboseListsRealItemNames(t *testing.T) {
 	got := renderPruneContract18(t, evo.VerbosityVerbose)
 	for _, want := range []string{
-		"✓ branches         188 checked\n  - skipped 3 (2 checked out, 1 protected)\n",
-		"checked out: feat/wt-a, feat/wt-b\n",
+		"✓ branches         459 checked\n  - skipped 419 (283 checked out, 135 unpushed, 1 protected)\n",
+		"checked out: feat/wt-a, feat/wt-b",
 		"protected: main\n",
-		"dirty: ../wt-a, ../wt-b\n",
-		"unpushed: ../wt-c\n",
+		"dirty: ../wt-a, ../wt-b",
+		"unpushed: ../wt-c,",
 		"on disk  508.8 MB\n",
 	} {
 		if !strings.Contains(got, want) {
