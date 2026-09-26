@@ -182,6 +182,18 @@ func (c rootColumn) nameWidth() int {
 // one case that couldn't wait for Finish; every standalone Task now gets the
 // same immediate commit for the same reason — a later evidence call must
 // never race above already-resolved work.
+// heldBackAsNoOpLocked reports whether a resolved root Task is a
+// zero-information row (core.IsProvenNoOpTask) with no ledger section
+// of its own. Such a row is not committed when it resolves: Finish decides
+// whether the run has anything else to show, and prints the row only if not.
+// Caller must hold o.mu.
+func (o *Output) heldBackAsNoOpLocked(t TaskSnapshot) bool {
+	if !core.IsProvenNoOpTask(render.TaskAtVerbosity(t, o.cfg.verbosity >= VerbosityVerbose)) {
+		return false
+	}
+	return !o.hasLedgerSectionLocked(t.ID)
+}
+
 func (o *Output) commitResolvedTaskLocked(id string) {
 	st := o.taskByRef[id]
 	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.state.Current()) {

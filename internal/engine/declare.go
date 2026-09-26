@@ -18,6 +18,15 @@ func (o *Output) nextDecl() int {
 	return o.declSeq
 }
 
+// appendTaskLocked adds st to the run's Tasks in declaration order. Caller
+// must hold o.mu.
+func (o *Output) appendTaskLocked(st *taskState) {
+	o.tasks = append(o.tasks, st)
+	if st.collection == nil {
+		o.rootColumn.add(st.name)
+	}
+}
+
 func (o *Output) ensureEntityRoomLocked() error {
 	n := len(o.tasks)
 	if n >= o.cfg.maxEntities {
