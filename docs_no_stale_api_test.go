@@ -54,6 +54,33 @@ var staleAPIHistoricalFragments = []string{
 	"/COMPLETENESS_",
 }
 
+// TestRemovedInPatternAcceptsOnlyCHANGELOGBareTense pins the one asymmetry
+// in the migration-note check: CHANGELOG.md's "## Removed" bullets may use
+// the bare "was removed"/"renamed" past tense because the section heading
+// itself already carries the release, but every other doc must still name
+// the release explicitly — a stray "renamed" in, say, docs/reference.md
+// must not excuse teaching a retired name there.
+func TestRemovedInPatternAcceptsOnlyCHANGELOGBareTense(t *testing.T) {
+	cases := []struct {
+		rel     string
+		text    string
+		release retired.Release
+		want    bool
+	}{
+		{"CHANGELOG.md", "TaskHandle.Record was removed", retired.Release1_1, true},
+		{"CHANGELOG.md", "TaskHandle.Add renamed to Effect", retired.Release1_1, true},
+		{"CHANGELOG.md", "no migration note here", retired.Release1_1, false},
+		{"docs/reference.md", "TaskHandle.Record was removed", retired.Release1_1, false},
+		{"docs/reference.md", "TaskHandle.Add renamed to Effect", retired.Release1_1, false},
+		{"docs/reference.md", "TaskHandle.Record removed in 1.1", retired.Release1_1, true},
+	}
+	for _, c := range cases {
+		if got := removedInPattern(c.rel, c.release).MatchString(c.text); got != c.want {
+			t.Errorf("removedInPattern(%q, %s).MatchString(%q) = %v, want %v", c.rel, c.release, c.text, got, c.want)
+		}
+	}
+}
+
 func TestDocsCarryNoStaleAPI(t *testing.T) {
 	root := moduleRoot(t)
 	docs, offsets := currentDocs(t, root)

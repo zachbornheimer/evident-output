@@ -59,9 +59,8 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 
 // GoFileAt reviews the Go file at path: full AST review via GoSourceAt,
 // plus API-070/090/091/120 (Warn/Step/Kept/ReasonOption — removed in 1.1)
-// via the same fix.RemovedNameAnalyzers path GoDirectoryAt uses, scoped
-// to path's own
-// module and filtered to path so a single-file review reports the same
+// via the same fix.RemovedNameAnalyzers path GoDirectoryAt uses, scoped to
+// path's own module and filtered to path so a single-file review reports the same
 // removed-name findings a directory review of its parent would. path must
 // be a real file — that's what lets it resolve a module root to
 // type-check — but the AST review and removed-name findings are always

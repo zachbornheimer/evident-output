@@ -6,13 +6,13 @@ import (
 )
 
 // removedInPhrase is how guidance legitimately names a retired symbol:
-// inside a note that says which release removed it. "superseded" alone
-// (no release number) is the one accepted alternate: rec-only guidance
-// aimed at an older pin, where the name is not yet retired for that
-// dialect, uses it instead of a false "removed in 1.1" — but since it
-// names no release, UnexplainedIn cannot attribute it to a specific
-// Symbol's RemovedIn, so it is treated as covering every release.
-var removedInPhrase = regexp.MustCompile(`(?i)removed in (\d+\.\d+)|(superseded)`)
+// inside a note that says which release removed it. There is no
+// release-less alternate: an excuse that names no release would have to
+// cover every Symbol's RemovedIn, which erases the release-specific check
+// this function exists to make. Text that wants to call a symbol merely
+// superseded (not yet removed for an older pin) must still say which
+// release removes it, so the excuse stays attributable to that Symbol.
+var removedInPhrase = regexp.MustCompile(`(?i)removed in (\d+\.\d+)`)
 
 // UnexplainedIn returns every retired Symbol text teaches without also
 // saying "removed in <release>" for that Symbol's release. Guidance (a
@@ -20,19 +20,12 @@ var removedInPhrase = regexp.MustCompile(`(?i)removed in (\d+\.\d+)|(superseded)
 // gone; anything else steers the reader to an API that no longer compiles.
 func UnexplainedIn(text string) []Hit {
 	var releases []Release
-	allReleases := false
 	for _, m := range removedInPhrase.FindAllStringSubmatch(text, -1) {
-		if m[1] == "" {
-			// The "superseded" alternate names no release, so it excuses
-			// every Symbol's RemovedIn rather than one in particular.
-			allReleases = true
-			continue
-		}
 		releases = append(releases, Release(m[1]))
 	}
 	var hits []Hit
 	for _, h := range TaughtIn(text) {
-		if allReleases || slices.Contains(releases, h.Symbol.RemovedIn) {
+		if slices.Contains(releases, h.Symbol.RemovedIn) {
 			continue
 		}
 		hits = append(hits, h)

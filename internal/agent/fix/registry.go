@@ -10,9 +10,9 @@ import "golang.org/x/tools/go/analysis"
 //
 // TaskHandle.Blockf/Failf, Output.Failf, and evo.Failure (API-140, all
 // removed in 1.1) get no SuggestedFix: unlike Warn/Step/Kept/ReasonOption
-// (also removed in 1.1), a Failf(format,
-// args...) or Blockf(format, args...) call site folds its
-// formatted/wrapped text into the replacement's plain summary string — a
+// (also removed in 1.1), a Failf(format, args...) or Blockf(format,
+// args...) call site folds its formatted/wrapped text into the
+// replacement's plain summary string — a
 // semantic rewrite (evaluating the format string against its args, and
 // for %w specifically deciding whether the wrapped error belongs in the
 // summary or a separate Fact/Problem detail) rather than the mechanical
@@ -33,8 +33,8 @@ var Analyzers = []*analysis.Analyzer{
 // RemovedNameAnalyzers is the subset of Analyzers whose Category is a
 // stable removed-name rule ID (API-070/090/091/120/140: Warn/Step/Kept/
 // ReasonOption-ForSkip-OnTask/Failf-Blockf-Failure, all removed in 1.1)
-// rather than a
-// rename/config-collapse rule with its own review-side detector.
+// rather than a rename/config-collapse rule with its own review-side
+// detector.
 // internal/agent/review's directory path runs exactly this subset as its
 // single source of truth for those rule IDs, instead of a second,
 // review-owned implementation that can drift from the fixer's typed

@@ -80,7 +80,7 @@ func (d *recSurfaceDetector) inspectComposite(cl *ast.CompositeLit) {
 		}
 		old := d.nodeSrc(cl)
 		d.reportOptionsRemoval(cl, "[]evo.Option is removed in 1.1; use Config fields",
-			"[]evo.Option is superseded; use Config fields",
+			"[]evo.Option is superseded for this pin, and removed in 1.1; use Config fields",
 			"replace "+old+" with "+repl)
 		d.cover(cl)
 	}
@@ -91,7 +91,7 @@ func (d *recSurfaceDetector) inspectComposite(cl *ast.CompositeLit) {
 // API-090/091/120's removed-name severity), so the finding escalates to
 // error with removed-in-1.1 wording instead of the rule catalog's default
 // warning, which still fits an older pin where the constructors are merely
-// superseded, not gone.
+// superseded, not gone (removed in 1.1).
 func (d *recSurfaceDetector) reportOptionsRemoval(n ast.Node, removedMsg, recMsg, sug string) {
 	if d.effectDialect {
 		d.findings = append(d.findings, Finding{
@@ -119,7 +119,7 @@ func (d *recSurfaceDetector) inspectConfigOptions(cl *ast.CompositeLit) {
 			continue
 		}
 		const removedMsg = "Config.Options is removed in 1.1; use Config fields"
-		const recMsg = "Config.Options is superseded; use Config fields"
+		const recMsg = "Config.Options is superseded for this pin, and removed in 1.1; use Config fields"
 		old := d.nodeSrc(kv)
 		sl, isSlice := kv.Value.(*ast.CompositeLit)
 		if isSlice && isOptionSliceLit(sl, d.pkg) {

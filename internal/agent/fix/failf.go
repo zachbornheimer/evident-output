@@ -13,10 +13,10 @@ import (
 // NextCommand/Unwrap) were removed in 1.1 with no alias (owner vocabulary
 // freeze, 2026-09-25: Fail/Block win as the one statement-form spelling
 // in this family). Unlike Warn/Step/Kept/ReasonOption (also removed in
-// 1.1), none of these get
-// a SuggestedFix: folding a *f call's format string and args into a
-// plain summary — and, for a %w verb specifically, deciding whether the
-// wrapped error belongs in the summary text or a separate detail — is a
+// 1.1), none of these get a SuggestedFix: folding a *f call's format
+// string and args into a plain summary — and, for a %w verb specifically,
+// deciding whether the wrapped error belongs in the summary text or a
+// separate detail — is a
 // semantic judgment call, not a mechanical rename (see registry.go's
 // doc comment on why no fixer previously existed for this family). This
 // analyzer exists purely to give consumer code a review finding and a
