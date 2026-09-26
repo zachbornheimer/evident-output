@@ -30,6 +30,14 @@ type CaptureRename struct {
 	From string
 	// To is the 1.1 Capture-vocabulary replacement.
 	To string
+	// ProblemField marks the one rename that is a struct field on
+	// evo.Problem (EvidenceTail -> CaptureTail) rather than a package-level
+	// selector. The fix analyzer checks this flag instead of hard-coding
+	// the rename's RuleID, so a future Problem-field rename added to this
+	// table gets the receiver-scoped check for free and a package-level
+	// rename can never accidentally collide with Problem.Evidence, the
+	// live satisfaction-proof field that shares API-110's spelling.
+	ProblemField bool
 }
 
 // CaptureRenames is the one table of capture-meaning renames.
@@ -41,7 +49,7 @@ var CaptureRenames = []CaptureRename{
 	{RuleID: "API-114", From: "EvidenceStreamStdout", To: "CaptureStreamStdout"},
 	{RuleID: "API-115", From: "EvidenceStreamStderr", To: "CaptureStreamStderr"},
 	{RuleID: "API-116", From: "MaxEvidenceBytes", To: "MaxCaptureBytes"},
-	{RuleID: "API-117", From: "EvidenceTail", To: "CaptureTail"},
+	{RuleID: "API-117", From: "EvidenceTail", To: "CaptureTail", ProblemField: true},
 }
 
 // captureRenameSymbols converts CaptureRenames into retired Symbol entries

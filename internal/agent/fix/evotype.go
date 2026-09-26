@@ -11,7 +11,9 @@ package fix
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -104,15 +106,26 @@ func isMethodExprRecv(info *types.Info, x ast.Expr) bool {
 // isNamedCompatTestShim reports whether stack's innermost enclosing
 // function declaration is exactly <removedName>ForTest — the one-line
 // export_test.go pattern (StepForTest, ...) that re-exposes a name the
-// 1.1 freeze retired from the public surface so package-external tests
-// can still call it during the compatibility window. Unlike an ordinary
-// call site, rewriting the call inside its own eponymous shim does not
-// migrate a caller off the retired name — it deletes the shim's only
-// reason to exist and, for names whose replacement has different
+// 1.1 freeze retired from the public surface so evo's own package-external
+// tests can still call it during the compatibility window. Unlike an
+// ordinary call site, rewriting the call inside its own eponymous shim
+// does not migrate a caller off the retired name — it deletes the shim's
+// only reason to exist and, for names whose replacement has different
 // semantics (Step's atomic Progress+Phase update vs. Progress().Doing()'s
 // two separate calls — see TestAPISugar_StepConcurrentWorkersNeverInterleave),
 // silently regresses the very behavior the shim exists to keep testable.
-func isNamedCompatTestShim(stack []ast.Node, removedName string) bool {
+//
+// The exemption is scoped to evo's own module, not just the function's
+// name: it requires pass.Pkg to be the evo package itself (or its "_test"
+// external-test variant) AND the enclosing file to be a _test.go file.
+// Without that scoping, a user package that happened to define its own
+// <removedName>ForTest — for example a user's own StepForTest wrapping an
+// unrelated call — would get the same exemption and silently skip
+// migration off the retired name.
+func isNamedCompatTestShim(pass *analysis.Pass, stack []ast.Node, removedName string) bool {
+	if !isEvoOwnTestFile(pass, stack[len(stack)-1].Pos()) {
+		return false
+	}
 	for i := len(stack) - 1; i >= 0; i-- {
 		fn, ok := stack[i].(*ast.FuncDecl)
 		if !ok {
@@ -121,6 +134,24 @@ func isNamedCompatTestShim(stack []ast.Node, removedName string) bool {
 		return fn.Name.Name == removedName+"ForTest"
 	}
 	return false
+}
+
+// isEvoOwnTestFile reports whether pos lies in a _test.go file belonging
+// to evo's own package — the top-level package itself, or its "_test"
+// external-test-package variant — as opposed to any consumer module that
+// happens to import evo. It backs every fix-analyzer exemption that
+// covers evo's own tests of a still-exported-but-retired-vocabulary
+// method (the Step compat-shim pattern, and API-091's exemption for
+// tests that pin Kept's own contract rather than migrating a call site),
+// so a user package can never inherit the same exemption by coincidence
+// of file layout or function name.
+func isEvoOwnTestFile(pass *analysis.Pass, pos token.Pos) bool {
+	pkgPath := pass.Pkg.Path()
+	if pkgPath != EvoPackagePath && pkgPath != EvoPackagePath+"_test" {
+		return false
+	}
+	filename := pass.Fset.Position(pos).Filename
+	return strings.HasSuffix(filename, "_test.go")
 }
 
 // stripParens removes one layer of enclosing "(" ")" from a method

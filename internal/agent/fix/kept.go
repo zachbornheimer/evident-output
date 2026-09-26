@@ -30,6 +30,17 @@ func runKept(pass *analysis.Pass) (any, error) {
 		if recv, ok := recvNamedType(pass.TypesInfo, sel.X); !ok || recv != "TaskHandle" {
 			return
 		}
+		// Kept is still exported in 1.1 (only ordinary call sites moved to
+		// Skipped; see the vocabulary freeze's "Duplicate decisions"
+		// section), so evo's own tests that pin Kept's own contract —
+		// TestKept_ConcludesWarnedInHumanAndMachineOutput,
+		// TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts — call
+		// it deliberately, not as an unmigrated caller. Rewriting those
+		// call sites to Skipped would test a different method's contract
+		// under the old method's name.
+		if isEvoOwnTestFile(pass, call.Pos()) {
+			return
+		}
 		if len(call.Args) != 1 {
 			pass.Report(diag("API-091", call,
 				"evo.TaskHandle.Kept was removed in 1.1: Skipped wins — not rewritten: expected exactly one Reason argument"))
@@ -68,6 +79,9 @@ func reportKeptValues(pass *analysis.Pass, insp *inspector.Inspector) {
 			return true
 		}
 		if recv, ok := recvNamedType(pass.TypesInfo, sel.X); !ok || recv != "TaskHandle" {
+			return true
+		}
+		if isEvoOwnTestFile(pass, sel.Pos()) {
 			return true
 		}
 		pass.Report(diag("API-091", sel,

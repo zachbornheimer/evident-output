@@ -184,11 +184,13 @@ func run() error {
 	return out.Finish()
 }
 
-// StepForTest is the export_test.go compat-shim shape (isNamedCompatTestShim):
-// a call to the removed Step inside its own eponymous ForTest shim is never
-// flagged, since rewriting it would delete the shim's only reason to exist.
+// StepForTest looks like the export_test.go compat-shim shape
+// (isNamedCompatTestShim) but lives in this fixture's own user package
+// (evostep), not evo's package itself, so the shim exemption must NOT
+// apply here: a user's own <Removed>ForTest wrapper is an ordinary call
+// site and has to migrate like any other.
 func StepForTest(t *evo.TaskHandle, completed, total int, name string) *evo.TaskHandle {
-	return t.Step(completed, total, name)
+	return t.Step(completed, total, name) // want ` + "`" + `evo\.TaskHandle\.Step was removed in 1.1: Progress wins over Step; current-item text is orthogonal \(task\.Progress\(i, total\)\.Doing\(name\)\)` + "`" + `
 }
 `
 
@@ -240,11 +242,13 @@ func run() error {
 	return out.Finish()
 }
 
-// StepForTest is the export_test.go compat-shim shape (isNamedCompatTestShim):
-// a call to the removed Step inside its own eponymous ForTest shim is never
-// flagged, since rewriting it would delete the shim's only reason to exist.
+// StepForTest looks like the export_test.go compat-shim shape
+// (isNamedCompatTestShim) but lives in this fixture's own user package
+// (evostep), not evo's package itself, so the shim exemption must NOT
+// apply here: a user's own <Removed>ForTest wrapper is an ordinary call
+// site and has to migrate like any other.
 func StepForTest(t *evo.TaskHandle, completed, total int, name string) *evo.TaskHandle {
-	return t.Step(completed, total, name)
+	return t.Progress(completed, total).Doing(name) // want ` + "`" + `evo\.TaskHandle\.Step was removed in 1.1: Progress wins over Step; current-item text is orthogonal \(task\.Progress\(i, total\)\.Doing\(name\)\)` + "`" + `
 }
 `
 

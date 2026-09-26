@@ -32,7 +32,7 @@ func runStep(pass *analysis.Pass) (any, error) {
 		if recv, ok := recvNamedType(pass.TypesInfo, sel.X); !ok || recv != "TaskHandle" {
 			return true
 		}
-		if isNamedCompatTestShim(stack, "Step") {
+		if isNamedCompatTestShim(pass, stack, "Step") {
 			return true
 		}
 		if len(call.Args) != 3 {
