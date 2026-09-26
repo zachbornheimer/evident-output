@@ -294,6 +294,21 @@ func run() error {
 	tl := &tally{}
 	tl.Kept("not evo, never flagged")
 
+	g := evo.Group("items")
+	parent := out.Task("parent")
+	parent.Define(func(ctx context.Context) error {
+		for _, it := range []string{"a", "b"} {
+			g.Task(it).Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback on the same receiver` + "`" + `
+		}
+		return nil
+	})
+
+	other := out.Task("other")
+	parent.Define(func(ctx context.Context) error {
+		other.Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback on the same receiver` + "`" + `
+		return nil
+	})
+
 	return out.Finish()
 }
 `
@@ -339,6 +354,21 @@ func run() error {
 
 	tl := &tally{}
 	tl.Kept("not evo, never flagged")
+
+	g := evo.Group("items")
+	parent := out.Task("parent")
+	parent.Define(func(ctx context.Context) error {
+		for _, it := range []string{"a", "b"} {
+			g.Task(it).Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback on the same receiver` + "`" + `
+		}
+		return nil
+	})
+
+	other := out.Task("other")
+	parent.Define(func(ctx context.Context) error {
+		other.Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback on the same receiver` + "`" + `
+		return nil
+	})
 
 	return out.Finish()
 }

@@ -2,6 +2,7 @@ package fix
 
 import (
 	"go/ast"
+	"go/types"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -59,9 +60,9 @@ func runKept(pass *analysis.Pass) (any, error) {
 		// resolution. Outside a Define, the same rewrite would silently
 		// leave the Task unresolved, so this reports without a fix and
 		// tells the caller to add a resolving Define instead.
-		if !isInsideDefineCallback(stack) {
+		if !isInsideDefineCallback(pass.TypesInfo, sel.X, stack) {
 			pass.Report(diag("API-091", call,
-				msg+" — not rewritten: this Kept call is outside a Define callback, and Fact never resolves a Task the way Kept used to; wrap it in a Define whose callback returns nil (or otherwise resolve the Task) before switching to Fact"))
+				msg+" — not rewritten: this Kept call is outside a Define callback on the same receiver, and Fact never resolves a Task the way Kept used to; wrap it in a Define on this same receiver whose callback returns nil (or otherwise resolve the Task) before switching to Fact"))
 			return true
 		}
 		recv := text(pass, sel.X)
@@ -80,9 +81,17 @@ func runKept(pass *analysis.Pass) (any, error) {
 
 // isInsideDefineCallback reports whether stack's innermost enclosing
 // function literal is passed directly as an argument to a `.Define(...)`
-// call — the only place a Kept rewrite to Fact is safe, because Define's
-// own nil return is what resolves the Task; Fact never does.
-func isInsideDefineCallback(stack []ast.Node) bool {
+// call made on the SAME receiver as keptRecv (the Kept call's own
+// receiver) — the only place a Kept rewrite to Fact is safe, because
+// Define's own nil return is what resolves the Task; Fact never does.
+// Receiver identity is checked via go/types object identity, not text: a
+// per-item Kept inside a shared parent's Define (e.g.
+// parent.Define(func(ctx){ for _, it := range items {
+// g.Task(it).Kept(...) } })) or a Kept on an unrelated receiver inside
+// someone else's Define (parent.Define(func(ctx){ other.Kept(r) })) both
+// leave keptRecv's own Task unresolved by that Define, and must not be
+// auto-rewritten.
+func isInsideDefineCallback(info *types.Info, keptRecv ast.Expr, stack []ast.Node) bool {
 	for i := len(stack) - 1; i >= 0; i-- {
 		lit, ok := stack[i].(*ast.FuncLit)
 		if !ok {
@@ -99,14 +108,54 @@ func isInsideDefineCallback(stack []ast.Node) bool {
 		if !ok || sel.Sel.Name != "Define" {
 			return false
 		}
+		isArg := false
 		for _, arg := range call.Args {
 			if arg == lit {
-				return true
+				isArg = true
+				break
 			}
 		}
-		return false
+		if !isArg {
+			return false
+		}
+		if keptRecv == nil {
+			// Method-value/method-expression case: the receiver is bound at
+			// the later call site (keptFn(t, ...)), not here, so there is
+			// nothing to compare identity against — the structural check
+			// above (func literal passed directly to Define) is all that's
+			// available.
+			return true
+		}
+		return sameReceiver(info, keptRecv, sel.X)
 	}
 	return false
+}
+
+// sameReceiver reports whether a and b resolve to the identical
+// types.Object — the only sound way to tell a Kept call's receiver and a
+// Define call's receiver are the same live handle, since two different
+// variables can share an identical textual spelling (e.g. two loop-scoped
+// `task` locals) and one identifier can be reused across scopes.
+func sameReceiver(info *types.Info, a, b ast.Expr) bool {
+	aObj := receiverObject(info, a)
+	bObj := receiverObject(info, b)
+	return aObj != nil && aObj == bObj
+}
+
+// receiverObject resolves e to the types.Object it names, when e is a bare
+// (optionally parenthesized) identifier — a variable, parameter, or field
+// referenced directly by name. Any other shape (a call result, an index or
+// selector chain, ...) has no single identity to compare and returns nil,
+// which sameReceiver treats as "not provably the same receiver".
+func receiverObject(info *types.Info, e ast.Expr) types.Object {
+	switch x := e.(type) {
+	case *ast.Ident:
+		return info.ObjectOf(x)
+	case *ast.ParenExpr:
+		return receiverObject(info, x.X)
+	default:
+		return nil
+	}
 }
 
 // reportKeptValues is API-091's method-value/method-expression case: a
@@ -138,9 +187,9 @@ func reportKeptValues(pass *analysis.Pass, insp *inspector.Inspector) {
 		// value/expression captured outside a Define callback would, once
 		// rewritten to call Fact, never resolve the Task the way Kept
 		// used to.
-		if !isInsideDefineCallback(stack) {
+		if !isInsideDefineCallback(pass.TypesInfo, nil, stack) {
 			pass.Report(diag("API-091", sel,
-				msg+" — not rewritten: this Kept reference is outside a Define callback, and Fact never resolves a Task the way Kept used to; wrap the call site in a Define whose callback returns nil before switching to Fact"))
+				msg+" — not rewritten: this Kept reference is outside a Define callback on the same receiver, and Fact never resolves a Task the way Kept used to; wrap the call site in a Define on this same receiver whose callback returns nil before switching to Fact"))
 			return true
 		}
 		pass.Report(diag("API-091", sel, msg, keptValueFix(pass, sel)))

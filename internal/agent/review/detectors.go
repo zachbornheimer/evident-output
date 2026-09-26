@@ -135,12 +135,9 @@ var fileDetectors = []detector{
 	// Blocks is an evidence-free security-gate shape — the verdict has
 	// nothing to show for itself.
 	{needsEvo: true, run: textRule(detectDiscardSinkInFailingBlock)},
-	// API-036: Fail/Block summary built via fmt.Sprintf instead of the
-	// matching Failf/Blockf.
-	{needsEvo: true, run: textRule(detectSprintfInVerb)},
 	// API-038: fmt.Sprintf(...) passed to a printf-variadic evo method
-	// (Doing/Failf/Blockf) should flatten into that method's own format +
-	// args.
+	// (Doing) should flatten into that method's own format + args. Failf
+	// and Blockf were removed in 1.1 (Fail/Block are statement-form).
 	{needsEvo: true, run: textRule(detectSprintfIntoVariadicVerb)},
 	// API-037: a method whose whole body is one call on a Task/Item handle —
 	// pure ceremony over the handle's own verb.

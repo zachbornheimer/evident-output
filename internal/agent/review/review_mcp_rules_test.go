@@ -148,9 +148,21 @@ func run(task *evo.TaskHandle) {
 func doWork() error { return nil }
 `
 
-func TestAPI040_FailThenReturnErr_Fires(t *testing.T) {
+// TestAPI040_FailThenReturnErr_NoFalsePositive pins that
+// `task.Fail(...); return err` inside a Define callback is NOT flagged as
+// of 1.1: Failf was removed (Fail is statement-form and terminalizes the
+// Task immediately), so there is no single-line alternative left — folding
+// the wrapped context into the summary and returning the same error right
+// after it is the sanctioned idiom, not a double-resolve. The scheduler's
+// own re-resolution of an already-terminal task on the callback's return is
+// a harmless no-op (task_resolve.go's IsTerminalTask guard).
+func TestAPI040_FailThenReturnErr_NoFalsePositive(t *testing.T) {
 	res := review.GoSource("app.go", failThenReturnErrSrc)
-	findingByID(t, res, "API-040")
+	for _, f := range res.Findings {
+		if f.RuleID == "API-040" {
+			t.Fatalf("false positive on Fail then return err (the sanctioned idiom since 1.1): %+v", f)
+		}
+	}
 }
 
 const returnErrOnlySrc = `package p

@@ -65,52 +65,47 @@ func detectPlaceholderDoing(filename, src string) []Finding {
 	return findings
 }
 
-// failBlockStmtPattern matches a statement-form Fail/Block call (not
-// Failf/Blockf, which already return the built error — the pattern requires
-// "(" immediately after the verb name, which "Failf("/"Blockf(" never has).
+// failBlockStmtPattern matches a statement-form Fail/Block call.
 var failBlockStmtPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(`)
 
-// returnTheErrorSuggestion is how a Fail site hands its error back.
-// Inside a Define or mutation callback the returned error is what resolves
-// the task (API-040: resolving it first as well double-resolves); outside
-// one, the f-form resolves the task and returns the error in one line.
+// returnTheErrorSuggestion is how a Fail site hands its error back: Fail
+// and Block are statement-form (no Failf/Blockf since 1.1 — Cause no longer
+// affects the returned error), so the wrapped-cause text folds into the
+// summary string and the error is returned separately, immediately after.
 func returnTheErrorSuggestion(recv, errVar string) string {
-	return "inside a Define/mutation callback: `return fmt.Errorf(\"<context>: %w\", " + errVar + ")` and drop the " +
-		recv + ".Fail call; elsewhere: `return " + recv + ".Failf(\"<context>: %w\", " + errVar + ")`"
+	return "fold the wrapped context into the summary, then return the error separately: " +
+		"`wrapped := fmt.Errorf(\"<context>: %w\", " + errVar + "); " + recv + ".Fail(wrapped.Error()); return wrapped`"
 }
 
-// returnTheRefusalSuggestion is how a Block site hands its refusal back,
-// inside a Define callback or not: Blockf resolves the Task Blocked and
-// returns the refusal. A plain error would conclude it Failed instead, so a
-// Block site is never rewritten to fmt.Errorf (E-105).
-func returnTheRefusalSuggestion(blockf string) string {
-	return "`" + blockf + "` in place of both lines: Blockf resolves the Task Blocked and returns the refusal, " +
-		"inside a Define callback too (a plain error there would conclude the Task Failed)"
+// returnTheRefusalSuggestion is how a Block site hands its refusal back:
+// Block already resolves the Task Blocked as a statement, so the wrapped
+// error is returned right after it, not built by a Blockf that no longer
+// exists — a plain unresolved fmt.Errorf with no preceding Block would
+// conclude the Task Failed instead (E-105), so the Block call stays.
+func returnTheRefusalSuggestion(blockCall string) string {
+	return "`" + blockCall + "` followed by `return wrapped`: Block already resolved the Task Blocked; " +
+		"returning the same wrapped error afterward is a no-op resolution but still propagates it to the caller"
 }
 
 // handBackSuggestion is how a Fail or Block site returns errVar: the error
 // for a Fail, the refusal caused by errVar for a Block.
 func handBackSuggestion(recv, verb, errVar string) string {
 	if verb == "Block" {
-		return "`return " + recv + ".Blockf(\"<context>: %w\", " + errVar + ")`: Blockf resolves the Task Blocked and returns the refusal, " +
-			"inside a Define callback too (a plain error there would conclude the Task Failed)"
+		return "fold the wrapped context into the summary, then return the error separately: " +
+			"`wrapped := fmt.Errorf(\"<context>: %w\", " + errVar + "); " + recv + ".Block(wrapped.Error()); return wrapped`"
 	}
 	return returnTheErrorSuggestion(recv, errVar)
 }
 
-// blockfCall rewrites a Block call's argument list as the Blockf call that
-// returns the same refusal. A Block that carries ProblemOptions has no
-// Blockf spelling, so ok is false.
-func blockfCall(recv, args string) (call string, ok bool) {
-	parts := splitTopLevelArgs(args)
-	if len(parts) != 1 || strings.TrimSpace(parts[0]) == "" {
+// blockCallReplacement echoes a Block call unchanged (Blockf was removed in
+// 1.1, so there is no rewritten call to build — the fix is the statement
+// after it, not this one). ok is false only when there is no summary
+// argument to echo.
+func blockCallReplacement(recv, args string) (call string, ok bool) {
+	if strings.TrimSpace(args) == "" {
 		return "", false
 	}
-	summary := strings.TrimSpace(parts[0])
-	if !strings.HasPrefix(summary, `"`) || strings.Contains(summary, "%") {
-		summary = `"%s", ` + summary
-	}
-	return "return " + recv + ".Blockf(" + summary + ")", true
+	return recv + ".Block(" + args + ")", true
 }
 
 // detectFailBlockThenReturnNil is API-034: a statement-form Fail/Block
@@ -126,17 +121,14 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 			continue
 		}
 		recv, verb := m[1], m[2]
-		if sprintfInVerbPattern.MatchString(line) {
-			continue // API-036 hands this one back in one line
-		}
 		suggestion := returnTheErrorSuggestion(recv, "err")
 		if verb == "Block" {
 			args, _, ok := balancedArgs(line, strings.Index(line, recv+".Block(")+len(recv+".Block"))
-			blockf, ok2 := blockfCall(recv, args)
+			blockCall, ok2 := blockCallReplacement(recv, args)
 			if !ok || !ok2 {
 				continue // a Block with ProblemOptions has no Blockf spelling
 			}
-			suggestion = returnTheRefusalSuggestion(blockf)
+			suggestion = returnTheRefusalSuggestion(blockCall)
 		}
 		for j := i + 1; j < len(lines) && j < i+4; j++ {
 			trimmed := strings.TrimSpace(lines[j])
@@ -182,66 +174,14 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 	return findings
 }
 
-// sprintfInVerbPattern matches Fail/Block called with fmt.Sprintf as (the
-// start of) its argument list. Problem/Doing are deliberately excluded:
-// they have no *f sibling and take fmt.Sprintf as an ordinary summary/text
-// argument.
-var sprintfInVerbPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*fmt\.Sprintf\(`)
-
-// detectSprintfInVerb is API-036: a Fail/Block(fmt.Sprintf(...))
-// statement followed by a return is the f-form's one job: resolve the task
-// and return the formatted error in one line. Failf/Blockf return a
-// *Failure, so the rewrite is offered only where that value is returned;
-// a bare statement is already the right form (E-102: the rewrite's
-// discarded *Failure failed errcheck), and ProblemOptions after the
-// Sprintf have no f-form at all.
-func detectSprintfInVerb(filename, src string) []Finding {
-	var findings []Finding
-	for _, m := range sprintfInVerbPattern.FindAllStringSubmatchIndex(src, -1) {
-		recv, verb := src[m[2]:m[3]], src[m[4]:m[5]]
-		openIdx := m[1] - 1
-		args, endIdx, ok := balancedArgs(src, openIdx)
-		if !ok {
-			continue
-		}
-		rest := strings.TrimLeft(src[endIdx:], " \t")
-		if !strings.HasPrefix(rest, ")") || !nextStatementReturns(rest[1:]) {
-			continue
-		}
-		f := recv + "." + verb + "f(" + args + ")"
-		suggestion := "outside a Define/mutation callback: `return " + f + "` in place of both lines; " +
-			"inside one: `return fmt.Errorf(" + args + ")` and drop the " + recv + "." + verb + " call"
-		if verb == "Block" {
-			suggestion = returnTheRefusalSuggestion("return " + f)
-		}
-		findings = append(findings, Finding{
-			RuleID:     "API-036",
-			Message:    recv + "." + verb + "(fmt.Sprintf(...)) then return: " + recv + "." + verb + "f resolves the task and returns the error in one line",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: suggestion,
-		})
-	}
-	return findings
-}
-
-// nextStatementReturns reports whether the statement after the one rest
-// ends is a return.
-func nextStatementReturns(rest string) bool {
-	line, after, _ := strings.Cut(rest, "\n")
-	if strings.TrimSpace(line) != "" {
-		return false
-	}
-	next, _, _ := strings.Cut(strings.TrimLeft(after, " \t\n"), "\n")
-	next = strings.TrimSpace(next)
-	return next == "return" || strings.HasPrefix(next, "return ")
-}
-
-// printfVariadicVerbPattern matches a call to one of evo's own printf-
-// variadic TaskHandle methods — Doing, Failf, and Blockf take
-// (format string, args ...any) directly — with fmt.Sprintf as (the start
-// of) its argument list.
-var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Doing|Failf|Blockf)\(\s*fmt\.Sprintf\(`)
+// printfVariadicVerbPattern matches a call to Doing, evo's own printf-
+// variadic TaskHandle method — Doing takes (format string, args ...any)
+// directly — with fmt.Sprintf as (the start of) its argument list. Failf
+// and Blockf were removed in 1.1 (Fail/Block are statement-form, not
+// printf-variadic) so they no longer belong in this set; a Fail/Block
+// summary built via fmt.Sprintf followed by a discarded return is API-034's
+// concern, not this one.
+var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Doing)\(\s*fmt\.Sprintf\(`)
 
 // detectSprintfIntoVariadicVerb is API-038: fmt.Sprintf(...) passed to a
 // method that is already printf-variadic itself is ceremony that also hides

@@ -50,13 +50,20 @@ func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.F
 }
 
 // scanBlockForFailfReturn recurses through a block's own control-flow
-// (if/for/range/switch), never into a nested FuncLit, looking for the two
-// double-resolve shapes: `return task.Failf(...)` and `task.Fail(...)`
-// immediately followed by `return <non-nil err>`.
+// (if/for/range/switch), never into a nested FuncLit, looking for
+// `return task.Failf(...)` — a leftover of the removed Failf spelling.
+// `task.Fail(...)`/`task.Block(...)` immediately followed by
+// `return <non-nil err>` is NOT flagged here since 1.1: Failf/Blockf are
+// gone, Fail/Block are statement-form, and folding the wrapped context into
+// the summary then returning the same error separately (fmt.Errorf(...);
+// task.Fail(wrapped.Error()); return wrapped) is the sanctioned idiom, not a
+// double-resolve — Fail/Block terminalize the task immediately, and the
+// scheduler's own re-resolution of an already-terminal task on the
+// callback's return is a harmless no-op (task_resolve.go's
+// IsTerminalTask guard).
 func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
 	var findings []Finding
-	stmts := block.List
-	for i, stmt := range stmts {
+	for _, stmt := range block.List {
 		switch s := stmt.(type) {
 		case *ast.ReturnStmt:
 			if len(s.Results) != 1 {
@@ -67,36 +74,11 @@ func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.
 				continue
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			// `return task.Blockf(...)` is how a Define refuses: the
-			// returned refusal keeps the Task Blocked (E-105). Only Failf
-			// restates what the returned error already does.
 			if !ok || sel.Sel.Name != "Failf" || !isLikelyEvoReceiver(sel.X) {
 				continue
 			}
 			pos := fset.Position(call.Pos())
 			findings = append(findings, failResolvedInCallbackFinding(filename, pos, exprDottedName(sel.X), sel.Sel.Name, "return"))
-		case *ast.ExprStmt:
-			call, ok := s.X.(*ast.CallExpr)
-			if !ok {
-				continue
-			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || (sel.Sel.Name != "Fail" && sel.Sel.Name != "Block") || !isLikelyEvoReceiver(sel.X) {
-				continue
-			}
-			if i+1 >= len(stmts) {
-				continue
-			}
-			ret, ok := stmts[i+1].(*ast.ReturnStmt)
-			if !ok || len(ret.Results) != 1 {
-				continue
-			}
-			id, ok := ret.Results[0].(*ast.Ident)
-			if !ok || id.Name == "nil" {
-				continue
-			}
-			pos := fset.Position(call.Pos())
-			findings = append(findings, failResolvedInCallbackFinding(filename, pos, exprDottedName(sel.X), sel.Sel.Name, "statement"))
 		case *ast.IfStmt:
 			findings = append(findings, scanBlockForFailfReturn(filename, s.Body, fset)...)
 			findings = append(findings, scanIfElseForFailfReturn(filename, s.Else, fset)...)
@@ -127,26 +109,18 @@ func scanIfElseForFailfReturn(filename string, els ast.Stmt, fset *token.FileSet
 	}
 }
 
+// failResolvedInCallbackFinding is API-040's remaining shape: a leftover
+// `return task.Failf(...)` call. Failf was removed in 1.1; the migration is
+// a plain `return fmt.Errorf(...)`, folding any Fail summary text into the
+// error's own message.
 func failResolvedInCallbackFinding(filename string, pos token.Position, recv, verb, shape string) Finding {
-	suggestion := "return the error; do not call " + verb + " first"
-	switch {
-	case verb == "Block":
-		// Block then return err keeps the Task Blocked and drops err;
-		// Blockf returns the refusal with err as its cause.
-		return Finding{
-			RuleID:     "API-040",
-			Message:    "Block then return err: the Task concludes Blocked and err is dropped from its refusal",
-			File:       filename,
-			Line:       pos.Line,
-			Column:     pos.Column,
-			Suggestion: returnTheRefusalSuggestion("return " + recv + ".Blockf(\"<context>: %w\", err)"),
-		}
-	case recv != "":
-		suggestion = "replace with `return err` (or the wrapped error) and delete the " + recv + "." + verb + "(...) call; Define resolves the task from the returned error"
+	suggestion := "replace with `return fmt.Errorf(...)` and the original error, e.g. `return err`; " + verb + " no longer exists (Fail is statement-form since 1.1)"
+	if recv != "" {
+		suggestion = "replace " + recv + "." + verb + "(\"...\", err) with `return fmt.Errorf(\"...: %w\", err)`, or plain `return err`; " + verb + " was removed in 1.1"
 	}
 	return Finding{
 		RuleID:     "API-040",
-		Message:    "the callback resolves the task; return the error, do not " + verb + " first (" + shape + " form double-resolves under Define)",
+		Message:    "the callback resolves the task via the removed " + verb + "; " + shape + " form must migrate to plain fmt.Errorf",
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
