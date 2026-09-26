@@ -186,7 +186,7 @@ func (g *tasksState) allTasksNotStarted() bool {
 
 // verdictFold accumulates member states into one container verdict. A
 // Blocked member counts like a Failed one does for the Tasks After the
-// container (see stateOutcome): the container finished and did not
+// container (see schedule.OutcomeOf): the container finished and did not
 // succeed, so its header never reads Incomplete for it.
 type verdictFold struct {
 	running, failed, blocked, cancelled, unresolved bool
