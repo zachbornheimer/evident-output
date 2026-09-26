@@ -41,6 +41,7 @@ var CaptureRenames = []CaptureRename{
 	{RuleID: "API-114", From: "EvidenceStreamStdout", To: "CaptureStreamStdout"},
 	{RuleID: "API-115", From: "EvidenceStreamStderr", To: "CaptureStreamStderr"},
 	{RuleID: "API-116", From: "MaxEvidenceBytes", To: "MaxCaptureBytes"},
+	{RuleID: "API-117", From: "EvidenceTail", To: "CaptureTail"},
 }
 
 // captureRenameSymbols converts CaptureRenames into retired Symbol entries

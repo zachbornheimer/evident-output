@@ -20,7 +20,7 @@ type Problem struct {
 	// or explicitly requested capture tail (or vice versa). When Detail is
 	// empty, CaptureTail alone renders as the problem's detail body
 	// (DetailTail's original, still-supported shape). Renamed from
-	// EvidenceTail in the 1.1 vocabulary freeze (E-121): this field holds
+	// EvidenceTail (removed in 1.1) in the 1.1 vocabulary freeze (E-121): this field holds
 	// retained process output, not satisfaction proof, so it must not share
 	// the Evidence name with the Evidence field below. The wire JSON key
 	// stays "evidence_tail" (internal/wire/problem.go) — a deliberate,

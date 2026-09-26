@@ -28,6 +28,14 @@ var captureRenameUse = map[string]string{
 func captureRenameRules() []Rule {
 	out := make([]Rule, 0, len(retired.CaptureRenames)+1)
 	for _, r := range retired.CaptureRenames {
+		// EvidenceTail (removed in 1.1) is the one Problem struct-field
+		// rename in the table; it has its own dedicated Rule below (a different
+		// BadCode/GoodCode shape than "var _ %s"), so the package-level
+		// selector loop here skips it rather than needing a
+		// captureRenameUse entry that doesn't fit a field access.
+		if r.From == "EvidenceTail" {
+			continue
+		}
 		use := captureRenameUse[r.From]
 		out = append(out, Rule{
 			ID:              r.RuleID,
@@ -65,7 +73,7 @@ func captureRenameRules() []Rule {
 		Since:           "1.1.0",
 		Certainty:       CertaintyHeuristic,
 		// No structural detector: the renames above match a selector on the
-		// evo package import itself, but p.EvidenceTail is a selector on an
+		// evo package import itself, but p.EvidenceTail (removed in 1.1) is a selector on an
 		// arbitrary variable — telling a *evo.Problem field access apart
 		// from an unrelated struct's same-named field needs type info the
 		// AST pass does not have. Guidance-only, like STREAM-004.

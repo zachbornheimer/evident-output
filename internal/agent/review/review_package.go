@@ -46,8 +46,16 @@ func GoPackageAt(files map[string]string, desiredVersion string) Result {
 			Message: "cross-file typecheck incomplete: " + localErr,
 		})
 	}
+	// API-070/090/091/120 (removed-name findings) is the same
+	// fix.RemovedNameAnalyzers path GoFileAt/GoDirectoryAt use — see
+	// removedNamePackageFindings for why a files map with no shared disk
+	// location can still resolve evo for real.
+	removed, found, removedPartial := removedNamePackageFindings(files)
+	if found {
+		all = append(all, admitDialect(removed, desiredVersion)...)
+	}
 	res := newResult(all)
-	res.Partial = len(pkg.files) == 0 || localErr != ""
+	res.Partial = len(pkg.files) == 0 || localErr != "" || !found || removedPartial
 	res.DesiredVersion = desiredVersion
 	return res
 }

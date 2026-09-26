@@ -28,8 +28,13 @@ func define(task *evo.TaskHandle, locals []decision) {
 
 func TestAPI062_KeptInLoopOnOneTask_Fires(t *testing.T) {
 	f := findingByID(t, review.GoSource("clean.go", keptInLoopSrc), "API-062")
-	if !strings.Contains(f.Suggestion, ".Task(") || !strings.Contains(f.Suggestion, ".Kept(") {
-		t.Fatalf("API-062 suggestion must spell group.Task(item).Kept(reason): %q", f.Suggestion)
+	// Skipped, never Kept: Kept was removed in 1.1 and the fixer rewrites
+	// it to Skipped, so the suggestion must not teach the removed verb.
+	if !strings.Contains(f.Suggestion, ".Task(") || !strings.Contains(f.Suggestion, ".Skipped(") {
+		t.Fatalf("API-062 suggestion must spell group.Task(item).Skipped(reason): %q", f.Suggestion)
+	}
+	if strings.Contains(f.Suggestion, ".Kept(") {
+		t.Fatalf("API-062 suggestion must not teach the removed Kept verb: %q", f.Suggestion)
 	}
 }
 

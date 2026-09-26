@@ -51,8 +51,8 @@ var zeroInformationFields = map[string]taskFieldRole{
 
 func TestEveryTaskSnapshotFieldIsClassified(t *testing.T) {
 	typ := reflect.TypeFor[TaskSnapshot]()
-	for i := range typ.NumField() {
-		name := typ.Field(i).Name
+	for field := range typ.Fields() {
+		name := field.Name
 		if _, ok := zeroInformationFields[name]; !ok {
 			t.Errorf("TaskSnapshot.%s has no zero-information role: add it to zeroInformationFields and, if it is information, to IsZeroInformationTask", name)
 		}
@@ -87,8 +87,8 @@ func setNonZero(t *testing.T, v reflect.Value) {
 	case reflect.Slice:
 		v.Set(reflect.MakeSlice(v.Type(), 1, 1))
 	case reflect.Struct:
-		for i := range v.NumField() {
-			if f := v.Field(i); f.CanSet() && f.CanInt() {
+		for _, f := range v.Fields() {
+			if f.CanSet() && f.CanInt() {
 				f.SetInt(1)
 			}
 		}
