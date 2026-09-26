@@ -117,17 +117,22 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 // layered on top of, not instead of, evo's own standard conclusion band,
 // which the mockup's frame simply did not also transcribe.
 //
-// That Println's line lands right after the header rather than after the
-// task rows because the call itself comes first in this function, before
-// any collection work: a Group's disposition tally (branches' folded
-// "- skipped 1 (protected)") cannot be known complete — and so cannot be
-// rendered — until Finish (contract §25, "aggregation is a renderer
-// concern"), so an ordinary Println called ahead of that work is an
-// immediate write that legitimately precedes the deferred rows in the byte
-// stream. The reverse (calling Println last and still seeing it land
-// first) was a real renderer defect — see 349504c/8b9b401 — so this
-// fixture is deliberately shaped to never put a message call after
-// unresolved collection work, rather than pin that inversion as a golden.
+// The call below is written where the mockup puts it — last, after every
+// collection row is resolved, as a genuine closing line — but the golden
+// still shows it landing right after the header. That is an OPEN renderer
+// defect, not a documented past one: emitMessageLocked (print.go) writes a
+// plain-mode message immediately, with no regard for a run's pending
+// Group/Sequence rows, even though a Group's disposition tally (branches'
+// folded "- skipped 1 (protected)") cannot be known complete — and so
+// cannot be rendered — until Finish (contract §25, "aggregation is a
+// renderer concern"). 349504c fixed this correctly, ordering the message
+// after the deferred rows; 8b9b401 reverted it because the general fix
+// (per-message sequence tracking against collection/task resolution order)
+// was out of scope for that slice, restoring today's inverted order. This
+// fixture pins that still-live inversion instead of hiding it by moving the
+// Println call ahead of the collection work; fixing emitMessageLocked's
+// ordering is out of scope here and belongs to whichever slice lands
+// 349504c's approach without the interleave regression 8b9b401 found.
 //
 // The policy-excluded "skipped 1 (protected)" item is Skipped, not a
 // warning Problem (same rule TestV8_DryRunPlanOnly documents), so this run
@@ -141,8 +146,6 @@ func TestV8_NothingToClean(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Println("prune  nothing to clean")
-
 	categories := out.Group("categories")
 	branchItems := categories.Group("branches")
 	branches := branchItems.Task("branches")
@@ -153,6 +156,10 @@ func TestV8_NothingToClean(t *testing.T) {
 	succeed(branches, "1 checked")
 	succeed(worktrees, "nothing to clean")
 	succeed(remotes, "nothing to clean")
+
+	// Called last, matching the mockup's "closing summary line" — see the
+	// doc comment above for why the golden still shows it first.
+	out.Println("prune  nothing to clean")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

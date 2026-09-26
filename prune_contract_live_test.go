@@ -19,15 +19,23 @@ type liveCategory struct {
 	skipped     []skippedItem
 }
 
-// TestPruneContract_LiveCategoriesRenderContract18Frame holds the live
-// phase of zq prune's grouped categories (the same out.Group("categories")
-// → per-category Group → same-named work Task + Skipped item Tasks shape as
-// TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18) to the
-// contract §18 live frame: each category is a root row with its own bar,
-// count, timer and current item. The summary-less "categories" Group owns
-// no information of its own, so it paints no header — never a
+// TestPruneContract_LiveCategoriesRenderGroupedShape holds the live phase
+// of zq prune's grouped categories (the same out.Group("categories") →
+// per-category Group → same-named work Task + Skipped item Tasks shape as
+// TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18) to this
+// package's own recorded render: each category is a root row with its own
+// bar, count, timer and current item. The summary-less "categories" Group
+// owns no information of its own, so it paints no header — never a
 // "categories  0/0 complete" row counting Tasks it does not directly hold.
-func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
+//
+// This is not the Linear 9c10b754 §18 live frame: unlike §18, this fixture
+// gives every category (including remote-tracking) Skipped children and
+// renders their folded "- skipped N (...)" tally under the bar row, so its
+// counts, indentation and bar fill legitimately differ from §18's own
+// worked numbers. Name it for what it actually pins — this package's live
+// rendering of the grouped-category shape — rather than claim §18
+// conformance a byte-for-byte comparison doesn't support.
+func TestPruneContract_LiveCategoriesRenderGroupedShape(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
 	out := evo.Init(evo.Config{
