@@ -67,44 +67,28 @@ func TestTallySealIdempotentReturnsOpenOnce(t *testing.T) {
 }
 
 func TestTallySucceededPrefixAdvancesOverRun(t *testing.T) {
-	var ta Tally[fakeMember]
-	m1 := fakeMember{decl: 1, out: Pending}
-	m2 := fakeMember{decl: 2, out: Pending}
-	m3 := fakeMember{decl: 3, out: Pending}
-	ta.Declare(m1)
-	ta.Declare(m2)
-	ta.Declare(m3)
-
-	m1.out = Succeeded
-	ta.Settle(m1)
-	if ta.SucceededThrough(1) {
-		t.Fatalf("SucceededThrough(1) = true before m1 recorded")
-	}
-
-	// Re-declare members with updated outcomes to advance the prefix, since
 	// Settle reads the outcome from the member it is given, not a shared
-	// pointer.
-	var ta2 Tally[*mutableMember]
+	// pointer, so use *mutableMember to update outcomes before each Settle.
+	var ta Tally[*mutableMember]
 	a := &mutableMember{decl: 1}
 	b := &mutableMember{decl: 2}
 	c := &mutableMember{decl: 3}
-	ta2.Declare(a)
-	ta2.Declare(b)
-	ta2.Declare(c)
-
-	a.out = Succeeded
-	ta2.Settle(a)
-	if !ta2.SucceededThrough(1) {
-		t.Fatalf("SucceededThrough(1) = false after a succeeded")
-	}
-	if ta2.SucceededThrough(2) {
-		t.Fatalf("SucceededThrough(2) = true before b succeeded")
-	}
+	ta.Declare(a)
+	ta.Declare(b)
+	ta.Declare(c)
 
 	b.out = Succeeded
-	ta2.Settle(b)
-	if !ta2.SucceededThrough(2) {
-		t.Fatalf("SucceededThrough(2) = false after a and b succeeded")
+	ta.Settle(b)
+	c.out = Succeeded
+	ta.Settle(c)
+	if ta.SucceededThrough(1) {
+		t.Fatalf("SucceededThrough(1) = true before a succeeded")
+	}
+
+	a.out = Succeeded
+	woken := ta.Settle(a)
+	if !ta.SucceededThrough(3) {
+		t.Fatalf("SucceededThrough(3) = false after a settled last, jumping the prefix over b and c: %v", woken)
 	}
 }
 
