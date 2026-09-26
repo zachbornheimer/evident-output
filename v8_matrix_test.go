@@ -118,21 +118,16 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 // which the mockup's frame simply did not also transcribe.
 //
 // The call below is written where the mockup puts it — last, after every
-// collection row is resolved, as a genuine closing line — but the golden
-// still shows it landing right after the header. That is an OPEN renderer
-// defect, not a documented past one: emitMessageLocked (print.go) writes a
-// plain-mode message immediately, with no regard for a run's pending
-// Group/Sequence rows, even though a Group's disposition tally (branches'
+// collection row is resolved, as a genuine closing line — and the golden
+// now shows it landing there too: a Group's disposition tally (branches'
 // folded "- skipped 1 (protected)") cannot be known complete — and so
 // cannot be rendered — until Finish (contract §25, "aggregation is a
-// renderer concern"). 349504c fixed this correctly, ordering the message
-// after the deferred rows; 8b9b401 reverted it because the general fix
-// (per-message sequence tracking against collection/task resolution order)
-// was out of scope for that slice, restoring today's inverted order. This
-// fixture pins that still-live inversion instead of hiding it by moving the
-// Println call ahead of the collection work; fixing emitMessageLocked's
-// ordering is out of scope here and belongs to whichever slice lands
-// 349504c's approach without the interleave regression 8b9b401 found.
+// renderer concern"), so plain mode holds a message back
+// (hasPendingCollectionRowsLocked, progressive.go) whenever the run has
+// declared any collection, and renders it after the pending collection
+// rows instead of before (the P2 "interleave by call time" contract
+// residualPlainLocked's own doc comment promises, extended from standalone
+// Task rows to Group-deferred ones).
 //
 // The policy-excluded "skipped 1 (protected)" item is Skipped, not a
 // warning Problem (same rule TestV8_DryRunPlanOnly documents), so this run
@@ -166,11 +161,11 @@ func TestV8_NothingToClean(t *testing.T) {
 	}
 
 	want := "zq prune  ~/Developer/Personal/zq\n" +
-		"prune  nothing to clean\n" +
 		"✓ branches         1 checked\n" +
 		"  - skipped 1 (protected)\n" +
 		"✓ worktrees        nothing to clean\n" +
 		"✓ remote-tracking  nothing to clean\n" +
+		"prune  nothing to clean\n" +
 		"\n" +
 		"[ready]  prune\n"
 	if got := buf.String(); got != want {
