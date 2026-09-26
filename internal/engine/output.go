@@ -68,10 +68,19 @@ type Output struct {
 	plans   []*ledgerSection
 	// ledger finds a section by its owning Task or shown name without
 	// rescanning (ledger_order.go).
-	ledger  ledgerIndex
-	lines   []string
-	actions []Action
-	journal journal
+	ledger ledgerIndex
+	lines  []string
+	// deferredTaskRowLines marks indices into lines that hold a standalone
+	// Task's rendered row (commitResolvedTaskLocked's held branch), not a
+	// Println/Printf message. Those indices ride the same ordering queue as
+	// held messages so call-order interleaving still works, but they are
+	// not real message history: snapshotLocked excludes them from Lines so
+	// a Task row never renders twice — once as durable text played back
+	// from the lines tail at Finish, once as its own Tasks/Collections
+	// entity (the release-gate regression this field closes).
+	deferredTaskRowLines map[int]struct{}
+	actions              []Action
+	journal              journal
 
 	// wireSeq/wireEventErr back the §38 "evo.event" JSONL stream
 	// (structured_events.go's emitWireEventLocked) — a counter and

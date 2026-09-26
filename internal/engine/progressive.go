@@ -60,6 +60,11 @@ func (o *Output) emitLineProgressiveLocked() {
 		return
 	}
 	var b strings.Builder
+	// Indexed off o.lines, not the public Snapshot.Lines projection: a
+	// held Task row (commitResolvedTaskLocked) lives here as its one real
+	// rendered form and must still stream — only Snapshot.Lines excludes it
+	// (projectMessageLinesLocked), so an external render off the snapshot
+	// alone doesn't see it a second time next to its Task entity.
 	for _, line := range o.lines[o.linesEmitted:] {
 		b.WriteString(line)
 		b.WriteByte('\n')
@@ -207,6 +212,10 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 		// ordering relative to the collection is unaffected. Folding this
 		// Task's row into the same held-lines mechanism as the message
 		// keeps both interleaved in call order.
+		if o.deferredTaskRowLines == nil {
+			o.deferredTaskRowLines = make(map[int]struct{})
+		}
+		o.deferredTaskRowLines[len(o.lines)] = struct{}{}
 		o.lines = append(o.lines, strings.TrimSuffix(b.String(), "\n"))
 		return
 	}
@@ -444,8 +453,14 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	style := o.humanStyle()
 	var b strings.Builder
 	writeHeldLines := func() {
-		for i := linesFrom; i < len(snap.Lines); i++ {
-			render.WriteDebugOrLine(&b, snap.Lines[i], style.Color)
+		// Indexed off o.lines, not snap.Lines: linesFrom is always counted
+		// against o.lines (o.linesEmitted), and o.lines is where a held
+		// Task row's one real rendered form lives (commitResolvedTaskLocked)
+		// — snap.Lines drops that entry for external consumers only
+		// (projectMessageLinesLocked), so slicing it here would misalign
+		// this index and, once a Task row precedes it, skip content.
+		for i := linesFrom; i < len(o.lines); i++ {
+			render.WriteDebugOrLine(&b, o.lines[i], style.Color)
 		}
 	}
 	// hasPendingCollectionRowsLocked's held-back messages (print.go's
@@ -550,7 +565,7 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	linesFrom := o.linesEmitted
 	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
 	text := o.residualCompositionLocked(snap, linesFrom, !interactive)
-	o.linesEmitted = len(snap.Lines)
+	o.linesEmitted = len(o.lines)
 	return text
 }
 

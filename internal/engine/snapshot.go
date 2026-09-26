@@ -14,12 +14,38 @@ func (o *Output) Snapshot() Snapshot {
 	return o.snapshotLocked()
 }
 
+// projectMessageLinesLocked copies lines into the public Snapshot.Lines
+// projection, dropping any index commitResolvedTaskLocked marked as a held
+// Task row rather than a real Println/Printf message. Those entries stay in
+// o.lines itself (unfiltered) so the internal Finish-time index math in
+// residualCompositionLocked, which is keyed off o.lines, is unaffected —
+// only the externally observable message log excludes them, so a caller
+// doing render.RenderPlain(out.Snapshot()) never sees a Task's row twice:
+// once as this projection's text, once as its own Task/Collection entity.
+func projectMessageLinesLocked(lines []string, deferredTaskRows map[int]struct{}) []string {
+	if len(deferredTaskRows) == 0 {
+		return append([]string(nil), lines...)
+	}
+	out := make([]string, 0, len(lines))
+	for i, line := range lines {
+		if _, isTaskRow := deferredTaskRows[i]; isTaskRow {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
 func (o *Output) snapshotLocked() Snapshot {
 	s := Snapshot{
-		Version:       o.version,
-		OutputID:      o.outputID,
-		Subject:       o.cfg.subject,
-		Lines:         append([]string(nil), o.lines...),
+		Version:  o.version,
+		OutputID: o.outputID,
+		Subject:  o.cfg.subject,
+		// Lines is the message-log projection: a standalone Task's row
+		// held in o.lines only to preserve call-order (commitResolvedTaskLocked)
+		// is excluded here so it never renders twice — once from this
+		// projection's Finish-time tail, once as its own Task entity.
+		Lines:         projectMessageLinesLocked(o.lines, o.deferredTaskRowLines),
 		Actions:       cloneActions(o.collectActionsLocked()),
 		Timestamp:     o.cfg.clock.Now(),
 		DryRun:        o.cfg.dryRun,
