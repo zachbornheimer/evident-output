@@ -48,12 +48,53 @@ func TestStateSettleAndStartRunning(t *testing.T) {
 	if s.Current() != core.Running {
 		t.Fatalf("Current() after StartRunning = %s, want running", s.Current())
 	}
-	resolved, from := s.Settle(core.Done, true)
+	resolved, from, ok := s.Settle(Decide(core.Done, true))
+	if !ok {
+		t.Fatalf("Settle(Decide(Done, true)) ok = false, want true")
+	}
 	if from != core.Running {
 		t.Fatalf("Settle from = %s, want running", from)
 	}
 	if resolved != core.Failed || s.Current() != core.Failed {
-		t.Fatalf("Settle(Done, true) resolved = %s, current = %s, want failed", resolved, s.Current())
+		t.Fatalf("Settle(Decide(Done, true)) resolved = %s, current = %s, want failed", resolved, s.Current())
+	}
+}
+
+// TestSettleRejectsNonTerminalTarget pins that Settle refuses a target
+// that is not itself a terminal EntityState — Settle moves a Task to its
+// outcome, it never parks it mid-flight.
+func TestSettleRejectsNonTerminalTarget(t *testing.T) {
+	s := Declared()
+	s.StartRunning()
+	resolved, _, ok := s.Settle(core.Running)
+	if ok {
+		t.Fatalf("Settle(Running) ok = true, want false")
+	}
+	if resolved != core.Running || s.Current() != core.Running {
+		t.Fatalf("Settle(Running) left current = %s, want running unchanged", s.Current())
+	}
+}
+
+// TestSettleRejectsAlreadyTerminal pins "terminal is final": once a State
+// has settled, a second Settle call — from any target — is refused rather
+// than silently overwriting the first outcome. This is what lets
+// task_resolve.go rely on Settle's own ok result instead of checking
+// core.IsTerminalTask itself before calling in.
+func TestSettleRejectsAlreadyTerminal(t *testing.T) {
+	s := Declared()
+	s.StartRunning()
+	if _, _, ok := s.Settle(core.Done); !ok {
+		t.Fatalf("first Settle(Done) ok = false, want true")
+	}
+	resolved, from, ok := s.Settle(core.Cancelled)
+	if ok {
+		t.Fatalf("second Settle(Cancelled) ok = true, want false")
+	}
+	if resolved != core.Done || from != core.Done {
+		t.Fatalf("rejected Settle reported resolved=%s from=%s, want both done (state must not move)", resolved, from)
+	}
+	if s.Current() != core.Done {
+		t.Fatalf("Current() after rejected re-settle = %s, want done (first outcome must stick)", s.Current())
 	}
 }
 

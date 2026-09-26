@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/lifecycle"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -70,7 +71,7 @@ func (o *Output) settleUnresolvedTasksLocked() {
 			continue
 		}
 		if len(t.problems) > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0 {
-			o.settleLocked(t, Done)
+			o.settleLocked(t, lifecycle.Decide(Done, len(t.problems) > 0))
 			continue
 		}
 		if !abnormal {

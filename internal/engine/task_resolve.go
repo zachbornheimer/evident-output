@@ -160,14 +160,22 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
 		return t
 	}
-	state = lifecycle.Decide(state, len(st.problems) > 0)
+	decided := lifecycle.Decide(state, len(st.problems) > 0)
 	if summary != "" {
 		st.summary = txt.Text(summary)
 	}
 	if len(problems) > 0 || len(st.problems) > 0 {
-		st.problems = core.StoreProblems(st.attachCaptureTail(state, slices.Concat(st.problems, problems)))
+		st.problems = core.StoreProblems(st.attachCaptureTail(decided, slices.Concat(st.problems, problems)))
 	}
-	t.out.settleLocked(st, state)
+	if !t.out.settleLocked(st, decided) {
+		// The guard above already turned away a Task that was terminal
+		// when this call started; State.Settle's own rejection here is
+		// belt-and-suspenders against a resolution racing in between (the
+		// caller still holds o.mu across both, so this should not be
+		// reachable) — never silently discard the mutations above.
+		t.out.recordAlreadyResolvedLocked(st.name, summary)
+		return t
+	}
 	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, taskFinishedPayload(st))
 	t.out.commitSettledLocked(st)
 	return t

@@ -5,7 +5,10 @@
 // (SettledFailed, SettledCancelled) go through Decide — there is no
 // general-purpose constructor that accepts an arbitrary EntityState, so a
 // stray `state: lifecycle.NewState(core.Done)` seed can no longer compile
-// its way past this package's rule.
+// its way past this package's rule. State.Settle is also the one place
+// "terminal is final" is enforced: it refuses a non-terminal target and
+// refuses to move a State that has already settled, so callers act on its
+// ok result instead of checking terminality themselves before calling in.
 package lifecycle
 
 import "github.com/zachbornheimer/evident-output/internal/core"
@@ -39,6 +42,7 @@ func Decide(target core.EntityState, hasProblems bool) core.EntityState {
 // this extraction.
 type State struct {
 	current core.EntityState
+	settled bool
 }
 
 // Declared returns a State seeded at core.Pending — the value a taskState
@@ -55,7 +59,7 @@ func Declared() State {
 // ran and so never has a Running/Pending phase of its own.
 func SettledFailed() State {
 	var s State
-	s.Settle(core.Failed, true)
+	s.Settle(Decide(core.Failed, true))
 	return s
 }
 
@@ -63,7 +67,7 @@ func SettledFailed() State {
 // Decide, for the synthetic cancelled Task Output.Cancel creates.
 func SettledCancelled() State {
 	var s State
-	s.Settle(core.Cancelled, false)
+	s.Settle(Decide(core.Cancelled, false))
 	return s
 }
 
@@ -72,16 +76,33 @@ func (s State) Current() core.EntityState {
 	return s.current
 }
 
-// Settle applies Decide against hasProblems and moves the state to the
-// resulting terminal value, returning both the resolved value and the
-// value the state held immediately before (from) — callers use from for
-// census bookkeeping (e.g. taskState.censusMoved) the way settleLocked
-// always has.
-func (s *State) Settle(target core.EntityState, hasProblems bool) (resolved, from core.EntityState) {
+// Settle moves the state to target — a value the caller has already run
+// through Decide — and is the one place "terminal is final" is enforced:
+// it refuses Pending or Running (the two values only Declared/StartRunning
+// may produce; Settle's job is to move a Task out of them, never into
+// them), and refuses to move a State that has already settled once,
+// rather than let a second resolution silently overwrite the first. ok
+// reports whether the transition happened. On success, resolved is target
+// and from is the value the state held immediately before — callers use
+// from for census bookkeeping (e.g. taskState.censusMoved) the way
+// settleLocked always has. On rejection, resolved and from both hold the
+// state's unchanged current value, so a caller can log it without
+// special-casing the shape.
+//
+// Settle deliberately does not reuse core.IsTerminalTask to validate
+// target: that function answers a different question (which states a
+// *conclusion* treats as finished) and excludes Incomplete on purpose —
+// yet Incomplete is a legitimate, one-time Settle target
+// (settleUnresolvedTasksLocked). "Has this State settled before" is
+// tracked here directly instead.
+func (s *State) Settle(target core.EntityState) (resolved, from core.EntityState, ok bool) {
+	if target == core.Pending || target == core.Running || s.settled {
+		return s.current, s.current, false
+	}
 	from = s.current
-	resolved = Decide(target, hasProblems)
-	s.current = resolved
-	return resolved, from
+	s.current = target
+	s.settled = true
+	return target, from, true
 }
 
 // StartRunning moves the state to Running, returning the value it held
