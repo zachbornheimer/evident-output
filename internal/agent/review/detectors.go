@@ -118,9 +118,9 @@ var fileDetectors = []detector{
 	// rec-surface Options/To/Plain, the mutation verbs removed in 1.1, Skip/MainWith (removed in 1.0)) gets a derived fix, not a lecture.
 	{needsEvo: true, run: detectDeprecatedSpellings},
 	// API-070/090/091/120 (Warn/Step/Kept/ReasonOption-ForSkip-OnTask,
-	// removed in 1.1) are not file detectors: GoDirectoryAt runs
-	// internal/agent/fix's RemovedNameAnalyzers over the reviewed
-	// directory's type-checked packages instead (see
+	// removed in 1.1) are not file detectors: GoFileAt, GoDirectoryAt and
+	// GoPackageAt all run internal/agent/fix's RemovedNameAnalyzers over
+	// the reviewed code's type-checked packages instead (see
 	// review_removed_names.go) — real go/types receiver resolution from a
 	// loaded package beats any per-file heuristic, fixed receiver-name
 	// list, or textual regex at telling a real evo receiver (a chained

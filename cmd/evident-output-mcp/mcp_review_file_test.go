@@ -186,6 +186,36 @@ func run(t *evo.TaskHandle) {
 	}
 }
 
+// TestReview_PackageKindReportsRemovedNameFindings pins the review-gap
+// report's BLOCKER: b02b031 wired API-070/090/091/120 (removed-name)
+// findings into GoDirectoryAt/GoFileAt via fix.RemovedNameAnalyzers and
+// deleted review_warn.go, the only detector that used to cover kind=package
+// too, but never wired kind=package (cmd/evident-output-mcp/tools_review.go
+// still calls review.GoPackageAt directly) into the replacement. An agent
+// running the AGENTS.md MUST-loop on kind=package would see this Warn call
+// as a false "findings=0 ... clean" instead of the API-070 finding the
+// same source gets under kind=go or kind=directory.
+func TestReview_PackageKindReportsRemovedNameFindings(t *testing.T) {
+	bin := buildMCP(t)
+	src, _ := json.Marshal(`package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func run(t *evo.TaskHandle) { t.Warn("tool version differs") }
+`)
+	in := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"kind":"package","files":{"p.go":` + string(src) + `}}}}`,
+	}, "\n") + "\n"
+	out := runMCP(t, bin, in)
+	if !strings.Contains(out, "API-070") {
+		t.Fatalf("kind=package must report API-070 for a removed Warn call, same as kind=go/kind=directory: %s", out)
+	}
+	if !strings.Contains(out, `"recheck_required":true`) {
+		t.Fatalf("kind=package with a removed-name finding must require a recheck: %s", out)
+	}
+}
+
 func TestReview_PackageKindCleanPackageIsClean(t *testing.T) {
 	bin := buildMCP(t)
 	mainSrc, _ := json.Marshal("package main\n\nimport (\n\t\"os\"\n\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\n\nfunc main() {\n\tevo.Init(evo.Config{Title: \"tool\"})\n\tos.Exit(evo.Main(run))\n}\n")

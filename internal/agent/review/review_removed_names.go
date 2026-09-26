@@ -14,6 +14,7 @@ package review
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
@@ -149,6 +150,87 @@ func hasModuleLoadError(pkgs []*packages.Package) bool {
 		}
 	}
 	return false
+}
+
+// selfModuleRoot is this checkout's own module root, found by walking up
+// from this source file's own compile-time recorded path (runtime.Caller,
+// the same trick the test suite uses via os.Getwd + filepath.Dir chains —
+// see writeRemovedNameModule). kind=package's files map (MCP-017) has no
+// filesystem location of its own: its content is decoded inline or read
+// from an absolute path and handed over as plain strings, keyed by
+// filename only. Every such package that imports evo names this exact
+// module, so scratch-loading it as a real package inside this module's own
+// tree (moduleRootAbove would otherwise find no go.mod at all) resolves
+// that import for real, the same way GoFileAt/GoDirectoryAt resolve a
+// consumer's own module. ok is false only when this binary was built
+// -trimpath (no source paths survive) or the source tree has moved since
+// compilation — removedNamePackageFindings reports Partial in that case
+// rather than guessing.
+func selfModuleRoot() (root string, ok bool) {
+	_, self, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", false
+	}
+	return moduleRootAbove(filepath.Dir(self))
+}
+
+// removedNamePackageFindings is GoPackageAt's removedNameFindings: files
+// (name -> source, MCP-017's decoded package map) has no shared disk
+// location to type-check in place, so it is scratch-written into a real,
+// throwaway directory inside this module's own tree (selfModuleRoot) and
+// loaded from there — every reviewed package names this same module when
+// it imports evo, so this always resolves the same evo declarations
+// GoFileAt/GoDirectoryAt would for a real consumer file. found is false
+// only when selfModuleRoot can't be resolved (trimpath build); partial
+// mirrors removedNameFindings' "module found but analysis didn't
+// complete" meaning. Findings come back keyed by the original map's
+// filenames, not the scratch directory's absolute paths.
+func removedNamePackageFindings(files map[string]string) (findings []Finding, found, partial bool) {
+	root, ok := selfModuleRoot()
+	if !ok {
+		return nil, false, false
+	}
+	scratch, err := os.MkdirTemp(root, ".evo-review-scratch-")
+	if err != nil {
+		return nil, true, true
+	}
+	defer func() { _ = os.RemoveAll(scratch) }()
+	overlay := make(map[string][]byte, len(files))
+	for name, src := range files {
+		overlay[filepath.Join(scratch, filepath.Base(name))] = []byte(src)
+	}
+	// hasModuleLoadError is not applied here: a pasted snippet reviewed in
+	// isolation (kind=package) very often imports something this module's
+	// own go.sum has no reason to carry (a demo yaml import, an embedded
+	// third-party type) that has nothing to do with evo. go/packages still
+	// hands back full type info for the file's own declarations and for
+	// every selector it could resolve, including every evo.* receiver
+	// call RemovedNameAnalyzers looks at — the same "type errors are
+	// expected input" contract LoadWithOverlay documents. Failing the
+	// whole package over an unrelated unresolved import would report a
+	// false partial for the common case, not the true "evo itself failed
+	// to resolve" case this really needs to catch.
+	pkgs, err := fix.LoadWithOverlay(scratch, overlay, ".")
+	if err != nil || len(pkgs) == 0 {
+		return nil, true, true
+	}
+	results, err := fix.DiagnoseAnalyzers(pkgs, fix.RemovedNameAnalyzers, false)
+	if err != nil {
+		return nil, true, true
+	}
+	for _, r := range results {
+		for _, d := range r.Diagnostics {
+			findings = append(findings, Finding{
+				RuleID:     d.RuleID,
+				Message:    d.Message,
+				File:       filepath.Base(d.Filename),
+				Line:       d.Line,
+				Column:     d.Column,
+				Suggestion: removedNameRemediation(d.RuleID),
+			})
+		}
+	}
+	return findings, true, false
 }
 
 // removedNameRemediation is the rule catalog's general fix for ruleID

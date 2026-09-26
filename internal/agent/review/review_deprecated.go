@@ -129,13 +129,13 @@ var retiredSpellings = []retiredSpelling{
 		},
 	},
 	// Warn (TaskHandle.Warn/Output.Warn/evo.Warn) was removed in 1.1 and is
-	// API-070, detected only at the directory level by
-	// fix.RemovedNameAnalyzers (review_removed_names.go) running go/types
-	// receiver resolution over the loaded package — a regex anchored on
-	// `\w+` right before `.Warn(` never matches a chained call like
-	// `out.Task("x").Warn("y")`, and evoReceiverOnly's name list missed
-	// every real-world receiver spelled branches/remotes/services/cleanup/
-	// worktrees (AGENTS.md E-117 notes).
+	// API-070, not a file detector: GoFileAt, GoDirectoryAt and GoPackageAt
+	// all report it by running fix.RemovedNameAnalyzers
+	// (review_removed_names.go) with go/types receiver resolution over a
+	// loaded package — a regex anchored on `\w+` right before `.Warn(`
+	// never matches a chained call like `out.Task("x").Warn("y")`, and
+	// evoReceiverOnly's name list missed every real-world receiver spelled
+	// branches/remotes/services/cleanup/worktrees (AGENTS.md E-117 notes).
 }
 
 // findings reports every match of r in src.
