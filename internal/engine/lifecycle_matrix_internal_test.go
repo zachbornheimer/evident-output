@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // TestLifecycleOutcomeMatrix pins ZYS-1190's "only lifecycle sets a Task
@@ -127,6 +128,125 @@ func TestLifecycleOutcomeMatrix(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestLifecycleOutcomeMatrixHasProblems extends TestLifecycleOutcomeMatrix
+// with the hasProblems axis: a Task carrying a Problem (TaskHandle.Problem)
+// before it resolves success-class (Done via a no-op body, Skipped via the
+// taxonomy verb) must settle Failed per lifecycle.Decide, whichever verb
+// the body called — the evidence rule engine/lifecycle owns, exercised end
+// to end through the public engine path rather than lifecycle's own pure
+// table.
+func TestLifecycleOutcomeMatrixHasProblems(t *testing.T) {
+	cases := []struct {
+		name string
+		body func(task *TaskHandle) func(context.Context) error
+	}{
+		{"noop", func(task *TaskHandle) func(context.Context) error {
+			return func(context.Context) error { return nil }
+		}},
+		{"skipped", func(task *TaskHandle) func(context.Context) error {
+			return func(context.Context) error {
+				task.Skipped(Reason("n/a"))
+				return nil
+			}
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf strings.Builder
+			out := Init(Config{
+				Isolated: true, Plain: true, Color: ColorNever,
+				Stdout: &buf, Stderr: io.Discard,
+			})
+
+			var snap TaskSnapshot
+			result := out.Run(context.Background(), func(ctx context.Context) error {
+				task := out.Task("with problem")
+				task.Problem("something looked wrong")
+				task.Define(tc.body(task))
+				_ = task.Wait()
+				snap = task.Snapshot()
+				return nil
+			})
+
+			if snap.State != Failed {
+				t.Fatalf("state = %s, want failed (a success-class verb over a Task holding a Problem must settle Failed); output:\n%s", snap.State, buf.String())
+			}
+			if exit := result.ExitCode(); exit != core.ExitFailed {
+				t.Fatalf("exit = %d, want %d", exit, core.ExitFailed)
+			}
+			if !strings.Contains(buf.String(), "something looked wrong") {
+				t.Fatalf("rendered ledger missing the Problem's summary; output:\n%s", buf.String())
+			}
+		})
+	}
+}
+
+// TestLifecycleOutcomeMatrixCancelled covers the Cancelled axis
+// TestLifecycleOutcomeMatrix's body table has no cell for: a Task the
+// program cancels directly (TaskHandle.Cancel), and the two synthetic
+// Output-level paths (Fail, Cancel) that never have a Running/Pending
+// phase of their own (lifecycle.SettledFailed/SettledCancelled).
+func TestLifecycleOutcomeMatrixCancelled(t *testing.T) {
+	t.Run("task cancel", func(t *testing.T) {
+		var buf strings.Builder
+		out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, Stdout: &buf, Stderr: io.Discard})
+		var snap TaskSnapshot
+		result := out.Run(context.Background(), func(ctx context.Context) error {
+			task := out.Task("interrupted")
+			task.Define(func(context.Context) error {
+				task.Cancel("interrupted by caller")
+				return nil
+			})
+			_ = task.Wait()
+			snap = task.Snapshot()
+			return nil
+		})
+		if snap.State != Cancelled {
+			t.Fatalf("state = %s, want cancelled; output:\n%s", snap.State, buf.String())
+		}
+		if exit := result.ExitCode(); exit != core.ExitCancelled {
+			t.Fatalf("exit = %d, want %d", exit, core.ExitCancelled)
+		}
+		if !strings.Contains(buf.String(), "interrupted") {
+			t.Fatalf("rendered ledger missing the cancelled task; output:\n%s", buf.String())
+		}
+	})
+
+	t.Run("output-level synthetic fail", func(t *testing.T) {
+		var stdout nopFlushWriter
+		out := Init(Config{Isolated: true, Format: FormatJSONL, Subject: "tool", Stdout: &stdout})
+		out.Fail("could not start")
+		if err := out.Finish(); err != nil {
+			t.Fatalf("Finish: %v", err)
+		}
+		events := decodeWireEvents(t, stdout.String())
+		idx := indexOfType(events, wire.EventRunFinished)
+		if idx == -1 {
+			t.Fatalf("run.finished must fire on a synthetic Fail, got: %v", wireEventTypes(events))
+		}
+		if events[idx].Payload["outcome"] != wire.OutcomeFailed {
+			t.Fatalf("run.finished outcome = %v, want %q", events[idx].Payload["outcome"], wire.OutcomeFailed)
+		}
+	})
+
+	t.Run("output-level synthetic cancel", func(t *testing.T) {
+		var stdout nopFlushWriter
+		out := Init(Config{Isolated: true, Format: FormatJSONL, Subject: "tool", Stdout: &stdout})
+		out.Cancel("interrupted by signal")
+		if err := out.Finish(); err != nil {
+			t.Fatalf("Finish: %v", err)
+		}
+		events := decodeWireEvents(t, stdout.String())
+		idx := indexOfType(events, wire.EventRunFinished)
+		if idx == -1 {
+			t.Fatalf("run.finished must fire on a synthetic Cancel, got: %v", wireEventTypes(events))
+		}
+		if events[idx].Payload["outcome"] != wire.OutcomeCancelled {
+			t.Fatalf("run.finished outcome = %v, want %q", events[idx].Payload["outcome"], wire.OutcomeCancelled)
+		}
+	})
 }
 
 func matrixCaseName(dryRun, preview, verifySatisfied bool, body string) string {
