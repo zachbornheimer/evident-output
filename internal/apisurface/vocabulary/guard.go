@@ -45,7 +45,7 @@ func writeSection(b *strings.Builder, label string, lines []string) {
 	}
 }
 
-// Check compares live (from NamesFromSurface) against entries (from
+// Check compares live (from apisurface.Names) against entries (from
 // ParseFile) and reports every disagreement: a live name missing from the
 // file, a live name the file classes Removed, and a non-Removed file entry
 // that names nothing live.

@@ -16,14 +16,14 @@ type EffectVerb string
 
 // The complete EffectVerb enum.
 const (
-	EffectAdd       EffectVerb = core.Add
-	EffectCreate    EffectVerb = core.Create
-	EffectDelete    EffectVerb = core.Delete
-	EffectInstall   EffectVerb = core.Install
-	EffectPush      EffectVerb = core.Push
-	EffectRemove    EffectVerb = core.Remove
-	EffectUninstall EffectVerb = core.Uninstall
-	EffectUpdate    EffectVerb = core.Update
+	EffectAdd       EffectVerb = core.EffectVerbAdd
+	EffectCreate    EffectVerb = core.EffectVerbCreate
+	EffectDelete    EffectVerb = core.EffectVerbDelete
+	EffectInstall   EffectVerb = core.EffectVerbInstall
+	EffectPush      EffectVerb = core.EffectVerbPush
+	EffectRemove    EffectVerb = core.EffectVerbRemove
+	EffectUninstall EffectVerb = core.EffectVerbUninstall
+	EffectUpdate    EffectVerb = core.EffectVerbUpdate
 )
 
 // valid reports whether v is one of the declared EffectVerb constants.

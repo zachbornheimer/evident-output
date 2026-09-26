@@ -59,7 +59,7 @@ func formatElapsed(d time.Duration) string {
 	return d.String()
 }
 
-// renderLiveRegion builds the interactive ledger text for the current snapshot.
+// Region builds the interactive ledger text for the current snapshot.
 // now selects spinner frames (inject FixedClock in tests for stable glyphs).
 // color applies SGR to glyphs as rows resolve (✓ green, ✗ red, spinner cyan).
 func Region(s core.Snapshot, height, width int, now time.Time, style render.Style) string {

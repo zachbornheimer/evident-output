@@ -3,7 +3,7 @@
 The exported surface is [`testdata/api_golden.txt`](../../testdata/api_golden.txt).
 `mise run api-contract` fails when the live package differs from it, when a
 name in `testdata/api_required.txt` is missing, or when a name in the retired
-table (`internal/agent/rules/retired.go`) comes back. Read the golden file for what exists;
+table (`internal/retired/retired.go`) comes back. Read the golden file for what exists;
 this page does not repeat it, so it cannot go stale.
 
 Removed names and their replacements are in [`CHANGELOG.md`](../../CHANGELOG.md)
