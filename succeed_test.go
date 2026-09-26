@@ -43,14 +43,51 @@ func distinctBranchDeletes(n int) []evo.EffectSpec {
 	return specs
 }
 
+// skippedItem is one item a category skips, and why (the item is its own
+// Task that resolves Skipped; TaskHandle.Kept was removed in 1.1 — a
+// policy-excluded item is Skipped, not kept).
+type skippedItem struct {
+	name   string
+	reason evo.TaxonomyReason
+}
+
+// skippedNames is n names for a skipped-item batch: the first len(named)
+// carry the given real names (so a verbose assertion can pin the exact
+// leading names txt.TruncateNames shows before its "+N more" fold), the
+// rest are filler names distinct only by index-under-prefix.
+func skippedNames(prefix string, named []string, n int) []string {
+	names := make([]string, n)
+	for i := range n {
+		name := fmt.Sprintf("%s-%d", prefix, i)
+		if i < len(named) {
+			name = named[i]
+		}
+		names[i] = name
+	}
+	return names
+}
+
 // skipItems declares n children of items, each resolving Skipped with
 // reason, so items' own Task (same name as items — docs/reference.md
 // "own Task") folds them into one "- skipped N (...)" tally row instead of
 // n rows (contract §18/§25/§26).
 func skipItems(items *evo.GroupHandle, prefix string, reason evo.TaxonomyReason, n int) {
-	for i := range n {
-		items.Task(fmt.Sprintf("%s-%d", prefix, i)).Skipped(reason)
+	for _, name := range skippedNames(prefix, nil, n) {
+		items.Task(name).Skipped(reason)
 	}
+}
+
+// skippedItemsFor builds count skippedItems under reason, named the same
+// way skipItems names its children (skippedNames) so both callers share one
+// naming rule — Linear 9c10b754 §18's counts (283 checked out, 135
+// unpushed, ...) are too large to name individually, and txt.TruncateNames
+// bounds the verbose listing regardless.
+func skippedItemsFor(reason evo.TaxonomyReason, named []string, count int) []skippedItem {
+	items := make([]skippedItem, 0, count)
+	for _, name := range skippedNames(reason.Name(), named, count) {
+		items = append(items, skippedItem{name, reason})
+	}
+	return items
 }
 
 // satisfied resolves task AlreadySatisfied — a Verify that already holds,

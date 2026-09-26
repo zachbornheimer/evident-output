@@ -11,12 +11,12 @@ import (
 )
 
 // liveCategory is one zq prune category caught mid-classification: its
-// work Task is Running on item of done/total, with the items it has kept
-// so far already declared.
+// work Task is Running on item of done/total, with the items it has
+// skipped so far already declared.
 type liveCategory struct {
 	name, item  string
 	done, total int
-	kept        []keptItem
+	skipped     []skippedItem
 }
 
 // TestPruneContract_LiveCategoriesRenderContract18Frame holds the live
@@ -43,16 +43,16 @@ func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 	categories := out.Group("categories")
 	var repaint []func()
 	for _, c := range []liveCategory{
-		{"branches", "feat/style-contract", 120, 459, []keptItem{{"feat/wt-a", checkedOut}, {"main", protected}}},
-		{"worktrees", "eapp-system-style-contract-heading", 70, 294, []keptItem{{"../wt-a", dirty}, {"../wt-b", dirty}}},
-		{"remote-tracking", "origin/old-style", 1, 4, []keptItem{{"origin/main", tracked}, {"origin/dev", tracked}}},
+		{"branches", "feat/style-contract", 120, 459, []skippedItem{{"feat/wt-a", checkedOut}, {"main", protected}}},
+		{"worktrees", "eapp-system-style-contract-heading", 70, 294, []skippedItem{{"../wt-a", dirty}, {"../wt-b", dirty}}},
+		{"remote-tracking", "origin/old-style", 1, 4, []skippedItem{{"origin/main", tracked}, {"origin/dev", tracked}}},
 	} {
 		items := categories.Group(c.name)
 		work := items.Task(c.name)
 		classifying := make(chan struct{})
 		work.Define(func(context.Context) error {
-			for _, kept := range c.kept {
-				items.Task(kept.name).Skipped(kept.reason)
+			for _, item := range c.skipped {
+				items.Task(item.name).Skipped(item.reason)
 			}
 			work.Doing(c.item)
 			work.Progress(c.done, c.total)

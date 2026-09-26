@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -240,23 +239,17 @@ func TestPruneContract_LedgerFollowsTaskDeclarationOrderNotCompletionOrder(t *te
 	}
 }
 
-// keptItem is one item a prune category keeps, and why.
-type keptItem struct {
-	name   string
-	reason evo.TaxonomyReason
-}
-
 // pruneCategory is one zq prune category in the contract-correct per-item
 // shape: a Group named for the category holding the category's own Task
 // (same name: it classifies, summarizes, and owns the Effect, so the
 // ledger subject is the category — docs/reference.md "own Task") plus one
-// child Task per kept item that resolves Skipped (the item is the Task;
-// TaskHandle.Kept was removed in 1.1 — a policy-excluded item is Skipped).
+// child Task per skipped item (the item is the Task; TaskHandle.Kept was
+// removed in 1.1 — a policy-excluded item is Skipped, via skippedItem).
 type pruneCategory struct {
 	name, summary string
 	effect        *evo.EffectSpec
 	onDisk        string // routine Fact, verbose-only (§13, §21); "" for none
-	kept          []keptItem
+	skipped       []skippedItem
 }
 
 // declare submits the category under parent and returns its own Task.
@@ -265,7 +258,7 @@ func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
 	items := parent.Group(c.name)
 	work := items.Task(c.name)
 	work.Define(func(ctx context.Context) error {
-		for _, item := range c.kept {
+		for _, item := range c.skipped {
 			items.Task(item.name).Skipped(item.reason)
 		}
 		if c.onDisk != "" {
@@ -278,24 +271,6 @@ func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
 		return evo.Effect(ctx, *c.effect, func(context.Context) error { return nil })
 	})
 	return work
-}
-
-// keptItemsFor builds count keptItems under reason: the first len(named)
-// carry the given real names (so a verbose assertion can pin the exact
-// leading names txt.TruncateNames shows before its "+N more" fold), the
-// rest are filler names distinct only by index — Linear 9c10b754 §18's
-// counts (283 checked out, 135 unpushed, ...) are too large to name
-// individually, and TruncateNames bounds the verbose listing regardless.
-func keptItemsFor(reason evo.TaxonomyReason, named []string, count int) []keptItem {
-	items := make([]keptItem, 0, count)
-	for i := range count {
-		name := fmt.Sprintf("%s-item-%d", reason.Name(), i)
-		if i < len(named) {
-			name = named[i]
-		}
-		items = append(items, keptItem{name, reason})
-	}
-	return items
 }
 
 // renderPruneContract18 runs zq prune's dry-run under zq's own Config
@@ -318,23 +293,23 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 	checkedOut, protected := evo.Reason("checked out"), evo.Reason("protected")
 	dirty, unpushed := evo.Reason("dirty"), evo.Reason("unpushed")
 	ignoredFiles := evo.Reason("ignored files")
-	var branchKept []keptItem
-	branchKept = append(branchKept, keptItemsFor(checkedOut, []string{"feat/wt-a", "feat/wt-b"}, 283)...)
-	branchKept = append(branchKept, keptItemsFor(unpushed, nil, 135)...)
-	branchKept = append(branchKept, keptItemsFor(protected, []string{"main"}, 1)...)
+	var branchSkipped []skippedItem
+	branchSkipped = append(branchSkipped, skippedItemsFor(checkedOut, []string{"feat/wt-a", "feat/wt-b"}, 283)...)
+	branchSkipped = append(branchSkipped, skippedItemsFor(unpushed, nil, 135)...)
+	branchSkipped = append(branchSkipped, skippedItemsFor(protected, []string{"main"}, 1)...)
 	branches := pruneCategory{
 		name: "branches", summary: "459 checked",
-		effect: &evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40},
-		kept:   branchKept,
+		effect:  &evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40},
+		skipped: branchSkipped,
 	}.declare(categories)
-	var worktreeKept []keptItem
-	worktreeKept = append(worktreeKept, keptItemsFor(dirty, []string{"../wt-a", "../wt-b"}, 163)...)
-	worktreeKept = append(worktreeKept, keptItemsFor(unpushed, []string{"../wt-c"}, 89)...)
-	worktreeKept = append(worktreeKept, keptItemsFor(ignoredFiles, nil, 40)...)
+	var worktreeSkipped []skippedItem
+	worktreeSkipped = append(worktreeSkipped, skippedItemsFor(dirty, []string{"../wt-a", "../wt-b"}, 163)...)
+	worktreeSkipped = append(worktreeSkipped, skippedItemsFor(unpushed, []string{"../wt-c"}, 89)...)
+	worktreeSkipped = append(worktreeSkipped, skippedItemsFor(ignoredFiles, nil, 40)...)
 	worktrees := pruneCategory{
 		name: "worktrees", summary: "294 checked", onDisk: "508.8 MB",
-		effect: &evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1},
-		kept:   worktreeKept,
+		effect:  &evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1},
+		skipped: worktreeSkipped,
 	}.declare(categories)
 	remotes := pruneCategory{
 		name: "remote-tracking", summary: "4 stale refs",
@@ -407,7 +382,7 @@ func TestPruneContract_SkippedChildrenStayInMachineOutput(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	work := pruneCategory{
 		name: "branches", summary: "2 checked",
-		kept: []keptItem{{"feat/a", evo.Reason("unpushed")}, {"main", evo.Reason("protected")}},
+		skipped: []skippedItem{{"feat/a", evo.Reason("unpushed")}, {"main", evo.Reason("protected")}},
 	}.declare(out.Group("categories"))
 	if err := work.Wait(); err != nil {
 		t.Fatal(err)

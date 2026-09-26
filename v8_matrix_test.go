@@ -118,16 +118,19 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 // which the mockup's frame simply did not also transcribe.
 //
 // That Println's line lands right after the header rather than after the
-// task rows, even though the call itself comes last in this function: an
-// ordinary Println is an immediate write, but a Group's disposition tally
-// (branches' folded "- skipped 1 (protected)") cannot be known complete —
-// and so cannot be rendered — until Finish (contract §25, "aggregation is
-// a renderer concern"), so the immediate write physically precedes the
-// deferred rows in the byte stream. This is the real, load-bearing
-// ordering an app using Skipped aggregation gets, not a stylistic choice.
+// task rows because the call itself comes first in this function, before
+// any collection work: a Group's disposition tally (branches' folded
+// "- skipped 1 (protected)") cannot be known complete — and so cannot be
+// rendered — until Finish (contract §25, "aggregation is a renderer
+// concern"), so an ordinary Println called ahead of that work is an
+// immediate write that legitimately precedes the deferred rows in the byte
+// stream. The reverse (calling Println last and still seeing it land
+// first) was a real renderer defect — see 349504c/8b9b401 — so this
+// fixture is deliberately shaped to never put a message call after
+// unresolved collection work, rather than pin that inversion as a golden.
 //
-// The policy-excluded "kept 1 (protected)" item is Skipped, not a warning
-// Problem (same rule TestV8_DryRunPlanOnly documents), so this run
+// The policy-excluded "skipped 1 (protected)" item is Skipped, not a
+// warning Problem (same rule TestV8_DryRunPlanOnly documents), so this run
 // concludes plain "[ready]" with no "· warned" modifier.
 func TestV8_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
@@ -137,6 +140,8 @@ func TestV8_NothingToClean(t *testing.T) {
 		Stdout:  &buf, Stderr: io.Discard,
 	})
 	t.Cleanup(func() { _ = out.Close() })
+
+	out.Println("prune  nothing to clean")
 
 	categories := out.Group("categories")
 	branchItems := categories.Group("branches")
@@ -148,7 +153,6 @@ func TestV8_NothingToClean(t *testing.T) {
 	succeed(branches, "1 checked")
 	succeed(worktrees, "nothing to clean")
 	succeed(remotes, "nothing to clean")
-	out.Println("prune  nothing to clean")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
