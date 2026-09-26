@@ -193,8 +193,8 @@ func TestLiveProjection_PaintsTheSameFrame(t *testing.T) {
 	style := render.Style{Profile: txt.GlyphsUnicode}
 	for name, s := range projectionShapes() {
 		for _, rows := range []int{4, 8, 24, 60} {
-			want := LiveRegion(s, rows, 80, now, style)
-			got := LiveRegion(projectLive(s, rows), rows, 80, now, style)
+			want := Region(s, rows, 80, now, style)
+			got := Region(projectLive(s, rows), rows, 80, now, style)
 			if got != want {
 				t.Errorf("%s at %d rows: projected frame differs\n--- projected\n%s\n--- whole\n%s", name, rows, got, want)
 			}
@@ -227,7 +227,7 @@ func TestLiveProjection_SmallCollectionIsWhole(t *testing.T) {
 	if _, partial := core.ChildTallyOf(got); partial || len(got.Tasks) != 10 {
 		t.Errorf("small collection projected to %d children (partial=%v); want all 10, whole", len(got.Tasks), partial)
 	}
-	if !strings.Contains(LiveRegion(core.Snapshot{Collections: []core.TasksSnapshot{got}}, 24, 80, projectionEpoch, render.Style{Profile: txt.GlyphsUnicode}), "item-9") {
+	if !strings.Contains(Region(core.Snapshot{Collections: []core.TasksSnapshot{got}}, 24, 80, projectionEpoch, render.Style{Profile: txt.GlyphsUnicode}), "item-9") {
 		t.Errorf("small collection frame lost a child")
 	}
 }

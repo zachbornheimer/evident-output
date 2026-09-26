@@ -20,7 +20,7 @@ func frameRows(frame string) int {
 
 // liveFrame renders s's live region at height with fixed test settings.
 func liveFrame(s core.Snapshot, height int) string {
-	return LiveRegion(s, height, 80, time.Time{}, render.Style{Profile: txt.GlyphsUnicode})
+	return Region(s, height, 80, time.Time{}, render.Style{Profile: txt.GlyphsUnicode})
 }
 
 // runningCategory is one of zq clean-repo's category Groups mid-run:

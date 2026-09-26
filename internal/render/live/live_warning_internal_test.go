@@ -102,7 +102,7 @@ func TestLiveRegion_ProjectsChangedAndPlannedLedger(t *testing.T) {
 			Records: []core.EffectRecord{{Verb: "fetch-prune", Quantity: 12, HasQty: true, Object: "stale origin/*"}},
 		}},
 	}
-	got := LiveRegion(snap, 24, 80, time.Time{}, render.Style{Profile: txt.GlyphsUnicode})
+	got := Region(snap, 24, 80, time.Time{}, render.Style{Profile: txt.GlyphsUnicode})
 	if !strings.Contains(got, "[changed] branches") || !strings.Contains(got, "deleted 5 local tips") {
 		t.Fatalf("missing [changed] ledger:\n%s", got)
 	}

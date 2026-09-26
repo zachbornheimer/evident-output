@@ -436,7 +436,7 @@ func renderV8AlreadySatisfied(t *testing.T, verbosity evo.Verbosity) string {
 // Spec wins vs the HTML where they disagree: elapsed only after 5s Running
 // (this golden advances 8s, past that threshold); empty bar cells are
 // spaces; the live region does not invent a [changed]/[planned] ledger
-// unless LiveRegion itself paints one.
+// unless Region itself paints one.
 func TestV8_StressLive(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -508,7 +508,7 @@ func TestV8_StressLive(t *testing.T) {
 	//     (writeVerificationDetails), so path/mode appear under permissions
 	//     rather than sharing the HTML's i2 indent with "error".
 	//   - both Effects land in [changed]: Config.DryRun is run-wide, and a
-	//     dry run would skip the chmod failure this golden needs. LiveRegion
+	//     dry run would skip the chmod failure this golden needs. Region
 	//     still projects s.Plans as [planned] when a dry-run run has them.
 	glyph := firstRune(screen.LatestLiveText())
 	want := glyph + " deploy production  1/5 complete — 8s\n" +

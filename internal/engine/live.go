@@ -512,7 +512,7 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 		}
 		bodyHeight = max(height-paneRows, 1)
 	}
-	body := renderlive.LiveRegion(o.liveSnapshotLocked(bodyHeight, now), bodyHeight, width, now, style)
+	body := renderlive.Region(o.liveSnapshotLocked(bodyHeight, now), bodyHeight, width, now, style)
 	if body == "" && o.armedTitleLiveLocked() {
 		body = renderlive.ArmedTitleLine(o.cfg.subject, now, style)
 	}
