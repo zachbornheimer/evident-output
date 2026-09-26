@@ -4,49 +4,8 @@ import (
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
 )
-
-// ledgerTense is which ledger a section belongs to: [changed] records work
-// that happened, [planned] work a dry run or preview would do.
-type ledgerTense int
-
-const (
-	tenseChanged ledgerTense = iota
-	tensePlanned
-)
-
-// tenseFor is the tense a run's ledger rows take.
-func tenseFor(dryRun bool) ledgerTense {
-	if dryRun {
-		return tensePlanned
-	}
-	return tenseChanged
-}
-
-// String is the section header word ("changed", "planned").
-func (t ledgerTense) String() string {
-	if t == tensePlanned {
-		return "planned"
-	}
-	return "changed"
-}
-
-// declaredEvent and recordedEvent are the journal events this tense's
-// sections emit.
-func (t ledgerTense) declaredEvent() string {
-	if t == tensePlanned {
-		return "plan.declared"
-	}
-	return "changes.declared"
-}
-
-func (t ledgerTense) recordedEvent() string {
-	if t == tensePlanned {
-		return "plan.recorded"
-	}
-	return "change.recorded"
-}
 
 // ledgerSection is one Task's [changed] or [planned] rows: the Effects,
 // Files, and Execs its Define recorded. The Task owns the section; its name
@@ -54,7 +13,7 @@ func (t ledgerTense) recordedEvent() string {
 type ledgerSection struct {
 	id    string
 	owner *taskState
-	tense ledgerTense
+	tense ledger.Tense
 	// subject is the rendered name: the owner's name, or its container path
 	// when another section shares that name (see qualifyLocked).
 	subject string
@@ -76,14 +35,10 @@ func (s *ledgerSection) order() int { return s.owner.declaration }
 // record appends one row. A counted entry with zero quantity adds no row
 // (there is nothing to show) and reports false. verb is already in the
 // section's tense.
-func (s *ledgerSection) record(verb string, e ledgerEntry) bool {
-	if e.counted && e.quantity == 0 {
+func (s *ledgerSection) record(verb string, e ledger.Entry) bool {
+	row, ok := e.Row(verb)
+	if !ok {
 		return false
-	}
-	row := EffectRecord{Verb: txt.Text(verb), Object: txt.Text(e.object)}
-	if e.counted {
-		row.Quantity = int64(e.quantity)
-		row.HasQty = true
 	}
 	s.records = append(s.records, row)
 	return true
@@ -100,12 +55,12 @@ func (s *ledgerSection) planSnapshot() PlanSnapshot {
 // ledgerSectionKey identifies a section: one per owning Task per tense.
 type ledgerSectionKey struct {
 	owner string
-	tense ledgerTense
+	tense ledger.Tense
 }
 
 // sectionsLocked is the run's section list for tense, in ledger order.
-func (o *Output) sectionsLocked(tense ledgerTense) *[]*ledgerSection {
-	if tense == tensePlanned {
+func (o *Output) sectionsLocked(tense ledger.Tense) *[]*ledgerSection {
+	if tense == ledger.Planned {
 		return &o.plans
 	}
 	return &o.changes
@@ -113,7 +68,7 @@ func (o *Output) sectionsLocked(tense ledgerTense) *[]*ledgerSection {
 
 // ledgerSectionLocked returns owner's section in tense, opening it on first
 // use. Caller must hold o.mu.
-func (o *Output) ledgerSectionLocked(owner *taskState, tense ledgerTense) *ledgerSection {
+func (o *Output) ledgerSectionLocked(owner *taskState, tense ledger.Tense) *ledgerSection {
 	key := ledgerSectionKey{owner: owner.id, tense: tense}
 	if s, ok := o.ledger.byOwner[key]; ok {
 		return s
@@ -124,7 +79,7 @@ func (o *Output) ledgerSectionLocked(owner *taskState, tense ledgerTense) *ledge
 	o.ledger.opened(key, s)
 	o.qualifyLocked(s)
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: tense.declaredEvent(), EntityID: s.id})
+	o.appendEventLocked(Event{Type: tense.DeclaredEvent(), EntityID: s.id})
 	return s
 }
 
@@ -169,8 +124,8 @@ func qualifiedSubject(st *taskState) string {
 // hasLedgerSectionLocked reports whether the Task taskID owns a section in
 // either tense. Caller must hold o.mu.
 func (o *Output) hasLedgerSectionLocked(taskID string) bool {
-	_, changed := o.ledger.byOwner[ledgerSectionKey{owner: taskID, tense: tenseChanged}]
-	_, planned := o.ledger.byOwner[ledgerSectionKey{owner: taskID, tense: tensePlanned}]
+	_, changed := o.ledger.byOwner[ledgerSectionKey{owner: taskID, tense: ledger.Changed}]
+	_, planned := o.ledger.byOwner[ledgerSectionKey{owner: taskID, tense: ledger.Planned}]
 	return changed || planned
 }
 
@@ -178,7 +133,7 @@ func (o *Output) hasLedgerSectionLocked(taskID string) bool {
 // at least one row — see the unresolved-task amnesty in Finish (beginner-1,
 // I1). Caller must hold o.mu.
 func (o *Output) hasRecordedEffectLocked(taskID string) bool {
-	for _, tense := range []ledgerTense{tenseChanged, tensePlanned} {
+	for _, tense := range []ledger.Tense{ledger.Changed, ledger.Planned} {
 		if s, ok := o.ledger.byOwner[ledgerSectionKey{owner: taskID, tense: tense}]; ok && len(s.records) > 0 {
 			return true
 		}
@@ -191,7 +146,7 @@ func (o *Output) hasRecordedEffectLocked(taskID string) bool {
 func (o *Output) hasPlannedEffect(taskID string) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	s, ok := o.ledger.byOwner[ledgerSectionKey{owner: taskID, tense: tensePlanned}]
+	s, ok := o.ledger.byOwner[ledgerSectionKey{owner: taskID, tense: ledger.Planned}]
 	return ok && len(s.records) > 0
 }
 

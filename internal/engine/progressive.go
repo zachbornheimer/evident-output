@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
 	"github.com/zachbornheimer/evident-output/internal/render"
 )
 
@@ -279,7 +280,7 @@ func hasNamedEffectRecord(records []core.EffectRecord) bool {
 // section namedRowsEmitted is what makes residualCompositionLocked's Finish
 // loop skip it — the raw item list must never render twice.
 func (o *Output) commitNamedEffectsLocked(owner string) {
-	for _, tense := range []ledgerTense{tensePlanned, tenseChanged} {
+	for _, tense := range []ledger.Tense{ledger.Planned, ledger.Changed} {
 		s, ok := o.ledger.byOwner[ledgerSectionKey{owner: owner, tense: tense}]
 		if !ok || s.namedRowsEmitted || !hasNamedEffectRecord(s.records) {
 			continue

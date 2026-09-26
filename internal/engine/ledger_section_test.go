@@ -4,6 +4,8 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/engine/ledger"
 )
 
 // TestLedgerKeepsSameNamedTasksInDifferentContainersApart proves a ledger
@@ -65,7 +67,7 @@ func TestLedgerQualifiesEachSameNamedSectionOnce(t *testing.T) {
 	var opened []*ledgerSection
 	for _, st := range out.tasks {
 		if st.name == "prune" {
-			opened = append(opened, out.ledgerSectionLocked(st, tenseChanged))
+			opened = append(opened, out.ledgerSectionLocked(st, ledger.Changed))
 		}
 		if len(opened) == 2 {
 			for _, s := range opened {
