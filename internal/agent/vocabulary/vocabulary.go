@@ -57,9 +57,13 @@ func Parse(text string) ([]Entry, error) {
 		if len(fields) != 3 {
 			return nil, fmt.Errorf("vocabulary: line %d: want 3 tab-separated fields, got %d: %q", i+1, len(fields), line)
 		}
+		class := Class(strings.TrimSpace(fields[1]))
+		if class != Canonical && class != Helper && class != Removed {
+			return nil, fmt.Errorf("vocabulary: line %d: class %q is not one of canonical, helper, removed", i+1, class)
+		}
 		entries = append(entries, Entry{
 			Name:    strings.TrimSpace(fields[0]),
-			Class:   Class(strings.TrimSpace(fields[1])),
+			Class:   class,
 			Concept: strings.TrimSpace(fields[2]),
 		})
 	}

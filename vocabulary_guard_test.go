@@ -56,3 +56,16 @@ func TestVocabularyGuardCheck_DetectsEachDisagreementKind(t *testing.T) {
 		t.Fatal("Violations with entries must not report Empty")
 	}
 }
+
+// TestVocabularyParse_RejectsClassOutsideClosedSet proves Parse enforces
+// the same closed canonical/helper/removed set the header documents,
+// instead of accepting any class string and letting Check treat an
+// unrecognized class as live (a mutation of testdata/api_vocabulary.txt
+// classing a real entry a made-up class must fail loudly, not pass
+// silently as though the entry were canonical).
+func TestVocabularyParse_RejectsClassOutsideClosedSet(t *testing.T) {
+	_, err := vocabulary.Parse("Ghost\tbogus\tKeep\n")
+	if err == nil {
+		t.Fatal("Parse accepted a class outside canonical/helper/removed")
+	}
+}

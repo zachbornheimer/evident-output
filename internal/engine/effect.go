@@ -28,7 +28,7 @@ const (
 
 // valid reports whether v is one of the declared EffectVerb constants.
 func (v EffectVerb) valid() bool {
-	_, ok := core.Constant(string(v))
+	_, ok := core.EffectVerbConstant(string(v))
 	return ok
 }
 

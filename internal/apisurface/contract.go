@@ -17,9 +17,9 @@ const (
 )
 
 // RetiredNames are identifiers 1.0/1.1 deliberately removed, or never had
-// (rules.Symbols is the one table). A reappearance fails the contract
+// (rules.Symbols() is the one table). A reappearance fails the contract
 // even if testdata/api_golden.txt is rewritten to match, so retiring a name
-// stays rules.
+// stays retired.
 var RetiredNames = rules.ContractNames()
 
 // Report is the four-bucket result of Check. Empty buckets mean that
@@ -31,7 +31,7 @@ type Report struct {
 	RetiredPresent  []string
 }
 
-// OK reports whether the live surface satisfies golden, required, and rules.
+// OK reports whether the live surface satisfies golden, required, and retired.
 func (r Report) OK() bool {
 	return len(r.Extra) == 0 && len(r.Missing) == 0 && len(r.RequiredMissing) == 0 && len(r.RetiredPresent) == 0
 }

@@ -1,7 +1,3 @@
-// EffectVerbs is the closed set of imperative verbs an opaque evo.Effect
-// may declare, defined here (not in internal/engine) so the engine (which
-// defines evo.EffectVerb from it) and the review autofixer (which must not
-// link the engine) share one list.
 package core
 
 import "slices"
@@ -18,13 +14,17 @@ const (
 	Update    = "update"
 )
 
-// Verb is one verb and the evo constant that spells it.
-type Verb struct {
+// EffectVerb is one of the closed set of imperative verbs an opaque
+// evo.Effect may declare, paired with the evo constant that spells it.
+// Defined here (not in internal/engine) so the engine (which defines
+// evo.EffectVerb from it) and the review autofixer (which must not link
+// the engine) share one list.
+type EffectVerb struct {
 	Value    string
 	Constant string
 }
 
-var all = []Verb{
+var effectVerbs = []EffectVerb{
 	{Add, "EffectAdd"},
 	{Create, "EffectCreate"},
 	{Delete, "EffectDelete"},
@@ -35,15 +35,15 @@ var all = []Verb{
 	{Update, "EffectUpdate"},
 }
 
-// All returns every verb, in declaration order.
-func All() []Verb { return slices.Clone(all) }
+// EffectVerbs returns every effect verb, in declaration order.
+func EffectVerbs() []EffectVerb { return slices.Clone(effectVerbs) }
 
-// Constant is the evo constant spelling value ("EffectDelete"), or false
-// when no verb is spelled value.
-func Constant(value string) (string, bool) {
-	i := slices.IndexFunc(all, func(v Verb) bool { return v.Value == value })
+// EffectVerbConstant is the evo constant spelling value ("EffectDelete"), or
+// false when no effect verb is spelled value.
+func EffectVerbConstant(value string) (string, bool) {
+	i := slices.IndexFunc(effectVerbs, func(v EffectVerb) bool { return v.Value == value })
 	if i < 0 {
 		return "", false
 	}
-	return all[i].Constant, true
+	return effectVerbs[i].Constant, true
 }

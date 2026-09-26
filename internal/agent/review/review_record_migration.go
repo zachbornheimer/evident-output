@@ -109,7 +109,7 @@ func recordRewrite(recv, verb string, args []ast.Expr) string {
 	if lit == "write" {
 		return "move the write into " + recv + ".Define(func(ctx context.Context) error { return evo.File(ctx, evo.FileSpec{Path: " + object + ", Contents: data}) })"
 	}
-	constant, ok := core.Constant(lit)
+	constant, ok := core.EffectVerbConstant(lit)
 	if !ok {
 		return "no EffectVerb is spelled " + strconv.Quote(lit) + "; pick the closest of " + strings.Join(effectVerbValues(), "/")
 	}
@@ -119,7 +119,7 @@ func recordRewrite(recv, verb string, args []ast.Expr) string {
 
 // effectVerbValues is every EffectVerb spelling, in declaration order.
 func effectVerbValues() []string {
-	verbs := core.All()
+	verbs := core.EffectVerbs()
 	values := make([]string, len(verbs))
 	for i, v := range verbs {
 		values[i] = v.Value
