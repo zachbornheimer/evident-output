@@ -212,7 +212,7 @@ func TestProblem_SurvivesInJSON(t *testing.T) {
 	}
 
 	snap := out.Snapshot()
-	encoded, err := evo.EncodeJSON(snap)
+	encoded, err := evo.EncodeJSONForTest(snap)
 	if err != nil {
 		t.Fatalf("EncodeJSON: %v", err)
 	}

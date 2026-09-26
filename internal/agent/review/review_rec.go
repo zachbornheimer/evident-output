@@ -79,10 +79,32 @@ func (d *recSurfaceDetector) inspectComposite(cl *ast.CompositeLit) {
 			return
 		}
 		old := d.nodeSrc(cl)
-		d.report(cl, "[]evo.Option is superseded; use Config fields",
+		d.reportOptionsRemoval(cl, "[]evo.Option is removed in 1.1; use Config fields",
+			"[]evo.Option is superseded for this pin, and removed in 1.1; use Config fields",
 			"replace "+old+" with "+repl)
 		d.cover(cl)
 	}
+}
+
+// reportOptionsRemoval is API-032's Config.Options/[]evo.Option case: at a
+// 1.1+ target these constructors no longer compile at all (consistent with
+// API-090/091/120's removed-name severity), so the finding escalates to
+// error with removed-in-1.1 wording instead of the rule catalog's default
+// warning, which still fits an older pin where the constructors are merely
+// superseded, not gone (removed in 1.1).
+func (d *recSurfaceDetector) reportOptionsRemoval(n ast.Node, removedMsg, recMsg, sug string) {
+	if d.effectDialect {
+		d.findings = append(d.findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "error",
+			Message:    removedMsg,
+			File:       d.filename,
+			Line:       lineAt(d.src, d.offset(n)),
+			Suggestion: sug,
+		})
+		return
+	}
+	d.report(n, recMsg, sug)
 }
 
 // inspectConfigOptions flags Config.Options. It offers a rewrite only when
@@ -96,17 +118,18 @@ func (d *recSurfaceDetector) inspectConfigOptions(cl *ast.CompositeLit) {
 		if !ok || identName(kv.Key) != "Options" {
 			continue
 		}
-		const msg = "Config.Options is superseded; use Config fields"
+		const removedMsg = "Config.Options is removed in 1.1; use Config fields"
+		const recMsg = "Config.Options is superseded for this pin, and removed in 1.1; use Config fields"
 		old := d.nodeSrc(kv)
 		sl, isSlice := kv.Value.(*ast.CompositeLit)
 		if isSlice && isOptionSliceLit(sl, d.pkg) {
 			if repl, ok := d.optionSliceToFields(sl, set); ok {
-				d.report(kv, msg, "replace "+old+" with "+repl)
+				d.reportOptionsRemoval(kv, removedMsg, recMsg, "replace "+old+" with "+repl)
 				d.cover(kv)
 				continue
 			}
 		}
-		d.report(kv, msg, "move each Option in "+old+" to its Config field by hand; "+
+		d.reportOptionsRemoval(kv, removedMsg, recMsg, "move each Option in "+old+" to its Config field by hand; "+
 			"at least one has no one-to-one field, or its field is already set, so no automatic rewrite is offered")
 		d.cover(kv)
 	}

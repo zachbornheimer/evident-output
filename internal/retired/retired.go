@@ -30,6 +30,14 @@ type CaptureRename struct {
 	From string
 	// To is the 1.1 Capture-vocabulary replacement.
 	To string
+	// ProblemField marks the one rename that is a struct field on
+	// evo.Problem (EvidenceTail -> CaptureTail) rather than a package-level
+	// selector. The fix analyzer checks this flag instead of hard-coding
+	// the rename's RuleID, so a future Problem-field rename added to this
+	// table gets the receiver-scoped check for free and a package-level
+	// rename can never accidentally collide with Problem.Evidence, the
+	// live satisfaction-proof field that shares API-110's spelling.
+	ProblemField bool
 }
 
 // CaptureRenames is the one table of capture-meaning renames.
@@ -41,7 +49,7 @@ var CaptureRenames = []CaptureRename{
 	{RuleID: "API-114", From: "EvidenceStreamStdout", To: "CaptureStreamStdout"},
 	{RuleID: "API-115", From: "EvidenceStreamStderr", To: "CaptureStreamStderr"},
 	{RuleID: "API-116", From: "MaxEvidenceBytes", To: "MaxCaptureBytes"},
-	{RuleID: "API-117", From: "EvidenceTail", To: "CaptureTail"},
+	{RuleID: "API-117", From: "EvidenceTail", To: "CaptureTail", ProblemField: true},
 }
 
 // captureRenameSymbols converts CaptureRenames into retired Symbol entries
@@ -122,9 +130,47 @@ var symbols = []Symbol{
 
 	// Task is name-only, so nothing accepted an EntityOption: ID and
 	// StartPhase built values no API consumed (PHIL-007).
-	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
-	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
-	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key", Taught: regexp.MustCompile(`\bevo\.ID\(`)},
+	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step", Taught: regexp.MustCompile(`\bEntityOption\b`)},
+	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing", Taught: regexp.MustCompile(`\bevo\.StartPhase\(|\bStartPhase\(`)},
+
+	// Owner vocabulary freeze (2026-09-25): Fail/Block are the one
+	// statement-form spelling; Blockf/Failf/Failure were compatibility
+	// sugar around a same-line %w-wrapped return, with no mechanical
+	// rewrite (see internal/agent/fix/failf.go, API-140).
+	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary) — fold the wrapped error into the summary string, then return it separately", Taught: chainedTaskCall("Failf")},
+	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block(summary) — fold the wrapped error into the summary string, then return it separately", Taught: chainedTaskCall("Blockf")},
+	{Contract: "Output.Failf(", RemovedIn: Release1_1, Replacement: "Output.Fail — fold the wrapped error into the summary string, then return it separately", Taught: regexp.MustCompile(`\b(?:Output|out)\.Failf\(`)},
+	{Contract: "Failure", RemovedIn: Release1_1, Replacement: "a plain error, with Next/NextCommand ProblemOptions for a remedy", Taught: regexp.MustCompile(`\bevo\.Failure\b`)},
+
+	// Owner vocabulary freeze (2026-09-25): Progress+Doing win over Step;
+	// a kept item is domain information (Fact), not a third resolution;
+	// ForSkip/OnTask restricted where a Reason could be used, a
+	// constraint Reason never needed to enforce structurally.
+	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(name)", Taught: chainedTaskCall("Step")},
+	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: `Fact("kept", reason.Name())`, Taught: chainedTaskCall("Kept")},
+	{Contract: "ForSkip", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name", Taught: regexp.MustCompile(`\bForSkip\b`)},
+	{Contract: "OnTask", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name", Taught: regexp.MustCompile(`\bOnTask\b`)},
+	{Contract: "ReasonOption", RemovedIn: Release1_1, Replacement: "none: evo.Reason takes only its name", Taught: regexp.MustCompile(`\bReasonOption\b`)},
+
+	// Owner vocabulary freeze (2026-09-25): Config already carries every
+	// setting as a field; the parallel functional-options surface
+	// (Config.Options []Option, and each Option-returning constructor)
+	// never reached the public root package — only internal/engine keeps
+	// them, for the fixer/reviewer's own rewrite machinery.
+	// Bare "Config.Options" is deliberately excluded: it also appears in
+	// rec-only guidance for an older (pre-1.1) pin, where the field is
+	// merely superseded, not yet removed for that dialect (see
+	// TestAPI032_OptionsRemovedIn1_1IsError) — "[]evo.Option"/"evo.Option"
+	// name the retired type unambiguously regardless of target dialect.
+	{Contract: "Option", RemovedIn: Release1_1, Replacement: "the matching evo.Config field", Taught: regexp.MustCompile(`\[\]evo\.Option\b|\bevo\.Option\b`)},
+	// Title/Plain/DryRun as functional-option CALLS (evo.Title("x")) are
+	// gone; Config.Title/Plain/DryRun as struct fields are unaffected and
+	// unambiguous without a call — the Taught patterns require parens so
+	// this table entry never flags the live field spelling.
+	{Contract: "Title(", RemovedIn: Release1_1, Replacement: "Config.Title", Taught: regexp.MustCompile(`\bevo\.Title\(`)},
+	{Contract: "Plain(", RemovedIn: Release1_1, Replacement: "Config.Plain", Taught: regexp.MustCompile(`\bevo\.Plain\(\)`)},
+	{Contract: "DryRun(", RemovedIn: Release1_1, Replacement: "Config.DryRun", Taught: regexp.MustCompile(`\bevo\.DryRun\(\)`)},
 }
 
 // warnTaught matches the removed Warn taught as a call on an evo receiver
@@ -139,6 +185,15 @@ var warnTaught = regexp.MustCompile(`\b(?:evo|Output|TaskHandle|[Tt]ask\w*|out)\
 // and the structural detector.
 func init() {
 	symbols = append(symbols, captureRenameSymbols()...)
+}
+
+// chainedTaskCall matches a removed TaskHandle verb taught as a direct call
+// on a task-named receiver (task.Kept(reason)) or as the canonical per-item
+// chained call group.Task(item).Kept(reason) — the receiver right before
+// the verb is a Task(...) call's closing paren, not a bare identifier, so
+// the plain "[Tt]ask\w*\." form alone never sees it.
+func chainedTaskCall(verb string) *regexp.Regexp {
+	return regexp.MustCompile(`\b(?:TaskHandle|[Tt]ask\w*)\.` + verb + `\(|\.Task\([^)]*\)\.` + verb + `\(`)
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose

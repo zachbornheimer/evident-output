@@ -1,13 +1,11 @@
 package evo_test
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os/exec"
 	"strings"
-	"sync"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -107,7 +105,7 @@ func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
 	}
 }
 
-// --- Item 0: Fail/Block are statement-form; Failf/Blockf return %w errors ---
+// --- Item 0: Fail/Block are statement-form ---
 
 func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard})
@@ -120,77 +118,6 @@ func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
 	}
 	if got := task.Snapshot().Summary; got != "validate policy manifest" {
 		t.Fatalf("summary = %q, want the Fail argument", got)
-	}
-}
-
-func TestAPISugar_TaskFailfWrapsAndReturnsError(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("validate")
-	cause := errors.New("manifest missing")
-	err := task.Failf("validate policy manifest: %w", cause)
-	if err == nil {
-		t.Fatal("expected non-nil error")
-	}
-	if !strings.Contains(err.Error(), "validate policy manifest") {
-		t.Fatalf("error message = %q, want it to contain the summary", err.Error())
-	}
-	if !errors.Is(err, cause) {
-		t.Fatalf("errors.Is(err, cause) = false, want true (must wrap with %%w)")
-	}
-	if got := task.Snapshot().Summary; got != "validate policy manifest" {
-		t.Fatalf("summary = %q, want the text before the trailing %%w split off", got)
-	}
-}
-
-// TestAPISugar_TaskFailfNextAttachesRemedy pins L2: Failf/Blockf return a
-// *Failure so the remedy for a failure has somewhere to attach at the return
-// site — `return task.Failf("...: %w", err).Next(...)` — instead of a second
-// statement (the zq clean_repo.go build break this closes).
-func TestAPISugar_TaskFailfNextAttachesRemedy(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("validate")
-	cause := errors.New("manifest missing")
-
-	run := func() error {
-		return task.Failf("validate policy manifest: %w", cause).
-			Next(evo.Label("re-run with --force"))
-	}
-	err := run()
-
-	if err == nil {
-		t.Fatal("expected non-nil error")
-	}
-	if !errors.Is(err, cause) {
-		t.Fatalf("errors.Is(err, cause) = false, want true through *Failure.Unwrap")
-	}
-	var failure *evo.Failure
-	if !errors.As(err, &failure) {
-		t.Fatalf("errors.As(err, *evo.Failure) = false, want true")
-	}
-	snap := task.Snapshot()
-	if len(snap.Actions) != 1 || snap.Actions[0].Label != "re-run with --force" {
-		t.Fatalf("actions = %#v, want the Next label attached", snap.Actions)
-	}
-}
-
-// TestAPISugar_TaskBlockfNextCommandAttachesRemedy exercises Blockf's
-// matching Next/NextCommand contract.
-func TestAPISugar_TaskBlockfNextCommandAttachesRemedy(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("apply")
-	err := task.Blockf("dirty working tree").NextCommand("git", "status")
-	if err == nil {
-		t.Fatal("expected non-nil error")
-	}
-	snap := task.Snapshot()
-	if len(snap.Actions) != 1 || snap.Actions[0].Command == nil || snap.Actions[0].Command.Executable != "git" {
-		t.Fatalf("actions = %#v, want the NextCommand attached", snap.Actions)
 	}
 }
 
@@ -211,131 +138,12 @@ func TestAPISugar_DoingDeclaresWithPhaseSet(t *testing.T) {
 	}
 }
 
-// TestAPISugar_StepSetsProgressAndPhaseUnderOneLock pins L8: Step updates
-// progress count and phase text together, so both always describe the same
-// unit of work even under concurrent callers.
-func TestAPISugar_StepSetsProgressAndPhaseUnderOneLock(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("sync")
-	task.StepForTest(3, 10, "syncing widget-3")
-
-	snap := task.Snapshot()
-	if snap.Progress.Completed != 3 || snap.Progress.Total != 10 {
-		t.Fatalf("progress = %+v, want 3/10", snap.Progress)
-	}
-	if snap.Phase != "syncing widget-3" {
-		t.Fatalf("phase = %q, want %q", snap.Phase, "syncing widget-3")
-	}
-}
-
-// TestAPISugar_StepConcurrentWorkersNeverInterleave races N goroutines each
-// calling Step with a matched (index, name) pair; the final Snapshot's
-// Progress and Phase must always agree with ONE goroutine's own pair — never
-// a mix (the defect two separate Progress+Phase calls under two separate
-// locks allowed).
-func TestAPISugar_StepConcurrentWorkersNeverInterleave(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("sync")
-
-	const n = 50
-	var wg sync.WaitGroup
-	for i := 1; i <= n; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			task.StepForTest(i, n, fmt.Sprintf("item-%d", i))
-		}(i)
-	}
-	wg.Wait()
-
-	snap := task.Snapshot()
-	want := fmt.Sprintf("item-%d", snap.Progress.Completed)
-	if snap.Progress.Completed < 1 || snap.Progress.Completed > n {
-		t.Fatalf("completed = %d out of range", snap.Progress.Completed)
-	}
-	if snap.Phase != want {
-		t.Fatalf("phase = %q, want %q (matched to completed=%d)", snap.Phase, want, snap.Progress.Completed)
-	}
-}
-
-// TestStep_IsolatedPlainDoesNotEmitPerNamePhase pins Step's live-only name:
-// Isolated+Plain may stream thinned progress milestones (~10), but must not
-// emit a durable phase line per unique item name. Snapshot.Phase is still
-// the last name (the TTY bar can show the path without flooding the pipe).
-func TestStep_IsolatedPlainDoesNotEmitPerNamePhase(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("sync")
-	const total = 40
-	names := make([]string, total)
-	for i := 1; i <= total; i++ {
-		names[i-1] = fmt.Sprintf("widget-%02d", i)
-		task.StepForTest(i, total, names[i-1])
-	}
-	last := names[total-1]
-	if got := task.Snapshot().Phase; got != last {
-		t.Fatalf("phase = %q, want last Step name %q", got, last)
-	}
-
-	succeed(task)
-	if err := out.Finish(); err != nil {
-		t.Fatalf("Finish: %v", err)
-	}
-
-	transcript := buf.String()
-	namedLines := 0
-	for _, name := range names {
-		if strings.Contains(transcript, name) {
-			namedLines++
-		}
-	}
-	if namedLines >= total {
-		t.Fatalf("durable transcript contained %d unique Step names (want < %d; progress milestones are allowed):\n%s", namedLines, total, transcript)
-	}
-}
-
-func TestAPISugar_TaskFailfNoTrailingWrapIsWholeSummary(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("validate")
-	err := task.Failf("validate %s: exit %d", "manifest", 1)
-	if err == nil || err.Error() != "validate manifest: exit 1" {
-		t.Fatalf("err = %v, want formatted summary", err)
-	}
-	if got := task.Snapshot().Summary; got != "validate manifest: exit 1" {
-		t.Fatalf("summary = %q, want the whole formatted text (no %%w to split on)", got)
-	}
-}
-
-func TestAPISugar_ItemBlockfWrapsAndReturnsError(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-
-	item := out.Task("policy gate")
-	cause := errors.New("denied")
-	err := item.Blockf("blocked by policy: %w", cause)
-	if err == nil || !errors.Is(err, cause) {
-		t.Fatalf("err = %v, want it to wrap cause", err)
-	}
-}
-
 func TestAPISugar_FailNilHandleIsSafe(t *testing.T) {
 	var task *evo.TaskHandle
 	task.Fail("summary") // must not panic
 
 	var item *evo.TaskHandle
 	item.Block("summary") // must not panic
-
-	var itemF *evo.TaskHandle
-	if err := itemF.Blockf("summary: %w", errors.New("boom")); err == nil {
-		t.Fatal("expected non-nil error even on a nil handle")
-	}
 }
 
 // --- Item 3: task.Run subprocess facade ---

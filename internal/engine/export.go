@@ -56,9 +56,6 @@ type NoopRedactor = noopRedactor
 // cannot attach methods to engine types).
 
 func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error { return t.run(cmd) }
-func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
-	return t.Step(completed, total, name)
-}
 func (t *TaskHandle) CaptureForTest(opts ...CaptureOption) *capture {
 	return t.capture(opts...)
 }
@@ -106,8 +103,4 @@ func (o *Output) SchedulerMaxObserved() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.sched.maxObserved
-}
-
-func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
-	return Default().reasonGetOrCreate(name, opts...)
 }

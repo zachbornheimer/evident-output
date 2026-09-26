@@ -183,6 +183,15 @@ func run() error {
 
 	return out.Finish()
 }
+
+// StepForTest looks like the export_test.go compat-shim shape
+// (isNamedCompatTestShim) but lives in this fixture's own user package
+// (evostep), not evo's package itself, so the shim exemption must NOT
+// apply here: a user's own <Removed>ForTest wrapper is an ordinary call
+// site and has to migrate like any other.
+func StepForTest(t *evo.TaskHandle, completed, total int, name string) *evo.TaskHandle {
+	return t.Step(completed, total, name) // want ` + "`" + `evo\.TaskHandle\.Step was removed in 1.1: Progress wins over Step; current-item text is orthogonal \(task\.Progress\(i, total\)\.Doing\(name\)\)` + "`" + `
+}
 `
 
 const stepFixtureGolden = `package evostep
@@ -232,6 +241,15 @@ func run() error {
 
 	return out.Finish()
 }
+
+// StepForTest looks like the export_test.go compat-shim shape
+// (isNamedCompatTestShim) but lives in this fixture's own user package
+// (evostep), not evo's package itself, so the shim exemption must NOT
+// apply here: a user's own <Removed>ForTest wrapper is an ordinary call
+// site and has to migrate like any other.
+func StepForTest(t *evo.TaskHandle, completed, total int, name string) *evo.TaskHandle {
+	return t.Progress(completed, total).Doing(name) // want ` + "`" + `evo\.TaskHandle\.Step was removed in 1.1: Progress wins over Step; current-item text is orthogonal \(task\.Progress\(i, total\)\.Doing\(name\)\)` + "`" + `
+}
 `
 
 const keptFixtureSrc = `package evokept
@@ -252,29 +270,51 @@ func run() error {
 	out := evo.Init(evo.Config{Title: "demo"})
 	t := out.Task("check")
 
-	t.Kept(evo.Reason("dirty")) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+	t.Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
 
-	t.Doing("prep").Kept(evo.Reason("dirty")) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+	t.Doing("prep").Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
 
 	t.Define(func(ctx context.Context) error {
-		t.Kept(evo.Reason("dirty")) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+		t.Kept(evo.Reason("dirty")) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
 		return nil
 	})
 
-	t.Kept( // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+	t.Kept( // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
 		evo.Reason(
 			"multi\n" + "line",
 		),
 	)
 
-	f := t.Kept // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+	f := t.Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback` + "`" + `
 	f(evo.Reason("via value"))
 
-	e := (*evo.TaskHandle).Kept // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+	e := (*evo.TaskHandle).Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback` + "`" + `
 	e(t, evo.Reason("via expression"))
 
 	tl := &tally{}
 	tl.Kept("not evo, never flagged")
+
+	g := evo.Group("items")
+	parent := out.Task("parent")
+	parent.Define(func(ctx context.Context) error {
+		for _, it := range []string{"a", "b"} {
+			g.Task(it).Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback on the same receiver` + "`" + `
+		}
+		return nil
+	})
+
+	other := out.Task("other")
+	parent.Define(func(ctx context.Context) error {
+		other.Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback on the same receiver` + "`" + `
+		return nil
+	})
+
+	dirty := out.Task("dirty")
+	parent.Define(func(ctx context.Context) error {
+		f := dirty.Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback on the same receiver` + "`" + `
+		f(evo.Reason("dirty"))
+		return nil
+	})
 
 	return out.Finish()
 }
@@ -298,34 +338,51 @@ func run() error {
 	out := evo.Init(evo.Config{Title: "demo"})
 	t := out.Task("check")
 
-	t.Skipped(evo.Reason("dirty")) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+	t.Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
 
-	t.Doing("prep").Skipped(evo.Reason("dirty")) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+	t.Doing("prep").Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
 
 	t.Define(func(ctx context.Context) error {
-		t.Skipped(evo.Reason("dirty")) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+		t.Fact("kept", evo.Reason("dirty").Name()) // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a kept item is domain information, recorded with Fact\("kept", reason\.Name\(\)\)` + "`" + `
 		return nil
 	})
 
-	t.Skipped(evo.Reason(
-		"multi\n" + "line",
-	))
+	t.Kept( // want ` + "`" + `not rewritten: this Kept call is outside a Define callback` + "`" + `
+		evo.Reason(
+			"multi\n" + "line",
+		),
+	)
 
-	f := func() func(reason evo.TaxonomyReason) {
-		recv := t
-		return func(reason evo.TaxonomyReason) {
-			recv.Skipped(reason)
-		}
-	}() // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+	f := t.Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback` + "`" + `
 	f(evo.Reason("via value"))
 
-	e := func(recv *evo.TaskHandle, reason evo.TaxonomyReason) {
-		recv.Skipped(reason)
-	} // want ` + "`" + `evo\.TaskHandle\.Kept is not canonical vocabulary: a Task intentionally not executed is Skipped\(reason\)` + "`" + `
+	e := (*evo.TaskHandle).Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback` + "`" + `
 	e(t, evo.Reason("via expression"))
 
 	tl := &tally{}
 	tl.Kept("not evo, never flagged")
+
+	g := evo.Group("items")
+	parent := out.Task("parent")
+	parent.Define(func(ctx context.Context) error {
+		for _, it := range []string{"a", "b"} {
+			g.Task(it).Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback on the same receiver` + "`" + `
+		}
+		return nil
+	})
+
+	other := out.Task("other")
+	parent.Define(func(ctx context.Context) error {
+		other.Kept(evo.Reason("dirty")) // want ` + "`" + `not rewritten: this Kept call is outside a Define callback on the same receiver` + "`" + `
+		return nil
+	})
+
+	dirty := out.Task("dirty")
+	parent.Define(func(ctx context.Context) error {
+		f := dirty.Kept // want ` + "`" + `not rewritten: this Kept reference is outside a Define callback on the same receiver` + "`" + `
+		f(evo.Reason("dirty"))
+		return nil
+	})
 
 	return out.Finish()
 }
@@ -356,6 +413,12 @@ func run() error {
 	r := &recorder{}
 	_ = r.EvidenceTail
 
+	// p.Evidence is a live field (satisfaction-proof Attachments), a
+	// different concept from the removed EvidenceTail that merely shares
+	// the "Evidence" spelling API-110 renames at the package level — must
+	// never be flagged on a Problem receiver.
+	_ = p.Evidence
+
 	return nil
 }
 `
@@ -384,6 +447,12 @@ func run() error {
 
 	r := &recorder{}
 	_ = r.EvidenceTail
+
+	// p.Evidence is a live field (satisfaction-proof Attachments), a
+	// different concept from the removed EvidenceTail that merely shares
+	// the "Evidence" spelling API-110 renames at the package level — must
+	// never be flagged on a Problem receiver.
+	_ = p.Evidence
 
 	return nil
 }

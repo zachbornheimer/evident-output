@@ -61,16 +61,16 @@ g.Task("b").Define(installB)`,
 			ID:        "API-028",
 			Category:  "API",
 			Severity:  SeverityWarning,
-			Invariant: "Failf/Blockf require a format directive — every other *f method is deleted",
-			Why: "Failf(\"boom\") with no directive at all is ceremony; Fail(\"boom\") is the intent. " +
-				"C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf entirely — " +
-				"Task/Group/Sequence/Changes/Plan/Reason are printf-variadic themselves now " +
-				"(Warn itself was removed in 1.1; Problem carries severity instead), " +
-				"so there is nothing left in that family to flag; Failf/Blockf survive for their %w+*Failure semantics.",
-			BadCode: `task.Failf("boom")`,
-			GoodCode: `task.Fail("boom")
-task.Failf("boom: %w", err)`,
-			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Task/Group/Sequence/Changes/Plan/Reason take printf args directly",
+			Invariant: "no invented *f suffix on Fail/Block — every *f method in this family is deleted",
+			Why: "C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf entirely, and the " +
+				"owner vocabulary freeze (2026-09-25) removed Failf/Blockf too — Fail and Block are plain " +
+				"strings, not printf format directives, and there is no %w-wrapping *f sibling left to reach " +
+				"for. Task/Group/Sequence/Changes/Plan/Reason are printf-variadic themselves " +
+				"(Warn itself was removed in 1.1; Problem carries severity instead), so an invented Failf/Blockf " +
+				"call site is always a stale-dialect leftover.",
+			BadCode:         `task.Failf("boom: %w", err)`,
+			GoodCode:        `task.Fail("boom: " + err.Error())`,
+			Remediation:     "Fail/Block take a plain string; wrap the cause with fmt.Errorf/errors.Join or string concatenation before calling them, and return the error separately when one is needed",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",
@@ -254,7 +254,7 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			Category:  "API",
 			Severity:  SeverityWarning,
 			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, Capture, Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), the TaskHandle mutation verbs (Add/Create/Delete/Push/Remove/Update/Write), evo.Affected, and TaskHandle.Done (removed in 1.1), evo.ID, evo.StartPhase, and evo.EntityOption (removed in 1.1), the retired independent-collection constructor, Skip, evo.MainWith (removed in 1.0)",
-			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were removed in 1.0; Isolated *Output uses Output.Run); Config fields replaced Option funcs; the TaskHandle mutation verbs were removed in 1.1 — an opaque mutation is evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) inside Define and file state is evo.File, so neither the 0.x positional Delete(n, object) nor the 1.0 Delete(object, fn, Affected(n)) compiles; the independent collection constructor is Group; Item folded into Task; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); TaskHandle has no Capture method — Writer feeds the Task's Capture (retained output), and the capture-meaning Evidence* names were renamed to Capture in 1.1; Skip is Skipped; ID/StartPhase were removed in 1.1 (Task takes only the name; TaskHandle.Key overrides identity; Doing sets the first phase).",
+			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were removed in 1.0; Isolated *Output uses Output.Run); Config fields replaced Option funcs; the TaskHandle mutation verbs were removed in 1.1 — an opaque mutation is evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) inside Define and file state is evo.File, so neither the 0.x positional Delete(n, object) nor the 1.0 Delete(object, fn, Affected(n)) compiles; the independent collection constructor is Group; Item folded into Task; Cause no longer affects the returned error since Fail/Block are statement-form and Failf/Blockf were removed too (owner vocabulary freeze, 2026-09-25) — wrap the cause into the summary string and return it separately; TaskHandle has no Capture method — Writer feeds the Task's Capture (retained output), and the capture-meaning Evidence* names were renamed to Capture in 1.1; Skip is Skipped; ID/StartPhase were removed in 1.1 (Task takes only the name; TaskHandle.Key overrides identity; Doing sets the first phase).",
 			BadCode: `func main() {
 	out := evo.New(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
 	os.Exit(evo.MainWith(out, run)) // MainWith: removed in 1.0
@@ -276,9 +276,11 @@ func run(ctx context.Context) error {
 		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: n}, remove)
 	})
 	evo.Task("tip").Skipped(reason)
-	return evo.Task("z").Failf("failed: %w", err)
+	z := evo.Task("z")
+	z.Fail("failed: " + err.Error())
+	return err
 }`,
-			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every TaskHandle mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer(); replace TaskHandle.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
+			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every TaskHandle mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with the wrapped-cause text folded into the Fail/Block summary string, then return the error separately (Failf/Blockf were also removed); replace .Capture() with task.Writer(); replace TaskHandle.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
@@ -327,9 +329,10 @@ out.Task("disk space").Define(checkDiskSpace)`,
   return nil
 }`,
 			GoodCode: `if err := validate(cfg); err != nil {
-  return task.Failf("validate policy manifest: %w", err)
+  task.Fail("validate policy manifest: " + err.Error())
+  return err
 }`,
-			Remediation:     `Replace the Fail + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere return task.Failf("<context>: %w", err). Replace a Block + return nil pair with return task.Blockf(...), inside a Define callback too: a plain error there would conclude the Task Failed, not Blocked`,
+			Remediation:     `Replace the Fail + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere call task.Fail("<context>: " + err.Error()) then return err. Replace a Block + return nil pair with task.Block(...) followed by return err, inside a Define callback too: a plain error there would otherwise conclude the Task Failed, not Blocked, so the Block call must be paired with returning that same error`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-034"},
 			Since:           "0.2.17",
@@ -348,7 +351,9 @@ if err := cmd.Run(); err != nil {
 			GoodCode: `cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
-  return task.Blockf("policy check failed: %w", err).NextCommand("git", "status")
+  task.Block("policy check failed: " + err.Error())
+  task.NextCommand("git", "status")
+  return err
 }`,
 			Remediation:     "Wire the checked command's output through task.Writer() instead of io.Discard, so Block/Fail can attach evidence",
 			RelatedGuidance: []string{"streams"},
@@ -360,11 +365,11 @@ if err := cmd.Run(); err != nil {
 			ID:              "API-036",
 			Category:        "API",
 			Severity:        SeverityWarning,
-			Invariant:       "a Fail/Block with a fmt.Sprintf summary followed by a return is one return of the matching Failf/Blockf",
-			Why:             "Failf/Blockf resolve the Task and return its *Failure in one line; a Fail(fmt.Sprintf(...)) statement then a return says it twice. A bare Fail/Block statement is already right: rewriting it to the f-form discards the *Failure (errcheck).",
+			Invariant:       "a Fail/Block with a fmt.Sprintf summary followed by a bare return nil discards the error a caller needed",
+			Why:             "task.Fail(fmt.Sprintf(...)) then return nil says the failure once to the row and never to the caller (Failf/Blockf, the *Failure-returning siblings that once collapsed this into one line, were removed in the owner vocabulary freeze, 2026-09-25). Build the error once, pass its text to Fail/Block, and return the same error.",
 			BadCode:         "task.Fail(fmt.Sprintf(\"delete failed on %s\", branch))\nreturn nil",
-			GoodCode:        "func remove(task *evo.TaskHandle, branch string) error {\n\treturn task.Failf(\"delete failed on %s\", branch)\n}",
-			Remediation:     "Return task.Blockf(...) in place of a Block pair, inside a Define callback or not. For a Fail pair: outside a Define callback return task.Failf(...); inside one return fmt.Errorf(...) and drop the Fail call",
+			GoodCode:        "func remove(task *evo.TaskHandle, branch string) error {\n\terr := fmt.Errorf(\"delete failed on %s\", branch)\n\ttask.Fail(err.Error())\n\treturn err\n}",
+			Remediation:     "Build the error once (fmt.Errorf), pass err.Error() to Fail/Block, and return err from the same statement group — never a bare return nil after Fail/Block when the caller needs the error",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-036"},
 			Since:           "0.2.17",
@@ -391,8 +396,8 @@ if err := cmd.Run(); err != nil {
 			Category:  "API",
 			Severity:  SeverityWarning,
 			Invariant: "fmt.Sprintf(...) is never passed to a method that is already printf-variadic itself",
-			Why: "Task/Group/Sequence/Doing/Failf all already accept " +
-				"(format string, args ...any) directly (P1/P2, C6: their separate *f siblings — Warnf included — " +
+			Why: "Task/Group/Sequence/Doing all already accept " +
+				"(format string, args ...any) directly (P1/P2, C6: the separate *f siblings — Failf/Warnf included — " +
 				"were deleted; Warn itself was removed in 1.1) — wrapping the call in fmt.Sprintf is ceremony that " +
 				"also hides the real arguments from evo's own formatting.",
 			BadCode:         `task.Doing(fmt.Sprintf("scanning %s", path))`,
@@ -423,11 +428,12 @@ t.Doing("running install:fresh-start")`,
 			ID:        "API-040",
 			Category:  "API",
 			Severity:  SeverityError,
-			Invariant: "Failf inside a Define or mutation callback whose return value reaches that same callback resolves the task twice; return task.Blockf(...) is how a Define refuses and is exempt",
-			Why:       "Define's own contract is \"a non-nil return fails the task\"; calling Failf/Fail on the same task and then also returning that error double-resolves it — the row is correct but a spurious second misuse line appears, and zq's taskAlreadyResolved guard exists only to paper over this (app.go:162-167).",
+			Invariant: "Fail inside a Define or mutation callback whose return value reaches that same callback resolves the task twice; task.Block(...) followed by return err is how a Define refuses and is exempt (a plain returned error there would conclude the Task Failed, not Blocked)",
+			Why:       "Define's own contract is \"a non-nil return fails the task\"; calling Fail on the same task and then also returning that error double-resolves it — the row is correct but a spurious second misuse line appears, and zq's taskAlreadyResolved guard exists only to paper over this (app.go:162-167).",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if err := a.executeCommand(ctx, root, task, item); err != nil {
-    return task.Failf("resolve %s: %w", item.Name, err)
+    task.Fail(fmt.Sprintf("resolve %s: %v", item.Name, err))
+    return err
   }
   return nil
 })`,
@@ -437,7 +443,7 @@ t.Doing("running install:fresh-start")`,
   }
   return nil
 })`,
-			Remediation:     "Inside a Define/mutation callback, return the error and let Define resolve the task; do not call Failf/Fail on the same task first",
+			Remediation:     "Inside a Define/mutation callback, return the error and let Define resolve the task; do not call Fail on the same task first. Block is the exception: task.Block(...) followed by return err is required, because a plain returned error would conclude the Task Failed, not Blocked",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-040"},
 			Since:           "0.4.7",
@@ -523,11 +529,11 @@ out.Problem("disk nearly full", evo.Severity(evo.SeverityWarning))`,
 			ID:              "API-091",
 			Category:        "API",
 			Severity:        SeverityError,
-			Invariant:       "(*evo.TaskHandle).Kept was removed in 1.1 — a Task intentionally not executed is Skipped(reason), not Kept(reason)",
-			Why:             "Owner vocabulary freeze (2026-09-25): Kept and Skipped named the same outcome twice. Skipped is the canonical verb; the TaxonomyReason value is unchanged.",
+			Invariant:       `(*evo.TaskHandle).Kept was removed in 1.1 — a kept item is domain information, recorded with Fact("kept", reason.Name()), not a third resolution alongside Succeeded/Skipped`,
+			Why:             `Owner vocabulary freeze (2026-09-25): Kept was never canonical vocabulary. Summary/Skipped cover result metadata and genuine non-execution; a kept item is recorded with Fact, and rewriting it to Skipped would silently change the task's outcome from Done to Skipped.`,
 			BadCode:         `task.Kept(evo.Reason("dirty"))`,
-			GoodCode:        `task.Skipped(evo.Reason("dirty"))`,
-			Remediation:     "Replace Kept(reason) with Skipped(reason)",
+			GoodCode:        `task.Fact("kept", evo.Reason("dirty").Name())`,
+			Remediation:     `Replace Kept(reason) with Fact("kept", reason.Name())`,
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-091"},
 			MinDialect:      "1.1.0",
@@ -542,7 +548,7 @@ out.Problem("disk nearly full", evo.Severity(evo.SeverityWarning))`,
 			Why:             "Owner vocabulary freeze (2026-09-25): ForSkip()/OnTask() restricted where a Reason could be used, a constraint evo.Reason(name) never needed to enforce structurally.",
 			BadCode:         `evo.Reason("dirty", evo.ForSkip())`,
 			GoodCode:        `evo.Reason("dirty")`,
-			Remediation:     "Delete the ForSkip()/OnTask() argument; evo.Reason takes only its name",
+			Remediation:     "Delete the ForSkip()/OnTask() argument (both removed in 1.1); evo.Reason takes only its name",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-120"},
 			MinDialect:      "1.1.0",
@@ -553,13 +559,30 @@ out.Problem("disk nearly full", evo.Severity(evo.SeverityWarning))`,
 			ID:              "API-130",
 			Category:        "API",
 			Severity:        SeverityError,
-			Invariant:       "Every exported functional Option passed to evo.Init/New(..., opts) or set on Config.Options has a matching evo.Config field; the field assignment wins over the functional-option constructor",
+			Invariant:       "The functional-options surface (each exported Option constructor and Config.Options) was removed in 1.1; every setting it built has a matching evo.Config field, and the field assignment wins over the retired constructor",
 			Why:             "Owner vocabulary freeze (2026-09-25): Config already carries every setting as a field; a parallel functional-options surface duplicated the same knobs behind a second spelling.",
 			BadCode:         `evo.Init(evo.Title("demo"), evo.DryRun())`,
 			GoodCode:        `evo.Init(evo.Config{Title: "demo", DryRun: true})`,
 			Remediation:     "Replace each Option constructor with the matching evo.Config field; a constructor with no Config field is reported with no fix",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-130"},
+			MinDialect:      "1.1.0",
+			Since:           "1.1.0",
+			Certainty:       CertaintyDeterministic,
+		},
+		{
+			ID:        "API-140",
+			Category:  "API",
+			Severity:  SeverityError,
+			Invariant: "TaskHandle.Blockf, TaskHandle.Failf, Output.Failf, and evo.Failure were removed in 1.1 with no alias — Fail/Block are the one statement-form spelling in this family",
+			Why:       "Owner vocabulary freeze (2026-09-25): Failf/Blockf/Failure were compatibility sugar around a same-line %w-wrapped return. There is no mechanical rewrite for a format string plus args, so this rule reports the removal with no fix rather than guessing how to fold the wrapped text into a summary.",
+			BadCode:   `return task.Failf("check branches: %w", err)`,
+			GoodCode: `err = fmt.Errorf("check branches: %w", err)
+task.Fail(err.Error())
+return err`,
+			Remediation:     "Fold the wrapped error text into Fail/Block's plain summary string by hand, then return the error separately (inside Define) or propagate it (fmt.Errorf/errors.Join); a remedy Failure.Next/NextCommand once attached moves to a Next/NextCommand ProblemOption before Fail/Block",
+			RelatedGuidance: []string{"tasks", "common-api"},
+			VerificationIDs: []string{"API-140"},
 			MinDialect:      "1.1.0",
 			Since:           "1.1.0",
 			Certainty:       CertaintyDeterministic,

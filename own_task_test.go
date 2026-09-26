@@ -8,11 +8,14 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// warnedBand is the trailing band a run with a Kept tally closes on.
-const warnedBand = "\n[ready · warned]  prune\n"
+// readyBand is the trailing band a run with only Skipped tallies closes
+// on (ordinary call sites moved from Kept to Skipped in 1.1 — Skipped
+// does not feed warned; see
+// TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning).
+const readyBand = "\n[ready]  prune\n"
 
 // renderCategory renders one category Group whose work Task is named
-// workName, with two kept items folded into its tally.
+// workName, with two skipped items folded into its tally.
 func renderCategory(t *testing.T, workName string) string {
 	t.Helper()
 	var buf bytes.Buffer
@@ -21,8 +24,8 @@ func renderCategory(t *testing.T, workName string) string {
 	items := out.Group("branches")
 	work := items.Task(workName)
 	work.Define(func(context.Context) error {
-		items.Task("main").Kept(evo.Reason("protected"))
-		items.Task("feat/a").Kept(evo.Reason("unpushed"))
+		items.Task("main").Skipped(evo.Reason("protected"))
+		items.Task("feat/a").Skipped(evo.Reason("unpushed"))
 		work.Summary("12 checked")
 		return nil
 	})
@@ -39,7 +42,7 @@ func renderCategory(t *testing.T, workName string) string {
 // (docs/reference.md): the Task named for its Group is the Group's own
 // work, so once the items fold the Group renders as that one row.
 func TestOwnTask_SameNamedWorkTaskIsTheGroupRow(t *testing.T) {
-	want := "✓ branches  12 checked\n  ! kept 2 (1 protected, 1 unpushed)\n" + warnedBand
+	want := "✓ branches  12 checked\n  - skipped 2 (1 protected, 1 unpushed)\n" + readyBand
 	if got := renderCategory(t, "branches"); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -51,7 +54,7 @@ func TestOwnTask_SameNamedWorkTaskIsTheGroupRow(t *testing.T) {
 // children, which then keep their named rows: nothing says they are items
 // of one category (docs/reference.md, "own Task").
 func TestOwnTask_DifferentlyNamedTaskNeverStandsInForItsGroup(t *testing.T) {
-	want := "✓ classify  12 checked\n✓ main       ! kept 1 (protected)\n✓ feat/a     ! kept 1 (unpushed)\n" + warnedBand
+	want := "✓ classify  12 checked\n○ main\n  - skipped 1 (protected)\n○ feat/a\n  - skipped 1 (unpushed)\n" + readyBand
 	if got := renderCategory(t, "classify"); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -114,25 +117,26 @@ func TestOwnTask_SkippedPeersBesideWorkKeepTheirRows(t *testing.T) {
 	}
 }
 
-// TestOwnTask_LoneKeptItemFoldsUnderItsGroupRow is zq prune on a small
-// repo: main is always kept, so a category often has exactly one kept
-// item. Under a Group with its own work Task that item is an item of the
-// category, and it folds into the tally like any number of items would.
-func TestOwnTask_LoneKeptItemFoldsUnderItsGroupRow(t *testing.T) {
+// TestOwnTask_LoneSkippedItemFoldsUnderItsGroupRow is zq prune on a small
+// repo: main is always skipped, so a category often has exactly one
+// skipped item. Under a Group with its own work Task that item is an item
+// of the category, and it folds into the tally like any number of items
+// would.
+func TestOwnTask_LoneSkippedItemFoldsUnderItsGroupRow(t *testing.T) {
 	var buf bytes.Buffer
 	out := newPlainOutput(&buf, false)
 	t.Cleanup(func() { _ = out.Close() })
 	items := out.Group("branches")
 	work := items.Task("branches")
 	work.Define(func(context.Context) error {
-		items.Task("main").Kept(evo.Reason("protected"))
+		items.Task("main").Skipped(evo.Reason("protected"))
 		work.Summary("2 checked")
 		return nil
 	})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	want := "✓ branches  2 checked\n  ! kept 1 (protected)\n" + warnedBand
+	want := "✓ branches  2 checked\n  - skipped 1 (protected)\n" + readyBand
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

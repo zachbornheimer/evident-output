@@ -74,31 +74,32 @@ gate.Block("contains local changes", evo.On("working tree"), evo.Detail("stash o
 
 ---
 
-## Problem / Detail / Failf evidence
+## Problem / Detail / Fail-Block evidence
 
-| Piece        | Audience            | Role                                                                  |
-| ------------ | ------------------- | --------------------------------------------------------------------- |
-| **Problem**  | Structured evidence | Subject + summary (+ optional pieces) for one failure unit            |
-| **Detail**   | **User-facing**     | What the human should know or do                                      |
-| **Failf %w** | **User-facing**     | Wrapped error's text, rendered as one evidence line under the summary |
+| Piece                  | Audience            | Role                                                               |
+| ---------------------- | ------------------- | ------------------------------------------------------------------ |
+| **Problem**            | Structured evidence | Subject + summary (+ optional pieces) for one failure unit         |
+| **Detail**             | **User-facing**     | What the human should know or do                                   |
+| **Fail/Block summary** | **User-facing**     | Wrapped error's text, folded into the resolving verb's own summary |
 
-PHIL-005: a trailing `": %w"`/`", %w"` on `Failf`/`Blockf` splits the formatted text into the
-rendered summary and an evidence line for the wrapped error — both user-facing. Use `Detail`
-for stable guidance text that isn't derived from an error. Do not bury the only user message in
-a wrapped error alone with an empty summary.
+PHIL-005: `Fail`/`Block` are statement-form (`Failf`/`Blockf` were removed in 1.1 alongside
+`evo.Cause`) — a wrapped error's diagnostic text folds into the summary string itself, and the
+same error is then returned separately so the caller can propagate it. Use `Detail` for stable
+guidance text that isn't derived from an error. Do not bury the only user message in the wrapped
+error alone with an empty summary.
 
 ```go
 // Right
 task.Block("contains local changes", evo.Detail("stash or commit them"))
-return task.Failf("download failed: %w", err)
+wrapped := fmt.Errorf("download failed: %w", err)
+task.Fail(wrapped.Error())
+return wrapped
 
 // Wrong — user message only in the wrapped error, empty human summary
-return task.Failf(": %w", err)
+wrapped := fmt.Errorf(": %w", err)
+task.Fail(wrapped.Error())
+return wrapped
 ```
-
-`evo.Cause` (a `ProblemOption` from before this split existed) is removed: `Fail`/`Block` are
-statement-form, so a wrapped error's diagnostic text flows through `Failf`'s trailing `%w`
-instead.
 
 ---
 
@@ -242,12 +243,13 @@ Per-file progress is added only when users need confidence during sufficiently l
 Both are valid:
 
 ```go
-task.Failf("tests failed: %w", err)
-return err
+wrapped := fmt.Errorf("tests failed: %w", err)
+task.Fail(wrapped.Error())
+return wrapped
 ```
 
 ```go
-task.Failf("one expected operation failed: %w", err)
+task.Fail(fmt.Sprintf("one expected operation failed: %v", err))
 return nil
 ```
 

@@ -36,12 +36,14 @@ out.Printf("progress %d\n", n)
 cmd.Stdout = ring
 cmd.Stderr = ring
 if err := cmd.Run(); err != nil {
-  return task.Failf("build failed: %w", err)
+  task.Fail("build failed: " + err.Error())
+  return err
 }`,
 			GoodCode: `cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
-  return task.Failf("build failed: %w", err)
+  task.Fail("build failed: " + err.Error())
+  return err
 }`,
 			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer() (Task.Run was removed in 1.0); do not hand-roll a capture handle in application code",
 			RelatedGuidance: []string{"streams"},

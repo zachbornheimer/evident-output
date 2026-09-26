@@ -99,7 +99,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	succeed(out.Task("a"))
 	out.DebugForTest("d")
 	_ = out.Finish()
-	_, _ = evo.EncodeJSON(out.Snapshot())
+	_, _ = evo.EncodeJSONForTest(out.Snapshot())
 }
 
 func TestCON016_ChildOrderPreserved(t *testing.T) {
@@ -226,7 +226,7 @@ func TestPORT015_ReproducibleSchemaVersion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	b, _ := evo.EncodeJSON(out.Snapshot())
+	b, _ := evo.EncodeJSONForTest(out.Snapshot())
 	if !strings.Contains(string(b), `"schema_version": "0.4"`) {
 		t.Fatal(string(b))
 	}

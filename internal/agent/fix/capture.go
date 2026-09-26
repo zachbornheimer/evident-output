@@ -64,7 +64,16 @@ func runCapture(pass *analysis.Pass) (any, error) {
 		// named type resolves to the internal/core package, not the
 		// top-level evo package recvNamedType checks against — hence the
 		// dedicated isProblemReceiver instead of recvNamedType here.
-		if isProblemReceiver(pass.TypesInfo, sel.X) {
+		//
+		// Scoped to renames the table marks ProblemField (EvidenceTail
+		// only, today): Problem.Evidence is a live, unrelated field
+		// (satisfaction-proof Attachments, API-110's own name collides
+		// with it only by spelling), so matching any rename.From against
+		// a Problem receiver would also flag that live field. The flag
+		// lives on the rename entry itself, not a hard-coded RuleID here,
+		// so adding a struct-field rename to the table can't reopen that
+		// collision by omission.
+		if rename.ProblemField && isProblemReceiver(pass.TypesInfo, sel.X) {
 			pass.Report(captureFinding(pass, sel, rename))
 		}
 	})

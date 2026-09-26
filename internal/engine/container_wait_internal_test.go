@@ -169,7 +169,8 @@ func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 		jobs.Task("a").Define(func(ctx context.Context) error { return nil })
 		blocked := jobs.Task("b")
 		blocked.Define(func(ctx context.Context) error {
-			return blocked.Blockf("needs manual review: %w", errors.New("ambiguous"))
+			blocked.Block("needs manual review: " + errors.New("ambiguous").Error())
+			return nil
 		})
 		err := jobs.Wait()
 		if err == nil {
@@ -186,7 +187,7 @@ func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 		nested := out.Group("outer")
 		inner := nested.Group("inner")
 		innerBlocked := inner.Task("c")
-		innerBlocked.Define(func(ctx context.Context) error { return innerBlocked.Blockf("held") })
+		innerBlocked.Define(func(ctx context.Context) error { innerBlocked.Block("held"); return nil })
 		_ = nested.Wait()
 		if got := nested.Snapshot().State; got != Blocked {
 			t.Errorf("outer group state = %v, want Blocked from its nested Group", got)

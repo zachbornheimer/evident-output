@@ -3,6 +3,9 @@
 package main
 
 import (
+	"bytes"
+	"context"
+
 	evo "github.com/zachbornheimer/evident-output"
 )
 
@@ -12,11 +15,12 @@ func doWork() {
 	// docexamples:snippet start
 	snap := out.Snapshot()
 	plain, _ := evo.RenderPlain(snap, evo.PlainOptions{Width: 80})
-	jsonBytes, _ := evo.EncodeJSON(snap)
-	jsonl, _ := evo.EncodeJSONL(out.Events())
+	result := out.Run(context.Background(), func(context.Context) error { return nil })
+	var jsonBuf bytes.Buffer
+	_ = evo.WriteJSON(&jsonBuf, result)
 	// docexamples:snippet end
 
-	_, _, _ = plain, jsonBytes, jsonl
+	_, _ = plain, jsonBuf
 }
 
 func main() { doWork() }

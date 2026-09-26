@@ -61,18 +61,3 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
 	return true
 }
-
-// Step sets absolute progress and the current item name together under
-// one lock, so a concurrent worker can never observe one goroutine's
-// count paired with another goroutine's name — the exact interleaving
-// two separate Progress(...) + Doing(...) calls (two separate locks) allow.
-// The name is live-only: Isolated+Plain does not stream a durable phase
-// line per unique name (thinned progress milestones still emit). Doing
-// remains the durable narrated-beat path.
-func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
-	return t.annotate(func(st *taskState) {
-		if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
-			t.out.setLiveOnlyPhaseLocked(st, name)
-		}
-	})
-}

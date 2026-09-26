@@ -17,12 +17,54 @@ type flusher interface {
 	Flush() error
 }
 
+// hasPendingCollectionRowsLocked reports whether this run holds a
+// collection whose verdict has already settled but whose rows have not
+// rendered yet: in plain/non-interactive mode a collection never streams
+// progressively (writeResidualEntitiesLocked's comment; a Group's
+// disposition tally can't be known complete until Finish), so a settled
+// collection's rows are guaranteed to land at Finish, after this call. A
+// Println/Printf call made while a collection is still Running (or before
+// any of its children have even started) is NOT chronologically after that
+// collection's eventual row — the P2 "interleave by call time" contract
+// (residualPlainLocked's doc comment) says it must stream now, ahead of
+// work that is still in flight, exactly as a standalone Task's progressive
+// row would. Only a collection that has already reached a terminal verdict
+// obligates a later call to wait behind it. Interactive mode is unaffected
+// — its live region owns collection rows through its own H.20/H.21 path,
+// not this residual one.
+func (o *Output) hasPendingCollectionRowsLocked() bool {
+	if !o.cfg.plain {
+		return false
+	}
+	for _, col := range o.collections {
+		if core.IsTerminalTask(col.derivedState()) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasHeldMessageLocked reports whether a Println/Printf line is currently
+// sitting in o.lines waiting for a pending collection's row to render ahead
+// of it (emitMessageLocked's hasPendingCollectionRowsLocked branch). Only
+// while such a message is actually waiting does a later-resolved standalone
+// Task also need to defer (commitResolvedTaskLocked) to keep the message's
+// own call-time position intact — see that call site's doc comment.
+func (o *Output) hasHeldMessageLocked() bool {
+	return len(o.lines) > o.linesEmitted
+}
+
 // emitLineProgressiveLocked streams a newly appended Line() to the human stream.
 func (o *Output) emitLineProgressiveLocked() {
 	if o.linesEmitted >= len(o.lines) {
 		return
 	}
 	var b strings.Builder
+	// Indexed off o.lines, not the public Snapshot.Lines projection: a
+	// held Task row (commitResolvedTaskLocked) lives here as its one real
+	// rendered form and must still stream — only Snapshot.Lines excludes it
+	// (projectMessageLinesLocked), so an external render off the snapshot
+	// alone doesn't see it a second time next to its Task entity.
 	for _, line := range o.lines[o.linesEmitted:] {
 		b.WriteString(line)
 		b.WriteByte('\n')
@@ -153,6 +195,28 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, o.humanStyle())
 	st.coreEmitted = true
 	if b.Len() == 0 {
+		return
+	}
+	if o.hasPendingCollectionRowsLocked() && o.hasHeldMessageLocked() {
+		// A standalone Task's row always streams immediately, even one
+		// resolved after a collection has settled — TestV8_Stress pins
+		// that a Task declared after a settled Group still jumps ahead of
+		// it, because entities always occupy their own fixed Finish slot
+		// (writeResidualEntitiesLocked: tasks, then collections) regardless
+		// of resolution order. But a Println/Printf call made while a
+		// collection is pending (print.go's emitMessageLocked) instead
+		// holds its line back until that fixed slot renders — and once
+		// such a message is waiting, a Task resolved after it must not
+		// print ahead of it: that would still invert the P2 "interleave by
+		// call time" contract for the message, even though the Task's own
+		// ordering relative to the collection is unaffected. Folding this
+		// Task's row into the same held-lines mechanism as the message
+		// keeps both interleaved in call order.
+		if o.deferredTaskRowLines == nil {
+			o.deferredTaskRowLines = make(map[int]struct{})
+		}
+		o.deferredTaskRowLines[len(o.lines)] = struct{}{}
+		o.lines = append(o.lines, strings.TrimSuffix(b.String(), "\n"))
 		return
 	}
 	o.writeDurableTextLocked(b.String())
@@ -388,11 +452,31 @@ func residualHasEffectSections(o *Output) bool {
 func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, includeEntities bool) string {
 	style := o.humanStyle()
 	var b strings.Builder
-	for i := linesFrom; i < len(snap.Lines); i++ {
-		render.WriteDebugOrLine(&b, snap.Lines[i], style.Color)
+	writeHeldLines := func() {
+		// Indexed off o.lines, not snap.Lines: linesFrom is always counted
+		// against o.lines (o.linesEmitted), and o.lines is where a held
+		// Task row's one real rendered form lives (commitResolvedTaskLocked)
+		// — snap.Lines drops that entry for external consumers only
+		// (projectMessageLinesLocked), so slicing it here would misalign
+		// this index and, once a Task row precedes it, skip content.
+		for i := linesFrom; i < len(o.lines); i++ {
+			render.WriteDebugOrLine(&b, o.lines[i], style.Color)
+		}
+	}
+	// hasPendingCollectionRowsLocked's held-back messages (print.go's
+	// emitMessageLocked) are calls that chronologically followed the
+	// collection rows below — write those rows first so the P2 "interleave
+	// by call time" contract holds even though neither actually streamed
+	// until now (residualPlainLocked's doc comment).
+	deferredLinesToEntities := includeEntities && o.hasPendingCollectionRowsLocked()
+	if !deferredLinesToEntities {
+		writeHeldLines()
 	}
 	if includeEntities {
 		o.writeResidualEntitiesLocked(&b, snap, style)
+	}
+	if deferredLinesToEntities {
+		writeHeldLines()
 	}
 	// A blank line separates the task block from the [changed]/[planned]
 	// ledger (fixture-repo-retire-dryrun.md: line 12→14) — checked against
@@ -481,7 +565,7 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 	linesFrom := o.linesEmitted
 	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
 	text := o.residualCompositionLocked(snap, linesFrom, !interactive)
-	o.linesEmitted = len(snap.Lines)
+	o.linesEmitted = len(o.lines)
 	return text
 }
 

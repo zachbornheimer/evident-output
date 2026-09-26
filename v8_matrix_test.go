@@ -24,23 +24,25 @@ import (
 )
 
 // TestV8_DryRunPlanOnly is the golden for the "Dry-run (plan-only)" tab: a
-// Config.Subject header, three checked/kept summary tasks, and a
+// Config.Subject header, three checked/skipped summary tasks, and a
 // three-section [planned] ledger.
 //
-// Two deliberate departures from the transcribed frame, both because the
+// One deliberate departure from the transcribed frame, because the
 // normative spec text (higher authority than a hand-transcribed frame)
-// already settles them:
-//   - the header carries evo's own "[dry-run]" tag before the subject
-//     (spec §27's own worked example: "[dry-run] repo  ~/Developer/zq");
-//     the mockup's frame omits it, most plausibly because the real zq
-//     Subject string was composed with the word "prune" already implying
-//     dry-run intent to a human reader, not because evo should stop
-//     tagging dry runs.
-//   - a trailing "[planned · warned]" band still appears: existing,
-//     already-tested behavior (TestCoalesce_DryRunWarned_KeepsTrailingConclusion)
-//     deliberately keeps the trailing band whenever a warned task's
-//     modifier would otherwise vanish along with it — true here too, since
-//     inline "! kept" lines are evidence, not a "· warned" outcome marker.
+// already settles it: the header carries evo's own "[dry-run]" tag before
+// the subject (spec §27's own worked example: "[dry-run] repo
+// ~/Developer/zq"); the mockup's frame omits it, most plausibly because the
+// real zq Subject string was composed with the word "prune" already
+// implying dry-run intent to a human reader, not because evo should stop
+// tagging dry runs.
+//
+// The policy-excluded "kept 419 (...)" / "kept 292 (...)" items are Skipped
+// (vocabulary freeze §"Summary / Skipped / Kept are not three equivalent
+// outcomes": a per-candidate Task intentionally not executed because
+// policy excludes it is Skipped, never a warning Problem), so this run
+// concludes plain "[planned]" and prints no trailing band at all — the
+// dry-run Subject header already named the run, and Skipped never feeds
+// warned (contract §18/§20/§41).
 func TestV8_DryRunPlanOnly(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -50,20 +52,37 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
+	checkedOut, protected := evo.Reason("checked out"), evo.Reason("protected")
+	dirty, unpushed := evo.Reason("dirty"), evo.Reason("unpushed")
+	ignoredFiles := evo.Reason("ignored files")
+
+	// Each category is a Group named for the category holding the
+	// category's own Task (same name), plus its policy-excluded items
+	// as Skipped children — the same per-item shape
+	// TestPruneContract_SkippedUnderGroupedCategoriesRendersContract18
+	// pins, at the counts this mockup transcribed.
 	// All three declared up front, matching the real CLI's three
 	// concurrently-checked subjects: plain mode's shared name-column width
-	// for a run of sibling standalone tasks (rootColumn) is
-	// computed from every task declared so far at the moment each one
-	// resolves — declaring all three before any resolves is what produces
-	// the mockup's aligned name column.
-	branches := out.Task("branches")
-	worktrees := out.Task("worktrees")
-	remotes := out.Task("remote-tracking")
+	// for a run of sibling standalone tasks (rootColumn) is computed from
+	// every task declared so far at the moment each one resolves —
+	// declaring all three before any resolves is what produces the
+	// mockup's aligned name column.
+	categories := out.Group("categories")
+	branchItems := categories.Group("branches")
+	branches := branchItems.Task("branches")
+	worktreeItems := categories.Group("worktrees")
+	worktrees := worktreeItems.Task("worktrees")
+	remoteItems := categories.Group("remote-tracking")
+	remotes := remoteItems.Task("remote-tracking")
 
-	branches.Problem("kept 419 (283 checked out, 135 unpushed, 1 protected)", evo.Severity(evo.SeverityWarning))
+	skipItems(branchItems, "branch-checked-out", checkedOut, 283)
+	skipItems(branchItems, "branch-unpushed", unpushed, 135)
+	skipItems(branchItems, "branch-protected", protected, 1)
 	commit(branches.Summary("459 checked"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40})
 
-	worktrees.Problem("kept 292 (163 dirty, 89 unpushed, 40 ignored files)", evo.Severity(evo.SeverityWarning))
+	skipItems(worktreeItems, "worktree-dirty", dirty, 163)
+	skipItems(worktreeItems, "worktree-unpushed", unpushed, 89)
+	skipItems(worktreeItems, "worktree-ignored-files", ignoredFiles, 40)
 	commit(worktrees.Summary("294 checked"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1})
 
 	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
@@ -75,16 +94,14 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	want := "[dry-run] zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading\n" +
 		"\n" +
 		"✓ branches         459 checked\n" +
-		"  ! kept 419 (283 checked out, 135 unpushed, 1 protected)\n" +
+		"  - skipped 419 (283 checked out, 135 unpushed, 1 protected)\n" +
 		"✓ worktrees        294 checked\n" +
-		"  ! kept 292 (163 dirty, 89 unpushed, 40 ignored files)\n" +
+		"  - skipped 292 (163 dirty, 89 unpushed, 40 ignored files)\n" +
 		"✓ remote-tracking  4 stale refs\n" +
 		"\n" +
 		"[planned] branches         delete 40 local tips\n" +
 		"[planned] worktrees        remove 1 worktree\n" +
-		"[planned] remote-tracking  delete 4 stale origin/*\n" +
-		"\n" +
-		"[planned · warned]\n"
+		"[planned] remote-tracking  delete 4 stale origin/*\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -95,12 +112,29 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 //
 // The frame's closing "prune  nothing to clean" line (no bracket tag, no
 // glyph) is not evo's own conclusion band shape — every other tab's closing
-// band is bracket-tagged ("[dry-run]", "[cancelled]", "[planned · warned]"),
-// and a warned run (branches did warn "kept 1") always keeps its own
-// "· warned" band per the same rule TestV8_DryRunPlanOnly documents. Read
-// as the application's own convenience Println of its "nothing to clean"
-// verdict — layered on top of, not instead of, evo's own standard
-// conclusion band, which the mockup's frame simply did not also transcribe.
+// band is bracket-tagged ("[dry-run]", "[cancelled]", "[ready]"). It is the
+// application's own convenience Println of its "nothing to clean" verdict,
+// layered on top of, not instead of, evo's own standard conclusion band,
+// which the mockup's frame simply did not also transcribe.
+//
+// The call below is written where the mockup puts it — last, after every
+// collection row is resolved, as a genuine closing line — and the golden
+// shows it landing there too: a Group's disposition tally (branches'
+// folded "- skipped 1 (protected)") cannot be known complete — and so
+// cannot be rendered — until Finish (contract §25, "aggregation is a
+// renderer concern"), so plain mode holds this particular message back
+// (hasPendingCollectionRowsLocked, progressive.go) because, by the time it
+// is called, every one of the run's collections has already settled to a
+// terminal verdict — its own row is guaranteed to land at Finish, after
+// them. A Println made instead while a collection is still Running streams
+// immediately, ahead of it, exactly as a standalone Task's progressive row
+// would (see TestPrintln_StreamsAheadOfStillRunningGroup) — the P2
+// "interleave by call time" contract (residualPlainLocked's own doc
+// comment) cuts both ways.
+//
+// The policy-excluded "skipped 1 (protected)" item is Skipped, not a
+// warning Problem (same rule TestV8_DryRunPlanOnly documents), so this run
+// concludes plain "[ready]" with no "· warned" modifier.
 func TestV8_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -110,14 +144,19 @@ func TestV8_NothingToClean(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
-	branches := out.Task("branches")
-	worktrees := out.Task("worktrees")
-	remotes := out.Task("remote-tracking")
+	categories := out.Group("categories")
+	branchItems := categories.Group("branches")
+	branches := branchItems.Task("branches")
+	worktrees := categories.Group("worktrees").Task("worktrees")
+	remotes := categories.Group("remote-tracking").Task("remote-tracking")
 
-	branches.Problem("kept 1 (protected)", evo.Severity(evo.SeverityWarning))
+	skipItems(branchItems, "branch-protected", evo.Reason("protected"), 1)
 	succeed(branches, "1 checked")
 	succeed(worktrees, "nothing to clean")
 	succeed(remotes, "nothing to clean")
+
+	// Called last, matching the mockup's "closing summary line" — see the
+	// doc comment above for why the golden shows it landing there too.
 	out.Println("prune  nothing to clean")
 
 	if err := out.Finish(); err != nil {
@@ -126,12 +165,12 @@ func TestV8_NothingToClean(t *testing.T) {
 
 	want := "zq prune  ~/Developer/Personal/zq\n" +
 		"✓ branches         1 checked\n" +
-		"  ! kept 1 (protected)\n" +
+		"  - skipped 1 (protected)\n" +
 		"✓ worktrees        nothing to clean\n" +
 		"✓ remote-tracking  nothing to clean\n" +
 		"prune  nothing to clean\n" +
 		"\n" +
-		"[ready · warned]  prune\n"
+		"[ready]  prune\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -439,7 +478,17 @@ func TestV8_StressLive(t *testing.T) {
 	cleanup.Define(func(ctx context.Context) error {
 		cleanup.Doing("feat/cleanup…")
 		cleanup.Progress(7, 18)
-		cleanup.Problem("kept 5 (3 protected, 2 unpushed)", evo.Severity(evo.SeverityWarning))
+		// Kept is not canonical vocabulary (vocabulary freeze): a
+		// policy-excluded candidate is Skipped. cleanup accumulates its
+		// own Skipped taxonomy directly (SkippedWithErrs, non-terminal)
+		// rather than folding a Group of sibling item Tasks, since
+		// cleanup itself must stay Running for this frame.
+		for _, item := range append(
+			skippedItemsFor(evo.Reason("protected"), nil, 3),
+			skippedItemsFor(evo.Reason("unpushed"), nil, 2)...,
+		) {
+			cleanup.SkippedWithErrs(item.reason, item.name)
+		}
 		err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 12},
 			func(context.Context) error { return nil })
 		close(committed)
@@ -464,9 +513,9 @@ func TestV8_StressLive(t *testing.T) {
 	glyph := firstRune(screen.LatestLiveText())
 	want := glyph + " deploy production  1/5 complete — 8s\n" +
 		"   ✓ discover\n" +
-		"   " + glyph + " prepare hosts  [███         ]  31/100 — 8s\n" +
+		"   " + glyph + " prepare hosts  [████        ]  31/100  — 8s\n" +
 		"      " + glyph + " host-031\n" +
-		"   " + glyph + " services   [████        ]  14/40 — 8s\n" +
+		"   " + glyph + " services   [█████       ]  14/40  — 8s\n" +
 		"      " + glyph + " payments-api\n" +
 		"      ! audit-stream rollout slower than baseline\n" +
 		"   ✗ write launch agent  failed: permissions\n" +
@@ -475,9 +524,9 @@ func TestV8_StressLive(t *testing.T) {
 		"        error  operation not permitted\n" +
 		"        path   " + displayPath + "\n" +
 		"        mode   0644\n" +
-		"   " + glyph + " cleanup    [████        ]  7/18 — 8s\n" +
+		"   " + glyph + " cleanup    [█████       ]  7/18  — 8s\n" +
 		"      " + glyph + " feat/cleanup…\n" +
-		"      ! kept 5 (3 protected, 2 unpushed)\n" +
+		"      - skipped 5 (3 protected, 2 unpushed)\n" +
 		"\n" +
 		"[changed] discover  deleted 5 local tips\n" +
 		"[changed] cleanup   deleted 12 stale origin/*"
@@ -509,21 +558,20 @@ func TestV8_DependencyInstall(t *testing.T) {
 	clock.Advance(7 * time.Second)
 	install.Progress(14, 40) // re-render at the advanced clock for the timer.
 
-	// Two departures from the frame's literal spacing/indent, both matching
-	// established, already-tested conventions elsewhere rather than this
-	// one mockup's exact characters:
-	//   - one space before the elapsed suffix ("14/40 — 7s"), not two —
-	//     heartbeatSuffix's own " — <elapsed>" format, shared by every
-	//     other elapsed-suffix golden in this suite.
-	//   - the activity child indents 3 spaces, matching every other child
-	//     row's indent (writeLiveTaskLine's pad), not the frame's 2.
+	// Matches spec §18's own worked example exactly, including its
+	// two-space gap before the elapsed suffix ("14/40  — 7s") — the
+	// same gap a shared count column uses, since §18 draws no
+	// distinction between a lone determinate row and an aligned one.
+	// The activity child's own two-space indent matches contract §18's
+	// normative frame exactly (writeLiveTaskLine's root-level
+	// activityChildIndent).
 	//
 	// The spinner glyph is whichever frame the shared animation clock lands
 	// on (spec §23.1: motion only proves liveness, no specific frame is
 	// normative) — not necessarily the mockup's illustrative "⠋".
 	glyph := firstRune(screen.LatestLiveText())
-	want := glyph + " install dependencies  [████        ]  14/40 — 7s\n" +
-		"   " + glyph + " urllib3"
+	want := glyph + " install dependencies  [█████       ]  14/40  — 7s\n" +
+		"  " + glyph + " urllib3"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -573,14 +621,23 @@ func TestV8_LiveParallelPrune(t *testing.T) {
 
 	glyph := firstRune(screen.LatestLiveText())
 	// Bar fill is proportional to completed/total (spec §23: "the bar is
-	// decorative", the count is authoritative) — 70/294 and 1/4 round to
-	// fewer filled cells than the frame's illustrative bars.
-	want := glyph + " branches         [███         ]  120/459 — 5s\n" +
-		"   " + glyph + " feat/style-contract\n" +
-		glyph + " worktrees        [██          ]  70/294 — 5s\n" +
-		"   " + glyph + " eapp-system-style-contract-heading\n" +
-		glyph + " remote-tracking  [███         ]  1/4 — 5s\n" +
-		"   " + glyph + " origin/old-style"
+	// decorative", the count is authoritative) — this matches §18's frame
+	// exactly (120/459 -> 4 filled, 70/294 -> 3 filled, 1/4 -> 3 filled).
+	// progressBar (internal/render/live.go) computes that as a ceiling of
+	// completed/total*width, not nearest-value rounding: nearest would
+	// round 120/459 down to 3/12, hiding real progress that has started
+	// on a 4th cell — see the pinned rounding table in
+	// internal/render/progress_bar_rounding_internal_test.go.
+	// The count column itself is also §18-aligned across these three
+	// siblings: the numerator right-justified to the widest ("120"/" 70"/
+	// "  1") and the denominator left-justified to the widest
+	// ("459"/"294"/"4  "), so every sibling's "/" lands in the same column.
+	want := glyph + " branches         [████        ]  120/459  — 5s\n" +
+		"  " + glyph + " feat/style-contract\n" +
+		glyph + " worktrees        [███         ]   70/294  — 5s\n" +
+		"  " + glyph + " eapp-system-style-contract-heading\n" +
+		glyph + " remote-tracking  [███         ]    1/4    — 5s\n" +
+		"  " + glyph + " origin/old-style"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -620,8 +677,8 @@ func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
 	want := "✓ write plist\n" +
 		"✓ register\n" +
 		"✓ start\n" +
-		glyph + " install dependencies  [█████       ]  18/40 — 6s\n" +
-		"   " + glyph + " requests"
+		glyph + " install dependencies  [██████      ]  18/40  — 6s\n" +
+		"  " + glyph + " requests"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

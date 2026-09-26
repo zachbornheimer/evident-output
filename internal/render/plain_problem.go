@@ -47,8 +47,8 @@ func writeProblem(b *strings.Builder, p core.Problem, indent string, emphasize b
 
 // dedupeCaptureTailAgainstRow is P7's addition (user-13-problems.md
 // Problem 7: "deduplicate it against the failure message"). The exact
-// anti-pattern the doc names — task.Failf("install failed: %s",
-// capture.Text()) — folds the retained output straight into the row's own
+// anti-pattern the doc names — task.Fail(fmt.Sprintf("install failed: %s",
+// capture.Text())) — folds the retained output straight into the row's own
 // summary; auto-attach (task.go's finish) still sets CaptureTail from the
 // same capture ring, which would otherwise render that text a second time
 // underneath the row. Clearing it here (a rendering decision, made once
@@ -73,10 +73,11 @@ func dedupeCaptureTailAgainstRow(p core.Problem, rowSummary string) core.Problem
 // silently discarded by an auto-attached or explicitly requested capture
 // tail), and a distinct CaptureTail renders as an additional capture line
 // underneath it. When Detail is empty, CaptureTail alone renders as the
-// detail body — DetailTail's original, still-supported shape. An identical
-// CaptureTail (auto-attach filled Detail with the same capture tail a
-// caller also passed explicitly via DetailTail) collapses to one line, not a
-// duplicate.
+// detail body — DetailTail's original, still-supported shape. attachCaptureTail
+// (internal/engine/task_commit.go) auto-attach fills CaptureTail, never
+// Detail, for every Fail/Block with a retained capture, so an identical
+// CaptureTail (a caller who also passed the same tail explicitly via
+// DetailTail) collapses to one line, not a duplicate.
 func effectiveDetailAndTail(p core.Problem) (detail, tail string) {
 	switch {
 	case p.Detail == "":

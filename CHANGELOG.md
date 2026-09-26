@@ -128,11 +128,14 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   masks by the umask), and an unmanaged rewrite now passes the file's
   existing mode instead of `0666`.
 
-- **A `Kept` record now concludes `warned` (contract §18).** Any Task that
-  records `Kept(reason)` sets `Conclusion.Warned`, the `--json`
-  `conclusion.warned` field, and the `· warned` band, so a run that kept
-  items it was asked to clean no longer reads as a plain `ready`. A
-  `Skipped` record renders `- skipped N (...)` and never warns.
+- **`Fail`/`Block`'s auto-attached retained capture now fills
+  `Problem.CaptureTail`, never `Detail`** (wire-visible: the `evo.run`
+  Problem's `evidence_tail` key, not `detail`). This generalizes the
+  `Failf`/`Blockf` auto-attach dedupe path (see Removed) to every
+  `Fail`/`Block` call with a retained capture, not only the removed `*f`
+  spellings, so a summary that already folds the same capture text into
+  its own words still dedupes at render time
+  (`dedupeCaptureTailAgainstRow`) instead of repeating it underneath.
 
 - **The renderer decides which rows deserve a line (no new API; callers just
   stop choosing):**
@@ -155,6 +158,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Removed
 
+- **`evo.EventSchemaVersion`** was removed with no alias. It was a thin
+  re-export of `internal/core.EventSchemaVersion`, not itself part of the
+  public wire contract callers write against — the durable JSONL schema
+  version a program cares about is `internal/wire.EventSchemaVersion`
+  ("evo.event" documents), which is unaffected.
 - **Capture-meaning `Evidence*` names were renamed to Capture** with no
   aliases (ZYS-1180 freeze, E-121). Evidence now means only satisfaction
   proof (`Verify`, `TaskSnapshot.Evidence`, `EvidencePhase`,
@@ -163,8 +171,8 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   (`CaptureStreamCombined`, `CaptureStreamStdout`, `CaptureStreamStderr`).
   `evo.MaxEvidenceBytes` is `evo.MaxCaptureBytes`. `evo.KeepLastLines`,
   `evo.MirrorToDebug`, and `evo.MirrorToDiagnostics` keep their names and
-  now return `CaptureOption`. Removed: `Evidence` (as the capture type),
-  `EvidenceOption`, `EvidenceStream`, `EvidenceStreamCombined`,
+  now return `CaptureOption`. Removed in 1.1: `Evidence` (as the capture
+  type), `EvidenceOption`, `EvidenceStream`, `EvidenceStreamCombined`,
   `EvidenceStreamStdout`, `EvidenceStreamStderr`, `MaxEvidenceBytes`.
   MCP review (API-110 through API-116) rewrites each old spelling.
   `Problem.EvidenceTail` — the capture ring's tail attached to a Problem,
@@ -177,7 +185,44 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 - **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
   guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`
-  takes only its name. Review rule API-064 flags the old calls.
+  takes only its name. Review rule API-120 flags the old calls.
+- **`TaskHandle.Blockf`, `TaskHandle.Failf`, `Output.Failf`, `evo.Failure`,
+  and `Failure.Error/Next/NextCommand/Unwrap`** were removed with no alias
+  (owner vocabulary freeze, 2026-09-25: `Output.Failf` → `Fail`). All are
+  compatibility sugar around a same-line `%w`-wrapped return; the paved
+  path is now `Block`/`Fail` as a statement, folding any wrapped-error
+  text into the summary string, then `return <plain error>` (inside
+  `Define`) or `return fmt.Errorf(...)`/a returned sentinel elsewhere.
+- **`evo.JSONDocument`, `evo.EncodeJSON`, `evo.EncodeJSONL`,
+  `evo.EncodeEventJSON`, `evo.JSONSchemaVersion`, and the rest of the
+  legacy output.v1/event.v1 wire type aliases** (`JSONMessage`,
+  `JSONOutputMeta`, `ConclusionJSON`, `JSONProblem`, `JSONTask`,
+  `JSONProgress`, `JSONCollection`, `JSONChanges`, `JSONPlan`,
+  `JSONEffectRecord`, `JSONAction`, `JSONCommand`, `EventJSON`) were
+  removed from the public API with no alias (owner vocabulary freeze,
+  2026-09-25). `WriteJSON`'s `evo.run`/`evo.event` v2 documents (also what
+  `FormatJSON`/`FormatJSONL` write) are the one sanctioned external JSON
+  path. The output.v1/event.v1 projection itself is untouched internally —
+  `EVO_OUTPUT=json`/`jsonl` with an explicit `FormatData`/`FormatExternal`
+  still writes it to stderr exactly as before — only the public Go
+  encoder call for it is gone.
+- **`TaskHandle.Step`** was removed with no alias (API-090: Progress wins
+  over Step). Use `task.Progress(completed, total).Doing(name)`.
+- **`TaskHandle.Kept`** was removed with no alias. `Kept` was never
+  canonical vocabulary (Summary/Skipped cover result metadata and genuine
+  non-execution); record a keep with `task.Fact("kept", "...")` or fold it
+  into `Summary`.
+- **`Config.Options` and its `evo.Option`-returning constructors**
+  (`AlsoWrite`, `Clock`, `DataProjection`, `DebugAddSource`,
+  `DebugHistory`, `DebugLevel`, `DebugPane`, `Diagnostics`, `DryRun`,
+  `ExternalProjection`, `Glyphs`, `MaxEntities`, `MaxEvents`,
+  `MaxFrameRate`, `NoColor`, `Plain`, `Redact`, `ResultStream`, `Runner`,
+  `Stdin`, `Strict`, `Terminal`, `Title`, `To`, `VisibilityDelay`,
+  `Width`, and the `evo.Option`/`ReasonOption` types themselves) were
+  removed with no alias. Every one of these was ordinary `Config` field
+  data (`Config.Stdout`/`Stderr`/`Plain`/`Color`/`Debug`/`DryRun`/
+  `Preview`/`ProcessRunner`/`Glyphs`/... etc.) reachable only through the
+  raw escape hatch; `Config` itself is unchanged.
 - **`TaskHandle.Add/Create/Delete/Push/Remove/Update/Write`, `evo.Affected`,
   and `evo.MutationOption`** were removed with no aliases (ZYS-950). Opaque
   mutations use `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)`
@@ -240,7 +285,8 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   or `task.Fail(fmt.Sprintf(...))` statement into `Blockf`/`Failf`, whose
   returned `*Failure` was then discarded and failed errcheck. It fires only
   when a return follows, and suggests one `return task.Failf(...)` (or, in a
-  Define callback, `return fmt.Errorf(...)`).
+  Define callback, `return fmt.Errorf(...)`). (`Failf`/`Blockf` were
+  removed in 1.1, below.)
 
 - A warning's `evo.On(subject)` now renders on every human row
   (`✓ check jobs  ! job  x`, nested and run-level warnings too); it was
@@ -287,7 +333,7 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `return fmt.Errorf(...)` for a `Block` site, which turned a `[blocked]`
   exit 1 into `[failed]` exit 2, and API-040 flagged `return task.Blockf`.
   Every `Block` rewrite now suggests `Blockf`, and API-040 flags only
-  `Failf`.
+  `Failf`. (`Failf`/`Blockf` were removed in 1.1, below.)
 
 - Under `Config.DryRun` or `Config.Preview`, a Task whose `Verify` is false
   and whose `Define` plans an Effect concludes `[planned]` with exit 0. It

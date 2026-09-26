@@ -8,9 +8,9 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-// reasonOptionNames is ForSkip, OnTask and ReasonOption: the 1.1 freeze
-// removed every ReasonOption because evo.Reason(name) takes only its name
-// (E-122, ZYS-1180) — see the ReasonOptionAnalyzer doc comment.
+// reasonOptionNames is ForSkip, OnTask and ReasonOption: all three were
+// removed in 1.1 because evo.Reason(name) takes only its name (E-122,
+// ZYS-1180) — see the ReasonOptionAnalyzer doc comment.
 var reasonOptionNames = map[string]bool{"ForSkip": true, "OnTask": true, "ReasonOption": true}
 
 // ReasonOptionAnalyzer is API-120: ReasonOption, ForSkip and OnTask were
@@ -29,8 +29,9 @@ var ReasonOptionAnalyzer = &analysis.Analyzer{
 func runReasonOption(pass *analysis.Pass) (any, error) {
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
-	// Every ForSkip()/OnTask() call that is a direct argument of an
-	// evo.Reason(...) call: deleted along with its separating comma.
+	// Every ForSkip()/OnTask() call (both removed in 1.1) that is a
+	// direct argument of an evo.Reason(...) call: deleted along with its
+	// separating comma.
 	handledArg := map[ast.Expr]bool{}
 	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
 		call := n.(*ast.CallExpr)
@@ -54,8 +55,8 @@ func runReasonOption(pass *analysis.Pass) (any, error) {
 	})
 
 	// Any remaining reference (not a deleted Reason argument): a
-	// ReasonOption-typed parameter, a stored value, a call used another
-	// way. Reported with no fix.
+	// ReasonOption-typed parameter (removed in 1.1), a stored value, a
+	// call used another way. Reported with no fix.
 	insp.Preorder([]ast.Node{(*ast.SelectorExpr)(nil)}, func(n ast.Node) {
 		sel := n.(*ast.SelectorExpr)
 		if !reasonOptionNames[sel.Sel.Name] || !isEvoPackageSelector(pass, sel) {
@@ -71,8 +72,9 @@ func runReasonOption(pass *analysis.Pass) (any, error) {
 }
 
 // argSelector returns a call argument's own call selector, when the
-// argument is itself a call (ForSkip() as an argument is *ast.CallExpr
-// whose Fun is the selector we key reasonOptionNames against).
+// argument is itself a call (ForSkip(), removed in 1.1, as an argument
+// is *ast.CallExpr whose Fun is the selector we key reasonOptionNames
+// against).
 func argSelector(arg ast.Expr) (*ast.SelectorExpr, bool) {
 	call, ok := arg.(*ast.CallExpr)
 	if !ok {
@@ -82,9 +84,9 @@ func argSelector(arg ast.Expr) (*ast.SelectorExpr, bool) {
 	return sel, ok
 }
 
-// selCallParent finds the CallExpr a ForSkip()/OnTask() selector belongs
-// to, so the second inspector pass can skip an argument the first pass
-// already reported and fixed.
+// selCallParent finds the CallExpr a ForSkip()/OnTask() selector (both
+// removed in 1.1) belongs to, so the second inspector pass can skip an
+// argument the first pass already reported and fixed.
 func selCallParent(insp *inspector.Inspector, sel *ast.SelectorExpr) (*ast.CallExpr, bool) {
 	var found *ast.CallExpr
 	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
@@ -100,8 +102,9 @@ func deleteReasonArgFix(pass *analysis.Pass, reasonCall *ast.CallExpr, index int
 	arg := reasonCall.Args[index]
 	start := arg.Pos()
 	end := arg.End()
-	// Consume the preceding ", " so deleting the last option doesn't leave
-	// a trailing comma: evo.Reason("dirty", evo.ForSkip()) -> evo.Reason("dirty").
+	// ForSkip (removed in 1.1): consume the preceding ", " so deleting the
+	// last option doesn't leave a trailing comma: evo.Reason("dirty",
+	// evo.ForSkip()) -> evo.Reason("dirty").
 	if index > 0 {
 		start = reasonCall.Args[index-1].End()
 	}

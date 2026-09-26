@@ -136,29 +136,24 @@ func check() error {
 	}
 }
 
-// TestAPI028_FailfWithoutFormat is C6's sync: Donef and the rest of the *f
-// family are deleted (Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are
-// printf-variadic themselves now); Failf/Blockf survive for their %w+
-// *Failure semantics, and API-028 now flags one of those with no directive
-// at all instead.
-func TestAPI028_FailfWithoutFormat(t *testing.T) {
+// TestAPI028_Retired pins that API-028 (formatMethodWithoutDirective) now
+// always finds nothing: Donef and the rest of the *f family were deleted in
+// C6 (Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are printf-variadic
+// themselves), and Failf/Blockf — the last *f methods API-028 still
+// checked — were removed in 1.1 too (Fail/Block are statement-form).
+func TestAPI028_Retired(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f() {
   out := evo.New()
-  _ = out.Task("t").Failf("modules cached")
-  _ = out.Task("u").Failf("%d ok", 1)
+  _ = out.Task("t").Summary("modules cached")
 }
 `
 	res := review.GoSource("x.go", src)
-	var n int
 	for _, f := range res.Findings {
 		if f.RuleID == "API-028" {
-			n++
+			t.Fatalf("API-028 is retired (no *f methods survive to flag): %+v", res.Findings)
 		}
-	}
-	if n != 1 {
-		t.Fatalf("want one API-028, got %d: %+v", n, res.Findings)
 	}
 }
 
@@ -1063,16 +1058,20 @@ func f(out *evo.Output, failures []string) {
 	}
 }
 
-// TestEV001_FailfEmbedsCaptureText is red-first for P7's MCP detector
+// TestEV001_FailEmbedsCaptureText is red-first for P7's MCP detector
 // (user-13-problems.md Problem 7's named anti-pattern):
-// task.Failf("install failed: %s", capture.Text()) folds the retained
-// Capture ring straight into the summary, duplicating what auto-attach
-// already renders as its own capture-tail line.
-func TestEV001_FailfEmbedsCaptureText(t *testing.T) {
+// task.Fail(fmt.Sprintf("install failed: %s", capture.Text())) folds the
+// retained Capture ring straight into the summary, duplicating what
+// auto-attach already renders as its own capture-tail line. Failf was
+// removed in 1.1; Fail is the statement-form receiver that survives.
+func TestEV001_FailEmbedsCaptureText(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
 func f(task *evo.TaskHandle, capture *evo.Capture) {
-  task.Failf("install failed: %s", capture.Text())
+  task.Fail(fmt.Sprintf("install failed: %s", capture.Text()))
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -1086,17 +1085,23 @@ func f(task *evo.TaskHandle, capture *evo.Capture) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected EV-001 on Failf embedding capture.Text(): %+v", res.Findings)
+		t.Fatalf("expected EV-001 on Fail embedding capture.Text(): %+v", res.Findings)
 	}
 }
 
-// TestEV001_NoFalsePositiveOnPavedPath proves the paved-path Failf("...: %w",
-// err) shape — which lets auto-attach do its one job — never triggers EV-001.
+// TestEV001_NoFalsePositiveOnPavedPath proves the paved-path — folding a
+// %w-wrapped error into Fail's summary, then returning it separately (Failf
+// no longer exists) — never triggers EV-001.
 func TestEV001_NoFalsePositiveOnPavedPath(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, err error) *evo.Failure {
-  return task.Failf("install dependencies: %w", err)
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, err error) error {
+  wrapped := fmt.Errorf("install dependencies: %w", err)
+  task.Fail(wrapped.Error())
+  return wrapped
 }
 `
 	res := review.GoSource("good.go", good)
@@ -1688,7 +1693,7 @@ func run() int {
 	}
 }
 
-func TestAPI032_CauseDerivesFailfSuggestion(t *testing.T) {
+func TestAPI032_CauseDerivesFoldedFailSuggestion(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(task *evo.TaskHandle, err error) {
@@ -1700,7 +1705,7 @@ func f(task *evo.TaskHandle, err error) {
 	if len(found) != 1 {
 		t.Fatalf("expected one API-032 finding for evo.Cause, got %+v", found)
 	}
-	want := `task.Failf("validate policy manifest: %w", err)`
+	want := `wrapped := fmt.Errorf("validate policy manifest: %w", err); task.Fail(wrapped.Error()); return wrapped`
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
 	}
@@ -1858,9 +1863,12 @@ func f(cmd *exec.Cmd) {
 	}
 }
 
-// TestAPI036_SprintfInVerb: a Fail/Block(fmt.Sprintf(...)) statement
-// followed by a return hands the formatted error back in one line.
-func TestAPI036_SprintfInVerb(t *testing.T) {
+// TestAPI034_SprintfSummaryThenReturnNil: API-036 was retired in 1.1
+// (Failf/Blockf, the f-form it used to collapse a Sprintf-summary Fail/
+// Block and a following return into, no longer exist) — a
+// Fail/Block(fmt.Sprintf(...)) statement immediately followed by
+// `return nil` is now just API-034's ordinary discarded-error shape.
+func TestAPI034_SprintfSummaryThenReturnNil(t *testing.T) {
 	src := `package p
 import (
   "fmt"
@@ -1872,29 +1880,28 @@ func f(task *evo.TaskHandle, branch string) error {
 }
 `
 	res := review.GoSource("sprintfverb.go", src)
-	var api036, api034 int
+	var api034 int
 	for _, f := range res.Findings {
-		switch f.RuleID {
-		case "API-036":
-			api036++
-			if !strings.Contains(f.Suggestion, `return task.Failf("delete failed on %s", branch)`) {
+		if f.RuleID == "API-034" {
+			api034++
+			if !strings.Contains(f.Suggestion, "task.Fail") || !strings.Contains(f.Suggestion, "fmt.Errorf") {
 				t.Fatalf("suggestion = %q", f.Suggestion)
 			}
-		case "API-034":
-			api034++
+		}
+		if f.RuleID == "API-036" {
+			t.Fatalf("API-036 was retired in 1.1 (no Failf/Blockf survive to rewrite into): %+v", f)
 		}
 	}
-	if api036 != 1 || api034 != 0 {
-		t.Fatalf("want one API-036 and no duplicate API-034, got %d/%d: %+v", api036, api034, res.Findings)
+	if api034 != 1 {
+		t.Fatalf("want one API-034, got %d: %+v", api034, res.Findings)
 	}
 }
 
-// TestAPI036_BareStatementKeepsBlock pins E-102: a bare Block/Fail
-// statement with a Sprintf summary was rewritten to Blockf/Failf, whose
-// *Failure is then discarded and fails errcheck. A bare statement is
-// already the right form, so review says nothing; so does a Sprintf
-// followed by ProblemOptions, which Failf/Blockf cannot take.
-func TestAPI036_BareStatementKeepsBlock(t *testing.T) {
+// TestAPI036_Retired pins that API-036 no longer exists as a rule: a bare
+// Block/Fail statement with a Sprintf summary and no following return, or
+// one followed by ProblemOptions, was never flagged before and still
+// isn't — but neither is any other API-036 shape, since the rule is gone.
+func TestAPI036_Retired(t *testing.T) {
 	src := `package p
 import (
   "fmt"
@@ -1909,22 +1916,7 @@ func f(task *evo.TaskHandle, name string, n int) {
 	res := review.GoSource("sprintfbare.go", src)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-036" {
-			t.Fatalf("API-036 rewrites a bare statement into a discarded *Failure: %+v", f)
-		}
-	}
-}
-
-func TestAPI036_NoFalsePositiveWithFailf(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, branch string) {
-  task.Failf("delete failed on %s", branch)
-}
-`
-	res := review.GoSource("failfclean.go", src)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-036" {
-			t.Fatalf("false positive API-036 on Failf: %+v", res.Findings)
+			t.Fatalf("API-036 is retired: %+v", f)
 		}
 	}
 }

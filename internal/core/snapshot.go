@@ -150,16 +150,16 @@ func NewTaskSnapshot(base TaskSnapshot, liveFirstSeenAt time.Time, synthetic boo
 func (t TaskSnapshot) LiveFirstSeenAt() time.Time { return t.liveFirstSeenAt }
 
 // Synthetic reports whether the library invented this task to carry an
-// output-level outcome (Output.Failf/Cancel) rather than the caller having
+// output-level outcome (Output.Cancel) rather than the caller having
 // declared it.
 func (t TaskSnapshot) Synthetic() bool { return t.synthetic }
 
 // TaxonomyRecord is one accumulated (reason, name) disposition entry —
-// recorded by TaskHandle.Skipped or TaskHandle.Kept, never assembled by hand.
+// recorded by TaskHandle.Skipped, never assembled by hand.
 type TaxonomyRecord struct {
 	Reason string
 	Name   string
-	// Causes holds the sanitized text of any errs passed to Skipped/Kept for
+	// Causes holds the sanitized text of any errs passed to Skipped for
 	// this record — evidence for why the disposition happened, rendered as
 	// one bounded └─ line under the count row (first cause + "(+N more)"),
 	// full list under Verbose.

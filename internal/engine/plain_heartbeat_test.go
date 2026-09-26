@@ -152,7 +152,7 @@ func TestPlainHeartbeat_InteractiveLiveNeverEmitsOne(t *testing.T) {
 	defer MarkWriterAsCharDevice(&stdout)()
 	out := Init(Config{
 		Isolated: true, Title: "demo",
-		Stdout: &stdout, Stderr: &stderr, Clock: clock, VisibilityDelay: Delay(0),
+		Stdout: &stdout, Stderr: &stderr, Clock: clock, VisibilityDelay: new(time.Duration(0)),
 	})
 	t.Cleanup(func() { _ = out.Close() })
 

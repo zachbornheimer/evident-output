@@ -15,19 +15,10 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 }
 
 // Block resolves the Task Blocked: a refusal, not a failure. Use it as a
-// statement; to return the refusal in the same line (including from a
-// Define callback), use Blockf.
+// statement; to return the refusal from a Define callback, wrap it:
+// task.Block(summary); return errors.New(summary).
 func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	t.impl().Block(summary, options...)
-}
-
-// Blockf resolves the Task Blocked with a formatted summary and returns
-// the refusal as a *Failure, meant to be returned (and chained with Next).
-// Inside a Define callback `return task.Blockf(...)` is how the callback
-// refuses: the Task concludes Blocked, where a plain returned error would
-// conclude it Failed. As a bare statement use Block.
-func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
-	return wrapFailure(t.impl().Blockf(format, args...))
 }
 
 func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
@@ -71,22 +62,13 @@ func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	return t
 }
 
-// Fail resolves the Task Failed. Use it as a statement; to return the
-// failure as an error in the same line, use Failf.
+// Fail resolves the Task Failed. Use it as a statement outside a Define
+// callback. Inside a Define/mutation callback, do not call Fail: just
+// return the error and let Define resolve the task (a nil-returning
+// Define after Fail double-resolves it — see API-040).
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	t.impl().Fail(summary, options...)
 }
-
-// Failf resolves the Task Failed with a formatted summary and returns the
-// failure as a *Failure, meant to be returned (and chained with Next) from
-// code outside a Define callback. Inside a Define callback return an error
-// instead: the callback's error resolves the Task. As a bare statement use
-// Fail.
-func (t *TaskHandle) Failf(format string, args ...any) *Failure {
-	return wrapFailure(t.impl().Failf(format, args...))
-}
-
-func (t *TaskHandle) Kept(reason TaxonomyReason) { t.impl().Kept(reason.inner) }
 
 // Key sets an advanced override for this Task's stable identity, so a
 // rename or refactor keeps its manifest history. Call it before Define; a
@@ -137,16 +119,11 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 	return t.inner.Snapshot()
 }
 
-func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
-	t.impl().Step(completed, total, name)
-	return t
-}
-
 // Summary sets one line of result text rendered after the Task name on its
 // terminal row, and exposed as "summary" in Snapshot and JSON/JSONL. The
 // last call wins and an empty string clears it. It never resolves the Task
-// and is not live activity (Doing, Progress, Step, and Bytes are). Calling
-// it after the Task resolved is misuse, unless an interrupt resolved it.
+// and is not live activity (Doing, Progress, and Bytes are). Calling it
+// after the Task resolved is misuse, unless an interrupt resolved it.
 func (t *TaskHandle) Summary(text string) *TaskHandle {
 	t.impl().Summary(text)
 	return t
@@ -178,7 +155,7 @@ func (t *TaskHandle) Wait() error {
 // AlreadySatisfied without running it) and again after a successful
 // callback (any false fails the Task with ProblemCodeVerificationUnsatisfied).
 // The after-check is skipped in two cases only: Define resolved the Task
-// itself (Block, or Kept/Skipped with no Effect committed first), or a dry
+// itself (Block, or Skipped with no Effect committed first), or a dry
 // run or preview skipped an Effect Define planned. A planned run whose
 // Define planned nothing is checked like a real one.
 func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {

@@ -24,10 +24,6 @@ func wrapPrinter(inner *engine.Printer) *Printer {
 	return wrap(inner, func() *Printer { return &Printer{inner: inner} })
 }
 
-func wrapFailure(inner *engine.Failure) *Failure {
-	return wrap(inner, func() *Failure { return &Failure{inner: inner} })
-}
-
 // facaded is an engine handle that keeps its own public wrapper.
 type facaded interface {
 	comparable

@@ -144,3 +144,59 @@ func TestAPI032_OptionsCollidingWithSetFieldsOfferNoRewrite(t *testing.T) {
 		}
 	}
 }
+
+// TestAPI032_OptionsRemovedIn1_1IsError pins the 1.1 vocabulary freeze:
+// Config.Options and []evo.Option no longer compile at all against a 1.1
+// target, so API-032 must report them at error severity with "removed in
+// 1.1" wording, consistent with API-090/091/120 — never the softer
+// pre-1.1 "superseded" warning, which still fits an older pin where the
+// constructors merely predate the Config-field style.
+func TestAPI032_OptionsRemovedIn1_1IsError(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(drv evo.TerminalDriver) {
+	_ = evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv), evo.DebugPane()}})
+}
+`
+	found := findAPI032(review.GoSource("p.go", src))
+	if len(found) != 1 {
+		t.Fatalf("want one API-032 finding, got %d: %q", len(found), joinSuggestions(found))
+	}
+	if found[0].Severity != "error" {
+		t.Errorf("Config.Options at a 1.1 target: want error severity, got %q", found[0].Severity)
+	}
+	if !strings.Contains(found[0].Message, "removed in 1.1") {
+		t.Errorf("Config.Options at a 1.1 target: want removed-in-1.1 wording, got %q", found[0].Message)
+	}
+
+	sliceSrc := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f() {
+	_ = []evo.Option{evo.Title("t")}
+}
+`
+	sliceFound := findAPI032(review.GoSource("p.go", sliceSrc))
+	if len(sliceFound) != 1 {
+		t.Fatalf("want one API-032 finding for []evo.Option, got %d: %q", len(sliceFound), joinSuggestions(sliceFound))
+	}
+	if sliceFound[0].Severity != "error" {
+		t.Errorf("[]evo.Option at a 1.1 target: want error severity, got %q", sliceFound[0].Severity)
+	}
+	if !strings.Contains(sliceFound[0].Message, "removed in 1.1") {
+		t.Errorf("[]evo.Option at a 1.1 target: want removed-in-1.1 wording, got %q", sliceFound[0].Message)
+	}
+
+	// A pin older than 1.1 keeps the pre-freeze "superseded" warning: the
+	// constructors still compile there.
+	oldPin := review.GoSourceAt("p.go", src, "1.0.0")
+	oldFound := findAPI032(oldPin)
+	if len(oldFound) != 1 {
+		t.Fatalf("1.0.0 pin: want one API-032 finding, got %d: %q", len(oldFound), joinSuggestions(oldFound))
+	}
+	if oldFound[0].Severity != "warning" {
+		t.Errorf("1.0.0 pin: want warning severity, got %q", oldFound[0].Severity)
+	}
+	if !strings.Contains(oldFound[0].Message, "superseded") {
+		t.Errorf("1.0.0 pin: want superseded wording, got %q", oldFound[0].Message)
+	}
+}

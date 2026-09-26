@@ -58,14 +58,15 @@ var (
 // many it wrote. It exceeds height only below a Group's floor (see
 // minLiveChildRows).
 func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height int, st liveStyle) (rows int) {
-	return writeAlignedLiveCollection(b, col, height, 0, st)
+	return writeAlignedLiveCollection(b, col, height, 0, countWidths{}, st)
 }
 
 // writeAlignedLiveCollection is writeLiveCollection for a collection whose
-// one row shares its siblings' name column (nameWidth; 0 for none): a
-// Group rendering as its own Task, under a header-less parent, aligns like
-// a sibling Task row (§18's "branches" / "remote-tracking").
-func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, nameWidth int, st liveStyle) (rows int) {
+// one row shares its siblings' name column (nameWidth; 0 for none) and
+// count column (cw; zero for none): a Group rendering as its own Task,
+// under a header-less parent, aligns like a sibling Task row (§18's
+// "branches" / "remote-tracking").
+func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, nameWidth int, cw countWidths, st liveStyle) (rows int) {
 	start := b.Len()
 	// Count before folding: a folded item is still a completed child, so
 	// "N/M complete" never drops when the items fold.
@@ -73,21 +74,35 @@ func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, heig
 	col, items := withoutDispositionItems(col)
 	switch {
 	case rendersAsOwnTask(col):
-		taskRows := writeLiveTaskLine(b, col.Tasks[0], 0, nameWidth, st)
-		writeLiveDispositions(b, taskAnnotationIndent, items, height-taskRows, st.Style)
+		taskRows := writeLiveTaskLine(b, col.Tasks[0], 0, nameWidth, cw, st)
+		// Contract §18: no "- skipped N" tally while the category's own
+		// Task is still Running — its disposition items may still be
+		// arriving, so the count would understate or flap. The tally
+		// appears once the category settles (Done/Failed/Skipped), the
+		// same moment its own row stops spinning.
+		if col.Tasks[0].State != core.Running {
+			writeLiveDispositions(b, taskAnnotationIndent, items, height-taskRows, st.Style)
+		}
 	case promotesLoneChildOntoHeader(col):
-		unit := liveTaskUnit(col.Tasks[0], 0, st)
+		unit := liveTaskUnit(col.Tasks[0], 0, countWidths{}, st)
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
-		writeLiveDispositions(b, taskAnnotationIndent, items, height-headerRows, st.Style)
+		// Contract §18: promotesLoneChildOntoHeader only ever fires while
+		// its lone child is Running or Pending (own_task.go), so this
+		// shape is always mid-classification — the same "would understate
+		// or flap" reasoning as the own-Task branch above applies
+		// unconditionally here; the tally never paints in this shape.
 	case liveFlattensHeader(col, items, height):
 		writeLiveBody(b, col, height, inPlace, st)
 	default:
 		done, total = liveHeaderProgress(col, done, total)
 		b.WriteString(liveGroupHeader(col, done, total, st).Render(""))
 		b.WriteByte('\n')
-		tallyRows := writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
+		var tallyRows int
+		if !categoryStillClassifying(col) {
+			tallyRows = writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
+		}
 		writeLiveBody(b, col, max(height-headerRows-tallyRows, minLiveChildRows+omissionRows), underHeader, st)
 	}
 	return rowsSince(b, start)
@@ -112,6 +127,7 @@ func fillLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level 
 	fill := liveFill{b: b, left: budget, level: level, st: st}
 	if level.indent == 0 {
 		fill.nameWidth = headerlessRowNameWidth(col)
+		fill.countW = headerlessCountWidths(col)
 	}
 	if level.groupsFirst {
 		fill.groups(col)
@@ -131,6 +147,7 @@ type liveFill struct {
 	left      int
 	omitted   int
 	nameWidth int
+	countW    countWidths
 	level     liveBodyLevel
 	st        liveStyle
 }
@@ -142,7 +159,7 @@ func (f *liveFill) tasks(col core.TasksSnapshot) {
 	f.omitted += omitted
 	for i, t := range selected {
 		var row strings.Builder
-		rows := writeLiveTaskLine(&row, t, f.level.indent, f.nameWidth, f.st)
+		rows := writeLiveTaskLine(&row, t, f.level.indent, f.nameWidth, f.countW, f.st)
 		if rows > f.left {
 			f.omitted += len(selected) - i
 			return
@@ -177,7 +194,7 @@ func (f *liveFill) groups(col core.TasksSnapshot) {
 			continue
 		}
 		var nested strings.Builder
-		rows := writeAlignedLiveCollection(&nested, child, share, f.nameWidth, f.st)
+		rows := writeAlignedLiveCollection(&nested, child, share, f.nameWidth, f.countW, f.st)
 		if rows > f.left {
 			f.omitted += taskCount(child)
 			continue

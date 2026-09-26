@@ -154,8 +154,10 @@ func ExampleTruncateNames() {
 	// main, dev … +2 more
 }
 
-// namedTerminal is defined in example_option_test.go and reused here for
-// ExampleTerminalDriver.
+// namedTerminal is a minimal evo.TerminalDriver for ExampleTerminalDriver.
+type namedTerminal struct{ id string }
+
+func (t namedTerminal) ID() string { return t.id }
 
 // fakeLiveSurface is a minimal evo.LiveSurface for ExampleLiveSurface — real
 // callers pass a concrete driver (e.g. from internal/terminal).

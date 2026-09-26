@@ -10,18 +10,13 @@ import (
 
 // isFormatMethod names the surviving *f methods (C6: Donef/Summaryf/Itemf/
 // Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf are deleted — Done/Summary/
-// Task/Group/Sequence/Changes/Plan/Reason are printf-variadic themselves now (Warn itself
-// was removed in 1.1; a warning is a Problem severity),
-// so there is nothing left in that family to flag). Failf/Blockf survive
-// for their distinct %w+*Failure semantics, but a call with no directive at
-// all is still the same ceremony API-028 warns about.
+// Task/Group/Sequence/Changes/Plan/Reason are printf-variadic themselves now
+// (Warn itself was removed in 1.1; a warning is a Problem severity). Failf
+// and Blockf were removed in 1.1 too — Fail/Block are statement-form, not
+// printf-variadic, so there is no longer anything in this family to flag;
+// API-028 (formatMethodWithoutDirective) now always finds zero methods.
 func isFormatMethod(name string) bool {
-	switch name {
-	case "Failf", "Blockf":
-		return true
-	default:
-		return false
-	}
+	return false
 }
 
 func strconvUnquote(s string) (string, error) {

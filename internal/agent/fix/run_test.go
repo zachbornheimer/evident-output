@@ -50,8 +50,8 @@ func run() error {
 	t := out.Task("check")
 	t.Warn("stale cache")
 	t.Step(1, 3, "scanning")
-	t.Kept(evo.Reason("dirty"))
 	t.Define(func(ctx context.Context) error {
+		t.Kept(evo.Reason("dirty"))
 		return nil
 	})
 	return out.Finish()
@@ -459,10 +459,10 @@ func run() error {
 	defer step(1, 3, "cleanup")
 
 	stepExpr := (*evo.TaskHandle).Step
-	keptFn := (*evo.TaskHandle).Kept
 
 	t.Define(func(ctx context.Context) error {
 		stepExpr(t, 2, 3, "define")
+		keptFn := (*evo.TaskHandle).Kept
 		keptFn(t, evo.Reason("dirty"))
 		return nil
 	})
@@ -603,5 +603,107 @@ func TestManualWarnValueBranchesAreFlaggedWithoutFix(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "outputWarn := out.Warn") || !strings.Contains(string(out), "pkgWarn := evo.Warn") {
 		t.Errorf("expected the unfixable Warn value references to remain untouched after -apply:\n%s", out)
+	}
+}
+
+// failfFixtureSrc is the 1.1-apply slice's own probe: a consumer still on
+// the removed Failf/Blockf/Failure family, plus a still-exported Option
+// constructor (evo.AlsoWrite) called bare rather than through
+// Init/New — FailfAnalyzer must flag the first three; it has no opinion on
+// the fourth, which OptionsAnalyzer only detects inside an Init/New call.
+const failfFixtureSrc = `package main
+
+import (
+	"errors"
+	"fmt"
+
+	evo "github.com/zachbornheimer/evident-output"
+)
+
+func run() error {
+	out := evo.Init(evo.Config{Title: "demo"})
+	t := out.Task("check")
+	err := errors.New("boom")
+	out.Failf("x %w", err)
+	t.Failf("boom")
+	t.Blockf("nope %d", 1)
+	_ = evo.AlsoWrite(nil)
+	return nil
+}
+
+func main() { fmt.Println(run()) }
+`
+
+// TestFailfAnalyzerFindsBlockfFailfFamily is the 1.1-apply slice's
+// consumer-facing detection gap: TaskHandle.Failf, TaskHandle.Blockf, and
+// Output.Failf were deleted with no fixer (registry.go explains why — no
+// mechanical rewrite exists for a format string plus args), so before
+// FailfAnalyzer existed a consumer's stale call sites got no MCP-visible
+// signal at all, review finding or fix diagnostic.
+func TestFailfAnalyzerFindsBlockfFailfFamily(t *testing.T) {
+	dir := t.TempDir()
+	writeModule(t, dir, failfFixtureSrc)
+
+	pkgs, err := fix.Load(dir, ".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	results, err := fix.Diagnose(pkgs, false)
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("want 1 package result, got %d", len(results))
+	}
+	var found int
+	for _, d := range results[0].Diagnostics {
+		if d.RuleID != "API-140" {
+			continue
+		}
+		found++
+		if d.Fixed {
+			t.Errorf("API-140 never offers a fix (semantic rewrite, not mechanical): %+v", d)
+		}
+	}
+	if found != 3 {
+		t.Fatalf("want 3 API-140 diagnostics (Output.Failf, TaskHandle.Failf, TaskHandle.Blockf), got %d: %+v", found, results[0].Diagnostics)
+	}
+}
+
+// failureTypeFixtureSrc references the removed evo.Failure type directly,
+// the shape a consumer's own helper function signature might still carry
+// after Failf/Blockf's return type disappeared.
+const failureTypeFixtureSrc = `package main
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func annotate(f *evo.Failure) *evo.Failure { return f }
+
+func main() { _ = annotate }
+`
+
+func TestFailfAnalyzerFindsFailureType(t *testing.T) {
+	dir := t.TempDir()
+	writeModule(t, dir, failureTypeFixtureSrc)
+
+	pkgs, err := fix.Load(dir, ".")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	results, err := fix.Diagnose(pkgs, false)
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("want 1 package result, got %d", len(results))
+	}
+	var found int
+	for _, d := range results[0].Diagnostics {
+		if d.RuleID == "API-140" {
+			found++
+		}
+	}
+	if found != 2 {
+		t.Fatalf("want 2 API-140 diagnostics (param and return type), got %d: %+v", found, results[0].Diagnostics)
 	}
 }

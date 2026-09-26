@@ -81,7 +81,7 @@ func ExampleExec() {
 // liveness, and cancellation; the caller only inspects the returned
 // ExecResult (spec §8.4/ZYS-850). A nonzero exit wraps ErrExecNonzeroExit
 // but still returns the captured ExecResult, so a linter's own findings can
-// become a structured Failf instead of a flattened text blob.
+// become a structured Fail instead of a flattened text blob.
 func ExampleExecResult() {
 	runner := testkit.NewProcessRunner()
 	runner.Script("/usr/bin/lint", testkit.ScriptedProcess{
@@ -114,7 +114,7 @@ func ExampleExecResult() {
 			return err
 		}
 		findings := strings.Split(strings.TrimSpace(result.Stdout), "\n")
-		return task.Failf("%d lint finding(s) (exit %d)", len(findings), result.ExitCode)
+		return fmt.Errorf("%d lint finding(s) (exit %d)", len(findings), result.ExitCode)
 	})
 	_ = task.Wait()
 	_ = out.Finish()
@@ -169,14 +169,14 @@ func ExampleProcessRunner() {
 // ExampleRunner installs a ProcessRunner other than the real spawner — the
 // seam every evo.Exec test in this repo uses to replace the OS process with
 // a deterministic testkit fake.
-func ExampleRunner() {
+func ExampleConfig_runner() {
 	runner := testkit.NewProcessRunner()
 	runner.Script("/usr/bin/tool", testkit.ScriptedProcess{ExitCode: 0})
 
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true,
-		Options: []evo.Option{evo.Runner(runner)},
+		ProcessRunner: runner,
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()

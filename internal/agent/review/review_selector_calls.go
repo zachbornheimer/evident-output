@@ -180,7 +180,7 @@ func debugWriterForCapture(c selectorCall) []Finding {
 	}
 	return []Finding{c.finding("API-029",
 		"DebugWriter is for intentional DEBUG journal lines; use task.Writer() so subprocess stdout/stderr lands in the Task's Capture",
-		`replace DebugWriter() with task.Writer() on cmd.Stdout/cmd.Stderr, then return task.Failf("...: %w", err) on failure`)}
+		`replace DebugWriter() with task.Writer() on cmd.Stdout/cmd.Stderr, then on failure: wrapped := fmt.Errorf("...: %w", err); task.Fail(wrapped.Error()); return wrapped`)}
 }
 
 // exitBypassingConclusion is API-018 and EVO-EXIT-001 (spec §57's ID for
@@ -229,9 +229,9 @@ func detectDetailOfError(filename, src string) []Finding {
 	if strings.Contains(src, "Detail(err)") || strings.Contains(src, "evo.Detail(err)") {
 		return []Finding{{
 			RuleID:     "DOM-014",
-			Message:    "Detail must be user-visible string; wrap the error with Failf/Blockf's trailing %w instead",
+			Message:    "Detail must be user-visible string; fold the wrapped error into the Fail/Block summary instead",
 			File:       filename,
-			Suggestion: `replace Detail(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,
+			Suggestion: `replace Detail(err) with a %w-wrapped fmt.Errorf folded into the summary, e.g. wrapped := fmt.Errorf("...: %w", err); task.Fail(wrapped.Error()); return wrapped`,
 		}}
 	}
 	return nil

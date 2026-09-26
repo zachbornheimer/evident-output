@@ -21,14 +21,14 @@ func TestFileSetCannotBeUnpacked(t *testing.T) {
 	if typ.Kind() != reflect.Struct {
 		t.Fatalf("FileSet is a %v, want an opaque struct", typ.Kind())
 	}
-	for i := range typ.NumField() {
-		if field := typ.Field(i); field.IsExported() {
+	for field := range typ.Fields() {
+		if field.IsExported() {
 			t.Errorf("FileSet exports field %s", field.Name)
 		}
 	}
 	for _, methods := range []reflect.Type{typ, reflect.PointerTo(typ)} {
-		for i := range methods.NumMethod() {
-			t.Errorf("%v exports method %s", methods, methods.Method(i).Name)
+		for method := range methods.Methods() {
+			t.Errorf("%v exports method %s", methods, method.Name)
 		}
 	}
 }

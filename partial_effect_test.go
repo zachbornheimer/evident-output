@@ -167,11 +167,11 @@ func TestPartialEffect_MachineProjectionsAgreeOnCommittedCount(t *testing.T) {
 	t.Run("snapshot JSON", func(t *testing.T) {
 		t.Parallel()
 		r := partialRun(t, evo.FormatHuman, partial)
-		data, err := evo.EncodeJSON(r.out.Snapshot())
+		data, err := evo.EncodeJSONForTest(r.out.Snapshot())
 		if err != nil {
 			t.Fatal(err)
 		}
-		var doc evo.JSONDocument
+		var doc evo.JSONDocumentForTest
 		if err := json.Unmarshal(data, &doc); err != nil {
 			t.Fatal(err)
 		}

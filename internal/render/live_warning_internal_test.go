@@ -18,13 +18,44 @@ func TestWriteLiveTaskLine_FailedWarningNests(t *testing.T) {
 		Summary:  "failed: permissions",
 		Warnings: []core.Problem{{Summary: "chmod denied"}},
 	}
-	writeLiveTaskLine(&b, snap, 1, 0, testLiveStyle)
+	writeLiveTaskLine(&b, snap, 1, 0, countWidths{}, testLiveStyle)
 	got := b.String()
 	if !strings.Contains(got, "✗ write launch agent  failed: permissions") {
 		t.Fatalf("missing failed parent:\n%s", got)
 	}
 	if !strings.Contains(got, "! chmod denied") {
 		t.Fatalf("Failed warning must nest under the parent:\n%s", got)
+	}
+}
+
+// TestWriteLiveTaskLine_SkippedTaxonomyNestsWhileRunning proves a
+// standalone Running task's own accumulated Skipped taxonomy (recorded via
+// TaskHandle.Skipped/SkippedWithErrs on the task itself, not a folded Group
+// tally across still-arriving sibling children) nests under its row the
+// same way a warning does — it is the task's own already-final
+// self-reported information, not a count that could still grow, so it is
+// not subject to the Group-fold "don't paint while classifying" rule
+// (categoryStillClassifying) that guards a Group's own tally.
+func TestWriteLiveTaskLine_SkippedTaxonomyNestsWhileRunning(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	snap := core.TaskSnapshot{
+		Name:     "cleanup",
+		State:    core.Running,
+		Phase:    "feat/cleanup…",
+		Progress: core.Progress{Kind: core.Determinate, Completed: 7, Total: 18},
+		Skipped: []core.TaxonomyRecord{
+			{Reason: "protected", Name: "a"},
+			{Reason: "protected", Name: "b"},
+			{Reason: "protected", Name: "c"},
+			{Reason: "unpushed", Name: "d"},
+			{Reason: "unpushed", Name: "e"},
+		},
+	}
+	writeLiveTaskLine(&b, snap, 1, 0, countWidths{}, testLiveStyle)
+	got := b.String()
+	if !strings.Contains(got, "- skipped 5 (3 protected, 2 unpushed)") {
+		t.Fatalf("Running task's own Skipped taxonomy must nest under its row:\n%s", got)
 	}
 }
 
@@ -37,7 +68,7 @@ func TestWriteLiveTaskLine_GroupChildSplitsActivity(t *testing.T) {
 		Phase:    "host-031",
 		Progress: core.Progress{Kind: core.Determinate, Completed: 31, Total: 100},
 	}
-	writeLiveTaskLine(&b, snap, 1, 0, testLiveStyle)
+	writeLiveTaskLine(&b, snap, 1, 0, countWidths{}, testLiveStyle)
 	got := strings.TrimRight(b.String(), "\n")
 	lines := strings.Split(got, "\n")
 	if len(lines) < 2 {

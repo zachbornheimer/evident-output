@@ -10,14 +10,14 @@ import (
 
 // printJoinPattern matches a Print/Println/Printf call fed a joined list —
 // the hand-assembled failure summary evo-rec.md's Conclusion already owns.
-// failfCaptureTextPattern is EV-001: task.Failf("...%s...", capture.Text())
-// (or Blockf) folds the retained Capture ring straight into the summary the
-// row already shows — Failf/Blockf's own auto-attach then renders the exact
+// failfCaptureTextPattern is EV-001: task.Fail(fmt.Sprintf("...%s...",
+// capture.Text())) (or Block) folds the retained Capture ring straight into
+// the summary the row already shows — auto-attach then renders the exact
 // same text a second time as a capture tail underneath it (user-13-problems.md
 // Problem 7). Matches any receiver's .Text()/.Tail() call appearing as a
-// Failf/Blockf argument, not just a variable literally named "capture" —
-// the misuse is the method call shape, not the identifier.
-var failfCaptureTextPattern = regexp.MustCompile(`\.(?:Failf|Blockf)\([^)]*\.(?:Text|Tail)\(\)[^)]*\)`)
+// Fail/Block argument, not just a variable literally named "capture" — the
+// misuse is the method call shape, not the identifier.
+var failfCaptureTextPattern = regexp.MustCompile(`\.(?:Fail|Block)\([^)]*\.(?:Text|Tail)\(\)[^)]*\)`)
 
 // detectFailfEmbeddedCaptureText flags EV-001's anti-pattern.
 func detectFailfEmbeddedCaptureText(filename, src string) []Finding {
@@ -25,10 +25,10 @@ func detectFailfEmbeddedCaptureText(filename, src string) []Finding {
 	for _, m := range failfCaptureTextPattern.FindAllStringIndex(src, -1) {
 		findings = append(findings, Finding{
 			RuleID:     "EV-001",
-			Message:    "Failf/Blockf argument calls .Text()/.Tail() on the retained Capture ring — that text is already auto-attached as a separate capture-tail line, so embedding it in the summary too duplicates it",
+			Message:    "Fail/Block argument calls .Text()/.Tail() on the retained Capture ring — that text is already auto-attached as a separate capture-tail line, so embedding it in the summary too duplicates it",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: `pass context via the trailing ": %w" wrap instead — e.g. task.Failf("install dependencies: %w", err) — and let Failf/Blockf auto-attach the retained tail`,
+			Suggestion: `fold the wrapped error into the summary via fmt.Errorf's trailing ": %w" instead — e.g. wrapped := fmt.Errorf("install dependencies: %w", err); task.Fail(wrapped.Error()) — and let auto-attach render the retained tail`,
 		})
 	}
 	return findings
@@ -207,8 +207,10 @@ func newInMainFindings(filename, src string) []Finding {
 }
 
 // causeFindings flags evo.Cause: a Fail/Block(summary, evo.Cause(err))
-// site gets its exact Failf/Blockf rewrite, and every other evo.Cause( is
-// still flagged, once, with the generic one.
+// site gets its exact fold-then-return rewrite, and every other evo.Cause(
+// is still flagged, once, with the generic one. Failf/Blockf were removed
+// in 1.1 alongside Cause; the wrapped-cause text now folds into the
+// Fail/Block summary string, and the error is returned separately.
 func causeFindings(filename, src string) []Finding {
 	var findings []Finding
 	// derived marks every evo.Cause( the derived pass already covered.
@@ -220,10 +222,10 @@ func causeFindings(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-032",
-			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use " + verb + "f's trailing %w",
+			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; fold the wrapped text into the summary and return the error separately",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: fmt.Sprintf(`%s.%sf(%q, %s)`, recv, verb, summary+": %w", cause),
+			Suggestion: fmt.Sprintf(`wrapped := fmt.Errorf(%q, %s); %s.%s(wrapped.Error()); return wrapped`, summary+": %w", cause, recv, verb),
 		})
 	}
 	for _, m := range bareCausePattern.FindAllStringIndex(src, -1) {
@@ -232,10 +234,10 @@ func causeFindings(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-032",
-			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; use Failf/Blockf's trailing %w",
+			Message:    "evo.Cause no longer affects the returned error since Fail/Block are statement-form; fold the wrapped text into the summary and return the error separately",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: `replace evo.Cause(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,
+			Suggestion: `replace evo.Cause(err) with a %w-wrapped fmt.Errorf folded into the summary, e.g. wrapped := fmt.Errorf("...: %w", err); task.Fail(wrapped.Error()); return wrapped`,
 		})
 	}
 	return findings

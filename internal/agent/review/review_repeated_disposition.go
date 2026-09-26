@@ -1,8 +1,8 @@
-// Package review — API-062: Kept/Skipped record a Task's own disposition
-// (the item is the Task, docs/reference.md) and resolve it, so calling
-// either again on the same Task is misuse. The per-item shape is
-// group.Task(item).Kept(reason); the renderer folds those children into
-// one tally under the Group's row (contract §25).
+// Package review — API-062: Skipped (and, before its 1.1 removal, Kept)
+// records a Task's own disposition (the item is the Task, docs/reference.md)
+// and resolves it, so calling either again on the same Task is misuse. The
+// per-item shape is group.Task(item).Skipped(reason); the renderer folds
+// those children into one tally under the Group's row (contract §25).
 //
 // Detection is structural. A disposition call counts only when its
 // receiver certainly holds an evo Task (see taskBindings) and is a plain
@@ -140,10 +140,12 @@ func (s *repeatedDispositionScan) report(call *ast.CallExpr, recv string) {
 	}
 	s.reported[call.Pos()] = true
 	method := call.Fun.(*ast.SelectorExpr).Sel.Name
-	// The per-item rewrite always names Skipped: Kept was removed in 1.1
-	// (the fixer rewrites it to Skipped), so suggesting group.Task(item).Kept(...)
-	// here would teach the removed verb even when the finding fired on a
-	// pre-1.1 Kept call site.
+	// The per-item rewrite always names Skipped, never Kept: Kept was
+	// removed in 1.1 (its own rewrite is Fact("kept", reason.Name()), see
+	// internal/agent/fix/kept.go), so this finding's own suggestion must
+	// not repeat the removed verb even when it fired on a pre-1.1 Kept
+	// call site — Skipped is the per-item verb for "this item did not
+	// run", which is the shape the restructuring targets here.
 	suggestedMethod := "Skipped"
 	pos := s.fset.Position(call.Pos())
 	s.findings = append(s.findings, Finding{

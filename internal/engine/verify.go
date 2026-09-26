@@ -49,7 +49,7 @@ var errVerificationUnsatisfied = errors.New("evo: postcondition not satisfied")
 // plainly. Neither check commits a success record on its own; only a fully
 // satisfied pass (pre- or post-) does. The after-check is skipped in two
 // cases only (hasPostStateToVerify): Define resolved the Task itself
-// (Block, or Kept/Skipped with no Effect committed first), or a dry run or
+// (Block, or Skipped with no Effect committed first), or a dry run or
 // preview skipped an Effect Define planned, so the observed state is the
 // one before the plan. A planned run whose Define planned nothing is
 // checked like a real one.
@@ -240,7 +240,8 @@ func (o *Output) recordOperationsEvidence(taskID string) {
 // (executeWork/resolveObserved) completely unchanged — that path renders
 // err.Error() verbatim as the Task's Fail summary, so wrapping it here would
 // prepend internal plumbing text ("runDefine: ...") onto what the reader
-// sees, the same reason Failf/Blockf keep the caller's own wording intact.
+// sees, the same reason a caller's own %w-wrapped Fail/Block error keeps
+// its wording intact.
 // The task itself may already be resolved by the time this runs (a
 // pre/post-Verify failure calls failScheduled/failScheduledWithCode before
 // returning); this is only ever err's carrier back to executeWork's

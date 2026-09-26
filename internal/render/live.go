@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -147,6 +148,16 @@ func liveGroupHeader(col core.TasksSnapshot, done, total int, st liveStyle) Disp
 	return unit
 }
 
+// categoryStillClassifying reports whether col's own state is still in
+// flight — any child Running or Pending, recursively. Contract §18: a
+// folded "- skipped N" / "! kept N" tally names a final count, so it must
+// not paint while more disposition items could still arrive from work the
+// category itself has not finished (the same reasoning the own-Task and
+// promoted-lone-child live shapes already apply to their own row).
+func categoryStillClassifying(col core.TasksSnapshot) bool {
+	return anyChildRunning(col) || anyChildPendingActive(col)
+}
+
 func anyChildRunning(col core.TasksSnapshot) bool {
 	if ownCounts(col).Running || core.CollectionTallyOf(col).Tasks.Running {
 		return true
@@ -262,20 +273,30 @@ func selectLiveChildren(tasks []core.TaskSnapshot, total, max int) (selected []c
 // A Running task with a determinate bar/count AND a current-activity Phase
 // gets spec §23's stable-parent-plus-one-activity-child shape at any
 // indent ("⠋ install dependencies  [████        ]  14/40  — 7s" /
-// "  ⠋ urllib3", and the same pair one level deeper under a Group):
+// "  ⠋ urllib3" at root — contract §18's own frame — and the same pair
+// indented three spaces further, six total, one level deeper under a
+// Group):
 // the parent line owns the bar/count/timer only, and the current activity
 // becomes its own indented spinner line beneath it — so the child can
 // change/truncate independently without moving the timer horizontally.
-func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth int, st liveStyle) (rows int) {
+func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidth int, cw countWidths, st liveStyle) (rows int) {
 	start := b.Len()
 	pad := ""
+	// activityChildIndent is the extra indent the activity child adds on
+	// top of pad. A root standalone row (indent == 0) has no pad of its
+	// own, so its activity child's whole indent is this value — and
+	// contract §18's normative frame pins that at two spaces
+	// ("⠋ branches ...\n  ⠋ feat/style-contract"), not the three spaces a
+	// nested Group child's own extra indent still uses below.
+	activityChildIndent := "  "
 	if indent > 0 {
 		pad = "   "
+		activityChildIndent = "   "
 	}
 	if splitsActivityChild(t) {
 		parent := t
 		parent.Phase = ""
-		unit := liveTaskUnit(parent, indent, st)
+		unit := liveTaskUnit(parent, indent, cw, st)
 		padRootName(&unit, indent, nameWidth)
 		b.WriteString(unit.Render(pad))
 		b.WriteByte('\n')
@@ -283,10 +304,10 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 			Glyph: txt.StyleGlyph(st.spin, StateColor(core.Running), st.Color),
 			Name:  t.Phase,
 		}
-		b.WriteString(child.Render(pad + "   "))
+		b.WriteString(child.Render(pad + activityChildIndent))
 		b.WriteByte('\n')
 	} else {
-		unit := liveTaskUnit(t, indent, st)
+		unit := liveTaskUnit(t, indent, cw, st)
 		padRootName(&unit, indent, nameWidth)
 		b.WriteString(unit.Render(pad))
 		b.WriteByte('\n')
@@ -296,6 +317,15 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	// warning underneath — Done still inlines a short warning on the ✓ row.
 	if t.State == core.Running || t.State == core.Failed {
 		writeNestedTaskWarnings(b, t.Warnings, pad+"   ", st.Style)
+		// A standalone task's own accumulated Skipped/Kept taxonomy
+		// (TaskHandle.Skipped/SkippedWithErrs called directly on this
+		// task, not a Group folding still-arriving sibling children) is
+		// already-final self-reported information the moment it is
+		// recorded — the same footing as a Fact or a warning — so it
+		// nests under the row unconditionally, unlike a Group's own
+		// folded tally (categoryStillClassifying), which withholds
+		// while more disposition items could still arrive.
+		writeDispositions(b, pad+"   ", taskDispositions(t), noDisposition, st.Style)
 	}
 	if t.State == core.Failed {
 		writeVerificationDetails(b, t.Verification, pad+"   ", true, st.Style)
@@ -333,7 +363,7 @@ func splitsActivityChild(t core.TaskSnapshot) bool {
 // than writing it lets a caller that owns a richer row (a group header
 // promoting its only Running child) reuse the whole policy and re-label
 // just the name slot.
-func liveTaskUnit(t core.TaskSnapshot, indent int, st liveStyle) DisplayUnit {
+func liveTaskUnit(t core.TaskSnapshot, indent int, cw countWidths, st liveStyle) DisplayUnit {
 	glyph := TaskGlyph(t.State, st.Profile)
 	if t.State == core.Running {
 		glyph = st.spin
@@ -347,7 +377,7 @@ func liveTaskUnit(t core.TaskSnapshot, indent int, st liveStyle) DisplayUnit {
 	}
 	switch t.State {
 	case core.Running:
-		unit.Detail, unit.Elapsed = liveRunningDetail(t, st)
+		unit.Detail, unit.Elapsed = liveRunningDetail(t, cw, st)
 	case core.Pending:
 		unit.Detail = livePendingDetail(t, st)
 	case core.Failed:
@@ -384,14 +414,35 @@ func liveSettledDetail(t core.TaskSnapshot, st liveStyle) string {
 // liveRunningDetail is a Running row's bar/count or phase, and the elapsed
 // suffix every unresolved row earns past elapsedAfter (P5), with or
 // without a Phase.
-func liveRunningDetail(t core.TaskSnapshot, st liveStyle) (detail, elapsed string) {
+func liveRunningDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) (detail, elapsed string) {
 	elapsed = heartbeatSuffix(st.now, activitySince(t))
 	p := t.Progress
 	switch {
 	case p.Kind == core.BytesKind && p.Total > 0:
 		return progressBar(p.Completed, p.Total, 12) + "  " + formatByteProgressFixed(p.Completed, p.Total) + elapsed, elapsed
 	case p.Kind == core.Determinate && p.Total > 0:
-		return liveCountDetail(t, st) + elapsed, elapsed
+		detail := liveCountDetail(t, cw, st)
+		// The count field's fixed one-space gap belongs to this
+		// composition, not to formatAlignedCount's own field: it exists
+		// only to combine with heartbeatSuffix's leading space into
+		// spec §18's two-space gap before "— Ns" ("14/40  — 7s"), and
+		// only when nothing else (a Phase) already sits between the
+		// count and the elapsed suffix. This applies to every determinate
+		// row alike, aligned or lone — §18's frame draws no distinction
+		// by sibling count, so the gap must not either (a prior form
+		// keyed this off cw.done, which both read the wrong width once
+		// liveCountDetail zeroed cw for a narrow terminal, and left lone
+		// rows one space short of aligned ones for no documented reason).
+		// Before elapsedAfter, elapsed is still "" and there is nothing to
+		// combine with, so a row never ends its line on bare trailing
+		// whitespace for the run's first few seconds.
+		if elapsed != "" {
+			if t.Phase == "" {
+				detail += " "
+			}
+			detail += elapsed
+		}
+		return detail, elapsed
 	case p.Kind == core.BytesKind && t.Phase == "":
 		// A byte stream with no known total and no phase has nothing to
 		// show yet.
@@ -410,15 +461,78 @@ func liveRunningDetail(t core.TaskSnapshot, st liveStyle) (detail, elapsed strin
 // liveCountDetail is a determinate Running row's "[bar]  N/M" and its
 // muted current Phase. Narrow terminals drop the bar (decoration) before
 // the count (information): evo-rec.md Problem 16/26's compact dialect.
-func liveCountDetail(t core.TaskSnapshot, st liveStyle) string {
-	detail := fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
-	if st.width <= 0 || st.width >= compactLayoutMaxWidth {
+func liveCountDetail(t core.TaskSnapshot, cw countWidths, st liveStyle) string {
+	wide := st.width <= 0 || st.width >= compactLayoutMaxWidth
+	if !wide {
+		// Narrow terminals drop the bar (decoration) before the count
+		// (information): evo-rec.md Problem 16/26's compact dialect. The
+		// shared count column is a full-width bar-row alignment (§18); a
+		// compact row keeps its own bare "N/M".
+		cw = countWidths{}
+	}
+	detail := formatAlignedCount(t.Progress.Completed, t.Progress.Total, cw)
+	if wide {
 		detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + detail
 	}
 	if t.Phase != "" {
 		detail += "  " + st.dim(t.Phase)
 	}
 	return detail
+}
+
+// countWidths is the shared count-column width of a group of sibling
+// determinate Running rows (§18's "count field" alignment): the widest
+// completed digit count (right-justified) and the widest total digit count
+// (left-justified), computed once across the siblings that share a name
+// column. Zero when fewer than two rows share it — a lone determinate row
+// keeps its own bare "N/M" width, unpadded.
+type countWidths struct {
+	done, total int
+}
+
+// formatAlignedCount is a determinate Running row's count field: doneStr
+// right-justified to cw.done + "/" + totalStr left-justified to cw.total.
+// It carries no trailing space of its own — liveRunningDetail's composition
+// owns the fixed gap that combines with heartbeatSuffix's leading space into
+// §18's two-space gap before "— Ns" once an elapsed suffix exists to combine
+// with. With no shared column (cw.done == 0) it degrades to the bare "N/M"
+// every other row already used, with no padding.
+func formatAlignedCount(completed, total int64, cw countWidths) string {
+	doneStr, totalStr := fmt.Sprintf("%d", completed), fmt.Sprintf("%d", total)
+	if cw.done == 0 {
+		return doneStr + "/" + totalStr
+	}
+	return txt.PadLeft(doneStr, cw.done) + "/" + txt.PadRight(totalStr, cw.total)
+}
+
+// headerlessCountWidths is the shared count-column width (countWidths) of a
+// header-less body's determinate Running rows: its own Tasks plus every
+// child collection that renders as its own Task row (rendersAsOwnTask).
+// Fewer than two such rows share no column, matching
+// headerlessRowNameWidth's own convention.
+func headerlessCountWidths(col core.TasksSnapshot) countWidths {
+	var doneWidth, totalWidth, rows int
+	consider := func(t core.TaskSnapshot) {
+		if t.State != core.Running || t.Progress.Kind != core.Determinate || t.Progress.Total <= 0 {
+			return
+		}
+		rows++
+		doneWidth = max(doneWidth, len(fmt.Sprintf("%d", t.Progress.Completed)))
+		totalWidth = max(totalWidth, len(fmt.Sprintf("%d", t.Progress.Total)))
+	}
+	for _, t := range col.Tasks {
+		consider(t)
+	}
+	for _, child := range col.Collections {
+		stripped, _ := withoutDispositionItems(child)
+		if rendersAsOwnTask(stripped) {
+			consider(stripped.Tasks[0])
+		}
+	}
+	if rows < 2 {
+		return countWidths{}
+	}
+	return countWidths{done: doneWidth, total: totalWidth}
 }
 
 // livePendingDetail says "waiting", dim, once a Pending row has stayed on
@@ -455,9 +569,18 @@ func progressBar(completed, total int64, width int) string {
 	if total <= 0 {
 		return "[" + strings.Repeat("?", width) + "]"
 	}
-	filled := int(float64(width) * float64(completed) / float64(total))
+	// §18's frame is normative: 120/459 -> 4/12 filled, 70/294 -> 3/12
+	// filled, 1/4 -> 3/12 filled (exact). Any nonzero fraction of a cell
+	// counts as that cell started — ceiling of completed/total*width — so
+	// the bar never under-represents real progress the way nearest-value
+	// rounding would (nearest would round 120/459 down to 3/12, hiding
+	// work that has, in fact, started on a 4th cell).
+	filled := int(math.Ceil(float64(width) * float64(completed) / float64(total)))
 	if completed > 0 && filled == 0 {
 		filled = 1
+	}
+	if completed < total && filled >= width {
+		filled = width - 1
 	}
 	if filled > width {
 		filled = width

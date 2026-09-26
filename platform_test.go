@@ -60,7 +60,7 @@ func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 		t.Fatalf("second task key: %+v", snap.Tasks)
 	}
 
-	raw, err := evo.EncodeJSON(snap)
+	raw, err := evo.EncodeJSONForTest(snap)
 	if err != nil {
 		t.Fatal(err)
 	}

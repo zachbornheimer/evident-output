@@ -8,14 +8,18 @@ import "golang.org/x/tools/go/analysis"
 // keeping a parallel text-scan rule per family; `evident-output fix` runs
 // the same list.
 //
-// Blockf/Failf are deliberately not here: task.go documents both as
-// current, kept vocabulary (Blockf is how a Define callback returns a
-// refusal; Failf is the returnable Fail form used outside Define), and
-// internal/agent/review's API-040 check already flags the opposite
-// mistake (Failf misused inside a Define). An earlier analyzer here
-// treated them as legacy and rewrote `return task.Failf(...)` into a
-// Fail+return-error double-resolve, contradicting both task.go and
-// review; it was removed rather than reconciled to a doc that was wrong.
+// TaskHandle.Blockf/Failf, Output.Failf, and evo.Failure (API-140, all
+// removed in 1.1) get no SuggestedFix: unlike Warn/Step/Kept/ReasonOption
+// (also removed in 1.1), a Failf(format, args...) or Blockf(format,
+// args...) call site folds its formatted/wrapped text into the
+// replacement's plain summary string — a
+// semantic rewrite (evaluating the format string against its args, and
+// for %w specifically deciding whether the wrapped error belongs in the
+// summary or a separate Fact/Problem detail) rather than the mechanical
+// method-rename these analyzers do. FailfAnalyzer still reports the
+// removal so a consumer call site gets a review finding and a fix
+// diagnostic instead of silently failing to compile with no MCP-visible
+// signal; it just never suggests text.
 var Analyzers = []*analysis.Analyzer{
 	WarnAnalyzer,
 	StepAnalyzer,
@@ -23,18 +27,22 @@ var Analyzers = []*analysis.Analyzer{
 	CaptureAnalyzer,
 	ReasonOptionAnalyzer,
 	OptionsAnalyzer,
+	FailfAnalyzer,
 }
 
 // RemovedNameAnalyzers is the subset of Analyzers whose Category is a
-// stable removed-name rule ID (API-070/090/091/120: Warn/Step/Kept/
-// ReasonOption-ForSkip-OnTask) rather than a rename/config-collapse rule
-// with its own review-side detector. internal/agent/review's directory
-// path runs exactly this subset as its single source of truth for those
-// four rule IDs, instead of a second, review-owned implementation that
-// can drift from the fixer's typed receiver resolution.
+// stable removed-name rule ID (API-070/090/091/120/140: Warn/Step/Kept/
+// ReasonOption-ForSkip-OnTask/Failf-Blockf-Failure, all removed in 1.1)
+// rather than a rename/config-collapse rule with its own review-side
+// detector.
+// internal/agent/review's directory path runs exactly this subset as its
+// single source of truth for those rule IDs, instead of a second,
+// review-owned implementation that can drift from the fixer's typed
+// receiver resolution.
 var RemovedNameAnalyzers = []*analysis.Analyzer{
 	WarnAnalyzer,
 	StepAnalyzer,
 	KeptAnalyzer,
 	ReasonOptionAnalyzer,
+	FailfAnalyzer,
 }
