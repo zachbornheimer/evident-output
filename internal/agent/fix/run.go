@@ -53,6 +53,17 @@ type diagBuild struct {
 // the way `go vet`/`go build` would, so every analyzer's typed receiver
 // resolution has real go/types data to work against.
 func Load(dir string, patterns ...string) ([]*packages.Package, error) {
+	return LoadWithOverlay(dir, nil, patterns...)
+}
+
+// LoadWithOverlay is Load, substituting overlay's content for the files it
+// keys (by absolute path) instead of their on-disk content — the same
+// mechanism `gopls` uses to type-check an editor buffer that hasn't been
+// saved. A caller reviewing edited source that has a real path (the
+// AGENTS.md review/apply/re-review loop) needs its own edits reflected in
+// removed-name analysis, not the stale file still on disk. A nil overlay
+// behaves exactly like Load.
+func LoadWithOverlay(dir string, overlay map[string][]byte, patterns ...string) ([]*packages.Package, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
 			packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps,
@@ -61,7 +72,8 @@ func Load(dir string, patterns ...string) ([]*packages.Package, error) {
 		// package proper. Without it, a consumer test file that calls
 		// Step/Kept/Warn or an Option constructor gets no diagnostic and
 		// silently stops compiling the moment those names are removed.
-		Tests: true,
+		Tests:   true,
+		Overlay: overlay,
 	}
 	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {

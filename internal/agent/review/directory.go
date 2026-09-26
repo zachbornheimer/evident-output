@@ -48,7 +48,7 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 	// source of truth for these rule IDs; no per-file detector emits them
 	// (see TestNoFileDetectorEmitsRemovedNameRuleIDs), so there is nothing
 	// to de-duplicate here.
-	removed, found, partial := removedNameFindings(dir)
+	removed, found, partial := removedNameFindings(dir, true, nil)
 	if found {
 		all = append(all, admitDialect(removed, ver)...)
 	}
@@ -57,17 +57,24 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 	return dialect.Stamp(res), nil
 }
 
-// GoFileAt reviews the single Go file at path on disk: full AST review via
-// GoSourceAt, plus API-070/090/091/120 (Warn/Step/Kept/ReasonOption) via
-// the same fix.RemovedNameAnalyzers path GoDirectoryAt uses, scoped to
-// path's own module and filtered to path so a single-file review reports
-// the same removed-name findings a directory review of its parent would.
-// Unlike GoSource (source text with no filesystem location), path must be
-// a real file — that's what lets it resolve a module root to type-check.
-func GoFileAt(path, desiredVersion string) (Result, error) {
-	src, err := os.ReadFile(path)
-	if err != nil {
-		return Result{}, fmt.Errorf("read %s: %w", path, err)
+// GoFileAt reviews the Go file at path: full AST review via GoSourceAt,
+// plus API-070/090/091/120 (Warn/Step/Kept/ReasonOption) via the same
+// fix.RemovedNameAnalyzers path GoDirectoryAt uses, scoped to path's own
+// module and filtered to path so a single-file review reports the same
+// removed-name findings a directory review of its parent would. path must
+// be a real file — that's what lets it resolve a module root to
+// type-check — but the AST review and removed-name findings are always
+// computed from src, not path's on-disk content: a caller re-reviewing
+// edited source (the AGENTS.md review/apply/re-review loop) must see its
+// own edits, not a stale disk copy. Pass "" for src to read path's
+// current on-disk content.
+func GoFileAt(path, src, desiredVersion string) (Result, error) {
+	if src == "" {
+		read, err := os.ReadFile(path)
+		if err != nil {
+			return Result{}, fmt.Errorf("read %s: %w", path, err)
+		}
+		src = string(read)
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -75,8 +82,9 @@ func GoFileAt(path, desiredVersion string) (Result, error) {
 	}
 	dialect := DialectFor(abs, desiredVersion)
 	ver := dialect.Lint()
-	all := GoSourceAt(abs, string(src), ver).Findings
-	removed, found, partial := removedNameFindings(filepath.Dir(abs))
+	all := GoSourceAt(abs, src, ver).Findings
+	overlay := map[string][]byte{abs: []byte(src)}
+	removed, found, partial := removedNameFindings(filepath.Dir(abs), false, overlay)
 	if found {
 		all = append(all, admitDialect(findingsForFile(removed, abs), ver)...)
 	}

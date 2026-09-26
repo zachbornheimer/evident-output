@@ -103,7 +103,7 @@ func cmdReview(args []string) error {
 			return err
 		}
 	} else {
-		res, err = review.GoFileAt(path, "")
+		res, err = review.GoFileAt(path, "", "")
 		if err != nil {
 			return err
 		}

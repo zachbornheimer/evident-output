@@ -75,7 +75,7 @@ func reviewSource(args map[string]any, kind, file, src string) (review.Result, s
 		// review of its parent would; inlined `source` with no filesystem
 		// location cannot type-check and falls back to AST-only review.
 		if filepath.IsAbs(file) {
-			if res, err := review.GoFileAt(file, desired); err == nil {
+			if res, err := review.GoFileAt(file, src, desired); err == nil {
 				return res, ""
 			}
 		}

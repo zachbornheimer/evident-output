@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
@@ -171,6 +172,44 @@ func run() error {
 func main() { fmt.Println(run()) }
 `
 
+// TestGoDirectory_RemovedNameAnalyzers_RelativeDir pins a regression found
+// while probing this slice against a real consumer: GoDirectory(dir) with
+// a relative dir (as the CLI's `review <dir>` command passes it when run
+// from inside the reviewed module, e.g. `review internal/app`) must
+// report the same findings a caller passing an absolute path would, not
+// silently degrade to Result.Partial=true because
+// filepath.Rel(absoluteRoot, relativeDir) fails to resolve.
+func TestGoDirectory_RemovedNameAnalyzers_RelativeDir(t *testing.T) {
+	dir := t.TempDir()
+	writeRemovedNameModule(t, dir, removedNameFixtureSrc)
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+
+	res, err := review.GoDirectory(".")
+	if err != nil {
+		t.Fatalf("GoDirectory: %v", err)
+	}
+	if res.Partial {
+		t.Fatalf("GoDirectory(\".\") reported Partial=true; findings=%+v", res.Findings)
+	}
+	got := map[string]bool{}
+	for _, f := range res.Findings {
+		got[f.RuleID] = true
+	}
+	for _, want := range []string{"API-070", "API-090", "API-091", "API-120"} {
+		if !got[want] {
+			t.Errorf("missing %s reviewing dir=\".\"; findings=%+v", want, res.Findings)
+		}
+	}
+}
+
 // TestGoDirectory_RemovedNameAnalyzers_SubdirectoryOfModule pins the
 // review-gap report's REGRESSION case: reviewing a package subdirectory
 // (not the module root itself) must still resolve the module's own go.mod
@@ -234,6 +273,52 @@ func TestGoDirectory_RemovedNameAnalyzers_PartialOnUntidiedModule(t *testing.T) 
 	}
 }
 
+// TestGoFileAt_ReviewsSuppliedSourceNotDisk pins the review-gap report's
+// BLOCKER: a caller passing edited `source` alongside an absolute `file`
+// path (the AGENTS.md review/apply/re-review loop) must see findings for
+// its own edits, not the unedited file still on disk. Editing
+// t.Kept(evo.Reason(...)) to t.Skipped(...) must drop API-091 from the
+// result even though the on-disk file still has the removed call.
+func TestGoFileAt_ReviewsSuppliedSourceNotDisk(t *testing.T) {
+	dir := t.TempDir()
+	writeRemovedNameModule(t, dir, removedNameFixtureSrc)
+	path := filepath.Join(dir, "main.go")
+
+	edited := strings.Replace(removedNameFixtureSrc,
+		`t.Kept(evo.Reason("dirty", evo.ForSkip()))`,
+		`t.Skipped(evo.Reason("dirty", evo.ForSkip()))`, 1)
+	if edited == removedNameFixtureSrc {
+		t.Fatal("fixture no longer contains the Kept(...) call this test edits")
+	}
+
+	res, err := review.GoFileAt(path, edited, "")
+	if err != nil {
+		t.Fatalf("GoFileAt: %v", err)
+	}
+	for _, f := range res.Findings {
+		if f.RuleID == "API-091" {
+			t.Errorf("GoFileAt reported API-091 from disk content, ignoring the edited `source` argument: %+v", f)
+		}
+	}
+
+	// Sanity: reviewing the unedited disk content still reports API-091,
+	// so this test is actually exercising source-vs-disk, not a fixture
+	// that never produced the finding in the first place.
+	onDisk, err := review.GoFileAt(path, "", "")
+	if err != nil {
+		t.Fatalf("GoFileAt (disk): %v", err)
+	}
+	found := false
+	for _, f := range onDisk.Findings {
+		if f.RuleID == "API-091" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("sanity check failed: unedited on-disk file must still report API-091")
+	}
+}
+
 // TestGoFileAt_ReportsRemovedNames pins the review-gap report's other
 // REGRESSION case: reviewing a single file (the CLI's `review file.go` path
 // and the MCP kind=go default with an absolute `file`) must still report
@@ -242,7 +327,7 @@ func TestGoFileAt_ReportsRemovedNames(t *testing.T) {
 	dir := t.TempDir()
 	writeRemovedNameModule(t, dir, removedNameFixtureSrc)
 
-	res, err := review.GoFileAt(filepath.Join(dir, "main.go"), "")
+	res, err := review.GoFileAt(filepath.Join(dir, "main.go"), "", "")
 	if err != nil {
 		t.Fatalf("GoFileAt: %v", err)
 	}

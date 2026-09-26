@@ -46,38 +46,64 @@ func moduleRootAbove(dir string) (root string, ok bool) {
 
 // loadPatternFor turns dir into a `go list`-style pattern rooted at root
 // (dir itself when they're equal), so fix.Load only type-checks the
-// subtree actually under review instead of the whole module.
-func loadPatternFor(root, dir string) (string, error) {
+// subtree actually under review instead of the whole module. recursive is
+// false for a single-file review (GoFileAt): dir is then that file's own
+// directory, and findingsForFile discards everything outside the one file
+// anyway, so there is no need to also type-check every package below it.
+func loadPatternFor(root, dir string, recursive bool) (string, error) {
 	rel, err := filepath.Rel(root, dir)
 	if err != nil {
 		return "", err
 	}
 	if rel == "." {
-		return "./...", nil
+		if recursive {
+			return "./...", nil
+		}
+		return ".", nil
 	}
-	return "./" + filepath.ToSlash(rel) + "/...", nil
+	pattern := "./" + filepath.ToSlash(rel)
+	if recursive {
+		return pattern + "/...", nil
+	}
+	return pattern, nil
 }
 
 // removedNameFindings type-checks the Go module owning dir and runs
 // fix.RemovedNameAnalyzers over the packages under dir, returning one
-// Finding per diagnostic. found is false only when dir sits outside any
-// Go module (no go.mod above it at all) — the ordinary case for a
-// non-Go-module directory, where these rule IDs simply don't apply and
-// silence is correct. found is true with partial set when a module root
-// was found but analysis could not complete (unresolved module graph,
-// missing `go mod tidy`, or any other load failure): that is exactly the
-// "could not complete" condition GoDirectoryAt reports as Result.Partial,
-// not silence and not an error.
-func removedNameFindings(dir string) (findings []Finding, found, partial bool) {
+// Finding per diagnostic. recursive selects dir's whole subtree
+// (GoDirectoryAt) versus dir's own package only (GoFileAt, which filters
+// to one file afterward anyway). overlay substitutes in-memory content for
+// on-disk files by absolute path (nil for none) — see
+// fix.LoadWithOverlay — so a caller re-reviewing edited source sees its
+// own edits reflected in these findings rather than the stale file still
+// on disk. found is false only when dir sits outside any Go module (no
+// go.mod above it at all) — the ordinary case for a non-Go-module
+// directory, where these rule IDs simply don't apply and silence is
+// correct. found is true with partial set when a module root was found
+// but analysis could not complete (unresolved module graph, missing `go
+// mod tidy`, or any other load failure): that is exactly the "could not
+// complete" condition GoDirectoryAt reports as Result.Partial, not
+// silence and not an error.
+func removedNameFindings(dir string, recursive bool, overlay map[string][]byte) (findings []Finding, found, partial bool) {
+	// moduleRootAbove always returns an absolute root; dir must match so
+	// loadPatternFor's filepath.Rel(root, dir) can resolve it — a caller
+	// passing a relative dir (the CLI's `review <dir>` command, e.g. run
+	// from a repo root) would otherwise fail Rel with both arguments in
+	// different forms and silently degrade to Result.Partial=true.
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, true, true
+	}
+	dir = abs
 	root, ok := moduleRootAbove(dir)
 	if !ok {
 		return nil, false, false
 	}
-	pattern, err := loadPatternFor(root, dir)
+	pattern, err := loadPatternFor(root, dir, recursive)
 	if err != nil {
 		return nil, true, true
 	}
-	pkgs, err := fix.Load(root, pattern)
+	pkgs, err := fix.LoadWithOverlay(root, overlay, pattern)
 	if err != nil || len(pkgs) == 0 || hasModuleLoadError(pkgs) {
 		return nil, true, true
 	}
