@@ -278,7 +278,7 @@ func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
 // 9c10b754 §18 specifies: 459 checked/419 skipped (283 checked out, 135
 // unpushed, 1 protected), 294 checked/292 skipped (163 dirty, 89 unpushed,
 // 40 ignored files), and a remote-tracking category with its own "4 stale
-// refs" summary and delete effect (§18 has no remote-tracking Kept/Skipped
+// refs" summary and delete effect (§18 has no remote-tracking Skipped
 // items at all).
 func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 	t.Helper()
