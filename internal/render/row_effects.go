@@ -1,11 +1,10 @@
-package plain
+package render
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -75,7 +74,7 @@ type EffectSection struct {
 // the honest "nothing to" line when none survived, one collapsed line for
 // a single distinct record, and otherwise a header plus bounded rows,
 // compact on a narrow terminal and leader-aligned elsewhere.
-func WriteEffects(b *strings.Builder, sec EffectSection, s render.Style) {
+func WriteEffects(b *strings.Builder, sec EffectSection, s Style) {
 	if len(sec.Records) == 0 {
 		writeNothingToDo(b, sec)
 		return
@@ -89,7 +88,7 @@ func WriteEffects(b *strings.Builder, sec EffectSection, s render.Style) {
 	fmt.Fprintf(b, "%s  %s\n", tag, sec.Subject)
 	omitted := max(len(visible)-maxVisibleEffectRows, 0)
 	visible = visible[:len(visible)-omitted]
-	if sec.Width > 0 && sec.Width < render.CompactLayoutMaxWidth {
+	if sec.Width > 0 && sec.Width < CompactLayoutMaxWidth {
 		writeCompactEffects(b, visible)
 	} else {
 		writeAlignedEffects(b, visible, s)
@@ -142,7 +141,7 @@ const maxEffectLeader = 12
 
 // writeAlignedEffects writes rows with verbs and quantities in columns,
 // joined to a quantity-less object by a dim leader when the gap is wide.
-func writeAlignedEffects(b *strings.Builder, visible []core.EffectRecord, s render.Style) {
+func writeAlignedEffects(b *strings.Builder, visible []core.EffectRecord, s Style) {
 	maxVerb, maxQty := 0, 0
 	for _, r := range visible {
 		maxVerb = max(maxVerb, len(r.Verb))
@@ -167,7 +166,7 @@ func writeAlignedEffects(b *strings.Builder, visible []core.EffectRecord, s rend
 
 // WriteLedger writes every [changed] then [planned] section of snap, each
 // kind aligned to its own subject column.
-func WriteLedger(b *strings.Builder, snap core.Snapshot, width int, s render.Style) {
+func WriteLedger(b *strings.Builder, snap core.Snapshot, width int, s Style) {
 	changeNameWidth := maxEffectSubjectWidth(snap.Changes, func(c core.ChangesSnapshot) string { return c.Subject })
 	for _, ch := range snap.Changes {
 		WriteEffects(b, EffectSection{Kind: "changed", Subject: ch.Subject, Records: ch.Records, IntendedVerb: ch.IntendedVerb, NameWidth: changeNameWidth, Width: width}, s)
@@ -182,7 +181,7 @@ func WriteLedger(b *strings.Builder, snap core.Snapshot, width int, s render.Sty
 // glyph (txt.Dim "…"/"...") marks it, not "!" — an omitted-count line is a
 // viewport limit, not something demanding attention (evo-rec.md "! is
 // attention only... Overflow is never !").
-func writeEffectOverflow(b *strings.Builder, omitted int, s render.Style) {
+func writeEffectOverflow(b *strings.Builder, omitted int, s Style) {
 	if omitted <= 0 {
 		return
 	}
@@ -196,7 +195,7 @@ func writeEffectOverflow(b *strings.Builder, omitted int, s render.Style) {
 // suppressed entirely rather than rendered as "none". The summary is derived
 // mechanically from the Changes ledger, never assembled by the caller
 // (evo-rec.md "Taxonomy and mutation lines are derived, never assembled").
-func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, s render.Style) {
+func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, s Style) {
 	summary, ok := summarizeAlreadyMutated(changes)
 	if !ok {
 		return

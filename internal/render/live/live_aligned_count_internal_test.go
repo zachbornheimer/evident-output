@@ -118,7 +118,7 @@ func TestLiveRunningDetail_LoneCountTwoSpacesBeforeHeartbeat(t *testing.T) {
 // same gap at a narrow terminal width, where liveCountDetail zeroes its own
 // local cw to drop the bar/padding (evo-rec.md Problem 16/26's compact
 // dialect). The heartbeat gap must not read the caller's un-zeroed cw to
-// decide whether to add its space: at width 30 (below compactLayoutMaxWidth)
+// decide whether to add its space: at width 30 (below render.CompactLayoutMaxWidth)
 // a row sharing a count column with a sibling (cw.done != 0) rendered a
 // two-space gap while an otherwise-identical lone row (cw.done == 0)
 // rendered only one, even though both draw the same bare "N/M" once narrow.

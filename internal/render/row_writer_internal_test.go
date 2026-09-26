@@ -1,11 +1,10 @@
-package plain
+package render
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -30,7 +29,7 @@ func branchesWithWorkChild(work core.TaskSnapshot) core.TasksSnapshot {
 func TestGroupTallies_ShareTheChildColumn(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
-	WriteCollection(&b, branchesWithWorkChild(core.TaskSnapshot{Name: "deleted", State: core.Done, Summary: "14 deleted"}), render.Style{Profile: txt.GlyphsUnicode})
+	WriteCollection(&b, branchesWithWorkChild(core.TaskSnapshot{Name: "deleted", State: core.Done, Summary: "14 deleted"}), Style{Profile: txt.GlyphsUnicode})
 	want := "✓ branches  14 deleted\n" +
 		"   - skipped 2 (protected)\n" +
 		"   ! kept 2 (unpushed)\n" +

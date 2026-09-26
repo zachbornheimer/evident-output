@@ -9,7 +9,6 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
-	"github.com/zachbornheimer/evident-output/internal/render/plain"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -66,10 +65,10 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, style render.
 	st := liveStyle{Style: style, width: width, spin: txt.SpinnerGlyph(now, style.Profile), now: now}
 
 	writeLiveBody(&b, liveRoot(render.QualifyFlattenedRows(s, liveHeaderRule(height))), height, atRoot, st)
-	if plain.HasTaskRows(s) && plain.HasEffectSections(s) {
+	if render.HasTaskRows(s) && render.HasEffectSections(s) {
 		b.WriteByte('\n')
 	}
-	plain.WriteLedger(&b, s, width, style)
+	render.WriteLedger(&b, s, width, style)
 	return strings.TrimRight(b.String(), "\n")
 }
 
@@ -98,7 +97,7 @@ func ArmedTitleLine(subject string, now time.Time, s render.Style) string {
 
 func FitLiveRegion(text string, columns int) string {
 	if columns <= 0 {
-		columns = plain.DefaultWidth
+		columns = render.DefaultWidth
 	}
 	if liveRegionFitsColumns(text, columns) {
 		return text
@@ -318,7 +317,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	// diagnostic parent line (bar/count or failure summary) and nest each
 	// warning underneath — Done still inlines a short warning on the ✓ row.
 	if t.State == core.Running || t.State == core.Failed {
-		plain.WriteNestedTaskWarnings(b, t.Warnings, pad+"   ", st.Style)
+		render.WriteNestedTaskWarnings(b, t.Warnings, pad+"   ", st.Style)
 		// A standalone task's own accumulated Skipped/Kept taxonomy
 		// (TaskHandle.Skipped/SkippedWithErrs called directly on this
 		// task, not a Group folding still-arriving sibling children) is
@@ -327,10 +326,10 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 		// nests under the row unconditionally, unlike a Group's own
 		// folded tally (categoryStillClassifying), which withholds
 		// while more render.Disposition items could still arrive.
-		plain.WriteDispositions(b, pad+"   ", plain.TaskDispositions(t), render.NoDisposition, st.Style)
+		render.WriteDispositions(b, pad+"   ", render.TaskDispositions(t), render.NoDisposition, st.Style)
 	}
 	if t.State == core.Failed {
-		plain.WriteVerificationDetails(b, t.Verification, pad+"   ", true, st.Style)
+		render.WriteVerificationDetails(b, t.Verification, pad+"   ", true, st.Style)
 	}
 	return rowsSince(b, start)
 }
@@ -403,7 +402,7 @@ func liveSettledDetail(t core.TaskSnapshot, st liveStyle) string {
 	case t.State == core.Done && t.Summary != "":
 		return st.Dim(t.Summary)
 	case t.State == core.Done && len(t.Warnings) > 0:
-		msg := plain.WarningText(t.Warnings[0])
+		msg := render.WarningText(t.Warnings[0])
 		if more := len(t.Warnings) - 1; more > 0 {
 			msg = fmt.Sprintf("%s (+%d more)", msg, more)
 		}
@@ -551,8 +550,8 @@ func livePendingDetail(t core.TaskSnapshot, st liveStyle) string {
 // liveFailedDetail is a Failed row's headline, after the count it reached
 // when it failed mid-loop (release-gate round 8 finding 4).
 func liveFailedDetail(t core.TaskSnapshot) string {
-	msg := plain.Headline(t)
-	count := plain.ProgressCountText(t.Progress)
+	msg := render.Headline(t)
+	count := render.ProgressCountText(t.Progress)
 	switch {
 	case msg != "" && count != "":
 		return count + "  " + msg

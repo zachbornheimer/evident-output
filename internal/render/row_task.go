@@ -1,11 +1,10 @@
-package plain
+package render
 
 import (
 	"fmt"
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -22,12 +21,12 @@ type taskRow struct {
 
 // rootRow is t as a row at the run's root (or flattened up to it).
 func rootRow(t core.TaskSnapshot, nameWidth int) taskRow {
-	return taskRow{t: t, nameWidth: nameWidth, nested: render.TaskAnnotationIndent}
+	return taskRow{t: t, nameWidth: nameWidth, nested: TaskAnnotationIndent}
 }
 
 // childRow is t as a row under its Group's header.
 func childRow(t core.TaskSnapshot, nameWidth int) taskRow {
-	return taskRow{t: t, nameWidth: nameWidth, prefix: render.GroupChildIndent, nested: problemTreeIndent}
+	return taskRow{t: t, nameWidth: nameWidth, prefix: GroupChildIndent, nested: problemTreeIndent}
 }
 
 // rowHead is what a row's own line settled on: its detail text, the
@@ -51,8 +50,8 @@ const (
 )
 
 // write renders the row and its nested evidence and annotations.
-func (r taskRow) write(b *strings.Builder, s render.Style) {
-	r.t = render.TaskAtVerbosity(r.t, s.Verbose)
+func (r taskRow) write(b *strings.Builder, s Style) {
+	r.t = TaskAtVerbosity(r.t, s.Verbose)
 	head, taxonomyVerb := r.head(s)
 	r.writeLine(b, head, s)
 	r.writeProblems(b, head.Headline, s)
@@ -71,34 +70,34 @@ func Headline(t core.TaskSnapshot) string {
 // head chooses the row's detail, first match wins: the already-satisfied
 // resolution, the Headline, one short inline annotation, the in-flight
 // progress/phase, or nothing.
-func (r taskRow) head(s render.Style) (rowHead, render.Disposition) {
+func (r taskRow) head(s Style) (rowHead, Disposition) {
 	t := r.t
 	if t.Resolution == core.ResolutionAlreadySatisfied {
-		return rowHead{detail: render.AlreadySatisfiedRowDetail(t, s.Color), Headline: render.AlreadySatisfiedDetail}, render.NoDisposition
+		return rowHead{detail: AlreadySatisfiedRowDetail(t, s.Color), Headline: AlreadySatisfiedDetail}, NoDisposition
 	}
 	if line := Headline(t); line != "" {
-		return rowHead{detail: headlineDetail(t, line, s), Headline: line}, render.NoDisposition
+		return rowHead{detail: headlineDetail(t, line, s), Headline: line}, NoDisposition
 	}
 	if msg, ok := inlineTaskWarning(t); ok {
-		return rowHead{detail: inlineWarningText(msg, s), annotated: true, inlined: inlineWarning}, render.NoDisposition
+		return rowHead{detail: inlineWarningText(msg, s), annotated: true, inlined: inlineWarning}, NoDisposition
 	}
 	if text, verb, ok := inlineTaskTaxonomy(t); ok {
 		return rowHead{detail: inlineTaxonomyText(text, verb, s), annotated: true, inlined: inlineTaxonomy}, verb
 	}
 	if f, ok := inlineTaskFact(t); ok {
-		return rowHead{detail: inlineFactText(f, s), annotated: true, inlined: inlineFact}, render.NoDisposition
+		return rowHead{detail: inlineFactText(f, s), annotated: true, inlined: inlineFact}, NoDisposition
 	}
 	if t.State == core.Running {
-		return rowHead{detail: runningTaskDetail(t)}, render.NoDisposition
+		return rowHead{detail: runningTaskDetail(t)}, NoDisposition
 	}
-	return rowHead{}, render.NoDisposition
+	return rowHead{}, NoDisposition
 }
 
 // headlineDetail renders a row's Headline. A Failed or Blocked Headline is
 // the evidence the reader most needs, so it keeps full intensity, and a
 // Task that failed mid-loop keeps the count it reached ("how far did it
 // get"). Every other outcome's Headline is subordinate and dims.
-func headlineDetail(t core.TaskSnapshot, line string, s render.Style) string {
+func headlineDetail(t core.TaskSnapshot, line string, s Style) string {
 	switch t.State {
 	case core.Failed:
 		if count := ProgressCountText(t.Progress); count != "" {
@@ -115,12 +114,12 @@ func headlineDetail(t core.TaskSnapshot, line string, s render.Style) string {
 // writeLine writes the row's own line. The annotation column carries
 // taskNameColumnMargin; a row with no detail is trimmed so it never ends in
 // dangling whitespace.
-func (r taskRow) writeLine(b *strings.Builder, head rowHead, s render.Style) {
+func (r taskRow) writeLine(b *strings.Builder, head rowHead, s Style) {
 	width := r.nameWidth
 	if head.annotated {
 		width += taskNameColumnMargin
 	}
-	unit := render.DisplayUnit{Glyph: s.StateGlyph(r.t.State), Name: txt.PadRight(r.t.Name, width), Detail: head.detail}
+	unit := DisplayUnit{Glyph: s.StateGlyph(r.t.State), Name: txt.PadRight(r.t.Name, width), Detail: head.detail}
 	b.WriteString(unit.Render(r.prefix))
 	b.WriteByte('\n')
 }
@@ -129,7 +128,7 @@ func (r taskRow) writeLine(b *strings.Builder, head rowHead, s render.Style) {
 // maxVisibleProblems of them plus an "and N more failures" line. A Problem
 // that only repeats the row's Headline is dropped, and one whose Detail
 // carries the evidence loses its repeated summary.
-func (r taskRow) writeProblems(b *strings.Builder, rowHeadline string, s render.Style) {
+func (r taskRow) writeProblems(b *strings.Builder, rowHeadline string, s Style) {
 	emphasize := r.t.State == core.Failed || r.t.State == core.Blocked
 	problems := r.t.Problems
 	omitted := max(len(problems)-maxVisibleProblems, 0)
@@ -156,7 +155,7 @@ func (r taskRow) writeProblems(b *strings.Builder, rowHeadline string, s render.
 
 // writeNested writes the row's tallies, verification details, warnings and
 // facts, leaving out whichever annotation the row's own line inlined.
-func (r taskRow) writeNested(b *strings.Builder, inlined inlineAnnotation, taxonomyVerb render.Disposition, s render.Style) {
+func (r taskRow) writeNested(b *strings.Builder, inlined inlineAnnotation, taxonomyVerb Disposition, s Style) {
 	t := r.t
 	warnings, facts := t.Warnings, t.Facts
 	switch inlined {

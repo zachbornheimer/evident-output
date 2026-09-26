@@ -14,13 +14,13 @@ type Style struct {
 	Profile txt.GlyphProfile
 }
 
-// dim demotes subordinate text.
+// Dim demotes subordinate text.
 func (s Style) Dim(text string) string { return txt.Dim(text, s.Color) }
 
-// paint applies an SGR code to text.
+// Paint applies an SGR code to text.
 func (s Style) Paint(text, sgr string) string { return txt.Style(text, sgr, s.Color) }
 
-// stateGlyph is a Task or container state's glyph in its state color.
+// StateGlyph is a Task or container state's glyph in its state color.
 func (s Style) StateGlyph(state core.EntityState) string {
 	return txt.StyleGlyph(TaskGlyph(state, s.Profile), StateColor(state), s.Color)
 }
@@ -43,18 +43,18 @@ func StateColor(s core.EntityState) string {
 	}
 }
 
-// warningGlyph is the yellow attention bang ("!").
+// WarningGlyph is the yellow attention bang ("!").
 func (s Style) WarningGlyph() string {
 	return txt.StyleGlyph(txt.GlyphWarningState.Render(s.Profile), txt.SGRYellow, s.Color)
 }
 
-// evidenceGlyph is the dim evidence connector ("└─").
+// EvidenceGlyph is the dim evidence connector ("└─").
 func (s Style) EvidenceGlyph() string { return s.Dim(txt.GlyphEvidence.Render(s.Profile)) }
 
-// overflowGlyph is the dim omission marker ("…").
+// OverflowGlyph is the dim omission marker ("…").
 func (s Style) OverflowGlyph() string { return s.Dim(txt.GlyphOverflow.Render(s.Profile)) }
 
-// emphasized keeps evidence at full intensity when emphasize is set, and
+// Emphasized keeps evidence at full intensity when emphasize is set, and
 // demotes it otherwise — the one place that decides "is this text
 // decoration or evidence" for the problem-rendering chain.
 func (s Style) Emphasized(text string, emphasize bool) string {

@@ -1,11 +1,10 @@
-package plain
+package render
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -23,7 +22,7 @@ func TestAlreadySatisfiedRowDetail_IgnoresSummary(t *testing.T) {
 		Resolution: core.ResolutionAlreadySatisfied,
 	}
 	var b strings.Builder
-	WriteTaskAligned(&b, snap, 0, render.Style{Profile: txt.GlyphsUnicode})
+	WriteTaskAligned(&b, snap, 0, Style{Profile: txt.GlyphsUnicode})
 	got := b.String()
 	if !strings.Contains(got, "already satisfied") {
 		t.Fatalf("missing ResolutionAlreadySatisfied suffix:\n%s", got)

@@ -1,10 +1,9 @@
-package plain
+package render
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -17,7 +16,7 @@ import (
 // connectors stay txt.Dim either way — they are decoration — but the evidence
 // text itself renders at full intensity so a failure's proof is never the
 // lowest-contrast text on screen.
-func writeProblem(b *strings.Builder, p core.Problem, indent string, emphasize bool, s render.Style) {
+func writeProblem(b *strings.Builder, p core.Problem, indent string, emphasize bool, s Style) {
 	detail, tail := effectiveDetailAndTail(p)
 	if p.Subject != "" {
 		extra := p.Summary
@@ -94,7 +93,7 @@ func effectiveDetailAndTail(p core.Problem) (detail, tail string) {
 // under a just-written Detail block, matching writeProblemDetailBlock's own
 // continuation indent so the tail reads as more captured output for the
 // same problem rather than a new one.
-func writeCaptureTailLines(b *strings.Builder, tail, indent string, emphasize bool, s render.Style) {
+func writeCaptureTailLines(b *strings.Builder, tail, indent string, emphasize bool, s Style) {
 	for _, line := range splitPresentationLines(tail) {
 		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.Emphasized(line, emphasize))
 	}
@@ -104,7 +103,7 @@ func writeCaptureTailLines(b *strings.Builder, tail, indent string, emphasize bo
 // the evidence connector. When summary is non-empty it opens the block;
 // continuations (and all detail lines when summary is empty) are indented
 // under it.
-func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string, emphasize bool, s render.Style) {
+func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string, emphasize bool, s Style) {
 	lines := splitPresentationLines(detail)
 	if summary == "" {
 		if len(lines) == 0 {
@@ -119,7 +118,7 @@ func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string,
 }
 
 // writeProblemDetailLines continues Detail under a subject (├─) row with │ prefixes.
-func writeProblemDetailLines(b *strings.Builder, detail, indent string, emphasize bool, s render.Style) {
+func writeProblemDetailLines(b *strings.Builder, detail, indent string, emphasize bool, s Style) {
 	pipe := s.Dim("│")
 	for _, line := range splitPresentationLines(detail) {
 		fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, pipe, s.Emphasized(line, emphasize))
@@ -144,7 +143,7 @@ func splitPresentationLines(s string) []string {
 // writeAction renders one next-action row prefixed by the profile-aware next-
 // action glyph (→ / >). evo-rec.md's tightened vocabulary gives "next action"
 // its own row so the meaning does not rest on cyan color alone.
-func writeAction(b *strings.Builder, a core.Action, s render.Style) {
+func writeAction(b *strings.Builder, a core.Action, s Style) {
 	glyph := txt.StyleGlyph(txt.GlyphNextAction.Render(s.Profile), txt.SGRCyan, s.Color)
 	if a.Command != nil {
 		cmd := a.Command.Executable + " " + strings.Join(a.Command.Args, " ")

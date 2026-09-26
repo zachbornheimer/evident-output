@@ -5,7 +5,6 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
-	"github.com/zachbornheimer/evident-output/internal/render/plain"
 )
 
 // writeLiveDispositions writes items' tallies at indent as the live frame
@@ -19,13 +18,13 @@ func writeLiveDispositions(b *strings.Builder, indent string, items core.Disposi
 	}
 	s.Verbose = false
 	var full strings.Builder
-	plain.WriteDispositions(&full, indent, items, render.NoDisposition, s)
+	render.WriteDispositions(&full, indent, items, render.NoDisposition, s)
 	if rows = strings.Count(full.String(), "\n"); rows <= maxRows {
 		b.WriteString(full.String())
 		return rows
 	}
 	start := b.Len()
-	plain.WriteTaxonomyHeadline(b, indent, render.DispositionSkipped, items.Skipped, s)
-	plain.WriteTaxonomyHeadline(b, indent, render.DispositionKept, items.Kept, s)
+	render.WriteTaxonomyHeadline(b, indent, render.DispositionSkipped, items.Skipped, s)
+	render.WriteTaxonomyHeadline(b, indent, render.DispositionKept, items.Kept, s)
 	return strings.Count(b.String()[start:], "\n")
 }

@@ -1,4 +1,4 @@
-package plain
+package render
 
 import (
 	"testing"

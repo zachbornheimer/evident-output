@@ -8,7 +8,7 @@ import (
 // (the item is the Task — docs/reference.md) are counted, not listed:
 // "Rendering every child is not a correctness requirement; retaining every
 // child in the model is" and "aggregation is a renderer concern" (contract
-// §25). Human output folds them into one tally per Disposition under the
+// §25). Human output folds them into one tally per disposition under the
 // Group's row ("  ! kept N (...)", §26/§27), and --verbose names every
 // item under its reason. Machine output never calls this; JSON and JSONL
 // keep every child Task.
@@ -31,7 +31,7 @@ func IsDispositionItem(group string, t *core.TaskSnapshot) bool {
 		len(t.Actions) == 0 && len(t.Verification) == 0
 }
 
-// minFoldedItems is the fewest Disposition items a tally replaces when
+// minFoldedItems is the fewest disposition items a tally replaces when
 // no own Task names their subject. One item's own row already is its
 // count, and it carries the item's name: a lone Skipped peer
 // ("○ remote-tracking  - skipped 1 (--skip-fetch)") must not become a
@@ -44,7 +44,7 @@ const (
 )
 
 // ChildCensus is how a Group's child Tasks partition for folding: its own
-// Task, its Disposition items, and whether any other child finished work
+// Task, its disposition items, and whether any other child finished work
 // of its own (a work peer).
 type ChildCensus struct {
 	Items    int
@@ -69,7 +69,7 @@ func censusOf(col core.TasksSnapshot) ChildCensus {
 }
 
 // IsWorkPeer reports whether t, a child that is neither its Group's own
-// Task nor a Disposition item, finished work of its own worth a row. Its
+// Task nor a disposition item, finished work of its own worth a row. Its
 // presence says the Group's children are peer subjects (categories), not
 // items of one subject. A child still in flight is not one yet: it may
 // still resolve as an item.
@@ -77,7 +77,7 @@ func IsWorkPeer(t *core.TaskSnapshot) bool {
 	return core.IsTerminalTask(t.State) && !core.IsZeroInformationTask(*t)
 }
 
-// foldsItems reports whether col's Disposition items fold into a tally:
+// foldsItems reports whether col's disposition items fold into a tally:
 // any of them under a Group's own Task, else at least minFoldedItems
 // under a Group whose Summary names their subject or that has no work
 // peer. Beside a work peer, with no such row, a Skipped or
@@ -95,7 +95,7 @@ func foldsItems(col core.TasksSnapshot) bool {
 	return censusOf(col).Folds(col.Summary)
 }
 
-// folds is foldsItems' rule for a Group with this census and summary.
+// Folds is foldsItems' rule for a Group with this census and summary.
 func (c ChildCensus) Folds(summary string) bool {
 	if c.OwnTask {
 		return c.Items >= minFoldedItemsOwnTask
@@ -103,7 +103,7 @@ func (c ChildCensus) Folds(summary string) bool {
 	return c.Items >= minFoldedItems && (summary != "" || !c.WorkPeer)
 }
 
-// WithoutDispositionItems returns col without its Disposition items, and
+// WithoutDispositionItems returns col without its disposition items, and
 // their summed tallies, when it folds them (foldsItems) — linear in the
 // children, in child order, with no sorting, so a live frame can afford
 // it every tick.

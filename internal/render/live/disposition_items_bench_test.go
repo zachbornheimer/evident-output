@@ -7,7 +7,6 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
-	"github.com/zachbornheimer/evident-output/internal/render/plain"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -68,6 +67,6 @@ func BenchmarkDurable_KeptCategory1k(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		var sb strings.Builder
-		plain.WriteCollection(&sb, col, render.Style{Verbose: true, Profile: txt.GlyphsUnicode})
+		render.WriteCollection(&sb, col, render.Style{Verbose: true, Profile: txt.GlyphsUnicode})
 	}
 }

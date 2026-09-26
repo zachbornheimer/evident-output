@@ -1,10 +1,9 @@
-package plain
+package render
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -59,7 +58,7 @@ func conclusionBandTag(c core.Conclusion) string {
 	return fmt.Sprintf("[%s]", tag)
 }
 
-func WriteConclusion(b *strings.Builder, c core.Conclusion, s render.Style) {
+func WriteConclusion(b *strings.Builder, c core.Conclusion, s Style) {
 	if c.State == core.StateCancelled {
 		writeCancellationBand(b, c, s)
 		return
@@ -91,7 +90,7 @@ func WriteConclusion(b *strings.Builder, c core.Conclusion, s render.Style) {
 // when some Effect committed. The cause is the Conclusion's Explanation (for
 // example "by user"), carried on the band line itself instead of a second
 // sentence beneath it.
-func writeCancellationBand(b *strings.Builder, c core.Conclusion, s render.Style) {
+func writeCancellationBand(b *strings.Builder, c core.Conclusion, s Style) {
 	// "cancelled" already says the run stopped short; a "· partial" modifier
 	// beside it would only repeat that (the not-started rows say which part).
 	tagged := c

@@ -43,7 +43,7 @@ func liveFlattensHeader(col core.TasksSnapshot, items core.Dispositions, height 
 }
 
 // liveHeaderRule is liveFlattensHeader for a frame of height rows.
-func liveHeaderRule(height int) func(col core.TasksSnapshot, items core.Dispositions) bool {
+func liveHeaderRule(height int) render.HeaderRule {
 	return func(col core.TasksSnapshot, items core.Dispositions) bool {
 		return liveFlattensHeader(col, items, height)
 	}
