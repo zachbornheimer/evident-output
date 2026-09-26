@@ -24,3 +24,17 @@ var Analyzers = []*analysis.Analyzer{
 	ReasonOptionAnalyzer,
 	OptionsAnalyzer,
 }
+
+// RemovedNameAnalyzers is the subset of Analyzers whose Category is a
+// stable removed-name rule ID (API-070/090/091/120: Warn/Step/Kept/
+// ReasonOption-ForSkip-OnTask) rather than a rename/config-collapse rule
+// with its own review-side detector. internal/agent/review's directory
+// path runs exactly this subset as its single source of truth for those
+// four rule IDs, instead of a second, review-owned implementation that
+// can drift from the fixer's typed receiver resolution.
+var RemovedNameAnalyzers = []*analysis.Analyzer{
+	WarnAnalyzer,
+	StepAnalyzer,
+	KeptAnalyzer,
+	ReasonOptionAnalyzer,
+}

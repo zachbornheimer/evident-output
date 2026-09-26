@@ -75,11 +75,12 @@ func Load(dir string, patterns ...string) ([]*packages.Package, error) {
 	return pkgs, nil
 }
 
-// runAnalyzers runs every Analyzer over one package and returns its
-// diagnostics with each one's edits still keyed by owner index.
-func runAnalyzers(pkg *packages.Package) (*diagBuild, error) {
+// runAnalyzers runs every analyzer in analyzers over one package and
+// returns its diagnostics with each one's edits still keyed by owner
+// index.
+func runAnalyzers(pkg *packages.Package, analyzers []*analysis.Analyzer) (*diagBuild, error) {
 	b := &diagBuild{edits: map[string][]edit{}}
-	for _, a := range Analyzers {
+	for _, a := range analyzers {
 		pass := &analysis.Pass{
 			Analyzer:  a,
 			Fset:      pkg.Fset,
@@ -246,6 +247,15 @@ func dedupAcrossVariants(b *diagBuild, seenDiag map[[4]any]bool) *diagBuild {
 // when apply is true, writes each surviving fix's edits back to disk
 // (gofmt-formatted).
 func Diagnose(pkgs []*packages.Package, apply bool) ([]Result, error) {
+	return DiagnoseAnalyzers(pkgs, Analyzers, apply)
+}
+
+// DiagnoseAnalyzers is Diagnose over an explicit analyzer subset — the
+// caller decides which removed-name families to run instead of always
+// running the full registry (internal/agent/review's directory path runs
+// only RemovedNameAnalyzers, so its findings never include a rule an
+// unrelated review-side detector already reports).
+func DiagnoseAnalyzers(pkgs []*packages.Package, analyzers []*analysis.Analyzer, apply bool) ([]Result, error) {
 	var results []Result
 	writes := map[string][]edit{}
 	// Tests: true (Load) makes packages.Load return synthetic variants of
@@ -257,7 +267,7 @@ func Diagnose(pkgs []*packages.Package, apply bool) ([]Result, error) {
 	seenDiag := map[[4]any]bool{}
 
 	for _, pkg := range pkgs {
-		b, err := runAnalyzers(pkg)
+		b, err := runAnalyzers(pkg, analyzers)
 		if err != nil {
 			return nil, err
 		}
@@ -298,10 +308,16 @@ func Diagnose(pkgs []*packages.Package, apply bool) ([]Result, error) {
 // Diffs runs Diagnose in dry-run mode and returns each fixable file's
 // unified diff, for the `-diff` CLI flag.
 func Diffs(pkgs []*packages.Package) (map[string]string, error) {
+	return DiffsAnalyzers(pkgs, Analyzers)
+}
+
+// DiffsAnalyzers is Diffs over an explicit analyzer subset; see
+// DiagnoseAnalyzers.
+func DiffsAnalyzers(pkgs []*packages.Package, analyzers []*analysis.Analyzer) (map[string]string, error) {
 	byFile := map[string][]edit{}
 	seenDiag := map[[4]any]bool{} // see dedupAcrossVariants in Diagnose
 	for _, pkg := range pkgs {
-		b, err := runAnalyzers(pkg)
+		b, err := runAnalyzers(pkg, analyzers)
 		if err != nil {
 			return nil, err
 		}

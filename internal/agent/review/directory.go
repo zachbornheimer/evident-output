@@ -44,7 +44,27 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 	if walkErr != nil {
 		return Result{}, fmt.Errorf("review directory %s: %w", dir, walkErr)
 	}
+	// removedNameFindings (API-070/090/091/120) is the directory's single
+	// source of truth for these rule IDs — drop any that slipped in from a
+	// per-file detector before merging its type-checked results, so a
+	// removed name is never reported twice under two different findings.
+	all = filterRuleIDs(all, removedNameRuleIDs)
+	if removed, ok := removedNameFindings(dir); ok {
+		all = append(all, admitDialect(removed, ver)...)
+	}
 	return dialect.Stamp(newResult(all)), nil
+}
+
+// filterRuleIDs drops every finding whose RuleID is in drop.
+func filterRuleIDs(fs []Finding, drop map[string]bool) []Finding {
+	out := fs[:0]
+	for _, f := range fs {
+		if drop[f.RuleID] {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 func skipUnreviewed(d os.DirEntry) error {
