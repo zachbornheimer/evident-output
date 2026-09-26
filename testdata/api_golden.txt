@@ -13,7 +13,6 @@ func (Output) Err()  error
 func (Output) Events()  []Event
 func (Output) Fact(name, value string)
 func (Output) Fail(summary string, options ...ProblemOption)
-func (Output) Failf(format string, args ...any)
 func (Output) Finish()  error
 func (Output) Group(name string)  *GroupHandle
 func (Output) Next(actions ...Action)
@@ -73,9 +72,6 @@ func Delay(d time.Duration)  *time.Duration
 func Destructive()  ConfirmOption
 func Detail(text string)  ProblemOption
 func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)  error
-func EncodeEventJSON(e Event)  []byte,  error
-func EncodeJSON(s Snapshot)  []byte,  error
-func EncodeJSONL(events []Event)  []byte,  error
 func Exec(ctx context.Context, spec ExecSpec)  ExecResult,  error
 func FSPath(path string)  Fingerprint
 func FSResource(path string)  Resource
@@ -130,7 +126,6 @@ type ChangesSnapshot
 type ColorMode
 type CommandSpec
 type Conclusion
-type ConclusionJSON
 type ConclusionState
 type Config
 type ConfirmOption
@@ -142,7 +137,6 @@ type EffectSpec
 type EffectVerb
 type EntityState
 type Event
-type EventJSON
 type EvidencePhase
 type ExecResult
 type ExecSpec
@@ -157,18 +151,6 @@ type FixedClock
 type Format
 type GlyphProfile
 type GroupHandle
-type JSONAction
-type JSONChanges
-type JSONCollection
-type JSONCommand
-type JSONDocument
-type JSONEffectRecord
-type JSONMessage
-type JSONOutputMeta
-type JSONPlan
-type JSONProblem
-type JSONProgress
-type JSONTask
 type LiveSurface
 type LogLevel
 type LogRecord
@@ -285,7 +267,6 @@ value GlyphsAuto
 value GlyphsUnicode
 value Incomplete
 value Indeterminate
-value JSONSchemaVersion
 value LevelDebug
 value LevelError
 value LevelInfo

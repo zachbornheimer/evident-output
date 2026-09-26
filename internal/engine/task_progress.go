@@ -61,18 +61,3 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
 	return true
 }
-
-// step sets absolute progress and the current item name together under
-// one lock, so a concurrent worker can never observe one goroutine's
-// count paired with another goroutine's name — the exact interleaving two
-// separate Progress(...) + Doing(...) calls (two separate locks) allow. The
-// public Step verb was retired in 1.1 (API-090: Progress wins over Step);
-// this unexported body survives only for StepForTest's compatibility-window
-// coverage of that atomicity property.
-func (t *TaskHandle) step(completed, total int, name string) *TaskHandle {
-	return t.annotate(func(st *taskState) {
-		if t.applyProgressLocked(st, int64(completed), int64(total), Determinate) {
-			t.out.setLiveOnlyPhaseLocked(st, name)
-		}
-	})
-}

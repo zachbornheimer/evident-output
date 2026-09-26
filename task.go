@@ -15,8 +15,8 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 }
 
 // Block resolves the Task Blocked: a refusal, not a failure. Use it as a
-// statement; to return the refusal in the same line (including from a
-// Define callback), use Blockf.
+// statement; to return the refusal from a Define callback, wrap it:
+// task.Block(summary); return errors.New(summary).
 func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	t.impl().Block(summary, options...)
 }
@@ -63,7 +63,8 @@ func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 }
 
 // Fail resolves the Task Failed. Use it as a statement; to return the
-// failure as an error in the same line, use Failf.
+// failure as an error from a Define callback, wrap it:
+// task.Fail(summary); return errors.New(summary).
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	t.impl().Fail(summary, options...)
 }
@@ -153,7 +154,7 @@ func (t *TaskHandle) Wait() error {
 // AlreadySatisfied without running it) and again after a successful
 // callback (any false fails the Task with ProblemCodeVerificationUnsatisfied).
 // The after-check is skipped in two cases only: Define resolved the Task
-// itself (Block, or Kept/Skipped with no Effect committed first), or a dry
+// itself (Block, or Skipped with no Effect committed first), or a dry
 // run or preview skipped an Effect Define planned. A planned run whose
 // Define planned nothing is checked like a real one.
 func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {

@@ -122,7 +122,7 @@ func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	raw, err := evo.EncodeJSONL(out.Events())
+	raw, err := evo.EncodeJSONLForTest(out.Events())
 	if err != nil {
 		t.Fatal(err)
 	}

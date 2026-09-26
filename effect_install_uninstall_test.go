@@ -65,11 +65,11 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 		if err := out.Finish(); err != nil {
 			t.Fatal(err)
 		}
-		data, err := evo.EncodeJSON(out.Snapshot())
+		data, err := evo.EncodeJSONForTest(out.Snapshot())
 		if err != nil {
 			t.Fatal(err)
 		}
-		var doc evo.JSONDocument
+		var doc evo.JSONDocumentForTest
 		if err := json.Unmarshal(data, &doc); err != nil {
 			t.Fatal(err)
 		}

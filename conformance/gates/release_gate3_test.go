@@ -3,6 +3,7 @@ package gates_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -44,7 +45,7 @@ func TestFinish_PhaseOnlyTaskCleanReturn_NeverCancels(t *testing.T) {
 
 // TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels proves the
 // paired half of finding 1: when the run really was interrupted (here, an
-// application error recorded via Output.Failf before Finish), a leftover
+// application error recorded via Output.Fail before Finish), a leftover
 // Running task still reads as Cancelled — the existing signal/error
 // behavior must not regress.
 func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
@@ -53,7 +54,7 @@ func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
 
 	leftover := out.Task("connect")
 	leftover.Doing("connecting")
-	out.Failf("stopped: %v", "disk full")
+	out.Fail(fmt.Sprintf("stopped: %v", "disk full"))
 
 	_ = out.Finish()
 	if got := leftover.Snapshot().State; got != evo.Cancelled {

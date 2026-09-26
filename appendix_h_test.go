@@ -335,7 +335,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	if human.ExitCode != machineSnap.Conclusion.ExitCode {
 		t.Fatalf("human exit = %d, machine exit = %d", human.ExitCode, machineSnap.Conclusion.ExitCode)
 	}
-	raw, err := evo.EncodeJSON(snap)
+	raw, err := evo.EncodeJSONForTest(snap)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +346,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 		t.Fatalf("json missing blocked state:\n%s", raw)
 	}
 	// JSONL: one object per line, increasing sequence
-	lines, err := evo.EncodeJSONL(out.Events())
+	lines, err := evo.EncodeJSONLForTest(out.Events())
 	if err != nil {
 		t.Fatal(err)
 	}

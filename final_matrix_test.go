@@ -50,7 +50,7 @@ func TestOUT008_InferenceInEvents(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	raw, _ := evo.EncodeJSONL(out.Events())
+	raw, _ := evo.EncodeJSONLForTest(out.Events())
 	if !strings.Contains(string(raw), "output.finished") {
 		t.Fatal(string(raw))
 	}
@@ -61,7 +61,7 @@ func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	b, err := evo.EncodeJSON(out.Snapshot())
+	b, err := evo.EncodeJSONForTest(out.Snapshot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestAPI017_PureProjection(t *testing.T) {
 	if err != nil || len(b) == 0 {
 		t.Fatal(err, len(b))
 	}
-	j, err := evo.EncodeJSON(snap)
+	j, err := evo.EncodeJSONForTest(snap)
 	if err != nil || !strings.Contains(string(j), "schema_version") {
 		t.Fatal(err, string(j))
 	}

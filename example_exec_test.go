@@ -81,7 +81,7 @@ func ExampleExec() {
 // liveness, and cancellation; the caller only inspects the returned
 // ExecResult (spec §8.4/ZYS-850). A nonzero exit wraps ErrExecNonzeroExit
 // but still returns the captured ExecResult, so a linter's own findings can
-// become a structured Failf instead of a flattened text blob.
+// become a structured Fail instead of a flattened text blob.
 func ExampleExecResult() {
 	runner := testkit.NewProcessRunner()
 	runner.Script("/usr/bin/lint", testkit.ScriptedProcess{

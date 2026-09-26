@@ -130,7 +130,7 @@ func TestEVOOutput_StreamJSON_TaskDoneEmitsEventJSONBeforeFinish(t *testing.T) {
 	}
 	var sawTaskDone bool
 	for line := range strings.SplitSeq(got, "\n") {
-		var ev evo.EventJSON
+		var ev evo.EventJSONForTest
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			t.Fatalf("stream-json line before Finish is not EventJSON: %v\n%s", err, line)
 		}
@@ -163,7 +163,7 @@ func TestEVOOutput_StreamJSON_FormatDataKeepsPayloadOnStdout(t *testing.T) {
 	}
 	var sawTaskDone bool
 	for line := range strings.SplitSeq(strings.TrimSpace(beforeFinish), "\n") {
-		var ev evo.EventJSON
+		var ev evo.EventJSONForTest
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			t.Fatalf("stderr JSONL is not EventJSON: %v\n%s", err, line)
 		}
@@ -229,7 +229,7 @@ func TestEVOOutput_StreamJSONAliasUnderscore(t *testing.T) {
 	if got == "" {
 		t.Fatal("EVO_OUTPUT=stream_json alias wrote nothing at Task.Done")
 	}
-	var ev evo.EventJSON
+	var ev evo.EventJSONForTest
 	first := strings.SplitN(got, "\n", 2)[0]
 	if err := json.Unmarshal([]byte(first), &ev); err != nil {
 		t.Fatalf("stream_json alias must emit EventJSON: %v\n%s", err, first)

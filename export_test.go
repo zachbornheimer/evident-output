@@ -7,7 +7,42 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/engine"
+	"github.com/zachbornheimer/evident-output/internal/render"
 )
+
+// The JSON*ForTest aliases and Encode*ForTest functions below keep the
+// legacy output.v1/event.v1 detailed-document encoders (internal/render)
+// covered from package-external tests during the compatibility window,
+// mirroring StepForTest's rationale: the owner vocabulary freeze
+// (2026-09-25) removed JSONDocument/EncodeJSON/EncodeJSONL/EncodeEventJSON
+// and the JSON* wire types from the public dialect (WriteJSON's v2 "evo.run"
+// document is the sanctioned external JSON path), but the internal
+// render.EncodeJSON/EncodeJSONL machinery FormatJSON/FormatJSONL still call
+// at Finish (internal/engine/machine.go) is unaffected and stays regression
+// tested through these test-only aliases rather than dropped.
+
+type JSONDocumentForTest = render.JSONDocument
+type JSONMessageForTest = render.JSONMessage
+type JSONOutputMetaForTest = render.JSONOutputMeta
+type ConclusionJSONForTest = render.ConclusionJSON
+type JSONProblemForTest = render.JSONProblem
+type JSONTaskForTest = render.JSONTask
+type JSONProgressForTest = render.JSONProgress
+type JSONCollectionForTest = render.JSONCollection
+type JSONChangesForTest = render.JSONChanges
+type JSONPlanForTest = render.JSONPlan
+type JSONEffectRecordForTest = render.JSONEffectRecord
+type JSONActionForTest = render.JSONAction
+type JSONCommandForTest = render.JSONCommand
+type EventJSONForTest = render.EventJSON
+
+const JSONSchemaVersionForTest = render.JSONSchemaVersion
+
+func EncodeJSONForTest(s Snapshot) ([]byte, error) { return render.EncodeJSON(s) }
+func EncodeJSONLForTest(events []Event) ([]byte, error) {
+	return render.EncodeJSONL(events)
+}
+func EncodeEventJSONForTest(e Event) ([]byte, error) { return render.EncodeEventJSON(e) }
 
 func SwapLookupEnv(fn func(string) string) func() { return engine.SwapLookupEnv(fn) }
 func MarkWriterAsCharDevice(w io.Writer) func()   { return engine.MarkWriterAsCharDevice(w) }
@@ -108,21 +143,6 @@ func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error {
 		return nil
 	}
 	return t.inner.RunForTest(cmd)
-}
-
-// StepForTest keeps the retired Step (API-090: Progress wins over Step)
-// callable from package-external tests during the compatibility window,
-// specifically so its atomic completed+total+phase update under one lock
-// stays covered (TestAPISugar_StepConcurrentWorkersNeverInterleave) — a
-// property Progress(completed, total).Doing(name)'s two separate calls do
-// not have. The evident-output fix analyzer scopes API-090 to exempt this
-// shim by name (isNamedCompatTestShim) rather than rewriting it.
-func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
-	if t == nil || t.inner == nil {
-		return t
-	}
-	t.inner.StepForTest(completed, total, name)
-	return t
 }
 
 func (t *TaskHandle) CaptureForTest(opts ...CaptureOption) *Capture {

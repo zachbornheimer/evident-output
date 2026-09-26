@@ -49,7 +49,7 @@ var errVerificationUnsatisfied = errors.New("evo: postcondition not satisfied")
 // plainly. Neither check commits a success record on its own; only a fully
 // satisfied pass (pre- or post-) does. The after-check is skipped in two
 // cases only (hasPostStateToVerify): Define resolved the Task itself
-// (Block, or Kept/Skipped with no Effect committed first), or a dry run or
+// (Block, or Skipped with no Effect committed first), or a dry run or
 // preview skipped an Effect Define planned, so the observed state is the
 // one before the plan. A planned run whose Define planned nothing is
 // checked like a real one.

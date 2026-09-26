@@ -97,11 +97,12 @@ go run ./cmd/evident-output version
 ```go
 snap := out.Snapshot()
 plain, _ := evo.RenderPlain(snap, evo.PlainOptions{Width: 80})
-jsonBytes, _ := evo.EncodeJSON(snap)
-jsonl, _ := evo.EncodeJSONL(out.Events())
+result := out.Run(context.Background(), func(context.Context) error { return nil })
+var jsonBuf bytes.Buffer
+_ = evo.WriteJSON(&jsonBuf, result)
 ```
 
-Schemas: `../schema/output.v1.json`, `../schema/event.v1.json`.
+Schema: `../schema/output.v1.json`.
 
 ## Production ANSI driver
 

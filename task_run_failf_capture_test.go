@@ -46,7 +46,7 @@ func TestRun_ThenFail_RendersChildStderrInFinalReport(t *testing.T) {
 	if state := out.Conclusion().State; state != evo.StateFailed {
 		t.Fatalf("state = %v, want StateFailed", state)
 	}
-	// Failf commits the resolved row durably at resolution time
+	// Fail commits the resolved row durably at resolution time
 	// (release-gate round 5 finding 3, commitResolvedTaskLocked) rather than
 	// waiting for WriteFinal — PersistedText covers both durable and final.
 	persisted := screen.PersistedText()

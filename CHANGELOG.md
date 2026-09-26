@@ -128,6 +128,15 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   masks by the umask), and an unmanaged rewrite now passes the file's
   existing mode instead of `0666`.
 
+- **`Fail`/`Block`'s auto-attached retained capture now fills
+  `Problem.CaptureTail`, never `Detail`** (wire-visible: the `evo.run`
+  Problem's `evidence_tail` key, not `detail`). This generalizes the
+  `Failf`/`Blockf` auto-attach dedupe path (see Removed) to every
+  `Fail`/`Block` call with a retained capture, not only the removed `*f`
+  spellings, so a summary that already folds the same capture text into
+  its own words still dedupes at render time
+  (`dedupeCaptureTailAgainstRow`) instead of repeating it underneath.
+
 - **A `Kept` record now concludes `warned` (contract §18).** Any Task that
   records `Kept(reason)` sets `Conclusion.Warned`, the `--json`
   `conclusion.warned` field, and the `· warned` band, so a run that kept
@@ -178,13 +187,26 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
   guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`
   takes only its name. Review rule API-064 flags the old calls.
-- **`TaskHandle.Blockf`, `TaskHandle.Failf`, `evo.Failure`, and
-  `Failure.Error/Next/NextCommand/Unwrap`** were removed with no alias
-  (owner vocabulary freeze, 2026-09-25). Both are compatibility sugar
-  around the same-line `%w`-wrapped return; the paved path is now `Block`/
-  `Fail` as a statement, then `return <plain error>` (inside `Define`) or
-  `return fmt.Errorf(...)`/a returned sentinel elsewhere. `Output.Failf`
-  is unaffected (see its own doc comment for why it stays void).
+- **`TaskHandle.Blockf`, `TaskHandle.Failf`, `Output.Failf`, `evo.Failure`,
+  and `Failure.Error/Next/NextCommand/Unwrap`** were removed with no alias
+  (owner vocabulary freeze, 2026-09-25: `Output.Failf` → `Fail`). All are
+  compatibility sugar around a same-line `%w`-wrapped return; the paved
+  path is now `Block`/`Fail` as a statement, folding any wrapped-error
+  text into the summary string, then `return <plain error>` (inside
+  `Define`) or `return fmt.Errorf(...)`/a returned sentinel elsewhere.
+- **`evo.JSONDocument`, `evo.EncodeJSON`, `evo.EncodeJSONL`,
+  `evo.EncodeEventJSON`, `evo.JSONSchemaVersion`, and the rest of the
+  legacy output.v1/event.v1 wire type aliases** (`JSONMessage`,
+  `JSONOutputMeta`, `ConclusionJSON`, `JSONProblem`, `JSONTask`,
+  `JSONProgress`, `JSONCollection`, `JSONChanges`, `JSONPlan`,
+  `JSONEffectRecord`, `JSONAction`, `JSONCommand`, `EventJSON`) were
+  removed from the public API with no alias (owner vocabulary freeze,
+  2026-09-25). `WriteJSON`'s `evo.run`/`evo.event` v2 documents (also what
+  `FormatJSON`/`FormatJSONL` write) are the one sanctioned external JSON
+  path. The output.v1/event.v1 projection itself is untouched internally —
+  `EVO_OUTPUT=json`/`jsonl` with an explicit `FormatData`/`FormatExternal`
+  still writes it to stderr exactly as before — only the public Go
+  encoder call for it is gone.
 - **`TaskHandle.Step`** was removed with no alias (API-090: Progress wins
   over Step). Use `task.Progress(completed, total).Doing(name)`.
 - **`TaskHandle.Kept`** was removed with no alias. `Kept` was never
