@@ -3,6 +3,7 @@ package fix_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -32,6 +33,22 @@ func wantDiagnostics(src string) map[int]string {
 	return want
 }
 
+// matchMessage reports whether got matches the `// want` annotation's
+// regexp, the same semantics golang.org/x/tools/go/analysis/analysistest
+// uses for its own `// want` comments — analysistest anchors neither end,
+// so a message containing the pattern anywhere satisfies it.
+func matchMessage(t *testing.T, name string, line int, wantPattern, got string) {
+	t.Helper()
+	re, err := regexp.Compile(wantPattern)
+	if err != nil {
+		t.Fatalf("%s: line %d: invalid want regexp %q: %v", name, line, wantPattern, err)
+		return
+	}
+	if !re.MatchString(got) {
+		t.Errorf("%s: line %d: diagnostic message %q does not match want `%s`", name, line, got, wantPattern)
+	}
+}
+
 // runFixture type-checks src against the real evo module (via a throwaway
 // module with a replace directive, run_test.go's writeModule pattern),
 // diagnoses it, asserts every `// want` line fired, then applies the
@@ -54,14 +71,17 @@ func runFixture(t *testing.T, name, src, golden string) {
 	if len(results) != 1 {
 		t.Fatalf("%s: want 1 package result, got %d", name, len(results))
 	}
-	gotByLine := map[int]bool{}
+	gotByLine := map[int]string{}
 	for _, d := range results[0].Diagnostics {
-		gotByLine[d.Line] = true
+		gotByLine[d.Line] = d.Message
 	}
-	for line := range want {
-		if !gotByLine[line] {
+	for line, wantPattern := range want {
+		got, ok := gotByLine[line]
+		if !ok {
 			t.Errorf("%s: line %d: want a diagnostic, got none", name, line)
+			continue
 		}
+		matchMessage(t, name, line, wantPattern, got)
 	}
 	for line := range gotByLine {
 		if _, ok := want[line]; !ok {
