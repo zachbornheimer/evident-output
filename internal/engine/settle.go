@@ -13,15 +13,24 @@ package engine
 //   - its collections' tallies move, and every Task parked on it (or on a
 //     collection it just resolved) is placed again (see wakeLocked).
 //
-// It also owns the evidence rule (honestOutcome): a success-class target
-// over a Task holding a Problem settles Failed, whichever path asked.
+// target is the raw, undecided outcome the caller wants (Done, Failed,
+// Blocked, ...); hasProblems is whether the Task already carries a
+// Problem. settleLocked passes both straight to State.Settle, which runs
+// Decide and writes the result in one call — the evidence rule fires a
+// single time per resolution, inside lifecycle, rather than once in the
+// caller and again here. ok reports whether the Task actually moved:
+// State.Settle refuses to re-settle a Task that is already terminal, so a
+// caller racing a second resolution onto the same Task gets false back
+// and does none of the bookkeeping below a second time. resolved is the
+// Decide'd value that was actually stored, valid only when ok is true.
 //
 // Callers own only what differs between paths: the summary, the Problems,
 // and where the settled row is committed. Callers must already hold o.mu.
-func (o *Output) settleLocked(st *taskState, state EntityState) {
-	state = st.honestOutcome(state)
-	from := st.state
-	st.state = state
+func (o *Output) settleLocked(st *taskState, target EntityState, hasProblems bool) (resolved EntityState, ok bool) {
+	resolved, from, ok := st.state.Settle(target, hasProblems)
+	if !ok {
+		return resolved, false
+	}
 	st.censusMoved(from)
 	st.phase = ""
 	o.stopPlainHeartbeatLocked(st)
@@ -30,6 +39,7 @@ func (o *Output) settleLocked(st *taskState, state EntityState) {
 		o.abandonLocked(st)
 	}
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "task." + string(state), EntityID: st.id})
+	o.appendEventLocked(Event{Type: "task." + string(resolved), EntityID: st.id})
 	o.propagateSettleLocked(st)
+	return resolved, true
 }

@@ -4,17 +4,6 @@ import (
 	"context"
 )
 
-// honestOutcome is the one rule between a Task's blocking Problems and its
-// terminal state: a Task holding any Problem cannot settle success-class,
-// so a Done or Skipped claim over one settles Failed. settleLocked applies
-// it to every path that ends a Task.
-func (st *taskState) honestOutcome(state EntityState) EntityState {
-	if declaresSuccess(state) && len(st.problems) > 0 {
-		return Failed
-	}
-	return state
-}
-
 // attachCaptureTail gives a Failed or Blocked row's Problems the capture
 // tail the Task already gathered, so the detail a caller collected through
 // capture()/PhaseWriter() needs no opt-in (beginner-2). A Problem with its
@@ -49,7 +38,7 @@ func (o *Output) commitSettledLocked(st *taskState) {
 		o.commitResolvedTaskLocked(st.id)
 		o.commitNamedEffectsLocked(st.id)
 	}
-	if st.state != Done {
+	if st.state.Current() != Done {
 		return
 	}
 	runCtx := o.ctx

@@ -128,7 +128,7 @@ func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, na
 		Code:    ProblemCodeDuplicateSiblingName,
 		Summary: fmt.Sprintf("duplicate %s name", kind),
 	}})
-	o.settleLocked(st, Failed)
+	o.settleLocked(st, Failed, false)
 	o.recordMisuseFor(name, ErrDuplicateSiblingName)
 	return rejected
 }

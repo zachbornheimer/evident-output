@@ -85,7 +85,7 @@ func (o *Output) abandonStrandedLocked() bool {
 		return false
 	}
 	for _, st := range o.tasks {
-		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state) {
+		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state.Current()) {
 			o.markNotStartedLocked(st)
 		}
 	}
@@ -145,7 +145,7 @@ func (o *Output) anyStartableLocked() bool {
 // already terminal — it is about to wake on its own doneCh.
 func (o *Output) anyAwaitedTaskResolvedLocked() bool {
 	for ticket := range o.sched.waits {
-		if st := o.taskByRef[ticket.taskID]; st != nil && core.IsTerminalTask(st.state) {
+		if st := o.taskByRef[ticket.taskID]; st != nil && core.IsTerminalTask(st.state.Current()) {
 			return true
 		}
 	}

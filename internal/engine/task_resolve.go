@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine/lifecycle"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -113,12 +114,6 @@ type proposedOutcome struct {
 	problems []Problem
 }
 
-// declaresSuccess reports whether state claims the work went well — the
-// class of claim only the scheduler's observation can ratify.
-func declaresSuccess(state EntityState) bool {
-	return state == Done || state == Skipped
-}
-
 // deniesItsOwnEffect reports whether this resolution is an evo.Effect
 // callback disowning the work it was given: an Effect creating "module"
 // whose fn calls Skipped or Fail and then returns nil rendered both `! skipped 1
@@ -154,25 +149,34 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		t.out.recordMisuse(err)
 		return t
 	}
-	if core.IsTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state.Current()) {
 		t.out.recordAlreadyResolvedLocked(st.name, summary)
 		return t
 	}
 	if deniesItsOwnEffect(st, state, authority) {
 		st.effectDenials++
 	}
-	if st.sched.submitted() && authority == byCaller && declaresSuccess(state) {
+	if st.sched.submitted() && authority == byCaller && lifecycle.DeclaresSuccess(state) {
 		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
 		return t
 	}
-	state = st.honestOutcome(state)
+	hasProblems := len(st.problems) > 0
+	resolved, ok := t.out.settleLocked(st, state, hasProblems)
+	if !ok {
+		// The guard above already turned away a Task that was terminal
+		// when this call started; State.Settle's own rejection here is
+		// belt-and-suspenders against a resolution racing in between (the
+		// caller still holds o.mu across both, so this should not be
+		// reachable) — never silently discard the mutations below.
+		t.out.recordAlreadyResolvedLocked(st.name, summary)
+		return t
+	}
 	if summary != "" {
 		st.summary = txt.Text(summary)
 	}
-	if len(problems) > 0 || len(st.problems) > 0 {
-		st.problems = core.StoreProblems(st.attachCaptureTail(state, slices.Concat(st.problems, problems)))
+	if len(problems) > 0 || hasProblems {
+		st.problems = core.StoreProblems(st.attachCaptureTail(resolved, slices.Concat(st.problems, problems)))
 	}
-	t.out.settleLocked(st, state)
 	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, taskFinishedPayload(st))
 	t.out.commitSettledLocked(st)
 	return t
@@ -182,7 +186,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 // state, why it settled, and its Summary when it has one (ZYS-971).
 func taskFinishedPayload(st *taskState) map[string]any {
 	payload := map[string]any{
-		"state":      string(st.state),
+		"state":      string(st.state.Current()),
 		"resolution": string(st.resolution),
 	}
 	if st.summary != "" {

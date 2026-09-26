@@ -27,7 +27,7 @@ func (t *TaskHandle) submitWork(fn func() error) {
 		o.mu.Unlock()
 		return
 	}
-	if core.IsTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state.Current()) {
 		o.recordMisuseFor(st.name, ErrAlreadyResolved)
 		o.mu.Unlock()
 		return
@@ -120,9 +120,7 @@ func (o *Output) takeSlotLocked() {
 func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error) {
 	o.enterPhaseLocked(cand, phaseRunning)
 	o.sched.executing++
-	if cand.state == Pending {
-		o.promoteRunningLocked(cand)
-	}
+	o.promoteRunningLocked(cand)
 	o.bumpLocked()
 	// Forced, within the live render budget: a start is the spinner FP-005
 	// requires before the check.
@@ -229,7 +227,7 @@ func (o *Output) taskIsTerminal(st *taskState) bool {
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return core.IsTerminalTask(st.state)
+	return core.IsTerminalTask(st.state.Current())
 }
 
 // runTrackedCallback runs fn while the scheduler knows which goroutine is
@@ -285,7 +283,7 @@ func (o *Output) drainScheduler() {
 // markNotStartedLocked settles st NotStarted: work that will now never run.
 func (o *Output) markNotStartedLocked(st *taskState) {
 	st.summary = notStartedSummary
-	o.settleLocked(st, NotStarted)
+	o.settleLocked(st, NotStarted, false)
 }
 
 // abandonLocked releases the scheduler's hold on submitted work that
@@ -341,7 +339,7 @@ func (o *Output) stopFollowersLocked(c *tasksState, branch int) {
 // stopUnstartedLocked settles st NotStarted unless it already started or
 // resolved.
 func (o *Output) stopUnstartedLocked(st *taskState) {
-	if core.IsTerminalTask(st.state) || st.sched.phase == phaseRunning {
+	if core.IsTerminalTask(st.state.Current()) || st.sched.phase == phaseRunning {
 		return
 	}
 	o.markNotStartedLocked(st)

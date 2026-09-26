@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"github.com/zachbornheimer/evident-output/internal/engine/lifecycle"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -18,15 +19,18 @@ func (o *Output) failWith(p Problem) {
 		o.recordMisuse(err)
 		return
 	}
-	// Synthetic failed task for conclusion.
+	// Synthetic failed task for conclusion: never has a Running/Pending
+	// phase of its own, so it settles straight from Declared() through
+	// Settle rather than going through promoteRunningLocked/settleLocked.
 	st := &taskState{
 		id:          o.nextID("task"),
 		name:        txt.Text(o.cfg.subject),
-		state:       Failed,
+		state:       lifecycle.Declared(),
 		problems:    []Problem{p},
 		declaration: o.nextDecl(),
 		synthetic:   true,
 	}
+	st.state.Settle(Failed, true)
 	if st.name == "" {
 		st.name = identityFallbackName()
 	}
@@ -50,11 +54,12 @@ func (o *Output) Cancel(reason string) {
 	t := &taskState{
 		id:          o.nextID("task"),
 		name:        name,
-		state:       Cancelled,
+		state:       lifecycle.Declared(),
 		summary:     txt.Text(reason),
 		declaration: o.nextDecl(),
 		synthetic:   true,
 	}
+	t.state.Settle(Cancelled, false)
 	o.appendTaskLocked(t)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "output.cancelled"})

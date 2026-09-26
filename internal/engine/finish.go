@@ -66,11 +66,11 @@ func (o *Output) Finish() error {
 func (o *Output) settleUnresolvedTasksLocked() {
 	abnormal := o.abnormalFinishLocked()
 	for _, t := range o.tasks {
-		if core.IsTerminalTask(t.state) {
+		if core.IsTerminalTask(t.state.Current()) {
 			continue
 		}
 		if len(t.problems) > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || len(t.warnings) > 0 {
-			o.settleLocked(t, Done)
+			o.settleLocked(t, Done, len(t.problems) > 0)
 			continue
 		}
 		if !abnormal {
@@ -86,14 +86,14 @@ func (o *Output) settleUnresolvedTasksLocked() {
 			// into Conclusion.Partial), not bookkeeping the caller must fix.
 			// The hint still names the corrective action either way.
 			t.summary = unresolvedTaskIncompleteSummary
-			o.settleLocked(t, Incomplete)
+			o.settleLocked(t, Incomplete, false)
 			attachUnresolvedTaskHintLocked(t)
 			continue
 		}
 		o.resolveUnstartedTaskLocked(t)
 		// A declared task that never started is work the failure or
 		// interrupt took away. That is the answer, not misuse.
-		if t.state == NotStarted {
+		if t.state.Current() == NotStarted {
 			continue
 		}
 		o.recordMisuseFor(t.name, ErrUnresolvedTask)
@@ -240,13 +240,13 @@ func hasRecordedTaxonomy(t *taskState) bool {
 // non-terminal task to Incomplete directly instead, regardless of whether it
 // ever reached Running — release-gate round 4 finding 3).
 func (o *Output) resolveUnstartedTaskLocked(t *taskState) {
-	if t.state == Running {
+	if t.state.Current() == Running {
 		t.summary = unresolvedTaskCancelledSummary
-		o.settleLocked(t, Cancelled)
+		o.settleLocked(t, Cancelled, false)
 		return
 	}
 	t.summary = notStartedSummary
-	o.settleLocked(t, NotStarted)
+	o.settleLocked(t, NotStarted, false)
 }
 
 // abnormalFinishLocked reports whether the run already carries a real Failed
@@ -258,7 +258,7 @@ func (o *Output) resolveUnstartedTaskLocked(t *taskState) {
 // finding 1).
 func (o *Output) abnormalFinishLocked() bool {
 	for _, t := range o.tasks {
-		if t.state == Failed || t.state == Cancelled {
+		if t.state.Current() == Failed || t.state.Current() == Cancelled {
 			return true
 		}
 	}
@@ -285,16 +285,16 @@ func (o *Output) autoResolveGroupsLocked() {
 		triggered := false
 		for _, t := range col.tasks {
 			if !triggered {
-				if t.state == Failed || t.state == Cancelled {
+				if t.state.Current() == Failed || t.state.Current() == Cancelled {
 					triggered = true
 				}
 				continue
 			}
-			if core.IsTerminalTask(t.state) {
+			if core.IsTerminalTask(t.state.Current()) {
 				continue
 			}
 			t.summary = notStartedSummary
-			o.settleLocked(t, NotStarted)
+			o.settleLocked(t, NotStarted, false)
 		}
 	}
 }

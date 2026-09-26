@@ -53,11 +53,11 @@ func (s *taskSchedule) awaitingStart() bool {
 // awaitingStart reports whether st is submitted work nobody has started or
 // resolved.
 func (st *taskState) awaitingStart() bool {
-	return st.sched.awaitingStart() && !core.IsTerminalTask(st.state)
+	return st.sched.awaitingStart() && !core.IsTerminalTask(st.state.Current())
 }
 
 // neverDefined reports whether st is still waiting on its caller: declared,
 // never Defined, and not resolved by a verb either.
 func (st *taskState) neverDefined() bool {
-	return st.sched.phase == phaseDeclared && !core.IsTerminalTask(st.state)
+	return st.sched.phase == phaseDeclared && !core.IsTerminalTask(st.state.Current())
 }

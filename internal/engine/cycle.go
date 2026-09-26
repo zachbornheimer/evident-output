@@ -47,7 +47,7 @@ func (o *Output) waitsForLocked(n depNode) []depNode {
 		return out
 	}
 	for _, t := range n.col.tasks {
-		if !core.IsTerminalTask(t.state) {
+		if !core.IsTerminalTask(t.state.Current()) {
 			out = append(out, depNode{task: t})
 		}
 	}
@@ -140,7 +140,7 @@ func (o *Output) blockCyclesLocked() bool {
 		}
 		path := strings.Join(names, " → ")
 		for _, n := range cycle {
-			if st := n.task; st != nil && st.sched.phase == phaseParked && !core.IsTerminalTask(st.state) {
+			if st := n.task; st != nil && st.sched.phase == phaseParked && !core.IsTerminalTask(st.state.Current()) {
 				o.blockInCycleLocked(st, path)
 			}
 		}
@@ -156,5 +156,5 @@ func (o *Output) blockInCycleLocked(st *taskState, path string) {
 	summary := txt.Text("dependency cycle: " + path)
 	st.summary = summary
 	st.problems = append(st.problems, core.StoreProblems([]Problem{{Summary: summary}})...)
-	o.settleLocked(st, Blocked)
+	o.settleLocked(st, Blocked, false)
 }

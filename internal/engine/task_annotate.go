@@ -42,8 +42,8 @@ func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
 			t.out.recordMisuse(err)
 			return
 		}
-		if core.IsTerminalTask(st.state) {
-			if !resolvedByInterrupt(st.state) {
+		if core.IsTerminalTask(st.state.Current()) {
+			if !resolvedByInterrupt(st.state.Current()) {
 				t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 			}
 			return
@@ -88,11 +88,10 @@ func (t *TaskHandle) setLiveOnlyPhase(text string) {
 func (o *Output) setPhaseLocked(st *taskState, text string) {
 	st.phase = txt.Text(text)
 	st.activityAt = o.cfg.clock.Now()
-	if st.state == Pending {
-		o.promoteRunningLocked(st)
-		if st.progress.Kind == "" {
-			st.progress.Kind = Indeterminate
-		}
+	wasPending := st.state.Current() == Pending
+	o.promoteRunningLocked(st)
+	if wasPending && st.progress.Kind == "" {
+		st.progress.Kind = Indeterminate
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
@@ -117,11 +116,10 @@ func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	}
 	st.phase = text
 	st.activityAt = o.cfg.clock.Now()
-	if st.state == Pending {
-		o.promoteRunningLocked(st)
-		if st.progress.Kind == "" {
-			st.progress.Kind = Indeterminate
-		}
+	wasPending := st.state.Current() == Pending
+	o.promoteRunningLocked(st)
+	if wasPending && st.progress.Kind == "" {
+		st.progress.Kind = Indeterminate
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
@@ -153,7 +151,7 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 // Severity decides what the Problem does to the Task. The default,
 // SeverityError, means the Task can never settle success-class: Done,
 // Skipped, or Finish's amnesty for an unresolved Task all settle Failed
-// instead (see honestOutcome). SeverityWarning annotates only: it sets
+// instead (see lifecycle.decide, applied inside Settle). SeverityWarning annotates only: it sets
 // "warned", renders as a warning row, and never fails the Task.
 func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
 	p := applyProblemOptions(txt.Text(summary), opts)

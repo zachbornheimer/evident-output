@@ -46,7 +46,7 @@ func (t *TaskHandle) recordTaxonomyLocked(st *taskState, reason TaxonomyReason, 
 		t.out.recordMisuse(err)
 		return
 	}
-	if core.IsTerminalTask(st.state) {
+	if core.IsTerminalTask(st.state.Current()) {
 		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return
 	}
