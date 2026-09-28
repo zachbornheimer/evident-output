@@ -433,8 +433,8 @@ func renderV8AlreadySatisfied(t *testing.T, verbosity evo.Verbosity) string {
 // TestV8_StressLive is the golden for the HTML "Stress case" Replay tab's
 // live shape: a still-running Group with mixed done/running/failed children,
 // a warning on a running child, and a real evo.File permissions failure.
-// Spec wins vs the HTML where they disagree: elapsed only after 5s Running
-// (this golden advances 8s, past that threshold); empty bar cells are
+// The elapsed suffix is visible once two seconds have passed (contract §18).
+// This golden advances 8s, past that threshold; empty bar cells are
 // spaces; the live region does not invent a [changed]/[planned] ledger
 // unless Region itself paints one.
 func TestV8_StressLive(t *testing.T) {

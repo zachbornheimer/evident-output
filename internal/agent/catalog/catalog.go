@@ -132,7 +132,7 @@ presence, decides whether a container's own header row is visible or collapses i
 is independent of whether the children underneath are Tasks or further nested containers.
 
 Heartbeat: any unresolved row (Running or Pending), and any unfinished container header, gains an elapsed
-suffix ("pushing feat/a — 5s") 5s after it is first actually painted in the live region — monotonic, never reset
+suffix ("pushing feat/a — 2s") 2s after it is first actually painted in the live region — monotonic, never reset
 by Doing/Progress activity, so a stale spinner is never indistinguishable from progress and a queued row ages
 honestly even if nothing ever touches it.
 

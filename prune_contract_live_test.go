@@ -32,11 +32,8 @@ type liveCategory struct {
 // category's own Task is still Running, whatever Skipped children it
 // already has (the count could still grow before it settles).
 //
-// One documented departure, already established by TestV8_LiveParallelPrune:
-// the doc's own illustrative frame shows "— 2s", but spec §24 fixes the
-// elapsed-suffix threshold at 5 seconds of actual Running time
-// (internal/render/live/live.go's elapsedAfter) — this advances the clock 5s,
-// not 2s, and pins "— 5s".
+// The live frame shows the elapsed suffix once two seconds have passed,
+// matching contract §18 and the v9b prune frame ("— 2s").
 func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
@@ -74,17 +71,17 @@ func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 		<-classifying
 		repaint = append(repaint, func() { work.Progress(c.done, c.total) })
 	}
-	clock.Advance(5 * time.Second)
+	clock.Advance(2 * time.Second)
 	for _, paint := range repaint {
 		paint()
 	}
 
 	glyph := firstRune(screen.LatestLiveText())
-	want := glyph + " branches         [████        ]  120/459  — 5s\n" +
+	want := glyph + " branches         [████        ]  120/459  — 2s\n" +
 		"  " + glyph + " feat/style-contract\n" +
-		glyph + " worktrees        [███         ]   70/294  — 5s\n" +
+		glyph + " worktrees        [███         ]   70/294  — 2s\n" +
 		"  " + glyph + " eapp-system-style-contract-heading\n" +
-		glyph + " remote-tracking  [███         ]    1/4    — 5s\n" +
+		glyph + " remote-tracking  [███         ]    1/4    — 2s\n" +
 		"  " + glyph + " origin/old-style"
 	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)

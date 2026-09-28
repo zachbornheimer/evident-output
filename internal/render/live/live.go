@@ -18,13 +18,13 @@ import (
 
 // elapsedAfter is evo-rec.md Problem 9's one monotonic elapsed-time
 // mechanism: any unresolved row (Running or Pending), and any unfinished
-// container header, gains an elapsed-time suffix ("pushing feat/a — 5s")
+// container header, gains an elapsed-time suffix ("pushing feat/a — 2s")
 // once this long has passed since the row was first actually painted in the
 // live region. It is a single honest clock, not a staleness heuristic —
 // unlike the old phaseStaleAfter heartbeat, it never resets on Phase/Progress
 // activity (see the root package's taskState.stampLiveFirstSeen, the only anchor
 // this timer reads).
-const elapsedAfter = 5 * time.Second
+const elapsedAfter = 2 * time.Second
 
 // activitySince anchors heartbeatSuffix's elapsed measurement to the row's
 // first live-region render (taskState.stampLiveFirstSeen) — never to
