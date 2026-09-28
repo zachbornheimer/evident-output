@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
+
 	evo "github.com/zachbornheimer/evident-output"
 )
 
@@ -60,7 +62,7 @@ func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 		t.Fatalf("second task key: %+v", snap.Tasks)
 	}
 
-	raw, err := evo.EncodeJSON(snap)
+	raw, err := render.EncodeJSON(snap)
 	if err != nil {
 		t.Fatal(err)
 	}

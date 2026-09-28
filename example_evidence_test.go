@@ -29,22 +29,11 @@ func ExampleCaptureStream() {
 	// true
 }
 
-// ExampleCaptureOption shows the interface every Capture construction
-// knob (KeepLastLines, MaxCaptureBytes, MirrorToDebug,
-// MirrorToDiagnostics) implements. TaskHandle.Capture accepts these
-// options; this Example proves each constructor is a CaptureOption.
+// ExampleCaptureOption shows the interface Capture construction knobs
+// implement. TaskHandle.Capture accepts these options; this Example proves
+// MaxCaptureBytes is a CaptureOption.
 func ExampleCaptureOption() {
-	opt := evo.KeepLastLines(50)
-	fmt.Println(opt != nil)
-	// Output:
-	// true
-}
-
-// ExampleKeepLastLines sets how many trailing lines Capture retains
-// (default 200). See ExampleCaptureOption for why this proves
-// construction, not effect.
-func ExampleKeepLastLines() {
-	opt := evo.KeepLastLines(50)
+	opt := evo.MaxCaptureBytes(64 << 10)
 	fmt.Println(opt != nil)
 	// Output:
 	// true
@@ -55,26 +44,6 @@ func ExampleKeepLastLines() {
 // proves construction, not effect.
 func ExampleMaxCaptureBytes() {
 	opt := evo.MaxCaptureBytes(64 << 10)
-	fmt.Println(opt != nil)
-	// Output:
-	// true
-}
-
-// ExampleMirrorToDiagnostics copies each completed Capture line to the
-// Diagnostics writer. See ExampleCaptureOption for why this proves
-// construction, not effect.
-func ExampleMirrorToDiagnostics() {
-	opt := evo.MirrorToDiagnostics()
-	fmt.Println(opt != nil)
-	// Output:
-	// true
-}
-
-// ExampleMirrorToDebug journals each completed Capture line via Debug when
-// DebugLevel allows. See ExampleCaptureOption for why this proves
-// construction, not effect.
-func ExampleMirrorToDebug() {
-	opt := evo.MirrorToDebug()
 	fmt.Println(opt != nil)
 	// Output:
 	// true

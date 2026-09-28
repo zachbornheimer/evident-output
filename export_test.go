@@ -18,10 +18,17 @@ type TestRedactor = engine.NoopRedactor
 type TestCapture = engine.Capture
 
 func DelayForTest(d time.Duration) *time.Duration { return Delay(d) }
-func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
+func ReasonConstrained(name string, opts ...engine.ReasonOption) TaxonomyReason {
 	return TaxonomyReason{inner: engine.ReasonConstrained(name, opts...)}
 }
-func SlogHandlerForTest() slog.Handler { return SlogHandler() }
+func KeepLastLinesForTest(n int) CaptureOption { return engine.KeepLastLines(n) }
+func MirrorToDiagnosticsForTest() CaptureOption {
+	return engine.MirrorToDiagnostics()
+}
+func MirrorToDebugForTest() CaptureOption           { return engine.MirrorToDebug() }
+func ForSkipForTest() engine.ReasonOption           { return engine.ForSkip() }
+func OnTaskForTest(name string) engine.ReasonOption { return engine.OnTask(name) }
+func SlogHandlerForTest() slog.Handler              { return SlogHandler() }
 
 func (o *Output) AboutForTest(text string) {
 	if o != nil && o.inner != nil {

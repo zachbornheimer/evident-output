@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
+
 	evo "github.com/zachbornheimer/evident-output"
 )
 
@@ -335,7 +337,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	if human.ExitCode != machineSnap.Conclusion.ExitCode {
 		t.Fatalf("human exit = %d, machine exit = %d", human.ExitCode, machineSnap.Conclusion.ExitCode)
 	}
-	raw, err := evo.EncodeJSON(snap)
+	raw, err := render.EncodeJSON(snap)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +348,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 		t.Fatalf("json missing blocked state:\n%s", raw)
 	}
 	// JSONL: one object per line, increasing sequence
-	lines, err := evo.EncodeJSONL(out.Events())
+	lines, err := render.EncodeJSONL(out.Events())
 	if err != nil {
 		t.Fatal(err)
 	}

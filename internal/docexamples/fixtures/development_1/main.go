@@ -12,11 +12,9 @@ func doWork() {
 	// docexamples:snippet start
 	snap := out.Snapshot()
 	plain, _ := evo.RenderPlain(snap, evo.PlainOptions{Width: 80})
-	jsonBytes, _ := evo.EncodeJSON(snap)
-	jsonl, _ := evo.EncodeJSONL(out.Events())
 	// docexamples:snippet end
 
-	_, _, _ = plain, jsonBytes, jsonl
+	_ = plain
 }
 
 func main() { doWork() }

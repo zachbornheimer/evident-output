@@ -47,6 +47,25 @@ func ExampleConfig() {
 	// [ready]  demo
 }
 
+// ExampleGlyphProfile selects the state-glyph vocabulary Init applies via
+// Config.Glyphs. GlyphsASCII is the forced-ASCII profile; GlyphsUnicode and
+// GlyphsAuto are the other two values.
+func ExampleGlyphProfile() {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Stdout:   &buf,
+		Stderr:   io.Discard,
+		Plain:    true,
+		Isolated: true,
+		Glyphs:   evo.GlyphsASCII,
+	})
+	out.Task("scan").Define(func(context.Context) error { return nil })
+	_ = out.Finish()
+	fmt.Print(buf.String())
+	// Output:
+	// [ok] scan
+}
+
 // ExampleDefault shows the package-level default instance, lazily created
 // with a zero Config.
 func ExampleDefault() {

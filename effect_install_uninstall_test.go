@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
+
 	evo "github.com/zachbornheimer/evident-output"
 )
 
@@ -65,11 +67,11 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 		if err := out.Finish(); err != nil {
 			t.Fatal(err)
 		}
-		data, err := evo.EncodeJSON(out.Snapshot())
+		data, err := render.EncodeJSON(out.Snapshot())
 		if err != nil {
 			t.Fatal(err)
 		}
-		var doc evo.JSONDocument
+		var doc render.JSONDocument
 		if err := json.Unmarshal(data, &doc); err != nil {
 			t.Fatal(err)
 		}

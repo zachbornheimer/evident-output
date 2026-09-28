@@ -65,7 +65,7 @@ func TestCapture_MirrorToDiagnostics_OptIn(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &diag})
 	task := out.Task("x")
-	output := task.Capture(evo.MirrorToDiagnostics())
+	output := task.Capture(evo.MirrorToDiagnosticsForTest())
 	_, _ = fmt.Fprintln(output, "chatter")
 	_ = output.Close()
 	succeed(task)
@@ -103,7 +103,7 @@ func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("x")
-	output := task.Capture(evo.KeepLastLines(3))
+	output := task.Capture(evo.KeepLastLinesForTest(3))
 	for i := range 10 {
 		_, _ = fmt.Fprintf(output, "line-%d\n", i)
 	}

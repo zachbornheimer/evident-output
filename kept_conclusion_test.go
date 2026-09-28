@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
+
 	evo "github.com/zachbornheimer/evident-output"
 )
 
@@ -34,7 +36,7 @@ func TestSkipped_DoesNotSetWarned(t *testing.T) {
 			Warned bool   `json:"warned"`
 		} `json:"conclusion"`
 	}
-	raw, err := evo.EncodeJSON(out.Snapshot())
+	raw, err := render.EncodeJSON(out.Snapshot())
 	if err != nil {
 		t.Fatal(err)
 	}

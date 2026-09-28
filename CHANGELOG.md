@@ -199,6 +199,30 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   are statements. Progress is `Progress(completed, total).Doing(item)`.
   Policy exclusions are `Skipped(Reason(...))`; kept counts are Fact/Summary.
 
+- **Option constructors and `type Option`** were removed with no aliases
+  (ZYS-1186 freeze). Construction is `Config` fields only: `AlsoWrite` is
+  `io.MultiWriter` on `Stdout`; `To` is `Stdout`; `Diagnostics` is `Stderr`;
+  `ResultStream` is `Result`; `Stdin` is `Stdin`; `Title` is `Title`;
+  `Clock` is `Clock`; `Redact` is `Redactor`; `Terminal` is `Terminal`;
+  `Runner` is `ProcessRunner`; `Plain` is `Plain`; `NoColor` is
+  `Color: ColorNever`; `Strict` is `Strict`; `Width` is `Width`;
+  `VisibilityDelay` is `VisibilityDelay`; `MaxEntities` is `MaxEntities`;
+  `MaxEvents` is `MaxEvents`; `MaxFrameRate` is `MaxFrameRate`; `DryRun` is
+  `DryRun`; `Glyphs` is `Glyphs`; `DataProjection` is `Format: FormatData`;
+  `ExternalProjection` is `Format: FormatExternal`; `DebugLevel` is
+  `Debug.Level`; `DebugAddSource` is `Debug.AddSource`; `DebugHistory` is
+  `Debug.View`; `DebugPane` is `Debug.View = DebugPresentationPane`.
+- **`EncodeJSON`, `EncodeJSONL`, `EncodeEventJSON`, `JSONDocument`,
+  `JSONMessage`, `JSONOutputMeta`, `ConclusionJSON`, `JSONProblem`,
+  `JSONTask`, `JSONProgress`, `JSONCollection`, `JSONChanges`, `JSONPlan`,
+  `JSONEffectRecord`, `JSONAction`, `JSONCommand`, `EventJSON`,
+  `JSONSchemaVersion`, and `EventSchemaVersion`** were removed from the
+  public package (ZYS-1186). Machine output is `WriteJSON` / `FormatJSON` /
+  `FormatJSONL`.
+- **`KeepLastLines`, `MirrorToDebug`, and `MirrorToDiagnostics`** were
+  removed from the public package. `MaxCaptureBytes` remains a
+  `CaptureOption`.
+
 ### Fixed
 
 - A live Group holding more per-item Groups than the terminal has rows

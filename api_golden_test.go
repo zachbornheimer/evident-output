@@ -34,3 +34,36 @@ func TestAPIGolden_PublicSurfaceMatchesCommittedGolden(t *testing.T) {
 		t.Fatalf("public API surface failed contract (regenerate testdata/api_golden.txt deliberately if this is an intended change):\n%s", report)
 	}
 }
+
+// TestAPIGolden_VocabularyFreeze is ZYS-1187: every exported identifier in
+// testdata/api_golden.txt (and the live Walk) must appear in
+// testdata/api_vocabulary.txt as canonical or helper with a concept. A
+// removed classification still present on the surface fails.
+func TestAPIGolden_VocabularyFreeze(t *testing.T) {
+	entries, err := apisurface.LoadVocabulary("testdata/api_vocabulary.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile("testdata/api_vocabulary.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) == 0 {
+		t.Fatal("testdata/api_vocabulary.txt is empty")
+	}
+	live, err := apisurface.Walk(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report := apisurface.CheckVocabulary(live, entries); !report.OK() {
+		t.Fatalf("live surface failed testdata/api_vocabulary.txt freeze:\n%s", report)
+	}
+	goldenRaw, err := os.ReadFile(apisurface.GoldenRelPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	golden := strings.Split(strings.TrimRight(string(goldenRaw), "\n"), "\n")
+	if report := apisurface.CheckVocabulary(golden, entries); !report.OK() {
+		t.Fatalf("testdata/api_golden.txt failed testdata/api_vocabulary.txt freeze:\n%s", report)
+	}
+}

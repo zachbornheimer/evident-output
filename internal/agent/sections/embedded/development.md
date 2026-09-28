@@ -97,8 +97,6 @@ go run ./cmd/evident-output version
 ```go
 snap := out.Snapshot()
 plain, _ := evo.RenderPlain(snap, evo.PlainOptions{Width: 80})
-jsonBytes, _ := evo.EncodeJSON(snap)
-jsonl, _ := evo.EncodeJSONL(out.Events())
 ```
 
 Schemas: `../schema/output.v1.json`, `../schema/event.v1.json`.

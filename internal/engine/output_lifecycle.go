@@ -34,6 +34,7 @@ func (o *Output) Close() error {
 	o.mu.Lock()
 	o.stopSpinnerAnimatorLocked()
 	o.stopResizeWatchLocked()
+	o.stopPlainHeartbeatsLocked()
 	o.closed = true
 	cancelRun := o.cancelRun
 	manifestStore := o.manifestStore

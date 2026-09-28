@@ -245,14 +245,8 @@ type Config struct {
 	// package-level default. First paint still arms — Isolated is not a
 	// blank-terminal exemption. Use for parallel tests and embedders that
 	// hold their own *Output instead of going through Default()/Task().
-	// This is the one and only opt-out from default installation — it
-	// applies identically whether or not Options is also set.
+	// This is the one and only opt-out from default installation.
 	Isolated bool
-
-	// Options is the advanced, raw Option escape hatch for tests and
-	// specialized embedding. When set, every other Config field except
-	// Title, DryRun, Preview, and Subject is ignored.
-	Options []Option
 
 	// MaxConcurrency is the scheduler ceiling: it bounds every executing
 	// callback, including work a waiting goroutine runs itself. Zero means
@@ -370,7 +364,7 @@ func withFailedExitCode(code int) Option {
 	return optionFunc(func(c *config) { c.failedExitCode = code })
 }
 
-// Title sets the conclusion subject for Config.Options's raw Option path.
+// Title sets the conclusion subject on the internal option config.
 func Title(subject string) Option {
 	return optionFunc(func(c *config) { c.subject = subject })
 }

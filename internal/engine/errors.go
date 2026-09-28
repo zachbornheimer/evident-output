@@ -17,11 +17,10 @@ var (
 	ErrReasonWrongTask    = errors.New("evo: reason restricted to another task")
 	ErrConcurrentRunning  = errors.New("evo: two siblings in the same collection are Running simultaneously")
 	ErrDryRunDeclaredLate = errors.New("evo: DeclareDryRun called after a durable row was already emitted")
-	// ErrTerminalWithoutSink is recorded when Config.Options supplies a
-	// Terminal driver but no primary writer (To), and the driver cannot
-	// report its own destination (it does not implement the Sink() io.Writer
-	// accessor) — release-gate round 8 finding 2. Without either, a
-	// non-interactive Finish has nowhere to write the residual/plain
+	// ErrTerminalWithoutSink is recorded when Config.Terminal is set but
+	// Config.Stdout is nil, and the driver cannot report its own destination
+	// (it does not implement the Sink() io.Writer accessor). Without either,
+	// a non-interactive Finish has nowhere to write the residual/plain
 	// projection and would otherwise render nothing at exit 0.
 	ErrTerminalWithoutSink = errors.New("evo: Terminal driver configured without a primary writer")
 	// ErrNotStarted is what TaskHandle.Wait returns for a task whose work

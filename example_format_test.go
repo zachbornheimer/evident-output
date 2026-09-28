@@ -169,3 +169,7 @@ func (fakeLiveSurface) WriteLive(string)    {}
 func (fakeLiveSurface) ClearLive()          {}
 func (fakeLiveSurface) WriteDurable(string) {}
 func (fakeLiveSurface) WriteFinal(string)   {}
+
+type namedTerminal struct{ id string }
+
+func (t namedTerminal) ID() string { return t.id }

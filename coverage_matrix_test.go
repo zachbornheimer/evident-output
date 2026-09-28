@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
+
 	evo "github.com/zachbornheimer/evident-output"
 )
 
@@ -122,7 +124,7 @@ func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	raw, err := evo.EncodeJSONL(out.Events())
+	raw, err := render.EncodeJSONL(out.Events())
 	if err != nil {
 		t.Fatal(err)
 	}

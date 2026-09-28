@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
+
 	evo "github.com/zachbornheimer/evident-output"
 )
 
@@ -212,7 +214,7 @@ func TestProblem_SurvivesInJSON(t *testing.T) {
 	}
 
 	snap := out.Snapshot()
-	encoded, err := evo.EncodeJSON(snap)
+	encoded, err := render.EncodeJSON(snap)
 	if err != nil {
 		t.Fatalf("EncodeJSON: %v", err)
 	}

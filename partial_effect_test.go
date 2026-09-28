@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
+
 	evo "github.com/zachbornheimer/evident-output"
 )
 
@@ -167,11 +169,11 @@ func TestPartialEffect_MachineProjectionsAgreeOnCommittedCount(t *testing.T) {
 	t.Run("snapshot JSON", func(t *testing.T) {
 		t.Parallel()
 		r := partialRun(t, evo.FormatHuman, partial)
-		data, err := evo.EncodeJSON(r.out.Snapshot())
+		data, err := render.EncodeJSON(r.out.Snapshot())
 		if err != nil {
 			t.Fatal(err)
 		}
-		var doc evo.JSONDocument
+		var doc render.JSONDocument
 		if err := json.Unmarshal(data, &doc); err != nil {
 			t.Fatal(err)
 		}

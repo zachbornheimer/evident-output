@@ -230,7 +230,7 @@ Evidence is deduplicated for you: never embed capture text into a Failf/Blockf s
 retained tail as its own evidence line underneath; embedding it in the summary too just repeats it.
 Evidence is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
-EncodeJSON/EncodeJSONL for machines. Avoid fmt.Print during live UI — use evo.Println (see interactive guide).`,
+WriteJSON or FormatJSON/FormatJSONL for machines. Avoid fmt.Print during live UI — use evo.Println (see interactive guide).`,
 			TokenEstimate: 260,
 		},
 		{

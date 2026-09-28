@@ -61,66 +61,42 @@ func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
 func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
-func AlsoWrite(w io.Writer)  Option
 func App()  Fingerprint
 func AssumeYes(v bool)  ConfirmOption
-func Clock(ts TimeSource)  Option
 func Code(value string)  ProblemOption
 func Command(executable string, args ...string)  Action
 func Confirm(question string, opts ...ConfirmOption)  bool
 func ConfirmDetail(lines ...string)  ConfirmOption
 func Count(value int64, unit ...string)  ProblemOption
-func DataProjection()  Option
-func DebugAddSource()  Option
-func DebugHistory()  Option
-func DebugLevel(level LogLevel)  Option
-func DebugPane(opts ...DebugPaneOption)  Option
 func Default()  *Output
 func DefaultConfig()  Config
 func Delay(d time.Duration)  *time.Duration
 func Destructive()  ConfirmOption
 func Detail(text string)  ProblemOption
-func Diagnostics(w io.Writer)  Option
-func DryRun()  Option
 func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)  error
-func EncodeEventJSON(e Event)  []byte,  error
-func EncodeJSON(s Snapshot)  []byte,  error
-func EncodeJSONL(events []Event)  []byte,  error
 func Exec(ctx context.Context, spec ExecSpec)  ExecResult,  error
-func ExternalProjection()  Option
 func FSPath(path string)  Fingerprint
 func FSResource(path string)  Resource
 func Fact(name, value string)
 func File(ctx context.Context, spec FileSpec)  error
 func Files(ctx context.Context, files FileSet)  error
-func ForSkip()  ReasonOption
-func Glyphs(p GlyphProfile)  Option
 func Group(name string)  *GroupHandle
 func Init(configs ...Config)  *Output
 func IsCharDevice(w io.Writer)  bool
-func KeepLastLines(n int)  CaptureOption
 func Label(text string)  Action
 func Location(path string, line, column int)  ProblemOption
 func LogicalResource(name string)  Resource
 func Main(run RunFunc)  int
 func MaxCaptureBytes(n int)  CaptureOption
-func MaxEntities(n int)  Option
-func MaxEvents(n int)  Option
-func MaxFrameRate(framesPerSecond int)  Option
-func MirrorToDebug()  CaptureOption
-func MirrorToDiagnostics()  CaptureOption
 func NewestFirst()  DebugPaneOption
 func Next(action Action)  ProblemOption
 func NextCommand(executable string, args ...string)  ProblemOption
-func NoColor()  Option
 func OldestFirst()  DebugPaneOption
 func On(subject string)  ProblemOption
-func OnTask(taskName string)  ReasonOption
 func PaneHeight(lines int)  DebugPaneOption
 func ParseFormat(s string)  Format,  error
 func PartialEffect(committed int, err error)  error
 func Patch(ctx context.Context, diff []byte)  FileSet,  error
-func Plain()  Option
 func Pluralize(quantity int64, singular string)  string
 func PolicyFlag(flag string)  ConfirmOption
 func PolicyHint(command string, args ...string)  ConfirmOption
@@ -129,26 +105,16 @@ func Print(args ...any)
 func Printf(format string, args ...any)
 func Println(args ...any)
 func Reason(name string)  TaxonomyReason
-func Redact(r Redactor)  Option
 func RenderPlain(s Snapshot, opts PlainOptions)  []byte,  error
-func ResultStream(w io.Writer)  Option
 func Run(ctx context.Context, run RunFunc)  Result
-func Runner(r ProcessRunner)  Option
 func Sequence(name string)  *SequenceHandle
 func SetDefault(out *Output)
 func Severity(value ProblemSeverity)  ProblemOption
 func SlogHandler()  slog.Handler
-func Stdin(r io.Reader)  Option
-func Strict()  Option
 func Task(name string)  *TaskHandle
-func Terminal(driver TerminalDriver)  Option
-func Title(subject string)  Option
-func To(w io.Writer)  Option
 func TruncateNames(names []string, visible int)  string
 func Value(name string, v any)  Fingerprint
 func Verbose()  *Printer
-func VisibilityDelay(delay time.Duration)  Option
-func Width(columns int)  Option
 func WriteJSON(w io.Writer, result Result)  error
 type Action
 type Attachment
@@ -159,7 +125,6 @@ type ChangesSnapshot
 type ColorMode
 type CommandSpec
 type Conclusion
-type ConclusionJSON
 type ConclusionState
 type Config
 type ConfirmOption
@@ -171,7 +136,6 @@ type EffectSpec
 type EffectVerb
 type EntityState
 type Event
-type EventJSON
 type EvidencePhase
 type ExecResult
 type ExecSpec
@@ -187,24 +151,11 @@ type FixedClock
 type Format
 type GlyphProfile
 type GroupHandle
-type JSONAction
-type JSONChanges
-type JSONCollection
-type JSONCommand
-type JSONDocument
-type JSONEffectRecord
-type JSONMessage
-type JSONOutputMeta
-type JSONPlan
-type JSONProblem
-type JSONProgress
-type JSONTask
 type LiveSurface
 type LogLevel
 type LogRecord
 type MessageSnapshot
 type NoopRedactor
-type Option
 type Output
 type PlainOptions
 type PlanSnapshot
@@ -218,7 +169,6 @@ type ProcessRunner
 type Progress
 type ProgressKind
 type Projection
-type ReasonOption
 type Redactor
 type Resolution
 type Resource
@@ -295,15 +245,12 @@ value ErrPatchMalformed
 value ErrPatchRenameUnsupported
 value ErrPatchUnsupported
 value ErrProgressRegression
-value ErrReasonSkipOnly
-value ErrReasonWrongTask
 value ErrRenderer
 value ErrStaleBasis
 value ErrTaskClosed
 value ErrTerminalWithoutSink
 value ErrUnresolvedTask
 value ErrWaitDeadlock
-value EventSchemaVersion
 value ExitBlocked
 value ExitCancelled
 value ExitFailed
@@ -319,7 +266,6 @@ value GlyphsAuto
 value GlyphsUnicode
 value Incomplete
 value Indeterminate
-value JSONSchemaVersion
 value LevelDebug
 value LevelError
 value LevelInfo

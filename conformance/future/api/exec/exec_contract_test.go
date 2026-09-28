@@ -17,8 +17,6 @@ import (
 
 var _ = func() func(context.Context, evo.ExecSpec) (evo.ExecResult, error) { return evo.Exec }
 
-var _ = func() func(evo.ProcessRunner) evo.Option { return evo.Runner }
-
 type noopRunner struct{}
 
 func (noopRunner) Run(context.Context, evo.ProcessCommand) (evo.ProcessOutcome, error) {
@@ -35,5 +33,4 @@ func TestV06ExecAPITypesCompile(t *testing.T) {
 		Outputs:    []string{"out"},
 	}
 	_ = evo.Config{ProcessRunner: noopRunner{}}
-	_ = evo.Runner(noopRunner{})
 }

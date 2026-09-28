@@ -15,12 +15,10 @@ type Printer struct{ inner *engine.Printer }
 type Failure struct{ inner *engine.Failure }
 
 type Config = engine.Config
-type Option = engine.Option
 type Capture = engine.Capture
 type CaptureOption = engine.CaptureOption
 type CaptureStream = engine.CaptureStream
 type ConfirmOption = engine.ConfirmOption
-type ReasonOption = engine.ReasonOption
 type DebugPaneOption = engine.DebugPaneOption
 type DebugPresentation = engine.DebugPresentation
 type DebugConfig = engine.DebugConfig
@@ -110,8 +108,6 @@ var (
 	ErrInvalidConfig        = engine.ErrInvalidConfig
 	ErrRenderer             = engine.ErrRenderer
 	ErrLimitExceeded        = engine.ErrLimitExceeded
-	ErrReasonSkipOnly       = engine.ErrReasonSkipOnly
-	ErrReasonWrongTask      = engine.ErrReasonWrongTask
 	ErrConcurrentRunning    = engine.ErrConcurrentRunning
 	ErrDryRunDeclaredLate   = engine.ErrDryRunDeclaredLate
 	ErrTerminalWithoutSink  = engine.ErrTerminalWithoutSink

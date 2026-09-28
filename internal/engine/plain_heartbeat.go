@@ -88,6 +88,16 @@ func (o *Output) stopPlainHeartbeatLocked(st *taskState) {
 	st.heartbeat.stop = nil
 }
 
+// stopPlainHeartbeatsLocked cancels every task's pending heartbeat timer.
+// Close owns this so a dropped Output is unreachable even when Finish/Wait
+// already settled (or never did): the AfterFunc closure otherwise keeps *Output
+// alive until the 30s timer fires.
+func (o *Output) stopPlainHeartbeatsLocked() {
+	for _, st := range o.tasks {
+		o.stopPlainHeartbeatLocked(st)
+	}
+}
+
 // checkPlainHeartbeat is the deferred callback armPlainHeartbeatLocked and
 // checkPlainHeartbeat itself schedule. It re-acquires the lock — the
 // scheduler invokes it asynchronously, on the fake clock's Advance

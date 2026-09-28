@@ -50,7 +50,9 @@ func TestInit_OptionsPath_HonorsPreview(t *testing.T) {
 		Isolated: true,
 		Preview:  true,
 		Subject:  "repo  /tmp/flight",
-		Options:  []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()},
+		Stdout:   &buf,
+		Plain:    true,
+		Color:    evo.ColorNever,
 	})
 
 	out.Task("cleanup").Define(func(ctx context.Context) error {

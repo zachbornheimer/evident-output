@@ -40,9 +40,8 @@ func ExampleDebugPaneOption() {
 func ExampleNewestFirst() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard,
-		Debug:   evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane},
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.NewestFirst())},
+		Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard, Color: evo.ColorNever,
+		Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, NewestFirst: boolPtr(true)},
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
@@ -55,8 +54,8 @@ func ExampleNewestFirst() {
 func ExampleOldestFirst() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
-		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.OldestFirst())},
+		Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true, Color: evo.ColorNever,
+		Debug: evo.DebugConfig{View: evo.DebugPresentationPane, NewestFirst: boolPtr(false)},
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
@@ -69,8 +68,8 @@ func ExampleOldestFirst() {
 func ExamplePaneHeight() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
-		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.PaneHeight(3))},
+		Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true, Color: evo.ColorNever,
+		Debug: evo.DebugConfig{View: evo.DebugPresentationPane, PaneHeight: 3},
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
@@ -84,8 +83,8 @@ func ExamplePaneHeight() {
 func ExamplePreserveDebugTail() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
-		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
-		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.PreserveDebugTail())},
+		Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true, Color: evo.ColorNever,
+		Debug: evo.DebugConfig{View: evo.DebugPresentationPane, PreserveAlways: true},
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
@@ -93,3 +92,5 @@ func ExamplePreserveDebugTail() {
 	// Output:
 	// ✓ demo
 }
+
+func boolPtr(v bool) *bool { return &v }

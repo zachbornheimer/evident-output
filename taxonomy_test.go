@@ -107,7 +107,7 @@ func TestReason_ForSkipUsedViaSkippedCountsWithoutMisuse(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	evo.SetDefault(out)
-	skipOnly := evo.ReasonConstrained("unpushed", evo.ForSkip())
+	skipOnly := evo.ReasonConstrained("unpushed", evo.ForSkipForTest())
 
 	branches := out.Task("branches")
 	branches.Skipped(skipOnly)
@@ -128,7 +128,7 @@ func TestReason_ForSkipUsedViaSkippedCountsWithoutMisuse(t *testing.T) {
 func TestReason_OnTaskWrongTaskPanicsUnderStrict(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever, Strict: true})
 	evo.SetDefault(out)
-	onlyBranches := evo.ReasonConstrained("dirty", evo.OnTask("branches"))
+	onlyBranches := evo.ReasonConstrained("dirty", evo.OnTaskForTest("branches"))
 	worktrees := out.Task("worktrees")
 
 	// No t.Cleanup(out.Close): Strict re-panics on Finish for the

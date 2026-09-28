@@ -98,15 +98,9 @@ func TruncateNames(names []string, visible int) string {
 	return engine.TruncateNames(names, visible)
 }
 
-func KeepLastLines(n int) CaptureOption   { return engine.KeepLastLines(n) }
 func MaxCaptureBytes(n int) CaptureOption { return engine.MaxCaptureBytes(n) }
-func MirrorToDebug() CaptureOption        { return engine.MirrorToDebug() }
-func MirrorToDiagnostics() CaptureOption  { return engine.MirrorToDiagnostics() }
 
 func NewestFirst() DebugPaneOption         { return engine.NewestFirst() }
 func OldestFirst() DebugPaneOption         { return engine.OldestFirst() }
 func PaneHeight(lines int) DebugPaneOption { return engine.PaneHeight(lines) }
 func PreserveDebugTail() DebugPaneOption   { return engine.PreserveDebugTail() }
-
-func ForSkip() ReasonOption               { return engine.ForSkip() }
-func OnTask(taskName string) ReasonOption { return engine.OnTask(taskName) }
