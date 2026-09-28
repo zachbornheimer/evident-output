@@ -63,7 +63,7 @@ type Field struct {
 // literal has one owner instead of a copy hard-coded at each call site.
 const RedactedValue = "***"
 
-// SplitWrappedMessage separates a Failf/Blockf error into the summary shown
+// SplitWrappedMessage separates a wrapped error into the summary shown
 // as the row's headline and the evidence line rendered underneath it. format
 // is the caller's original fmt.Errorf format string (before substitution);
 // err is fmt.Errorf(format, args...).

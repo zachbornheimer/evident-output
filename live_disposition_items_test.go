@@ -44,8 +44,8 @@ func TestLiveGroup_KeptChildrenAggregateInTheLiveFrame(t *testing.T) {
 	_ = work.Wait()
 	_ = out.Finish()
 
-	if strings.Contains(frame, "feat/") || !strings.Contains(frame, "! kept 5 (unpushed)") {
-		t.Fatalf("live frame must show one kept tally, not per-item rows:\n%s", frame)
+	if strings.Contains(frame, "feat/") || !strings.Contains(frame, "- skipped 5 (unpushed)") {
+		t.Fatalf("live frame must show one skipped tally, not per-item rows:\n%s", frame)
 	}
 }
 

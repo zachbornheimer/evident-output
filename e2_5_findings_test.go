@@ -80,7 +80,7 @@ func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
-	branches.Fact("kept", "11 (7 protected, 4 unpushed)")
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
 	succeed(branches)
 
 	if err := out.Finish(); err != nil {

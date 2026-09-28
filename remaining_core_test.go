@@ -2,7 +2,6 @@ package evo_test
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"strings"
 	"sync"

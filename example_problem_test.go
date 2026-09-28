@@ -9,7 +9,7 @@ import (
 )
 
 // ExampleProblem shows the structured evidence shape explaining a negative
-// task outcome — the payload Fail/Block/Warn build from ProblemOptions.
+// task outcome — the payload Fail/Block/Problem build from ProblemOptions.
 func ExampleProblem() {
 	p := evo.Problem{Summary: "schema mismatch", Code: "E_SCHEMA"}
 	fmt.Println(p.Summary, p.Code)
@@ -51,6 +51,26 @@ func ExampleProblemOption() {
 	fmt.Println(opt != nil)
 	// Output:
 	// true
+}
+
+// ExampleProblemSeverity shows the closed set of Problem severities.
+func ExampleProblemSeverity() {
+	fmt.Println(evo.SeverityError, evo.SeverityWarning)
+	// Output:
+	// error warning
+}
+
+// ExampleSeverity sets a Problem's severity. Default is SeverityError.
+func ExampleSeverity() {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
+	out.Task("cache").Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
+	_ = out.Finish()
+	fmt.Print(buf.String())
+	// Output:
+	// ✓ cache  ! stale entry ignored
+	//
+	// [ready · warned]
 }
 
 // ExampleDetail sets user-visible detail text on a Problem raised via
@@ -144,9 +164,8 @@ func ExampleNextCommand() {
 	// →  git pull --rebase
 }
 
-// ExampleFailure shows the value TaskHandle.Failf/Blockf return: one
-// recorded error built and returned in a single line, further chainable
-// with Next/NextCommand.
+// ExampleFailure shows Failure's error text. Failf/Blockf were removed in
+// 1.1; Fail is a statement, and a wrapped error is returned separately.
 func ExampleFailure() {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Plain: true})
 	task := out.Task("clone repository")

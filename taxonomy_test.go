@@ -86,8 +86,8 @@ func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 		t.Fatalf("Finish: %v", err)
 	}
 	got := buf.String()
-	if strings.Count(got, "kept 1 (unpushed)") != 2 {
-		t.Fatalf("each collection child must render its own Kept taxonomy line, got:\n%s", got)
+	if strings.Count(got, "skipped 1 (unpushed)") != 2 {
+		t.Fatalf("each collection child must render its own Skipped taxonomy line, got:\n%s", got)
 	}
 }
 
@@ -103,7 +103,7 @@ func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 // TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts is the red-first
 // case for the ForSkip constraint: recording it through Kept is misuse, and
 // production (non-Strict) still counts the record rather than dropping truth.
-func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
+func TestReason_ForSkipUsedViaSkippedCountsWithoutMisuse(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	evo.SetDefault(out)
@@ -112,16 +112,13 @@ func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
 	branches := out.Task("branches")
 	branches.Skipped(skipOnly)
 
-	if out.Err() == nil {
-		t.Fatal("want recorded misuse for a ForSkip reason recorded via Kept")
+	if err := out.Err(); err != nil {
+		t.Fatalf("ForSkip used via Skipped is valid, got misuse %v", err)
 	}
 	succeed(branches)
-	// Finish returns the recorded misuse (see ErrAlreadyResolved-style
-	// contracts elsewhere); the assertion here is that the record still
-	// rendered, not that Finish reports a clean run.
 	_ = out.Finish()
-	if !strings.Contains(buf.String(), "kept 1 (unpushed)") {
-		t.Fatalf("misuse must still count the record, got:\n%s", buf.String())
+	if !strings.Contains(buf.String(), "skipped 1 (unpushed)") {
+		t.Fatalf("want the skipped tally, got:\n%s", buf.String())
 	}
 }
 
@@ -253,8 +250,8 @@ func TestTaskSnapshot_ExposesSkippedAndKeptTaxonomy(t *testing.T) {
 		t.Fatalf("Skipped taxonomy not exposed on snapshot: %+v", skipSnap.Skipped)
 	}
 	keepSnap := kept.Snapshot()
-	if len(keepSnap.Kept) != 1 || keepSnap.Kept[0].Reason != "protected" || keepSnap.Kept[0].Name != "feat/a" {
-		t.Fatalf("Kept taxonomy not exposed on snapshot: %+v", keepSnap.Kept)
+	if len(keepSnap.Skipped) != 1 || keepSnap.Skipped[0].Reason != "protected" || keepSnap.Skipped[0].Name != "feat/a" {
+		t.Fatalf("Skipped taxonomy not exposed on snapshot: %+v", keepSnap.Skipped)
 	}
 }
 
@@ -314,7 +311,7 @@ func TestGroup_KeptChildrenAggregateUnderGroupRow(t *testing.T) {
 		if summary != "" {
 			row = "✓ branches  " + summary + "\n"
 		}
-		want := row + "  ! kept 3 (2 unpushed, 1 protected)\n\n[ready · warned]\n"
+		want := row + "  - skipped 3 (2 unpushed, 1 protected)\n"
 		if got := buf.String(); got != want {
 			t.Fatalf("summary %q mismatch:\n--- want ---\n%s\n--- got ---\n%s", summary, want, got)
 		}

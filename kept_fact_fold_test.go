@@ -36,8 +36,8 @@ func keptWithFactsRun(t *testing.T, v evo.Verbosity) string {
 func TestKeptItemFacts_KeepTheFold(t *testing.T) {
 	for _, v := range []evo.Verbosity{evo.VerbosityNormal, evo.VerbosityVerbose} {
 		got := keptWithFactsRun(t, v)
-		if strings.Count(got, "! kept") != 1 || !strings.Contains(got, "! kept 3 (in use)") {
-			t.Errorf("verbosity %d: want one \"! kept 3 (in use)\" tally:\n%s", v, got)
+		if strings.Count(got, "- skipped") != 1 || !strings.Contains(got, "- skipped 3 (in use)") {
+			t.Errorf("verbosity %d: want one \"- skipped 3 (in use)\" tally:\n%s", v, got)
 		}
 		if strings.Contains(got, "✓ feat1") || strings.Contains(got, "✓ main") {
 			t.Errorf("verbosity %d: a kept item got its own ✓ row:\n%s", v, got)

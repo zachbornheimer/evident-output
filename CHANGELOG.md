@@ -63,14 +63,19 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 - **`Output.Events() []Event`:** a copy of the durable event journal for
   `EncodeJSONL` and other machine projections.
 - **`TaskHandle.Problem(summary string, opts ...ProblemOption) *TaskHandle`:**
-  a Task can own zero, one, or many blocking `Problem`s before it resolves,
+  a Task can own zero, one, or many `Problem`s before it resolves,
   instead of a caller-invented `Task` per finding or every finding
-  flattened into one `errors.New` string. A Task holding a `Problem`
-  never settles `Done` or `Skipped`: a nil `Define` return, a `Skipped`
-  call, or `Finish` settling it unresolved all settle it `Failed`. The
-  `Problem` shows in `Snapshot` as soon as it is recorded.
+  flattened into one `errors.New` string. Severity defaults to
+  `SeverityError`: a nil `Define` return then settles Failed.
+  `Severity(SeverityWarning)` never fails the Task. The `Problem` shows
+  in `Snapshot` as soon as it is recorded.
 - **`wire.EventProblemRecorded`:** distinct wire event for `Problem`
   accumulation (previously would have collided with `EventWarningRecorded`).
+- **`ProblemSeverity`, `SeverityError`, `SeverityWarning`, and
+  `Severity(ProblemSeverity)`:** a Problem's closed severity. Default is
+  `SeverityError` (a nil `Define` return then settles Failed).
+  `Severity(SeverityWarning)` uses the warning projection, does not fail
+  the Task, and sets `Conclusion.Warned` with exit 0.
 
 ### Changed
 
@@ -175,6 +180,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   summary; it reads "configure After and Verify before Define, and Define
   each task once with a non-nil callback". The unresolved-task hint reads
   "call Define, Fail, Block, or Skipped on this task".
+- **`Warn`, `Blockf`, `Failf`, `TaskHandle.Step`, `TaskHandle.Kept`,
+  `Failure.Next`, and `Failure.NextCommand`** were removed with no aliases.
+  Warnings are `Problem(summary, Severity(SeverityWarning))`. Fail and Block
+  are statements. Progress is `Progress(completed, total).Doing(item)`.
+  Policy exclusions are `Skipped(Reason(...))`; kept counts are Fact/Summary.
 
 ### Fixed
 

@@ -121,7 +121,7 @@ func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Fact("kept", "11 (7 protected, 4 unpushed)")
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
 	succeed(branches)
 
 	if err := out.Finish(); err != nil {
@@ -129,8 +129,8 @@ func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	}
 	got := buf.String()
 	// E2.5 finding 3: the inline warning carries the same "! " bang the
-	// normative repo-retire dry-run fixture uses ("! kept 13 (...)") — an
-	// inline and a nested warning must signal identically, one row, one line.
+	// nested warning line uses — an inline and a nested warning must signal
+	// identically, one row, one line.
 	if !strings.Contains(got, "✓ branches  ! kept 11 (7 protected, 4 unpushed)\n") {
 		t.Fatalf("want the warning inlined on the ✓ row with its \"! \" prefix, got:\n%s", got)
 	}
@@ -147,7 +147,7 @@ func TestE1P2_Warn_MultipleWarningsNestUnderneath(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Fact("kept", "11 (7 protected, 4 unpushed)")
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
 	branches.Problem("2 remotes unreachable", evo.Severity(evo.SeverityWarning))
 	succeed(branches)
 

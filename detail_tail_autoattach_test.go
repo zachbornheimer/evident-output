@@ -31,8 +31,8 @@ func TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail(t *
 	}
 }
 
-// TestBlockf_AutoAttachesDetailTail mirrors the Fail case for Blockf.
-func TestBlockf_AutoAttachesDetailTail(t *testing.T) {
+// TestBlock_AutoAttachesDetailTail mirrors the Fail case for Block.
+func TestBlock_AutoAttachesDetailTail(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
@@ -45,7 +45,7 @@ func TestBlockf_AutoAttachesDetailTail(t *testing.T) {
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "missing signature") {
-		t.Fatalf("Blockf did not auto-attach the evidence tail, got:\n%s", rendered)
+		t.Fatalf("Block did not auto-attach the evidence tail, got:\n%s", rendered)
 	}
 }
 

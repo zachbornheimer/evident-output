@@ -72,13 +72,12 @@ func (t *TaskHandle) withTask(apply func(st *taskState)) *TaskHandle {
 // setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
 // — the shared entry point for every phase source that is NOT the caller's
 // own narrated beat: Writer's per-line mirror of a talkative child's raw
-// output, and Step's current-item name. Off-TTY, an explicit TaskHandle.Doing call
+// output. Off-TTY, an explicit TaskHandle.Doing call
 // still forces its own durable row (the P10 contract: the one line the
 // caller asked to see); this path never does — a child's full output already
 // has one durable home, the evidence ring (and its failure-path DetailTail),
 // so a row per mirrored line would just repeat it (release-gate round 9
-// finding 4). Step is the same shape: Isolated+Plain must not stream a
-// durable line per unique item name.
+// finding 4).
 func (t *TaskHandle) setLiveOnlyPhase(text string) {
 	t.annotate(func(st *taskState) { t.out.setLiveOnlyPhaseLocked(st, text) })
 }
@@ -106,8 +105,7 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // live redraw signal), but it never forces its own durable line in plain
 // mode. A talkative child's mirrored output line (Writer) already has one
 // durable home, the evidence ring, so it gets no plain-mode row per line
-// (release-gate round 9 finding 4); Step's current-item name is live
-// status for the same reason, never a durable line per item.
+// (release-gate round 9 finding 4).
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	text = txt.Text(text)
 	// Identical live-only phase is a no-op: Writer leftover/repeated lines
@@ -128,8 +126,8 @@ func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	o.signalLiveLocked(true)
 }
 
-// recordWarning is the warning-severity Problem path: the previous Warn
-// projection (st.warnings, task.warned, EventWarningRecorded, censusWarned).
+// recordWarning is the warning-severity Problem path: st.warnings,
+// task.warned, EventWarningRecorded, censusWarned. Public Warn was removed in 1.1.
 func (t *TaskHandle) recordWarning(p Problem) *TaskHandle {
 	return t.annotate(func(st *taskState) {
 		st.warnings = append(st.warnings, p)
@@ -146,7 +144,7 @@ func (t *TaskHandle) recordWarning(p Problem) *TaskHandle {
 // Summary sets one sanitized line of result text for the task's terminal
 // row: last call wins, empty clears it. It never resolves the task (Define
 // or the Evo-native operation outcome does), and it is not live activity
-// (Doing/Progress/Step/Bytes own the Running row). It is the same field
+// (Doing/Progress/Bytes own the Running row). It is the same field
 // TaskSnapshot.Summary and JSON/JSONL "summary" project. Calling it after
 // the task resolved is misuse unless the interrupt sweep resolved it (see
 // annotate). GroupHandle.Summary is the same shape one level up.
@@ -187,7 +185,7 @@ func (t *TaskHandle) recordBlockingProblem(p Problem) *TaskHandle {
 }
 
 // Fact accumulates a discovered name/value annotation on the task — info
-// severity, Warn's non-terminal sibling (user-13-problems.md Problem 8:
+// severity, Problem(SeverityWarning)'s non-terminal sibling (user-13-problems.md Problem 8:
 // "Tasks are work. Facts are information."). Renders as a dim "name  value"
 // line, inline when it is the task's only annotation, nested otherwise.
 // Like Problem, it returns the Task for chaining and never resolves it — call

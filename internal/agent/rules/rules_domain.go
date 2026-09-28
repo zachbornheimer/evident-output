@@ -90,13 +90,14 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			Certainty:       CertaintyHeuristic,
 		},
 		{
-			ID:              "DOM-014",
-			Category:        "DOM",
-			Severity:        SeverityError,
-			Invariant:       "Detail is user-visible string; wrap a diagnostic error with Blockf/Failf's trailing %w",
-			Why:             "Detail(err) exposes error internals as UI copy; Blockf/Failf's %w renders the wrapped error as its own evidence line instead.",
-			BadCode:         `it.Block("dirty", evo.Detail(err))`,
-			GoodCode:        `return it.Blockf("dirty: %w", err)`,
+			ID:        "DOM-014",
+			Category:  "DOM",
+			Severity:  SeverityError,
+			Invariant: "Detail is user-visible string; wrap a diagnostic error with Blockf/Failf's trailing %w",
+			Why:       "Detail(err) exposes error internals as UI copy; Blockf/Failf's %w renders the wrapped error as its own evidence line instead.",
+			BadCode:   `it.Block("dirty", evo.Detail(err))`,
+			GoodCode: `it.Block("dirty", evo.Detail(err.Error()))
+            return nil`,
 			Remediation:     `Replace Detail(err) with a %w-wrapped Blockf/Failf, e.g. it.Blockf("dirty: %w", err); reserve Detail for user-visible strings`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-014"},
@@ -144,7 +145,8 @@ branches.Task("feature/x").Skipped(evo.Reason("dirty"))
 			GoodCode: `cmd.Stdout = task.Writer() // retained as evidence and auto-attached on failure
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
-  return task.Failf("install dependencies: %w", err)
+  task.Fail("install dependencies")
+              return err
 }`,
 			Remediation:     "Pass context via the trailing \": %w\" wrap instead of interpolating capture.Text()/Evidence().Text() into the summary — Failf/Blockf auto-attach the retained tail as its own evidence line",
 			RelatedGuidance: []string{"streams"},
@@ -224,13 +226,14 @@ for _, item := range items {
 			Detection:       DetectionGuidance, // no cheap detector: a literal "1" argument is not distinguishable from a genuine absolute count by AST alone
 		},
 		{
-			ID:              "DOM-018",
-			Category:        "DOM",
-			Severity:        SeverityWarning,
-			Invariant:       "an error surfaces once per resolution, not as both the summary text and evo.Cause",
-			Why:             "err.Error() as the summary alongside evo.Cause(err) surfaces the same error twice — and since Fail/Block are statement-form, evo.Cause no longer affects the returned error at all, so the two are now the identical dead-and-live text.",
-			BadCode:         `task.Fail(err.Error(), evo.Cause(err))`,
-			GoodCode:        `return task.Failf("validate policy manifest: %w", err)`,
+			ID:        "DOM-018",
+			Category:  "DOM",
+			Severity:  SeverityWarning,
+			Invariant: "an error surfaces once per resolution, not as both the summary text and evo.Cause",
+			Why:       "err.Error() as the summary alongside evo.Cause(err) surfaces the same error twice — and since Fail/Block are statement-form, evo.Cause no longer affects the returned error at all, so the two are now the identical dead-and-live text.",
+			BadCode:   `task.Fail(err.Error(), evo.Cause(err))`,
+			GoodCode: `task.Fail("validate policy manifest", evo.Detail(err.Error()))
+              return err`,
 			Remediation:     `Replace the err.Error()+evo.Cause(err) pair with a single %w-wrapped Failf/Blockf`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-018"},
@@ -355,7 +358,7 @@ t.Define(func(ctx context.Context) error {
 task.Kept(evo.Reason("protected"))`,
 			GoodCode: `var reasonProtected = evo.Reason("protected")
 task.Skipped(evo.Reason("timeout"))
-task.Kept(reasonProtected)`,
+task.Skipped(reasonProtected)`,
 			Remediation:     "Lift a repeated reason to a package-level var so it is a compile-time name; name why the item skipped/was kept, not the verb itself",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-003"},

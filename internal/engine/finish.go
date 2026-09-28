@@ -251,7 +251,7 @@ func (o *Output) resolveUnstartedTaskLocked(t *taskState) {
 
 // abnormalFinishLocked reports whether the run already carries a real Failed
 // or Cancelled task by the time Finish's unresolved-task sweep runs —
-// evidence that something genuinely interrupted the run (Output.Fail/Failf,
+// evidence that something genuinely interrupted the run (Output.Fail,
 // or a real SIGINT/SIGTERM cancellation via Output.Cancel/TaskHandle.Cancel),
 // not merely a caller who forgot to resolve a task. It gates whether a
 // leftover Running task may still read as Cancelled/130 (release-gate

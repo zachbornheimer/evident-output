@@ -36,4 +36,16 @@ func (o *Output) Fact(name, value string) {
 	o.writeDurableTextLocked(txt.Dim(f.Name+"  "+f.Value, !o.cfg.noColor) + "\n")
 }
 
-
+// warnLocked records p as a run-scoped warning and renders it. Callers
+// must already hold o.mu. Public Warn was removed in 1.1; this is the
+// engine's own path (a failed manifest flush) onto the same projection
+// TaskHandle.Problem(..., Severity(SeverityWarning)) uses for the
+// conclusion's warned modifier.
+func (o *Output) warnLocked(p Problem) {
+	o.runWarnings = append(o.runWarnings, p)
+	o.bumpLocked()
+	o.appendEventLocked(Event{Type: "run.warned", OutputID: o.outputID})
+	o.emitWireEventLocked(wire.EventWarningRecorded, "", wire.ToProblemDoc(p).EventPayload())
+	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(o.cfg.glyphs), txt.SGRYellow, !o.cfg.noColor)
+	o.writeDurableTextLocked(glyph + " " + p.Summary + "\n")
+}

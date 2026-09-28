@@ -44,7 +44,7 @@ func TestFinish_PhaseOnlyTaskCleanReturn_NeverCancels(t *testing.T) {
 
 // TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels proves the
 // paired half of finding 1: when the run really was interrupted (here, an
-// application error recorded via Output.Failf before Finish), a leftover
+// application error recorded via Output.Fail before Finish), a leftover
 // Running task still reads as Cancelled — the existing signal/error
 // behavior must not regress.
 func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {

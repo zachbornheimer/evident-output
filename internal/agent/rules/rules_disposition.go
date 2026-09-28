@@ -19,7 +19,7 @@ func dispositionRules() []Rule {
 }`,
 			GoodCode: `for _, d := range locals {
   if !d.Delete {
-    group.Task(d.Name).Kept(keepReason(d.Reason))
+    group.Task(d.Name).Skipped(keepReason(d.Reason))
   }
 }`,
 			Remediation:     "Declare one Task per item under the category's Group and record its disposition there: group.Task(item).Kept(reason); evo aggregates the tally",

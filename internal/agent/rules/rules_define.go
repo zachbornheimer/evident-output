@@ -64,7 +64,7 @@ if err := cmd.Run(); err != nil {
 }`,
 			GoodCode: `res, err := evo.Exec(ctx, spec)
 if errors.Is(err, evo.ErrExecNonzeroExit) {
-  task.Failf("lint failed: %s", res.Stdout)
+  task.Fail("lint failed", evo.Detail(res.Stdout))
   return nil
 }
 return err`,

@@ -37,7 +37,7 @@ func TestLiveGroup_AggregatedTalliesCountAgainstTheRowBudget(t *testing.T) {
 	}
 
 	frame := screen.LatestLiveText()
-	for _, want := range []string{"! kept 40 (pinned)", "- skipped 40 (vendored)", "not shown"} {
+	for _, want := range []string{"- skipped 80 (40 pinned, 40 vendored)", "not shown"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("live frame lacks %q:\n%s", want, frame)
 		}

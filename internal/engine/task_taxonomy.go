@@ -7,7 +7,8 @@ import (
 )
 
 // dispositionVerb names which accumulation act a Reason's usage constraints
-// are checked against — TaskHandle.Skipped or TaskHandle.Kept.
+// are checked against — TaskHandle.Skipped, or the keep records Kept used
+// before it was removed in 1.1.
 type dispositionVerb string
 
 const (

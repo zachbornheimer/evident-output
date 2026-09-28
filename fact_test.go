@@ -50,11 +50,10 @@ func TestTaskFact_NeverResolvesTask(t *testing.T) {
 	}
 }
 
-// TestOutputWarn_FeedsWarnedModifierNotHeadline proves evo.Warn (run-scoped,
-// P8 symmetry with TaskHandle.Warn) contributes to Conclusion.Warned/
-// "· warned" without ever becoming a new headline state — a run with only a
-// bare evo.Warn and no tasks still concludes StateReady, warned.
-func TestOutputWarn_FeedsWarnedModifierNotHeadline(t *testing.T) {
+// TestProblemWarning_FeedsWarnedModifierNotHeadline proves a warning-severity
+// Problem contributes to Conclusion.Warned/"· warned" without becoming a
+// new headline state — a run with only that Problem concludes StateReady, warned.
+func TestProblemWarning_FeedsWarnedModifierNotHeadline(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
@@ -68,7 +67,7 @@ func TestOutputWarn_FeedsWarnedModifierNotHeadline(t *testing.T) {
 		t.Fatalf("state = %v, want StateReady (a bare Warn must not invent a headline)", c.State)
 	}
 	if !c.Warned {
-		t.Fatal("want Conclusion.Warned = true after evo.Warn")
+		t.Fatal("want Conclusion.Warned = true after a warning-severity Problem")
 	}
 	got := buf.String()
 	if !strings.Contains(got, "no config file found, using defaults") {

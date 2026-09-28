@@ -1,6 +1,4 @@
 func (Failure) Error()  string
-func (Failure) Next(actions ...Action)  *Failure
-func (Failure) NextCommand(executable string, args ...string)  *Failure
 func (Failure) Unwrap()  error
 func (GroupHandle) Group(name string)  *GroupHandle
 func (GroupHandle) Sequence(name string)  *SequenceHandle
@@ -17,7 +15,6 @@ func (Output) Err()  error
 func (Output) Events()  []Event
 func (Output) Fact(name, value string)
 func (Output) Fail(summary string, options ...ProblemOption)
-func (Output) Failf(format string, args ...any)
 func (Output) Finish()  error
 func (Output) Group(name string)  *GroupHandle
 func (Output) Next(actions ...Action)
@@ -31,7 +28,6 @@ func (Output) Sequence(name string)  *SequenceHandle
 func (Output) Snapshot()  Snapshot
 func (Output) Suspend(fn func() error)  error
 func (Output) Task(name string)  *TaskHandle
-func (Output) Warn(summary string, options ...ProblemOption)
 func (Output) Writer()  io.Writer
 func (Printer) Print(args ...any)
 func (Printer) Printf(format string, args ...any)
@@ -45,7 +41,6 @@ func (SequenceHandle) Task(name string)  *TaskHandle
 func (SequenceHandle) Wait()  error
 func (TaskHandle) After(preds ...any)  *TaskHandle
 func (TaskHandle) Block(summary string, options ...ProblemOption)
-func (TaskHandle) Blockf(format string, args ...any)  *Failure
 func (TaskHandle) Bytes(completed, total int64)  *TaskHandle
 func (TaskHandle) Cancel(reason string)
 func (TaskHandle) Context()  context.Context
@@ -53,8 +48,6 @@ func (TaskHandle) Define(fn func(context.Context) error)  *TaskHandle
 func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
 func (TaskHandle) Fact(name, value string)  *TaskHandle
 func (TaskHandle) Fail(summary string, options ...ProblemOption)
-func (TaskHandle) Failf(format string, args ...any)  *Failure
-func (TaskHandle) Kept(reason TaxonomyReason)
 func (TaskHandle) Key(key string)  *TaskHandle
 func (TaskHandle) Next(actions ...Action)  *TaskHandle
 func (TaskHandle) NextCommand(executable string, args ...string)  *TaskHandle
@@ -62,11 +55,9 @@ func (TaskHandle) Problem(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Progress(completed, total int)  *TaskHandle
 func (TaskHandle) Skipped(reason TaxonomyReason)
 func (TaskHandle) Snapshot()  TaskSnapshot
-func (TaskHandle) Step(completed, total int, name string)  *TaskHandle
 func (TaskHandle) Summary(text string)  *TaskHandle
 func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
-func (TaskHandle) Warn(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
 func AlsoWrite(w io.Writer)  Option
@@ -144,6 +135,7 @@ func Run(ctx context.Context, run RunFunc)  Result
 func Runner(r ProcessRunner)  Option
 func Sequence(name string)  *SequenceHandle
 func SetDefault(out *Output)
+func Severity(value ProblemSeverity)  ProblemOption
 func SlogHandler()  slog.Handler
 func Stdin(r io.Reader)  Option
 func Strict()  Option
@@ -155,7 +147,6 @@ func TruncateNames(names []string, visible int)  string
 func Value(name string, v any)  Fingerprint
 func Verbose()  *Printer
 func VisibilityDelay(delay time.Duration)  Option
-func Warn(summary string, options ...ProblemOption)
 func Width(columns int)  Option
 func WriteJSON(w io.Writer, result Result)  error
 type Action
@@ -219,6 +210,7 @@ type PlanSnapshot
 type Printer
 type Problem
 type ProblemOption
+type ProblemSeverity
 type ProcessCommand
 type ProcessOutcome
 type ProcessRunner
@@ -347,6 +339,8 @@ value ResolutionAlreadySatisfied
 value ResolutionExecuted
 value ResolutionNoWork
 value Running
+value SeverityError
+value SeverityWarning
 value Skipped
 value StateBlocked
 value StateCancelled

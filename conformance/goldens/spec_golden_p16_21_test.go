@@ -239,7 +239,7 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 	}
 	// Per-item disposition children fold into one tally under their Group
 	// (contract §25 renderer aggregation), as the spec block above shows.
-	for _, want := range []string{"- skipped 6 (4 protected, 2 dirty)", "! kept 3 (unpushed)"} {
+	for _, want := range []string{"- skipped 9 (4 protected, 2 dirty, 3 unpushed)"} {
 		if strings.Count(got, want) != 1 {
 			t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
 		}
@@ -286,7 +286,7 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	}
 	// Per-item disposition children fold into one tally under their Group
 	// (contract §25 renderer aggregation), as the spec block above shows.
-	for _, want := range []string{"- skipped 6 (4 protected, 2 dirty)", "! kept 3 (unpushed)"} {
+	for _, want := range []string{"- skipped 9 (4 protected, 2 dirty, 3 unpushed)"} {
 		if strings.Count(got, want) != 1 {
 			t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
 		}
@@ -335,8 +335,7 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		"10 deleted",
 		"✗",
 		"delete failed on feat/x",
-		"- skipped 6 (unchanged)",
-		"! kept 3 (unpushed, not attempted)"} {
+		"- skipped 9 (6 unchanged, 3 unpushed, not attempted)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}

@@ -102,10 +102,9 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 }
 
 // anyTaskWarned reports whether any task in tasks carries at least one
-// TaskHandle.Warn annotation or Kept tally (P2: conclusion algebra reads
-// annotations, never a lifecycle state — Warning is not one of the terminal
-// EntityState values). A Kept tally renders the same "! kept N (...)" row a
-// Warn does, so it feeds the same "· warned" band (contract §18).
+// warning-severity Problem (P2: conclusion algebra reads annotations, never
+// a lifecycle state — Warning is not one of the terminal EntityState
+// values). Skipped policy exclusions do not set the warned modifier.
 func anyTaskWarned(tasks []TaskSnapshot) bool {
 	for _, t := range tasks {
 		if len(t.Warnings) > 0 {
@@ -193,7 +192,7 @@ func InferConclusion(s Snapshot) Conclusion {
 		}
 	}
 	// hasWarning reads TaskSnapshot.Warnings (P2), never a lifecycle
-	// EntityState — Warn annotates a task, it never resolves one.
+	// EntityState — a warning-severity Problem annotates a task, it never resolves one.
 	hasWarning := anyTaskWarned(s.Tasks) || anyCollectionWarned(s.Collections)
 
 	// Headline precedence: failed > blocked > cancelled > changed > planned >
@@ -238,12 +237,13 @@ func InferConclusion(s Snapshot) Conclusion {
 		c.Cancelled = true
 	}
 	// warnedModifier feeds the "· warned" band from BOTH sources at warning
-	// severity — a task's TaskHandle.Warn and the run's own evo.Warn (P8
-	// symmetry) — while hasWarning above (task/collection only) still governs
-	// the (dead, reserved-unreachable) StateWarning headline case alone, so a
-	// bare evo.Warn on a run with no tasks never invents a new headline —
-	// it only modifies whatever the run otherwise concludes (evo-rec.md
-	// "warnings annotate lifecycle; they do not replace it").
+	// severity — a task's warning-severity Problem and the run's own
+	// runWarnings (engine-internal, e.g. a failed manifest flush) — while
+	// hasWarning above (task/collection only) still governs the
+	// StateWarning headline case alone, so a run-scoped warning never
+	// invents a new headline — it only modifies whatever the run otherwise
+	// concludes (evo-rec.md "warnings annotate lifecycle; they do not
+	// replace it").
 	warnedModifier := hasWarning || len(s.Warnings) > 0
 	if warnedModifier && c.State != StateWarning {
 		c.Warned = true

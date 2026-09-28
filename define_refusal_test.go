@@ -3,17 +3,14 @@ package evo_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestDefine_ReturnBlockfRefuses pins the runtime half of E-105: the
-// spelling review suggests for every Block site inside Define,
-// `return task.Blockf(...)`, concludes the run Blocked with exit 1 — the
-// same verdict the original Block statement gave.
-func TestDefine_ReturnBlockfRefuses(t *testing.T) {
+// TestDefine_BlockThenNilRefuses pins the 1.1 Block-inside-Define form:
+// Block then return nil concludes the run Blocked with exit 1.
+func TestDefine_BlockThenNilRefuses(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "refuse", Color: evo.ColorNever, Plain: true})
 	task := out.Task("converge")

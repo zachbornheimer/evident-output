@@ -185,8 +185,6 @@ var dialectSurface = map[string][]string{
 	},
 	"*Failure": {
 		"Error()",
-		"Next(actions ...Action)",
-		"NextCommand(executable string, args ...string)",
 		"Unwrap()",
 	},
 	"TaxonomyReason": {

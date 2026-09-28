@@ -155,7 +155,7 @@ func TestSequenceHandle_Wait_FailedStepOmitsNotStartedFollowers(t *testing.T) {
 
 // TestGroupHandle_Wait_BlockedChildSurfacesFailure pins the "blocked ...
 // descendants have defined semantics" acceptance line: a child that resolves
-// Blocked (via the standard `return task.Blockf(...)` Define idiom) makes
+// Blocked (via Block then return nil inside Define) makes
 // the container Wait fail deterministically, exactly like a Failed child.
 func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 	var buf strings.Builder

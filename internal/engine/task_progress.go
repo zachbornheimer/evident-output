@@ -61,5 +61,3 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
 	return true
 }
-
-

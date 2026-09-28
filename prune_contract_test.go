@@ -319,21 +319,19 @@ func renderPruneContract18(t *testing.T, verbosity evo.Verbosity) string {
 // §18 dry-run bytes TestV8_DryRunPlanOnly pins for the Warn-authored form.
 // Each category Group's kept children aggregate into one tally under the
 // category's row (§25: "aggregation is a renderer concern"; §26/§27:
-// "  ! kept N (...)"), the tally feeds "[planned · warned]", and the band
-// stays bare because the dry-run Subject header already named the run.
+// "  ! kept N (...)"), the tally is one skipped fold under the category row, and the trailing
+// conclusion band is omitted because the planned rows already named the outcome.
 func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T) {
 	want := "[dry-run] zq prune  ~/repo\n" +
 		"\n" +
 		"✓ branches         188 checked\n" +
-		"  ! kept 3 (2 checked out, 1 protected)\n" +
+		"  - skipped 3 (2 checked out, 1 protected)\n" +
 		"✓ worktrees        168 checked\n" +
-		"  ! kept 3 (2 dirty, 1 unpushed)\n" +
+		"  - skipped 3 (2 dirty, 1 unpushed)\n" +
 		"✓ remote-tracking  nothing to clean\n" +
 		"\n" +
 		"[planned] branches   delete 87 local tips\n" +
-		"[planned] worktrees  remove 95 worktrees\n" +
-		"\n" +
-		"[planned · warned]\n"
+		"[planned] worktrees  remove 95 worktrees\n"
 	if got := renderPruneContract18(t, evo.VerbosityNormal); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -345,7 +343,7 @@ func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T)
 func TestPruneContract_KeptTallyVerboseListsRealItemNames(t *testing.T) {
 	got := renderPruneContract18(t, evo.VerbosityVerbose)
 	for _, want := range []string{
-		"✓ branches         188 checked\n  ! kept 3 (2 checked out, 1 protected)\n",
+		"✓ branches         188 checked\n  - skipped 3 (2 checked out, 1 protected)\n",
 		"checked out: feat/wt-a, feat/wt-b\n",
 		"protected: main\n",
 		"dirty: ../wt-a, ../wt-b\n",

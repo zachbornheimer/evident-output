@@ -77,6 +77,8 @@ var symbols = []Symbol{
 	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block(summary, opts...)"},
 	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary, opts...)"},
 	{Contract: "Output.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary, opts...)"},
+	{Contract: "Failure.Next(", RemovedIn: Release1_1, Replacement: "TaskHandle.Next after Fail or Block"},
+	{Contract: "Failure.NextCommand(", RemovedIn: Release1_1, Replacement: "TaskHandle.NextCommand after Fail or Block"},
 	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(item)"},
 	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: "Skipped(Reason(...)) for a policy exclusion; Fact/Summary for kept counts"},
 }

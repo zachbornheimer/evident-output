@@ -80,9 +80,7 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 		"\n" +
 		"[planned] branches         delete 40 local tips\n" +
 		"[planned] worktrees        remove 1 worktree\n" +
-		"[planned] remote-tracking  delete 4 stale origin/*\n" +
-		"\n" +
-		"[planned]\n"
+		"[planned] remote-tracking  delete 4 stale origin/*\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

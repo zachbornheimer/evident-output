@@ -68,7 +68,7 @@ g.Task("b").Define(installB)`,
 				"so there is nothing left in that family to flag; Failf/Blockf survive for their %w+*Failure semantics.",
 			BadCode: `task.Failf("boom")`,
 			GoodCode: `task.Fail("boom")
-task.Failf("boom: %w", err)`,
+task.Fail("boom", evo.Detail(err.Error()))`,
 			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Task/Group/Sequence/Changes/Plan/Warn/Reason take printf args directly",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
@@ -275,7 +275,8 @@ func run(ctx context.Context) error {
 		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: n}, remove)
 	})
 	evo.Task("tip").Skipped(reason)
-	return evo.Task("z").Failf("failed: %w", err)
+	evo.Task("z").Fail("failed", evo.Detail(err.Error()))
+            return err
 }`,
 			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every TaskHandle mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer(); replace TaskHandle.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
@@ -326,7 +327,8 @@ out.Task("disk space").Define(checkDiskSpace)`,
   return nil
 }`,
 			GoodCode: `if err := validate(cfg); err != nil {
-  return task.Failf("validate policy manifest: %w", err)
+  task.Fail("validate policy manifest", evo.Detail(err.Error()))
+              return err
 }`,
 			Remediation:     `Replace the Fail + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere return task.Failf("<context>: %w", err). Replace a Block + return nil pair with return task.Blockf(...), inside a Define callback too: a plain error there would conclude the Task Failed, not Blocked`,
 			RelatedGuidance: []string{"common-api"},
@@ -347,7 +349,9 @@ if err := cmd.Run(); err != nil {
 			GoodCode: `cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
-  return task.Blockf("policy check failed: %w", err).NextCommand("git", "status")
+  task.Block("policy check failed", evo.Detail(err.Error()))
+              task.NextCommand("git", "status")
+              return nil
 }`,
 			Remediation:     "Wire the checked command's output through task.Writer() instead of io.Discard, so Block/Fail can attach evidence",
 			RelatedGuidance: []string{"streams"},
@@ -362,7 +366,7 @@ if err := cmd.Run(); err != nil {
 			Invariant:       "a Fail/Block with a fmt.Sprintf summary followed by a return is one return of the matching Failf/Blockf",
 			Why:             "Failf/Blockf resolve the Task and return its *Failure in one line; a Fail(fmt.Sprintf(...)) statement then a return says it twice. A bare Fail/Block statement is already right: rewriting it to the f-form discards the *Failure (errcheck).",
 			BadCode:         "task.Fail(fmt.Sprintf(\"delete failed on %s\", branch))\nreturn nil",
-			GoodCode:        "func remove(task *evo.TaskHandle, branch string) error {\n\treturn task.Failf(\"delete failed on %s\", branch)\n}",
+			GoodCode:        "func remove(task *evo.TaskHandle, branch string) error {\n\ttask.Fail(\"delete failed on \" + branch)\n\treturn fmt.Errorf(\"delete failed on %s\", branch)\n}",
 			Remediation:     "Return task.Blockf(...) in place of a Block pair, inside a Define callback or not. For a Fail pair: outside a Define callback return task.Failf(...); inside one return fmt.Errorf(...) and drop the Fail call",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-036"},
