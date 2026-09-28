@@ -264,7 +264,7 @@ func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
 	work := items.Task(c.name)
 	work.Define(func(ctx context.Context) error {
 		for _, item := range c.kept {
-			items.Task(item.name).Kept(item.reason)
+			items.Task(item.name).Skipped(item.reason)
 		}
 		if c.onDisk != "" {
 			work.Fact("on disk", c.onDisk)

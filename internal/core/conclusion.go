@@ -108,7 +108,7 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 // Warn does, so it feeds the same "· warned" band (contract §18).
 func anyTaskWarned(tasks []TaskSnapshot) bool {
 	for _, t := range tasks {
-		if len(t.Warnings) > 0 || len(t.Kept) > 0 {
+		if len(t.Warnings) > 0 {
 			return true
 		}
 	}

@@ -21,8 +21,8 @@ func TestTaskHandle_Wait_SelfResolvedBeforeReturn_IsNotSuccess(t *testing.T) {
 		name    string
 		resolve func(task *TaskHandle) error
 	}{
-		{"Blockf", func(task *TaskHandle) error { return task.Blockf("needs review: %w", errors.New("ambiguous")) }},
-		{"Failf", func(task *TaskHandle) error { return task.Failf("compile: %w", errors.New("syntax")) }},
+		{"Block", func(task *TaskHandle) error { task.Block("needs review", Detail("ambiguous")); return nil }},
+		{"Fail", func(task *TaskHandle) error { task.Fail("compile", Detail("syntax")); return errors.New("syntax") }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf strings.Builder

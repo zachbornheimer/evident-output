@@ -228,7 +228,7 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 		g.Task(name).Skipped(dirty)
 	}
 	for _, name := range eachSkipNames("unpushed", 3) {
-		g.Task(name).Kept(unpushed)
+		g.Task(name).Skipped(unpushed)
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -270,7 +270,7 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 		g.Task(name).Skipped(dirty)
 	}
 	for _, name := range eachSkipNames("unpushed", 3) {
-		g.Task(name).Kept(unpushed)
+		g.Task(name).Skipped(unpushed)
 	}
 	out.NextCommand("repo-retire", "salvage", "--dry-run")
 	if err := out.Finish(); err != nil {
@@ -324,7 +324,7 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		g.Task(name).Skipped(unchanged)
 	}
 	for _, name := range eachSkipNames("kept", 3) {
-		g.Task(name).Kept(notAttempted)
+		g.Task(name).Skipped(notAttempted)
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

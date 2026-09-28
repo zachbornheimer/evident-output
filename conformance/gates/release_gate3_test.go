@@ -53,7 +53,7 @@ func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
 
 	leftover := out.Task("connect")
 	leftover.Doing("connecting")
-	out.Failf("stopped: %v", "disk full")
+	out.Fail("stopped: disk full")
 
 	_ = out.Finish()
 	if got := leftover.Snapshot().State; got != evo.Cancelled {

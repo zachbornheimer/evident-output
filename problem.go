@@ -26,8 +26,19 @@ type Attachment = core.Attachment
 // Field is a structured diagnostic or log field.
 type Field = core.Field
 
-// ProblemOption configures a problem constructed by Block/Warn/Fail helpers.
+// ProblemOption configures a problem constructed by Block/Fail/Problem helpers.
 type ProblemOption = engine.ProblemOption
+
+// ProblemSeverity is the closed set of Problem severities.
+type ProblemSeverity = engine.ProblemSeverity
+
+const (
+	SeverityError   = engine.SeverityError
+	SeverityWarning = engine.SeverityWarning
+)
+
+// Severity sets a Problem's severity. Default is SeverityError.
+func Severity(value ProblemSeverity) ProblemOption { return engine.Severity(value) }
 
 // Detail sets user-visible detail text (strings only).
 func Detail(text string) ProblemOption { return engine.Detail(text) }

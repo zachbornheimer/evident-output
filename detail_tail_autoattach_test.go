@@ -39,7 +39,7 @@ func TestBlockf_AutoAttachesDetailTail(t *testing.T) {
 	task := out.Task("policy check")
 	output := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(output, "policy violation: missing signature")
-	_ = task.Blockf("policy check failed")
+	task.Block("policy check failed")
 
 	_ = out.Finish()
 

@@ -58,7 +58,8 @@ func TestTaskRun_PlainMode_FailureShowsTailOnce(t *testing.T) {
 	cmd.Stdout = task.Writer()
 	cmd.Stderr = task.Writer()
 	if err := cmd.Run(); err != nil {
-		_ = task.Failf("build failed: %w", err)
+		task.Fail("build failed", evo.Detail(err.Error()))
+		return err
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (a resolved Fail is not misuse)", err)

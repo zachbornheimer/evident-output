@@ -67,7 +67,7 @@ func ExampleFact() {
 func ExampleWarn() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	evo.SetDefault(out)
-	evo.Warn("cache directory missing, rebuilding")
+	out.Task("cache").Problem("cache directory missing, rebuilding", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
 	fmt.Println(out.Conclusion().Warned)
 	// Output:

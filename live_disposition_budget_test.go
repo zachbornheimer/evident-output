@@ -29,7 +29,7 @@ func TestLiveGroup_AggregatedTalliesCountAgainstTheRowBudget(t *testing.T) {
 
 	packages := out.Group("packages")
 	for n := range 40 {
-		packages.Task(fmt.Sprintf("pinned-%02d", n)).Kept(evo.Reason("pinned"))
+		packages.Task(fmt.Sprintf("pinned-%02d", n)).Skipped(evo.Reason("pinned"))
 		packages.Task(fmt.Sprintf("vendored-%02d", n)).Skipped(evo.Reason("vendored"))
 	}
 	for n := range 40 {

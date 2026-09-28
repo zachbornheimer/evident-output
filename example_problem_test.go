@@ -150,7 +150,8 @@ func ExampleNextCommand() {
 func ExampleFailure() {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Plain: true})
 	task := out.Task("clone repository")
-	err := task.Failf("clone failed: %w", fmt.Errorf("connection refused"))
+	task.Fail("clone failed", evo.Detail("connection refused"))
+	err := fmt.Errorf("clone failed: %w", fmt.Errorf("connection refused"))
 	_ = out.Finish()
 	fmt.Println(err.Error())
 	// Output:

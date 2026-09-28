@@ -20,7 +20,7 @@ import evo "github.com/zachbornheimer/evident-output"
 func define(task *evo.TaskHandle, locals []decision) {
 	for _, d := range locals {
 		if !d.Delete {
-			task.Kept(keepReason(d.Reason))
+			task.Skipped(keepReason(d.Reason))
 		}
 	}
 }
@@ -56,12 +56,12 @@ import evo "github.com/zachbornheimer/evident-output"
 func define(branches *evo.GroupHandle, locals []decision) {
 	for _, d := range locals {
 		if !d.Delete {
-			branches.Task(d.Name).Kept(keepReason(d.Reason))
+			branches.Task(d.Name).Skipped(keepReason(d.Reason))
 		}
 	}
 	for _, d := range locals {
 		item := branches.Task(d.Name)
-		item.Kept(keepReason(d.Reason))
+		item.Skipped(keepReason(d.Reason))
 	}
 }
 `
@@ -103,7 +103,7 @@ func define(branches *evo.GroupHandle, locals []decision) {
 	var item *evo.TaskHandle
 	for _, d := range locals {
 		item = branches.Task(d.Name)
-		item.Kept(keepReason(d.Reason))
+		item.Skipped(keepReason(d.Reason))
 	}
 	item = branches.Task("main")
 	item.Kept(evo.Reason("protected"))

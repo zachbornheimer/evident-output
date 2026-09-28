@@ -21,8 +21,8 @@ func renderCategory(t *testing.T, workName string) string {
 	items := out.Group("branches")
 	work := items.Task(workName)
 	work.Define(func(context.Context) error {
-		items.Task("main").Kept(evo.Reason("protected"))
-		items.Task("feat/a").Kept(evo.Reason("unpushed"))
+		items.Task("main").Skipped(evo.Reason("protected"))
+		items.Task("feat/a").Skipped(evo.Reason("unpushed"))
 		work.Summary("12 checked")
 		return nil
 	})
@@ -125,7 +125,7 @@ func TestOwnTask_LoneKeptItemFoldsUnderItsGroupRow(t *testing.T) {
 	items := out.Group("branches")
 	work := items.Task("branches")
 	work.Define(func(context.Context) error {
-		items.Task("main").Kept(evo.Reason("protected"))
+		items.Task("main").Skipped(evo.Reason("protected"))
 		work.Summary("2 checked")
 		return nil
 	})

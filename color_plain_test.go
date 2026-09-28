@@ -19,8 +19,8 @@ func TestPlain_ColorOnByDefault(t *testing.T) {
 	succeed(out.Task("ok"))
 	out.Task("bad").Fail("x")
 	warn := out.Task("warn")
-	warn.Warn("y")
-	warn.Warn("z")
+	warn.Problem("y", evo.Severity(evo.SeverityWarning))
+	warn.Problem("z", evo.Severity(evo.SeverityWarning))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

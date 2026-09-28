@@ -544,7 +544,7 @@ func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 	task := out.Task("build")
 	tail := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(tail, "warning: deprecated flag used")
-	task.Warn("non-blocking finding", tail.DetailTail())
+	task.Problem("non-blocking finding", Severity(SeverityWarning), tail.DetailTail())
 	task.Define(func(context.Context) error { return nil })
 	_ = task.Wait()
 	if err := out.Finish(); err != nil {
@@ -568,7 +568,7 @@ func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
 	var stdout nopFlushWriter
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
-	out.Warn("disk nearly full", Code("W_DISK"), Detail("92% used"), Location("/var", 0, 0))
+	out.Task("disk").Problem("disk nearly full", Severity(SeverityWarning), Code("W_DISK"), Detail("92% used"), Location("/var", 0, 0))
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
@@ -724,7 +724,7 @@ func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) 
 	task := out.Task("audit")
 	task.Problem("finding one", Code("A1"))
 	task.Problem("finding two", Code("A2"))
-	task.Warn("heads up", Code("W1"))
+	task.Problem("heads up", Severity(SeverityWarning), Code("W1"))
 	task.Define(func(context.Context) error { return nil })
 	_ = task.Wait()
 	if err := out.Finish(); err != nil {

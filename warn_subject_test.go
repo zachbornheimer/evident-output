@@ -18,7 +18,7 @@ func warnSubjectRun(t *testing.T, count int) (human string, doc map[string]any) 
 	task := out.Task("check jobs")
 	task.Define(func(context.Context) error {
 		for range count {
-			task.Warn("x", evo.On("job"))
+			task.Problem("x", evo.Severity(evo.SeverityWarning), evo.On("job"))
 		}
 		return nil
 	})

@@ -30,7 +30,7 @@ func TestLiveGroup_KeptChildrenAggregateInTheLiveFrame(t *testing.T) {
 	kept := make(chan struct{})
 	work.Define(func(context.Context) error {
 		for i := range 5 {
-			branches.Task(fmt.Sprintf("feat/%d", i)).Kept(evo.Reason("unpushed"))
+			branches.Task(fmt.Sprintf("feat/%d", i)).Skipped(evo.Reason("unpushed"))
 		}
 		work.Doing("deleting")
 		close(kept)
@@ -67,7 +67,7 @@ func TestLiveGroup_CompleteCountNeverDropsAsItemsFold(t *testing.T) {
 		packages.Task(fmt.Sprintf("package-%d", n)).Doing("downloading")
 	}
 	for kept := 1; kept <= 3; kept++ {
-		packages.Task(fmt.Sprintf("pinned-%d", kept)).Kept(evo.Reason("pinned"))
+		packages.Task(fmt.Sprintf("pinned-%d", kept)).Skipped(evo.Reason("pinned"))
 		want := fmt.Sprintf("packages  %d/%d complete", kept, running+kept)
 		if frame := screen.LatestLiveText(); !strings.Contains(frame, want) {
 			t.Fatalf("after %d kept, live header lacks %q:\n%s", kept, want, frame)

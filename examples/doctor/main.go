@@ -61,7 +61,7 @@ func main() {
 				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode"))
 				it.NextCommand("git", "config", "--global", "commit.gpgsign", "true")
 			} else {
-				it.Warn("commit signing not verified")
+				it.Problem("commit signing not verified", evo.Severity(evo.SeverityWarning))
 			}
 		})
 		probe("disk free space", func(it *evo.TaskHandle) {

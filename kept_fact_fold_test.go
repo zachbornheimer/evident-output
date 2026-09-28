@@ -11,7 +11,7 @@ import (
 
 // keptWithFactsRun is zq prune's in-use shape: one Task per kept item,
 // each with a Fact saying why (row := group.Task(name); row.Fact("why",
-// d); row.Kept(r)).
+// d); row.Skipped(r)).
 func keptWithFactsRun(t *testing.T, v evo.Verbosity) string {
 	t.Helper()
 	var buf bytes.Buffer
@@ -22,7 +22,7 @@ func keptWithFactsRun(t *testing.T, v evo.Verbosity) string {
 		if n != "main" {
 			row.Fact("why", "current checkout")
 		}
-		row.Kept(evo.Reason("in use"))
+		row.Skipped(evo.Reason("in use"))
 	}
 	_ = out.Finish()
 	_ = out.Close()
@@ -70,7 +70,7 @@ func manyKeptOneFactRun(t *testing.T, n int, name string) string {
 		if i == 0 {
 			row.Fact(name, "8.0 KB")
 		}
-		row.Kept(evo.Reason("in use"))
+		row.Skipped(evo.Reason("in use"))
 	}
 	_ = out.Finish()
 	_ = out.Close()

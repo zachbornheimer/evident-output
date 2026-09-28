@@ -18,7 +18,8 @@ func TestDefine_ReturnBlockfRefuses(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "refuse", Color: evo.ColorNever, Plain: true})
 	task := out.Task("converge")
 	task.Define(func(context.Context) error {
-		return task.Blockf("needs review: %w", errors.New("ambiguous"))
+		task.Block("needs review", evo.Detail("ambiguous"))
+		return nil
 	})
 	_ = out.Finish()
 	if c := out.Conclusion(); c.State != evo.StateBlocked || c.ExitCode != evo.ExitBlocked {

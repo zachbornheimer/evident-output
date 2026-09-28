@@ -37,13 +37,6 @@ func (t *TaskHandle) Skipped(reason TaxonomyReason) {
 	t.finish(Skipped, "", nil)
 }
 
-// Kept records a keep reason on this Task (the Task name is the kept name)
-// and resolves the Task as Done.
-func (t *TaskHandle) Kept(reason TaxonomyReason) {
-	t.recordTaxonomy(reason, "", dispositionKeep, nil)
-	t.finish(Done, "", nil)
-}
-
 func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {
 	t.withTask(func(st *taskState) { t.recordTaxonomyLocked(st, reason, name, verb, errs) })
 }

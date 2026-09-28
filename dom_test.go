@@ -83,7 +83,7 @@ func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	w := out.Task("w")
-	w.Warn("soft")
+	w.Problem("soft", evo.Severity(evo.SeverityWarning))
 	if got := w.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
 		t.Fatalf("state = %q, want non-terminal: Warn must not resolve the task", got)
 	}

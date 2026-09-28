@@ -79,8 +79,8 @@ func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 
 	unpushed := evo.Reason("unpushed")
 	group := out.Sequence("branches")
-	group.Task("feat/a").Kept(unpushed)
-	group.Task("feat/b").Kept(unpushed)
+	group.Task("feat/a").Skipped(unpushed)
+	group.Task("feat/b").Skipped(unpushed)
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -110,7 +110,7 @@ func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
 	skipOnly := evo.ReasonConstrained("unpushed", evo.ForSkip())
 
 	branches := out.Task("branches")
-	branches.Kept(skipOnly)
+	branches.Skipped(skipOnly)
 
 	if out.Err() == nil {
 		t.Fatal("want recorded misuse for a ForSkip reason recorded via Kept")
@@ -246,7 +246,7 @@ func TestTaskSnapshot_ExposesSkippedAndKeptTaxonomy(t *testing.T) {
 	skipped := out.Task("main")
 	skipped.Skipped(reason)
 	kept := out.Task("feat/a")
-	kept.Kept(reason)
+	kept.Skipped(reason)
 
 	skipSnap := skipped.Snapshot()
 	if len(skipSnap.Skipped) != 1 || skipSnap.Skipped[0].Reason != "protected" || skipSnap.Skipped[0].Name != "main" {
@@ -303,9 +303,9 @@ func TestGroup_KeptChildrenAggregateUnderGroupRow(t *testing.T) {
 		if summary != "" {
 			branches.Summary(summary)
 		}
-		branches.Task("feat/a").Kept(unpushed)
-		branches.Task("main").Kept(protected)
-		branches.Task("feat/b").Kept(unpushed)
+		branches.Task("feat/a").Skipped(unpushed)
+		branches.Task("main").Skipped(protected)
+		branches.Task("feat/b").Skipped(unpushed)
 		if err := out.Finish(); err != nil {
 			t.Fatal(err)
 		}

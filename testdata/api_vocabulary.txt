@@ -264,6 +264,7 @@ Problem	canonical	Problem
 ProblemCodeDuplicateSiblingName	helper	Problem
 ProblemCodeVerificationUnsatisfied	helper	Problem
 ProblemOption	helper	Problem
+ProblemSeverity	helper	Problem
 ProcessCommand	helper	Exec
 ProcessOutcome	helper	Exec
 ProcessRunner	helper	Exec
@@ -301,6 +302,9 @@ SequenceHandle.Summary	canonical	Summary
 SequenceHandle.Task	canonical	Task
 SequenceHandle.Wait	canonical	Wait
 SetDefault	helper	Run
+Severity	helper	Problem
+SeverityError	helper	Problem
+SeverityWarning	helper	Problem
 Skipped	helper	Conclusion
 SlogHandler	helper	Debug journal
 Snapshot	helper	Snapshot

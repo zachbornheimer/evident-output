@@ -15,19 +15,10 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 }
 
 // Block resolves the Task Blocked: a refusal, not a failure. Use it as a
-// statement; to return the refusal in the same line (including from a
-// Define callback), use Blockf.
+// statement. Inside a Define callback, Block then return nil: Wait still
+// reports failure from the Blocked row.
 func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	t.impl().Block(summary, options...)
-}
-
-// Blockf resolves the Task Blocked with a formatted summary and returns
-// the refusal as a *Failure, meant to be returned (and chained with Next).
-// Inside a Define callback `return task.Blockf(...)` is how the callback
-// refuses: the Task concludes Blocked, where a plain returned error would
-// conclude it Failed. As a bare statement use Block.
-func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
-	return wrapFailure(t.impl().Blockf(format, args...))
 }
 
 func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
@@ -65,28 +56,17 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 
 // Fact records one name/value fact on this Task: information, not a
 // mutation. It never resolves the Task, and returns this *TaskHandle so a
-// call can chain like Warn, Problem, and Summary.
+// call can chain like Problem and Summary.
 func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	t.impl().Fact(name, value)
 	return t
 }
 
-// Fail resolves the Task Failed. Use it as a statement; to return the
-// failure as an error in the same line, use Failf.
+// Fail resolves the Task Failed. Use it as a statement. Inside a Define
+// callback, return the error as well so Wait sees the callback's own result.
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	t.impl().Fail(summary, options...)
 }
-
-// Failf resolves the Task Failed with a formatted summary and returns the
-// failure as a *Failure, meant to be returned (and chained with Next) from
-// code outside a Define callback. Inside a Define callback return an error
-// instead: the callback's error resolves the Task. As a bare statement use
-// Fail.
-func (t *TaskHandle) Failf(format string, args ...any) *Failure {
-	return wrapFailure(t.impl().Failf(format, args...))
-}
-
-func (t *TaskHandle) Kept(reason TaxonomyReason) { t.impl().Kept(reason.inner) }
 
 // Key sets an advanced override for this Task's stable identity, so a
 // rename or refactor keeps its manifest history. Call it before Define; a
@@ -108,14 +88,12 @@ func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle 
 	return t
 }
 
-// Problem appends one blocking Problem to this Task without resolving it, so
-// one Define can accumulate many structured findings instead of inventing a
-// Task per finding or flattening them into one error string. Every Problem
-// is kept, in order, in Snapshot and JSON/JSONL; the human view may bound
-// how many render inline. If the Task would otherwise resolve successfully
-// (its Define returns nil) while it holds any Problem, it resolves Failed
-// instead. Calling it after the Task resolved is misuse, unless an
-// interrupt resolved it.
+// Problem appends one structured diagnostic without resolving the Task.
+// Severity defaults to SeverityError: a nil Define return then settles
+// Failed. Severity(SeverityWarning) uses the warning projection and never
+// fails the Task. An invalid severity is rejected with a context-bearing
+// error. Calling it after the Task resolved is misuse, unless an interrupt
+// resolved it.
 func (t *TaskHandle) Problem(summary string, options ...ProblemOption) *TaskHandle {
 	t.impl().Problem(summary, options...)
 	return t
@@ -135,15 +113,10 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 	return t.inner.Snapshot()
 }
 
-func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
-	t.impl().Step(completed, total, name)
-	return t
-}
-
 // Summary sets one line of result text rendered after the Task name on its
 // terminal row, and exposed as "summary" in Snapshot and JSON/JSONL. The
 // last call wins and an empty string clears it. It never resolves the Task
-// and is not live activity (Doing, Progress, Step, and Bytes are). Calling
+// and is not live activity (Doing, Progress, and Bytes are). Calling
 // it after the Task resolved is misuse, unless an interrupt resolved it.
 func (t *TaskHandle) Summary(text string) *TaskHandle {
 	t.impl().Summary(text)
@@ -176,21 +149,11 @@ func (t *TaskHandle) Wait() error {
 // AlreadySatisfied without running it) and again after a successful
 // callback (any false fails the Task with ProblemCodeVerificationUnsatisfied).
 // The after-check is skipped in two cases only: Define resolved the Task
-// itself (Block, or Kept/Skipped with no Effect committed first), or a dry
+// itself (Block, or Skipped with no Effect committed first), or a dry
 // run or preview skipped an Effect Define planned. A planned run whose
 // Define planned nothing is checked like a real one.
 func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {
 	t.impl().Verify(fn)
-	return t
-}
-
-// Warn accumulates a non-blocking warning on this Task. It takes the same
-// structured ProblemOptions as Problem, Fail, and Block (Detail, Code, On,
-// Location, Next). It never resolves the Task; call it any number of times.
-// It returns this *TaskHandle only so a call can chain. Calling it after
-// the Task resolved is misuse, unless an interrupt resolved it.
-func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle {
-	t.impl().Warn(summary, options...)
 	return t
 }
 

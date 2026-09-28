@@ -58,7 +58,7 @@ func TestOutputWarn_FeedsWarnedModifierNotHeadline(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Warn("no config file found, using defaults")
+	out.Task("config").Problem("no config file found, using defaults", evo.Severity(evo.SeverityWarning))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

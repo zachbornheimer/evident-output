@@ -15,7 +15,8 @@ func failMidLoop(task *evo.TaskHandle) {
 	task.Define(func(context.Context) error {
 		task.Progress(3, 10)
 		task.Problem("exit status 2")
-		return task.Failf("compile stopped")
+		task.Fail("compile stopped")
+		return nil
 	})
 }
 

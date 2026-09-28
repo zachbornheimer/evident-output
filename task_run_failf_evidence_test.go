@@ -37,7 +37,8 @@ func TestRun_ThenFailf_RendersChildStderrInFinalReport(t *testing.T) {
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "echo 'undefined reference to main' 1>&2; exit 1")
 	if err := task.RunForTest(cmd); err != nil {
-		_ = task.Failf("build failed: %w", err)
+		task.Fail("build failed", evo.Detail(err.Error()))
+		return err
 	}
 
 	if err := out.Finish(); err != nil {

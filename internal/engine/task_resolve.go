@@ -19,21 +19,10 @@ func (t *TaskHandle) succeed(summary string) {
 
 // Fail resolves the task as failed. This is a statement, not a fluent
 // chain — Fail returns nothing, so a bare `task.Fail("summary")` is
-// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use Failf
-// to build and return a %w-wrapped error in one line.
+// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Inside
+// Define, return the error as well so Wait sees the callback's own result.
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 	t.resolveWithProblem(Failed, summary, options)
-}
-
-// Failf resolves the task as failed with a formatted summary and returns a
-// *Failure so a call site can `return` it directly:
-// `return task.Failf("validate policy manifest: %w", err)`, and attach a
-// remedy in the same statement: `.Next(evo.Label("..."))`. fmt.Errorf
-// semantics: %w wraps its argument so errors.Is/As still reach it. See
-// splitWrappedMessage for how a trailing ": %w"/", %w" splits the formatted
-// text into the rendered summary and evidence line.
-func (t *TaskHandle) Failf(format string, args ...any) *Failure {
-	return t.resolveFormatted(Failed, format, args)
 }
 
 // resolveWithProblem is Fail and Block: resolve as state with one Problem
@@ -43,47 +32,13 @@ func (t *TaskHandle) resolveWithProblem(state EntityState, summary string, optio
 	t.finish(state, txt.Text(summary), []Problem{p})
 }
 
-// resolveFormatted is Failf and Blockf: resolve as state from a
-// fmt.Errorf-formatted error and return it as a *Failure.
-func (t *TaskHandle) resolveFormatted(state EntityState, format string, args []any) *Failure {
-	err := fmt.Errorf(format, args...)
-	summary, evidence := core.SplitWrappedMessage(format, err)
-	problem := Problem{Summary: summary, Detail: evidence}
-	t.attachRetainedEvidenceTail(&problem)
-	t.finish(state, summary, []Problem{core.SanitizeProblem(problem)})
-	return newFailure(t, err)
-}
-
-// attachRetainedEvidenceTail attaches the task's own retained evidence
-// (Writer/PhaseWriter/evidence() capture) as the Problem's
-// EvidenceTail, the same precedence Evidence.DetailTail() already
-// documents: an existing Detail line — here, Failf/Blockf's own
-// wrapped-error text — still renders as the primary line, and the retained
-// evidence appends underneath rather than being silently dropped
-// (beginner-gate-2 finding 3). Failf/Blockf accept no ProblemOptions, so
-// this is the only way their call sites ever see the proof task.Writer()
-// already captured; a bare Fail/Block with no Detail still gets its own auto-attach
-// from finishTagged, unaffected by this.
-func (t *TaskHandle) attachRetainedEvidenceTail(p *Problem) {
-	if t == nil {
-		return
-	}
-	t.evidence().DetailTail().applyProblem(p)
-}
-
 // Block resolves the task as blocked. This is a statement, not a fluent
 // chain — Block returns nothing, so a bare `task.Block("summary")` is
-// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Use
-// Blockf to build and return a %w-wrapped error in one line.
+// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Inside
+// Define, Block then return nil: Wait still reports failure from the
+// Blocked row.
 func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
 	t.resolveWithProblem(Blocked, summary, options)
-}
-
-// Blockf resolves the task as blocked with a formatted summary and returns a
-// *Failure exactly like Failf — see Failf for the fmt.Errorf %w,
-// summary/evidence split, and Next/NextCommand remedy-attachment contract.
-func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
-	return t.resolveFormatted(Blocked, format, args)
 }
 
 // Cancel resolves the task as cancelled. A nil *TaskHandle is safe and

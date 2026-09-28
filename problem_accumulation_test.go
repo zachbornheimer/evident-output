@@ -251,7 +251,7 @@ func TestWarn_AcceptsStructuredProblemOptions(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("cache")
-	task.Warn("stale entry ignored",
+	task.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning),
 		evo.Detail("cache/entry-42.json is 9 days old"),
 		evo.Code("CACHE-001"),
 		evo.Location("cache/entry-42.json", 0, 0),
@@ -282,7 +282,7 @@ func TestWarn_ReturnsHandleForChaining(t *testing.T) {
 	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
-	succeed(out.Task("chain").Warn("heads up"), "finished anyway")
+	succeed(out.Task("chain").Problem("heads up", evo.Severity(evo.SeverityWarning)), "finished anyway")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestProblem_SkippedCannotLaunderAProblem(t *testing.T) {
 // warned-but-unresolved Task must not settle it Done over a Problem.
 func TestProblem_UnresolvedWarnedTaskKeepsItsProblem(t *testing.T) {
 	got, human := finishProblemRun(t, func(out *evo.Output) {
-		out.Task("scan").Problem("blocking finding").Warn("also a warning")
+		out.Task("scan").Problem("blocking finding").Problem("also a warning", evo.Severity(evo.SeverityWarning))
 	})
 	assertProblemFailsTask(t, got, human)
 }

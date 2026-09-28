@@ -9,28 +9,24 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestKept_ConcludesWarnedInHumanAndMachineOutput pins the contract §18
-// change that a Kept record feeds the conclusion's warned dimension, not
-// only the human "· warned" band: a run whose one Task kept items it was
-// asked to clean did less than asked, so a machine consumer reading
-// the --json document's conclusion.warned sees what a human reading the
-// band sees. A run that
-// only Skipped stays unwarned (TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning).
-func TestKept_ConcludesWarnedInHumanAndMachineOutput(t *testing.T) {
+// TestSkipped_DoesNotSetWarned pins the 1.1 contract: policy exclusions are
+// Skipped and do not set the conclusion's warned modifier. Kept was removed
+// in 1.1; aggregate "kept N" information is Fact/Summary, not warning state.
+func TestSkipped_DoesNotSetWarned(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	repos := out.Task("repositories")
 	repos.Define(func(context.Context) error {
-		repos.Kept(evo.Reason("unpushed"))
+		repos.Skipped(evo.Reason("unpushed"))
 		return nil
 	})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(buf.Bytes(), []byte("[ready · warned]")) {
-		t.Fatalf("a Kept record must feed the human warned band:\n%s", buf.String())
+	if bytes.Contains(buf.Bytes(), []byte("warned")) {
+		t.Fatalf("Skipped must not set the warned band:\n%s", buf.String())
 	}
 	var doc struct {
 		Conclusion struct {
@@ -38,14 +34,14 @@ func TestKept_ConcludesWarnedInHumanAndMachineOutput(t *testing.T) {
 			Warned bool   `json:"warned"`
 		} `json:"conclusion"`
 	}
-	raw, err := evo.EncodeJSON(out.Snapshot()) // the --json projection
+	raw, err := evo.EncodeJSON(out.Snapshot())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if !doc.Conclusion.Warned || doc.Conclusion.State != "ready" {
-		t.Fatalf("machine conclusion must read ready + warned for a Kept record, got %+v", doc.Conclusion)
+	if doc.Conclusion.Warned {
+		t.Fatalf("machine conclusion must not be warned for a Skipped policy exclusion, got %+v", doc.Conclusion)
 	}
 }

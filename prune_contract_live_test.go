@@ -52,7 +52,7 @@ func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 		classifying := make(chan struct{})
 		work.Define(func(context.Context) error {
 			for _, kept := range c.kept {
-				items.Task(kept.name).Kept(kept.reason)
+				items.Task(kept.name).Skipped(kept.reason)
 			}
 			work.Doing(c.item)
 			work.Progress(c.done, c.total)

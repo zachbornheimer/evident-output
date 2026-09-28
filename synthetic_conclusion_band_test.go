@@ -21,7 +21,7 @@ func TestFailf_EmptyTitle_StillRendersFailedBand(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Failf("boom: %w", fmt.Errorf("underlying"))
+	out.Fail("boom", evo.Detail("underlying"))
 	_ = out.Finish()
 
 	rendered := buf.String()

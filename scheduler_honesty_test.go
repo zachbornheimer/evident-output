@@ -25,7 +25,8 @@ func TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve(t *testing.T) {
 	out := isolatedScheduler(t, 1, io.Discard, false)
 	task := out.Task("lint")
 	task.Define(func(ctx context.Context) error {
-		return task.Failf("lint failed: %w", errProbe)
+		task.Fail("lint failed", evo.Detail(errProbe.Error()))
+		return errProbe
 	})
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)

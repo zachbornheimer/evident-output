@@ -71,6 +71,14 @@ var symbols = []Symbol{
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+	{Contract: "TaskHandle.Warn(", RemovedIn: Release1_1, Replacement: "Problem(summary, Severity(SeverityWarning))"},
+	{Contract: "Output.Warn(", RemovedIn: Release1_1, Replacement: "Problem(summary, Severity(SeverityWarning))"},
+	{Contract: "Warn", RemovedIn: Release1_1, Replacement: "Problem(summary, Severity(SeverityWarning))"},
+	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block(summary, opts...)"},
+	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary, opts...)"},
+	{Contract: "Output.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary, opts...)"},
+	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(item)"},
+	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: "Skipped(Reason(...)) for a policy exclusion; Fact/Summary for kept counts"},
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose

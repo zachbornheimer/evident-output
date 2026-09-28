@@ -48,8 +48,6 @@ func (o *Output) Fail(summary string, options ...ProblemOption) {
 	o.impl().Fail(summary, options...)
 }
 
-func (o *Output) Failf(format string, args ...any) { o.impl().Failf(format, args...) }
-
 func (o *Output) Finish() error {
 	if o == nil || o.inner == nil {
 		return nil
@@ -116,10 +114,6 @@ func (o *Output) Suspend(fn func() error) error {
 }
 
 func (o *Output) Task(name string) *TaskHandle { return wrapTask(o.impl().Task(name)) }
-
-// Warn accumulates a run-scoped warning. It takes the same structured
-// ProblemOptions as TaskHandle.Warn and Output.Fail.
-func (o *Output) Warn(summary string, options ...ProblemOption) { o.impl().Warn(summary, options...) }
 
 func (o *Output) Writer() io.Writer {
 	if o == nil || o.inner == nil {

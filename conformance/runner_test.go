@@ -150,7 +150,7 @@ func runScenarioFile(t *testing.T, path string) {
 			}
 			items[m.Ref].Block(m.Summary, po...)
 		case "item.warn":
-			items[m.Ref].Warn(m.Summary)
+			items[m.Ref].Problem(m.Summary, evo.Severity(evo.SeverityWarning))
 		case "item.fail":
 			items[m.Ref].Fail(m.Summary)
 		case "task.phase":

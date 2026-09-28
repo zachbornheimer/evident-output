@@ -123,7 +123,7 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Title: "repo-retire", Color: evo.ColorNever, Plain: true})
 	succeed(out.Task("clean"))
-	out.Task("kept").Warn("kept 1")
+	out.Task("kept").Fact("kept", "1")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 	t.Parallel()
 	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Warn("careful")
+	out.Task("i").Problem("careful", evo.Severity(evo.SeverityWarning))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

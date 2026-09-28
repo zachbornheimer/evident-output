@@ -60,10 +60,10 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	worktrees := out.Task("worktrees")
 	remotes := out.Task("remote-tracking")
 
-	branches.Warn("kept 419 (283 checked out, 135 unpushed, 1 protected)")
+	branches.Fact("kept", "419 (283 checked out, 135 unpushed, 1 protected)")
 	commit(branches.Summary("459 checked"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40})
 
-	worktrees.Warn("kept 292 (163 dirty, 89 unpushed, 40 ignored files)")
+	worktrees.Fact("kept", "292 (163 dirty, 89 unpushed, 40 ignored files)")
 	commit(worktrees.Summary("294 checked"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1})
 
 	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
@@ -75,16 +75,14 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	want := "[dry-run] zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading\n" +
 		"\n" +
 		"✓ branches         459 checked\n" +
-		"  ! kept 419 (283 checked out, 135 unpushed, 1 protected)\n" +
 		"✓ worktrees        294 checked\n" +
-		"  ! kept 292 (163 dirty, 89 unpushed, 40 ignored files)\n" +
 		"✓ remote-tracking  4 stale refs\n" +
 		"\n" +
 		"[planned] branches         delete 40 local tips\n" +
 		"[planned] worktrees        remove 1 worktree\n" +
 		"[planned] remote-tracking  delete 4 stale origin/*\n" +
 		"\n" +
-		"[planned · warned]\n"
+		"[planned]\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -114,7 +112,7 @@ func TestV8_NothingToClean(t *testing.T) {
 	worktrees := out.Task("worktrees")
 	remotes := out.Task("remote-tracking")
 
-	branches.Warn("kept 1 (protected)")
+	branches.Fact("kept", "1 (protected)")
 	succeed(branches, "1 checked")
 	succeed(worktrees, "nothing to clean")
 	succeed(remotes, "nothing to clean")
@@ -126,12 +124,11 @@ func TestV8_NothingToClean(t *testing.T) {
 
 	want := "zq prune  ~/Developer/Personal/zq\n" +
 		"✓ branches         1 checked\n" +
-		"  ! kept 1 (protected)\n" +
 		"✓ worktrees        nothing to clean\n" +
 		"✓ remote-tracking  nothing to clean\n" +
 		"prune  nothing to clean\n" +
 		"\n" +
-		"[ready · warned]  prune\n"
+		"[ready]  prune\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -423,7 +420,7 @@ func TestV8_StressLive(t *testing.T) {
 	services := deploy.Task("services")
 	services.Doing("payments-api")
 	services.Progress(14, 40)
-	services.Warn("audit-stream rollout slower than baseline")
+	services.Problem("audit-stream rollout slower than baseline", evo.Severity(evo.SeverityWarning))
 
 	agent := deploy.Task("write launch agent")
 	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
@@ -439,7 +436,7 @@ func TestV8_StressLive(t *testing.T) {
 	cleanup.Define(func(ctx context.Context) error {
 		cleanup.Doing("feat/cleanup…")
 		cleanup.Progress(7, 18)
-		cleanup.Warn("kept 5 (3 protected, 2 unpushed)")
+		cleanup.Fact("kept", "5 (3 protected, 2 unpushed)")
 		err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 12},
 			func(context.Context) error { return nil })
 		close(committed)
@@ -477,7 +474,6 @@ func TestV8_StressLive(t *testing.T) {
 		"        mode   0644\n" +
 		"   " + glyph + " cleanup    [████        ]  7/18 — 8s\n" +
 		"      " + glyph + " feat/cleanup…\n" +
-		"      ! kept 5 (3 protected, 2 unpushed)\n" +
 		"\n" +
 		"[changed] discover  deleted 5 local tips\n" +
 		"[changed] cleanup   deleted 12 stale origin/*"

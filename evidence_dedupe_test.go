@@ -22,7 +22,7 @@ func TestFailf_EvidenceDedupedAgainstSummary(t *testing.T) {
 	task := out.Task("install")
 	output := task.EvidenceForTest()
 	_, _ = fmt.Fprint(output, "npm ERR! 404 not found")
-	_ = task.Failf("install failed: %s", output.Text())
+	task.Fail("install failed", evo.Detail(output.Text()))
 
 	_ = out.Finish()
 

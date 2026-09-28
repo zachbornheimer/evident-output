@@ -114,7 +114,7 @@ func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error {
 }
 
 func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
-	return t.Step(completed, total, name)
+	return t.Progress(completed, total).Doing(name)
 }
 
 func (t *TaskHandle) EvidenceForTest(opts ...EvidenceOption) *Evidence {
