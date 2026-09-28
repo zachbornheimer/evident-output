@@ -157,9 +157,22 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 	return t
 }
 
+// Writer returns a line-buffered sink for a child process: each complete
+// line becomes the task's live doing-text, and every byte is retained on
+// the same Capture ring Exec and TaskHandle.Capture share.
 func (t *TaskHandle) Writer() io.Writer {
 	if t == nil || t.inner == nil {
 		return io.Discard
 	}
 	return t.inner.Writer()
+}
+
+// Capture returns the retained stdout/stderr sink bound to this Task.
+// The first call allocates the ring; later calls return the same instance
+// so Writer, Exec, and Capture share one bounded, redacted tail.
+func (t *TaskHandle) Capture(opts ...CaptureOption) *Capture {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	return t.inner.Capture(opts...)
 }

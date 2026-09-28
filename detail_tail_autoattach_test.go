@@ -19,7 +19,7 @@ func TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail(t *
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("build")
-	output := task.EvidenceForTest()
+	output := task.Capture()
 	_, _ = fmt.Fprintln(output, "error: undefined symbol foo")
 	task.Fail("compile failed")
 
@@ -37,7 +37,7 @@ func TestBlock_AutoAttachesDetailTail(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("policy check")
-	output := task.EvidenceForTest()
+	output := task.Capture()
 	_, _ = fmt.Fprintln(output, "policy violation: missing signature")
 	task.Block("policy check failed")
 
@@ -57,7 +57,7 @@ func TestFail_ExplicitDetail_NotOverwrittenByEvidence(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("build")
-	output := task.EvidenceForTest()
+	output := task.Capture()
 	_, _ = fmt.Fprintln(output, "raw evidence noise")
 	task.Fail("compile failed", evo.Detail("caller-chosen detail"))
 

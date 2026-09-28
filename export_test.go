@@ -15,7 +15,7 @@ func MarkWriterAsCharDevice(w io.Writer) func()   { return engine.MarkWriterAsCh
 type TestClock = engine.FixedClock
 type TestSystemClock = engine.SystemClock
 type TestRedactor = engine.NoopRedactor
-type TestEvidence = engine.Evidence
+type TestCapture = engine.Capture
 
 func DelayForTest(d time.Duration) *time.Duration { return Delay(d) }
 func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
@@ -41,11 +41,11 @@ func (o *Output) DeclareDryRunForTest() {
 	}
 }
 
-func (o *Output) EvidenceForTest(opts ...EvidenceOption) *Evidence {
+func (o *Output) CaptureForTest(opts ...CaptureOption) *Capture {
 	if o == nil || o.inner == nil {
 		return nil
 	}
-	return o.inner.EvidenceForTest(opts...)
+	return o.inner.CaptureForTest(opts...)
 }
 
 func (o *Output) DebugForTest(message string, fields ...Field) {
@@ -117,11 +117,11 @@ func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle 
 	return t.Progress(completed, total).Doing(name)
 }
 
-func (t *TaskHandle) EvidenceForTest(opts ...EvidenceOption) *Evidence {
+func (t *TaskHandle) CaptureForTest(opts ...CaptureOption) *Capture {
 	if t == nil || t.inner == nil {
 		return nil
 	}
-	return t.inner.EvidenceForTest(opts...)
+	return t.inner.Capture(opts...)
 }
 
 func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ...error) {

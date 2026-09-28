@@ -514,7 +514,7 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
 	task := out.Task("build")
-	tail := task.EvidenceForTest()
+	tail := task.CaptureForTest()
 	_, _ = fmt.Fprintln(tail, "error: undefined symbol foo")
 	task.Problem("finding one", tail.DetailTail())
 	task.Define(func(context.Context) error { return nil })
@@ -542,7 +542,7 @@ func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
 	task := out.Task("build")
-	tail := task.EvidenceForTest()
+	tail := task.CaptureForTest()
 	_, _ = fmt.Fprintln(tail, "warning: deprecated flag used")
 	task.Problem("non-blocking finding", Severity(SeverityWarning), tail.DetailTail())
 	task.Define(func(context.Context) error { return nil })

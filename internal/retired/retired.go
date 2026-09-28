@@ -81,6 +81,17 @@ var symbols = []Symbol{
 	{Contract: "Failure.NextCommand(", RemovedIn: Release1_1, Replacement: "TaskHandle.NextCommand after Fail or Block"},
 	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(item)"},
 	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: "Skipped(Reason(...)) for a policy exclusion; Fact/Summary for kept counts"},
+
+	// ZYS-1185: capture-meaning Evidence* names. Satisfaction-meaning
+	// EvidencePhase / TaskEvidence stay. Taught is nil so docs are not
+	// swept in this slice.
+	{Contract: "EvidenceOption", RemovedIn: Release1_1, Replacement: "CaptureOption"},
+	{Contract: "EvidenceStream", RemovedIn: Release1_1, Replacement: "CaptureStream"},
+	{Contract: "EvidenceStreamCombined", RemovedIn: Release1_1, Replacement: "CaptureStreamCombined"},
+	{Contract: "EvidenceStreamStdout", RemovedIn: Release1_1, Replacement: "CaptureStreamStdout"},
+	{Contract: "EvidenceStreamStderr", RemovedIn: Release1_1, Replacement: "CaptureStreamStderr"},
+	{Contract: "MaxEvidenceBytes", RemovedIn: Release1_1, Replacement: "MaxCaptureBytes"},
+	{Contract: "Evidence", RemovedIn: Release1_1, Replacement: "Capture"},
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose

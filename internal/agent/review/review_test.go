@@ -1066,7 +1066,7 @@ func f(out *evo.Output, failures []string) {
 func TestEV001_FailfEmbedsCaptureText(t *testing.T) {
 	bad := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, capture *evo.Evidence) {
+func f(task *evo.TaskHandle, capture *evo.Capture) {
   task.Failf("install failed: %s", capture.Text())
 }
 `

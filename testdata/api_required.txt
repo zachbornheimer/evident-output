@@ -16,3 +16,7 @@ Verify
 func (TaskHandle) After
 FileSpec
 ExecSpec
+Capture
+CaptureOption
+CaptureStream
+func (TaskHandle) Capture

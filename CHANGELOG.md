@@ -76,6 +76,10 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `SeverityError` (a nil `Define` return then settles Failed).
   `Severity(SeverityWarning)` uses the warning projection, does not fail
   the Task, and sets `Conclusion.Warned` with exit 0.
+- **`Capture`, `CaptureOption`, `CaptureStream`, `CaptureStreamCombined`,
+  `CaptureStreamStdout`, `CaptureStreamStderr`, `MaxCaptureBytes`, and
+  `TaskHandle.Capture`:** retained stdout/stderr (ZYS-1185). Evidence now
+  means only state-proof (`TaskEvidence`, `EvidencePhase`).
 
 ### Changed
 
@@ -125,6 +129,9 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   real permission (`0666` for an unmanaged create, which `os.WriteFile`
   masks by the umask), and an unmanaged rewrite now passes the file's
   existing mode instead of `0666`.
+
+- **`KeepLastLines`, `MirrorToDebug`, and `MirrorToDiagnostics`** now
+  return `CaptureOption` (ZYS-1185). `MaxEvidenceBytes` is `MaxCaptureBytes`.
 
 - **A `Kept` record now concludes `warned` (contract §18).** Any Task that
   records `Kept(reason)` sets `Conclusion.Warned`, the `--json`
@@ -180,6 +187,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   summary; it reads "configure After and Verify before Define, and Define
   each task once with a non-nil callback". The unresolved-task hint reads
   "call Define, Fail, Block, or Skipped on this task".
+- **`Evidence` (the capture type), `EvidenceOption`, `EvidenceStream`,
+  `EvidenceStreamCombined`, `EvidenceStreamStdout`, `EvidenceStreamStderr`,
+  and `MaxEvidenceBytes`** were removed with no aliases (ZYS-1185). The
+  replacement is `Capture` / `CaptureOption` / `CaptureStream` /
+  `MaxCaptureBytes`. `TaskEvidence` and `EvidencePhase` stay.
+
 - **`Warn`, `Blockf`, `Failf`, `TaskHandle.Step`, `TaskHandle.Kept`,
   `Failure.Next`, and `Failure.NextCommand`** were removed with no aliases.
   Warnings are `Problem(summary, Severity(SeverityWarning))`. Fail and Block

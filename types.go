@@ -16,9 +16,9 @@ type Failure struct{ inner *engine.Failure }
 
 type Config = engine.Config
 type Option = engine.Option
-type Evidence = engine.Evidence
-type EvidenceOption = engine.EvidenceOption
-type EvidenceStream = engine.EvidenceStream
+type Capture = engine.Capture
+type CaptureOption = engine.CaptureOption
+type CaptureStream = engine.CaptureStream
 type ConfirmOption = engine.ConfirmOption
 type ReasonOption = engine.ReasonOption
 type DebugPaneOption = engine.DebugPaneOption
@@ -93,9 +93,9 @@ const (
 )
 
 const (
-	EvidenceStreamCombined = engine.EvidenceStreamCombined
-	EvidenceStreamStdout   = engine.EvidenceStreamStdout
-	EvidenceStreamStderr   = engine.EvidenceStreamStderr
+	CaptureStreamCombined = engine.CaptureStreamCombined
+	CaptureStreamStdout   = engine.CaptureStreamStdout
+	CaptureStreamStderr   = engine.CaptureStreamStderr
 )
 
 const DefaultVisibleNames = engine.DefaultVisibleNames

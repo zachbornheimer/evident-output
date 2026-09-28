@@ -13,6 +13,12 @@ Attachment	helper	Problem
 Blocked	helper	Conclusion
 BytesKind	helper	Progress
 Cancelled	helper	Conclusion
+Capture	canonical	Capture
+CaptureOption	helper	Capture
+CaptureStream	helper	Capture
+CaptureStreamCombined	helper	Capture
+CaptureStreamStderr	helper	Capture
+CaptureStreamStdout	helper	Capture
 ChangesSnapshot	helper	Snapshot
 Clock	removed	Run
 Code	helper	Problem
@@ -183,7 +189,7 @@ JSONProblem	removed	Machine output
 JSONProgress	removed	Machine output
 JSONSchemaVersion	removed	Machine output
 JSONTask	removed	Machine output
-KeepLastLines	removed	Capture
+KeepLastLines	helper	Capture
 Label	helper	Action
 LevelDebug	helper	Debug journal
 LevelError	helper	Debug journal
@@ -199,11 +205,12 @@ LogicalResource	helper	Resource
 Main	canonical	Run
 MaxEntities	removed	Run
 MaxEvents	removed	Run
+MaxCaptureBytes	helper	Capture
 MaxEvidenceBytes	removed	Capture
 MaxFrameRate	removed	Run
 MessageSnapshot	helper	Snapshot
-MirrorToDebug	removed	Capture
-MirrorToDiagnostics	removed	Capture
+MirrorToDebug	helper	Capture
+MirrorToDiagnostics	helper	Capture
 NewestFirst	helper	Debug journal
 Next	helper	Action
 NextCommand	helper	Action
@@ -327,6 +334,7 @@ TaskHandle.Block	canonical	Blocked
 TaskHandle.Blockf	removed	Block
 TaskHandle.Bytes	helper	Progress
 TaskHandle.Cancel	canonical	Cancelled
+TaskHandle.Capture	canonical	Capture
 TaskHandle.Context	helper	Define
 TaskHandle.Define	canonical	Define
 TaskHandle.Doing	canonical	Doing

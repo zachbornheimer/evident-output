@@ -48,7 +48,7 @@ type ExecSpec struct {
 // status" semantics for the spawn-failure/cancellation case (those return
 // only an error, ExecResult zero-valued).
 //
-// Stdout/Stderr are the evidence tail Exec already retains: sanitized,
+// Stdout/Stderr are the Capture tail Exec already retains: sanitized,
 // redacted, and bounded (at most 200 completed lines / ~256KiB) — never a
 // second unbounded copy, and never the human-facing truncation marker
 // DetailTail adds. Truncated reports that the bound dropped earlier output.
