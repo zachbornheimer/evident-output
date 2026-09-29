@@ -215,6 +215,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Fixed
 
+- `schema/event.v1.json`'s `schema_version` const is corrected from `"0.2"`
+  to `"0.3"` to match `core.EventSchemaVersion` — a real
+  `evo.EncodeJSONL`/`evo.EncodeEventJSON` row was failing validation
+  against its own published schema. A new
+  `TestWireSchema_EncodeJSONLRowsValidate` covers it (E-122 lane F3).
 - A live Group holding more per-item Groups than the terminal has rows
   keeps its header with an `N/M complete` count of finished items, shows
   the failed, warned, running and pending items first, and folds the rest
