@@ -136,7 +136,7 @@ Sugar is forbidden when it:
 | `For(title)` alias of `New`                                | Rejected — same note, second spelling                  |
 | `BlockedBy(...Problem)` beside singular `Block`            | Accepted — plural evidence voicing                     |
 | `Progress64` beside `Progress` for the same count intent   | Rejected — type-system twin                            |
-| `Record(verb, n, object)` for domain verbs                 | Accepted — real domain concept (see domain-vocabulary) |
+| `Record(verb, n, object)` for domain verbs                 | Removed in 1.1 — closed `EffectVerb` set; classification is a `Fact` (see domain-vocabulary) |
 
 ---
 

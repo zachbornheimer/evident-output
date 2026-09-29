@@ -51,8 +51,6 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	return t
 }
 
-func (t *TaskHandle) Done(args ...any) { t.impl().Done(args...) }
-
 func (t *TaskHandle) Fact(name, value string) { t.impl().Fact(name, value) }
 
 func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
@@ -93,16 +91,6 @@ func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	t.impl().Progress(completed, total)
 	return t
 }
-
-func (t *TaskHandle) Record(verb string, quantity int, object string) {
-	t.impl().Record(verb, quantity, object)
-}
-
-func (t *TaskHandle) RecordLabel(label string, quantity int, object string) {
-	t.impl().RecordLabel(label, quantity, object)
-}
-
-func (t *TaskHandle) RecordName(verb, object string) { t.impl().RecordName(verb, object) }
 
 func (t *TaskHandle) Skipped(reason TaxonomyReason) { t.impl().Skipped(reason.inner) }
 

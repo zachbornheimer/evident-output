@@ -63,13 +63,13 @@ func coreRules() []Rule {
 			Category:  "API",
 			Severity:  "warning",
 			Invariant: "explicit Start is optional",
-			Why:       "Doing/Progress/Done already activate the task; Start is redundant noise for agents and readers.",
+			Why:       "Doing/Progress/Define already activate the task; Start is redundant noise for agents and readers.",
 			BadCode: `t := out.Task("scan")
 t.Start()
 t.Doing("walking")`,
 			GoodCode: `t := out.Task("scan")
 t.Doing("walking")`,
-			Remediation:     "Use Doing/Progress or a direct Done; remove explicit Start",
+			Remediation:     "Use Doing/Progress or Define; remove explicit Start",
 			Exceptions:      []string{"tests that assert Start side effects"},
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"MCP-012", "API-006"},
@@ -104,8 +104,8 @@ for _, path := range paths {
 			BadCode: `g := out.Group("deps")
 g.Done() // forbidden`,
 			GoodCode: `g := out.Group("deps")
-g.Task("a").Done()
-g.Task("b").Done()`,
+g.Task("a").Define(installA)
+g.Task("b").Define(installB)`,
 			Remediation:     "Use Group.Task/Sequence.Task for children; never Done/Fail/Progress on the collection",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-027", "DOM-016"},
@@ -169,12 +169,12 @@ if err := cmd.Run(); err != nil {
 			Invariant: "Failf/Blockf require a format directive — every other *f method is deleted",
 			Why: "Failf(\"boom\") with no directive at all is ceremony; Fail(\"boom\") is the intent. " +
 				"C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf entirely — " +
-				"Done/Summary/Task/Group/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now, " +
+				"Task/Group/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now, " +
 				"so there is nothing left in that family to flag; Failf/Blockf survive for their %w+*Failure semantics.",
 			BadCode: `task.Failf("boom")`,
 			GoodCode: `task.Fail("boom")
 task.Failf("boom: %w", err)`,
-			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Done/Summary/Task/Group/Sequence/Changes/Plan/Warn/Reason take printf args directly",
+			Remediation:     "Use Fail/Block without f when there is no %w to wrap; Task/Group/Sequence/Changes/Plan/Warn/Reason take printf args directly",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",
@@ -205,7 +205,7 @@ if err := cmd.Run(); err != nil {
 			Severity:        "error",
 			Invariant:       "untrusted text cannot control the terminal",
 			Why:             "Raw ESC/CSI from user data can hijack the terminal or inject fake UI.",
-			BadCode:         `out.Task(userInput).Done() // userInput may contain ESC`,
+			BadCode:         `out.Task(userInput).Define(work) // userInput may contain ESC`,
 			GoodCode:        `// library sanitizes names; never write raw ESC to the terminal yourself`,
 			Remediation:     "Sanitize caller text; use Detail/Cause split",
 			RelatedGuidance: []string{"security"},
@@ -240,7 +240,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
 			Category:        "TERM",
 			Severity:        "warning",
 			Invariant:       "instant completion does not flash spinner",
-			Why:             "Sub-threshold Done should not paint a live spinner that disappears immediately.",
+			Why:             "A sub-threshold Task should not paint a live spinner that disappears immediately.",
 			BadCode:         `// custom spinner without VisibilityDelay`,
 			GoodCode:        `// rely on evo VisibilityDelay (default 80ms)`,
 			Remediation:     "Rely on visibility delay; do not paint custom spinners",
@@ -305,7 +305,7 @@ os.Exit(out.Conclusion().ExitCode) // or return nil to caller that checks ExitCo
   for _, root := range roots {
     filepath.WalkDir(root, walk) // silent pre-Task loop
   }
-  out.Task("inventory").Done()
+  out.Task("inventory").Define(summarize)
 }`,
 			GoodCode: `func previewPurge() {
   out := evo.Init(evo.Config{Isolated: true, DryRun: true, Facts: rootFacts})
@@ -676,15 +676,12 @@ task.Doing(evo.TruncateNames(reasons, 8))`,
 			BadCode: `for _, j := range jobs {
   go func(j Job) {
     t := out.Task(j.Name) // declared inside the goroutine: race + unordered
-    t.Done()
+    t.Define(j.Run)
   }(j)
 }`,
-			GoodCode: `tasks := make([]*evo.TaskHandle, len(jobs))
-for i, j := range jobs {
-  tasks[i] = out.Task(j.Name) // predeclared, in order, before fan-out
-}
-for i, j := range jobs {
-  go func(i int, j Job) { tasks[i].Done() }(i, j)
+			GoodCode: `work := out.Group("jobs")
+for _, j := range jobs {
+  work.Task(j.Name).Define(j.Run) // predeclared, in order; evo's scheduler runs them
 }`,
 			Remediation:     "Call out.Task/Group.Task for every child before starting any goroutine; pass the handle in",
 			RelatedGuidance: []string{"tasks"},
@@ -714,7 +711,7 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			ID:        "API-032",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, Capture, Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), the TaskHandle mutation verbs (Add/Create/Delete/Push/Remove/Update/Write) and evo.Affected (removed in 1.1), the retired independent-collection constructor, Skip, evo.ID, evo.StartPhase, evo.MainWith (removed in 1.0)",
+			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, Capture, Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), the TaskHandle mutation verbs (Add/Create/Delete/Push/Remove/Update/Write), evo.Affected, and TaskHandle.Done (removed in 1.1), the retired independent-collection constructor, Skip, evo.ID, evo.StartPhase, evo.MainWith (removed in 1.0)",
 			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were removed in 1.0; Isolated *Output uses Output.Run); Config fields replaced Option funcs; the TaskHandle mutation verbs were removed in 1.1 — an opaque mutation is evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) inside Define and file state is evo.File, so neither the 0.x positional Delete(n, object) nor the 1.0 Delete(object, fn, Affected(n)) compiles; the independent collection constructor is Group; Item folded into Task; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr; Skip is Skipped; ID/StartPhase are unexported (Task takes only the name; Doing sets the first phase).",
 			BadCode: `func main() {
 	out := evo.New(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
@@ -739,7 +736,7 @@ func run(ctx context.Context) error {
 	evo.Task("tip").Skipped(reason)
 	return evo.Task("z").Failf("failed: %w", err)
 }`,
-			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every removed TaskHandle mutation verb (either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer()",
+			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every removed TaskHandle mutation verb (either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with task.Writer(); replace TaskHandle.Done() with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
@@ -839,14 +836,12 @@ return task.Failf("install dependencies: %w", err)`,
 			ID:        "API-001",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "the minimal Task happy path (Init/Task/Done/Block/Finish) compiles with a zero Config",
+			Invariant: "the minimal Task happy path (Init/Task/Define/Block/Finish) compiles with a zero Config",
 			Why:       "Requiring a populated Config struct for the common single-task check adds ceremony that discourages the minimal, correct spelling.",
 			BadCode: `out := evo.Init(evo.Config{Title: "tool"}) // fields filled in for no reason
-it := out.Task("disk space")
-it.Done()`,
+out.Task("disk space").Define(checkDiskSpace)`,
 			GoodCode: `out := evo.Init(evo.Config{})
-it := out.Task("disk space")
-it.Done()`,
+out.Task("disk space").Define(checkDiskSpace)`,
 			Remediation:     "Use evo.Init(evo.Config{}) with a zero Config for the minimal happy path; add fields only to override stream or behavior defaults",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-001"},
@@ -862,10 +857,10 @@ it.Done()`,
 			Why:       "An Item is pending until it resolves; calling Start first is redundant ceremony and risks a spinner flash for a transition that finishes instantly.",
 			BadCode: `it := out.Task("disk space")
 it.Start()
-it.Done()`,
+it.Define(checkDiskSpace)`,
 			GoodCode: `it := out.Task("disk space")
-it.Done()`,
-			Remediation:     "Call Done/Warn/Block/Fail directly; remove the explicit Start call",
+it.Define(checkDiskSpace)`,
+			Remediation:     "Call Define (or Warn/Block/Fail) directly; remove the explicit Start call",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-006"},
 			Since:           "0.1.0",
@@ -891,7 +886,7 @@ it.Done()`,
 			Category:  "DOM",
 			Severity:  "warning",
 			Invariant: "Task.Doing without a prior Start activates the task directly into running, indeterminate state",
-			Why:       "Requiring Start before Doing is the same redundant ceremony API-006 already forbids for Done; Doing alone carries enough information to activate the task.",
+			Why:       "Requiring Start before Doing is the same redundant ceremony API-006 already forbids for Define; Doing alone carries enough information to activate the task.",
 			BadCode: `t := out.Task("scan")
 t.Start()
 t.Doing("walking")`,
@@ -1138,7 +1133,7 @@ if err := cmd.Run(); err != nil {
 			ID:        "TXT-020",
 			Category:  "TXT",
 			Severity:  "warning",
-			Invariant: "an entity name is a short noun phrase; narration lives in Doing/Donef",
+			Invariant: "an entity name is a short noun phrase; narration lives in Doing/Summary",
 			Why:       "An entity name over ~40 characters, or narrating a transition (into/->), reads as narration squeezed into a label instead of a name.",
 			BadCode:   `out.Task("copying build artifacts from staging into the production release bucket")`,
 			GoodCode: `t := out.Task("release artifacts")
@@ -1160,9 +1155,9 @@ t.Doing("walking")
 t = out.Task("build") // the "scan" row never resolves`,
 			GoodCode: `t := out.Task("scan")
 t.Doing("walking")
-t.Done()
+t.Define(scan)
 t = out.Task("build")`,
-			Remediation:     "Resolve the handle (Done/Fail/Block/Warn/Cancel/Skip) before reassigning the variable, or give the second declaration its own name",
+			Remediation:     "Resolve the handle (Define/Fail/Block/Cancel/Skipped) before reassigning the variable, or give the second declaration its own name",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-019"},
 			Since:           "0.2.17",
@@ -1188,7 +1183,7 @@ t = out.Task("build")`,
 			Category:  "API",
 			Severity:  "warning",
 			Invariant: "fmt.Sprintf(...) is never passed to a method that is already printf-variadic itself",
-			Why: "Task/Group/Sequence/Summary/Done/Warn/Doing/Skip/Failf all already accept " +
+			Why: "Task/Group/Sequence/Warn/Doing/Failf all already accept " +
 				"(format string, args ...any) directly (P1/P2, C6: their separate *f siblings — Warnf included — " +
 				"were deleted) — wrapping the call in fmt.Sprintf is ceremony that also hides the real arguments " +
 				"from evo's own formatting.",
@@ -1298,17 +1293,16 @@ t.Doing("running install:fresh-start")`,
 			ID:        "API-041",
 			Category:  "API",
 			Severity:  "error",
-			Invariant: "a goroutine/fan-out closure resolves a predeclared Task (Doing/Done/Fail/Progress) only through Define; a bare go func/.Go(func with no Define races the scheduler",
-			Why:       "`go func(){ task.Doing(\"x\"); task.Done() }()` over a predeclared Task compiles and renders identically to scheduled work (zq axis-11 P1) — nothing tells the author evo never scheduled it, so the row and the actual concurrency model silently disagree.",
+			Invariant: "a goroutine/fan-out closure resolves a predeclared Task (Doing/Fail/Progress) only through Define; a bare go func/.Go(func with no Define races the scheduler",
+			Why:       "`go func(){ task.Doing(\"x\"); task.Fail(\"x\") }()` over a predeclared Task compiles and renders identically to scheduled work (zq axis-11 P1) — nothing tells the author evo never scheduled it, so the row and the actual concurrency model silently disagree.",
 			BadCode: `t := out.Task("a")
 go func() {
   t.Doing("working")
-  t.Done()
+  t.Fail("work failed")
 }()`,
 			GoodCode: `work := out.Group("work")
 for _, name := range []string{"a"} {
-  name := name
-  work.Task(name).Define(func() error { return doWork(name) })
+  work.Task(name).Define(func(ctx context.Context) error { return doWork(ctx, name) })
 }`,
 			Remediation:     "Predeclare with Group.Task(...) (one named Task per item), then call task.Define(func() error { ... }) instead of a bare goroutine",
 			RelatedGuidance: []string{"tasks"},
@@ -1380,9 +1374,9 @@ return task.Wait()`,
 			Severity:  "warning",
 			Invariant: "a Task names one independently schedulable promise whose outcome is independently meaningful to the user, not a subject label or a container wearing one Task's clothes",
 			Why:       "`Task(\"file integrity\")` (ZYS-838, also this codebase's own FP-006 fixture) names what the Task is about, not what it will determine; `Task(\"fix\")` (zq internal/app/app.go:80's a.task(\"fix\", ...) command family) reads as one row but really organizes several independently meaningful operations. Neither answers ZYS-838's own test: does the name alone tell the user what failed?",
-			BadCode: `out.Task("file integrity").Done()
-out.Task("fix").Done()`,
-			GoodCode: `out.Task("check file integrity").Done()
+			BadCode: `out.Task("file integrity").Define(checkIntegrity)
+out.Task("fix").Define(fixAll)`,
+			GoodCode: `out.Task("check file integrity").Define(checkIntegrity)
 
 prep := out.Group("prepare staged files")
 prep.Task("format Python").Define(formatPython)
@@ -1720,7 +1714,7 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 			Category:  "API",
 			Severity:  "warning",
 			Invariant: "TaskHandle.Summary/GroupHandle.Summary carries the caller's own result metadata, not mutation, dry-run, or already-satisfied narration that belongs to File/Effect/AlreadySatisfied/Facts",
-			Why:       "Summary is non-terminal result metadata (1.1/ZYS-971 Decisions, 2026-09-23): it never resolves the Task, and Define/the evo-native operation outcome remains the only normal success resolution path. A caller who reaches for it as a replacement stamp channel — narrating what a mutation did (\"wrote config.json\"), what a dry run would do (\"would add 3 refs\"), that nothing changed (\"nothing to write\"), or that a precondition already held (\"already up to date\") — recreates the exact success-stamp footgun Done(text) is being retired for, one call away: that narration belongs to evo.File/evo.Effect's own Basis-tracked record, ResolutionAlreadySatisfied, or evo.Fact, each of which carries structured evidence Summary's bare string cannot.",
+			Why:       "Summary is non-terminal result metadata (1.1/ZYS-971 Decisions, 2026-09-23): it never resolves the Task, and Define/the evo-native operation outcome remains the only normal success resolution path. A caller who reaches for it as a replacement stamp channel — narrating what a mutation did (\"wrote config.json\"), what a dry run would do (\"would add 3 refs\"), that nothing changed (\"nothing to write\"), or that a precondition already held (\"already up to date\") — recreates the exact success-stamp footgun Done(text) was removed in 1.1 for, one call away: that narration belongs to evo.File/evo.Effect's own Basis-tracked record, ResolutionAlreadySatisfied, or evo.Fact, each of which carries structured evidence Summary's bare string cannot.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if err := evo.File(ctx, spec); err != nil {
     return err

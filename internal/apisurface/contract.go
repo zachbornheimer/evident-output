@@ -33,6 +33,12 @@ var RetiredNames = []string{
 	"TaskHandle.Push(", "TaskHandle.Remove(", "TaskHandle.Update(",
 	"TaskHandle.Write(",
 	"Affected", "MutationOption",
+	// Removed in 1.1 (ZYS-812): the Done success stamp and the record-only
+	// ledger verbs. Success resolves through Define (result text is
+	// Summary); mutations go through Effect, information through Fact,
+	// and file writes through File/Patch (ZYS-971, ZYS-974).
+	"TaskHandle.Done(",
+	"TaskHandle.Record(", "TaskHandle.RecordLabel(", "TaskHandle.RecordName(",
 }
 
 // Report is the four-bucket result of Check. Empty buckets mean that

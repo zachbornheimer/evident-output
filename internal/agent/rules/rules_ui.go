@@ -26,20 +26,24 @@ task.Fact("commit", sha)`,
 			ID:        "EVO-UI-002",
 			Category:  "UI",
 			Severity:  "warning",
-			Invariant: "a passing verification is silent by default; Task.Done already conveys success",
-			Why:       "Printing \"✓ verified\"/\"PASSED\" on the success path duplicates the terminal glyph Task.Done already renders, and drifts out of sync with it under Plain/JSON/verbosity modes that the hand-printed line never adapts to.",
-			BadCode: `if err := verify(); err == nil {
+			Invariant: "a passing verification is silent by default; the Task's own success row already conveys it",
+			Why:       "Printing \"✓ verified\"/\"PASSED\" on the success path duplicates the terminal glyph the Task's success row already renders, and drifts out of sync with it under Plain/JSON/verbosity modes that the hand-printed line never adapts to.",
+			BadCode: `task.Define(func(ctx context.Context) error {
+  if err := verify(); err != nil {
+    return err
+  }
   fmt.Println("✓ verified")
-}
-task.Done()`,
-			GoodCode: `if err := verify(); err != nil {
-  task.Failf("verify: %w", err)
-  return
-}
-task.Done()`,
+  return nil
+})`,
+			GoodCode: `task.Define(func(ctx context.Context) error {
+  if err := verify(); err != nil {
+    return fmt.Errorf("verify: %w", err)
+  }
+  return nil
+})`,
 			BadOutput:       "✓ verified\n✓ done",
 			GoodOutput:      "✓ done",
-			Remediation:     "Delete the manual success line; let Task.Done render the passing state",
+			Remediation:     "Delete the manual success line; let the Task's Define outcome render the passing state",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"EVO-UI-002"},
 			Since:           "1.0.0",
@@ -68,8 +72,8 @@ task.Done()`,
 			Invariant:       "status glyph/color is chosen by evo's renderer from Task state, never by the caller",
 			Why:             "A caller-invented glyph, ANSI color, or free-form status word (\"[OK]\", a hand-picked green, a custom taxonomy word) bypasses the one renderer that already adapts glyph/color to Plain, NoColor, TTY, and GlyphProfile — a hand-picked one survives none of those and drifts from evo's own vocabulary.",
 			BadCode:         `fmt.Print("\x1b[32m[OK]\x1b[0m ", name, "\n")`,
-			GoodCode:        `task.Done()`,
-			Remediation:     "Delete the hand-picked glyph/color; resolve the task through Done/Fail/Warn/Block and let the renderer choose glyph and color",
+			GoodCode:        `task.Define(func(ctx context.Context) error { return check(ctx) })`,
+			Remediation:     "Delete the hand-picked glyph/color; resolve the task through Define (or Fail/Block/Warn) and let the renderer choose glyph and color",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EVO-UI-004"},
 			Since:           "1.0.0",

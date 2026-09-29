@@ -33,8 +33,8 @@ func TestPruneContract_GroupWithoutOwnInformationRendersNoHeaderRow(t *testing.T
 	t.Cleanup(func() { _ = out.Close() })
 
 	group := out.Group("categories")
-	group.Task("branches").Done("deleted 3")
-	group.Task("worktrees").Done("removed 1")
+	succeed(group.Task("branches"), "deleted 3")
+	succeed(group.Task("worktrees"), "removed 1")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -54,8 +54,8 @@ func TestPruneContract_GroupWithOwnSummaryKeepsItsHeaderRow(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	group := out.Group("categories").Summary("all clean")
-	group.Task("branches").Done("deleted 3")
-	group.Task("worktrees").Done("removed 1")
+	succeed(group.Task("branches"), "deleted 3")
+	succeed(group.Task("worktrees"), "removed 1")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -71,8 +71,8 @@ func TestPruneContract_ZeroInformationNoWorkRowIsHiddenFromHumanOutputOnly(t *te
 	t.Cleanup(func() { _ = out.Close() })
 
 	group := out.Group("categories")
-	group.Task("worktrees").Done()
-	group.Task("branches").Done("deleted 3")
+	satisfied(group.Task("worktrees"))
+	succeed(group.Task("branches"), "deleted 3")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -92,8 +92,8 @@ func TestPruneContract_JSONLStreamKeepsEveryTaskAndTheGroup(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	group := out.Group("categories")
-	group.Task("worktrees").Done()
-	group.Task("branches").Done("deleted 3")
+	succeed(group.Task("worktrees"))
+	succeed(group.Task("branches"), "deleted 3")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -122,8 +122,8 @@ func TestPruneContract_RootTaskThatSimplyFinishesStaysALandmark(t *testing.T) {
 	out := newPlainOutput(&buf, false)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("compile").Done()
-	out.Task("branches").Done("deleted 3")
+	succeed(out.Task("compile"))
+	succeed(out.Task("branches"), "deleted 3")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestPruneContract_AlreadySatisfiedRootRowIsHiddenWhenOtherContentExists(t *
 	if err := satisfied.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	out.Task("branches").Done("deleted 3")
+	succeed(out.Task("branches"), "deleted 3")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -163,8 +163,8 @@ func TestPruneContract_ZeroInformationRowsSurviveWhenNothingElseIsVisible(t *tes
 	t.Cleanup(func() { _ = out.Close() })
 
 	group := out.Group("categories")
-	group.Task("worktrees").Done()
-	group.Task("branches").Done()
+	satisfied(group.Task("worktrees"))
+	satisfied(group.Task("branches"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -180,10 +180,8 @@ func TestPruneContract_NoWorkRowThatRecordedEffectsIsNotZeroInformation(t *testi
 	out := newPlainOutput(&buf, false)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("noop").Done()
-	changed := out.Task("branches")
-	changed.Record("delete", 3, "stale branch")
-	changed.Done()
+	satisfied(out.Task("noop"))
+	commit(out.Task("branches"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale branch", Quantity: 3})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +196,7 @@ func TestPruneContract_ZeroInformationRowIsNeverHiddenOnFailure(t *testing.T) {
 	out := newPlainOutput(&buf, false)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("worktrees").Done()
+	satisfied(out.Task("worktrees"))
 	out.Task("branches").Fail("cannot delete")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -218,12 +216,9 @@ func TestPruneContract_LedgerFollowsTaskDeclarationOrderNotCompletionOrder(t *te
 		branches := out.Task("branches")
 		worktrees := out.Task("worktrees")
 		remote := out.Task("remote-tracking")
-		remote.Record("delete", 4, "stale origin/* branch")
-		worktrees.Record("remove", 2, "worktree")
-		branches.Record("delete", 40, "local tip")
-		remote.Done()
-		worktrees.Done()
-		branches.Done()
+		commit(remote, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/* branch", Quantity: 4})
+		commit(worktrees, evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 2})
+		commit(branches, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40})
 		if err := out.Finish(); err != nil {
 			t.Fatal(err)
 		}

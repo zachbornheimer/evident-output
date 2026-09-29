@@ -18,8 +18,10 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	evo.Task("working tree").Done()
+	evo.Task("working tree").Define(checkWorkingTree)
 	return nil
 }
 
 // docexamples:snippet end
+
+func checkWorkingTree(ctx context.Context) error { return nil }

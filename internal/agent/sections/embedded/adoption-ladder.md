@@ -61,7 +61,7 @@ os.Exit(out.Run(ctx, run).ExitCode()) // reconciles a non-nil run error into Fai
 
 | Rule     | Meaning                                                           |
 | -------- | ----------------------------------------------------------------- |
-| RULE-001 | Domain verbs: `Record("placed", n, noun(...))` not forced `Added` |
+| RULE-001 | True verbs from the closed `EffectVerb` set; the domain noun goes in `Object`, never the verb |
 | RULE-002 | No vanity Tasks that restate the mutation ledger                  |
 | RULE-003 | User failures → Task Problems, not slog-only                      |
 | RULE-004 | Predeclare concurrent Tasks before workers                        |

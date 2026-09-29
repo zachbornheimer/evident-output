@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -713,7 +714,7 @@ func handleToolCall(id any, req map[string]any) {
 		case "failed":
 			it.Fail("failed for demo")
 		default:
-			it.Done()
+			it.Define(func(context.Context) error { return nil })
 		}
 		_ = dbg
 		_ = out.Finish()

@@ -1715,8 +1715,8 @@ func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, t
 // ===== API-060: a TaskHandle.Summary/GroupHandle.Summary literal whose text
 // is actually mutation/dry-run/already-satisfied narration (1.1/ZYS-971
 // Decisions, 2026-09-23) — Summary is non-terminal result metadata, not a
-// replacement for the success-stamp channel Done(text) is being retired
-// for. That narration belongs to evo.File/evo.Effect's own record,
+// replacement for the success-stamp channel Done(text) removed in 1.1.
+// That narration belongs to evo.File/evo.Effect's own record,
 // ResolutionAlreadySatisfied, or evo.Fact instead.
 
 // summaryStampMarkers are substrings (checked case-insensitive against the

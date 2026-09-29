@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -17,7 +18,7 @@ func runOption(opts ...evo.Option) string {
 	var buf bytes.Buffer
 	all := append([]evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}, opts...)
 	out := evo.Init(evo.Config{Isolated: true, Options: all})
-	out.Task("demo").Done()
+	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	return buf.String()
 }
@@ -65,7 +66,7 @@ func ExampleDataProjection() {
 	out := evo.Init(evo.Config{
 		Isolated: true, Plain: true, Stdout: io.Discard, Stderr: &buf, Options: []evo.Option{evo.DataProjection()},
 	})
-	out.Task("demo").Done()
+	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -229,7 +230,7 @@ func ExampleTerminal() {
 func ExampleTitle() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard, Title: "repo-retire"})
-	out.Task("scan").Done()
+	out.Task("scan").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:

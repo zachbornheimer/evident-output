@@ -28,7 +28,7 @@ func TestTaskHandle_KeyBeforeDefineOverridesDefaultIdentity(t *testing.T) {
 	if before == after {
 		t.Fatalf("default key %q was already the override — the test proves nothing", before)
 	}
-	task.Done()
+	succeed(task)
 	if err := out.Err(); err != nil {
 		t.Fatalf("Err() = %v, want nil", err)
 	}
