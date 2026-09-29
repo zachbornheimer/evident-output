@@ -21,13 +21,13 @@ func TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	cleanup := out.Task("cleanup")
-	cleanup.Add("worktree", func() error { return nil }, evo.Affected(2))
+	cleanup.Define(effectOf(evo.EffectAdd, "worktree", 2))
 
 	applied := out.Task("changes-section")
-	applied.Delete("branch", func() error { return nil }, evo.Affected(1))
+	applied.Define(effectOf(evo.EffectDelete, "branch", 1))
 
 	pushed := out.Task("tags")
-	pushed.Push("tag", func() error { return nil }, evo.Affected(1))
+	pushed.Define(effectOf(evo.EffectPush, "tag", 1))
 
 	_ = out.Finish()
 
@@ -47,7 +47,7 @@ func TestVerbVocabulary_PlanKeepsImperativeUnderDryRun(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
 
 	plan := out.Task("plan-section")
-	plan.Push("commit", func() error { return nil }, evo.Affected(3))
+	plan.Define(effectOf(evo.EffectPush, "commit", 3))
 
 	_ = out.Finish()
 

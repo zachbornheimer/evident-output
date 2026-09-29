@@ -307,9 +307,11 @@ func TestScheduler_DryRunMutationNeverCallsCallback(t *testing.T) {
 	var buf bytes.Buffer
 	out := isolatedScheduler(t, schedulerTestCeiling, &buf, true)
 	called := false
-	out.Task("delete branch").Delete("local tip", func() error {
-		called = true
-		return nil
+	out.Task("delete branch").Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 1}, func(context.Context) error {
+			called = true
+			return nil
+		})
 	})
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)

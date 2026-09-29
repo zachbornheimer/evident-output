@@ -23,7 +23,7 @@ func ExampleSnapshot() {
 // mutation verb recorded, run without DryRun.
 func ExampleChangesSnapshot() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("prune branches").Delete("stale branch", func() error { return nil }, evo.Affected(2))
+	out.Task("prune branches").Define(effectOf(evo.EffectDelete, "stale branch", 2))
 	_ = out.Finish()
 	changes := out.Snapshot().Changes[0]
 	fmt.Println(changes.Records[0].Verb, changes.Records[0].Quantity)
@@ -35,7 +35,7 @@ func ExampleChangesSnapshot() {
 // mutation verb recorded under DryRun.
 func ExamplePlanSnapshot() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true, DryRun: true})
-	out.Task("prune branches").Delete("stale branch", func() error { return nil }, evo.Affected(2))
+	out.Task("prune branches").Define(effectOf(evo.EffectDelete, "stale branch", 2))
 	_ = out.Finish()
 	plan := out.Snapshot().Plans[0]
 	fmt.Println(plan.Records[0].Verb, plan.Records[0].Quantity)
@@ -62,4 +62,16 @@ func ExampleMessageSnapshot() {
 	fmt.Println(msg.Text, msg.Visibility == evo.VisibilityNormal)
 	// Output:
 	// reading configuration true
+}
+
+// ExampleOutput_Events reads the durable event journal for a JSONL
+// projection (docs/development.md's "Machine output" snippet).
+func ExampleOutput_Events() {
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+	out.Task("apply patch").Done()
+	_ = out.Finish()
+	jsonl, err := evo.EncodeJSONL(out.Events())
+	fmt.Println(len(jsonl) > 0, err)
+	// Output:
+	// true <nil>
 }

@@ -38,7 +38,7 @@ func TestConformanceTool_ReturnsSpecShapeWithMigration(t *testing.T) {
 	out := runMCP(t, bin, in)
 
 	var response map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
 		var msg map[string]any
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			continue

@@ -30,10 +30,12 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	branches.Delete("branch", func() error {
-		branches.Done("8 deleted")
-		return nil
-	}, evo.Affected(8))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 8}, func(context.Context) error {
+			branches.Done("8 deleted")
+			return nil
+		})
+	})
 	worktrees := out.Group("worktrees")
 	protected := evo.Reason("protected")
 	for _, name := range eachSkipNames("skip", 6) {
@@ -80,7 +82,7 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	g := out.Group("branches")
-	g.Task("deleted").Delete("branch", func() error { return nil }, evo.Affected(8))
+	g.Task("deleted").Define(effectOf(evo.EffectDelete, "branch", 8))
 	protected := evo.Reason("protected")
 	for _, name := range eachSkipNames("skip", 6) {
 		g.Task(name).Skipped(protected)
@@ -123,10 +125,12 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	branches.Delete("branch", func() error {
-		branches.Done("8 deleted")
-		return nil
-	}, evo.Affected(8))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 8}, func(context.Context) error {
+			branches.Done("8 deleted")
+			return nil
+		})
+	})
 	worktrees := out.Task("worktrees")
 	worktrees.Cancel("cancelled — 0 removed")
 	if err := out.Finish(); err != nil {
@@ -161,10 +165,12 @@ func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	branches.Delete("branch", func() error {
-		branches.Done("12 deleted")
-		return nil
-	}, evo.Affected(12))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 12}, func(context.Context) error {
+			branches.Done("12 deleted")
+			return nil
+		})
+	})
 	remotes := out.Task("remotes")
 	remotes.Fail("authentication failed", evo.Detail("remote: Invalid username or token"))
 	out.Println("local already mutated; remotes untouched")
@@ -197,10 +203,12 @@ func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	branches.Delete("branch", func() error {
-		branches.Done("5 deleted (local)")
-		return nil
-	}, evo.Affected(5))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 5}, func(context.Context) error {
+			branches.Done("5 deleted (local)")
+			return nil
+		})
+	})
 	remotes := out.Task("remotes")
 	remotes.Cancel("cancelled before any delete-remote")
 	if err := out.Finish(); err != nil {
@@ -253,7 +261,7 @@ func TestSpecP3_DryRunTense_Success(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
-	salvage.Push("branch", func() error { return nil }, evo.Affected(3))
+	salvage.Define(effectOf(evo.EffectPush, "branch", 3))
 	salvage.Next(evo.Label("repo-retire --retire demo"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

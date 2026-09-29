@@ -298,6 +298,30 @@ func (c *evidence) Text() string {
 	return joinCaptureLines(lines, truncated)
 }
 
+// streamText returns one stream's retained lines joined by newlines, with
+// no human-facing truncation marker — unlike Text/DetailTail, this feeds
+// ExecResult.Stdout/Stderr, which a caller may parse as machine data
+// (ZYS-850); truncated returns separately as ExecResult.Truncated instead
+// of being prepended into the text.
+func (c *evidence) streamText(stream EvidenceStream) string {
+	lines, _ := c.snapshotTexts(stream, 0)
+	return strings.Join(lines, "\n")
+}
+
+// wasTruncated reports whether the retained ring has ever dropped a line to
+// stay within its bound (spec §8.4's ExecResult.Truncated) — one flag
+// shared across streams because the bound itself is on total retained
+// evidence, not per stream.
+func (c *evidence) wasTruncated() bool {
+	root := c.root()
+	if root == nil {
+		return false
+	}
+	root.mu.Lock()
+	defer root.mu.Unlock()
+	return root.truncated
+}
+
 // Empty reports whether no completed lines and no pending fragments exist.
 func (c *evidence) Empty() bool {
 	root := c.root()

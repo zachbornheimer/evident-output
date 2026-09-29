@@ -8,21 +8,16 @@ package review
 
 import (
 	"go/ast"
+	"go/scanner"
 	"go/token"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
-// mutationVerbNames are TaskHandle's object-first mutation verbs — the
-// callback-submitting family Define sits alongside (evo-rec.md "Additions").
-var mutationVerbNames = map[string]bool{
-	"Create": true, "Delete": true, "Update": true,
-	"Add": true, "Remove": true, "Push": true, "Write": true,
-}
-
-// evoResolutionCallbacks collects every FuncLit passed directly as the work
-// callback of Define or a mutation verb — the two shapes whose return value
-// resolves the task through evo's own scheduler (API-040/FP-006's scope).
+// evoResolutionCallbacks collects every FuncLit passed directly as a
+// Define callback — the shape whose return value resolves the task through
+// evo's own scheduler (API-040/FP-006's scope).
 func evoResolutionCallbacks(file *ast.File) []*ast.FuncLit {
 	var out []*ast.FuncLit
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -34,13 +29,8 @@ func evoResolutionCallbacks(file *ast.File) []*ast.FuncLit {
 		if !ok {
 			return true
 		}
-		switch {
-		case sel.Sel.Name == "Define" && len(call.Args) >= 1:
+		if sel.Sel.Name == "Define" && len(call.Args) >= 1 {
 			if fl, ok := call.Args[0].(*ast.FuncLit); ok {
-				out = append(out, fl)
-			}
-		case mutationVerbNames[sel.Sel.Name] && len(call.Args) >= 2:
-			if fl, ok := call.Args[1].(*ast.FuncLit); ok {
 				out = append(out, fl)
 			}
 		}
@@ -182,7 +172,7 @@ func scanIfElseForFailfReturn(filename string, els ast.Stmt, fset *token.FileSet
 func failResolvedInCallbackFinding(filename string, pos token.Position, recv, verb, shape string) Finding {
 	suggestion := "return the error; do not call " + verb + " first"
 	if recv != "" {
-		suggestion = "replace with `return err` (or the wrapped error) and delete the " + recv + "." + verb + "(...) call; Define/the mutation verb resolves the task from the returned error"
+		suggestion = "replace with `return err` (or the wrapped error) and delete the " + recv + "." + verb + "(...) call; Define resolves the task from the returned error"
 	}
 	return Finding{
 		RuleID:     "API-040",
@@ -196,7 +186,7 @@ func failResolvedInCallbackFinding(filename string, pos token.Position, recv, ve
 }
 
 // ===== FP-006: Doing(...) immediately followed by Done(...) on the same
-// handle with no Define/mutation verb submitting work between them — the
+// handle with no Define submitting work between them — the
 // theater FP-005's old suggestion prescribed (zq fix.go:58,265).
 
 func detectDoingDoneTheater(filename string, file *ast.File, fset *token.FileSet) []Finding {
@@ -252,16 +242,16 @@ func scanDoingDoneAdjacent(filename string, block *ast.BlockStmt, fset *token.Fi
 			if recv == "" {
 				continue
 			}
-			switch {
-			case sel.Sel.Name == "Doing":
+			switch sel.Sel.Name {
+			case "Doing":
 				pending[recv] = true
-			case sel.Sel.Name == "Done":
+			case "Done":
 				if pending[recv] {
 					pos := fset.Position(call.Pos())
 					findings = append(findings, doingDoneTheaterFinding(filename, pos, recv))
 				}
 				delete(pending, recv)
-			case sel.Sel.Name == "Define" || mutationVerbNames[sel.Sel.Name]:
+			case "Define":
 				delete(pending, recv)
 			}
 		case *ast.IfStmt:
@@ -276,14 +266,14 @@ func scanDoingDoneAdjacent(filename string, block *ast.BlockStmt, fset *token.Fi
 }
 
 func doingDoneTheaterFinding(filename string, pos token.Position, recv string) Finding {
-	suggestion := "replace Doing(...).Done(...) with Define(func() error { ... }) or the matching mutation verb"
+	suggestion := "replace Doing(...).Done(...) with Define(func(ctx context.Context) error { ... })"
 	if recv != "" {
-		suggestion = "replace " + recv + ".Doing(...) ... " + recv + ".Done(...) with " + recv + ".Define(func() error { ... }) or " + recv + "'s matching mutation verb"
+		suggestion = "replace " + recv + ".Doing(...) ... " + recv + ".Done(...) with " + recv + ".Define(func(ctx context.Context) error { ... })"
 	}
 	return Finding{
 		RuleID:     "FP-006",
 		Severity:   "error",
-		Message:    "Doing(...) is immediately followed by Done(...) with no Define/mutation verb submitting work between them; the row narrates work that already happened off-screen",
+		Message:    "Doing(...) is immediately followed by Done(...) with no Define submitting work between them; the row narrates work that already happened off-screen",
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
@@ -335,12 +325,17 @@ func containsAnyMarker(s string, markers []string) bool {
 	return false
 }
 
-// ===== API-042: a mutation verb's callback is nil, or a no-op — the work
+// ===== API-042: an evo.Effect callback is nil, or a no-op — the work
 // already happened elsewhere and the callback is theater over it (zq
-// README.md:39's Create(..., nil, ...), setup_python.go:172-181's
-// Create("module", func() error { return installedPythonModuleCount(...) })).
+// README.md:39's nil callback, setup_python.go:172-181's callback that only
+// returns installedPythonModuleCount(...)).
 
-func detectNoOpMutationCallback(filename string, file *ast.File, fset *token.FileSet) []Finding {
+// effectCallbackArg is evo.Effect's callback argument index:
+// Effect(ctx, spec, fn).
+const effectCallbackArg = 2
+
+func detectNoOpEffectCallback(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
 	funcs := map[string]*ast.FuncDecl{}
 	ast.Inspect(file, func(n ast.Node) bool {
 		if fd, ok := n.(*ast.FuncDecl); ok && fd.Body != nil {
@@ -352,41 +347,47 @@ func detectNoOpMutationCallback(filename string, file *ast.File, fset *token.Fil
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok {
+		if !ok || !isEvoEffectCall(call, pkg) {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || !mutationVerbNames[sel.Sel.Name] || len(call.Args) < 2 {
-			return true
-		}
-		recv := exprDottedName(sel.X)
 		pos := fset.Position(call.Pos())
-		switch arg := call.Args[1].(type) {
-		case *ast.Ident:
-			if arg.Name == "nil" {
-				findings = append(findings, noOpMutationFinding(filename, pos, recv, sel.Sel.Name, "nil"))
-				return true
-			}
-			if fd, ok := funcs[arg.Name]; ok && funcBodyLooksLikeNoOpWork(fd.Body) {
-				findings = append(findings, noOpMutationFinding(filename, pos, recv, sel.Sel.Name, "named"))
-			}
-		case *ast.FuncLit:
-			if funcBodyIsBareReturnNil(arg.Body) {
-				findings = append(findings, noOpMutationFinding(filename, pos, recv, sel.Sel.Name, "literal"))
-			} else if name, ok := singleReturnCallName(arg.Body); ok {
-				// e.g. Create("module", func() error { return
-				// installedPythonModuleCount(name, n) }) — the callback's
-				// only statement delegates to a same-file func that itself
-				// does no real work (just validates what the caller
-				// already computed).
-				if fd, ok := funcs[name]; ok && funcBodyLooksLikeNoOpWork(fd.Body) {
-					findings = append(findings, noOpMutationFinding(filename, pos, recv, sel.Sel.Name, "named"))
-				}
-			}
+		if shape, ok := noOpCallbackShape(call.Args[effectCallbackArg], funcs); ok {
+			findings = append(findings, noOpEffectFinding(filename, pos, shape))
 		}
 		return true
 	})
 	return findings
+}
+
+// isEvoEffectCall reports whether call is pkg.Effect(ctx, spec, fn).
+func isEvoEffectCall(call *ast.CallExpr, pkg string) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	return ok && pkg != "" && isEvoIdent(sel.X, pkg) && sel.Sel.Name == "Effect" && len(call.Args) > effectCallbackArg
+}
+
+// noOpCallbackShape classifies fn as a callback that does no real work:
+// "nil", a bare `return nil` "literal", or a "named" func (directly or as a
+// literal's single delegated return) whose body only validates.
+func noOpCallbackShape(fn ast.Expr, funcs map[string]*ast.FuncDecl) (string, bool) {
+	switch arg := fn.(type) {
+	case *ast.Ident:
+		if arg.Name == "nil" {
+			return "nil", true
+		}
+		if fd, ok := funcs[arg.Name]; ok && funcBodyLooksLikeNoOpWork(fd.Body) {
+			return "named", true
+		}
+	case *ast.FuncLit:
+		if funcBodyIsBareReturnNil(arg.Body) {
+			return "literal", true
+		}
+		if name, ok := singleReturnCallName(arg.Body); ok {
+			if fd, ok := funcs[name]; ok && funcBodyLooksLikeNoOpWork(fd.Body) {
+				return "named", true
+			}
+		}
+	}
+	return "", false
 }
 
 // noOpCalleeAllowList are calls cheap enough to still count as "no real
@@ -455,14 +456,10 @@ func funcBodyIsBareReturnNil(body *ast.BlockStmt) bool {
 	return ok && id.Name == "nil"
 }
 
-func noOpMutationFinding(filename string, pos token.Position, recv, verb, shape string) Finding {
-	message := "mutation verb has a nil callback; the work must run inside the callback"
+func noOpEffectFinding(filename string, pos token.Position, shape string) Finding {
+	message := "evo.Effect has a nil callback; the mutation must run inside the callback"
 	if shape != "nil" {
-		message = "mutation verb's callback does no real work (only validates/constructs an error); the work already ran elsewhere"
-	}
-	suggestion := "move the work into the callback, or call " + recv + ".Record(\"" + strings.ToLower(verb) + "\", n, object) when the work already happened"
-	if recv == "" {
-		suggestion = "move the work into the callback, or call task.Record(verb, n, object) when the work already happened"
+		message = "evo.Effect's callback does no real work (only validates/constructs an error); the mutation already ran elsewhere"
 	}
 	return Finding{
 		RuleID:     "API-042",
@@ -471,16 +468,16 @@ func noOpMutationFinding(filename string, pos token.Position, recv, verb, shape 
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
-		Suggestion: suggestion,
+		Suggestion: "move the mutation into the Effect callback, or call task.Record(verb, n, object) when the work already happened",
 	}
 }
 
-// ===== API-043: a plural object literal on a mutation verb — evo pluralizes
-// the singular via Affected(n); passing the plural already produces
-// "deleted 1 worktrees" (zq axis-14 P17) because an already-plural literal
-// round-trips unchanged.
+// ===== API-043: a plural EffectSpec.Object literal — evo pluralizes the
+// singular from Quantity; passing the plural already produces "deleted 1
+// worktrees" (zq axis-14 P17) because an already-plural literal round-trips
+// unchanged.
 
-// mutationObjectNouns is the small, deliberately narrow whitelist of object
+// mutationObjectNouns is the small, deliberately narrow whitelist of Effect object
 // nouns this detector recognizes — it only fires when trimming a candidate
 // plural suffix yields one of these, so it never guesses at English
 // pluralization rules for words it doesn't know (see isSibilantPlural).
@@ -497,19 +494,16 @@ var mutationObjectNouns = map[string]bool{
 	"target": true,
 }
 
-func detectPluralMutationObject(filename string, file *ast.File, fset *token.FileSet) []Finding {
+func detectPluralEffectObject(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
+		cl, ok := n.(*ast.CompositeLit)
+		if !ok || !isEvoEffectSpecLit(cl, pkg) {
+			return true
+		}
+		lit, ok := effectSpecObjectLit(cl)
 		if !ok {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || !mutationVerbNames[sel.Sel.Name] || len(call.Args) < 1 {
-			return true
-		}
-		lit, ok := call.Args[0].(*ast.BasicLit)
-		if !ok || lit.Kind != token.STRING {
 			return true
 		}
 		text, err := strconv.Unquote(lit.Value)
@@ -520,20 +514,38 @@ func detectPluralMutationObject(filename string, file *ast.File, fset *token.Fil
 		if !ok {
 			return true
 		}
-		recv := exprDottedName(sel.X)
-		pos := fset.Position(call.Pos())
+		pos := fset.Position(lit.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "API-043",
 			Severity:   "warning",
-			Message:    "mutation object literal " + strconv.Quote(text) + " is plural; evo pluralizes the singular via Affected(n)",
+			Message:    "EffectSpec.Object literal " + strconv.Quote(text) + " is plural; evo pluralizes the singular from Quantity",
 			File:       filename,
 			Line:       pos.Line,
 			Column:     pos.Column,
-			Suggestion: "replace " + strconv.Quote(text) + " with " + strconv.Quote(singular) + " (" + recv + "." + sel.Sel.Name + ")",
+			Suggestion: "replace Object: " + strconv.Quote(text) + " with Object: " + strconv.Quote(singular),
 		})
 		return true
 	})
 	return findings
+}
+
+// isEvoEffectSpecLit reports whether cl is a pkg.EffectSpec{...} literal.
+func isEvoEffectSpecLit(cl *ast.CompositeLit, pkg string) bool {
+	sel, ok := cl.Type.(*ast.SelectorExpr)
+	return ok && pkg != "" && isEvoIdent(sel.X, pkg) && sel.Sel.Name == "EffectSpec"
+}
+
+// effectSpecObjectLit returns the string literal keyed Object in cl.
+func effectSpecObjectLit(cl *ast.CompositeLit) (*ast.BasicLit, bool) {
+	for _, elt := range cl.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok || identName(kv.Key) != "Object" {
+			continue
+		}
+		lit, ok := kv.Value.(*ast.BasicLit)
+		return lit, ok && lit.Kind == token.STRING
+	}
+	return nil, false
 }
 
 // pluralObjectSingular returns the singular form when word is a recognized
@@ -590,7 +602,571 @@ func detectChannelWaitWrapperAroundDefine(filename, src string) []Finding {
 	return findings
 }
 
-// ===== API-045: task.Define(func(context.Context) error { ... }) discards
+// ===== API-050: a Task whose literal name is a generic phase/category word
+// (fix/check/classify/resolve/finalize — ZYS-937) sequences two or more
+// independently erroring steps in its own Define callback instead of
+// performing one action itself. API-045 already flags the bare word on
+// sight; this rule adds the structural half of the same distinction — it
+// only fires once the callback shows the actual evidence of owning several
+// children (zq's own fix/check command family, internal/app/app.go:80's
+// a.task("fix", ...)), so it stays silent on a single guarded step under
+// the same name and on any multi-step name that already reads as a real
+// verb+object action.
+
+// taskPhaseCategoryWords are the generic phase/category labels ZYS-937
+// names as suspect: a Task by this name that sequences several independent
+// operations is a container wearing one Task's clothes, not one action.
+var taskPhaseCategoryWords = map[string]bool{
+	"fix": true, "check": true, "classify": true, "resolve": true, "finalize": true,
+}
+
+// phaseTaskCallInfo reports whether call is an evo Task("word") call whose
+// literal name is a generic phase/category word, returning the matched
+// (original-case) word and the call's source position.
+func phaseTaskCallInfo(call *ast.CallExpr, fset *token.FileSet) (word string, pos token.Position, ok bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Task" || !isLikelyEvoReceiver(sel.X) || len(call.Args) < 1 {
+		return "", token.Position{}, false
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", token.Position{}, false
+	}
+	text, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return "", token.Position{}, false
+	}
+	if !taskPhaseCategoryWords[strings.ToLower(strings.TrimSpace(text))] {
+		return "", token.Position{}, false
+	}
+	return text, fset.Position(call.Pos()), true
+}
+
+// detectPhaseTaskOwningChildWork covers two shapes: a chained
+// X.Task("word").Define(func(){...}) expression, and the same pairing split
+// across a local variable (t := X.Task("word") ... t.Define(func(){...})
+// later in the same function body) — no cross-function data flow, matching
+// this package's other same-block tracking detectors (scanDoingDoneAdjacent).
+func detectPhaseTaskOwningChildWork(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) < 1 {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Define" {
+			return true
+		}
+		taskCall, ok := sel.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		word, pos, ok := phaseTaskCallInfo(taskCall, fset)
+		if !ok {
+			return true
+		}
+		fl, ok := call.Args[0].(*ast.FuncLit)
+		if !ok {
+			return true
+		}
+		if f := phaseTaskDefineFinding(filename, pos, word, fl); f != nil {
+			findings = append(findings, *f)
+		}
+		return true
+	})
+	ast.Inspect(file, func(n ast.Node) bool {
+		fn, ok := n.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			return true
+		}
+		findings = append(findings, scanPhaseTaskVarDefines(filename, fn.Body, fset)...)
+		return false
+	})
+	return findings
+}
+
+// scanPhaseTaskVarDefines walks block's top-level statements tracking
+// `v := recv.Task("word")` assignments where word matches
+// taskPhaseCategoryWords, then matches the next `v.Define(func(){...})`
+// statement against that pending declaration.
+func scanPhaseTaskVarDefines(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
+	var findings []Finding
+	type pendingTask struct {
+		word string
+		pos  token.Position
+	}
+	pending := map[string]pendingTask{}
+	for _, stmt := range block.List {
+		switch s := stmt.(type) {
+		case *ast.AssignStmt:
+			if len(s.Lhs) != 1 || len(s.Rhs) != 1 {
+				continue
+			}
+			id, ok := s.Lhs[0].(*ast.Ident)
+			if !ok {
+				continue
+			}
+			call, ok := s.Rhs[0].(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+			if word, pos, ok := phaseTaskCallInfo(call, fset); ok {
+				pending[id.Name] = pendingTask{word, pos}
+			}
+		case *ast.ExprStmt:
+			call, ok := s.X.(*ast.CallExpr)
+			if !ok || len(call.Args) < 1 {
+				continue
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "Define" {
+				continue
+			}
+			recvID, ok := sel.X.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			info, tracked := pending[recvID.Name]
+			if !tracked {
+				continue
+			}
+			delete(pending, recvID.Name)
+			fl, ok := call.Args[0].(*ast.FuncLit)
+			if !ok {
+				continue
+			}
+			if f := phaseTaskDefineFinding(filename, info.pos, info.word, fl); f != nil {
+				findings = append(findings, *f)
+			}
+		}
+	}
+	return findings
+}
+
+// phaseTaskDefineFinding inspects a Define callback's top-level statements
+// for 2+ independently erroring steps — the structural evidence that a
+// generic phase-named Task (fix/check/classify/resolve/finalize) exists
+// primarily to own child-looking work or force a row, rather than perform
+// one action itself.
+func phaseTaskDefineFinding(filename string, pos token.Position, word string, fl *ast.FuncLit) *Finding {
+	steps := countGuardedCallSteps(fl.Body)
+	if steps < 2 {
+		return nil
+	}
+	return &Finding{
+		RuleID:   "API-050",
+		Severity: "warning",
+		Message: "Task(" + strconv.Quote(word) + ") sequences " + strconv.Itoa(steps) +
+			" independently erroring steps in its own Define callback; it exists primarily to own child-looking work, not to perform one action itself",
+		File:   filename,
+		Line:   pos.Line,
+		Column: pos.Column,
+		Suggestion: "replace Task(" + strconv.Quote(word) + ") with Group(" + strconv.Quote(word) +
+			") and give each independently erroring step its own verb+object child Task, e.g. group := out.Group(" + strconv.Quote(word) +
+			"); group.Task(\"...\").Define(func(ctx context.Context) error { ... })",
+	}
+}
+
+// countGuardedCallSteps counts block's top-level statements shaped like one
+// independent unit of work immediately followed by its own error check —
+// `if err := f(...); err != nil { return err }` or `err = f(...)` directly
+// followed by `if err != nil { return err }`. It never descends into nested
+// control flow or a nested FuncLit, so it only counts steps sequenced
+// directly in the callback body, never ones buried inside a loop/branch.
+func countGuardedCallSteps(body *ast.BlockStmt) int {
+	if body == nil {
+		return 0
+	}
+	steps := 0
+	stmts := body.List
+	for i := range stmts {
+		switch s := stmts[i].(type) {
+		case *ast.IfStmt:
+			if s.Init != nil && isCallAssign(s.Init) && isErrNeqNilCond(s.Cond) {
+				steps++
+			}
+		case *ast.AssignStmt:
+			if !isCallAssign(s) || i+1 >= len(stmts) {
+				continue
+			}
+			next, ok := stmts[i+1].(*ast.IfStmt)
+			if ok && next.Init == nil && isErrNeqNilCond(next.Cond) {
+				steps++
+			}
+		}
+	}
+	return steps
+}
+
+// isCallAssign reports whether s is a single-value assignment/definition
+// (`err := f(...)` or `err = f(...)`) whose right side is a call.
+func isCallAssign(s ast.Stmt) bool {
+	assign, ok := s.(*ast.AssignStmt)
+	if !ok || len(assign.Rhs) != 1 {
+		return false
+	}
+	_, ok = assign.Rhs[0].(*ast.CallExpr)
+	return ok
+}
+
+// isErrNeqNilCond reports whether cond is the bare `err != nil` guard.
+func isErrNeqNilCond(cond ast.Expr) bool {
+	be, ok := cond.(*ast.BinaryExpr)
+	if !ok || be.Op != token.NEQ {
+		return false
+	}
+	id, ok := be.X.(*ast.Ident)
+	if !ok || id.Name != "err" {
+		return false
+	}
+	nilIdent, ok := be.Y.(*ast.Ident)
+	return ok && nilIdent.Name == "nil"
+}
+
+// ===== API-052: a caller stores Group/Sequence child Task handles solely to
+// loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count
+// failed children into its own aggregate error — GroupHandle.Wait/
+// SequenceHandle.Wait (ZYS-849) now owns exactly this bookkeeping. zq
+// evidence: internal/app/app.go::runParallel (slice of handles, Wait loop,
+// Snapshot, failed-child count, "N of N failed" error) and
+// internal/app/run_execute.go::waitDefinedRunOperations (Wait loop
+// special-casing evo.ErrNotStarted, first-remaining-error return).
+
+// callerWaitLoopSignals are the tokens that, alongside a for-loop calling
+// .Wait() on a *TaskHandle, corroborate the container-boilerplate shape
+// this rule targets rather than an unrelated Wait() loop (e.g. os/exec's
+// Cmd.Wait()) — the rule requires the loop's function reference TaskHandle
+// at all, plus at least one of these signals anywhere in the same function.
+var callerWaitLoopSignals = []string{"ErrNotStarted", "Snapshot("}
+
+func detectCallerWaitLoopOverContainerChildren(filename, src string) []Finding {
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		// The signature (parameter/receiver types, e.g. "tasks
+		// []*evo.TaskHandle") sits before fn.body's opening brace, so the
+		// TaskHandle/signal check reads the whole declaration, not only
+		// the body statements.
+		funcStart := strings.LastIndex(src[:fn.offset], "func ")
+		if funcStart < 0 {
+			funcStart = fn.offset
+		}
+		wholeFunc := src[funcStart : fn.offset+len(fn.body)]
+		if !strings.Contains(wholeFunc, "TaskHandle") {
+			continue
+		}
+		if !containsAny(wholeFunc, callerWaitLoopSignals) {
+			continue
+		}
+		loop, waitIdx, ok := firstForLoopCallingWait(fn.body)
+		if !ok {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-052",
+			Severity:   "error",
+			Message:    "a caller-owned loop waits on individually stored Task handles, filters ErrNotStarted, snapshots the container, and hand-counts failed children instead of using the container's own Wait",
+			File:       filename,
+			Line:       lineAt(src, fn.offset+loop.offset+waitIdx),
+			Suggestion: "replace the stored-handle Wait loop and hand-counted aggregate error with the owning container's own GroupHandle.Wait()/SequenceHandle.Wait() (e.g. return jobs.Wait())",
+		})
+	}
+	return findings
+}
+
+// containsAny reports whether s contains any of the given substrings.
+func containsAny(s string, substrs []string) bool {
+	for _, sub := range substrs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstForLoopCallingWait finds the first brace-balanced "for" loop in body
+// whose block calls .Wait() directly, best-effort via textual scan (mirrors
+// allFuncBodies' brace-balanced scan for "func"). It returns the loop's own
+// funcBody, the byte offset of ".Wait()" within that loop body, and whether
+// a match was found.
+func firstForLoopCallingWait(body string) (loop funcBody, waitIdx int, ok bool) {
+	scanFrom := 0
+	for {
+		rel := strings.Index(body[scanFrom:], "for ")
+		if rel < 0 {
+			return funcBody{}, 0, false
+		}
+		idx := scanFrom + rel
+		if !precededByStatementBoundary(body, idx) {
+			scanFrom = idx + len("for ")
+			continue
+		}
+		block, start, balanced := balancedBraceBody(body, idx)
+		if !balanced {
+			scanFrom = idx + len("for ")
+			continue
+		}
+		if waitIdx := strings.Index(block, ".Wait()"); waitIdx >= 0 {
+			return funcBody{body: block, offset: start}, waitIdx, true
+		}
+		scanFrom = start + len(block)
+	}
+}
+
+// precededByStatementBoundary reports whether the byte immediately before
+// idx starts a new statement (newline, tab, space, or an opening brace) —
+// filtering an identifier substring like "before " from matching "for ".
+func precededByStatementBoundary(body string, idx int) bool {
+	if idx == 0 {
+		return true
+	}
+	switch body[idx-1] {
+	case '\n', '\t', ' ', '{':
+		return true
+	default:
+		return false
+	}
+}
+
+// ===== API-047: a Task/Group/Sequence declaration reuses a sibling literal
+// name already used, under the same parent handle, by a different entity
+// kind. §3.1's default stable key folds kind into the key
+// (kind:parentKey/name), so out.Task("build") and out.Group("build")
+// register as two distinct runtime identities that share one visible
+// sibling name. failDuplicateSiblingLocked's same-kind check
+// (ProblemCodeDuplicateSiblingName) does not catch this because it only
+// compares within one kind's own name index (ZYS-944).
+
+// siblingEntityKind names the three declarable entity kinds this rule
+// compares across (a package-local mirror of internal/engine's own
+// entityKind — review is a static-analysis package and does not import
+// engine, so it keeps its own copy of this small vocabulary).
+type siblingEntityKind string
+
+const (
+	declKindTask     siblingEntityKind = "task"
+	declKindGroup    siblingEntityKind = "group"
+	declKindSequence siblingEntityKind = "sequence"
+)
+
+// siblingDeclKind reports the siblingEntityKind a Task/Group/Sequence declaration
+// method name declares, or ("", false) for any other method.
+func siblingDeclKind(method string) (kind siblingEntityKind, ok bool) {
+	switch method {
+	case "Task":
+		return declKindTask, true
+	case "Group":
+		return declKindGroup, true
+	case "Sequence":
+		return declKindSequence, true
+	default:
+		return "", false
+	}
+}
+
+// siblingKindDecl is the first declaration scanBlockForCrossKindSiblings saw
+// for one (parent, name) pair: its entity kind and source position, so a
+// later declaration under the same parent and name can be compared and
+// reported against it.
+type siblingKindDecl struct {
+	kind siblingEntityKind
+	pos  token.Position
+}
+
+// detectCrossKindDuplicateSiblingName scans every block independently
+// (never across an if/else branch split, where two kinds sharing a name are
+// legitimately mutually exclusive) for sibling Task/Group/Sequence
+// declarations that reuse one literal name across different kinds under the
+// same parent handle.
+func detectCrossKindDuplicateSiblingName(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		block, ok := n.(*ast.BlockStmt)
+		if !ok {
+			return true
+		}
+		findings = append(findings, scanBlockForCrossKindSiblings(filename, block, fset)...)
+		return true
+	})
+	return findings
+}
+
+// scanBlockForCrossKindSiblings walks block's direct statements without
+// descending into a nested BlockStmt — the outer ast.Inspect in
+// detectCrossKindDuplicateSiblingName visits and scans a nested block on its
+// own, so an if-branch and its else-branch are never compared against each
+// other. A chained declaration (out.Task("build").Define(...)) and an
+// assigned one (work := out.Group("work")) are both reached because the
+// per-statement walk only stops descent at a BlockStmt boundary, never at
+// the statement's own expression shape.
+func scanBlockForCrossKindSiblings(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
+	var findings []Finding
+	seen := map[string]map[string]siblingKindDecl{}
+	for _, stmt := range block.List {
+		ast.Inspect(stmt, func(n ast.Node) bool {
+			if _, ok := n.(*ast.BlockStmt); ok {
+				return false
+			}
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			kind, ok := siblingDeclKind(sel.Sel.Name)
+			if !ok || len(call.Args) != 1 || !isLikelyEvoReceiver(sel.X) {
+				return true
+			}
+			lit, ok := call.Args[0].(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			name, err := strconv.Unquote(lit.Value)
+			if err != nil || name == "" {
+				return true
+			}
+			recv := exprDottedName(sel.X)
+			if recv == "" {
+				return true
+			}
+			if seen[recv] == nil {
+				seen[recv] = map[string]siblingKindDecl{}
+			}
+			prior, ok := seen[recv][name]
+			if !ok {
+				seen[recv][name] = siblingKindDecl{kind: kind, pos: fset.Position(call.Pos())}
+				return true
+			}
+			if prior.kind != kind {
+				pos := fset.Position(call.Pos())
+				findings = append(findings, crossKindDuplicateSiblingFinding(filename, pos, recv, name, prior, kind))
+			}
+			return true
+		})
+	}
+	return findings
+}
+
+// crossKindDuplicateSiblingFinding builds API-047's Finding: recv/name/kind
+// describe the second (flagged) declaration, prior the first one it collides
+// with.
+func crossKindDuplicateSiblingFinding(filename string, pos token.Position, recv, name string, prior siblingKindDecl, kind siblingEntityKind) Finding {
+	method := siblingDeclMethod(kind)
+	priorMethod := siblingDeclMethod(prior.kind)
+	renamed := strconv.Quote(name + " " + strings.ToLower(method))
+	quotedName := strconv.Quote(name)
+	return Finding{
+		RuleID:   "API-047",
+		Severity: "error",
+		Message: recv + "." + method + "(" + quotedName + ") reuses the sibling name already declared as a " + string(prior.kind) +
+			" at line " + strconv.Itoa(prior.pos.Line) + " (" + recv + "." + priorMethod + "(" + quotedName + ")); the same visible name now names two distinct " +
+			string(prior.kind) + "/" + string(kind) + " runtime identities under one parent",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "give " + recv + "." + method + "(" + quotedName + ") its own distinct name, e.g. " + recv + "." + method + "(" + renamed + "), so the two runtime identities that already exist here are no longer visually indistinguishable",
+	}
+}
+
+// siblingDeclMethod is siblingDeclKind's inverse, so a Finding can name the
+// exact method call (out.Group(...), never a bare kind string) the fix
+// should read.
+func siblingDeclMethod(kind siblingEntityKind) string {
+	switch kind {
+	case declKindTask:
+		return "Task"
+	case declKindGroup:
+		return "Group"
+	case declKindSequence:
+		return "Sequence"
+	default:
+		return string(kind)
+	}
+}
+
+// ===== API-048: the same Group/Sequence receiver's .Task("literal") called
+// more than once with the identical string in one function — declareGroupTask
+// fails the second call as a duplicate sibling rather than returning the
+// first handle (§3.1; internal/engine/group.go's GroupHandle.Task), so a
+// later dependency reference (After, a second Define, ...) must keep the
+// first handle instead of re-declaring by name. The contract's own zq prune
+// fixture (spec §21/§18) extracts these into a typed var (...) block; that
+// is the recommended fix, never required for a Task named only once.
+
+// taskCallSite is one <receiver>.Task("literal") call site, kept in
+// declaration order so the finding always lands on the second (repeat)
+// occurrence, never the legitimate first declaration.
+type taskCallSite struct {
+	recv    string
+	literal string
+	pos     token.Pos
+}
+
+func detectRedeclaredTaskLiteral(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	forEachFuncBody(file, func(body *ast.BlockStmt) {
+		seen := map[string]token.Pos{}
+		ast.Inspect(body, func(n ast.Node) bool {
+			site, ok := taskCallSiteAt(n)
+			if !ok {
+				return true
+			}
+			key := site.recv + "\x00" + site.literal
+			if _, dup := seen[key]; dup {
+				pos := fset.Position(site.pos)
+				findings = append(findings, redeclaredTaskLiteralFinding(filename, pos, site.recv, site.literal))
+				return true
+			}
+			seen[key] = site.pos
+			return true
+		})
+	})
+	return findings
+}
+
+// taskCallSiteAt reports the <recv>.Task("literal") shape at n, when recv is
+// a named identifier (not a chained call result) — a Group/Sequence handle
+// held in a variable, the only shape a later reference could re-declare by
+// name instead of reusing.
+func taskCallSiteAt(n ast.Node) (taskCallSite, bool) {
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return taskCallSite{}, false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Task" || len(call.Args) != 1 {
+		return taskCallSite{}, false
+	}
+	if _, ok := sel.X.(*ast.Ident); !ok {
+		return taskCallSite{}, false
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return taskCallSite{}, false
+	}
+	text, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return taskCallSite{}, false
+	}
+	return taskCallSite{recv: exprDottedName(sel.X), literal: text, pos: call.Pos()}, true
+}
+
+func redeclaredTaskLiteralFinding(filename string, pos token.Position, recv, literal string) Finding {
+	quoted := strconv.Quote(literal)
+	return Finding{
+		RuleID:     "API-048",
+		Severity:   "suggestion",
+		Message:    recv + ".Task(" + quoted + ") is declared again with the same label; the second call fails as a duplicate sibling rather than returning the first handle",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "keep the first " + recv + ".Task(" + quoted + ") handle in a typed variable (a var (...) block when there are several) and reuse it for the later reference instead of re-declaring by name",
+	}
+}
+
+// ===== API-049: task.Define(func(context.Context) error { ... }) discards
 // its scheduler-provided context parameter (unnamed, or named something other
 // than the outer "ctx" it shadows) while the body still calls cancellable
 // work with the captured outer "ctx" — the row cancels correctly but the
@@ -949,7 +1525,7 @@ func detectDefineDiscardsSchedulerContext(filename string, file *ast.File, fset 
 		}
 		pos := fset.Position(call.Pos())
 		findings = append(findings, Finding{
-			RuleID:     "API-045",
+			RuleID:     "API-049",
 			Severity:   "error",
 			Message:    "Define's callback discards its scheduler-provided context and calls cancellable work with a captured outer ctx instead; the scheduler's cancellation never reaches that work",
 			File:       filename,
@@ -1035,9 +1611,344 @@ func inlineReasonFinding(filename string, pos token.Position, pkg string, outerS
 	}
 }
 
+// ===== API-046: task.Skipped(evo.Reason("...")) whose reason text names an
+// obvious already-satisfied condition (already up to date, unchanged,
+// already latest, already current) rather than true inapplicability (no
+// project config, no Go module). Skipped means the check never applied;
+// ResolutionAlreadySatisfied — produced by a Verify precondition, or derived
+// automatically from evo.File/evo.Exec's own tracked comparison — means the
+// check applied and already held. Collapsing the two into Skipped hides a
+// real, checked precondition behind the "did not apply" glyph.
+
+// alreadySatisfiedReasonPhrases are multi-word substrings (checked
+// case-insensitive against the full reason text) that only ever name a
+// checked-and-already-true condition — long enough that they never collide
+// with an unrelated sentence.
+var alreadySatisfiedReasonPhrases = []string{
+	"already up to date", "already up-to-date", "already latest",
+	"already current", "already installed", "already exists",
+	"already satisfied", "no changes needed", "nothing changed",
+	"no update needed", "no upgrade needed",
+}
+
+// alreadySatisfiedReasonWords are single bare words that only fire when the
+// entire (trimmed) reason text is exactly one of them — a one-word reason
+// like "current" or "unchanged" is unambiguous, but the same word inside a
+// longer sentence ("current branch is protected") is not, so those go
+// through alreadySatisfiedReasonPhrases instead.
+var alreadySatisfiedReasonWords = map[string]bool{
+	"current": true, "unchanged": true, "latest": true,
+	"up to date": true, "up-to-date": true, "uptodate": true,
+}
+
+// inapplicabilityReasonPhrases are substrings that name true inapplicability
+// (the check never ran because its precondition object doesn't exist) —
+// these never fire API-046 even if they also loosely match "current" or
+// "up to date" phrasing elsewhere in the same string.
+var inapplicabilityReasonPhrases = []string{
+	"no project config", "no go module", "no go.mod", "not applicable",
+	"n/a", "not a git repo", "not a repository", "no config found",
+	"missing config", "no module found", "not present",
+}
+
+func detectSkippedForAlreadySatisfied(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
+	if pkg == "" {
+		return nil
+	}
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Skipped" || !isLikelyEvoReceiver(sel.X) || len(call.Args) < 1 {
+			return true
+		}
+		reasonCall, ok := call.Args[0].(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		reasonSel, ok := reasonCall.Fun.(*ast.SelectorExpr)
+		if !ok || !isEvoIdent(reasonSel.X, pkg) || reasonSel.Sel.Name != "Reason" || len(reasonCall.Args) != 1 {
+			return true
+		}
+		lit, ok := reasonCall.Args[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		text, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		lower := strings.ToLower(strings.TrimSpace(text))
+		if containsAnyMarker(lower, inapplicabilityReasonPhrases) {
+			return true
+		}
+		if !containsAnyMarker(lower, alreadySatisfiedReasonPhrases) && !alreadySatisfiedReasonWords[lower] {
+			return true
+		}
+		pos := fset.Position(call.Pos())
+		findings = append(findings, skippedAlreadySatisfiedFinding(filename, pos, exprDottedName(sel.X), text))
+		return true
+	})
+	return findings
+}
+
+func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, text string) Finding {
+	if recv == "" {
+		recv = "task"
+	}
+	return Finding{
+		RuleID:   "API-046",
+		Severity: "warning",
+		Message:  "Skipped(evo.Reason(" + strconv.Quote(text) + ")) reports \"did not apply\"; the reason names a condition that was checked and already held, which is ResolutionAlreadySatisfied",
+		File:     filename,
+		Line:     pos.Line,
+		Column:   pos.Column,
+		Suggestion: "add a precondition check via " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) before " + recv +
+			".Define(...) so evo resolves ResolutionAlreadySatisfied on its own, or let evo.File/evo.Exec derive it from their own tracked comparison; reserve Skipped for true inapplicability (no project config, no Go module)",
+	}
+}
+
 // exportedReasonName turns a reason literal into an exported-style Go
 // identifier fragment ("dirty worktree" -> "DirtyWorktree") for the var-name
 // this rule's suggestion spells out.
+// ===== API-045: Task(name) where name is a bare subject/category label or a
+// generic phase word — ZYS-838's "Task means one independently meaningful
+// action, not a display row or container". Task is a compile-time-flexible
+// spelling (Output/GroupHandle/SequenceHandle.Task all take any string), so
+// this boundary cannot be a Go type; zq's own fix/check command family
+// (internal/app/app.go:80's a.task("fix", ...), a.task("check", ...)) is the
+// canary case that motivated the split into two findings below: a subject
+// label is missing its verb, a container word is organizing other work
+// wearing one Task's clothes.
+
+// taskSubjectOnlyNames is a narrow, curated list of names ZYS-838 itself
+// names as "weak/suspicious" subject labels — not a grammar check (a short
+// name can be legitimate in context), only names known to answer "what",
+// never "what will this determine".
+var taskSubjectOnlyNames = map[string]string{
+	"file integrity": "check file integrity",
+	"go":             "build Go",
+	"ruff":           "lint Python",
+	"classify":       "classify staged files",
+}
+
+// taskContainerWords are generic phase/category words that organize other
+// work rather than being independently meaningful themselves (ZYS-838's
+// "fix"/"pre-commit" examples; zq's a.task("fix", ...) command family).
+var taskContainerWords = map[string]bool{
+	"fix":        true,
+	"pre-commit": true,
+	"precommit":  true,
+	"setup":      true,
+	"process":    true,
+}
+
+func detectSubjectOnlyOrContainerTaskName(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Task" || len(call.Args) < 1 || !isLikelyEvoReceiver(sel.X) {
+			return true
+		}
+		lit, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		text, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		lower := strings.ToLower(strings.TrimSpace(text))
+		pos := fset.Position(call.Pos())
+		if taskContainerWords[lower] {
+			findings = append(findings, containerTaskNameFinding(filename, pos, text))
+			return true
+		}
+		if corrected, ok := taskSubjectOnlyNames[lower]; ok {
+			findings = append(findings, subjectOnlyTaskNameFinding(filename, pos, text, corrected))
+		}
+		return true
+	})
+	return findings
+}
+
+func subjectOnlyTaskNameFinding(filename string, pos token.Position, text, corrected string) Finding {
+	return Finding{
+		RuleID:   "API-045",
+		Severity: "warning",
+		Message:  "Task(" + strconv.Quote(text) + ") names a subject, not the work; a Task should name one independently meaningful action",
+		File:     filename,
+		Line:     pos.Line,
+		Column:   pos.Column,
+		Suggestion: "rename to Task(" + strconv.Quote(corrected) + ") — read the name as an action (verb + concrete object) " +
+			"that answers what this unit of work will accomplish or determine",
+	}
+}
+
+func containerTaskNameFinding(filename string, pos token.Position, text string) Finding {
+	return Finding{
+		RuleID:   "API-045",
+		Severity: "warning",
+		Message:  "Task(" + strconv.Quote(text) + ") appears to organize several independently meaningful operations, not perform one itself",
+		File:     filename,
+		Line:     pos.Line,
+		Column:   pos.Column,
+		Suggestion: "replace Task(" + strconv.Quote(text) + ") with a Group/Sequence such as Group(\"prepare staged files\") " +
+			"and give each independently meaningful operation its own verb+object Task underneath",
+	}
+}
+
+// ===== API-051: a loop flattens structured findings into one joined error
+// string, or creates one fake Task per finding and fails it, because the
+// caller has no ergonomic way to retain many structured findings on one Task
+// (zq hook_findings.go's blockStagedGolangciFindings ->
+// errors.New(strings.Join(...)), hook.go's reportFileIntegrityIssues ->
+// Task(file).Fail per finding — the two shapes ZYS-848's Contract names).
+// TaskHandle.Problem (ZYS-848 Decisions 2026-09-23; docs/migration/1.1.md)
+// lets one owning Task accumulate every finding as a structured Problem
+// instead, so this rule cannot recommend its fix for a pin older than 1.1.0.
+
+// detectPerFindingFakeTask flags `<expr>.Task(<x>).Fail(...)` /
+// `.Failf(...)` inside a for/range loop body — a fake Task created only to
+// display one finding, never independently schedulable or awaited.
+func detectPerFindingFakeTask(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		var body *ast.BlockStmt
+		switch s := n.(type) {
+		case *ast.RangeStmt:
+			body = s.Body
+		case *ast.ForStmt:
+			body = s.Body
+		default:
+			return true
+		}
+		if body == nil {
+			return true
+		}
+		ast.Inspect(body, func(n2 ast.Node) bool {
+			call, ok := n2.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || (sel.Sel.Name != "Fail" && sel.Sel.Name != "Failf") {
+				return true
+			}
+			inner, ok := sel.X.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			innerSel, ok := inner.Fun.(*ast.SelectorExpr)
+			if !ok || innerSel.Sel.Name != "Task" {
+				return true
+			}
+			pos := fset.Position(call.Pos())
+			findings = append(findings, Finding{
+				RuleID:   "API-051",
+				Severity: "error",
+				Message:  "loop creates one Task per finding and immediately fails it; a Task should own its independent lifecycle, not stand in for one finding",
+				File:     filename,
+				Line:     pos.Line,
+				Column:   pos.Column,
+				Suggestion: "replace the per-item .Task(...).Fail/Failf(...) with one owning Task that calls " +
+					"task.Problem(summary, evo.Location(path, line, 0), evo.Code(code)) once per finding inside the loop, " +
+					"then Define resolves the Task Failed once if any Problem was accumulated",
+			})
+			return true
+		})
+		return true
+	})
+	return findings
+}
+
+// flattenedDiagnosticsAppend matches `name = append(name, ...)` so the
+// accumulator's own identifier is captured, not guessed — the loop body is
+// already the smallest brace-balanced substring flattenedDiagnosticsLoops
+// hands in, so this never crosses into an unrelated loop's accumulator.
+var flattenedDiagnosticsAppend = regexp.MustCompile(`(\w+)\s*=\s*append\(\s*(\w+)\s*,`)
+
+// flattenedDiagnosticsWrap reports whether rest (the function body's text
+// after the accumulating loop) later wraps strings.Join(name, ...) directly
+// inside errors.New(...), fmt.Errorf(...), or a .Fail/.Failf(...) call — the
+// three shapes that discard every finding's own location/code/detail down
+// to one flattened string.
+func flattenedDiagnosticsWrap(rest, name string) bool {
+	quoted := regexp.QuoteMeta(name)
+	wrap := regexp.MustCompile(
+		`(?:errors\.New|fmt\.Errorf|\.Failf?)\(\s*(?:"[^"]*",\s*)?strings\.Join\(\s*` + quoted + `\s*,`,
+	)
+	return wrap.MatchString(rest)
+}
+
+// detectFlattenedDiagnosticsLoop flags a for/range loop that appends into a
+// slice, followed later in the same function by that slice joined straight
+// into a single wrapped error/failure — the flattened-string shape ZYS-848's
+// Contract calls out (zq's blockStagedGolangciFindings).
+func detectFlattenedDiagnosticsLoop(filename, src string) []Finding {
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		for _, loop := range forLoopBodies(fn.body) {
+			match := flattenedDiagnosticsAppend.FindStringSubmatch(loop.body)
+			if match == nil || match[1] != match[2] {
+				continue
+			}
+			name := match[1]
+			rest := fn.body[loop.offset+len(loop.body):]
+			if !flattenedDiagnosticsWrap(rest, name) {
+				continue
+			}
+			findings = append(findings, Finding{
+				RuleID:   "API-051",
+				Severity: "error",
+				Message: "loop concatenates structured findings into " + name +
+					", later flattened into one joined error string that discards each finding's own location/code/detail",
+				File: filename,
+				Line: lineAt(src, fn.offset+loop.offset),
+				Suggestion: "accumulate each finding with task.Problem(summary, evo.Location(path, line, 0), evo.Code(code)) " +
+					"inside the loop instead of building " + name + " for strings.Join/errors.New",
+			})
+		}
+	}
+	return findings
+}
+
+// loopBody is a for/range loop's brace-balanced body and its byte offset
+// within the enclosing text — the same shape allFuncBodies uses for
+// function bodies, scoped down to one loop.
+type loopBody struct {
+	body   string
+	offset int
+}
+
+// forLoopBodies finds every top-level "for " loop's brace-balanced body in
+// src, mirroring allFuncBodies' "func " scan.
+func forLoopBodies(src string) []loopBody {
+	var out []loopBody
+	for i := 0; i < len(src); {
+		idx := strings.Index(src[i:], "for ")
+		if idx < 0 {
+			break
+		}
+		idx += i
+		if body, start, ok := balancedBraceBody(src, idx); ok {
+			out = append(out, loopBody{body: body, offset: start})
+			i = start + len(body)
+		} else {
+			i = idx + len("for ")
+		}
+	}
+	return out
+}
+
 func exportedReasonName(text string) string {
 	var b strings.Builder
 	upperNext := true
@@ -1057,4 +1968,446 @@ func exportedReasonName(text string) string {
 		return "Reason"
 	}
 	return b.String()
+}
+
+// ===== API-053: nested Evo resource acquisition (ZYS-933/ZYS-840). Effect
+// holds spec.Resource for its fn callback's duration only when spec.Resource
+// is set (File always claims its own path automatically, but takes no
+// callback, so it cannot itself host a nested acquisition). Calling File or
+// a Resource-claiming Effect again with that same held ctx — directly, or
+// one call away through a same-file helper handed the held ctx — asks for a
+// second resource while the first is still held. The runtime check
+// (evo.ErrNestedResourceAcquisition) rejects it deterministically at apply
+// time; this rule catches the same shape, including the indirect case,
+// before it can reach runtime.
+
+// resourceHold is one evo.Effect(ctx, spec, fn) call whose spec statically
+// claims a Resource: fn's body and the name fn's own context.Context
+// parameter binds to inside that body.
+type resourceHold struct {
+	body    *ast.BlockStmt
+	ctxName string
+}
+
+// resourceHoldingCallbacks finds every evo.Effect(...) call in file whose
+// spec composite literal (inline, or a same-file local variable last
+// assigned one, resolved through specVars) sets a non-nil Resource field.
+func resourceHoldingCallbacks(file *ast.File, pkg string, specVars map[string]*ast.CompositeLit) []resourceHold {
+	var holds []resourceHold
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || calledFuncDotted(call) != pkg+".Effect" || len(call.Args) < 3 {
+			return true
+		}
+		lit := effectSpecArg(call.Args[1], specVars)
+		if lit == nil || !compositeLitClaimsResource(lit) {
+			return true
+		}
+		fl, ok := call.Args[2].(*ast.FuncLit)
+		if !ok || fl.Type.Params == nil || len(fl.Type.Params.List) == 0 {
+			return true
+		}
+		names := fl.Type.Params.List[0].Names
+		if len(names) == 0 {
+			return true
+		}
+		holds = append(holds, resourceHold{body: fl.Body, ctxName: names[0].Name})
+		return true
+	})
+	return holds
+}
+
+// effectSpecArg resolves arg (the second argument to evo.Effect) to its
+// pkg.EffectSpec composite literal, whether written inline or through a
+// same-file local variable resolved via specVars.
+func effectSpecArg(arg ast.Expr, specVars map[string]*ast.CompositeLit) *ast.CompositeLit {
+	if lit, ok := arg.(*ast.CompositeLit); ok {
+		return lit
+	}
+	if id, ok := arg.(*ast.Ident); ok {
+		return specVars[id.Name]
+	}
+	return nil
+}
+
+// effectSpecCompositeLits maps a local variable name to the pkg.EffectSpec
+// composite literal it was last assigned from, same-file only — the same
+// "obvious static case" scope every helper-following MCP rule in this file
+// uses (no cross-package resolution, no type checking).
+func effectSpecCompositeLits(file *ast.File, pkg string) map[string]*ast.CompositeLit {
+	out := map[string]*ast.CompositeLit{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != len(assign.Rhs) {
+			return true
+		}
+		for i, rhs := range assign.Rhs {
+			lit, ok := rhs.(*ast.CompositeLit)
+			if !ok {
+				continue
+			}
+			sel, ok := lit.Type.(*ast.SelectorExpr)
+			if !ok || exprDottedName(sel.X) != pkg || sel.Sel.Name != "EffectSpec" {
+				continue
+			}
+			if id, ok := assign.Lhs[i].(*ast.Ident); ok {
+				out[id.Name] = lit
+			}
+		}
+		return true
+	})
+	return out
+}
+
+// compositeLitClaimsResource reports whether lit sets a Resource field to
+// a non-nil expression.
+func compositeLitClaimsResource(lit *ast.CompositeLit) bool {
+	for _, elt := range lit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok || key.Name != "Resource" {
+			continue
+		}
+		id, ok := kv.Value.(*ast.Ident)
+		return !ok || id.Name != "nil"
+	}
+	return false
+}
+
+// detectNestedResourceAcquisition walks every Resource-claiming Effect
+// callback and, one call away through same-file helpers it hands its held
+// ctx to, flags a second evo.File or Resource-claiming evo.Effect call made
+// with that same held context identifier.
+func detectNestedResourceAcquisition(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
+	if pkg == "" {
+		return nil
+	}
+	funcs := map[string]*ast.FuncDecl{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		if fd, ok := n.(*ast.FuncDecl); ok && fd.Body != nil {
+			funcs[fd.Name.Name] = fd
+		}
+		return true
+	})
+	specVars := effectSpecCompositeLits(file, pkg)
+
+	var findings []Finding
+	for _, hold := range resourceHoldingCallbacks(file, pkg, specVars) {
+		visited := map[*ast.BlockStmt]bool{}
+		var visit func(block *ast.BlockStmt, ctxName string, depth int)
+		visit = func(block *ast.BlockStmt, ctxName string, depth int) {
+			if block == nil || visited[block] || depth > 2 || ctxName == "" || ctxName == "_" {
+				return
+			}
+			visited[block] = true
+			findings = append(findings, scanBlockForNestedResourceAcquisition(filename, block, fset, pkg, ctxName, specVars)...)
+			ast.Inspect(block, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				fd, ok := funcs[calledFuncName(call)]
+				if !ok {
+					return true
+				}
+				visit(fd.Body, forwardedParamName(fd, call, ctxName), depth+1)
+				return true
+			})
+		}
+		visit(hold.body, hold.ctxName, 0)
+	}
+	return findings
+}
+
+// scanBlockForNestedResourceAcquisition looks for pkg.File(ctxName, ...) or
+// a Resource-claiming pkg.Effect(ctxName, ...) call anywhere in block,
+// never descending into a nested FuncLit (that closure's own resource
+// holds, if any, are tracked as their own resourceHold instead).
+func scanBlockForNestedResourceAcquisition(filename string, block *ast.BlockStmt, fset *token.FileSet, pkg, ctxName string, specVars map[string]*ast.CompositeLit) []Finding {
+	var findings []Finding
+	ast.Inspect(block, func(n ast.Node) bool {
+		if _, ok := n.(*ast.FuncLit); ok {
+			return false
+		}
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		dotted := calledFuncDotted(call)
+		if dotted != pkg+".File" && dotted != pkg+".Effect" {
+			return true
+		}
+		if len(call.Args) == 0 {
+			return true
+		}
+		id, ok := call.Args[0].(*ast.Ident)
+		if !ok || id.Name != ctxName {
+			return true
+		}
+		if dotted == pkg+".Effect" {
+			if len(call.Args) < 2 {
+				return true
+			}
+			lit := effectSpecArg(call.Args[1], specVars)
+			if lit == nil || !compositeLitClaimsResource(lit) {
+				return true
+			}
+		}
+		pos := fset.Position(call.Pos())
+		findings = append(findings, nestedResourceAcquisitionFinding(filename, pos, dotted))
+		return true
+	})
+	return findings
+}
+
+// forwardedParamName reports the name fd's parameter list binds to at
+// call's matching argument position for ctxName — the same same-file,
+// name-based "one call away" resolution every helper-following MCP rule in
+// this file uses (no cross-package resolution, no type checking).
+func forwardedParamName(fd *ast.FuncDecl, call *ast.CallExpr, ctxName string) string {
+	if fd.Type.Params == nil {
+		return ""
+	}
+	var params []string
+	for _, field := range fd.Type.Params.List {
+		if len(field.Names) == 0 {
+			params = append(params, "")
+			continue
+		}
+		for _, n := range field.Names {
+			params = append(params, n.Name)
+		}
+	}
+	for i, arg := range call.Args {
+		id, ok := arg.(*ast.Ident)
+		if !ok || id.Name != ctxName {
+			continue
+		}
+		if i < len(params) {
+			return params[i]
+		}
+	}
+	return ""
+}
+
+func nestedResourceAcquisitionFinding(filename string, pos token.Position, calleeDotted string) Finding {
+	return Finding{
+		RuleID:     "API-053",
+		Severity:   "error",
+		Message:    calleeDotted + "(...) is called with a context that already holds a Resource from an enclosing evo.Effect's spec.Resource claim; holding at most one Resource at a time is what makes deadlock impossible, so a second acquisition is misuse even when the second resource is free",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "finish and return from the first evo.Effect/evo.File before starting a second, or claim one coarser Resource (e.g. evo.FSResource covering both paths) that both mutations share instead of nesting a second acquisition",
+	}
+}
+
+// ===== API-054: generic bytes.Buffer/io.MultiWriter/task.Writer plumbing
+// wired around a raw os/exec.Cmd solely to recreate Exec's own capture,
+// liveness, and cancellation classification — or cancellation recognized by
+// comparing captured output strings — when evo.Exec now returns an
+// inspectable ExecResult (ZYS-850) that already owns exactly this. zq
+// evidence: internal/app/run_captured_task.go allocates its own
+// bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter,
+// recognizes cancellation by comparing output strings, and classifies
+// nonzero exit itself instead of inspecting ExecResult/ErrExecNonzeroExit.
+
+// manualSubprocessCaptureCodeSignals are the code-shape tokens (identifiers/
+// calls, never legitimate inside a string literal or comment) that, beside a
+// function wiring a raw os/exec.Cmd's Stdout/Stderr to an Evo Task's own
+// Writer(), corroborate the manual-recapture-of-Exec shape this rule
+// targets: a hand-rolled buffer/multiwriter combine.
+var manualSubprocessCaptureCodeSignals = []string{
+	"bytes.Buffer", "bytes.NewBuffer", "MultiWriter(",
+}
+
+// manualSubprocessCaptureLiteralSignals are quoted signal text that, unlike
+// manualSubprocessCaptureCodeSignals, is meant to be found as real string
+// literal *content* in the code — the anti-pattern is comparing captured
+// output against exactly this text (a cancellation check written as
+// strings.Contains(out, "signal: killed") instead of an error/context
+// check) — so, unlike the code-shape signals, these are matched against
+// source with only comments masked, not string literals.
+var manualSubprocessCaptureLiteralSignals = []string{
+	`"signal: killed"`, `"signal: interrupt"`, `"context canceled"`,
+}
+
+// rawExecCmdSignals mark that the function drives a raw os/exec.Cmd (as
+// opposed to some unrelated io.Writer plumbing) — required alongside
+// task.Writer() so this rule only fires on code actually reimplementing
+// Exec, not any bytes.Buffer/MultiWriter combination in the codebase. Like
+// manualSubprocessCaptureCodeSignals, these are code-shape (an actual
+// method call/type on a real exec.Cmd) and never legitimate as string
+// literal or comment text, so they are matched with both masked out.
+var rawExecCmdSignals = []string{"cmd.Run(", "cmd.Start(", "cmd.Output(", "cmd.CombinedOutput(", "exec.Cmd"}
+
+func detectManualSubprocessCaptureAroundTask(filename, src string) []Finding {
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		funcStart := strings.LastIndex(src[:fn.offset], "func ")
+		if funcStart < 0 {
+			funcStart = fn.offset
+		}
+		wholeFunc := src[funcStart : fn.offset+len(fn.body)]
+		// codeOnly blanks both comments and string literals so an
+		// identifier-shaped signal (a real method call/type) only matches
+		// when it is actually Go syntax, never text that merely mentions it
+		// inside a log message, doc comment, or unrelated string literal.
+		codeOnly := maskGoLexemes(wholeFunc, true)
+		// literalsVisible blanks only comments, keeping string literal
+		// content intact for signals that are meant to match real string
+		// literal text in the source (the cancellation-string anti-pattern).
+		literalsVisible := maskGoLexemes(wholeFunc, false)
+
+		if !strings.Contains(codeOnly, ".Writer()") {
+			continue
+		}
+		if !containsAnyToken(codeOnly, rawExecCmdSignals) {
+			continue
+		}
+		signal, idx := firstContainedToken(codeOnly, manualSubprocessCaptureCodeSignals)
+		if signal == "" {
+			signal, idx = firstContainedToken(literalsVisible, manualSubprocessCaptureLiteralSignals)
+		}
+		if signal == "" {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:   "API-054",
+			Severity: "error",
+			Message:  "a raw os/exec.Cmd wired to an Evo Task's Writer() reimplements Exec's own capture/liveness/cancellation with hand-rolled " + signal + " plumbing instead of inspecting the ExecResult evo.Exec already returns",
+			File:     filename,
+			Line:     lineAt(src, funcStart+idx),
+			Suggestion: "replace the raw exec.Cmd, its manual bytes.Buffer/io.MultiWriter capture, and any output-string cancellation match with " +
+				"res, err := evo.Exec(ctx, spec); inspect res (ExecResult: Ran/ExitCode/Stdout/Stderr/Truncated) and errors.Is(err, evo.ErrExecNonzeroExit) instead",
+		})
+	}
+	return findings
+}
+
+// maskGoLexemes returns src with Go comments blanked out (replaced with
+// spaces, newlines preserved) so token matching never fires on identifier-
+// shaped text inside a comment. When alsoMaskStrings is true, string and
+// rune literals are blanked too, for signals that must only match real Go
+// syntax (an actual method call or type), never a mention of that text
+// inside an unrelated string literal. The result has the same byte length
+// and line breaks as src, so a byte offset found in the masked text is a
+// valid offset into src for lineAt.
+func maskGoLexemes(src string, alsoMaskStrings bool) string {
+	fset := token.NewFileSet()
+	file := fset.AddFile("", fset.Base(), len(src))
+	var sc scanner.Scanner
+	sc.Init(file, []byte(src), nil, scanner.ScanComments)
+	out := []byte(src)
+	for {
+		pos, tok, lit := sc.Scan()
+		if tok == token.EOF {
+			break
+		}
+		if tok == token.COMMENT || (alsoMaskStrings && (tok == token.STRING || tok == token.CHAR)) {
+			blankSpan(out, file.Offset(pos), len(lit))
+		}
+	}
+	return string(out)
+}
+
+// blankSpan overwrites b[start:start+length] with spaces, leaving newlines
+// untouched so line numbers computed from the result still match src.
+func blankSpan(b []byte, start, length int) {
+	for i := start; i < start+length && i >= 0 && i < len(b); i++ {
+		if b[i] != '\n' {
+			b[i] = ' '
+		}
+	}
+}
+
+// containsAnyToken reports whether s contains any of the given substrings.
+func containsAnyToken(s string, tokens []string) bool {
+	for _, tok := range tokens {
+		if strings.Contains(s, tok) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstContainedToken returns the first token from tokens (in the given
+// order) that occurs in s, and its byte offset within s — used to pick a
+// stable, meaningful finding line among several corroborating signals.
+func firstContainedToken(s string, tokens []string) (token string, idx int) {
+	best := -1
+	for _, tok := range tokens {
+		if i := strings.Index(s, tok); i >= 0 && (best < 0 || i < best) {
+			best = i
+			token = tok
+		}
+	}
+	return token, best
+}
+
+// ===== API-055: a caller-managed sync.Mutex/RWMutex Lock/Unlock wrapped
+// around an evo.File call (ZYS-931). ZYS-840's automatic resource
+// coordination already makes File claim its own path for writing with no
+// caller code — the manual lock is redundant at best and, because it is
+// invisible to Evo's own resource wait, can mask real contention or compete
+// with it at worst. Scoped to sync.Mutex/RWMutex specifically (not every
+// domain lock) so an unrelated in-memory guard never fires.
+
+// lockCallPattern matches a bare .Lock()/.RLock() call so the receiver's
+// dotted name can be recovered with identBefore.
+var lockCallPattern = regexp.MustCompile(`\.(Lock|RLock)\(\)`)
+
+func detectManualLockAroundEvoFile(filename, src string) []Finding {
+	if !strings.Contains(src, "sync.Mutex") && !strings.Contains(src, "sync.RWMutex") {
+		return nil
+	}
+	var findings []Finding
+	for _, fn := range allFuncBodies(src) {
+		body := fn.body
+		if !strings.Contains(body, "evo.File(") && !strings.Contains(body, "evo.FileSpec{") {
+			continue
+		}
+		loc := lockCallPattern.FindStringIndex(body)
+		if loc == nil {
+			continue
+		}
+		recv := identBefore(body, loc[0])
+		if recv == "" {
+			continue
+		}
+		lockMethod := "Lock()"
+		unlockMethod := "Unlock()"
+		if strings.HasPrefix(body[loc[0]:], ".RLock()") {
+			lockMethod = "RLock()"
+			unlockMethod = "RUnlock()"
+		}
+		rest := body[loc[1]:]
+		deferUnlock := "defer " + recv + "." + unlockMethod
+		bareUnlock := recv + "." + unlockMethod
+		scopeEnd := len(body)
+		if !strings.Contains(rest, deferUnlock) {
+			if idx := strings.Index(rest, bareUnlock); idx >= 0 {
+				scopeEnd = loc[1] + idx
+			}
+		}
+		guarded := body[loc[0]:scopeEnd]
+		if !strings.Contains(guarded, "evo.File(") && !strings.Contains(guarded, "evo.FileSpec{") {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:   "API-055",
+			Severity: "error",
+			Message:  recv + " manually locks/unlocks around an evo.File call — File already claims its own path for writing with no caller code",
+			File:     filename,
+			Line:     lineAt(src, fn.offset+loc[0]),
+			Suggestion: "delete " + recv + "." + lockMethod + "/" + recv + "." + unlockMethod +
+				" (and the sync.Mutex/RWMutex field) and call evo.File(ctx, evo.FileSpec{Path: ...}) directly;" +
+				" for a non-File operation over the same path use evo.Effect(ctx, evo.EffectSpec{..., Resource: evo.FSResource(path)}, fn) instead of a caller lock",
+		})
+	}
+	return findings
 }

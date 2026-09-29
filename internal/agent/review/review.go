@@ -297,6 +297,17 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectSignalNotifyWithoutCancel(filename, src)...)
 	}
 
+	// SIG-002: signal.Notify/NotifyContext wired for SIGINT/SIGTERM/
+	// os.Interrupt in a file that also calls evo.Main/evo.Run — those
+	// entrypoints have owned that exact lifecycle since 1.0.0 (RunFunc's
+	// context.Context is cancelled on SIGINT/SIGTERM internally), so a
+	// second interrupt layer built solely to duplicate it can let the
+	// ledger and the process's actual exit path diverge (Decisions
+	// 2026-09-23, ZYS-939). Pre-1.0.0 pins predate that ownership.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneZero) {
+		findings = append(findings, detectDuplicateSignalWiringAroundMain(filename, f, fset)...)
+	}
+
 	// TERM-015: a child that owns the terminal (tty passthrough) must run
 	// inside out.Suspend, or its own UI glues onto the parent's live
 	// spinner — no in-process fix helps once two processes share one tty
@@ -392,7 +403,7 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	}
 
 	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
-	// rec-surface Options/To/Plain/Affected/old Delete/Skip/MainWith (removed in 1.0)) gets a derived fix, not a lecture.
+	// rec-surface Options/To/Plain, the mutation verbs removed in 1.1, Skip/MainWith (removed in 1.0)) gets a derived fix, not a lecture.
 	if hasEvo {
 		findings = append(findings, detectDeprecatedSpellings(filename, src, desiredVersion)...)
 	}
@@ -499,12 +510,12 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	}
 
 	// FP-006: Doing(...) immediately followed by Done(...) with no
-	// Define/mutation verb submitting work between them (theater).
+	// Define submitting work between them (theater).
 	if hasEvo {
 		findings = append(findings, detectDoingDoneTheater(filename, f, fset)...)
 	}
 
-	// API-040: Failf/Fail inside a Define/mutation callback whose result
+	// API-040: Failf/Fail inside a Define callback whose result
 	// reaches that same callback — double-resolves the task.
 	if hasEvo {
 		findings = append(findings, detectFailInResolvedCallback(filename, f, fset)...)
@@ -516,19 +527,26 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectGoroutineResolvesPredeclaredTask(filename, src)...)
 	}
 
-	// API-042: mutation verb with a nil or no-op callback.
+	// API-042: evo.Effect with a nil or no-op callback.
 	if hasEvo {
-		findings = append(findings, detectNoOpMutationCallback(filename, f, fset)...)
+		findings = append(findings, detectNoOpEffectCallback(filename, f, fset)...)
 	}
 
-	// API-043: plural object literal on a mutation verb.
+	// API-043: plural EffectSpec.Object literal.
 	if hasEvo {
-		findings = append(findings, detectPluralMutationObject(filename, f, fset)...)
+		findings = append(findings, detectPluralEffectObject(filename, f, fset)...)
 	}
 
 	// API-044: channel-wait wrapper around Define.
 	if hasEvo {
 		findings = append(findings, detectChannelWaitWrapperAroundDefine(filename, src)...)
+	}
+
+	// API-048: a Group/Sequence Task re-declared by the same string literal
+	// to obtain a later dependency reference (duplicate sibling, not a
+	// get-or-create) — recommend a typed variable instead.
+	if hasEvo {
+		findings = append(findings, detectRedeclaredTaskLiteral(filename, f, fset)...)
 	}
 
 	// TAX-003: inline evo.Reason("...") literal, or a reason that restates
@@ -537,17 +555,57 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectInlineReasonLiteral(filename, f, fset)...)
 	}
 
+	// API-045: Task(name) where name is a bare subject label or a generic
+	// container/phase word, not one independently meaningful action.
+	if hasEvo {
+		findings = append(findings, detectSubjectOnlyOrContainerTaskName(filename, f, fset)...)
+	}
+
+	// API-050: a generic phase/category-named Task (fix/check/classify/
+	// resolve/finalize) sequences 2+ independently erroring steps in its own
+	// Define callback — structural evidence it owns child-looking work.
+	if hasEvo {
+		findings = append(findings, detectPhaseTaskOwningChildWork(filename, f, fset)...)
+	}
+
 	// The EVO-EVIDENCE-001/VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestions
 	// all recommend 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence);
 	// a pin older than that cannot apply them, so none of these six may fire
 	// for it — mirroring detectDeprecatedSpellings' dialectAtLeast gating.
 	hasEvoAtOneZero := hasEvo && dialectAtLeast(desiredVersion, dialectOneZero)
 
-	// API-045: Define callback discards its scheduler-provided context.
+	// API-047: Task/Group/Sequence declaration reuses a sibling literal name
+	// already used by a different entity kind under the same parent.
+	// Sequence only exists from 1.0.0 on, so a pin older than that cannot
+	// have a cross-kind collision involving it.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectCrossKindDuplicateSiblingName(filename, f, fset)...)
+	}
+
+	// API-049: Define callback discards its scheduler-provided context.
 	// context.Context-typed Define only exists from 1.0.0 on, so a pin older
 	// than that cannot have this shape.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectDefineDiscardsSchedulerContext(filename, f, fset)...)
+	}
+
+	// API-051: a loop flattens structured findings into one joined error,
+	// or creates one fake Task per finding, instead of accumulating them
+	// with TaskHandle.Problem. Problem's multi-finding accumulation
+	// (ZYS-848 Decisions 2026-09-23) is 1.1.0-only, so a pin older than
+	// that cannot apply this rule's suggested fix.
+	hasEvoAtOneOne := hasEvo && dialectAtLeast(desiredVersion, dialectOneOne)
+	if hasEvoAtOneOne {
+		findings = append(findings, detectPerFindingFakeTask(filename, f, fset)...)
+		findings = append(findings, detectFlattenedDiagnosticsLoop(filename, src)...)
+	}
+
+	// API-057: a filesystem mutator call hidden inside an evo.Effect
+	// callback — Effect is the opaque-mutation escape hatch, not a second
+	// file-write API; evo.File is 1.1.0-only (ZYS-851 Decisions), so a pin
+	// older than that cannot apply this rule's suggested fix.
+	if hasEvoAtOneOne {
+		findings = append(findings, detectFileWriteInEffectCallback(filename, f, fset)...)
 	}
 
 	// EVO-EVIDENCE-001: legacy named Evidence callback performs a raw mutation.
@@ -559,6 +617,14 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	// be read-only.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMutatingVerify(filename, f, fset)...)
+	}
+
+	// API-046: Skipped(evo.Reason("...")) whose reason names an
+	// already-satisfied condition instead of true inapplicability —
+	// ResolutionAlreadySatisfied (via Verify or evo.File/evo.Exec) is
+	// 1.0.0-only, so this recommendation cannot fire for an older pin.
+	if hasEvoAtOneZero {
+		findings = append(findings, detectSkippedForAlreadySatisfied(filename, f, fset)...)
 	}
 
 	// EVO-DRYRUN-001: Define callback raw-calls a side effect Evo's runtime
@@ -577,10 +643,55 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 		findings = append(findings, detectAfterChainDuplicatesSequence(filename, f, fset)...)
 	}
 
+	// API-054: raw os/exec.Cmd wired to an Evo Task's Writer() reimplements
+	// Exec's own capture/liveness/cancellation with hand-rolled
+	// bytes.Buffer/io.MultiWriter plumbing or output-string cancellation
+	// matching instead of inspecting the ExecResult evo.Exec now returns
+	// (ZYS-850). That inspectable ExecResult surface only exists from
+	// 1.1.0 on, so a pin older than that cannot apply this recommendation.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
+		findings = append(findings, detectManualSubprocessCaptureAroundTask(filename, src)...)
+	}
+
+	// API-052: caller-owned Wait loop over stored Task handles, filtering
+	// ErrNotStarted/snapshotting/hand-counting failures instead of using
+	// GroupHandle.Wait()/SequenceHandle.Wait() (ZYS-849). That container
+	// Wait surface only exists from 1.1.0 on, so a pin older than that
+	// cannot apply this recommendation.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
+		findings = append(findings, detectCallerWaitLoopOverContainerChildren(filename, src)...)
+	}
+
+	// API-053: a second evo.File/Resource-claiming evo.Effect call made
+	// with a context an enclosing evo.Effect already holds a Resource on
+	// (ZYS-840), directly or one call away through a same-file helper.
+	// EffectSpec.Resource only exists from 1.1.0 on, so a pin older than
+	// that cannot have this shape.
+	if hasEvoAtOneOne {
+		findings = append(findings, detectNestedResourceAcquisition(filename, f, fset)...)
+	}
+
+	// API-055: caller-managed sync.Mutex/RWMutex Lock/Unlock wrapped around
+	// an evo.File call — File's automatic resource claim (ZYS-840) only
+	// exists from 1.1.0 on, so a pin older than that cannot apply this
+	// recommendation.
+	if hasEvo && dialectAtLeast(desiredVersion, dialectOneOne) {
+		findings = append(findings, detectManualLockAroundEvoFile(filename, src)...)
+	}
+
 	// EVO-DAG-003: a visible producer/consumer relationship has no
 	// first-run scheduler ordering.
 	if hasEvoAtOneZero {
 		findings = append(findings, detectMissingProducerConsumerOrdering(filename, f, fset)...)
+	}
+
+	// API-056: a .After(...) edge whose comment and both Tasks' own
+	// resource declarations show the only reason is shared-resource
+	// exclusion, not a semantic dependency. File/FSResource/LogicalResource
+	// automatic claim coordination (ZYS-840) only exists from 1.1.0 on, so
+	// a pin older than that cannot apply this rule's remediation.
+	if hasEvoAtOneOne {
+		findings = append(findings, detectAfterOnlyForResourceContention(filename, src, f, fset)...)
 	}
 
 	// API-027: Done/Fail/Progress on Group/Sequence (name-match).
@@ -1267,6 +1378,102 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 	}}
 }
 
+// lifecycleSignalSelectors are the signal identifiers that overlap the
+// SIGINT/SIGTERM cancellation evo.Main/evo.Run already wire into RunFunc's
+// context — os.Interrupt, syscall.SIGINT, syscall.SIGTERM. Any other signal
+// (SIGHUP, SIGUSR1, ...) is unrelated application signal handling and
+// detectDuplicateSignalWiringAroundMain never flags it.
+var lifecycleSignalSelectors = map[string]bool{
+	"Interrupt": true,
+	"SIGINT":    true,
+	"SIGTERM":   true,
+}
+
+// detectDuplicateSignalWiringAroundMain flags signal.Notify/NotifyContext
+// calls that wire SIGINT/SIGTERM/os.Interrupt in a file that also calls
+// evo.Main/evo.Run — a host-built interrupt layer solely duplicating the
+// lifecycle those entrypoints already own (evo-rec.md "Interrupts";
+// Decisions 2026-09-23, ZYS-939: "evo.Main / evo.Run already own SIGINT/
+// SIGTERM cancellation and second-signal behavior. Flag host code that
+// wraps the callback in its own signal.NotifyContext / duplicate interrupt
+// layer solely for Evo lifecycle."). Signal handling for anything else
+// (SIGHUP, SIGUSR1, ...) is real application behavior and is left alone.
+func detectDuplicateSignalWiringAroundMain(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
+	if pkg == "" || !fileCallsEvoEntrypoint(file, pkg, "Main", "Run") {
+		return nil
+	}
+	var findings []Finding
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || (sel.Sel.Name != "Notify" && sel.Sel.Name != "NotifyContext") || !isEvoIdent(sel.X, "signal") {
+			return true
+		}
+		if !callArgsIncludeLifecycleSignal(call.Args) {
+			return true
+		}
+		pos := fset.Position(call.Pos())
+		findings = append(findings, duplicateSignalWiringFinding(filename, pos, pkg, sel.Sel.Name))
+		return true
+	})
+	return findings
+}
+
+// fileCallsEvoEntrypoint reports whether file calls pkg.<name> for any of
+// names — e.g. evo.Main(...) or evo.Run(...).
+func fileCallsEvoEntrypoint(file *ast.File, pkg string, names ...string) bool {
+	found := false
+	ast.Inspect(file, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !isEvoIdent(sel.X, pkg) {
+			return true
+		}
+		if slices.Contains(names, sel.Sel.Name) {
+			found = true
+		}
+		return true
+	})
+	return found
+}
+
+// callArgsIncludeLifecycleSignal reports whether any argument names a
+// SIGINT/SIGTERM/os.Interrupt selector (lifecycleSignalSelectors).
+func callArgsIncludeLifecycleSignal(args []ast.Expr) bool {
+	for _, arg := range args {
+		sel, ok := arg.(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+		if lifecycleSignalSelectors[sel.Sel.Name] {
+			return true
+		}
+	}
+	return false
+}
+
+func duplicateSignalWiringFinding(filename string, pos token.Position, pkg, verb string) Finding {
+	return Finding{
+		RuleID:     "SIG-002",
+		Severity:   "warning",
+		Message:    "signal." + verb + " wires SIGINT/SIGTERM/os.Interrupt in a file that also calls " + pkg + ".Main/" + pkg + ".Run; those entrypoints already cancel RunFunc's context on the same signals, so this duplicate layer can let the ledger and the process's actual exit path diverge",
+		File:       filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "delete the signal." + verb + " call and read cancellation from the ctx " + pkg + ".Main/" + pkg + ".Run already passes into the run callback; keep signal.Notify only for signals unrelated to Evo's own lifecycle (e.g. SIGHUP)",
+	}
+}
+
 // detectTTYPassthroughWithoutSuspend flags exec.Cmd Stdout/Stderr wired
 // directly to the process's inherited terminal (tty passthrough) in a file
 // that holds an active evo Output but never calls Suspend — two processes
@@ -1781,7 +1988,7 @@ var captureCallPattern = regexp.MustCompile(`(\w+)\.Capture\(`)
 var itemCallPattern = regexp.MustCompile(`(\w+)\.Item\(`)
 
 // planCallPattern / changesCallPattern match the retired v0.2 Plan/Changes
-// surfaces. Suggestion is Task mutation verbs, not a new Plan/Changes API.
+// surfaces. Suggestion is evo.Effect / evo.File / Task.Record, not a new Plan/Changes API.
 var planCallPattern = regexp.MustCompile(`(\w+)\.Plan\(`)
 var changesCallPattern = regexp.MustCompile(`(\w+)\.Changes\(`)
 
@@ -1800,7 +2007,7 @@ var okCallPattern = regexp.MustCompile(`(\w+)\.OK\(\)`)
 // Item(name).OK().Because(text) is now Task(name).Done(text)), evo.Cause
 // (Failf/Blockf's trailing %w since Fail/Block are statement-form), Capture
 // (renamed to Evidence), and the rec-surface spellings (Config.Options,
-// Option funcs, quantity-first mutation verbs, Skip, ID, StartPhase).
+// Option funcs, the mutation verbs removed in 1.1, Skip, ID, StartPhase).
 func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 	var findings []Finding
 	if dialectAtLeast(desiredVersion, dialectFold) {
@@ -1838,10 +2045,10 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
 				Severity:   "warning",
-				Message:    "Plan was removed in v0.4 — use Task mutation verbs",
+				Message:    "Plan was removed in v0.4 — use evo.Effect, evo.File, or Task.Record",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
-				Suggestion: "replace " + recv + ".Plan(...) with Task mutation verbs (Delete/Create/Record/...), not a new Plan API",
+				Suggestion: "replace " + recv + ".Plan(...) with evo.Effect (opaque mutations), evo.File (file state), or Task.Record, not a new Plan API",
 			})
 		}
 
@@ -1853,10 +2060,10 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 			findings = append(findings, Finding{
 				RuleID:     "API-032",
 				Severity:   "warning",
-				Message:    "Changes was removed in v0.4 — use Task mutation verbs",
+				Message:    "Changes was removed in v0.4 — use evo.Effect, evo.File, or Task.Record",
 				File:       filename,
 				Line:       lineAt(src, m[0]),
-				Suggestion: "replace " + recv + ".Changes(...) with Task mutation verbs (Delete/Create/Record/...), not a new Changes API",
+				Suggestion: "replace " + recv + ".Changes(...) with evo.Effect (opaque mutations), evo.File (file state), or Task.Record, not a new Changes API",
 			})
 		}
 

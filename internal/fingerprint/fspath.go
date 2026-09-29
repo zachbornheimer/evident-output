@@ -63,12 +63,33 @@ func (f fsPathFingerprint) Fingerprint(_ context.Context) (FingerprintValue, err
 	return FingerprintValue{Kind: KindFSPath, Key: f.path, Digest: digest}, nil
 }
 
+// ObservedFile is the identity FSPath(path) observes when path is a
+// regular file holding contents. It lets an operation that must read the
+// bytes anyway (Patch deriving desired state) record the Basis of exactly
+// the bytes it read, instead of a second read that could see a different
+// file.
+func ObservedFile(path string, contents []byte) FingerprintValue {
+	return FingerprintValue{Kind: KindFSPath, Key: path, Digest: regularFileDigest(contents)}
+}
+
+// ObservedMissing is the identity FSPath(path) observes when path does not
+// exist.
+func ObservedMissing(path string) FingerprintValue {
+	return FingerprintValue{Kind: KindFSPath, Key: path, Digest: missingDigest()}
+}
+
+func regularFileDigest(contents []byte) Digest {
+	return sum256(append([]byte(markerRegularFile), contents...))
+}
+
+func missingDigest() Digest { return sum256([]byte(markerMissing)) }
+
 // fingerprintPath is FSPath's observation, factored out so directory
 // traversal (fingerprintDir) can recurse into it for each entry.
 func fingerprintPath(vfs FS, path string) (Digest, error) {
 	info, err := vfs.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return sum256([]byte(markerMissing)), nil
+		return missingDigest(), nil
 	}
 	if err != nil {
 		return Digest{}, err
@@ -87,7 +108,7 @@ func fingerprintPath(vfs FS, path string) (Digest, error) {
 		if err != nil {
 			return Digest{}, err
 		}
-		return sum256(append([]byte(markerRegularFile), contents...)), nil
+		return regularFileDigest(contents), nil
 	default:
 		return Digest{}, fmt.Errorf("fs path %q is neither a regular file, directory, nor symlink", path)
 	}

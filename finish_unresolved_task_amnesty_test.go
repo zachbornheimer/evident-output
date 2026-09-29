@@ -24,7 +24,7 @@ func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 		"local-only branch",
 		evo.Detail("commit or stash before continuing"),
 	)
-	out.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(2))
+	out.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 2))
 	install := out.Group("install")
 	for _, pkg := range []string{"a", "b", "c"} {
 		install.Task(pkg).Define(func(ctx context.Context) error { return nil })

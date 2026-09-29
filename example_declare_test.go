@@ -75,28 +75,6 @@ func ExampleReasonOption() {
 	// true
 }
 
-// ExampleMutationOption shows the interface Affected implements, configuring
-// how many objects one atomic mutation touches.
-func ExampleMutationOption() {
-	opt := evo.Affected(3)
-	fmt.Println(opt != nil)
-	// Output:
-	// true
-}
-
-// ExampleAffected sets how many objects one atomic mutation touches — omit
-// it for a Task that affects a single item.
-func ExampleAffected() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	task := out.Task("prune branches")
-	task.Delete("stale branches", func() error { return nil }, evo.Affected(5))
-	_ = task.Wait()
-	_ = out.Finish()
-	fmt.Println(task.Snapshot().State)
-	// Output:
-	// done
-}
-
 // ExampleEntityOption shows the interface ID and StartPhase implement — an
 // advanced, platform-scale Task-declaration configuration surface.
 func ExampleEntityOption() {

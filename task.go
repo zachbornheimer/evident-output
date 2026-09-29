@@ -5,10 +5,6 @@ import (
 	"io"
 )
 
-func (t *TaskHandle) Add(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Add(object, fn, opts...)
-}
-
 func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	unwrapped := make([]any, len(preds))
 	for i, p := range preds {
@@ -40,16 +36,14 @@ func (t *TaskHandle) Context() context.Context {
 	return t.inner.Context()
 }
 
-func (t *TaskHandle) Create(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Create(object, fn, opts...)
-}
-
 // Define freezes this Task's configuration and submits fn to the
-// scheduler — see internal/engine.TaskHandle.Define (§7).
-func (t *TaskHandle) Define(fn func(context.Context) error) { t.impl().Define(fn) }
-
-func (t *TaskHandle) Delete(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Delete(object, fn, opts...)
+// scheduler — see internal/engine.TaskHandle.Define (§7). It returns this
+// same *TaskHandle as fluent sugar (ZYS-849 Decisions) so a single Task's
+// common shape can be written `return task.Define(fn).Wait()`; it does not
+// change Define's asynchronous scheduler semantics.
+func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
+	t.impl().Define(fn)
+	return t
 }
 
 func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
@@ -88,13 +82,16 @@ func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle 
 	return t
 }
 
-func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
-	t.impl().Progress(completed, total)
+// Problem appends one blocking Problem to this Task without resolving it —
+// see internal/engine.TaskHandle.Problem (1.1/ZYS-848).
+func (t *TaskHandle) Problem(summary string, options ...ProblemOption) *TaskHandle {
+	t.impl().Problem(summary, options...)
 	return t
 }
 
-func (t *TaskHandle) Push(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Push(object, fn, opts...)
+func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
+	t.impl().Progress(completed, total)
+	return t
 }
 
 func (t *TaskHandle) Record(verb string, quantity int, object string) {
@@ -106,10 +103,6 @@ func (t *TaskHandle) RecordLabel(label string, quantity int, object string) {
 }
 
 func (t *TaskHandle) RecordName(verb, object string) { t.impl().RecordName(verb, object) }
-
-func (t *TaskHandle) Remove(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Remove(object, fn, opts...)
-}
 
 func (t *TaskHandle) Skipped(reason TaxonomyReason) { t.impl().Skipped(reason.inner) }
 
@@ -123,10 +116,6 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 	t.impl().Step(completed, total, name)
 	return t
-}
-
-func (t *TaskHandle) Update(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Update(object, fn, opts...)
 }
 
 func (t *TaskHandle) Wait() error {
@@ -143,10 +132,12 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 	return t
 }
 
-func (t *TaskHandle) Warn(summary string) { t.impl().Warn(summary) }
-
-func (t *TaskHandle) Write(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Write(object, fn, opts...)
+// Warn accumulates a warning annotation on this Task, now with the same
+// structured ProblemOptions Problem/Fail/Block accept — see
+// internal/engine.TaskHandle.Warn (1.1/ZYS-848, docs/migration/1.1.md).
+func (t *TaskHandle) Warn(summary string, options ...ProblemOption) *TaskHandle {
+	t.impl().Warn(summary, options...)
+	return t
 }
 
 func (t *TaskHandle) Writer() io.Writer {

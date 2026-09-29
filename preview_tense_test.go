@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -28,10 +29,12 @@ func TestPreview_PlannedTenseWithoutTheDryRunTag(t *testing.T) {
 		Stdout: &buf,
 	})
 	branches := out.Task("branches")
-	branches.Delete("local tip", func() error {
-		called = true
-		return nil
-	}, evo.Affected(8))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 8}, func(context.Context) error {
+			called = true
+			return nil
+		})
+	})
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
@@ -67,7 +70,7 @@ func TestDryRun_KeepsItsTag(t *testing.T) {
 		Stdout: &buf,
 	})
 	branches := out.Task("branches")
-	branches.Delete("local tip", func() error { return nil }, evo.Affected(8))
+	branches.Define(effectOf(evo.EffectDelete, "local tip", 8))
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}

@@ -12,8 +12,12 @@ type GroupHandle struct {
 	id  string
 }
 
-// Task declares (or, for a repeated name, returns) a child task. Explicit
-// Task children stay individually visible; Each children aggregate.
+// Task declares a child task. A repeated name is a duplicate sibling
+// declaration, not a get-or-create (§3.1, taskScoped's doc comment): it
+// fails the new call with ProblemCodeDuplicateSiblingName rather than
+// returning the earlier handle. Callers that reference a Task again later
+// (for example in After) must keep the first handle, typically in a typed
+// variable, instead of re-declaring by name.
 func (g *GroupHandle) Task(name string) *TaskHandle {
 	if g == nil || g.out == nil {
 		return &TaskHandle{}

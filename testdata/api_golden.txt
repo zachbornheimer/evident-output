@@ -7,12 +7,14 @@ func (GroupHandle) Sequence(name string)  *SequenceHandle
 func (GroupHandle) Snapshot()  TasksSnapshot
 func (GroupHandle) Summary(text string)  *GroupHandle
 func (GroupHandle) Task(name string)  *TaskHandle
+func (GroupHandle) Wait()  error
 func (Output) Cancel(reason string)
 func (Output) Close()  error
 func (Output) Conclusion()  Conclusion
 func (Output) Confirm(question string, opts ...ConfirmOption)  bool
 func (Output) Context()  context.Context
 func (Output) Err()  error
+func (Output) Events()  []Event
 func (Output) Fact(name, value string)
 func (Output) Fail(summary string, options ...ProblemOption)
 func (Output) Failf(format string, args ...any)
@@ -40,16 +42,14 @@ func (SequenceHandle) Sequence(name string)  *SequenceHandle
 func (SequenceHandle) Snapshot()  TasksSnapshot
 func (SequenceHandle) Summary(text string)  *SequenceHandle
 func (SequenceHandle) Task(name string)  *TaskHandle
-func (TaskHandle) Add(object string, fn func() error, opts ...MutationOption)
+func (SequenceHandle) Wait()  error
 func (TaskHandle) After(preds ...any)  *TaskHandle
 func (TaskHandle) Block(summary string, options ...ProblemOption)
 func (TaskHandle) Blockf(format string, args ...any)  *Failure
 func (TaskHandle) Bytes(completed, total int64)  *TaskHandle
 func (TaskHandle) Cancel(reason string)
 func (TaskHandle) Context()  context.Context
-func (TaskHandle) Create(object string, fn func() error, opts ...MutationOption)
-func (TaskHandle) Define(fn func(context.Context) error)
-func (TaskHandle) Delete(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) Define(fn func(context.Context) error)  *TaskHandle
 func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
 func (TaskHandle) Done(args ...any)
 func (TaskHandle) Fact(name, value string)
@@ -59,23 +59,19 @@ func (TaskHandle) Kept(reason TaxonomyReason)
 func (TaskHandle) Key(key string)  *TaskHandle
 func (TaskHandle) Next(actions ...Action)  *TaskHandle
 func (TaskHandle) NextCommand(executable string, args ...string)  *TaskHandle
+func (TaskHandle) Problem(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Progress(completed, total int)  *TaskHandle
-func (TaskHandle) Push(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Record(verb string, quantity int, object string)
 func (TaskHandle) RecordLabel(label string, quantity int, object string)
 func (TaskHandle) RecordName(verb, object string)
-func (TaskHandle) Remove(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Skipped(reason TaxonomyReason)
 func (TaskHandle) Snapshot()  TaskSnapshot
 func (TaskHandle) Step(completed, total int, name string)  *TaskHandle
-func (TaskHandle) Update(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
-func (TaskHandle) Warn(summary string)
-func (TaskHandle) Write(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) Warn(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
-func Affected(n int)  MutationOption
 func AlsoWrite(w io.Writer)  Option
 func App()  Fingerprint
 func AssumeYes(v bool)  ConfirmOption
@@ -97,14 +93,17 @@ func Destructive()  ConfirmOption
 func Detail(text string)  ProblemOption
 func Diagnostics(w io.Writer)  Option
 func DryRun()  Option
+func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)  error
 func EncodeEventJSON(e Event)  []byte,  error
 func EncodeJSON(s Snapshot)  []byte,  error
 func EncodeJSONL(events []Event)  []byte,  error
-func Exec(ctx context.Context, spec ExecSpec)  error
+func Exec(ctx context.Context, spec ExecSpec)  ExecResult,  error
 func ExternalProjection()  Option
 func FSPath(path string)  Fingerprint
+func FSResource(path string)  Resource
 func Fact(name, value string)
 func File(ctx context.Context, spec FileSpec)  error
+func Files(ctx context.Context, files FileSet)  error
 func ForSkip()  ReasonOption
 func Glyphs(p GlyphProfile)  Option
 func Group(name string)  *GroupHandle
@@ -114,6 +113,7 @@ func IsCharDevice(w io.Writer)  bool
 func KeepLastLines(n int)  EvidenceOption
 func Label(text string)  Action
 func Location(path string, line, column int)  ProblemOption
+func LogicalResource(name string)  Resource
 func Main(run RunFunc)  int
 func MaxEntities(n int)  Option
 func MaxEvents(n int)  Option
@@ -130,6 +130,7 @@ func On(subject string)  ProblemOption
 func OnTask(taskName string)  ReasonOption
 func PaneHeight(lines int)  DebugPaneOption
 func ParseFormat(s string)  Format,  error
+func Patch(ctx context.Context, diff []byte)  FileSet,  error
 func Plain()  Option
 func Pluralize(quantity int64, singular string)  string
 func PolicyFlag(flag string)  ConfirmOption
@@ -175,6 +176,8 @@ type DebugConfig
 type DebugPaneOption
 type DebugPresentation
 type EffectRecord
+type EffectSpec
+type EffectVerb
 type EntityOption
 type EntityState
 type Event
@@ -183,11 +186,13 @@ type Evidence
 type EvidenceOption
 type EvidencePhase
 type EvidenceStream
+type ExecResult
 type ExecSpec
 type FactRecord
 type Failure
 type Field
 type FileFS
+type FileSet
 type FileSpec
 type Fingerprint
 type FingerprintValue
@@ -211,7 +216,6 @@ type LiveSurface
 type LogLevel
 type LogRecord
 type MessageSnapshot
-type MutationOption
 type NoopRedactor
 type Option
 type Output
@@ -229,6 +233,7 @@ type Projection
 type ReasonOption
 type Redactor
 type Resolution
+type Resource
 type Result
 type RunFunc
 type SequenceHandle
@@ -256,6 +261,12 @@ value DebugPresentationPane
 value DefaultVisibleNames
 value Determinate
 value Done
+value EffectAdd
+value EffectCreate
+value EffectDelete
+value EffectPush
+value EffectRemove
+value EffectUpdate
 value Empty
 value ErrAlreadyResolved
 value ErrClosed
@@ -263,6 +274,10 @@ value ErrConcurrentRunning
 value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName
+value ErrEffectCallbackMissing
+value ErrEffectObjectMissing
+value ErrEffectQuantityNotPositive
+value ErrEffectVerbInvalid
 value ErrExecExecutableNotFound
 value ErrExecNonzeroExit
 value ErrExecOutputMissingAfterSuccess
@@ -273,14 +288,23 @@ value ErrFileSpecMissingPath
 value ErrFileUnmanagedContentsMissing
 value ErrInvalidConfig
 value ErrInvalidProgress
+value ErrInvalidResource
 value ErrKeyAfterDefine
 value ErrLimitExceeded
+value ErrNestedResourceAcquisition
 value ErrNoTaskContext
 value ErrNotStarted
+value ErrPatchBinaryUnsupported
+value ErrPatchDeleteUnsupported
+value ErrPatchDoesNotApply
+value ErrPatchMalformed
+value ErrPatchRenameUnsupported
+value ErrPatchUnsupported
 value ErrProgressRegression
 value ErrReasonSkipOnly
 value ErrReasonWrongTask
 value ErrRenderer
+value ErrStaleBasis
 value ErrTaskClosed
 value ErrTerminalWithoutSink
 value ErrUnresolvedTask

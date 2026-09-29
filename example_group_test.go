@@ -66,6 +66,41 @@ func ExampleSequenceHandle() {
 	// stages
 }
 
+// ExampleGroupHandle_Wait shows the declare-all-then-wait pattern (ZYS-849):
+// after every child Task is declared, the Group itself is the one thing a
+// caller waits on and asks for the aggregate outcome — no caller-owned task
+// slice, no hand-counted failures, no Snapshot walk.
+func ExampleGroupHandle_Wait() {
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+	jobs := out.Group("check")
+	for _, name := range []string{"lint", "vet", "test"} {
+		task := jobs.Task(name)
+		task.Define(func(ctx context.Context) error { return nil })
+	}
+	err := jobs.Wait()
+	_ = out.Finish()
+	fmt.Println(err)
+	// Output:
+	// <nil>
+}
+
+// ExampleSequenceHandle_Wait is Sequence's counterpart to
+// ExampleGroupHandle_Wait: the ordered container is awaited directly once
+// every step is declared, and ordering is still preserved underneath.
+func ExampleSequenceHandle_Wait() {
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+	python := out.Sequence("python")
+	for _, name := range []string{"scan", "venv", "install"} {
+		task := python.Task(name)
+		task.Define(func(ctx context.Context) error { return nil })
+	}
+	err := python.Wait()
+	_ = out.Finish()
+	fmt.Println(err)
+	// Output:
+	// <nil>
+}
+
 // ExampleTasksSnapshot reads a collection's immutable view: its own state
 // plus every child Task it declared.
 func ExampleTasksSnapshot() {

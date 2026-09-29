@@ -97,6 +97,93 @@ func TestEVODRYRUN001_MutationRoutedThroughEvoFile_StaysSilent(t *testing.T) {
 	assertNoFinding(t, res, "EVO-DRYRUN-001")
 }
 
+// Inline fixtures (not testdata/evo_rules): EVO-DRYRUN-001's database and
+// Effect-wrapped cases.
+
+const dryRunDatabaseBareSrc = `// Fixture: EVO-DRYRUN-001 must fire. Define raw-calls db.ExecContext, a
+// database mutation Evo's dry-run cannot intercept.
+package dryrun001
+
+import (
+	"context"
+	"database/sql"
+
+	evo "github.com/zachbornheimer/evident-output"
+)
+
+func addColumn(task *evo.TaskHandle, db *sql.DB) {
+	task.Define(func(ctx context.Context) error {
+		_, err := db.ExecContext(ctx, "ALTER TABLE users ADD COLUMN email_verified boolean")
+		return err
+	})
+}
+`
+
+const dryRunDatabaseInEffectSrc = `// Fixture: EVO-DRYRUN-001 must stay silent. The database mutation runs
+// inside an evo.Effect callback, which dry-run never invokes.
+package dryrun001
+
+import (
+	"context"
+	"database/sql"
+
+	evo "github.com/zachbornheimer/evident-output"
+)
+
+func addColumn(task *evo.TaskHandle, db *sql.DB) {
+	task.Define(func(ctx context.Context) error {
+		spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "column", Quantity: 1}
+		return evo.Effect(ctx, spec, func(ctx context.Context) error {
+			_, err := db.ExecContext(ctx, "ALTER TABLE users ADD COLUMN email_verified boolean")
+			return err
+		})
+	})
+}
+`
+
+const dryRunFileWriteInEffectSrc = `// Fixture: EVO-DRYRUN-001 must still fire. An os.WriteFile inside an
+// evo.Effect callback is file state hidden behind an opaque Effect; evo.File
+// owns it.
+package dryrun001
+
+import (
+	"context"
+	"os"
+
+	evo "github.com/zachbornheimer/evident-output"
+)
+
+func writeConfig(task *evo.TaskHandle, path string, data []byte) {
+	task.Define(func(ctx context.Context) error {
+		spec := evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config", Quantity: 1}
+		return evo.Effect(ctx, spec, func(context.Context) error {
+			return os.WriteFile(path, data, 0o644)
+		})
+	})
+}
+`
+
+func TestEVODRYRUN001_BareDatabaseMutationInDefine_FiresWithEffectRoute(t *testing.T) {
+	res := review.GoSource("db_bad.go", dryRunDatabaseBareSrc)
+	f := assertFinding(t, res, "EVO-DRYRUN-001")
+	if !strings.Contains(f.Suggestion, "evo.Effect") {
+		t.Fatalf("a database mutation's suggestion must name evo.Effect: %q", f.Suggestion)
+	}
+}
+
+func TestEVODRYRUN001_DatabaseMutationInsideEffect_StaysSilent(t *testing.T) {
+	res := review.GoSource("db_good.go", dryRunDatabaseInEffectSrc)
+	assertNoFinding(t, res, "EVO-DRYRUN-001")
+}
+
+func TestEVODRYRUN001_FileWriteInsideEffect_StillFires(t *testing.T) {
+	res := review.GoSource("effect_file_bad.go", dryRunFileWriteInEffectSrc)
+	f := assertFinding(t, res, "EVO-DRYRUN-001")
+	if !strings.Contains(f.Suggestion, "evo.File") {
+		t.Fatalf("a file write's suggestion must name evo.File: %q", f.Suggestion)
+	}
+}
+
 func TestEVODAG001_GoroutineWrapsDefine_Fires(t *testing.T) {
 	res := review.GoSource("dag_001_bad.go", readFixture(t, "dag_001_bad.go"))
 	f := assertFinding(t, res, "EVO-DAG-001")

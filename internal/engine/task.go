@@ -283,37 +283,79 @@ func formatSummaryArgs(args []any) (summary string, ok bool) {
 	return fmt.Sprintf(format, args[1:]...), true
 }
 
-// Warn accumulates a warning annotation on the task. This is a statement,
-// not a fluent chain — Warn returns nothing, so a bare `task.Warn("summary")`
-// is errcheck-clean, matching Fail/Block (beginner-9: doc.go's no-fluent
-// promise). Unlike Fail/Block, Warn does not resolve the task (13-problem
-// doc P2: "warnings annotate lifecycle; they do not replace it") — call it
-// any number of times before the task's terminal verb. A warned task that
-// never reaches a terminal verb auto-resolves Done at Finish. summary is a
-// printf format when fmt args are present — one text spelling shared with
-// Done/Task/Group/Reason (C6); evo.Detail(...) and other ProblemOptions may
-// be mixed into args in any position and still apply.
-func (t *TaskHandle) Warn(summary string) {
-	p := applyProblemOptions(txt.Text(summary), nil)
+// Warn accumulates a warning annotation on the task (1.1/ZYS-848,
+// docs/migration/1.1.md: a deliberate, documented break of the 1.0 Warn
+// signature — this release intentionally has no compat shims). Every
+// existing `task.Warn("summary")` call site keeps compiling unchanged
+// (opts is variadic, the old call never used a return value); what is new
+// is that a warning can now carry the same structured ProblemOption
+// metadata Problem/Fail/Block accept (Detail/Code/On/Location/Next/...).
+// Warn does not resolve the task (13-problem doc P2: "warnings annotate
+// lifecycle; they do not replace it") — call it any number of times before
+// the task's terminal verb. A warned task that never reaches a terminal
+// verb auto-resolves Done at Finish. The returned *TaskHandle exists only
+// so a call site may chain a following TaskHandle method (the same shape
+// Next/NextCommand already had); summary itself is never Sprintf-formatted.
+func (t *TaskHandle) Warn(summary string, opts ...ProblemOption) *TaskHandle {
+	p := applyProblemOptions(txt.Text(summary), opts)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]
 	if st == nil {
-		return
+		return t
 	}
 	if err := t.out.ensureOpen(); err != nil {
 		t.out.recordMisuse(err)
-		return
+		return t
 	}
 	if core.IsTerminalTask(st.state) {
 		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
-		return
+		return t
 	}
 	st.warnings = append(st.warnings, p)
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
 	t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, map[string]any{"summary": p.Summary})
 	t.out.signalLiveLocked(true)
+	return t
+}
+
+// Problem appends one blocking/error Problem to the task (1.1/ZYS-848, new
+// method — see docs/migration/1.1.md) without itself terminal-resolving it,
+// so a Define callback — or any caller before the task's terminal verb —
+// may call this many times to accumulate structured findings: one owning
+// Task can retain zero, one, or many Problems instead of a caller-invented
+// Task per finding, and instead of flattening every finding into one
+// newline-delimited error string. Every accumulated Problem merges into the
+// task's terminal problems list when it finally resolves
+// (mergeAccumulatedProblemsLocked) — order preserved, nothing dropped — and
+// if the task would otherwise resolve Done (a nil Define return, or a bare
+// Done() call) while at least one Problem was accumulated, resolve promotes
+// that outcome to Failed instead: a Task that recorded blocking evidence
+// cannot quietly report success. Problem returns *TaskHandle so multiple
+// calls chain: task.Problem(...).Problem(...).
+func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
+	p := applyProblemOptions(txt.Text(summary), opts)
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskByRef[t.id]
+	if st == nil {
+		return t
+	}
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return t
+	}
+	if core.IsTerminalTask(st.state) {
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		return t
+	}
+	st.pendingProblems = append(st.pendingProblems, p)
+	t.out.bumpLocked()
+	t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
+	t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, map[string]any{"summary": p.Summary})
+	t.out.signalLiveLocked(true)
+	return t
 }
 
 // Fact accumulates a discovered name/value annotation on the task — info
@@ -481,7 +523,7 @@ func (t *TaskHandle) doneScheduled() {
 }
 
 // Context reports the cancellation signal this task's work runs under — the
-// run's own (see Output.Context), so a Define or mutation-verb callback
+// run's own (see Output.Context), so a Define or Effect callback
 // doing I/O selects on it and stops when the run is interrupted.
 func (t *TaskHandle) Context() context.Context {
 	if t == nil {
@@ -511,7 +553,7 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 // ratified (the work did succeed; the caller's own summary is what renders,
 // which is how a callback declares "✓ branches  8 deleted") or rejected as
 // ErrAlreadyResolved misuse, with the observed failure taking the row (P2:
-// `task.Delete(obj, fn); task.Done()` can no longer launder an error into a
+// `task.Define(fn); task.Done()` can no longer launder an error into a
 // green row). Nothing ratifies its own completion.
 //
 // Bad news needs no ratification: Fail/Block/Cancel state an outcome the
@@ -553,21 +595,21 @@ func declaresSuccess(state EntityState) bool {
 	return state == Done || state == Skipped
 }
 
-// deniesItsOwnEffect reports whether this resolution is a mutation callback
-// disowning the work it was given: `task.Create("module", fn)` whose fn
-// calls Skipped or Fail and then returns nil rendered both `! skipped 1
+// deniesItsOwnEffect reports whether this resolution is an evo.Effect
+// callback disowning the work it was given: an Effect creating "module"
+// whose fn calls Skipped or Fail and then returns nil rendered both `! skipped 1
 // (install failed)` and `[changed] broken  created 1 module` — the ledger
 // counting the package the installer had just rejected. A nil return after
 // the row said "skipped" means "I handled it", not "I did it".
 //
 // Only the callback's own verdict counts. A later Fail from the program
-// (`task.Delete(obj, fn)` then `task.Fail(...)`) and an interrupt that
-// cancels a running mutation row both describe work that really happened,
+// (an Effect in Define, then `task.Fail(...)`) and an interrupt that
+// cancels a running Effect both describe work that really happened,
 // and both still owe the reader `! already mutated: …`. The separator is
 // the resolving goroutine's own stack: callbackDepth is non-zero only
 // inside a task callback, which is precisely "the row resolved itself".
 func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAuthority) bool {
-	if st.mutation == nil || !st.runningWork || authority != byCaller || state == Done {
+	if st.effectsInFlight == 0 || !st.runningWork || authority != byCaller || state == Done {
 		return false
 	}
 	return callbackDepth() > 0
@@ -595,6 +637,26 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	if st.submitted && authority == byCaller && declaresSuccess(state) {
 		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
 		return t
+	}
+	// ZYS-848: every TaskHandle.Problem accumulated before this terminal
+	// verb merges in now (order preserved, accumulated problems first) and
+	// is cleared — this is the one place every resolution path (finish,
+	// resolveScheduled, failScheduled, doneScheduled) actually finalizes,
+	// so accumulation is never silently dropped regardless of which verb
+	// resolved the task. A resolution that would otherwise be a bare Done
+	// promotes to Failed when accumulated Problems exist: a Task that
+	// recorded blocking evidence cannot quietly report success (contract:
+	// "if a Define callback returns nil but accumulated at least one
+	// blocking Problem, the Task resolves Failed").
+	if len(st.pendingProblems) > 0 {
+		merged := make([]Problem, 0, len(st.pendingProblems)+len(problems))
+		merged = append(merged, st.pendingProblems...)
+		merged = append(merged, problems...)
+		problems = merged
+		st.pendingProblems = nil
+		if state == Done {
+			state = Failed
+		}
 	}
 	st.state = state
 	st.phase = "" // Done clears active phase

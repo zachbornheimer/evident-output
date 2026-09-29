@@ -96,13 +96,6 @@ func isGenerated(src []byte) bool {
 	return strings.Contains(head, "Code generated ") && strings.Contains(head, "DO NOT EDIT")
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func sortFindings(findings []Finding) {
 	sort.Slice(findings, func(i, j int) bool {
 		if findings[i].File != findings[j].File {

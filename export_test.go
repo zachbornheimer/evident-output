@@ -78,13 +78,6 @@ func (o *Output) EvidenceForTest(opts ...EvidenceOption) *Evidence {
 	return o.inner.EvidenceForTest(opts...)
 }
 
-func (o *Output) Events() []Event {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.Events()
-}
-
 func (o *Output) DebugForTest(message string, fields ...Field) {
 	if o != nil && o.inner != nil {
 		o.inner.DebugForTest(message, fields...)

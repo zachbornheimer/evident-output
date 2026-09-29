@@ -1,6 +1,8 @@
 package evo_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -23,7 +25,7 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(8))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 8))
 	branches.Done()
 	out.Cancel("interrupted")
 	if err := out.Finish(); err != nil {
@@ -59,8 +61,12 @@ func TestConclusion_AlreadyMutated_Failed(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	remotes := out.Task("remotes")
-	remotes.Delete("origin tip", func() error { return nil }, evo.Affected(1))
-	remotes.Fail("authentication failed")
+	remotes.Define(func(ctx context.Context) error {
+		if err := effectOf(evo.EffectDelete, "origin tip", 1)(ctx); err != nil {
+			return err
+		}
+		return errors.New("authentication failed")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -76,7 +82,7 @@ func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(8))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 8))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -98,7 +104,7 @@ func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
 	const total = 500
-	for i := 0; i < total; i++ {
+	for i := range total {
 		branches.RecordName("delete", fmt.Sprintf("feat/branch-%d", i))
 	}
 	branches.Done()

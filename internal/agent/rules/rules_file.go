@@ -59,12 +59,13 @@ func rawExecFreshnessRule() Rule {
 		return fmt.Errorf("generate %s: %w", outPath, err) // still boilerplate — evo.Exec is the fix
 	}
 }`,
-		GoodCode: `return evo.Exec(ctx, evo.ExecSpec{
+		GoodCode: `_, err := evo.Exec(ctx, evo.ExecSpec{
 	Executable: "python3",
 	Args:       []string{"generate.py", inputPath, outPath},
 	Basis:      []evo.Fingerprint{evo.FSPath(inputPath)},
 	Outputs:    []string{outPath},
-})`,
+})
+return err`,
 		Remediation:     "Replace the raw exec plus manual freshness check with one evo.Exec(ctx, evo.ExecSpec{...}) call that declares Basis and Outputs",
 		RelatedGuidance: []string{"evo-file-exec", "provenance"},
 		VerificationIDs: []string{"EVO-EXEC-001"},

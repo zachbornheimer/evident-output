@@ -92,8 +92,8 @@ type Output struct {
 	// name — same or different — is a real identity conflict (ErrDuplicateKey),
 	// never a repeat declaration to be merged.
 	taskNameByKey map[string]string
-	// namedPlans/namedChanges back get-or-create identity for TaskHandle
-	// mutation verbs (Delete, Create, ...): repeated mutations on one task
+	// namedPlans/namedChanges back get-or-create identity for ledger
+	// sections (Effect, File, Record, ...): repeated mutations on one task
 	// accumulate into the one Plan/Changes section named after the task,
 	// instead of one section per call. Unrelated to Task/Group/Sequence
 	// declaration identity (§3.1) — a ledger section is not a sibling.
@@ -213,7 +213,7 @@ type taskState struct {
 	handle      *TaskHandle
 
 	// activityAt is the domain-clock time of the most recent Phase, Progress,
-	// or mutation-verb-callback-starting call — kept for the public
+	// or work-callback-starting call — kept for the public
 	// ActivityAt snapshot field and for Sequence's "one Running child"
 	// bookkeeping. P5's elapsed-time render clock no longer reads it (see
 	// elapsedAfter in live.go): the render anchor is liveFirstSeenAt alone,
@@ -269,6 +269,15 @@ type taskState struct {
 	// Finish auto-resolves Done (see hasRecordedEffectLocked's amnesty
 	// siblings in Finish).
 	warnings []Problem
+	// pendingProblems accumulates TaskHandle.Problem's blocking findings
+	// (ZYS-848): unlike warnings, these are blocking evidence that this Task
+	// owns before it terminal-resolves — appending does not itself resolve
+	// the task, but merges into whatever terminal problems list resolve()
+	// finalizes with (mergeAccumulatedProblemsLocked), and a Done resolution
+	// with at least one accumulated Problem is promoted to Failed there. A
+	// Task can own zero, one, or many Problems this way instead of one
+	// caller-invented Task per finding.
+	pendingProblems []Problem
 	// facts accumulates TaskHandle.Fact's discovered-information annotations
 	// (P8) — info severity, the same "annotate, never resolve" contract
 	// warnings has at warning severity.
@@ -283,12 +292,14 @@ type taskState struct {
 	submitted   bool
 	runningWork bool
 	workFn      func() error
-	mutation    *mutationSpec
 	// effectDenied records that this task's own mutation callback resolved
 	// the row as something other than Done, so the effect it was given must
 	// not reach the ledger (see deniesItsOwnEffect).
 	effectDenied bool
-	preds        []predecessor
+	// effectsInFlight counts evo.Effect callbacks currently running for this
+	// task; a non-Done resolution while one runs disowns that Effect.
+	effectsInFlight int
+	preds           []predecessor
 	// verifiers holds TaskHandle.Verify's registered pre/post-Define
 	// observation checks, ANDed in registration order (§9.1). Must be
 	// registered before Define — see Verify.
@@ -370,7 +381,7 @@ type changesState struct {
 	id      string
 	subject string
 	records []EffectRecord
-	// intendedVerb is the first mutation verb recorded for this section
+	// intendedVerb is the first imperative verb recorded for this section
 	// (evo-rec.md "empty effect section grammar"). Set once, by
 	// changes.go's Record/RecordName; it is what lets a section that ends up
 	// with zero rows still render "nothing to <verb> <subject>" instead of a
@@ -647,7 +658,7 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 
 // promoteRunningLocked transitions a Pending task to Running on its first
 // unit of evidence (Phase/Progress/Advance/Bytes/Each iteration/PhaseWriter
-// write, or a mutation-verb callback starting — see promoteRunningForActivity).
+// write, or a work callback starting — see promoteRunningForActivity).
 // For a sequential collection (Sequence), it records misuse when a sibling is
 // already Running, enforcing the heart contract "one Running child"
 // (evo-rec.md) — callers still get the transition; Strict mode is what
@@ -909,7 +920,7 @@ func (o *Output) interrupt(reason string) {
 // interrupt took away just as surely as one sitting in the scheduler's
 // queue. Sweeping only the submitted ones left a declared row Pending, and
 // Finish then charged the caller with ErrUnresolvedTask and told them to
-// "call Done, Fail, Block, Skipped, or a mutation verb on this task" about a
+// "call Done, Fail, Block, Skipped, or Define on this task" about a
 // run the user had just cancelled.
 func (o *Output) abandonQueuedWork() {
 	o.mu.Lock()
@@ -1129,7 +1140,7 @@ func (o *Output) declareGroupTask(groupID, name string, opts ...EntityOption) *T
 // declareChangeLedgerLocked starts a durable-effects section named subject —
 // the internal counterpart of the deleted public Output.Changes entry point
 // (P1/P13: presentation-decision aPI, callers reach effects only through
-// TaskHandle's mutation verbs now). Caller must hold o.mu.
+// evo.Effect/evo.File and TaskHandle.Record now). Caller must hold o.mu.
 func (o *Output) declareChangeLedgerLocked(subject string) *changeLedger {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
@@ -1653,6 +1664,20 @@ func (o *Output) collectActionsLocked() []Action {
 	add(o.actions)
 	for _, t := range o.tasks {
 		add(t.actions)
+		// ZYS-848: a remedy attached via evo.Next(...) to an individual
+		// Problem/warning (task.Problem(msg, evo.Next(...)),
+		// task.Fail(msg, evo.Next(...))) must reach the run's own Next
+		// steps the same way a task-level Next(...) call already does —
+		// otherwise a remedy on one of several accumulated Problems is
+		// invisible everywhere: writeProblem never renders p.Actions
+		// inline (it is evidence, not a decision), and without this loop
+		// it was silently dropped from the Conclusion's Next list too.
+		for _, p := range t.problems {
+			add(p.Actions)
+		}
+		for _, w := range t.warnings {
+			add(w.Actions)
+		}
 	}
 	return out
 }
@@ -1793,7 +1818,7 @@ func (o *Output) abnormalFinishLocked() bool {
 // way Confirm's own policy hint renders (TaskHandle.Next), replacing the raw
 // "misuse: <name>: evo: ..." sentinel text that told the reader nothing
 // about what to do next (release-gate finding 3).
-const unresolvedTaskHint = "call Done, Fail, Block, Skipped, or a mutation verb on this task"
+const unresolvedTaskHint = "call Done, Fail, Block, Skipped, or Define on this task"
 
 // attachUnresolvedTaskHintLocked attaches unresolvedTaskHint to t directly.
 // It cannot go through TaskHandle.Next, which refuses once Finish has set
@@ -1854,7 +1879,7 @@ func (o *Output) Finish() error {
 	// Unresolved entities. A task with no problems of its own told an
 	// honest, complete story already — the caller just never called a
 	// terminal verb — whenever it also carries at least one of: a recorded
-	// mutation-verb effect (Delete/Create/Update/...), a sealed absolute
+	// Effect/File/Record ledger row, a sealed absolute
 	// progress (a completed Each/EachN/Progress loop reached its total),
 	// recorded taxonomy (Skipped/Kept), or a recorded warning (P2:
 	// TaskHandle.Warn never itself resolves the task, so a warned-but-
