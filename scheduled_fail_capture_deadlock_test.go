@@ -10,16 +10,16 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// A callback that wrote evidence and then returned an error is the ordinary
+// A callback that wrote capture and then returned an error is the ordinary
 // shape for a task that shells out: the tool's output is the detail the
 // failure row needs, and the library auto-attaches it. Building that detail
 // re-entered the Output's redactor lock while resolve already held it, so
 // the whole run deadlocked — and only for a *scheduled* failure, because a
 // caller-side Fail resolves before the scheduler ever takes that path.
 //
-// The evidence tail must be left unterminated: a pending line is what sends
+// The capture tail must be left unterminated: a pending line is what sends
 // detailText down the normalize/redact path.
-func TestScheduledFail_AutoAttachedEvidenceDoesNotDeadlock(t *testing.T) {
+func TestScheduledFail_AutoAttachedCaptureDoesNotDeadlock(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -38,6 +38,6 @@ func TestScheduledFail_AutoAttachedEvidenceDoesNotDeadlock(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(10 * time.Second):
-		t.Fatal("resolving a scheduled failure with auto-attached evidence deadlocked")
+		t.Fatal("resolving a scheduled failure with auto-attached capture deadlocked")
 	}
 }
