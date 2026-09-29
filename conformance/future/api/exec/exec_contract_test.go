@@ -2,7 +2,7 @@
 
 // Package exec_test holds increment 3's v0.6/1.0 public API compile
 // contract: ExecSpec/evo.Exec, evo.ProcessRunner/ProcessCommand/
-// ProcessOutcome, and the Runner Option (spec §8.4). Split out of
+// ProcessOutcome, and Config.ProcessRunner (spec §8.4). Split out of
 // ../pending/pending_test.go (now removed — increment 3 is the last
 // increment/pending tranche this future suite carries) now that evo.Exec
 // exists.
@@ -16,8 +16,6 @@ import (
 )
 
 var _ = func() func(context.Context, evo.ExecSpec) (evo.ExecResult, error) { return evo.Exec }
-
-var _ = func() func(evo.ProcessRunner) evo.Option { return evo.Runner }
 
 type noopRunner struct{}
 
@@ -35,5 +33,4 @@ func TestV06ExecAPITypesCompile(t *testing.T) {
 		Outputs:    []string{"out"},
 	}
 	_ = evo.Config{ProcessRunner: noopRunner{}}
-	_ = evo.Runner(noopRunner{})
 }
