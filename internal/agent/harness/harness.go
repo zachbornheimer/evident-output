@@ -77,6 +77,7 @@ func f() {
   out := evo.Init(evo.Config{})
   t := out.Task("x")
   t.Start()
+  t.Define(work)
 }
 `,
 			MustDetect: []string{"API-006"},
@@ -198,7 +199,7 @@ func ApplyMechanicalFixes(src string, findings []review.Finding) (string, bool) 
 		case "API-006":
 			// Remove lines that are only t.Start() / x.Start().
 			var b strings.Builder
-			for _, line := range strings.Split(out, "\n") {
+			for line := range strings.SplitSeq(out, "\n") {
 				trim := strings.TrimSpace(line)
 				if strings.HasSuffix(trim, ".Start()") || strings.HasSuffix(trim, ".Start();") {
 					changed = true
@@ -213,7 +214,7 @@ func ApplyMechanicalFixes(src string, findings []review.Finding) (string, bool) 
 			}
 		case "STREAM-003":
 			var b strings.Builder
-			for _, line := range strings.Split(out, "\n") {
+			for line := range strings.SplitSeq(out, "\n") {
 				trim := strings.TrimSpace(line)
 				if strings.Contains(trim, "fmt.Print") || strings.Contains(trim, "fmt.Fprint") {
 					// Drop contaminating print; agent would replace with out.Line.
@@ -231,7 +232,7 @@ func ApplyMechanicalFixes(src string, findings []review.Finding) (string, bool) 
 		case "DOM-011":
 			// Replace application-error returns after Block with return nil.
 			var b strings.Builder
-			for _, line := range strings.Split(out, "\n") {
+			for line := range strings.SplitSeq(out, "\n") {
 				trim := strings.TrimSpace(line)
 				if strings.Contains(trim, "return errors.New(") ||
 					strings.Contains(trim, "return fmt.Errorf(") {
@@ -257,7 +258,7 @@ func ApplyMechanicalFixes(src string, findings []review.Finding) (string, bool) 
 
 func removeImport(src, pathLit string) string {
 	var b strings.Builder
-	for _, line := range strings.Split(src, "\n") {
+	for line := range strings.SplitSeq(src, "\n") {
 		if strings.Contains(line, pathLit) {
 			continue
 		}

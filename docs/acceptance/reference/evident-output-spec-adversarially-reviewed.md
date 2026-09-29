@@ -76,7 +76,7 @@ Effect     what would change / did change
 
 Evidence is not inherently a named attribute such as `contents` or `permissions`. Those may exist as verification details for reporting, but Task-level Evidence is the boolean conclusion Evo derives.
 
-Do not add a public `TaskConfig` authoring path yet.
+Do not add a public `TaskConfig` authoring path (`TaskConfig` was removed in 1.0).
 
 ## 1.1 Runtime construction and top-level ownership
 
@@ -141,14 +141,13 @@ This is **not** a fake Task and is never retained as a completed ledger row. It 
 
 # 2. Evidence, tracking, definition trust, and provenance
 
-Earlier drafts made Evidence a collection of named callbacks:
+Earlier drafts made capture-meaning Evidence a collection of named callbacks (removed in 1.1; Capture is the retained sink):
 
 ```go
-task.Evidence("contents", contentsCurrent)
-task.Evidence("permissions", permissionsCurrent)
+task.Capture()
 ```
 
-That is superseded as the recommended model.
+Named capture callbacks are gone (removed in 1.1). Common file state is `evo.File`.
 
 > **Evidence is Evo's boolean current-state conclusion when enough modeled proof exists. Before `Define`, true Evidence may skip the callback. Otherwise Evidence may become known during/after reconciliation and still drive reporting and machine output.**
 
@@ -1013,7 +1012,7 @@ Callers should not hand-compose effect strings. Evo-native mutation boundaries c
 
 - `evo.File(...)` records the file attributes it actually establishes, or the corresponding planned change in dry-run;
 - `evo.Exec(...)` may record a typed operation effect when its contract declares outputs or another concrete mutation result;
-- existing typed mutation verbs such as Create/Update/Delete remain the custom-domain escape hatch and are dry-run boundaries;
+- `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)` is the custom-domain escape hatch and a dry-run boundary (the TaskHandle mutation verbs were removed in 1.1);
 - a raw opaque `Define` callback has no automatic mutation semantics beyond the Evo-native operations it invokes.
 
 Examples:
@@ -2005,13 +2004,13 @@ It executes on each eligible run unless a current `Verify` proves it already sat
 
 # 45. No TaskConfig for now
 
-Do not add:
+Do not add (`TaskConfig` was removed in 1.0):
 
 ```go
-evo.TaskConfig{...}
+evo.Config{...}
 ```
 
-as a recommended public authoring path.
+as a Task-level authoring path. Config is run-scoped.
 
 Task intent remains fluent:
 
@@ -2041,12 +2040,12 @@ Keep one exported-surface golden.
 
 It should fail if stale concepts reappear unintentionally.
 
-Examples to forbid unless explicitly retained for compatibility:
+Examples to forbid (removed in 1.0, must not reappear):
 
 ```text
 Task.Run
 Task.Go
-Task.Each (legacy/deprecated; must not reappear)
+Task.Each
 DisplayGroup
 Group.Done
 Sequence.Fail
@@ -2054,7 +2053,7 @@ Sequence.Fail
 
 The test should make intentional additions such as declarative file/provenance primitives visible in review.
 
-Do not treat named `Task.Evidence(...)` as required beginner surface merely because older drafts used it.
+Do not treat named `Task.Evidence(...)` as required beginner surface (capture-meaning Evidence\* was removed in 1.1; Capture is the retained sink).
 
 ---
 
@@ -2321,13 +2320,13 @@ Do not teach named Evidence callbacks as the normal way to make file work idempo
 
 The MCP must distinguish stale and recommended semantics.
 
-Legacy mutating Evidence:
+Legacy mutating Evidence (removed in 1.1; move the mutation into Define via evo.File / evo.Effect):
 
 ```go
-task.Evidence("write", func() error { return os.WriteFile(...) })
+return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
 ```
 
-Flag it.
+Flag the old named mutating callback shape.
 
 Intermediate named read-only checks may remain compatibility syntax, but the recommended advanced escape hatch is one boolean verifier:
 

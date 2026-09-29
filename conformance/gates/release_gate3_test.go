@@ -44,7 +44,7 @@ func TestFinish_PhaseOnlyTaskCleanReturn_NeverCancels(t *testing.T) {
 
 // TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels proves the
 // paired half of finding 1: when the run really was interrupted (here, an
-// application error recorded via Output.Failf before Finish), a leftover
+// application error recorded via Output.Fail before Finish), a leftover
 // Running task still reads as Cancelled — the existing signal/error
 // behavior must not regress.
 func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
@@ -53,7 +53,7 @@ func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
 
 	leftover := out.Task("connect")
 	leftover.Doing("connecting")
-	out.Failf("stopped: %v", "disk full")
+	out.Fail("stopped: disk full")
 
 	_ = out.Finish()
 	if got := leftover.Snapshot().State; got != evo.Cancelled {
@@ -112,7 +112,7 @@ func TestFinish_UnresolvedTask_HintReplacesRawMisuseLine(t *testing.T) {
 	if strings.Contains(rendered, "evo: task has no final state") {
 		t.Fatalf("raw sentinel jargon leaked into the user stream:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "call Done, Fail, Block, Skipped, or a mutation verb on this task") {
+	if !strings.Contains(rendered, "call Define, Fail, Block, or Skipped on this task") {
 		t.Fatalf("want the corrective hint rendered instead, got:\n%s", rendered)
 	}
 }
@@ -125,11 +125,11 @@ func TestChanges_RepeatedIdenticalRecordsMergeQuantities(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, Width: 80})
 
-	task := out.Task("cleanup")
-	for i := 0; i < 12; i++ {
-		task.Record("delete", 1, "merged branch")
+	specs := make([]evo.EffectSpec, 12)
+	for i := range specs {
+		specs[i] = evo.EffectSpec{Verb: evo.EffectDelete, Object: "merged branch", Quantity: 1}
 	}
-	task.Done()
+	commit(out.Task("cleanup"), specs...)
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)

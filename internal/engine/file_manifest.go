@@ -10,6 +10,8 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // ErrFileConflictingProducer is returned when two Tasks in one Run both
@@ -19,13 +21,13 @@ import (
 var ErrFileConflictingProducer = errors.New("evo: File output path already claimed by another Task in this Run")
 
 // manifestFor returns this Run's manifest Store, opening it on first use
-// (spec §11.3) — the same lazy-capture pattern workspaceDirLocked already
+// (spec §11.3) — the same lazy-capture pattern workspace already
 // uses for the workspace directory. Every later call, whether it succeeded
 // or failed, returns the same cached result: a manifest miss/open failure
 // degrades this Run to live-filesystem-only File behavior rather than
 // retrying on every call.
 func (o *Output) manifestFor(ctx context.Context) (*manifest.Store, error) {
-	workspace := o.workspaceDirLocked()
+	workspace := o.workspace()
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.manifestOpened {
@@ -101,16 +103,86 @@ func (o *Output) appendManifestOperationLocked(taskID string, rec manifest.Opera
 }
 
 // commitManifestTaskLocked persists taskID's accumulated operations as this
-// Run's truth (spec §11.3) once the Task has settled Done. A Task that
-// recorded no tracked operations, or a Run with no usable manifest Store,
-// commits nothing. Callers must already hold o.mu.
+// Run's truth (spec §11.3) once the Task has settled Done. A Run with no
+// usable manifest Store commits nothing (no Task in this Run ever used
+// File/Exec/Patch, so nothing opened the manifest — see manifestFor —
+// keeping a purely opaque consumer's Run free of any manifest file at all).
+//
+// A Task with tracked Operations commits its precise provenance at once. A
+// Task with none is opaque: its record carries the application fingerprint
+// as its DefinitionFingerprint (ZYS-817 Decisions 2026-09-23), never folded
+// into any operation's Basis. Nothing reads that record back within the
+// Run, so it is staged and written with the next commit or at Close
+// instead of costing each settling Task a full manifest
+// rewrite and fsync under o.mu. Callers must already hold o.mu.
 func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 	st := o.taskByRef[taskID]
-	if st == nil || len(st.manifestOps) == 0 || o.manifestStore == nil {
+	if st == nil || o.manifestStore == nil {
+		return
+	}
+	if len(st.manifestOps) == 0 {
+		o.manifestStore.StageTask(o.manifestApp, manifest.TaskRecord{
+			Key:                   st.key,
+			DefinitionFingerprint: taskOpaqueDefinitionFingerprint(st.key, o.manifestApp.Fingerprint),
+		})
 		return
 	}
 	task := manifest.TaskRecord{Key: st.key, Operations: append([]manifest.OperationRecord(nil), st.manifestOps...)}
-	_ = o.manifestStore.CommitTask(ctx, o.manifestApp, task)
+	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err != nil {
+		o.warnManifestUnsavedLocked(err)
+		return
+	}
+	o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
+		"operations": len(task.Operations),
+	})
+}
+
+// saveManifest waits until every record this Run committed or staged is
+// on disk, so an Init+Finish caller that never calls Close still persists
+// its history, and warns on the run when the write failed: the next run
+// re-executes work this one did, and the reader must know why.
+func (o *Output) saveManifest() {
+	o.mu.Lock()
+	store := o.manifestStore
+	o.mu.Unlock()
+	if store == nil {
+		return
+	}
+	err := store.Flush(context.Background())
+	if err == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if !o.finished {
+		o.warnManifestUnsavedLocked(err)
+	}
+}
+
+// warnManifestUnsavedLocked states once per run that the manifest could
+// not be saved. Callers must already hold o.mu.
+func (o *Output) warnManifestUnsavedLocked(err error) {
+	if o.manifestUnsavedIssued {
+		return
+	}
+	o.manifestUnsavedIssued = true
+	o.warnLocked(applyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
+}
+
+// taskOpaqueDefinitionFingerprint computes an opaque Task's own definition
+// identity: the conservative application-fingerprint fallback ZYS-817
+// Decisions (2026-09-23) requires when a Task's Define recorded no precise
+// File/Exec/Patch operation of its own to prove freshness with. Scoped by
+// the Task's own stable key so two different opaque Tasks never collide
+// onto the same digest merely because the application fingerprint matches.
+func taskOpaqueDefinitionFingerprint(key, appFingerprint string) string {
+	h := sha256.New()
+	_, _ = h.Write([]byte("evident-output:task:definition:opaque:v1\x00"))
+	_, _ = h.Write([]byte(key))
+	h.Write([]byte{0})
+	_, _ = h.Write([]byte(appFingerprint))
+	h.Write([]byte{0})
+	return "sha256:" + hex.EncodeToString(h.Sum(nil))
 }
 
 // basisRecordsFrom fingerprints every entry in basis (spec §11.1) and
@@ -130,18 +202,23 @@ func basisRecordsFrom(ctx context.Context, basis []fingerprint.Fingerprint) ([]m
 			Digest: hex.EncodeToString(v.Digest[:]),
 		})
 	}
-	sort.Slice(records, func(i, j int) bool {
-		if records[i].Kind != records[j].Kind {
-			return records[i].Kind < records[j].Kind
-		}
-		return records[i].Key < records[j].Key
-	})
+	sortBasisRecords(records)
 	for i := 1; i < len(records); i++ {
 		if records[i].Kind == records[i-1].Kind && records[i].Key == records[i-1].Key {
 			return nil, fmt.Errorf("evo: Basis: duplicate (kind=%s, key=%s)", records[i].Kind, records[i].Key)
 		}
 	}
 	return records, nil
+}
+
+// sortBasisRecords puts records in canonical (kind, key) order.
+func sortBasisRecords(records []manifest.BasisRecord) {
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].Kind != records[j].Kind {
+			return records[i].Kind < records[j].Kind
+		}
+		return records[i].Key < records[j].Key
+	})
 }
 
 // fileDefinitionFingerprint computes File's operation definition fingerprint
@@ -183,24 +260,47 @@ func pathOutputDigest(ctx context.Context, path string) (string, error) {
 	return hex.EncodeToString(v.Digest[:]), nil
 }
 
+// Reasons fileOperationCurrent reports for a "not current" verdict (spec
+// §38: events must distinguish Basis drift from tracked output drift from
+// no prior record at all).
+const (
+	freshnessReasonNoPriorRecord   = "no_prior_record"
+	freshnessReasonBasisDrift      = "basis_drift"
+	freshnessReasonDefinitionDrift = "definition_changed"
+	freshnessReasonTrackedDrift    = "tracked_output_drift"
+	freshnessReasonCurrent         = "current"
+)
+
 // fileOperationCurrent reports whether prior (the previously committed
 // operation record for this Task's Nth File call, if any) still matches:
-// the operation definition itself, every Basis digest, and the tracked
+// every Basis digest, the operation definition itself, and the tracked
 // output's current on-disk digest (spec §8.2/§11.4/§11.5). A prior record's
-// absence, a definition/Basis mismatch, or output drift (edited outside
-// Evo) are all "not current" — never an error on their own.
-func fileOperationCurrent(ctx context.Context, prior manifest.OperationRecord, hasPrior bool, defFingerprint string, basis []manifest.BasisRecord, path string) (bool, error) {
-	if !hasPrior || prior.DefinitionFingerprint != defFingerprint || len(prior.Outputs) != 1 {
-		return false, nil
+// absence, a Basis/definition mismatch, or output drift (edited outside
+// Evo) are all "not current" — never an error on their own. reason names
+// which of those applied, or freshnessReasonCurrent when isCurrent is true.
+// Basis is checked ahead of the combined DefinitionFingerprint (which
+// itself already hashes Basis in, see fileDefinitionFingerprint) so a
+// Basis-only change reports freshnessReasonBasisDrift rather than being
+// folded into the more generic definition mismatch (spec §38: "Basis
+// drift" and "tracked output drift" must be distinguishable events).
+func fileOperationCurrent(ctx context.Context, prior manifest.OperationRecord, hasPrior bool, defFingerprint string, basis []manifest.BasisRecord, path string) (isCurrent bool, reason string, err error) {
+	if !hasPrior || len(prior.Outputs) != 1 {
+		return false, freshnessReasonNoPriorRecord, nil
 	}
 	if !basisRecordsEqual(prior.Basis, basis) {
-		return false, nil
+		return false, freshnessReasonBasisDrift, nil
+	}
+	if prior.DefinitionFingerprint != defFingerprint {
+		return false, freshnessReasonDefinitionDrift, nil
 	}
 	liveDigest, err := pathOutputDigest(ctx, path)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
-	return prior.Outputs[0].Digest == liveDigest, nil
+	if prior.Outputs[0].Digest != liveDigest {
+		return false, freshnessReasonTrackedDrift, nil
+	}
+	return true, freshnessReasonCurrent, nil
 }
 
 // basisRecordsEqual compares two already-canonicalized Basis slices

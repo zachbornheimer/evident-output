@@ -3,6 +3,7 @@ package engine
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // Fact records a discovered name/value annotation on the default instance's
@@ -31,36 +32,20 @@ func (o *Output) Fact(name, value string) {
 	}
 	o.runFacts = append(o.runFacts, f)
 	o.bumpLocked()
+	o.emitWireEventLocked(wire.EventFactRecorded, "", wire.ToFactDoc(f).EventPayload())
 	o.writeDurableTextLocked(txt.Dim(f.Name+"  "+f.Value, !o.cfg.noColor) + "\n")
 }
 
-// Warn records a run-scoped warning on the default instance — evo.Warn's
-// package-level form. See Output.Warn.
-func Warn(summary string) {
-	Default().Warn(summary)
-}
-
-// Warn accumulates a run-scoped warning annotation (P8 symmetry with
-// TaskHandle.Warn) — a warning about the run itself, not about any one
-// task. Feeds the conclusion's "· warned" band exactly like a task warning,
-// never a headline of its own (evo-rec.md "warnings annotate lifecycle;
-// they do not replace it"). summary is a printf format when fmt args are
-// present, matching TaskHandle.Warn's C6 shape. A nil Output is safe and
-// records nothing.
-func (o *Output) Warn(summary string) {
-	if o == nil {
-		return
-	}
-	p := applyProblemOptions(txt.Text(summary), nil)
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
-	}
+// warnLocked records p as a run-scoped warning and renders it. Callers
+// must already hold o.mu. Public Warn was removed in 1.1; this is the
+// engine's own path (a failed manifest flush) onto the same projection
+// TaskHandle.Problem(..., Severity(SeverityWarning)) uses for the
+// conclusion's warned modifier.
+func (o *Output) warnLocked(p Problem) {
 	o.runWarnings = append(o.runWarnings, p)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "run.warned", OutputID: o.outputID})
+	o.emitWireEventLocked(wire.EventWarningRecorded, "", wire.ToProblemDoc(p).EventPayload())
 	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(o.cfg.glyphs), txt.SGRYellow, !o.cfg.noColor)
 	o.writeDurableTextLocked(glyph + " " + p.Summary + "\n")
 }

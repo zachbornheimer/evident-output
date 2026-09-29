@@ -6,6 +6,21 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
+// StandaloneConclusion is the trailing band as a human reader sees it. A
+// DryRun whose Config.Subject header rendered ("[dry-run] zq prune  <path>")
+// has already named the run, so a band that must still appear (warned,
+// partial, ...) carries its tag alone — contract §18's zq prune fixture
+// closes with a bare "[planned · warned]" under a run titled "zq". The
+// same header already suppresses a pure "[planned]" band outright
+// (ShouldSuppressStandaloneConclusion). Machine output keeps Subject.
+func StandaloneConclusion(s core.Snapshot) core.Conclusion {
+	c := *s.Conclusion
+	if s.DryRun && s.DryRunSubject != "" {
+		c.Subject = ""
+	}
+	return c
+}
+
 // ShouldSuppressStandaloneConclusion implements DEC-COAL-* for human projection.
 //
 // Model and structured JSON always retain independent core.Conclusion + Plan/Changes.
@@ -100,7 +115,7 @@ func shouldSuppressRepeatedCondition(s core.Snapshot, c core.Conclusion) bool {
 	var state core.EntityState
 	switch {
 	case len(s.Tasks) == 1:
-		// I2: a library-synthesized task (Output.Failf/Cancel's "command"
+		// I2: a library-synthesized task (Output.Fail/Cancel's "command"
 		// fallback for an untracked top-level outcome) is never the caller's
 		// own named row — the conclusion band is the ONLY place the run's
 		// outcome is stated, so it must never be suppressed as "redundant"

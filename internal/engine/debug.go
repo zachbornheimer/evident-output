@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -149,7 +150,7 @@ func formatHistoryAttrs(fields []Field) string {
 	for _, f := range fields {
 		val := fmt.Sprint(f.Value)
 		if f.Sensitive {
-			val = "***"
+			val = core.RedactedValue
 		}
 		parts = append(parts, fmt.Sprintf("%s=%s", txt.Text(f.Key), txt.Text(val)))
 	}

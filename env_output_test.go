@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/render"
 )
 
 func withLookupEnv(t *testing.T, env map[string]string) {
@@ -50,53 +51,64 @@ func TestEVOOutput_Plain_NoLiveRegionOnTTYShapedWriter(t *testing.T) {
 		Stderr:          &buf,
 		VisibilityDelay: evo.Delay(0),
 	})
-	out.Task("scan").Doing("walk").Done("ok")
+	succeed(out.Task("scan").Doing("walk"), "ok")
 	_ = out.Finish()
 	if hasLiveRegion(buf.String()) {
 		t.Fatalf("EVO_OUTPUT=plain must not open a live region on a TTY-shaped writer:\n%q", buf.String())
 	}
 }
 
-func TestEVOOutput_JSON_FinishWritesJSONDocument(t *testing.T) {
+// EVO_OUTPUT=json selects the evo.run document (FormatJSON) when the
+// caller chose no Format: the one machine document that carries every
+// structured Fact, disposition and Problem (E-090).
+func TestEVOOutput_JSON_FinishWritesRunDocument(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "json"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
-	out.Task("scan").Done("ok")
+	succeed(out.Task("scan"), "ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	var doc evo.JSONDocument
-	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
-		t.Fatalf("Finish must write a JSONDocument: %v\n%s", err, got)
+	var doc struct {
+		Object        string `json:"object"`
+		SchemaVersion string `json:"schema_version"`
 	}
-	if doc.SchemaVersion == "" {
-		t.Fatalf("JSONDocument missing schema_version: %+v", doc)
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("Finish must write one evo.run document: %v\n%s", err, got)
+	}
+	if doc.Object != "evo.run" || doc.SchemaVersion == "" {
+		t.Fatalf("EVO_OUTPUT=json wrote %q schema %q, want an evo.run document", doc.Object, doc.SchemaVersion)
 	}
 	if hasHumanGlyphs(got) {
-		t.Fatalf("json presentation must not carry human glyphs:\n%s", got)
+		t.Fatalf("json stdout must not carry human glyphs:\n%s", got)
 	}
 }
 
-func TestEVOOutput_JSONL_FinishWritesEventLines(t *testing.T) {
+// EVO_OUTPUT=jsonl selects the evo.event stream (FormatJSONL).
+func TestEVOOutput_JSONL_WritesEventLines(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "jsonl"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
-	out.Task("scan").Done("ok")
+	succeed(out.Task("scan"), "ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := strings.TrimSpace(buf.String())
 	if got == "" {
-		t.Fatal("jsonl Finish wrote nothing")
+		t.Fatal("jsonl wrote nothing")
 	}
 	var sawTaskDone bool
-	for _, line := range strings.Split(got, "\n") {
-		var ev evo.EventJSON
-		if err := json.Unmarshal([]byte(line), &ev); err != nil {
-			t.Fatalf("jsonl line is not EventJSON: %v\n%s", err, line)
+	for line := range strings.SplitSeq(got, "\n") {
+		var ev struct {
+			Object  string         `json:"object"`
+			Type    string         `json:"type"`
+			Payload map[string]any `json:"payload"`
 		}
-		if ev.Type == "task.done" {
+		if err := json.Unmarshal([]byte(line), &ev); err != nil || ev.Object != "evo.event" {
+			t.Fatalf("jsonl line is not an evo.event (%v):\n%s", err, line)
+		}
+		if ev.Type == "task.finished" && ev.Payload["state"] == "done" {
 			sawTaskDone = true
 		}
 		if hasHumanGlyphs(line) {
@@ -104,7 +116,7 @@ func TestEVOOutput_JSONL_FinishWritesEventLines(t *testing.T) {
 		}
 	}
 	if !sawTaskDone {
-		t.Fatalf("jsonl Finish missing task.done event:\n%s", got)
+		t.Fatalf("jsonl missing a task.finished done event:\n%s", got)
 	}
 }
 
@@ -112,14 +124,14 @@ func TestEVOOutput_StreamJSON_TaskDoneEmitsEventJSONBeforeFinish(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "stream-json"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
-	out.Task("scan").Done("ok")
+	succeed(out.Task("scan"), "ok")
 	got := strings.TrimSpace(buf.String())
 	if got == "" {
 		t.Fatal("stream-json wrote nothing at Task.Done")
 	}
 	var sawTaskDone bool
-	for _, line := range strings.Split(got, "\n") {
-		var ev evo.EventJSON
+	for line := range strings.SplitSeq(got, "\n") {
+		var ev render.EventJSON
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			t.Fatalf("stream-json line before Finish is not EventJSON: %v\n%s", err, line)
 		}
@@ -141,7 +153,7 @@ func TestEVOOutput_StreamJSON_FormatDataKeepsPayloadOnStdout(t *testing.T) {
 		Stdout: &stdout,
 		Stderr: &stderr,
 	})
-	out.Task("scan").Done("ok")
+	succeed(out.Task("scan"), "ok")
 	const payload = `{"ready":true}`
 	if _, err := io.WriteString(out.ResultWriter(), payload); err != nil {
 		t.Fatal(err)
@@ -151,8 +163,8 @@ func TestEVOOutput_StreamJSON_FormatDataKeepsPayloadOnStdout(t *testing.T) {
 		t.Fatal("FormatData+stream-json must write EventJSON to stderr at Task.Done")
 	}
 	var sawTaskDone bool
-	for _, line := range strings.Split(strings.TrimSpace(beforeFinish), "\n") {
-		var ev evo.EventJSON
+	for line := range strings.SplitSeq(strings.TrimSpace(beforeFinish), "\n") {
+		var ev render.EventJSON
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			t.Fatalf("stderr JSONL is not EventJSON: %v\n%s", err, line)
 		}
@@ -185,7 +197,7 @@ func TestEVOOutput_HumanDoesNotOverrideExplicitPlain(t *testing.T) {
 		Stderr:          &buf,
 		VisibilityDelay: evo.Delay(0),
 	})
-	out.Task("scan").Doing("walk").Done("ok")
+	succeed(out.Task("scan").Doing("walk"), "ok")
 	_ = out.Finish()
 	if hasLiveRegion(buf.String()) {
 		t.Fatalf("Config.Plain: true must not be overridden by EVO_OUTPUT=human:\n%q", buf.String())
@@ -201,7 +213,7 @@ func TestEVOOutput_NoColorStillDisablesColor(t *testing.T) {
 		Stdout: &buf,
 		Stderr: &buf,
 	})
-	out.Task("ok").Done()
+	succeed(out.Task("ok"))
 	out.Task("bad").Fail("x")
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "\x1b[") {
@@ -213,13 +225,13 @@ func TestEVOOutput_StreamJSONAliasUnderscore(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "stream_json"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	got := strings.TrimSpace(buf.String())
 	if got == "" {
 		t.Fatal("EVO_OUTPUT=stream_json alias wrote nothing at Task.Done")
 	}
-	var ev evo.EventJSON
-	first := strings.SplitN(got, "\n", 2)[0]
+	var ev render.EventJSON
+	first, _, _ := strings.Cut(got, "\n")
 	if err := json.Unmarshal([]byte(first), &ev); err != nil {
 		t.Fatalf("stream_json alias must emit EventJSON: %v\n%s", err, first)
 	}
@@ -242,7 +254,7 @@ func TestEVODebug_DebugLevelSurfacesJournal(t *testing.T) {
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: &buf})
 	out.DebugForTest("trace-visible")
-	out.Task("ok").Done()
+	succeed(out.Task("ok"))
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "trace-visible") {
 		t.Fatalf("EVO_DEBUG=debug must surface Debug journal:\n%s", buf.String())

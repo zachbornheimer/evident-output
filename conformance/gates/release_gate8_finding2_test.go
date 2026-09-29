@@ -34,7 +34,7 @@ func TestTerminalOption_DefaultsPrimaryToDriverSink(t *testing.T) {
 		Isolated: true,
 		Terminal: sinkTerminal{w: &sink}, Plain: true, Color: evo.ColorNever})
 
-	out.Task("branches").Done()
+	succeed(out.Task("branches"))
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
@@ -61,7 +61,7 @@ func TestTerminalOption_OpaqueDriverStillRendersOnStdout(t *testing.T) {
 		Color:    evo.ColorNever,
 	})
 
-	out.Task("branches").Done()
+	succeed(out.Task("branches"))
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil when Stdout is configured", err)
 	}

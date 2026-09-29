@@ -1,5 +1,7 @@
 package core
 
+import "time"
+
 // Conclusion is the multidimensional meaning of a finished command.
 type Conclusion struct {
 	State   ConclusionState
@@ -21,6 +23,24 @@ type Conclusion struct {
 	Plans       []PlanSnapshot
 	Actions     []Action
 	ExitCode    int
+	// RunID identifies the Output instance that produced this Conclusion —
+	// the wire v2 envelope's "run_id" (increment 4, spec §35). Mirrors the
+	// engine's existing per-instance id (Output.outputID); never generated
+	// twice for one run.
+	RunID string
+	// StartedAt/FinishedAt are the run's wall-clock bounds, read through the
+	// engine's Clock facade — the wire v2 envelope's "started_at"/
+	// "finished_at"/derived "duration_ms" (spec §35). Zero until Finish sets
+	// them.
+	StartedAt  time.Time
+	FinishedAt time.Time
+	// DryRun mirrors Snapshot.DryRun — the wire v2 envelope's "mode"
+	// (apply|dry_run, spec §35) has no other source, since Result/Conclusion
+	// alone is WriteJSON's whole contract (spec §53).
+	DryRun bool
+	// Facts mirrors Snapshot.Facts (run-scoped evo.Fact annotations) — the
+	// wire v2 envelope's top-level "data.facts" (spec §35/§36).
+	Facts []Fact
 }
 
 // Default exit codes from architecture §26.
@@ -82,9 +102,9 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 }
 
 // anyTaskWarned reports whether any task in tasks carries at least one
-// TaskHandle.Warn annotation (P2: conclusion algebra reads TaskSnapshot.
-// Warnings, never a lifecycle state — Warning is not one of the terminal
-// EntityState values).
+// warning-severity Problem (P2: conclusion algebra reads annotations, never
+// a lifecycle state — Warning is not one of the terminal EntityState
+// values). Skipped policy exclusions do not set the warned modifier.
 func anyTaskWarned(tasks []TaskSnapshot) bool {
 	for _, t := range tasks {
 		if len(t.Warnings) > 0 {
@@ -97,7 +117,7 @@ func anyTaskWarned(tasks []TaskSnapshot) bool {
 // anyCollectionWarned recurses into every container's own tasks and nested
 // containers (E2.5 finding 1): a Snapshot's root anyTaskWarned(s.Tasks) alone
 // sees only root-level tasks, so a warned child living under a
-// Sequence/DisplayGroup — at any nesting depth — otherwise yields no "·
+// Sequence/Group — at any nesting depth — otherwise yields no "·
 // warned" modifier and Warned stays false, a silent regression from a run
 // that would have surfaced the same warning at the top level.
 func anyCollectionWarned(collections []TasksSnapshot) bool {
@@ -119,6 +139,8 @@ func InferConclusion(s Snapshot) Conclusion {
 		Changes:     s.Changes,
 		Plans:       s.Plans,
 		Actions:     s.Actions,
+		DryRun:      s.DryRun,
+		Facts:       s.Facts,
 	}
 	// A Changes section with zero records is a bare declaration that never
 	// recorded a mutation — it must not make the run read as Changed
@@ -152,20 +174,25 @@ func InferConclusion(s Snapshot) Conclusion {
 			hasDone = true
 		}
 	}
+	// A collection's State is derived from its members (see the root
+	// package's derivedState), so it can surface every verdict a Task can,
+	// and each counts exactly as the same root Task state does.
 	for _, col := range s.Collections {
 		switch col.State {
 		case Failed:
 			hasFailed = true
+		case Blocked:
+			hasBlocked = true
 		case Cancelled:
 			hasCancelled = true
-		case Incomplete, Running, Pending:
+		case Incomplete, Running, Pending, NotStarted:
 			hasIncomplete = true
-		case Done, Empty:
+		case Done, Skipped, Empty:
 			hasDone = true
 		}
 	}
 	// hasWarning reads TaskSnapshot.Warnings (P2), never a lifecycle
-	// EntityState — Warn annotates a task, it never resolves one.
+	// EntityState — a warning-severity Problem annotates a task, it never resolves one.
 	hasWarning := anyTaskWarned(s.Tasks) || anyCollectionWarned(s.Collections)
 
 	// Headline precedence: failed > blocked > cancelled > changed > planned >
@@ -210,12 +237,13 @@ func InferConclusion(s Snapshot) Conclusion {
 		c.Cancelled = true
 	}
 	// warnedModifier feeds the "· warned" band from BOTH sources at warning
-	// severity — a task's TaskHandle.Warn and the run's own evo.Warn (P8
-	// symmetry) — while hasWarning above (task/collection only) still governs
-	// the (dead, reserved-unreachable) StateWarning headline case alone, so a
-	// bare evo.Warn on a run with no tasks never invents a new headline —
-	// it only modifies whatever the run otherwise concludes (evo-rec.md
-	// "warnings annotate lifecycle; they do not replace it").
+	// severity — a task's warning-severity Problem and the run's own
+	// runWarnings (engine-internal, e.g. a failed manifest flush) — while
+	// hasWarning above (task/collection only) still governs the
+	// StateWarning headline case alone, so a run-scoped warning never
+	// invents a new headline — it only modifies whatever the run otherwise
+	// concludes (evo-rec.md "warnings annotate lifecycle; they do not
+	// replace it").
 	warnedModifier := hasWarning || len(s.Warnings) > 0
 	if warnedModifier && c.State != StateWarning {
 		c.Warned = true

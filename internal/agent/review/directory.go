@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/zachbornheimer/evident-output/internal/modpin"
 )
 
 // GoDirectory walks dir for Go source and merges per-file GoSource findings.
@@ -17,10 +15,10 @@ func GoDirectory(dir string) (Result, error) {
 }
 
 // GoDirectoryAt walks dir like GoDirectory, linting as desiredVersion
-// (empty uses detectorVersion of the go.mod pin).
+// (empty uses the go.mod pin; see DialectFor).
 func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
-	pin := pinFromDir(dir)
-	ver := detectorVersion(desiredVersion, pin.Version, pin.ReplacePath)
+	dialect := DialectFor(dir, desiredVersion)
+	ver := dialect.Lint()
 	var all []Finding
 	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -46,37 +44,7 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 	if walkErr != nil {
 		return Result{}, fmt.Errorf("review directory %s: %w", dir, walkErr)
 	}
-	all = dedupe(all)
-	reported := desiredVersion
-	if reported == "" {
-		reported = pin.Version
-	}
-	return Result{
-		Findings:        all,
-		RecheckRequired: hasRequired(all),
-		DesiredVersion:  reported,
-		ModuleVersion:   pin.Version,
-		ReplacePath:     pin.ReplacePath,
-	}, nil
-}
-
-func pinFromDir(start string) modpin.Pin {
-	dir := start
-	for {
-		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
-		if err == nil {
-			pin, err := modpin.Parse(string(data), dir)
-			if err != nil {
-				return modpin.Pin{}
-			}
-			return pin
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return modpin.Pin{}
-		}
-		dir = parent
-	}
+	return dialect.Stamp(newResult(all)), nil
 }
 
 func skipUnreviewed(d os.DirEntry) error {
@@ -89,10 +57,7 @@ func skipUnreviewed(d os.DirEntry) error {
 }
 
 func generatedHeader(src []byte) bool {
-	n := len(src)
-	if n > 4096 {
-		n = 4096
-	}
+	n := min(len(src), 4096)
 	head := string(src[:n])
 	return strings.Contains(head, "Code generated ") && strings.Contains(head, "DO NOT EDIT")
 }

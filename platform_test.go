@@ -3,10 +3,13 @@ package evo_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/render"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -26,7 +29,7 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 		Redactor: secretRedactor{},
 	})
 	task := out.Task("fetch")
-	cap := task.EvidenceForTest()
+	cap := task.Capture()
 	_, _ = fmt.Fprintln(cap, "Authorization: Bearer SECRET_TOKEN")
 	_ = cap.Close()
 
@@ -47,8 +50,8 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "id", Stdout: &buf, Stderr: &buf})
-	out.TaskIdentified("working tree", "gate.working-tree").Done()
-	out.TaskIdentified("download base", "build.base.download").Done()
+	succeed(out.Task("working tree").Key("gate.working-tree"))
+	succeed(out.Task("download base").Key("build.base.download"))
 	_ = out.Finish()
 
 	snap := out.Snapshot()
@@ -59,7 +62,7 @@ func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 		t.Fatalf("second task key: %+v", snap.Tasks)
 	}
 
-	raw, err := evo.EncodeJSON(snap)
+	raw, err := render.EncodeJSON(snap)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,32 +84,10 @@ func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 func TestEntityID_DuplicateIsMisuse(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "dup", Stdout: &buf, Stderr: &buf})
-	out.TaskIdentified("a", "same").Done()
-	out.TaskIdentified("b", "same").Done()
-	if out.Err() == nil {
+	succeed(out.Task("a").Key("same"))
+	succeed(out.Task("b").Key("same"))
+	if !errors.Is(out.Err(), evo.ErrDuplicateKey) {
 		t.Fatal("expected ErrDuplicateKey misuse")
-	}
-}
-
-func TestScope_QualifiesKeys(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "scope", Stdout: &buf, Stderr: &buf})
-	reg := out.ScopeForTest("registry")
-	reg.TaskIdentified("credentials", "auth").Done()
-	reg.TaskIdentified("pull", "image.pull").Done()
-	reg.TaskIdentified("ready", "registry.ready").Done()
-	_ = out.Finish()
-
-	snap := out.Snapshot()
-	keys := map[string]bool{}
-	for _, it := range snap.Tasks {
-		keys[it.Key] = true
-	}
-	for _, tk := range snap.Tasks {
-		keys[tk.Key] = true
-	}
-	if !keys["registry.auth"] || !keys["registry.image.pull"] || !keys["registry.ready"] {
-		t.Fatalf("scope keys: %v", keys)
 	}
 }
 
@@ -118,8 +99,8 @@ func TestResultWriter_FormatDataPurity(t *testing.T) {
 		Stdout: &result,
 		Stderr: &human,
 	})
-	out.Task("compile").Done()
-	out.Task("link").Done("bin/app")
+	succeed(out.Task("compile"))
+	succeed(out.Task("link"), "bin/app")
 	if _, err := io.WriteString(out.ResultWriter(), `{"artifact":"bin/app"}`+"\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -155,32 +136,11 @@ func TestResultWriter_UnsetIsDiscard(t *testing.T) {
 	}
 }
 
-func TestScope_NamespacedItemAndSessionTools(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "s", Stdout: &buf, Stderr: &buf})
-	sc := out.ScopeForTest("plugin")
-	if sc.Name() != "plugin" {
-		t.Fatalf("name %q", sc.Name())
-	}
-	// Scope only declares entities; session tools remain on Output.
-	sc.TaskIdentified("credentials", "auth").Done()
-	if out.Writer() == nil {
-		t.Fatal("Writer nil")
-	}
-	if out.SlogHandlerForTest() == nil {
-		t.Fatal("SlogHandler nil")
-	}
-	_ = out.Finish()
-	if out.Snapshot().Tasks[0].Key != "plugin.auth" {
-		t.Fatalf("key %q", out.Snapshot().Tasks[0].Key)
-	}
-}
-
 func TestItem_CaptureBindsEvidence(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "gate", Stdout: &buf, Stderr: &buf})
 	docker := out.Task("docker daemon")
-	cap := docker.EvidenceForTest()
+	cap := docker.Capture()
 	_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon"))
 	docker.Fail("could not inspect the daemon", cap.DetailTail())
 	_ = out.Finish()

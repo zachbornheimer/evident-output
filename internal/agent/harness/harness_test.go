@@ -30,6 +30,7 @@ func f() {
   out := evo.Init(evo.Config{})
   t := out.Task("x")
   t.Start()
+  t.Define(work)
   fmt.Printf("hi")
   _ = out
 }

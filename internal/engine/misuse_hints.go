@@ -36,9 +36,11 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 	case errors.Is(err, ErrProgressRegression):
 		return "progress must not move backward; report only increasing completed values"
 	case errors.Is(err, ErrDuplicateKey):
-		return "reuse evo.ID only for the same task name; give a new task its own evo.ID"
+		return "each task needs its own Key; this one is already taken"
+	case errors.Is(err, ErrDuplicateSiblingName):
+		return fmt.Sprintf("duplicate sibling name: %s; give each child of one parent its own name", subject)
 	case errors.Is(err, ErrInvalidConfig):
-		return "pass a string, optionally with fmt-style args, as the summary"
+		return "configure After and Verify before Define, and Define each task once with a non-nil callback"
 	case errors.Is(err, ErrRenderer):
 		return "the configured writer failed; check the output destination"
 	case errors.Is(err, ErrLimitExceeded):
@@ -53,8 +55,10 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 		return "call DeclareDryRun before any Task/Print/Confirm row streams"
 	case errors.Is(err, ErrWaitDeadlock):
 		return fmt.Sprintf("nothing left in the run can resolve %s; a task cannot wait on itself or on a task waiting on it", subject)
+	case errors.Is(err, errDependencyCycle):
+		return fmt.Sprintf("After forms a cycle (%s); a task cannot run after itself, directly or through a Group it belongs to", subject)
 	case errors.Is(err, ErrTerminalWithoutSink):
-		return "pass evo.To(w) alongside evo.Terminal(driver), or use a driver whose Sink() reports its writer"
+		return "set Config.Stdout alongside Config.Terminal, or use a driver whose Sink() reports its writer"
 	default:
 		// Every sentinel this package defines has a case above; a caller-
 		// supplied error reaching here (there is no such path today) still

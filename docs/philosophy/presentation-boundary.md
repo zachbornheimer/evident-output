@@ -103,7 +103,7 @@ func main() {
 }
 ```
 
-`Main` is ordinary convenience for standalone tools, **not** a second product category and **not** a framework — it exits the process itself via an injectable facade. (`MainWith`, the pre-1.0 counterpart for an `Isolated` `*Output`, was removed in 1.0 — an `Isolated` instance now calls its own `Output.Run` instead, shown below.)
+`Main` is ordinary convenience for standalone tools, **not** a second product category and **not** a framework — it returns the exit code for `os.Exit` and never exits the process itself. (`MainWith`, the pre-1.0 counterpart for an `Isolated` `*Output`, was removed in 1.0 — an `Isolated` instance now calls its own `Output.Run` instead, shown below.)
 
 Lifecycle (authoritative; matches `run.go`):
 

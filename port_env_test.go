@@ -16,7 +16,7 @@ func TestPORT006_TermDumbLikeNonInteractive(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Doing("x").Done("ok")
+	succeed(out.Task("t").Doing("x"), "ok")
 	_ = out.Finish()
 	if strings.ContainsAny(buf.String(), "\x1b") {
 		t.Fatal("ANSI in dumb mode")
@@ -30,7 +30,7 @@ func TestPORT_NO_COLOREnvHonoredViaOption(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("x").Done()
+	succeed(out.Task("x"))
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "\x1b[") {
 		t.Fatal(buf.String())
@@ -41,7 +41,7 @@ func TestTERM011_WidthZeroFallsBackSafely(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Width: 0, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("c").Add("x", func() error { return nil }, evo.Affected(1))
+	out.Task("c").Define(effectOf(evo.EffectAdd, "x", 1))
 	_ = out.Finish()
 	if buf.Len() == 0 {
 		t.Fatal("expected output")
@@ -53,7 +53,7 @@ func TestTERM012_SmallHeightBudget(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
 	t.Cleanup(func() { _ = out.Close() })
 	col := out.Group("g")
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		col.Task("t").Doing("p")
 	}
 	got := screen.LatestLiveText()

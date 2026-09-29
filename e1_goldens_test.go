@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"strings"
@@ -26,8 +27,7 @@ func TestE1P1_MutationVerb_SuccessCommitsChangedEffect(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(2))
-	branches.Done()
+	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 2))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -48,8 +48,7 @@ func TestE1P1_MutationVerb_NilCallRecordsWithoutExecuting(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(2))
-	branches.Done()
+	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 2))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -67,7 +66,7 @@ func TestE1P1_MutationVerb_CallErrorCommitsNothing(t *testing.T) {
 
 	branches := out.Task("branches")
 	wantErr := errors.New("permission denied")
-	_ = branches.Failf("delete stale branches: %w", wantErr)
+	branches.Fail("delete stale branches", evo.Detail(wantErr.Error()))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -92,10 +91,12 @@ func TestE1P1_MutationVerb_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
 
 	branches := out.Task("branches")
 	called := false
-	branches.Delete("stale local branch", func() error {
-		called = true
-		return nil
-	}, evo.Affected(2))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {
+			called = true
+			return nil
+		})
+	})
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -120,16 +121,16 @@ func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Warn("kept 11 (7 protected, 4 unpushed)")
-	branches.Done()
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
+	succeed(branches)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
 	// E2.5 finding 3: the inline warning carries the same "! " bang the
-	// normative repo-retire dry-run fixture uses ("! kept 13 (...)") — an
-	// inline and a nested warning must signal identically, one row, one line.
+	// nested warning line uses — an inline and a nested warning must signal
+	// identically, one row, one line.
 	if !strings.Contains(got, "✓ branches  ! kept 11 (7 protected, 4 unpushed)\n") {
 		t.Fatalf("want the warning inlined on the ✓ row with its \"! \" prefix, got:\n%s", got)
 	}
@@ -146,9 +147,9 @@ func TestE1P2_Warn_MultipleWarningsNestUnderneath(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Warn("kept 11 (7 protected, 4 unpushed)")
-	branches.Warn("2 remotes unreachable")
-	branches.Done()
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
+	branches.Problem("2 remotes unreachable", evo.Severity(evo.SeverityWarning))
+	succeed(branches)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -168,11 +169,11 @@ func TestE1P2_Warn_DoesNotResolveTask(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 
 	task := out.Task("cache")
-	task.Warn("stale entry ignored")
+	task.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 	if got := task.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
 		t.Fatalf("state = %v, want non-terminal (Warn must not resolve the task)", got)
 	}
-	task.Done()
+	succeed(task)
 	if got := task.Snapshot().State; got != evo.Done {
 		t.Fatalf("state = %v, want Done", got)
 	}
@@ -185,7 +186,7 @@ func TestE1P2_Warn_DoesNotResolveTask(t *testing.T) {
 func TestE1P2_Warn_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 
-	out.Task("cache").Warn("stale entry ignored")
+	out.Task("cache").Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (Warn-only task should auto-resolve Done)", err)
 	}
@@ -207,7 +208,7 @@ func TestE1P9_LifecycleStatesAreDistinct(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Task("done-task").Done()
+	succeed(out.Task("done-task"))
 	out.Task("failed-task").Fail("build broke")
 	out.Task("blocked-task").Block("needs confirmation")
 

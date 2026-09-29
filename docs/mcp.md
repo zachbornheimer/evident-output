@@ -44,25 +44,25 @@ from this module / a path replace). Never `GOBIN=$HOME/.local/bin` — install l
 
 ### 0.2 → 0.4 (do not copy v0.2 spellings)
 
-| Gone                                                                                                                                                     | Use                                                                                                        |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `evo.New`                                                                                                                                                | `evo.Init`                                                                                                 |
-| `out.Item`                                                                                                                                               | `out.Task`                                                                                                 |
-| `out.Plan` / `out.Changes`                                                                                                                               | Task mutation verbs (`Delete`/`Create`/`Record`/…)                                                         |
-| `Capture` / Evidence on task or item                                                                                                                     | `cmd.Stdout = task.Writer()`                                                                               |
-| `Config.Options` / `[]evo.Option{...}` / `evo.To` / `evo.Plain` / `evo.NoColor` / `evo.Stdin` / `evo.DryRun` / `evo.VisibilityDelay` / `evo.Diagnostics` | Config fields (`Stdout`, `Plain`, `Color: evo.ColorNever`, `Stdin`, `DryRun`, `VisibilityDelay`, `Stderr`) |
-| positional quantity-first mutation verbs                                                                                                                 | `Delete(object, fn)` / `evo.Affected(n)` (same for Remove/Add/Create/Update/Push/Write)                    |
-| retired independent-collection constructor                                                                                                               | `evo.Group`                                                                                                |
-| `.Skip(`                                                                                                                                                 | `.Skipped(`                                                                                                |
-| `evo.ID` / `evo.StartPhase`                                                                                                                              | Task name only; `.Doing(...)` for the first phase                                                          |
-| `evo.MainWith` (removed in 1.0)                                                                                                                          | `evo.Main` / `Output.Run`                                                                                  |
+| Gone                                                                                                                                                     | Use                                                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `evo.New`                                                                                                                                                | `evo.Init`                                                                                                  |
+| `out.Item`                                                                                                                                               | `out.Task`                                                                                                  |
+| `out.Plan` / `out.Changes`                                                                                                                               | `evo.Effect` / `evo.File` inside `Define`                                                                   |
+| `Capture` / Evidence on task or item                                                                                                                     | `cmd.Stdout = task.Writer()`                                                                                |
+| `Config.Options` / `[]evo.Option{...}` / `evo.To` / `evo.Plain` / `evo.NoColor` / `evo.Stdin` / `evo.DryRun` / `evo.VisibilityDelay` / `evo.Diagnostics` | Config fields (`Stdout`, `Plain`, `Color: evo.ColorNever`, `Stdin`, `DryRun`, `VisibilityDelay`, `Stderr`)  |
+| mutation verbs removed in 1.1: 0.x `Delete(n, object)` and 1.0 object-first `Delete(object, fn)` + `evo.Affected(n)` (and Add/Create/Update/Remove/Push) | `Define` + `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)`; the removed `Write` is `evo.File` |
+| retired independent-collection constructor                                                                                                               | `evo.Group`                                                                                                 |
+| `.Skip(`                                                                                                                                                 | `.Skipped(`                                                                                                 |
+| `evo.ID` / `evo.StartPhase`                                                                                                                              | `task.Key("...")` before `Define`; `.Doing(...)` for the first phase                                        |
+| `evo.MainWith` (removed in 1.0)                                                                                                                          | `evo.Main` / `Output.Run`                                                                                   |
 
 The librarian case study is a v0.2.9 snapshot. Review reports API-032 on the deleted constructors.
 
 ## Install the binary (pinned)
 
 ```bash
-go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.5.2
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v1.0.0
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 "$HOME/.local/bin/evident-output-mcp" --version

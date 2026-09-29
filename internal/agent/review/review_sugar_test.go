@@ -37,6 +37,7 @@ import evo "github.com/zachbornheimer/evident-output"
 func run(out *evo.Output) {
   t := out.Task("install:fresh-start")
   t.Doing("running install:fresh-start")
+  t.Define(install)
 }
 `
 
