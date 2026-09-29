@@ -269,8 +269,8 @@ func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s S
 	}
 }
 
-// writeRunAnnotations renders evo.Warn/evo.Fact's run-scoped annotations
-// (P8 symmetry with a task's own Warn/Fact) — fire-and-forget durable dim
+// writeRunAnnotations renders run-scoped warning Problems and evo.Fact
+// annotations (P8 symmetry with a task's own Problem/Fact) — fire-and-forget durable dim
 // lines, warnings first: "! <text>" then "<name>  <value>", in call order
 // within each severity.
 func writeRunAnnotations(b *strings.Builder, warnings []core.Problem, facts []core.Fact, s Style) {

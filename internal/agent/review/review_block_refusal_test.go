@@ -7,36 +7,10 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
 )
 
-// blockRefusalRules are the rules that rewrite a Fail/Block site. E-105:
-// each of them turned a Define's refusal into a failure — they suggested
-// `return fmt.Errorf(...)` for a Block site (a plain error concludes
-// Failed, exit 2) or flagged `return task.Blockf(...)`, the one spelling
-// that refuses inside Define.
+// blockRefusalRules are the rules that used to rewrite a Block site into a
+// failure. In 1.1 Block is a statement: Block then return nil inside Define
+// keeps the Task Blocked. A plain error concludes Failed, exit 2.
 var blockRefusalRules = map[string]bool{"API-034": true, "API-036": true, "API-040": true}
-
-// blockRefusalLoop is one Block site inside Define, the line review should
-// rewrite it to, and the source after that rewrite.
-type blockRefusalLoop struct {
-	name, before, want string
-}
-
-var blockRefusalLoops = []blockRefusalLoop{
-	{
-		name:   "Block then return nil",
-		before: "task.Block(\"refused x\")\n    return nil",
-		want:   `return task.Blockf("refused x")`,
-	},
-	{
-		name:   "Block(Sprintf) then return nil",
-		before: "task.Block(fmt.Sprintf(\"refused %s\", name))\n    return nil",
-		want:   `return task.Blockf("refused %s", name)`,
-	},
-	{
-		name:   "Block then return err",
-		before: "task.Block(\"refused x\")\n    return err",
-		want:   `return task.Blockf("<context>: %w", err)`,
-	},
-}
 
 func blockRefusalSrc(body string) string {
 	return `package p
@@ -54,29 +28,23 @@ func run(task *evo.TaskHandle, name string, err error) {
 `
 }
 
-// TestBlockRefusal_ReviewLoopKeepsTheRefusal pins E-105: every Block form
-// inside Define gets exactly one suggestion, that suggestion is
-// `return task.Blockf(...)` (never fmt.Errorf), and the rewritten source is
-// clean for all three rules — so the MUST-loop ends with the Task still
-// concluding Blocked.
+// TestBlockRefusal_ReviewLoopKeepsTheRefusal pins E-105 for 1.1: Block then
+// return nil inside Define is the refusal. Review must not rewrite it to
+// Failf/Blockf or fmt.Errorf.
 func TestBlockRefusal_ReviewLoopKeepsTheRefusal(t *testing.T) {
-	for _, tc := range blockRefusalLoops {
+	cases := []struct{ name, body string }{
+		{"Block then return nil", "task.Block(\"refused x\")\n    return nil"},
+		{"Block(Sprintf) then return nil", "task.Block(fmt.Sprintf(\"refused %s\", name))\n    return nil"},
+		{"Block with Detail then return nil", "task.Block(\"refused x\", evo.Detail(err.Error()))\n    return nil"},
+	}
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var hits []review.Finding
-			for _, f := range review.GoSource("block.go", blockRefusalSrc(tc.before)).Findings {
+			for _, f := range review.GoSource("block.go", blockRefusalSrc(tc.body)).Findings {
 				if blockRefusalRules[f.RuleID] {
-					hits = append(hits, f)
+					t.Fatalf("%s flagged the 1.1 Block refusal: %+v", f.RuleID, f)
 				}
-			}
-			if len(hits) != 1 {
-				t.Fatalf("want one Fail/Block rewrite, got %d: %+v", len(hits), hits)
-			}
-			if s := hits[0].Suggestion; !strings.Contains(s, "`"+tc.want+"`") || strings.Contains(s, "fmt.Errorf") {
-				t.Fatalf("%s suggestion = %q, want %q and no fmt.Errorf", hits[0].RuleID, s, tc.want)
-			}
-			for _, f := range review.GoSource("block.go", blockRefusalSrc(tc.want)).Findings {
-				if blockRefusalRules[f.RuleID] {
-					t.Fatalf("the applied suggestion is flagged again: %+v", f)
+				if strings.Contains(f.Suggestion, "Blockf") || strings.Contains(f.Suggestion, "Failf") {
+					t.Fatalf("suggestion teaches a removed printf verb: %q", f.Suggestion)
 				}
 			}
 		})

@@ -47,8 +47,8 @@ func writeProblem(b *strings.Builder, p core.Problem, indent string, emphasize b
 
 // dedupeEvidenceTailAgainstRow is P7's addition (user-13-problems.md
 // Problem 7: "deduplicate it against the failure message"). The exact
-// anti-pattern the doc names — task.Failf("install failed: %s",
-// capture.Text()) — folds the retained output straight into the row's own
+// anti-pattern the doc names — task.Fail("install failed", evo.Detail(
+// capture.Text())) — folds the retained output straight into the row's own
 // summary; auto-attach (task.go's finish) still sets EvidenceTail from the
 // same capture ring, which would otherwise render that text a second time
 // underneath the row. Clearing it here (a rendering decision, made once

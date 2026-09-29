@@ -110,7 +110,8 @@ type captureOptionFunc func(*evidence)
 
 func (f captureOptionFunc) applyCapture(c *evidence) { f(c) }
 
-// KeepLastLines sets how many trailing lines are retained (default 200).
+// keepLastLines sets how many trailing lines the ring retains (default 200).
+// KeepLastLines was removed in 1.1; MaxCaptureBytes is the public option.
 func keepLastLines(n int) CaptureOption {
 	return captureOptionFunc(func(c *evidence) {
 		if n > 0 {

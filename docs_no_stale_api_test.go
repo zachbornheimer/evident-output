@@ -30,6 +30,7 @@ var staleAPIScanRoots = []string{
 	"docs",
 	"internal/agent/sections",
 	"skills",
+	"examples",
 }
 
 var staleAPIScanFiles = []string{
@@ -38,17 +39,12 @@ var staleAPIScanFiles = []string{
 	"doc.go",
 }
 
-// staleAPIHistoricalFragments mark frozen/verbatim documents — old design
-// specs, ADRs, and the input spec copy — that describe past or externally
-// authored state rather than teaching the current API. version_drift_test.go
-// exempts the same class of path for the same reason.
+// staleAPIHistoricalFragments are the only current-docs scan skip: migration
+// notes and the changelog may name removed spellings as history. Architecture,
+// ADRs, acceptance-reference, and roadmap teach the live API.
 var staleAPIHistoricalFragments = []string{
-	"docs/architecture/",
-	"docs/adr/",
-	"docs/acceptance/reference/",
-	// The v0.2.8-era planning basis: dated design history, not current API.
-	"docs/roadmap/implementation-basis.md",
-	"/COMPLETENESS_",
+	"docs/migration/",
+	"CHANGELOG.md",
 }
 
 func TestDocsCarryNoStaleAPI(t *testing.T) {
@@ -102,14 +98,17 @@ func currentDocs(t *testing.T, root string) map[string]string {
 	}
 	for _, dir := range staleAPIScanRoots {
 		base := filepath.Join(root, dir)
+		scanGo := dir == "examples"
 		if err := filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if d.IsDir() || !strings.HasSuffix(path, ".md") {
+			if d.IsDir() {
 				return nil
 			}
-			files[path] = struct{}{}
+			if strings.HasSuffix(path, ".md") || (scanGo && strings.HasSuffix(path, ".go")) {
+				files[path] = struct{}{}
+			}
 			return nil
 		}); err != nil {
 			t.Fatalf("walk %s: %v", base, err)

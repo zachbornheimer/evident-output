@@ -83,8 +83,8 @@ func TestAPI032_OptionsRewriteKeepsEveryOptionAndCompiles(t *testing.T) {
 func TestAPI032_OptionsWithoutFieldOffersNoRewrite(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f(drv evo.TerminalDriver) {
-	_ = evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv), evo.DebugPane()}})
+func f(drv evo.TerminalDriver, extra interface{}) {
+	_ = evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv), extra}})
 }
 `
 	found := findAPI032(review.GoSource("p.go", src))

@@ -69,16 +69,12 @@ func detectHandAssembledTaxonomyCount(filename, src string) []Finding {
 		if !taxonomyReasonPattern.MatchString(lit) || !strings.Contains(lit, "%d") {
 			continue
 		}
-		verb := "Skipped"
-		if strings.Contains(strings.ToLower(lit), "kept") || strings.Contains(strings.ToLower(lit), "retained") {
-			verb = "Kept"
-		}
 		findings = append(findings, Finding{
 			RuleID:     "TAX-001",
-			Message:    "hand-assembled skip/keep count string; record reason + name via task.Skipped/Kept and let evo derive and sum the partition",
+			Message:    "hand-assembled skip/keep count string; record reason via task.Skipped and let evo derive and sum the partition",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "replace with task." + verb + "(evo.Reason(\"...\"), name) for each item; evo derives and sums the count",
+			Suggestion: `replace with task.Skipped(evo.Reason("...")) for each item; evo derives and sums the count`,
 		})
 	}
 	return findings

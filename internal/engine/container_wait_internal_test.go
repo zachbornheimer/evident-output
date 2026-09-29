@@ -238,23 +238,23 @@ func TestSequenceHandle_Wait_PreservesOrdering(t *testing.T) {
 		MaxConcurrency: 4, Stdout: &buf, Stderr: io.Discard,
 	})
 
-	var step int32
+	var step atomic.Int32
 	res := out.Run(context.Background(), func(ctx context.Context) error {
 		seq := out.Sequence("ordered")
 		seq.Task("scan").Define(func(ctx context.Context) error {
-			if !atomic.CompareAndSwapInt32(&step, 0, 1) {
+			if !step.CompareAndSwap(0, 1) {
 				t.Error("scan did not run first")
 			}
 			return nil
 		})
 		seq.Task("venv").Define(func(ctx context.Context) error {
-			if !atomic.CompareAndSwapInt32(&step, 1, 2) {
+			if !step.CompareAndSwap(1, 2) {
 				t.Error("venv did not run second")
 			}
 			return nil
 		})
 		seq.Task("install").Define(func(ctx context.Context) error {
-			if !atomic.CompareAndSwapInt32(&step, 2, 3) {
+			if !step.CompareAndSwap(2, 3) {
 				t.Error("install did not run third")
 			}
 			return nil

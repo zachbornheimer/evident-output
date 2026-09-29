@@ -13,11 +13,11 @@ One leaf entity, one constructor, plus two structural containers. A `Task` answe
 both questions "is this state acceptable?" and "how is this work going?" —
 which one depends on how it's used, not on a separate type:
 
-| Noun         | Meaning                                                                                                                                                        |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | A named condition or unit of work — its check or work runs in `Define`; `Warn`/`Block`/`Fail`/`Skipped` state a condition, `Doing`/`Progress` narrate **work** |
-| **Sequence** | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                               |
-| **Group**    | Independent collection — no ordering semantics; any number of children may be `Running` at once                                                                |
+| Noun         | Meaning                                                                                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**     | A named condition or unit of work — its check or work runs in `Define`; `Problem`/`Block`/`Fail`/`Skipped` state a condition, `Doing`/`Progress` narrate **work** |
+| **Sequence** | Ordered children — each depends on its predecessor; a failed child marks later children `NotStarted`, never a false Done/Pending                                  |
+| **Group**    | Independent collection — no ordering semantics; any number of children may be `Running` at once                                                                   |
 
 Both containers derive their state entirely from their children — never
 `.Fail()` or a success stamp on the container itself (see RULE-002 below).
@@ -33,19 +33,19 @@ one entity, one constructor. `ItemHandle` no longer exists; use `TaskHandle`.)
 
 ---
 
-## Warn / Block / Fail
+## Problem / Block / Fail
 
 Severity on conditions and terminal outcomes on work — the same verbs either
 way. Success is not a verb the caller calls: a `Define` callback that returns
 `nil` is the Task holding (1.1 removed `Done`; `Summary` carries optional
 result text).
 
-| Outcome                   | User meaning                                          |
-| ------------------------- | ----------------------------------------------------- |
-| **Define returns nil**    | Condition holds; work succeeded                       |
-| **Warn**                  | Proceed, but notice this                              |
-| **Block**                 | Stop until the user acts (not necessarily a Go error) |
-| **Fail** / returned error | Operation failed                                      |
+| Outcome                            | User meaning                                          |
+| ---------------------------------- | ----------------------------------------------------- |
+| **Define returns nil**             | Condition holds; work succeeded                       |
+| **Problem** at **SeverityWarning** | Proceed, but notice this                              |
+| **Block**                          | Stop until the user acts (not necessarily a Go error) |
+| **Fail** / returned error          | Operation failed                                      |
 
 ```go
 gate.Define(func(ctx context.Context) error {
@@ -54,7 +54,7 @@ gate.Define(func(ctx context.Context) error {
         return fmt.Errorf("could not inspect working tree: %w", err)
     }
     if status.Ignored > 0 {
-        gate.Warn("contains ignored files", evo.Detail("2 files"))
+        gate.Problem("contains ignored files", evo.Severity(evo.SeverityWarning), evo.Detail("2 files"))
     }
     if status.Dirty {
         gate.Block("contains local changes", evo.Detail("stash or commit them"))
@@ -73,31 +73,30 @@ gate.Block("contains local changes", evo.On("working tree"), evo.Detail("stash o
 
 ---
 
-## Problem / Detail / Failf evidence
+## Problem / Detail / Fail evidence
 
-| Piece        | Audience            | Role                                                                  |
-| ------------ | ------------------- | --------------------------------------------------------------------- |
-| **Problem**  | Structured evidence | Subject + summary (+ optional pieces) for one failure unit            |
-| **Detail**   | **User-facing**     | What the human should know or do                                      |
-| **Failf %w** | **User-facing**     | Wrapped error's text, rendered as one evidence line under the summary |
+| Piece             | Audience            | Role                                                                 |
+| ----------------- | ------------------- | -------------------------------------------------------------------- |
+| **Problem**       | Structured evidence | Subject + summary (+ optional pieces) for one failure unit           |
+| **Detail**        | **User-facing**     | What the human should know or do                                     |
+| **fmt.Errorf %w** | **User-facing**     | Wrapped error's text, returned from Define (or attached with Detail) |
 
-PHIL-005: a trailing `": %w"`/`", %w"` on `Failf`/`Blockf` splits the formatted text into the
-rendered summary and an evidence line for the wrapped error — both user-facing. Use `Detail`
+PHIL-005: Fail/Block are statements. Inside Define, `return fmt.Errorf("download failed: %w", err)`
+lets Define resolve the Task and keeps the wrapped error's text as evidence. Use `Detail`
 for stable guidance text that isn't derived from an error. Do not bury the only user message in
 a wrapped error alone with an empty summary.
 
 ```go
 // Right
 task.Block("contains local changes", evo.Detail("stash or commit them"))
-return task.Failf("download failed: %w", err)
+return fmt.Errorf("download failed: %w", err)
 
 // Wrong — user message only in the wrapped error, empty human summary
-return task.Failf(": %w", err)
+return fmt.Errorf(": %w", err)
 ```
 
-`evo.Cause` (a `ProblemOption` from before this split existed) is removed: `Fail`/`Block` are
-statement-form, so a wrapped error's diagnostic text flows through `Failf`'s trailing `%w`
-instead.
+`evo.Cause` (a `ProblemOption` from before this split existed) was removed in 1.1: `Fail`/`Block` are
+statements, so attach the error text with `evo.Detail(err.Error())` or `return fmt.Errorf` inside Define.
 
 ---
 
@@ -145,10 +144,10 @@ it already happened bypasses dry-run planning, so the mutation itself moves into
 
 ---
 
-## Evidence ownership
+## Capture ownership
 
-Evidence attaches **tool-backed proof** (command output tails, etc.) to a Task.
-"Stdout" would lie as a name — it also takes stderr and combined writes; Evidence says what
+Capture attaches **tool-backed proof** (command output tails, etc.) to a Task.
+"Stdout" would lie as a name — it also takes stderr and combined writes; Capture says what
 it is for.
 
 - Prefer **Writer on the Task** (ordinary lead sheet), whether it's a condition or work.
@@ -160,7 +159,7 @@ cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 ```
 
-Who owns the handle: the entity whose condition or work the evidence explains. Do not Capture “somewhere nearby” for convenience.
+Who owns the handle: the entity whose condition or work the capture explains. Do not Capture “somewhere nearby” for convenience.
 
 ---
 
@@ -241,12 +240,12 @@ Per-file progress is added only when users need confidence during sufficiently l
 Both are valid:
 
 ```go
-task.Failf("tests failed: %w", err)
+task.Fail("tests failed", evo.Detail(err.Error()))
 return err
 ```
 
 ```go
-task.Failf("one expected operation failed: %w", err)
+task.Fail("one expected operation failed", evo.Detail(err.Error()))
 return nil
 ```
 

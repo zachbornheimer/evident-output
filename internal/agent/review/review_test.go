@@ -136,29 +136,31 @@ func check() error {
 	}
 }
 
-// TestAPI028_FailfWithoutFormat is C6's sync: Donef and the rest of the *f
-// family are deleted (Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are
-// printf-variadic themselves now); Failf/Blockf survive for their %w+
-// *Failure semantics, and API-028 now flags one of those with no directive
-// at all instead.
+// TestAPI028_FailfWithoutFormat: Failf was removed in 1.1. API-032 rewrites
+// it; API-028 no longer owns a printf-verb family.
 func TestAPI028_FailfWithoutFormat(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f() {
-  out := evo.New()
-  _ = out.Task("t").Failf("modules cached")
-  _ = out.Task("u").Failf("%d ok", 1)
+func f(task *evo.TaskHandle) {
+  task.Failf("modules cached")
+  task.Failf("%d ok", 1)
 }
 `
 	res := review.GoSource("x.go", src)
-	var n int
+	var api028, api032 int
 	for _, f := range res.Findings {
-		if f.RuleID == "API-028" {
-			n++
+		switch f.RuleID {
+		case "API-028":
+			api028++
+		case "API-032":
+			api032++
 		}
 	}
-	if n != 1 {
-		t.Fatalf("want one API-028, got %d: %+v", n, res.Findings)
+	if api028 != 0 {
+		t.Fatalf("API-028 must not fire on Failf (API-032 owns the 1.1 rewrite): %+v", res.Findings)
+	}
+	if api032 == 0 {
+		t.Fatalf("want API-032 on Failf, got %+v", res.Findings)
 	}
 }
 
@@ -1085,13 +1087,14 @@ func f(task *evo.TaskHandle, capture *evo.Capture) {
 	}
 }
 
-// TestEV001_NoFalsePositiveOnPavedPath proves the paved-path Failf("...: %w",
-// err) shape — which lets auto-attach do its one job — never triggers EV-001.
+// TestEV001_NoFalsePositiveOnPavedPath proves the paved-path Fail+return
+// shape — which lets auto-attach do its one job — never triggers EV-001.
 func TestEV001_NoFalsePositiveOnPavedPath(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, err error) *evo.Failure {
-  return task.Failf("install dependencies: %w", err)
+func f(task *evo.TaskHandle, err error) error {
+  task.Fail("install dependencies")
+  return err
 }
 `
 	res := review.GoSource("good.go", good)
@@ -1683,7 +1686,7 @@ func run() int {
 	}
 }
 
-func TestAPI032_CauseDerivesFailfSuggestion(t *testing.T) {
+func TestAPI032_CauseDerivesDetailSuggestion(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(task *evo.TaskHandle, err error) {
@@ -1695,26 +1698,9 @@ func f(task *evo.TaskHandle, err error) {
 	if len(found) != 1 {
 		t.Fatalf("expected one API-032 finding for evo.Cause, got %+v", found)
 	}
-	want := `task.Failf("validate policy manifest: %w", err)`
+	want := `task.Fail("validate policy manifest", evo.Detail(err.Error()))`
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
-	}
-}
-
-func TestAPI032_CaptureRenamedToEvidence(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle) {
-  _ = task.Capture()
-}
-`
-	res := review.GoSource("capture.go", src)
-	found := findAPI032(res)
-	if len(found) != 1 {
-		t.Fatalf("expected one API-032 finding for Capture, got %+v", found)
-	}
-	if found[0].Suggestion != "replace task.Capture(...) with task.Evidence(...)" {
-		t.Fatalf("suggestion = %q", found[0].Suggestion)
 	}
 }
 
@@ -1785,7 +1771,8 @@ import evo "github.com/zachbornheimer/evident-output"
 func f(out *evo.Output) error {
   task := out.Task("validate")
   if err := check(); err != nil {
-    return task.Failf("validate failed: %w", err)
+    task.Fail("validate failed", evo.Detail(err.Error()))
+    return err
   }
   return nil
 }
@@ -1844,8 +1831,8 @@ func f(cmd *exec.Cmd) {
 	}
 }
 
-// TestAPI036_SprintfInVerb: a Fail/Block(fmt.Sprintf(...)) statement
-// followed by a return hands the formatted error back in one line.
+// TestAPI036_SprintfInVerb: Fail(fmt.Sprintf(...)) is already the 1.1
+// form. API-036 stays silent; API-034 still flags Fail then return nil.
 func TestAPI036_SprintfInVerb(t *testing.T) {
 	src := `package p
 import (
@@ -1858,20 +1845,13 @@ func f(task *evo.TaskHandle, branch string) error {
 }
 `
 	res := review.GoSource("sprintfverb.go", src)
-	var api036, api034 int
 	for _, f := range res.Findings {
-		switch f.RuleID {
-		case "API-036":
-			api036++
-			if !strings.Contains(f.Suggestion, `return task.Failf("delete failed on %s", branch)`) {
-				t.Fatalf("suggestion = %q", f.Suggestion)
-			}
-		case "API-034":
-			api034++
+		if f.RuleID == "API-036" {
+			t.Fatalf("API-036 must stay silent on Fail(fmt.Sprintf(...)): %+v", f)
 		}
-	}
-	if api036 != 1 || api034 != 0 {
-		t.Fatalf("want one API-036 and no duplicate API-034, got %d/%d: %+v", api036, api034, res.Findings)
+		if strings.Contains(f.Suggestion, "Failf") || strings.Contains(f.Suggestion, "Blockf") {
+			t.Fatalf("suggestion teaches a removed printf verb: %q", f.Suggestion)
+		}
 	}
 }
 
@@ -1943,10 +1923,10 @@ func f(task *evo.TaskHandle, path string) {
 	}
 }
 
-// TestAPI038_WarnFlattensNotWarnf proves the Warn case flattens into Warn's
-// own variadic form rather than repeating API-036's now-stale suggestion of
-// a Warnf method that no longer exists (P1/P2 deleted it).
-func TestAPI038_WarnFlattensNotWarnf(t *testing.T) {
+// TestAPI038_WarnMigratesToProblem proves dirty task.Warn(fmt.Sprintf(...))
+// rewrites through API-032 to Problem at SeverityWarning. Warn is removed
+// in 1.1: do not flatten the Sprintf into task.Warn, and do not invent Warnf.
+func TestAPI038_WarnMigratesToProblem(t *testing.T) {
 	src := `package p
 import (
   "fmt"
@@ -1957,13 +1937,23 @@ func f(task *evo.TaskHandle, n int) {
 }
 `
 	res := review.GoSource("sprintfwarn.go", src)
+	var api032 review.Finding
 	for _, f := range res.Findings {
 		if f.RuleID == "API-036" {
-			t.Fatalf("API-036 must not fire on Warn (Warnf does not exist): %+v", f)
+			t.Fatalf("API-036 must not fire on Warn: %+v", f)
 		}
-		if f.RuleID == "API-038" && f.Suggestion != `task.Warn("kept %d", n)` {
-			t.Fatalf("suggestion = %q", f.Suggestion)
+		if f.RuleID == "API-038" {
+			t.Fatalf("API-038 must not flatten Warn; migrate to Problem: %+v", f)
 		}
+		if f.RuleID == "API-032" && strings.Contains(f.Suggestion, "Problem(") {
+			api032 = f
+		}
+	}
+	if api032.Suggestion == "" {
+		t.Fatalf("expected API-032 Problem rewrite, got %+v", res.Findings)
+	}
+	if !strings.Contains(api032.Suggestion, `task.Problem(fmt.Sprintf("kept %d", n), evo.Severity(evo.SeverityWarning))`) {
+		t.Fatalf("suggestion = %q", api032.Suggestion)
 	}
 }
 

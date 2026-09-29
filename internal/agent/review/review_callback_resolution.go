@@ -1,5 +1,6 @@
 // Package review — API-040 and FP-006: a Define callback that resolves its
-// own row twice, and Doing-then-Done theater (Done was removed in 1.1; the
+// own row twice (Fail is current; Failf was removed in 1.1), and
+// Doing-then-Done theater (Done was removed in 1.1; the
 // detector still recognizes the legacy shape).
 package review
 
@@ -8,11 +9,11 @@ import (
 	"go/token"
 )
 
-// ===== API-040: Failf/Fail inside a Define/mutation callback whose result
+// ===== API-040: Fail inside a Define/mutation callback whose result
 // is returned, directly or one call away (zq app.go:308-350's executeCommand,
 // reached from runParallel's Define at app.go:155-176). Double-resolves the
-// task: Define's own "non-nil return fails" collides with Failf's "resolve
-// and return" (evo-dialect-axes-report.md axis 3/6/12).
+// task: Define's own "non-nil return fails" collides with Fail's resolve
+// (evo-dialect-axes-report.md axis 3/6/12). Failf was removed in 1.1.
 
 func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	funcs := map[string]*ast.BlockStmt{}
@@ -51,8 +52,9 @@ func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.F
 
 // scanBlockForFailfReturn recurses through a block's own control-flow
 // (if/for/range/switch), never into a nested FuncLit, looking for the two
-// double-resolve shapes: `return task.Failf(...)` and `task.Fail(...)`
-// immediately followed by `return <non-nil err>`.
+// double-resolve shapes: `return task.Fail(...)` and `task.Fail(...)`
+// immediately followed by `return <non-nil err>`. Failf was removed in 1.1
+// and remains dirty input.
 func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
 	var findings []Finding
 	stmts := block.List
@@ -67,9 +69,9 @@ func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.
 				continue
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			// `return task.Blockf(...)` is how a Define refuses: the
-			// returned refusal keeps the Task Blocked (E-105). Only Failf
-			// restates what the returned error already does.
+			// Block then return nil is how a Define refuses (E-105). Failf
+			// was removed in 1.1; only Fail restates what the returned
+			// error already does.
 			if !ok || sel.Sel.Name != "Failf" || !isLikelyEvoReceiver(sel.X) {
 				continue
 			}
@@ -131,15 +133,15 @@ func failResolvedInCallbackFinding(filename string, pos token.Position, recv, ve
 	suggestion := "return the error; do not call " + verb + " first"
 	switch {
 	case verb == "Block":
-		// Block then return err keeps the Task Blocked and drops err;
-		// Blockf returns the refusal with err as its cause.
+		// Block then return err keeps the Task Blocked and drops err.
+		// Block is a statement: Block then return nil is the 1.1 refusal.
 		return Finding{
 			RuleID:     "API-040",
 			Message:    "Block then return err: the Task concludes Blocked and err is dropped from its refusal",
 			File:       filename,
 			Line:       pos.Line,
 			Column:     pos.Column,
-			Suggestion: returnTheRefusalSuggestion("return " + recv + ".Blockf(\"<context>: %w\", err)"),
+			Suggestion: recv + `.Block("<context>", evo.Detail(err.Error())); return nil`,
 		}
 	case recv != "":
 		suggestion = "replace with `return err` (or the wrapped error) and delete the " + recv + "." + verb + "(...) call; Define resolves the task from the returned error"

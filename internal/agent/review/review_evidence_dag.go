@@ -225,9 +225,9 @@ func isLocalStructLiteral(e ast.Expr, localStructs map[string]bool) bool {
 	return ok && localStructs[id.Name]
 }
 
-// ===== EVO-EVIDENCE-001: a legacy named task.Evidence("name", func() error
-// { ... }) callback performs a raw mutation. Evidence is superseded as a
-// boolean current-state conclusion; it was never the place mutation happens
+// ===== EVO-EVIDENCE-001: a legacy named mutating callback performs a raw
+// mutation. Capture-meaning Evidence* was removed in 1.1 (Capture is the
+// retained sink); mutation belongs in Define via evo.File / evo.Effect
 // (spec §2, §56, §57).
 
 func detectMutatingLegacyEvidence(filename string, file *ast.File, fset *token.FileSet) []Finding {

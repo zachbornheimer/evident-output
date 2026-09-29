@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 
@@ -31,8 +32,8 @@ func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 
 	ops := screen.Operations()
 	clearIdx, durableIdx, liveIdx := -1, -1, -1
-	for i := len(ops) - 1; i >= 0; i-- {
-		if ops[i].Kind == "durable" && durableIdx == -1 {
+	for i, op := range slices.Backward(ops) {
+		if op.Kind == "durable" && durableIdx == -1 {
 			durableIdx = i
 		}
 	}

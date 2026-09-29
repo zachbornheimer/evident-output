@@ -59,9 +59,9 @@
 //     external inputs beyond File/Exec's own tracked state.
 //  6. Task.After for exceptional scheduler edges that a Sequence would
 //     otherwise express more simply.
-//  7. Task.Fact / evo.Fact for discovered information, Task.Warn for a
-//     non-terminal annotation, Output Effects, and Config.DryRun for the
-//     would/did split.
+//  7. Task.Fact / evo.Fact for discovered information, Task.Problem with
+//     SeverityWarning for a non-terminal annotation, Output Effects, and
+//     Config.DryRun for the would/did split.
 //  8. Task.Verify(func(context.Context) (bool, error)) only for domains Evo
 //     cannot track automatically — the one boolean, read-only escape hatch; a
 //     Verify that reports the desired state already holds skips Define and
@@ -77,7 +77,7 @@
 //
 // evo.Init/evo.Main/evo.Run, Output.Run for a hosted/Isolated instance,
 // Print*, evo.Task/evo.Group/evo.Sequence, Task.Define / evo.Effect / evo.File /
-// Task.Writer, Task.Fail / Task.Failf / Task.Block / Task.Blockf,
+// Task.Writer, Task.Fail / Task.Block,
 // evo.Confirm, evo.Reason, slog via SlogHandler (level from Config.Debug.Level).
 //
 // # Advanced surface

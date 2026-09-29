@@ -169,18 +169,18 @@ func formatMethodWithoutDirective(c selectorCall) []Finding {
 	if recv := exprDottedName(c.sel.X); recv != "" {
 		suggestion = "replace " + recv + "." + c.name + "(...) with " + recv + "." + plain + "(...)"
 	}
-	return []Finding{c.finding("API-028", c.name+" has no format directive; prefer non-formatting method (e.g. Fail(\"text\") not Failf(\"text\"))", suggestion)}
+	return []Finding{c.finding("API-028", c.name+" has no format directive; Fail/Block take a summary string (the printf verbs were removed in 1.1)", suggestion)}
 }
 
 // debugWriterForEvidence is API-029: DebugWriter used for child-process
-// evidence instead of task.Evidence().
+// evidence instead of task.Writer()/task.Capture().
 func debugWriterForEvidence(c selectorCall) []Finding {
 	if c.name != "DebugWriter" || !isLikelyEvoReceiver(c.sel.X) {
 		return nil
 	}
 	return []Finding{c.finding("API-029",
-		"DebugWriter is for intentional DEBUG journal lines; use task.Evidence() for subprocess stdout/stderr evidence",
-		`replace DebugWriter() with task.Evidence(), then return task.Failf("...: %w", err) on failure`)}
+		"DebugWriter is for intentional DEBUG journal lines; use task.Writer() for subprocess stdout/stderr evidence",
+		`replace DebugWriter() with task.Writer(); inside Define return fmt.Errorf("...: %w", err) on failure`)}
 }
 
 // exitBypassingConclusion is API-018 and EVO-EXIT-001 (spec §57's ID for
@@ -229,9 +229,9 @@ func detectDetailOfError(filename, src string) []Finding {
 	if strings.Contains(src, "Detail(err)") || strings.Contains(src, "evo.Detail(err)") {
 		return []Finding{{
 			RuleID:     "DOM-014",
-			Message:    "Detail must be user-visible string; wrap the error with Failf/Blockf's trailing %w instead",
+			Message:    "Detail must be user-visible string; pass err.Error() or return fmt.Errorf inside Define",
 			File:       filename,
-			Suggestion: `replace Detail(err) with a %w-wrapped Failf/Blockf, e.g. task.Failf("...: %w", err)`,
+			Suggestion: `replace Detail(err) with evo.Detail(err.Error()) on Fail/Block, or return fmt.Errorf("...: %w", err) inside Define`,
 		}}
 	}
 	return nil

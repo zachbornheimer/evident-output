@@ -2,6 +2,7 @@
 staticcheck = "2026.2.1"
 golangci-lint = "2.10.1"
 gitleaks = "8.30.1"
+go = "1.27.1"
 
 [tasks.setup]
 description = "Bootstrap dev environment"
@@ -127,4 +128,3 @@ depends = ["lint", "test", "scan", "conformance", "traceability", "api-contract"
 [tasks.test-evo]
 description = "Capture timed PNG/TXT frames of a command in a real tmux PTY. Flags AFTER the task name. Requires --start-dir, exactly one of --timeout-ms/--timeout-s, exactly one of --screenshot-interval-ms/--screenshot-interval-s, then -- CMD"
 run = "python3 ./scripts/test-evo.py"
-

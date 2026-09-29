@@ -71,27 +71,27 @@ var symbols = []Symbol{
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
-	{Contract: "TaskHandle.Warn(", RemovedIn: Release1_1, Replacement: "Problem(summary, Severity(SeverityWarning))"},
+	{Contract: "TaskHandle.Warn(", RemovedIn: Release1_1, Replacement: "Problem(summary, Severity(SeverityWarning))", Taught: warnTaught()},
 	{Contract: "Output.Warn(", RemovedIn: Release1_1, Replacement: "Problem(summary, Severity(SeverityWarning))"},
 	{Contract: "Warn", RemovedIn: Release1_1, Replacement: "Problem(summary, Severity(SeverityWarning))"},
-	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block(summary, opts...)"},
-	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary, opts...)"},
+	{Contract: "TaskHandle.Blockf(", RemovedIn: Release1_1, Replacement: "Block(summary, opts...)", Taught: regexp.MustCompile(`\bBlockf\b`)},
+	{Contract: "TaskHandle.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary, opts...)", Taught: regexp.MustCompile(`\bFailf\b`)},
 	{Contract: "Output.Failf(", RemovedIn: Release1_1, Replacement: "Fail(summary, opts...)"},
 	{Contract: "Failure.Next(", RemovedIn: Release1_1, Replacement: "TaskHandle.Next after Fail or Block"},
 	{Contract: "Failure.NextCommand(", RemovedIn: Release1_1, Replacement: "TaskHandle.NextCommand after Fail or Block"},
-	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(item)"},
-	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: "Skipped(Reason(...)) for a policy exclusion; Fact/Summary for kept counts"},
+	{Contract: "TaskHandle.Step(", RemovedIn: Release1_1, Replacement: "Progress(completed, total).Doing(item)", Taught: apiSpelling("Step")},
+	{Contract: "TaskHandle.Kept(", RemovedIn: Release1_1, Replacement: "Skipped(Reason(...)) for a policy exclusion; Fact/Summary for kept counts", Taught: apiSpelling("Kept")},
 
 	// ZYS-1185: capture-meaning Evidence* names. Satisfaction-meaning
-	// EvidencePhase / TaskEvidence stay. Taught is nil so docs are not
-	// swept in this slice.
-	{Contract: "EvidenceOption", RemovedIn: Release1_1, Replacement: "CaptureOption"},
-	{Contract: "EvidenceStream", RemovedIn: Release1_1, Replacement: "CaptureStream"},
+	// EvidencePhase / TaskEvidence stay: Taught never uses a bare
+	// \bEvidence\b that would match them, EvidenceTail, or "Fail evidence".
+	{Contract: "EvidenceOption", RemovedIn: Release1_1, Replacement: "CaptureOption", Taught: regexp.MustCompile(`\bEvidenceOption\b`)},
+	{Contract: "EvidenceStream", RemovedIn: Release1_1, Replacement: "CaptureStream", Taught: regexp.MustCompile(`\bEvidenceStream(?:Combined|Stdout|Stderr)?\b`)},
 	{Contract: "EvidenceStreamCombined", RemovedIn: Release1_1, Replacement: "CaptureStreamCombined"},
 	{Contract: "EvidenceStreamStdout", RemovedIn: Release1_1, Replacement: "CaptureStreamStdout"},
 	{Contract: "EvidenceStreamStderr", RemovedIn: Release1_1, Replacement: "CaptureStreamStderr"},
-	{Contract: "MaxEvidenceBytes", RemovedIn: Release1_1, Replacement: "MaxCaptureBytes"},
-	{Contract: "Evidence", RemovedIn: Release1_1, Replacement: "Capture"},
+	{Contract: "MaxEvidenceBytes", RemovedIn: Release1_1, Replacement: "MaxCaptureBytes", Taught: regexp.MustCompile(`\bMaxEvidenceBytes\b`)},
+	{Contract: "Evidence", RemovedIn: Release1_1, Replacement: "Capture", Taught: captureMeaningEvidenceTaught()},
 	// ZYS-1186/1187: 1.1 vocabulary freeze. Contract names match Walk
 	// identifiers (single-word uses identifier boundaries).
 	{Contract: "AlsoWrite", RemovedIn: Release1_1, Replacement: "io.MultiWriter on Config.Stdout"},
@@ -127,7 +127,7 @@ var symbols = []Symbol{
 	{Contract: "JSONProgress", RemovedIn: Release1_1, Replacement: "WriteJSON / FormatJSON"},
 	{Contract: "JSONSchemaVersion", RemovedIn: Release1_1, Replacement: "WriteJSON / FormatJSON"},
 	{Contract: "JSONTask", RemovedIn: Release1_1, Replacement: "WriteJSON / FormatJSON"},
-	{Contract: "KeepLastLines", RemovedIn: Release1_1, Replacement: "MaxCaptureBytes"},
+	{Contract: "KeepLastLines", RemovedIn: Release1_1, Replacement: "MaxCaptureBytes", Taught: regexp.MustCompile(`\bKeepLastLines\b`)},
 	{Contract: "MaxEntities", RemovedIn: Release1_1, Replacement: "Config.MaxEntities"},
 	{Contract: "MaxEvents", RemovedIn: Release1_1, Replacement: "Config.MaxEvents"},
 	{Contract: "MaxFrameRate", RemovedIn: Release1_1, Replacement: "Config.MaxFrameRate"},
@@ -148,6 +148,42 @@ var symbols = []Symbol{
 	{Contract: "To", RemovedIn: Release1_1, Replacement: "Config.Stdout"},
 	{Contract: "VisibilityDelay", RemovedIn: Release1_1, Replacement: "Config.VisibilityDelay"},
 	{Contract: "Width", RemovedIn: Release1_1, Replacement: "Config.Width"},
+}
+
+// apiSpelling matches a retired method taught as current API: a known evo
+// receiver (task.Warn), a call (.Warn(), `Warn`). It does not match the
+// English word in unrelated prose.
+func apiSpelling(name string) *regexp.Regexp {
+	return regexp.MustCompile(`(?:task|evo|Output|TaskHandle|Task)\.` + name + `\b` +
+		`|\.` + name + `\(` +
+		"|`" + name + "`")
+}
+
+// warnTaught is apiSpelling("Warn") plus listings that teach Warn as a live
+// outcome without a receiver: a method signature, a heading, a table cell,
+// or a Done/Warn/… resolver list. It does not match English "warn" or
+// slog.Logger.Warn.
+func warnTaught() *regexp.Regexp {
+	return regexp.MustCompile(`(?:task|evo|Output|TaskHandle|Task|Item|item)\.Warn\b` +
+		"|`Warn`" +
+		`|func \(.*\) Warn\(` +
+		`|## Warn\b` +
+		`|\*\*Warn\*\*` +
+		`|Done/Warn`)
+}
+
+// captureMeaningEvidenceTaught matches Evidence as the capture sink or
+// public type. It does not match satisfaction-meaning EvidencePhase /
+// TaskEvidence, Problem.EvidenceTail, or the English phrase "for Fail
+// evidence".
+func captureMeaningEvidenceTaught() *regexp.Regexp {
+	return regexp.MustCompile(`(?:task|TaskHandle|Task)\.Evidence\(` +
+		`|type Evidence struct` +
+		`|## Evidence\b` +
+		`|Evidence ownership` +
+		`|Evidence belongs` +
+		"|`Evidence`," +
+		`|\[\]Evidence\b`)
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose

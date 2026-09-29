@@ -27,17 +27,11 @@ task.Progress(done, total)
 task.Progress64(done64, total64) // same intent, second spelling
 ```
 
-```go
-evo.KeepLastLines(100)
-evo.CaptureLines(100) // same intent, second spelling
-```
-
 ### Accepted (one ordinary form)
 
 ```go
 out := evo.New(evo.Config{Title: "install"})
 task.Progress(done, total)
-// Capture lines via the ordinary Capture surface, not a parallel alias
 ```
 
 ---
@@ -64,7 +58,7 @@ task.Bytes(24<<20, 80<<20) // byte progress — different measure
 ```
 
 ```go
-out.Task("credentials")  // condition — resolved directly (Done/Warn/Block/Fail/Skip)
+out.Task("credentials")  // condition — resolved directly (Problem/Block/Fail/Skipped)
 out.Task("authenticate") // work — driven through Doing/Progress
 ```
 
@@ -145,7 +139,7 @@ Sugar is forbidden when it:
 Defaults, examples, and ownership make correct behavior the path of least resistance.
 
 - Capture is silent on success.
-- An error flows through `Failf`'s trailing `%w`, diagnostic and redacted by policy; `Detail` is user-facing.
+- An error flows through `Fail` with `evo.Detail` (or `return fmt.Errorf` inside Define), diagnostic and redacted by policy; `Detail` is user-facing.
 - `Main` reconciles application errors before final rendering.
 - stdout data contracts remain uncontaminated.
 - concurrent Task declaration order is deterministic.

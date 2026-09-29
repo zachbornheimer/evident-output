@@ -1,8 +1,8 @@
-// Package review — API-062: Kept/Skipped record a Task's own disposition
-// (the item is the Task, docs/reference.md) and resolve it, so calling
-// either again on the same Task is misuse. The per-item shape is
-// group.Task(item).Kept(reason); the renderer folds those children into
-// one tally under the Group's row (contract §25).
+// Package review — API-062: Skipped records a Task's own disposition
+// (the item is the Task, docs/reference.md) and resolves it, so calling
+// it again on the same Task is misuse. The per-item shape is
+// group.Task(item).Skipped(reason); the renderer folds those children into
+// one tally under the Group's row (contract §25). Kept was removed in 1.1.
 //
 // Detection is structural. A disposition call counts only when its
 // receiver certainly holds an evo Task (see taskBindings) and is a plain
@@ -27,7 +27,7 @@ import (
 )
 
 // dispositionMethods are the TaskHandle verbs that record the Task's own
-// disposition and resolve it.
+// disposition and resolve it. Kept remains as dirty 1.1 input.
 var dispositionMethods = map[string]bool{"Kept": true, "Skipped": true}
 
 // detectRepeatedDisposition is API-062.
@@ -142,20 +142,19 @@ func (s *repeatedDispositionScan) report(call *ast.CallExpr, recv string) {
 	method := call.Fun.(*ast.SelectorExpr).Sel.Name
 	pos := s.fset.Position(call.Pos())
 	s.findings = append(s.findings, Finding{
-		RuleID:  "API-062",
-		Message: recv + "." + method + " is called more than once on one Task; " + method + " records that Task's own disposition and resolves it",
-		File:    s.filename,
-		Line:    pos.Line,
-		Column:  pos.Column,
-		Suggestion: "declare one Task per item and record its disposition there: group.Task(item)." + method +
-			"(reason) — evo folds the Group's item children into one tally under its row",
+		RuleID:     "API-062",
+		Message:    recv + "." + method + " is called more than once on one Task; " + method + " records that Task's own disposition and resolves it",
+		File:       s.filename,
+		Line:       pos.Line,
+		Column:     pos.Column,
+		Suggestion: "declare one Task per item and record its disposition there: group.Task(item).Skipped(reason) — evo folds the Group's item children into one tally under its row",
 	})
 }
 
-// dispositionCall reports whether n is recv.Kept(reason) or
-// recv.Skipped(reason) on a named receiver that certainly holds an evo
-// Task (never a call such as group.Task(item), which is a fresh Task each
-// time, and never another type's Kept/Skipped).
+// dispositionCall reports whether n is recv.Skipped(reason) (or dirty
+// recv.Kept(reason); Kept was removed in 1.1) on a named receiver that
+// certainly holds an evo Task (never a call such as group.Task(item),
+// which is a fresh Task each time, and never another type's Skipped).
 func (s *repeatedDispositionScan) dispositionCall(n ast.Node) (*ast.CallExpr, string, bool) {
 	call, ok := n.(*ast.CallExpr)
 	if !ok || len(call.Args) != 1 {

@@ -47,11 +47,11 @@ type Snapshot struct {
 	// no Config.Subject, in which case the marker falls back to its plain
 	// announcement text.
 	DryRunSubject string
-	// Warnings holds evo.Warn's run-scoped annotations (P8 symmetry with
-	// TaskHandle.Warn) — a warning about the run itself, not about any one
-	// task. Feeds Conclusion.Warned/"· warned" exactly like a task warning,
-	// never a headline state of its own (evo-rec.md "warnings annotate
-	// lifecycle; they do not replace it").
+	// Warnings holds run-scoped warning-severity Problems (P8) — a warning
+	// about the run itself, not about any one task. Feeds
+	// Conclusion.Warned/"· warned" exactly like a task warning, never a
+	// headline state of its own (evo-rec.md "warnings annotate lifecycle;
+	// they do not replace it"). Warn was removed in 1.1.
 	Warnings []Problem
 	// Facts holds evo.Fact's run-scoped annotations (P8) — discovered
 	// information about the run itself (evo.Fact("language", "go")), fire-
@@ -93,10 +93,11 @@ type TaskSnapshot struct {
 	Progress        Progress
 	Summary         string
 	Problems        []Problem
-	// Warnings holds TaskHandle.Warn's accumulated annotations (P2):
-	// warnings annotate the task's lifecycle, they never become a lifecycle
-	// state of their own. Rendering inlines a single short warning on the
-	// task's own row; multiple or long warnings render as nested lines.
+	// Warnings holds accumulated warning-severity Problems (P2): warnings
+	// annotate the task's lifecycle, they never become a lifecycle state of
+	// their own. Rendering inlines a single short warning on the task's own
+	// row; multiple or long warnings render as nested lines. Warn was
+	// removed in 1.1.
 	Warnings []Problem
 	// Facts holds TaskHandle.Fact's accumulated annotations (P8): discovered
 	// information about the task, at info severity — never a lifecycle state,

@@ -8,19 +8,12 @@ import (
 	"strings"
 )
 
-// isFormatMethod names the surviving *f methods (C6: Donef/Summaryf/Itemf/
-// Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf are deleted — Done/Summary/
-// Task/Group/Sequence/Changes/Plan/Warn/Reason are printf-variadic themselves now,
-// so there is nothing left in that family to flag). Failf/Blockf survive
-// for their distinct %w+*Failure semantics, but a call with no directive at
-// all is still the same ceremony API-028 warns about.
+// isFormatMethod is the *f-without-% check (API-028). Failf/Blockf were
+// removed in 1.1; API-032 rewrites those call sites to Fail/Block. No *f
+// method remains.
 func isFormatMethod(name string) bool {
-	switch name {
-	case "Failf", "Blockf":
-		return true
-	default:
-		return false
-	}
+	_ = name
+	return false
 }
 
 func strconvUnquote(s string) (string, error) {
@@ -30,7 +23,7 @@ func strconvUnquote(s string) (string, error) {
 // exprDottedName renders a simple dotted identifier chain (a.b.c) for an
 // Ident or SelectorExpr receiver; returns "" for anything else (e.g. a call
 // result), which intentionally excludes evo's own writer constructors
-// (task.Evidence(), out.Writer()) from the STREAM-003 indirection check —
+// (task.Capture(), out.Writer()) from the STREAM-003 indirection check —
 // their return value is never bound to a stream-named identifier at the call
 // site itself.
 func exprDottedName(e ast.Expr) string {

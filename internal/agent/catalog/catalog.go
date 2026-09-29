@@ -53,7 +53,7 @@ func All() []Guide {
      for independent collections; evo.Sequence for ordered ones (same one-Task-per-item shape;
      Group.Each/Sequence.Each were removed in 1.0); .Writer() as cmd.Stdout so a talkative
      child's last line becomes the live doing-text.
-  4) evo.Task(name).Skipped(reason) / .Kept(reason) — taxonomy counted and summed, never a bare
+  4) evo.Task(name).Skipped(reason) — taxonomy counted and summed, never a bare
      "skipped N". The item name is the Task name (a named Group/Sequence child).
   5) evo.Confirm(question, ...) — owns the whole gate (prompt, quiesce, ⊘/OK resolution, exit code).
 
@@ -71,18 +71,16 @@ Effect quantities tally and always render at Finish; a named row (evo.File "writ
 streams the instant its owning task resolves, bounded by the same viewport cap and "… +N more (not shown)"
 overflow the Finish ledger uses.
 
-Severity: Warn = non-terminal annotation (does not resolve the task — call it any number of times before the
+Severity: Problem(summary, evo.Severity(evo.SeverityWarning)) = non-terminal annotation (does not resolve the task — call it any number of times before the
 Task resolves); Block = stop before mutate; Fail = evaluation failed.
-One Task, many Problems (1.1/ZYS-848): task.Problem(summary, opts...) appends one blocking Problem without
+One Task, many Problems (1.1/ZYS-848): task.Problem(summary, opts...) appends one Problem without
 resolving the task — call it once per finding instead of a Task per finding. A nil Define return
-after any accumulated Problem resolves the Task Failed, never Done. Warn also takes the same ProblemOptions
-(Detail/Code/On/Location/Next) as Problem/Fail/Block. See docs/migration/1.1.md.
+after any accumulated Problem at error severity resolves the Task Failed, never Done. See docs/migration/1.1.md.
 Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) so a caller can tell "you did
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Failf/Blockf need % (API-028; Warn/Task/Sequence/Reason
-are printf-variadic themselves — there is no separate Warnf/Taskf/Reasonf; Summary takes one literal string); Capture not DebugWriter (API-029).
+Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Fail/Block are statements (the printf verbs were removed in 1.1); Doing/Reason are printf-variadic; Summary takes one literal string; Writer/Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
 failure on its own Task and use Next(evo.Label(...)) for follow-up guidance instead.`,
@@ -92,7 +90,7 @@ failure on its own Task and use Next(evo.Label(...)) for follow-up guidance inst
 			ID:       "tasks",
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
-			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Each", "Define", "Skipped", "Kept"},
+			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Each", "Define", "Skipped"},
 			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "API-045", "API-051", "API-062"},
 			Body: `Task is one independently schedulable promise whose outcome is independently meaningful to the user (ZYS-838) —
 not a display row, not a subject label, not a container. A good Task name answers "what will this unit of work
@@ -106,7 +104,7 @@ names a subject, not the work (API-045); "fix" organizes several independently m
 instead of being one itself (API-045) — prefer a Group/Sequence such as Group("prepare staged files") with real
 verb+object Tasks underneath. One Task may still make several internal observations — "check file integrity" can
 inspect merge markers, path validity, symlinks, generated-file corruption — without turning each predicate into a
-sibling Task: report them as Fact/Warn/Problem evidence under the one Task that answers the single user-meaningful
+sibling Task: report them as Fact/Problem evidence under the one Task that answers the single user-meaningful
 question, and only split one out into its own Task when it has an independently meaningful lifecycle/remediation
 and can run on its own.
 
@@ -140,7 +138,7 @@ Progress to the true completed count directly — there is no relative/delta cou
 Sealed-total invariant: indeterminate → determinate happens once; after a total is sealed it never changes, and
 completed > total is unrepresentable.
 
-Skip/keep taxonomy: task.Skipped(reason) / task.Kept(reason) — evo counts, sums, and truncates the
+Skip taxonomy: task.Skipped(reason) — evo counts, sums, and truncates the
 reason partition (never a bare "skipped 6"); reasons come from evo.Reason("protected") (get-or-create — repeated
 calls with the same text merge into one taxonomy bucket, so inline evo.Reason("protected") at every call site is
 correct as written; lifting it to a package-level var is a style choice, never required for correctness).
@@ -165,10 +163,10 @@ human output bounds how many render inline.
 Facts vs Tasks (v0.4.0/P8): discovered information ("repository /repo", "language go", "config loaded") is not
 work — never fake a checkmark Task to display it. Use task.Fact(name, value) (attached to the Task that
 discovered it) or evo.Fact(name, value) (run-scoped) instead; both render as a durable dim "name  value" line,
-never a lifecycle row, fire-and-forget. task.Warn(...)/evo.Warn(...) are the warning-severity sibling — an
-annotation on the lifecycle, never a replacement for it (a warned-but-unresolved Task auto-resolves Done at
-Finish). Both flow through the same placement rule: inline on the row when it is the only annotation, nested dim
-lines otherwise.`,
+never a lifecycle row, fire-and-forget. task.Problem(summary, evo.Severity(evo.SeverityWarning)) is the
+warning-severity annotation on the lifecycle, never a replacement for it (a warned-but-unresolved Task
+auto-resolves success at Finish). Both flow through the same placement rule: inline on the row when it is the
+only annotation, nested dim lines otherwise.`,
 			TokenEstimate: 320,
 		},
 		{
@@ -222,13 +220,14 @@ read cancellation from the ctx Main/Run already passes into the run callback. Si
 else (SIGHUP, SIGUSR1, ...) is unrelated application behavior and stays untouched.
 
 Child processes: cmd.Stdout = task.Writer(); cmd.Stderr = task.Writer(); on error
-task.Failf("...: %w", err) (the trailing %w renders as an evidence line under the summary).
+inside Define return fmt.Errorf("...: %w", err) (Fail/Block are statements; attach user-facing
+text with evo.Detail).
 Never implement your own io.Writer whose Write method calls TaskHandle.Doing (API-031): that
 reimplements the exact adapter Writer already owns.
-Evidence is deduplicated for you: never embed capture text into a Failf/Blockf summary
-(task.Failf("install failed: %s", capture.Text()) — EV-001) — auto-attach already renders that same
+Capture is deduplicated for you: never embed capture text into a Fail/Block summary
+(task.Fail("install failed", evo.Detail(capture.Text())) — EV-001) — auto-attach already renders that same
 retained tail as its own evidence line underneath; embedding it in the summary too just repeats it.
-Evidence is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
+Capture is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
 WriteJSON or FormatJSON/FormatJSONL for machines. Avoid fmt.Print during live UI — use evo.Println (see interactive guide).`,
 			TokenEstimate: 260,
@@ -237,10 +236,10 @@ WriteJSON or FormatJSON/FormatJSONL for machines. Avoid fmt.Print during live UI
 			ID:       "security",
 			Title:    "Terminal safety",
 			UseCases: []string{"sanitize", "esc", "secrets"},
-			Concepts: []string{"sanitize", "Detail", "Failf"},
+			Concepts: []string{"sanitize", "Detail", "Fail"},
 			Rules:    []string{"SEC-001", "TXT-007", "SEC-006"},
-			Body: `Untrusted text is sanitized. Detail is stable user-visible guidance text; Failf/Blockf's
-trailing %w renders the wrapped error's own text as a separate evidence line, also sanitized.
+			Body: `Untrusted text is sanitized. Detail is stable user-visible guidance text; Fail/Block
+take evo.Detail(err.Error()) for the wrapped error's own text, also sanitized.
 Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			TokenEstimate: 110,
 		},

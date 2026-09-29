@@ -3,6 +3,7 @@ package review
 import (
 	"go/ast"
 	"go/token"
+	"slices"
 	"strings"
 )
 
@@ -125,8 +126,8 @@ func taskSettledIn(body *ast.BlockStmt, name string) bool {
 func useSettlesTask(use *ast.Ident, parents []ast.Node) bool {
 	var current ast.Expr = use
 	builders := true
-	for i := len(parents) - 1; i >= 0; i-- {
-		switch p := parents[i].(type) {
+	for _, parent := range slices.Backward(parents) {
+		switch p := parent.(type) {
 		case *ast.SelectorExpr:
 			if p.X != current {
 				return false // use is the selected name, not a receiver

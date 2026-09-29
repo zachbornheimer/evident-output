@@ -77,7 +77,7 @@ func firstParentCommits(base, head string) ([]string, error) {
 		return nil, fmt.Errorf("rev-list %s..%s: %w", base, head, err)
 	}
 	var commits []string
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
 		if line != "" {
 			commits = append(commits, line)
 		}

@@ -7,10 +7,10 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
 )
 
-// API-062: Kept/Skipped record the Task's own disposition (the item is the
-// Task, docs/reference.md) and resolve it, so a second call on the same
-// Task is misuse. The per-item shape is group.Task(item).Kept(reason); the
-// renderer folds those children into one tally (contract §25).
+// API-062: Skipped records the Task's own disposition (the item is the
+// Task, docs/reference.md) and resolves it, so a second call on the same
+// Task is misuse. The per-item shape is group.Task(item).Skipped(reason);
+// the renderer folds those children into one tally (contract §25).
 
 // zq prune's pre-fix shape: Kept once per kept branch, on the category Task.
 const keptInLoopSrc = `package p

@@ -6,11 +6,16 @@ import (
 	"strings"
 )
 
-// supersededOptionFuncs are v0.2 Option constructors; Config fields replace them.
+// supersededOptionFuncs are Option constructors removed in 1.1; Config fields replace them.
 var supersededOptionFuncs = map[string]bool{
 	"To": true, "Plain": true, "NoColor": true, "Stdin": true,
 	"DryRun": true, "VisibilityDelay": true, "Diagnostics": true,
-	"Title": true,
+	"Title": true, "ResultStream": true, "Terminal": true, "Clock": true,
+	"MaxFrameRate": true, "Width": true, "Redact": true, "Runner": true,
+	"MaxEntities": true, "MaxEvents": true, "Strict": true,
+	"AlsoWrite": true, "Glyphs": true, "DataProjection": true,
+	"ExternalProjection": true, "DebugLevel": true, "DebugAddSource": true,
+	"DebugHistory": true, "DebugPane": true,
 }
 
 type srcSpan struct{ start, end int }
@@ -35,6 +40,9 @@ type recSurfaceDetector struct {
 	// effectDialect is set when the target dialect is 1.1+, where the
 	// TaskHandle mutation verbs are gone and evo.Effect/evo.File exist.
 	effectDialect bool
+	// failures names identifiers typed evo.Failure, so Failure.Next is
+	// not confused with live TaskHandle.Next / Output.Next.
+	failures failureBindings
 }
 
 func detectSupersededRecSurface(in fileInput) []Finding {
@@ -48,6 +56,7 @@ func detectSupersededRecSurface(in fileInput) []Finding {
 		scope := newRemovedDoneScope(f, d)
 		d.doneScope = &scope
 		d.effectDialect = true
+		d.failures = newFailureBindings(f, pkg)
 	}
 	ast.Inspect(f, d.inspect)
 	ast.Inspect(f, d.inspectLeftover)
@@ -79,7 +88,7 @@ func (d *recSurfaceDetector) inspectComposite(cl *ast.CompositeLit) {
 			return
 		}
 		old := d.nodeSrc(cl)
-		d.report(cl, "[]evo.Option is superseded; use Config fields",
+		d.report(cl, "[]evo.Option was removed in 1.1; use Config fields",
 			"replace "+old+" with "+repl)
 		d.cover(cl)
 	}
@@ -119,6 +128,9 @@ func (d *recSurfaceDetector) inspectCall(call *ast.CallExpr) {
 	}
 	name := sel.Sel.Name
 	recv := exprDottedName(sel.X)
+	if d.inspectOneOneCall(call, sel, name, recv) {
+		return
+	}
 	switch {
 	case name == "Done":
 		d.inspectRemovedDone(call, sel)
@@ -156,6 +168,9 @@ func (d *recSurfaceDetector) inspectCall(call *ast.CallExpr) {
 }
 
 func (d *recSurfaceDetector) inspectLeftover(n ast.Node) bool {
+	if d.inspectOneOneType(n) {
+		return true
+	}
 	call, ok := n.(*ast.CallExpr)
 	if !ok {
 		return true
@@ -172,8 +187,9 @@ func (d *recSurfaceDetector) inspectLeftover(n ast.Node) bool {
 		if !ok {
 			return true
 		}
-		d.report(call, "evo."+name+" is a superseded Option func; use the Config field",
+		d.report(call, "evo."+name+" was removed in 1.1; use the Config field",
 			"replace "+old+" with "+field)
+		d.cover(call)
 	case name == "ID":
 		d.report(call, "evo.ID was removed in 1.1; Task identity is the human label (override with TaskHandle.Key)",
 			"replace "+old+" by dropping it; Task takes only the name")
@@ -304,6 +320,7 @@ var optionFieldByArg = map[string]string{
 	"Runner":       "ProcessRunner",
 	"MaxEntities":  "MaxEntities",
 	"MaxEvents":    "MaxEvents",
+	"Glyphs":       "Glyphs",
 }
 
 // optionFlagField maps an argument-free Option func onto its Config field
@@ -325,12 +342,36 @@ func (d *recSurfaceDetector) optionCallToField(call *ast.CallExpr) (string, bool
 	if field, ok := optionFlagField[name]; ok && len(args) == 0 {
 		return field, true
 	}
+	return d.optionSpecialField(name, args)
+}
+
+func (d *recSurfaceDetector) optionSpecialField(name string, args []ast.Expr) (string, bool) {
 	switch name {
 	case "NoColor":
 		return "Color: " + d.pkg + ".ColorNever", len(args) == 0
 	case "VisibilityDelay":
 		delay, ok := d.delayField(args)
 		return "VisibilityDelay: " + delay, ok
+	case "AlsoWrite":
+		if len(args) != 1 {
+			return "", false
+		}
+		return "Stdout: io.MultiWriter(os.Stdout, " + d.nodeSrc(args[0]) + ")", true
+	case "DataProjection":
+		return "Format: " + d.pkg + ".FormatData", len(args) == 0
+	case "ExternalProjection":
+		return "Format: " + d.pkg + ".FormatExternal", len(args) == 0
+	case "DebugLevel":
+		if len(args) != 1 {
+			return "", false
+		}
+		return "Debug: " + d.pkg + ".DebugConfig{Level: " + d.nodeSrc(args[0]) + "}", true
+	case "DebugAddSource":
+		return "Debug: " + d.pkg + ".DebugConfig{AddSource: true}", len(args) == 0
+	case "DebugHistory":
+		return "Debug: " + d.pkg + ".DebugConfig{View: " + d.pkg + ".DebugPresentationHistory}", len(args) == 0
+	case "DebugPane":
+		return "Debug: " + d.pkg + ".DebugConfig{View: " + d.pkg + ".DebugPresentationPane}", len(args) == 0
 	default:
 		return "", false
 	}

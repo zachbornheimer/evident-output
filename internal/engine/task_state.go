@@ -65,11 +65,11 @@ type taskState struct {
 	// Task whose own row already says the same thing.
 	synthetic bool
 
-	// warnings accumulates TaskHandle.Warn's annotations (P2: warnings
-	// annotate lifecycle, they never replace it — Warn does not itself
-	// resolve the task). A task with warnings but no terminal verb by
-	// Finish auto-resolves Done (see hasRecordedEffectLocked's amnesty
-	// siblings in Finish).
+	// warnings accumulates warning-severity Problems (P2: warnings annotate
+	// lifecycle, they never replace it — Problem at SeverityWarning does
+	// not itself resolve the task). Warn was removed in 1.1. A task with
+	// warnings but no terminal verb by Finish auto-resolves Done (see
+	// hasRecordedEffectLocked's amnesty siblings in Finish).
 	warnings []Problem
 	// facts accumulates TaskHandle.Fact's discovered-information annotations
 	// (P8) — info severity, the same "annotate, never resolve" contract

@@ -86,7 +86,7 @@ go get github.com/zachbornheimer/evident-output@v1.0.0
 
 - `docs/philosophy/jazz-syntax.md` — one spelling per intent
 - `docs/philosophy/presentation-boundary.md` — presentation ≠ execution
-- `docs/philosophy/domain-vocabulary.md` — Task/Effect verbs/Detail/Failf evidence
+- `docs/philosophy/domain-vocabulary.md` — Task/Effect verbs/Detail/Fail evidence
 - `docs/guides/teaching-ladder.md` — ordinary learning order
 - `docs/roadmap/implementation-basis.md` — polish-phase authority
 
@@ -146,11 +146,11 @@ Secrets: set `Config.Redactor`.
 
 ## Severity
 
-| Outcome   | Meaning                               |
-| --------- | ------------------------------------- |
-| **Warn**  | Soft / optional                       |
-| **Block** | Stop before mutation (not a Go error) |
-| **Fail**  | Evaluation / required tool failed     |
+| Outcome                         | Meaning                               |
+| ------------------------------- | ------------------------------------- |
+| **Problem** at warning severity | Soft / optional                       |
+| **Block**                       | Stop before mutation (not a Go error) |
+| **Fail**                        | Evaluation / required tool failed     |
 
 ## Review
 

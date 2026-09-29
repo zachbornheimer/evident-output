@@ -9,6 +9,7 @@ package review
 import (
 	"go/ast"
 	"go/token"
+	"slices"
 )
 
 // detectConstantVerify is API-063.
@@ -81,8 +82,8 @@ func verifyCallback(call *ast.CallExpr, scopes []*ast.BlockStmt) *ast.FuncLit {
 // Nested function literals are not searched: their bindings are out of
 // scope at id (E-108).
 func boundFuncLit(id *ast.Ident, scopes []*ast.BlockStmt) *ast.FuncLit {
-	for i := len(scopes) - 1; i >= 0; i-- {
-		if rhs, found := lastAssignment(scopes[i], id); found {
+	for _, scope := range slices.Backward(scopes) {
+		if rhs, found := lastAssignment(scope, id); found {
 			lit, _ := rhs.(*ast.FuncLit)
 			return lit
 		}

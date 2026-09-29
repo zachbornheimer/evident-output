@@ -18,9 +18,9 @@ type SourceLocation = core.SourceLocation
 
 // Attachment is an additional label/value problem attachment.
 //
-// Named Attachment (not Evidence) because Evidence names the retained
-// process-output sink (see Evidence in capture.go) — this is a single
-// labeled fact attached to a Problem, a different concept from that sink.
+// Named Attachment (not Capture) because Capture names the retained
+// process-output sink — this is a single labeled fact attached to a
+// Problem, a different concept from that sink.
 type Attachment = core.Attachment
 
 // Field is a structured diagnostic or log field.

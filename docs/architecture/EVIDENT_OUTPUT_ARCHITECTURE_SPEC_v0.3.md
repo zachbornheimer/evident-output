@@ -85,10 +85,10 @@ remotes := out.Item("remotes")
 
 workingTree.OK()
 branches.BlockedBy(problems...)
-remotes.Warn(
+remotes.Problem(
     "origin was not reachable",
+    evo.Severity(evo.SeverityWarning),
     evo.Detail("remote state is unverified"),
-    evo.Cause(err),
 )
 
 return out.Finish()
@@ -379,10 +379,10 @@ group.Go(func() error {
 
 group.Go(func() error {
     if err := probeRemotes(); err != nil {
-        remotes.Warn(
+        remotes.Problem(
             "origin was not reachable",
+            evo.Severity(evo.SeverityWarning),
             evo.Detail("remote state is unverified"),
-            evo.Cause(err),
         )
         return nil
     }
@@ -712,8 +712,8 @@ Display names are never identity. Concurrent declaration order is inherently sch
 
 1. `Item`, `Task`, and `Tasks.Task` declare entities immediately.
 2. `Phase`, `Progress`, `Bytes`, and `Advance` start a pending task.
-3. `OK`, `Warn`, `Block`, `BlockedBy`, `Fail`, `Unknown`, and `Skip` may resolve an item directly.
-4. `Done`, `Warn`, `Fail`, `Cancel`, and `Skip` may resolve a task directly.
+3. `Block`, `Fail`, and `Skipped` may resolve an item directly. `Warn` was removed in 1.1 (`Problem` at `SeverityWarning` annotates without resolving).
+4. `Fail`, `Block`, `Cancel`, and `Skipped` may resolve a task directly. `Done` was removed in 1.1 (success is `Define` returning nil).
 5. Instant terminal resolution before the visibility threshold produces no transient frame.
 6. `Tasks` derives state from children and has no independent state mutation methods.
 7. A collection success summary is displayed only when all relevant children complete successfully.
@@ -1033,7 +1033,7 @@ Advanced construction exists for deterministic tests, writer ownership, projecti
 func (o *Output) Item(name string) *Item
 
 func (i *Item) OK() *Item
-func (i *Item) Warn(summary string, options ...ProblemOption) *Item
+func (t *TaskHandle) Problem(summary string, options ...ProblemOption) *TaskHandle // Item folded into Task; SeverityWarning annotates
 func (i *Item) WarnedBy(problems ...Problem) *Item
 func (i *Item) Block(summary string, options ...ProblemOption) *Item
 func (i *Item) BlockedBy(problems ...Problem) *Item
@@ -1073,7 +1073,7 @@ The grammar is intentional:
 
 ### 11.2 Item lifecycle rules
 
-- `OK`, `Warn`, `WarnedBy`, `Block`, `BlockedBy`, `Fail`, `FailedBy`, `Unknown`, and `Skip` are terminal state mutations.
+- `Block`, `Fail`, and `Skipped` are terminal state mutations. `Warn` was removed in 1.1 (`Problem` at `SeverityWarning` does not resolve).
 - The first terminal state wins.
 - `Because`, `Next`, and `NextCommand` are annotations and remain legal until `Finish` begins.
 - A `...By` call with no problems records `ErrNoProblems` and leaves the item unresolved.
@@ -1098,21 +1098,24 @@ func (o *Output) ItemWith(spec ItemSpec) (*Item, error)
 
 ```go
 type Problem struct {
-    Code      string
-    Subject   string
-    Summary   string
-    Detail    string
-    Severity  Severity
-    Count     int64
-    Unit      string
-    Location  *Location
-    Evidence  []Evidence
-    Actions   []Action
-    Fields    []Field
-    Cause     error
-    Sensitive bool
+    Code         string
+    Subject      string
+    Summary      string
+    Detail       string
+    Severity     Severity
+    Count        int64
+    Unit         string
+    Location     *Location
+    EvidenceTail string
+    Evidence     []Attachment
+    Actions      []Action
+    Fields       []Field
+    Cause        error
+    Sensitive    bool
 }
 ```
+
+`EvidenceTail` is the retained capture tail. `Evidence` holds labeled `Attachment` values, not a public Evidence type.
 
 Options are sealed typed values:
 
@@ -1161,7 +1164,7 @@ func (t *Task) Bytes(completed, total int64) *Task
 func (t *Task) Advance(delta int64) *Task
 func (t *Task) Done() *Task
 func (t *Task) Donef(format string, args ...any) *Task
-func (t *Task) Warn(summary string, options ...ProblemOption) *Task
+func (t *TaskHandle) Problem(summary string, options ...ProblemOption) *TaskHandle // SeverityWarning annotates without resolving
 func (t *Task) Fail(summary string, options ...ProblemOption) *Task
 func (t *Task) Cancel(reason string) *Task
 func (t *Task) Skip(reason string) *Task
@@ -3345,7 +3348,7 @@ The MCP server SHALL advertise only capabilities it implements and maintain a te
 ```
 
 Root declares the public API's behavioral facades (`Output`, `TaskHandle`,
-`Tasks`, `Group`, `Failure`, `Evidence`, `Config`, the functional-option
+`Tasks`, `Group`, `Failure`, `Capture`, `Config`, the functional-option
 surface, `Confirm`) with their doc-bearing methods, and re-declares the pure
 data-model types internal/core owns as public aliases (`type Snapshot =
 core.Snapshot`, doc comment duplicated on the alias) so the published API
@@ -3860,10 +3863,10 @@ func inspectRepository(ctx context.Context, repo string) error {
 
     group.Go(func() error {
         if err := probeRemotes(); err != nil {
-            remotes.Warn(
+            remotes.Problem(
                 "origin was not reachable",
+                evo.Severity(evo.SeverityWarning),
                 evo.Detail("remote state is unverified"),
-                evo.Cause(err),
             )
             return nil
         }
@@ -3920,8 +3923,7 @@ func installPackages(out *evo.Output, packages []Package) error {
             }
 
             installed.Add(1)
-            task.Done()
-            return nil
+            return nil // Define success is a nil return; Done was removed in 1.1
         })
     }
 
@@ -4500,7 +4502,7 @@ func TestItem_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
 
     var group sync.WaitGroup
     group.Go(func() { remotes.OK(); close(remoteResolved) })
-    group.Go(func() { <-remoteResolved; branches.Warn("unreachable"); close(branchResolved) })
+    group.Go(func() { <-remoteResolved; branches.Problem("unreachable", evo.Severity(evo.SeverityWarning)); close(branchResolved) })
     group.Go(func() { <-branchResolved; workingTree.OK() })
     group.Wait()
 
@@ -4531,7 +4533,7 @@ func TestTasks_StateIsDerivedFromChildren(t *testing.T) {
     react := dependencies.Task("react")
     sharp := dependencies.Task("sharp")
 
-    react.Done()
+    react.Define(func(context.Context) error { return nil })
     sharp.Fail("checksum mismatch")
 
     got := dependencies.Snapshot()
@@ -4551,7 +4553,7 @@ func TestTasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 
     dependencies := out.Tasks("dependencies")
     dependencies.Summary("installed 2 packages")
-    dependencies.Task("react").Done()
+    dependencies.Task("react").Define(func(context.Context) error { return nil })
     dependencies.Task("sharp").Fail("checksum mismatch")
 
     _ = out.Finish()
@@ -4570,7 +4572,7 @@ func TestOutput_FinishReportsUnresolvedTask(t *testing.T) {
     t.Cleanup(func() { _ = out.Close() })
 
     dependencies := out.Tasks("dependencies")
-    dependencies.Task("react").Done()
+    dependencies.Task("react").Define(func(context.Context) error { return nil })
     dependencies.Task("esbuild")
 
     err := out.Finish()
@@ -4824,9 +4826,9 @@ func TestTasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing.T) 
         case 12, 18:
             task.Phase("downloading")
         case 20:
-            task.Warn("using cached fallback")
+            task.Problem("using cached fallback", evo.Severity(evo.SeverityWarning))
         default:
-            task.Done()
+            task.Define(func(context.Context) error { return nil })
         }
     }
 

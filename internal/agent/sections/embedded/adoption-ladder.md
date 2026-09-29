@@ -16,7 +16,7 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 5. FileSpec.Basis / ExecSpec.Basis of Fingerprint values (evo.FSPath/evo.Value/evo.App)
    when freshness depends on semantic external inputs beyond File/Exec's own tracking.
 6. After for exceptional execution dependencies a Sequence would otherwise express.
-7. Facts / warnings / Effects / dry-run — Task.Fact, Task.Warn, Config.DryRun.
+7. Facts / warnings / Effects / dry-run — Task.Fact, Task.Problem with SeverityWarning, Config.DryRun.
 8. Task.Verify(func(context.Context) (bool, error)) only for domains Evo cannot track
    automatically — never the default way to make ordinary work idempotent.
 9. Top-level Config.Format / Config.Verbosity — only when the host CLI needs machine or
@@ -75,7 +75,7 @@ Use `TruncateNames` for a single skip/kept list when names must stay readable.
 See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.
 Release pin procedure: `docs/guides/cutting-a-release.md`.
 
-## Evidence
+## Capture
 
 ```go
 task.Define(func(ctx context.Context) error {

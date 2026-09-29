@@ -93,12 +93,12 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			ID:        "DOM-014",
 			Category:  "DOM",
 			Severity:  SeverityError,
-			Invariant: "Detail is user-visible string; wrap a diagnostic error with Blockf/Failf's trailing %w",
-			Why:       "Detail(err) exposes error internals as UI copy; Blockf/Failf's %w renders the wrapped error as its own evidence line instead.",
+			Invariant: "Detail is user-visible string; pass err.Error() or return fmt.Errorf inside Define",
+			Why:       "Detail(err) exposes error internals as UI copy; Fail/Block take a summary plus Detail(err.Error()), and inside Define a wrapped error is return fmt.Errorf.",
 			BadCode:   `it.Block("dirty", evo.Detail(err))`,
 			GoodCode: `it.Block("dirty", evo.Detail(err.Error()))
             return nil`,
-			Remediation:     `Replace Detail(err) with a %w-wrapped Blockf/Failf, e.g. it.Blockf("dirty: %w", err); reserve Detail for user-visible strings`,
+			Remediation:     `Replace Detail(err) with evo.Detail(err.Error()) on Fail/Block, or return fmt.Errorf("dirty: %w", err) inside Define; reserve Detail for user-visible strings`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-014"},
 			Since:           "0.1.0",
@@ -115,7 +115,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 branches.Task("main").Skipped(evo.Reason("protected"))
 branches.Task("feature/x").Skipped(evo.Reason("dirty"))
 // the item is the Task; evo derives each tally from its Reason`,
-			Remediation:     "Declare one Task per item and record its reason via task.Skipped/Kept; let evo count, sum, and print the partition",
+			Remediation:     "Declare one Task per item and record its reason via task.Skipped; let evo count, sum, and print the partition",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-001"},
 			Since:           "0.6.0",
@@ -140,15 +140,15 @@ branches.Task("feature/x").Skipped(evo.Reason("dirty"))
 			Category:  "EV",
 			Severity:  SeverityWarning,
 			Invariant: "a failure summary does not manually embed the retained evidence text",
-			Why:       "task.Failf(\"install failed: %s\", capture.Text()) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time as evidence underneath it (user-13-problems.md Problem 7: \"execution owns evidence, callers provide context\").",
-			BadCode:   `task.Failf("install failed: %s", capture.Text())`,
+			Why:       "task.Fail(\"install failed\", evo.Detail(capture.Text())) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time as evidence underneath it (user-13-problems.md Problem 7: \"execution owns evidence, callers provide context\").",
+			BadCode:   `task.Fail("install failed", evo.Detail(capture.Text()))`,
 			GoodCode: `cmd.Stdout = task.Writer() // retained as evidence and auto-attached on failure
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
   task.Fail("install dependencies")
               return err
 }`,
-			Remediation:     "Pass context via the trailing \": %w\" wrap instead of interpolating capture.Text()/Evidence().Text() into the summary — Failf/Blockf auto-attach the retained tail as its own evidence line",
+			Remediation:     "Keep the summary short and let Writer/Capture auto-attach the retained tail; inside Define return fmt.Errorf(\": %w\", err) instead of interpolating capture.Text() into the summary",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EV-001"},
 			Since:           "0.4.0",
@@ -165,7 +165,7 @@ it.Start()
 it.Define(checkDiskSpace)`,
 			GoodCode: `it := out.Task("disk space")
 it.Define(checkDiskSpace)`,
-			Remediation:     "Call Define (or Warn/Block/Fail) directly; remove the explicit Start call",
+			Remediation:     "Call Define (or Block/Fail/Problem) directly; remove the explicit Start call",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-006"},
 			Since:           "0.1.0",
@@ -234,7 +234,7 @@ for _, item := range items {
 			BadCode:   `task.Fail(err.Error(), evo.Cause(err))`,
 			GoodCode: `task.Fail("validate policy manifest", evo.Detail(err.Error()))
               return err`,
-			Remediation:     `Replace the err.Error()+evo.Cause(err) pair with a single %w-wrapped Failf/Blockf`,
+			Remediation:     `Replace the err.Error()+evo.Cause(err) pair with Fail/Block plus evo.Detail(err.Error()), or return fmt.Errorf inside Define`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-018"},
 			Since:           "0.2.17",
@@ -355,11 +355,11 @@ t.Define(func(ctx context.Context) error {
 			Invariant: "a reason used more than as a one-off literal is a compile-time name; a reason names why, not the verb it accompanies",
 			Why:       "evo.Reason(\"x\") is legal inline (duplicate strings merge into one bucket), but an inline literal can typo apart into two buckets across call sites, and a reason that only restates the verb (`Skipped(evo.Reason(\"skipped\"))`, zq cmd/zq-build/main.go:81) tells the user nothing they didn't already know from the glyph.",
 			BadCode: `task.Skipped(evo.Reason("skipped"))
-task.Kept(evo.Reason("protected"))`,
+task.Skipped(evo.Reason("protected"))`,
 			GoodCode: `var reasonProtected = evo.Reason("protected")
 task.Skipped(evo.Reason("timeout"))
 task.Skipped(reasonProtected)`,
-			Remediation:     "Lift a repeated reason to a package-level var so it is a compile-time name; name why the item skipped/was kept, not the verb itself",
+			Remediation:     "Lift a repeated reason to a package-level var so it is a compile-time name; name why the item skipped, not the verb itself",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-003"},
 			Since:           "0.4.7",

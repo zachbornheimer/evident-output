@@ -210,7 +210,7 @@ anyway; add detectors when they recur:
   iteration (duplicate sibling declaration, not a get-or-create — §3.1)
 
 Caught as of this MCP build (do not re-add to this list): `errgroup`/`go func`
-driving predeclared evo Tasks (API-041), `Failf`/`Fail` inside a
+driving predeclared evo Tasks (API-041), `Fail` inside a
 Define callback whose result is returned (API-040), a nil or no-op
 `evo.Effect` callback (API-042), a plural `EffectSpec.Object` literal
 (API-043), a removed 1.1 mutation verb or `evo.Affected` (API-032), a hand-rolled channel wrapper around Define (API-044),
@@ -230,7 +230,10 @@ Evident Output 1.x ships breaking changes in minor releases when the owner's
 API-freeze decisions call for them, with no compatibility shims. `MainWith`
 and `Task.Each` were removed in 1.0 outright (docs/acceptance/v0.6.md,
 "Owner decisions"). Removed in 1.1: the TaskHandle mutation verbs, `Done`,
-`Record*`, and `Affected`/`MutationOption`; 1.1 also changes `Exec` and
+`Record*`, `Affected`/`MutationOption`, `Warn`, `Step`,
+`Kept`, and capture-meaning `Evidence*` (`Capture` is the retained sink);
+the printf Fail and Block verbs are in docs/migration/1.1.md. 1.1 also
+changes `Exec` and
 `Define`, per the
 "Decisions (2026-09-23) — 1.1 API freeze" section of the Linear contract doc
 "Evident Output 1.x — Product + Implementation Contract" (project P-ZYS-23).

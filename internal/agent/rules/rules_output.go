@@ -17,7 +17,7 @@ out.Printf("progress %d\n", n)
 // or slog via out.SlogHandler for implementation diagnostics`,
 			BadOutput:       "interleaved ANSI + printf on stdout",
 			GoodOutput:      "managed Print / Verbose / slog only",
-			Remediation:     "Use out.Print/Printf/Println (or Verbose) for human text; slog for diagnostics; Task.Capture for subprocesses",
+			Remediation:     "Use out.Print/Printf/Println (or Verbose) for human text; slog for diagnostics; Task.Writer or Task.Capture for subprocesses",
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"STREAM-003", "MCP-013"},
 			Since:           "0.1.0",
@@ -27,8 +27,8 @@ out.Printf("progress %d\n", n)
 			ID:        "STREAM-004",
 			Category:  "STREAM",
 			Severity:  SeverityWarning,
-			Invariant: "one task wires subprocess capture through Writer, not a hand-rolled Evidence() pair",
-			Why: "Task.Writer tees cmd.Stdout/cmd.Stderr into the live doing-text and the evidence ring. Wiring a separate Evidence handle by " +
+			Invariant: "one task wires subprocess capture through Writer, not a hand-rolled Capture() pair",
+			Why: "Task.Writer tees cmd.Stdout/cmd.Stderr into the live doing-text and the capture ring. Wiring a separate Capture handle by " +
 				"hand on the same task is easy to get half-right — evidence for the rule: four hand-rolled subprocess " +
 				"wirings this pattern replaced starved the capture (two with no fallback: dead port-in-use detection, " +
 				"empty DetailTail on failure).",
@@ -45,7 +45,7 @@ if err := cmd.Run(); err != nil {
   task.Fail("build failed")
     return err
 }`,
-			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer() (Task.Run was removed in 1.0); do not call Evidence from application code",
+			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer() (Task.Run was removed in 1.0); do not hand-wire Capture from application code",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"STREAM-004"},
 			Since:           "0.2.17",

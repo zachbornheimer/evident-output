@@ -231,7 +231,7 @@ func TestEVOOutput_StreamJSONAliasUnderscore(t *testing.T) {
 		t.Fatal("EVO_OUTPUT=stream_json alias wrote nothing at Task.Done")
 	}
 	var ev render.EventJSON
-	first := strings.SplitN(got, "\n", 2)[0]
+	first, _, _ := strings.Cut(got, "\n")
 	if err := json.Unmarshal([]byte(first), &ev); err != nil {
 		t.Fatalf("stream_json alias must emit EventJSON: %v\n%s", err, first)
 	}

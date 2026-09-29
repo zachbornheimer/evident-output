@@ -65,12 +65,12 @@ grok mcp doctor evident-output --json
 - Standalone: `os.Exit(evo.Main(run))` (Main returns the exit code; a bare `evo.Main(run)` exits 0 after a failure); hosted (`Config.Isolated: true`): `os.Exit(out.Run(ctx, run).ExitCode())`, or Finish+Close (host owns `os.Exit`)
 - Entity: Task = atomic work (`Define`) or a gate resolved directly; one Task per item under a `Group` for independent collections; `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)` (opaque mutations) and `evo.File` (file state) inside `Define` pick `[changed]` vs `[planned]` from `Config.DryRun`
 - Domain effect verbs: use `Record` when stock verbs lie (RULE-001)
-- `Block` = condition found; `Fail` = evaluation failed; `Warn` = optional/soft
+- `Block` = condition found; `Fail` = evaluation failed; a warning is `Problem` + `SeverityWarning`
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
 - Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
 - Child process chatter → `cmd.Stdout = task.Writer()` (and stderr)
-- Sanitize is automatic; `Config.Redactor` scrubs the Evidence ring + Debug fields
-- `Fail`/`Block` are statements (no return); `Failf`/`Blockf` return a %w-wrapped error
+- Sanitize is automatic; `Config.Redactor` scrubs the Capture ring + Debug fields
+- `Fail`/`Block` are statements (no return); inside Define, `return fmt.Errorf` and let Define resolve
 - Task is name-only: `out.Task("download")`. Child stdio: `cmd.Stdout = task.Writer()`
 - Data commands: `FormatData` + write domain payload to `out.ResultWriter()`
 - Prefer plain labels over `*f` constructors when identity must stay stable

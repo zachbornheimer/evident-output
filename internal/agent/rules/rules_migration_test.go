@@ -59,19 +59,50 @@ func TestMigrations_CoversMainWithAndEachRemoval(t *testing.T) {
 	}
 }
 
-// spec §59 lists exactly seven version-transition rows; the fourth (named
-// Evidence used only for common file state → derived Evidence from tracked
-// file state) sits between the evo.File row and the manual-counters row and
-// must not be dropped when the table gains 1.0-specific removal rows.
+// spec §59 lists a named-Evidence-for-common-file-state row between the
+// evo.File row and the manual-counters row. The From side is the stale
+// shape; the To side is live 1.1 (evo.File), not the removed Evidence
+// spelling.
 func TestMigrations_CoversNamedEvidenceForCommonFileState(t *testing.T) {
 	rows := rules.Migrations()
 	for _, row := range rows {
 		if containsAll(row.From, "named Evidence", "common file state") &&
-			containsAll(row.To, "derived Evidence", "tracked file state") {
+			containsAll(row.To, "evo.File") {
 			return
 		}
 	}
-	t.Fatal("missing §59 migration row: named Evidence used only for common file state → derived Evidence from tracked file state")
+	t.Fatal("missing §59 migration row: named Evidence used only for common file state → evo.File")
+}
+
+// The six 1.1 removals an upgrade assistant must rewrite mechanically.
+func TestMigrations_Covers1_1Removals(t *testing.T) {
+	want := []struct{ from, to string }{
+		{"Blockf", "Block"},
+		{"Failf", "Fail"},
+		{"Warn", "Problem"},
+		{"Step", "Progress"},
+		{"Kept", "Skipped"},
+		{"Evidence", "Capture"},
+	}
+	rows := rules.Migrations()
+	for _, w := range want {
+		found := false
+		for _, row := range rows {
+			if !row.Removed || row.Since != "1.1.0" || row.RuleID != "API-032" {
+				continue
+			}
+			if strings.Contains(row.From, w.from) && strings.Contains(row.To, w.to) {
+				found = true
+				if _, ok := rules.Explain(row.RuleID); !ok {
+					t.Errorf("%s row: rules.Explain(%q) failed", w.from, row.RuleID)
+				}
+				break
+			}
+		}
+		if !found {
+			t.Errorf("missing 1.1 migration row %s → %s", w.from, w.to)
+		}
+	}
 }
 
 func containsAll(s string, subs ...string) bool {
