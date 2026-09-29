@@ -30,7 +30,7 @@
       "line": 25,
       "pattern": "log.Fatal",
       "rung": "Init/Main",
-      "suggestion": "this exits/panics directly, bypassing evo's exit-code contract — resolve the active Task with Fail/Failf or Block/Blockf and return, then let evo.Main(run) exit.",
+      "suggestion": "this exits/panics directly, bypassing evo's exit-code contract — resolve the active Task with Fail/Failf or Block/Blockf and return, then let os.Exit(evo.Main(run)) derive the exit code.",
       "certainty": "high"
     }
   ],

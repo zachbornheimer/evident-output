@@ -3,8 +3,6 @@ package evo
 import (
 	"context"
 	"io"
-
-	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
 func (o *Output) Cancel(reason string) { o.impl().Cancel(reason) }
@@ -80,16 +78,13 @@ func (o *Output) ResultWriter() io.Writer {
 	return o.inner.ResultWriter()
 }
 
-func (o *Output) Run(run func(*Output) error) int {
+// Run executes run against o and returns the Result (Conclusion plus the
+// application error, if any); it never exits the process.
+func (o *Output) Run(ctx context.Context, run RunFunc) Result {
 	if o == nil || o.inner == nil {
-		return ExitFailed
+		return Result{Conclusion: Conclusion{State: StateFailed, ExitCode: ExitFailed}}
 	}
-	return o.inner.Run(func(_ *engine.Output) error {
-		if run == nil {
-			return nil
-		}
-		return run(o)
-	})
+	return o.inner.Run(ctx, run)
 }
 
 func (o *Output) Sequence(name string) *SequenceHandle {

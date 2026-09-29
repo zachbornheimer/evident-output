@@ -7,7 +7,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"os"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -24,9 +26,9 @@ func main() {
 
 	out := evo.Init(evo.Config{Title: "install dependencies"})
 
-	evo.Main(func() error {
+	os.Exit(evo.Main(func(ctx context.Context) error {
 		return runLive(out, step)
-	})
+	}))
 }
 
 // runLive uses evo.Sequence: dependencies is a sequence of steps that must stop
@@ -45,7 +47,7 @@ func runLive(out *evo.Output, step time.Duration) error {
 	download := jobs.Task("download")
 	verify := jobs.Task("verify")
 
-	discover.Define(func() error {
+	discover.Define(func(ctx context.Context) error {
 		for _, phase := range []string{"reading lockfile", "resolving graph", "planning fetch"} {
 			discover.Doing(phase)
 			time.Sleep(step * 2)
@@ -53,7 +55,7 @@ func runLive(out *evo.Output, step time.Duration) error {
 		return nil
 	})
 
-	scan.Define(func() error {
+	scan.Define(func(ctx context.Context) error {
 		for completed := 1; completed <= packageCount; completed++ {
 			scan.Progress(completed, packageCount)
 			time.Sleep(step)
@@ -61,7 +63,7 @@ func runLive(out *evo.Output, step time.Duration) error {
 		return nil
 	})
 
-	download.Define(func() error {
+	download.Define(func(ctx context.Context) error {
 		for completed := 1; completed <= packageCount; completed++ {
 			done := totalBytes * int64(completed) / int64(packageCount)
 			download.Bytes(done, totalBytes)
@@ -70,7 +72,7 @@ func runLive(out *evo.Output, step time.Duration) error {
 		return nil
 	})
 
-	verify.Define(func() error {
+	verify.Define(func(ctx context.Context) error {
 		for _, phase := range []string{"checking signatures", "checksums", "quarantine scan"} {
 			verify.Doing(phase)
 			time.Sleep(step * 2)

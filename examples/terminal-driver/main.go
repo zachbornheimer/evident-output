@@ -11,6 +11,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -70,8 +71,8 @@ func main() {
 		Isolated:        true,
 	})
 
-	os.Exit(out.Run(func(o *evo.Output) error {
-		jobs := o.Group("dependencies")
+	result := out.Run(context.Background(), func(ctx context.Context) error {
+		jobs := out.Group("dependencies")
 		discover := jobs.Task("discover")
 		for _, phase := range []string{"reading lockfile", "resolving graph"} {
 			discover.Doing(phase)
@@ -86,9 +87,10 @@ func main() {
 			time.Sleep(stepDur)
 		}
 		download.Done("4.0 MB")
-		o.Task("registry").Done()
+		out.Task("registry").Done()
 		return nil
-	}))
+	})
+	os.Exit(result.ExitCode())
 }
 
 // frameLog prints each redraw as a numbered scrubable frame (no in-place ANSI).

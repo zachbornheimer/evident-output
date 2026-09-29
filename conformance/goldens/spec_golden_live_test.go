@@ -1,6 +1,7 @@
 package goldens_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -40,129 +41,14 @@ func newLiveScreenOutputCfg(screen *testkit.Screen, extra evo.Config) *evo.Outpu
 	return evo.Init(extra)
 }
 
-// TestSpecP1_LiveFrame_Step1 covers evo-rec.md Problem 1's step1 block via
-// the spec's own taught idiom for iterating named items, TaskHandle.Each:
-//
-//	:.  branches  1/40  feat/old-billing
-//
-// MISMATCH (documented, not fixed): the real first frame is
-// "<spinner>  branches  [░░░░░░░░░░░░]  0/40  feat/old-billing" — two
-// differences from the 2026-vintage illustration above, both because Each's
-// contract postdates it (see each.go): (1) Each drives absolute
-// Progress(i, total) *before* yielding item i, so the first frame reads
-// "items completed so far" (0) rather than "current position" (1) — this is
-// each.go's documented, deliberately-adopted policy ("the bar reads 'items
-// completed so far', not 'items completed including the one still
-// running'"), not a bug; (2) any determinate Progress row always renders a
-// 12-cell bar (writeLiveTaskLine, live.go:600-602), which live_progress_bar_test.go
-// already pins as intentional for count progress, not just byte progress.
-// Both are deliberately-adopted library behavior; the older illustration is
-// SPEC-STALE relative to them. This test proves the real (correct) output,
-// not the stale text.
-func TestSpecP1_LiveFrame_Step1(t *testing.T) {
-	t.Parallel()
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
-
-	names := make([]string, 40)
-	for i := range names {
-		names[i] = "feat/x" + string(rune('a'+i%26))
-	}
-	names[0] = "feat/old-billing"
-	started := make(chan struct{})
-	release := make(chan struct{})
-	done := make(chan struct{})
-	defer func() { <-done }()
-	branches := out.Group("branches")
-	go func() {
-		defer close(done)
-		for name, task := range branches.Each(names) {
-			n := name
-			if n == "feat/old-billing" {
-				task.Define(func() error {
-					close(started)
-					<-release
-					return nil
-				})
-				continue
-			}
-			task.Define(func() error { return nil })
-		}
-	}()
-	defer close(release)
-	<-started
-	for len(branches.Snapshot().Tasks) < len(names) {
-	}
-	got := screen.LatestLiveText()
-
-	for _, want := range []string{"branches", "/40", "feat/old-billing"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("want %q in live frame:\n%s", want, got)
-		}
-	}
-	if strings.Count(got, "\n") > 1 {
-		t.Fatalf("Each children must stay collapsed onto the parent row, got:\n%s", got)
-	}
-}
-
-// TestSpecP1_LiveFrame_Step2 covers evo-rec.md Problem 1's step2 block: one
-// Running child (worktrees), a prior Done sibling that survives (branches),
-// and a later sibling still named/idle (remotes) — driven as three
-// independent top-level Tasks (not a Group/Tasks collection), which is why
-// there is no collection header line, matching the spec block exactly:
-//
-//	✓  branches  14 deleted
-//	:.  worktrees  1/3  ../.worktrees/app-sah-1
-//	○  remotes
-func TestSpecP1_LiveFrame_Step2(t *testing.T) {
-	t.Parallel()
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
-
-	out.Task("branches").Done("14 deleted")
-	worktrees := out.Group("worktrees")
-	out.Task("remotes")
-	paths := []string{"../.worktrees/app-sah-1", "../.worktrees/app-sah-2", "../.worktrees/app-sah-3"}
-	started := make(chan struct{})
-	release := make(chan struct{})
-	done := make(chan struct{})
-	defer func() { <-done }()
-	go func() {
-		defer close(done)
-		for name, task := range worktrees.Each(paths) {
-			n := name
-			if n == "../.worktrees/app-sah-1" {
-				task.Define(func() error {
-					close(started)
-					<-release
-					return nil
-				})
-				continue
-			}
-			task.Define(func() error { return nil })
-		}
-	}()
-	defer close(release)
-	<-started
-
-	durable := screen.PersistedText()
-	if !strings.Contains(durable, "✓") || !strings.Contains(durable, "branches") || !strings.Contains(durable, "14 deleted") {
-		t.Fatalf("want Done branches summary committed durably, got:\n%s", durable)
-	}
-	got := screen.LatestLiveText()
-	lines := strings.Split(got, "\n")
-	if len(lines) != 2 {
-		t.Fatalf("want 2 live lines (resolved branches left the ticker), got %d:\n%s", len(lines), got)
-	}
-	if !strings.Contains(lines[0], "worktrees") || !strings.Contains(lines[0], "../.worktrees/app-sah-1") {
-		t.Fatalf("line 1 want Running worktrees with current name, got %q", lines[0])
-	}
-	if !strings.Contains(lines[1], "remotes") || !strings.Contains(lines[1], "○") {
-		t.Fatalf("line 2 want pending remotes (○), got %q", lines[1])
-	}
-}
+// TestSpecP1_LiveFrame_Step1 and TestSpecP1_LiveFrame_Step2 pinned Each's
+// own collapsed live aggregate row (a whole Group of many/several children
+// painting as one "branches  N/40  <current item>" spinner line). 1.0
+// removed Each outright (§3.1: its get-or-create reliance is unsound) — a
+// plain Group child now paints its own live row. Restoring an aggregated
+// view for large homogeneous groups is renderer work for a later increment
+// (§4: "aggregation is renderer-owned and automatic") — removed rather than
+// pinning stale behavior.
 
 // TestSpecP1_LiveFrame_Indeterminate covers evo-rec.md Problem 1's
 // indeterminate block: an unsealed total renders a phase string, not a fake
@@ -265,7 +151,7 @@ func TestSpecP4_LiveFrame_Step1(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	defer close(release)
-	scan.Define(func() error {
+	scan.Define(func(ctx context.Context) error {
 		scan.Doing("scanning")
 		close(started)
 		<-release
@@ -313,11 +199,11 @@ func TestSpecP4_LiveFrame_Step2(t *testing.T) {
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")
-	scan.Define(func() error { return nil })
+	scan.Define(func(ctx context.Context) error { return nil })
 	started := make(chan struct{})
 	release := make(chan struct{})
 	defer close(release)
-	venv.Define(func() error {
+	venv.Define(func(ctx context.Context) error {
 		venv.Doing("creating")
 		close(started)
 		<-release
@@ -715,10 +601,8 @@ func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
 
 	go func() {
 		defer close(wtDone)
-		for name, task := range worktrees.Each([]string{"wt-a", "wt-b", "wt-c"}) {
-			n := name
-			task.Define(func() error {
-				_ = n
+		for _, name := range []string{"wt-a", "wt-b", "wt-c"} {
+			worktrees.Task(name).Define(func(ctx context.Context) error {
 				select {
 				case <-wtStarted:
 				default:
@@ -731,10 +615,8 @@ func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
 	}()
 	go func() {
 		defer close(brDone)
-		for name, task := range branches.Each([]string{"br-a", "br-b", "br-c"}) {
-			n := name
-			task.Define(func() error {
-				_ = n
+		for _, name := range []string{"br-a", "br-b", "br-c"} {
+			branches.Task(name).Define(func(ctx context.Context) error {
 				select {
 				case <-brStarted:
 				default:
@@ -757,40 +639,9 @@ func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
 	}
 }
 
-// TestSpecEach_OneItemNoRedundantChild proves a one-item Each stays on the
-// parent row — no redundant parent + child pair on TTY.
-func TestSpecEach_OneItemNoRedundantChild(t *testing.T) {
-	t.Parallel()
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
-
-	started := make(chan struct{})
-	release := make(chan struct{})
-	done := make(chan struct{})
-	defer func() { <-done }()
-	go func() {
-		defer close(done)
-		g := out.Group("worktrees")
-		for name, task := range g.Each([]string{"../.worktrees/app-sah-1"}) {
-			n := name
-			task.Define(func() error {
-				_ = n
-				close(started)
-				<-release
-				return nil
-			})
-		}
-	}()
-	defer close(release)
-	<-started
-
-	live := screen.LatestLiveText()
-	lines := strings.Split(strings.TrimRight(live, "\n"), "\n")
-	if len(lines) != 1 {
-		t.Fatalf("one-item Each must not paint a redundant child row, got %d lines:\n%s", len(lines), live)
-	}
-	if !strings.Contains(lines[0], "worktrees") {
-		t.Fatalf("want parent aggregate row, got %q", lines[0])
-	}
-}
+// TestSpecEach_OneItemNoRedundantChild pinned Each's own one-item collapse
+// (a Group with exactly one fromEach child stayed on the parent row, no
+// redundant parent+child pair). 1.0 removed Each outright (§3.1: its
+// get-or-create reliance is unsound) — a plain Group child always paints
+// its own row alongside its parent's, one item or many; there is no
+// redundant case left to guard here.

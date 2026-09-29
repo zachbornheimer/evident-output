@@ -397,14 +397,14 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			ID:        "API-018",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "process exit codes come only from evo.Main/evo.MainWith (which exit via evo's own os.Exit facade — the library restates, never lifts, API-018) or evo.Run/Output.Run's returned code",
+			Invariant: "process exit codes come only from os.Exit(evo.Main(run)), evo.MainWith (which still exits via evo's own os.Exit facade — the library restates, never lifts, API-018), or evo.Run/Output.Run's returned Result.ExitCode()",
 			Why:       "A hand-mapped os.Exit int bypasses the Outcome→exit-code contract; a Blocked run (1) can silently read as success, or a real failure can read as blocked.",
 			BadCode: `if err != nil {
   fmt.Println(err)
   os.Exit(1) // hand-mapped, not fed by evo
 }`,
-			GoodCode:        `evo.Main(run) // run returns error; Conclusion decides 0/1/2/130; Main exits itself`,
-			Remediation:     "Route exit through evo.Main/evo.MainWith (which exit for you), or evo.Run/Output.Run's returned code for a caller that needs the code without exiting",
+			GoodCode:        `os.Exit(evo.Main(run)) // run(ctx) returns error; Conclusion decides 0/1/2/130; Main derives the code, caller exits`,
+			Remediation:     "Route exit through os.Exit(evo.Main(run)) or evo.MainWith (which exits for you), or evo.Run/Output.Run's returned Result.ExitCode() for a caller that needs the code without exiting",
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"API-018"},
 			Since:           "0.2.0",
@@ -598,8 +598,8 @@ task.Progress(14, 40) // sealed once discovery completes; never re-sealed`,
 if partial {
   os.Exit(130) // Partial is not interruption
 }`,
-			GoodCode:        `evo.Main(run) // exit code derives from Outcome alone: 0 OK / 1 Blocked / 2 Failed / 130 Cancelled; Partial is a completeness modifier only`,
-			Remediation:     "Let evo.Main/evo.MainWith pick the exit code from Outcome and exit for you; never hand-map an int, and never use 130 outside real interruption",
+			GoodCode:        `os.Exit(evo.Main(run)) // code derives from Outcome alone: 0 OK / 1 Blocked / 2 Failed / 130 Cancelled; Partial is a completeness modifier only`,
+			Remediation:     "Let evo.Main derive the exit code from Outcome (caller writes os.Exit(evo.Main(run))), or use evo.MainWith which exits for you; never hand-map an int, and never use 130 outside real interruption",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"CON-001"},
 			Since:           "0.6.0",
@@ -682,9 +682,9 @@ func run(out *evo.Output) error {
 }`,
 			GoodCode: `func main() {
 	evo.Init(evo.Config{Title: "tool", Stdout: &buf, Plain: true})
-	evo.Main(run)
+	os.Exit(evo.Main(run))
 }
-func run() error {
+func run(ctx context.Context) error {
 	task := evo.Task("branches")
 	task.Doing("classifying tips")
 	task.Delete("local tip", func() error { return remove() }, evo.Affected(n))

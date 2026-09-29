@@ -49,8 +49,9 @@ func TestFinish_RemainingMisuse_RendersTaskLine(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Task("branches").Block("local-only branch")
-	out.Task("branches").Delete("stale local branch", func() error { return nil }, evo.Affected(2)) // already resolved — misuse
+	task := out.Task("branches")
+	task.Block("local-only branch")
+	task.Delete("stale local branch", func() error { return nil }, evo.Affected(2)) // already resolved — misuse
 
 	if err := out.Finish(); err == nil {
 		t.Fatal("Finish() = nil, want the recorded misuse")
