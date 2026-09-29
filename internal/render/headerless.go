@@ -1,0 +1,66 @@
+package render
+
+import (
+	"slices"
+	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
+)
+
+// groupHeaderAddsNothing reports whether a Group's own row would say
+// nothing its children do not already say (contract §3, §13: Group and
+// Sequence organize Tasks; the renderer decides whether the container label
+// deserves a row). A Group owns no Problem, Fact, Progress or Effect of its
+// own; the only information it can carry is a caller-set Summary. Without
+// one, its state is derived from its children and its name is only a
+// category label, so the header is dropped and the children render as
+// siblings. A Sequence keeps its header because its order is meaning the
+// children alone do not state. Machine output never consults this: the
+// Group stays in the snapshot and the JSON document.
+func groupHeaderAddsNothing(col core.TasksSnapshot) bool {
+	return !col.Sequential && col.Summary == ""
+}
+
+// flattensHeader reports whether col, with items already folded out of it,
+// renders without its header row: its children then render as siblings of
+// the rows around it. Folded tallies need the header to hang under.
+func flattensHeader(col core.TasksSnapshot, items core.Dispositions) bool {
+	return groupHeaderAddsNothing(col) && items.Empty()
+}
+
+// hasUnfinishedTask reports whether any Task at or below col is still
+// pending or running. While work is in flight the live header carries the
+// Group's own aggregate progress ("N/M complete", with its elapsed time), so
+// it is information beyond the children and stays. Once every Task is
+// terminal that count is spent and the header is dropped like the durable
+// one.
+func hasUnfinishedTask(col core.TasksSnapshot) bool {
+	if ownCounts(col).Unfinished || core.CollectionTallyOf(col).Tasks.Unfinished {
+		return true
+	}
+	return slices.ContainsFunc(col.Collections, hasUnfinishedTask)
+}
+
+// liveProgressAddsInformation reports whether a live Group header's
+// "N/M complete" says something its rows do not: it counts the Group's own
+// child Tasks (total of them), so it informs only while one of them, or
+// work below them, is unfinished. A Group that holds only nested Groups
+// counts nothing — each nested Group paints its own progress — so its
+// header would read "0/0 complete" for the whole run (zq prune's
+// "categories" Group of category Groups, contract §18's live frame).
+func liveProgressAddsInformation(col core.TasksSnapshot, total int) bool {
+	return total > 0 && hasUnfinishedTask(col)
+}
+
+// writeHeaderlessGroup renders a Group's children as siblings of the
+// surrounding rows, aligned to one name column, then any nested containers
+// the same way.
+func writeHeaderlessGroup(b *strings.Builder, col core.TasksSnapshot, s Style) {
+	nameWidth := headerlessRowNameWidth(col)
+	for _, t := range col.Tasks {
+		WriteTaskAligned(b, t, nameWidth, s)
+	}
+	for _, child := range col.Collections {
+		writeCollectionAligned(b, child, nameWidth, s)
+	}
+}

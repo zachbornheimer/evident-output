@@ -11,7 +11,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -32,10 +31,6 @@ func main() {
 	stateDir := flag.String("state-dir", filepath.Join(os.TempDir(), "evo-launch-agent-file-example"), "manifest state directory (shared across runs to demo freshness)")
 	flag.Parse()
 
-	if err := os.MkdirAll(*stateDir, 0o700); err != nil {
-		fmt.Fprintln(os.Stderr, "create state dir:", err)
-		os.Exit(1)
-	}
 	a := agent{
 		label:     "com.example.agent",
 		plistPath: filepath.Join(*stateDir, "com.example.agent.plist"),

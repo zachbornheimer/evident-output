@@ -55,7 +55,7 @@ Derived from project standards (code-as-composition, subtraction, WHAT-not-HOW) 
 ### 3.2 Three tests before deleting or merging APIs
 
 1. **Same-note test** — Same domain intent, difference is only mechanics/history → merge or remove one spelling.
-   Examples of genuine enharmonics (historical): `For` vs `New(Config)`, `Progress` vs `Progress64`, `KeepLastLines` vs `CaptureLines`.
+   Examples of genuine enharmonics (historical): `For` vs `New(Config)`, `Progress` vs `Progress64`.
 
 2. **Different-voicing test** — Shared cadence, different information → keep both.
    Examples: `Block(summary, opts…)` vs `BlockedBy(...Problem)`; `Progress(n,n)` vs `Bytes`; `Item` vs `Task`.

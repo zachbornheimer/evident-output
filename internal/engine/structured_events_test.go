@@ -1,0 +1,786 @@
+package engine
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/wire"
+)
+
+// wireEventLine is one decoded "evo.event" JSONL row, for test assertions.
+type wireEventLine struct {
+	Object  string         `json:"object"`
+	Seq     uint64         `json:"seq"`
+	Type    string         `json:"type"`
+	Payload map[string]any `json:"payload"`
+}
+
+// decodeWireEvents parses every JSONL line in body as a wireEventLine,
+// failing the test on the first line that is not valid "evo.event" JSON.
+func decodeWireEvents(t *testing.T, body string) []wireEventLine {
+	t.Helper()
+	body = strings.TrimRight(body, "\n")
+	if body == "" {
+		return nil
+	}
+	lines := strings.Split(body, "\n")
+	events := make([]wireEventLine, 0, len(lines))
+	for i, line := range lines {
+		var e wireEventLine
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("line %d is not valid JSON: %v\nline: %s", i, err, line)
+		}
+		if e.Object != wire.EventObject {
+			t.Fatalf("line %d object = %q, want %q", i, e.Object, wire.EventObject)
+		}
+		events = append(events, e)
+	}
+	return events
+}
+
+// wireEventTypes returns just the Type sequence, for exact-order assertions.
+func wireEventTypes(events []wireEventLine) []string {
+	types := make([]string, len(events))
+	for i, e := range events {
+		types[i] = e.Type
+	}
+	return types
+}
+
+// indexOfType returns the first index of typ in events, or -1.
+func indexOfType(events []wireEventLine, typ string) int {
+	for i, e := range events {
+		if e.Type == typ {
+			return i
+		}
+	}
+	return -1
+}
+
+func assertTypesEqual(t *testing.T, got []string, want ...string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("event sequence length = %d, want %d\ngot:  %v\nwant: %v", len(got), len(want), got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("event[%d] = %q, want %q\ngot:  %v\nwant: %v", i, got[i], want[i], got, want)
+		}
+	}
+}
+
+// TestWireEvents_SuccessOrdering proves the §38 family sequence for the
+// simplest scripted run: one Task, Define succeeds, no Verify, no tracked
+// operation — the exact deterministic backbone every richer scenario below
+// still contains.
+func TestWireEvents_SuccessOrdering(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	assertTypesEqual(t, wireEventTypes(events),
+		wire.EventRunStarted,
+		wire.EventTaskDeclared,
+		wire.EventTaskEligible,
+		wire.EventTaskStarted,
+		wire.EventDefinitionStarted,
+		wire.EventDefinitionFinished,
+		wire.EventTaskFinished,
+		wire.EventRunFinished,
+	)
+}
+
+// TestWireEvents_AlreadySatisfiedSkipsDefinition proves spec §38's "whole
+// Task skipped from current pre-definition Verify Evidence" distinction:
+// a satisfied pre-Define Verify resolves the Task without ever entering
+// Define, so no definition.started/definition.finished appear, and
+// task.finished carries resolution=already_satisfied.
+func TestWireEvents_AlreadySatisfiedSkipsDefinition(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	task.Verify(func(context.Context) (bool, error) { return true, nil })
+	task.Define(func(context.Context) error {
+		t.Fatal("Define callback must not run when Verify is already satisfied")
+		return nil
+	})
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	types := wireEventTypes(events)
+	if idx := indexOfType(events, wire.EventDefinitionStarted); idx != -1 {
+		t.Fatalf("definition.started must not fire when Verify is already satisfied, found at %d: %v", idx, types)
+	}
+	evIdx := indexOfType(events, wire.EventEvidenceEvaluated)
+	if evIdx == -1 {
+		t.Fatalf("evidence.evaluated must fire, got: %v", types)
+	}
+	ev := events[evIdx]
+	if ev.Payload["phase"] != "before_definition" || ev.Payload["satisfied"] != true {
+		t.Fatalf("evidence.evaluated payload = %+v, want phase=before_definition satisfied=true", ev.Payload)
+	}
+	finIdx := indexOfType(events, wire.EventTaskFinished)
+	if finIdx == -1 || events[finIdx].Payload["resolution"] != string(ResolutionAlreadySatisfied) {
+		t.Fatalf("task.finished payload = %+v, want resolution=%s", events[finIdx].Payload, ResolutionAlreadySatisfied)
+	}
+	if evIdx >= finIdx {
+		t.Fatalf("evidence.evaluated (%d) must precede task.finished (%d): %v", evIdx, finIdx, types)
+	}
+}
+
+// TestWireEvents_FileOperationSkippedCurrent proves spec §38's "nested
+// operation skipped as current"/"upstream revalidated with identical
+// output" case: a second Run sharing one manifest Store hits the freshness
+// fast path and emits operation.skipped_current instead of
+// operation.started, with no live tracked_resource.observed (no inspection
+// occurred).
+func TestWireEvents_FileOperationSkippedCurrent(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(t.TempDir(), "managed.txt")
+	spec := FileSpec{Path: path, Contents: []byte("desired")}
+
+	first := Init(Config{Isolated: true, StateDir: state})
+	if err := runFileTask(t, first, "file", spec); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	_ = first.Close()
+
+	var stdout nopFlushWriter
+	second := Init(Config{Isolated: true, StateDir: state, Format: FormatJSONL, Stdout: &stdout})
+	if err := runFileTask(t, second, "file", spec); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	if err := second.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	types := wireEventTypes(events)
+	skipIdx := indexOfType(events, wire.EventOperationSkippedCurrent)
+	if skipIdx == -1 {
+		t.Fatalf("operation.skipped_current must fire on the freshness fast path, got: %v", types)
+	}
+	if reason := events[skipIdx].Payload["reason"]; reason != freshnessReasonCurrent {
+		t.Fatalf("operation.skipped_current reason = %v, want %q", reason, freshnessReasonCurrent)
+	}
+	if idx := indexOfType(events, wire.EventOperationStarted); idx != -1 {
+		t.Fatalf("operation.started must not also fire for a skipped-current call, got: %v", types)
+	}
+	if idx := indexOfType(events, wire.EventTrackedResourceObserved); idx != -1 {
+		t.Fatalf("tracked_resource.observed must not fire when no live inspection occurred, got: %v", types)
+	}
+	if indexOfType(events, wire.EventBasisFingerprinted) == -1 {
+		t.Fatalf("basis.fingerprinted must still fire (computed ahead of the freshness check), got: %v", types)
+	}
+}
+
+// TestWireEvents_FileOperationStartedAndFinished proves the reconciling
+// (write-needed) path: operation.started names why the manifest considered
+// this not current, tracked_resource.observed reports the live inspection,
+// effect.committed records the write, and operation.finished closes it out
+// changed=true.
+func TestWireEvents_FileOperationStartedAndFinished(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, StateDir: t.TempDir(), Format: FormatJSONL, Stdout: &stdout})
+	path := filepath.Join(t.TempDir(), "managed.txt")
+	spec := FileSpec{Path: path, Contents: []byte("desired")}
+	if err := runFileTask(t, out, "file", spec); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	types := wireEventTypes(events)
+	startIdx := indexOfType(events, wire.EventOperationStarted)
+	if startIdx == -1 {
+		t.Fatalf("operation.started must fire for a first-time File call, got: %v", types)
+	}
+	if reason := events[startIdx].Payload["reason"]; reason != freshnessReasonNoPriorRecord {
+		t.Fatalf("operation.started reason = %v, want %q", reason, freshnessReasonNoPriorRecord)
+	}
+	trackedIdx := indexOfType(events, wire.EventTrackedResourceObserved)
+	effectIdx := indexOfType(events, wire.EventEffectCommitted)
+	finishIdx := indexOfType(events, wire.EventOperationFinished)
+	if trackedIdx == -1 || effectIdx == -1 || finishIdx == -1 {
+		t.Fatalf("expected tracked_resource.observed, effect.committed, operation.finished all present, got: %v", types)
+	}
+	if startIdx >= trackedIdx || trackedIdx >= effectIdx || effectIdx >= finishIdx {
+		t.Fatalf("expected operation.started < tracked_resource.observed < effect.committed < operation.finished, got: %v", types)
+	}
+	if changed := events[finishIdx].Payload["changed"]; changed != true {
+		t.Fatalf("operation.finished changed = %v, want true", changed)
+	}
+	if indexOfType(events, wire.EventManifestTaskCommitted) == -1 {
+		t.Fatalf("manifest.task_committed must fire once the Task settles Done, got: %v", types)
+	}
+}
+
+// TestWireEvents_ExecOperationStartedAndFinished proves Exec emits the same
+// §38 operation family File does: basis.fingerprinted ahead of the
+// freshness check, operation.started naming why the manifest considered
+// this not current, tracked_resource.observed for the declared Output,
+// operation.finished changed=true, and manifest.task_committed once the
+// Task settles.
+func TestWireEvents_ExecOperationStartedAndFinished(t *testing.T) {
+	dir := t.TempDir()
+	tool := execFixture(t, dir, "tool", "v1")
+	outPath := filepath.Join(dir, "out.txt")
+	runner := &scriptedRunner{exitCode: 0}
+
+	var stdout nopFlushWriter
+	out := Init(Config{
+		Isolated: true, StateDir: t.TempDir(), ProcessRunner: runner,
+		Format: FormatJSONL, Stdout: &stdout,
+	})
+	spec := ExecSpec{Executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
+	runner.onRun = func() {
+		if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := runExecTask(t, out, "build", spec); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	types := wireEventTypes(events)
+	basisIdx := indexOfType(events, wire.EventBasisFingerprinted)
+	startIdx := indexOfType(events, wire.EventOperationStarted)
+	trackedIdx := indexOfType(events, wire.EventTrackedResourceObserved)
+	finishIdx := indexOfType(events, wire.EventOperationFinished)
+	committedIdx := indexOfType(events, wire.EventManifestTaskCommitted)
+	if basisIdx == -1 || startIdx == -1 || trackedIdx == -1 || finishIdx == -1 || committedIdx == -1 {
+		t.Fatalf("expected basis.fingerprinted, operation.started, tracked_resource.observed, operation.finished, manifest.task_committed all present, got: %v", types)
+	}
+	if basisIdx >= startIdx || startIdx >= trackedIdx || trackedIdx >= finishIdx || finishIdx >= committedIdx {
+		t.Fatalf("expected basis.fingerprinted < operation.started < tracked_resource.observed < operation.finished < manifest.task_committed, got: %v", types)
+	}
+	if reason := events[startIdx].Payload["reason"]; reason != freshnessReasonNoPriorRecord {
+		t.Fatalf("operation.started reason = %v, want %q", reason, freshnessReasonNoPriorRecord)
+	}
+	if changed := events[finishIdx].Payload["changed"]; changed != true {
+		t.Fatalf("operation.finished changed = %v, want true", changed)
+	}
+}
+
+// TestWireEvents_ExecOperationSkippedCurrent proves the freshness fast path:
+// a second Run sharing one manifest Store hits execOperationCurrent and
+// emits operation.skipped_current instead of operation.started, with no
+// live tracked_resource.observed (no re-inspection occurred).
+func TestWireEvents_ExecOperationSkippedCurrent(t *testing.T) {
+	state := t.TempDir()
+	dir := t.TempDir()
+	tool := execFixture(t, dir, "tool", "v1")
+	outPath := filepath.Join(dir, "out.txt")
+	spec := ExecSpec{Executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
+
+	first := Init(Config{Isolated: true, StateDir: state, ProcessRunner: &scriptedRunner{exitCode: 0}})
+	if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runExecTask(t, first, "build", spec); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	_ = first.Close()
+
+	var stdout nopFlushWriter
+	second := Init(Config{
+		Isolated: true, StateDir: state, ProcessRunner: &scriptedRunner{exitCode: 0},
+		Format: FormatJSONL, Stdout: &stdout,
+	})
+	if err := runExecTask(t, second, "build", spec); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	if err := second.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	types := wireEventTypes(events)
+	skipIdx := indexOfType(events, wire.EventOperationSkippedCurrent)
+	if skipIdx == -1 {
+		t.Fatalf("operation.skipped_current must fire on the freshness fast path, got: %v", types)
+	}
+	if reason := events[skipIdx].Payload["reason"]; reason != freshnessReasonCurrent {
+		t.Fatalf("operation.skipped_current reason = %v, want %q", reason, freshnessReasonCurrent)
+	}
+	if idx := indexOfType(events, wire.EventOperationStarted); idx != -1 {
+		t.Fatalf("operation.started must not also fire for a skipped-current call, got: %v", types)
+	}
+	if idx := indexOfType(events, wire.EventTrackedResourceObserved); idx != -1 {
+		t.Fatalf("tracked_resource.observed must not fire when no live inspection occurred, got: %v", types)
+	}
+	if indexOfType(events, wire.EventBasisFingerprinted) == -1 {
+		t.Fatalf("basis.fingerprinted must still fire (computed ahead of the freshness check), got: %v", types)
+	}
+}
+
+// TestWireEvents_RunFinishedOnFailure and TestWireEvents_RunFinishedOnCancel
+// prove run.finished fires (spec §38) on every terminal path, not only the
+// clean-success one.
+
+func TestWireEvents_RunFinishedOnFailure(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out.Task("build").Fail("broken")
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	events := decodeWireEvents(t, stdout.String())
+	idx := indexOfType(events, wire.EventRunFinished)
+	if idx == -1 {
+		t.Fatalf("run.finished must fire on a failed run, got: %v", wireEventTypes(events))
+	}
+	if events[idx].Payload["outcome"] != wire.OutcomeFailed {
+		t.Fatalf("run.finished outcome = %v, want %q", events[idx].Payload["outcome"], wire.OutcomeFailed)
+	}
+	if idx != len(events)-1 {
+		t.Fatalf("run.finished must be the last event, got index %d of %d", idx, len(events))
+	}
+}
+
+func TestWireEvents_RunFinishedOnCancel(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	out.Cancel("interrupted")
+	_ = task
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	events := decodeWireEvents(t, stdout.String())
+	idx := indexOfType(events, wire.EventRunFinished)
+	if idx == -1 {
+		t.Fatalf("run.finished must fire on a cancelled run, got: %v", wireEventTypes(events))
+	}
+	if events[idx].Payload["outcome"] != wire.OutcomeCancelled {
+		t.Fatalf("run.finished outcome = %v, want %q", events[idx].Payload["outcome"], wire.OutcomeCancelled)
+	}
+}
+
+// TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks proves seq is
+// the strict, race-free ordering authority (spec §38) even when many Tasks
+// resolve from concurrent scheduler goroutines — run with -race.
+func TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks(t *testing.T) {
+	const taskCount = 40
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout, MaxConcurrency: 8})
+
+	var wg sync.WaitGroup
+	for i := range taskCount {
+		task := out.Task(fmt.Sprintf("task-%d", i))
+		wg.Add(1)
+		task.Define(func(context.Context) error {
+			defer wg.Done()
+			return nil
+		})
+	}
+	wg.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	seen := make(map[uint64]bool, len(events))
+	var lastSeq uint64
+	for i, e := range events {
+		if seen[e.Seq] {
+			t.Fatalf("duplicate seq %d at event %d (%s)", e.Seq, i, e.Type)
+		}
+		seen[e.Seq] = true
+		if e.Seq <= lastSeq {
+			t.Fatalf("seq %d at event %d (%s) is not strictly increasing after %d", e.Seq, i, e.Type, lastSeq)
+		}
+		lastSeq = e.Seq
+	}
+	if len(events) < taskCount*4 {
+		t.Fatalf("expected at least %d events for %d concurrent tasks, got %d", taskCount*4, taskCount, len(events))
+	}
+}
+
+// TestWireEvents_RunIDStableAcrossAllLines proves ZYS-823's "single stable
+// run_id on every line" requirement: every "evo.event" line in one JSONL
+// stream carries the same non-empty run_id (spec §38's RunID = the runtime
+// Output's own outputID, set once at Init and never reassigned).
+func TestWireEvents_RunIDStableAcrossAllLines(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEventsWithRunID(t, stdout.String())
+	if len(events) == 0 {
+		t.Fatalf("expected at least one wire event")
+	}
+	runID := events[0].RunID
+	if runID == "" {
+		t.Fatalf("event[0] run_id is empty, want a stable non-empty run_id")
+	}
+	for i, e := range events {
+		if e.RunID != runID {
+			t.Fatalf("event[%d] run_id = %q, want stable %q across the whole stream", i, e.RunID, runID)
+		}
+	}
+}
+
+// wireEventLineWithRunID decodes the run_id field alongside the fields
+// wireEventLine already covers, for TestWireEvents_RunIDStableAcrossAllLines.
+type wireEventLineWithRunID struct {
+	Object string `json:"object"`
+	RunID  string `json:"run_id"`
+	Seq    uint64 `json:"seq"`
+	Type   string `json:"type"`
+}
+
+// decodeWireEventsWithRunID is decodeWireEvents plus run_id, kept separate
+// so the existing decoder's return type (and every caller of it) is
+// untouched.
+func decodeWireEventsWithRunID(t *testing.T, body string) []wireEventLineWithRunID {
+	t.Helper()
+	body = strings.TrimRight(body, "\n")
+	if body == "" {
+		return nil
+	}
+	lines := strings.Split(body, "\n")
+	events := make([]wireEventLineWithRunID, 0, len(lines))
+	for i, line := range lines {
+		var e wireEventLineWithRunID
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("line %d is not valid JSON: %v\nline: %s", i, err, line)
+		}
+		if e.Object != wire.EventObject {
+			t.Fatalf("line %d object = %q, want %q", i, e.Object, wire.EventObject)
+		}
+		events = append(events, e)
+	}
+	return events
+}
+
+// TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail is ZYS-823 gap
+// 2's JSONL half: problem.recorded/warning.recorded used to carry only
+// "summary", dropping Detail and EvidenceTail entirely — machine truth a
+// plain/TTY reader can see. A JSONL consumer must get the same evidence.
+func TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	task.Problem("finding one", Detail("full detail text"))
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	idx := indexOfType(events, wire.EventProblemRecorded)
+	if idx == -1 {
+		t.Fatalf("problem.recorded must fire, got: %v", wireEventTypes(events))
+	}
+	if got := events[idx].Payload["detail"]; got != "full detail text" {
+		t.Fatalf("problem.recorded payload detail = %v, want %q (full payload: %+v)", got, "full detail text", events[idx].Payload)
+	}
+}
+
+// TestWireEvents_ProblemRecordedCarriesEvidenceTail proves a Problem carrying a capture's DetailTail() must surface evidence_tail on
+// the problem.recorded JSONL line, not just detail.
+func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	tail := task.CaptureForTest()
+	_, _ = fmt.Fprintln(tail, "error: undefined symbol foo")
+	task.Problem("finding one", tail.DetailTail())
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	idx := indexOfType(events, wire.EventProblemRecorded)
+	if idx == -1 {
+		t.Fatalf("problem.recorded must fire, got: %v", wireEventTypes(events))
+	}
+	got, _ := events[idx].Payload["evidence_tail"].(string)
+	if !strings.Contains(got, "undefined symbol foo") {
+		t.Fatalf("problem.recorded payload evidence_tail = %v, want it to contain the capture tail (full payload: %+v)", got, events[idx].Payload)
+	}
+}
+
+// TestWireEvents_WarningRecordedCarriesEvidenceTail is
+// TestWireEvents_ProblemRecordedCarriesEvidenceTail's warning.recorded
+// counterpart (task.go:290 — Warn's own emitWireEventLocked call was
+// untested).
+func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("build")
+	tail := task.CaptureForTest()
+	_, _ = fmt.Fprintln(tail, "warning: deprecated flag used")
+	task.Problem("non-blocking finding", Severity(SeverityWarning), tail.DetailTail())
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	idx := indexOfType(events, wire.EventWarningRecorded)
+	if idx == -1 {
+		t.Fatalf("warning.recorded must fire, got: %v", wireEventTypes(events))
+	}
+	got, _ := events[idx].Payload["evidence_tail"].(string)
+	if !strings.Contains(got, "deprecated flag used") {
+		t.Fatalf("warning.recorded payload evidence_tail = %v, want it to contain the capture tail (full payload: %+v)", got, events[idx].Payload)
+	}
+}
+
+// TestWireEvents_RunWarningCarriesItsProblemOptions proves a run-level
+// Output.Warn's warning.recorded line carries the same structured fields
+// a Task warning's does, not just its summary.
+func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out.Task("disk").Problem("disk nearly full", Severity(SeverityWarning), Code("W_DISK"), Detail("92% used"), Location("/var", 0, 0))
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	idx := indexOfType(events, wire.EventWarningRecorded)
+	if idx == -1 {
+		t.Fatalf("warning.recorded must fire, got: %v", wireEventTypes(events))
+	}
+	payload := events[idx].Payload
+	if payload["code"] != "W_DISK" || payload["detail"] != "92% used" || payload["location"] == nil {
+		t.Fatalf("run warning.recorded payload = %+v, want code, detail and location", payload)
+	}
+}
+
+// TestWireEvents_VerificationObservedCarriesFacts is ZYS-823 gap 8:
+// attachVerificationLocked (output.go) recorded a Task's per-attribute
+// File/Patch VerificationDetails for Snapshot/JSON but emitted no
+// "verification.observed" JSONL line, so a FormatJSONL consumer never saw
+// the same per-attribute Facts (error/path/mode) FormatJSON's evo.run
+// document carries — breaking one-runtime-truth parity across the two
+// projections.
+func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("write launch agent")
+	task.Define(func(context.Context) error { return nil })
+
+	out.mu.Lock()
+	out.attachVerificationLocked(task.id, []core.VerificationDetail{
+		{Name: "contents", Status: core.VerificationSatisfied},
+		{
+			Name: "permissions", Status: core.VerificationError,
+			Facts: []core.Fact{
+				{Name: "error", Value: "operation not permitted"},
+				{Name: "path", Value: "~/Library/LaunchAgents/com.acme.prod.agent.plist"},
+			},
+		},
+	})
+	out.mu.Unlock()
+
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	var found []wireEventLine
+	for _, e := range events {
+		if e.Type == wire.EventVerificationObserved {
+			found = append(found, e)
+		}
+	}
+	if len(found) != 2 {
+		t.Fatalf("verification.observed events = %d, want 2, got: %v", len(found), wireEventTypes(events))
+	}
+	if found[0].Payload["name"] != "contents" || found[0].Payload["status"] != string(core.VerificationSatisfied) {
+		t.Fatalf("first verification.observed payload = %+v", found[0].Payload)
+	}
+	permFacts, ok := found[1].Payload["facts"].([]any)
+	if !ok || len(permFacts) != 2 {
+		t.Fatalf("second verification.observed payload facts = %v, want 2 facts (full payload: %+v)", found[1].Payload["facts"], found[1].Payload)
+	}
+	first, _ := permFacts[0].(map[string]any)
+	if first["name"] != "error" || first["value"] != "operation not permitted" {
+		t.Fatalf("verification.observed facts[0] = %+v, want error fact", first)
+	}
+}
+
+// TestWireEvents_VerificationObservedUsesSanitizedFacts is ZYS-823 review
+// gap: attachVerificationLocked stores a sanitized+cloned copy of details
+// onto st.verification (core.StoreVerificationDetails, which runs
+// text.Text over every Fact value) but built the "verification.observed"
+// JSONL payload from the raw `details` argument instead — a Fact value
+// carrying control/ANSI bytes (e.g. an OS error string) therefore reached
+// JSONL unsanitized while the final "evo.run" JSON document (which reads
+// the stored, sanitized st.verification) carried the sanitized form. That
+// breaks one-runtime-truth parity between FormatJSON and FormatJSONL for
+// the exact same underlying data.
+func TestWireEvents_VerificationObservedUsesSanitizedFacts(t *testing.T) {
+	const rawErr = "permission denied\x1b[31m\x07 (control bytes)"
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("write file")
+	task.Define(func(context.Context) error { return nil })
+
+	out.mu.Lock()
+	out.attachVerificationLocked(task.id, []core.VerificationDetail{
+		{
+			Name: "contents", Status: core.VerificationError,
+			Facts: []core.Fact{{Name: "error", Value: rawErr}},
+		},
+	})
+	sanitized := out.taskByRef[task.id].verification
+	out.mu.Unlock()
+
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	if len(sanitized) != 1 || len(sanitized[0].Facts) != 1 {
+		t.Fatalf("stored verification = %+v, want 1 detail with 1 fact", sanitized)
+	}
+	wantValue := sanitized[0].Facts[0].Value
+	if wantValue == rawErr {
+		t.Fatalf("test fixture invalid: sanitization did not change %q, fixture must carry bytes text.Text strips", rawErr)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	var payload map[string]any
+	for _, e := range events {
+		if e.Type == wire.EventVerificationObserved {
+			payload = e.Payload
+		}
+	}
+	if payload == nil {
+		t.Fatalf("no verification.observed event, got: %v", wireEventTypes(events))
+	}
+	facts, ok := payload["facts"].([]any)
+	if !ok || len(facts) != 1 {
+		t.Fatalf("verification.observed facts = %v, want 1 fact", payload["facts"])
+	}
+	fact, _ := facts[0].(map[string]any)
+	if got, _ := fact["value"].(string); got != wantValue {
+		t.Fatalf("verification.observed fact value = %q, want sanitized %q (JSONL must match the stored, sanitized copy JSON reads — not the raw pre-sanitization argument)", got, wantValue)
+	}
+}
+
+// failAfterNWriter succeeds its first n Write calls, then fails every call
+// after — a stand-in for a stdout pipe that breaks mid-stream (spec §32.2).
+type failAfterNWriter struct {
+	buf   bytes.Buffer
+	n     int
+	calls int
+}
+
+func (w *failAfterNWriter) Write(p []byte) (int, error) {
+	w.calls++
+	if w.calls > w.n {
+		return 0, errors.New("failAfterNWriter: simulated write failure")
+	}
+	return w.buf.Write(p)
+}
+
+// TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning is ZYS-848's
+// wire-side "all Problems remain available in ... JSONL" acceptance item:
+// each TaskHandle.Problem call streams its own problem.recorded line,
+// distinct from warning.recorded, so a JSONL consumer never needs to guess
+// whether an accumulated finding was blocking or a warning.
+func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	task := out.Task("audit")
+	task.Problem("finding one", Code("A1"))
+	task.Problem("finding two", Code("A2"))
+	task.Problem("heads up", Severity(SeverityWarning), Code("W1"))
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	events := decodeWireEvents(t, stdout.String())
+	types := wireEventTypes(events)
+	problemCount, warningCount := 0, 0
+	for _, ty := range types {
+		switch ty {
+		case wire.EventProblemRecorded:
+			problemCount++
+		case wire.EventWarningRecorded:
+			warningCount++
+		}
+	}
+	if problemCount != 2 {
+		t.Fatalf("want 2 %s events, got %d in %v", wire.EventProblemRecorded, problemCount, types)
+	}
+	if warningCount != 1 {
+		t.Fatalf("want 1 %s event, got %d in %v", wire.EventWarningRecorded, warningCount, types)
+	}
+	// The task resolves Failed (accumulated Problems override the nil
+	// Define return) even though the warning alone would not have.
+	finished := events[indexOfType(events, wire.EventTaskFinished)]
+	if finished.Payload["state"] != "failed" {
+		t.Fatalf("want task.finished state=failed, got %v", finished.Payload["state"])
+	}
+}
+
+// TestWireEvents_WriteFailureMidStream_FailsRunButKeepsEarlierLines proves
+// spec §32.2: "Earlier valid lines remain valid if a later write fails; the
+// Run then fails" — the lines already written stay intact, and Finish
+// reports a non-nil error escalating the run's exit code.
+func TestWireEvents_WriteFailureMidStream_FailsRunButKeepsEarlierLines(t *testing.T) {
+	w := &failAfterNWriter{n: 2}
+	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: w})
+	task := out.Task("build")
+	task.Define(func(context.Context) error { return nil })
+	_ = task.Wait()
+
+	finishErr := out.Finish()
+	if finishErr == nil {
+		t.Fatalf("Finish must report an error after a mid-stream wire-event write failure")
+	}
+
+	written := w.buf.String()
+	lines := strings.Split(strings.TrimRight(written, "\n"), "\n")
+	if len(lines) != w.n {
+		t.Fatalf("expected exactly %d valid earlier lines preserved, got %d:\n%s", w.n, len(lines), written)
+	}
+	for i, line := range lines {
+		var e wireEventLine
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("earlier line %d was corrupted by the later failure: %v\nline: %s", i, err, line)
+		}
+	}
+}

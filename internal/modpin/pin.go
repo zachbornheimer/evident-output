@@ -59,7 +59,7 @@ func Parse(goMod, goModDir string) (Pin, error) {
 }
 
 func moduleLine(goMod string) string {
-	for _, line := range strings.Split(goMod, "\n") {
+	for line := range strings.SplitSeq(goMod, "\n") {
 		trimmed := stripComment(strings.TrimSpace(line))
 		if strings.HasPrefix(trimmed, "module ") {
 			fields := strings.Fields(trimmed)
@@ -126,7 +126,7 @@ func eachDirective(goMod, keyword string, fn func(fields []string)) {
 	inBlock := false
 	blockHeader := keyword + " ("
 	linePrefix := keyword + " "
-	for _, line := range strings.Split(goMod, "\n") {
+	for line := range strings.SplitSeq(goMod, "\n") {
 		trimmed := stripComment(strings.TrimSpace(line))
 		switch {
 		case strings.HasPrefix(trimmed, blockHeader):
@@ -153,8 +153,8 @@ func eachDirective(goMod, keyword string, fn func(fields []string)) {
 }
 
 func stripComment(line string) string {
-	if i := strings.Index(line, "//"); i >= 0 {
-		return strings.TrimSpace(line[:i])
+	if before, _, ok := strings.Cut(line, "//"); ok {
+		return strings.TrimSpace(before)
 	}
 	return line
 }

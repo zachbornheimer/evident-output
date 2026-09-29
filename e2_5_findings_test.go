@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"strings"
@@ -29,8 +30,8 @@ func TestE2_5Finding1_WarnedGroupChildReachesConclusion(t *testing.T) {
 
 	group := out.Group("dependencies")
 	child := group.Task("cache")
-	child.Warn("stale entry ignored")
-	child.Done()
+	child.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
+	succeed(child)
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -60,8 +61,8 @@ func TestE2_5Finding2_MutationOnResolvedTaskReturnsErrorNeverNil(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("branches")
-	task.Done()
-	task.Delete("stale local branch", func() error { return nil }, evo.Affected(1))
+	succeed(task)
+	task.Define(effectOf(evo.EffectDelete, "stale local branch", 1))
 	if !errors.Is(out.Err(), evo.ErrAlreadyResolved) {
 		t.Fatalf("Err() = %v, want ErrAlreadyResolved for a mutation on an already-resolved task", out.Err())
 	}
@@ -79,8 +80,8 @@ func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
-	branches.Warn("kept 11 (7 protected, 4 unpushed)")
-	branches.Done()
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
+	succeed(branches)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -91,76 +92,32 @@ func TestE2_5Finding3_InlineWarningRendersBangPrefix(t *testing.T) {
 	}
 }
 
-// --- Finding 4: MED — Affected validation ----------------------------------
-
-// TestE2_5Finding4_NegativeAffectedRecordsMisuseNothing proves Affected(n<0)
-// is caller misuse: nothing is recorded into either ledger, and Err()
-// reports ErrInvalidConfig.
-func TestE2_5Finding4_NegativeAffectedRecordsMisuseNothing(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-
-	branches := out.Task("branches")
-	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(-1))
-	if !errors.Is(out.Err(), evo.ErrInvalidConfig) {
-		t.Fatalf("Err() = %v, want ErrInvalidConfig for a negative count", out.Err())
-	}
-	branches.Done()
-	_ = out.Finish()
-	if !errors.Is(out.Err(), evo.ErrInvalidConfig) {
-		t.Fatalf("Err() = %v, want ErrInvalidConfig", out.Err())
-	}
-	snap := out.Snapshot()
-	if len(snap.Changes) != 0 || len(snap.Plans) != 0 {
-		t.Fatalf("want no ledger sections recorded for a negative Affected call, got Changes=%+v Plans=%+v", snap.Changes, snap.Plans)
-	}
-}
-
-// TestE2_5Finding4_ZeroAffectedNeverCreatesEffectlessLedgerSection proves
-// Affected(0) never declares an intended verb and never renders a
-// "nothing to X" section — the fixture's "[planned] repo-retire" phantom-row
-// bug class.
-func TestE2_5Finding4_ZeroAffectedNeverCreatesEffectlessLedgerSection(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
-	t.Cleanup(func() { _ = out.Close() })
-
-	branches := out.Task("branches")
-	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(0))
-	branches.Done()
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-	snap := out.Snapshot()
-	if len(snap.Plans) != 0 {
-		t.Fatalf("want no Plan section declared for a zero-Affected call, got %+v", snap.Plans)
-	}
-	if strings.Contains(buf.String(), "nothing to") || strings.Contains(buf.String(), "[planned]  branches") {
-		t.Fatalf("want no effectless \"branches\" ledger section rendered, got:\n%s", buf.String())
-	}
-}
+// --- Finding 4: MED — quantity validation ---------------------------------
+// Owned by EffectSpec validation now (TestEffect_RejectsContentFreeSpec):
+// a Quantity <= 0 Effect is refused before any ledger row exists.
 
 // --- Finding 5: LOW-MED — double-resolve race ------------------------------
 
-// TestE2_5Finding5_ConcurrentDoneDuringMutationCallDoesNotDropEffect proves
-// the ledger target resolves once: a concurrent Done racing a mutation
-// verb's in-flight call must not cause the effect that call just committed
+// TestE2_5Finding5_ConcurrentSummaryDuringMutationCallDoesNotDropEffect proves
+// the ledger target resolves once: a concurrent Summary racing an Effect's
+// in-flight call must not cause the effect that call just committed
 // to be silently dropped as spurious misuse.
-func TestE2_5Finding5_ConcurrentDoneDuringMutationCallDoesNotDropEffect(t *testing.T) {
+func TestE2_5Finding5_ConcurrentSummaryDuringMutationCallDoesNotDropEffect(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	started := make(chan struct{})
 	release := make(chan struct{})
 	branches := out.Task("branches")
-	branches.Delete("stale local branch", func() error {
-		close(started)
-		<-release
-		return nil
-	}, evo.Affected(2))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {
+			close(started)
+			<-release
+			return nil
+		})
+	})
 	<-started
-	branches.Done()
+	branches.Summary("2 deleted")
 	close(release)
 	_ = out.Finish()
 	snap := out.Snapshot()
@@ -190,8 +147,8 @@ func TestE2_5Finding6_InlineThresholdMeasuresDisplayWidthNotBytes(t *testing.T) 
 	// only 30 cells, comfortably under the 40-cell inline threshold.
 	warning := strings.Repeat("é", 30)
 	branches := out.Task("branches")
-	branches.Warn(warning)
-	branches.Done()
+	branches.Problem(warning, evo.Severity(evo.SeverityWarning))
+	succeed(branches)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -200,25 +157,6 @@ func TestE2_5Finding6_InlineThresholdMeasuresDisplayWidthNotBytes(t *testing.T) 
 	if !strings.Contains(got, "✓ branches  ! "+warning) {
 		t.Fatalf("want the warning inlined (display-width under threshold), got:\n%s", got)
 	}
-}
-
-// --- Finding 7: LOW — Record/RecordName/RecordLabel nil-safety ------------
-
-// TestE2_5Finding7_RecordFamilyNilSafe proves Record/RecordName/RecordLabel
-// never panic on a nil TaskHandle or a TaskHandle whose Output is gone — the
-// same nil-safety the mutation verbs already have.
-func TestE2_5Finding7_RecordFamilyNilSafe(t *testing.T) {
-	var nilHandle *evo.TaskHandle
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Fatalf("Record panicked on a nil TaskHandle: %v", r)
-			}
-		}()
-		nilHandle.Record("delete", 2, "branch")
-		nilHandle.RecordName("delete", "branch")
-		nilHandle.RecordLabel("ready", 1, "branch")
-	}()
 }
 
 // --- Addendum item 8: 3-level nested container rendering golden -----------
@@ -235,7 +173,7 @@ func TestE2_5Item8_ThreeLevelNestedContainerPlainByteShape(t *testing.T) {
 	root := out.Sequence("release")
 	python := root.Sequence("python")
 	venv := python.Sequence("venv")
-	venv.Task("install").Done()
+	succeed(venv.Task("install"))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -294,6 +232,6 @@ func TestE2_5Item8_ThreeLevelNestedContainerLiveByteShape(t *testing.T) {
 			releaseIndent, pythonIndent, venvIndent, installIndent, frame)
 	}
 
-	install.Done()
+	succeed(install)
 	_ = out.Finish()
 }

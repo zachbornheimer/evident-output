@@ -74,9 +74,11 @@ func parentKeyOf(col *tasksState) string {
 // within the application/workspace manifest namespace. Must be called
 // before Define — dependency/verification/execution configuration freezes
 // at Define, and identity is part of that configuration — a call after
-// Define records ErrKeyAfterDefine and leaves the task's key untouched. A
-// key already claimed by another Task is ErrDuplicateKey, the same
-// identity-conflict error every other explicit-key path already reports.
+// Define, or after a terminal verb settled the Task, records
+// ErrKeyAfterDefine and leaves the task's key untouched. Repeating the key
+// the Task already has is a no-op. A key already claimed by another Task is
+// ErrDuplicateKey, the same identity-conflict error every other
+// explicit-key path already reports.
 func (t *TaskHandle) Key(key string) *TaskHandle {
 	if t == nil || t.out == nil {
 		return t
@@ -88,11 +90,14 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 	if st == nil {
 		return t
 	}
-	if st.submitted {
+	if !st.neverDefined() {
 		o.recordMisuseFor(st.name, ErrKeyAfterDefine)
 		return t
 	}
 	clean := txt.Text(key)
+	if clean == st.key {
+		return t
+	}
 	if _, ok := o.keys[clean]; ok {
 		o.recordMisuse(ErrDuplicateKey)
 		return t
@@ -106,25 +111,24 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 // failDuplicateSiblingLocked records a real, visible Failed task carrying
 // ProblemCodeDuplicateSiblingName — the truthful conclusion/exit-code path
 // a duplicate declaration now takes instead of a panic or a silently
-// returned existing handle. col is the parent container the duplicate was
-// declared under, or nil for a root-level declaration. Callers must already
-// hold o.mu.
-func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, name string) {
-	summary := fmt.Sprintf("duplicate %s name: %s", kind, name)
-	h := o.addTaskLocked(summary, col, "", parentKeyOf(col), false)
+// returned existing handle. The row is named for the duplicated name
+// itself, and its one Problem says what is wrong with it, so the reader
+// sees `✗ t  duplicate task name` once. col is the parent container the
+// duplicate was declared under, or nil for a root-level declaration.
+// Callers must already hold o.mu. It returns the refusal the duplicate's
+// rejected handle keeps.
+func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, name string) error {
+	h := o.addTaskLocked(name, col)
+	rejected := fmt.Errorf("%w: %s", ErrDuplicateSiblingName, name)
 	st := o.taskByRef[h.id]
 	if st == nil {
-		return
+		return rejected
 	}
-	st.state = Failed
-	st.summary = txt.Text(summary)
 	st.problems = core.StoreProblems([]Problem{{
 		Code:    ProblemCodeDuplicateSiblingName,
-		Subject: name,
-		Summary: summary,
+		Summary: fmt.Sprintf("duplicate %s name", kind),
 	}})
-	st.closeDoneLocked()
-	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "task." + string(Failed), EntityID: st.id})
+	o.settleLocked(st, Failed)
 	o.recordMisuseFor(name, ErrDuplicateSiblingName)
+	return rejected
 }

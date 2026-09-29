@@ -1,0 +1,151 @@
+package review_test
+
+import (
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/internal/apisurface"
+)
+
+func vocabularyPath(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller")
+	}
+	return filepath.Join(filepath.Dir(file), "..", "..", "..", "testdata", "api_vocabulary.txt")
+}
+
+func TestMigration1_1EveryRemovedNameHasDirtyRewriteCleanFixture(t *testing.T) {
+	entries, err := apisurface.LoadVocabulary(vocabularyPath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixtures := migration1_1Fixtures()
+	var missing []string
+	var nRemoved int
+	for _, e := range entries {
+		if e.Class != apisurface.ClassRemoved {
+			continue
+		}
+		nRemoved++
+		fx, ok := fixtures[e.Name]
+		if !ok {
+			missing = append(missing, e.Name)
+			t.Errorf("missing fixture for removed name %s", e.Name)
+			continue
+		}
+		checkRemovedNameFixture(t, e.Name, fx)
+	}
+	if len(missing) > 0 {
+		t.Fatalf("removed names without fixtures (%d of %d): %s", len(missing), nRemoved, strings.Join(missing, ", "))
+	}
+	if nRemoved == 0 {
+		t.Fatal("vocabulary loaded no class=removed names")
+	}
+	t.Logf("removed names=%d fixtures=%d", nRemoved, len(fixtures))
+}
+
+func checkRemovedNameFixture(t *testing.T, name string, fx migrationFixture) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		res := review.GoSource(name+".go", fx.dirty)
+		found := migrationFindings(res)
+		if len(found) == 0 {
+			t.Fatalf("dirty %s: want 1.1 migration finding, got %+v", name, res.Findings)
+		}
+		hit, ok := findingAbout(found, name)
+		if !ok {
+			t.Fatalf("dirty %s: no finding about %q; got %q", name, name, joinSuggestions(found))
+		}
+		if _, ok := rules.Explain(hit.RuleID); !ok {
+			t.Fatalf("rules.Explain(%q) failed", hit.RuleID)
+		}
+		canonical := fx.clean
+		if applied, ok := tryApplyReplace(fx.dirty, hit.Suggestion); ok {
+			again := review.GoSource(name+".go", applied)
+			if len(migrationFindings(again)) == 0 && !again.RecheckRequired && !hasRetiredSpelling(applied, name) {
+				canonical = applied
+			}
+		}
+		if hasRetiredSpelling(fx.clean, name) {
+			t.Fatalf("canonical rewrite for %s still names the retired spelling:\n%s", name, fx.clean)
+		}
+		clean := review.GoSource(name+".go", fx.clean)
+		if n := migrationFindings(clean); len(n) != 0 || clean.RecheckRequired {
+			t.Fatalf("canonical rewrite is dirty: recheck=%v findings=%+v\n%s",
+				clean.RecheckRequired, clean.Findings, fx.clean)
+		}
+		if leftover := review.GoSource(name+".go", canonical); len(migrationFindings(leftover)) != 0 || leftover.RecheckRequired {
+			t.Fatalf("rewritten source still dirty: recheck=%v findings=%+v\n%s",
+				leftover.RecheckRequired, leftover.Findings, canonical)
+		}
+		if len(clean.Findings) != 0 {
+			t.Fatalf("canonical rewrite has non-migration findings: %+v\n%s", clean.Findings, fx.clean)
+		}
+	})
+}
+
+func migrationFindings(res review.Result) []review.Finding {
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "API-032" || strings.Contains(f.Message, "removed in 1.1") {
+			found = append(found, f)
+		}
+	}
+	return found
+}
+
+func findingAbout(fs []review.Finding, name string) (review.Finding, bool) {
+	for _, f := range fs {
+		if strings.Contains(f.Message, name) || strings.Contains(f.Suggestion, name) {
+			return f, true
+		}
+	}
+	return review.Finding{}, false
+}
+
+func tryApplyReplace(src, suggestion string) (string, bool) {
+	rest, ok := strings.CutPrefix(suggestion, "replace ")
+	if !ok {
+		return "", false
+	}
+	old, repl, ok := strings.Cut(rest, " with ")
+	if !ok || !strings.Contains(src, old) {
+		return "", false
+	}
+	return strings.Replace(src, old, repl, 1), true
+}
+
+func hasRetiredSpelling(src, name string) bool {
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		qual, method := name[:i], name[i+1:]
+		if qual == "Failure" {
+			return strings.Contains(src, "Failure."+method) || strings.Contains(src, "fail."+method+"(")
+		}
+		return strings.Contains(src, "."+method+"(")
+	}
+	return containsEvoIdent(src, name)
+}
+
+func containsEvoIdent(src, name string) bool {
+	needle := "evo." + name
+	for i := 0; i+len(needle) <= len(src); i++ {
+		if src[i:i+len(needle)] != needle {
+			continue
+		}
+		if i+len(needle) < len(src) && isIdentContinue(src[i+len(needle)]) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func isIdentContinue(b byte) bool {
+	return b == '_' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
+}

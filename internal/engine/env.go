@@ -106,7 +106,7 @@ func lookupEnv(key string) string {
 func applyEnv(c Config) Config {
 	if c.Projection == 0 {
 		if p, ok := parseOutputEnv(lookupEnv(envKeyOutput)); ok {
-			c.Projection = p
+			c = selectOutputEnv(c, p)
 		}
 	}
 	if c.Projection.forcesPlain() {
@@ -124,6 +124,24 @@ func applyEnv(c Config) Config {
 		if lvl, ok := parseDebugEnv(lookupEnv(envKeyDebug)); ok {
 			c.Debug.Level = lvl
 		}
+	}
+	return c
+}
+
+// selectOutputEnv applies EVO_OUTPUT's projection p. json and jsonl
+// select the evo.run document and evo.event stream (FormatJSON,
+// FormatJSONL) when no Format was chosen: those carry every structured
+// Fact, disposition and Problem, where the frozen output.v1 projection
+// cannot (E-090). A Format the caller chose keeps stdout for itself, so
+// there p stays the output.v1 projection on stderr.
+func selectOutputEnv(c Config, p Projection) Config {
+	switch {
+	case c.Format == FormatHuman && p == ProjectionJSON:
+		c.Format = FormatJSON
+	case c.Format == FormatHuman && p == ProjectionJSONL:
+		c.Format = FormatJSONL
+	default:
+		c.Projection = p
 	}
 	return c
 }

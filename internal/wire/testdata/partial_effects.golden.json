@@ -1,0 +1,35 @@
+{
+  "object": "evo.run",
+  "schema_version": "2.0",
+  "evo_version": "1.0.0",
+  "run_id": "out_1",
+  "started_at": "2026-09-15T20:00:00Z",
+  "finished_at": "2026-09-15T20:00:02.147Z",
+  "duration_ms": 2147,
+  "mode": "apply",
+  "outcome": "ok",
+  "exit_code": 0,
+  "data": {
+    "collections": [],
+    "tasks": [],
+    "facts": [],
+    "problems": [],
+    "effects": [
+      {
+        "subject": "repo",
+        "status": "changed",
+        "verb": "deleted",
+        "quantity": 1,
+        "object": "branch"
+      },
+      {
+        "subject": "repo",
+        "status": "planned",
+        "verb": "delete",
+        "quantity": 2,
+        "object": "tag"
+      }
+    ],
+    "actions": []
+  }
+}

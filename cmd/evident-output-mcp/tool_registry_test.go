@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -11,6 +12,7 @@ var advertisedToolNames = []string{
 	"evident_output_get_documentation",
 	"evident_output_adopt_plan",
 	"evident_output_review",
+	"evident_output_conformance",
 	"evident_output_preview",
 	"evident_output_explain",
 	"evident_output_update",
@@ -49,17 +51,15 @@ func TestToolRegistryMatchesToolList(t *testing.T) {
 			t.Errorf("alias %q must not appear in tools/list", name)
 		}
 	}
+	handlers := toolHandlers()
 	for name := range allowed {
+		if _, ok := handlers[name]; !ok {
+			t.Errorf("tool %q accepts arguments but has no handler", name)
+		}
 		if advertised[name] {
 			continue
 		}
-		isAlias := false
-		for _, alias := range callableAliasNames {
-			if name == alias {
-				isAlias = true
-				break
-			}
-		}
+		isAlias := slices.Contains(callableAliasNames, name)
 		if !isAlias {
 			t.Errorf("validateArgs has an entry for %q, which is neither advertised nor an alias", name)
 		}
@@ -92,7 +92,7 @@ func TestMCP_ToolsListIncludesUpdateWithSchema(t *testing.T) {
 	}, "\n") + "\n"
 	out := runMCP(t, bin, in)
 	var update map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
 		var msg map[string]any
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			continue
@@ -124,7 +124,7 @@ func TestMCP_ToolsListIncludesUpdateWithSchema(t *testing.T) {
 		t.Fatalf("inputSchema missing directory: %v", schema)
 	}
 	listed := listedToolNames(t, out)
-	if len(listed) != 7 {
-		t.Fatalf("advertised %d tools, want 7: %v", len(listed), listed)
+	if len(listed) != len(advertisedToolNames) {
+		t.Fatalf("advertised %d tools, want %d: %v", len(listed), len(advertisedToolNames), listed)
 	}
 }

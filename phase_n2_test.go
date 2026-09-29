@@ -1,7 +1,8 @@
 package evo_test
 
 import (
-	"fmt"
+	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -17,21 +18,20 @@ import (
 
 // TestConclusion_AlreadyMutated_CancelledWithChanges is red-first for item 1:
 // a Cancelled run with committed effects must render one derived
-// "! already mutated: ..." line summarizing the Changes ledger — never a
-// caller-assembled string.
+// "! partial changes were applied before cancellation" note (contract §15),
+// never a caller-assembled string and never a second copy of the ledger.
 func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(8))
-	branches.Done()
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 8))
 	out.Cancel("interrupted")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "!  already mutated: 8 local branches deleted") {
-		t.Fatalf("want derived already-mutated line, got:\n%s", got)
+	if !strings.Contains(got, "! partial changes were applied before cancellation") {
+		t.Fatalf("want the partial-changes note, got:\n%s", got)
 	}
 }
 
@@ -59,8 +59,12 @@ func TestConclusion_AlreadyMutated_Failed(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	remotes := out.Task("remotes")
-	remotes.Delete("origin tip", func() error { return nil }, evo.Affected(1))
-	remotes.Fail("authentication failed")
+	remotes.Define(func(ctx context.Context) error {
+		if err := effectOf(evo.EffectDelete, "origin tip", 1)(ctx); err != nil {
+			return err
+		}
+		return errors.New("authentication failed")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -76,8 +80,7 @@ func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(8))
-	branches.Done()
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 8))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -96,12 +99,8 @@ func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 	var buf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
-	branches := out.Task("branches")
 	const total = 500
-	for i := 0; i < total; i++ {
-		branches.RecordName("delete", fmt.Sprintf("feat/branch-%d", i))
-	}
-	branches.Done()
+	commit(out.Task("branches"), distinctBranchDeletes(total)...)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +124,7 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var uniBuf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &uniBuf, Glyphs: evo.GlyphsUnicode, Color: evo.ColorNever, Plain: true})
 	done := out.Task("done")
-	done.Done()
+	succeed(done)
 	done.Next(evo.Label("repo-retire --retire demo"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -137,7 +136,7 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var asciiBuf strings.Builder
 	out2 := evo.Init(evo.Config{Isolated: true, Stdout: &asciiBuf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
 	done2 := out2.Task("done")
-	done2.Done()
+	succeed(done2)
 	done2.Next(evo.Label("repo-retire --retire demo"))
 	if err := out2.Finish(); err != nil {
 		t.Fatal(err)

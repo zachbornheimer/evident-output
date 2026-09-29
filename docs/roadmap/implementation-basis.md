@@ -101,11 +101,6 @@ task.Progress(done, total)
 task.Progress64(done64, total64)
 ```
 
-```go
-evo.KeepLastLines(100)
-evo.CaptureLines(100)
-```
-
 Duplicate spellings should be removed, deprecated before v1, or moved to an explicitly advanced surface.
 
 ### PHIL-002 — Different voicing is not duplication
@@ -297,10 +292,10 @@ out.Verbose().Printf("Cache: %s\n", cacheDir)
 ```go
 item := out.Item("working tree", evo.ID("repo.working-tree"))
 
-item.OK()
-item.Warn("contains ignored files", evo.Detail("2 files"))
+item.Define(func(context.Context) error { return nil })
+item.Problem("contains ignored files", evo.Severity(evo.SeverityWarning), evo.Detail("2 files"))
 item.Block("contains local changes", evo.Detail("stash or commit them"))
-item.Fail("could not inspect working tree", evo.Cause(err))
+item.Fail("could not inspect working tree", evo.Detail(err.Error()))
 ```
 
 Plural structured evidence is used only when it is actually plural:
@@ -323,8 +318,9 @@ task := out.Task("download", evo.ID("install.download"))
 task.Doing("resolving")
 task.Progress(done, total)
 task.Bytes(written, size)
-task.Done("downloaded")
-task.Fail("download failed", evo.Cause(err))
+task.Summary("downloaded")
+task.Define(func(context.Context) error { return nil })
+task.Fail("download failed", evo.Detail(err.Error()))
 ```
 
 Evidence:

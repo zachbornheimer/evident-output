@@ -50,7 +50,7 @@ func main() {
 
 	var term evo.TerminalDriver
 	if *frames {
-		term = newFrameLog(os.Stderr, *step)
+		term = newFrameLog(os.Stderr, os.Stdin, *step)
 	} else {
 		term = terminal.NewANSI(os.Stderr,
 			terminal.WithInteractive(true),
@@ -74,20 +74,26 @@ func main() {
 	result := out.Run(context.Background(), func(ctx context.Context) error {
 		jobs := out.Group("dependencies")
 		discover := jobs.Task("discover")
-		for _, phase := range []string{"reading lockfile", "resolving graph"} {
-			discover.Doing(phase)
-			time.Sleep(stepDur * 2)
-		}
-		discover.Done("%d packages", 12)
+		discover.Define(func(context.Context) error {
+			for _, phase := range []string{"reading lockfile", "resolving graph"} {
+				discover.Doing(phase)
+				time.Sleep(stepDur * 2)
+			}
+			discover.Summary("12 packages")
+			return nil
+		})
 
 		download := jobs.Task("download")
-		const total int64 = 4_000_000
-		for i := 1; i <= 12; i++ {
-			download.Bytes(total*int64(i)/12, total)
-			time.Sleep(stepDur)
-		}
-		download.Done("4.0 MB")
-		out.Task("registry").Done()
+		download.Define(func(context.Context) error {
+			const total int64 = 4_000_000
+			for i := 1; i <= 12; i++ {
+				download.Bytes(total*int64(i)/12, total)
+				time.Sleep(stepDur)
+			}
+			download.Summary("4.0 MB")
+			return nil
+		})
+		out.Task("registry").Define(func(context.Context) error { return nil })
 		return nil
 	})
 	os.Exit(result.ExitCode())
@@ -102,8 +108,9 @@ type frameLog struct {
 	in    *bufio.Reader
 }
 
-func newFrameLog(w io.Writer, step bool) *frameLog {
-	return &frameLog{w: w, step: step, width: 80, in: bufio.NewReader(os.Stdin)}
+// newFrameLog logs frames to w; in answers the --step pause between them.
+func newFrameLog(w io.Writer, in io.Reader, step bool) *frameLog {
+	return &frameLog{w: w, step: step, width: 80, in: bufio.NewReader(in)}
 }
 
 func (f *frameLog) ID() string          { return "frame-log" }

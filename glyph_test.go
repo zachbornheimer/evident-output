@@ -15,7 +15,7 @@ import (
 func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
-	out.Task("done").Done()
+	succeed(out.Task("done"))
 	out.Task("failed").Fail("boom")
 	out.Task("gate").Block("declined")
 	if err := out.Finish(); err != nil {
@@ -43,7 +43,7 @@ func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 	first := group.Task("first")
 	second := group.Task("second")
 	_ = group.Task("third")
-	first.Done()
+	succeed(first)
 	second.Fail("boom")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 	t.Run("non-interactive keeps Unicode", func(t *testing.T) {
 		var buf bytes.Buffer
 		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
-		out.Task("done").Done()
+		succeed(out.Task("done"))
 		if err := out.Finish(); err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,7 @@ func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 func TestGlyphUnicode_UnchangedByProfileAxis(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Glyphs: evo.GlyphsUnicode, Color: evo.ColorNever, Plain: true})
-	out.Task("done").Done()
+	succeed(out.Task("done"))
 	out.Task("failed").Fail("boom")
 	out.Task("gate").Block("declined")
 	if err := out.Finish(); err != nil {

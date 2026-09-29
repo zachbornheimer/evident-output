@@ -27,17 +27,11 @@ task.Progress(done, total)
 task.Progress64(done64, total64) // same intent, second spelling
 ```
 
-```go
-evo.KeepLastLines(100)
-evo.CaptureLines(100) // same intent, second spelling
-```
-
 ### Accepted (one ordinary form)
 
 ```go
 out := evo.New(evo.Config{Title: "install"})
 task.Progress(done, total)
-// Capture lines via the ordinary Capture surface, not a parallel alias
 ```
 
 ---
@@ -64,7 +58,7 @@ task.Bytes(24<<20, 80<<20) // byte progress — different measure
 ```
 
 ```go
-out.Task("credentials")  // condition — resolved directly (Done/Warn/Block/Fail/Skip)
+out.Task("credentials")  // condition — resolved directly (Problem/Block/Fail/Skipped)
 out.Task("authenticate") // work — driven through Doing/Progress
 ```
 
@@ -98,7 +92,7 @@ Advanced capabilities may exist without appearing in ordinary examples.
 
 ```text
 Init(Config) → Main → Print/Verbose → Task/Sequence/Group
-→ task.Writer() → mutation verbs (Delete/Create/Update/…) → slog → ResultWriter
+→ task.Writer() → evo.Effect / evo.File → slog → ResultWriter
 ```
 
 ---
@@ -130,13 +124,13 @@ Sugar is forbidden when it:
 - pretends to do more than it does (PHIL-007),
 - exists only for method-table symmetry (§15).
 
-| Candidate                                                  | Verdict                                                |
-| ---------------------------------------------------------- | ------------------------------------------------------ |
-| `New(Config{Title})` as sole constructor on the lead sheet | Accepted                                               |
-| `For(title)` alias of `New`                                | Rejected — same note, second spelling                  |
-| `BlockedBy(...Problem)` beside singular `Block`            | Accepted — plural evidence voicing                     |
-| `Progress64` beside `Progress` for the same count intent   | Rejected — type-system twin                            |
-| `Record(verb, n, object)` for domain verbs                 | Accepted — real domain concept (see domain-vocabulary) |
+| Candidate                                                  | Verdict                                                                                      |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `New(Config{Title})` as sole constructor on the lead sheet | Accepted                                                                                     |
+| `For(title)` alias of `New`                                | Rejected — same note, second spelling                                                        |
+| `BlockedBy(...Problem)` beside singular `Block`            | Accepted — plural evidence voicing                                                           |
+| `Progress64` beside `Progress` for the same count intent   | Rejected — type-system twin                                                                  |
+| `Record(verb, n, object)` for domain verbs                 | Removed in 1.1 — closed `EffectVerb` set; classification is a `Fact` (see domain-vocabulary) |
 
 ---
 
@@ -145,7 +139,7 @@ Sugar is forbidden when it:
 Defaults, examples, and ownership make correct behavior the path of least resistance.
 
 - Capture is silent on success.
-- An error flows through `Failf`'s trailing `%w`, diagnostic and redacted by policy; `Detail` is user-facing.
+- An error flows through `Fail` with `evo.Detail` (or `return fmt.Errorf` inside Define), diagnostic and redacted by policy; `Detail` is user-facing.
 - `Main` reconciles application errors before final rendering.
 - stdout data contracts remain uncontaminated.
 - concurrent Task declaration order is deterministic.

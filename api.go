@@ -85,7 +85,6 @@ func PolicyHint(command string, args ...string) ConfirmOption {
 }
 
 func Fact(name, value string)              { engine.Fact(name, value) }
-func Warn(summary string)                  { engine.Warn(summary) }
 func Delay(d time.Duration) *time.Duration { return engine.Delay(d) }
 func DefaultConfig() Config                { return engine.DefaultConfig() }
 func IsCharDevice(w io.Writer) bool        { return engine.IsCharDevice(w) }
@@ -99,22 +98,9 @@ func TruncateNames(names []string, visible int) string {
 	return engine.TruncateNames(names, visible)
 }
 
-func KeepLastLines(n int) EvidenceOption    { return engine.KeepLastLines(n) }
-func MaxEvidenceBytes(n int) EvidenceOption { return engine.MaxEvidenceBytes(n) }
-func MirrorToDebug() EvidenceOption         { return engine.MirrorToDebug() }
-func MirrorToDiagnostics() EvidenceOption   { return engine.MirrorToDiagnostics() }
+func MaxCaptureBytes(n int) CaptureOption { return engine.MaxCaptureBytes(n) }
 
 func NewestFirst() DebugPaneOption         { return engine.NewestFirst() }
 func OldestFirst() DebugPaneOption         { return engine.OldestFirst() }
 func PaneHeight(lines int) DebugPaneOption { return engine.PaneHeight(lines) }
 func PreserveDebugTail() DebugPaneOption   { return engine.PreserveDebugTail() }
-
-func Affected(n int) MutationOption { return engine.Affected(n) }
-
-// ID sets a stable machine key. Superseded: Task is name-only.
-func ID(id string) EntityOption { return engine.ID(id) }
-
-// StartPhase sets a task's first doing-text at declare time. Superseded: call Doing.
-func StartPhase(text string) EntityOption { return engine.StartPhase(text) }
-func ForSkip() ReasonOption               { return engine.ForSkip() }
-func OnTask(taskName string) ReasonOption { return engine.OnTask(taskName) }

@@ -35,7 +35,7 @@ func TestWarn_MessagePlacement_MatchesFailBlock(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Task("optional tool").Warn("shellcheck not found")
+	out.Task("optional tool").Problem("shellcheck not found", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
 
 	rendered := buf.String()

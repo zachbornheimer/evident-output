@@ -144,3 +144,32 @@ func f(out *evo.Output) { out.Changes("b") }
 		t.Fatalf("directory review must merge both files: %s", out)
 	}
 }
+
+func TestReview_PackageKindHonorsDesiredVersion(t *testing.T) {
+	bin := buildMCP(t)
+	src, _ := json.Marshal("package p\nimport evo \"github.com/zachbornheimer/evident-output\"\nfunc f(g *evo.GroupHandle, p string) {\n\tg.Task(p).Delete(\"worktree\", func() error { return nil })\n}\n")
+	in := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"kind":"package","desired_version":"v1.0.0","files":{"prune.go":` + string(src) + `}}}}`,
+	}, "\n") + "\n"
+	out := runMCP(t, bin, in)
+	if strings.Contains(out, "API-032") {
+		t.Fatalf("package kind at desired_version=v1.0.0 must not fire 1.1-only API-032: %s", out)
+	}
+}
+
+// A clean multi-file package ends the MUST-loop through the MCP tool:
+// imports are never loaded, and that alone must not force a recheck.
+func TestReview_PackageKindCleanPackageIsClean(t *testing.T) {
+	bin := buildMCP(t)
+	mainSrc, _ := json.Marshal("package main\n\nimport (\n\t\"os\"\n\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\n\nfunc main() {\n\tevo.Init(evo.Config{Title: \"tool\"})\n\tos.Exit(evo.Main(run))\n}\n")
+	runSrc, _ := json.Marshal("package main\n\nimport (\n\t\"context\"\n\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\n\nfunc run(ctx context.Context) error {\n\tevo.Task(\"check config\").Define(func() error { return ctx.Err() })\n\treturn nil\n}\n")
+	in := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"kind":"package","files":{"main.go":` + string(mainSrc) + `,"run.go":` + string(runSrc) + `}}}}`,
+	}, "\n") + "\n"
+	out := runMCP(t, bin, in)
+	if !strings.Contains(out, "findings=0 recheck=false partial=false") {
+		t.Fatalf("clean package must review clean: %s", out)
+	}
+}

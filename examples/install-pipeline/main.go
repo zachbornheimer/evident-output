@@ -6,12 +6,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
+
+// errTestsFailed is the simulated test failure.
+var errTestsFailed = errors.New("exit status 1")
 
 func main() {
 	fast := flag.Bool("fast", false, "short delays")
@@ -49,8 +54,8 @@ func main() {
 		tests.Define(func(ctx context.Context) error {
 			time.Sleep(step)
 			if *failTests {
-				tests.Fail("tests failed: exit status 1", evo.Detail("=== RUN   TestFoo\n--- FAIL: TestFoo (0.01s)\n    foo_test.go:12: want 1, got 0"))
-				return nil
+				tests.Problem("TestFoo failed", evo.Detail("=== RUN   TestFoo\n--- FAIL: TestFoo (0.01s)\n    foo_test.go:12: want 1, got 0"))
+				return fmt.Errorf("tests failed: %w", errTestsFailed)
 			}
 			tests.Progress(12, 12)
 			return nil

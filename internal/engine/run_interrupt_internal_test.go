@@ -134,10 +134,12 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 	go func() {
 		code <- out.Run(context.Background(), func(ctx context.Context) error {
 			scan.Define(func(ctx context.Context) error { return nil })
-			venv.Create(".venv directory", func() error {
-				close(blocking)
-				<-venv.Context().Done()
-				return nil
+			venv.Define(func(ctx context.Context) error {
+				return Effect(ctx, EffectSpec{Verb: EffectCreate, Object: ".venv directory", Quantity: 1}, func(context.Context) error {
+					close(blocking)
+					<-venv.Context().Done()
+					return nil
+				})
 			})
 			install.Define(func(ctx context.Context) error { return nil })
 			return install.Wait()
@@ -157,9 +159,36 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 	}
 
 	rendered := buf.String()
-	for _, want := range []string{"✓ scan", "■ venv", "- install", "already mutated: 1 .venv directory created"} {
+	for _, want := range []string{"✓ scan", "■ venv", "- install", "partial changes were applied before cancellation"} {
 		if !strings.Contains(strings.Join(strings.Fields(rendered), " "), strings.Join(strings.Fields(want), " ")) {
 			t.Fatalf("want %q in:\n%s", want, rendered)
 		}
+	}
+}
+
+// TestInterrupt_WorkDefinedAfterTheSignalNeverStrandsTheDrain proves a Task
+// Defined after the interrupt settles NotStarted at once. The scheduler
+// dispatches nothing after ^C, so such a Task used to sit in the queue
+// forever, still counted by the drain, and Finish hung: the intermittent
+// hang TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue showed
+// when its run callback was still Defining when the signal landed.
+func TestInterrupt_WorkDefinedAfterTheSignalNeverStrandsTheDrain(t *testing.T) {
+	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, Stdout: io.Discard, Stderr: io.Discard})
+	out.interrupt("interrupted")
+	late := out.Task("late")
+	late.Define(func(context.Context) error { return nil })
+
+	closed := make(chan struct{})
+	go func() {
+		_ = out.Close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(interruptBudget):
+		t.Fatal("Close hung on a Task Defined after the interrupt")
+	}
+	if got := late.Snapshot().State; got != NotStarted {
+		t.Fatalf("late Task state = %s, want %s", got, NotStarted)
 	}
 }

@@ -1,6 +1,6 @@
 // Package adopt inventories non-evo CLI output in an existing codebase and
 // proposes a migration plan keyed to the adoption ladder (Init/Main →
-// Task/Done → effects → facts/warnings → confirm/dry-run). Detection is
+// Task/Define → effects → facts/warnings → confirm/dry-run). Detection is
 // static and AST-based — every finding is a call site or import the
 // compiler itself would resolve the same way, never a guess about intent;
 // ambiguous cases are marked NeedsReview instead of silently picked one way.
@@ -94,13 +94,6 @@ func inventoryPath(fset *token.FileSet, path string) ([]Finding, *ast.File, erro
 func isGenerated(src []byte) bool {
 	head := string(src[:min(len(src), 4096)])
 	return strings.Contains(head, "Code generated ") && strings.Contains(head, "DO NOT EDIT")
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func sortFindings(findings []Finding) {

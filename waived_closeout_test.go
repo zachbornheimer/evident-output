@@ -22,10 +22,10 @@ func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEvents: 8})
 	t.Cleanup(func() { _ = out.Close() })
 	// Flood with line events (non-critical).
-	for i := 0; i < 40; i++ {
+	for range 40 {
 		out.Println("noise")
 	}
-	out.Task("done").Done()
+	succeed(out.Task("done"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestCON009_MultiRendererOneFailure(t *testing.T) {
 	bad := &failWriter{}
 	out := evo.Init(evo.Config{Isolated: true, Stdout: bad, Title: "s", Color: evo.ColorNever, Plain: true})
 	out.AlsoWriteForTest(&good)
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	err := out.Finish()
 	if err == nil {
 		t.Fatal("expected renderer error")
@@ -87,7 +87,7 @@ func TestCON004_ResizeWhileLive(t *testing.T) {
 	screen.SetSize(40, 20)
 	task.Progress(1, 2)
 	clock.Advance(200 * time.Millisecond)
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestCON003_LogWhileLiveNoSplit(t *testing.T) {
 	task := out.Task("t")
 	task.Doing("running")
 	out.DebugForTest("durable note")
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "repo", Width: 28, Color: evo.ColorNever, Plain: true})
 	out.Task("working tree").Block("dirty", evo.Detail("commit or stash"))
-	out.Task("remote").Done()
+	succeed(out.Task("remote"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -147,8 +147,8 @@ func TestTXT016_LeaderBoundedAndOmittedNarrow(t *testing.T) {
 	mk := func(w io.Writer, cols int) {
 		out := evo.Init(evo.Config{Isolated: true, Stdout: w, Title: "x", Width: cols, Color: evo.ColorNever, Plain: true})
 		ch := out.Task("files")
-		ch.Add("a.go", func() error { return nil }, evo.Affected(1))
-		ch.Remove("b.go", func() error { return nil }, evo.Affected(2))
+		ch.Define(effectOf(evo.EffectAdd, "a.go", 1))
+		ch.Define(effectOf(evo.EffectRemove, "b.go", 2))
 		_ = out.Finish()
 		_ = out.Close()
 	}
@@ -217,11 +217,11 @@ func TestMCP050_TokenBudgetExplicit(t *testing.T) {
 	if len(out) == 0 {
 		t.Fatal("expected at least stub guide")
 	}
-	joined := ""
+	var joined strings.Builder
 	for _, g := range out {
-		joined += g.Body
+		joined.WriteString(g.Body)
 	}
-	if !strings.Contains(joined, "truncated") && !strings.Contains(joined, "token_budget") {
+	if !strings.Contains(joined.String(), "truncated") && !strings.Contains(joined.String(), "token_budget") {
 		// may truncate mid-list without body marker if budget ends between guides
 		if len(out) >= len(guides) {
 			t.Fatalf("no truncation signal: %+v", out)
@@ -232,7 +232,7 @@ func TestMCP050_TokenBudgetExplicit(t *testing.T) {
 func TestMCP025_PreviewDebugInterleave(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
-	out.Task("status").Done()
+	succeed(out.Task("status"))
 	out.DebugForTest("index ok")
 	_ = out.Finish()
 	profiles := preview.DefaultProfiles(out.Snapshot())
@@ -285,18 +285,18 @@ func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 50; i++ {
+		for i := range 50 {
 			task.Progress(i, 50)
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			out.DebugForTest("tick")
 		}
 	}()
 	wg.Wait()
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

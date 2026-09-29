@@ -2,22 +2,20 @@ package review
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"strings"
 )
 
-// supersededOptionFuncs are v0.2 Option constructors; Config fields replace them.
+// supersededOptionFuncs are Option constructors removed in 1.1; Config fields replace them.
 var supersededOptionFuncs = map[string]bool{
 	"To": true, "Plain": true, "NoColor": true, "Stdin": true,
 	"DryRun": true, "VisibilityDelay": true, "Diagnostics": true,
-	"Title": true,
-}
-
-// oldMutationVerbs used a positional quantity then object; object+callback is current.
-var oldMutationVerbs = map[string]bool{
-	"Delete": true, "Remove": true, "Add": true, "Create": true,
-	"Update": true, "Push": true, "Write": true,
+	"Title": true, "ResultStream": true, "Terminal": true, "Clock": true,
+	"MaxFrameRate": true, "Width": true, "Redact": true, "Runner": true,
+	"MaxEntities": true, "MaxEvents": true, "Strict": true,
+	"AlsoWrite": true, "Glyphs": true, "DataProjection": true,
+	"ExternalProjection": true, "DebugLevel": true, "DebugAddSource": true,
+	"DebugHistory": true, "DebugPane": true,
 }
 
 type srcSpan struct{ start, end int }
@@ -27,7 +25,7 @@ func (s srcSpan) contains(offset int) bool {
 }
 
 // recSurfaceDetector is API-032's rec-surface pass: Options/To/Plain,
-// positional quantity-first mutation verbs, retired collection constructor,
+// the TaskHandle mutation verbs and Done removed in 1.1, retired collection constructor,
 // Skip, Task extras, ID/StartPhase, MainWith (removed in 1.0).
 type recSurfaceDetector struct {
 	filename string
@@ -36,19 +34,30 @@ type recSurfaceDetector struct {
 	fset     *token.FileSet
 	findings []Finding
 	covered  []srcSpan
+	// doneScope is set only when the target dialect is 1.1+, where
+	// TaskHandle.Done no longer exists (see review_rec_done.go).
+	doneScope *removedDoneScope
+	// effectDialect is set when the target dialect is 1.1+, where the
+	// TaskHandle mutation verbs are gone and evo.Effect/evo.File exist.
+	effectDialect bool
+	// failures names identifiers typed evo.Failure, so Failure.Next is
+	// not confused with live TaskHandle.Next / Output.Next.
+	failures failureBindings
 }
 
-func detectSupersededRecSurface(filename, src string) []Finding {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
-	if err != nil {
-		return nil
-	}
+func detectSupersededRecSurface(in fileInput) []Finding {
+	f := in.file
 	pkg := evoImportName(f)
 	if pkg == "" {
 		return nil
 	}
-	d := &recSurfaceDetector{filename: filename, src: src, pkg: pkg, fset: fset}
+	d := &recSurfaceDetector{filename: in.filename, src: in.src, pkg: pkg, fset: in.fset}
+	if dialectAtLeast(in.desiredVersion, dialectOneOne) {
+		scope := newRemovedDoneScope(f, d)
+		d.doneScope = &scope
+		d.effectDialect = true
+		d.failures = newFailureBindings(f, pkg)
+	}
 	ast.Inspect(f, d.inspect)
 	ast.Inspect(f, d.inspectLeftover)
 	return d.findings
@@ -74,33 +83,40 @@ func (d *recSurfaceDetector) inspectComposite(cl *ast.CompositeLit) {
 		return
 	}
 	if isOptionSliceLit(cl, d.pkg) && !d.isCovered(cl) {
-		repl := d.optionSliceToFields(cl)
-		if repl == "" {
+		repl, ok := d.optionSliceToFields(cl, nil)
+		if !ok {
 			return
 		}
 		old := d.nodeSrc(cl)
-		d.report(cl, "[]evo.Option is superseded; use Config fields",
+		d.report(cl, "[]evo.Option was removed in 1.1; use Config fields",
 			"replace "+old+" with "+repl)
 		d.cover(cl)
 	}
 }
 
+// inspectConfigOptions flags Config.Options. It offers a rewrite only when
+// every Option maps one-to-one onto a Config field the literal does not
+// already set: a partial rewrite would silently drop the rest, a guessed
+// one changes behavior, and a repeated field does not compile.
 func (d *recSurfaceDetector) inspectConfigOptions(cl *ast.CompositeLit) {
+	set := configFieldsSet(cl)
 	for _, elt := range cl.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok || identName(kv.Key) != "Options" {
 			continue
 		}
+		const msg = "Config.Options is superseded; use Config fields"
 		old := d.nodeSrc(kv)
-		repl := ""
-		if sl, ok := kv.Value.(*ast.CompositeLit); ok && isOptionSliceLit(sl, d.pkg) {
-			repl = d.optionSliceToFields(sl)
+		sl, isSlice := kv.Value.(*ast.CompositeLit)
+		if isSlice && isOptionSliceLit(sl, d.pkg) {
+			if repl, ok := d.optionSliceToFields(sl, set); ok {
+				d.report(kv, msg, "replace "+old+" with "+repl)
+				d.cover(kv)
+				continue
+			}
 		}
-		if repl == "" {
-			repl = "Stdout: w, Plain: true"
-		}
-		d.report(kv, "Config.Options is superseded; use Config fields",
-			"replace "+old+" with "+repl)
+		d.report(kv, msg, "move each Option in "+old+" to its Config field by hand; "+
+			"at least one has no one-to-one field, or its field is already set, so no automatic rewrite is offered")
 		d.cover(kv)
 	}
 }
@@ -112,19 +128,15 @@ func (d *recSurfaceDetector) inspectCall(call *ast.CallExpr) {
 	}
 	name := sel.Sel.Name
 	recv := exprDottedName(sel.X)
+	if d.inspectOneOneCall(call, sel, name, recv) {
+		return
+	}
 	switch {
-	case oldMutationVerbs[name] && isOldMutationShape(call):
-		old := d.nodeSrc(call)
-		qty := d.nodeSrc(call.Args[0])
-		obj := d.nodeSrc(call.Args[1])
-		next := recv + "." + name + "(" + obj + ", fn"
-		if qty != "1" {
-			next += ", " + d.pkg + ".Affected(" + qty + ")"
-		}
-		next += ")"
-		d.report(call, name+" (n, object) is superseded; name the object and pass the work as a callback",
-			"replace "+old+" with "+next)
-		d.cover(call)
+	case name == "Done":
+		d.inspectRemovedDone(call, sel)
+	case isLegacyMutationCall(name, call):
+		m, _ := parseLegacyMutation(name, call)
+		d.reportLegacyMutation(recv, call, m)
 	case name == retiredIndependentCollection:
 		old := d.nodeSrc(call)
 		d.report(call, "independent collection constructor was renamed to Group",
@@ -156,6 +168,9 @@ func (d *recSurfaceDetector) inspectCall(call *ast.CallExpr) {
 }
 
 func (d *recSurfaceDetector) inspectLeftover(n ast.Node) bool {
+	if d.inspectOneOneType(n) {
+		return true
+	}
 	call, ok := n.(*ast.CallExpr)
 	if !ok {
 		return true
@@ -172,17 +187,18 @@ func (d *recSurfaceDetector) inspectLeftover(n ast.Node) bool {
 		if !ok {
 			return true
 		}
-		d.report(call, "evo."+name+" is a superseded Option func; use the Config field",
+		d.report(call, "evo."+name+" was removed in 1.1; use the Config field",
 			"replace "+old+" with "+field)
+		d.cover(call)
 	case name == "ID":
-		d.report(call, "evo.ID is unexported; Task identity is the human label",
+		d.report(call, "evo.ID was removed in 1.1; Task identity is the human label (override with TaskHandle.Key)",
 			"replace "+old+" by dropping it; Task takes only the name")
 	case name == "StartPhase":
 		text := `""`
 		if len(call.Args) > 0 {
 			text = d.nodeSrc(call.Args[0])
 		}
-		d.report(call, "evo.StartPhase is unexported; set the first phase with Doing after Task",
+		d.report(call, "evo.StartPhase was removed in 1.1; set the first phase with Doing after Task",
 			"replace "+old+" with .Doing("+text+")")
 	}
 	return true
@@ -194,29 +210,26 @@ func (d *recSurfaceDetector) rewriteSkip(recv string, call *ast.CallExpr) (strin
 	}
 	nameArg := d.nodeSrc(call.Args[0])
 	if len(call.Args) > 1 {
-		inner := nameArg
+		var inner strings.Builder
+		inner.WriteString(nameArg)
 		for _, a := range call.Args[1:] {
-			inner += ", " + d.nodeSrc(a)
+			inner.WriteString(", " + d.nodeSrc(a))
 		}
-		nameArg = "fmt.Sprintf(" + inner + ")"
+		nameArg = "fmt.Sprintf(" + inner.String() + ")"
 	}
 	old := d.nodeSrc(call)
 	next := recv + ".Skipped(" + d.pkg + ".Reason(" + nameArg + "), " + nameArg + ")"
 	return "replace " + old + " with " + next, true
 }
 
-func (d *recSurfaceDetector) durationPointer(args []ast.Expr) string {
-	if len(args) == 0 {
-		return "&d"
+// delayField is the Config.VisibilityDelay value for an Option's duration
+// argument: evo.Delay(expr) takes any duration expression, where &expr
+// does not compile for a constant like 150 * time.Millisecond.
+func (d *recSurfaceDetector) delayField(args []ast.Expr) (string, bool) {
+	if len(args) != 1 {
+		return "", false
 	}
-	expr := args[0]
-	if id, ok := expr.(*ast.Ident); ok {
-		return "&" + id.Name
-	}
-	if u, ok := expr.(*ast.UnaryExpr); ok && u.Op == token.AND {
-		return d.nodeSrc(expr)
-	}
-	return "&" + d.nodeSrc(expr)
+	return d.pkg + ".Delay(" + d.nodeSrc(args[0]) + ")", true
 }
 
 func (d *recSurfaceDetector) rewriteTaskExtras(recv string, call *ast.CallExpr) (string, bool) {
@@ -243,26 +256,79 @@ func (d *recSurfaceDetector) rewriteTaskExtras(recv string, call *ast.CallExpr) 
 		}
 		return "replace " + old + " with " + next, true
 	}
-	inner := nameArg
+	var inner strings.Builder
+	inner.WriteString(nameArg)
 	for _, a := range fmtArgs {
-		inner += ", " + a
+		inner.WriteString(", " + a)
 	}
-	return "replace " + old + " with " + recv + ".Task(fmt.Sprintf(" + inner + "))", true
+	return "replace " + old + " with " + recv + ".Task(fmt.Sprintf(" + inner.String() + "))", true
 }
 
-func (d *recSurfaceDetector) optionSliceToFields(cl *ast.CompositeLit) string {
-	var fields []string
+// optionSliceToFields rewrites an Option slice as Config fields. ok is
+// false when any element has no one-to-one field, or maps onto a field in
+// set or onto one another element already maps onto: the literal would
+// then name that field twice.
+func (d *recSurfaceDetector) optionSliceToFields(cl *ast.CompositeLit, set map[string]bool) (string, bool) {
+	if len(cl.Elts) == 0 {
+		return "", false
+	}
+	fields := make([]string, 0, len(cl.Elts))
+	named := make(map[string]bool, len(cl.Elts))
 	for _, elt := range cl.Elts {
 		call, ok := elt.(*ast.CallExpr)
 		if !ok {
-			continue
+			return "", false
 		}
 		field, ok := d.optionCallToField(call)
-		if ok {
-			fields = append(fields, field)
+		if !ok {
+			return "", false
+		}
+		key, _, _ := strings.Cut(field, ":")
+		if set[key] || named[key] {
+			return "", false
+		}
+		named[key] = true
+		fields = append(fields, field)
+	}
+	return strings.Join(fields, ", "), true
+}
+
+// configFieldsSet is the fields a Config literal sets by key.
+func configFieldsSet(cl *ast.CompositeLit) map[string]bool {
+	set := make(map[string]bool, len(cl.Elts))
+	for _, elt := range cl.Elts {
+		if kv, ok := elt.(*ast.KeyValueExpr); ok {
+			set[identName(kv.Key)] = true
 		}
 	}
-	return strings.Join(fields, ", ")
+	return set
+}
+
+// optionFieldByArg maps an Option func that takes one value onto the
+// Config field that value belongs in.
+var optionFieldByArg = map[string]string{
+	"To":           "Stdout",
+	"Diagnostics":  "Stderr",
+	"ResultStream": "Result",
+	"Stdin":        "Stdin",
+	"Title":        "Title",
+	"Terminal":     "Terminal",
+	"Clock":        "Clock",
+	"MaxFrameRate": "MaxFrameRate",
+	"Width":        "Width",
+	"Redact":       "Redactor",
+	"Runner":       "ProcessRunner",
+	"MaxEntities":  "MaxEntities",
+	"MaxEvents":    "MaxEvents",
+	"Glyphs":       "Glyphs",
+}
+
+// optionFlagField maps an argument-free Option func onto its Config field
+// assignment.
+var optionFlagField = map[string]string{
+	"Plain":  "Plain: true",
+	"DryRun": "DryRun: true",
+	"Strict": "Strict: true",
 }
 
 func (d *recSurfaceDetector) optionCallToField(call *ast.CallExpr) (string, bool) {
@@ -270,27 +336,42 @@ func (d *recSurfaceDetector) optionCallToField(call *ast.CallExpr) (string, bool
 	if !ok {
 		return "", false
 	}
-	arg := ""
-	if len(args) > 0 {
-		arg = d.nodeSrc(args[0])
+	if field, ok := optionFieldByArg[name]; ok && len(args) == 1 {
+		return field + ": " + d.nodeSrc(args[0]), true
 	}
+	if field, ok := optionFlagField[name]; ok && len(args) == 0 {
+		return field, true
+	}
+	return d.optionSpecialField(name, args)
+}
+
+func (d *recSurfaceDetector) optionSpecialField(name string, args []ast.Expr) (string, bool) {
 	switch name {
-	case "To":
-		return "Stdout: " + arg, true
-	case "Plain":
-		return "Plain: true", true
 	case "NoColor":
-		return "Color: " + d.pkg + ".ColorNever", true
-	case "Stdin":
-		return "Stdin: " + arg, true
-	case "DryRun":
-		return "DryRun: true", true
+		return "Color: " + d.pkg + ".ColorNever", len(args) == 0
 	case "VisibilityDelay":
-		return "VisibilityDelay: " + d.durationPointer(args), true
-	case "Diagnostics":
-		return "Stderr: " + arg, true
-	case "Title":
-		return "Title: " + arg, true
+		delay, ok := d.delayField(args)
+		return "VisibilityDelay: " + delay, ok
+	case "AlsoWrite":
+		if len(args) != 1 {
+			return "", false
+		}
+		return "Stdout: io.MultiWriter(os.Stdout, " + d.nodeSrc(args[0]) + ")", true
+	case "DataProjection":
+		return "Format: " + d.pkg + ".FormatData", len(args) == 0
+	case "ExternalProjection":
+		return "Format: " + d.pkg + ".FormatExternal", len(args) == 0
+	case "DebugLevel":
+		if len(args) != 1 {
+			return "", false
+		}
+		return "Debug: " + d.pkg + ".DebugConfig{Level: " + d.nodeSrc(args[0]) + "}", true
+	case "DebugAddSource":
+		return "Debug: " + d.pkg + ".DebugConfig{AddSource: true}", len(args) == 0
+	case "DebugHistory":
+		return "Debug: " + d.pkg + ".DebugConfig{View: " + d.pkg + ".DebugPresentationHistory}", len(args) == 0
+	case "DebugPane":
+		return "Debug: " + d.pkg + ".DebugConfig{View: " + d.pkg + ".DebugPresentationPane}", len(args) == 0
 	default:
 		return "", false
 	}
@@ -311,7 +392,6 @@ func (d *recSurfaceDetector) evoCall(e ast.Expr) (name string, args []ast.Expr, 
 func (d *recSurfaceDetector) report(n ast.Node, msg, sug string) {
 	d.findings = append(d.findings, Finding{
 		RuleID:     "API-032",
-		Severity:   "warning",
 		Message:    msg,
 		File:       d.filename,
 		Line:       lineAt(d.src, d.offset(n)),
@@ -414,8 +494,9 @@ func isOldMutationShape(call *ast.CallExpr) bool {
 	if len(call.Args) < 2 {
 		return false
 	}
-	// New shape: Delete(object, fn) / Affected. Func-lit, nil callback, or
-	// Affected metadata means the rec surface.
+	// Object-first shape: Delete(object, fn) / Affected, removed in 1.1.
+	// Func-lit, nil callback, or Affected metadata means the 1.0 shape, not
+	// 0.x.
 	if mutationHasAffected(call.Args) || isFuncLit(call.Args[1]) || isNilExpr(call.Args[1]) {
 		return false
 	}

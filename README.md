@@ -8,7 +8,7 @@ log file, and the exit code always matches what the screen just said.
 ## Install
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.5.2
+go get github.com/zachbornheimer/evident-output@v1.0.0
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
@@ -17,33 +17,36 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 
 ```go
 import (
+    "context"
+    "os"
+
     evo "github.com/zachbornheimer/evident-output"
 )
 
 func main() {
     evo.Init(evo.Config{Title: "bpp-csharp"}) // first statement — arms first paint before any I/O
-    evo.Main(run) // exits the process itself; evo.Run(run) if you need the code without exiting
+    os.Exit(evo.Main(run)) // Main returns the exit code; evo.Run(ctx, run) if you need the whole Result
 }
 
-func run() error {
+func run(ctx context.Context) error {
     // Start as casually as fmt — then promote to structure when useful.
     evo.Println("Reading configuration")
     evo.Printf("Found %d packages\n", 18)
 
-    evo.Task("working tree").Done()
+    evo.Task("working tree").Define(checkWorkingTree)
     evo.Task("branches").Block(
         "local-only branch",
         evo.Detail("commit or stash before continuing"),
     )
 
-    evo.Task("cleanup").Delete("stale local branch", func() error {
-        return removeStaleBranches()
-    }, evo.Affected(2)) // singular object, ledger renders "2 stale local branches"
+    evo.Task("cleanup").Define(func(ctx context.Context) error {
+        spec := evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}
+        return evo.Effect(ctx, spec, removeStaleBranches) // singular Object; ledger renders "deleted 2 stale local branches"
+    })
 
     installs := evo.Group("install")
     for _, pkg := range packages {
-        pkg := pkg
-        installs.Task(pkg).Define(func() error { return install(pkg) })
+        installs.Task(pkg).Define(func(ctx context.Context) error { return install(pkg) })
     }
     return nil // Block is a presentation outcome, not a Go error
 }
@@ -79,33 +82,34 @@ The trailing `[state]` band and the process exit code always agree — never rea
 one without checking the other. `· partial` and `· warned` are modifiers on
 the state, not a state of their own.
 
-| Band                           | Exit code | Meaning                                                                                                                                                  |
-| ------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[changed]`                    | `0`       | A mutation verb (`Delete`/`Create`/…) recorded outside `DryRun`                                                                                          |
-| `[planned]`                    | `0`       | A mutation verb recorded under `Config.DryRun` (would, not did)                                                                                          |
-| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation verb recorded                                                                                                    |
-| `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                                                                                                               |
-| `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                                                                                                         |
-| `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                                                                                                             |
-| any of the above + `· partial` | unchanged | The run also left an unresolved task — same exit code as the state above                                                                                 |
-| any of the above + `· warned`  | unchanged | At least one `Warn` annotated a task without otherwise changing the headline — `Warn` never resolves the task itself; `Done`/`Fail`/`Block`/… still must |
+| Band                           | Exit code | Meaning                                                                                                                                                                              |
+| ------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[changed]`                    | `0`       | An `evo.Effect`/`evo.File`/`evo.Exec` mutation recorded outside `DryRun`                                                                                                             |
+| `[planned]`                    | `0`       | A mutation recorded under `Config.DryRun` (would, not did)                                                                                                                           |
+| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation recorded                                                                                                                                     |
+| `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                                                                                                                                           |
+| `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                                                                                                                                     |
+| `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                                                                                                                                         |
+| any of the above + `· partial` | unchanged | The run also left an unresolved task — same exit code as the state above                                                                                                             |
+| any of the above + `· warned`  | unchanged | At least one `Problem` at warning severity annotated a task without otherwise changing the headline — a warning never resolves the task itself; `Define`/`Fail`/`Block`/… still must |
 
 ## Pick the entity
 
-| Shape        | Use when                                                                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | One atomic unit — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skipped`) or work submitted with `Define` / a mutation verb       |
-| **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children; `Group.Each` for homogeneous items    |
-| **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest via `.Sequence`/`.Group` |
+| Shape        | Use when                                                                                                                                                                      |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**     | One atomic unit — its check or work submitted with `Define` (success is the callback returning `nil`); `Problem`/`Block`/`Fail`/`Skipped` state a condition directly          |
+| **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children; one `group.Task(name).Define(...)` per item for homogeneous items |
+| **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest via `.Sequence`/`.Group`                             |
 
 ## Learn more
 
+- [`docs/migration/1.0.md`](docs/migration/1.0.md) — upgrading from 0.5: every breaking change with before/after code
 - [`docs/reference.md`](docs/reference.md) — construction, config, lifecycle, severity dialect, evidence capture, platform adapters, vocabulary
 - [`docs/development.md`](docs/development.md) — mise commands, conformance suite, examples ladder, CLI, machine output, production ANSI driver, testkit
 - [`docs/mcp.md`](docs/mcp.md) — the `evident-output-mcp` stdio server (Grok, Claude Code, Codex, …)
 - [`docs/guides/teaching-ladder.md`](docs/guides/teaching-ladder.md) — the ordinary-surface learning order
 - [`docs/guides/large-platform-adoption.md`](docs/guides/large-platform-adoption.md) — guidance for Docker-/npm-/Homebrew-scale CLIs
 - [`docs/adoption/librarian.md`](docs/adoption/librarian.md) — a real adoption case study, with what was and wasn't validated
-- [`docs/roadmap/implementation-basis.md`](docs/roadmap/implementation-basis.md), [`docs/philosophy/`](docs/philosophy/) — design philosophy
+- [`docs/roadmap/implementation-basis.md`](docs/roadmap/implementation-basis.md), [`docs/philosophy/`](docs/philosophy/) — design philosophy (dated planning notes predating 1.0, not compile-tested code fences — see [`docs/migration/1.0.md`](docs/migration/1.0.md) for what actually ships)
 - [`docs/architecture/COMPLETENESS_MATRIX.md`](docs/architecture/COMPLETENESS_MATRIX.md) — §31 requirement coverage
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — DCO sign-off, red test → green → refactor, small conventional commits

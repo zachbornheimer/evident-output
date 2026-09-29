@@ -1,21 +1,20 @@
 func (Failure) Error()  string
-func (Failure) Next(actions ...Action)  *Failure
-func (Failure) NextCommand(executable string, args ...string)  *Failure
 func (Failure) Unwrap()  error
 func (GroupHandle) Group(name string)  *GroupHandle
 func (GroupHandle) Sequence(name string)  *SequenceHandle
 func (GroupHandle) Snapshot()  TasksSnapshot
 func (GroupHandle) Summary(text string)  *GroupHandle
 func (GroupHandle) Task(name string)  *TaskHandle
+func (GroupHandle) Wait()  error
 func (Output) Cancel(reason string)
 func (Output) Close()  error
 func (Output) Conclusion()  Conclusion
 func (Output) Confirm(question string, opts ...ConfirmOption)  bool
 func (Output) Context()  context.Context
 func (Output) Err()  error
+func (Output) Events()  []Event
 func (Output) Fact(name, value string)
 func (Output) Fail(summary string, options ...ProblemOption)
-func (Output) Failf(format string, args ...any)
 func (Output) Finish()  error
 func (Output) Group(name string)  *GroupHandle
 func (Output) Next(actions ...Action)
@@ -29,7 +28,6 @@ func (Output) Sequence(name string)  *SequenceHandle
 func (Output) Snapshot()  Snapshot
 func (Output) Suspend(fn func() error)  error
 func (Output) Task(name string)  *TaskHandle
-func (Output) Warn(summary string)
 func (Output) Writer()  io.Writer
 func (Printer) Print(args ...any)
 func (Printer) Printf(format string, args ...any)
@@ -40,66 +38,93 @@ func (SequenceHandle) Sequence(name string)  *SequenceHandle
 func (SequenceHandle) Snapshot()  TasksSnapshot
 func (SequenceHandle) Summary(text string)  *SequenceHandle
 func (SequenceHandle) Task(name string)  *TaskHandle
-func (TaskHandle) Add(object string, fn func() error, opts ...MutationOption)
+func (SequenceHandle) Wait()  error
 func (TaskHandle) After(preds ...any)  *TaskHandle
 func (TaskHandle) Block(summary string, options ...ProblemOption)
-func (TaskHandle) Blockf(format string, args ...any)  *Failure
 func (TaskHandle) Bytes(completed, total int64)  *TaskHandle
 func (TaskHandle) Cancel(reason string)
+func (TaskHandle) Capture(opts ...CaptureOption)  *Capture
 func (TaskHandle) Context()  context.Context
-func (TaskHandle) Create(object string, fn func() error, opts ...MutationOption)
-func (TaskHandle) Define(fn func(context.Context) error)
-func (TaskHandle) Delete(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) Define(fn func(context.Context) error)  *TaskHandle
 func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
-func (TaskHandle) Done(args ...any)
-func (TaskHandle) Fact(name, value string)
+func (TaskHandle) Fact(name, value string)  *TaskHandle
 func (TaskHandle) Fail(summary string, options ...ProblemOption)
-func (TaskHandle) Failf(format string, args ...any)  *Failure
-func (TaskHandle) Kept(reason TaxonomyReason)
 func (TaskHandle) Key(key string)  *TaskHandle
 func (TaskHandle) Next(actions ...Action)  *TaskHandle
 func (TaskHandle) NextCommand(executable string, args ...string)  *TaskHandle
+func (TaskHandle) Problem(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Progress(completed, total int)  *TaskHandle
-func (TaskHandle) Push(object string, fn func() error, opts ...MutationOption)
-func (TaskHandle) Record(verb string, quantity int, object string)
-func (TaskHandle) RecordLabel(label string, quantity int, object string)
-func (TaskHandle) RecordName(verb, object string)
-func (TaskHandle) Remove(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Skipped(reason TaxonomyReason)
 func (TaskHandle) Snapshot()  TaskSnapshot
-func (TaskHandle) Step(completed, total int, name string)  *TaskHandle
-func (TaskHandle) Update(object string, fn func() error, opts ...MutationOption)
+func (TaskHandle) Summary(text string)  *TaskHandle
 func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
-func (TaskHandle) Warn(summary string)
-func (TaskHandle) Write(object string, fn func() error, opts ...MutationOption)
 func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
+func App()  Fingerprint
+func AssumeYes(v bool)  ConfirmOption
+func Code(value string)  ProblemOption
+func Command(executable string, args ...string)  Action
 func Confirm(question string, opts ...ConfirmOption)  bool
+func ConfirmDetail(lines ...string)  ConfirmOption
+func Count(value int64, unit ...string)  ProblemOption
+func Default()  *Output
+func DefaultConfig()  Config
 func Delay(d time.Duration)  *time.Duration
-func EncodeEventJSON(e Event)  []byte,  error
-func EncodeJSON(s Snapshot)  []byte,  error
-func EncodeJSONL(events []Event)  []byte,  error
+func Destructive()  ConfirmOption
+func Detail(text string)  ProblemOption
+func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)  error
+func Exec(ctx context.Context, spec ExecSpec)  ExecResult,  error
+func FSPath(path string)  Fingerprint
+func FSResource(path string)  Resource
 func Fact(name, value string)
 func File(ctx context.Context, spec FileSpec)  error
+func Files(ctx context.Context, files FileSet)  error
+func Group(name string)  *GroupHandle
+func Init(configs ...Config)  *Output
 func IsCharDevice(w io.Writer)  bool
+func Label(text string)  Action
+func Location(path string, line, column int)  ProblemOption
+func LogicalResource(name string)  Resource
 func Main(run RunFunc)  int
+func MaxCaptureBytes(n int)  CaptureOption
+func NewestFirst()  DebugPaneOption
+func Next(action Action)  ProblemOption
+func NextCommand(executable string, args ...string)  ProblemOption
+func OldestFirst()  DebugPaneOption
+func On(subject string)  ProblemOption
+func PaneHeight(lines int)  DebugPaneOption
+func ParseFormat(s string)  Format,  error
+func PartialEffect(committed int, err error)  error
+func Patch(ctx context.Context, diff []byte)  FileSet,  error
 func Pluralize(quantity int64, singular string)  string
+func PolicyFlag(flag string)  ConfirmOption
+func PolicyHint(command string, args ...string)  ConfirmOption
+func PreserveDebugTail()  DebugPaneOption
 func Print(args ...any)
 func Printf(format string, args ...any)
 func Println(args ...any)
+func Reason(name string)  TaxonomyReason
 func RenderPlain(s Snapshot, opts PlainOptions)  []byte,  error
+func Run(ctx context.Context, run RunFunc)  Result
+func Sequence(name string)  *SequenceHandle
 func SetDefault(out *Output)
+func Severity(value ProblemSeverity)  ProblemOption
 func SlogHandler()  slog.Handler
+func Task(name string)  *TaskHandle
 func TruncateNames(names []string, visible int)  string
-func Warn(summary string)
+func Value(name string, v any)  Fingerprint
+func Verbose()  *Printer
+func WriteJSON(w io.Writer, result Result)  error
 type Action
 type Attachment
+type Capture
+type CaptureOption
+type CaptureStream
 type ChangesSnapshot
 type ColorMode
 type CommandSpec
 type Conclusion
-type ConclusionJSON
 type ConclusionState
 type Config
 type ConfirmOption
@@ -107,17 +132,18 @@ type DebugConfig
 type DebugPaneOption
 type DebugPresentation
 type EffectRecord
-type EntityOption
+type EffectSpec
+type EffectVerb
 type EntityState
 type Event
-type EventJSON
-type Evidence
-type EvidenceOption
 type EvidencePhase
-type EvidenceStream
+type ExecResult
+type ExecSpec
 type FactRecord
 type Failure
 type Field
+type FileFS
+type FileSet
 type FileSpec
 type Fingerprint
 type FingerprintValue
@@ -125,37 +151,27 @@ type FixedClock
 type Format
 type GlyphProfile
 type GroupHandle
-type JSONAction
-type JSONChanges
-type JSONCollection
-type JSONCommand
-type JSONDocument
-type JSONEffectRecord
-type JSONMessage
-type JSONOutputMeta
-type JSONPlan
-type JSONProblem
-type JSONProgress
-type JSONTask
 type LiveSurface
 type LogLevel
 type LogRecord
 type MessageSnapshot
-type MutationOption
 type NoopRedactor
-type Option
 type Output
 type PlainOptions
 type PlanSnapshot
 type Printer
 type Problem
 type ProblemOption
+type ProblemSeverity
+type ProcessCommand
+type ProcessOutcome
+type ProcessRunner
 type Progress
 type ProgressKind
 type Projection
-type ReasonOption
 type Redactor
 type Resolution
+type Resource
 type Result
 type RunFunc
 type SequenceHandle
@@ -175,6 +191,9 @@ type Visibility
 value Blocked
 value BytesKind
 value Cancelled
+value CaptureStreamCombined
+value CaptureStreamStderr
+value CaptureStreamStdout
 value ColorAlways
 value ColorAuto
 value ColorNever
@@ -183,6 +202,14 @@ value DebugPresentationPane
 value DefaultVisibleNames
 value Determinate
 value Done
+value EffectAdd
+value EffectCreate
+value EffectDelete
+value EffectInstall
+value EffectPush
+value EffectRemove
+value EffectUninstall
+value EffectUpdate
 value Empty
 value ErrAlreadyResolved
 value ErrClosed
@@ -190,28 +217,40 @@ value ErrConcurrentRunning
 value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName
+value ErrEffectCallbackMissing
+value ErrEffectObjectMissing
+value ErrEffectQuantityNotPositive
+value ErrEffectVerbInvalid
+value ErrExecExecutableNotFound
+value ErrExecNonzeroExit
+value ErrExecOutputMissingAfterSuccess
+value ErrExecSpecMissingExecutable
 value ErrFilePathIsSymlink
 value ErrFilePathTypeMismatch
 value ErrFileSpecMissingPath
 value ErrFileUnmanagedContentsMissing
 value ErrInvalidConfig
+value ErrInvalidPartialEffect
 value ErrInvalidProgress
+value ErrInvalidResource
 value ErrKeyAfterDefine
 value ErrLimitExceeded
+value ErrNestedResourceAcquisition
 value ErrNoTaskContext
 value ErrNotStarted
+value ErrPatchBinaryUnsupported
+value ErrPatchDeleteUnsupported
+value ErrPatchDoesNotApply
+value ErrPatchMalformed
+value ErrPatchRenameUnsupported
+value ErrPatchUnsupported
 value ErrProgressRegression
-value ErrReasonSkipOnly
-value ErrReasonWrongTask
 value ErrRenderer
+value ErrStaleBasis
 value ErrTaskClosed
 value ErrTerminalWithoutSink
 value ErrUnresolvedTask
 value ErrWaitDeadlock
-value EventSchemaVersion
-value EvidenceStreamCombined
-value EvidenceStreamStderr
-value EvidenceStreamStdout
 value ExitBlocked
 value ExitCancelled
 value ExitFailed
@@ -220,12 +259,13 @@ value Failed
 value FormatData
 value FormatExternal
 value FormatHuman
+value FormatJSON
+value FormatJSONL
 value GlyphsASCII
 value GlyphsAuto
 value GlyphsUnicode
 value Incomplete
 value Indeterminate
-value JSONSchemaVersion
 value LevelDebug
 value LevelError
 value LevelInfo
@@ -246,6 +286,8 @@ value ResolutionAlreadySatisfied
 value ResolutionExecuted
 value ResolutionNoWork
 value Running
+value SeverityError
+value SeverityWarning
 value Skipped
 value StateBlocked
 value StateCancelled

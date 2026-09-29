@@ -28,7 +28,7 @@ func newAfterFailTestOutput(t *testing.T, maxConcurrency int) *Output {
 }
 
 // waitForParkedWaiter busy-polls (no sleep) until a goroutine has registered
-// itself in o.schedWaits — the same registration TaskHandle.Wait's
+// itself in o.sched.waits — the same registration TaskHandle.Wait's
 // waitSubmitted performs just before it parks — so a test can prove a
 // waiter is already asleep before triggering the event under test, instead
 // of guessing at timing.
@@ -37,7 +37,7 @@ func waitForParkedWaiter(t *testing.T, o *Output, want int) {
 	deadline := time.Now().Add(waitOutcomeTimeout)
 	for time.Now().Before(deadline) {
 		o.mu.Lock()
-		n := len(o.schedWaits)
+		n := len(o.sched.waits)
 		o.mu.Unlock()
 		if n >= want {
 			return
@@ -59,7 +59,7 @@ func waitForParkedWaiter(t *testing.T, o *Output, want int) {
 // stayed closed (in production: however long the predecessor's goroutine
 // took to actually return from the callback call).
 func TestAfterPredecessorFails_WhileDependentAlreadyParkedInWait_SettlesImmediately(t *testing.T) {
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		t.Run("", func(t *testing.T) {
 			out := newAfterFailTestOutput(t, 4)
 
@@ -110,7 +110,7 @@ func TestAfterPredecessorFails_WhileDependentAlreadyParkedInWait_SettlesImmediat
 // not yet a deadlock") cannot mask the missing settle path — real repros
 // hit this because unrelated work elsewhere in the run was still in flight.
 func TestAfterPredecessorFails_BeforeDependentIsSubmitted_SettlesImmediately(t *testing.T) {
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		t.Run("", func(t *testing.T) {
 			out := newAfterFailTestOutput(t, 4)
 

@@ -10,12 +10,12 @@ import (
 // Writer returns a line-buffered io.Writer for narrating a talkative child
 // process: each complete line (CR or LF terminated, trimmed, non-empty)
 // becomes the task's live doing-text (see Doing), and every byte is also
-// retained in the task's evidence ring (get-or-create, shared with
-// Task.Evidence) so DetailTail has proof after Fail. Lines pass through the
+// retained in the task's Capture ring (get-or-create, shared with
+// Task.Capture) so DetailTail has proof after Fail. Lines pass through the
 // same sanitize layer as Task.Doing, so hostile escape sequences never reach
 // the display. Off a TTY, these mirrored lines update the live status only —
 // they never force their own durable row the way an explicit
-// TaskHandle.Doing call does, since the evidence ring (and its failure-path
+// TaskHandle.Doing call does, since the Capture ring (and its failure-path
 // DetailTail) is already the child's one durable home (release-gate round 9
 // finding 4). Concurrent-safe. Named Writer, not PhaseWriter (P6/rename):
 // an io.Writer sink whose lines become the live-status text, following
@@ -26,7 +26,7 @@ func (t *TaskHandle) Writer() io.Writer {
 	if t == nil || t.out == nil {
 		return io.Discard
 	}
-	return &phaseWriter{task: t, evidence: t.evidence()}
+	return &phaseWriter{task: t, evidence: t.Capture()}
 }
 
 // phaseWriterMaxPendingBytes bounds the pending-line buffer: a child that

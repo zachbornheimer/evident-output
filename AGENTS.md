@@ -25,7 +25,8 @@ Call the tools. A passing `go test` is not a review.
 | `npx -y @sveltejs/mcp` (always latest at spawn)                                                    | Spawn-time auto-update from the cwd `go.mod` pin (or path replace). Skip with `EVO_MCP_NO_AUTO_UPDATE`. |
 
 Svelte does not let the model “remember Svelte 4.” We do not let the model
-remember `DisplayGroup` / `Task.Each` / quantity-first `Delete`.
+remember `DisplayGroup` / `Task.Each` (both removed in 1.0) / quantity-first
+`Delete` / `Task.Delete(object, fn)` and its six siblings (removed in 1.1).
 
 ## Tools (underscores)
 
@@ -75,10 +76,12 @@ Stale if any of these are true:
   section count as a freshness signal; a fresh server's section count
   changes every time a doc is added and is not a stable number to check
   against.
-- review fires **API-032 on `Create(object, fn)` / `Delete(object, fn)`**
+- review suggests `Delete(object, fn)` / `evo.Affected(n)` as a _fix_, or
+  stays silent on them — those verbs were removed in 1.1 and a current
+  server rewrites them to `Define` + `evo.Effect`
 
-That last one is inverted rec. Applying those suggestions **reverts** the
-dialect. Do not apply. Reinstall, then start a **fresh** Grok process.
+That last one is a pre-1.1 autofixer. Applying its suggestions **reverts**
+the dialect. Do not apply. Reinstall, then start a **fresh** Grok process.
 
 ```bash
 # never GOBIN=$HOME/.local/bin — that self-symlinks and deletes the binary
@@ -137,30 +140,45 @@ swallowed by mise’s own `-o`.
 
 ```go
 evo.Init(evo.Config{Title: "tool", DryRun: dry})
-evo.Main(run)
+os.Exit(evo.Main(run)) // Main returns the exit code; it never exits itself
 
 evo.Task("check config").Define(checkConfig)
 
-for path, task := range evo.Group("worktrees").Each(paths) {
-    task.Delete("worktree", func() error { return remove(path) })
+worktrees := evo.Group("worktrees")
+for _, path := range paths {
+    path := path
+    worktrees.Task(path).Define(func(ctx context.Context) error {
+        spec := evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}
+        return evo.Effect(ctx, spec, func(ctx context.Context) error { return remove(ctx, path) })
+    })
 }
 
 evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
 ```
 
-- **Task** is atomic. No `Task.Each`, no `Task.Run` (use `task.Writer()` on
-  `cmd.Stdout`/`Stderr`), no `DisplayGroup` (it is `Group`).
+- **Task** is atomic. No `Task.Each`, no `Task.Run` (both removed in 1.0; use
+  `task.Writer()` on `cmd.Stdout`/`Stderr`), no `DisplayGroup` (removed in
+  1.0; it is `Group`).
 - **Group** = independent children (scheduler may overlap). **Sequence** =
   declaration order, one Running child.
-- **Define** / mutation verbs (`Delete(object, fn)`, optional `Affected(n)`)
-  submit work. They do not mean “run this callback synchronously now.”
-- **Done** is only for already-resolved work with no callback.
-- Dry-run skips **mutation** callbacks only. `Define` still runs.
-- Callers do not `errgroup` / `go func` to make evo rows parallel. Predeclare
-  with `Group.Each` or `Group.Task` + `Define` and let evo’s scheduler run them.
-  A domain graph engine (zq mise/gate) may still own _eligibility_; wrap the
-  executor body in `Define` and wait only when you need the result on this
-  stack (`defineAndWait` is that adapter — not a second scheduler).
+- **Define** submits work. It does not mean “run this callback synchronously
+  now.” Inside it, **`evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn)`**
+  performs an opaque mutation (git ref, worktree, API change) and
+  **`evo.File`** owns file state. The seven TaskHandle mutation verbs
+  (`Delete(object, fn)`, `Write`, …) and `evo.Affected` were removed in 1.1.
+- **Done** and **Record/RecordLabel/RecordName** were removed in 1.1. Success
+  is a `Define` callback returning `nil`; result text is `task.Summary(text)`
+  (non-terminal). Information is `task.Fact`, never a ledger row.
+- Dry-run skips **Effect** callbacks (and File writes) only. `Define` still runs.
+- `Group.Each` was removed in 1.0. Callers do not `errgroup` / `go func` to
+  make evo rows parallel either — predeclare one named child `Task` per item
+  under a `Group` + `Define` and let evo’s scheduler run them. A domain graph
+  engine (zq mise/gate) may still own _eligibility_; wrap the executor body in
+  `Define` and call `task.Wait()` (or `Group.Wait()` / `Sequence.Wait()` for a
+  container) only when you need the result on this stack.
+- Never call `Wait` while holding a resource claim (inside an `Effect` with a
+  `Resource`, a `File`, or a `Basis` observation): it returns
+  `ErrNestedResourceAcquisition` instead of risking a deadlock.
 
 ## zq canary (MCP must survive this)
 
@@ -188,20 +206,46 @@ use empty (current rec) because of the path replace.
 These are real dialect defects MCP currently misses. Fix them in the consumer
 anyway; add detectors when they recur:
 
-- `for _, task := range x.Each(` (discards the item name)
+- a per-item `Group`/`Sequence` loop that reuses one `Task` name for every
+  iteration (duplicate sibling declaration, not a get-or-create — §3.1)
 
 Caught as of this MCP build (do not re-add to this list): `errgroup`/`go func`
-driving predeclared evo Tasks (API-041), `Failf`/`Fail` inside a
-Define/mutation callback whose result is returned (API-040), a nil or no-op
-mutation callback (API-042), a plural object literal on a mutation verb
-(API-043), a hand-rolled channel wrapper around Define (API-044),
-`Doing(...).Done(...)` with no real work between them (FP-006), and an
-inline `evo.Reason(...)` literal or one that restates its own verb (TAX-003).
+driving predeclared evo Tasks (API-041), `Fail` inside a
+Define callback whose result is returned (API-040), a nil or no-op
+`evo.Effect` callback (API-042), a plural `EffectSpec.Object` literal
+(API-043), a removed 1.1 mutation verb or `evo.Affected` (API-032), a hand-rolled channel wrapper around Define (API-044),
+`Doing(...).Done(...)` with no real work between them (FP-006), an
+inline `evo.Reason(...)` literal or one that restates its own verb (TAX-003),
+and a Task declared (say, only given a `Writer`) that its function never
+Defines, resolves, or hands on (DOM-021).
 
-`defineAndWait` in zq is no longer a documented exception: it is exactly the
-API-044 channel-wait shape (it hangs when the task is already terminal
-before Define runs) and review now flags it; `task.Wait()` is the fix once
-that method lands.
+`defineAndWait` in zq is not an exception: it is the API-044 channel-wait
+shape (it hangs when the task is already terminal before Define runs) and
+review flags it. Use `task.Wait()`, or `Group.Wait()` / `Sequence.Wait()`
+for a container.
+
+## Release policy
+
+Evident Output 1.x ships breaking changes in minor releases when the owner's
+API-freeze decisions call for them, with no compatibility shims. `MainWith`
+and `Task.Each` were removed in 1.0 outright (docs/acceptance/v0.6.md,
+"Owner decisions"). Removed in 1.1: the TaskHandle mutation verbs, `Done`,
+`Record*`, `Affected`/`MutationOption`, `Warn`, `Step`,
+`Kept`, and capture-meaning `Evidence*` (`Capture` is the retained sink);
+the printf Fail and Block verbs are in docs/migration/1.1.md. 1.1 also
+changes `Exec` and
+`Define`, per the
+"Decisions (2026-09-23) — 1.1 API freeze" section of the Linear contract doc
+"Evident Output 1.x — Product + Implementation Contract" (project P-ZYS-23).
+
+Every breaking release carries a migration guide under `docs/migration/`
+listing each removed or changed symbol with before/after code, and the MCP
+review rules steer each old call site to its replacement (API-032, API-061).
+
+The module path stays `github.com/zachbornheimer/evident-output` (no `/vN`
+suffix). Go's minimal version selection therefore upgrades a consumer to a
+new minor as soon as any dependency requires it. Consumers pin the exact
+release in `go.mod` and migrate with the guide before bumping.
 
 ## Install / pin
 

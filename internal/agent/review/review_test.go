@@ -136,29 +136,31 @@ func check() error {
 	}
 }
 
-// TestAPI028_FailfWithoutFormat is C6's sync: Donef and the rest of the *f
-// family are deleted (Done/Summary/Task/Tasks/Changes/Plan/Warn/Reason are
-// printf-variadic themselves now); Failf/Blockf survive for their %w+
-// *Failure semantics, and API-028 now flags one of those with no directive
-// at all instead.
+// TestAPI028_FailfWithoutFormat: Failf was removed in 1.1. API-032 rewrites
+// it; API-028 no longer owns a printf-verb family.
 func TestAPI028_FailfWithoutFormat(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f() {
-  out := evo.New()
-  _ = out.Task("t").Failf("modules cached")
-  _ = out.Task("u").Failf("%d ok", 1)
+func f(task *evo.TaskHandle) {
+  task.Failf("modules cached")
+  task.Failf("%d ok", 1)
 }
 `
 	res := review.GoSource("x.go", src)
-	var n int
+	var api028, api032 int
 	for _, f := range res.Findings {
-		if f.RuleID == "API-028" {
-			n++
+		switch f.RuleID {
+		case "API-028":
+			api028++
+		case "API-032":
+			api032++
 		}
 	}
-	if n != 1 {
-		t.Fatalf("want one API-028, got %d: %+v", n, res.Findings)
+	if api028 != 0 {
+		t.Fatalf("API-028 must not fire on Failf (API-032 owns the 1.1 rewrite): %+v", res.Findings)
+	}
+	if api032 == 0 {
+		t.Fatalf("want API-032 on Failf, got %+v", res.Findings)
 	}
 }
 
@@ -304,7 +306,7 @@ func TestBeginnerGroupTaskDefine_NoDialectFindings(t *testing.T) {
 import evo "github.com/zachbornheimer/evident-output"
 func main() {
   evo.Init(evo.Config{Title: "tool"})
-  evo.Main(run)
+  os.Exit(evo.Main(run))
 }
 func run() error {
   paths := []string{"a", "b"}
@@ -471,6 +473,173 @@ func main() {
 	for _, f := range res.Findings {
 		if f.RuleID == "SIG-001" {
 			t.Fatalf("false positive SIG-001 when Cancel is called: %+v", res.Findings)
+		}
+	}
+}
+
+func TestSIG002_DuplicateSignalWiringAroundMain(t *testing.T) {
+	src := `package main
+import (
+  "context"
+  "os"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context) error { return nil }
+func main() {
+  ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+  defer stop()
+  os.Exit(evo.Main(func(context.Context) error {
+    return run(ctx)
+  }))
+}
+`
+	res := review.GoSource("bad.go", src)
+	var found bool
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-002" {
+			found = true
+			if f.Line == 0 {
+				t.Error("SIG-002 missing line")
+			}
+			if f.Suggestion == "" {
+				t.Error("SIG-002 missing suggestion")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected SIG-002 on signal.NotifyContext duplicating evo.Main's SIGINT/SIGTERM lifecycle: %+v", res.Findings)
+	}
+}
+
+func TestSIG002_RecheckClearsAfterRemediation(t *testing.T) {
+	bad := `package main
+import (
+  "context"
+  "os"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context) error { return nil }
+func main() {
+  ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+  defer stop()
+  os.Exit(evo.Main(func(context.Context) error {
+    return run(ctx)
+  }))
+}
+`
+	before := review.GoSource("bad.go", bad)
+	if !hasRule(before, "SIG-002") {
+		t.Fatalf("expected SIG-002 before remediation: %+v", before.Findings)
+	}
+	fixed := `package main
+import (
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(_ interface{}) error { return nil }
+func main() {
+  os.Exit(evo.Main(run))
+}
+`
+	after := review.GoSource("fixed.go", fixed)
+	if hasRule(after, "SIG-002") {
+		t.Fatalf("SIG-002 must be gone after deleting the duplicate signal.NotifyContext layer: %+v", after.Findings)
+	}
+}
+
+func TestSIG002_NoFalsePositiveWithoutMainOrRun(t *testing.T) {
+	src := `package main
+import (
+  "context"
+  "os"
+  "os/signal"
+  "syscall"
+)
+func main() {
+  ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+  defer stop()
+  _ = ctx
+}
+`
+	res := review.GoSource("good_no_evo.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-002" {
+			t.Fatalf("false positive SIG-002 with no evo.Main/Run call: %+v", res.Findings)
+		}
+	}
+}
+
+func TestSIG002_NoFalsePositiveWhenMainOwnsLifecycle(t *testing.T) {
+	src := `package main
+import (
+  "context"
+  "os"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context) error { return nil }
+func main() {
+  os.Exit(evo.Main(run))
+}
+`
+	res := review.GoSource("good.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-002" {
+			t.Fatalf("false positive SIG-002 when evo.Main owns the whole lifecycle: %+v", res.Findings)
+		}
+	}
+}
+
+func TestSIG002_NoFalsePositiveOnUnrelatedSignal(t *testing.T) {
+	src := `package main
+import (
+  "os"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run() error { return nil }
+func watchReload(c chan os.Signal) {}
+func main() {
+  reload := make(chan os.Signal, 1)
+  signal.Notify(reload, syscall.SIGHUP)
+  go watchReload(reload)
+  os.Exit(evo.Main(func(_ interface{}) error { return run() }))
+}
+`
+	res := review.GoSource("good_sighup.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-002" {
+			t.Fatalf("false positive SIG-002 on unrelated SIGHUP handling: %+v", res.Findings)
+		}
+	}
+}
+
+func TestSIG002_NotFlaggedBeforeDialectOneZero(t *testing.T) {
+	src := `package main
+import (
+  "context"
+  "os"
+  "os/signal"
+  "syscall"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func run(ctx context.Context) error { return nil }
+func main() {
+  ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+  defer stop()
+  os.Exit(evo.Main(func(context.Context) error {
+    return run(ctx)
+  }))
+}
+`
+	res := review.GoSourceAt("bad.go", src, "v0.4.7")
+	for _, f := range res.Findings {
+		if f.RuleID == "SIG-002" {
+			t.Fatalf("SIG-002 must not fire for a pin before evo.Main owned SIGINT/SIGTERM (1.0.0): %+v", res.Findings)
 		}
 	}
 }
@@ -899,7 +1068,7 @@ func f(out *evo.Output, failures []string) {
 func TestEV001_FailfEmbedsCaptureText(t *testing.T) {
 	bad := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, capture *evo.Evidence) {
+func f(task *evo.TaskHandle, capture *evo.Capture) {
   task.Failf("install failed: %s", capture.Text())
 }
 `
@@ -918,13 +1087,14 @@ func f(task *evo.TaskHandle, capture *evo.Evidence) {
 	}
 }
 
-// TestEV001_NoFalsePositiveOnPavedPath proves the paved-path Failf("...: %w",
-// err) shape — which lets auto-attach do its one job — never triggers EV-001.
+// TestEV001_NoFalsePositiveOnPavedPath proves the paved-path Fail+return
+// shape — which lets auto-attach do its one job — never triggers EV-001.
 func TestEV001_NoFalsePositiveOnPavedPath(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle, err error) *evo.Failure {
-  return task.Failf("install dependencies: %w", err)
+func f(task *evo.TaskHandle, err error) error {
+  task.Fail("install dependencies")
+  return err
 }
 `
 	res := review.GoSource("good.go", good)
@@ -1332,14 +1502,14 @@ func run(out *evo.Output) error {
 	collect(review.Transcript("t.txt", "\x1b[?25l hello \x00"))
 	collect(review.StructuredDocument("x.json", []byte(`{"foo":1}`)))
 
-	// MCP-017: cross-file typecheck with an unresolved external symbol.
+	// MCP-017: cross-file typecheck with an unresolved local symbol.
 	collect(review.GoPackage(map[string]string{
 		"a.go": `package p
 import evo "github.com/zachbornheimer/evident-output"
 func makeOut() *evo.Output { return evo.Init(evo.Config{}) }
 `,
 		"b.go": `package p
-func use() { _ = makeOut() }
+func use() { _ = makeOutt() }
 `}))
 
 	if len(emitted) == 0 {
@@ -1453,9 +1623,9 @@ func use() {
 	if !hasStream {
 		t.Fatalf("expected STREAM-003 from cross-file fmt: %+v", res.Findings)
 	}
-	// With 2 files and local typecheck, Partial should be false when types succeed.
-	// Stub importer may still leave Partial true — at least multi-file ran without crash.
-	_ = res.Partial
+	if res.Partial {
+		t.Fatalf("both files type-check locally, so the review is not partial: %+v", res.Findings)
+	}
 }
 
 func findAPI032(res review.Result) []review.Finding {
@@ -1516,7 +1686,7 @@ func run() int {
 	}
 }
 
-func TestAPI032_CauseDerivesFailfSuggestion(t *testing.T) {
+func TestAPI032_CauseDerivesDetailSuggestion(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(task *evo.TaskHandle, err error) {
@@ -1528,26 +1698,9 @@ func f(task *evo.TaskHandle, err error) {
 	if len(found) != 1 {
 		t.Fatalf("expected one API-032 finding for evo.Cause, got %+v", found)
 	}
-	want := `task.Failf("validate policy manifest: %w", err)`
+	want := `task.Fail("validate policy manifest", evo.Detail(err.Error()))`
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
-	}
-}
-
-func TestAPI032_CaptureRenamedToEvidence(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
-func f(task *evo.TaskHandle) {
-  _ = task.Capture()
-}
-`
-	res := review.GoSource("capture.go", src)
-	found := findAPI032(res)
-	if len(found) != 1 {
-		t.Fatalf("expected one API-032 finding for Capture, got %+v", found)
-	}
-	if found[0].Suggestion != "replace task.Capture(...) with task.Evidence(...)" {
-		t.Fatalf("suggestion = %q", found[0].Suggestion)
 	}
 }
 
@@ -1618,7 +1771,8 @@ import evo "github.com/zachbornheimer/evident-output"
 func f(out *evo.Output) error {
   task := out.Task("validate")
   if err := check(); err != nil {
-    return task.Failf("validate failed: %w", err)
+    task.Fail("validate failed", evo.Detail(err.Error()))
+    return err
   }
   return nil
 }
@@ -1677,28 +1831,52 @@ func f(cmd *exec.Cmd) {
 	}
 }
 
+// TestAPI036_SprintfInVerb: Fail(fmt.Sprintf(...)) is already the 1.1
+// form. API-036 stays silent; API-034 still flags Fail then return nil.
 func TestAPI036_SprintfInVerb(t *testing.T) {
 	src := `package p
 import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output"
 )
-func f(task *evo.TaskHandle, branch string) {
+func f(task *evo.TaskHandle, branch string) error {
   task.Fail(fmt.Sprintf("delete failed on %s", branch))
+  return nil
 }
 `
 	res := review.GoSource("sprintfverb.go", src)
-	var found bool
 	for _, f := range res.Findings {
 		if f.RuleID == "API-036" {
-			found = true
-			if f.Suggestion != `task.Failf("delete failed on %s", branch)` {
-				t.Fatalf("suggestion = %q", f.Suggestion)
-			}
+			t.Fatalf("API-036 must stay silent on Fail(fmt.Sprintf(...)): %+v", f)
+		}
+		if strings.Contains(f.Suggestion, "Failf") || strings.Contains(f.Suggestion, "Blockf") {
+			t.Fatalf("suggestion teaches a removed printf verb: %q", f.Suggestion)
 		}
 	}
-	if !found {
-		t.Fatalf("expected API-036: %+v", res.Findings)
+}
+
+// TestAPI036_BareStatementKeepsBlock pins E-102: a bare Block/Fail
+// statement with a Sprintf summary was rewritten to Blockf/Failf, whose
+// *Failure is then discarded and fails errcheck. A bare statement is
+// already the right form, so review says nothing; so does a Sprintf
+// followed by ProblemOptions, which Failf/Blockf cannot take.
+func TestAPI036_BareStatementKeepsBlock(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output"
+)
+func f(task *evo.TaskHandle, name string, n int) {
+  task.Block(fmt.Sprintf("refused %s", name))
+  task.Fail(fmt.Sprintf("lost %d", n), evo.Detail("x"))
+  n++
+}
+`
+	res := review.GoSource("sprintfbare.go", src)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-036" {
+			t.Fatalf("API-036 rewrites a bare statement into a discarded *Failure: %+v", f)
+		}
 	}
 }
 
@@ -1745,10 +1923,10 @@ func f(task *evo.TaskHandle, path string) {
 	}
 }
 
-// TestAPI038_WarnFlattensNotWarnf proves the Warn case flattens into Warn's
-// own variadic form rather than repeating API-036's now-stale suggestion of
-// a Warnf method that no longer exists (P1/P2 deleted it).
-func TestAPI038_WarnFlattensNotWarnf(t *testing.T) {
+// TestAPI038_WarnMigratesToProblem proves dirty task.Warn(fmt.Sprintf(...))
+// rewrites through API-032 to Problem at SeverityWarning. Warn is removed
+// in 1.1: do not flatten the Sprintf into task.Warn, and do not invent Warnf.
+func TestAPI038_WarnMigratesToProblem(t *testing.T) {
 	src := `package p
 import (
   "fmt"
@@ -1759,13 +1937,23 @@ func f(task *evo.TaskHandle, n int) {
 }
 `
 	res := review.GoSource("sprintfwarn.go", src)
+	var api032 review.Finding
 	for _, f := range res.Findings {
 		if f.RuleID == "API-036" {
-			t.Fatalf("API-036 must not fire on Warn (Warnf does not exist): %+v", f)
+			t.Fatalf("API-036 must not fire on Warn: %+v", f)
 		}
-		if f.RuleID == "API-038" && f.Suggestion != `task.Warn("kept %d", n)` {
-			t.Fatalf("suggestion = %q", f.Suggestion)
+		if f.RuleID == "API-038" {
+			t.Fatalf("API-038 must not flatten Warn; migrate to Problem: %+v", f)
 		}
+		if f.RuleID == "API-032" && strings.Contains(f.Suggestion, "Problem(") {
+			api032 = f
+		}
+	}
+	if api032.Suggestion == "" {
+		t.Fatalf("expected API-032 Problem rewrite, got %+v", res.Findings)
+	}
+	if !strings.Contains(api032.Suggestion, `task.Problem(fmt.Sprintf("kept %d", n), evo.Severity(evo.SeverityWarning))`) {
+		t.Fatalf("suggestion = %q", api032.Suggestion)
 	}
 }
 

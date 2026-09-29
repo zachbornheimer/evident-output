@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -78,15 +79,15 @@ func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 
 	unpushed := evo.Reason("unpushed")
 	group := out.Sequence("branches")
-	group.Task("feat/a").Kept(unpushed)
-	group.Task("feat/b").Kept(unpushed)
+	group.Task("feat/a").Skipped(unpushed)
+	group.Task("feat/b").Skipped(unpushed)
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 	got := buf.String()
-	if strings.Count(got, "kept 1 (unpushed)") != 2 {
-		t.Fatalf("each collection child must render its own Kept taxonomy line, got:\n%s", got)
+	if strings.Count(got, "skipped 1 (unpushed)") != 2 {
+		t.Fatalf("each collection child must render its own Skipped taxonomy line, got:\n%s", got)
 	}
 }
 
@@ -102,25 +103,22 @@ func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 // TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts is the red-first
 // case for the ForSkip constraint: recording it through Kept is misuse, and
 // production (non-Strict) still counts the record rather than dropping truth.
-func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
+func TestReason_ForSkipUsedViaSkippedCountsWithoutMisuse(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	evo.SetDefault(out)
-	skipOnly := evo.ReasonConstrained("unpushed", evo.ForSkip())
+	skipOnly := evo.ReasonConstrained("unpushed", evo.ForSkipForTest())
 
 	branches := out.Task("branches")
-	branches.Kept(skipOnly)
+	branches.Skipped(skipOnly)
 
-	if out.Err() == nil {
-		t.Fatal("want recorded misuse for a ForSkip reason recorded via Kept")
+	if err := out.Err(); err != nil {
+		t.Fatalf("ForSkip used via Skipped is valid, got misuse %v", err)
 	}
-	branches.Done()
-	// Finish returns the recorded misuse (see ErrAlreadyResolved-style
-	// contracts elsewhere); the assertion here is that the record still
-	// rendered, not that Finish reports a clean run.
+	succeed(branches)
 	_ = out.Finish()
-	if !strings.Contains(buf.String(), "kept 1 (unpushed)") {
-		t.Fatalf("misuse must still count the record, got:\n%s", buf.String())
+	if !strings.Contains(buf.String(), "skipped 1 (unpushed)") {
+		t.Fatalf("want the skipped tally, got:\n%s", buf.String())
 	}
 }
 
@@ -130,7 +128,7 @@ func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
 func TestReason_OnTaskWrongTaskPanicsUnderStrict(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever, Strict: true})
 	evo.SetDefault(out)
-	onlyBranches := evo.ReasonConstrained("dirty", evo.OnTask("branches"))
+	onlyBranches := evo.ReasonConstrained("dirty", evo.OnTaskForTest("branches"))
 	worktrees := out.Task("worktrees")
 
 	// No t.Cleanup(out.Close): Strict re-panics on Finish for the
@@ -175,7 +173,7 @@ func TestTaskHandle_SkippedCauseRendersOneBoundedEvidenceLine(t *testing.T) {
 	branches := evo.Task("branches")
 	branches.SkippedWithErrs(protected, "main", errors.New("required review"))
 	branches.SkippedWithErrs(protected, "staging", errors.New("required review"))
-	branches.Done()
+	succeed(branches)
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -202,7 +200,7 @@ func TestTaskHandle_SkippedCauseVerboseListsEveryCause(t *testing.T) {
 	branches := evo.Task("branches")
 	branches.SkippedWithErrs(protected, "main", errors.New("cause one"))
 	branches.SkippedWithErrs(protected, "staging", errors.New("cause two"))
-	branches.Done()
+	succeed(branches)
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -245,14 +243,77 @@ func TestTaskSnapshot_ExposesSkippedAndKeptTaxonomy(t *testing.T) {
 	skipped := out.Task("main")
 	skipped.Skipped(reason)
 	kept := out.Task("feat/a")
-	kept.Kept(reason)
+	kept.Skipped(reason)
 
 	skipSnap := skipped.Snapshot()
 	if len(skipSnap.Skipped) != 1 || skipSnap.Skipped[0].Reason != "protected" || skipSnap.Skipped[0].Name != "main" {
 		t.Fatalf("Skipped taxonomy not exposed on snapshot: %+v", skipSnap.Skipped)
 	}
 	keepSnap := kept.Snapshot()
-	if len(keepSnap.Kept) != 1 || keepSnap.Kept[0].Reason != "protected" || keepSnap.Kept[0].Name != "feat/a" {
-		t.Fatalf("Kept taxonomy not exposed on snapshot: %+v", keepSnap.Kept)
+	if len(keepSnap.Skipped) != 1 || keepSnap.Skipped[0].Reason != "protected" || keepSnap.Skipped[0].Name != "feat/a" {
+		t.Fatalf("Skipped taxonomy not exposed on snapshot: %+v", keepSnap.Skipped)
+	}
+}
+
+// TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning pins contract §41
+// ("Warning | ! | [!]") and §20 ("Use a plain, widely-rendered `-` for an
+// already-satisfied/skipped detail"): a Skipped tally is skip detail, not a
+// warning, so it renders "-" and never feeds the "· warned" band — unlike a
+// Kept tally, which §26/§27 render as "! kept N (...)".
+func TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	scan := out.Task("branches")
+	scan.Define(func(context.Context) error {
+		scan.Skipped(evo.Reason("protected"))
+		return nil
+	})
+	_ = scan.Wait()
+	succeed(out.Task("worktrees"), "3 checked")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "- skipped 1 (protected)") || strings.Contains(got, "! skipped") {
+		t.Fatalf("a Skipped tally renders the skip-detail dash, never the warning bang:\n%s", got)
+	}
+	if out.Conclusion().Warned || strings.Contains(got, "warned") {
+		t.Fatalf("a Skipped tally must not feed the warned band:\n%s", got)
+	}
+}
+
+// TestGroup_KeptChildrenAggregateUnderGroupRow pins contract §25 ("Rendering
+// every child is not a correctness requirement; retaining every child in
+// the model is") for per-item disposition children: a Group whose children
+// only resolved Kept renders its own row plus one "! kept N (...)" tally,
+// indented under it (§26/§27), never one row per item.
+func TestGroup_KeptChildrenAggregateUnderGroupRow(t *testing.T) {
+	for _, summary := range []string{"6 checked", ""} {
+		var buf bytes.Buffer
+		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+		t.Cleanup(func() { _ = out.Close() })
+
+		unpushed, protected := evo.Reason("unpushed"), evo.Reason("protected")
+		branches := out.Group("branches")
+		if summary != "" {
+			branches.Summary(summary)
+		}
+		branches.Task("feat/a").Skipped(unpushed)
+		branches.Task("main").Skipped(protected)
+		branches.Task("feat/b").Skipped(unpushed)
+		if err := out.Finish(); err != nil {
+			t.Fatal(err)
+		}
+
+		row := "✓ branches\n"
+		if summary != "" {
+			row = "✓ branches  " + summary + "\n"
+		}
+		want := row + "  - skipped 3 (2 unpushed, 1 protected)\n"
+		if got := buf.String(); got != want {
+			t.Fatalf("summary %q mismatch:\n--- want ---\n%s\n--- got ---\n%s", summary, want, got)
+		}
 	}
 }
