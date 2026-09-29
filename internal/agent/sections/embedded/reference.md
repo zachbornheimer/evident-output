@@ -114,12 +114,13 @@ how many Problems it owns.
 non-blocking warning with the same structured `ProblemOption`s (`Detail`, `Code`, `On`, `Location`,
 `Next`, ...) — it sets `warned` and never fails the owning `Define`.
 
-`Kept` was removed in 1.1 with no compatibility alias (contract §18): it was
-never a third outcome alongside `Summary`/`Skipped`. `Skipped(reason)` is
-the only disposition verb — a policy-excluded item is `Skipped` with a
-`Reason`, it renders `- skipped N (...)`, and it never sets `warned`. A
-count such as "kept 383" is domain information, not a resolution: route it
-through `Task.Fact` or the Task's own `Summary`.
+`Skipped(reason)` is the only disposition verb (contract §18): a
+policy-excluded item is `Skipped` with a `Reason`, it renders
+`- skipped N (...)`, and it never sets `warned`. A count such as
+"kept 383" is domain information, not a resolution: route it through
+`Task.Fact` or the Task's own `Summary`. See
+[docs/migration/1.1.md](migration/1.1.md) for migrating pre-1.1 `Kept`
+call sites.
 
 Every accumulated Problem survives in `Snapshot`/JSON/JSONL even when the
 plain human view bounds how many render inline (5 by default) behind an

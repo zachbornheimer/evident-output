@@ -2155,7 +2155,7 @@ func TestAPI037_WrapperMethodOverSkipped(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 type runner struct{ item *evo.TaskHandle }
-func (r *runner) excluded(reason evo.Reason) {
+func (r *runner) excluded(reason evo.TaxonomyReason) {
   r.item.Skipped(reason)
 }
 `

@@ -258,7 +258,11 @@ func TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning(t *testing.T) {
 // TestGroup_SkippedChildrenAggregateUnderGroupRow pins contract §13 for
 // per-item disposition children: a Group whose children only resolved
 // Skipped renders its own row plus one "- skipped N (...)" tally, indented
-// under it, never one row per item, and never a warned band.
+// under it, never one row per item, and never a warned band. The trailing
+// conclusion band itself is suppressed here (not printed at all): a lone
+// Group whose state repeats the conclusion's state is exactly the existing
+// "redundant condition" rule from shouldSuppressRepeatedCondition — the
+// Skipped fold gets no carve-out from it.
 func TestGroup_SkippedChildrenAggregateUnderGroupRow(t *testing.T) {
 	for _, summary := range []string{"6 checked", ""} {
 		var buf bytes.Buffer
@@ -281,7 +285,7 @@ func TestGroup_SkippedChildrenAggregateUnderGroupRow(t *testing.T) {
 		if summary != "" {
 			row = "✓ branches  " + summary + "\n"
 		}
-		want := row + "  - skipped 3 (2 unpushed, 1 protected)\n\n[ready]\n"
+		want := row + "  - skipped 3 (2 unpushed, 1 protected)\n"
 		if got := buf.String(); got != want {
 			t.Fatalf("summary %q mismatch:\n--- want ---\n%s\n--- got ---\n%s", summary, want, got)
 		}

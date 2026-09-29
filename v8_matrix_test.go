@@ -116,12 +116,10 @@ func skippedItems(prefix string, counts ...reasonCount) []skippedItem {
 // per-category Group, not the shared "categories" parent), unlike the
 // base (pre-1.1) version's flat standalone Tasks. A Group's own rows are
 // batched and only render at Finish, while Println is a direct, immediate
-// write — so an application Println called (as here) after the categories
-// are declared but before Finish genuinely prints ahead of the category
-// rows in the real byte stream, not merely in this golden. Calling Finish
-// first would change what the test proves, not just its byte order — a
-// real CLI prints its own closing line before Finish/exit, the same
-// sequence this golden pins.
+// write. A real CLI prints its own closing verdict line last, after the
+// work it summarizes is visible — so this test calls Finish (flushing the
+// category rows) before Println, matching contract §18's own Wait-then-
+// Finish sequencing and the mockup frame's row-then-verdict order.
 func TestV8_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -140,24 +138,23 @@ func TestV8_NothingToClean(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	out.Println("prune  nothing to clean")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
+	out.Println("prune  nothing to clean")
 
-	// See the doc comment above: Println commits durably before Finish's
-	// batch pass ever renders the categories Group's rows (Skipped child
-	// folded under "branches" with no warned band), so this golden pins
-	// Println ahead of the category rows, then the plain [ready] band —
-	// the real order a CLI that prints its verdict before Finish produces.
+	// See the doc comment above: Finish flushes the categories Group's
+	// batched rows (Skipped child folded under "branches", no warned band,
+	// a plain [ready] band) before the application's own closing Println,
+	// so this golden pins the rows first, then the verdict line last.
 	got := buf.String()
 	want := "zq prune  ~/Developer/Personal/zq\n" +
-		"prune  nothing to clean\n" +
 		"✓ branches         1 checked\n" +
 		"  - skipped 1 (protected)\n" +
 		"✓ worktrees        nothing to clean\n" +
 		"✓ remote-tracking  nothing to clean\n" +
-		"\n[ready]  prune\n"
+		"\n[ready]  prune\n" +
+		"prune  nothing to clean\n"
 	if got != want {
 		t.Fatalf("frame mismatch:\ngot:\n%s\nwant:\n%s", got, want)
 	}
