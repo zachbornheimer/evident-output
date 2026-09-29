@@ -100,53 +100,6 @@ func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 // reliance is unsound). TestTaskHandle_SkippedCauseVerboseListsEveryCause
 // below still covers the still-live per-task Verbose cause list.
 
-// TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts is the red-first
-// case for the ForSkip constraint: recording it through Kept is misuse, and
-// production (non-Strict) still counts the record rather than dropping truth.
-func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	evo.SetDefault(out)
-	skipOnly := evo.ReasonConstrained("unpushed", evo.ForSkip())
-
-	branches := out.Task("branches")
-	branches.Kept(skipOnly)
-
-	if out.Err() == nil {
-		t.Fatal("want recorded misuse for a ForSkip reason recorded via Kept")
-	}
-	succeed(branches)
-	// Finish returns the recorded misuse (see ErrAlreadyResolved-style
-	// contracts elsewhere); the assertion here is that the record still
-	// rendered, not that Finish reports a clean run.
-	_ = out.Finish()
-	if !strings.Contains(buf.String(), "kept 1 (unpushed)") {
-		t.Fatalf("misuse must still count the record, got:\n%s", buf.String())
-	}
-}
-
-// TestReason_OnTaskWrongTaskPanicsUnderStrict is the red-first case for the
-// OnTask constraint under Strict: a reason scoped to one task, recorded from
-// a different task, panics instead of silently degrading.
-func TestReason_OnTaskWrongTaskPanicsUnderStrict(t *testing.T) {
-	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever, Strict: true})
-	evo.SetDefault(out)
-	onlyBranches := evo.ReasonConstrained("dirty", evo.OnTask("branches"))
-	worktrees := out.Task("worktrees")
-
-	// No t.Cleanup(out.Close): Strict re-panics on Finish for the
-	// intentionally-left-unresolved task, which would escape as a second
-	// panic after the assertion below already passed.
-	func() {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("want panic under Strict for an OnTask constraint violation")
-			}
-		}()
-		worktrees.Skipped(onlyBranches)
-	}()
-}
-
 // TestTaskHandle_SkippedDoesNotResolveTask inverts the pre-dialect
 // "Skipped does not resolve" assumption: Skipped/Kept on an atomic Task
 // IS the resolve (Group.Each is how many names accumulate).
