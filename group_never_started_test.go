@@ -19,7 +19,7 @@ func TestGroup_EveryChildNotStartedIsNotStartedNotDone(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "clean", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})
 
 	failing := out.Group("branches")
-	_ = failing.Task("classify").Failf("not a git work tree")
+	failing.Task("classify").Fail("not a git work tree")
 
 	untouched := out.Group("remotes")
 	untouched.Task("classify")

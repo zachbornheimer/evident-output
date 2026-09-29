@@ -16,7 +16,7 @@ license: Apache-2.0
 Portable skill for understandable CLI presentation. Prefer **Evident Output**
 when available; stay useful when it is not.
 
-**Pinned release:** `v0.5.2` (keep install commands on this pin; never `@latest`).
+**Pinned release:** `v1.0.0` (keep install commands on this pin; never `@latest`).
 
 ## Canonical locations (portable)
 
@@ -27,14 +27,14 @@ when available; stay useful when it is not.
 | **MCP package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output-mcp`                                                                                                                  |
 | **CLI package**          | `github.com/zachbornheimer/evident-output/cmd/evident-output`                                                                                                                      |
 | **This skill in-repo**   | `skills/cli-output/SKILL.md`                                                                                                                                                       |
-| **MCP install (module)** | `go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.5.2` then `ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"` |
+| **MCP install (module)** | `go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v1.0.0` then `ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"` |
 
 Host-specific wiring (Grok, Claude Code, Codex, …) lives under `integrations/<host>/` in the repo — not in this skill.
 
 ## Capability fallback
 
 1. **Connected MCP** — tools below
-2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.5.2 …`
+2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/cmd/evident-output@v1.0.0 …`
 3. **This skill’s static guidance**
 
 ## MCP tool names (underscores only)
@@ -60,7 +60,7 @@ Trigger phrases: "adopt evident-output", "migrate to evo", "clean up CLI output"
    If `facades` is set, migrate the facade first (`next_action` says so) — not each call site.
 2. **Migrate the current page**, then re-call with `{ "directory": "...", "cursor": "<next_cursor>" }`
    until `next_action` is `clean`. Ladder order (no containers rung):
-   `Init/Main → Task/Done → effects → facts/warnings → confirm/dry-run`.
+   `Init/Main → Task/Define → effects → facts/warnings → confirm/dry-run`.
    Pull authoritative detail per rung with `evident_output_get_documentation` (ids
    `adoption-ladder`, `guide/common-api`, `guide/tasks`) rather than guessing spellings —
    the catalog is the single source of truth, this skill only points at it.
@@ -79,14 +79,14 @@ Trigger phrases: "adopt evident-output", "migrate to evo", "clean up CLI output"
 ## Install library
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v0.5.2
+go get github.com/zachbornheimer/evident-output@v1.0.0
 ```
 
 ## Philosophy (in-repo)
 
 - `docs/philosophy/jazz-syntax.md` — one spelling per intent
 - `docs/philosophy/presentation-boundary.md` — presentation ≠ execution
-- `docs/philosophy/domain-vocabulary.md` — Task/mutation verbs/Detail/Failf evidence
+- `docs/philosophy/domain-vocabulary.md` — Task/Effect verbs/Detail/Failf evidence
 - `docs/guides/teaching-ladder.md` — ordinary learning order
 - `docs/roadmap/implementation-basis.md` — polish-phase authority
 
@@ -94,9 +94,9 @@ go get github.com/zachbornheimer/evident-output@v0.5.2
 
 ```text
 evo.Init(Config) → Print/Printf/Println → Verbose()
-→ Task.Define / Group.Each / Sequence.Each → task.Writer()
-→ mutation verbs (Delete(object, fn) / Affected; Record when the domain verb differs)
-→ slog via SlogHandler → evo.Main(run)
+→ Task.Define / one Task per item under a Group or Sequence → task.Writer()
+→ evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) / evo.File inside Define
+→ slog via SlogHandler → os.Exit(evo.Main(run))
 ```
 
 Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
@@ -105,10 +105,10 @@ Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
 
 ```go
 evo.Init(evo.Config{Title: "tool"})
-evo.Main(run) // exits the process itself
+os.Exit(evo.Main(run)) // Main returns the exit code; it never exits itself
 ```
 
-`evo.Init(Config{Isolated: true})` + `out.Run(run)` are the advanced, hosted-instance
+`evo.Init(Config{Isolated: true})` + `out.Run(ctx, run)` are the advanced, hosted-instance
 form of the same lifecycle — reach for them only when a tool needs an `*Output` it
 doesn't install as the package-level default.
 
@@ -118,38 +118,45 @@ doesn't install as the package-level default.
 
 ```go
 upgrade := out.Task("brew packages")
-cmd := exec.Command("brew", args...)
-cmd.Stdout = upgrade.Writer()
-cmd.Stderr = upgrade.Writer()
-if err := cmd.Run(); err != nil {
-    return upgrade.Failf("brew upgrade failed: %w", err)
-}
+upgrade.Define(func(ctx context.Context) error {
+    cmd := exec.CommandContext(ctx, "brew", args...)
+    cmd.Stdout = upgrade.Writer()
+    cmd.Stderr = upgrade.Writer()
+    if err := cmd.Run(); err != nil {
+        return fmt.Errorf("brew upgrade failed: %w", err)
+    }
+    return nil
+})
 ```
+
+Run the child inside the Task's `Define`: a Task given a `Writer` but never
+Defined stays unresolved and the run concludes `partial`.
 
 Do **not** use `DebugWriter` for child tools (API-029).
 Secrets: set `Config.Redactor`.
 
 ## Platform contracts
 
-| Need        | Use                                                   |
-| ----------- | ----------------------------------------------------- |
-| Named work  | `out.Task("download")`                                |
-| Collection  | `out.Group("packages").Each(items)`                   |
-| Child stdio | `cmd.Stdout = task.Writer()` (and stderr)             |
-| Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr) |
+| Need        | Use                                                             |
+| ----------- | --------------------------------------------------------------- |
+| Named work  | `out.Task("download")`                                          |
+| Collection  | `out.Group("packages")`, one `.Task(name).Define(...)` per item |
+| Child stdio | `cmd.Stdout = task.Writer()` (and stderr)                       |
+| Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr)           |
 
 ## Severity
 
-| Outcome   | Meaning                               |
-| --------- | ------------------------------------- |
-| **Warn**  | Soft / optional                       |
-| **Block** | Stop before mutation (not a Go error) |
-| **Fail**  | Evaluation / required tool failed     |
+| Outcome                                   | Meaning                                |
+| ----------------------------------------- | -------------------------------------- |
+| **Problem** (default `SeverityError`)     | Evaluation / required condition failed |
+| **Problem** (`Severity(SeverityWarning)`) | Soft / optional — never fails Define   |
+| **Block**                                 | Stop before mutation (not a Go error)  |
+| **Fail**                                  | Evaluation / required tool failed      |
 
 ## Review
 
 ```bash
-go run github.com/zachbornheimer/evident-output/cmd/evident-output@v0.5.2 review ./path.go
+go run github.com/zachbornheimer/evident-output/cmd/evident-output@v1.0.0 review ./path.go
 ```
 
-Until `recheck_required=false`. Rules include API-006 (Start), API-026 (caller RunAll/Map/Retry — not Group/Each/Define), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).
+Until `recheck_required=false`. Rules include API-006 (Start), API-026 (caller RunAll/Map/Retry — not Group/Sequence/Define/After), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).

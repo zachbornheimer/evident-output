@@ -23,7 +23,7 @@ func TestInteractive_ResolvedTaskCommitsBeforeLaterPrintln(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("working tree").Done()
+	succeed(out.Task("working tree"))
 	out.Println("Dry-run: no changes will be made.")
 	_ = out.Finish()
 

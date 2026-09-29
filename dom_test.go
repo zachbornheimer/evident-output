@@ -12,7 +12,7 @@ func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	item := out.Task("working tree")
-	item.Done()
+	succeed(item)
 	if item.Snapshot().State != evo.Done {
 		t.Fatalf("state = %q", item.Snapshot().State)
 	}
@@ -21,7 +21,7 @@ func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
 func TestDOM039_ChangesPlusFailure(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "deps"})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("deps").Add("package", func() error { return nil }, evo.Affected(1))
+	out.Task("deps").Define(effectOf(evo.EffectAdd, "package", 1))
 	out.Task("install").Fail("disk full")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -37,7 +37,7 @@ func TestDOM039_ChangesPlusFailure(t *testing.T) {
 
 // TestDOM046_CallerMutatesProblemSlice guarded a caller-supplied []Problem
 // slice against aliasing (BlockedBy stored the slice by reference). That
-// construction path is gone: Block/Fail/Warn build exactly one Problem
+// construction path is gone: Block/Fail/Problem build exactly one Problem
 // inline (finish's []Problem{p} is always a fresh literal), so the aliasing
 // bug this test caught is now structurally impossible rather than merely
 // untested.
@@ -45,7 +45,7 @@ func TestDOM039_ChangesPlusFailure(t *testing.T) {
 func TestDOM043_FinishTwice(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("x").Done()
+	succeed(out.Task("x"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestDOM043_FinishTwice(t *testing.T) {
 func TestAPI001_MinimalItemExample(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "repo"})
 	defer func() { _ = out.Close() }()
-	out.Task("working tree").Done()
+	succeed(out.Task("working tree"))
 	out.Task("branches").Block("local-only")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -68,31 +68,32 @@ func TestAPI001_MinimalItemExample(t *testing.T) {
 func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "acct", DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("delete").Delete("thing", func() error { return nil }, evo.Affected(1))
+	out.Task("delete").Define(effectOf(evo.EffectDelete, "thing", 1))
 	_ = out.Finish()
 	testkit.RequireConclusion(t, out, evo.StatePlanned)
 	testkit.RequireClean(t, out)
 }
 
-// TestDOM010_WarnAndFailWithStructuredSummary is updated for P2: Warn
-// annotates a task instead of resolving it (evo.Warning as a terminal
-// EntityState is deleted). A warned task stays non-terminal — Pending here,
-// since nothing else touched it — and its warning lands on the Warnings
-// field; a later Done still resolves it normally.
-func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
+// TestDOM010_WarningProblemAndFailWithStructuredSummary is updated for P2: a
+// warning-severity Problem annotates a task instead of resolving it
+// (evo.Warning as a terminal EntityState is deleted). A warned task stays
+// non-terminal — Pending here, since nothing else touched it — and its
+// warning lands on the Warnings field; a later Done still resolves it
+// normally.
+func TestDOM010_WarningProblemAndFailWithStructuredSummary(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	w := out.Task("w")
-	w.Warn("soft")
+	w.Problem("soft", evo.Severity(evo.SeverityWarning))
 	if got := w.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
-		t.Fatalf("state = %q, want non-terminal: Warn must not resolve the task", got)
+		t.Fatalf("state = %q, want non-terminal: a warning-severity Problem must not resolve the task", got)
 	}
 	if warnings := w.Snapshot().Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
 		t.Fatalf("warnings = %+v, want one warning %q", warnings, "soft")
 	}
-	w.Done()
+	succeed(w)
 	if got := w.Snapshot().State; got != evo.Done {
-		t.Fatalf("state = %q, want Done after Warn then Done", got)
+		t.Fatalf("state = %q, want Done after a warning-severity Problem then Done", got)
 	}
 	f := out.Task("f")
 	f.Fail("hard")
@@ -129,7 +130,7 @@ func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
 
 func TestDOM044_CloseTwice(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	out.Task("x").Done()
+	succeed(out.Task("x"))
 	if err := out.Close(); err != nil {
 		t.Fatal(err)
 	}

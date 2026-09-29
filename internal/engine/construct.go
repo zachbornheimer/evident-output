@@ -1,12 +1,12 @@
 package engine
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
-
-	"github.com/zachbornheimer/evident-output/terminal"
 )
 
 // processArgv0 is the facade over os.Args[0] (facade rule: no direct
@@ -20,7 +20,7 @@ var processArgv0 = func() string {
 }
 
 // identityFallbackName is the executable's own basename, used only when an
-// output-level outcome (Output.Failf/Cancel) has no named task and no
+// output-level outcome (Output.Fail/Cancel) has no named task and no
 // explicit Config.Title to identify it with — replacing the generic literal
 // "command" with the caller's actual binary name (I2). This is deliberately
 // NOT plumbed into Snapshot.Subject / the conclusion band's Subject: Config.
@@ -62,7 +62,37 @@ const (
 	FormatData
 	// FormatExternal disables inline rendering (snapshots only).
 	FormatExternal
+	// FormatJSON writes one final v2 "evo.run" document to Stdout at Finish;
+	// human presentation still goes to Stderr, exactly as FormatData routes
+	// it (spec §32.1). Do not infer this from stdout being a pipe — it is
+	// always an explicit top-level choice.
+	FormatJSON
+	// FormatJSONL streams v2 "evo.event" JSON lines to Stdout as they occur,
+	// plus a final run.finished line; human presentation goes to Stderr
+	// (spec §32.1).
+	FormatJSONL
 )
+
+// ParseFormat parses one of "human", "data", "external", "json", "jsonl"
+// (case-insensitive, surrounding whitespace ignored) into a Format — the
+// public entry point a host CLI's own --format/--json flag binds to (spec
+// §32.1). Evo does not parse os.Args itself.
+func ParseFormat(s string) (Format, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "human":
+		return FormatHuman, nil
+	case "data":
+		return FormatData, nil
+	case "external":
+		return FormatExternal, nil
+	case "json":
+		return FormatJSON, nil
+	case "jsonl":
+		return FormatJSONL, nil
+	default:
+		return 0, fmt.Errorf("%w: unknown format %q", ErrInvalidConfig, s)
+	}
+}
 
 // Verbosity selects which message visibilities are projected to the human stream.
 // Zero is normal (non-verbose) human detail.
@@ -191,15 +221,15 @@ type Config struct {
 	FailedExitCode int
 
 	// DryRun declares this run a dry run once, for the whole process: every
-	// TaskHandle mutation verb (Delete, Create, Update, Remove, Write, Push,
-	// Record, RecordName) renders as a [planned] row with the imperative verb
+	// evo.Effect, evo.File, and evo.Exec call renders as
+	// a [planned] row with the imperative verb
 	// instead of a [changed] row with the past-tense verb. No call site writes
 	// its own tense.
 	DryRun bool
 
 	// Preview declares this run a preview before a confirm gate: the same
-	// planned tense as DryRun — mutation callbacks never run and every
-	// TaskHandle mutation verb renders as a [planned] row with the
+	// planned tense as DryRun — Effect callbacks never run and every
+	// Effect/File call renders as a [planned] row with the
 	// imperative verb — announced with the caller's own Config.Subject
 	// ("repo <path>") instead of the "[dry-run] <subject>" header, and with
 	// the same redundant-band suppression on a pure planned verdict.
@@ -215,16 +245,11 @@ type Config struct {
 	// package-level default. First paint still arms — Isolated is not a
 	// blank-terminal exemption. Use for parallel tests and embedders that
 	// hold their own *Output instead of going through Default()/Task().
-	// This is the one and only opt-out from default installation — it
-	// applies identically whether or not Options is also set.
 	Isolated bool
 
-	// Options is the advanced, raw Option escape hatch for tests and
-	// specialized embedding. When set, every other Config field except
-	// Title, DryRun, Preview, and Subject is ignored.
-	Options []Option
-
-	// MaxConcurrency is the scheduler ceiling. Zero means GOMAXPROCS.
+	// MaxConcurrency is the scheduler ceiling: it bounds every executing
+	// callback, including work a waiting goroutine runs itself. Zero means
+	// GOMAXPROCS.
 	MaxConcurrency int
 
 	// StateDir, when non-empty, is the exact manifest state directory File's
@@ -238,14 +263,26 @@ type Config struct {
 	// executable basename) used in the default manifest cache path.
 	// Ignored when StateDir is set.
 	AppID string
+
+	// ProcessRunner overrides the facade evo.Exec spawns child processes
+	// through (spec §8.4). Nil uses the real OS process runner; tests
+	// inject testkit's scripted fake for deterministic Exec coverage.
+	ProcessRunner ProcessRunner
+
+	// FileFS overrides the facade evo.File performs filesystem I/O through
+	// (spec §8.2). Nil uses the real OS filesystem; tests inject a fake to
+	// script a reconciliation outcome (e.g. a chmod failure) deterministically.
+	FileFS FileFS
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
 //
 //	cfg.VisibilityDelay = evo.Delay(0)                      // immediate
 //	cfg.VisibilityDelay = evo.Delay(80 * time.Millisecond) // explicit default
+//
+//go:fix inline
 func Delay(d time.Duration) *time.Duration {
-	return &d
+	return new(d)
 }
 
 // DefaultConfig returns a fresh ordinary CLI configuration.
@@ -259,7 +296,7 @@ func DefaultConfig() Config {
 			View:  DebugPresentationHistory,
 		},
 		Width:           defaultWidth,
-		VisibilityDelay: Delay(defaultVisibilityDelay),
+		VisibilityDelay: new(defaultVisibilityDelay),
 		MaxFrameRate:    defaultMaxFrameRate,
 		MaxEntities:     defaultMaxEntities,
 		MaxEvents:       defaultMaxEvents,
@@ -287,7 +324,7 @@ func resolveConfig(c Config) Config {
 	}
 	// nil = unspecified → default; non-nil (including 0) is intentional.
 	if c.VisibilityDelay == nil {
-		c.VisibilityDelay = Delay(defaultVisibilityDelay)
+		c.VisibilityDelay = new(defaultVisibilityDelay)
 	}
 	if c.MaxFrameRate <= 0 {
 		c.MaxFrameRate = base.MaxFrameRate
@@ -304,212 +341,18 @@ func resolveConfig(c Config) Config {
 	if c.Redactor == nil {
 		c.Redactor = noopRedactor{}
 	}
+	if c.ProcessRunner == nil {
+		c.ProcessRunner = osProcessRunner{}
+	}
+	if c.FileFS == nil {
+		c.FileFS = osFileFS{}
+	}
 	return c
 }
 
 func newFromConfig(c Config) *Output {
 	opts := configToOptions(c)
 	return newOutput(c.Title, opts...)
-}
-
-func configToOptions(c Config) []Option {
-	var opts []Option
-
-	// Stream routing
-	switch c.Format {
-	case FormatData:
-		// Human presentation on stderr; domain payload on Result (default Stdout).
-		opts = append(opts, to(c.Stderr), withDiagnostics(c.Stderr), dataProjection())
-		resultW := c.Result
-		if resultW == nil {
-			resultW = c.Stdout
-		}
-		opts = append(opts, resultStream(resultW))
-	case FormatExternal:
-		opts = append(opts, to(c.Stdout), withDiagnostics(c.Stderr), externalProjection())
-		if c.Result != nil {
-			opts = append(opts, resultStream(c.Result))
-		}
-	default:
-		opts = append(opts, to(c.Stdout), withDiagnostics(c.Stderr))
-		if c.Result != nil {
-			opts = append(opts, resultStream(c.Result))
-		}
-	}
-
-	// Color / TTY
-	noColor := false
-	switch c.Color {
-	case ColorNever:
-		noColor = true
-	case ColorAlways:
-		// keep color
-	default: // ColorAuto
-		if lookupEnv(envKeyNoColor) != "" {
-			noColor = true
-		}
-		if !writerIsCharDevice(c.Stdout) && c.Format != FormatData {
-			// Off-TTY human primary: no CSI.
-			noColor = true
-		}
-		if c.Format == FormatData && !writerIsCharDevice(c.Stderr) {
-			noColor = true
-		}
-	}
-	if noColor {
-		opts = append(opts, withNoColor())
-	}
-
-	// Interactive live region only on a real TTY and human format.
-	wantLive := !c.Plain && c.Format == FormatHuman
-	liveWriter := c.Stdout
-	if c.Format == FormatData {
-		liveWriter = c.Stderr
-		wantLive = !c.Plain && writerIsCharDevice(c.Stderr)
-	} else {
-		wantLive = wantLive && writerIsCharDevice(c.Stdout)
-	}
-	switch {
-	case c.Terminal != nil:
-		opts = append(opts, withTerminal(c.Terminal))
-		// A caller-supplied driver (Config.Terminal or the Options path) may
-		// still write to one of the two streams Config already wired up —
-		// DETECT that via the driver's own Sink() rather than requiring the
-		// caller to say so, closing the examples/terminal-driver double-band
-		// gap (X3). Round 8 only compared against the format's primary
-		// writer; a driver aimed at the OTHER configured stream (e.g.
-		// Stderr while primary defaults to Stdout — every doc/example)
-		// still owns rendering there and must not also be duplicated onto
-		// primary, so both configured streams count (release-gate round 9
-		// finding 1).
-		if sr, ok := c.Terminal.(sinkReporter); ok {
-			if sink := sr.Sink(); sink != nil {
-				switch sink {
-				case c.Stdout, c.Stderr:
-					opts = append(opts, withPrimarySharesTerminal())
-				default:
-					// Driver targets a third stream (e.g. a log file) that is
-					// neither configured stream. Config exposes no separate
-					// to() a caller could use to request an intentional
-					// second copy, so route primary there instead of leaving
-					// it on c.Stdout by default (finding-2 symmetry) —
-					// otherwise nothing would ever fan the driver's own
-					// conclusion band out to a plain/non-interactive mirror.
-					opts = append(opts, to(sink))
-				}
-			}
-		}
-		if sr, ok := c.Terminal.(sinkReporter); ok && sameTerminalDevice(sr.Sink(), c.Stderr) {
-			opts = append(opts, withDiagnosticSharesTerminal())
-		}
-	case wantLive:
-		width, height := c.Width, 24
-		if width <= 0 {
-			width = defaultWidth
-		}
-		// Prefer real terminal dimensions when liveWriter is a TTY *os.File.
-		if f, ok := liveWriter.(*os.File); ok {
-			if tw, th, ok := terminal.Size(f); ok {
-				// Caller Width>0 is a deterministic override; otherwise use real cols.
-				if c.Width <= 0 || c.Width == defaultWidth {
-					width = tw
-				}
-				height = th
-			} else {
-				// TTY without ioctl size (pty, ssh, `timeout`): keep live
-				// with default geometry so a spinner still appears.
-				height = 24
-			}
-		}
-		if wantLive {
-			ansiOpts := []terminal.Option{
-				terminal.WithInteractive(true),
-				terminal.WithSize(width, height),
-			}
-			// Re-query geometry on each live redraw (resize-aware path).
-			if f, ok := liveWriter.(*os.File); ok {
-				ansiOpts = append(ansiOpts, terminal.WithSizeFile(f))
-			}
-			opts = append(opts, withTerminal(terminal.NewANSI(liveWriter, ansiOpts...)))
-			opts = append(opts, withWidth(width))
-			// liveWriter is the same stream to() was already given above
-			// (c.Stdout, or c.Stderr in FormatData) — the terminal and
-			// primary are one physical destination, so Finish must not
-			// dual-write the conclusion band a second time.
-			opts = append(opts, withPrimarySharesTerminal())
-			// withDiagnostics(c.Stderr) is a distinct io.Writer from liveWriter
-			// in the realistic default (to(Stdout), withDiagnostics(Stderr)),
-			// but on an interactive shell without redirection both fds name
-			// the same controlling tty — detect that here so Debug routes
-			// through live-aware sequencing instead of a raw dual-stream
-			// write (gate-7 finding 1).
-			if sameTerminalDevice(liveWriter, c.Stderr) {
-				opts = append(opts, withDiagnosticSharesTerminal())
-			}
-		} else {
-			opts = append(opts, plain())
-		}
-	default:
-		opts = append(opts, plain())
-	}
-	if c.Plain || c.Projection.forcesPlain() {
-		opts = append(opts, plain())
-	}
-	opts = append(opts, withProjection(c.Projection))
-
-	if c.Stdin != nil {
-		opts = append(opts, stdin(c.Stdin))
-	}
-	opts = append(opts, withClock(c.Clock), redact(c.Redactor), withWidth(c.Width))
-	visDelay := defaultVisibilityDelay
-	if c.VisibilityDelay != nil {
-		visDelay = *c.VisibilityDelay
-	}
-	opts = append(opts, visibilityDelay(visDelay), maxFrameRate(c.MaxFrameRate))
-	opts = append(opts, maxEntities(c.MaxEntities), maxEvents(c.MaxEvents))
-	opts = append(opts, maxConcurrency(c.MaxConcurrency))
-	opts = append(opts, withStateDir(c.StateDir), withAppID(c.AppID))
-	opts = append(opts, debugLevel(c.Debug.Level))
-	if c.Debug.AddSource {
-		opts = append(opts, debugAddSource())
-	}
-	if c.Debug.View == DebugPresentationPane {
-		var paneOpts []DebugPaneOption
-		if c.Debug.PaneHeight > 0 {
-			paneOpts = append(paneOpts, paneHeight(c.Debug.PaneHeight))
-		}
-		if c.Debug.NewestFirst != nil {
-			if *c.Debug.NewestFirst {
-				paneOpts = append(paneOpts, newestFirst())
-			} else {
-				paneOpts = append(paneOpts, oldestFirst())
-			}
-		}
-		if c.Debug.PreserveAlways {
-			paneOpts = append(paneOpts, preserveDebugTail())
-		}
-		opts = append(opts, debugPane(paneOpts...))
-	} else {
-		opts = append(opts, debugHistory())
-	}
-	if c.Strict {
-		opts = append(opts, strict())
-	}
-	opts = append(opts, withVerbosity(c.Verbosity))
-	if c.FailedExitCode != 0 {
-		opts = append(opts, withFailedExitCode(c.FailedExitCode))
-	}
-	if c.DryRun || c.Preview {
-		opts = append(opts, dryRun())
-		if c.Subject != "" {
-			opts = append(opts, dryRunHeader(c.Subject))
-		}
-	}
-	if c.Preview {
-		opts = append(opts, preview())
-	}
-	opts = append(opts, Glyphs(c.Glyphs))
-	return opts
 }
 
 // withVerbosity stores verbosity on the internal config.

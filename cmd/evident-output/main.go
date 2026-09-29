@@ -3,16 +3,18 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/internal/agent/adopt"
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/internal/agent/fix"
 	"github.com/zachbornheimer/evident-output/internal/agent/preview"
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
 	"github.com/zachbornheimer/evident-output/internal/agent/rules"
@@ -27,7 +29,7 @@ func main() {
 		return
 	}
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: evident-output <adopt|review|preview|explain|version> [args…]")
+		fmt.Fprintln(os.Stderr, "usage: evident-output <adopt|review|preview|explain|contract|fix|version> [args…]")
 		os.Exit(2)
 	}
 	var err error
@@ -42,6 +44,10 @@ func main() {
 		err = cmdPreview(os.Args[2:])
 	case "explain":
 		err = cmdExplain(os.Args[2:])
+	case "contract":
+		err = cmdContract(os.Args[2:])
+	case "fix":
+		err = cmdFix(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", os.Args[1])
 		os.Exit(2)
@@ -97,11 +103,10 @@ func cmdReview(args []string) error {
 			return err
 		}
 	} else {
-		raw, err := os.ReadFile(path)
+		res, err = review.GoFileAt(path, "", "")
 		if err != nil {
 			return err
 		}
-		res = review.GoSource(filepath.Base(path), string(raw))
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -135,13 +140,83 @@ func cmdPreview(args []string) error {
 	case "failed":
 		it.Fail("failed for preview")
 	default:
-		it.Done()
+		it.Define(func(context.Context) error { return nil })
 	}
 	_ = out.Finish()
 	profiles := preview.DefaultProfiles(out.Snapshot())
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(map[string]any{"profiles": profiles})
+}
+
+// cmdFix runs the 1.1-migration analyzers (internal/agent/fix) over the
+// given packages. Default: print diagnostics only. -diff: also print each
+// fixable file's unified diff. -apply: write the fixes to disk. Exit 1
+// when any diagnostic remains unfixed (or always, in the default/−diff
+// print-only modes, since nothing was fixed).
+func cmdFix(args []string) error {
+	var showDiff, apply bool
+	var patterns []string
+	for _, a := range args {
+		switch a {
+		case "-diff":
+			showDiff = true
+		case "-apply":
+			apply = true
+		default:
+			patterns = append(patterns, a)
+		}
+	}
+	if len(patterns) == 0 {
+		return fmt.Errorf("usage: evident-output fix [-diff] [-apply] <packages>")
+	}
+
+	pkgs, err := fix.Load(".", patterns...)
+	if err != nil {
+		return err
+	}
+
+	if showDiff && !apply {
+		diffs, err := fix.Diffs(pkgs)
+		if err != nil {
+			return err
+		}
+		for _, filename := range sortedKeys(diffs) {
+			fmt.Print(diffs[filename])
+		}
+	}
+
+	results, err := fix.Diagnose(pkgs, apply)
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(results); err != nil {
+		return err
+	}
+
+	unfixed := 0
+	for _, r := range results {
+		for _, d := range r.Diagnostics {
+			if !d.Fixed {
+				unfixed++
+			}
+		}
+	}
+	if unfixed > 0 {
+		os.Exit(1)
+	}
+	return nil
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func cmdExplain(args []string) error {

@@ -12,7 +12,7 @@ func TestOUT021_DataProjectionOption(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Stderr: &diag, Color: evo.ColorNever, Plain: true, Format: evo.FormatData})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("scan").Doing("walk").Done("ok")
+	succeed(out.Task("scan").Doing("walk"), "ok")
 	_ = out.Finish()
 	// Data projection still renders human to primary in v0.3 path unless diagnostic set for UI;
 	// ensure option is accepted and Finish works.
@@ -32,7 +32,7 @@ func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
 		Stderr: io.Discard,
 	})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("x").Done()
+	succeed(out.Task("x"))
 	_ = out.Finish()
 	snap := out.Snapshot()
 	if len(snap.Tasks) != 1 || snap.Tasks[0].Name != "x" {

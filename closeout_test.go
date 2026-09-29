@@ -28,7 +28,7 @@ func TestTXT017_DuplicateNamesReadable(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	// Output.Task get-or-creates by name (L1); two distinct rows sharing a
 	// display name need distinct evo.ID.
-	out.Task("same").Done()
+	succeed(out.Task("same"))
 	out.Task("same").Block("x")
 	_ = out.Finish()
 	if strings.Count(buf.String(), "same") < 2 {
@@ -56,7 +56,7 @@ func TestOUT002_DiagnosticSeparate(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Stderr: &diag, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 	// human on primary
 	if primary.Len() == 0 {
@@ -67,9 +67,9 @@ func TestOUT002_DiagnosticSeparate(t *testing.T) {
 func TestOUT010_UnknownEnumForwardCompat(t *testing.T) {
 	// Consumers should tolerate extra conclusion fields — EncodeJSON has fixed enums we control
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
-	b, _ := evo.EncodeJSON(out.Snapshot())
+	b, _ := evo.EncodeJSONForTest(out.Snapshot())
 	if !strings.Contains(string(b), "ready") && !strings.Contains(string(b), "state") {
 		t.Fatal(string(b))
 	}
@@ -89,13 +89,13 @@ func TestOUT013_ExitCodeOnConclusion(t *testing.T) {
 func TestOUT015_EventStreamBounded(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		out.DebugForTest("x")
 	}
 	// with default debug level, Debug may no-op — enable
 	_ = out.Close()
 	out2 := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	for i := 0; i < 500; i++ {
+	for range 500 {
 		out2.DebugForTest("x")
 	}
 	_ = out2.Finish()
@@ -109,7 +109,7 @@ func TestOUT016_BrokenPipePolicy(t *testing.T) {
 	r, w := io.Pipe()
 	_ = r.Close() // reader closed => writes fail
 	out := evo.Init(evo.Config{Isolated: true, Stdout: w, Plain: true})
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	// Finish write may error on pipe — must not panic
 	_ = out.Finish()
 	_ = w.Close()
@@ -123,7 +123,7 @@ func TestCON006_NoDeadlockOnRecursiveLog(t *testing.T) {
 	out.Task("t").Doing("p")
 	// Debug during live (recursive-ish path)
 	out.DebugForTest("while live")
-	out.Task("t").Done()
+	succeed(out.Task("t"))
 	_ = out.Finish()
 }
 
@@ -134,7 +134,7 @@ func TestCON007_DirtyCoalesce(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		task.Progress(i, 100)
 	}
 	if screen.LiveFrameCount() >= 100 {
@@ -144,7 +144,7 @@ func TestCON007_DirtyCoalesce(t *testing.T) {
 
 func TestCON015_NoLeakAfterClose(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Close()
 	// second close idempotent
 	_ = out.Close()
@@ -155,8 +155,8 @@ func TestCON017_ConcurrentDeclareSafe(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	done := make(chan struct{})
 	go func() {
-		for i := 0; i < 50; i++ {
-			out.Task("n").Done()
+		for range 50 {
+			succeed(out.Task("n"))
 		}
 		close(done)
 	}()
@@ -173,7 +173,7 @@ func TestCON019_HighFrequencyChildProgress(t *testing.T) {
 	for i := 0; i <= 200; i++ {
 		t1.Progress(i, 200)
 	}
-	t1.Done()
+	succeed(t1)
 	if t1.Snapshot().Progress.Completed != 200 {
 		t.Fatal(t1.Snapshot().Progress)
 	}
@@ -183,7 +183,7 @@ func TestA11Y010_UnknownPaletteSafe(t *testing.T) {
 	// NoColor path uses no SGR — portable
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "\x1b[") {
 		t.Fatal("SGR")
@@ -194,8 +194,8 @@ func TestA11Y010_UnknownPaletteSafe(t *testing.T) {
 func TestSEC004_RenderTreeBounded(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEntities: 100})
 	t.Cleanup(func() { _ = out.Close() })
-	for i := 0; i < 150; i++ {
-		out.Task("x").Done()
+	for range 150 {
+		succeed(out.Task("x"))
 	}
 	// limit hit recorded
 	_ = out.Finish()
@@ -204,7 +204,7 @@ func TestSEC004_RenderTreeBounded(t *testing.T) {
 func TestSEC010_FinishAfterPanicPath(t *testing.T) {
 	// Renderer failure isolation: Finish still returns with misuse if any
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 	_ = out.Close()
 }
@@ -213,7 +213,7 @@ func TestAPI011_CobraNotRequired(t *testing.T) {
 	// Library embeds without Cobra base class
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "cmd"})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 }
 
@@ -221,16 +221,17 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 	// User discovers Item/Task/Tasks and can implement three parallel facts without config.
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "repo", Color: evo.ColorNever, Plain: true})
-	out.Task("working tree").Done()
-	out.Task("scan").Doing("walk").Done("done")
+	succeed(out.Task("working tree"))
+	succeed(out.Task("scan").Doing("walk"), "done")
 	g := out.Group("deps")
-	g.Task("a").Done()
-	g.Task("b").Done()
+	succeed(g.Task("a"), "ok")
+	succeed(g.Task("b"), "ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()
-	for _, need := range []string{"working tree", "scan", "deps"} {
+	// "deps" is a Group with no Summary of its own, so only its children render.
+	for _, need := range []string{"working tree", "scan", "✓ a", "✓ b"} {
 		if !strings.Contains(s, need) {
 			t.Fatalf("missing %q in %q", need, s)
 		}
@@ -243,8 +244,8 @@ func TestAPI024_ComplexSmallerThanAdHoc(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
 	g := out.Group("deps")
-	g.Task("a").Bytes(10, 10).Done()
-	g.Task("b").Doing("verifying").Done()
+	succeed(g.Task("a").Bytes(10, 10))
+	succeed(g.Task("b").Doing("verifying"))
 	out.DebugForTest("index ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -260,8 +261,8 @@ func TestTERM021_FinalCollectionOutput(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	g := out.Group("deps")
 	g.Summary("installed 2")
-	g.Task("a").Done()
-	g.Task("b").Done()
+	succeed(g.Task("a"))
+	succeed(g.Task("b"))
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "deps") {
 		t.Fatal(buf.String())
@@ -273,7 +274,7 @@ func TestTERM024_BrokenPipeNoPanic(t *testing.T) {
 	r, w := io.Pipe()
 	_ = r.Close()
 	out := evo.Init(evo.Config{Isolated: true, Stdout: w, Plain: true})
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish() // may fail write
 	_ = w.Close()
 	_ = out.Close()
@@ -292,10 +293,10 @@ func TestLOG013_DebugWithJSONStdout(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Plain: true})
 	out.DebugForTest("d")
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 	// JSON encode separate stream
-	j, _ := evo.EncodeJSON(out.Snapshot())
+	j, _ := evo.EncodeJSONForTest(out.Snapshot())
 	if !strings.Contains(string(j), "schema_version") {
 		t.Fatal(string(j))
 	}
@@ -305,8 +306,8 @@ func TestLOG013_DebugWithJSONStdout(t *testing.T) {
 func TestPORT013_PublicAPIStableShape(t *testing.T) {
 	// Stable public surface: Init/Task/Tasks/Finish/Snapshot/EncodeJSON.
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "s", Plain: true})
-	out.Task("i").Done()
-	out.Task("t").Done()
+	succeed(out.Task("i"))
+	succeed(out.Task("t"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +315,7 @@ func TestPORT013_PublicAPIStableShape(t *testing.T) {
 	if snap.Subject != "s" || len(snap.Tasks) != 2 {
 		t.Fatalf("%+v", snap)
 	}
-	b, err := evo.EncodeJSON(snap)
+	b, err := evo.EncodeJSONForTest(snap)
 	if err != nil || !strings.Contains(string(b), `"schema_version": "0.4"`) {
 		t.Fatal(err, string(b))
 	}
@@ -326,9 +327,9 @@ func TestPORT014_JSONDocumentHasRequiredFields(t *testing.T) {
 	// separate "items" wire kind — every entity, including a fact-check
 	// resolved without ever running, is a "tasks" row.
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
-	b, _ := evo.EncodeJSON(out.Snapshot())
+	b, _ := evo.EncodeJSONForTest(out.Snapshot())
 	if strings.Contains(string(b), `"items"`) {
 		t.Fatal(string(b))
 	}

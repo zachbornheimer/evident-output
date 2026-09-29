@@ -7,7 +7,42 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/engine"
+	"github.com/zachbornheimer/evident-output/internal/render/machine"
 )
+
+// The JSON*ForTest aliases and Encode*ForTest functions below keep the
+// legacy output.v1/event.v1 detailed-document encoders (internal/render)
+// covered from package-external tests during the compatibility window,
+// mirroring StepForTest's rationale: the owner vocabulary freeze
+// (2026-09-25) removed JSONDocument/EncodeJSON/EncodeJSONL/EncodeEventJSON
+// and the JSON* wire types from the public dialect (WriteJSON's v2 "evo.run"
+// document is the sanctioned external JSON path), but the internal
+// machine.EncodeJSON/EncodeJSONL machinery FormatJSON/FormatJSONL still call
+// at Finish (internal/engine/machine.go) is unaffected and stays regression
+// tested through these test-only aliases rather than dropped.
+
+type JSONDocumentForTest = machine.JSONDocument
+type JSONMessageForTest = machine.JSONMessage
+type JSONOutputMetaForTest = machine.JSONOutputMeta
+type ConclusionJSONForTest = machine.ConclusionJSON
+type JSONProblemForTest = machine.JSONProblem
+type JSONTaskForTest = machine.JSONTask
+type JSONProgressForTest = machine.JSONProgress
+type JSONCollectionForTest = machine.JSONCollection
+type JSONChangesForTest = machine.JSONChanges
+type JSONPlanForTest = machine.JSONPlan
+type JSONEffectRecordForTest = machine.JSONEffectRecord
+type JSONActionForTest = machine.JSONAction
+type JSONCommandForTest = machine.JSONCommand
+type EventJSONForTest = machine.EventJSON
+
+const JSONSchemaVersionForTest = machine.JSONSchemaVersion
+
+func EncodeJSONForTest(s Snapshot) ([]byte, error) { return machine.EncodeJSON(s) }
+func EncodeJSONLForTest(events []Event) ([]byte, error) {
+	return machine.EncodeJSONL(events)
+}
+func EncodeEventJSONForTest(e Event) ([]byte, error) { return machine.EncodeEventJSON(e) }
 
 func SwapLookupEnv(fn func(string) string) func() { return engine.SwapLookupEnv(fn) }
 func MarkWriterAsCharDevice(w io.Writer) func()   { return engine.MarkWriterAsCharDevice(w) }
@@ -15,43 +50,10 @@ func MarkWriterAsCharDevice(w io.Writer) func()   { return engine.MarkWriterAsCh
 type TestClock = engine.FixedClock
 type TestSystemClock = engine.SystemClock
 type TestRedactor = engine.NoopRedactor
-type TestEvidence = engine.Evidence
+type TestCapture = engine.Capture
 
 func DelayForTest(d time.Duration) *time.Duration { return Delay(d) }
-func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
-	return TaxonomyReason{inner: engine.ReasonConstrained(name, opts...)}
-}
-func SlogHandlerForTest() slog.Handler { return SlogHandler() }
-
-type Scope struct{ inner *engine.Scope }
-
-func (o *Output) ScopeForTest(name string) *Scope {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return &Scope{inner: o.inner.ScopeForTest(name)}
-}
-
-func (s *Scope) Name() string {
-	if s == nil || s.inner == nil {
-		return ""
-	}
-	return s.inner.Name()
-}
-
-func (s *Scope) Task(name string) *TaskHandle {
-	if s == nil || s.inner == nil {
-		return nil
-	}
-	return wrapTask(s.inner.Task(name))
-}
-
-func (s *Scope) TaskIdentified(name, key string) *TaskHandle {
-	if s == nil || s.inner == nil {
-		return nil
-	}
-	return wrapTask(s.inner.TaskIdentified(name, key))
-}
+func SlogHandlerForTest() slog.Handler            { return SlogHandler() }
 
 func (o *Output) AboutForTest(text string) {
 	if o != nil && o.inner != nil {
@@ -71,18 +73,11 @@ func (o *Output) DeclareDryRunForTest() {
 	}
 }
 
-func (o *Output) EvidenceForTest(opts ...EvidenceOption) *Evidence {
+func (o *Output) CaptureForTest(opts ...CaptureOption) *Capture {
 	if o == nil || o.inner == nil {
 		return nil
 	}
-	return o.inner.EvidenceForTest(opts...)
-}
-
-func (o *Output) Events() []Event {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.Events()
+	return o.inner.CaptureForTest(opts...)
 }
 
 func (o *Output) DebugForTest(message string, fields ...Field) {
@@ -95,13 +90,6 @@ func (o *Output) AlsoWriteForTest(w io.Writer) {
 	if o != nil && o.inner != nil {
 		o.inner.AlsoWriteForTest(w)
 	}
-}
-
-func (o *Output) TaskIdentified(name, key string) *TaskHandle {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return wrapTask(o.inner.TaskIdentified(name, key))
 }
 
 func (o *Output) SetDiagnosticSharesTerminalForTest() {
@@ -143,13 +131,6 @@ func (o *Output) AtForTest(visibility Visibility) *Printer {
 	return wrapPrinter(o.inner.AtForTest(visibility))
 }
 
-func (o *Output) SchedulerStartOrder() []string {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.SchedulerStartOrder()
-}
-
 func (o *Output) SchedulerMaxObserved() int {
 	if o == nil || o.inner == nil {
 		return 0
@@ -164,15 +145,11 @@ func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error {
 	return t.inner.RunForTest(cmd)
 }
 
-func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
-	return t.Step(completed, total, name)
-}
-
-func (t *TaskHandle) EvidenceForTest(opts ...EvidenceOption) *Evidence {
+func (t *TaskHandle) CaptureForTest(opts ...CaptureOption) *Capture {
 	if t == nil || t.inner == nil {
 		return nil
 	}
-	return t.inner.EvidenceForTest(opts...)
+	return t.inner.CaptureForTest(opts...)
 }
 
 func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ...error) {

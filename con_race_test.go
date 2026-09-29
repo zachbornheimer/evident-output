@@ -15,16 +15,16 @@ func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
 	tasks := out.Group("batch")
 	const n = 50
 	children := make([]*evo.TaskHandle, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		children[i] = tasks.Task(fmt.Sprintf("t-%d", i))
 	}
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
+	for i := range n {
 		wg.Add(1)
 		go func(task *evo.TaskHandle) {
 			defer wg.Done()
 			task.Progress(1, 1)
-			task.Done()
+			succeed(task)
 		}(children[i])
 	}
 	wg.Wait()
@@ -48,7 +48,7 @@ func TestCON012_ConcurrentItemOK(t *testing.T) {
 		wg.Add(1)
 		go func(it *evo.TaskHandle) {
 			defer wg.Done()
-			it.Done()
+			succeed(it)
 		}(it)
 	}
 	wg.Wait()

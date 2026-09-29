@@ -48,8 +48,6 @@ func (o *Output) Fail(summary string, options ...ProblemOption) {
 	o.impl().Fail(summary, options...)
 }
 
-func (o *Output) Failf(format string, args ...any) { o.impl().Failf(format, args...) }
-
 func (o *Output) Finish() error {
 	if o == nil || o.inner == nil {
 		return nil
@@ -98,6 +96,16 @@ func (o *Output) Snapshot() Snapshot {
 	return o.inner.Snapshot()
 }
 
+// Events returns a copy of this instance's durable event journal, for a
+// machine-projection call site that needs the raw event stream rather
+// than a point-in-time Snapshot.
+func (o *Output) Events() []Event {
+	if o == nil || o.inner == nil {
+		return nil
+	}
+	return o.inner.Events()
+}
+
 func (o *Output) Suspend(fn func() error) error {
 	if o == nil || o.inner == nil {
 		return nil
@@ -107,7 +115,12 @@ func (o *Output) Suspend(fn func() error) error {
 
 func (o *Output) Task(name string) *TaskHandle { return wrapTask(o.impl().Task(name)) }
 
-func (o *Output) Warn(summary string) { o.impl().Warn(summary) }
+// Problem records one run-scoped Problem. With Severity(SeverityWarning)
+// it is a run-level warning that sets "warned"; with the default
+// SeverityError it is a run-level failure, as Fail records.
+func (o *Output) Problem(summary string, options ...ProblemOption) {
+	o.impl().Problem(summary, options...)
+}
 
 func (o *Output) Writer() io.Writer {
 	if o == nil || o.inner == nil {

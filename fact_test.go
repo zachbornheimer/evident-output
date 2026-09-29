@@ -9,16 +9,17 @@ import (
 )
 
 // TestTaskFact_RendersInlineDimNoBang proves task.Fact renders inline on a
-// Done task's own row, dim, with no "!" — the P8 contrast with
-// TaskHandle.Warn's attention glyph (user-13-problems.md Problem 8: "Tasks
-// are work. Facts are information.").
+// Done task's own row, dim, with no "!" — the P8 contrast with a
+// warning-severity Problem's attention glyph (user-13-problems.md Problem 8:
+// "Tasks are work. Facts are information.").
 func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, Verbosity: evo.VerbosityVerbose})
 
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")
-	scan.Done()
+	succeed(scan)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -33,13 +34,13 @@ func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 }
 
 // TestTaskFact_NeverResolvesTask proves Fact is a pure annotation: it does
-// not resolve the task, so a subsequent Done still succeeds (mirrors
-// TaskHandle.Warn's non-terminal contract).
+// not resolve the task, so a subsequent Done still succeeds (mirrors a
+// warning-severity Problem's non-terminal contract).
 func TestTaskFact_NeverResolvesTask(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever})
 	task := out.Task("t")
 	task.Fact("language", "go")
-	task.Done()
+	succeed(task)
 	snap := out.Snapshot()
 	if len(snap.Tasks) != 1 || snap.Tasks[0].State != evo.Done {
 		t.Fatalf("Fact must not resolve the task, got %+v", snap.Tasks)
@@ -49,25 +50,26 @@ func TestTaskFact_NeverResolvesTask(t *testing.T) {
 	}
 }
 
-// TestOutputWarn_FeedsWarnedModifierNotHeadline proves evo.Warn (run-scoped,
-// P8 symmetry with TaskHandle.Warn) contributes to Conclusion.Warned/
-// "· warned" without ever becoming a new headline state — a run with only a
-// bare evo.Warn and no tasks still concludes StateReady, warned.
-func TestOutputWarn_FeedsWarnedModifierNotHeadline(t *testing.T) {
+// TestOutputProblem_WarningFeedsWarnedModifierNotHeadline proves a
+// run-scoped, warning-severity Output.Problem (P8 symmetry with
+// TaskHandle.Problem) contributes to Conclusion.Warned/"· warned" without
+// ever becoming a new headline state — a run with only a bare warning-
+// severity Output.Problem and no tasks still concludes StateReady, warned.
+func TestOutputProblem_WarningFeedsWarnedModifierNotHeadline(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Warn("no config file found, using defaults")
+	out.Problem("no config file found, using defaults", evo.Severity(evo.SeverityWarning))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	c := out.Conclusion()
 	if c.State != evo.StateReady {
-		t.Fatalf("state = %v, want StateReady (a bare Warn must not invent a headline)", c.State)
+		t.Fatalf("state = %v, want StateReady (a bare warning-severity Problem must not invent a headline)", c.State)
 	}
 	if !c.Warned {
-		t.Fatal("want Conclusion.Warned = true after evo.Warn")
+		t.Fatal("want Conclusion.Warned = true after a warning-severity Output.Problem")
 	}
 	got := buf.String()
 	if !strings.Contains(got, "no config file found, using defaults") {

@@ -1,11 +1,9 @@
 package evo_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,44 +17,16 @@ import (
 // happened".
 var errProbe = errors.New("probe failure")
 
-// TestScheduler_P2_DoneAfterVerbKeepsCallbackOutcome pins the P2 probe: a
-// caller that follows a mutation verb with its own Done() must not launder
-// the callback's failure into a green row. Done asserts a success the
-// scheduler has not observed, so it is recorded misuse and resolves nothing.
-func TestScheduler_P2_DoneAfterVerbKeepsCallbackOutcome(t *testing.T) {
-	t.Parallel()
-	out := isolatedScheduler(t, 1, io.Discard, false)
-	task := out.Task("cleanup")
-	release := make(chan struct{})
-	task.Delete("worktree", func() error {
-		<-release
-		return errProbe
-	})
-	task.Done()
-	close(release)
-	// Finish surfaces the recorded misuse; the row underneath it must still
-	// carry the callback's outcome.
-	if err := out.Finish(); !errors.Is(err, evo.ErrAlreadyResolved) {
-		t.Fatalf("Finish = %v, want ErrAlreadyResolved", err)
-	}
-
-	if got := task.Snapshot().State; got != evo.Failed {
-		t.Fatalf("task state = %v, want Failed (the callback's outcome)", got)
-	}
-	if err := out.Err(); !errors.Is(err, evo.ErrAlreadyResolved) {
-		t.Fatalf("misuse = %v, want ErrAlreadyResolved recorded at the Done call", err)
-	}
-}
-
-// TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve pins the P13
+// TestScheduler_P13_FailInsideDefineDoesNotDoubleResolve pins the P13
 // probe: a callback that resolves itself and returns that error is one
 // outcome, not two — the scheduler must not re-Fail it or record misuse.
-func TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve(t *testing.T) {
+func TestScheduler_P13_FailInsideDefineDoesNotDoubleResolve(t *testing.T) {
 	t.Parallel()
 	out := isolatedScheduler(t, 1, io.Discard, false)
 	task := out.Task("lint")
 	task.Define(func(ctx context.Context) error {
-		return task.Failf("lint failed: %w", errProbe)
+		task.Fail("lint failed: " + errProbe.Error())
+		return errProbe
 	})
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -71,39 +41,13 @@ func TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve(t *testing.T) {
 	testkit.RequireConclusion(t, out, evo.StateFailed)
 }
 
-// TestScheduler_P4_MutationVerbWithNilCallbackIsRejected pins the P4 probe:
-// a verb with no callback declares an effect nothing performs. The
-// after-the-fact spelling is Record(verb, n, object).
-func TestScheduler_P4_MutationVerbWithNilCallbackIsRejected(t *testing.T) {
+// TestScheduler_P17_PluralizeNeverInflectsAnAlreadyPluralObject pins the
+// P17 probe: an Effect's Object is singular and the ledger pluralizes it
+// from Quantity, so Pluralize must never inflect a word that is already
+// plural ("deleted 1 worktrees"). MCP API-043 flags a plural EffectSpec
+// Object literal statically.
+func TestScheduler_P17_PluralizeNeverInflectsAnAlreadyPluralObject(t *testing.T) {
 	t.Parallel()
-	var buf bytes.Buffer
-	out := isolatedScheduler(t, 1, &buf, true)
-	out.Task("venv").Create("venv", nil)
-	_ = out.Finish()
-
-	if err := out.Err(); !errors.Is(err, evo.ErrInvalidConfig) {
-		t.Fatalf("misuse = %v, want ErrInvalidConfig", err)
-	}
-	if got := buf.String(); strings.Contains(got, "create 1 venv") {
-		t.Fatalf("a verb with no callback must plan no effect, got:\n%s", got)
-	}
-}
-
-// TestScheduler_P17_PluralObjectOnMutationVerbIsRejected pins the P17
-// probe: mutation verbs take a singular object and the ledger pluralizes
-// from the quantity, so `Delete("worktrees", …, Affected(1))` printed
-// "deleted 1 worktrees". The object is named misuse, and Pluralize never
-// inflects a word that is already plural.
-func TestScheduler_P17_PluralObjectOnMutationVerbIsRejected(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	out := isolatedScheduler(t, 1, &buf, false)
-	out.Task("clean").Delete("worktrees", func() error { return nil }, evo.Affected(1))
-	_ = out.Finish()
-
-	if err := out.Err(); !errors.Is(err, evo.ErrInvalidConfig) {
-		t.Fatalf("misuse = %v, want ErrInvalidConfig for a plural object", err)
-	}
 	for _, singular := range []string{"worktrees", "children", "logs"} {
 		if got := evo.Pluralize(3, singular); got != singular {
 			t.Fatalf("Pluralize(3, %q) = %q, want it unchanged: already plural", singular, got)

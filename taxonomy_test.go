@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -63,30 +64,34 @@ func TestTaskHandle_SkippedNonVerboseOmitsNameList(t *testing.T) {
 	}
 }
 
-// TestSequence_ChildRendersKeptTaxonomyLine is the red-first case for the
+// TestSequence_ChildRendersSkippedTaxonomyLine is the red-first case for the
 // repo-retire adoption gap: writeCollectionChild never called writeTaxonomy,
-// so a Sequence/DisplayGroup child's Kept/Skipped records silently vanished from
+// so a Sequence/DisplayGroup child's Skipped records silently vanished from
 // rendered output even though the standalone evo.Task path rendered them.
-// A collection child is a task; it must render the same "! kept N (...)"
+// A collection child is a task; it must render the same "- skipped N (...)"
 // line a standalone task does. Each named child records its own reason
 // count individually — Each's collection-level rollup across many
 // same-shaped children was a distinct, separately-owned feature (removed
 // in 1.0, §3.1) that this test never needed for its own regression guard.
-func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
+// Ordinary call sites moved to Skipped in 1.1: this test used to pin
+// Kept's own tally line; it now pins the same structural guarantee
+// (per-child rendering, not silently dropped) against Skipped's tally
+// instead.
+func TestSequence_ChildRendersSkippedTaxonomyLine(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	unpushed := evo.Reason("unpushed")
 	group := out.Sequence("branches")
-	group.Task("feat/a").Kept(unpushed)
-	group.Task("feat/b").Kept(unpushed)
+	group.Task("feat/a").Skipped(unpushed)
+	group.Task("feat/b").Skipped(unpushed)
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 	got := buf.String()
-	if strings.Count(got, "kept 1 (unpushed)") != 2 {
-		t.Fatalf("each collection child must render its own Kept taxonomy line, got:\n%s", got)
+	if strings.Count(got, "skipped 1 (unpushed)") != 2 {
+		t.Fatalf("each collection child must render its own Skipped taxonomy line, got:\n%s", got)
 	}
 }
 
@@ -98,53 +103,6 @@ func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 // (collectEachTaxonomy), removed outright in 1.0 (§3.1: get-or-create
 // reliance is unsound). TestTaskHandle_SkippedCauseVerboseListsEveryCause
 // below still covers the still-live per-task Verbose cause list.
-
-// TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts is the red-first
-// case for the ForSkip constraint: recording it through Kept is misuse, and
-// production (non-Strict) still counts the record rather than dropping truth.
-func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	evo.SetDefault(out)
-	skipOnly := evo.ReasonConstrained("unpushed", evo.ForSkip())
-
-	branches := out.Task("branches")
-	branches.Kept(skipOnly)
-
-	if out.Err() == nil {
-		t.Fatal("want recorded misuse for a ForSkip reason recorded via Kept")
-	}
-	branches.Done()
-	// Finish returns the recorded misuse (see ErrAlreadyResolved-style
-	// contracts elsewhere); the assertion here is that the record still
-	// rendered, not that Finish reports a clean run.
-	_ = out.Finish()
-	if !strings.Contains(buf.String(), "kept 1 (unpushed)") {
-		t.Fatalf("misuse must still count the record, got:\n%s", buf.String())
-	}
-}
-
-// TestReason_OnTaskWrongTaskPanicsUnderStrict is the red-first case for the
-// OnTask constraint under Strict: a reason scoped to one task, recorded from
-// a different task, panics instead of silently degrading.
-func TestReason_OnTaskWrongTaskPanicsUnderStrict(t *testing.T) {
-	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever, Strict: true})
-	evo.SetDefault(out)
-	onlyBranches := evo.ReasonConstrained("dirty", evo.OnTask("branches"))
-	worktrees := out.Task("worktrees")
-
-	// No t.Cleanup(out.Close): Strict re-panics on Finish for the
-	// intentionally-left-unresolved task, which would escape as a second
-	// panic after the assertion below already passed.
-	func() {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("want panic under Strict for an OnTask constraint violation")
-			}
-		}()
-		worktrees.Skipped(onlyBranches)
-	}()
-}
 
 // TestTaskHandle_SkippedDoesNotResolveTask inverts the pre-dialect
 // "Skipped does not resolve" assumption: Skipped/Kept on an atomic Task
@@ -175,7 +133,7 @@ func TestTaskHandle_SkippedCauseRendersOneBoundedEvidenceLine(t *testing.T) {
 	branches := evo.Task("branches")
 	branches.SkippedWithErrs(protected, "main", errors.New("required review"))
 	branches.SkippedWithErrs(protected, "staging", errors.New("required review"))
-	branches.Done()
+	succeed(branches)
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -202,7 +160,7 @@ func TestTaskHandle_SkippedCauseVerboseListsEveryCause(t *testing.T) {
 	branches := evo.Task("branches")
 	branches.SkippedWithErrs(protected, "main", errors.New("cause one"))
 	branches.SkippedWithErrs(protected, "staging", errors.New("cause two"))
-	branches.Done()
+	succeed(branches)
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -233,26 +191,97 @@ func TestTaskHandle_SkippedNoCauseOmitsEvidenceLine(t *testing.T) {
 	}
 }
 
-// TestTaskSnapshot_ExposesSkippedAndKeptTaxonomy pins the structural
-// exposure requirement: Skipped/Kept live in TaskSnapshot (disposition side
-// of the model), not the mutation ledger (Plan/Changes).
-func TestTaskSnapshot_ExposesSkippedAndKeptTaxonomy(t *testing.T) {
+// TestTaskSnapshot_ExposesSkippedTaxonomy pins the structural exposure
+// requirement: Skipped taxonomy lives in TaskSnapshot (disposition side of
+// the model), not the mutation ledger (Plan/Changes). Ordinary call sites
+// moved to Skipped in 1.1 (§"Duplicate decisions"): a second Task recording
+// via the same public Skipped call must land in the same Skipped field,
+// not a separate Kept one — this pins that merge instead of pinning
+// Kept's now-rarely-used field.
+func TestTaskSnapshot_ExposesSkippedTaxonomy(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever})
 	evo.SetDefault(out)
 	t.Cleanup(func() { _ = out.Close() })
 
 	reason := evo.Reason("protected")
-	skipped := out.Task("main")
-	skipped.Skipped(reason)
-	kept := out.Task("feat/a")
-	kept.Kept(reason)
+	main := out.Task("main")
+	main.Skipped(reason)
+	featA := out.Task("feat/a")
+	featA.Skipped(reason)
 
-	skipSnap := skipped.Snapshot()
-	if len(skipSnap.Skipped) != 1 || skipSnap.Skipped[0].Reason != "protected" || skipSnap.Skipped[0].Name != "main" {
-		t.Fatalf("Skipped taxonomy not exposed on snapshot: %+v", skipSnap.Skipped)
+	mainSnap := main.Snapshot()
+	if len(mainSnap.Skipped) != 1 || mainSnap.Skipped[0].Reason != "protected" || mainSnap.Skipped[0].Name != "main" {
+		t.Fatalf("Skipped taxonomy not exposed on snapshot: %+v", mainSnap.Skipped)
 	}
-	keepSnap := kept.Snapshot()
-	if len(keepSnap.Kept) != 1 || keepSnap.Kept[0].Reason != "protected" || keepSnap.Kept[0].Name != "feat/a" {
-		t.Fatalf("Kept taxonomy not exposed on snapshot: %+v", keepSnap.Kept)
+	featASnap := featA.Snapshot()
+	if len(featASnap.Skipped) != 1 || featASnap.Skipped[0].Reason != "protected" || featASnap.Skipped[0].Name != "feat/a" {
+		t.Fatalf("Skipped taxonomy not exposed on snapshot: %+v", featASnap.Skipped)
+	}
+}
+
+// TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning pins contract §41
+// ("Warning | ! | [!]") and §20 ("Use a plain, widely-rendered `-` for an
+// already-satisfied/skipped detail"): a Skipped tally is skip detail, not a
+// warning, so it renders "-" and never feeds the "· warned" band — unlike a
+// Kept tally, which §26/§27 render as "! kept N (...)".
+func TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	scan := out.Task("branches")
+	scan.Define(func(context.Context) error {
+		scan.Skipped(evo.Reason("protected"))
+		return nil
+	})
+	_ = scan.Wait()
+	succeed(out.Task("worktrees"), "3 checked")
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "- skipped 1 (protected)") || strings.Contains(got, "! skipped") {
+		t.Fatalf("a Skipped tally renders the skip-detail dash, never the warning bang:\n%s", got)
+	}
+	if out.Conclusion().Warned || strings.Contains(got, "warned") {
+		t.Fatalf("a Skipped tally must not feed the warned band:\n%s", got)
+	}
+}
+
+// TestGroup_SkippedChildrenAggregateUnderGroupRow pins contract §25
+// ("Rendering every child is not a correctness requirement; retaining every
+// child in the model is") for per-item disposition children: a Group whose
+// children only resolved Skipped renders its own row plus one
+// "- skipped N (...)" tally, indented under it, never one row per item.
+// Ordinary call sites moved to Skipped in 1.1: unlike the Kept tally this
+// test used to pin, a Skipped tally is skip detail, not a warning (§41/§20
+// — see TestTaskHandle_SkippedTallyUsesSkipDetailGlyphNotWarning), so the
+// run stays "[ready]", never "[ready · warned]".
+func TestGroup_SkippedChildrenAggregateUnderGroupRow(t *testing.T) {
+	for _, summary := range []string{"6 checked", ""} {
+		var buf bytes.Buffer
+		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+		t.Cleanup(func() { _ = out.Close() })
+
+		unpushed, protected := evo.Reason("unpushed"), evo.Reason("protected")
+		branches := out.Group("branches")
+		if summary != "" {
+			branches.Summary(summary)
+		}
+		branches.Task("feat/a").Skipped(unpushed)
+		branches.Task("main").Skipped(protected)
+		branches.Task("feat/b").Skipped(unpushed)
+		if err := out.Finish(); err != nil {
+			t.Fatal(err)
+		}
+
+		row := "✓ branches\n"
+		if summary != "" {
+			row = "✓ branches  " + summary + "\n"
+		}
+		want := row + "  - skipped 3 (2 unpushed, 1 protected)\n"
+		if got := buf.String(); got != want {
+			t.Fatalf("summary %q mismatch:\n--- want ---\n%s\n--- got ---\n%s", summary, want, got)
+		}
 	}
 }

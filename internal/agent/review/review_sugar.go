@@ -76,14 +76,13 @@ func instantDoneInFunc(filename string, body *ast.BlockStmt, fset *token.FileSet
 }
 
 func instantDoneFinding(filename string, pos token.Position, recv string) Finding {
-	suggestion := "call Define(func() error { ... }) or the matching mutation verb (Create/Delete/Update/...) instead of resolving with Done alone"
+	suggestion := "call Define(func(ctx context.Context) error { ... }) instead of resolving with Done alone"
 	if recv != "" {
-		suggestion = "call " + recv + ".Define(func() error { ... }) or " + recv + "'s matching mutation verb instead of resolving with " + recv + ".Done(...) alone"
+		suggestion = "call " + recv + ".Define(func(ctx context.Context) error { ... }) instead of resolving with " + recv + ".Done(...) alone"
 	}
 	return Finding{
 		RuleID:     "FP-005",
-		Severity:   "warning",
-		Message:    "Task is Done with no Define/mutation verb submitting work; the row first appears already complete",
+		Message:    "Task is Done with no Define submitting work; the row first appears already complete",
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
@@ -156,7 +155,6 @@ func detectCollectionLeafMisuse(filename string, file *ast.File, fset *token.Fil
 			pos := fset.Position(call.Pos())
 			findings = append(findings, Finding{
 				RuleID:     "API-027",
-				Severity:   "error",
 				Message:    "Done/Fail/Progress on Group/Sequence is forbidden; resolve child Tasks instead",
 				File:       filename,
 				Line:       pos.Line,
@@ -385,7 +383,6 @@ func singletonGroupFindingAt(filename string, line, col int, recv string) Findin
 	}
 	return Finding{
 		RuleID:     "API-039",
-		Severity:   "warning",
 		Message:    "Group has exactly one child; it renders as a 0/1 complete header over a single row",
 		File:       filename,
 		Line:       line,

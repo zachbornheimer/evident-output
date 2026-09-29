@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/zachbornheimer/evident-output/internal/render"
+import plainrender "github.com/zachbornheimer/evident-output/internal/render/plain"
 
 // PlainOptions configures pure plain projection (§25.4).
 type PlainOptions struct {
@@ -22,5 +22,5 @@ func renderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	if glyphs == GlyphsAuto {
 		glyphs = GlyphsUnicode
 	}
-	return []byte(render.Plain(s, opts.Width, opts.NoColor, opts.Verbose, glyphs)), nil
+	return []byte(plainrender.Render(s, opts.Width, opts.NoColor, opts.Verbose, glyphs)), nil
 }

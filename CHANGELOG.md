@@ -3,10 +3,477 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-This project has not reached 1.0 — pre-1.0 API breaks are called out explicitly
-below rather than deferred to a major version.
 
 ## Unreleased
+
+See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
+
+### Added
+
+- **`ProblemSeverity`, `SeverityError`, `SeverityWarning`, and
+  `evo.Severity(value ProblemSeverity) ProblemOption`:** a `Problem`
+  defaults to `SeverityError` (fails its owning Define, like today); a
+  `Severity(SeverityWarning)` Problem sets `warned` and never fails
+  anything. This is the `Warn` replacement — see Removed.
+- **`Output.Problem(summary string, opts ...ProblemOption)`:** the
+  run-scoped counterpart to `TaskHandle.Problem`, the `Output.Warn`
+  replacement at `Severity(SeverityWarning)`. At the default
+  `SeverityError` it records the same run-level failure `Output.Fail`
+  does — see [docs/migration/1.1.md](docs/migration/1.1.md) for why that
+  overlap is intentional.
+- **Review rule API-070:** flags `TaskHandle.Warn`, `Output.Warn`, and
+  `evo.Warn` (all removed in 1.1) and suggests the mechanical
+  `Problem(summary, append(opts, evo.Severity(evo.SeverityWarning))...)`
+  rewrite (`evo.Default().Problem(...)` for the package-level form).
+- **Review rule EVO-EXIT-002:** flags `evo.Main(run)` written as a bare
+  statement (or `_ = evo.Main(run)`). `Main` returns the exit code and
+  never exits the process itself, so that program exits 0 after a failed
+  or blocked run. The fix is `os.Exit(evo.Main(run))`. The README, the
+  reference, the teaching ladder, and both skills said `Main` "exits the
+  process itself"; they now say it returns the code.
+- **Review rule API-063:** flags a `Verify` callback that returns a constant
+  (`return true, nil`), inline or bound to a local: it observes nothing, so
+  the row claims already-satisfied with no evidence.
+- **`evo.Effect(ctx, EffectSpec, fn) error`:** the one way to perform an
+  opaque mutation (a ref deletion, a push, an API change) inside `Define`.
+  `EffectSpec{Verb, Object, Quantity, Resource}` names it; `EffectVerb` is
+  a closed set (`EffectAdd`, `EffectCreate`, `EffectDelete`,
+  `EffectInstall`, `EffectPush`, `EffectRemove`, `EffectUninstall`,
+  `EffectUpdate`). Dry run records the plan and skips `fn`. Invalid specs
+  fail with `ErrEffectVerbInvalid`, `ErrEffectObjectMissing`,
+  `ErrEffectQuantityNotPositive`, or `ErrEffectCallbackMissing`.
+- **`evo.PartialEffect(committed int, err error) error`:** an Effect
+  callback returns it when only part of the work committed, so the ledger
+  records exactly that subset (`ErrInvalidPartialEffect` for a bad count).
+  It counts once, for the innermost Effect whose callback returned it; an
+  outer Effect that passes the error up records nothing for it.
+- **`Resource`, `evo.FSResource(path)`, `evo.LogicalResource(name)`:**
+  declare what an Effect writes; overlapping claims wait for each other and
+  the waiting row shows "waiting for <resource>". Acquiring a second
+  resource inside a held one fails with `ErrNestedResourceAcquisition`;
+  `ErrInvalidResource` rejects one that names no state (an empty path or
+  name, or a relative path with no workspace to anchor it).
+- **`evo.Patch(ctx, diff []byte) (FileSet, error)` and
+  `evo.Files(ctx, FileSet) error`:** derive the desired files from a
+  unified diff, then commit them through the same reconcile path as
+  `evo.File`. `Files` refuses to overwrite a source that changed since the
+  diff was read (`ErrStaleBasis`). Patch errors: `ErrPatchMalformed`,
+  `ErrPatchDoesNotApply`, `ErrPatchUnsupported`, `ErrPatchDeleteUnsupported`,
+  `ErrPatchRenameUnsupported`, `ErrPatchBinaryUnsupported`. A path beyond
+  a symlinked directory fails with `ErrPatchUnsupported`; Patch never
+  creates directories, so a file in a missing directory fails with
+  `ErrPatchDoesNotApply` before anything commits. Patch applies the diff
+  forward first, as `patch` and `git apply` do. Applying the same diff
+  again is already satisfied, not a failure; when the file matches both
+  sides of the diff, only this Task's own recorded result from its last
+  Run counts as already applied.
+- **`GroupHandle.Wait() error` and `SequenceHandle.Wait() error`:** wait for
+  every descendant; `nil` only when every one ran and succeeded,
+  `ErrNotStarted` when work never ran (including a Task nobody Defined).
+- **`TaskHandle.Summary(text string) *TaskHandle`:** one line of result text
+  for the terminal row. It never resolves the Task (it replaces
+  `Done(text)`).
+- **`ExecResult`:** what `evo.Exec` now returns: whether the child ran, its
+  exit code, and its captured `Stdout`/`Stderr` (with `Truncated`).
+- **`Output.Events() []Event`:** a copy of the durable event journal for
+  `EncodeJSONL` and other machine projections.
+- **`TaskHandle.Problem(summary string, opts ...ProblemOption) *TaskHandle`:**
+  a Task can own zero, one, or many blocking `Problem`s before it resolves,
+  instead of a caller-invented `Task` per finding or every finding
+  flattened into one `errors.New` string. A Task holding a `Problem`
+  never settles `Done` or `Skipped`: a nil `Define` return, a `Skipped`
+  call, or `Finish` settling it unresolved all settle it `Failed`. The
+  `Problem` shows in `Snapshot` as soon as it is recorded.
+- **`wire.EventProblemRecorded`:** distinct wire event for `Problem`
+  accumulation (previously would have collided with `EventWarningRecorded`).
+
+### Changed
+
+- **`EVO_OUTPUT=json` and `EVO_OUTPUT=jsonl`** (breaking): with no `Format`
+  chosen, they now select `FormatJSON` (one `evo.run` document on stdout)
+  and `FormatJSONL` (`evo.event` lines on stdout, streamed), with human
+  output on stderr. They wrote the output.v1 `JSONDocument` and 0.4
+  `EventJSON` lines, which carry no Facts and no Kept/Skipped records, so a
+  machine consumer lost what human verbosity hides. The `evo.run` task
+  gains `dispositions` (`{disposition, reason, name, causes}`), and the
+  event stream a `disposition.recorded` event. With `FormatData` or
+  `FormatExternal` chosen, `EVO_OUTPUT` keeps the output.v1 projection on
+  stderr. See [`docs/migration/1.1.md`](docs/migration/1.1.md#evo_outputjson-and-jsonl-write-the-evorun-document).
+- **`After` on a Group or Sequence** (breaking behavior): 1.0 counted an
+  empty collection as done at once, so `out.Task("fetch").After(g)` wired
+  before the loop that fills `g` started immediately. In 1.1 an empty
+  collection named in `After` stays open until `g.Wait()`, a Wait on the
+  dependent, or the end of the run closes it, and it waits for every
+  child declared before then. A collection already populated when it is
+  named is taken as declared: a child declared into it later never gates
+  that edge. A Task declared into a Sequence step the Sequence has already
+  moved past runs after the Sequence's latest step. To keep 1.0's timing,
+  declare the children before the `After`, or call `g.Wait()` before the
+  dependent should start. See
+  [`docs/migration/1.1.md`](docs/migration/1.1.md#after-on-a-group-or-sequence-waits-for-its-members).
+- **`TaskHandle.Fact(name, value string) *TaskHandle`** (breaking for method
+  values and interfaces) returns the Task to chain like `Problem` and
+  `Summary`: `var fact func(string, string) = task.Fact` and
+  `interface{ Fact(string, string) }` no longer compile.
+- **`evo.Exec(ctx, ExecSpec) (ExecResult, error)`** (breaking): it returned
+  only `error`. Assign or discard the result.
+- **`TaskHandle.Define(fn) *TaskHandle`** (breaking for method values and
+  interfaces): it returned nothing; it now returns the Task so a call can
+  chain, e.g. `task.Define(fn).Wait()`.
+- **An unmanaged-mode `evo.File`/`evo.Files` write keeps the file's
+  permissions**, and a new file gets `0666` less the umask. A content-only
+  patch of a `0755` script no longer leaves it `-rw-rw-rw-`. An injected
+  `Config.FileFS` keeps the v1.0 contract: `WriteAtomic` always receives a
+  real permission (`0666` for an unmanaged create, which `os.WriteFile`
+  masks by the umask), and an unmanaged rewrite now passes the file's
+  existing mode instead of `0666`.
+
+- **`Fail`/`Block`'s auto-attached retained capture now fills
+  `Problem.CaptureTail`, never `Detail`** (wire-visible: the `evo.run`
+  Problem's `evidence_tail` key, not `detail`). This generalizes the
+  `Failf`/`Blockf` auto-attach dedupe path (see Removed) to every
+  `Fail`/`Block` call with a retained capture, not only the removed `*f`
+  spellings, so a summary that already folds the same capture text into
+  its own words still dedupes at render time
+  (`dedupeCaptureTailAgainstRow`) instead of repeating it underneath.
+
+- **The renderer decides which rows deserve a line (no new API; callers just
+  stop choosing):**
+  - A `Group` with no `Summary` of its own renders no header row in human
+    output; its children render as siblings. A live header stays while work
+    is in flight because its `N/M complete` count is the Group's own
+    progress. A `Sequence` keeps its header. JSON and JSONL keep the Group.
+  - A finished no-op row (`Done`, resolved no-work or already-satisfied, with
+    no Summary, Problem, Warning, Fact, Progress, Action or effect) is hidden
+    from human output when other content is visible, in a Group or, if
+    proven already-satisfied by `Verify`, at the root. Never on a failed,
+    blocked or cancelled run; never in JSON/JSONL.
+  - `[planned]` and `[changed]` ledger rows print in Task declaration order,
+    whatever order the Tasks finished in.
+  - A cancelled run renders `[cancelled] <subject>  by user` (the cause is
+    now `Conclusion.Explanation`, also in JSON) and, only when an Effect
+    committed, `  ! partial changes were applied before cancellation`. This
+    replaces `! already mutated: ...` on cancelled runs; failed runs keep it.
+    Exit code stays 130.
+
+### Removed
+
+- **`evo.EventSchemaVersion`** was removed with no alias. It was a thin
+  re-export of `internal/core.EventSchemaVersion`, not itself part of the
+  public wire contract callers write against — the durable JSONL schema
+  version a program cares about is `internal/wire.EventSchemaVersion`
+  ("evo.event" documents), which is unaffected.
+- **Capture-meaning `Evidence*` names were renamed to Capture** with no
+  aliases (ZYS-1180 freeze, E-121). Evidence now means only satisfaction
+  proof (`Verify`, `TaskSnapshot.Evidence`, `EvidencePhase`,
+  `TaskEvidence`). The retained stdout/stderr sink is `evo.Capture`; its
+  options are `evo.CaptureOption`; its streams are `evo.CaptureStream`
+  (`CaptureStreamCombined`, `CaptureStreamStdout`, `CaptureStreamStderr`).
+  `evo.MaxEvidenceBytes` is `evo.MaxCaptureBytes`. `evo.KeepLastLines`,
+  `evo.MirrorToDebug`, and `evo.MirrorToDiagnostics` keep their names and
+  now return `CaptureOption`. Removed in 1.1: `Evidence` (as the capture
+  type), `EvidenceOption`, `EvidenceStream`, `EvidenceStreamCombined`,
+  `EvidenceStreamStdout`, `EvidenceStreamStderr`, `MaxEvidenceBytes`.
+  MCP review (API-110 through API-116) rewrites each old spelling.
+  `Problem.EvidenceTail` — the capture ring's tail attached to a Problem,
+  which collided with the unrelated proof-meaning `Problem.Evidence` field
+  in the same struct — is now `Problem.CaptureTail` (API-117, guidance-only
+  detection). The wire JSON key is unchanged (`"evidence_tail"`): a
+  deliberate wire-compat decision, since existing `run.v2` payloads already
+  use that key and this rename is Go-API-only.
+
+- **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
+  and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
+  guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`
+  takes only its name. Review rule API-120 flags the old calls.
+- **`TaskHandle.Blockf`, `TaskHandle.Failf`, `Output.Failf`, `evo.Failure`,
+  and `Failure.Error/Next/NextCommand/Unwrap`** were removed with no alias
+  (owner vocabulary freeze, 2026-09-25: `Output.Failf` → `Fail`). All are
+  compatibility sugar around a same-line `%w`-wrapped return; the paved
+  path is now `Block`/`Fail` as a statement, folding any wrapped-error
+  text into the summary string, then `return <plain error>` (inside
+  `Define`) or `return fmt.Errorf(...)`/a returned sentinel elsewhere.
+- **`evo.JSONDocument`, `evo.EncodeJSON`, `evo.EncodeJSONL`,
+  `evo.EncodeEventJSON`, `evo.JSONSchemaVersion`, and the rest of the
+  legacy output.v1/event.v1 wire type aliases** (`JSONMessage`,
+  `JSONOutputMeta`, `ConclusionJSON`, `JSONProblem`, `JSONTask`,
+  `JSONProgress`, `JSONCollection`, `JSONChanges`, `JSONPlan`,
+  `JSONEffectRecord`, `JSONAction`, `JSONCommand`, `EventJSON`) were
+  removed from the public API with no alias (owner vocabulary freeze,
+  2026-09-25). `WriteJSON`'s `evo.run`/`evo.event` v2 documents (also what
+  `FormatJSON`/`FormatJSONL` write) are the one sanctioned external JSON
+  path. The output.v1/event.v1 projection itself is untouched internally —
+  `EVO_OUTPUT=json`/`jsonl` with an explicit `FormatData`/`FormatExternal`
+  still writes it to stderr exactly as before — only the public Go
+  encoder call for it is gone.
+- **`TaskHandle.Step`** was removed with no alias (API-090: Progress wins
+  over Step). Use `task.Progress(completed, total).Doing(name)`.
+- **`TaskHandle.Kept`** was removed with no alias. `Kept` was never
+  canonical vocabulary (Summary/Skipped cover result metadata and genuine
+  non-execution); record a keep with `task.Fact("kept", "...")` or fold it
+  into `Summary`.
+- **`Config.Options` and its `evo.Option`-returning constructors**
+  (`AlsoWrite`, `Clock`, `DataProjection`, `DebugAddSource`,
+  `DebugHistory`, `DebugLevel`, `DebugPane`, `Diagnostics`, `DryRun`,
+  `ExternalProjection`, `Glyphs`, `MaxEntities`, `MaxEvents`,
+  `MaxFrameRate`, `NoColor`, `Plain`, `Redact`, `ResultStream`, `Runner`,
+  `Stdin`, `Strict`, `Terminal`, `Title`, `To`, `VisibilityDelay`,
+  `Width`, and the `evo.Option`/`ReasonOption` types themselves) were
+  removed with no alias. Every one of these was ordinary `Config` field
+  data (`Config.Stdout`/`Stderr`/`Plain`/`Color`/`Debug`/`DryRun`/
+  `Preview`/`ProcessRunner`/`Glyphs`/... etc.) reachable only through the
+  raw escape hatch; `Config` itself is unchanged.
+- **`TaskHandle.Add/Create/Delete/Push/Remove/Update/Write`, `evo.Affected`,
+  and `evo.MutationOption`** were removed with no aliases (ZYS-950). Opaque
+  mutations use `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)`
+  inside `Define`; file state uses `evo.File`. MCP review (API-032) rewrites
+  both removed call shapes; API-042/API-043 now check `evo.Effect` callbacks
+  and `EffectSpec.Object`.
+- **`TaskHandle.Done`** was removed with no alias (ZYS-812). Success resolves
+  through `Define` (the callback returning `nil`); the text `Done(text)`
+  carried is `TaskHandle.Summary(text)`, result metadata that never resolves
+  the Task. MCP review (API-032) rewrites every call site for a 1.1 target.
+- **`TaskHandle.Record`, `RecordLabel`, and `RecordName`** were removed with
+  no record-only replacement (ZYS-812, ZYS-974). A mutation goes through
+  `evo.Effect` (closed `EffectVerb` set), information through `Fact`, a file
+  write through `evo.File`/`evo.Patch`. MCP review (API-061) names the exact
+  replacement for each call shape.
+- **`TaskHandle.Warn`, `Output.Warn`, and `evo.Warn`** were removed with no
+  alias (owner vocabulary freeze, 2026-09-25): Problem wins over Warn — a
+  warning is a `Problem` severity, not a separate verb. Use
+  `Problem(summary, append(opts, evo.Severity(evo.SeverityWarning))...)`
+  (`evo.Default().Problem(...)` for the package-level form); a Problem
+  defaults to the new `SeverityError` and only an error Problem fails its
+  owning Define. MCP review (API-070) rewrites every removed call shape.
+- **`evo.ID`, `evo.StartPhase`, and `evo.EntityOption`** were removed with
+  no aliases. `Task` is name-only, so no API accepted an `EntityOption`:
+  both constructors built values nothing consumed. Stable identity is
+  `TaskHandle.Key`; the first step is `Doing` chained after `Task`.
+- The `ErrInvalidConfig` misuse hint no longer names Done's removed printf
+  summary; it reads "configure After and Verify before Define, and Define
+  each task once with a non-nil callback". The unresolved-task hint reads
+  "call Define, Fail, Block, or Skipped on this task".
+
+### Fixed
+
+- A live Group holding more per-item Groups than the terminal has rows
+  keeps its header with an `N/M complete` count of finished items, shows
+  the failed, warned, running and pending items first, and folds the rest
+  into one `…  N not shown` line. Each nested Group was given a share of
+  0 rows and painted its own `…  1 not shown` line instead, the header
+  disappeared, and the frame stopped changing, so it stopped repainting.
+  A Group whose rows do not all fit keeps its header even after its work
+  finishes.
+- Building a live frame no longer walks every per-item Group it cannot
+  show. Each collection keeps a running count of the Tasks below it, so a
+  Group of 16000 per-item Groups runs about as fast under a live terminal
+  as without one (it took 5m57s, with one frame gap as long as the run).
+- `evident_output_review` with `kind=package` no longer reports MCP-017
+  (partial, recheck) for a member a local type promotes from an embedded
+  import (`type box struct{ sync.Mutex }` then `b.Lock()`), so correct
+  code can end the review loop. It again reports a real undefined name
+  such as `cfgg.Name` in a file with an unaliased import: an import's
+  name is now guessed from its path (`gopkg.in/yaml.v3` is `yaml`,
+  `go-git/v5` is `git`), and only an import none of whose guesses the
+  file uses makes an undefined selector base ambiguous.
+- A Fact on a kept or skipped item Task no longer breaks its Group's fold
+  under verbose: the Group still shows one `! kept N (...)` tally, and the
+  verbose item list shows each item's Facts at one column past the widest
+  name. Each item rendered its own `✓ name  why ...` row and `! kept 1`.
+
+- Review rule API-036 no longer rewrites a bare `task.Block(fmt.Sprintf(...))`
+  or `task.Fail(fmt.Sprintf(...))` statement into `Blockf`/`Failf`, whose
+  returned `*Failure` was then discarded and failed errcheck. It fires only
+  when a return follows, and suggests one `return task.Failf(...)` (or, in a
+  Define callback, `return fmt.Errorf(...)`). (`Failf`/`Blockf` were
+  removed in 1.1, below.)
+
+- A warning's `evo.On(subject)` now renders on every human row
+  (`✓ check jobs  ! job  x`, nested and run-level warnings too); it was
+  dropped. The `evo.run` v2 task entry gains an optional `warnings` array
+  of problem records (subject, detail, remedies), so a Task's warnings reach
+  machine output; `schema/run.v2.json` declares it. The change is additive.
+
+- A Task whose `Define` resolves it itself (`Kept`, `Skipped`, `Block`) is
+  no longer re-checked against its `Verify` afterwards. A false `Verify`
+  failed the Kept or Skipped Task `postcondition not satisfied` with exit
+  2, and printed a spurious "resolve each task once" line under a Blocked
+  one: a Task that chose not to converge has no change to verify. A
+  `Define` that committed an Effect before calling `Kept` or `Skipped`
+  did change state, so its `Verify` still runs and a false result still
+  fails the Task. A `Define` that calls `Kept` or `Skipped` and then
+  returns an error fails with that error and no misuse line.
+
+- Review rule API-063 resolves a `Verify(check)` argument in the call's
+  own scope. It keyed local function literals by name across the whole
+  file, so an observing `check` was flagged constant when another function
+  bound a constant `check`, and its "drop Verify" suggestion would delete
+  a real postcondition.
+
+- Under verbose, one Fact on one kept or skipped item no longer lists
+  every item of its reason on its own line: only items with Facts get a
+  row (at most three), and the rest fold into the bounded
+  `a, b, c … +N more` list. A value-only Fact (`evo.Fact("", v)`) no longer
+  renders with a stray leading separator.
+
+- A live frame over a Group of many per-item Groups no longer snapshots
+  every nested Task: nested collections project through the same row
+  budget as flat children, so 16000 per-item Groups paint in about 20ms a
+  frame instead of 651ms. A live body now examines at most one more nested
+  Group than it has rows; the rest count toward `N not shown`.
+
+- Package and directory review no longer reports MCP-017 `undefined: yaml`
+  (partial, recheck required) for an unaliased import whose package name is
+  not its last path element, such as `gopkg.in/yaml.v3` or
+  `github.com/go-git/go-git/v5`. The MUST-loop could never end on such a
+  package.
+
+- Review rules API-034, API-036 and API-040 agree on one way to refuse
+  inside `Define`: `return task.Blockf(...)`. API-034 and API-036 suggested
+  `return fmt.Errorf(...)` for a `Block` site, which turned a `[blocked]`
+  exit 1 into `[failed]` exit 2, and API-040 flagged `return task.Blockf`.
+  Every `Block` rewrite now suggests `Blockf`, and API-040 flags only
+  `Failf`. (`Failf`/`Blockf` were removed in 1.1, below.)
+
+- Under `Config.DryRun` or `Config.Preview`, a Task whose `Verify` is false
+  and whose `Define` plans an Effect concludes `[planned]` with exit 0. It
+  failed `postcondition not satisfied` with exit 2: the after-Define check
+  observed state the skipped Effect never changed. A planned run now skips
+  that check only for a Task that planned a mutation; a Task whose Define
+  planned nothing is checked as a real run checks it, so a dry run still
+  fails `postcondition not satisfied` with exit 2 when the real run would.
+
+- A Task `Block`ed inside a Group or Sequence now concludes `[blocked]`
+  with exit 1. It concluded `[ready]` with exit 0, because the Conclusion
+  ignored a container whose derived state was Blocked; a container whose
+  children all never started now marks the run partial, as a root Task does.
+
+- A lone kept or skipped item under a Group's own Task folds into the
+  Group's tally (`✓ branches  2 checked` / `  ! kept 1 (protected)`)
+  instead of printing as its own success row. A live Group that holds
+  only nested Groups no longer paints `0/0 complete`. Opening a ledger
+  section is O(log N), so one Effect per Task no longer grows
+  quadratically.
+
+- A header-less Group's row whose name another visible row also shows is
+  named by its container path (`g › build`), like a ledger section. Two
+  failing `build` rows from two Groups used to print as identical
+  siblings. A no-op Task is no longer kept visible because a same-named
+  Task elsewhere owns a ledger section.
+
+- A Task row states one headline wherever it sits: its Summary, with the
+  count it reached when it failed mid-loop, else its first Problem. Under
+  a Group header it used to show the first Problem and drop the count.
+
+- A `[changed]`/`[planned]` section belongs to its Task, not its name. Two
+  same-named Tasks in different containers (`alpha › prune`, `beta › prune`)
+  used to merge into one row that summed both counts; each now gets its own
+  row, shown with its container path when the bare name is ambiguous.
+
+- Opaque Tasks no longer rewrite the manifest each time one settles once a
+  File/Exec opened it, the drain no longer rescans the queue after every
+  Task, and work Defined after `^C` settles `NotStarted` instead of hanging
+  `Finish`.
+
+- A manifest that cannot be saved is no longer silent. The run shows a
+  `manifest not saved: <reason>` warning, and `Close` returns the write
+  error. `Finish` now writes the manifest, so an `Init`+`Finish` caller
+  that never calls `Close` keeps its history. File/Exec/Patch Tasks no
+  longer write and fsync the manifest while holding the run lock: one
+  background writer folds every commit since its last write into one
+  write.
+
+- A dropped `Output` is garbage again. A process-global table of public
+  wrappers kept every `Output` ever created alive with all its state
+  (about 4.7 MB per 2000-Task run), and a settled Task's heartbeat timer
+  kept its `Output` alive for 30s after `Close`.
+
+- A Group or Sequence child's Problems nest under the child's row. They
+  started in the child's own glyph column and read as a sibling row.
+
+- A duplicate sibling reads once: `✗ t  duplicate task name`, not the
+  name and problem repeated three times, and the misuse line names it
+  (`duplicate sibling name: t`). A root `Group` and `Sequence` with the
+  same name are now duplicate siblings, as they already were when nested.
+
+- An `evo.Effect` callback that resolves its own task as `Skipped`/`Fail`
+  records no ledger row (and no misuse), and an interrupt that cancels a
+  row mid-Effect keeps the committed record for "! already mutated".
+
+- A remedy (`evo.Next(...)` / `evo.NextCommand(...)`) attached to a
+  `Fail`/`Block`/`Problem`'s own `Problem` now reaches the run's Next-steps
+  output — it was previously collected only from task-level `Next(...)`
+  calls and silently dropped otherwise.
+
+- `Wait` no longer hangs when what it waits on runs `After` a Task nobody
+  Defined. That Task settles `NotStarted` and the Wait returns
+  `ErrNotStarted`. A self-wait deadlock returns `ErrWaitDeadlock` even
+  when unrelated rows are still undefined. A `Wait` on a Task nobody
+  Defined settles it `NotStarted` too, and the error names it. How a Wait
+  answers no longer depends on which Waits ran before it.
+
+- A refused declaration (a duplicate name or key, the entity limit, a
+  closed Output) no longer answers `Wait` with `nil`. Its `Wait`, and the
+  `Wait` of a Group or Sequence it refused, returns `ErrNotStarted`
+  wrapping the refusal, and `Define` on it is misuse instead of a silent
+  drop.
+
+- `MaxConcurrency` bounds every executing callback. A `Wait` called
+  outside any callback runs work only in a free slot, the Task it awaits
+  included, and otherwise waits for the pool; N goroutines that each
+  Define+Wait their own Task run at most `MaxConcurrency` callbacks at
+  once. A waiting callback still lends its own slot to the work it waits
+  on. A goroutine a callback started that Waits while that callback blocks
+  on it and every slot is held (the errgroup shape API-041 rejects) gets
+  `ErrWaitDeadlock` naming API-041 instead of hanging.
+
+- A Sequence's nested `Group`/`Sequence` is one step: it starts after the
+  step before it ends, the step after it waits for all of it, and a failed
+  step leaves the nested members after it `NotStarted`. A Sequence of n
+  nested steps holds n predecessors, not n²/2.
+
+- A `Group`/`Sequence` with a `Blocked` child snapshots as `Blocked`, not
+  `Incomplete`, matching what Tasks `After` it and its `Wait` see.
+
+- MCP `review` with `kind=package` honors `desired_version`, and an
+  oversize request gets a JSON-RPC error instead of stopping the server.
+  A clean multi-file package now reviews clean: only type errors in the
+  package's own declarations report `MCP-017`, never an unloaded import.
+  `kind=go` and `kind=package` with absolute paths, and conformance on a
+  file, lint as the nearest `go.mod` pin, exactly as `kind=directory` does.
+
+## [1.0.0] — Define as the scheduling boundary; File/Fingerprint; MainWith and Each removed
+
+See [`docs/migration/1.0.md`](docs/migration/1.0.md) for the full upgrade guide.
+
+### Added
+
+- **`Task.Verify(func(context.Context) (bool, error))`:** a boolean, read-only
+  pre-`Define` check — reporting the desired state already holds skips
+  `Define` entirely and resolves `ResolutionAlreadySatisfied`.
+- **`Task.Key(key string)`:** an advanced, refactor/rename-stable override
+  for a Task's tracked identity, independent of its display name.
+- **`evo.File(ctx, evo.FileSpec{...})`:** declarative managed-state file
+  operations — create, rewrite on drift, no-op when already satisfied.
+- **`evo.Fingerprint` / `evo.FSPath` / `evo.Value` / `evo.App`:** content-
+  identity primitives for a `FileSpec.Basis`.
+- **`Config.AppID` / `Config.StateDir`:** manifest namespace/location overrides.
+
+### Changed
+
+- **`RunFunc` is `func(context.Context) error`:** `evo.Run`, `evo.Main`, and
+  `Output.Run` all pass/derive a `context.Context` into the run callback.
+- **`evo.Run(ctx, run)` / `Output.Run(ctx, run)` return `Result`** (the
+  finished `Conclusion` plus the application error), not a bare exit code.
+  `Result.ExitCode()` replaces the old bare `int`. `evo.Main` is unchanged:
+  it still returns only the derived `int`.
+
+### Removed
+
+- **`evo.MainWith`:** an `Isolated *Output` now calls its own `Output.Run`
+  instead.
+- **`Task.Each` / `Group.Each` / `Sequence.Each`:** declare one named child
+  `Task` per item and submit it with `Define` instead.
 
 ## [0.5.0] — Group/Sequence/Each, Preview, object-first mutations
 

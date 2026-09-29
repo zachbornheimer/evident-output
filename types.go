@@ -12,17 +12,12 @@ type TaskHandle struct{ inner *engine.TaskHandle }
 type SequenceHandle struct{ inner *engine.SequenceHandle }
 type GroupHandle struct{ inner *engine.GroupHandle }
 type Printer struct{ inner *engine.Printer }
-type Failure struct{ inner *engine.Failure }
 
 type Config = engine.Config
-type Option = engine.Option
-type Evidence = engine.Evidence
-type EvidenceOption = engine.EvidenceOption
-type EvidenceStream = engine.EvidenceStream
+type Capture = engine.Capture
+type CaptureOption = engine.CaptureOption
+type CaptureStream = engine.CaptureStream
 type ConfirmOption = engine.ConfirmOption
-type EntityOption = engine.EntityOption
-type ReasonOption = engine.ReasonOption
-type MutationOption = engine.MutationOption
 type DebugPaneOption = engine.DebugPaneOption
 type DebugPresentation = engine.DebugPresentation
 type DebugConfig = engine.DebugConfig
@@ -40,6 +35,10 @@ type Redactor = engine.Redactor
 type NoopRedactor = engine.NoopRedactor
 type LogRecord = engine.LogRecord
 type PlainOptions = engine.PlainOptions
+type ProcessRunner = engine.ProcessRunner
+type ProcessCommand = engine.ProcessCommand
+type ProcessOutcome = engine.ProcessOutcome
+type FileFS = engine.FileFS
 
 type TaxonomyReason struct{ inner engine.TaxonomyReason }
 
@@ -55,6 +54,12 @@ const (
 	FormatHuman    = engine.FormatHuman
 	FormatData     = engine.FormatData
 	FormatExternal = engine.FormatExternal
+	// FormatJSON writes one final v2 "evo.run" document to Stdout at
+	// Finish; human presentation still goes to Stderr (spec §32.1).
+	FormatJSON = engine.FormatJSON
+	// FormatJSONL streams v2 "evo.event" JSON lines to Stdout as they
+	// occur, plus a final run.finished line (spec §32.1).
+	FormatJSONL = engine.FormatJSONL
 )
 
 const (
@@ -85,9 +90,9 @@ const (
 )
 
 const (
-	EvidenceStreamCombined = engine.EvidenceStreamCombined
-	EvidenceStreamStdout   = engine.EvidenceStreamStdout
-	EvidenceStreamStderr   = engine.EvidenceStreamStderr
+	CaptureStreamCombined = engine.CaptureStreamCombined
+	CaptureStreamStdout   = engine.CaptureStreamStdout
+	CaptureStreamStderr   = engine.CaptureStreamStderr
 )
 
 const DefaultVisibleNames = engine.DefaultVisibleNames
@@ -102,8 +107,6 @@ var (
 	ErrInvalidConfig        = engine.ErrInvalidConfig
 	ErrRenderer             = engine.ErrRenderer
 	ErrLimitExceeded        = engine.ErrLimitExceeded
-	ErrReasonSkipOnly       = engine.ErrReasonSkipOnly
-	ErrReasonWrongTask      = engine.ErrReasonWrongTask
 	ErrConcurrentRunning    = engine.ErrConcurrentRunning
 	ErrDryRunDeclaredLate   = engine.ErrDryRunDeclaredLate
 	ErrTerminalWithoutSink  = engine.ErrTerminalWithoutSink

@@ -10,12 +10,12 @@ import (
 // Writer returns a line-buffered io.Writer for narrating a talkative child
 // process: each complete line (CR or LF terminated, trimmed, non-empty)
 // becomes the task's live doing-text (see Doing), and every byte is also
-// retained in the task's evidence ring (get-or-create, shared with
-// Task.Evidence) so DetailTail has proof after Fail. Lines pass through the
+// retained in the task's capture ring (get-or-create, shared with
+// task.Writer()'s other callers) so DetailTail has proof after Fail. Lines pass through the
 // same sanitize layer as Task.Doing, so hostile escape sequences never reach
 // the display. Off a TTY, these mirrored lines update the live status only —
 // they never force their own durable row the way an explicit
-// TaskHandle.Doing call does, since the evidence ring (and its failure-path
+// TaskHandle.Doing call does, since the capture ring (and its failure-path
 // DetailTail) is already the child's one durable home (release-gate round 9
 // finding 4). Concurrent-safe. Named Writer, not PhaseWriter (P6/rename):
 // an io.Writer sink whose lines become the live-status text, following
@@ -26,14 +26,14 @@ func (t *TaskHandle) Writer() io.Writer {
 	if t == nil || t.out == nil {
 		return io.Discard
 	}
-	return &phaseWriter{task: t, evidence: t.evidence()}
+	return &phaseWriter{task: t, capture: t.capture()}
 }
 
 // phaseWriterMaxPendingBytes bounds the pending-line buffer: a child that
 // never emits a line terminator (or emits one far longer than any phase
 // text should be) would otherwise grow this buffer without limit. Once the
 // pending fragment reaches this size, it is flushed as a phase line on its
-// own — every byte still lands in Capture regardless, so no evidence is
+// own — every byte still lands in Capture regardless, so no output is
 // lost, only the "one line, one phase update" grouping is.
 const phaseWriterMaxPendingBytes = 4 * 1024 // 4 KiB
 
@@ -44,16 +44,16 @@ const phaseWriterMaxPendingBytes = 4 * 1024 // 4 KiB
 // phaseWriterMaxPendingBytes so a line-less/oversized child stream cannot
 // grow it without bound.
 type phaseWriter struct {
-	task     *TaskHandle
-	evidence *evidence
+	task    *TaskHandle
+	capture *capture
 
 	mu  sync.Mutex
 	buf []byte
 }
 
 func (w *phaseWriter) Write(p []byte) (int, error) {
-	if w.evidence != nil {
-		_, _ = w.evidence.Write(p)
+	if w.capture != nil {
+		_, _ = w.capture.Write(p)
 	}
 
 	w.mu.Lock()

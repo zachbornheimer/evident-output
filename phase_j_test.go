@@ -17,7 +17,7 @@ func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
 	t.Parallel()
 	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -98,8 +98,8 @@ func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Title: "pipeline", Color: evo.ColorNever, Plain: true})
 	g := out.Group("pipeline")
-	g.Task("branches").Done("14 deleted")
-	g.Task("worktrees").Done("2 removed")
+	succeed(g.Task("branches"), "14 deleted")
+	succeed(g.Task("worktrees"), "2 removed")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -122,8 +122,8 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Title: "repo-retire", Color: evo.ColorNever, Plain: true})
-	out.Task("clean").Done()
-	out.Task("kept").Warn("kept 1")
+	succeed(out.Task("clean"))
+	out.Task("kept").Problem("kept 1", evo.Severity(evo.SeverityWarning))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -137,22 +137,23 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	}
 }
 
-// TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned is
-// TestConclusion_WarningOnlyStillReadsWarning's P2 replacement: Warn no
-// longer resolves its task (13-problem doc P2), so a task that only ever
-// calls Warn auto-resolves Done at Finish (the same amnesty a recorded
-// effect or sealed progress already gets) — the run reads StateReady, with
+// TestConclusion_WarningSeverityOnlyAutoResolvesDoneAndStaysWarned is
+// TestConclusion_WarningOnlyStillReadsWarning's P2 replacement: a
+// warning-severity Problem no longer resolves its task (13-problem doc P2),
+// so a task that only ever calls a Severity(SeverityWarning) Problem
+// auto-resolves Done at Finish (the same amnesty a recorded effect or
+// sealed progress already gets) — the run reads StateReady, with
 // Conclusion.Warned still true so the warning stays visible.
-func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
+func TestConclusion_WarningSeverityOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 	t.Parallel()
 	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Warn("careful")
+	out.Task("i").Problem("careful", evo.Severity(evo.SeverityWarning))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	if got := out.Conclusion().State; got != evo.StateReady {
-		t.Fatalf("conclusion state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
+		t.Fatalf("conclusion state = %v, want StateReady (a warning-severity Problem auto-resolves Done, P2)", got)
 	}
 	if !out.Conclusion().Warned {
 		t.Fatal("Conclusion.Warned = false, want true: the recorded warning must stay visible")

@@ -107,7 +107,7 @@ func TestH9_Task_FirstTerminalStateWins(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	item := out.Task("working tree")
-	item.Done()
+	succeed(item)
 	item.Block("unstashed changes")
 
 	if got := item.Snapshot().State; got != evo.Done {
@@ -130,9 +130,13 @@ func TestH10_Task_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
 	branchResolved := make(chan struct{})
 
 	var group sync.WaitGroup
-	group.Go(func() { remotes.Done(); close(remoteResolved) })
-	group.Go(func() { <-remoteResolved; branches.Warn("unreachable"); close(branchResolved) })
-	group.Go(func() { <-branchResolved; workingTree.Done() })
+	group.Go(func() { succeed(remotes); close(remoteResolved) })
+	group.Go(func() {
+		<-remoteResolved
+		branches.Problem("unreachable", evo.Severity(evo.SeverityWarning))
+		close(branchResolved)
+	})
+	group.Go(func() { <-branchResolved; succeed(workingTree) })
 	group.Wait()
 
 	if err := out.Finish(); err != nil {
@@ -158,7 +162,7 @@ func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
 	react := dependencies.Task("react")
 	sharp := dependencies.Task("sharp")
 
-	react.Done()
+	succeed(react)
 	sharp.Fail("checksum mismatch")
 
 	got := dependencies.Snapshot()
@@ -174,7 +178,7 @@ func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 
 	dependencies := out.Group("dependencies")
 	dependencies.Summary("installed 2 packages")
-	dependencies.Task("react").Done()
+	succeed(dependencies.Task("react"))
 	dependencies.Task("sharp").Fail("checksum mismatch")
 
 	_ = out.Finish()
@@ -195,7 +199,7 @@ func TestH13_Output_FinishLeavesUnresolvedTaskPartial(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Group("dependencies")
-	dependencies.Task("react").Done()
+	succeed(dependencies.Task("react"))
 	dependencies.Task("esbuild")
 
 	err := out.Finish()
@@ -212,11 +216,12 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &output, Title: "dependencies", Width: 80, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.Task("dependencies")
-	dependencies.Record("add", 14, "package")
-	dependencies.Record("update", 4, "package")
-	dependencies.RecordLabel("reused", 63, "cached package")
-	dependencies.Record("write", 1, "app.lock")
+	commit(out.Task("dependencies"),
+		evo.EffectSpec{Verb: evo.EffectAdd, Object: "package", Quantity: 14},
+		evo.EffectSpec{Verb: evo.EffectUpdate, Object: "package", Quantity: 4},
+		evo.EffectSpec{Verb: evo.EffectInstall, Object: "cached package", Quantity: 63},
+		evo.EffectSpec{Verb: evo.EffectCreate, Object: "app.lock", Quantity: 1},
+	)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -228,10 +233,10 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	want := `✓ dependencies
 
 [changed]  dependencies
-  added    14 packages
-  updated   4 packages
-  reused   63 cached packages
-  wrote     1 app.lock
+  added      14 packages
+  updated     4 packages
+  installed  63 cached packages
+  created     1 app.lock
 `
 	got := output.String()
 	if got != want {
@@ -244,10 +249,11 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &output, Title: "dependencies", Width: 30, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.Task("dependencies")
-	dependencies.Record("add", 14, "package")
-	dependencies.Record("update", 4, "package")
-	dependencies.Record("write", 1, "app.lock")
+	commit(out.Task("dependencies"),
+		evo.EffectSpec{Verb: evo.EffectAdd, Object: "package", Quantity: 14},
+		evo.EffectSpec{Verb: evo.EffectUpdate, Object: "package", Quantity: 4},
+		evo.EffectSpec{Verb: evo.EffectCreate, Object: "app.lock", Quantity: 1},
+	)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -258,7 +264,7 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 [changed]  dependencies
   added 14 packages
   updated 4 packages
-  wrote 1 app.lock
+  created 1 app.lock
 `
 	got := output.String()
 	if got != want {
@@ -270,9 +276,10 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "account acme", DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	deleteAcct := out.Task("delete account acme")
-	deleteAcct.Delete("project", func() error { return nil }, evo.Affected(14))
-	deleteAcct.Record("revoke", 7, "API keys")
+	commit(out.Task("delete account acme"),
+		evo.EffectSpec{Verb: evo.EffectDelete, Object: "project", Quantity: 14},
+		evo.EffectSpec{Verb: evo.EffectRemove, Object: "API key", Quantity: 7},
+	)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -292,7 +299,7 @@ func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 	task := out.Task("dependencies")
 	task.Doing("reading lockfile")
 	task.Doing("resolving packages")
-	task.Done("installed %d packages", 18)
+	succeed(task, "installed 18 packages")
 	_ = out.Finish()
 
 	got := output.String()
@@ -308,9 +315,9 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "bpp-csharp", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("working tree").Done()
+	succeed(out.Task("working tree"))
 	out.Task("branches").Block("local-only", evo.On("feat/sdk-full-consolidation"), evo.Count(1))
-	out.Task("remotes").Done()
+	succeed(out.Task("remotes"))
 	if err := out.Finish(); err != nil {
 		// blocked items are resolved; no unresolved error expected
 		t.Fatal(err)
@@ -328,7 +335,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	if human.ExitCode != machineSnap.Conclusion.ExitCode {
 		t.Fatalf("human exit = %d, machine exit = %d", human.ExitCode, machineSnap.Conclusion.ExitCode)
 	}
-	raw, err := evo.EncodeJSON(snap)
+	raw, err := evo.EncodeJSONForTest(snap)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,12 +346,12 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 		t.Fatalf("json missing blocked state:\n%s", raw)
 	}
 	// JSONL: one object per line, increasing sequence
-	lines, err := evo.EncodeJSONL(out.Events())
+	lines, err := evo.EncodeJSONLForTest(out.Events())
 	if err != nil {
 		t.Fatal(err)
 	}
 	n := 0
-	for _, line := range strings.Split(strings.TrimSpace(string(lines)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(lines)), "\n") {
 		if line == "" {
 			continue
 		}

@@ -79,6 +79,13 @@ type EvidencePhase = core.EvidencePhase
 type TaskEvidence = core.TaskEvidence
 
 type Problem = core.Problem
+type ProblemSeverity = core.ProblemSeverity
+
+const (
+	SeverityError   = core.SeverityError
+	SeverityWarning = core.SeverityWarning
+)
+
 type SourceLocation = core.SourceLocation
 type Attachment = core.Attachment
 type Field = core.Field

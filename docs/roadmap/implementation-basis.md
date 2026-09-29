@@ -1,5 +1,11 @@
 # Evident Output — Implementation Basis
 
+**Historical:** written against v0.2.8. `item.Warn(...)` and the "Warn,
+Block, Fail" vocabulary below predate the pre-1.0 Item→Task fold and the
+1.1 removal of Warn (Problem wins over Warn — see CHANGELOG and
+[docs/migration/1.1.md](../migration/1.1.md)); read this as a snapshot of
+the planning discussion at the time, not current API.
+
 **Date:** 2026-07-28
 **Status:** Approved working basis for implementation planning
 **Primary library baseline:** `evident-output` v0.2.8 (`dab378e`)

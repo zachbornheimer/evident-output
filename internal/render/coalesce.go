@@ -6,6 +6,21 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
+// StandaloneConclusion is the trailing band as a human reader sees it. A
+// DryRun whose Config.Subject header rendered ("[dry-run] zq prune  <path>")
+// has already named the run, so a band that must still appear (warned,
+// partial, ...) carries its tag alone — contract §18's zq prune fixture
+// closes with a bare "[planned · warned]" under a run titled "zq". The
+// same header already suppresses a pure "[planned]" band outright
+// (ShouldSuppressStandaloneConclusion). Machine output keeps Subject.
+func StandaloneConclusion(s core.Snapshot) core.Conclusion {
+	c := *s.Conclusion
+	if s.DryRun && s.DryRunSubject != "" {
+		c.Subject = ""
+	}
+	return c
+}
+
 // ShouldSuppressStandaloneConclusion implements DEC-COAL-* for human projection.
 //
 // Model and structured JSON always retain independent core.Conclusion + Plan/Changes.

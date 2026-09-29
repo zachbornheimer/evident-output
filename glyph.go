@@ -1,7 +1,6 @@
 package evo
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/engine"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -29,6 +28,3 @@ const (
 	// GlyphsASCII forces the ASCII vocabulary regardless of locale.
 	GlyphsASCII = txt.GlyphsASCII
 )
-
-// Glyphs selects the glyph capability profile (default GlyphsAuto).
-func Glyphs(p GlyphProfile) Option { return engine.Glyphs(p) }
