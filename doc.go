@@ -41,7 +41,7 @@
 //
 //  1. evo.Task(name) + Task.Define(func(context.Context) error) for one atomic
 //     unit of work — the scheduling and execution boundary (§7). A Task resolved
-//     directly with no Define call (Warn/Block/Fail/Skipped) renders as a
+//     directly with no Define call (Block/Fail/Skipped) renders as a
 //     fact row instead of a spinner.
 //  2. evo.Group(name) / evo.Sequence(name) for collections: one named child
 //     Task per item (group.Task(name)), not a hand-maintained counter — Group's

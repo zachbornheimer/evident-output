@@ -114,8 +114,7 @@ func ExampleExecResult() {
 			return err
 		}
 		findings := strings.Split(strings.TrimSpace(result.Stdout), "\n")
-		task.Fail(fmt.Sprintf("%d lint finding(s) (exit %d)", len(findings), result.ExitCode))
-		return err
+		return fmt.Errorf("%d lint finding(s) (exit %d)", len(findings), result.ExitCode)
 	})
 	_ = task.Wait()
 	_ = out.Finish()
