@@ -42,14 +42,25 @@ func detectRemovedFailfBlockf(in fileInput) []Finding {
 	if !dialectAtLeast(in.desiredVersion, dialectOneOne) {
 		return nil
 	}
-	filename, src := in.filename, in.src
 	var findings []Finding
 	var derived []int
+	findings = append(findings, failfCauseFindings(in, &derived)...)
+	findings = append(findings, blockfCauseFindings(in, &derived)...)
+	findings = append(findings, bareFailfBlockfFindings(in, derived)...)
+	return findings
+}
 
+// failfCauseFindings is API-080's derived-rewrite shape: a %w-wrapped-cause
+// Failf call, rewritten the same way causeFindings rewrites evo.Cause(cause)
+// — a returned, wrapped error inside a Define callback, or a statement-form
+// Fail plus a bare return of the cause outside one.
+func failfCauseFindings(in fileInput, derived *[]int) []Finding {
+	filename, src := in.filename, in.src
+	var findings []Finding
 	for _, m := range failfCausePattern.FindAllStringSubmatchIndex(src, -1) {
 		recv, summary, cause := src[m[2]:m[3]], src[m[4]:m[5]], src[m[6]:m[7]]
 		if idx := strings.Index(src[m[0]:m[1]], ".Failf("); idx >= 0 {
-			derived = append(derived, m[0]+idx)
+			*derived = append(*derived, m[0]+idx)
 		}
 		var suggestion string
 		if insideDefineResolvedCallback(in.file, in.fset, m[0]) && enclosingFuncReturnsError(in.file, in.fset, m[0]) {
@@ -65,38 +76,28 @@ func detectRemovedFailfBlockf(in fileInput) []Finding {
 			Suggestion: suggestion,
 		})
 	}
+	return findings
+}
 
+// blockfCauseFindings is API-081's derived-rewrite shape: a %w-wrapped-cause
+// Blockf call, with an optional chained .Next/.NextCommand remedy rewritten
+// onto the replacement Block call as ProblemOptions (blockfRemedyOptions),
+// and the same Define-callback check failfCauseFindings uses to decide
+// whether the cause is still returned.
+func blockfCauseFindings(in fileInput, derived *[]int) []Finding {
+	filename, src := in.filename, in.src
+	var findings []Finding
 	for _, m := range blockfCausePattern.FindAllStringSubmatchIndex(src, -1) {
 		recv, summary, cause := src[m[2]:m[3]], src[m[4]:m[5]], src[m[6]:m[7]]
 		if idx := strings.Index(src[m[0]:m[1]], ".Blockf("); idx >= 0 {
-			derived = append(derived, m[0]+idx)
+			*derived = append(*derived, m[0]+idx)
 		}
 		blockCall := fmt.Sprintf("%s.Block(%q)", recv, summary)
 		if len(m) >= 12 && m[8] >= 0 {
 			chainVerb, chainArgs := src[m[8]:m[9]], strings.TrimSpace(src[m[10]:m[11]])
-			var options string
-			if chainVerb == "NextCommand" {
-				// evo.NextCommand(executable string, args ...string) already
-				// takes a variadic tail, so the whole argument list passes
-				// through as one option.
-				options = "evo.NextCommand(" + chainArgs + ")"
-			} else {
-				// evo.Next(action Action) takes a single Action — the
-				// *Failure.Next method (removed in 1.1 along with the rest
-				// of *Failure) took variadic actions, so a
-				// multi-argument chain (`.Next(a, b)`) becomes one
-				// evo.Next(...) option per action, not one evo.Next call
-				// holding both arguments (which would not compile).
-				actions := splitTopLevelArgs(chainArgs)
-				opts := make([]string, len(actions))
-				for i, a := range actions {
-					opts[i] = "evo.Next(" + strings.TrimSpace(a) + ")"
-				}
-				options = strings.Join(opts, ", ")
-			}
-			blockCall = fmt.Sprintf("%s.Block(%q, %s)", recv, summary, options)
+			blockCall = fmt.Sprintf("%s.Block(%q, %s)", recv, summary, blockfRemedyOptions(chainVerb, chainArgs))
 		}
-		// Mirror the Failf loop's Define check (API-081's own GoodCode):
+		// Mirror failfCauseFindings' Define check (API-081's own GoodCode):
 		// inside a Define/mutation callback, Block resolves the task and
 		// the returned cause only lets Define hand it up, so `return
 		// <cause>` stays correct there. Outside Define there is no
@@ -118,7 +119,39 @@ func detectRemovedFailfBlockf(in fileInput) []Finding {
 			Suggestion: suggestion,
 		})
 	}
+	return findings
+}
 
+// blockfRemedyOptions rewrites a chained .Next(...)/.NextCommand(...) call
+// (the removed *Failure's remedy-attach methods) into the ProblemOption
+// arguments the replacement Block call takes instead.
+func blockfRemedyOptions(chainVerb, chainArgs string) string {
+	if chainVerb == "NextCommand" {
+		// evo.NextCommand(executable string, args ...string) already takes
+		// a variadic tail, so the whole argument list passes through as
+		// one option.
+		return "evo.NextCommand(" + chainArgs + ")"
+	}
+	// evo.Next(action Action) takes a single Action — the *Failure.Next
+	// method (removed in 1.1 along with the rest of *Failure) took
+	// variadic actions, so a multi-argument chain (`.Next(a, b)`) becomes
+	// one evo.Next(...) option per action, not one evo.Next call holding
+	// both arguments (which would not compile).
+	actions := splitTopLevelArgs(chainArgs)
+	opts := make([]string, len(actions))
+	for i, a := range actions {
+		opts[i] = "evo.Next(" + strings.TrimSpace(a) + ")"
+	}
+	return strings.Join(opts, ", ")
+}
+
+// bareFailfBlockfFindings is API-080/API-081's fallback shape: every other
+// call to Failf(/Blockf( that failfCauseFindings/blockfCauseFindings did not
+// already derive a rewrite for (derived), flagged with prose guidance
+// instead of a computed suggestion.
+func bareFailfBlockfFindings(in fileInput, derived []int) []Finding {
+	filename, src := in.filename, in.src
+	var findings []Finding
 	for _, m := range bareFailfBlockfPattern.FindAllStringIndex(src, -1) {
 		if slices.Contains(derived, m[0]) {
 			continue

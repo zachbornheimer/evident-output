@@ -29,85 +29,88 @@ const chainedNextScanWindow = 3
 // spread across two calls — task.go documents the evo.Next/evo.NextCommand
 // ProblemOption on the resolving call itself as canonical there.
 func detectChainedNextAfterFailBlock(filename, src string) []Finding {
-	var findings []Finding
 	lines := strings.Split(src, "\n")
-	lineOffsets := make([]int, len(lines))
-	offset := 0
-	for i, l := range lines {
-		lineOffsets[i] = offset
-		offset += len(l) + 1
-	}
-	for i, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-		m := failBlockCallPattern.FindStringSubmatch(trimmedLine)
-		if m == nil || !strings.HasPrefix(trimmedLine, m[1]+"."+m[2]+"(") {
-			continue
-		}
-		recv, verb := m[1], m[2]
-
-		// Read the Fail/Block call's own argument list, whole, via
-		// paren-balance rather than the trailing-`(` regex match alone —
-		// the summary argument may itself contain commas or parens.
-		openIdx := lineOffsets[i] + strings.Index(line, recv+"."+verb+"(") + len(recv+"."+verb)
-		callArgs, _, ok := balancedArgs(src, openIdx)
+	lineOffsets := computeLineOffsets(lines)
+	var findings []Finding
+	for i := range lines {
+		recv, verb, callArgList, ok := failBlockCallOnLine(src, lines, lineOffsets, i)
 		if !ok {
 			continue
 		}
-		callArgList := splitTopLevelArgs(callArgs)
-		summary := strings.TrimSpace(callArgList[0])
-
-		for j := i + 1; j < len(lines) && j < i+chainedNextScanWindow; j++ {
-			trimmed := strings.TrimSpace(lines[j])
-			if trimmed == "" {
-				continue
-			}
-			nm := chainedNextPattern.FindStringSubmatch(trimmed)
-			if nm == nil {
-				break
-			}
-			if nm[1] != recv {
-				break
-			}
-			chainOpenIdx := lineOffsets[j] + strings.Index(lines[j], recv+"."+nm[2]+"(") + len(recv+"."+nm[2])
-			chainArgs, _, chainOK := balancedArgs(src, chainOpenIdx)
-			if !chainOK {
-				break
-			}
-
-			var options string
-			if nm[2] == "NextCommand" {
-				// evo.NextCommand(executable string, args ...string)
-				// already takes a variadic tail, so the whole argument
-				// list passes through as one option.
-				options = "evo.NextCommand(" + chainArgs + ")"
-			} else {
-				// evo.Next(action Action) takes exactly one Action —
-				// TaskHandle.Next(a, b, ...) is variadic, so a
-				// multi-argument chain becomes one evo.Next(...) option
-				// per action (mirroring API-081's split of the same
-				// variadic chain shape), not one evo.Next(...) holding
-				// every argument, which would not compile.
-				actions := splitTopLevelArgs(chainArgs)
-				opts := make([]string, len(actions))
-				for k, a := range actions {
-					opts[k] = "evo.Next(" + strings.TrimSpace(a) + ")"
-				}
-				options = strings.Join(opts, ", ")
-			}
-
-			newArgs := append(append([]string{}, callArgList...), options)
-			newCall := recv + "." + verb + "(" + strings.Join(newArgs, ", ") + ")"
-
-			findings = append(findings, Finding{
-				RuleID: "API-082",
-				Message: recv + "." + verb + "(...) followed by " + recv + "." + nm[2] +
-					"(...) — fold the remedy into the " + verb + " call as an evo.Next/evo.NextCommand ProblemOption",
-				File:       filename,
-				Line:       j + 1,
-				Suggestion: "replace both statements with " + newCall + " (summary: " + summary + ")",
-			})
-			break
+		if finding, found := chainedNextFinding(filename, src, lines, lineOffsets, i, recv, verb, callArgList); found {
+			findings = append(findings, finding)
 		}
 	}
 	return findings
+}
+
+// computeLineOffsets returns each line's byte offset into the joined
+// source, so a per-line match can be turned back into an absolute index for
+// balancedArgs.
+func computeLineOffsets(lines []string) []int {
+	offsets := make([]int, len(lines))
+	offset := 0
+	for i, l := range lines {
+		offsets[i] = offset
+		offset += len(l) + 1
+	}
+	return offsets
+}
+
+// failBlockCallOnLine reports whether line i opens with a statement-form
+// Fail/Block call, and reads that call's whole argument list via
+// paren-balance rather than the trailing-`(` regex match alone — the
+// summary argument may itself contain commas or parens.
+func failBlockCallOnLine(src string, lines []string, lineOffsets []int, i int) (recv, verb string, callArgList []string, ok bool) {
+	line := lines[i]
+	trimmedLine := strings.TrimSpace(line)
+	m := failBlockCallPattern.FindStringSubmatch(trimmedLine)
+	if m == nil || !strings.HasPrefix(trimmedLine, m[1]+"."+m[2]+"(") {
+		return "", "", nil, false
+	}
+	recv, verb = m[1], m[2]
+	openIdx := lineOffsets[i] + strings.Index(line, recv+"."+verb+"(") + len(recv+"."+verb)
+	callArgs, _, argsOK := balancedArgs(src, openIdx)
+	if !argsOK {
+		return "", "", nil, false
+	}
+	return recv, verb, splitTopLevelArgs(callArgs), true
+}
+
+// chainedNextFinding looks, within chainedNextScanWindow lines after i, for
+// a bare Next/NextCommand statement on the same receiver as the Fail/Block
+// call at i, and if found builds API-082's finding: the fold-in-as-
+// ProblemOption rewrite, via nextChainProblemOptions (shared with
+// blockfRemedyOptions's identical Next-vs-NextCommand shape).
+func chainedNextFinding(filename, src string, lines []string, lineOffsets []int, i int, recv, verb string, callArgList []string) (Finding, bool) {
+	summary := strings.TrimSpace(callArgList[0])
+	for j := i + 1; j < len(lines) && j < i+chainedNextScanWindow; j++ {
+		trimmed := strings.TrimSpace(lines[j])
+		if trimmed == "" {
+			continue
+		}
+		nm := chainedNextPattern.FindStringSubmatch(trimmed)
+		if nm == nil || nm[1] != recv {
+			return Finding{}, false
+		}
+		chainOpenIdx := lineOffsets[j] + strings.Index(lines[j], recv+"."+nm[2]+"(") + len(recv+"."+nm[2])
+		chainArgs, _, chainOK := balancedArgs(src, chainOpenIdx)
+		if !chainOK {
+			return Finding{}, false
+		}
+
+		options := blockfRemedyOptions(nm[2], chainArgs)
+		newArgs := append(append([]string{}, callArgList...), options)
+		newCall := recv + "." + verb + "(" + strings.Join(newArgs, ", ") + ")"
+
+		return Finding{
+			RuleID: "API-082",
+			Message: recv + "." + verb + "(...) followed by " + recv + "." + nm[2] +
+				"(...) — fold the remedy into the " + verb + " call as an evo.Next/evo.NextCommand ProblemOption",
+			File:       filename,
+			Line:       j + 1,
+			Suggestion: "replace both statements with " + newCall + " (summary: " + summary + ")",
+		}, true
+	}
+	return Finding{}, false
 }

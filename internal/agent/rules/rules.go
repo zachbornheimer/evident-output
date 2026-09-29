@@ -73,3 +73,24 @@ func IDs() []string {
 	}
 	return out
 }
+
+// RetiredIDs are rule IDs a past release removed outright, rather than
+// deprecating in place (Rule.Deprecated+Replacement): the rewrite they
+// suggested can never converge, so there is nothing left to point a
+// caller at. An ID retires here once, permanently — it must never
+// reappear in a family's registerFamily call for a different rule,
+// so a future addition cannot silently collide with an old finding a
+// stale MCP client or a saved review transcript still cites.
+var RetiredIDs = map[string]string{
+	// API-036 (E-118 lane B): flagged a bare task.Block(fmt.Sprintf(...))
+	// or task.Fail(fmt.Sprintf(...)) statement followed by a return,
+	// suggesting Blockf/Failf. Failf/Blockf were removed in 1.1 with no
+	// compatibility alias, so that rewrite target is gone; the shape it
+	// used to flag is now the correct final form once Failf/Blockf don't
+	// exist, so the rule could never converge and was removed rather than
+	// kept as a can-never-clear finding. API-034 still covers the
+	// actionable sibling (return nil, which discards the error); API-040
+	// covers the Fail-inside-Define case (return err) by rewriting it down
+	// to a bare return instead of a Fail-then-return pair.
+	"API-036": "removed with no replacement (E-118 lane B) — API-034 and API-040 cover its former shapes",
+}

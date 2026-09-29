@@ -244,4 +244,26 @@ func TestMCP028_RuleStabilityVersionPolicy(t *testing.T) {
 			t.Fatalf("missing stable id %s", need)
 		}
 	}
+	// A retired ID (rules.RetiredIDs) must never come back as a live rule
+	// — that would let a stale MCP client's saved API-036 finding, or a
+	// saved review transcript citing it, silently start meaning something
+	// new.
+	for id := range rules.RetiredIDs {
+		if seen[id] {
+			t.Fatalf("retired rule id %s was reused by a live rule", id)
+		}
+	}
+}
+
+// A retired ID's own replacement rules must actually exist in the live
+// catalog, so RetiredIDs' guidance always resolves.
+func TestRetiredRuleIDsPointAtLiveRules(t *testing.T) {
+	if _, ok := rules.Explain("API-036"); ok {
+		t.Fatal("API-036 was retired (E-118 lane B) and must not be re-registered")
+	}
+	for _, id := range []string{"API-034", "API-040"} {
+		if _, ok := rules.Explain(id); !ok {
+			t.Fatalf("API-036's retirement note names %s as its replacement, but it is missing", id)
+		}
+	}
 }

@@ -534,6 +534,59 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	}
 }
 
+// TestFormatJSON_PlainFailAutoAttachesEvidenceTail pins where
+// attachEvidenceTail (task_commit.go) places a plain Fail/Block's own
+// implicit Problem on the wire: a caller who wrote no Problem/Detail of
+// their own, only Fail(summary) plus retained evidence(), gets
+// "evidence_tail" on that Problem in the evo.run JSON document, never
+// "detail" — the E-118 lane B move from Problem.Detail to
+// Problem.EvidenceTail for every Fail/Block auto-attach, not only the ones
+// TestWireEvents_ProblemRecordedCarriesEvidenceTail's explicit
+// task.Problem(tail.DetailTail()) call covers.
+func TestFormatJSON_PlainFailAutoAttachesEvidenceTail(t *testing.T) {
+	var stdout nopFlushWriter
+	out := Init(Config{Isolated: true, Format: FormatJSON, Stdout: &stdout})
+	task := out.Task("install")
+	evidence := task.EvidenceForTest()
+	_, _ = fmt.Fprintln(evidence, "npm ERR! 404 not found")
+	task.Fail("install failed")
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	type taskDoc struct {
+		Name     string `json:"name"`
+		Problems []struct {
+			Detail       string `json:"detail"`
+			EvidenceTail string `json:"evidence_tail"`
+		} `json:"problems"`
+	}
+	var doc struct {
+		Data struct {
+			Tasks []taskDoc `json:"tasks"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &doc); err != nil {
+		t.Fatalf("stdout is not one valid evo.run JSON document: %v\nstdout:\n%s", err, stdout.String())
+	}
+	var task0 *taskDoc
+	for i := range doc.Data.Tasks {
+		if doc.Data.Tasks[i].Name == "install" {
+			task0 = &doc.Data.Tasks[i]
+		}
+	}
+	if task0 == nil || len(task0.Problems) != 1 {
+		t.Fatalf("want exactly one Problem on task %q, got document:\n%s", "install", stdout.String())
+	}
+	p := task0.Problems[0]
+	if !strings.Contains(p.EvidenceTail, "npm ERR! 404 not found") {
+		t.Fatalf("plain Fail's auto-attached Problem.evidence_tail = %q, want it to contain the retained evidence", p.EvidenceTail)
+	}
+	if p.Detail != "" {
+		t.Fatalf("plain Fail's auto-attached Problem.detail = %q, want empty — the auto-attach fills evidence_tail, not detail", p.Detail)
+	}
+}
+
 // TestWireEvents_WarningRecordedCarriesEvidenceTail is
 // TestWireEvents_ProblemRecordedCarriesEvidenceTail's warning.recorded
 // counterpart (task.go:290 — Warn's own emitWireEventLocked call was
