@@ -18,9 +18,6 @@ func Sequence(name string) *SequenceHandle {
 
 func Group(name string) *GroupHandle { return wrapGroup(engine.Group(name)) }
 
-// Reason returns a get-or-create taxonomy Reason by name on the default instance.
-func Reason(name string) TaxonomyReason { return TaxonomyReason{inner: engine.Reason(name)} }
-
 // Print formats like fmt.Sprint and enqueues human-facing text on the default instance.
 func Print(args ...any) { engine.Print(args...) }
 

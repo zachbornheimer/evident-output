@@ -14,19 +14,10 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	return t
 }
 
-// Block resolves the Task Blocked: a refusal, not a failure. Use it as a
-// statement. Inside a Define callback, Block then return nil: Wait still
-// reports failure from the Blocked row.
-func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
-	t.impl().Block(summary, options...)
-}
-
 func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
 	t.impl().Bytes(completed, total)
 	return t
 }
-
-func (t *TaskHandle) Cancel(reason string) { t.impl().Cancel(reason) }
 
 func (t *TaskHandle) Context() context.Context {
 	if t == nil || t.inner == nil {
@@ -60,12 +51,6 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	t.impl().Fact(name, value)
 	return t
-}
-
-// Fail resolves the Task Failed. Use it as a statement. Inside a Define
-// callback, return the error as well so Wait sees the callback's own result.
-func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
-	t.impl().Fail(summary, options...)
 }
 
 // Key sets an advanced override for this Task's stable identity, so a
@@ -103,8 +88,6 @@ func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	t.impl().Progress(completed, total)
 	return t
 }
-
-func (t *TaskHandle) Skipped(reason TaxonomyReason) { t.impl().Skipped(reason.inner) }
 
 func (t *TaskHandle) Snapshot() TaskSnapshot {
 	if t == nil || t.inner == nil {

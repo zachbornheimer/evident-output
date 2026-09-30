@@ -1,6 +1,9 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/core"
+import (
+	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine"
+)
 
 // EntityState is the lifecycle state of an item or task.
 //
@@ -80,3 +83,37 @@ const (
 	// without ever reaching Define.
 	ResolutionNoWork = core.ResolutionNoWork
 )
+
+// Block resolves the Task Blocked: a refusal, not a failure. Use it as a
+// statement. Inside a Define callback, Block then return nil: Wait still
+// reports failure from the Blocked row.
+func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
+	t.impl().Block(summary, options...)
+}
+
+func (t *TaskHandle) Cancel(reason string) { t.impl().Cancel(reason) }
+
+// Fail resolves the Task Failed. Use it as a statement. Inside a Define
+// callback, return the error as well so Wait sees the callback's own result.
+func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
+	t.impl().Fail(summary, options...)
+}
+
+func (t *TaskHandle) Skipped(reason TaxonomyReason) { t.impl().Skipped(reason.inner) }
+
+func (o *Output) Cancel(reason string) { o.impl().Cancel(reason) }
+
+func (o *Output) Fail(summary string, options ...ProblemOption) {
+	o.impl().Fail(summary, options...)
+}
+
+type TaxonomyReason struct{ inner engine.TaxonomyReason }
+
+func (r TaxonomyReason) Name() string { return r.inner.Name() }
+
+// Reason returns a get-or-create taxonomy Reason by name on the default instance.
+func Reason(name string) TaxonomyReason { return TaxonomyReason{inner: engine.Reason(name)} }
+
+// TaxonomyRecord is one accumulated (reason, name) disposition entry —
+// recorded by TaskHandle.Skipped, never assembled by hand.
+type TaxonomyRecord = core.TaxonomyRecord

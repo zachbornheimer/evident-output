@@ -4,8 +4,6 @@ import (
 	"io"
 )
 
-func (o *Output) Cancel(reason string) { o.impl().Cancel(reason) }
-
 func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 	if o == nil || o.inner == nil {
 		return false
@@ -14,10 +12,6 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 }
 
 func (o *Output) Fact(name, value string) { o.impl().Fact(name, value) }
-
-func (o *Output) Fail(summary string, options ...ProblemOption) {
-	o.impl().Fail(summary, options...)
-}
 
 func (o *Output) Group(name string) *GroupHandle { return wrapGroup(o.impl().Group(name)) }
 

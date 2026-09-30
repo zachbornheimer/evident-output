@@ -102,14 +102,13 @@ var legacyFiles = map[string]bool{
 // ZYS-1190 series R slice moves to its concept file. A row exempts the
 // identifier only while it is declared in the named file.
 var pendingMoves = map[string]string{
-	"TaskHandle.After": "task.go", "TaskHandle.Block": "task.go",
-	"TaskHandle.Cancel": "task.go", "TaskHandle.Capture": "task.go",
-	"TaskHandle.Fact": "task.go", "TaskHandle.Fail": "task.go",
-	"TaskHandle.Next": "task.go", "TaskHandle.NextCommand": "task.go",
-	"TaskHandle.Problem": "task.go", "TaskHandle.Skipped": "task.go",
+	"TaskHandle.After":   "task.go",
+	"TaskHandle.Capture": "task.go",
+	"TaskHandle.Fact":    "task.go",
+	"TaskHandle.Next":    "task.go", "TaskHandle.NextCommand": "task.go",
+	"TaskHandle.Problem":  "task.go",
 	"TaskHandle.Snapshot": "task.go", "TaskHandle.Verify": "task.go",
 	"RenderPlain": "format.go", "EffectRecord": "snapshot.go",
-	"TaxonomyRecord": "snapshot.go",
 }
 
 // rootHome is the file that must declare ident, given its concept.
