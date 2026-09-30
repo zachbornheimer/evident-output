@@ -1,7 +1,9 @@
 package evo_test
 
 import (
+	"bytes"
 	"io"
+	"strings"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -53,5 +55,39 @@ func TestTask_PromotesToRunningOnFirstEvidence(t *testing.T) {
 				t.Fatalf("state after %s = %v, want Running", name, got)
 			}
 		})
+	}
+}
+
+// TestTask_LifecycleStatesAreDistinct golden-proves Done/Failed/Blocked/
+// Cancelled/NotStarted each render their own distinct glyph and text —
+// different causes render differently, never a collapsed generic failure.
+func TestTask_LifecycleStatesAreDistinct(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+
+	succeed(out.Task("done-task"))
+	out.Task("failed-task").Fail("build broke")
+	out.Task("blocked-task").Block("needs confirmation")
+
+	seq := out.Sequence("cancel-sequence")
+	first, second := seq.Task("first"), seq.Task("second")
+	first.Cancel("interrupted")
+	_ = second // never resolved; Finish's group lifecycle marks it NotStarted
+
+	if err := out.Finish(); err != nil {
+		t.Log(err)
+	}
+
+	got := buf.String()
+	for _, want := range []string{
+		"✓ done-task",
+		"✗ failed-task  build broke",
+		"⊘ blocked-task  needs confirmation",
+		"■ first   interrupted",
+		"- second  not started",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("want %q distinctly rendered, got:\n%s", want, got)
+		}
 	}
 }

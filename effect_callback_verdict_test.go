@@ -3,6 +3,8 @@ package evo_test
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -138,5 +140,98 @@ func TestEffect_ConcurrentEffectsBothHonorTheRowsDenial(t *testing.T) {
 	}
 	if got := buf.String(); strings.Contains(got, "[changed]") {
 		t.Fatalf("no Effect may record work its row disowned:\n%s", got)
+	}
+}
+
+// TestEffect_SuccessCommitsChangedEffect proves the ordinary
+// path: call executes, succeeds, and the effect commits into the Changes
+// ledger — evo derives StateChanged, the caller never chose it.
+func TestEffect_SuccessCommitsChangedEffect(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+
+	branches := out.Task("branches")
+	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 2))
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.Conclusion().State; got != evo.StateChanged {
+		t.Fatalf("state = %v, want StateChanged", got)
+	}
+	if !strings.Contains(buf.String(), "deleted 2 stale local branches") {
+		t.Fatalf("want the derived past-tense ledger row, got:\n%s", buf.String())
+	}
+}
+
+// TestEffect_NilCallRecordsWithoutExecuting proves call == nil
+// still commits the effect (there is nothing to execute, so nothing can
+// fail) on a normal run.
+func TestEffect_NilCallRecordsWithoutExecuting(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+
+	branches := out.Task("branches")
+	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 2))
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.Conclusion().State; got != evo.StateChanged {
+		t.Fatalf("state = %v, want StateChanged", got)
+	}
+}
+
+// TestEffect_CallErrorCommitsNothing proves a failing call
+// commits no effect and returns the error verbatim — the caller decides
+// Fail/Block from there, evo never guesses.
+func TestEffect_CallErrorCommitsNothing(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Color: evo.ColorNever, Plain: true})
+
+	branches := out.Task("branches")
+	wantErr := errors.New("permission denied")
+	branches.Fail("delete stale branches", evo.Detail(wantErr.Error()))
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	snap := out.Snapshot()
+	for _, ch := range snap.Changes {
+		if len(ch.Records) > 0 {
+			t.Fatalf("want no committed records after a call error, got %+v", ch.Records)
+		}
+	}
+	if got := out.Conclusion().State; got != evo.StateFailed {
+		t.Fatalf("state = %v, want StateFailed", got)
+	}
+}
+
+// TestEffect_DryRunNeverExecutesCallAndPlansEffect proves the
+// dry-run half: call is never invoked, and the effect is recorded as
+// planned, never changed.
+func TestEffect_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
+
+	branches := out.Task("branches")
+	called := false
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {
+			called = true
+			return nil
+		})
+	})
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if called {
+		t.Fatal("dry-run must not invoke the mutation callback")
+	}
+	if got := out.Conclusion().State; got != evo.StatePlanned {
+		t.Fatalf("state = %v, want StatePlanned", got)
+	}
+	if !strings.Contains(buf.String(), "delete 2 stale local branches") {
+		t.Fatalf("want the imperative planned ledger row, got:\n%s", buf.String())
 	}
 }

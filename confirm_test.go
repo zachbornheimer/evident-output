@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"bytes"
 	"io"
 	"strings"
 	"testing"
@@ -243,5 +244,31 @@ func TestConfirm_Blocked_RendersBlockedGlyph(t *testing.T) {
 	}
 	if strings.Contains(rendered, "✗") {
 		t.Fatalf("rendered output used ✗ (Failed) glyph for a decline:\n%s", rendered)
+	}
+}
+
+// TestConfirm_Declined_ResolvesBlockedWithExitOne golden-proves the
+// doc's example: a declined confirmation is Blocked, never Failed, and the
+// process-level exit code is 1 (ExitBlocked), not 2 (ExitFailed).
+func TestConfirm_Declined_ResolvesBlockedWithExitOne(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+
+	// Plain/non-interactive mode without AssumeYes blocks by policy rather
+	// than reading stdin — the same declined-by-policy path a real TTY
+	// decline resolves through.
+	if confirmed := out.Confirm("delete origin/production-hotfix?"); confirmed {
+		t.Fatal("Confirm() = true, want false")
+	}
+
+	if err := out.Finish(); err != nil {
+		t.Log(err)
+	}
+	conc := out.Conclusion()
+	if conc.State != evo.StateBlocked {
+		t.Fatalf("state = %v, want StateBlocked (a declined confirm is Blocked, never Failed)", conc.State)
+	}
+	if conc.ExitCode != evo.ExitBlocked {
+		t.Fatalf("exit code = %d, want %d (ExitBlocked)", conc.ExitCode, evo.ExitBlocked)
 	}
 }
