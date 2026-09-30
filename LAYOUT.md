@@ -48,7 +48,9 @@ Three override rules take precedence over the concept column:
 
 - `internal/core`: domain types (Snapshot, Problem, Action, Event, state, conclusion) and the closed Effect verb set
 - `internal/engine`: presentation engine (Output, tasks, confirm, evidence, print, run); `capture/`, `ledger/`, `schedule/`, `lifecycle/` as they land
-- `internal/render`: shared row model for human, JSON, and live projection; `render/live` and `render/plain` as they land
+- `internal/render`: shared row model (row geometry, qualify, disposition, glyph, style, JSON) used by both projections
+- `internal/render/live`: interactive live-region projection (spinner, tail, quiet suffix, evidence footer); imports `render`, never `render/plain` outside tests
+- `internal/render/plain`: durable plain-text document and conclusion projection; imports `render`, never `render/live`
 - `internal/text`: glyphs, sanitize, width, conjugate, name truncation
 - `internal/wire`, `internal/wireschema`: wire documents and JSON schema validation
 - `internal/apisurface`: public API golden walk, contract check against the retired table, declaration-file lookup, and `Ident`; reads the retired table from `agent/rules` and never imports `agent/vocabulary`
